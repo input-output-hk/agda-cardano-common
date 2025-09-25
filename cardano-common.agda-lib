@@ -1,0 +1,9 @@
+name: cardano-common
+depend:
+  standard-library
+  standard-library-classes
+  standard-library-meta
+  abstract-set-theory
+  iog-prelude
+include: src
+flags: --safe
