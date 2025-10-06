@@ -6,4 +6,3 @@ depend:
   abstract-set-theory
   iog-prelude
 include: src
-flags: --safe
