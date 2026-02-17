@@ -45,7 +45,7 @@ holds? {A} {✓} (X P) (_ ∷ t) = holds? {A} {✓} P t
 holds? {A} {✓} (G P) [] = true
 holds? {A} {✓} (G P) (x ∷ t) = (holds? {A} {✓} P (x ∷ t)) Bool.∧ (holds? {A} {✓} P t)
 holds? {A} {✓} (F P) [] = holds? {A} {✓} P []
-holds? {A} {✓} (F P) (x ∷ t) = (holds? {A} {✓} P (x ∷ t)) Bool.∨ (holds? {A} {✓} P t)
+holds? {A} {✓} (F P) (x ∷ t) = (holds? {A} {✓} P (x ∷ t)) Bool.∨ (holds? {A} {✓} (F P) t)
 holds? {A} {✓} (P U Q) t with holds? {A} {✓} Q t
 holds? {A} {✓} (P U Q) t | true = true
 holds? {A} {✓} (P U Q) [] | false = holds? {A} {✓} P []
@@ -56,4 +56,9 @@ holds? {A} {✓} (P U Q) (x ∷ t) | false = (holds? {A} {✓} P (x ∷ t)) Bool
 ```
 holds?ᵖ : {A : Type} {✓ : A} {{_ : DecEq A}} → Prop A → Process A ✓ → Bool
 holds?ᵖ {A} {✓} Prop P = all (holds? {A} {✓} Prop) (traces P)
+```
+## Examples
+```
+
+
 ```
