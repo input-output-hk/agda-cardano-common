@@ -11,9 +11,10 @@ module Traces.LTL where
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
-open import Traces.CSP using (Trace)
+open import Traces.CSP using (Trace; Process; traces)
 open import Data.Bool as Bool using (Bool; true; false)
 open import Data.List using (List; []; _∷_)
+open import Data.Bool.ListAction using (all)
 ```
 ## Propositions and Operators
 ```
@@ -50,4 +51,9 @@ holds? {A} {✓} (P U Q) t | true = true
 holds? {A} {✓} (P U Q) [] | false = holds? {A} {✓} P []
 holds? {A} {✓} (P U Q) (x ∷ t) | false = (holds? {A} {✓} P (x ∷ t)) Bool.∧ (holds? {A} {✓} (P U Q) t)
 
+```
+## LTLs over Processes
+```
+holds?ᵖ : {A : Type} {✓ : A} {{_ : DecEq A}} → Prop A → Process A ✓ → Bool
+holds?ᵖ {A} {✓} Prop P = all (holds? {A} {✓} Prop) (traces P)
 ```
