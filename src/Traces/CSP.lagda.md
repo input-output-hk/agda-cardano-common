@@ -4,15 +4,17 @@ layout: page
 ---
 
 ```
-{-# OPTIONS --type-in-type --guardedness #-}
+{-# OPTIONS --type-in-type --guardedness --no-import-sorts #-}
+
+open import abstract-set-theory.FiniteSetTheory
+
 module Traces.CSP where
 ```
 ## Imports
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
-open import Axiom.Set renaming (Theoryᵈ to AbSet)
-open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap; filter; take; find)
+open import Data.List as List using (List; []; _∷_; [_]; _++_; concatMap; filter; take; find)
 open import Data.Nat using (ℕ; zero; suc)
 open import Relation.Nullary using (¬_; yes; no; Dec)
 open import Relation.Binary.Definitions using (DecidableEquality)
@@ -30,7 +32,7 @@ data Process (A : Type) (✓ : A) : Type where
   STOP SKIP : Process A ✓
   _➔_ : A → Process A ✓ → Process A ✓
   _□_ _⊓_ : Process A ✓ → Process A ✓ → Process A ✓
-  _∥⦅_⦆_ : Process A ✓ → List A → Process A ✓ → Process A ✓
+  _∥⦅_⦆_ : Process A ✓ → ℙ A → Process A ✓ → Process A ✓
 --  fix : (Process A ✓ → Process A ✓) → Process A ✓
 ```
 ## Trace Semantics
@@ -41,7 +43,7 @@ trace based testing, which is necessarily finite.
 ```
 module _ {A : Type} {✓ : A} {{DEA : DecEq A}} where
 
-  open import Data.List.Membership.DecPropositional (DecEq._≟_ DEA) using (_∈_; _∈?_; _∉?_)
+  -- open import Data.List.Membership.DecPropositional (DecEq._≟_ DEA) using (_∈_; _∈?_; _∉?_)
 
   Trace : Type → Type
   Trace A = List A
@@ -69,38 +71,38 @@ its trace if the head element needs to synchronise, and isn't the head element o
 For finite traces this will terminate, although the interleavings can get large quickly.
 ```
   {-# TERMINATING #-}
-  _∥ᵗ⦅_⦆_ : Trace A → List A → Trace A → List (Trace A)
-  [] ∥ᵗ⦅ As ⦆ [] = [ ⟨⟩ ]
+  _∥ᵗ⦅_⦆_ : Trace A → ℙ A → Trace A → ℙ (Trace A)
+  [] ∥ᵗ⦅ As ⦆ [] = ❴ ⟨⟩ ❵
   [] ∥ᵗ⦅ As ⦆ (q ∷ Qt) with q ∈? As
-  ... | yes m = [ ⟨⟩ ]
-  ... | no ¬m = ⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) ([] ∥ᵗ⦅ As ⦆ Qt))
+  ... | yes m = ❴ ⟨⟩ ❵
+  ... | no ¬m = ❴ ⟨⟩ ❵ ∪ mapˢ (λ t → ⟨ q ⟩ ^ t) ([] ∥ᵗ⦅ As ⦆ Qt)
   (p ∷ Pt) ∥ᵗ⦅ As ⦆ [] with p ∈? As
-  ... | yes m = [ ⟨⟩ ]
-  ... | no ¬m = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ []))
+  ... | yes m = ❴ ⟨⟩ ❵
+  ... | no ¬m = ❴ ⟨⟩ ❵ ∪ mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ [])
   (p ∷ Pt) ∥ᵗ⦅ As ⦆ (q ∷ Qt) with p ≟ q | p ∈? As | q ∈? As
-  ... | yes refl | yes pin | _ = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt))
-  ... | yes refl | no ¬pin | _ = ⟨⟩ ∷ ((map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt))) ++ (map (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt)))
-  ... | no ¬p=q | pin | qin = ⟨⟩ ∷ ((pfirst pin) ++ (qfirst qin))
+  ... | yes refl | yes pin | _ = ❴ ⟨⟩ ❵ ∪ mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt)
+  ... | yes refl | no ¬pin | _ = ❴ ⟨⟩ ❵ ∪ mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)) ∪ mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt)
+  ... | no ¬p=q | pin | qin = ❴ ⟨⟩ ❵ ∪ pfirst pin ∪ qfirst qin
     where
-      pfirst : Dec (p ∈ As) → List (Trace A)
-      pfirst (yes pin) = [ ⟨⟩ ]
-      pfirst (no ¬pin) = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
-      qfirst : Dec (q ∈ As) → List (Trace A)
-      qfirst (yes qin) = [ ⟨⟩ ]
-      qfirst (no ¬qin) = ⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
+      pfirst : Dec (p ∈ As) → ℙ (Trace A)
+      pfirst (yes pin) = ❴ ⟨⟩ ❵
+      pfirst (no ¬pin) = ❴ ⟨⟩ ❵ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
+      qfirst : Dec (q ∈ As) → ℙ (Trace A)
+      qfirst (yes qin) = ❴ ⟨⟩ ❵
+      qfirst (no ¬qin) = ❴ ⟨⟩ ❵ ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
 
 ```
 
 The trace semantics of the other constructors follows the original book, with the addition of the termination
 success element when we reach `SKIP`.
 ```
-  traces : Process A ✓ → List (Trace A)
-  traces STOP = [ ⟨⟩ ]
-  traces SKIP = ⟨⟩ ∷ (⟨ ✓ ⟩) ∷ []
-  traces (a ➔ P) = [ ⟨⟩ ] ++ map (λ t → ⟨ a ⟩ ^ t ) (traces P)
-  traces (P □ Q) = traces P ++ traces Q
-  traces (P ⊓ Q) = traces P ++ traces Q
-  traces (P ∥⦅ As ⦆ Q) = concatMap (λ s → concatMap (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
+  traces : Process A ✓ → ℙ (Trace A)
+  traces STOP = ❴ ⟨⟩ ❵
+  traces SKIP = ❴ ⟨⟩ ❵ ∪ ❴ ⟨ ✓ ⟩ ❵
+  traces (a ➔ P) = ❴ ⟨⟩ ❵ ∪ mapˢ (λ t → ⟨ a ⟩ ^ t ) (traces P)
+  traces (P □ Q) = traces P ∪ traces Q
+  traces (P ⊓ Q) = traces P ∪ traces Q
+  traces (P ∥⦅ As ⦆ Q) = concatMapˢ (λ s → concatMapˢ (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
 --  traces (fix Px) = {!!}
 ```
 ## Examples
@@ -109,8 +111,10 @@ success element when we reach `SKIP`.
     P : Process A ✓
     P = SKIP □ (a ➔ SKIP)
 
-    ex1 : traces P ≡ [] ∷ (✓ ∷ []) ∷ [] ∷ ((a ∷ []) ^ []) ∷ ((a ∷ []) ^ (✓ ∷ [])) ∷ []
-    ex1 = refl
+    opaque
+      unfolding List-Model
+      ex1 : traces P ≡ fromList ([] ∷ (✓ ∷ []) ∷ [] ∷ ((a ∷ []) ^ []) ∷ ((a ∷ []) ^ (✓ ∷ [])) ∷ [])
+      ex1 = refl
 
     R : Process A ✓
     R = a ➔ (c ➔ (b ➔ SKIP))
@@ -119,7 +123,7 @@ success element when we reach `SKIP`.
     S = b ➔ (c ➔ (a ➔ SKIP))
 
     P2 : Process A ✓
-    P2 = R ∥⦅ [ c ] ⦆ S
+    P2 = R ∥⦅ ❴ c ❵ ⦆ S
 
     -- with c synchronising and a and b not synchronising, we should get several interleavings before and after c
     -- You can expand this in emacs, but its a bit long to list here!
