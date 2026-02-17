@@ -31,7 +31,7 @@ data Process (A : Type) (✓ : A) : Type where
   _➔_ : A → Process A ✓ → Process A ✓
   _□_ _⊓_ : Process A ✓ → Process A ✓ → Process A ✓
   _∥⦅_⦆_ : Process A ✓ → List A → Process A ✓ → Process A ✓
-  fix : (Process A ✓ → Process A ✓) → Process A ✓
+--  fix : (Process A ✓ → Process A ✓) → Process A ✓
 ```
 ## Trace Semantics
 
@@ -101,16 +101,30 @@ success element when we reach `SKIP`.
   traces (P □ Q) = traces P ++ traces Q
   traces (P ⊓ Q) = traces P ++ traces Q
   traces (P ∥⦅ As ⦆ Q) = concatMap (λ s → concatMap (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
-  traces (fix Px) = {!!}
+--  traces (fix Px) = {!!}
 ```
 ## Examples
 ```
-  module Example (a : A) where
+  module Example (a : A) (b : A) (c : A) where
     P : Process A ✓
     P = SKIP □ (a ➔ SKIP)
 
-    ex1 : List (Trace A)
-    ex1 = {!traces P!}
+    ex1 : traces P ≡ [] ∷ (✓ ∷ []) ∷ [] ∷ ((a ∷ []) ^ []) ∷ ((a ∷ []) ^ (✓ ∷ [])) ∷ []
+    ex1 = refl
+
+    R : Process A ✓
+    R = a ➔ (c ➔ (b ➔ SKIP))
+
+    S : Process A ✓
+    S = b ➔ (c ➔ (a ➔ SKIP))
+
+    P2 : Process A ✓
+    P2 = R ∥⦅ [ c ] ⦆ S
+
+    -- with c synchronising and a and b not synchronising, we should get several interleavings before and after c
+    -- You can expand this in emacs, but its a bit long to list here!
+    -- ex2 : traces P2 ≡ {!!}
+    -- ex2 = refl
 
 -- You can express infinite recursion, but Agda gets upset!
 --    Q : Process A ✓
