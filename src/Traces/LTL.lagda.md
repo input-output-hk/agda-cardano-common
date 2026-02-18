@@ -25,7 +25,7 @@ LTL propositions can use the conventional boolean operators, and four temporal o
 * G - "Globally" requires the property to be true for the trace, and all tails.
 * F - Eventually ("Future") requires the subordinate property to either be true now or later in the trace.
 * U - "Until" - the first property must hold until the second property holds.
-
+b
 We also add an operator to inspect the current head event.
 ```
 data Prop (α : Alphabet) : Type where
@@ -114,6 +114,7 @@ module TraceLTL {α : Alphabet} where
 ```
 ## Decision procedure
 ```
+  -- trace ⊢ property
   holds? : (P : Prop α) → (t : Trace α) → Dec (Holds P t)
   holds? (¬ P) t with holds? P t
   ... | yes pt = no λ { (¬ x) → contradiction pt x }
@@ -218,6 +219,6 @@ module TraceLTL {α : Alphabet} where
 
     -- Agda tries to unroll the traces... There must be a nicer way
     -- to make this defined over actual process definitions?
-    -- a-Before-c : Holdsᵖ ((¬ (` c)) U (` a)) R
-    -- a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
+    a-Before-c : Holdsᵖ ((¬ (` c)) U (` a)) R
+    a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
 ```
