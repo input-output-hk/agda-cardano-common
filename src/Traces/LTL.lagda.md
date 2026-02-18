@@ -11,7 +11,7 @@ module Traces.LTL where
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
-open import Traces.CSP using (Trace; Process; traces; ⟨⟩)
+open import Traces.CSP using (Trace; Process; traces; ⟨⟩; Alphabet)
 open import Data.Bool as Bool using (Bool; true; false)
 open import Data.List using (List; []; _∷_)
 open import Data.Bool.ListAction using (all)
@@ -20,85 +20,86 @@ open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 ```
 ## Propositions and Operators
 ```
-data Prop (A : Type) : Type where
-  ¬_ : Prop A → Prop A
-  _∧_ : Prop A → Prop A → Prop A
-  _∨_ : Prop A → Prop A → Prop A
-  _⇒_ : Prop A → Prop A → Prop A
-  X_ : Prop A → Prop A
-  G_ : Prop A → Prop A
-  F_ : Prop A → Prop A
-  _U_ : Prop A → Prop A → Prop A
+data Prop (α : Alphabet) : Type where
+  ¬_ : Prop α → Prop α
+  _∧_ : Prop α → Prop α → Prop α
+  _∨_ : Prop α → Prop α → Prop α
+  _⇒_ : Prop α → Prop α → Prop α
+  X_ : Prop α → Prop α
+  G_ : Prop α → Prop α
+  F_ : Prop α → Prop α
+  _U_ : Prop α → Prop α → Prop α
 ```
 ## Evaluation over Traces
 ```
-data Holds {A : Type} {✓ : A} {{DEA : DecEq A}} : Prop A → Trace A → Type where
-  ¬_ : {P : Prop A}
-    → {t : Trace A}
-    → Null.¬ (Holds {A} {✓} P t)
+{-# NO_POSITIVITY_CHECK #-}
+data Holds {α : Alphabet} : Prop α → Trace α → Type where
+  ¬_ : {P : Prop α}
+    → {t : Trace α}
+    → Null.¬ (Holds P t)
     → Holds (¬ P) t
-  _∧_ : {P Q : Prop A}
-    → {t : Trace A}
-    → Holds {A} {✓} P t
-    → Holds {A} {✓} Q t
+  _∧_ : {P Q : Prop α}
+    → {t : Trace α}
+    → Holds P t
+    → Holds Q t
     → Holds (P ∧ Q) t
-  ∨₁_ : {P Q : Prop A}
-    → {t : Trace A}
-    → Holds {A} {✓} P t
+  ∨₁_ : {P Q : Prop α}
+    → {t : Trace α}
+    → Holds P t
     → Holds (P ∨ Q) t
-  ∨₂_ : {P Q : Prop A}
-    → {t : Trace A}
-    → Holds {A} {✓} Q t
+  ∨₂_ : {P Q : Prop α}
+    → {t : Trace α}
+    → Holds Q t
     → Holds (P ∨ Q) t
-  ⇒₁ : {P Q : Prop A}
-    → {t : Trace A}
-    → Null.¬ (Holds {A} {✓} P t)
+  ⇒₁ : {P Q : Prop α}
+    → {t : Trace α}
+    → Null.¬ (Holds P t)
     → Holds (P ⇒ Q) t
-  _⇒₂_ : {P Q : Prop A}
-    → {t : Trace A}
-    → Holds {A} {✓} P t
-    → Holds {A} {✓} Q t
+  _⇒₂_ : {P Q : Prop α}
+    → {t : Trace α}
+    → Holds P t
+    → Holds Q t
     → Holds (P ⇒ Q) t
-  X_ : {P : Prop A}
-    → {x : A}
-    → {t : Trace A}
-    → Holds {A} {✓} P t
+  X_ : {P : Prop α}
+    → {x : Alphabet.A α}
+    → {t : Trace α}
+    → Holds P t
     → Holds (X P) (x ∷ t)
-  G₁ : {P : Prop A}
-    → Holds (G P) ⟨⟩
-  G₂ : {P : Prop A}
-    → {x : A}
-    → {t : Trace A}
+  G₁ : {P : Prop α}
+    → Holds {α} (G P) ⟨⟩
+  G₂ : {P : Prop α}
+    → {x : Alphabet.A α}
+    → {t : Trace α}
     → Holds P (x ∷ t)
     → Holds P t
     → Holds (G P) (x ∷ t)
-  F₁ : {P : Prop A}
-    → {t : Trace A}
+  F₁ : {P : Prop α}
+    → {t : Trace α}
     → Holds P t
     → Holds (F P) t
-  F₂ : {P : Prop A}
-    → {x : A}
-    → {t : Trace A}
+  F₂ : {P : Prop α}
+    → {x : Alphabet.A α}
+    → {t : Trace α}
     → Holds (F P) t
     → Holds (F P) (x ∷ t)
-  U₁_ : {P Q : Prop A}
-    → {t : Trace A}
+  U₁_ : {P Q : Prop α}
+    → {t : Trace α}
     → Holds Q t
     → Holds (P U Q) t
-  _U₂_ : {P Q : Prop A}
-    → {x : A}
-    → {t : Trace A}
+  _U₂_ : {P Q : Prop α}
+    → {x : Alphabet.A α}
+    → {t : Trace α}
     → Holds P (x ∷ t)
     → Holds (P U Q) t
     → Holds (P U Q) (x ∷ t)
-  U₃_ : {P Q : Prop A}
+  U₃_ : {P Q : Prop α}
     → Holds P []
     → Holds (P U Q) []
 ```
 ## Decision procedure
 ```
-holds? : {A : Type} {✓ : A} {{DEA : DecEq A}} → (P : Prop A) → (t : Trace A) → Dec (Holds P t)
-holds? {A} {✓} (¬ P) t with holds? {A} {✓} P t
+holds? : {α : Alphabet} → (P : Prop α) → (t : Trace α) → Dec (Holds P t)
+holds? (¬ P) t with holds? P t
 ... | yes pt = no λ { (¬ x) → contradiction pt x }
 ... | no ¬pt = yes (¬ ¬pt)
 holds? (P ∧ Q) t with holds? P t | holds? Q t
@@ -141,31 +142,31 @@ holds? (P U Q) (x ∷ t) | no ¬qt | yes pt with holds? (P U Q) t
 ```
 ## Boolean evaluation
 ```
-holds?ᵇ : {A : Type} {✓ : A} {{_ : DecEq A}} → Prop A → Trace {A} {✓} A → Bool
-holds?ᵇ {A} {✓} (¬ P) t with holds?ᵇ {A} {✓} P t
+holds?ᵇ : {α : Alphabet} → Prop α → Trace α → Bool
+holds?ᵇ (¬ P) t with holds?ᵇ P t
 ... | true = false
 ... | false = true
-holds?ᵇ {A} {✓} (P ∧ Q) t = (holds?ᵇ {A} {✓} P t) Bool.∧ (holds?ᵇ {A} {✓} Q t)
-holds?ᵇ {A} {✓} (P ∨ Q) t = (holds?ᵇ {A} {✓} P t) Bool.∨ (holds?ᵇ {A} {✓} Q t)
-holds?ᵇ {A} {✓} (P ⇒ Q) t with holds?ᵇ {A} {✓} P t
+holds?ᵇ (P ∧ Q) t = (holds?ᵇ P t) Bool.∧ (holds?ᵇ Q t)
+holds?ᵇ (P ∨ Q) t = (holds?ᵇ P t) Bool.∨ (holds?ᵇ Q t)
+holds?ᵇ (P ⇒ Q) t with holds?ᵇ P t
 ... | false = true
-... | true = holds?ᵇ {A} {✓} Q t
-holds?ᵇ {A} {✓} (X P) [] = false
-holds?ᵇ {A} {✓} (X P) (_ ∷ t) = holds?ᵇ {A} {✓} P t
-holds?ᵇ {A} {✓} (G P) [] = true
-holds?ᵇ {A} {✓} (G P) (x ∷ t) = (holds?ᵇ {A} {✓} P (x ∷ t)) Bool.∧ (holds?ᵇ {A} {✓} P t)
-holds?ᵇ {A} {✓} (F P) [] = holds?ᵇ {A} {✓} P []
-holds?ᵇ {A} {✓} (F P) (x ∷ t) = (holds?ᵇ {A} {✓} P (x ∷ t)) Bool.∨ (holds?ᵇ {A} {✓} (F P) t)
-holds?ᵇ {A} {✓} (P U Q) t with holds?ᵇ {A} {✓} Q t
-holds?ᵇ {A} {✓} (P U Q) t | true = true
-holds?ᵇ {A} {✓} (P U Q) [] | false = holds?ᵇ {A} {✓} P []
-holds?ᵇ {A} {✓} (P U Q) (x ∷ t) | false = (holds?ᵇ {A} {✓} P (x ∷ t)) Bool.∧ (holds?ᵇ {A} {✓} (P U Q) t)
+... | true = holds?ᵇ Q t
+holds?ᵇ (X P) [] = false
+holds?ᵇ (X P) (_ ∷ t) = holds?ᵇ P t
+holds?ᵇ (G P) [] = true
+holds?ᵇ (G P) (x ∷ t) = (holds?ᵇ P (x ∷ t)) Bool.∧ (holds?ᵇ P t)
+holds?ᵇ (F P) [] = holds?ᵇ P []
+holds?ᵇ (F P) (x ∷ t) = (holds?ᵇ P (x ∷ t)) Bool.∨ (holds?ᵇ (F P) t)
+holds?ᵇ (P U Q) t with holds?ᵇ Q t
+holds?ᵇ (P U Q) t | true = true
+holds?ᵇ (P U Q) [] | false = holds?ᵇ P []
+holds?ᵇ (P U Q) (x ∷ t) | false = (holds?ᵇ P (x ∷ t)) Bool.∧ (holds?ᵇ (P U Q) t)
 
 ```
 ## LTLs over Processes
 ```
-holds?ᵖ : {A : Type} {✓ : A} {{_ : DecEq A}} → Prop A → Process A ✓ → Bool
-holds?ᵖ {A} {✓} Prop P = all (holds?ᵇ {A} {✓} Prop) (traces P)
+holds?ᵖ : {α : Alphabet} → Prop α → Process α → Bool
+holds?ᵖ Prop P = all (holds?ᵇ Prop) (traces P)
 ```
 ## Examples
 ```

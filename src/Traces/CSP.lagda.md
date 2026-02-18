@@ -17,6 +17,14 @@ open import Data.Nat using (ℕ; zero; suc)
 open import Relation.Nullary using (¬_; yes; no; Dec)
 open import Relation.Binary.Definitions using (DecidableEquality)
 ```
+Alphabets contain a set of events, a "success event", and an instance of decidable equality for the events.
+```
+record Alphabet : Type where
+  field A : Type
+        ✓ : A
+        {{ DecEq-A }} : DecEq A
+
+```
 
 ## Processes
 
@@ -26,30 +34,32 @@ success element of that alphabet that is added to a traces if the process termin
 Processes can be infinite, so this type isn't "positive" in Agda's terms.
 ```
 {-# NO_POSITIVITY_CHECK #-}
-data Process (A : Type) (✓ : A) : Type where
-  STOP SKIP : Process A ✓
-  _➔_ : A → Process A ✓ → Process A ✓
-  _□_ _⊓_ : Process A ✓ → Process A ✓ → Process A ✓
-  _∥⦅_⦆_ : Process A ✓ → List A → Process A ✓ → Process A ✓
---  fix : (Process A ✓ → Process A ✓) → Process A ✓
+data Process (α : Alphabet) : Type where
+  STOP SKIP : Process α
+  _➔_ : (Alphabet.A α) → Process α → Process α
+  _□_ _⊓_ : Process α → Process α → Process α
+  _∥⦅_⦆_ : Process α → List (Alphabet.A α) → Process α → Process α
+--  fix : (Process α → Process α) → Process α
 ```
 ## Trace Semantics
 
 Traces are potentially infinite, but also potentially finite (or very finite, in the case of `⟨⟩`). We can
 define them as a coninductive record, but we will just use lists since this work is intended to support
 trace based testing, which is necessarily finite.
+
+Traces need Alphabets, which have several requirements.
 ```
-module _ {A : Type} {✓ : A} {{DEA : DecEq A}} where
+module _ {α : Alphabet} where
+  open Alphabet α
+  open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∈?_; _∉?_)
 
-  open import Data.List.Membership.DecPropositional (DecEq._≟_ DEA) using (_∈_; _∈?_; _∉?_)
+  Trace : Alphabet → Type
+  Trace 𝕒 = List (Alphabet.A 𝕒)
 
-  Trace : Type → Type
-  Trace A = List A
-
-  ⟨⟩ : Trace A
+  ⟨⟩ : Trace α
   ⟨⟩ = []
 
-  ⟨_⟩ : A → Trace A
+  ⟨_⟩ : A → Trace α
   ⟨ a ⟩ = [ a ]
 ```
 The posibility of the empty trace makes some of the concatenation co-patterns a bit intricate.
@@ -57,7 +67,7 @@ The posibility of the empty trace makes some of the concatenation co-patterns a 
 Also, if the first trace is infinite then expanding the concatenation will never terminate.
 ```
   {-# NON_TERMINATING #-}
-  _^_ : Trace A → Trace A → Trace A
+  _^_ : Trace α → Trace α → Trace α
   _^_ = _++_
 ```
 
@@ -69,7 +79,7 @@ its trace if the head element needs to synchronise, and isn't the head element o
 For finite traces this will terminate, although the interleavings can get large quickly.
 ```
   {-# TERMINATING #-}
-  _∥ᵗ⦅_⦆_ : Trace A → List A → Trace A → List (Trace A)
+  _∥ᵗ⦅_⦆_ : Trace α → List A → Trace α → List (Trace α)
   [] ∥ᵗ⦅ As ⦆ [] = [ ⟨⟩ ]
   [] ∥ᵗ⦅ As ⦆ (q ∷ Qt) with q ∈? As
   ... | yes m = [ ⟨⟩ ]
@@ -82,10 +92,10 @@ For finite traces this will terminate, although the interleavings can get large 
   ... | yes refl | no ¬pin | _ = ⟨⟩ ∷ ((map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt))) ++ (map (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt)))
   ... | no ¬p=q | pin | qin = ⟨⟩ ∷ ((pfirst pin) ++ (qfirst qin))
     where
-      pfirst : Dec (p ∈ As) → List (Trace A)
+      pfirst : Dec (p ∈ As) → List (Trace α)
       pfirst (yes pin) = [ ⟨⟩ ]
       pfirst (no ¬pin) = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
-      qfirst : Dec (q ∈ As) → List (Trace A)
+      qfirst : Dec (q ∈ As) → List (Trace α)
       qfirst (yes qin) = [ ⟨⟩ ]
       qfirst (no ¬qin) = ⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
 
@@ -94,7 +104,7 @@ For finite traces this will terminate, although the interleavings can get large 
 The trace semantics of the other constructors follows the original book, with the addition of the termination
 success element when we reach `SKIP`.
 ```
-  traces : Process A ✓ → List (Trace A)
+  traces : Process α → List (Trace α)
   traces STOP = [ ⟨⟩ ]
   traces SKIP = ⟨⟩ ∷ (⟨ ✓ ⟩) ∷ []
   traces (a ➔ P) = [ ⟨⟩ ] ++ map (λ t → ⟨ a ⟩ ^ t ) (traces P)
@@ -106,19 +116,19 @@ success element when we reach `SKIP`.
 ## Examples
 ```
   module Example (a : A) (b : A) (c : A) where
-    P : Process A ✓
+    P : Process α
     P = SKIP □ (a ➔ SKIP)
 
     ex1 : traces P ≡ [] ∷ (✓ ∷ []) ∷ [] ∷ ((a ∷ []) ^ []) ∷ ((a ∷ []) ^ (✓ ∷ [])) ∷ []
     ex1 = refl
 
-    R : Process A ✓
+    R : Process α
     R = a ➔ (c ➔ (b ➔ SKIP))
 
-    S : Process A ✓
+    S : Process α
     S = b ➔ (c ➔ (a ➔ SKIP))
 
-    P2 : Process A ✓
+    P2 : Process α
     P2 = R ∥⦅ [ c ] ⦆ S
 
     -- with c synchronising and a and b not synchronising, we should get several interleavings before and after c
@@ -127,6 +137,6 @@ success element when we reach `SKIP`.
     -- ex2 = refl
 
 -- You can express infinite recursion, but Agda gets upset!
---    Q : Process A ✓
+--    Q : Process α
 --    Q = SKIP □ (a ➔ Q)
 ```
