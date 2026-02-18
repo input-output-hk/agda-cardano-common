@@ -47,20 +47,21 @@ Traces are potentially infinite, but also potentially finite (or very finite, in
 define them as a coninductive record, but we will just use lists since this work is intended to support
 trace based testing, which is necessarily finite.
 
-Traces need Alphabets, which have several requirements.
+Traces need Alphabets, even if they only use the elements at the moment.
 ```
-module _ {α : Alphabet} where
+Trace : Alphabet → Type
+Trace 𝕒 = List (Alphabet.A 𝕒)
+
+module TraceSemantics {α : Alphabet} where
   open Alphabet α
   open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∈?_; _∉?_)
-
-  Trace : Alphabet → Type
-  Trace 𝕒 = List (Alphabet.A 𝕒)
 
   ⟨⟩ : Trace α
   ⟨⟩ = []
 
-  ⟨_⟩ : A → Trace α
+  ⟨_⟩ : (Alphabet.A α) → Trace α
   ⟨ a ⟩ = [ a ]
+
 ```
 The posibility of the empty trace makes some of the concatenation co-patterns a bit intricate.
 
@@ -78,6 +79,7 @@ its trace if the head element needs to synchronise, and isn't the head element o
 
 For finite traces this will terminate, although the interleavings can get large quickly.
 ```
+
   {-# TERMINATING #-}
   _∥ᵗ⦅_⦆_ : Trace α → List A → Trace α → List (Trace α)
   [] ∥ᵗ⦅ As ⦆ [] = [ ⟨⟩ ]
