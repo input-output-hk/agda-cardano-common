@@ -25,6 +25,8 @@ LTL propositions can use the conventional boolean operators, and four temporal o
 * G - "Globally" requires the property to be true for the trace, and all tails.
 * F - Eventually ("Future") requires the subordinate property to either be true now or later in the trace.
 * U - "Until" - the first property must hold until the second property holds.
+
+We also add an operator to inspect the current head event.
 ```
 data Prop (α : Alphabet) : Type where
   ¬_ : Prop α → Prop α
@@ -35,6 +37,7 @@ data Prop (α : Alphabet) : Type where
   G_ : Prop α → Prop α
   F_ : Prop α → Prop α
   _U_ : Prop α → Prop α → Prop α
+  `_ : (Alphabet.A α) → Prop α
 ```
 ## Evaluation over Traces
 ```
@@ -97,7 +100,7 @@ module TraceLTL {α : Alphabet} where
       → Holds Q t
       → Holds (P U Q) t
     _U₂_ : {P Q : Prop α}
-       → {x : Alphabet.A α}
+      → {x : Alphabet.A α}
       → {t : Trace α}
       → Holds P (x ∷ t)
       → Holds (P U Q) t
@@ -105,6 +108,9 @@ module TraceLTL {α : Alphabet} where
     U₃_ : {P Q : Prop α}
       → Holds P []
       → Holds (P U Q) []
+    hd : {a : Alphabet.A α}
+      → {t : Trace α}
+      → Holds (` a) (a ∷ t)
 ```
 ## Decision procedure
 ```
@@ -150,6 +156,10 @@ module TraceLTL {α : Alphabet} where
   holds? (P U Q) (x ∷ t) | no ¬qt | yes pt with holds? (P U Q) t
   ... | yes pqt = yes (pt U₂ pqt)
   ... | no ¬pqt = no (λ { (U₁ xx) → ¬qt xx ; (xx U₂ xx₁) → ¬pqt xx₁ })
+  holds? (` a) [] = no λ ()
+  holds? (` a) (x ∷ t) with a ≟ x
+  ... | yes refl = yes hd
+  ... | no a≠x = no λ { hd → a≠x refl }
 
 ```
 ## Boolean evaluation
@@ -173,15 +183,41 @@ module TraceLTL {α : Alphabet} where
   holds?ᵇ (P U Q) t | true = true
   holds?ᵇ (P U Q) [] | false = holds?ᵇ P []
   holds?ᵇ (P U Q) (x ∷ t) | false = (holds?ᵇ P (x ∷ t)) Bool.∧ (holds?ᵇ (P U Q) t)
-
+  holds?ᵇ (` a) [] = false
+  holds?ᵇ (` a) (x ∷ t) with a ≟ x
+  ... | yes refl = true
+  ... | no a≠x = false
 ```
 ## LTLs over Processes
 ```
-  holds?ᵖ : Prop α → Process α → Bool
-  holds?ᵖ Prop P = all (holds?ᵇ Prop) (traces P)
+  open import Data.List.Relation.Unary.All using (All; all?)
+
+  Holdsᵖ : Prop α → Process α → Type
+  Holdsᵖ P p = All (Holds P) (traces p)
+
+  holds?ᵖ : (P : Prop α) → (p : Process α) → Dec (Holdsᵖ P p)
+  holds?ᵖ P p = all? (λ t → holds? P t) (traces p)
+
+  holds?ᵖᵇ : Prop α → Process α → Bool
+  holds?ᵖᵇ Prop P = all (holds?ᵇ Prop) (traces P)
 ```
 ## Examples
 ```
+  module _ {a b c : Alphabet.A α} where
+    open import Traces.CSP using (_➔_; STOP; SKIP; _∥⦅_⦆_)
+    open Data.List using (_∷_; [])
 
+    P : Process α
+    P = a ➔ (b ➔ (c ➔ SKIP))
 
+    Q : Process α
+    Q = a ➔ (c ➔ SKIP)
+
+    R : Process α
+    R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
+
+    -- Agda tries to unroll the traces... There must be a nicer way
+    -- to make this defined over actual process definitions?
+    -- a-Before-c : Holdsᵖ ((¬ (` c)) U (` a)) R
+    -- a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
 ```
