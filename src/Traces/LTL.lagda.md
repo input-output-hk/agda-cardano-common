@@ -19,6 +19,12 @@ open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 open import Traces.CSP using (Trace; Process; Alphabet)
 ```
 ## Propositions and Operators
+
+LTL propositions can use the conventional boolean operators, and four temporal operators:
+* X - "NeXt" requires the trace to have the subordinate property from the next event.
+* G - "Globally" requires the property to be true for the trace, and all tails.
+* F - Eventually ("Future") requires the subordinate property to either be true now or later in the trace.
+* U - "Until" - the first property must hold until the second property holds.
 ```
 data Prop (α : Alphabet) : Type where
   ¬_ : Prop α → Prop α
@@ -69,6 +75,7 @@ module TraceLTL {α : Alphabet} where
       → Holds P t
       → Holds (X P) (x ∷ t)
     G₁ : {P : Prop α}
+      → Holds P ⟨⟩
       → Holds (G P) ⟨⟩
     G₂ : {P : Prop α}
       → {x : Alphabet.A α}
@@ -122,7 +129,9 @@ module TraceLTL {α : Alphabet} where
   holds? (X P) (x ∷ t) with holds? P t
   ... | yes pt = yes (X pt)
   ... | no ¬pt = no (λ { (X x) → ¬pt x })
-  holds? (G P) [] = yes G₁
+  holds? (G P) [] with holds? P []
+  ... | yes pt = yes (G₁ pt)
+  ... | no ¬pt = no λ { (G₁ x) → ¬pt x }
   holds? (G P) (x ∷ t) with holds? P (x ∷ t) | holds? P t
   ... | yes pxt | yes pt = yes (G₂ pxt pt)
   ... | no ¬pxt | _ = no λ { (G₂ x₁ x₂) → ¬pxt x₁ }
