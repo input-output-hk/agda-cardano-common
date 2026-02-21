@@ -11,20 +11,28 @@ module Traces.CSP where
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
-open import Axiom.Set renaming (Theoryᵈ to AbSet)
+open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_;  _∪ˡ_; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ)
 open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap; filter; take; find)
 open import Data.Nat using (ℕ; zero; suc)
 open import Relation.Nullary using (¬_; yes; no; Dec)
 open import Relation.Binary.Definitions using (DecidableEquality)
+open import Data.Product using (_×_; _,_)
+
+-- FIXME: This is buried in FiniteSetTheory but I don't
+-- want to spend the morning trying to get the import to work!
+postulate
+  toList : {X : Type} → ℙ X → List X
+  toListᵐ : {X Y : Type} → X ⇀ Y → List (X × Y)
+
+
 ```
 Alphabets contain a set of events, a "success event", and an instance of decidable equality for the events.
 ```
 record Alphabet : Type where
   field A : Type
         ✓ : A
-        all : List A
+        all : ℙ A
         {{ DecEq-A }} : DecEq A
-
 ```
 
 ## Processes
@@ -34,7 +42,6 @@ success element of that alphabet that is added to a traces if the process termin
 
 Processes can be infinite, so this type isn't "positive" in Agda's terms.
 ```
-{-# NO_POSITIVITY_CHECK #-}
 data Process (α : Alphabet) : Type where
   STOP SKIP : Process α
   _➔_ : (Alphabet.A α) → Process α → Process α
@@ -48,17 +55,15 @@ Traces are potentially infinite, but also potentially finite (or very finite, in
 define them as a coninductive record, but we will just use lists since this work is intended to support
 trace based testing, which is necessarily finite.
 
-Traces need Alphabets, even if they only use the elements at the moment.
 ```
 Trace : Alphabet → Type
 Trace 𝕒 = List (Alphabet.A 𝕒)
-
 ```
 Trace sets ought to be proper sets with uniqueness, but we can use `List` for now to make
 mechanisation easier.
 ```
 TraceSet : Alphabet → Type
-TraceSet 𝕒 = List (Trace 𝕒)
+TraceSet 𝕒 = ℙ (Trace 𝕒)
 ```
 ## Trace Semantics
 
@@ -77,8 +82,6 @@ module TraceSemantics {α : Alphabet} where
   _^_ : Trace α → Trace α → Trace α
   _^_ = _++_
 
-  _∪_ : TraceSet α → TraceSet α → TraceSet α
-  _∪_ = _++_
 ```
 
 ## Trace Semantics
@@ -89,41 +92,41 @@ not in the synchronisation set are available to synchronise with the environment
 
 For finite traces this will terminate, although the interleavings can get large quickly.
 ```
-
   {-# TERMINATING #-}
   _∥ᵗ⦅_⦆_ : Trace α → List A → Trace α → TraceSet α
-  [] ∥ᵗ⦅ As ⦆ [] = [ ⟨⟩ ]
+  [] ∥ᵗ⦅ As ⦆ [] = ⟪ ⟨⟩ ⟫
   [] ∥ᵗ⦅ As ⦆ (q ∷ Qt) with q ∈? As
-  ... | yes m = [ ⟨⟩ ]
-  ... | no ¬m = ⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) ([] ∥ᵗ⦅ As ⦆ Qt))
+  ... | yes m = ⟪ ⟨⟩ ⟫
+  ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) (toList ([] ∥ᵗ⦅ As ⦆ Qt))))
   (p ∷ Pt) ∥ᵗ⦅ As ⦆ [] with p ∈? As
-  ... | yes m = [ ⟨⟩ ]
-  ... | no ¬m = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ []))
+  ... | yes m = ⟪ ⟨⟩ ⟫
+  ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (toList (Pt ∥ᵗ⦅ As ⦆ []))))
   (p ∷ Pt) ∥ᵗ⦅ As ⦆ (q ∷ Qt) with p ≟ q | p ∈? As | q ∈? As
-  ... | yes refl | yes pin | _ = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt))
-  ... | yes refl | no ¬pin | _ = ⟨⟩ ∷ ((map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt))) ∪ (map (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt)))
-  ... | no ¬p=q | pin | qin = ⟨⟩ ∷ ((pfirst pin) ∪ (qfirst qin))
+  ... | yes refl | yes pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt))
+  ... | yes refl | no ¬pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt))) ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
+  ... | no ¬p=q | pin | qin = ⟪ ⟨⟩ ⟫ ∪ (pfirst pin) ∪ (qfirst qin)
     where
       pfirst : Dec (p ∈ As) → TraceSet α
-      pfirst (yes pin) = [ ⟨⟩ ]
-      pfirst (no ¬pin) = ⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
+      pfirst (yes pin) = ⟪ ⟨⟩ ⟫
+      pfirst (no ¬pin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
       qfirst : Dec (q ∈ As) → TraceSet α
-      qfirst (yes qin) = [ ⟨⟩ ]
-      qfirst (no ¬qin) = ⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
-
+      qfirst (yes qin) = ⟪ ⟨⟩ ⟫
+      qfirst (no ¬qin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
 ```
 
 The trace semantics of the other constructors follows the original book, with the addition of the termination
 success element when we reach `SKIP`.
 ```
   traces : Process α → TraceSet α
-  traces STOP = [ ⟨⟩ ]
-  traces SKIP = ⟨⟩ ∷ (⟨ ✓ ⟩) ∷ []
-  traces (a ➔ P) = [ ⟨⟩ ] ∪ map (λ t → ⟨ a ⟩ ^ t ) (traces P)
+  traces STOP = ⟪ ⟨⟩ ⟫
+  traces SKIP = ⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ ✓ ⟩ ⟫
+  traces (a ➔ P) = ⟪ ⟨⟩ ⟫ ∪ mapˢ (λ t → ⟨ a ⟩ ^ t ) (traces P)
   traces (P □ Q) = traces P ∪ traces Q
   traces (P ⊓ Q) = traces P ∪ traces Q
-  traces (P ∥⦅ As ⦆ Q) = concatMap (λ s → concatMap (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
---  traces (fix Px) = {!!}
+  traces (P ∥⦅ As ⦆ Q) = concatMapˢ (λ s → concatMapˢ (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
+-- traces (fix Px) = {!!}
+-- Hiding
+-- Renaming
 ```
 ## Examples
 ```
@@ -131,8 +134,8 @@ success element when we reach `SKIP`.
     P : Process α
     P = SKIP □ (a ➔ SKIP)
 
-    ex1 : traces P ≡ [] ∷ (✓ ∷ []) ∷ [] ∷ ((a ∷ []) ^ []) ∷ ((a ∷ []) ^ (✓ ∷ [])) ∷ []
-    ex1 = refl
+    --ex1 : traces P ≡ (⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ ✓ ⟩ ⟫ ∪ ⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ a ⟩ ⟫ ∪ ⟪ ⟨ a ⟩ ^ ⟨ ✓ ⟩ ⟫)
+    --ex1 = {!!}
 
     R : Process α
     R = a ➔ (c ➔ (b ➔ SKIP))
@@ -158,30 +161,29 @@ success element when we reach `SKIP`.
 rest of the alphabet, since it may be that this is the trace of one path, but others are available. Consequently, this is
 a richer and more useful definition of what is and isn't possible in a system.
 ```
-open import Data.Product using (_×_; _,_)
 
-Failure : Alphabet → Type
-Failure 𝕒 = Trace 𝕒 × (List (Alphabet.A 𝕒))
-
--- FIXME: This might need to be a Map
 FailureSet : Alphabet → Type
-FailureSet 𝕒 = List (Failure 𝕒)
+FailureSet 𝕒 = (Trace 𝕒) ⇀ ℙ Alphabet.A 𝕒
 
 module FailureSemantics {α : Alphabet} where
   open TraceSemantics {α}
   open Alphabet α
   open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∈?_; _∉?_)
 
-  _excluding_ : List A → List A → List A
-  a excluding as = filter (λ x → x ∉? as) a
-
+  _excluding_ : ℙ A → List A → ℙ A
+  a excluding as = fromList (filter (λ x → x ∉? as) (toList a))
 {-
+-- FIXME: Actually, this probably can't be a map because the internal choice will have two failure elements for ⟨⟩
   failures : Process α → FailureSet α
-  failures STOP = [ (⟨⟩ , all) ]
-  failures SKIP = (⟨⟩ , all excluding [ ✓ ]) ∷ (⟨ ✓ ⟩ , all) ∷ []
-  failures (x ➔ P) = [ (⟨⟩ , (all excluding [ x ])) ] ++ (concatMap (λ { (t , f) → (⟨ x ⟩ ^ t , f) ∷ [] }) (failures P))
-  failures (P □ Q) = {!!} -- (concatMap (λ { (t , f) → {![ (t , f excluding  ]!}} ) (failures P)) ++ ()
-  failures (P ⊓ Q) = (failures P) ++ (failures Q) -- FIXME: is this right?
+  failures STOP = fromListᵐ [ (⟨⟩ , all) ]
+  failures SKIP = fromListᵐ ((⟨⟩ , all excluding [ ✓ ]) ∷ (⟨ ✓ ⟩ , all) ∷ [])
+  failures (x ➔ P) = fromListᵐ ([ (⟨⟩ , (all excluding [ x ])) ] ++ (concatMap (λ { (t , f) → (⟨ x ⟩ ^ t , f) ∷ [] }) (toListᵐ (failures P))))
+  failures (P □ Q) with failures P | failures Q
+  ... | fP | fQ with lookupᵐ? fP ⟨⟩ | lookupᵐ? fQ ⟨⟩
+  ... | just fp | just fq = (insertᵐ fP ⟨⟩ (fp excluding (toList (all excluding (toList fq))))) ∪ˡ (insertᵐ fQ ⟨⟩ (fq excluding (toList (all excluding (toList fp)))))
+  ... | _ | nothing = fP ∪ˡ fQ
+  ... | nothing | _ = fP ∪ˡ fQ
+  failures (P ⊓ Q) = {!!} -- (failures P) ++ (failures Q) -- FIXME: is this right?
   failures (P ∥⦅ x ⦆ Q) = {!!}
   -}
 ```

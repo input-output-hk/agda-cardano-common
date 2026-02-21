@@ -16,7 +16,7 @@ open import Data.List using (List; []; _∷_)
 open import Data.Bool.ListAction using (all)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 
-open import Traces.CSP using (Trace; Process; Alphabet)
+open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_; toList)
 ```
 ## Propositions and Operators
 
@@ -76,16 +76,16 @@ module TraceLTL {α : Alphabet} where
       → {x : Alphabet.A α}
       → {t : Trace α}
       → Holds P t
-      → Holds (X P) (x ∷ t)
+      → Holds (X P) (⟨ x ⟩ ^ t)
     G₁ : {P : Prop α}
       → Holds P ⟨⟩
       → Holds (G P) ⟨⟩
     G₂ : {P : Prop α}
       → {x : Alphabet.A α}
       → {t : Trace α}
-      → Holds P (x ∷ t)
+      → Holds P (⟨ x ⟩ ^ t)
       → Holds P t
-      → Holds (G P) (x ∷ t)
+      → Holds (G P) (⟨ x ⟩ ^ t)
     F₁ : {P : Prop α}
      → {t : Trace α}
       → Holds P t
@@ -194,18 +194,17 @@ module TraceLTL {α : Alphabet} where
   open import Data.List.Relation.Unary.All using (All; all?)
 
   Holdsᵖ : Prop α → Process α → Type
-  Holdsᵖ P p = All (Holds P) (traces p)
+  Holdsᵖ P p = All (Holds P) (toList (traces p))
 
   holds?ᵖ : (P : Prop α) → (p : Process α) → Dec (Holdsᵖ P p)
-  holds?ᵖ P p = all? (λ t → holds? P t) (traces p)
+  holds?ᵖ P p = all? (λ t → holds? P t) (toList (traces p))
 
   holds?ᵖᵇ : Prop α → Process α → Bool
-  holds?ᵖᵇ Prop P = all (holds?ᵇ Prop) (traces P)
+  holds?ᵖᵇ Prop P = all (holds?ᵇ Prop) (toList (traces P))
 ```
 ## Examples
 ```
   module _ {a b c : Alphabet.A α} where
-    open import Traces.CSP using (_➔_; STOP; SKIP; _∥⦅_⦆_)
     open Data.List using (_∷_; [])
 
     P : Process α
@@ -217,8 +216,78 @@ module TraceLTL {α : Alphabet} where
     R : Process α
     R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
 
-    -- Agda tries to unroll the traces... There must be a nicer way
-    -- to make this defined over actual process definitions?
-    a-Before-c : Holdsᵖ ((¬ (` c)) U (` a)) R
-    a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
+    -- Agda tries to unroll the traces...
+    -- This is why the structural approach is needed.
+    --a-Before-c : Holdsᵖ ((¬ (` c)) U (` a)) R
+    --a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
+```
+# Structural Satisfaction
+
+The definition above, over the traces of a process, is natural and relevant to the
+testing framework, but it requires expanding all the possible traces to do a proof.
+As well as being annoying, that is impossible for infinite traces. Instead we can
+take a structural induction approach.
+
+```
+
+module Satisfaction (α : Alphabet) where
+  open Alphabet α
+
+  infix 1 _⊨_
+  {-# NO_POSITIVITY_CHECK #-}
+  data _⊨_ : Process α → Prop α → Type where
+    _∧_ : {P : Process α} {p q : Prop α}
+      → P ⊨ p
+      → P ⊨ q
+      → P ⊨ p ∧ q
+    _∨₁_ : {P : Process α} {p q : Prop α}
+      → P ⊨ p
+      → P ⊨ p ∨ q
+    _∨₂_ : {P : Process α} {p q : Prop α}
+      → P ⊨ q
+      → P ⊨ p ∨ q
+    ¬_ : {P : Process α} {p : Prop α}
+      → Null.¬ (P ⊨ p)
+      → P ⊨ ¬ p
+    imp₁ : {P : Process α} {p q : Prop α}
+      → Null.¬ (P ⊨ p)
+      → P ⊨ p ⇒ q
+    imp₂ : {P : Process α} {p q : Prop α}
+      → P ⊨ p
+      → P ⊨ q
+      → P ⊨ p ⇒ q
+    `_ : {P : Process α} {a : A} → a Process.➔ P ⊨ ` a
+    F-now : {P : Process α} {p : Prop α}
+      → P ⊨ p
+      → P ⊨ F p
+    F➔ : {P : Process α} {p : Prop α} {a : A}
+      → P ⊨ F p
+      → a ➔ P ⊨ F p
+    -- Since either path is possible, they must both satisfy p
+    F□ : {P Q : Process α} {p : Prop α}
+      → P ⊨ F p
+      → Q ⊨ F p
+      → P □ Q ⊨ F p
+    F⊓ : {P Q : Process α} {p : Prop α}
+      → P ⊨ F p
+      → Q ⊨ F p
+      → P ⊓ Q ⊨ F p
+    -- FIXME: I can't think how to define this without expanding both sides again?
+    -- Or we could do something with the head of the trace?...
+    -- Or we need a small step reduction semantics?!?
+    -- F∥ :
+```
+
+We can build a decision procedure for this.
+
+FIXME: Building this raises lots of interesting questions - what propositions can ever be true about
+STOP for example? Negative ones, certainly...
+```
+  _⊨?_ : (P : Process α) → (p : Prop α) → Dec (P ⊨ p)
+  STOP ⊨? p = {!!}
+  SKIP ⊨? p = {!!}
+  (x ➔ P) ⊨? p = {!!}
+  (P □ P₁) ⊨? p = {!!}
+  (P ⊓ P₁) ⊨? p = {!!}
+  (P ∥⦅ x ⦆ P₁) ⊨? p = {!!}
 ```
