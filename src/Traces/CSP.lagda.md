@@ -11,7 +11,7 @@ module Traces.CSP where
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
-open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_;  _∪ˡ_; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ)
+open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_;  _∪ˡ_; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ; setToList to toList)
 open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap; filter; take; find)
 open import Data.Nat using (ℕ; zero; suc)
 open import Relation.Nullary using (¬_; yes; no; Dec)
@@ -21,9 +21,7 @@ open import Data.Product using (_×_; _,_)
 -- FIXME: This is buried in FiniteSetTheory but I don't
 -- want to spend the morning trying to get the import to work!
 postulate
-  toList : {X : Type} → ℙ X → List X
   toListᵐ : {X Y : Type} → X ⇀ Y → List (X × Y)
-
 
 ```
 Alphabets contain a set of events, a "success event", and an instance of decidable equality for the events.
