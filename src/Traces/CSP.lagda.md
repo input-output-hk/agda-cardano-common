@@ -16,7 +16,7 @@ open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap;
 open import Data.Nat using (ℕ; zero; suc)
 open import Relation.Nullary using (¬_; yes; no; Dec)
 open import Relation.Binary.Definitions using (DecidableEquality)
-open import Data.Product using (_×_; _,_)
+open import Data.Product using (_×_; _,_; Σ; ∃)
 
 -- FIXME: This is buried in FiniteSetTheory but I don't
 -- want to spend the morning trying to get the import to work!
@@ -132,6 +132,8 @@ success element when we reach `SKIP`.
     P : Process α
     P = SKIP □ (a ➔ SKIP)
 
+    -- This is hard to prove because the union operator applies some
+    -- opaque or not unrolled operations.
     --ex1 : traces P ≡ (⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ ✓ ⟩ ⟫ ∪ ⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ a ⟩ ⟫ ∪ ⟪ ⟨ a ⟩ ^ ⟨ ✓ ⟩ ⟫)
     --ex1 = {!!}
 
@@ -152,6 +154,59 @@ success element when we reach `SKIP`.
   -- You can express infinite recursion, but Agda gets upset!
   --    Q : Process α
   --    Q = SKIP □ (a ➔ Q)
+```
+
+## Reduction Semantics
+
+For infinite traces and inductive proofs, a small step reduction semantics is useful.
+```
+module Reduction (α : Alphabet) where
+  open Alphabet α
+  open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∉_; _∈?_; _∉?_)
+
+  data _─_⟶_ : Process α → A → Process α → Type where
+    prefix : {a : A} {P : Process α}
+      → (a ➔ P) ─ a ⟶ P
+    □₁ : {a : A} {P Q P' : Process α}
+      → P ─ a ⟶ P'
+      → (P □ Q) ─ a ⟶ P'
+    □₂ : {a : A} {P Q Q' : Process α}
+      → Q ─ a ⟶ Q'
+      → (P □ Q) ─ a ⟶ Q'
+   -- FIXME: What to do about ⊓ ? It _might_ reduce if one side reduces... or it might not?...
+    ∥₁ : {a : A} {P Q P' Q' : Process α} {As : List A}
+      → a ∈ As
+      → P ─ a ⟶ P'
+      → Q ─ a ⟶ Q'
+      → (P ∥⦅ As ⦆ Q) ─ a ⟶ (P' ∥⦅ As ⦆ Q')
+    ∥₂ : {a : A} {P Q P' : Process α} {As : List A}
+      → a ∉ As
+      → P ─ a ⟶ P'
+      → (P ∥⦅ As ⦆ Q) ─ a ⟶ (P' ∥⦅ As ⦆ Q)
+    ∥₃ : {a : A} {P Q Q' : Process α} {As : List A}
+      → a ∉ As
+      → Q ─ a ⟶ Q'
+      → (P ∥⦅ As ⦆ Q) ─ a ⟶ (P ∥⦅ As ⦆ Q')
+    SKIP : SKIP ─ ✓ ⟶ STOP
+
+  reduces? : (P : Process α) → Dec (∃ (λ (a : A) → ∃ (λ (P' : Process α) → P ─ a ⟶ P')))
+  reduces? STOP = no λ ()
+  reduces? SKIP = yes (✓ , (STOP , SKIP))
+  reduces? (x ➔ P) = yes (x , P , prefix)
+  reduces? (P □ Q) with reduces? P
+  ... | yes (a , P' , pr) = yes (a , P' , □₁ pr)
+  ... | no ¬pr with reduces? Q
+  ... | yes (a , Q' , qr) = yes (a , Q' , □₂ qr)
+  ... | no ¬qr = no (λ { (a , P' , □₁ x) → ¬pr (a , P' , x) ; (a , Q' , □₂ x) → ¬qr (a , Q' , x)})
+  reduces? (P ⊓ Q) = no (λ ()) -- FIXME: it... might?
+  reduces? (P ∥⦅ As ⦆ Q) with reduces? P | reduces? Q
+  reduces? (P ∥⦅ As ⦆ Q) | no ¬pr | no ¬qr = {!!}
+  reduces? (P ∥⦅ As ⦆ Q) | no ¬pr | yes (a , Q' , qr) with a ∈? As
+  -- FIXME: Solving this requires a ≡ b, which requires reduction to be deterministic which it is NOT!
+  ...   | yes a∈As = no λ { (b , Q' , ∥₁ x x₁ x₂) → ¬pr (b , _ , x₁) ; (b , Q' , ∥₂ x x₁) → ¬pr (b , _ , x₁) ; (b , Q' , ∥₃ x x₁) → {!!} }
+  ...   | no a∉As = yes (✓ , (P , {!!}))
+  reduces? (P ∥⦅ As ⦆ Q) | yes (a , P' , pr) | yes (b , Q' , qr) = {!!}
+
 ```
 ## Failure Semantics
 

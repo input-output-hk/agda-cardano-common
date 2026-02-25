@@ -15,8 +15,9 @@ open import Data.Bool as Bool using (Bool; true; false)
 open import Data.List using (List; []; _∷_)
 open import Data.Bool.ListAction using (all)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
+open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
-open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_; toList)
+open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_)
 ```
 ## Propositions and Operators
 
