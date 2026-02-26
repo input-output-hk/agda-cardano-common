@@ -159,6 +159,7 @@ success element when we reach `SKIP`.
 ## Reduction Semantics
 
 For infinite traces and inductive proofs, a small step reduction semantics is useful.
+
 ```
 module Reduction (α : Alphabet) where
   open Alphabet α
@@ -188,24 +189,32 @@ module Reduction (α : Alphabet) where
       → Q ─ a ⟶ Q'
       → (P ∥⦅ As ⦆ Q) ─ a ⟶ (P ∥⦅ As ⦆ Q')
     SKIP : SKIP ─ ✓ ⟶ STOP
-
-  reduces? : (P : Process α) → Dec (∃ (λ (a : A) → ∃ (λ (P' : Process α) → P ─ a ⟶ P')))
-  reduces? STOP = no λ ()
-  reduces? SKIP = yes (✓ , (STOP , SKIP))
-  reduces? (x ➔ P) = yes (x , P , prefix)
-  reduces? (P □ Q) with reduces? P
-  ... | yes (a , P' , pr) = yes (a , P' , □₁ pr)
-  ... | no ¬pr with reduces? Q
-  ... | yes (a , Q' , qr) = yes (a , Q' , □₂ qr)
-  ... | no ¬qr = no (λ { (a , P' , □₁ x) → ¬pr (a , P' , x) ; (a , Q' , □₂ x) → ¬qr (a , Q' , x)})
-  reduces? (P ⊓ Q) = no (λ ()) -- FIXME: it... might?
-  reduces? (P ∥⦅ As ⦆ Q) with reduces? P | reduces? Q
-  reduces? (P ∥⦅ As ⦆ Q) | no ¬pr | no ¬qr = {!!}
-  reduces? (P ∥⦅ As ⦆ Q) | no ¬pr | yes (a , Q' , qr) with a ∈? As
-  -- FIXME: Solving this requires a ≡ b, which requires reduction to be deterministic which it is NOT!
-  ...   | yes a∈As = no λ { (b , Q' , ∥₁ x x₁ x₂) → ¬pr (b , _ , x₁) ; (b , Q' , ∥₂ x x₁) → ¬pr (b , _ , x₁) ; (b , Q' , ∥₃ x x₁) → {!!} }
-  ...   | no a∉As = yes (✓ , (P , {!!}))
-  reduces? (P ∥⦅ As ⦆ Q) | yes (a , P' , pr) | yes (b , Q' , qr) = {!!}
+```
+Since CSP is deliberatley non-deterministic, especially with parallel composition, we can't do a simple, decidable decision procedure.
+We can decide whether, for a particular event, a process will reduce and synchronise with that event.
+```
+  reduces? : (P : Process α) → (a : A) → Dec (∃ (λ (P' : Process α) → P ─ a ⟶ P'))
+  reduces? STOP a = no (λ ())
+  reduces? SKIP a with a ≟ ✓
+  ... | no a≠✓ = no λ { (STOP , SKIP) → a≠✓ refl }
+  ... | yes refl = yes (STOP , SKIP)
+  reduces? (x ➔ P) a with x ≟ a
+  ... | yes refl = yes (P , prefix)
+  ... | no x≠a = no (λ { (P' , prefix) → x≠a refl} )
+  reduces? (P □ Q) a with reduces? P a | reduces? Q a
+  ... | yes (P' , pr) | _ = yes (P' , □₁ pr)
+  ... | _ | yes (Q' , qr) = yes (Q' , □₂ qr)
+  ... | no ¬pr | no ¬qr = no λ { (PQ' , □₁ pr) → ¬pr (PQ' , pr) ; (PQ' , □₂ pr) → ¬qr (PQ' , pr) }
+  reduces? (P ⊓ Q) a = no (λ ())
+  reduces? (P ∥⦅ As ⦆ Q) a with a ∈? As
+  reduces? (P ∥⦅ As ⦆ Q) a | no a∉As with reduces? P a | reduces? Q a
+  ... | yes (P' , pr) | _ = yes ((P' ∥⦅ As ⦆ Q) , ∥₂ a∉As pr)
+  ... | _ | yes (Q' , qr) = yes ((P ∥⦅ As ⦆ Q') , ∥₃ a∉As qr)
+  ... | no ¬pr | no ¬qr = no (λ { (PQ' , ∥₁ x pr pr₁) → a∉As x ; (PQ' , ∥₂ x pr) → ¬pr (_ , pr) ; (PQ' , ∥₃ x pr) → ¬qr (_ , pr) })
+  reduces? (P ∥⦅ As ⦆ Q) a | yes a∈As with reduces? P a | reduces? Q a
+  ... | yes (P' , pr) | yes (Q' , qr) = yes ((P' ∥⦅ As ⦆ Q') , ∥₁ a∈As pr qr)
+  ... | no ¬pr        | _ = no (λ { (PQ' , ∥₁ x pr pr₁) → ¬pr (_ , pr) ; (PQ' , ∥₂ x pr) → x a∈As ; (PQ' , ∥₃ x pr) → x a∈As })
+  ... | _                 | no ¬qr = no (λ { (PQ' , ∥₁ x pr pr₁) → ¬qr (_ , pr₁) ; (PQ' , ∥₂ x pr) → x a∈As ; (PQ' , ∥₃ x pr) → x a∈As })
 
 ```
 ## Failure Semantics
