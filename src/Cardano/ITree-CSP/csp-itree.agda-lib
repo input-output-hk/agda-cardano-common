@@ -1,0 +1,6 @@
+name: csp-itree
+depend: 
+  standard-library
+  standard-library-classes
+include:
+  .
