@@ -1,16 +1,19 @@
-{-# OPTIONS --guardedness #-}
--- {-# OPTIONS --cubical-compatible --no-import-sorts #-}
+{-
+  This module defines Interaction Trees (ITree), including basic definitions and proofs related to ITree
+-}
 
--- open import Agda.Buildin.Maybe
+{-# OPTIONS --guardedness #-}
+
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Level using (Level; _⊔_; Lift; lift; lower) renaming (zero to lzero; suc to lsuc)
 open import Data.Maybe using (Maybe; just; nothing) renaming (map to mapMaybe)
 open import Data.Empty using (⊥)
--- open import Data.Unit using (⊤; tt)
-open import Data.Product using (Σ; _,_; proj₁; _×_)
+open import Data.Unit using (⊤; tt)
+open import Data.Product using (Σ; _,_; proj₁; _×_; ∃; Σ-syntax; ∃-syntax)
 open import Relation.Unary
 open import Function using (case_of_)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 module Interaction_Trees where
 
@@ -69,8 +72,8 @@ mutual
     field
       force : NodeKind E I R
 
-pattern τ P = sil P
-pattern √ r = ret r
+-- pattern τ P = sil P
+-- pattern √ r = ret r
 
 emptyAnyTypesFun : ∀ {ℓ ℓe ℓi ℓr}
                    {E : Set ℓ → Set ℓe}
@@ -97,4 +100,69 @@ HKTree E I A = KTree E I A A
 data ExtI {ℓ ℓi} (I : Set ℓ → Set ℓi) : Set ℓ → Set (lsuc ℓ ⊔ ℓi) where
   base : ∀ {A}         → I A          → ExtI I A
   pair : ∀ {AP AQ}     → ExtI I AP → ExtI I AQ  → ExtI I (AP × AQ)
-  fin  : {n : ℕ}       → ExtI I (Lift ℓ (Fin n))
+  fin  : ∀ {n : ℕ}       → ExtI I (Lift ℓ (Fin n))
+
+--  A ITree is stable, useful to define refusals
+isStable : ∀ {ℓ ℓe ℓi ℓr : Level}
+             {E : Set ℓ → Set ℓe}
+             {I : Set ℓ → Set ℓi}
+             {R : Set ℓr}
+           → ITree E I R → Set
+isStable t with ITree.force t
+... | ret _ = ⊤
+... | sil _ = ⊥
+... | vis _ = ⊤
+... | inv _ = ⊥
+
+isUnstable : ∀ {ℓ ℓe ℓi ℓr : Level}
+               {E : Set ℓ → Set ℓe}
+               {I : Set ℓ → Set ℓi}
+               {R : Set ℓr}
+             → ITree E I R → Set
+isUnstable t with ITree.force t
+... | ret _ = ⊥
+... | sil _ = ⊤
+... | vis _ = ⊥
+... | inv _ = ⊤
+
+-- The image of f: the set of ITrees reachable via f
+Image : ∀ {ℓ ℓe ℓi ℓr : Level}
+          {E : Set ℓ → Set ℓe}
+          {I : Set ℓ → Set ℓi}
+          {R : Set ℓr}
+        → ((i : AnyTypes I) → proj₁ i → Maybe (ITree E I R))
+        → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+Image {I = I} f t = Σ[ i ∈ AnyTypes I ] Σ[ a ∈ proj₁ i ] f i a ≡ just t
+
+-- Divergent process: spins silently forever
+div : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    → ITree E I R
+ITree.force div = sil div
+
+-- ───────────────────────────────────────────────
+-- Auxiliary absurdity lemmas for ITreeF constructors
+-- ───────────────────────────────────────────────
+
+vis≢sil : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    {t : ITree E I R}
+  → vis f ≡ sil t → ⊥
+vis≢sil ()
+
+vis≢inv : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}    
+    {g : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}
+  → vis f ≡ inv g → ⊥
+vis≢inv ()
+
+-- vis is injective in its continuation argument
+vis-injective : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {f g : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+  → vis f ≡ vis g → f ≡ g
+vis-injective refl = refl
+
+-- vis is injective in its continuation argument
+sil-injective : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {f g : (ITree E I R)}
+  → sil f ≡ sil g → f ≡ g
+sil-injective refl = refl

@@ -14,7 +14,7 @@ import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl)
 
 -- open import Relation.Binary.Definitions using (DecidableEquality)
-open import Class.DecEq
+open import Class.DecEq using (DecEq; _≟_)
 open import Level using (Level; 0ℓ)
 open import Relation.Nullary using (Dec; yes; no)
 open import Data.Sum using (_⊎_; inj₁; inj₂) renaming ([_,_] to case-⊎)
@@ -26,11 +26,12 @@ open import CSP.Basic_Processes
 module CSP.Operators {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y)) where
 open ITree
 
--- Declare first and so they can be defined recursively
+-- General prefix
 Prefix : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
        → E A → (A → ITree E (ExtI I) R) → ITree E (ExtI I) R
-syntax Prefix ch Px = ch ⟶ Px
+syntax Prefix ch Px = ch ⟶ Px   -- \-->
 
+-- Prefix without effect or discard the effect
 Prefix₀ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
         → E A → ITree E (ExtI I) R → ITree E (ExtI I) R
 syntax Prefix₀ ch Px = ch ⟶₀ Px

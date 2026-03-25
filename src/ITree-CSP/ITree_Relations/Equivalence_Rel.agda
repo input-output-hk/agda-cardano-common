@@ -1,3 +1,15 @@
+{-
+This module defines a parametrised (by a relation RetRel for R) structural coinductive pointwise
+equivalence for two ITrees.
+
+In particular, even for `inv fP` and `inv fQ`, `fP` is expected to be equal to `fQ` by `RetRel`.
+This is different from bisimulation where `fP` and `fQ` are not expected to be equal if they
+have the same ranges or codomain. That is, they can have different indices, but their continuous
+sub-trees are the same, representing nondeterministic choice of a same set of trees.
+
+-}
+
+
 {-# OPTIONS --guardedness #-}
 -- {-# OPTIONS --cubical-compatible --no-import-sorts #-}
 
@@ -18,13 +30,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_)
 
 open import Interaction_Trees
 
-module ITree_Equivalence_Rel where
+module ITree_Relations.Equivalence_Rel where
 
 -- One step of bisimulation, parameterized by:
 --   RetRel  : how to relate values at (ret _) nodes
 --   TreeRel : how to relate subtrees at recursive positions
 --             (will be tied coinductively to produce the fixpoint)
-data NodeKindF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
+data EqNodeKindF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
                {E : Set ℓ → Set ℓe}
                {I : Set ℓ → Set ℓi}
                {R : Set ℓr}
@@ -34,26 +46,25 @@ data NodeKindF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
 
   retF : ∀ {r₁ r₂}
        → RetRel r₁ r₂
-       → NodeKindF RetRel TreeRel (ret r₁) (ret r₂)
+       → EqNodeKindF RetRel TreeRel (ret r₁) (ret r₂)
 
   silF : ∀ {t₁ t₂}
        → TreeRel t₁ t₂
-       → NodeKindF RetRel TreeRel (sil t₁) (sil t₂)
+       → EqNodeKindF RetRel TreeRel (sil t₁) (sil t₂)
 
-  -- Pointwise TreeRel replaces the manual MaybeITree≈ entirely
   visF : ∀ {f₁ f₂}
        → (∀ (at : AnyTypes E) (a : proj₁ at)
-          → Pointwise TreeRel (f₁ at a) (f₂ at a))
-       → NodeKindF RetRel TreeRel (vis f₁) (vis f₂)
+       → Pointwise TreeRel (f₁ at a) (f₂ at a))
+       → EqNodeKindF RetRel TreeRel (vis f₁) (vis f₂)
 
   invF : ∀ {f₁ f₂}
        → (∀ (i : AnyTypes I) (a : proj₁ i)
-          → Pointwise TreeRel (f₁ i a) (f₂ i a))
-       → NodeKindF RetRel TreeRel (inv f₁) (inv f₂)
+       → Pointwise TreeRel (f₁ i a) (f₂ i a))
+       → EqNodeKindF RetRel TreeRel (inv f₁) (inv f₂)
 
--- Bisim RetRel is the greatest fixpoint of (NodeKindF RetRel)
--- i.e., ν X. NodeKindF RetRel X
-record Bisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
+-- Bisim RetRel is the greatest fixpoint of (EqNodeKindF RetRel)
+-- i.e., ν X. EqNodeKindF RetRel X
+record SEquiv {ℓ ℓe ℓi ℓr ℓ≡ : Level}
              {E : Set ℓ → Set ℓe}
              {I : Set ℓ → Set ℓi}
              {R : Set ℓr}
@@ -62,34 +73,34 @@ record Bisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
            : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓ≡ ⊔ ℓr) where
   coinductive
   field
-    step : NodeKindF RetRel (Bisim RetRel) (ITree.force t₁) (ITree.force t₂)
+    step : EqNodeKindF RetRel (SEquiv RetRel) (ITree.force t₁) (ITree.force t₂)
 
 -- Standard strong bisimulation: propositional equality on return values
 _≈_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     → Rel (ITree E I R) _
-_≈_ = Bisim _≡_
+_≈_ = SEquiv _≡_
 
 -- Ignore return values entirely (e.g., for divergence checking)
 _≈⊤_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → Rel (ITree E I R) _
-_≈⊤_ {ℓr = ℓr}  = Bisim (λ _ _ → ⊤ {lzero})
+_≈⊤_ {ℓr = ℓr}  = SEquiv (λ _ _ → ⊤ {lzero})
 
 -- Return values related by some custom _~_
 _≈[_]_ : ∀ {ℓ ℓe ℓi ℓr ℓ≡} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → ITree E I R → Rel R ℓ≡ → ITree E I R → Set _
-t₁ ≈[ _~_ ] t₂ = Bisim _~_ t₁ t₂
+t₁ ≈[ _~_ ] t₂ = SEquiv _~_ t₁ t₂
 
 -- Closed under a setoid on R
 open import Relation.Binary using (Setoid)
 
-bisimSetoid : ∀ {ℓ ℓe ℓi ℓr ℓ≡} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} 
+sequivSetoid : ∀ {ℓ ℓe ℓi ℓr ℓ≡} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} 
   → (S : Setoid ℓr ℓ≡) → Rel (ITree E I (Setoid.Carrier S)) _
-bisimSetoid S = Bisim (Setoid._≈_ S)
+sequivSetoid S = SEquiv (Setoid._≈_ S)
 
 import Data.Maybe.Relation.Binary.Pointwise as MPW
 open import Relation.Binary using (IsEquivalence)
 
-module BisimEquiv
+module SEquivEquiv
   {ℓ ℓe ℓi ℓr ℓ≡ : Level}
   {E : Set ℓ → Set ℓe}
   {I : Set ℓ → Set ℓi}
@@ -99,48 +110,48 @@ module BisimEquiv
 
   open IsEquivalence retEq renaming (refl to ret-refl; sym to ret-sym; trans to ret-trans)
 
-  bisim-refl : ∀ (t : ITree E I R) → Bisim RetRel t t
-  bisim-refl t .Bisim.step
+  sequiv-refl : ∀ (t : ITree E I R) → SEquiv RetRel t t
+  sequiv-refl t .SEquiv.step
     with ITree.force t
   ... | ret r  = retF ret-refl
-  ... | sil t' = silF (bisim-refl t')
+  ... | sil t' = silF (sequiv-refl t')
   ... | vis f  = visF (λ at a → go (f at a))
     where
-      go : ∀ m → Pointwise (Bisim RetRel) m m
-      go (just t') = MPW.just (bisim-refl t')
+      go : ∀ m → Pointwise (SEquiv RetRel) m m
+      go (just t') = MPW.just (sequiv-refl t')
       go nothing   = MPW.nothing
   ... | inv f  = invF (λ i a → go (f i a))
     where
-      go : ∀ m → Pointwise (Bisim RetRel) m m
-      go (just t') = MPW.just (bisim-refl t')
+      go : ∀ m → Pointwise (SEquiv RetRel) m m
+      go (just t') = MPW.just (sequiv-refl t')
       go nothing   = MPW.nothing
 
   {-# NON_TERMINATING #-}
-  bisim-sym : ∀ {t₁ t₂ : ITree E I R} → Bisim RetRel t₁ t₂ → Bisim RetRel t₂ t₁
-  bisim-sym {t₁} {t₂} p .Bisim.step
-    with ITree.force t₁ | ITree.force t₂ | p .Bisim.step
+  sequiv-sym : ∀ {t₁ t₂ : ITree E I R} → SEquiv RetRel t₁ t₂ → SEquiv RetRel t₂ t₁
+  sequiv-sym {t₁} {t₂} p .SEquiv.step
+    with ITree.force t₁ | ITree.force t₂ | p .SEquiv.step
   ... | ret _  | ret _  | retF r    = retF (ret-sym r)
-  ... | sil _  | sil _  | silF q    = silF (bisim-sym q)
-  ... | vis _  | vis _  | visF h    = visF (λ at a → MPW.sym bisim-sym (h at a))
-  ... | inv _  | inv _  | invF h    = invF (λ i  a → MPW.sym bisim-sym (h i  a))
+  ... | sil _  | sil _  | silF q    = silF (sequiv-sym q)
+  ... | vis _  | vis _  | visF h    = visF (λ at a → MPW.sym sequiv-sym (h at a))
+  ... | inv _  | inv _  | invF h    = invF (λ i  a → MPW.sym sequiv-sym (h i  a))
 
   {-# NON_TERMINATING #-}
-  bisim-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
-              → Bisim RetRel t₁ t₂ → Bisim RetRel t₂ t₃ → Bisim RetRel t₁ t₃
-  bisim-trans {t₁} {t₂} {t₃} p q .Bisim.step
+  sequiv-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
+              → SEquiv RetRel t₁ t₂ → SEquiv RetRel t₂ t₃ → SEquiv RetRel t₁ t₃
+  sequiv-trans {t₁} {t₂} {t₃} p q .SEquiv.step
     with ITree.force t₁ | ITree.force t₂ | ITree.force t₃
-       | p .Bisim.step  | q .Bisim.step
+       | p .SEquiv.step  | q .SEquiv.step
   ... | ret _  | ret _  | ret _  | retF r₁  | retF r₂  = retF (ret-trans r₁ r₂)
-  ... | sil _  | sil _  | sil _  | silF p'  | silF q'  = silF (bisim-trans p' q')
+  ... | sil _  | sil _  | sil _  | silF p'  | silF q'  = silF (sequiv-trans p' q')
   ... | vis _  | vis _  | vis _  | visF hp  | visF hq  =
-        visF (λ at a → MPW.trans bisim-trans (hp at a) (hq at a))
+        visF (λ at a → MPW.trans sequiv-trans (hp at a) (hq at a))
   ... | inv _  | inv _  | inv _  | invF hp  | invF hq  =
-        invF (λ i  a → MPW.trans bisim-trans (hp i  a) (hq i  a))
+        invF (λ i  a → MPW.trans sequiv-trans (hp i  a) (hq i  a))
 
   -- Package as a Setoid
-  Bisim-isEquivalence : IsEquivalence (Bisim RetRel)
-  Bisim-isEquivalence = record
-    { refl  = bisim-refl _
-    ; sym   = bisim-sym
-    ; trans = bisim-trans
+  SEquiv-isEquivalence : IsEquivalence (SEquiv RetRel)
+  SEquiv-isEquivalence = record
+    { refl  = sequiv-refl _
+    ; sym   = sequiv-sym
+    ; trans = sequiv-trans
     }

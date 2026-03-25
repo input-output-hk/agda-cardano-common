@@ -16,44 +16,6 @@ open import Interaction_Trees
 
 module CSP.Basic_Processes where
 open ITree
-{-
-Stop : {E I : Set → Set} → ITree E I ⊤
-force (Stop) = vis (λ at → λ a → nothing)
-
-Stop' : {E I : Set → Set} {R : Set} → ITree E I R
-force (Stop') = vis (λ at → λ a → nothing)
-
-Ret : {E I : Set → Set} {R : Set} → R → ITree E I R
-force (Ret r) = ret r
-
-Skip : {E I : Set → Set} → ITree E I ⊤
-Skip = Ret tt
-
--- Tau
-Tau : {E I : Set → Set} {R : Set} → ITree E I R → ITree E I R
-force (Tau P) = sil P
-
--- Divergent process
-div : {E I : Set → Set} {R : Set} → ITree E I R
-force (div) = sil div
-
-guard : {E I : Set → Set} → Bool → ITree E I ⊤
-guard b = (if b then Skip else Stop)
-
--- Run: do any event e from a set A, and then behaves like (Run A) again
--- Maybe visn is not necessary any more???
-Run : {E I : Set → Set} {R : Set} → ITree E I R
-force (Run {E} {R}) = vis λ at x → just Run
-
-Run' : {E I : Set → Set} {R : Set} → (es : AnyTypes E → Set)
-  → (dec : (at : AnyTypes E) → Dec (es at)) 
-  → ITree E I R
-force (Run' es dec) =
-  vis λ at x →
-    case dec at of λ where
-      (yes _) → just (Run' es dec)
-      (no  _) → nothing
--}
 Stop : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi}
      → ITree E I (⊤ {ℓr})
 force Stop = vis (λ _ _ → nothing)
@@ -75,10 +37,12 @@ Tau : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set �
     → ITree E I R → ITree E I R
 force (Tau P) = sil P
 
+{-
 -- Divergent process: spins silently forever
 div : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     → ITree E I R
 force div = sil div
+-}
 
 guard : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi}
       → Bool → ITree E I (⊤ {ℓr})
@@ -90,11 +54,11 @@ Run : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set �
 force Run = vis (λ _ _ → just Run)
 
 -- Accepts only visible events satisfying predicate es, loops on those
-Run' : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+Run′ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
      → (es  : AnyTypes E → Set)
      → (dec : (at : AnyTypes E) → Dec (es at))
      → ITree E I R
-force (Run' es dec) = vis λ at _ →
+force (Run′ es dec) = vis λ at _ →
   case dec at of λ where
-    (yes _) → just (Run' es dec)
+    (yes _) → just (Run′ es dec)
     (no  _) → nothing

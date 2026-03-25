@@ -13,7 +13,7 @@ open import Relation.Unary
 open import Function using (case_of_)
 open import Interaction_Trees
 
-module ITree_Equivalence where
+module ITree_Relations.Equivalence where
 
 mutual
   -- ≈ is coinductive: "forever agreeing on all transitions"
