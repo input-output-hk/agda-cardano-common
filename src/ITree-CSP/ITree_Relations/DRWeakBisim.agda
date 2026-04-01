@@ -32,13 +32,14 @@ open import ITree_Relations.LTS using (EvLabel; evLabel; Label;
   _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
   _═[_]═►_; weak-τ; weak-ev
   )
+open import ITree_Relations.Divergence
 
-module ITree_Relations.WeakBisim1 where
+module ITree_Relations.DRWeakBisim1 where
 open Label
 open EvLabel
 
 -- One-sided weak simulation: every step of t₁ is weakly matched by t₂
-record WSimF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
+record DRWSimF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
              {E : Set ℓ → Set ℓe}
              {I : Set ℓ → Set ℓi}
              {R : Set ℓr}
@@ -70,8 +71,10 @@ record WSimF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
              ( t₂ ═[ τ ]═► t₂'
              × TreeRel t₁' t₂' )
 
+    on-div : Divergent t₁ → Divergent t₂
+
 -- Weak bisimulation: simulation in both directions, coinductively
-record Wbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
+record DRWbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
               {E : Set ℓ → Set ℓe}
               {I : Set ℓ → Set ℓi}
               {R : Set ℓr}
@@ -80,12 +83,12 @@ record Wbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
             : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓ≡ ⊔ ℓr) where
   coinductive
   field
-    fwd : WSimF RetRel (Wbisim RetRel) t₁ t₂  -- t₁ is simulated by t₂
-    bwd : WSimF RetRel (Wbisim RetRel) t₂ t₁  -- t₂ is simulated by t₁
+    fwd : DRWSimF RetRel (DRWbisim RetRel) t₁ t₂  -- t₁ is simulated by t₂
+    bwd : DRWSimF RetRel (DRWbisim RetRel) t₂ t₁  -- t₂ is simulated by t₁
     
 
 {-
-record Wbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
+record DRWbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
   {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   (RetRel : Rel R ℓ≡)
   (t₁ t₂ : ITree E I R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓ≡ ⊔ ℓr) where
@@ -94,12 +97,12 @@ record Wbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
     -- 1. If t₁ takes a step, t₂ matches it weakly
     match-L : ∀ {L t₁'} 
       → (t₁ ─[ L ]─► t₁') 
-      → Σ[ t₂' ∈ ITree E I R ] (t₂ ═[ L ]═► t₂' × Wbisim RetRel t₁' t₂')
+      → Σ[ t₂' ∈ ITree E I R ] (t₂ ═[ L ]═► t₂' × DRWbisim RetRel t₁' t₂')
 
     -- 2. If t₂ takes a step, t₁ matches it weakly (Symmetry)
     match-R : ∀ {L t₂'} 
       → (t₂ ─[ L ]─► t₂') 
-      → Σ[ t₁' ∈ ITree E I R ] (t₁ ═[ L ]═► t₁' × Wbisim RetRel t₁' t₂')
+      → Σ[ t₁' ∈ ITree E I R ] (t₁ ═[ L ]═► t₁' × DRWbisim RetRel t₁' t₂')
 
     -- 3. Termination matching
     match-ret : ∀ {r₁}
@@ -111,26 +114,26 @@ record Wbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
 -- Standard strong bisimulation: propositional equality on return values
 _≈_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     → Rel (ITree E I R) _
-_≈_ = Wbisim _≡_
+_≈_ = DRWbisim _≡_
 
 -- Ignore return values entirely (e.g., for divergence checking)
 _≈⊤_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → Rel (ITree E I R) _
-_≈⊤_ {ℓr = ℓr}  = Wbisim (λ _ _ → ⊤ {lzero})
+_≈⊤_ {ℓr = ℓr}  = DRWbisim (λ _ _ → ⊤ {lzero})
 
 -- Return values related by some custom _~_
 _≈[_]_ : ∀ {ℓ ℓe ℓi ℓr ℓ≡} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → ITree E I R → Rel R ℓ≡ → ITree E I R → Set _
-t₁ ≈[ _~_ ] t₂ = Wbisim _~_ t₁ t₂
+t₁ ≈[ _~_ ] t₂ = DRWbisim _~_ t₁ t₂
 
 -- Closed under a setoid on R
 open import Relation.Binary using (Setoid)
 
 bisimSetoid : ∀ {ℓ ℓe ℓi ℓr ℓ≡} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} 
   → (S : Setoid ℓr ℓ≡) → Rel (ITree E I (Setoid.Carrier S)) _
-bisimSetoid S = Wbisim (Setoid._≈_ S)
+bisimSetoid S = DRWbisim (Setoid._≈_ S)
 
-module WbisimEquiv
+module DRWbisimEquiv
   {ℓ ℓe ℓi ℓr ℓ≡ : Level}
   {E : Set ℓ → Set ℓe}
   {I : Set ℓ → Set ℓi}
@@ -154,11 +157,11 @@ module WbisimEquiv
     -- Helper 2: propagate a τ* chain through a bisimulation
     lift-τ* : ∀ {t t' s}
             → t ─[τ*]─► t'
-            → Wbisim RetRel t s
-            → Σ[ s' ∈ ITree E I R ] (s ─[τ*]─► s' × Wbisim RetRel t' s')
+            → DRWbisim RetRel t s
+            → Σ[ s' ∈ ITree E I R ] (s ─[τ*]─► s' × DRWbisim RetRel t' s')
     lift-τ* {t} {.t} τ*-zero       p = _ , τ*-zero , p
     lift-τ* (τ*-step step rest) p
-        with p .Wbisim.fwd .WSimF.on-tau step
+        with p .DRWbisim.fwd .DRWSimF.on-tau step
     ... | s-mid , weak-τ s-steps , bisim-mid
         with lift-τ* rest bisim-mid
     ... | s' , s-rest , bisim-fin
@@ -167,13 +170,13 @@ module WbisimEquiv
     -- Helper 3: propagate a weak visible transition through a bisimulation
     lift-weak-ev : ∀ {t t' s at a}
                  → t ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► t'
-                 → Wbisim RetRel t s
+                 → DRWbisim RetRel t s
                  → Σ[ s' ∈ ITree E I R ]
                    ( s ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► s'
-                   × Wbisim RetRel t' s')
+                   × DRWbisim RetRel t' s')
     lift-weak-ev (weak-ev pre step post) p =
         let s-pre-end  , s-pre-steps , bisim-pre = lift-τ* pre p
-            s-vis-end  , s-vis-step  , bisim-vis = bisim-pre .Wbisim.fwd .WSimF.on-vis step
+            s-vis-end  , s-vis-step  , bisim-vis = bisim-pre .DRWbisim.fwd .DRWSimF.on-vis step
             s-post-end , s-post-steps , bisim-post = lift-τ* post bisim-vis
         in  s-post-end , splice s-pre-steps s-vis-step s-post-steps , bisim-post
       where
@@ -187,103 +190,117 @@ module WbisimEquiv
             weak-ev (τ*-concat pre mid-pre) vis-step (τ*-concat mid-post post)
 
   {-# NON_TERMINATING #-}
-  wbisim-refl : ∀ (t : ITree E I R) → Wbisim RetRel t t
-  sim-refl    : ∀ (t : ITree E I R) → WSimF RetRel (Wbisim RetRel) t t
+  drwbisim-refl : ∀ (t : ITree E I R) → DRWbisim RetRel t t
+  sim-refl    : ∀ (t : ITree E I R) → DRWSimF RetRel (DRWbisim RetRel) t t
 
   -- Both directions are identical since t simulates itself
-  wbisim-refl t .Wbisim.fwd = sim-refl t
-  wbisim-refl t .Wbisim.bwd = sim-refl t
+  drwbisim-refl t .DRWbisim.fwd = sim-refl t
+  drwbisim-refl t .DRWbisim.bwd = sim-refl t
 
   -- on-ret: t itself is the witness; reach ret via empty τ* chain
-  sim-refl t .WSimF.on-ret eq =
+  sim-refl t .DRWSimF.on-ret eq =
       t , _ , weak-τ τ*-zero , eq , ret-refl
 
   -- on-vis: match the same visible step with empty τ* on both sides
-  sim-refl t .WSimF.on-vis {t₁' = t'} step =
-      t' , weak-ev τ*-zero step τ*-zero , wbisim-refl t'
+  sim-refl t .DRWSimF.on-vis {t₁' = t'} step =
+      t' , weak-ev τ*-zero step τ*-zero , drwbisim-refl t'
 
   -- on-tau: wrap the single τ step into a weak-τ, then close coinductively
-  sim-refl t .WSimF.on-tau {t₁' = t'} step =
-      t' , weak-τ (τ*-step step τ*-zero) , wbisim-refl t'
+  sim-refl t .DRWSimF.on-tau {t₁' = t'} step =
+      t' , weak-τ (τ*-step step τ*-zero) , drwbisim-refl t'
+
+  sim-refl t .DRWSimF.on-div d = d
 
   -- Symmetry: trivially swap fwd and bwd
-  wbisim-sym : ∀ {t₁ t₂ : ITree E I R} → Wbisim RetRel t₁ t₂ → Wbisim RetRel t₂ t₁
-  wbisim-sym p .Wbisim.fwd = p .Wbisim.bwd
-  wbisim-sym p .Wbisim.bwd = p .Wbisim.fwd
+  drwbisim-sym : ∀ {t₁ t₂ : ITree E I R} → DRWbisim RetRel t₁ t₂ → DRWbisim RetRel t₂ t₁
+  drwbisim-sym p .DRWbisim.fwd = p .DRWbisim.bwd
+  drwbisim-sym p .DRWbisim.bwd = p .DRWbisim.fwd
 
-  wbisim-trans : ∀ {t₁ t₂ t₃}
-               → Wbisim RetRel t₁ t₂ → Wbisim RetRel t₂ t₃ → Wbisim RetRel t₁ t₃
-  wsim-trans   : ∀ {t₁ t₂ t₃}
-               → WSimF RetRel (Wbisim RetRel) t₁ t₂
-               → Wbisim RetRel t₂ t₃
-               → WSimF RetRel (Wbisim RetRel) t₁ t₃
+  drwbisim-trans : ∀ {t₁ t₂ t₃}
+               → DRWbisim RetRel t₁ t₂ → DRWbisim RetRel t₂ t₃ → DRWbisim RetRel t₁ t₃
+  drwsim-trans   : ∀ {t₁ t₂ t₃}
+               → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
+               → DRWbisim RetRel t₂ t₃
+               → DRWSimF RetRel (DRWbisim RetRel) t₁ t₃
 
   on-ret-trans : ∀ {t₁ t₂ t₃ : ITree E I R} {r}
                → ITree.force t₁ ≡ ret r
-               → WSimF RetRel (Wbisim RetRel) t₁ t₂
-               → Wbisim RetRel t₂ t₃
+               → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
+               → DRWbisim RetRel t₂ t₃
                → Σ[ t₃' ∈ ITree E I R ] Σ[ r' ∈ R ]
                  ( t₃ ═[ τ ]═► t₃'
                  × ITree.force t₃' ≡ ret r'
                  × RetRel r r' )
   on-ret-trans eq sim₁₂ bisim₂₃
-      with sim₁₂ .WSimF.on-ret eq
+      with sim₁₂ .DRWSimF.on-ret eq
   ... | t₂' , r' , weak-τ chain₁₂ , eq₂ , rel₁₂
       with lift-τ* chain₁₂ bisim₂₃
   ... | t₃' , t₃-chain , bisim-mid
-      with bisim-mid .Wbisim.fwd .WSimF.on-ret eq₂
+      with bisim-mid .DRWbisim.fwd .DRWSimF.on-ret eq₂
   ... | t₃'' , r'' , weak-τ chain₂₃ , eq₃ , rel₂₃
       = t₃'' , r'' , weak-τ (τ*-concat t₃-chain chain₂₃) , eq₃ , ret-trans rel₁₂ rel₂₃
 
   on-tau-trans : ∀ {t₁ t₂ t₃ t₁' : ITree E I R}
                → t₁ ─[ τ ]─► t₁'
-               → WSimF RetRel (Wbisim RetRel) t₁ t₂
-               → Wbisim RetRel t₂ t₃
+               → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
+               → DRWbisim RetRel t₂ t₃
                → Σ[ t₃' ∈ ITree E I R ]
                  ( t₃ ═[ τ ]═► t₃'
-                 × Wbisim RetRel t₁' t₃' )
+                 × DRWbisim RetRel t₁' t₃' )
   on-tau-trans step sim₁₂ bisim₂₃
-      with sim₁₂ .WSimF.on-tau step
+      with sim₁₂ .DRWSimF.on-tau step
   ... | t₂' , weak-τ chain₁₂ , bisim₁₂'
       with lift-τ* chain₁₂ bisim₂₃
   ... | t₃' , chain₂₃ , bisim₂₃'
-      = t₃' , weak-τ chain₂₃ , wbisim-trans bisim₁₂' bisim₂₃'
+      = t₃' , weak-τ chain₂₃ , drwbisim-trans bisim₁₂' bisim₂₃'
 
   on-vis-trans : ∀ {t₁ t₂ t₃ t₁' : ITree E I R} {at : AnyTypes E} {a : proj₁ at}
                → t₁ ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► t₁'
-               → WSimF RetRel (Wbisim RetRel) t₁ t₂
-               → Wbisim RetRel t₂ t₃
+               → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
+               → DRWbisim RetRel t₂ t₃
                → Σ[ t₃' ∈ ITree E I R ]
                  ( t₃ ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► t₃'
-                 × Wbisim RetRel t₁' t₃' )
+                 × DRWbisim RetRel t₁' t₃' )
   on-vis-trans step sim₁₂ bisim₂₃
-      with sim₁₂ .WSimF.on-vis step
+      with sim₁₂ .DRWSimF.on-vis step
   ... | t₂' , t₂-step , bisim₁₂'
       with lift-weak-ev t₂-step bisim₂₃
   ... | t₃' , t₃-step , bisim₂₃'
-      = t₃' , t₃-step , wbisim-trans bisim₁₂' bisim₂₃'
+      = t₃' , t₃-step , drwbisim-trans bisim₁₂' bisim₂₃'
+
+  on-div-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
+               → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
+               → DRWbisim RetRel t₂ t₃
+               → Divergent t₁
+               → Divergent t₃
+  on-div-trans sim₁₂ bisim₂₃ d
+      with sim₁₂ .DRWSimF.on-div d
+         | bisim₂₃ .DRWbisim.fwd .DRWSimF.on-div
+  ... | d₂ | on-div₂₃ = on-div₂₃ d₂
+
 {-
   wsim-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
-             → WSimF RetRel (WBisim RetRel) t₁ t₂
+             → DRWSimF RetRel (WBisim RetRel) t₁ t₂
              → WBisim RetRel t₂ t₃
-             → WSimF RetRel (WBisim RetRel) t₁ t₃
+             → DRWSimF RetRel (WBisim RetRel) t₁ t₃
 -}             
-  wsim-trans sim₁₂ bisim₂₃ .WSimF.on-ret eq  = on-ret-trans eq  sim₁₂ bisim₂₃
-  wsim-trans sim₁₂ bisim₂₃ .WSimF.on-tau step = on-tau-trans step sim₁₂ bisim₂₃
-  wsim-trans sim₁₂ bisim₂₃ .WSimF.on-vis step = on-vis-trans step sim₁₂ bisim₂₃
+  drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-ret eq  = on-ret-trans eq  sim₁₂ bisim₂₃
+  drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-tau step = on-tau-trans step sim₁₂ bisim₂₃
+  drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-vis step = on-vis-trans step sim₁₂ bisim₂₃
+  drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-div d = on-div-trans sim₁₂ bisim₂₃ d  
 
 {-
-  wbisim-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
+  drwbisim-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
                → WBisim RetRel t₁ t₂ → WBisim RetRel t₂ t₃ → WBisim RetRel t₁ t₃
 -}               
-  wbisim-trans p q .Wbisim.fwd = wsim-trans (p .Wbisim.fwd) q
-  wbisim-trans p q .Wbisim.bwd = wsim-trans (q .Wbisim.bwd) (wbisim-sym p)
+  drwbisim-trans p q .DRWbisim.fwd = drwsim-trans (p .DRWbisim.fwd) q
+  drwbisim-trans p q .DRWbisim.bwd = drwsim-trans (q .DRWbisim.bwd) (drwbisim-sym p)
 
 
-  Wbisim-isEquivalence : IsEquivalence (Wbisim RetRel)
-  Wbisim-isEquivalence = record
-    { refl  = wbisim-refl _
-    ; sym   = wbisim-sym
-    ; trans = wbisim-trans
+  DRWbisim-isEquivalence : IsEquivalence (DRWbisim RetRel)
+  DRWbisim-isEquivalence = record
+    { refl  = drwbisim-refl _
+    ; sym   = drwbisim-sym
+    ; trans = drwbisim-trans
     }
     

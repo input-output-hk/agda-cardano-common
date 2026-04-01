@@ -33,8 +33,12 @@ open import Data.List using (List; _++_; _∷_; []; length; reverse; map; foldr;
 -- import Data.List.Properties using (reverse-++-commute; map-compose; map-++-commute; foldr-++; map-is-foldr)
 
 open import Interaction_Trees
-open import ITree_Relations.LTS using (Label; ev; τ; _─[_]─►_; sSil;
-  _─[τ^_]─►_; τ^-zero; τ^-suc)
+open import ITree_Relations.LTS using (EvLabel; evLabel; Label;
+  _─[_]─►_; sSil; sVis; sInv;
+  _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
+  _═[_]═►_; weak-τ; weak-ev;
+  _─[τ^_]─►_; τ^-zero; τ^-suc  
+  )
 
 module ITree_Relations.Divergence
   {ℓ ℓe ℓi ℓr : Level}
@@ -95,12 +99,34 @@ record Divergent (P : ITree E I R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) w
   coinductive
   field
     next    : ITree E I R
-    step    : P ─[ τ ]─► next
+    step    : P ─[ Label.τ ]─► next
     diverge : Divergent next
 
 open Divergent
 
+-- div is divergent
 div-diverges : Divergent div
 div-diverges .next    = div
 div-diverges .step    = sSil refl
 div-diverges .diverge = div-diverges
+
+{-
+-- Lift divergence up through a sil node
+step-diverges : ∀ {t t' : ITree E I R}
+              → ITree.force t ≡ sil t'
+              → Divergent t'
+              → Divergent t
+step-diverges {t} {t'} eq d .Divergent.next    = t'
+step-diverges eq d .Divergent.step    = sSil eq
+step-diverges eq d .Divergent.diverge = d
+-}
+
+divergent-prefix : ∀ {t t' : ITree E I R}
+                 → t ─[τ*]─► t'
+                 → Divergent t'
+                 → Divergent t
+divergent-prefix τ*-zero       d = d
+divergent-prefix (τ*-step s p) d .next    = _
+divergent-prefix (τ*-step s p) d .step    = s
+divergent-prefix (τ*-step s p) d .diverge = divergent-prefix p d
+

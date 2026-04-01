@@ -7,13 +7,14 @@
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Level using (Level; _⊔_; Lift; lift; lower) renaming (zero to lzero; suc to lsuc)
-open import Data.Maybe using (Maybe; just; nothing) renaming (map to mapMaybe)
+open import Data.Maybe using (Maybe; just; nothing; is-just; Is-just) renaming (map to mapMaybe)
 open import Data.Empty using (⊥)
 open import Data.Unit using (⊤; tt)
 open import Data.Product using (Σ; _,_; proj₁; _×_; ∃; Σ-syntax; ∃-syntax)
 open import Relation.Unary
 open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+-- open import Data.Maybe.Relation.Unary.Any
 
 module Interaction_Trees where
 
@@ -41,6 +42,7 @@ mutual
         - r[P] if r is a non-injective renaming function or renaming relations
      For CSP, I could be the same as E
   -}
+  -- ITree is not able to model something like (a → P □ (τ → Q)) because visible choices only allow visible events, not tau
   data NodeKind {ℓ ℓe ℓi ℓr : Level}
                (E : Set ℓ → Set ℓe)
                (I : Set ℓ → Set ℓi) -- maybe too general? type a as cardinality a → Set (you may not need to deal with levels)
@@ -59,29 +61,22 @@ mutual
     -- (A , i) → (A → child)
     -- What does nothing mean? It is different from vis. Here, I is just an index set
     --  like (Fin n) for index. I doesn't mean events in vis. So nothing means no this branch.
-    inv : ((i  : AnyTypes I) → ContinueType i  (Maybe (ITree E I R)))
+    inv : (branches : (i  : AnyTypes I) → ContinueType i  (Maybe (ITree E I R)))
+        → (i : AnyTypes I) → (a : proj₁ i) → Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (branches i a) -- This ensures the non-empty of inv
+        -- where i a are witnesses of at least one just branch
         → NodeKind E I R
 
   record ITree {ℓ ℓe ℓi ℓr : Level}
                (E : Set ℓ → Set ℓe)
                (I : Set ℓ → Set ℓi)
                (R : Set ℓr)
-             : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where -- _ for undecided levels, ? 
+             : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where -- _ for undecided levels, ?
     coinductive
     constructor itree
     field
       force : NodeKind E I R
 
--- pattern τ P = sil P
--- pattern √ r = ret r
-
-emptyAnyTypesFun : ∀ {ℓ ℓe ℓi ℓr}
-                   {E : Set ℓ → Set ℓe}
-                   {I : Set ℓ → Set ℓi}
-                   {R : Set ℓr}
-                 → (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))
-emptyAnyTypesFun _ _ = nothing
-
+-- Kleiski trees
 KTree : ∀ {ℓ ℓe ℓi ℓr ℓs}
       → (E : Set ℓ → Set ℓe)
       → (I : Set ℓ → Set ℓi)
@@ -90,6 +85,7 @@ KTree : ∀ {ℓ ℓe ℓi ℓr ℓs}
       → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs)
 KTree E I R S = R → ITree E I S
 
+-- Homogeneous Kleiski trees
 HKTree : ∀ {ℓ ℓe ℓi ℓr}
        → (E : Set ℓ → Set ℓe)
        → (I : Set ℓ → Set ℓi)
@@ -112,7 +108,7 @@ isStable t with ITree.force t
 ... | ret _ = ⊤
 ... | sil _ = ⊥
 ... | vis _ = ⊤
-... | inv _ = ⊥
+... | inv _ _ _ _ = ⊥
 
 isUnstable : ∀ {ℓ ℓe ℓi ℓr : Level}
                {E : Set ℓ → Set ℓe}
@@ -123,7 +119,7 @@ isUnstable t with ITree.force t
 ... | ret _ = ⊥
 ... | sil _ = ⊤
 ... | vis _ = ⊥
-... | inv _ = ⊤
+... | inv _ _ _ _ = ⊤
 
 -- The image of f: the set of ITrees reachable via f
 Image : ∀ {ℓ ℓe ℓi ℓr : Level}
@@ -139,10 +135,6 @@ div : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set �
     → ITree E I R
 ITree.force div = sil div
 
--- ───────────────────────────────────────────────
--- Auxiliary absurdity lemmas for ITreeF constructors
--- ───────────────────────────────────────────────
-
 vis≢sil : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
     {t : ITree E I R}
@@ -152,8 +144,16 @@ vis≢sil ()
 vis≢inv : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}    
     {g : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}
-  → vis f ≡ inv g → ⊥
+    {i : AnyTypes I} {a : proj₁ i} {p : Is-just (g i a)}
+  → vis f ≡ inv g i a p  → ⊥
 vis≢inv ()
+
+sil≢inv : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {t : ITree E I R}
+    {f : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}    
+    {i : AnyTypes I} {a : proj₁ i} {p : Is-just (f i a)}
+  → sil t ≡ inv f i a p  → ⊥
+sil≢inv ()
 
 -- vis is injective in its continuation argument
 vis-injective : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}

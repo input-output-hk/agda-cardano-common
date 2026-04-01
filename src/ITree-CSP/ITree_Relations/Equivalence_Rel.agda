@@ -26,7 +26,7 @@ open import Function using (case_of_)
 
 open import Data.Maybe.Relation.Binary.Pointwise using (Pointwise)
 open import Relation.Binary                       using (Rel)
-open import Relation.Binary.PropositionalEquality using (_≡_)
+open import Relation.Binary.PropositionalEquality using (_≡_; subst; sym; trans; refl)
 
 open import Interaction_Trees
 
@@ -57,10 +57,29 @@ data EqNodeKindF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
        → Pointwise TreeRel (f₁ at a) (f₂ at a))
        → EqNodeKindF RetRel TreeRel (vis f₁) (vis f₂)
 
+  -- The evidence is also match. Does it too strong?
+  -- For structual equivalence here, it exactly means that
+  invF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
+       → (eq-idx : i₁ ≡ i₂) -- The indices are the same
+       → (subst (λ i → proj₁ i) eq-idx a₁ ≡ a₂) -- Now a₁ and a₂ can be compared
+       → (∀ (i : AnyTypes I) (val : proj₁ i)
+          → Pointwise TreeRel (f₁ i val) (f₂ i val))
+       → EqNodeKindF RetRel TreeRel (inv f₁ i₁ a₁ p₁) (inv f₂ i₂ a₂ p₂)
+
+{-
+  -- Use this weak version if the previous one is too strong
+  invF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
+       → (∀ (i : AnyTypes I) (val : proj₁ i)
+          → Pointwise TreeRel (f₁ i val) (f₂ i val))
+       → EqNodeKindF RetRel TreeRel (inv f₁ i₁ a₁ p₁) (inv f₂ i₂ a₂ p₂)       
+-}
+
+{-
   invF : ∀ {f₁ f₂}
        → (∀ (i : AnyTypes I) (a : proj₁ i)
        → Pointwise TreeRel (f₁ i a) (f₂ i a))
        → EqNodeKindF RetRel TreeRel (inv f₁) (inv f₂)
+-}       
 
 -- Bisim RetRel is the greatest fixpoint of (EqNodeKindF RetRel)
 -- i.e., ν X. EqNodeKindF RetRel X
@@ -120,7 +139,8 @@ module SEquivEquiv
       go : ∀ m → Pointwise (SEquiv RetRel) m m
       go (just t') = MPW.just (sequiv-refl t')
       go nothing   = MPW.nothing
-  ... | inv f  = invF (λ i a → go (f i a))
+--  ... | inv f i a p = invF (λ i a → go (f i a))
+  ... | inv f i a p = invF refl refl (λ i' a' → go (f i' a'))
     where
       go : ∀ m → Pointwise (SEquiv RetRel) m m
       go (just t') = MPW.just (sequiv-refl t')
@@ -133,7 +153,16 @@ module SEquivEquiv
   ... | ret _  | ret _  | retF r    = retF (ret-sym r)
   ... | sil _  | sil _  | silF q    = silF (sequiv-sym q)
   ... | vis _  | vis _  | visF h    = visF (λ at a → MPW.sym sequiv-sym (h at a))
-  ... | inv _  | inv _  | invF h    = invF (λ i  a → MPW.sym sequiv-sym (h i  a))
+  ... | inv _ _ _ _  | inv _ _ _ _ | invF eq-idx eq-val h = invF
+      (sym eq-idx) (sym-val eq-idx eq-val) (λ i  a → MPW.sym sequiv-sym (h i  a))
+    where
+      -- Helper to handle the symmetry of the witness value when the index changes
+      sym-val : ∀ {i₁ i₂} {a₁ : proj₁ i₁} {a₂ : proj₁ i₂}
+              → (e : i₁ ≡ i₂) 
+              → subst (λ i → proj₁ i) e a₁ ≡ a₂ 
+              → subst (λ i → proj₁ i) (sym e) a₂ ≡ a₁
+      sym-val refl refl = refl
+    
 
   {-# NON_TERMINATING #-}
   sequiv-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
@@ -145,8 +174,18 @@ module SEquivEquiv
   ... | sil _  | sil _  | sil _  | silF p'  | silF q'  = silF (sequiv-trans p' q')
   ... | vis _  | vis _  | vis _  | visF hp  | visF hq  =
         visF (λ at a → MPW.trans sequiv-trans (hp at a) (hq at a))
-  ... | inv _  | inv _  | inv _  | invF hp  | invF hq  =
-        invF (λ i  a → MPW.trans sequiv-trans (hp i  a) (hq i  a))
+  ... | inv _ _ _ _ | inv _ _ _ _  | inv _ _ _ _  | invF eq-idx-p eq-val-p hp  | invF eq-idx-q eq-val-q hq  =
+        invF (trans eq-idx-p eq-idx-q) 
+           (trans-val eq-idx-p eq-idx-q eq-val-p eq-val-q)
+           (λ i  a → MPW.trans sequiv-trans (hp i  a) (hq i  a))
+      where
+        -- Helper to handle transitivity of the dependent witness values
+        trans-val : ∀ {i₁ i₂ i₃} {a₁ : proj₁ i₁} {a₂ : proj₁ i₂} {a₃ : proj₁ i₃}
+                  → (e1 : i₁ ≡ i₂) (e2 : i₂ ≡ i₃)
+                  → subst (λ i → proj₁ i) e1 a₁ ≡ a₂ 
+                  → subst (λ i → proj₁ i) e2 a₂ ≡ a₃
+                  → subst (λ i → proj₁ i) (trans e1 e2) a₁ ≡ a₃
+        trans-val refl refl refl refl = refl           
 
   -- Package as a Setoid
   SEquiv-isEquivalence : IsEquivalence (SEquiv RetRel)
