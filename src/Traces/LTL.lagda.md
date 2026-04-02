@@ -217,10 +217,17 @@ module TraceLTL {α : Alphabet} where
     R : Process α
     R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
 
+    prop-a-before-c : Prop
+    prop-a-before-c = ((¬ (` c)) U (` a))
+
     -- Agda tries to unroll the traces...
     -- This is why the structural approach is needed.
-    --a-Before-c : Holdsᵖ ((¬ (` c)) U (` a)) R
+    --a-Before-c : Holdsᵖ  R
     --a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
+
+    r-sat : R ⊨ prop-a-before-c
+    r-sat = ?
+
 ```
 # Structural Satisfaction
 
@@ -281,6 +288,8 @@ module Satisfaction (α : Alphabet) where
     -- Or we could do something with the head of the trace?...
     -- Or we need a small step reduction semantics?!?
     -- F∥ :
+
+
 ```
 
 We can build a decision procedure for this.
