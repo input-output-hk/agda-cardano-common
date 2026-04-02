@@ -14,9 +14,11 @@ open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq
 open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_;  _∪ˡ_; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ; setToList to toList)
 open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap; filter; take; find)
 open import Data.Nat using (ℕ; zero; suc)
-open import Relation.Nullary using (¬_; yes; no; Dec)
+open import Relation.Nullary using (¬_; yes; no; Dec; contradiction)
 open import Relation.Binary.Definitions using (DecidableEquality)
 open import Data.Product using (_×_; _,_; Σ; ∃)
+open import Relation.Binary.PropositionalEquality using (cong)
+open import Function.Base using (_$_)
 
 -- FIXME: This is buried in FiniteSetTheory but I don't
 -- want to spend the morning trying to get the import to work!
@@ -26,6 +28,8 @@ postulate
 ```
 Alphabets contain a set of events, a "success event", and an instance of decidable equality for the events.
 ```
+--open import Tactic.Derive.DecEq
+
 record Alphabet : Type where
   field A : Type
         ✓ : A
@@ -34,6 +38,17 @@ record Alphabet : Type where
   data A⁺ : Type where
     τ : A⁺
     `_ : A → A⁺
+
+  instance
+    DecEq-A⁺ : DecEq A⁺
+    DecEq-A⁺ ._≟_ (` a) (` b) with a ≟ b
+    ... | yes a≡b = yes $ cong `_ a≡b
+    ... | no a≢b = no λ{ refl → a≢b refl }
+    DecEq-A⁺ ._≟_ τ τ = yes refl
+    DecEq-A⁺ ._≟_ τ (` _) = no λ ()
+    DecEq-A⁺ ._≟_ (` _) τ = no λ ()
+
+--unquoteDecl DecEq-A⁺ = derive-DecEq [ (quote Alphabet.A⁺ , DecEq-A⁺) ]
 ```
 
 ## Processes
@@ -134,15 +149,20 @@ success element when we reach `SKIP`.
 ```
 [Brookes et al.](https://www.cs.cmu.edu/~brookes/papers/OperationalSemanticsCSP.pdf) include some other helpful definitions.
 ```
+  -- TODO: Base on Haskell implementations...
+  _intersect_ _union_ _\\_ : ∀ {ℓ} {A : Type ℓ} ⦃ _ : DecEq A ⦄ → List A → List A → List A
+  _intersect_ = {!!}
+  _union_ = {!!}
+  _\\_ = {!!}
+
   initials : Process α → List A⁺
   initials STOP = []
   initials SKIP = [ ` ✓ ]
   initials (x ➔ P) = [ ` x ]
-  initials (P □ Q) = (initials P) ++ (initials Q)
-  initials (P ⊓ Q) = [ τ ]
-  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q
-  ... | [] | iq = filter (λ { Alphabet.τ → no λ () ; (Alphabet.` x) → x ∈? As}) iq
-  ... | (x ∷ pt) | iq = {!!}
+  initials (P □ Q) = (initials P) union (initials Q)
+  initials (P ⊓ Q) = (initials P) union (initials Q)
+  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q | map `_ As
+  ... | ip | iq | as = ((ip intersect iq) intersect as) ++ (ip \\ as) ++ (iq \\ as)
 ```
 ## Examples
 ```
