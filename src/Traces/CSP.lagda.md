@@ -184,19 +184,15 @@ module Reduction (α : Alphabet) where
 
   open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∉_; _∈?_; _∉?_)
 
-  data Action : Type where
-    ·_ : A → Action
-    τ : Action
-
-  data _─_⟶_ : Process α → Action → Process α → Type where
+  data _─_⟶_ : Process α → A⁺ → Process α → Type where
     prefix : {a : A} {P : Process α}
-      → (a ➔ P) ─ · a ⟶ P
+      → (a ➔ P) ─ ` a ⟶ P
     □₁ : {a : A} {P Q P' : Process α}
-      → P ─ · a ⟶ P'
-      → (P □ Q) ─ · a ⟶ P'
+      → P ─ ` a ⟶ P'
+      → (P □ Q) ─ ` a ⟶ P'
     □₂ : {a : A} {P Q Q' : Process α}
-      → Q ─ · a ⟶ Q'
-      → (P □ Q) ─ · a ⟶ Q'
+      → Q ─ ` a ⟶ Q'
+      → (P □ Q) ─ ` a ⟶ Q'
     □₃ : {P Q P' : Process α}
       → P ─ τ ⟶ P'
       → (P □ Q) ─ τ ⟶ P
@@ -212,29 +208,29 @@ module Reduction (α : Alphabet) where
       → (P ⊓ Q) ─ τ ⟶ Q
     ∥₁ : {a : A} {P Q P' Q' : Process α} {As : List A}
       → a ∈ As
-      → P ─ · a ⟶ P'
-      → Q ─ · a ⟶ Q'
-      → (P ∥⦅ As ⦆ Q) ─ · a ⟶ (P' ∥⦅ As ⦆ Q')
+      → P ─ ` a ⟶ P'
+      → Q ─ ` a ⟶ Q'
+      → (P ∥⦅ As ⦆ Q) ─ ` a ⟶ (P' ∥⦅ As ⦆ Q')
     ∥₂ : {a : A} {P Q P' : Process α} {As : List A}
       → a ∉ As
-      → P ─ · a ⟶ P'
-      → (P ∥⦅ As ⦆ Q) ─ · a ⟶ (P' ∥⦅ As ⦆ Q)
+      → P ─ ` a ⟶ P'
+      → (P ∥⦅ As ⦆ Q) ─ ` a ⟶ (P' ∥⦅ As ⦆ Q)
     ∥₃ : {a : A} {P Q Q' : Process α} {As : List A}
       → a ∉ As
-      → Q ─ · a ⟶ Q'
-      → (P ∥⦅ As ⦆ Q) ─ · a ⟶ (P ∥⦅ As ⦆ Q')
+      → Q ─ ` a ⟶ Q'
+      → (P ∥⦅ As ⦆ Q) ─ ` a ⟶ (P ∥⦅ As ⦆ Q')
     ∥₄ : {P Q P' : Process α} {As : List A}
       → P ─ τ ⟶ P'
       → (P ∥⦅ As ⦆ Q) ─ τ ⟶ (P' ∥⦅ As ⦆ Q)
     ∥₅ : {P Q Q' : Process α} {As : List A}
       → Q ─ τ ⟶ Q'
       → (P ∥⦅ As ⦆ Q) ─ τ ⟶ (P ∥⦅ As ⦆ Q')
-    SKIP : SKIP ─ · ✓ ⟶ STOP
+    SKIP : SKIP ─ ` ✓ ⟶ STOP
 ```
 Since CSP is deliberatley non-deterministic, especially with parallel composition, we can't do a simple, decidable decision procedure.
 We can decide whether, for a particular event, a process will reduce and synchronise with that event.
 ```
-  reduces? : (P : Process α) → (a : A) → Dec (∃ (λ (P' : Process α) → P ─ · a ⟶ P'))
+  reduces? : (P : Process α) → (a : A) → Dec (∃ (λ (P' : Process α) → P ─ ` a ⟶ P'))
   reduces? STOP a = no (λ ())
   reduces? SKIP a with a ≟ ✓
   ... | no a≠✓ = no λ { (STOP , SKIP) → a≠✓ refl }

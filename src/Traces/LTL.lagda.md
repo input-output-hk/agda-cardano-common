@@ -259,6 +259,9 @@ module Satisfaction (α : Alphabet) where
       → P ⊨ q
       → P ⊨ p ⇒ q
     `_ : {P : Process α} {a : A} → a Process.➔ P ⊨ ` a
+    X : {P : Process α} {a : A}
+      → (initials P) ≡ [ a ]
+      → P ⊨ X a
     F-now : {P : Process α} {p : Prop α}
       → P ⊨ p
       → P ⊨ F p
