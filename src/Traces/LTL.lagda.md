@@ -233,6 +233,7 @@ take a structural induction approach.
 
 module Satisfaction (α : Alphabet) where
   open Alphabet α
+  open Traces.CSP.Reduction α
 
   infix 1 _⊨_
   {-# NO_POSITIVITY_CHECK #-}
