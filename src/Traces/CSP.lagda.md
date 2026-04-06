@@ -11,7 +11,7 @@ module Traces.CSP where
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
-open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_;  _∪ˡ_; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ; setToList to toList)
+open import abstract-set-theory.FiniteSetTheory using (ℙ_; ∅; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_; _∪ˡ_; _∩_; _＼_; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ; setToList to toList)
 open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap; filter; take; find)
 open import Data.Nat using (ℕ; zero; suc)
 open import Relation.Nullary using (¬_; yes; no; Dec; contradiction)
@@ -149,20 +149,14 @@ success element when we reach `SKIP`.
 ```
 [Brookes et al.](https://www.cs.cmu.edu/~brookes/papers/OperationalSemanticsCSP.pdf) include some other helpful definitions.
 ```
-  -- TODO: Base on Haskell implementations...
-  _intersect_ _union_ _\\_ : ∀ {ℓ} {A : Type ℓ} ⦃ _ : DecEq A ⦄ → List A → List A → List A
-  _intersect_ = {!!}
-  _union_ = {!!}
-  _\\_ = {!!}
-
-  initials : Process α → List A⁺
-  initials STOP = []
-  initials SKIP = [ ` ✓ ]
-  initials (x ➔ P) = [ ` x ]
-  initials (P □ Q) = (initials P) union (initials Q)
-  initials (P ⊓ Q) = (initials P) union (initials Q)
-  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q | map `_ As
-  ... | ip | iq | as = ((ip intersect iq) intersect as) ++ (ip \\ as) ++ (iq \\ as)
+  initials : Process α → ℙ A⁺
+  initials STOP = ∅
+  initials SKIP = ⟪ ` ✓ ⟫
+  initials (x ➔ P) = ⟪ ` x ⟫
+  initials (P □ Q) = initials P ∪ initials Q
+  initials (P ⊓ Q) = initials P ∪ initials Q
+  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q | fromList (map `_ As)
+  ... | ip | iq | as = (ip ∩ iq ∩ as) ∪ (ip ＼ as) ∪ (iq ＼ as)
 ```
 ## Examples
 ```
