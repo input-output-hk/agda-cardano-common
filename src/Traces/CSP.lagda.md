@@ -58,6 +58,7 @@ success element of that alphabet that is added to a traces if the process termin
 
 Processes can be infinite, so this type isn't "positive" in Agda's terms.
 ```
+infixr 20 _➔_
 data Process (α : Alphabet) : Type where
   STOP SKIP : Process α
   _➔_ : (Alphabet.A α) → Process α → Process α
@@ -73,7 +74,7 @@ trace based testing, which is necessarily finite.
 
 ```
 Trace : Alphabet → Type
-Trace 𝕒 = List (Alphabet.A⁺ 𝕒)
+Trace 𝕒 = List (Alphabet.A 𝕒)
 ```
 Trace sets ought to be proper sets with uniqueness, but we can use `List` for now to make
 mechanisation easier.
@@ -92,7 +93,7 @@ module TraceSemantics {α : Alphabet} where
   ⟨⟩ : Trace α
   ⟨⟩ = []
 
-  ⟨_⟩ : A⁺ → Trace α
+  ⟨_⟩ : A → Trace α
   ⟨ a ⟩ = [ a ]
 
   _^_ : Trace α → Trace α → Trace α
@@ -111,26 +112,23 @@ For finite traces this will terminate, although the interleavings can get large 
   {-# TERMINATING #-}
   _∥ᵗ⦅_⦆_ : Trace α → List A → Trace α → TraceSet α
   [] ∥ᵗ⦅ As ⦆ [] = ⟪ ⟨⟩ ⟫
-  -- τ can't be synchronised
-  (τ ∷ Pt) ∥ᵗ⦅ As ⦆ Qt = fromList (⟨⟩ ∷ (map (λ t → ⟨ τ ⟩ ^ t) (toList (Pt ∥ᵗ⦅ As ⦆ Qt))))
-  Pt ∥ᵗ⦅ As ⦆ (τ ∷ Qt) = fromList (⟨⟩ ∷ (map (λ t → ⟨ τ ⟩ ^ t) (toList (Pt ∥ᵗ⦅ As ⦆ Qt))))
-  [] ∥ᵗ⦅ As ⦆ (` q ∷ Qt) with q ∈? As
+  [] ∥ᵗ⦅ As ⦆ (q ∷ Qt) with q ∈? As
   ... | yes m = ⟪ ⟨⟩ ⟫
-  ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ ` q ⟩ ^ t) (toList ([] ∥ᵗ⦅ As ⦆ Qt))))
-  (` p ∷ Pt) ∥ᵗ⦅ As ⦆ [] with p ∈? As
+  ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) (toList ([] ∥ᵗ⦅ As ⦆ Qt))))
+  (p ∷ Pt) ∥ᵗ⦅ As ⦆ [] with p ∈? As
   ... | yes m = ⟪ ⟨⟩ ⟫
-  ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ ` p ⟩ ^ t) (toList (Pt ∥ᵗ⦅ As ⦆ []))))
-  (` p ∷ Pt) ∥ᵗ⦅ As ⦆ (` q ∷ Qt) with p ≟ q | p ∈? As | q ∈? As
-  ... | yes refl | yes pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ ` p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt))
-  ... | yes refl | no ¬pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ ` p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (` q ∷ Qt))) ∪ (mapˢ (λ t → ⟨ ` q ⟩ ^ t) ((` p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
+  ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (toList (Pt ∥ᵗ⦅ As ⦆ []))))
+  (p ∷ Pt) ∥ᵗ⦅ As ⦆ (q ∷ Qt) with p ≟ q | p ∈? As | q ∈? As
+  ... | yes refl | yes pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt))
+  ... | yes refl | no ¬pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt))) ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
   ... | no ¬p=q | pin | qin = ⟪ ⟨⟩ ⟫ ∪ (pfirst pin) ∪ (qfirst qin)
     where
       pfirst : Dec (p ∈ As) → TraceSet α
       pfirst (yes pin) = ⟪ ⟨⟩ ⟫
-      pfirst (no ¬pin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ ` p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (` q ∷ Qt)))
+      pfirst (no ¬pin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
       qfirst : Dec (q ∈ As) → TraceSet α
       qfirst (yes qin) = ⟪ ⟨⟩ ⟫
-      qfirst (no ¬qin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ ` q ⟩ ^ t) ((` p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
+      qfirst (no ¬qin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
 ```
 
 The trace semantics of the other constructors follows the original book, with the addition of the termination
@@ -138,8 +136,8 @@ success element when we reach `SKIP`.
 ```
   traces : Process α → TraceSet α
   traces STOP = ⟪ ⟨⟩ ⟫
-  traces SKIP = ⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ ` ✓ ⟩ ⟫
-  traces (a ➔ P) = ⟪ ⟨⟩ ⟫ ∪ mapˢ (λ t → ⟨ ` a ⟩ ^ t ) (traces P)
+  traces SKIP = ⟪ ⟨⟩ ⟫ ∪ ⟪ ⟨ ✓ ⟩ ⟫
+  traces (a ➔ P) = ⟪ ⟨⟩ ⟫ ∪ mapˢ (λ t → ⟨ a ⟩ ^ t ) (traces P)
   traces (P □ Q) = traces P ∪ traces Q
   traces (P ⊓ Q) = traces P ∪ traces Q
   traces (P ∥⦅ As ⦆ Q) = concatMapˢ (λ s → concatMapˢ (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
@@ -149,13 +147,13 @@ success element when we reach `SKIP`.
 ```
 [Brookes et al.](https://www.cs.cmu.edu/~brookes/papers/OperationalSemanticsCSP.pdf) include some other helpful definitions.
 ```
-  initials : Process α → ℙ A⁺
+  initials : Process α → ℙ A
   initials STOP = ∅
-  initials SKIP = ⟪ ` ✓ ⟫
-  initials (x ➔ P) = ⟪ ` x ⟫
+  initials SKIP = ⟪ ✓ ⟫
+  initials (x ➔ P) = ⟪ x ⟫
   initials (P □ Q) = initials P ∪ initials Q
   initials (P ⊓ Q) = initials P ∪ initials Q
-  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q | fromList (map `_ As)
+  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q | fromList As
   ... | ip | iq | as = (ip ∩ iq ∩ as) ∪ (ip ＼ as) ∪ (iq ＼ as)
 ```
 ## Examples
