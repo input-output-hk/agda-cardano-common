@@ -207,11 +207,8 @@ module Reduction (α : Alphabet) where
       → (P □ Q) ─ ` a ⟶ Q'
     □₃ : {P Q P' : Process α}
       → P ─ τ ⟶ P'
-      → (P □ Q) ─ τ ⟶ P
-    □₄ : {P Q P' : Process α}
-      → P ─ τ ⟶ P'
       → (P □ Q) ─ τ ⟶ (P' □ Q)
-    □₅ : {P Q Q' : Process α}
+    □₄ : {P Q Q' : Process α}
       → Q ─ τ ⟶ Q'
       → (P □ Q) ─ τ ⟶ (P □ Q')
     ⊓₁ : {P Q : Process α}
