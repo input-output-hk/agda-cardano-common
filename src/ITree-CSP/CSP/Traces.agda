@@ -45,7 +45,7 @@ Stop-no-ev :
     {A : Set ℓ} {e : E A} {a : A}        
   → Stop' ─[ ev (evLabel A e a) ]─► t′
   → ⊥
-Stop-no-ev {t′ = t′} {A = A} {e = e} {a = a} tr with ev-inv tr
+Stop-no-ev {t′ = t′} {A = A} {e = e} {a = a} tr with ev-ndbr tr
 ... | f , (force≡vis , f-eq) =
   nothing≢just
     (subst (λ g → g (A , e) a ≡ just _)

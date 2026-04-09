@@ -1,13 +1,16 @@
 {-# OPTIONS --guardedness #-}
 -- {-# OPTIONS --safe --without-K #-}
 
+open import Prelude
 open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _^_; _∸_)
 open import Data.Fin using (Fin; remQuot) renaming (zero to fzero; suc to fsuc)
 open import Level using (Level; _⊔_; Lift; lift; lower) renaming (zero to lzero; suc to lsuc)
-open import Data.Maybe using (Maybe; just; nothing) renaming (map to mapMaybe)
+open import Data.Maybe using (Maybe; just; nothing; Is-just) renaming (map to mapMaybe)
+open import Data.Maybe.Relation.Unary.Any using (Any) renaming (just to any-just)
 open import Data.Empty using (⊥)
+open import Data.Unit.Base renaming (⊤ to ⊤₀; tt to tt₀)
 open import Data.Unit.Polymorphic using (⊤; tt)
-open import Data.Product using (Σ; _,_; proj₁; _×_)
+open import Data.Product using (Σ; _,_; proj₁; proj₂; _×_)
 -- open import Relation.Unary
 open import Function using (case_of_)
 import Relation.Binary.PropositionalEquality as Eq
@@ -135,25 +138,41 @@ force (P □ Q) | ret r | ret r' | yes refl = ret r
 force (P □ Q) | ret r | ret r' | no neq = Stop' .force
 
 force (P □ Q) | ret r | vis _  = ret r
-force (P □ Q) | ret r | inv _  = ret r
+force (P □ Q) | ret r | ndbr _ _ _ _  = ret r
 
 force (P □ Q) | _ | ret r  = ret r
 
 -- P is vis
 -- Merge two partial functions if both are visible.
--- But what about the same events?
+-- But what about the same events? It is nondeterminisitc choice
 -- Merge two functions into one 
 force (P □ Q) | vis fP | vis fQ = vis (λ Ae → mergeVis (fP Ae) (fQ Ae))
 
-force (P □ Q) | vis fP | inv fQ = inv (λ ai → λ a →
-  case fQ ai a of λ where
-    nothing → nothing
-    (just Q') → just (P □ Q'))
+force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | vis fP | ndbr fQ wi wa wp = ndbr (λ ai → λ a →
+      fQ' ai a) wi wa (go wp)
+  where
+    fQ' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) R)
+    fQ' i a = (case fQ i a of λ where
+        nothing → nothing
+        (just Q') → just (P □ Q'))
+      
+    go : Is-just (fQ wi wa) → Is-just (fQ' wi wa)
+    go p with fQ wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()  
 
-force (P □ Q) | inv fP | vis fQ = inv (λ ai → λ a →
-  case fP ai a of λ where
-    nothing → nothing
-    (just P') → just (P' □ Q))
+force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP wi wa wp | vis fQ = ndbr (λ ai → λ a →
+      fP' ai a) wi wa (go wp)
+  where
+    fP' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) R)
+    fP' i a = (case fP i a of λ where
+        nothing → nothing
+        (just P') → just (P' □ Q))
+      
+    go : Is-just (fP wi wa) → Is-just (fP' wi wa)
+    go p with fP wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
 
 -- P is br
 {- P1 ⊓ ... ⊓ Pn) □ (Q1 ⊓ ... ⊓ Qm)
@@ -165,23 +184,33 @@ force (P □ Q) | inv fP | vis fQ = inv (λ ai → λ a →
 -- P = ⨅ i∈I . Pi
 -- Q = ⨅ j∈J . Qj
 -- P □ Q = ⨅i∈I,j∈J​(Pi​□Qj​)
-force (_□_ {I = I} {R = R} P Q) | inv fP | inv fQ = inv mergeInv
+force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ = ndbr mergeNdbr
+         ((AP × AQ) , pair iP iQ) (waP , waQ) (go wpP wpQ) -- (AP × AQ , pair iP iQ) (waP , waQ) ? -- (go wpP wpQ)
+
   where
-    mergeInv : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
-    mergeInv (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
+    mergeNdbr : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
+    mergeNdbr (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
       case fP (AP , iP) aP , fQ (AQ , iQ) aQ of λ where
         (just P' , just Q') → just (P' □ Q')   -- ITree E (ExtI I) R ✓
         (just P' , nothing) → just P'
         (nothing , just Q') → just Q'
         (nothing , nothing) → nothing
-    mergeInv (A , base i) a = nothing            -- non-pair index: blocked
-    mergeInv (_ , fin) a = nothing            -- non-pair index: blocked
+    mergeNdbr (A , base i) a = nothing            -- non-pair index: blocked
+    mergeNdbr (_ , fin) a = nothing            -- non-pair index: blocked
+
+    go : Is-just (fP (AP , iP) waP)
+       → Is-just (fQ (AQ , iQ) waQ)
+       → Is-just (mergeNdbr ((AP × AQ) , pair iP iQ) (waP , waQ))
+    go pP pQ with fP (AP , iP) waP | pP | fQ (AQ , iQ) waQ | pQ
+    ... | just P' | _ | just Q' | _ = any-just tt₀
+    ... | just P' | _ | nothing | ()
+    ... | nothing | () | _      | _
 
 -------------------------------------------------------------------------------------
 -- Internal choice
 
 --  Definition of ⊓
-force (_⊓_ {I = I} {R = R} P Q) = inv br2
+force (_⊓_ {I = I} {R = R} P Q) = ndbr br2 (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
   where
     br2 : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
     br2 (_ , fin) x = case x of λ where
@@ -212,13 +241,13 @@ force (P ▷ Q) with P .force | Q .force
 force (P ▷ Q) | sil P' | _  = sil (P' ▷ Q)
 force (P ▷ Q) | ret r | _ = ret r
 force (P ▷ Q) | vis fP | _ = ((P □ Q) ⊓ Q) .force
-force (P ▷ Q) | inv fP | _ = ((P □ Q) ⊓ Q) .force
+force (P ▷ Q) | ndbr fP wi wa wp | _ = ((P □ Q) ⊓ Q) .force
 
 -------------------------------------------------------------------------------------
 -- bind operator
 -- {-# TERMINATING #-}
 -- _>>=_ : {R S : Set} → ITree E (ExtI I) R → (R → ITree E (ExtI I) S) → ITree E (ExtI I) S
-force (t >>= k) with force t
+force (_>>=_ {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} {I = I} {R = R} {S = S} t k) with force t
 ... | ret r   = (k r) .force
 ... | sil c    = sil (c >>= k)
 ... | vis f = vis (λ at → λ a → 
@@ -226,10 +255,18 @@ force (t >>= k) with force t
      nothing → nothing
      (just t') → just (t' >>= k))
 
-... | inv f = inv (λ ai → λ i →
-  case f ai i of λ where
-    nothing → nothing
-    (just t') → just (t' >>= k))
+... | ndbr f wi wa wp = ndbr (λ ai → λ i → f' ai i) wi wa (go wp)
+  where
+    f' : (ai : AnyTypes (ExtI I)) → (a : proj₁ ai) → Maybe (ITree E (ExtI I) S)
+    f' ai a = (case f ai a of λ where
+        nothing → nothing
+        (just t') → just (t' >>= k))
+      
+    go : Is-just (f wi wa) → Is-just (f' wi wa)
+    go p with f wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
+    
 
 -------------------------------------------------------------------------------------
 -- sequential composition
@@ -280,12 +317,22 @@ mutual
   {-# NON_TERMINATING #-}
   iter : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
     → (A → ITree E (ExtI I) (A ⊎ R)) → A → ITree E (ExtI I) R
-  force (iter body a) with body a .force
+  force (iter {ℓi = ℓi} {ℓr = ℓr} {I = I} {A = A} {R = R} body a) with body a .force
   ... | ret (inj₁ a′) = sil (iter body a′)
   ... | ret (inj₂ r)  = ret r
   ... | sil c         = sil (c >>= iterStep body)
   ... | vis  f        = vis  (λ at a → mapMaybe (λ t' → t' >>= iterStep body ) (f at a))
-  ... | inv f         = inv  (λ ai a → mapMaybe (λ t' → t' >>= iterStep body ) (f ai a))
+  -- ... | ndbr f wi wa wp = ndbr  (λ ai a → mapMaybe (λ t' → t' >>= iterStep body ) (f ai a)) wi wa ?
+  ... | ndbr f wi wa wp = ndbr (λ ai → λ i → f' ai i) wi wa (go wp)
+    where
+      f' : (ai : AnyTypes (ExtI I)) → (a : proj₁ ai) → Maybe (ITree E (ExtI I) R)
+      f' ai a = (mapMaybe (λ t' → t' >>= iterStep body ) (f ai a))
+
+      go : Is-just (f wi wa) → Is-just (f' wi wa)
+      go p with f wi wa | p
+      ... | just x | _ = any-just tt₀
+      ... | nothing | ()
+
 
   iterStep : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
     → (A → ITree E (ExtI I) (A ⊎ R)) → A ⊎ R → ITree E (ExtI I) R

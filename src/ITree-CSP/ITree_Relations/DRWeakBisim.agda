@@ -1,12 +1,14 @@
 {-
-  This module defines weak bisimulation between ITrees where
+  This module defines divergence-respecting weak bisimulation (DRW-Bisimulation) between ITrees where
     - invisible choice's indices are discarded and only their children (ITrees) matter;
-    - internal tau is omitted in transition relations.
+    - internal tau is omitted in transition relations;
+    - one process is divergent and the other is too.
 
-  This bisimulation is not able to distinguish the two processes below. It will treat them equally.
+  This DRW-bisimulation is able to distinguish the two CSP processes below. 
   -- P = a → STOP
   -- Q = (τ → Q)  ⊓  (a → STOP)    -- internal choice: diverge or do a
 -}
+
 
 {-# OPTIONS --guardedness #-}
 
@@ -26,17 +28,21 @@ open import Data.Maybe.Relation.Binary.Pointwise using (Pointwise)
 open import Relation.Binary                       using (Rel; IsEquivalence)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; subst; sym; trans; refl; inspect; [_])
 
+open import Prelude
 open import Interaction_Trees
 open import ITree_Relations.LTS using (EvLabel; evLabel; Label;
-  _─[_]─►_; sSil; sVis; sInv;
+  _─[_]─►_; sSil; sVis; sNdbr;
   _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
   _═[_]═►_; weak-τ; weak-ev
   )
 open import ITree_Relations.Divergence
 
-module ITree_Relations.DRWeakBisim1 where
+module ITree_Relations.DRWeakBisim where
 open Label
 open EvLabel
+
+-----------------------------------------------------------------------------------------
+-- Define divergence-respecting weak bisimulation
 
 -- One-sided weak simulation: every step of t₁ is weakly matched by t₂
 record DRWSimF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
@@ -85,31 +91,9 @@ record DRWbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
   field
     fwd : DRWSimF RetRel (DRWbisim RetRel) t₁ t₂  -- t₁ is simulated by t₂
     bwd : DRWSimF RetRel (DRWbisim RetRel) t₂ t₁  -- t₂ is simulated by t₁
-    
 
-{-
-record DRWbisim {ℓ ℓe ℓi ℓr ℓ≡ : Level}
-  {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-  (RetRel : Rel R ℓ≡)
-  (t₁ t₂ : ITree E I R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓ≡ ⊔ ℓr) where
-  coinductive
-  field
-    -- 1. If t₁ takes a step, t₂ matches it weakly
-    match-L : ∀ {L t₁'} 
-      → (t₁ ─[ L ]─► t₁') 
-      → Σ[ t₂' ∈ ITree E I R ] (t₂ ═[ L ]═► t₂' × DRWbisim RetRel t₁' t₂')
-
-    -- 2. If t₂ takes a step, t₁ matches it weakly (Symmetry)
-    match-R : ∀ {L t₂'} 
-      → (t₂ ─[ L ]─► t₂') 
-      → Σ[ t₁' ∈ ITree E I R ] (t₁ ═[ L ]═► t₁' × DRWbisim RetRel t₁' t₂')
-
-    -- 3. Termination matching
-    match-ret : ∀ {r₁}
-      → ITree.force t₁ ≡ ret r₁
-      → ITree.force t₂ ≡ ret r₂
-      → Σ[ r₂ ∈ R ] (t₂ ═[ Label.τ ]═► (itree (ret r₂)) × RetRel r₁ r₂)
--}      
+-----------------------------------------------------------------------------------------
+-- Some simple DRWbisim with special RetRel
 
 -- Standard strong bisimulation: propositional equality on return values
 _≈_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
@@ -125,6 +109,9 @@ _≈⊤_ {ℓr = ℓr}  = DRWbisim (λ _ _ → ⊤ {lzero})
 _≈[_]_ : ∀ {ℓ ℓe ℓi ℓr ℓ≡} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → ITree E I R → Rel R ℓ≡ → ITree E I R → Set _
 t₁ ≈[ _~_ ] t₂ = DRWbisim _~_ t₁ t₂
+
+-----------------------------------------------------------------------------------------
+-- DRWbisim isEquivalence
 
 -- Closed under a setoid on R
 open import Relation.Binary using (Setoid)
@@ -189,7 +176,10 @@ module DRWbisimEquiv
         splice pre (weak-ev mid-pre vis-step mid-post) post =
             weak-ev (τ*-concat pre mid-pre) vis-step (τ*-concat mid-post post)
 
-  {-# NON_TERMINATING #-}
+  -----------------------------------------------------------------------------------------
+  -- drwbisim-refl 
+
+  -- declare first
   drwbisim-refl : ∀ (t : ITree E I R) → DRWbisim RetRel t t
   sim-refl    : ∀ (t : ITree E I R) → DRWSimF RetRel (DRWbisim RetRel) t t
 
@@ -211,13 +201,18 @@ module DRWbisimEquiv
 
   sim-refl t .DRWSimF.on-div d = d
 
+  -----------------------------------------------------------------------------------------
   -- Symmetry: trivially swap fwd and bwd
   drwbisim-sym : ∀ {t₁ t₂ : ITree E I R} → DRWbisim RetRel t₁ t₂ → DRWbisim RetRel t₂ t₁
   drwbisim-sym p .DRWbisim.fwd = p .DRWbisim.bwd
   drwbisim-sym p .DRWbisim.bwd = p .DRWbisim.fwd
 
+  -----------------------------------------------------------------------------------------
+  -- Transitivity: 
   drwbisim-trans : ∀ {t₁ t₂ t₃}
-               → DRWbisim RetRel t₁ t₂ → DRWbisim RetRel t₂ t₃ → DRWbisim RetRel t₁ t₃
+               → DRWbisim RetRel t₁ t₂
+               → DRWbisim RetRel t₂ t₃
+               → DRWbisim RetRel t₁ t₃
   drwsim-trans   : ∀ {t₁ t₂ t₃}
                → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
                → DRWbisim RetRel t₂ t₃
@@ -287,12 +282,8 @@ module DRWbisimEquiv
   drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-ret eq  = on-ret-trans eq  sim₁₂ bisim₂₃
   drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-tau step = on-tau-trans step sim₁₂ bisim₂₃
   drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-vis step = on-vis-trans step sim₁₂ bisim₂₃
-  drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-div d = on-div-trans sim₁₂ bisim₂₃ d  
-
-{-
-  drwbisim-trans : ∀ {t₁ t₂ t₃ : ITree E I R}
-               → WBisim RetRel t₁ t₂ → WBisim RetRel t₂ t₃ → WBisim RetRel t₁ t₃
--}               
+  drwsim-trans sim₁₂ bisim₂₃ .DRWSimF.on-div d = on-div-trans sim₁₂ bisim₂₃ d
+  
   drwbisim-trans p q .DRWbisim.fwd = drwsim-trans (p .DRWbisim.fwd) q
   drwbisim-trans p q .DRWbisim.bwd = drwsim-trans (q .DRWbisim.bwd) (drwbisim-sym p)
 
@@ -304,3 +295,77 @@ module DRWbisimEquiv
     ; trans = drwbisim-trans
     }
     
+-----------------------------------------------------------------------------------------
+-- Lemmas for DRWbisim
+
+-- div is equal to itself
+div-drw : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  → (div {E = E} {I = I} {R = R}) ≈ div
+div-drw = DRWbisimEquiv.drwbisim-refl ≡-equiv div  
+
+-- A divergent process cannot be at ret
+divergent-not-ret : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+                    {t : ITree E I R} {r : R}
+                  → Divergent t → ITree.force t ≡ ret r → ⊥
+divergent-not-ret d eq with d .Divergent.step
+... | sSil eq'   = case trans (sym eq') eq of λ ()
+... | sNdbr eq' _ = case trans (sym eq') eq of λ ()
+
+-- A divergent process cannot take a visible step
+divergent-not-vis : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+                    {t t' : ITree E I R} {el : EvLabel E}
+                  → Divergent t → t ─[ ev el ]─► t' → ⊥
+divergent-not-vis d (sVis eq _) with d .Divergent.step
+... | sSil eq'   = case trans (sym eq') eq of λ ()
+... | sNdbr eq' _ = case trans (sym eq') eq of λ ()
+
+{- This however it is not true generally, such as
+  P = τ → τ → τ → ...           (pure silent divergence)
+  Q = vis e (λ _ → τ → τ → ...) (does a visible event, then diverges)
+-}
+{-
+mutual
+  {-# NON_TERMINATING #-}
+  sim-div : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+            {P Q : ITree E I R}
+          → Divergent P → Divergent Q
+          → DRWSimF _≡_ (DRWbisim _≡_) P Q
+  sim-div dP dQ .DRWSimF.on-ret eq =
+      ⊥-elim (divergent-not-ret dP eq)
+  sim-div dP dQ .DRWSimF.on-vis step =
+      ⊥-elim (divergent-not-vis dP step)
+  sim-div dP dQ .DRWSimF.on-tau step = 
+      --let eq-next = tau-det step (dP .Divergent.step)
+      --in
+        dQ .Divergent.next
+        , weak-τ (τ*-step (dQ .Divergent.step) τ*-zero)
+        , subst (λ t → DRWbisim _≡_ t (dQ .Divergent.next)) (sym {!!})
+                (div-≈ (dP .Divergent.diverge) (dQ .Divergent.diverge))
+
+  {-
+      let eq-next = tau-det step (dP .Divergent.step)
+      in  dQ .next
+        , weak-τ (τ*-step (dQ .step) τ*-zero)
+        , subst (λ t → DRWbisim _≡_ t (dQ .next)) (sym eq-next)
+                (div-≈ (dP .diverge) (dQ .diverge))
+  -}              
+  sim-div dP dQ .DRWSimF.on-div _ = dQ
+
+  -- All divergent ITrees are DRWbisimilar. This might not be true considering nondeterministic choice?
+  -- div ⊓ (a -> Stop) ≟ div
+  div-≈ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+        {P Q : ITree E I R}
+        → Divergent P
+        → Divergent Q
+        → DRWbisim _≡_ P Q
+  div-≈ dP dQ .DRWbisim.fwd = sim-div dP dQ
+  div-≈ dP dQ .DRWbisim.bwd = sim-div dQ dP
+-}
+
+-- Divergence respecting
+sim-div-preserved : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+        {P Q : ITree E I R}
+        → Divergent P
+        → P ≈ Q
+        → Divergent Q
+sim-div-preserved dP bisim = DRWSimF.on-div (DRWbisim.fwd bisim) dP

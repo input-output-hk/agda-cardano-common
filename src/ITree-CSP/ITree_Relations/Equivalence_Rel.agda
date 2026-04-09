@@ -59,26 +59,26 @@ data EqNodeKindF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
 
   -- The evidence is also match. Does it too strong?
   -- For structual equivalence here, it exactly means that
-  invF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
+  ndbrF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
        → (eq-idx : i₁ ≡ i₂) -- The indices are the same
        → (subst (λ i → proj₁ i) eq-idx a₁ ≡ a₂) -- Now a₁ and a₂ can be compared
        → (∀ (i : AnyTypes I) (val : proj₁ i)
           → Pointwise TreeRel (f₁ i val) (f₂ i val))
-       → EqNodeKindF RetRel TreeRel (inv f₁ i₁ a₁ p₁) (inv f₂ i₂ a₂ p₂)
+       → EqNodeKindF RetRel TreeRel (ndbr f₁ i₁ a₁ p₁) (ndbr f₂ i₂ a₂ p₂)
 
 {-
   -- Use this weak version if the previous one is too strong
-  invF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
+  ndbrF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
        → (∀ (i : AnyTypes I) (val : proj₁ i)
           → Pointwise TreeRel (f₁ i val) (f₂ i val))
-       → EqNodeKindF RetRel TreeRel (inv f₁ i₁ a₁ p₁) (inv f₂ i₂ a₂ p₂)       
+       → EqNodeKindF RetRel TreeRel (ndbr f₁ i₁ a₁ p₁) (ndbr f₂ i₂ a₂ p₂)       
 -}
 
 {-
-  invF : ∀ {f₁ f₂}
+  ndbrF : ∀ {f₁ f₂}
        → (∀ (i : AnyTypes I) (a : proj₁ i)
        → Pointwise TreeRel (f₁ i a) (f₂ i a))
-       → EqNodeKindF RetRel TreeRel (inv f₁) (inv f₂)
+       → EqNodeKindF RetRel TreeRel (ndbr f₁) (ndbr f₂)
 -}       
 
 -- Bisim RetRel is the greatest fixpoint of (EqNodeKindF RetRel)
@@ -139,8 +139,8 @@ module SEquivEquiv
       go : ∀ m → Pointwise (SEquiv RetRel) m m
       go (just t') = MPW.just (sequiv-refl t')
       go nothing   = MPW.nothing
---  ... | inv f i a p = invF (λ i a → go (f i a))
-  ... | inv f i a p = invF refl refl (λ i' a' → go (f i' a'))
+--  ... | ndbr f i a p = ndbrF (λ i a → go (f i a))
+  ... | ndbr f i a p = ndbrF refl refl (λ i' a' → go (f i' a'))
     where
       go : ∀ m → Pointwise (SEquiv RetRel) m m
       go (just t') = MPW.just (sequiv-refl t')
@@ -153,7 +153,7 @@ module SEquivEquiv
   ... | ret _  | ret _  | retF r    = retF (ret-sym r)
   ... | sil _  | sil _  | silF q    = silF (sequiv-sym q)
   ... | vis _  | vis _  | visF h    = visF (λ at a → MPW.sym sequiv-sym (h at a))
-  ... | inv _ _ _ _  | inv _ _ _ _ | invF eq-idx eq-val h = invF
+  ... | ndbr _ _ _ _  | ndbr _ _ _ _ | ndbrF eq-idx eq-val h = ndbrF
       (sym eq-idx) (sym-val eq-idx eq-val) (λ i  a → MPW.sym sequiv-sym (h i  a))
     where
       -- Helper to handle the symmetry of the witness value when the index changes
@@ -174,8 +174,8 @@ module SEquivEquiv
   ... | sil _  | sil _  | sil _  | silF p'  | silF q'  = silF (sequiv-trans p' q')
   ... | vis _  | vis _  | vis _  | visF hp  | visF hq  =
         visF (λ at a → MPW.trans sequiv-trans (hp at a) (hq at a))
-  ... | inv _ _ _ _ | inv _ _ _ _  | inv _ _ _ _  | invF eq-idx-p eq-val-p hp  | invF eq-idx-q eq-val-q hq  =
-        invF (trans eq-idx-p eq-idx-q) 
+  ... | ndbr _ _ _ _ | ndbr _ _ _ _  | ndbr _ _ _ _  | ndbrF eq-idx-p eq-val-p hp  | ndbrF eq-idx-q eq-val-q hq  =
+        ndbrF (trans eq-idx-p eq-idx-q) 
            (trans-val eq-idx-p eq-idx-q eq-val-p eq-val-q)
            (λ i  a → MPW.trans sequiv-trans (hp i  a) (hq i  a))
       where

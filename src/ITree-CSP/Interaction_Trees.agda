@@ -1,5 +1,63 @@
 {-
   This module defines Interaction Trees (ITree), including basic definitions and proofs related to ITree
+
+ITree E I R (Coinductive Record)
+  |
+  +-- force: NodeKind E I R (Data Type)
+              |
+              +-- ret r: R
+              |   (Terminal node returning value r)
+              |
+              +-- sil t: ITree E I R
+              |   (Silent transition τ to next tree t)
+              |
+              +-- vis choices: (at : AnyTypes E) -> ContinueType at (Maybe (ITree E I R))
+              |   (Visible event choices)
+              |   |
+              |   +-- (at : (A, _)) -> (a : A) -> Just t: ITree E I R
+              |   |   (Event (at, a) leads to next tree t)
+              |   |
+              |   +-- (at : (A, _)) -> (a : A) -> Nothing
+              |   |   (Event (at, a) is not enabled in this choice)
+              |   .
+              |   .
+              |   .              
+              |
+              +-- ndbr branches: (it : AnyTypes I) -> ContinueType it (Maybe (ITree E I R))
+                  witness: (i : AnyTypes I) -> (a : proj1 i) -> Is-just (branches i a)
+                  (Nondeterministic internal branches)
+                  |
+                  +-- (it : (A, _)) -> (a : A) -> Just t: ITree E I R
+                  |   (Branch indexed by (it, a) leads to next tree t)
+                  |
+                  +-- (it : (A, _)) -> (a : A) -> Nothing
+                  |   (Branch indexed by (it, a) does not exist)
+                  |
+                  .
+                  ,                  
+
+Or similarly represented as below.
+
+[ ITree E I R ]  (Coinductive Record)
+              |
+           .force
+              |
+      _______/ \___________________________________________
+     |                |                 |                  |
+ [ ret ]           [ sil ]           [ vis ]            [ ndbr ]
+    |                 |                 |                  |
+ (Value R)      (Next ITree)     (Visible Events)   (Internal Choice)
+    |                 |                 |                  |
+ [Term]            [ τ ]          (AnyTypes E)       (AnyTypes I)
+                                        |                  |
+                                 (ContinueType)     (ContinueType)
+                                        |                  |
+                                 +------+------+    +------+------+
+                                 |             |    |             |
+                              [Just]       [Nothing] [Just]    [Nothing]
+                                 |             |    |             |
+                            (Next ITree)    (Dead) (Next ITree) (Dead)
+                            
 -}
 
 {-# OPTIONS --guardedness #-}
@@ -58,11 +116,12 @@ mutual
     -- nothing mean an event is not appeared in this choice
     vis : ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R)))
         → NodeKind E I R
+    -- nondeterministic branches or internal or invisible
     -- (A , i) → (A → child)
     -- What does nothing mean? It is different from vis. Here, I is just an index set
     --  like (Fin n) for index. I doesn't mean events in vis. So nothing means no this branch.
-    inv : (branches : (i  : AnyTypes I) → ContinueType i  (Maybe (ITree E I R)))
-        → (i : AnyTypes I) → (a : proj₁ i) → Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (branches i a) -- This ensures the non-empty of inv
+    ndbr : (branches : (i  : AnyTypes I) → ContinueType i  (Maybe (ITree E I R)))
+        → (i : AnyTypes I) → (a : proj₁ i) → Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (branches i a) -- This ensures the non-empty of ndbr
         -- where i a are witnesses of at least one just branch
         → NodeKind E I R
 
@@ -108,7 +167,7 @@ isStable t with ITree.force t
 ... | ret _ = ⊤
 ... | sil _ = ⊥
 ... | vis _ = ⊤
-... | inv _ _ _ _ = ⊥
+... | ndbr _ _ _ _ = ⊥
 
 isUnstable : ∀ {ℓ ℓe ℓi ℓr : Level}
                {E : Set ℓ → Set ℓe}
@@ -119,7 +178,7 @@ isUnstable t with ITree.force t
 ... | ret _ = ⊥
 ... | sil _ = ⊤
 ... | vis _ = ⊥
-... | inv _ _ _ _ = ⊤
+... | ndbr _ _ _ _ = ⊤
 
 -- The image of f: the set of ITrees reachable via f
 Image : ∀ {ℓ ℓe ℓi ℓr : Level}
@@ -141,19 +200,19 @@ vis≢sil : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ →
   → vis f ≡ sil t → ⊥
 vis≢sil ()
 
-vis≢inv : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+vis≢ndbr : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}    
     {g : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}
     {i : AnyTypes I} {a : proj₁ i} {p : Is-just (g i a)}
-  → vis f ≡ inv g i a p  → ⊥
-vis≢inv ()
+  → vis f ≡ ndbr g i a p  → ⊥
+vis≢ndbr ()
 
-sil≢inv : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+sil≢ndbr : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     {t : ITree E I R}
     {f : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}    
     {i : AnyTypes I} {a : proj₁ i} {p : Is-just (f i a)}
-  → sil t ≡ inv f i a p  → ⊥
-sil≢inv ()
+  → sil t ≡ ndbr f i a p  → ⊥
+sil≢ndbr ()
 
 -- vis is injective in its continuation argument
 vis-injective : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}

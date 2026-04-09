@@ -34,8 +34,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; subst; sy
 open import Data.Maybe.Relation.Binary.Pointwise using (Pointwise) renaming (just to pw-just; nothing to pw-nothing)
 
 open import Interaction_Trees
-open import ITree_Relations.LTS using (Label; ev; τ; _─[_]─►_; sSil; sInv; τ-inv;
-  _─[τ^_]─►_; τ^-zero; τ^-suc; _─[τ*]─►_; τ*-zero; _τ*-step_)
+open import ITree_Relations.LTS using (Label; ev; τ; _─[_]─►_; sSil; sNdbr; τ^-ndbr;
+  _─[τ^_]─►_; τ^-zero; τ^-suc; _─[τ*]─►_; τ*-zero; τ*-step)
 open import ITree_Relations.Equivalence_Rel renaming (_≈_ to _≈ᵉ_)
 open import ITree_Relations.StrongBisim renaming (_≈_ to _≈ˢ_)
 open import ITree_Relations.WeakBisim renaming (_≈_ to _≈ʷ_)
@@ -71,7 +71,7 @@ equiv→sbisim eq .Sbisim.step = go (eq .SEquiv.step)
     go (EqNodeKindF.retF r)   = SNodeKindF.retF r
     go (EqNodeKindF.silF t)   = SNodeKindF.silF (equiv→sbisim t)
     go (EqNodeKindF.visF h)   = SNodeKindF.visF (λ at a → pw-map equiv→sbisim (h at a))
-    go (EqNodeKindF.invF {f₁} {f₂} h) = SNodeKindF.invF fwd bwd
+    go (EqNodeKindF.ndbrF {f₁} {f₂} eq-inx eq-a h) = SNodeKindF.ndbrF fwd bwd
       where
         fwd : ∀ {t₁} → Image f₁ t₁ → Σ _ (λ t₂ → Image f₂ t₂ × Sbisim _≡_ t₁ t₂)
         -- Add inspect (f₂ i) a to the with-clause
@@ -92,17 +92,17 @@ equiv→sbisim eq .Sbisim.step = go (eq .SEquiv.step)
 {-
 private
   -- Extract the continuation from a silF proof
-  silF-inv : ∀ {t₁} {n₂}
+  silF-ndbr : ∀ {t₁} {n₂}
            → SNodeKindF _≡_ (Sbisim _≡_) (sil t₁) n₂
            → Σ[ t₂ ∈ ITree E I R ] (n₂ ≡ sil t₂ × Sbisim _≡_ t₁ t₂)
-  silF-inv (SNodeKindF.silF rel) = _ , refl , rel
+  silF-ndbr (SNodeKindF.silF rel) = _ , refl , rel
 
-  -- Extract the invF forward direction when left side is inv
-  invF-fwd : ∀ {f₁ f₂}
-           → SNodeKindF _≡_ (Sbisim _≡_) (inv f₁) (inv f₂)
+  -- Extract the ndbrF forward direction when left side is ndbr
+  ndbrF-fwd : ∀ {f₁ f₂}
+           → SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) (ndbr f₂)
            → ∀ {t₁} → Image f₁ t₁
            → Σ[ t₂ ∈ ITree E I R ] (Image f₂ t₂ × Sbisim _≡_ t₁ t₂)
-  invF-fwd (SNodeKindF.invF fwd _) = fwd
+  ndbrF-fwd (SNodeKindF.ndbrF fwd _) = fwd
 {-  
 {-# NON_TERMINATING #-}
 sbisim→divergent : ∀ {t₁ t₂ : ITree E I R}
@@ -111,16 +111,16 @@ sbisim→divergent p d with d .Divergent.step
 ... | sSil eq =
       let step'             = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) n (ITree.force _))
                                     eq (p .Sbisim.step)
-          (t₂' , eq₂ , rel) = silF-inv step'
+          (t₂' , eq₂ , rel) = silF-ndbr step'
       in  record { next    = t₂'
                  ; step    = sSil eq₂       -- ← eq₂ : ITree.force t₂ ≡ sil t₂'
                  ; diverge = sbisim→divergent rel (d .Divergent.diverge) }
-... | sInv {a = a} eq =
+... | sNdbr {a = a} eq =
       let step'              = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) n (ITree.force _))
                                      eq (p .Sbisim.step)
-          (t₂' , img , rel)  = invF-fwd step' (_ , a , eq)
+          (t₂' , img , rel)  = ndbrF-fwd step' (_ , a , eq)
       in  record { next    = t₂'
-                 ; step    = sInv (proj₂ (proj₂ img))
+                 ; step    = sNdbr (proj₂ (proj₂ img))
                  ; diverge = sbisim→divergent rel (d .Divergent.diverge) }
 -}
 {-# NON_TERMINATING #-}
@@ -131,63 +131,63 @@ sbisim→divergent {t₁ = t₁} {t₂ = t₂} p d with d .Divergent.step
 ... | sSil eq =
       let step'              = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) n (ITree.force _))
                                      eq (p .Sbisim.step)
-          (t₂' , eq₂ , rel)  = silF-inv step'
+          (t₂' , eq₂ , rel)  = silF-ndbr step'
       in  record { next    = t₂'
                  ; step    = sSil eq₂
                  ; diverge = sbisim→divergent rel (d .Divergent.diverge) }
 
-... | sInv {f = f₁} {A = A} {i = i} {a = a} invEq
+... | sNdbr {f = f₁} {A = A} {i = i} {a = a} ndbrEq
     with ITree.force t₁
-... | inv f₁
+... | ndbr f₁
     with ITree.force t₂ in eq₂
-... | inv f₂ =
+... | ndbr f₂ =
   let
     step₀ = p .Sbisim.step
 
     -- 🔑 rewrite RHS index
-    step₁ : SNodeKindF _≡_ (Sbisim _≡_) (inv f₁) (inv f₂)
-    step₁ = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) (inv f₁) n) eq₂ step₀
+    step₁ : SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) (ndbr f₂)
+    step₁ = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) n) eq₂ step₀
   in
     case step₁ of λ where
-      invF _ _ fwd bwd →
+      ndbrF _ _ fwd bwd →
         let
           (t₂' , (img₂ , rel)) =
-            fwd ((A , i) , a , invEq)
+            fwd ((A , i) , a , ndbrEq)
         in
         record
           { next    = t₂'
-          ; step    = sInv (proj₂ (proj₂ img₂))
+          ; step    = sNdbr (proj₂ (proj₂ img₂))
           ; diverge = sbisim→divergent rel (d .Divergent.diverge)
           }
 -}
 
 {-
-... | sInv {f = f₁} {A = A} {i = i} {a = a} invEq
+... | sNdbr {f = f₁} {A = A} {i = i} {a = a} ndbrEq
     with ITree.force t₁
-... | inv f₁ =
+... | ndbr f₁ =
   let
-    step' : SNodeKindF _≡_ (Sbisim _≡_) (inv f₁) (ITree.force t₂)
+    step' : SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) (ITree.force t₂)
     step' = p .Sbisim.step
 
-    -- 🔑 FIRST: invert the RHS shape
-    (f₂ , eq₂ , step'') = invF-inv step'
+    -- 🔑 FIRST: ndbrert the RHS shape
+    (f₂ , eq₂ , step'') = ndbrF-ndbr step'
 
-    -- now eq₂ : force t₂ ≡ inv f₂
+    -- now eq₂ : force t₂ ≡ ndbr f₂
     -- and step'' : the refined structure
 
     -- 🔑 THEN: use forward rule
     (t₂' , img , rel) =
-      invF-fwd
+      ndbrF-fwd
         (subst
-          (λ n → SNodeKindF _≡_ (Sbisim _≡_) (inv f₁) n)
+          (λ n → SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) n)
           eq₂
           step')
-        ((A , i) , a , invEq)
+        ((A , i) , a , ndbrEq)
 
   in
   record
     { next    = t₂'
-    ; step    = sInv (proj₂ (proj₂ img))
+    ; step    = sNdbr (proj₂ (proj₂ img))
     ; diverge = sbisim→divergent rel (d .Divergent.diverge)
     }                 
 -}
@@ -218,9 +218,9 @@ sbisim<drwbisim p .DRWbisim.step = go (p .Sbisim.step)
     go (SNodeKindF.visF h) =
       inj₂ (inj₂ (_ , _ , τ*-zero , τ*-zero ,
         DRWNodeKindF.visF (λ at a → pw-map sbisim<drwbisim (h at a))))
-    go (SNodeKindF.invF fwd bwd) =
+    go (SNodeKindF.ndbrF fwd bwd) =
       inj₂ (inj₂ (_ , _ , τ*-zero , τ*-zero ,
-        DRWNodeKindF.invF
+        DRWNodeKindF.ndbrF
           (λ img → let (t₂ , img₂ , rel) = fwd img in t₂ , img₂ , sbisim<drwbisim rel)
           (λ img → let (t₁ , img₁ , rel) = bwd img in t₁ , img₁ , sbisim<drwbisim rel)))
 -}
@@ -247,9 +247,9 @@ mutual
   go-node (SNodeKindF.silF s) = DRWNodeKindF.silF (sbisim<drwbisim s)
   go-node (SNodeKindF.visF h) = DRWNodeKindF.visF (λ at a → pw-map sbisim<drwbisim (h at a))
   
-  -- For invF, we unpack the Sigma types returned by the strong bisimulation's fwd/bwd 
+  -- For ndbrF, we unpack the Sigma types returned by the strong bisimulation's fwd/bwd 
   -- and wrap the resulting strong equivalence in our mutual `sbisim<drwbisim`.
-  go-node (SNodeKindF.invF fwd bwd) = DRWNodeKindF.invF fwd' bwd'
+  go-node (SNodeKindF.ndbrF fwd bwd) = DRWNodeKindF.ndbrF fwd' bwd'
     where
       fwd' : ∀ {t₁} → Image _ t₁ → Σ _ (λ t₂ → Image _ t₂ × t₁ ≈ᵈ t₂)
       fwd' img₁ with fwd img₁

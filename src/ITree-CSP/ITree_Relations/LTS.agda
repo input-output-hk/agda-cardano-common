@@ -49,7 +49,7 @@ record EvLabel {ℓ ℓe : Level} (E : Set ℓ → Set ℓe) : Set (lsuc ℓ ⊔
 
 data Label {ℓ ℓe : Level} (E : Set ℓ → Set ℓe) : Set (lsuc ℓ ⊔ ℓe) where
   ev   : EvLabel E → Label E   -- visible event with response
-  τ  : Label E                  -- silent step from inv
+  τ  : Label E                  -- silent step from ndbr
 --  √  : Label E                -- successful termination at ret
 
 -----------------------------------------------------------------
@@ -65,29 +65,6 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
        ---------------------------------------------
        → p ─[ τ ]─► t
 
-{-
-  sVis : ∀ {A  : Set ℓ}
-         {f  : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
-         {e  : E A}
-         {a  : A}
-         {t′ : ITree E I R}
-       → f (A , e) a ≡ just t′
-       -- → ITree.force t ≡ vis f
-       ---------------------------------------------
-       → itree (vis f) ─[ ev (evLabel A e a) ]─► t′
--}       
-
-{-
-  sInv : ∀ {f  : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}
-         {A  : Set ℓ}
-         {i  : I A}
-         {a  : A}
-         {t′ : ITree E I R}
-         {p : Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (f (A , i) a)}
-       → f (A , i) a ≡ just t′
-       ---------------------------------------------
-       → itree (inv f (A , i) a p) ─[ τ ]─► t′
--}
   sVis : ∀ {p : ITree E I R}
          {f  : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
          {at  : AnyTypes E}
@@ -98,33 +75,20 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
        ---------------------------------------------
        → p ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► t′
 
-{-
-  sInv : ∀ {p : ITree E I R}
-         {f  : (i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))}
-         {i  : AnyTypes I}
-         {a  : proj₁ i}
-         {prf : Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (f i a)}
-         {t′ : ITree E I R}         
-       → ITree.force p ≡ inv f i a prf
-       → f i a ≡ just t′
-       ---------------------------------------------
-       → p ─[ τ ]─► t′
--}
-
-  sInv : ∀ {p : ITree E I R}
+  sNdbr : ∀ {p : ITree E I R}
        {f   : (i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))}
        {wi  : AnyTypes I} {wa  : proj₁ wi} {prf : Is-just (f wi wa)}  -- stored witness (non-emptiness)
        {i   : AnyTypes I} {a   : proj₁ i}                              -- branch actually taken
        {t′  : ITree E I R}
-     → ITree.force p ≡ inv f wi wa prf   -- p is an inv node
+     → ITree.force p ≡ ndbr f wi wa prf   -- p is an ndbr node
      → f i a ≡ just t′                   -- ANY branch (i, a) can be taken
      → p ─[ τ ]─► t′
 
 -----------------------------------------------------------------------
 -- A τ inversion
---   if a τ transition, it could be a sil transition, or a inv transition
-{-
-τ-inv :
+--   if a τ transition, it could be a sil transition, or a ndbr transition
+
+τ-ndbr :
   ∀ {ℓ ℓe ℓi ℓr}
     {E : Set ℓ → Set ℓe}
     {I : Set ℓ → Set ℓi}
@@ -133,20 +97,19 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
   → t ─[ τ ]─► t′
   → (Σ[ u ∈ ITree E I R ] (ITree.force t ≡ sil u × t′ ≡ u))
   ⊎ (Σ[ f ∈ ((i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))) ]
-     Σ[ i ∈ AnyTypes I ]
-     Σ[ a ∈ proj₁ i ]
-       Σ[ p ∈ Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (f i a) ]
-       (ITree.force t ≡ inv f i a p × f i a ≡ just t′))
-τ-inv (sSil eq) =
+     Σ[ wi ∈ AnyTypes I ] Σ[ wa ∈ proj₁ wi ] Σ[ prf ∈ Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (f wi wa) ]
+     Σ[ i ∈ AnyTypes I ] Σ[ a ∈ proj₁ i ]
+       (ITree.force t ≡ ndbr f wi wa prf × f i a ≡ just t′))
+τ-ndbr (sSil eq) =
   inj₁ (_ , (eq , refl))
 
-τ-inv (sInv {f = f} {i = i} {a = a} {prf = prf} eq1 eq2 ) =
-  inj₂ (f , i , a , prf , (eq1 , eq2))
--}
+τ-ndbr (sNdbr {f = f} {wi = wi} {wa = wa} {prf = prf} {i = i} {a = a} {t′ = t′} eq1 eq2 ) =
+  inj₂ (f , wi , wa , prf , i , a , (eq1 , eq2))
+
 
 -- An ev inversion
 --   if an ev transition, it must be vis
-ev-inv : ∀ {ℓ ℓe ℓi ℓr}
+ev-ndbr : ∀ {ℓ ℓe ℓi ℓr}
     {E : Set ℓ → Set ℓe}
     {I : Set ℓ → Set ℓi}
     {R : Set ℓr}
@@ -155,9 +118,9 @@ ev-inv : ∀ {ℓ ℓe ℓi ℓr}
   → t ─[ ev (evLabel A e a) ]─► t′
   → Σ[ f ∈ ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R)))]
       (ITree.force t ≡ vis f × f (A , e) a ≡ just t′)
-ev-inv (sVis eq1 eq2) = _ , (eq1 , eq2)
+ev-ndbr (sVis eq1 eq2) = _ , (eq1 , eq2)
 
-{-
+-- A τ transition is not possible from vis
 τ-from-force-vis-impossible :
   ∀ {ℓ ℓe ℓi ℓr}
     {E : Set ℓ → Set ℓe}
@@ -168,14 +131,14 @@ ev-inv (sVis eq1 eq2) = _ , (eq1 , eq2)
   → ITree.force t ≡ vis f
   → t ─[ τ ]─► t′
   → ⊥
-τ-from-force-vis-impossible force≡vis tr with τ-inv tr
-... | inj₁ (u , (force≡sil , _)) =
+τ-from-force-vis-impossible force≡vis tr with tr
+... | sSil force≡sil =
       vis≢sil (trans (sym force≡vis) force≡sil)
 
-... | inj₂ (f′ , A , i , a , (force≡inv , _)) =
-      vis≢inv (trans (sym force≡vis) force≡inv)
--}
-{-
+... | sNdbr force≡ndbr _ =
+      vis≢ndbr (trans (sym force≡vis) force≡ndbr)
+
+-- Stop or stuck has no transition
 ev-from-force-vis-impossible :
   ∀ {ℓ ℓe ℓi ℓr}
     {E : Set ℓ → Set ℓe}
@@ -186,20 +149,10 @@ ev-from-force-vis-impossible :
   → ITree.force t ≡ vis (λ _ _ → nothing)
   → t ─[ ev (evLabel A e a) ]─► t′
   → ⊥
-ev-from-force-vis-impossible {A} {e} {a} force≡vis tr with ev-inv tr
-... | f′ , (force≡vis′ , step≡just) =
-      -- vis-injective gives f ≡ f′
-      -- But f = λ _ _ → nothing cannot produce just t′
-      let f-eq : (λ _ _ → nothing) ≡ f′
-          f-eq = vis-injective (trans (sym force≡vis) force≡vis′)
-      in
-        -- Apply f′ to the label (A , e) and a: it must be nothing, not just t′
-        let contradiction : step≡just ≡ nothing
-            contradiction = cong (\g → g (A , e) a) f-eq
-        in
-        -- now impossible
-        ()
--}      
+ev-from-force-vis-impossible forceEq (sVis forceEq′ branch-eq)
+  with trans (sym forceEq′) forceEq
+... | refl = case branch-eq of λ ()  
+
 --------------------------------------------------------------------------------------
 -- This relation denotes a ITree t' is reachable from t via n transitions, including τ
 
@@ -239,12 +192,12 @@ data _─[τ^_]─►_ {ℓ ℓe ℓi ℓr : Level}
          ------------------------
          → t  ─[τ^ suc n ]─► t″
 
-  τ^-inv : {t t′ t″ : ITree E I R}
+  τ^-ndbr : {t t′ t″ : ITree E I R}
            {n : ℕ}
          → {f : (i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))}
          → {wi : AnyTypes I} {wa : proj₁ wi} {wprf : Is-just (f wi wa)}
          → {i : AnyTypes I} {a : proj₁ i}
-         → ITree.force t ≡ inv f wi wa wprf
+         → ITree.force t ≡ ndbr f wi wa wprf
          → f i a ≡ just t′ 
          → t′ ─[τ^ n ]─► t″
          ------------------------
@@ -274,11 +227,11 @@ data _─[τ*]─►_ {ℓ ℓe ℓi ℓr : Level}
          ------------------------
          → t  ─[τ*]─► t″
 
-  -- Step via 'inv' constructor (The invisible choice)
-  τ*-inv : {t t′ t″ : ITree E I R}
+  -- Step via 'ndbr' constructor (The invisible choice)
+  τ*-ndbr : {t t′ t″ : ITree E I R}
     → {f : (i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))}
     → {i : AnyTypes I} {a : proj₁ i} {prf : Is-just (f i a)}
-    → ITree.force t ≡ inv f i a prf
+    → ITree.force t ≡ ndbr f i a prf
     → f i a ≡ just t′
     → t′ ─[τ*]─► t″
     ----------------

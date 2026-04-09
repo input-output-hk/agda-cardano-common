@@ -28,12 +28,12 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; subst; sy
 
 open import Interaction_Trees
 open import ITree_Relations.LTS using (EvLabel; evLabel; Label;
-  _─[_]─►_; sSil; sVis; sInv;
-  _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
+  _─[_]─►_; sSil; sVis; sNdbr;
+  _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-ndbr;
   _═[_]═►_; weak-τ; weak-ev
   )
 
-module ITree_Relations.WeakBisim1 where
+module ITree_Relations.WeakBisim where
 open Label
 open EvLabel
 
