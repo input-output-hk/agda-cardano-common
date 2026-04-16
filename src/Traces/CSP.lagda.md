@@ -262,6 +262,13 @@ We can decide whether, for a particular event, a process will reduce and synchro
   ... | no ¬pr        | _ = no (λ { (PQ' , ∥₁ x pr pr₁) → ¬pr (_ , pr) ; (PQ' , ∥₂ x pr) → x a∈As ; (PQ' , ∥₃ x pr) → x a∈As })
   ... | _                 | no ¬qr = no (λ { (PQ' , ∥₁ x pr pr₁) → ¬qr (_ , pr₁) ; (PQ' , ∥₂ x pr) → x a∈As ; (PQ' , ∥₃ x pr) → x a∈As })
 
+  followups : Process α → List (Process α)
+  followups STOP = []
+  followups SKIP = []
+  followups (x ➔ P) = [ P ]
+  followups (P □ Q) = [] -- FIXME: Implement
+  followups (P ⊓ Q) = [] -- FIXME: Implement
+  followups (P ∥⦅ As ⦆ Q) = [] -- FIXME: Implement
 ```
 ## Failure Semantics
 

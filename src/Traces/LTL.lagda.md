@@ -14,6 +14,7 @@ open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq
 open import Data.Bool as Bool using (Bool; true; false)
 open import Data.List using (List; []; _∷_)
 open import Data.Bool.ListAction using (all)
+open import Data.List.Relation.Unary.All using (All; []; _∷_)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
@@ -217,17 +218,13 @@ module TraceLTL {α : Alphabet} where
     R : Process α
     R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
 
-    prop-a-before-c : Prop
+    prop-a-before-c : Prop α
     prop-a-before-c = ((¬ (` c)) U (` a))
 
     -- Agda tries to unroll the traces...
     -- This is why the structural approach is needed.
     --a-Before-c : Holdsᵖ  R
     --a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
-
-    r-sat : R ⊨ prop-a-before-c
-    r-sat = ?
-
 ```
 # Structural Satisfaction
 
@@ -265,10 +262,10 @@ module Satisfaction (α : Alphabet) where
       → P ⊨ p
       → P ⊨ q
       → P ⊨ p ⇒ q
-    `_ : {P : Process α} {a : A} → a Process.➔ P ⊨ ` a
-    X : {P : Process α} {a : A}
-      → (initials P) ≡ [ a ]
-      → P ⊨ X a
+    `_ : {P : Process α} {a : A} → a ➔ P ⊨ ` a
+    X₁ : {P : Process α} {p : Prop α}
+      → All (_⊨ p) (followups P)
+      → P ⊨ X p
     F-now : {P : Process α} {p : Prop α}
       → P ⊨ p
       → P ⊨ F p
@@ -288,8 +285,64 @@ module Satisfaction (α : Alphabet) where
     -- Or we could do something with the head of the trace?...
     -- Or we need a small step reduction semantics?!?
     -- F∥ :
+    FSKIP :
+      SKIP ⊨ F (` ✓)
+    G₁ : {P : Process α} {p : Prop α}
+      → P ⊨ p
+      → P ⊨ X (G p)
+      → P ⊨ G p
+    GSKIP :
+      SKIP ⊨ G (` ✓)
+    U₁ : {P : Process α} {p q : Prop α}
+      → P ⊨ q
+      → P ⊨ p U q
+    U₂ : {P : Process α} {p q : Prop α}
+      → P ⊨ p
+      → P ⊨ X (p U q)
+      → P ⊨ p U q
+    □₁ : {P Q : Process α} {p : Prop α}
+      → P ⊨ p
+      → Q ⊨ p
+      → P □ Q ⊨ p
+    SKIP :
+      SKIP ⊨ ` ✓
 
+  module _ {a b c coin tea coffee : Alphabet.A α} where
+    sat-ex₁ : (a ➔ b ➔ STOP) □ (b ➔ a ➔ STOP) ⊨ F (` b)
+    sat-ex₁ = F□ (F➔ (F-now `_)) (F-now `_)
 
+    sat-ex₂ : a ➔ a ➔ b ➔ STOP ⊨ (` a) U (` b)
+    sat-ex₂ = U₂ `_ (X₁ sat-ex₂′)
+      where
+        sat-ex₂′ : All (_⊨ (` a) U (` b)) (followups (a ➔ a ➔ b ➔ STOP))
+        sat-ex₂′ = sat-ex₂″ ∷ []
+          where          
+            sat-ex₂″ : a ➔ b ➔ STOP ⊨ (` a) U (` b)
+            sat-ex₂″ = U₂ `_ (X₁ sat-ex₂‴)
+              where
+                sat-ex₂‴ : All (_⊨ (` a) U (` b)) (followups (a ➔ b ➔ STOP))
+                sat-ex₂‴ = sat-ex₂⁗ ∷ []
+                  where
+                    sat-ex₂⁗ : b ➔ STOP ⊨ (` a) U (` b)
+                    sat-ex₂⁗ = U₁ `_
+
+    VM₁ : Process α
+    VM₁ = coin ➔ ((tea ➔ STOP) □ (coffee ➔ STOP))
+    
+    VMSpec : Prop α
+    VMSpec = (` coin) ⇒ (X ((` tea) ∨ (` coffee)))
+
+    VM₁-VMSpec : VM₁ ⊨ VMSpec
+    VM₁-VMSpec = imp₂ `_ lem₁
+      where
+        lem₁ : VM₁ ⊨ X ((` tea) ∨ (` coffee))
+        lem₁ = X₁ lem₂
+          where
+            lem₂ : All (_⊨ ((` tea) ∨ (` coffee))) (followups VM₁)
+            lem₂ = lem₃ ∷ []
+              where
+                lem₃ : ((tea ➔ STOP) □ (coffee ➔ STOP)) ⊨ ((` tea) ∨ (` coffee))
+                lem₃ = □₁ (_∨₁_ `_) (_∨₂_ `_)
 ```
 
 We can build a decision procedure for this.
