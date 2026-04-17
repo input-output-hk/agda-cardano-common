@@ -3,8 +3,10 @@
 open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _^_; _∸_)
 open import Data.Fin using (Fin; remQuot) renaming (zero to fzero; suc to fsuc)
 open import Level using (Level; _⊔_; Lift; lift; lower) renaming (zero to lzero; suc to lsuc)
-open import Data.Maybe using (Maybe; just; nothing) renaming (map to mapMaybe)
+open import Data.Maybe using (Maybe; just; Is-just; nothing) renaming (map to mapMaybe)
+open import Data.Maybe.Relation.Unary.Any using (Any) renaming (just to any-just)
 open import Data.Empty using (⊥)
+open import Data.Unit.Base renaming (⊤ to ⊤₀; tt to tt₀)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Product using (Σ; _,_; proj₁; _×_)
 -- open import Relation.Unary
@@ -39,7 +41,7 @@ _∖_¿_ :
   → (dec : (at : AnyTypes E) → Dec (cs at))
   → ITree E (ExtI E) R
 
-force (P ∖ cs ¿ dec) with P .force
+force (_∖_¿_ {ℓr = ℓr} {R = R} P cs dec) with P .force
 ... | sil P' = sil (P ∖ cs ¿ dec)
 ... | ret r  = ret r
 
@@ -58,7 +60,7 @@ force (P ∖ cs ¿ dec) with P .force
 
     -- ⨅ a : A ∩ cs @ (P[a/x] ∖ cs)
     -- The index of I is cs
-    hide-in-cs = itree (inv (λ (A , i) a →
+    hide-in-cs = itree (ndbr (λ (A , i) a →
       case i of λ where
         (base e) → case dec (A , e) of λ where
           (no  _) → nothing     -- no this branch
@@ -66,9 +68,18 @@ force (P ∖ cs ¿ dec) with P .force
             nothing → nothing   -- no this branch
             (just P') → just (P' ∖ cs ¿ dec)
         (pair _ _) → nothing
-        fin → nothing))
+        fin → nothing) ({!!} , {!!}) {!!} {!!})
 
-... | inv fP = inv (λ ai a →
-  case fP ai a of λ where
-    nothing → nothing
-    (just P') → just (P ∖ cs ¿ dec))
+... | ndbr fP wi wa wp = ndbr (λ ai a →
+      f' ai a) wi wa (go wp)
+  where
+    f' : (i : AnyTypes (ExtI E)) → (a : proj₁ i) → Maybe (ITree E (ExtI E) R)
+    f' i a = (case fP i a of λ where
+        nothing → nothing
+        (just P') → just (P ∖ cs ¿ dec))
+      
+    go : Is-just (fP wi wa) → Is-just (f' wi wa)
+    go p with fP wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
+    

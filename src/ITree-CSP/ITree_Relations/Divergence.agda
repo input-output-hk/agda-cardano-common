@@ -37,7 +37,7 @@ open import Data.List using (List; _++_; _∷_; []; length; reverse; map; foldr;
 -- import Data.List.Properties using (reverse-++-commute; map-compose; map-++-commute; foldr-++; map-is-foldr)
 
 open import Interaction_Trees
-open import ITree_Relations.LTS using (EvLabel; evLabel; Label;
+open import ITree_Relations.LTS using (Event; evLabel; Event√; Label;
   _─[_]─►_; sSil; sVis; sNdbr;
   _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
   _═[_]═►_; weak-τ; weak-ev;
@@ -172,11 +172,11 @@ record IsDivergence {- {ℓ ℓe ℓi ℓr}
                     {I : Set ℓ → Set ℓi}
                     {R : Set ℓr} -}
                     (P : ITree E I R)
-                    (s : List (EvLabel E))
+                    (s : List (Event√ E R))
                   : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
   field
-    prefix  : List (EvLabel E)              -- s₀
-    suffix  : List (EvLabel E)              -- t
+    prefix  : List (Event√ E R)              -- s₀
+    suffix  : List (Event√ E R)              -- t
     split   : s ≡ prefix ++ suffix          -- s = s₀ ^ t
     witness : ITree E I R                   -- Q
     reach   : P ═⟨ prefix ⟩═► witness      -- P ⇒s₀ Q
@@ -188,7 +188,7 @@ divergences : ∀ {-
                 {I : Set ℓ → Set ℓi}
                 {R : Set ℓr} -}
             (P : ITree E I R)
-            → List (EvLabel E)
+            → List (Event√ E R)
             → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
 divergences P s = IsDivergence P s
 
@@ -200,7 +200,7 @@ div-extension-closed : ∀ {-{ℓ ℓe ℓi ℓr}
                          {E : Set ℓ → Set ℓe}
                          {I : Set ℓ → Set ℓi}
                          {R : Set ℓr} -}
-                         {P : ITree E I R} {s t : List (EvLabel E)}
+                         {P : ITree E I R} {s t : List (Event√ E R)}
                        → IsDivergence P s
                        → IsDivergence P (s ++ t)
 div-extension-closed {t = t} d = record
@@ -218,7 +218,7 @@ div-prefix-is-trace : ∀ {- {ℓ ℓe ℓi ℓr}
                         {E : Set ℓ → Set ℓe}
                         {I : Set ℓ → Set ℓi}
                         {R : Set ℓr} -}
-                        {P : ITree E I R} {s : List (EvLabel E)}
+                        {P : ITree E I R} {s : List (Event√ E R)}
                       → (d : IsDivergence P s)
                       → traces P (d .IsDivergence.prefix)
 div-prefix-is-trace d =

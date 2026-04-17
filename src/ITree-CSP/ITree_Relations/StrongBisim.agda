@@ -48,18 +48,25 @@ record SSimF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
              (t₁ t₂   : ITree E I R)
            : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓ≡ ⊔ ℓ≈ ⊔ ℓr) where
   field
+    {-
     -- ret case remains structural because 'ret' doesn't "transition" to a new tree
     on-ret  : ∀ {r}
             → ITree.force t₁ ≡ ret r
             → Σ[ r' ∈ R ]
               ( ITree.force t₂ ≡ ret r'
               × RetRel r r' )
+    -}
+    on-ret : ∀ {r t₁'}
+           → t₁ ─[ ev (√ r) ]─► t₁'
+           → Σ[ t₂' ∈ ITree E I R ]
+                ( t₂ ─[ ev (√ r) ]─► t₂'
+              × TreeRel t₁' t₂' )
 
     -- Visible transitions: If t₁ can do 'l', t₂ must do 'l' to a related state
-    on-vis  : ∀ {l t₁'}
-            → t₁ ─[ ev l ]─► t₁'
+    on-vis  : ∀ {l : Event E} {t₁'}
+            → t₁ ─[ ev (evl l) ]─► t₁'
             → Σ[ t₂' ∈ ITree E I R ]
-              ( t₂ ─[ ev l ]─► t₂'
+                ( t₂ ─[ ev (evl l) ]─► t₂'
               × TreeRel t₁' t₂' )
 
     -- Silent transitions: Handles both 'sil' and 'ndbr' steps from your LTS
@@ -126,7 +133,8 @@ module SbisimEquiv
   sbisim-refl t .Sbisim.fwd = ssim-refl t
   sbisim-refl t .Sbisim.bwd = ssim-refl t
 
-  ssim-refl t .SSimF.on-ret eq = _ , eq , ret-refl
+--  ssim-refl t .SSimF.on-ret eq = _ , eq , ret-refl
+  ssim-refl t .SSimF.on-ret eq = _ , eq , sbisim-refl _
 
   -- We match on the transition proof 'step'
   ssim-refl t .SSimF.on-tau step = _ , step , sbisim-refl _
@@ -153,6 +161,7 @@ module SbisimEquiv
     → Sbisim RetRel t₂ t₃
     → Sbisim RetRel t₁ t₃
 
+{-
   on-ret-trans : ∀ {t₁ t₂ t₃ : ITree E I R} {r}
                 → ITree.force t₁ ≡ ret r
                 → SSimF RetRel (Sbisim RetRel) t₁ t₂
@@ -164,6 +173,18 @@ module SbisimEquiv
       with b23 .Sbisim.fwd .SSimF.on-ret eq2
   ... | r'' , eq3 , rel23
       = r'' , eq3 , ret-trans rel12 rel23
+-}
+  on-ret-trans : ∀ {t₁ t₂ t₃ t₁' : ITree E I R} {r : R}
+                → t₁ ─[ ev (√ r) ]─► t₁'
+                → SSimF RetRel (Sbisim RetRel) t₁ t₂
+                → Sbisim RetRel t₂ t₃
+                → Σ[ t₃' ∈ ITree E I R ] (t₃ ─[ ev (√ r) ]─► t₃' × Sbisim RetRel t₁' t₃')
+  on-ret-trans step s12 b23
+      with s12 .SSimF.on-ret step
+  ... | t₂' , step12 , rel12
+      with b23 .Sbisim.fwd .SSimF.on-ret step12
+  ... | t₃' , step23 , rel23
+      = t₃' , step23 , sbisim-trans rel12 rel23
 
   -- This replaces on-sil-trans and on-ndbr-trans
   on-tau-trans : ∀ {t₁ t₂ t₃ t₁' : ITree E I R}
@@ -179,10 +200,10 @@ module SbisimEquiv
       = t₃' , step23 , sbisim-trans rel12 rel23
 
   on-vis-trans : ∀ {t₁ t₂ t₃ t₁' : ITree E I R} {l}
-                → t₁ ─[ ev l ]─► t₁'
+                → t₁ ─[ ev (evl l) ]─► t₁'
                 → SSimF RetRel (Sbisim RetRel) t₁ t₂
                 → Sbisim RetRel t₂ t₃
-                → Σ[ t₃' ∈ ITree E I R ] (t₃ ─[ ev l ]─► t₃' × Sbisim RetRel t₁' t₃')
+                → Σ[ t₃' ∈ ITree E I R ] (t₃ ─[ ev (evl l) ]─► t₃' × Sbisim RetRel t₁' t₃')
   on-vis-trans step s12 b23
       with s12 .SSimF.on-vis step
   ... | t₂' , step12 , rel12
@@ -243,7 +264,7 @@ sbisim-vis : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ �
            → ITree.force t ≡ vis f
            → f at a ≡ just t₁'
            → Σ[ t₂' ∈ ITree E I R ]
-             ( t' ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► t₂'
+             ( t' ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► t₂'
              × t₁' ∼ t₂' )
 sbisim-vis bisim eq f-eq =
     bisim .Sbisim.fwd .SSimF.on-vis (sVis eq f-eq)
@@ -252,7 +273,7 @@ sbisim-vis bisim eq f-eq =
 -- Trace preservation
 
 traces-fwd : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-             {t t' : ITree E I R} {s : List (EvLabel E)} {t'' : ITree E I R}
+             {t t' : ITree E I R} {s : List (Event√ E R)} {t'' : ITree E I R}
            → t ∼ t'
            → t ═⟨ s ⟩═► t''
            → Σ[ t''' ∈ ITree E I R ] (t' ═⟨ s ⟩═► t''' × t'' ∼ t''')
@@ -275,6 +296,14 @@ traces-fwd bisim (bTau step@(sNdbr _ _) rest)
     with traces-fwd bisim' rest
 ... | t''' , rest' , bisim''
     = t''' , bTau step' rest' , bisim''
+
+-- sVis: t does a visible step
+traces-fwd bisim (bStep step@(sRet _) rest)
+    with bisim .Sbisim.fwd .SSimF.on-ret step
+... | t₂' , step' , bisim'
+    with traces-fwd bisim' rest
+... | t''' , rest' , bisim''
+    = t''' , bStep step' rest' , bisim''
 
 -- sVis: t does a visible step
 traces-fwd bisim (bStep step@(sVis _ _) rest)

@@ -59,11 +59,15 @@ _▷_ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     → ITree E (ExtI I) R → ITree E (ExtI I) R → ITree E (ExtI I) R
 
 -- Sequential composition / monadic bind
+-- _>>=_ : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+--      → ITree E (ExtI I) R → (R → ITree E (ExtI I) S) → ITree E (ExtI I) S
+
 _>>=_ : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      → ITree E (ExtI I) R → (R → ITree E (ExtI I) S) → ITree E (ExtI I) S
+      → ITree E I R → (R → ITree E I S) → ITree E I S
+
 
 _>>_ : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-     → ITree E (ExtI I) R → ITree E (ExtI I) S → ITree E (ExtI I) S
+     → ITree E I R → ITree E I S → ITree E I S
 
 -- Kleisli composition
 _>=>_ : ∀ {ℓi ℓr ℓs ℓt} {I : Set ℓ → Set ℓi}
@@ -102,7 +106,7 @@ Prefix₀ ch Px = Prefix ch (λ _ → Px)
 -- trigger is a special version of Prefix which terminates and returns the value taken from the environment
 -- it is like ( input?x → ret x )
 trigger : ∀ {ℓi} {I : Set ℓ → Set ℓi} {A : Set ℓ} → (E A) → ITree E (ExtI I) A
-trigger {R} {A} e = e ⟶ (λ x → Ret x)
+trigger {I} {A} e = e ⟶ (λ x → Ret x)
 
 -- Merge two ITrees
 mergeMaybe : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
@@ -125,22 +129,54 @@ mergeVis fP fQ x = mergeMaybe (fP x) (fQ x)
 -- We consider more standard version of CSP without ▹, otherwise (P □ Skip = P ▹ Skip)
 -- _□_ :  {R : Set} → ITree E (ExtI I) R → ITree E (ExtI I) R → ITree E (ExtI I) R
 
+mergeNdbr : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} {{ _ : DecEq R }}
+  → (fP : (i  : AnyTypes (ExtI I)) → ContinueType i  (Maybe (ITree E (ExtI I) R)))
+  → (fQ : (i  : AnyTypes (ExtI I)) → ContinueType i  (Maybe (ITree E (ExtI I) R)))
+  → (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
+mergeNdbr fP fQ (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
+  case fP (AP , iP) aP , fQ (AQ , iQ) aQ of λ where
+    (just P' , just Q') → just (_□_ P' Q')   -- ITree E (ExtI I) R ✓
+    (just P' , nothing) → just P'
+    (nothing , just Q') → just Q'
+    (nothing , nothing) → nothing
+mergeNdbr fP fQ (A , base i) a = nothing            -- non-pair index: blocked
+mergeNdbr fP fQ (_ , fin) a = nothing            -- non-pair index: blocked
+
 -- P is τ, P □ Q ⇒ P' □ Q silently, and τ is not kept
 force (P □ Q) with P .force | Q .force
 
 -- τ cannot be delayed  
 force (P □ Q) | sil P' | _  = sil (P' □ Q)
-force (P □ Q) | _ | sil Q'  = sil (P □ Q')  
+-- force (P □ Q) | _ | sil Q'  = sil (P □ Q')  
+force (P □ Q) | ret _ | sil Q'  = sil (P □ Q')
+force (P □ Q) | vis _ | sil Q'  = sil (P □ Q')
+force (P □ Q) | ndbr _ _ _ _ | sil Q'  = sil (P □ Q')
 
 -- P is ret r.
+-----------------------------------------------------------------------------------
+-- This is a design decision about how to deal with this case if r ≠ r'
+-- We need to consider
+--   1. Closure under hiding. This is the most decisive one.
+--   2. Consistency with the CSP laws: □-sym or □-comm, (ret r □ ret r') >>= P etc.
+--   3. What kind of model you are building?
+--        - a synchronisation mechanism (no observable event → stuck)
+--        - or a selection mechanism (no basis for selection → arbitrary).
+--   Stop : this is the way that ITree-CSP in Isabelle/HOL takes
+--   Internal choice: (ret r ⊓ ret r')
+--
+-- We decide to use the (ret r ⊓ ret r') option, so the hiding laws are still applicable 
+-----------------------------------------------------------------------------------  
+
 force (P □ Q) | ret r | ret r' with r ≟ r'
 force (P □ Q) | ret r | ret r' | yes refl = ret r
-force (P □ Q) | ret r | ret r' | no neq = Stop' .force
+force (P □ Q) | ret r | ret r' | no neq = (P ⊓ Q) .force -- Stop .force
 
 force (P □ Q) | ret r | vis _  = ret r
 force (P □ Q) | ret r | ndbr _ _ _ _  = ret r
 
-force (P □ Q) | _ | ret r  = ret r
+-- force (P □ Q) | _ | ret r  = ret r
+force (P □ Q) | vis _ | ret r  = ret r
+force (P □ Q) | ndbr _ _ _ _ | ret r  = ret r
 
 -- P is vis
 -- Merge two partial functions if both are visible.
@@ -184,23 +220,13 @@ force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP wi wa wp
 -- P = ⨅ i∈I . Pi
 -- Q = ⨅ j∈J . Qj
 -- P □ Q = ⨅i∈I,j∈J​(Pi​□Qj​)
-force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ = ndbr mergeNdbr
-         ((AP × AQ) , pair iP iQ) (waP , waQ) (go wpP wpQ) -- (AP × AQ , pair iP iQ) (waP , waQ) ? -- (go wpP wpQ)
+force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ = ndbr (mergeNdbr fP fQ)
+         ((AP × AQ) , pair iP iQ) (waP , waQ) (go wpP wpQ)
 
   where
-    mergeNdbr : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
-    mergeNdbr (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
-      case fP (AP , iP) aP , fQ (AQ , iQ) aQ of λ where
-        (just P' , just Q') → just (P' □ Q')   -- ITree E (ExtI I) R ✓
-        (just P' , nothing) → just P'
-        (nothing , just Q') → just Q'
-        (nothing , nothing) → nothing
-    mergeNdbr (A , base i) a = nothing            -- non-pair index: blocked
-    mergeNdbr (_ , fin) a = nothing            -- non-pair index: blocked
-
     go : Is-just (fP (AP , iP) waP)
        → Is-just (fQ (AQ , iQ) waQ)
-       → Is-just (mergeNdbr ((AP × AQ) , pair iP iQ) (waP , waQ))
+       → Is-just (mergeNdbr fP fQ ((AP × AQ) , pair iP iQ) (waP , waQ))
     go pP pQ with fP (AP , iP) waP | pP | fQ (AQ , iQ) waQ | pQ
     ... | just P' | _ | just Q' | _ = any-just tt₀
     ... | just P' | _ | nothing | ()
@@ -210,16 +236,7 @@ force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP (AP , iP
 -- Internal choice
 
 --  Definition of ⊓
-force (_⊓_ {I = I} {R = R} P Q) = ndbr br2 (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
-  where
-    br2 : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
-    br2 (_ , fin) x = case x of λ where
-      (lift fzero)        → just P
-      (lift (fsuc fzero)) → just Q
-      _                   → nothing   -- covers Fin n for n > 2
-    br2 (_ , base _)   _ = nothing
-    br2 (_ , pair _ _) _ = nothing
-
+force (_⊓_ {I = I} {R = R} P Q) = ndbr (br2 P Q) (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
 -- Prove □ laws
 -- Commutativity, idempotence, Associativity
 
@@ -257,7 +274,7 @@ force (_>>=_ {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} {I = I} {R = R} {S = S} t
 
 ... | ndbr f wi wa wp = ndbr (λ ai → λ i → f' ai i) wi wa (go wp)
   where
-    f' : (ai : AnyTypes (ExtI I)) → (a : proj₁ ai) → Maybe (ITree E (ExtI I) S)
+    f' : (ai : AnyTypes I) → (a : proj₁ ai) → Maybe (ITree E I S)
     f' ai a = (case f ai a of λ where
         nothing → nothing
         (just t') → just (t' >>= k))

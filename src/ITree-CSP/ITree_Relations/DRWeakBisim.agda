@@ -30,7 +30,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; subst; sy
 
 open import Prelude
 open import Interaction_Trees
-open import ITree_Relations.LTS using (EvLabel; evLabel; Label;
+open import ITree_Relations.LTS using (Event; evLabel; Event√; Label;
   _─[_]─►_; sSil; sVis; sNdbr;
   _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
   _═[_]═►_; weak-τ; weak-ev
@@ -39,7 +39,8 @@ open import ITree_Relations.Divergence
 
 module ITree_Relations.DRWeakBisim where
 open Label
-open EvLabel
+open Event
+open Event√
 
 -----------------------------------------------------------------------------------------
 -- Define divergence-respecting weak bisimulation
@@ -65,9 +66,9 @@ record DRWSimF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
 
     -- If t₁ takes a visible step, t₂ must weakly match it
     on-vis : ∀ {at : AnyTypes E} {a : proj₁ at} {t₁'}
-           → t₁ ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► t₁'
+           → t₁ ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► t₁'
            → Σ[ t₂' ∈ ITree E I R ]
-             ( t₂ ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► t₂'
+             ( t₂ ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► t₂'
              × TreeRel t₁' t₂' )
 
     -- If t₁ takes a silent step, t₂ must weakly match it (via ═[τ]═►)
@@ -156,10 +157,10 @@ module DRWbisimEquiv
         
     -- Helper 3: propagate a weak visible transition through a bisimulation
     lift-weak-ev : ∀ {t t' s at a}
-                 → t ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► t'
+                 → t ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► t'
                  → DRWbisim RetRel t s
                  → Σ[ s' ∈ ITree E I R ]
-                   ( s ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► s'
+                   ( s ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► s'
                    × DRWbisim RetRel t' s')
     lift-weak-ev (weak-ev pre step post) p =
         let s-pre-end  , s-pre-steps , bisim-pre = lift-τ* pre p
@@ -170,9 +171,9 @@ module DRWbisimEquiv
         -- Splice a τ* prefix and τ* suffix around a weak-ev
         splice : ∀ {s s-mid s-end s' at a}
                → s     ─[τ*]─► s-mid
-               → s-mid ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► s-end
+               → s-mid ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► s-end
                → s-end ─[τ*]─► s'
-               → s     ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► s'
+               → s     ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► s'
         splice pre (weak-ev mid-pre vis-step mid-post) post =
             weak-ev (τ*-concat pre mid-pre) vis-step (τ*-concat mid-post post)
 
@@ -250,11 +251,11 @@ module DRWbisimEquiv
       = t₃' , weak-τ chain₂₃ , drwbisim-trans bisim₁₂' bisim₂₃'
 
   on-vis-trans : ∀ {t₁ t₂ t₃ t₁' : ITree E I R} {at : AnyTypes E} {a : proj₁ at}
-               → t₁ ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► t₁'
+               → t₁ ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► t₁'
                → DRWSimF RetRel (DRWbisim RetRel) t₁ t₂
                → DRWbisim RetRel t₂ t₃
                → Σ[ t₃' ∈ ITree E I R ]
-                 ( t₃ ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► t₃'
+                 ( t₃ ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► t₃'
                  × DRWbisim RetRel t₁' t₃' )
   on-vis-trans step sim₁₂ bisim₂₃
       with sim₁₂ .DRWSimF.on-vis step
@@ -313,8 +314,8 @@ divergent-not-ret d eq with d .Divergent.step
 
 -- A divergent process cannot take a visible step
 divergent-not-vis : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-                    {t t' : ITree E I R} {el : EvLabel E}
-                  → Divergent t → t ─[ ev el ]─► t' → ⊥
+                    {t t' : ITree E I R} {el : Event E}
+                  → Divergent t → t ─[ ev (evl el) ]─► t' → ⊥
 divergent-not-vis d (sVis eq _) with d .Divergent.step
 ... | sSil eq'   = case trans (sym eq') eq of λ ()
 ... | sNdbr eq' _ = case trans (sym eq') eq of λ ()

@@ -194,6 +194,10 @@ div : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set �
     → ITree E I R
 ITree.force div = sil div
 
+deadlock : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      → ITree E I R
+ITree.force deadlock = vis (λ _ _ → nothing)
+
 vis≢sil : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
     {t : ITree E I R}
@@ -225,3 +229,14 @@ sil-injective : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ
     {f g : (ITree E I R)}
   → sil f ≡ sil g → f ≡ g
 sil-injective refl = refl
+
+
+br2 : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  (P : ITree E (ExtI I) R) → (Q : ITree E (ExtI I) R) →
+  (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
+br2 P Q (_ , fin) x = case x of λ where
+  (lift fzero)        → just P
+  (lift (fsuc fzero)) → just Q
+  _                   → nothing   -- covers Fin n for n > 2
+br2 P Q (_ , base _)   _ = nothing
+br2 P Q (_ , pair _ _) _ = nothing

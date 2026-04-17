@@ -68,7 +68,6 @@ force (_∥⇘_¿_⇙_ {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} {I = I} {R = R}
     ... | just x | _ = any-just tt₀
     ... | nothing | ()
     
-
 ... | vis fP | ret s = vis (λ at x →
     case fP at x of λ where
       nothing → nothing         -- If P can terminate, but Q cannot, it is finally like a Stop.
@@ -93,31 +92,64 @@ force (_∥⇘_¿_⇙_ {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} {I = I} {R = R}
    )
 
 ... | vis fP | ndbr fQ wi wa wp = ndbr (λ ai a → -- ∥-dist
-    case fQ ai a of λ where
-      nothing  → nothing
-      (just Q') → just (P ∥⇘ cs ¿ dec ⇙ Q')) {!!} {!!} {!!}
+      f' ai a) wi wa (go wp)
+  where
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fQ i a of λ where
+        nothing → nothing
+        (just Q') → just (P ∥⇘ cs ¿ dec ⇙ Q')) 
+      
+    go : Is-just (fQ wi wa) → Is-just (f' wi wa)
+    go p with fQ wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
 
 ... | ndbr fP wi wa wp | ret s = ndbr (λ ai a → -- ∥-dist 
-    case fP ai a of λ where
-      nothing  → nothing
-      (just P') → just (P' ∥⇘ cs ¿ dec ⇙ Q)) {!!} {!!} {!!}
-    
-... | ndbr fP wi wa wp | vis fQ = ndbr (λ ai a → -- ∥-dist
-    case fP ai a of λ where
-      nothing  → nothing
-      (just P') → just (P' ∥⇘ cs ¿ dec ⇙ Q)) {!!} {!!} {!!}
-
-... | ndbr fP wiP waP wpP | ndbr fQ wiQ waQ wpQ = ndbr mergeNdbr {!!} {!!} {!!}
+      f' ai a) wi wa (go wp)
   where
-    mergeNdbr : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) (R × S)))
-    mergeNdbr (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fP i a of λ where
+        nothing → nothing
+        (just P') → just (P' ∥⇘ cs ¿ dec ⇙ Q)) 
+      
+    go : Is-just (fP wi wa) → Is-just (f' wi wa)
+    go p with fP wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
+
+... | ndbr fP wi wa wp | vis fQ = ndbr (λ ai a → -- ∥-dist
+      f' ai a) wi wa (go wp)
+  where
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fP i a of λ where
+        nothing → nothing
+        (just P') → just (P' ∥⇘ cs ¿ dec ⇙ Q)) 
+      
+    go : Is-just (fP wi wa) → Is-just (f' wi wa)
+    go p with fP wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
+      
+... | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ = ndbr mergeNdbr'
+         ((AP × AQ) , pair iP iQ) (waP , waQ) (go wpP wpQ)
+  where
+    mergeNdbr' : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) (R × S)))
+    mergeNdbr' (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
       case fP (AP , iP) aP , fQ (AQ , iQ) aQ of λ where
         (just P' , just Q') → just (P' ∥⇘ cs ¿ dec ⇙ Q')
         (just P' , nothing) → just (P'  ∥⇘ cs ¿ dec ⇙ Q)  -- Q done, P steps
         (nothing , just Q') → just (P  ∥⇘ cs ¿ dec ⇙ Q')  -- P done, Q steps
         (nothing , nothing) → nothing
-    mergeNdbr (A , base i) a = nothing            -- non-pair index: blocked
-    mergeNdbr (_ , fin) a = nothing            -- non-pair index: blocked
+    mergeNdbr' (A , base i) a = nothing            -- non-pair index: blocked
+    mergeNdbr' (_ , fin) a = nothing            -- non-pair index: blocked
+
+    go : Is-just (fP (AP , iP) waP)
+       → Is-just (fQ (AQ , iQ) waQ)
+       → Is-just (mergeNdbr' ((AP × AQ) , pair iP iQ) (waP , waQ))
+    go pP pQ with fP (AP , iP) waP | pP | fQ (AQ , iQ) waQ | pQ
+    ... | just P' | _ | just Q' | _ = any-just tt₀
+    ... | just P' | _ | nothing | ()
+    ... | nothing | () | _      | _
     
 -------------------------------------------------------------------------------------
 -- Interleave
@@ -142,10 +174,17 @@ force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
   )
 
 ... | ret r | ndbr fQ wi wa wp = ndbr (λ ai a →
-  case fQ ai a of λ where
-    nothing → nothing         
-    (just Q') → just (P ⦀ Q') 
-  ) {!!} {!!} {!!}
+      f' ai a) wi wa (go wp)
+  where
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fQ i a of λ where
+        nothing → nothing
+        (just Q') → just (P ⦀ Q')) 
+      
+    go : Is-just (fQ wi wa) → Is-just (f' wi wa)
+    go p with fQ wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
 
 ... | vis fP | ret s = vis (λ at x →
     case fP at x of λ where
@@ -162,31 +201,61 @@ force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
    )
 
 ... | vis fP | ndbr fQ wi wa wp = ndbr (λ ai a →
-  case fQ ai a of λ where
-    nothing → nothing         
-    (just Q') → just (P ⦀ Q')
-  ) {!!} {!!} {!!}
+        f' ai a) wi wa (go wp)
+  where
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fQ i a of λ where
+        nothing → nothing
+        (just Q') → just (P ⦀ Q')) 
+      
+    go : Is-just (fQ wi wa) → Is-just (f' wi wa)
+    go p with fQ wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
 
 ... | ndbr fP wi wa wp | ret s = ndbr (λ ai a →
-  case fP ai a of λ where
-    nothing → nothing         
-    (just P') → just (P' ⦀ Q)
-  ) wi wa {!!}
+      f' ai a) wi wa (go wp)
+  where
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fP i a of λ where
+        nothing → nothing
+        (just P') → just (P' ⦀ Q)) 
+      
+    go : Is-just (fP wi wa) → Is-just (f' wi wa)
+    go p with fP wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
 
 ... | ndbr fP wi wa wp | vis fQ = ndbr (λ ai a →
-  case fP ai a of λ where
-    nothing → nothing         
-    (just P') → just (P' ⦀ Q)
-  ) {!!} {!!} {!!}
-
-... | ndbr fP wiP waP wpP | ndbr fQ wiQ waQ wpQ = ndbr mergeNdbr {!!} {!!} {!!}
+      f' ai a) wi wa (go wp)
   where
-    mergeNdbr : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) (R × S)))
-    mergeNdbr (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
+    f' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) (R × S))
+    f' i a = (case fP i a of λ where
+        nothing → nothing
+        (just P') → just (P' ⦀ Q)) 
+      
+    go : Is-just (fP wi wa) → Is-just (f' wi wa)
+    go p with fP wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()
+
+... | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ = ndbr mergeNdbr'
+         ((AP × AQ) , pair iP iQ) (waP , waQ) (go wpP wpQ)
+  where
+    mergeNdbr' : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) (R × S)))
+    mergeNdbr' (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
       case fP (AP , iP) aP , fQ (AQ , iQ) aQ of λ where
         (just P' , just Q') → just (P' ⦀ Q')
         (just P' , nothing) → just (P' ⦀ Q)  -- Q done, P steps
         (nothing , just Q') → just (P ⦀ Q')  -- P done, Q steps
         (nothing , nothing) → nothing
-    mergeNdbr (A , base i) a = nothing            -- non-pair index: blocked
-    mergeNdbr (_ , fin) a = nothing            -- non-pair index: blocked
+    mergeNdbr' (A , base i) a = nothing            -- non-pair index: blocked
+    mergeNdbr' (_ , fin) a = nothing            -- non-pair index: blocked
+
+    go : Is-just (fP (AP , iP) waP)
+       → Is-just (fQ (AQ , iQ) waQ)
+       → Is-just (mergeNdbr' ((AP × AQ) , pair iP iQ) (waP , waQ))
+    go pP pQ with fP (AP , iP) waP | pP | fQ (AQ , iQ) waQ | pQ
+    ... | just P' | _ | just Q' | _ = any-just tt₀
+    ... | just P' | _ | nothing | ()
+    ... | nothing | () | _      | _

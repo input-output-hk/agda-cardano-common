@@ -40,17 +40,21 @@ open ITree
 
 -----------------------------------------------------------------
 -- Event labels are visible.
-record EvLabel {ℓ ℓe : Level} (E : Set ℓ → Set ℓe) : Set (lsuc ℓ ⊔ ℓe) where
+record Event {ℓ ℓe : Level} (E : Set ℓ → Set ℓe) : Set (lsuc ℓ ⊔ ℓe) where
   constructor evLabel
   field
     A : Set ℓ
     e : E A
     a : A
 
-data Label {ℓ ℓe : Level} (E : Set ℓ → Set ℓe) : Set (lsuc ℓ ⊔ ℓe) where
-  ev   : EvLabel E → Label E   -- visible event with response
-  τ  : Label E                  -- silent step from ndbr
---  √  : Label E                -- successful termination at ret
+-- Event includes an extra tick event for termination
+data Event√ {ℓ ℓe ℓr : Level} (E : Set ℓ → Set ℓe) (R : Set ℓr) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓr) where
+  evl   : Event E → Event√ E R   -- visible event with response
+  √  : R → Event√ E R            -- successful termination at ret
+  
+data Label {ℓ ℓe ℓr : Level} (E : Set ℓ → Set ℓe) (R : Set ℓr) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓr) where
+  ev   : Event√ E R → Label E R   -- visible event with response
+  τ  : Label E R                -- silent step from ndbr
 
 -----------------------------------------------------------------
 -- Small-step semantics
@@ -58,8 +62,13 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
               {E : Set ℓ → Set ℓe}
               {I : Set ℓ → Set ℓi}
               {R : Set ℓr}
-    : ITree E I R → Label E → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
-
+    : ITree E I R → Label E R → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+  -- we choose deadlock to represent Ω in the Bill Roscoe's UCS book as a terminated process
+  sRet : ∀ {p : ITree E I R} {x : R}
+       → ITree.force p ≡ ret x
+       ---------------------------------------------
+       → p ─[ ev (√ x) ]─► deadlock
+       
   sSil : ∀ {p t : ITree E I R}
        → ITree.force p ≡ sil t
        ---------------------------------------------
@@ -73,7 +82,7 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
        → ITree.force p ≡ vis f
        → f at a ≡ just t′       
        ---------------------------------------------
-       → p ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► t′
+       → p ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► t′
 
   sNdbr : ∀ {p : ITree E I R}
        {f   : (i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))}
@@ -83,6 +92,15 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
      → ITree.force p ≡ ndbr f wi wa prf   -- p is an ndbr node
      → f i a ≡ just t′                   -- ANY branch (i, a) can be taken
      → p ─[ τ ]─► t′
+
+√-is-ret : ∀ {ℓ ℓe ℓi ℓr : Level}
+              {E : Set ℓ → Set ℓe}
+              {I : Set ℓ → Set ℓi}
+              {R : Set ℓr}
+              {t t' : ITree E I R} {x : R}
+         → t ─[ ev (√ x) ]─► t'
+         → (ITree.force t ≡ ret x) × t' ≡ deadlock
+√-is-ret (sRet eq) = eq , refl
 
 -----------------------------------------------------------------------
 -- A τ inversion
@@ -115,7 +133,7 @@ ev-ndbr : ∀ {ℓ ℓe ℓi ℓr}
     {R : Set ℓr}
     {t t′ : ITree E I R}
     {A : Set ℓ} {e : E A} {a : A}
-  → t ─[ ev (evLabel A e a) ]─► t′
+  → t ─[ (ev (evl (evLabel A e a))) ]─► t′
   → Σ[ f ∈ ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R)))]
       (ITree.force t ≡ vis f × f (A , e) a ≡ just t′)
 ev-ndbr (sVis eq1 eq2) = _ , (eq1 , eq2)
@@ -147,7 +165,7 @@ ev-from-force-vis-impossible :
     {t t′ : ITree E I R}
     {A : Set ℓ} {e : E A} {a : A}    
   → ITree.force t ≡ vis (λ _ _ → nothing)
-  → t ─[ ev (evLabel A e a) ]─► t′
+  → t ─[ (ev (evl (evLabel A e a))) ]─► t′
   → ⊥
 ev-from-force-vis-impossible forceEq (sVis forceEq′ branch-eq)
   with trans (sym forceEq′) forceEq
@@ -166,7 +184,7 @@ data _─[^_]─►_ {ℓ ℓe ℓi ℓr : Level}
          → t ─[^ zero ]─► t
 
   ^-suc  : {t t′ t″ : ITree E I R}
-           {l : Label E}
+           {l : Label E R}
            {n : ℕ}
          → t  ─[ l  ]─► t′
          → t′ ─[^ n ]─► t″
@@ -220,23 +238,7 @@ data _─[τ*]─►_ {ℓ ℓe ℓi ℓr : Level}
           → t  ─[ τ ]─► t'
           → t' ─[τ*]─►  t''
           → t  ─[τ*]─►  t''
-{-          
-  τ*-sil  : {t t′ t″ : ITree E I R}
-         → ITree.force t ≡ sil t′ -- t steps silently to t'
-         → t′ ─[τ*]─► t″
-         ------------------------
-         → t  ─[τ*]─► t″
 
-  -- Step via 'ndbr' constructor (The invisible choice)
-  τ*-ndbr : {t t′ t″ : ITree E I R}
-    → {f : (i : AnyTypes I) → ContinueType i (Maybe (ITree E I R))}
-    → {i : AnyTypes I} {a : proj₁ i} {prf : Is-just (f i a)}
-    → ITree.force t ≡ ndbr f i a prf
-    → f i a ≡ just t′
-    → t′ ─[τ*]─► t″
-    ----------------
-    → t ─[τ*]─► t″
--}
 -----------------------------------------------------------------
 -- A set of reachable ITrees from P after n steps.
 Reachₙ : ∀ {ℓ ℓe ℓi ℓr : Level}
@@ -252,7 +254,7 @@ data _═[_]═►_ {ℓ ℓe ℓi ℓr : Level}
                 {E : Set ℓ → Set ℓe} 
                 {I : Set ℓ → Set ℓi} 
                 {R : Set ℓr}
-     : ITree E I R → Label E → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+     : ITree E I R → Label E R → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
 
   -- Weak Tau Transition (just the reflexive-transitive closure)
   weak-τ : ∀ {p q}
@@ -262,28 +264,38 @@ data _═[_]═►_ {ℓ ℓe ℓi ℓr : Level}
 
   -- Weak Visible Transition
   -- p --τ*--> p' --e--> q' --τ*--> q
+  {-
   weak-ev : ∀ {p q p' q' at a}
     → (p ─[τ*]─► p')
-    → (p' ─[ ev (evLabel (proj₁ at) (proj₂ at) a) ]─► q')
+    → (p' ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► q')
     → (q' ─[τ*]─► q)
       -----------------------------------------------
-    → p ═[ ev (evLabel (proj₁ at) (proj₂ at) a) ]═► q
-    
+    → p ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► q
+  -}
+
+  weak-ev : ∀ {p q p' q'} {e : Event√ E R}
+    → (p ─[τ*]─► p')
+    → (p' ─[ ev e ]─► q')
+    → (q' ─[τ*]─► q)
+      -----------------------------------------------
+    → p ═[ ev e ]═► q
+
 --------------------------------------------------------------------------------------
 -- Big-step semantics: transitions through a sequence of events, including τ in traces
 data _─⟨_⟩─►_ {ℓ ℓe ℓi ℓr : Level}
               {E : Set ℓ → Set ℓe}
               {I : Set ℓ → Set ℓi}
               {R : Set ℓr}
-    : ITree E I R → List (Label E) → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+    : ITree E I R → List (Label E R) → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
 
   bNil : ∀{t : ITree E I R} → t ─⟨ [] ⟩─► t
   
-  -- bRet  : ∀{r : R}
-  --      → itree (ret r) ─⟨ √ ∷ [] ⟩─► r
+  bRet  : ∀{t  : ITree E I R} {x : R}
+        → t ─[ ev (√ x) ]─► deadlock
+        → t ─⟨ ev (√ x) ∷ [] ⟩─► deadlock
 
-  bStep : {l  : Label E}
-          {ls : List (Label E)}
+  bStep : {l  : Label E R}
+          {ls : List (Label E R)}
           {r  : R}
           {t  : ITree E I R}
           {t′ : ITree E I R}
@@ -300,15 +312,19 @@ data _═⟨_⟩═►_ {ℓ ℓe ℓi ℓr : Level}
               {I : Set ℓ → Set ℓi}
               {R : Set ℓr}
     : ITree E I R
-    → List (EvLabel E)
+    → List (Event√ E R)
     → ITree E I R
     → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
 
   bNil : ∀{t : ITree E I R} → t ═⟨ [] ⟩═► t
-  
---  bRet  : {r : R}
---        → itree (ret r) ═⟨ √ ∷ [] ⟩═► r
-  bTau :  {els : List (EvLabel E)}
+
+{-
+  bRet  : ∀{t  : ITree E I R} {x : R}
+        → t ─[ ev (√ x) ]─► deadlock
+        → t ═⟨ (√ x) ∷ [] ⟩═► deadlock
+-}
+
+  bTau :  {els : List (Event√ E R)}
           {t  : ITree E I R}
           {t′ : ITree E I R}
           {t′′ : ITree E I R}
@@ -317,8 +333,8 @@ data _═⟨_⟩═►_ {ℓ ℓe ℓi ℓr : Level}
        ---------------------------------------------        
         → t  ═⟨ els ⟩═► t′′
         
-  bStep : {el  : EvLabel E}
-          {els : List (EvLabel E)}
+  bStep : {el  : Event√ E R}
+          {els : List (Event√ E R)}
           {t  : ITree E I R}
           {t′ : ITree E I R}
           {t′′ : ITree E I R}
@@ -330,12 +346,12 @@ data _═⟨_⟩═►_ {ℓ ℓe ℓi ℓr : Level}
 -----------------------------------------------------------------
 module Traces where
   traces′ : ∀ {ℓ ℓe ℓi ℓr : Level} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-    → ITree E I R → List (Label E) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+    → ITree E I R → List (Label E R) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
   traces′ t s = Σ[ t′ ∈ ITree _ _ _ ] (t ─⟨ s ⟩─► t′)
 
   -- Traces can be extracted from the big-step semantics
   traces : ∀ {ℓ ℓe ℓi ℓr : Level} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-    → ITree E I R → List (EvLabel E) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+    → ITree E I R → List (Event√ E R) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
   traces t s = Σ[ t′ ∈ ITree _ _ _ ] (t ═⟨ s ⟩═► t′)
 
   _⊑ᵀ_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}

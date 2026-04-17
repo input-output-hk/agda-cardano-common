@@ -16,13 +16,15 @@ open import Interaction_Trees
 
 module CSP.Basic_Processes where
 open ITree
+{-
 Stop : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi}
      → ITree E I (⊤ {ℓr})
 force Stop = vis (λ _ _ → nothing)
+-}
 
-Stop' : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+Stop : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
       → ITree E I R
-force Stop' = vis (λ _ _ → nothing)
+force Stop = vis (λ _ _ → nothing)
 
 Ret : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     → R → ITree E I R

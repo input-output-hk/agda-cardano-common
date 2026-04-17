@@ -17,27 +17,31 @@ open import Data.Product using (Σ; _,_; proj₁; proj₂; _×_; ∃; Σ-syntax;
 open import Function using (case_of_)
 -- import Relation.Binary.PropositionalEquality as Eq
 -- open Eq using (_≡_; refl)
-open import Relation.Binary                using (Rel)
+open import Relation.Binary                using (Rel; IsEquivalence)
 -- -- open import Relation.Binary.Definitions using (DecidableEquality)
 -- open import Class.DecEq
 open import Level using (Level; 0ℓ)
 -- open import Relation.Nullary using (Dec; yes; no)
 open import Data.Sum using (_⊎_; inj₁; inj₂) renaming ([_,_] to case-⊎)
 -- open import Data.Bool using (Bool; true; false; if_then_else_)
-
+ 
 -- open import Data.List using (List; _++_; _∷_; []; length; reverse; map; foldr; downFrom)
 -- open import Data.List.Relation.Unary.All using (All; []; _∷_)
 -- import  Data.List.Relation.Unary.Any using (Any; here;there)
 -- import Data.List.Membership.Propositional using (_∈_)
 -- import Data.List.Properties using (reverse-++-commute; map-compose; map-++-commute; foldr-++; map-is-foldr)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; subst; sym; trans; refl; inspect; [_]; cong)
+open import Relation.Binary.PropositionalEquality.Properties using (isEquivalence)
 open import Data.Maybe.Relation.Binary.Pointwise using (Pointwise) renaming (just to pw-just; nothing to pw-nothing)
-
+ 
 open import Interaction_Trees
-open import ITree_Relations.LTS using (Label; ev; τ; _─[_]─►_; sSil; sNdbr; τ^-ndbr;
-  _─[τ^_]─►_; τ^-zero; τ^-suc; _─[τ*]─►_; τ*-zero; τ*-step)
-open import ITree_Relations.Equivalence_Rel renaming (_≈_ to _≈ᵉ_)
-open import ITree_Relations.StrongBisim renaming (_≈_ to _≈ˢ_)
+open import ITree_Relations.LTS using (Event; Event√; Label; ev; τ;
+  _─[_]─►_; sRet; sSil; sNdbr; sVis; τ^-ndbr; √-is-ret;
+  _─[τ^_]─►_; τ^-zero; τ^-suc; _─[τ*]─►_; τ*-zero; τ*-step;
+    _═[_]═►_; weak-τ; weak-ev)
+open import ITree_Relations.Equivalence_Rel using (EqNodeKindF; SEquiv; module SEquivEquiv) renaming (_≈_ to _≈ᵉ_)
+open import ITree_Relations.StrongBisim renaming (_∼_ to _≈ˢ_)
+open import ITree_Relations.StrongBisim using (Sbisim; SSimF)
 open import ITree_Relations.WeakBisim renaming (_≈_ to _≈ʷ_)
 open import ITree_Relations.DRWeakBisim renaming (_≈_ to _≈ᵈ_)
 open import ITree_Relations.Divergence
@@ -45,6 +49,10 @@ open import ITree_Relations.Divergence
 module ITree_Relations.Relations 
   where
 open ITree
+
+-- IsEquivalence for propositional equality (used in SEquivEquiv calls)
+≡-equiv : ∀ {a} {A : Set a} → IsEquivalence (_≡_ {A = A})
+≡-equiv = isEquivalence
 
 variable
   ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level
@@ -59,229 +67,139 @@ pw-map : ∀ {ℓ₁ ℓ₂} {R1 : Rel (ITree E I R) ℓ₁} {R2 : Rel (ITree E 
 pw-map f (Pointwise.just r)  = Pointwise.just (f r)
 pw-map f Pointwise.nothing   = Pointwise.nothing
 
+-- Helper: wrap a single strong τ step into a weak-τ transition
+τ-to-weak-τ : ∀ {t t' : ITree E I R}
+            → t ─[ τ ]─► t'
+            → t ═[ τ ]═► t'
+τ-to-weak-τ step = weak-τ (τ*-step step τ*-zero)
+
+-- Helper: wrap a single strong visible step into a weak-ev transition  
+ev-to-weak-ev : ∀ {t t' : ITree E I R} {e : Event√ E R}
+             → t ─[ ev e ]─► t'
+             → t ═[ ev e ]═► t'
+ev-to-weak-ev step = weak-ev τ*-zero step τ*-zero
+
 {-# NON_TERMINATING #-}
-equiv→sbisim : ∀ {t t' : ITree E I R}
-                → t ≈ᵉ t'
-                → t ≈ˢ t'
-equiv→sbisim eq .Sbisim.step = go (eq .SEquiv.step)
+-- Lifting: a strong simulation implies a weak simulation (one side)
+ssim→drwsim : ∀ (t₁ t₂ : ITree E I R)
+            → SSimF _≡_ (DRWbisim _≡_) t₁ t₂
+            → DRWSimF _≡_ (DRWbisim _≡_) t₁ t₂
+ssim→drwsim t₁ t₂ ssim .DRWSimF.on-ret eq =
+    let t₂' , step₂ , _bisim = ssim .SSimF.on-ret (sRet eq)
+        eq₂ , _             = √-is-ret step₂
+        -- t₂ itself is the stable witness: reach it via zero τ steps
+    in  t₂ , _ , weak-τ τ*-zero , eq₂ , refl
+
+ssim→drwsim t₁ t₂ ssim .DRWSimF.on-vis step =
+    let t₂' , step' , bisim = ssim .SSimF.on-vis step
+    in  t₂' , ev-to-weak-ev step' , bisim
+
+ssim→drwsim t₁ t₂ ssim .DRWSimF.on-tau step =
+    let t₂' , step' , bisim = ssim .SSimF.on-tau step
+    in  t₂' , τ-to-weak-τ step' , bisim
+
+ssim→drwsim t₁ t₂ ssim .DRWSimF.on-div d =
+    divergent-ssim-closed t₁ t₂ ssim d
   where
-    go : ∀ {n₁ n₂}
-       → EqNodeKindF _≡_ (SEquiv _≡_) n₁ n₂
-       → SNodeKindF _≡_ (Sbisim _≡_) n₁ n₂
-    go (EqNodeKindF.retF r)   = SNodeKindF.retF r
-    go (EqNodeKindF.silF t)   = SNodeKindF.silF (equiv→sbisim t)
-    go (EqNodeKindF.visF h)   = SNodeKindF.visF (λ at a → pw-map equiv→sbisim (h at a))
-    go (EqNodeKindF.ndbrF {f₁} {f₂} eq-inx eq-a h) = SNodeKindF.ndbrF fwd bwd
-      where
-        fwd : ∀ {t₁} → Image f₁ t₁ → Σ _ (λ t₂ → Image f₂ t₂ × Sbisim _≡_ t₁ t₂)
-        -- Add inspect (f₂ i) a to the with-clause
-        fwd {t₁} (i , a , eq) with f₁ i a | f₂ i a | inspect (f₂ i) a | h i a
-        ... | nothing  | nothing  | _       | pw-nothing  = ⊥-elim (case eq of λ ())
-        ... | just t₁' | just t₂' | [ eq₂ ] | pw-just rel = 
-              t₂' , (i , a , eq₂) , -- <-- Use eq₂ instead of refl!
-              equiv→sbisim (subst (λ t → SEquiv _≡_ t t₂') (just-injective eq) rel)
+    divergent-ssim-closed : ∀ (t₁ t₂ : ITree E I R)
+                          → SSimF _≡_ (DRWbisim _≡_) t₁ t₂
+                          → Divergent t₁ → Divergent t₂
+    divergent-ssim-closed t₁ t₂ ssim d =
+        let step₁           = d .Divergent.step
+            t₂' , step₂ , bisim' = ssim .SSimF.on-tau step₁
+        in record
+             { step    = step₂
+             ; diverge = DRWSimF.on-div (DRWbisim.fwd bisim') (d .Divergent.diverge)
+             }
 
-        bwd : ∀ {t₂} → Image f₂ t₂ → Σ _ (λ t₁ → Image f₁ t₁ × Sbisim _≡_ t₁ t₂)
-        -- Add inspect (f₁ i) a to the with-clause for the backward direction
-        bwd {t₂} (i , a , eq) with f₁ i a | inspect (f₁ i) a | f₂ i a | h i a
-        ... | nothing  | _       | nothing  | pw-nothing  = ⊥-elim (case eq of λ ())
-        ... | just t₁' | [ eq₁ ] | just t₂' | pw-just rel = 
-              t₁' , (i , a , eq₁) , -- <-- Use eq₁ instead of refl!
-              equiv→sbisim (subst (SEquiv _≡_ t₁') (just-injective eq) rel)
-
-{-
-private
-  -- Extract the continuation from a silF proof
-  silF-ndbr : ∀ {t₁} {n₂}
-           → SNodeKindF _≡_ (Sbisim _≡_) (sil t₁) n₂
-           → Σ[ t₂ ∈ ITree E I R ] (n₂ ≡ sil t₂ × Sbisim _≡_ t₁ t₂)
-  silF-ndbr (SNodeKindF.silF rel) = _ , refl , rel
-
-  -- Extract the ndbrF forward direction when left side is ndbr
-  ndbrF-fwd : ∀ {f₁ f₂}
-           → SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) (ndbr f₂)
-           → ∀ {t₁} → Image f₁ t₁
-           → Σ[ t₂ ∈ ITree E I R ] (Image f₂ t₂ × Sbisim _≡_ t₁ t₂)
-  ndbrF-fwd (SNodeKindF.ndbrF fwd _) = fwd
-{-  
 {-# NON_TERMINATING #-}
-sbisim→divergent : ∀ {t₁ t₂ : ITree E I R}
-                 → Sbisim _≡_ t₁ t₂ → Divergent t₁ → Divergent t₂
-sbisim→divergent p d with d .Divergent.step
-... | sSil eq =
-      let step'             = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) n (ITree.force _))
-                                    eq (p .Sbisim.step)
-          (t₂' , eq₂ , rel) = silF-ndbr step'
-      in  record { next    = t₂'
-                 ; step    = sSil eq₂       -- ← eq₂ : ITree.force t₂ ≡ sil t₂'
-                 ; diverge = sbisim→divergent rel (d .Divergent.diverge) }
-... | sNdbr {a = a} eq =
-      let step'              = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) n (ITree.force _))
-                                     eq (p .Sbisim.step)
-          (t₂' , img , rel)  = ndbrF-fwd step' (_ , a , eq)
-      in  record { next    = t₂'
-                 ; step    = sNdbr (proj₂ (proj₂ img))
-                 ; diverge = sbisim→divergent rel (d .Divergent.diverge) }
--}
-{-# NON_TERMINATING #-}
-sbisim→divergent : ∀ {t₁ t₂ : ITree E I R}
-                 → Sbisim _≡_ t₁ t₂ → Divergent t₁ → Divergent t₂
-sbisim→divergent {t₁ = t₁} {t₂ = t₂} p d with d .Divergent.step
--- sil case: eq : ITree.force t₁ ≡ sil t'  — a NodeKind equality, use it in subst
-... | sSil eq =
-      let step'              = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) n (ITree.force _))
-                                     eq (p .Sbisim.step)
-          (t₂' , eq₂ , rel)  = silF-ndbr step'
-      in  record { next    = t₂'
-                 ; step    = sSil eq₂
-                 ; diverge = sbisim→divergent rel (d .Divergent.diverge) }
-
-... | sNdbr {f = f₁} {A = A} {i = i} {a = a} ndbrEq
-    with ITree.force t₁
-... | ndbr f₁
-    with ITree.force t₂ in eq₂
-... | ndbr f₂ =
-  let
-    step₀ = p .Sbisim.step
-
-    -- 🔑 rewrite RHS index
-    step₁ : SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) (ndbr f₂)
-    step₁ = subst (λ n → SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) n) eq₂ step₀
-  in
-    case step₁ of λ where
-      ndbrF _ _ fwd bwd →
-        let
-          (t₂' , (img₂ , rel)) =
-            fwd ((A , i) , a , ndbrEq)
-        in
-        record
-          { next    = t₂'
-          ; step    = sNdbr (proj₂ (proj₂ img₂))
-          ; diverge = sbisim→divergent rel (d .Divergent.diverge)
-          }
--}
-
-{-
-... | sNdbr {f = f₁} {A = A} {i = i} {a = a} ndbrEq
-    with ITree.force t₁
-... | ndbr f₁ =
-  let
-    step' : SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) (ITree.force t₂)
-    step' = p .Sbisim.step
-
-    -- 🔑 FIRST: ndbrert the RHS shape
-    (f₂ , eq₂ , step'') = ndbrF-ndbr step'
-
-    -- now eq₂ : force t₂ ≡ ndbr f₂
-    -- and step'' : the refined structure
-
-    -- 🔑 THEN: use forward rule
-    (t₂' , img , rel) =
-      ndbrF-fwd
-        (subst
-          (λ n → SNodeKindF _≡_ (Sbisim _≡_) (ndbr f₁) n)
-          eq₂
-          step')
-        ((A , i) , a , ndbrEq)
-
-  in
-  record
-    { next    = t₂'
-    ; step    = sNdbr (proj₂ (proj₂ img))
-    ; diverge = sbisim→divergent rel (d .Divergent.diverge)
-    }                 
--}
-{-
-{-# NON_TERMINATING #-}
-sbisim<drwbisim : ∀ {t t' : ITree E I R}
+-- Main theorem: strong bisimulation implies DRW weak bisimulation
+sbisim→drwbisim : ∀ {t t' : ITree E I R}
                 → t ≈ˢ t'
                 → t ≈ᵈ t'
-sbisim<drwbisim p .DRWbisim.divL = sbisim→divergent p
-sbisim<drwbisim p .DRWbisim.divR = sbisim→divergent (SbisimEquiv.sbisim-sym p)
-sbisim<drwbisim p .DRWbisim.step = go (p .Sbisim.step)
+sbisim→drwbisim {t} {t'} bisim = go bisim
   where
-    go : ∀ {n₁ n₂}
-       → SNodeKindF _≡_ (Sbisim _≡_) n₁ n₂
-       → Divergent _ ⊎ Divergent _ ⊎ ∃₂ λ t₁' t₂'
-           → (_ ─[τ*]─► t₁') × (_ ─[τ*]─► t₂')
-           × DRWNodeKindF _≡_ (DRWbisim _≡_) (ITree.force t₁') (ITree.force t₂')
-    go (SNodeKindF.retF r) =
-      inj₂ (inj₂ (_ , _ , τ*-zero , τ*-zero , DRWNodeKindF.retF r))
-    -- sil: take one τ step on each side then recurse
-    go (SNodeKindF.silF rel) with (sbisim<drwbisim rel) .DRWbisim.step
-    ... | inj₁ d =
-          inj₁ (step-diverges refl d)
-    ... | inj₂ (inj₁ d) =
-          inj₂ (inj₁ (step-diverges refl d))
-    ... | inj₂ (inj₂ (t₁' , t₂' , red₁ , red₂ , obs)) =
-          inj₂ (inj₂ (t₁' , t₂' , refl τ*-step red₁ , refl τ*-step red₂ , obs))
-    go (SNodeKindF.visF h) =
-      inj₂ (inj₂ (_ , _ , τ*-zero , τ*-zero ,
-        DRWNodeKindF.visF (λ at a → pw-map sbisim<drwbisim (h at a))))
-    go (SNodeKindF.ndbrF fwd bwd) =
-      inj₂ (inj₂ (_ , _ , τ*-zero , τ*-zero ,
-        DRWNodeKindF.ndbrF
-          (λ img → let (t₂ , img₂ , rel) = fwd img in t₂ , img₂ , sbisim<drwbisim rel)
-          (λ img → let (t₁ , img₁ , rel) = bwd img in t₁ , img₁ , sbisim<drwbisim rel)))
--}
+    -- Lift SSimF with (Sbisim _≡_) as TreeRel to SSimF with (DRWbisim _≡_) as TreeRel
+    lift-ssim : ∀ {t₁ t₂ : ITree E I R}
+              → SSimF _≡_ (Sbisim _≡_) t₁ t₂
+              → SSimF _≡_ (DRWbisim _≡_) t₁ t₂
+    go : ∀ {t t' : ITree E I R} → t ≈ˢ t' → t ≈ᵈ t'
+    
+    lift-ssim ssim .SSimF.on-ret step =
+        let t₂' , step' , sub = ssim .SSimF.on-ret step
+        in  t₂' , step' , go sub
+    lift-ssim ssim .SSimF.on-vis step =
+        let t₂' , step' , sub = ssim .SSimF.on-vis step
+        in  t₂' , step' , go sub
+    lift-ssim ssim .SSimF.on-tau step =
+        let t₂' , step' , sub = ssim .SSimF.on-tau step
+        in  t₂' , step' , go sub
+
+    go {t = t} {t' = t'} bisim .DRWbisim.fwd = ssim→drwsim t t' (lift-ssim (bisim .Sbisim.fwd))
+    go {t = t} {t' = t'} bisim .DRWbisim.bwd = ssim→drwsim t' t (lift-ssim (bisim .Sbisim.bwd))
+
 
 {-
 mutual
-  sbisim<drwbisim : ∀ {t t' : ITree E I R}
+
+  {-# NON_TERMINATING #-}
+  equiv→sbisim : ∀ {t t' : ITree E I R}
+                  → t ≈ᵉ t'
                   → t ≈ˢ t'
-                  → t ≈ᵈ t'
-  DRWbisim.step (sbisim<drwbisim {t} {t'} s) = 
-    -- Inject into the observable agreement branch (inj₂ ∘ inj₂).
-    -- We use zero-step τ transitions for both sides.
-    -- Note: Replace `τ*-refl` with your library's actual zero-step constructor (e.g., `nil`, `ε`, or `refl`).
-    inj₂ (inj₂ (t , t' , τ*-zero , τ*-zero , go-node (Sbisim.step s)))
+  equiv→sbisim eq .Sbisim.fwd = mkSim eq
+  equiv→sbisim eq .Sbisim.bwd = mkSim (SEquivEquiv.sequiv-sym ≡-equiv eq)
+ 
+  -- mkSim builds a one-sided SSimF from a SEquiv proof.
+  mkSim : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+          {t₁ t₂ : ITree E I R}
+        → t₁ ≈ᵉ t₂
+        → SSimF _≡_ (Sbisim _≡_) t₁ t₂
+ 
+  mkSim {t₁ = t₁} {t₂ = t₂} eq .SSimF.on-ret (sRet {x = r} force≡ret)
+    with ITree.force t₁ | inspect ITree.force t₁
+       | ITree.force t₂ | inspect ITree.force t₂
+       | eq .SEquiv.step | force≡ret
+  ... | ret r₁ | [ eq₁ ] | ret r₂ | [ eq₂ ] | EqNodeKindF.retF r-rel | refl =
+       deadlock
+       , sRet (trans eq₂ (cong ret (sym r-rel)))
+       , SbisimEquiv.sbisim-refl ≡-equiv deadlock
 
-  -- Map the divergence fields using divergence preservation lemmas
-  DRWbisim.divL (sbisim<drwbisim s) div-t  = sbisim-divL s div-t
-  DRWbisim.divR (sbisim<drwbisim s) div-t' = sbisim-divR s div-t'
+  -- on-tau/sSil: force≡sil collapses force t₁ to sil t₁'';
+  -- force t₂ is matched to sil t₂', giving the right-side τ step as sSil refl.
+  mkSim {t₁ = t₁} {t₂ = t₂} eq .SSimF.on-tau (sSil {t = t₁'} force≡sil)
+    with ITree.force t₁ | ITree.force t₂ | eq .SEquiv.step | force≡sil
+  ... | sil t₁'' | sil t₂' | EqNodeKindF.silF rel | refl = ?
+--        t₂' , sSil refl , equiv→sbisim rel
+ 
+  -- on-tau/sNdbr: force≡ndbr collapses force t₁ to ndbr f₁ ...; force t₂ gives f₂.
+  -- pw-just rel means Pointwise matched just/just, so we also inspect f₂ i a
+  -- to get the equation f₂ i a ≡ just t₂' needed for the right-side sNdbr step.
+  mkSim {t₁ = t₁} {t₂ = t₂} eq .SSimF.on-tau
+      (sNdbr {f = f₁} {wi = wi} {wa = wa} {prf = prf} {i = i} {a = a} force≡ndbr branch-eq)
+    with ITree.force t₁ | ITree.force t₂ | eq .SEquiv.step | force≡ndbr
+  ... | ndbr f₁' wi' wa' prf' | ndbr f₂ wi₂ wa₂ prf₂ | EqNodeKindF.ndbrF eq-idx eq-val h | refl
+      with h i a | inspect (f₁ i) a | inspect (f₂ i) a
+  ... | pw-just rel | [ f₁-eq ] | [ f₂-eq ] =
+        _ , sNdbr refl f₂-eq
+          , equiv→sbisim (subst (λ t → SEquiv _≡_ t _)
+                                 (just-injective (trans (sym f₁-eq) branch-eq))
+                                 rel)
+  ... | pw-nothing | [ f₁-eq ] | _ =
+        ⊥-elim (case trans (sym branch-eq) f₁-eq of λ ())
 
-  go-node : ∀ {n₁ n₂}
-          → SNodeKindF RetRel (_≈ˢ_) n₁ n₂
-          → DRWNodeKindF RetRel (_≈ᵈ_) n₁ n₂
-  go-node (SNodeKindF.retF r) = DRWNodeKindF.retF r
-  go-node (SNodeKindF.silF s) = DRWNodeKindF.silF (sbisim<drwbisim s)
-  go-node (SNodeKindF.visF h) = DRWNodeKindF.visF (λ at a → pw-map sbisim<drwbisim (h at a))
-  
-  -- For ndbrF, we unpack the Sigma types returned by the strong bisimulation's fwd/bwd 
-  -- and wrap the resulting strong equivalence in our mutual `sbisim<drwbisim`.
-  go-node (SNodeKindF.ndbrF fwd bwd) = DRWNodeKindF.ndbrF fwd' bwd'
-    where
-      fwd' : ∀ {t₁} → Image _ t₁ → Σ _ (λ t₂ → Image _ t₂ × t₁ ≈ᵈ t₂)
-      fwd' img₁ with fwd img₁
-      ... | t₂ , img₂ , s-eq = t₂ , img₂ , sbisim<drwbisim s-eq
-
-      bwd' : ∀ {t₂} → Image _ t₂ → Σ _ (λ t₁ → Image _ t₁ × t₁ ≈ᵈ t₂)
-      bwd' img₂ with bwd img₂
-      ... | t₁ , img₁ , s-eq = t₁ , img₁ , sbisim<drwbisim s-eq
-
-  sbisim-divL : ∀ {t t' : ITree E I R}
-              → t ≈ˢ t'
-              → Divergent t
-              → Divergent t'
-  sbisim-divL {t} {t'} s d = helper s d (Divergent.step d)
-    where
-      -- We extract the transition to unify the node shapes
-      helper : ∀ {t₁ t₂} → t₁ ≈ˢ t₂ → (d₁ : Divergent t₁) → t₁ ─[ τ ]─► (Divergent.next d₁) → Divergent t₂
-      helper {t₁} {t₂} s₁ d₁ (sSil eq) with ITree.force t₁ | eq | Sbisim.step s₁
-      ... | .(sil (Divergent.next d₁)) | refl | SNodeKindF.silF s-next = 
-        -- Because the strong bisimulation requires t₂ to also be a `sil` node,
-        -- we can simply use your `step-diverges` lemma with `refl` for the right tree.
-        step-diverges refl (sbisim-divL s-next (Divergent.diverge d₁))
-
-  sbisim-divR : ∀ {t t' : ITree E I R}
-              → t ≈ˢ t'
-              → Divergent t'
-              → Divergent t
-  sbisim-divR {t} {t'} s d' = helper s d' (Divergent.step d')
-    where
-      -- The right-to-left direction is completely symmetric
-      helper : ∀ {t₁ t₂} → t₁ ≈ˢ t₂ → (d₂ : Divergent t₂) → t₂ ─[ τ ]─► (Divergent.next d₂) → Divergent t₁
-      helper {t₁} {t₂} s₂ d₂ (sSil eq) with ITree.force t₂ | eq | Sbisim.step s₂
-      ... | .(sil (Divergent.next d₂)) | refl | SNodeKindF.silF s-next = 
-        step-diverges refl (sbisim-divR s-next (Divergent.diverge d₂))
+  -- on-vis/sVis: force≡vis collapses force t₁ to vis f₁; force t₂ gives f₂.
+  -- Similarly inspect f₂ at a for the right-side sVis step equation.
+  mkSim {t₁ = t₁} {t₂ = t₂} eq .SSimF.on-vis
+      (sVis {f = f₁} {at = at} {a = a} force≡vis f-eq)
+    with ITree.force t₁ | ITree.force t₂ | eq .SEquiv.step | force≡vis
+  ... | vis f₁' | vis f₂ | EqNodeKindF.visF h | refl
+      with h at a | inspect (f₁ at) a | inspect (f₂ at) a
+  ... | pw-just rel | [ f₁-eq ] | [ f₂-eq ] =
+        _ , sVis refl f₂-eq
+          , equiv→sbisim (subst (λ t → SEquiv _≡_ t _)
+                                 (just-injective (trans (sym f₁-eq) f-eq))
+                                 rel)
+  ... | pw-nothing | [ f₁-eq ] | _ =
+        ⊥-elim (case trans (sym f-eq) f₁-eq of λ ())
+        
 -}

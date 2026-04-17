@@ -52,10 +52,10 @@ This is a simple CSP example with only up and down events
 
 ```
     P : ITree UpDown (ExtI UpDown) (⊥)
-    P = up ⟶₀ down ⟶₀ Stop'
+    P = up ⟶₀ down ⟶₀ Stop
 
     P' : ITree UpDown (ExtI UpDown) (⊥)
-    P' = down ⟶₀ Stop'
+    P' = down ⟶₀ Stop
 
     P□P' : ITree UpDown (ExtI UpDown) (⊥)
     P□P' = P □ P'
@@ -165,5 +165,5 @@ This is a simple CSP example with only up and down events
     guardP : ITree IO (ExtI IO) (⊥)
     guardP = do
       x ← Ret 1
-      (x == suc zero) ＆ Stop'
+      (x == suc zero) ＆ Stop
   ```
