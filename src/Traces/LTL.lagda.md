@@ -12,13 +12,15 @@ module Traces.LTL where
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
 open import Data.Bool as Bool using (Bool; true; false)
-open import Data.List using (List; []; _∷_)
-open import Data.Bool.ListAction using (all)
+open import Data.List as L using (List; []; _∷_)
+open import Data.Product using (proj₂; _,_)
+open import Data.Bool.ListAction using () renaming (all to allᵇ)
 open import Data.List.Relation.Unary.All using (All; []; _∷_)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
 open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_)
+import Traces.CSP
 ```
 ## Propositions and Operators
 
@@ -202,12 +204,12 @@ module TraceLTL {α : Alphabet} where
   holds?ᵖ P p = all? (λ t → holds? P t) (toList (traces p))
 
   holds?ᵖᵇ : Prop α → Process α → Bool
-  holds?ᵖᵇ Prop P = all (holds?ᵇ Prop) (toList (traces P))
+  holds?ᵖᵇ Prop P = allᵇ (holds?ᵇ Prop) (toList (traces P))
 ```
 ## Examples
 ```
   module _ {a b c : Alphabet.A α} where
-    open Data.List using (_∷_; [])
+    open L using (_∷_; [])
 
     P : Process α
     P = a ➔ (b ➔ (c ➔ SKIP))
@@ -237,11 +239,15 @@ take a structural induction approach.
 
 module Satisfaction (α : Alphabet) where
   open Alphabet α
+  open Traces.CSP.TraceSemantics {α}
   open Traces.CSP.Reduction α
+  open Traces.CSP.FailureSemantics {α}
+  open import Data.List.Membership.Propositional using () renaming (_∈_ to _∈ᴸ_)
 
   infix 1 _⊨_
   {-# NO_POSITIVITY_CHECK #-}
   data _⊨_ : Process α → Prop α → Type where
+    -- Boolean connectives
     _∧_ : {P : Process α} {p q : Prop α}
       → P ⊨ p
       → P ⊨ q
@@ -252,7 +258,7 @@ module Satisfaction (α : Alphabet) where
     _∨₂_ : {P : Process α} {p q : Prop α}
       → P ⊨ q
       → P ⊨ p ∨ q
-    ¬_ : {P : Process α} {p : Prop α}
+    ¬₁_ : {P : Process α} {p : Prop α}
       → Null.¬ (P ⊨ p)
       → P ⊨ ¬ p
     imp₁ : {P : Process α} {p q : Prop α}
@@ -262,99 +268,230 @@ module Satisfaction (α : Alphabet) where
       → P ⊨ p
       → P ⊨ q
       → P ⊨ p ⇒ q
+
+    -- Atomic event propositions.  ` a holds for processes whose current
+    -- stable head event is a.  `a ➔ P` and `SKIP` are the only direct matchers;
+    -- anything else is either derived via the structural rules or not true.
     `_ : {P : Process α} {a : A} → a ➔ P ⊨ ` a
-    X₁ : {P : Process α} {p : Prop α}
-      → All (_⊨ p) (followups P)
+    SKIP : SKIP ⊨ ` ✓
+
+    -- Next: progress-capable + every obs-successor satisfies p + every
+    -- τ-successor still satisfies X p (so τ-resolved branches are constrained).
+    X-step : {P : Process α} {p : Prop α}
+      → Null.¬ (P ⊢ᶠ (⟨⟩ , all))                         -- not deadlocked
+      → All (_⊨ p) (L.map proj₂ (followups P))           -- all obs-steps land in p
+      → All (_⊨ X p) (τ-followups P)                     -- every τ-resolution still ⊨ X p
       → P ⊨ X p
+
+    -- Eventually: three cases.
+    -- F-now: p already holds here.
     F-now : {P : Process α} {p : Prop α}
       → P ⊨ p
       → P ⊨ F p
-    F➔ : {P : Process α} {p : Prop α} {a : A}
+    -- F-obs: some event a is observably enabled AND not stably refused AND the
+    -- a-successor will eventually satisfy p.  The non-refusal premise is what
+    -- protects against dead ⊓-branches hiding behind a live followup.
+    F-obs : {P P' : Process α} {p : Prop α} {a : A}
+      → (a , P') ∈ᴸ followups P
+      → Null.¬ (P ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
+      → P' ⊨ F p
       → P ⊨ F p
-      → a ➔ P ⊨ F p
-    -- Since either path is possible, they must both satisfy p
-    F□ : {P Q : Process α} {p : Prop α}
+    -- F-τ: every τ-resolution eventually satisfies p.  Used for ⊓ (both
+    -- branches demonically) and ∥'s τ-interleavings. We require at least
+    -- one τ-successor so F-τ is not vacuously applicable on STOP / SKIP /
+    -- ➔ / stable processes — those must use F-now or F-obs.
+    F-τ : {P : Process α} {P' : Process α} {p : Prop α}
+      → P' ∈ᴸ τ-followups P
+      → All (_⊨ F p) (τ-followups P)
       → P ⊨ F p
-      → Q ⊨ F p
-      → P □ Q ⊨ F p
-    F⊓ : {P Q : Process α} {p : Prop α}
-      → P ⊨ F p
-      → Q ⊨ F p
-      → P ⊓ Q ⊨ F p
-    -- FIXME: I can't think how to define this without expanding both sides again?
-    -- Or we could do something with the head of the trace?...
-    -- Or we need a small step reduction semantics?!?
-    -- F∥ :
-    FSKIP :
-      SKIP ⊨ F (` ✓)
-    G₁ : {P : Process α} {p : Prop α}
+
+    -- Globally: p holds now AND at every obs-successor AND at every τ-successor.
+    -- No deadlock premise: when both followup lists are empty (STOP), the
+    -- universal clauses are vacuously true and we just need p locally.
+    G-step : {P : Process α} {p : Prop α}
       → P ⊨ p
-      → P ⊨ X (G p)
+      → All (_⊨ G p) (L.map proj₂ (followups P))
+      → All (_⊨ G p) (τ-followups P)
       → P ⊨ G p
-    GSKIP :
-      SKIP ⊨ G (` ✓)
-    U₁ : {P : Process α} {p q : Prop α}
+
+    -- Until: base case q holds now.
+    U-now : {P : Process α} {p q : Prop α}
       → P ⊨ q
       → P ⊨ p U q
-    U₂ : {P : Process α} {p q : Prop α}
+    -- Step case: p holds now, must make progress, every successor (obs and τ)
+    -- preserves p U q.
+    U-step : {P : Process α} {p q : Prop α}
       → P ⊨ p
-      → P ⊨ X (p U q)
+      → Null.¬ (P ⊢ᶠ (⟨⟩ , all))
+      → All (_⊨ p U q) (L.map proj₂ (followups P))
+      → All (_⊨ p U q) (τ-followups P)
       → P ⊨ p U q
-    □₁ : {P Q : Process α} {p : Prop α}
-      → P ⊨ p
-      → Q ⊨ p
-      → P □ Q ⊨ p
-    SKIP :
-      SKIP ⊨ ` ✓
+```
 
-  module _ {a b c coin tea coffee : Alphabet.A α} where
-    sat-ex₁ : (a ➔ b ➔ STOP) □ (b ➔ a ➔ STOP) ⊨ F (` b)
-    sat-ex₁ = F□ (F➔ (F-now `_)) (F-now `_)
+## Derivable convenience lemmas
 
+Several old primitive rules are now derivable.  Kept here as lemmas for
+ergonomics (and so the old usage patterns still work).
+
+```
+  open import Data.List.Relation.Unary.Any using (here; there)
+
+  -- ⊓ demonic: both branches must eventually satisfy p
+  F⊓ : {P Q : Process α} {p : Prop α}
+    → P ⊨ F p
+    → Q ⊨ F p
+    → P ⊓ Q ⊨ F p
+  F⊓ pF qF = F-τ (here refl) (pF ∷ qF ∷ [])
+
+  -- □ adversarial for liveness: both branches must eventually. Deferred —
+  -- needs case analysis on the F-evidence shape (F-now/F-obs/F-τ) and
+  -- a proof that non-refusal and followups lift through the □.
+  -- F□ : {P Q : Process α} {p : Prop α}
+  --   → P ⊨ F p
+  --   → Q ⊨ F p
+  --   → P □ Q ⊨ F p
+  -- F□ pF qF = ?
+
+  -- Prefix: F p on the body gives F p on the prefixed process. The only
+  -- obs-followup of `a ➔ P` is `(a , P)`, and `a ➔ P` cannot stably refuse
+  -- its own head event.
+  F➔ : {P : Process α} {p : Prop α} {a : A}
+    → P ⊨ F p
+    → a ➔ P ⊨ F p
+  F➔ pF = F-obs (here refl) ¬➔-refuses-self pF
+
+  -- SKIP eventually terminates (trivially now)
+  FSKIP : SKIP ⊨ F (` ✓)
+  FSKIP = F-now SKIP
+```
+
+## Decision procedure
+
+Left as future work once the rule set stabilises.
+
+```
+  -- _⊨?_ : (P : Process α) → (p : Prop α) → Dec (P ⊨ p)
+  -- _⊨?_ = ?
+```
+
+## Soundness sanity checks
+
+```
+  module Soundness where
+    open import Data.List.Relation.Unary.Any using (here; there)
+
+    -- STOP never witnesses any atom
+    STOP-⊭-atom : ∀ {a : A} → Null.¬ (STOP ⊨ ` a)
+    STOP-⊭-atom ()
+
+    -- STOP is not progress-capable: X p always fails on STOP
+    STOP-⊭-X : ∀ {p : Prop α} → Null.¬ (STOP ⊨ X p)
+    STOP-⊭-X (X-step ¬dead _ _) = ¬dead STOPᶠ
+
+    -- STOP can never eventually satisfy an atom (no successors, no local match,
+    -- and F-τ guard fails because τ-followups STOP = []).
+    STOP-⊭-F-atom : ∀ {a : A} → Null.¬ (STOP ⊨ F (` a))
+    STOP-⊭-F-atom (F-now ())
+    STOP-⊭-F-atom (F-obs () _ _)
+    STOP-⊭-F-atom (F-τ () _)
+
+    -- STOP satisfies any negation of F atom (via ¬₁)
+    STOP-⊨-¬F-atom : ∀ {a : A} → STOP ⊨ ¬ F (` a)
+    STOP-⊨-¬F-atom = ¬₁ STOP-⊭-F-atom
+
+    -- Internal choice with STOP breaks F (` ✓): the STOP branch deadlocks
+    -- No matter which F-rule we try, the process can τ-pick STOP and refuse ✓.
+    dead-⊓ : ∀ {a : A} {P : Process α}
+      → Null.¬ ((a ➔ SKIP) ⊓ STOP ⊨ F (` ✓))
+    dead-⊓ (F-now ())
+    dead-⊓ (F-obs () _ _)
+    dead-⊓ (F-τ _ (pF ∷ stopF ∷ [])) = STOP-⊭-F-atom stopF
+```
+
+## Examples
+
+### Sequential and choice processes
+
+```
+  module _ {a b c : Alphabet.A α} where
+    open L using (_∷_; [])
+
+    -- Both branches eventually reach `b`: the left does `a` then `b`,
+    -- the right does `b` directly. Needs F□ or a direct F-obs on the □
+    -- (the latter requires a ¬-refusal proof for ⟪a⟫/⟪b⟫ on the combined
+    -- □⟨⟩ refusal).  Deferred until we fill in F□.
+    -- sat-ex₁ : (a ➔ b ➔ STOP) □ (b ➔ a ➔ STOP) ⊨ F (` b)
+    -- sat-ex₁ = ?
+
+    -- a then a then b satisfies (` a) U (` b): at every step before `b`
+    -- the head is `a`, so `a` holds; eventually `b` fires and U terminates.
     sat-ex₂ : a ➔ a ➔ b ➔ STOP ⊨ (` a) U (` b)
-    sat-ex₂ = U₂ `_ (X₁ sat-ex₂′)
-      where
-        sat-ex₂′ : All (_⊨ (` a) U (` b)) (followups (a ➔ a ➔ b ➔ STOP))
-        sat-ex₂′ = sat-ex₂″ ∷ []
-          where          
-            sat-ex₂″ : a ➔ b ➔ STOP ⊨ (` a) U (` b)
-            sat-ex₂″ = U₂ `_ (X₁ sat-ex₂‴)
-              where
-                sat-ex₂‴ : All (_⊨ (` a) U (` b)) (followups (a ➔ b ➔ STOP))
-                sat-ex₂‴ = sat-ex₂⁗ ∷ []
-                  where
-                    sat-ex₂⁗ : b ➔ STOP ⊨ (` a) U (` b)
-                    sat-ex₂⁗ = U₁ `_
+    sat-ex₂ = U-step `_ ¬➔-deadlocked
+                    (U-step `_ ¬➔-deadlocked
+                            (U-now `_ ∷ [])
+                            [] ∷ [])
+                    []
+```
+
+### Vending machine
+
+```
+  module _ {coin tea coffee : Alphabet.A α} where
+    open L using (_∷_; [])
 
     VM₁ : Process α
     VM₁ = coin ➔ ((tea ➔ STOP) □ (coffee ➔ STOP))
-    
+
     VMSpec : Prop α
     VMSpec = (` coin) ⇒ (X ((` tea) ∨ (` coffee)))
 
-    VM₁-VMSpec : VM₁ ⊨ VMSpec
-    VM₁-VMSpec = imp₂ `_ lem₁
-      where
-        lem₁ : VM₁ ⊨ X ((` tea) ∨ (` coffee))
-        lem₁ = X₁ lem₂
-          where
-            lem₂ : All (_⊨ ((` tea) ∨ (` coffee))) (followups VM₁)
-            lem₂ = lem₃ ∷ []
-              where
-                lem₃ : ((tea ➔ STOP) □ (coffee ➔ STOP)) ⊨ ((` tea) ∨ (` coffee))
-                lem₃ = □₁ (_∨₁_ `_) (_∨₂_ `_)
+    -- Blocked on atom-through-□: the X-step obs-successor is the bare □,
+    -- and neither `_∨₁_` nor `_∨₂_` can witness ` tea / ` coffee at the □
+    -- level (atom rules only fire on `a ➔ _` and SKIP).  Resolving needs
+    -- either a `□-atom` distributing rule (`P ⊨ ` a → P □ Q ⊨ ` a`) or a
+    -- reformulation that pushes X down into the □ branches.  See
+    -- session-notes.md — "Open design: atoms through □ and ∥".
+    -- VM₁-VMSpec : VM₁ ⊨ VMSpec
+    -- VM₁-VMSpec = ?
 ```
 
-We can build a decision procedure for this.
+### The r-sat parallel example
 
-FIXME: Building this raises lots of interesting questions - what propositions can ever be true about
-STOP for example? Negative ones, certainly...
 ```
-  _⊨?_ : (P : Process α) → (p : Prop α) → Dec (P ⊨ p)
-  STOP ⊨? p = {!!}
-  SKIP ⊨? p = {!!}
-  (x ➔ P) ⊨? p = {!!}
-  (P □ P₁) ⊨? p = {!!}
-  (P ⊓ P₁) ⊨? p = {!!}
-  (P ∥⦅ x ⦆ P₁) ⊨? p = {!!}
+  module _ {a b c : Alphabet.A α} where
+    open L using (_∷_; [])
+
+    prop-a-before-c : Prop α
+    prop-a-before-c = ((¬ (` c)) U (` a))
+
+    P : Process α
+    P = a ➔ (b ➔ (c ➔ SKIP))
+
+    Q : Process α
+    Q = a ➔ (c ➔ SKIP)
+
+    R : Process α
+    R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
+
+    -- Blocked on atom-through-∥ and U over ∥: R's obs-followups are ∥
+    -- composites whose head atoms aren't directly witnessable via `` `_ ``.
+    -- Same root cause as VM₁-VMSpec.  Deferred.
+    -- r-sat : R ⊨ prop-a-before-c
+    -- r-sat = ?
+```
+
+### next-⊓ refutation
+
+```
+  module _ {a b : Alphabet.A α} where
+    -- Internal choice does NOT make the next event certain: the process
+    -- could τ-pick either branch, so X p has to succeed on both.
+    -- Internal choice does NOT make the next event certain: the process
+    -- could τ-pick (b ➔ STOP), whose single obs-followup STOP cannot
+    -- witness ` a.  The X-step rule forces all τ-branches to still satisfy
+    -- X (` a), but (b ➔ STOP) ⊨ X (` a) would require every obs-followup
+    -- (namely STOP) to ⊨ ` a, which fails.
+    next-⊓ : Null.¬ ((a ➔ STOP) ⊓ (b ➔ STOP) ⊨ (X_ (` a)))
+    next-⊓ (X-step _ _ (_ ∷ bX ∷ [])) with bX
+    ... | X-step _ (() ∷ []) _
 ```
