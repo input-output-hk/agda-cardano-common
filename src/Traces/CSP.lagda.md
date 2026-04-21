@@ -63,7 +63,7 @@ data Process (α : Alphabet) : Type where
   STOP SKIP : Process α
   _➔_ : (Alphabet.A α) → Process α → Process α
   _□_ _⊓_ : Process α → Process α → Process α
-  _∥⦅_⦆_ : Process α → List (Alphabet.A α) → Process α → Process α
+  _∥⦅_⦆_ : Process α → ℙ (Alphabet.A α) → Process α → Process α
 --  fix : (Process α → Process α) → Process α
 ```
 ## Trace Semantics
@@ -110,23 +110,23 @@ not in the synchronisation set are available to synchronise with the environment
 For finite traces this will terminate, although the interleavings can get large quickly.
 ```
   {-# TERMINATING #-}
-  _∥ᵗ⦅_⦆_ : Trace α → List A → Trace α → TraceSet α
+  _∥ᵗ⦅_⦆_ : Trace α → ℙ A → Trace α → TraceSet α
   [] ∥ᵗ⦅ As ⦆ [] = ⟪ ⟨⟩ ⟫
-  [] ∥ᵗ⦅ As ⦆ (q ∷ Qt) with q ∈? As
+  [] ∥ᵗ⦅ As ⦆ (q ∷ Qt) with q ∈? toList As
   ... | yes m = ⟪ ⟨⟩ ⟫
   ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ q ⟩ ^ t) (toList ([] ∥ᵗ⦅ As ⦆ Qt))))
-  (p ∷ Pt) ∥ᵗ⦅ As ⦆ [] with p ∈? As
+  (p ∷ Pt) ∥ᵗ⦅ As ⦆ [] with p ∈? toList As
   ... | yes m = ⟪ ⟨⟩ ⟫
   ... | no ¬m = fromList (⟨⟩ ∷ (map (λ t → ⟨ p ⟩ ^ t) (toList (Pt ∥ᵗ⦅ As ⦆ []))))
-  (p ∷ Pt) ∥ᵗ⦅ As ⦆ (q ∷ Qt) with p ≟ q | p ∈? As | q ∈? As
+  (p ∷ Pt) ∥ᵗ⦅ As ⦆ (q ∷ Qt) with p ≟ q | p ∈? toList As | q ∈? toList As
   ... | yes refl | yes pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ Qt))
   ... | yes refl | no ¬pin | _ = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt))) ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
   ... | no ¬p=q | pin | qin = ⟪ ⟨⟩ ⟫ ∪ (pfirst pin) ∪ (qfirst qin)
     where
-      pfirst : Dec (p ∈ As) → TraceSet α
+      pfirst : Dec (p ∈ toList As) → TraceSet α
       pfirst (yes pin) = ⟪ ⟨⟩ ⟫
       pfirst (no ¬pin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ p ⟩ ^ t) (Pt ∥ᵗ⦅ As ⦆ (q ∷ Qt)))
-      qfirst : Dec (q ∈ As) → TraceSet α
+      qfirst : Dec (q ∈ toList As) → TraceSet α
       qfirst (yes qin) = ⟪ ⟨⟩ ⟫
       qfirst (no ¬qin) = ⟪ ⟨⟩ ⟫ ∪ (mapˢ (λ t → ⟨ q ⟩ ^ t) ((p ∷ Pt) ∥ᵗ⦅ As ⦆ Qt))
 ```
@@ -153,8 +153,8 @@ success element when we reach `SKIP`.
   initials (x ➔ P) = ⟪ x ⟫
   initials (P □ Q) = initials P ∪ initials Q
   initials (P ⊓ Q) = initials P ∪ initials Q
-  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q | fromList As
-  ... | ip | iq | as = (ip ∩ iq ∩ as) ∪ (ip ＼ as) ∪ (iq ＼ as)
+  initials (P ∥⦅ As ⦆ Q) with initials P | initials Q
+  ... | ip | iq = (ip ∩ iq ∩ As) ∪ (ip ＼ As) ∪ (iq ＼ As)
 ```
 ## Examples
 ```
@@ -174,7 +174,7 @@ success element when we reach `SKIP`.
     S = b ➔ (c ➔ (a ➔ SKIP))
 
     P2 : Process α
-    P2 = R ∥⦅ [ c ] ⦆ S
+    P2 = R ∥⦅ ⟪ c ⟫ ⦆ S
 
     -- With c synchronising and a and b not synchronising, we get several interleavings before and after c
     -- You can expand this in emacs, but its a bit long to list here!
@@ -215,23 +215,23 @@ module Reduction (α : Alphabet) where
       → (P ⊓ Q) ─ τ ⟶ P
     ⊓₂ : {P Q : Process α}
       → (P ⊓ Q) ─ τ ⟶ Q
-    ∥₁ : {a : A} {P Q P' Q' : Process α} {As : List A}
-      → a ∈ As
+    ∥₁ : {a : A} {P Q P' Q' : Process α} {As : ℙ A}
+      → a ∈ toList As
       → P ─ ` a ⟶ P'
       → Q ─ ` a ⟶ Q'
       → (P ∥⦅ As ⦆ Q) ─ ` a ⟶ (P' ∥⦅ As ⦆ Q')
-    ∥₂ : {a : A} {P Q P' : Process α} {As : List A}
-      → a ∉ As
+    ∥₂ : {a : A} {P Q P' : Process α} {As : ℙ A}
+      → a ∉ toList As
       → P ─ ` a ⟶ P'
       → (P ∥⦅ As ⦆ Q) ─ ` a ⟶ (P' ∥⦅ As ⦆ Q)
-    ∥₃ : {a : A} {P Q Q' : Process α} {As : List A}
-      → a ∉ As
+    ∥₃ : {a : A} {P Q Q' : Process α} {As : ℙ A}
+      → a ∉ toList As
       → Q ─ ` a ⟶ Q'
       → (P ∥⦅ As ⦆ Q) ─ ` a ⟶ (P ∥⦅ As ⦆ Q')
-    ∥₄ : {P Q P' : Process α} {As : List A}
+    ∥₄ : {P Q P' : Process α} {As : ℙ A}
       → P ─ τ ⟶ P'
       → (P ∥⦅ As ⦆ Q) ─ τ ⟶ (P' ∥⦅ As ⦆ Q)
-    ∥₅ : {P Q Q' : Process α} {As : List A}
+    ∥₅ : {P Q Q' : Process α} {As : ℙ A}
       → Q ─ τ ⟶ Q'
       → (P ∥⦅ As ⦆ Q) ─ τ ⟶ (P ∥⦅ As ⦆ Q')
     SKIP : SKIP ─ ` ✓ ⟶ STOP
@@ -252,7 +252,7 @@ We can decide whether, for a particular event, a process will reduce and synchro
   ... | _ | yes (Q' , qr) = yes (Q' , □₂ qr)
   ... | no ¬pr | no ¬qr = no λ { (PQ' , □₁ pr) → ¬pr (PQ' , pr) ; (PQ' , □₂ pr) → ¬qr (PQ' , pr) }
   reduces? (P ⊓ Q) a = no (λ ())
-  reduces? (P ∥⦅ As ⦆ Q) a with a ∈? As
+  reduces? (P ∥⦅ As ⦆ Q) a with a ∈? toList As
   reduces? (P ∥⦅ As ⦆ Q) a | no a∉As with reduces? P a | reduces? Q a
   ... | yes (P' , pr) | _ = yes ((P' ∥⦅ As ⦆ Q) , ∥₂ a∉As pr)
   ... | _ | yes (Q' , qr) = yes ((P ∥⦅ As ⦆ Q') , ∥₃ a∉As qr)
@@ -285,17 +285,17 @@ We can decide whether, for a particular event, a process will reduce and synchro
   followups (P ⊓ Q) = []  -- ⊓ has only τ-steps; no observable successors
   followups (P ∥⦅ As ⦆ Q) =
       -- P steps alone: event must NOT be in As
-      concatMap (λ (a , P') → if does (a ∈? As) then [] else (a , P' ∥⦅ As ⦆ Q) ∷ [])
+      concatMap (λ (a , P') → if does (a ∈? toList As) then [] else (a , P' ∥⦅ As ⦆ Q) ∷ [])
                 (followups P)
     ++
       -- Q steps alone: event must NOT be in As
-      concatMap (λ (a , Q') → if does (a ∈? As) then [] else (a , P ∥⦅ As ⦆ Q') ∷ [])
+      concatMap (λ (a , Q') → if does (a ∈? toList As) then [] else (a , P ∥⦅ As ⦆ Q') ∷ [])
                 (followups Q)
     ++
       -- Synchronised step: event must be in As AND match on both sides
       concatMap (λ (a , P') →
         concatMap (λ (b , Q') →
-          if does (a ∈? As) ∧ does (a ≟ b) then (a , P' ∥⦅ As ⦆ Q') ∷ [] else [])
+          if does (a ∈? toList As) ∧ does (a ≟ b) then (a , P' ∥⦅ As ⦆ Q') ∷ [] else [])
           (followups Q))
         (followups P)
     where
@@ -320,6 +320,8 @@ module FailureSemantics {α : Alphabet} where
   open Alphabet α
   open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∈?_; _∉?_)
   open import Data.List.Relation.Unary.Any using (here; there)
+  open import Data.Sum using (inj₁; inj₂)
+  open import Function.Bundles using (Equivalence)
 
   _excluding_ : ℙ A → List A → ℙ A
   a excluding as = fromList (filter (λ x → x ∉? as) (toList a))
@@ -374,7 +376,30 @@ refusal set; `⊆ᶠ` provides downward closure.
     ⊓₂ᶠ : {P Q : Process α} {s : Trace α} {X : ℙ A}
       → Q ⊢ᶠ (s , X)
       → P ⊓ Q ⊢ᶠ (s , X)
-    -- ∥ constructors: to add when we tackle parallel failures.
+    -- Parallel composition at ⟨⟩ combines refusals per Roscoe UCS §2.4:
+    --   sync events (∈ As) are refused if *either* side refuses;
+    --   async events (∉ As) are refused only if *both* sides refuse.
+    -- Encoded as `(X ∩ Y) ∪ ((X ∪ Y) ∩ fromList As)`.
+    ∥⟨⟩ : {P Q : Process α} {X Y : ℙ A} {As : ℙ A}
+      → P ⊢ᶠ (⟨⟩ , X)
+      → Q ⊢ᶠ (⟨⟩ , Y)
+      → P ∥⦅ As ⦆ Q ⊢ᶠ (⟨⟩ , (X ∩ Y) ∪ ((X ∪ Y) ∩ As))
+    -- Synchronised step: both sides fire `a` together, `a ∈ As`, and the
+    -- composite inherits the post-step failure.
+    ∥-sync : {a : A} {P Q : Process α} {s : Trace α} {X : ℙ A} {As : ℙ A}
+      → a ∈ toList As
+      → P ∥⦅ As ⦆ Q ⊢ᶠ (s , X)
+      → (a ➔ P) ∥⦅ As ⦆ (a ➔ Q) ⊢ᶠ (⟨ a ⟩ ^ s , X)
+    -- Async step on the left: P fires `a` with `a ∉ As`, Q unchanged.
+    ∥-async₁ : {a : A} {P Q : Process α} {s : Trace α} {X : ℙ A} {As : ℙ A}
+      → ¬ (a ∈ toList As)
+      → P ∥⦅ As ⦆ Q ⊢ᶠ (s , X)
+      → (a ➔ P) ∥⦅ As ⦆ Q ⊢ᶠ (⟨ a ⟩ ^ s , X)
+    -- Async step on the right: symmetric.
+    ∥-async₂ : {a : A} {P Q : Process α} {s : Trace α} {X : ℙ A} {As : ℙ A}
+      → ¬ (a ∈ toList As)
+      → P ∥⦅ As ⦆ Q ⊢ᶠ (s , X)
+      → P ∥⦅ As ⦆ (a ➔ Q) ⊢ᶠ (⟨ a ⟩ ^ s , X)
 ```
 
 ### rejects?
@@ -385,7 +410,7 @@ holes are small subset / refutation proofs to be filled in.
 
 ```
   open import abstract-set-theory.FiniteSetTheory using (List-Model; setToList)
-  open import Axiom.Set.Properties List-Model using (∈-filter⁺'; ∈-filter⁻')
+  open import Axiom.Set.Properties List-Model using (∈-filter⁺'; ∈-filter⁻'; ∈-∪⁺; ∈-∪⁻)
   opaque
     unfolding setToList
 
@@ -403,19 +428,19 @@ holes are small subset / refutation proofs to be filled in.
     ⟪⟫⊆⟪⟫∩⟪⟫ : ∀ (a b : A) → b ∈ toList ⟪ a ⟫ → b ∈ toList (⟪ a ⟫ ∩ ⟪ a ⟫)
     ⟪⟫⊆⟪⟫∩⟪⟫ a .a (here refl) = abstract-set-theory.Prelude.Equivalence.to ∈-∩ (here refl , here refl)
 
+    -- Generalised refutation: a ➔-process's head event `y` can never
+    -- appear in any refusal set derivable at ⟨⟩ (whether the refusal is
+    -- ⟪y⟫ directly or some larger set reached via ⊆ᶠ).
+    ¬➔-refuses-head : ∀ {y : A} {Q : Process α} {Z : ℙ A}
+      → (y ➔ Q) ⊢ᶠ (⟨⟩ , Z) → ¬ (y ∈ toList Z)
+    ¬➔-refuses-head ➔⟨⟩ y∈X = ＼-∉ y∈X (here refl)
+    ¬➔-refuses-head (⊆ᶠ sub p) y∈Y = ¬➔-refuses-head p (sub _ y∈Y)
+
     -- A ➔-process never stably refuses its own head event. Exposed so LTL
     -- (and any other consumer) can discharge the `Null.¬ (a ➔ P ⊢ᶠ (⟨⟩ , ⟪a⟫))`
     -- side-condition without reaching inside `rejects?`.
     ¬➔-refuses-self : ∀ {a : A} {P : Process α} → ¬ ((a ➔ P) ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
-    ¬➔-refuses-self = go
-      where
-        go-gen : ∀ {y : A} {Q : Process α} {X : ℙ A}
-          → (y ➔ Q) ⊢ᶠ (⟨⟩ , X) → ¬ (y ∈ toList X)
-        go-gen ➔⟨⟩ y∈X = ＼-∉ y∈X (here refl)
-        go-gen (⊆ᶠ sub p) y∈Y = go-gen p (sub _ y∈Y)
-
-        go : ∀ {a : A} {P : Process α} → ¬ ((a ➔ P) ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
-        go p = go-gen p (here refl)
+    ¬➔-refuses-self p = ¬➔-refuses-head p (here refl)
 
     -- A ➔-process is never deadlocked: `all` includes its head event, which
     -- is ruled out of the refusal just as in ¬➔-refuses-self.
@@ -491,6 +516,11 @@ holes are small subset / refutation proofs to be filled in.
       ¬⊓-gen ¬p ¬q (⊆ᶠ sub p') = ¬⊓-gen (λ r → ¬p (⊆ᶠ sub r)) (λ r → ¬q (⊆ᶠ sub r)) p'
   rejects? (P ∥⦅ As ⦆ Q) a = rejects?-∥-TODO
     where postulate rejects?-∥-TODO : Dec ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
+  -- Soundness blocker: the sync case (a ∈ As) needs a stable witness for BOTH
+  -- sides of the composition to build ∥⟨⟩, but only ONE side's refusal of {a}
+  -- is available from recursive `rejects?`. A stability/refusal oracle for
+  -- the non-refusing side (e.g. `∃ λ X → Q ⊢ᶠ (⟨⟩, X)`) is needed first.
+  -- See session-notes.md "∥ failure constructors" for the full story.
 
   -- A process is deadlocked at ⟨⟩ iff it stably refuses every event.
   -- This is the strongest stable refusal: _⊢ᶠ (⟨⟩ , all).
@@ -556,6 +586,136 @@ holes are small subset / refutation proofs to be filled in.
       ¬⊓-dead-gen ¬dp ¬dq (⊆ᶠ sub p) = ¬⊓-dead-gen (λ r → ¬dp (⊆ᶠ sub r)) (λ r → ¬dq (⊆ᶠ sub r)) p
   deadlocked? (P ∥⦅ As ⦆ Q) = deadlocked?-∥-TODO
     where postulate deadlocked?-∥-TODO : Dec ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , all))
+```
+
+### TDD for ∥ failures
+
+Before we add `∥` constructors to `_⊢ᶠ_`, write the target theorems.
+Each forces a specific shape of constructor. The goal is that when all
+of these compile with plain constructor applications (no clever
+embedding), the constructor set is complete.
+
+**Standard failure rule for `P ∥⦅As⦆ Q` at ⟨⟩** (Roscoe UCS §2.4):
+if `P ⊢ᶠ (⟨⟩, X)` and `Q ⊢ᶠ (⟨⟩, Y)`, then
+`P ∥⦅As⦆ Q ⊢ᶠ (⟨⟩, (X ∩ Y) ∪ ((X ∪ Y) ∩ fromList As))`.
+
+Sync events in As are refused when *either* side refuses. Async events
+are refused only when *both* sides refuse. `⊆ᶠ` then closes the
+refusal downward.
+
+**After an observable step** the constructor must track which branch
+moved (synced or async), mirroring the `∥₁`/`∥₂`/`∥₃` reduction rules.
+
+```
+  module ∥-TDD where
+    open import Function.Bundles using (Equivalence)
+    open import Data.Sum using (inj₁; inj₂)
+
+    opaque
+      unfolding setToList
+
+      -- `all` is contained in the parallel refusal (X ∩ Y) ∪ ((X ∪ Y) ∩ As)
+      -- when both sides offer `all`, via the first (X ∩ Y) summand.
+      -- Shaped to feed `⊆ᶠ`.
+      all⊆∥-all : ∀ {As : ℙ A}
+        → ∀ x → x ∈ toList all
+        → x ∈ toList ((all ∩ all) ∪ ((all ∪ all) ∩ As))
+      all⊆∥-all x x∈ = ∈-∪⁺ (inj₁ (∈-∩ .Equivalence.to (x∈ , x∈)))
+
+    -- Test 1: STOP ∥ STOP is deadlocked.
+    ∥-STOPSTOP-dead : ∀ {As : ℙ A} → STOP ∥⦅ As ⦆ STOP ⊢ᶠ (⟨⟩ , all)
+    ∥-STOPSTOP-dead = ⊆ᶠ all⊆∥-all (∥⟨⟩ STOPᶠ STOPᶠ)
+
+    -- Test 2: synced a with both sides ready: the composite can step a
+    -- and reach STOP ∥ STOP which is then dead.
+    ∥-sync-step : ∀ {a : A} {As : ℙ A}
+      → a ∈ toList As
+      → (a ➔ STOP) ∥⦅ As ⦆ (a ➔ STOP) ⊢ᶠ (⟨ a ⟩ , all)
+    ∥-sync-step a∈As = ∥-sync a∈As ∥-STOPSTOP-dead
+
+    opaque
+      unfolding setToList
+
+      -- If a ≠ b and a ≠ c, then a ∈ (all ＼ ⟪b⟫) ∩ (all ＼ ⟪c⟫), hence in
+      -- the first summand of the ∥⟨⟩ refusal. Shaped to feed `⊆ᶠ`.
+      ⟪⟫⊆∥-refuse₃ : ∀ {a b c : A} {As : ℙ A}
+        → ¬ (a ≡ b) → ¬ (a ≡ c)
+        → ∀ x → x ∈ toList ⟪ a ⟫
+        → x ∈ toList (((all ＼ ⟪ b ⟫) ∩ (all ＼ ⟪ c ⟫)) ∪
+                       (((all ＼ ⟪ b ⟫) ∪ (all ＼ ⟪ c ⟫)) ∩ As))
+      ⟪⟫⊆∥-refuse₃ {a} {b} {c} a≠b a≠c .a (here refl) =
+        ∈-∪⁺ (inj₁ (∈-∩ .Equivalence.to
+          ( ⟪⟫⊆all＼ a b a≠b a (here refl)
+          , ⟪⟫⊆all＼ a c a≠c a (here refl) )))
+
+    -- Test 3: no-sync case, P refuses a (since P = b ➔ STOP), Q refuses a
+    -- (Q = c ➔ STOP), a ∉ As.  Combined refuses a.
+    ∥-async-refuse : ∀ {a b c : A} {As : ℙ A}
+      → ¬ (a ≡ b) → ¬ (a ≡ c)
+      → (b ➔ STOP) ∥⦅ As ⦆ (c ➔ STOP) ⊢ᶠ (⟨⟩ , ⟪ a ⟫)
+    ∥-async-refuse a≠b a≠c = ⊆ᶠ (⟪⟫⊆∥-refuse₃ a≠b a≠c) (∥⟨⟩ ➔⟨⟩ ➔⟨⟩)
+
+    opaque
+      unfolding setToList
+
+      -- If a ∈ As and a ≠ b, then a ∈ all ＼ ⟪b⟫ (so a ∈ X ∪ Y for
+      -- X = all ＼ ⟪a⟫, Y = all ＼ ⟪b⟫) and a ∈ As, so a is in the
+      -- sync summand of the ∥⟨⟩ refusal.
+      ⟪⟫⊆∥-refuse₄ : ∀ {a b : A} {As : ℙ A}
+        → a ∈ toList As → ¬ (b ∈ toList As)
+        → ∀ x → x ∈ toList ⟪ a ⟫
+        → x ∈ toList (((all ＼ ⟪ a ⟫) ∩ (all ＼ ⟪ b ⟫)) ∪
+                       (((all ＼ ⟪ a ⟫) ∪ (all ＼ ⟪ b ⟫)) ∩ As))
+      ⟪⟫⊆∥-refuse₄ {a} {b} {As} a∈As b∉As .a (here refl) =
+        ∈-∪⁺ {X = (all ＼ ⟪ a ⟫) ∩ (all ＼ ⟪ b ⟫)}
+             {Y = ((all ＼ ⟪ a ⟫) ∪ (all ＼ ⟪ b ⟫)) ∩ As}
+             (inj₂ (∈-∩ .Equivalence.to
+               ( ∈-∪⁺ {X = all ＼ ⟪ a ⟫} {Y = all ＼ ⟪ b ⟫}
+                      (inj₂ (⟪⟫⊆all＼ a b a≠b a (here refl)))
+               , a∈As )))
+        where
+          a≠b : ¬ (a ≡ b)
+          a≠b refl = b∉As a∈As
+
+    -- Test 4: sync discipline: P = a ➔ STOP, Q = b ➔ STOP, a ∈ As, b ∉ As.
+    -- P needs sync on a which Q can't provide → a is refused.
+    -- Q can fire b async → b is NOT refused.
+    ∥-sync-blocks : ∀ {a b : A} {As : ℙ A}
+      → a ∈ toList As → ¬ (b ∈ toList As)
+      → (a ➔ STOP) ∥⦅ As ⦆ (b ➔ STOP) ⊢ᶠ (⟨⟩ , ⟪ a ⟫)
+    ∥-sync-blocks {a} a∈ b∉ = ⊆ᶠ (⟪⟫⊆∥-refuse₄ a∈ b∉) (∥⟨⟩ ➔⟨⟩ ➔⟨⟩)
+
+    -- Negative test: b is NOT refused in the above (Q can fire it async).
+    -- Induction on the derivation: every constructor path either forces b
+    -- into the refusal (contradicting Q's non-refusal of b) or forces
+    -- b ∈ As (contradicting b∉As).
+    ∥-async-alive : ∀ {a b : A} {As : ℙ A}
+      → a ∈ toList As → ¬ (b ∈ toList As)
+      → ¬ ((a ➔ STOP) ∥⦅ As ⦆ (b ➔ STOP) ⊢ᶠ (⟨⟩ , ⟪ b ⟫))
+    ∥-async-alive {a} {b} {As} a∈ b∉ = go
+      where
+        opaque
+          unfolding setToList
+
+          -- b cannot sit in any ⟨⟩-refusal of the composite. Either it
+          -- came from X ∩ Y (then Q = b ➔ STOP refuses b — impossible by
+          -- ¬➔-refuses-head), or from (X ∪ Y) ∩ As (then b ∈ As —
+          -- impossible by b∉).
+          go-gen : ∀ {Z : ℙ A}
+            → (a ➔ STOP) ∥⦅ As ⦆ (b ➔ STOP) ⊢ᶠ (⟨⟩ , Z)
+            → ¬ (b ∈ toList Z)
+          go-gen (∥⟨⟩ {X = X} {Y = Y} _ q) b∈Z
+            with ∈-∪⁻ {X = X ∩ Y} {Y = (X ∪ Y) ∩ As} b∈Z
+          ... | inj₁ b∈X∩Y =
+                  ¬➔-refuses-head q
+                    (proj₂ (∈-∩ {X = X} {Y = Y} .Equivalence.from b∈X∩Y))
+          ... | inj₂ b∈∪∩As =
+                  b∉ (proj₂ (∈-∩ {X = X ∪ Y} {Y = As}
+                               .Equivalence.from b∈∪∩As))
+          go-gen (⊆ᶠ sub p) b∈Z = go-gen p (sub b b∈Z)
+
+          go : ¬ ((a ➔ STOP) ∥⦅ As ⦆ (b ➔ STOP) ⊢ᶠ (⟨⟩ , ⟪ b ⟫))
+          go p = go-gen p (here refl)
 ```
 
 ### Old set-valued sketch

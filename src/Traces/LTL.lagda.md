@@ -17,7 +17,7 @@ open import Data.Product using (proj₂; _,_)
 open import Data.Bool.ListAction using () renaming (all to allᵇ)
 open import Data.List.Relation.Unary.All using (All; []; _∷_)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
-open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
+open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; fromList) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
 open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_)
 import Traces.CSP
@@ -218,7 +218,7 @@ module TraceLTL {α : Alphabet} where
     Q = a ➔ (c ➔ SKIP)
 
     R : Process α
-    R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
+    R = P ∥⦅ fromList (a ∷ (c ∷ [])) ⦆ Q
 
     prop-a-before-c : Prop α
     prop-a-before-c = ((¬ (` c)) U (` a))
@@ -471,7 +471,7 @@ Left as future work once the rule set stabilises.
     Q = a ➔ (c ➔ SKIP)
 
     R : Process α
-    R = P ∥⦅ (a ∷ (c ∷ [])) ⦆ Q
+    R = P ∥⦅ fromList (a ∷ (c ∷ [])) ⦆ Q
 
     -- Blocked on atom-through-∥ and U over ∥: R's obs-followups are ∥
     -- composites whose head atoms aren't directly witnessable via `` `_ ``.
