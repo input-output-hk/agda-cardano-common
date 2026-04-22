@@ -14,7 +14,7 @@ open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq
 open import abstract-set-theory.FiniteSetTheory using (ℙ_; ∅; mapˢ; concatMapˢ; fromList; _⇀_; fromListᵐ; _∪_; _∪ˡ_; _∩_; _＼_; ∈-∩; lookupᵐ?) renaming (❴_❵ˢ to ⟪_⟫; insert to insertᵐ; setToList to toList)
 open import Data.List as List using (List; []; _∷_; [_]; _++_; map; concatMap; filter; take; find)
 open import Data.List.Membership.Propositional using () renaming (_∈_ to _∈ˡ_)
-open import Data.Nat using (ℕ; zero; suc)
+open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Relation.Nullary using (¬_; yes; no; Dec; contradiction)
 open import Relation.Binary.Definitions using (DecidableEquality)
 open import Data.Product using (_×_; _,_; Σ; ∃; proj₁; proj₂)
@@ -68,6 +68,23 @@ data Process (α : Alphabet) : Type where
   _∖_ : Process α → ℙ (Alphabet.A α) → Process α
 --  fix : (Process α → Process α) → Process α
 ```
+
+A structural size measure on processes. Used to justify termination of
+recursions (e.g. the F decision procedure in LTL) that descend through
+`followups` / `τ-followups` into subprocesses sitting under `∥` or `∖`,
+where the result is syntactically *larger* than the input but semantically
+smaller (the nested subprocess has shrunk).
+```
+processSize : {α : Alphabet} → Process α → ℕ
+processSize STOP          = 0
+processSize SKIP          = 1  -- must exceed STOP since followups SKIP = [(✓, STOP)]
+processSize (_ ➔ P)       = suc (processSize P)
+processSize (P □ Q)       = suc (processSize P + processSize Q)
+processSize (P ⊓ Q)       = suc (processSize P + processSize Q)
+processSize (P ∥⦅ _ ⦆ Q)  = suc (processSize P + processSize Q)
+processSize (P ∖ _)       = suc (processSize P)
+```
+
 ## Trace Semantics
 
 Traces are potentially infinite, but also potentially finite (or very finite, in the case of `⟨⟩`). We can
@@ -340,6 +357,176 @@ We can decide whether, for a particular event, a process will reduce and synchro
   followups (P ∖ As) =
       concatMap (λ (a , P') → if does (a ∈? toList As) then [] else (a , P' ∖ As) ∷ [])
                 (followups P)
+```
+
+### Shrinkage of followups / τ-followups
+
+Both `followups P` and `τ-followups P` produce processes that are
+semantically (not syntactically) smaller than `P` — under `∥` and `∖`
+the result shares the wrapper (e.g. `P' ∥⦅ As ⦆ Q`) which is structurally
+larger than `P`, but the size measure `processSize` strictly decreases.
+These lemmas justify wf-recursion on `processSize` for decision procedures
+that walk successors (e.g. the `F` case of LTL satisfiability).
+
+```
+  open import Data.List.Membership.Propositional using () renaming (_∈_ to _∈ˡ_; find to find∈)
+  open import Data.List.Relation.Unary.Any using (Any; here; there)
+  open import Data.List.Membership.Propositional.Properties
+    using (∈-map⁻; ∈-++⁻; ∈-concatMap⁻)
+  open import Data.List.Relation.Unary.Any.Properties using (concat⁻)
+  open import Data.Nat using (s≤s; z≤n; _<_)
+  open import Data.Nat.Properties
+    using (≤-refl; ≤-trans; <-trans; ≤-<-trans; <-≤-trans
+         ; m≤m+n; m≤n+m; +-monoˡ-<; +-monoʳ-<; n<1+n)
+  open import Data.Sum using (inj₁; inj₂)
+  open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+
+  -- Local membership alias that matches the list-of-pairs types used above.
+  -- (`_∈_` here is propositional list membership imported right above.)
+
+  -- `followups` and `τ-followups` are mutually recursive via the ∖ case,
+  -- so these shrinkage lemmas must be proved mutually.
+  followup-< :
+    ∀ {P : Process α} {a : A} {P' : Process α}
+    → (a , P') ∈ˡ followups P
+    → processSize P' Data.Nat.< processSize P
+  τ-followup-< :
+    ∀ {P : Process α} {P' : Process α}
+    → P' ∈ˡ τ-followups P
+    → processSize P' Data.Nat.< processSize P
+```
+
+Proofs — by induction on `P`. The `if does _ then [] else (_ ∷ [])`
+branches are handled by case-splitting on the decision.
+
+```
+  -- Helper: membership in `if does c then [] else [y]` forces y ≡ x (and c = no).
+  if-cons-∈ : ∀ {B : Type} {P : Type} {x y : B} {c : Dec P}
+    → x ∈ˡ (if does c then [] else (y ∷ []))
+    → x ≡ y
+  if-cons-∈ {c = yes _} ()
+  if-cons-∈ {c = no _}  (here refl) = refl
+  if-cons-∈ {c = no _}  (there ())
+
+  -- Helper: membership in `if does c then [y] else []` forces y ≡ x (and c = yes).
+  if-cons-∈′ : ∀ {B : Type} {P : Type} {x y : B} {c : Dec P}
+    → x ∈ˡ (if does c then (y ∷ []) else [])
+    → x ≡ y
+  if-cons-∈′ {c = no _}  ()
+  if-cons-∈′ {c = yes _} (here refl) = refl
+  if-cons-∈′ {c = yes _} (there ())
+
+  followup-< {STOP} ()
+  followup-< {SKIP} (here refl) = s≤s Data.Nat.z≤n
+  followup-< {SKIP} (there ())
+  followup-< {a ➔ P} (here refl) = ≤-refl
+  followup-< {a ➔ P} (there ())
+  followup-< {P □ Q} p∈ with ∈-++⁻ (followups P) p∈
+  ... | inj₁ inP = <-≤-trans (followup-< inP)
+                             (≤-trans (m≤m+n (processSize P) (processSize Q))
+                                      (n≤1+n (processSize P + processSize Q)))
+      where open import Data.Nat.Properties using (n≤1+n)
+  ... | inj₂ inQ = <-≤-trans (followup-< inQ)
+                             (≤-trans (m≤n+m (processSize Q) (processSize P))
+                                      (n≤1+n (processSize P + processSize Q)))
+      where open import Data.Nat.Properties using (n≤1+n)
+  followup-< {P ⊓ Q} ()
+  followup-< {P ∥⦅ As ⦆ Q} {a} {P'} p∈
+    with ∈-++⁻ (concatMap (λ (x , P'') → if does (x ∈? toList As) then [] else (x , P'' ∥⦅ As ⦆ Q) ∷ []) (followups P)) p∈
+  ... | inj₁ inL₁ =
+        ∥-walkL (followups P) (∈-concatMap⁻ _ inL₁) (λ {_} z → z)
+    where
+      ∥-walkL : ∀ (xs : List (A × Process α)) →
+          Any (λ (b , P'') → (a , P') ∈ˡ (if does (b ∈? toList As) then [] else (b , P'' ∥⦅ As ⦆ Q) ∷ [])) xs
+        → (∀ {bP''} → bP'' ∈ˡ xs → bP'' ∈ˡ followups P)
+        → processSize P' < processSize (P ∥⦅ As ⦆ Q)
+      ∥-walkL ((b , P'') ∷ xs) (here inIf) emb with if-cons-∈ {c = b ∈? toList As} inIf
+      ... | refl = s≤s (+-monoˡ-< (processSize Q) (followup-< {P} (emb (here refl))))
+      ∥-walkL (_ ∷ xs) (there rest) emb = ∥-walkL xs rest (λ m → emb (there m))
+  followup-< {P ∥⦅ As ⦆ Q} {a} {P'} p∈ | inj₂ rest
+    with ∈-++⁻ (concatMap (λ (x , Q'') → if does (x ∈? toList As) then [] else (x , P ∥⦅ As ⦆ Q'') ∷ []) (followups Q)) rest
+  ... | inj₁ inL₂ =
+        ∥-walkR (followups Q) (∈-concatMap⁻ _ inL₂) (λ {_} z → z)
+    where
+      ∥-walkR : ∀ (ys : List (A × Process α)) →
+          Any (λ (b , Q'') → (a , P') ∈ˡ (if does (b ∈? toList As) then [] else (b , P ∥⦅ As ⦆ Q'') ∷ [])) ys
+        → (∀ {bQ''} → bQ'' ∈ˡ ys → bQ'' ∈ˡ followups Q)
+        → processSize P' < processSize (P ∥⦅ As ⦆ Q)
+      ∥-walkR ((b , Q'') ∷ ys) (here inIf) emb with if-cons-∈ {c = b ∈? toList As} inIf
+      ... | refl = s≤s (+-monoʳ-< (processSize P) (followup-< {Q} (emb (here refl))))
+      ∥-walkR (_ ∷ ys) (there rest) emb = ∥-walkR ys rest (λ m → emb (there m))
+  followup-< {P ∥⦅ As ⦆ Q} {a} {P'} p∈ | inj₂ _ | inj₂ inL₃ =
+        ∥-walkS (followups P) (∈-concatMap⁻ _ inL₃) (λ {_} z → z)
+    where
+      -- Helper for `if (x ∧ y) then [z] else []` with both x and y booleans.
+      if-and-cons-∈ : ∀ {B : Type} {x y : B} {c d : Data.Bool.Bool}
+        → x ∈ˡ (if c ∧ d then (y ∷ []) else [])
+        → x ≡ y
+      if-and-cons-∈ {c = Data.Bool.false} ()
+      if-and-cons-∈ {c = Data.Bool.true} {d = Data.Bool.false} ()
+      if-and-cons-∈ {c = Data.Bool.true} {d = Data.Bool.true} (here refl) = refl
+      if-and-cons-∈ {c = Data.Bool.true} {d = Data.Bool.true} (there ())
+
+      ∥-walkS-inner : ∀ {b : A} {P'' : Process α} (ys : List (A × Process α)) →
+          Any (λ (c , Q'') → (a , P') ∈ˡ (if does (b ∈? toList As) ∧ does (b ≟ c) then (b , P'' ∥⦅ As ⦆ Q'') ∷ [] else [])) ys
+        → (∀ {cQ''} → cQ'' ∈ˡ ys → cQ'' ∈ˡ followups Q)
+        → (b , P'') ∈ˡ followups P
+        → processSize P' < processSize (P ∥⦅ As ⦆ Q)
+      ∥-walkS-inner {b} ((c , Q'') ∷ ys) (here inIf) emb bP''∈
+        with if-and-cons-∈ {c = does (b ∈? toList As)} {d = does (b ≟ c)} inIf
+      ... | refl = s≤s (+-mono-< (followup-< {P} bP''∈) (followup-< {Q} (emb (here refl))))
+        where open import Data.Nat.Properties using (+-mono-<)
+      ∥-walkS-inner (_ ∷ ys) (there rest) emb bP''∈ = ∥-walkS-inner ys rest (λ m → emb (there m)) bP''∈
+
+      ∥-walkS : ∀ (xs : List (A × Process α)) →
+          Any (λ (b , P'') →
+            (a , P') ∈ˡ concatMap (λ (c , Q'') →
+              if does (b ∈? toList As) ∧ does (b ≟ c) then (b , P'' ∥⦅ As ⦆ Q'') ∷ [] else [])
+              (followups Q)) xs
+        → (∀ {bP''} → bP'' ∈ˡ xs → bP'' ∈ˡ followups P)
+        → processSize P' < processSize (P ∥⦅ As ⦆ Q)
+      ∥-walkS ((b , P'') ∷ xs) (here innerIn) emb =
+        ∥-walkS-inner (followups Q) (∈-concatMap⁻ _ innerIn) (λ {_} z → z) (emb (here refl))
+      ∥-walkS (_ ∷ xs) (there rest) emb = ∥-walkS xs rest (λ m → emb (there m))
+  followup-< {P ∖ As} {a} {P'} p∈ =
+        ∖-walk (followups P) (∈-concatMap⁻ _ p∈) (λ {_} z → z)
+    where
+      ∖-walk : ∀ (xs : List (A × Process α)) →
+          Any (λ (b , P'') → (a , P') ∈ˡ (if does (b ∈? toList As) then [] else (b , P'' ∖ As) ∷ [])) xs
+        → (∀ {bP''} → bP'' ∈ˡ xs → bP'' ∈ˡ followups P)
+        → processSize P' < processSize (P ∖ As)
+      ∖-walk ((b , P'') ∷ xs) (here inIf) emb with if-cons-∈ {c = b ∈? toList As} inIf
+      ... | refl = s≤s (followup-< {P} (emb (here refl)))
+      ∖-walk (_ ∷ xs) (there rest) emb = ∖-walk xs rest (λ m → emb (there m))
+
+  τ-followup-< {STOP} ()
+  τ-followup-< {SKIP} ()
+  τ-followup-< {a ➔ P} ()
+  τ-followup-< {P □ Q} p∈ with ∈-++⁻ (map (_□ Q) (τ-followups P)) p∈
+  ... | inj₁ inP with ∈-map⁻ (_□ Q) inP
+  ...   | (P'' , P''∈ , refl) = s≤s (+-monoˡ-< (processSize Q) (τ-followup-< {P} P''∈))
+  τ-followup-< {P □ Q} p∈ | inj₂ inQ with ∈-map⁻ (P □_) inQ
+  ...   | (Q'' , Q''∈ , refl) = s≤s (+-monoʳ-< (processSize P) (τ-followup-< {Q} Q''∈))
+  τ-followup-< {P ⊓ Q} (here refl) = s≤s (m≤m+n _ _)
+  τ-followup-< {P ⊓ Q} (there (here refl)) = s≤s (m≤n+m _ _)
+  τ-followup-< {P ⊓ Q} (there (there ()))
+  τ-followup-< {P ∥⦅ As ⦆ Q} p∈ with ∈-++⁻ (map (_∥⦅ As ⦆ Q) (τ-followups P)) p∈
+  ... | inj₁ inP with ∈-map⁻ (_∥⦅ As ⦆ Q) inP
+  ...   | (P'' , P''∈ , refl) = s≤s (+-monoˡ-< (processSize Q) (τ-followup-< {P} P''∈))
+  τ-followup-< {P ∥⦅ As ⦆ Q} p∈ | inj₂ inQ with ∈-map⁻ (P ∥⦅ As ⦆_) inQ
+  ...   | (Q'' , Q''∈ , refl) = s≤s (+-monoʳ-< (processSize P) (τ-followup-< {Q} Q''∈))
+  τ-followup-< {P ∖ As} p∈ with ∈-++⁻ (map (_∖ As) (τ-followups P)) p∈
+  ... | inj₁ inτ with ∈-map⁻ (_∖ As) inτ
+  ...   | (P'' , P''∈ , refl) = s≤s (τ-followup-< {P} P''∈)
+  τ-followup-< {P ∖ As} {P'} p∈ | inj₂ inObs = τ∖-walk (followups P) (∈-concatMap⁻ _ inObs) (λ {_} z → z)
+    where
+      τ∖-walk : ∀ (xs : List (A × Process α)) →
+          Any (λ (b , P'') → P' ∈ˡ (if does (b ∈? toList As) then (P'' ∖ As) ∷ [] else [])) xs
+        → (∀ {bP'} → bP' ∈ˡ xs → bP' ∈ˡ followups P)
+        → processSize P' < processSize (P ∖ As)
+      τ∖-walk ((b , P'') ∷ xs) (here inIf) emb rewrite if-cons-∈′ {c = b ∈? toList As} inIf =
+          s≤s (followup-< {P} (emb (here refl)))
+      τ∖-walk (_ ∷ xs) (there rest) emb = τ∖-walk xs rest (λ mem → emb (there mem))
 ```
 
 ### Weak initials

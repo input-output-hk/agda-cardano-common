@@ -13,6 +13,7 @@ module Traces.LTL where
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl; sym)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Bool as Bool using (Bool; true; false)
+open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Data.List as L using (List; []; _∷_)
 open import Data.Product using (proj₁; proj₂; _,_)
 open import Data.Bool.ListAction using () renaming (all to allᵇ)
@@ -20,7 +21,7 @@ open import Data.List.Relation.Unary.All using (All; []; _∷_)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; fromList; _≡ᵉ_) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
-open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_; _∖_)
+open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_; _∖_; processSize)
 import Traces.CSP
 ```
 ## Propositions and Operators
@@ -43,6 +44,17 @@ data Prop (α : Alphabet) : Type where
   F_ : Prop α → Prop α
   _U_ : Prop α → Prop α → Prop α
   `_ : (Alphabet.A α) → Prop α
+
+propSize : {α : Alphabet} → Prop α → ℕ
+propSize (¬ p)    = suc (propSize p)
+propSize (p ∧ q)  = suc (propSize p + propSize q)
+propSize (p ∨ q)  = suc (propSize p + propSize q)
+propSize (p ⇒ q)  = suc (propSize p + propSize q)
+propSize (X p)    = suc (propSize p)
+propSize (G p)    = suc (propSize p)
+propSize (F p)    = suc (propSize p)
+propSize (p U q)  = suc (propSize p + propSize q)
+propSize (` _)    = 1
 ```
 ## Evaluation over Traces
 ```
@@ -424,11 +436,22 @@ for the current pass.
                       λ {b} b∈ → Equivalence.from ∈-singleton
                                    (proj₁ eq b∈))
 
-  -- G / U: still deferred. F is decidable below; G/U need the same
-  -- termination treatment (recurse through `X (G p)` / `X (p U q)`).
-  postulate
-    G?-stub : ∀ (P : Process α) (p : Prop α) → Dec (P ⊨ G p)
-    U?-stub : ∀ (P : Process α) (p q : Prop α) → Dec (P ⊨ p U q)
+
+  -- Well-founded order on Process via processSize. Used so Agda can see
+  -- termination of F?, which recurses into followups / τ-followups (whose
+  -- elements are syntactically *larger* than the input — `P' ∥⦅ As ⦆ Q` is
+  -- not a structural subterm of `P ∥⦅ As ⦆ Q`, but has smaller processSize).
+  open import Induction.WellFounded using (WellFounded; Acc; acc)
+  open import Data.Nat using (_<_)
+  open import Data.Nat.Induction using (<-wellFounded)
+  open import Relation.Binary.Construct.On as RBOn using ()
+  open import Function using (_on_)
+
+  _≺_ : Process α → Process α → Type
+  P ≺ Q = processSize P < processSize Q
+
+  ≺-wf : WellFounded _≺_
+  ≺-wf = RBOn.wellFounded processSize <-wellFounded
 
   F-□-refute
     : ∀ {L R : Process α} {p : Prop α}
@@ -443,6 +466,35 @@ for the current pass.
 
   infix 1 _⊨?_
   _⊨?_ : (P : Process α) → (p : Prop α) → Dec (P ⊨ p)
+
+  open import Data.List.Membership.Propositional using () renaming (_∈_ to _∈ˡ_)
+  open import Data.List.Relation.Unary.Any using (here; there)
+  open import Data.Nat using (s≤s; z≤n)
+  open import Data.Nat.Properties using (m≤m+n; m≤n+m; ≤-refl)
+  open import Data.Product using (_×_)
+
+  -- F/G/U decision procedures recurse via wf on processSize. The accessibility
+  -- argument lets Agda see termination through `followups` (whose elements
+  -- are not structural subterms). walk-obs/walk-τ are *not* mutual with the
+  -- F/G/U auxes: they take a per-element decider function as a parameter and
+  -- are generic in the target prop, so only F?-aux / try-X? / shape-fallback
+  -- (and analogously G?-aux, U?-aux) form the mutual group with each
+  -- recursive call visibly shrinking the Acc.
+  walk-obs : (q : Prop α)
+           → (xs : List (Alphabet.A α × Process α))
+           → (∀ {pair} → pair ∈ˡ xs → Dec (proj₂ pair ⊨ q))
+           → Dec (All (_⊨ q) (L.map proj₂ xs))
+  walk-τ : (q : Prop α)
+         → (xs : List (Process α))
+         → (∀ {Q} → Q ∈ˡ xs → Dec (Q ⊨ q))
+         → Dec (All (_⊨ q) xs)
+  F?-aux : (P : Process α) → Acc _≺_ P → (p : Prop α) → Dec (P ⊨ F p)
+  try-X? : (P : Process α) → Acc _≺_ P → (p : Prop α) → Dec (P ⊨ X (F p))
+  shape-fallback : (P : Process α) → Acc _≺_ P → (p : Prop α)
+                 → Null.¬ (P ⊨ p) → Null.¬ (P ⊨ X (F p))
+                 → Dec (P ⊨ F p)
+  G?-aux : (P : Process α) → Acc _≺_ P → (p : Prop α) → Dec (P ⊨ G p)
+  U?-aux : (P : Process α) → Acc _≺_ P → (p q : Prop α) → Dec (P ⊨ p U q)
 
   -- Conjunction
   P ⊨? (p ∧ q) with P ⊨? p | P ⊨? q
@@ -483,25 +535,91 @@ for the current pass.
   ...   | no ¬obs | _      = no λ { (X-step _ obs _) → ¬obs obs }
   ...   | _       | no ¬τs = no λ { (X-step _ _ τs) → ¬τs τs }
 
-  P ⊨? (F p) with P ⊨? p
+  P ⊨? (F p) = F?-aux P (≺-wf P) p
+
+  P ⊨? (G p)   = G?-aux P (≺-wf P) p
+  P ⊨? (p U q) = U?-aux P (≺-wf P) p q
+
+  walk-obs p [] _ = yes []
+  walk-obs p ((a , Q) ∷ xs) dec with dec (here refl)
+  ... | no ¬Q⊨ = no λ { (Q⊨ ∷ _) → ¬Q⊨ Q⊨ }
+  ... | yes Q⊨ with walk-obs p xs (λ m → dec (there m))
+  ...   | yes rest = yes (Q⊨ ∷ rest)
+  ...   | no ¬rest = no λ { (_ ∷ rest) → ¬rest rest }
+
+  walk-τ p [] _ = yes []
+  walk-τ p (Q ∷ xs) dec with dec (here refl)
+  ... | no ¬Q⊨ = no λ { (Q⊨ ∷ _) → ¬Q⊨ Q⊨ }
+  ... | yes Q⊨ with walk-τ p xs (λ m → dec (there m))
+  ...   | yes rest = yes (Q⊨ ∷ rest)
+  ...   | no ¬rest = no λ { (_ ∷ rest) → ¬rest rest }
+
+  try-X? P (acc rec) p with deadlocked? P
+  ... | yes dead = no λ { (X-step ¬dead _ _) → ¬dead dead }
+  ... | no ¬dead
+        with walk-obs (F p) (followups P) (λ m → F?-aux _ (rec (followup-< m)) p)
+           | walk-τ   (F p) (τ-followups P) (λ m → F?-aux _ (rec (τ-followup-< m)) p)
+  ...   | yes obs | yes τs = yes (X-step ¬dead obs τs)
+  ...   | no ¬obs | _      = no λ { (X-step _ obs _) → ¬obs obs }
+  ...   | _       | no ¬τs = no λ { (X-step _ _ τs) → ¬τs τs }
+
+  shape-fallback STOP        _ p ¬n ¬X =
+    no λ { (F-now x) → ¬n x ; (F-step x) → ¬X x }
+  shape-fallback SKIP        _ p ¬n ¬X =
+    no λ { (F-now x) → ¬n x ; (F-step x) → ¬X x }
+  shape-fallback (_ ➔ _)     _ p ¬n ¬X =
+    no λ { (F-now x) → ¬n x ; (F-step x) → ¬X x }
+  shape-fallback (_ ⊓ _)     _ p ¬n ¬X =
+    no λ { (F-now x) → ¬n x ; (F-step x) → ¬X x }
+  shape-fallback (_ ∥⦅ _ ⦆ _) _ p ¬n ¬X =
+    no λ { (F-now x) → ¬n x ; (F-step x) → ¬X x }
+  shape-fallback (_ ∖ _)     _ p ¬n ¬X =
+    no λ { (F-now x) → ¬n x ; (F-step x) → ¬X x }
+  shape-fallback (L □ R) (acc rec) p ¬n ¬X
+    with F?-aux L (rec (s≤s (m≤m+n (processSize L) (processSize R)))) p
+       | F?-aux R (rec (s≤s (m≤n+m (processSize R) (processSize L)))) p
+  ... | yes L⊨Fp | yes R⊨Fp = yes (F□ L⊨Fp R⊨Fp)
+  ... | no ¬L⊨Fp | _        = no (F-□-refute ¬n ¬X (inj₁ ¬L⊨Fp))
+  ... | _        | no ¬R⊨Fp = no (F-□-refute ¬n ¬X (inj₂ ¬R⊨Fp))
+
+  F?-aux P accP p with P ⊨? p
   ... | yes P⊨p = yes (F-now P⊨p)
-  ... | no ¬P⊨p with P ⊨? X (F p)
-  ...    | yes P⊨Xp = yes (F-step P⊨Xp)
-  P ⊨? (F p) | no ¬P⊨p | no ¬P⊨Xp with P
-  ...    | STOP        = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
-  ...    | SKIP        = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
-  ...    | a ➔ Q       = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
-  ...    | Q ⊓ R       = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
-  ...    | Q ∥⦅ As ⦆ R = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
-  ...    | Q ∖ As      = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
-  ...    | L □ R with L ⊨? F p | R ⊨? F p
-  ...       | yes L⊨Fp | yes R⊨Fp = yes (F□ L⊨Fp R⊨Fp)
-  ...       | no ¬L⊨Fp | _        = no (F-□-refute ¬P⊨p ¬P⊨Xp (inj₁ ¬L⊨Fp))
-  ...       | _        | no ¬R⊨Fp = no (F-□-refute ¬P⊨p ¬P⊨Xp (inj₂ ¬R⊨Fp))
+  ... | no ¬P⊨p with try-X? P accP p
+  ...   | yes P⊨Xp = yes (F-step P⊨Xp)
+  ...   | no ¬P⊨Xp = shape-fallback P accP p ¬P⊨p ¬P⊨Xp
 
+  -- G p holds iff p holds now AND G p holds at every obs-successor AND at
+  -- every τ-successor. No deadlock premise: empty successor lists make the
+  -- universals vacuous, which matches STOP ⊨ G p iff STOP ⊨ p.
+  G?-aux P (acc rec) p with P ⊨? p
+  ... | no ¬P⊨p = no λ { (G-step x _ _) → ¬P⊨p x }
+  ... | yes P⊨p
+        with walk-obs (G p) (followups P) (λ m → G?-aux _ (rec (followup-< m)) p)
+           | walk-τ   (G p) (τ-followups P) (λ m → G?-aux _ (rec (τ-followup-< m)) p)
+  ...   | yes obs | yes τs = yes (G-step P⊨p obs τs)
+  ...   | no ¬obs | _      = no λ { (G-step _ obs _) → ¬obs obs }
+  ...   | _       | no ¬τs = no λ { (G-step _ _ τs) → ¬τs τs }
 
-  P ⊨? (G p)   = G?-stub P p
-  P ⊨? (p U q) = U?-stub P p q
+  -- p U q holds iff q holds now, OR (p holds now AND not deadlocked AND
+  -- p U q holds at every successor). Two constructors, tried in order.
+  U?-aux P (acc rec) p q with P ⊨? q
+  ... | yes P⊨q = yes (U-now P⊨q)
+  ... | no ¬P⊨q with P ⊨? p
+  ...   | no ¬P⊨p = no λ { (U-now x)       → ¬P⊨q x
+                         ; (U-step x _ _ _) → ¬P⊨p x }
+  ...   | yes P⊨p with deadlocked? P
+  ...     | yes dead = no λ { (U-now x)       → ¬P⊨q x
+                             ; (U-step _ ¬d _ _) → ¬d dead }
+  ...     | no ¬dead
+            with walk-obs (p U q) (followups P)
+                   (λ m → U?-aux _ (rec (followup-< m)) p q)
+               | walk-τ   (p U q) (τ-followups P)
+                   (λ m → U?-aux _ (rec (τ-followup-< m)) p q)
+  ...       | yes obs | yes τs = yes (U-step P⊨p ¬dead obs τs)
+  ...       | no ¬obs | _      = no λ { (U-now x)        → ¬P⊨q x
+                                       ; (U-step _ _ obs _) → ¬obs obs }
+  ...       | _       | no ¬τs = no λ { (U-now x)        → ¬P⊨q x
+                                       ; (U-step _ _ _ τs) → ¬τs τs }
 ```
 
 ## Soundness sanity checks
