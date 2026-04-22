@@ -59,11 +59,13 @@ success element of that alphabet that is added to a traces if the process termin
 Processes can be infinite, so this type isn't "positive" in Agda's terms.
 ```
 infixr 20 _➔_
+infixl 15 _∖_
 data Process (α : Alphabet) : Type where
   STOP SKIP : Process α
   _➔_ : (Alphabet.A α) → Process α → Process α
   _□_ _⊓_ : Process α → Process α → Process α
   _∥⦅_⦆_ : Process α → ℙ (Alphabet.A α) → Process α → Process α
+  _∖_ : Process α → ℙ (Alphabet.A α) → Process α
 --  fix : (Process α → Process α) → Process α
 ```
 ## Trace Semantics
@@ -141,8 +143,10 @@ success element when we reach `SKIP`.
   traces (P □ Q) = traces P ∪ traces Q
   traces (P ⊓ Q) = traces P ∪ traces Q
   traces (P ∥⦅ As ⦆ Q) = concatMapˢ (λ s → concatMapˢ (λ t → s ∥ᵗ⦅ As ⦆ t) (traces Q)) (traces P)
+  -- Hiding projects events in As out of each trace (τ-steps aren't
+  -- observable, so the trace set is just the visible-event projection).
+  traces (P ∖ As) = mapˢ (filter (_∉? toList As)) (traces P)
 -- traces (fix Px) = {!!}
--- Hiding
 -- Renaming
 ```
 [Brookes et al.](https://www.cs.cmu.edu/~brookes/papers/OperationalSemanticsCSP.pdf) include some other helpful definitions.
@@ -155,7 +159,10 @@ success element when we reach `SKIP`.
   initials (P ⊓ Q) = initials P ∪ initials Q
   initials (P ∥⦅ As ⦆ Q) with initials P | initials Q
   ... | ip | iq = (ip ∩ iq ∩ As) ∪ (ip ＼ As) ∪ (iq ＼ As)
+  -- Visible initials of P ∖ As: drop any hidden events (they become τs).
+  initials (P ∖ As) = initials P ＼ As
 ```
+
 ## Examples
 ```
   module Example (a : A) (b : A) (c : A) where
@@ -193,6 +200,7 @@ For infinite traces and inductive proofs, a small step reduction semantics is us
 ```
 module Reduction (α : Alphabet) where
   open Alphabet α
+  open TraceSemantics {α} using (initials)
 
   open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∉_; _∈?_; _∉?_)
 
@@ -234,6 +242,18 @@ module Reduction (α : Alphabet) where
     ∥₅ : {P Q Q' : Process α} {As : ℙ A}
       → Q ─ τ ⟶ Q'
       → (P ∥⦅ As ⦆ Q) ─ τ ⟶ (P ∥⦅ As ⦆ Q')
+    -- Hiding: events in As become τ-steps; others pass through.
+    ∖₁ : {a : A} {P P' : Process α} {As : ℙ A}
+      → a ∈ toList As
+      → P ─ ` a ⟶ P'
+      → (P ∖ As) ─ τ ⟶ (P' ∖ As)
+    ∖₂ : {a : A} {P P' : Process α} {As : ℙ A}
+      → a ∉ toList As
+      → P ─ ` a ⟶ P'
+      → (P ∖ As) ─ ` a ⟶ (P' ∖ As)
+    ∖τ : {P P' : Process α} {As : ℙ A}
+      → P ─ τ ⟶ P'
+      → (P ∖ As) ─ τ ⟶ (P' ∖ As)
     SKIP : SKIP ─ ` ✓ ⟶ STOP
 ```
 Since CSP is deliberatley non-deterministic, especially with parallel composition, we can't do a simple, decidable decision procedure.
@@ -261,11 +281,23 @@ We can decide whether, for a particular event, a process will reduce and synchro
   ... | yes (P' , pr) | yes (Q' , qr) = yes ((P' ∥⦅ As ⦆ Q') , ∥₁ a∈As pr qr)
   ... | no ¬pr        | _ = no (λ { (PQ' , ∥₁ x pr pr₁) → ¬pr (_ , pr) ; (PQ' , ∥₂ x pr) → x a∈As ; (PQ' , ∥₃ x pr) → x a∈As })
   ... | _                 | no ¬qr = no (λ { (PQ' , ∥₁ x pr pr₁) → ¬qr (_ , pr₁) ; (PQ' , ∥₂ x pr) → x a∈As ; (PQ' , ∥₃ x pr) → x a∈As })
+  -- Hiding: visible step on `a` requires a ∉ As AND P steps on a.
+  reduces? (P ∖ As) a with a ∈? toList As
+  ... | yes a∈As = no (λ { (P' , ∖₂ a∉As _) → a∉As a∈As })
+  ... | no a∉As with reduces? P a
+  ...   | yes (P' , pr) = yes ((P' ∖ As) , ∖₂ a∉As pr)
+  ...   | no ¬pr        = no (λ { (P' , ∖₂ _ pr) → ¬pr (_ , pr) })
+
+  open import Data.Bool using (if_then_else_; _∧_)
+  open import Relation.Nullary using (does)
 
   -- One-step τ-successors. Mirrors the τ rules of _─_⟶_. Used alongside
   -- observable followups to reason about weak-step properties: a process is
-  -- stable iff τ-followups is empty.
+  -- stable iff τ-followups is empty. Mutually recursive with `followups`
+  -- because hiding turns observable steps on hidden events into τs.
   τ-followups : Process α → List (Process α)
+  followups   : Process α → List (A × Process α)
+
   τ-followups STOP = []
   τ-followups SKIP = []
   τ-followups (_ ➔ _) = []
@@ -273,11 +305,17 @@ We can decide whether, for a particular event, a process will reduce and synchro
   τ-followups (P ⊓ Q) = P ∷ Q ∷ []
   τ-followups (P ∥⦅ As ⦆ Q) =
     map (_∥⦅ As ⦆ Q) (τ-followups P) ++ map (P ∥⦅ As ⦆_) (τ-followups Q)
+  -- Hiding: τ-successors come from inner τ-steps AND from obs-steps on
+  -- hidden events (∖₁ turns a visible `a ∈ As` into a τ).
+  τ-followups (P ∖ As) =
+      map (_∖ As) (τ-followups P)
+    ++
+      concatMap (λ (a , P') → if does (a ∈? toList As) then (P' ∖ As) ∷ [] else [])
+                (followups P)
 
   -- Observable one-step successors, tagged with the event that drove the step.
   -- Mirrors the ` a ⟶ rules of _─_⟶_ (τ-steps are NOT included — τ-progress
   -- is handled by a separate relation if/when needed).
-  followups : Process α → List (A × Process α)
   followups STOP = []
   followups SKIP = (✓ , STOP) ∷ []
   followups (x ➔ P) = (x , P) ∷ []
@@ -298,9 +336,161 @@ We can decide whether, for a particular event, a process will reduce and synchro
           if does (a ∈? toList As) ∧ does (a ≟ b) then (a , P' ∥⦅ As ⦆ Q') ∷ [] else [])
           (followups Q))
         (followups P)
+  -- Hiding: observable steps only on events NOT in As (∖₂ rule).
+  followups (P ∖ As) =
+      concatMap (λ (a , P') → if does (a ∈? toList As) then [] else (a , P' ∖ As) ∷ [])
+                (followups P)
+```
+
+### Weak initials
+
+Milner-style **weak** initials: the union of structural initials across all
+τ-reachable processes. `initials*` captures "events the process might
+offer after zero-or-more silent steps", which is the right notion for
+τ-closed observational reasoning (e.g. LTL atomic satisfaction).
+
+Terminates for non-recursive fragments because `τ-followups` strictly
+shrinks process size (⊓ drops the ⊓; ∖ drops prefixes or descends into
+structural τ-steps).  Recursive processes will diverge — handled when
+we add proper fixpoint support.
+
+```
+  -- Helper `initials*∖ P As` computes the weak initials of `P ∖ As`
+  -- and recurses structurally on `P`, so Agda's termination checker
+  -- accepts the hidden-➔ descent into the inner process.
+  initials*∖ : Process α → ℙ A → ℙ A
+
+  initials* : Process α → ℙ A
+  initials* STOP           = ∅
+  initials* SKIP           = ⟪ ✓ ⟫
+  initials* (x ➔ P)        = ⟪ x ⟫
+  initials* (P □ Q)        = initials* P ∪ initials* Q
+  initials* (P ⊓ Q)        = initials* P ∪ initials* Q
+  initials* (P ∥⦅ As ⦆ Q)  with initials* P | initials* Q
+  ... | ip | iq             = (ip ∩ iq ∩ As) ∪ (ip ＼ As) ∪ (iq ＼ As)
+  initials* (P ∖ As)        = initials*∖ P As
+
+  initials*∖ STOP          As = ∅
+  initials*∖ SKIP          As = ⟪ ✓ ⟫ ＼ As
+  initials*∖ (x ➔ P)       As with x ∈? toList As
+  ... | yes _                 = initials*∖ P As
+  ... | no  _                 = ⟪ x ⟫ ＼ As
+  initials*∖ (P □ Q)       As = initials*∖ P As ∪ initials*∖ Q As
+  initials*∖ (P ⊓ Q)       As = initials*∖ P As ∪ initials*∖ Q As
+  initials*∖ (P ∥⦅ Bs ⦆ Q) As with initials*∖ P As | initials*∖ Q As
+  ... | ip | iq               = (ip ∩ iq ∩ Bs) ∪ (ip ＼ Bs) ∪ (iq ＼ Bs)
+  initials*∖ (P ∖ Bs)      As = initials*∖ P Bs ＼ As
+```
+
+### Stability
+
+A process is *stable* when it has no pending τ-steps: its `τ-followups` is
+empty, or equivalently every τ-rule of `_─_⟶_` is inapplicable. Stability
+is the CSP equivalent of a normal form / value — observable steps are still
+possible, but no silent reduction can fire first.
+
+`⊓` is always unstable (⊓₁/⊓₂ give it two τ-successors). Hiding is the
+other source of instability: `P ∖ As` τ-reduces via `∖₁` whenever `P` can
+take an observable step on any event in `As`, so `P ∖ As` is stable only if
+`P` is stable AND `P` has no observable step into `As`.
+
+```
+  data NoStepIn : Process α → ℙ A → Type where
+    no-step : ∀ {P As}
+      → (∀ (a : A) (P' : Process α) → a ∈ toList As → ¬ (P ─ ` a ⟶ P'))
+      → NoStepIn P As
+
+  data Stable : Process α → Type where
+    STOP : Stable STOP
+    SKIP : Stable SKIP
+    pref : ∀ {a : A} {P : Process α} → Stable (a ➔ P)
+    _□_  : ∀ {P Q} → Stable P → Stable Q → Stable (P □ Q)
+    _∥_  : ∀ {P Q As} → Stable P → Stable Q → Stable (P ∥⦅ As ⦆ Q)
+    _∖_  : ∀ {P As} → Stable P → NoStepIn P As → Stable (P ∖ As)
+    -- Notably, no case for P ⊓ Q.
+```
+
+**TDD case:** the canonical unstable hiding example — forced sync on a
+hidden event.
+
+```
+  module Stable-TDD where
+    open import Relation.Nullary using (¬_)
+    open import Data.List.Relation.Unary.Any using (here; there)
+    open import abstract-set-theory.FiniteSetTheory using (setToList)
+
+    -- ((a ➔ P) ∥⦅⟪a⟫⦆ (a ➔ Q)) ∖ ⟪a⟫ is UNSTABLE: the sync fires as a τ.
+    opaque
+      unfolding setToList
+
+      ∥-hide-unstable : ∀ {a : A} {P Q : Process α}
+        → ¬ (Stable (((a ➔ P) ∥⦅ ⟪ a ⟫ ⦆ (a ➔ Q)) ∖ ⟪ a ⟫))
+      ∥-hide-unstable {a} {P} {Q} ((pref ∥ pref) ∖ no-step ¬stepIn) =
+        ¬stepIn a (P ∥⦅ ⟪ a ⟫ ⦆ Q) (here refl) (∥₁ (here refl) prefix prefix)
+```
+
+The proof destructures: the top-level `_∖_` case of `Stable` gives us
+`NoStepIn ((a ➔ P) ∥⦅⟪a⟫⦆ (a ➔ Q)) ⟪a⟫`. We then feed it the
+observable step `a ∈ toList ⟪a⟫` paired with the sync entry in
+`followups` — which is the (a , P ∥⦅⟪a⟫⦆ Q) head, since the sync branch
+fires first in the concatMap.
+
+The decision procedure: straightforward structural recursion. `NoStepIn`
+is itself decidable via `followups`.
+
+```
+  -- Uniform decision via the pointwise reduction oracle `reduces?`.
+  -- `NoStepIn P As` is "every a ∈ toList As is unreachable as an
+  -- observable step from P", which is exactly `All (λ a → ¬ reduces? P a)`
+  -- over `toList As`.
+  noStepIn? : (P : Process α) (As : ℙ A) → Dec (NoStepIn P As)
+  noStepIn? P As =
+    Dec.map′ wrap unwrap (all? noReduce? (toList As))
     where
-      open import Data.Bool using (if_then_else_; _∧_)
-      open import Relation.Nullary using (does)
+      open import Data.List.Relation.Unary.All using (All; []; _∷_; all?; lookup)
+      open import Data.List.Relation.Unary.Any using (here; there)
+      open import Relation.Nullary as Dec using (Dec; yes; no)
+
+      NoR : A → Type
+      NoR a = ¬ (∃ λ P' → P ─ ` a ⟶ P')
+
+      noReduce? : (a : A) → Dec (NoR a)
+      noReduce? a with reduces? P a
+      ... | yes r = no λ ¬r → ¬r r
+      ... | no ¬r = yes ¬r
+
+      wrap : All NoR (toList As) → NoStepIn P As
+      wrap all¬ = no-step λ a P' a∈ p → lookup all¬ a∈ (P' , p)
+
+      unwrap : NoStepIn P As → All NoR (toList As)
+      unwrap (no-step f) = all-from-f (toList As) (λ a a∈ P' → f a P' a∈)
+        where
+          all-from-f : (xs : List A)
+            → (∀ a → a ∈ˡ xs → ∀ P' → ¬ (P ─ ` a ⟶ P'))
+            → All NoR xs
+          all-from-f []       _ = []
+          all-from-f (x ∷ xs) g =
+            (λ { (P' , p) → g x (here refl) P' p })
+              ∷ all-from-f xs (λ a a∈ P' → g a (there a∈) P')
+
+  stable? : (P : Process α) → Dec (Stable P)
+  stable? STOP = yes STOP
+  stable? SKIP = yes SKIP
+  stable? (a ➔ P) = yes pref
+  stable? (P □ Q) with stable? P | stable? Q
+  ... | yes sP | yes sQ = yes (sP □ sQ)
+  ... | no ¬sP | _      = no λ { (sP □ _) → ¬sP sP }
+  ... | _      | no ¬sQ = no λ { (_ □ sQ) → ¬sQ sQ }
+  stable? (P ⊓ Q) = no (λ ())
+  stable? (P ∥⦅ As ⦆ Q) with stable? P | stable? Q
+  ... | yes sP | yes sQ = yes (sP ∥ sQ)
+  ... | no ¬sP | _      = no λ { (sP ∥ _) → ¬sP sP }
+  ... | _      | no ¬sQ = no λ { (_ ∥ sQ) → ¬sQ sQ }
+  stable? (P ∖ As) with stable? P | noStepIn? P As
+  ... | yes sP | yes ns  = yes (sP ∖ ns)
+  ... | no ¬sP | _       = no λ { (sP ∖ _)  → ¬sP sP }
+  ... | _      | no ¬ns  = no λ { (_  ∖ ns) → ¬ns ns }
+  -- Decidability bottoms out on `noStepIn?`.
 ```
 ## Failure Semantics
 
@@ -318,6 +508,7 @@ FailureSet 𝕒 = ℙ (Trace 𝕒 × ℙ Alphabet.A 𝕒)
 module FailureSemantics {α : Alphabet} where
   open TraceSemantics {α}
   open Alphabet α
+  open Reduction α using (Stable; NoStepIn; STOP; SKIP; pref; _□_; _∥_; _∖_; no-step; noStepIn?; stable?)
   open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A) using (_∈_; _∈?_; _∉?_)
   open import Data.List.Relation.Unary.Any using (here; there)
   open import Data.Sum using (inj₁; inj₂)
@@ -368,14 +559,10 @@ refusal set; `⊆ᶠ` provides downward closure.
       → (∀ a → a ∈ toList Y → a ∈ toList X)
       → P ⊢ᶠ (s , X)
       → P ⊢ᶠ (s , Y)
-    -- Internal choice: the process can τ-pick either branch and inherit its failures.
-    -- failures(P ⊓ Q) = failures(P) ∪ failures(Q).
-    ⊓₁ᶠ : {P Q : Process α} {s : Trace α} {X : ℙ A}
-      → P ⊢ᶠ (s , X)
-      → P ⊓ Q ⊢ᶠ (s , X)
-    ⊓₂ᶠ : {P Q : Process α} {s : Trace α} {X : ℙ A}
-      → Q ⊢ᶠ (s , X)
-      → P ⊓ Q ⊢ᶠ (s , X)
+    -- No ⊓ constructors: `_⊢ᶠ_` is *stable* failures. `P ⊓ Q` always has
+    -- a pending τ to either branch, so no stable refusal exists at ⟨⟩ on
+    -- the composite itself. LTL rules that care about "might-refuse"
+    -- (demonic liveness) should use `rejects?` / τ-followups, not `_⊢ᶠ_`.
     -- Parallel composition at ⟨⟩ combines refusals per Roscoe UCS §2.4:
     --   sync events (∈ As) are refused if *either* side refuses;
     --   async events (∉ As) are refused only if *both* sides refuse.
@@ -400,13 +587,21 @@ refusal set; `⊆ᶠ` provides downward closure.
       → ¬ (a ∈ toList As)
       → P ∥⦅ As ⦆ Q ⊢ᶠ (s , X)
       → P ∥⦅ As ⦆ (a ➔ Q) ⊢ᶠ (⟨ a ⟩ ^ s , X)
+    -- Hiding at ⟨⟩: if P stably refuses X *and* can't observable-step into
+    -- As (so ∖₁ is inapplicable and the hiding bubble doesn't τ-evolve),
+    -- then P ∖ As stably refuses X ∪ As. Events in As are refused because
+    -- they'd be τ under hiding (∖₁); events in X are refused inherited from P.
+    ∖ᶠ : {P : Process α} {X As : ℙ A}
+      → P ⊢ᶠ (⟨⟩ , X)
+      → NoStepIn P As
+      → (P ∖ As) ⊢ᶠ (⟨⟩ , X ∪ As)
 ```
 
 ### rejects?
 
 Dual to `reduces?`: "does `P` stably refuse `a` right now?". Both return `no` for
-unstable processes (pending τ) — τ-progress lives outside this relation. The `{!!}`
-holes are small subset / refutation proofs to be filled in.
+unstable processes (pending τ) — τ-progress lives outside this relation. Now a thin
+wrapper over the generalised `refuses? P Z` (defined below).
 
 ```
   open import abstract-set-theory.FiniteSetTheory using (List-Model; setToList)
@@ -455,137 +650,348 @@ holes are small subset / refutation proofs to be filled in.
         go-all : ∀ {a : A} {P : Process α} → ¬ ((a ➔ P) ⊢ᶠ (⟨⟩ , all))
         go-all {a} p = go-gen p (all-∈ a)
 
-  rejects? : (P : Process α) → (a : A) → Dec (P ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
-  rejects? STOP        a = yes (⊆ᶠ (⟪⟫⊆all a) STOPᶠ)
-  rejects? SKIP        a with a ≟ ✓
-  ... | yes refl          = no ¬skip✓
-    where
-      opaque
-        unfolding setToList
-        -- Anything derivable for SKIP at ⟨⟩ excludes ✓ from its refusal (directly
-        -- via SKIP⟨⟩, or by chained ⊆ᶠ composition). Hence ✓ can't appear.
-        ¬skip-at-⟨⟩ : ∀ {X : ℙ A} → SKIP ⊢ᶠ (⟨⟩ , X) → ¬ (✓ ∈ toList X)
-        ¬skip-at-⟨⟩ SKIP⟨⟩ ✓∈X = ＼-∉ ✓∈X (here refl)
-        ¬skip-at-⟨⟩ (⊆ᶠ sub p) ✓∈Y = ¬skip-at-⟨⟩ p (sub ✓ ✓∈Y)
+  -- Canonical refusal witness for a stable process. Every stable P has
+  -- SOME stable refusal at ⟨⟩; this bridge produces one so decision
+  -- procedures on composites (∥, later ∖) can feed both sides' witnesses
+  -- into ∥⟨⟩-style constructors.
+  Stable→⊢ᶠ : ∀ (P : Process α) → Stable P → ∃ λ X → P ⊢ᶠ (⟨⟩ , X)
+  Stable→⊢ᶠ STOP           STOP           = all , STOPᶠ
+  Stable→⊢ᶠ SKIP           SKIP           = all ＼ ⟪ ✓ ⟫ , SKIP⟨⟩
+  Stable→⊢ᶠ (a ➔ P)        pref           = all ＼ ⟪ a ⟫ , ➔⟨⟩
+  Stable→⊢ᶠ (P □ Q)        (sP □ sQ)      =
+    let X , pP = Stable→⊢ᶠ P sP
+        Y , pQ = Stable→⊢ᶠ Q sQ
+    in  (X ∩ Y) , □⟨⟩ pP pQ
+  Stable→⊢ᶠ (P ∥⦅ As ⦆ Q)  (sP ∥ sQ)      =
+    let X , pP = Stable→⊢ᶠ P sP
+        Y , pQ = Stable→⊢ᶠ Q sQ
+    in  (X ∩ Y) ∪ ((X ∪ Y) ∩ As) , ∥⟨⟩ pP pQ
+  Stable→⊢ᶠ (P ∖ As)       (sP ∖ ns)      =
+    let X , pP = Stable→⊢ᶠ P sP
+    in  X ∪ As , ∖ᶠ pP ns
 
-        ¬skip✓ : ¬ (SKIP ⊢ᶠ (⟨⟩ , ⟪ ✓ ⟫))
-        ¬skip✓ p = ¬skip-at-⟨⟩ p (here refl)
-  ... | no  a≠✓           = yes (⊆ᶠ (⟪⟫⊆all＼ a ✓ a≠✓) SKIP⟨⟩)
-  rejects? (x ➔ P)     a with x ≟ a
-  ... | yes refl          = no ¬➔a
-    where
-      opaque
-        unfolding setToList
-        ¬➔-at-⟨⟩ : ∀ {y} {Q : Process α} {X : ℙ A} → (y ➔ Q) ⊢ᶠ (⟨⟩ , X) → ¬ (y ∈ toList X)
-        ¬➔-at-⟨⟩ ➔⟨⟩ y∈X = ＼-∉ y∈X (here refl)
-        ¬➔-at-⟨⟩ (⊆ᶠ sub p) y∈Y = ¬➔-at-⟨⟩ p (sub _ y∈Y)
+  -- Completeness: every ⟨⟩-failure witnesses structural stability. Since
+  -- `_⊢ᶠ_` has no ⊓ constructor, the only way to derive a ⟨⟩-refusal is
+  -- through structurally stable pieces.
+  ⟨⟩⊢ᶠ→Stable : ∀ {P : Process α} {X : ℙ A} → P ⊢ᶠ (⟨⟩ , X) → Stable P
+  ⟨⟩⊢ᶠ→Stable STOPᶠ          = STOP
+  ⟨⟩⊢ᶠ→Stable SKIP⟨⟩         = SKIP
+  ⟨⟩⊢ᶠ→Stable ➔⟨⟩            = pref
+  ⟨⟩⊢ᶠ→Stable (□⟨⟩ p q)      = ⟨⟩⊢ᶠ→Stable p □ ⟨⟩⊢ᶠ→Stable q
+  ⟨⟩⊢ᶠ→Stable (□₁ s≢⟨⟩ _)    with s≢⟨⟩ refl
+  ...                                    | ()
+  ⟨⟩⊢ᶠ→Stable (□₂ s≢⟨⟩ _)    with s≢⟨⟩ refl
+  ...                                    | ()
+  ⟨⟩⊢ᶠ→Stable (∥⟨⟩ p q)      = ⟨⟩⊢ᶠ→Stable p ∥ ⟨⟩⊢ᶠ→Stable q
+  ⟨⟩⊢ᶠ→Stable (∖ᶠ p ns)      = ⟨⟩⊢ᶠ→Stable p ∖ ns
+  ⟨⟩⊢ᶠ→Stable (⊆ᶠ _ p)       = ⟨⟩⊢ᶠ→Stable p
 
-        ¬➔a : ¬ ((a ➔ P) ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
-        ¬➔a p = ¬➔-at-⟨⟩ p (here refl)
-  ... | no  x≠a           = yes (⊆ᶠ (⟪⟫⊆all＼ a x (λ a≡x → x≠a (sym a≡x))) ➔⟨⟩)
-  rejects? (P □ Q)     a with rejects? P a | rejects? Q a
-  ... | yes rp | yes rq   = yes (⊆ᶠ (⟪⟫⊆⟪⟫∩⟪⟫ a) (□⟨⟩ rp rq))
-  ... | no ¬rp | _        = no (¬□₁-gen ¬rp)
-    where
-      opaque
-        unfolding setToList
-        ¬□₁-gen : ∀ {Z : ℙ A} → ¬ (P ⊢ᶠ (⟨⟩ , Z)) → ¬ ((P □ Q) ⊢ᶠ (⟨⟩ , Z))
-        ¬□₁-gen ¬rp' (□⟨⟩ {X = X} {Y = Y} rp _) =
-          ¬rp' (⊆ᶠ (λ b b∈ → proj₂ (∈-filter⁻' {X = X} {P = λ x → x ∈ toList Y} b∈)) rp)
-        ¬□₁-gen ¬rp' (□₁ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₁-gen ¬rp' (□₂ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₁-gen ¬rp' (⊆ᶠ sub p) = ¬□₁-gen (λ rp'' → ¬rp' (⊆ᶠ sub rp'')) p
-  ... | _      | no ¬rq   = no (¬□₂-gen ¬rq)
-    where
-      opaque
-        unfolding setToList
-        ¬□₂-gen : ∀ {Z : ℙ A} → ¬ (Q ⊢ᶠ (⟨⟩ , Z)) → ¬ ((P □ Q) ⊢ᶠ (⟨⟩ , Z))
-        ¬□₂-gen ¬rq' (□⟨⟩ {X = X} {Y = Y} _ rq) =
-          ¬rq' (⊆ᶠ (λ b b∈ → proj₁ (∈-filter⁻' {X = X} {P = λ x → x ∈ toList Y} b∈)) rq)
-        ¬□₂-gen ¬rq' (□₁ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₂-gen ¬rq' (□₂ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₂-gen ¬rq' (⊆ᶠ sub p) = ¬□₂-gen (λ rq'' → ¬rq' (⊆ᶠ sub rq'')) p
-  rejects? (P ⊓ Q)     a with rejects? P a | rejects? Q a
-  ... | yes rp | _      = yes (⊓₁ᶠ rp)
-  ... | _      | yes rq = yes (⊓₂ᶠ rq)
-  ... | no ¬rp | no ¬rq = no (¬⊓-gen ¬rp ¬rq)
-    where
-      ¬⊓-gen : ∀ {X} → ¬ (P ⊢ᶠ (⟨⟩ , X)) → ¬ (Q ⊢ᶠ (⟨⟩ , X)) → ¬ ((P ⊓ Q) ⊢ᶠ (⟨⟩ , X))
-      ¬⊓-gen ¬p ¬q (⊓₁ᶠ p') = ¬p p'
-      ¬⊓-gen ¬p ¬q (⊓₂ᶠ q') = ¬q q'
-      ¬⊓-gen ¬p ¬q (⊆ᶠ sub p') = ¬⊓-gen (λ r → ¬p (⊆ᶠ sub r)) (λ r → ¬q (⊆ᶠ sub r)) p'
-  rejects? (P ∥⦅ As ⦆ Q) a = rejects?-∥-TODO
-    where postulate rejects?-∥-TODO : Dec ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
-  -- Soundness blocker: the sync case (a ∈ As) needs a stable witness for BOTH
-  -- sides of the composition to build ∥⟨⟩, but only ONE side's refusal of {a}
-  -- is available from recursive `rejects?`. A stability/refusal oracle for
-  -- the non-refusing side (e.g. `∃ λ X → Q ⊢ᶠ (⟨⟩, X)`) is needed first.
-  -- See session-notes.md "∥ failure constructors" for the full story.
+  -- Corollary: if P is not `Stable`, no `P ⊢ᶠ (⟨⟩, X)` derivation exists
+  -- for any X. This collapses the remaining ∥/∖ decision residuals.
+  ¬Stable→¬⊢ᶠ : ∀ {P : Process α} → ¬ Stable P → ∀ {X} → ¬ (P ⊢ᶠ (⟨⟩ , X))
+  ¬Stable→¬⊢ᶠ ¬sP p = ¬sP (⟨⟩⊢ᶠ→Stable p)
 
-  -- A process is deadlocked at ⟨⟩ iff it stably refuses every event.
-  -- This is the strongest stable refusal: _⊢ᶠ (⟨⟩ , all).
+  -- Maximality: every ⟨⟩-refusal is contained in the canonical refusal
+  -- given by `Stable→⊢ᶠ`. This absorbs all partition cleverness for ∥:
+  -- any derivable refusal for `P ∥⦅As⦆ Q` is ⊆ the canonical one, so
+  -- deciding refusal reduces to a single subset check.
+  opaque
+    unfolding setToList
+
+    ∩-mono : ∀ {X X' Y Y' : ℙ A}
+      → (∀ a → a ∈ toList X → a ∈ toList X')
+      → (∀ a → a ∈ toList Y → a ∈ toList Y')
+      → ∀ a → a ∈ toList (X ∩ Y) → a ∈ toList (X' ∩ Y')
+    ∩-mono {X} {X'} {Y} {Y'} subX subY a a∈ =
+      let (a∈X , a∈Y) = ∈-∩ {X = X} {Y = Y} .Equivalence.from a∈
+      in ∈-∩ {X = X'} {Y = Y'} .Equivalence.to (subX a a∈X , subY a a∈Y)
+      where open import Function.Bundles using (Equivalence)
+
+    ∪-mono : ∀ {X X' Y Y' : ℙ A}
+      → (∀ a → a ∈ toList X → a ∈ toList X')
+      → (∀ a → a ∈ toList Y → a ∈ toList Y')
+      → ∀ a → a ∈ toList (X ∪ Y) → a ∈ toList (X' ∪ Y')
+    ∪-mono {X} {X'} {Y} {Y'} subX subY a a∈ with ∈-∪⁻ {X = X} {Y = Y} a∈
+    ... | inj₁ a∈X = ∈-∪⁺ {X = X'} {Y = Y'} (inj₁ (subX a a∈X))
+    ... | inj₂ a∈Y = ∈-∪⁺ {X = X'} {Y = Y'} (inj₂ (subY a a∈Y))
+
+    ∥-mono : ∀ {X X' Y Y' As : ℙ A}
+      → (∀ a → a ∈ toList X → a ∈ toList X')
+      → (∀ a → a ∈ toList Y → a ∈ toList Y')
+      → ∀ a
+      → a ∈ toList ((X  ∩ Y ) ∪ ((X  ∪ Y ) ∩ As))
+      → a ∈ toList ((X' ∩ Y') ∪ ((X' ∪ Y') ∩ As))
+    ∥-mono {X} {X'} {Y} {Y'} {As} subX subY =
+      ∪-mono {X = X ∩ Y} {X' = X' ∩ Y'}
+             {Y = (X ∪ Y) ∩ As} {Y' = (X' ∪ Y') ∩ As}
+             (∩-mono {X = X} {X' = X'} {Y = Y} {Y' = Y'} subX subY)
+             (∩-mono {X = X ∪ Y} {X' = X' ∪ Y'} {Y = As} {Y' = As}
+                     (∪-mono {X = X} {X' = X'} {Y = Y} {Y' = Y'} subX subY)
+                     (λ _ a∈ → a∈))
+
+    ∪-mono-left : ∀ {X X' As : ℙ A}
+      → (∀ a → a ∈ toList X → a ∈ toList X')
+      → ∀ a → a ∈ toList (X ∪ As) → a ∈ toList (X' ∪ As)
+    ∪-mono-left {X} {X'} {As} sub =
+      ∪-mono {X = X} {X' = X'} {Y = As} {Y' = As} sub (λ _ a∈ → a∈)
+
+  ⟨⟩⊢ᶠ-maximal : ∀ {P : Process α} (sP : Stable P) {X : ℙ A}
+    → P ⊢ᶠ (⟨⟩ , X)
+    → ∀ a → a ∈ toList X → a ∈ toList (proj₁ (Stable→⊢ᶠ P sP))
+  ⟨⟩⊢ᶠ-maximal STOP       STOPᶠ                    a a∈ = a∈
+  ⟨⟩⊢ᶠ-maximal SKIP       SKIP⟨⟩                   a a∈ = a∈
+  ⟨⟩⊢ᶠ-maximal pref       ➔⟨⟩                      a a∈ = a∈
+  ⟨⟩⊢ᶠ-maximal (sP □ sQ)  (□⟨⟩ p q)                a a∈ =
+    ∩-mono {X = _} {X' = proj₁ (Stable→⊢ᶠ _ sP)}
+           {Y = _} {Y' = proj₁ (Stable→⊢ᶠ _ sQ)}
+           (⟨⟩⊢ᶠ-maximal sP p) (⟨⟩⊢ᶠ-maximal sQ q) a a∈
+  ⟨⟩⊢ᶠ-maximal _          (□₁ s≢⟨⟩ _)              a a∈ with s≢⟨⟩ refl
+  ...                                                   | ()
+  ⟨⟩⊢ᶠ-maximal _          (□₂ s≢⟨⟩ _)              a a∈ with s≢⟨⟩ refl
+  ...                                                   | ()
+  ⟨⟩⊢ᶠ-maximal (sP ∥ sQ)  (∥⟨⟩ p q)                a a∈ =
+    ∥-mono {X = _} {X' = proj₁ (Stable→⊢ᶠ _ sP)}
+           {Y = _} {Y' = proj₁ (Stable→⊢ᶠ _ sQ)}
+           (⟨⟩⊢ᶠ-maximal sP p) (⟨⟩⊢ᶠ-maximal sQ q) a a∈
+  ⟨⟩⊢ᶠ-maximal (sP ∖ _)   (∖ᶠ {X = X} p _)         a a∈ =
+    ∪-mono-left {X = X} {X' = proj₁ (Stable→⊢ᶠ _ sP)}
+                (⟨⟩⊢ᶠ-maximal sP p) a a∈
+  ⟨⟩⊢ᶠ-maximal sP         (⊆ᶠ sub p)               a a∈ =
+    ⟨⟩⊢ᶠ-maximal sP p a (sub a a∈)
+
+  -- `rejects?` and `deadlocked?` are specialisations of `refuses? P Z`
+  -- (defined below) and live at the end of the `refuses?` block.
+```
+
+### refuses? (generalised stable refusal decision)
+
+Generalises `rejects?` (refuse `⟪a⟫`) and `deadlocked?` (refuse `all`)
+to arbitrary refusal sets `Z`. `rejects? P a = refuses? P ⟪a⟫` and
+`deadlocked? P = refuses? P all`.
+
+Stage 1 covers every constructor except the genuinely hard ∥ residual,
+where neither side refuses all of `Z` but the sync events in `Z ∩ As`
+can be split across the two sides. That partition search is Stage 2.
+
+```
+  -- Small lemma kit: shape refusals to feed ⊆ᶠ.
+  opaque
+    unfolding setToList
+
+    Z⊆all : ∀ {Z : ℙ A} a → a ∈ toList Z → a ∈ toList all
+    Z⊆all a _ = all-∈ a
+
+    Z⊆Z∩Z : ∀ {Z : ℙ A} a → a ∈ toList Z → a ∈ toList (Z ∩ Z)
+    Z⊆Z∩Z a a∈ = ∈-∩ .Equivalence.to (a∈ , a∈)
+      where open import Function.Bundles using (Equivalence)
+
+    -- If x ∉ Z then Z ⊆ all ＼ ⟪x⟫: every element of Z is in all (trivial)
+    -- and not ≡ x (else it would be in Z ∋ x, contradicting x ∉ Z).
+    Z⊆all＼⟪⟫ : ∀ {x : A} {Z : ℙ A} → ¬ (x ∈ toList Z)
+              → ∀ a → a ∈ toList Z → a ∈ toList (all ＼ ⟪ x ⟫)
+    Z⊆all＼⟪⟫ {x = x} x∉Z a a∈Z = ∈-filter⁺' (a∉⟪x⟫ , all-∈ a)
+      where
+        a∉⟪x⟫ : ¬ (a ∈ toList ⟪ x ⟫)
+        a∉⟪x⟫ (here a≡x) rewrite a≡x = x∉Z a∈Z
+
+    -- Z ⊆ (Z ＼ As) ∪ As: every element of Z is either in As or not.
+    Z⊆Z＼As∪As : ∀ {As Z : ℙ A} a → a ∈ toList Z → a ∈ toList ((Z ＼ As) ∪ As)
+    Z⊆Z＼As∪As {As} {Z} a a∈Z with a ∈? toList As
+    ... | yes a∈As = ∈-∪⁺ {X = Z ＼ As} {Y = As} (inj₂ a∈As)
+    ... | no a∉As  = ∈-∪⁺ {X = Z ＼ As} {Y = As} (inj₁ (∈-filter⁺' (a∉As , a∈Z)))
+      where open import Data.Sum using (inj₁)
+
+    -- Z ⊆ (Z ∩ Z) ∪ ((Z ∪ Z) ∩ As): trivial via the Z ∩ Z summand.
+    Z⊆∥Z : ∀ {As Z : ℙ A} a → a ∈ toList Z
+          → a ∈ toList ((Z ∩ Z) ∪ ((Z ∪ Z) ∩ As))
+    Z⊆∥Z a a∈Z = ∈-∪⁺ (inj₁ (∈-∩ .Equivalence.to (a∈Z , a∈Z)))
+      where
+        open import Function.Bundles using (Equivalence)
+        open import Data.Sum using (inj₁)
+
+  refuses? : (P : Process α) (Z : ℙ A) → Dec (P ⊢ᶠ (⟨⟩ , Z))
+  refuses? STOP        Z = yes (⊆ᶠ Z⊆all STOPᶠ)
+  refuses? SKIP        Z with ✓ ∈? toList Z
+  ... | yes ✓∈Z = no ¬SKIP-Z
+    where
+      opaque
+        unfolding setToList
+        ¬SKIP-at-⟨⟩ : ∀ {X : ℙ A} → SKIP ⊢ᶠ (⟨⟩ , X) → ¬ (✓ ∈ toList X)
+        ¬SKIP-at-⟨⟩ SKIP⟨⟩ ✓∈X = ＼-∉ ✓∈X (here refl)
+        ¬SKIP-at-⟨⟩ (⊆ᶠ sub p) ✓∈Y = ¬SKIP-at-⟨⟩ p (sub ✓ ✓∈Y)
+
+        ¬SKIP-Z : ¬ (SKIP ⊢ᶠ (⟨⟩ , Z))
+        ¬SKIP-Z p = ¬SKIP-at-⟨⟩ p ✓∈Z
+  ... | no ✓∉Z = yes (⊆ᶠ (Z⊆all＼⟪⟫ ✓∉Z) SKIP⟨⟩)
+  refuses? (x ➔ P)     Z with x ∈? toList Z
+  ... | yes x∈Z = no (λ p → ¬➔-refuses-head p x∈Z)
+  ... | no x∉Z  = yes (⊆ᶠ (Z⊆all＼⟪⟫ x∉Z) ➔⟨⟩)
+  refuses? (P □ Q)     Z with refuses? P Z | refuses? Q Z
+  ... | yes rP | yes rQ = yes (⊆ᶠ Z⊆Z∩Z (□⟨⟩ rP rQ))
+  ... | no ¬rP | _      = no (¬□-P ¬rP)
+    where
+      opaque
+        unfolding setToList
+        ¬□-P : ∀ {Z' : ℙ A} → ¬ (P ⊢ᶠ (⟨⟩ , Z')) → ¬ ((P □ Q) ⊢ᶠ (⟨⟩ , Z'))
+        ¬□-P ¬rP' (□⟨⟩ {X = X} {Y = Y} pP _) =
+          ¬rP' (⊆ᶠ (λ a a∈ → proj₂ (∈-filter⁻' {X = X} {P = λ x → x ∈ toList Y} a∈)) pP)
+        ¬□-P _ (□₁ s≢⟨⟩ _) = s≢⟨⟩ refl
+        ¬□-P _ (□₂ s≢⟨⟩ _) = s≢⟨⟩ refl
+        ¬□-P ¬rP' (⊆ᶠ sub p) = ¬□-P (λ r → ¬rP' (⊆ᶠ sub r)) p
+  ... | yes _  | no ¬rQ = no (¬□-Q ¬rQ)
+    where
+      opaque
+        unfolding setToList
+        ¬□-Q : ∀ {Z' : ℙ A} → ¬ (Q ⊢ᶠ (⟨⟩ , Z')) → ¬ ((P □ Q) ⊢ᶠ (⟨⟩ , Z'))
+        ¬□-Q ¬rQ' (□⟨⟩ {X = X} {Y = Y} _ pQ) =
+          ¬rQ' (⊆ᶠ (λ a a∈ → proj₁ (∈-filter⁻' {X = X} {P = λ x → x ∈ toList Y} a∈)) pQ)
+        ¬□-Q _ (□₁ s≢⟨⟩ _) = s≢⟨⟩ refl
+        ¬□-Q _ (□₂ s≢⟨⟩ _) = s≢⟨⟩ refl
+        ¬□-Q ¬rQ' (⊆ᶠ sub p) = ¬□-Q (λ r → ¬rQ' (⊆ᶠ sub r)) p
+  refuses? (P ⊓ Q)     Z = no ¬⊓
+    where
+      ¬⊓ : ∀ {Z' : ℙ A} → ¬ ((P ⊓ Q) ⊢ᶠ (⟨⟩ , Z'))
+      ¬⊓ (⊆ᶠ _ p) = ¬⊓ p
+  -- ∥ Stage 1: easy yes when both sides refuse Z. Stage 2 covers the
+  -- hard case where neither side alone refuses Z but the sync events
+  -- split across the two. The old deadlocked? branches on stable/dead
+  -- are subsumed (Stable→⊢ᶠ provides the witness; ¬Stable→¬⊢ᶠ refutes).
+  refuses? (P ∥⦅ As ⦆ Q) Z with refuses? P Z | refuses? Q Z | stable? P | stable? Q
+  ... | yes rP | yes rQ | _      | _      = yes (⊆ᶠ Z⊆∥Z (∥⟨⟩ rP rQ))
+  ... | _      | _      | no ¬sP | _      = no ¬∥-P-unstable
+    where
+      ¬∥-P-unstable : ∀ {Z' : ℙ A} → ¬ ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , Z'))
+      ¬∥-P-unstable (∥⟨⟩ pP _) = ¬Stable→¬⊢ᶠ ¬sP pP
+      ¬∥-P-unstable (⊆ᶠ _ p)   = ¬∥-P-unstable p
+  ... | _      | _      | _      | no ¬sQ = no ¬∥-Q-unstable
+    where
+      ¬∥-Q-unstable : ∀ {Z' : ℙ A} → ¬ ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , Z'))
+      ¬∥-Q-unstable (∥⟨⟩ _ pQ) = ¬Stable→¬⊢ᶠ ¬sQ pQ
+      ¬∥-Q-unstable (⊆ᶠ _ p)   = ¬∥-Q-unstable p
+  ... | _      | _      | yes sP | yes sQ = ∥-residual
+    where
+      open import Data.List.Relation.Unary.All as All using (All; []; _∷_; all?; lookup)
+      open import Function.Bundles using (Equivalence)
+
+      -- Canonical maximal refusals for the two stable sides.
+      XP = proj₁ (Stable→⊢ᶠ P sP)
+      pP = proj₂ (Stable→⊢ᶠ P sP)
+      YQ = proj₁ (Stable→⊢ᶠ Q sQ)
+      pQ = proj₂ (Stable→⊢ᶠ Q sQ)
+
+      -- The largest refusal derivable for P ∥⦅As⦆ Q at ⟨⟩.
+      W : ℙ A
+      W = (XP ∩ YQ) ∪ ((XP ∪ YQ) ∩ As)
+
+      opaque
+        unfolding setToList
+
+        ∈?∥ : ∀ a → Dec (a ∈ toList W)
+        ∈?∥ a with a ∈? toList XP | a ∈? toList YQ | a ∈? toList As
+        ... | yes aXP | yes aYQ | _ =
+              yes (∈-∪⁺ {X = XP ∩ YQ} {Y = (XP ∪ YQ) ∩ As}
+                        (inj₁ (∈-∩ {X = XP} {Y = YQ} .Equivalence.to (aXP , aYQ))))
+        ... | yes aXP | _       | yes aAs =
+              yes (∈-∪⁺ {X = XP ∩ YQ} {Y = (XP ∪ YQ) ∩ As}
+                        (inj₂ (∈-∩ {X = XP ∪ YQ} {Y = As} .Equivalence.to
+                                 (∈-∪⁺ {X = XP} {Y = YQ} (inj₁ aXP) , aAs))))
+        ... | _       | yes aYQ | yes aAs =
+              yes (∈-∪⁺ {X = XP ∩ YQ} {Y = (XP ∪ YQ) ∩ As}
+                        (inj₂ (∈-∩ {X = XP ∪ YQ} {Y = As} .Equivalence.to
+                                 (∈-∪⁺ {X = XP} {Y = YQ} (inj₂ aYQ) , aAs))))
+        ... | no ¬XP  | no ¬YQ  | _ = no ¬W
+          where
+            ¬W : ¬ (a ∈ toList W)
+            ¬W a∈W with ∈-∪⁻ {X = XP ∩ YQ} {Y = (XP ∪ YQ) ∩ As} a∈W
+            ... | inj₁ a∈∩ = ¬XP (proj₁ (∈-∩ {X = XP} {Y = YQ} .Equivalence.from a∈∩))
+            ... | inj₂ a∈∩As
+                with ∈-∪⁻ {X = XP} {Y = YQ}
+                           (proj₁ (∈-∩ {X = XP ∪ YQ} {Y = As} .Equivalence.from a∈∩As))
+            ...    | inj₁ a∈XP = ¬XP a∈XP
+            ...    | inj₂ a∈YQ = ¬YQ a∈YQ
+        ... | yes _   | no ¬YQ  | no ¬As = no ¬W
+          where
+            ¬W : ¬ (a ∈ toList W)
+            ¬W a∈W with ∈-∪⁻ {X = XP ∩ YQ} {Y = (XP ∪ YQ) ∩ As} a∈W
+            ... | inj₁ a∈∩ = ¬YQ (proj₂ (∈-∩ {X = XP} {Y = YQ} .Equivalence.from a∈∩))
+            ... | inj₂ a∈∩As = ¬As (proj₂ (∈-∩ {X = XP ∪ YQ} {Y = As} .Equivalence.from a∈∩As))
+        ... | no ¬XP  | yes _   | no ¬As = no ¬W
+          where
+            ¬W : ¬ (a ∈ toList W)
+            ¬W a∈W with ∈-∪⁻ {X = XP ∩ YQ} {Y = (XP ∪ YQ) ∩ As} a∈W
+            ... | inj₁ a∈∩ = ¬XP (proj₁ (∈-∩ {X = XP} {Y = YQ} .Equivalence.from a∈∩))
+            ... | inj₂ a∈∩As = ¬As (proj₂ (∈-∩ {X = XP ∪ YQ} {Y = As} .Equivalence.from a∈∩As))
+
+        ⊆?W : Dec (∀ a → a ∈ toList Z → a ∈ toList W)
+        ⊆?W = Relation.Nullary.map′ wrap unwrap (all? ∈?∥ (toList Z))
+          where
+            wrap : All (λ a → a ∈ toList W) (toList Z)
+                 → ∀ a → a ∈ toList Z → a ∈ toList W
+            wrap allW a a∈Z = lookup allW a∈Z
+
+            unwrap : (∀ a → a ∈ toList Z → a ∈ toList W)
+                   → All (λ a → a ∈ toList W) (toList Z)
+            unwrap f = All.tabulate (λ {a} a∈Z → f a a∈Z)
+
+      ∥-residual : Dec ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , Z))
+      ∥-residual with ⊆?W
+      ... | yes sub = yes (⊆ᶠ sub (∥⟨⟩ pP pQ))
+      ... | no ¬sub = no ¬res
+        where
+          ¬res : ¬ ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , Z))
+          ¬res p = ¬sub λ a a∈Z → ⟨⟩⊢ᶠ-maximal (sP ∥ sQ) p a a∈Z
+  refuses? (P ∖ As)    Z with noStepIn? P As | refuses? P (Z ＼ As) | stable? P
+  ... | yes ns | yes rP | _      = yes (⊆ᶠ Z⊆Z＼As∪As (∖ᶠ rP ns))
+  ... | no ¬ns | _      | _      = no ¬∖-nostep
+    where
+      ¬∖-nostep : ∀ {Z' : ℙ A} → ¬ ((P ∖ As) ⊢ᶠ (⟨⟩ , Z'))
+      ¬∖-nostep (∖ᶠ _ ns) = ¬ns ns
+      ¬∖-nostep (⊆ᶠ _ p)  = ¬∖-nostep p
+  ... | _      | _      | no ¬sP = no ¬∖-unstable
+    where
+      ¬∖-unstable : ∀ {Z' : ℙ A} → ¬ ((P ∖ As) ⊢ᶠ (⟨⟩ , Z'))
+      ¬∖-unstable (∖ᶠ pP _) = ¬Stable→¬⊢ᶠ ¬sP pP
+      ¬∖-unstable (⊆ᶠ _ p)  = ¬∖-unstable p
+  ... | yes _  | no ¬rP | yes _  = no (¬∖-refusal ¬rP)
+    where
+      opaque
+        unfolding setToList
+        -- If Z' ⊆ W then Z' ＼ As ⊆ W ＼ As.
+        ＼-mono : ∀ {Z' W : ℙ A}
+          → (∀ a → a ∈ toList Z' → a ∈ toList W)
+          → ∀ a → a ∈ toList (Z' ＼ As) → a ∈ toList (W ＼ As)
+        ＼-mono {Z'} Z'⊆W a a∈
+          with ∈-filter⁻' {X = Z'} {P = λ x → ¬ (x ∈ toList As)} a∈
+        ... | a∉As , a∈Z' = ∈-filter⁺' (a∉As , Z'⊆W a a∈Z')
+
+        -- (X ∪ As) ＼ As ⊆ X: if a is in the union and not in As, it's in X.
+        ∪＼-⊆ : ∀ {X : ℙ A} a → a ∈ toList ((X ∪ As) ＼ As) → a ∈ toList X
+        ∪＼-⊆ {X} a a∈
+          with ∈-filter⁻' {X = X ∪ As} {P = λ x → ¬ (x ∈ toList As)} a∈
+        ... | a∉As , a∈∪ with ∈-∪⁻ {X = X} {Y = As} a∈∪
+        ...   | inj₁ a∈X  = a∈X
+        ...   | inj₂ a∈As = contradiction a∈As a∉As
+
+        -- If (P ∖ As) ⊢ᶠ (⟨⟩, Z') then P ⊢ᶠ (⟨⟩, Z' ＼ As). Any derivation
+        -- bottoms out at ∖ᶠ with refusal X ∪ As; then Z' ＼ As ⊆ X via
+        -- ⊆ᶠ composition, so P ⊢ᶠ (⟨⟩, Z' ＼ As).
+        ∖-refuses⇒P-refuses : ∀ {Z' : ℙ A}
+          → (P ∖ As) ⊢ᶠ (⟨⟩ , Z')
+          → P ⊢ᶠ (⟨⟩ , Z' ＼ As)
+        ∖-refuses⇒P-refuses (∖ᶠ {X = X} pP _) = ⊆ᶠ (∪＼-⊆ {X = X}) pP
+        ∖-refuses⇒P-refuses (⊆ᶠ sub p) =
+          ⊆ᶠ (＼-mono sub) (∖-refuses⇒P-refuses p)
+
+        ¬∖-refusal : ¬ (P ⊢ᶠ (⟨⟩ , Z ＼ As)) → ¬ ((P ∖ As) ⊢ᶠ (⟨⟩ , Z))
+        ¬∖-refusal ¬rP' p = ¬rP' (∖-refuses⇒P-refuses p)
+
+  -- Thin wrappers over `refuses?`. `rejects? P a` decides "P stably
+  -- refuses `a`"; `deadlocked? P` decides "P stably refuses every event".
+  rejects?    : (P : Process α) → (a : A) → Dec (P ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
+  rejects?    P a = refuses? P ⟪ a ⟫
+
   deadlocked? : (P : Process α) → Dec (P ⊢ᶠ (⟨⟩ , all))
-  deadlocked? STOP = yes STOPᶠ
-  deadlocked? SKIP = no ¬SKIP-dead
-    where
-      opaque
-        unfolding setToList
-        ¬SKIP-dead-at-⟨⟩ : ∀ {X : ℙ A} → SKIP ⊢ᶠ (⟨⟩ , X) → ¬ (✓ ∈ toList X)
-        ¬SKIP-dead-at-⟨⟩ SKIP⟨⟩ ✓∈X = ＼-∉ ✓∈X (here refl)
-        ¬SKIP-dead-at-⟨⟩ (⊆ᶠ sub p) ✓∈Y = ¬SKIP-dead-at-⟨⟩ p (sub ✓ ✓∈Y)
-
-        ¬SKIP-dead : ¬ (SKIP ⊢ᶠ (⟨⟩ , all))
-        ¬SKIP-dead p = ¬SKIP-dead-at-⟨⟩ p (all-∈ ✓)
-  deadlocked? (x ➔ P) = no ¬➔-dead
-    where
-      opaque
-        unfolding setToList
-        ¬➔-dead-at-⟨⟩ : ∀ {y : A} {Q : Process α} {X : ℙ A}
-          → (y ➔ Q) ⊢ᶠ (⟨⟩ , X) → ¬ (y ∈ toList X)
-        ¬➔-dead-at-⟨⟩ ➔⟨⟩ y∈X = ＼-∉ y∈X (here refl)
-        ¬➔-dead-at-⟨⟩ (⊆ᶠ sub p) y∈Y = ¬➔-dead-at-⟨⟩ p (sub _ y∈Y)
-
-        ¬➔-dead : ¬ ((x ➔ P) ⊢ᶠ (⟨⟩ , all))
-        ¬➔-dead p = ¬➔-dead-at-⟨⟩ p (all-∈ x)
-  deadlocked? (P □ Q) with deadlocked? P | deadlocked? Q
-  ... | yes dp | yes dq = yes (⊆ᶠ all⊆all∩all (□⟨⟩ dp dq))
-    where
-      opaque
-        unfolding setToList
-        all⊆all∩all : ∀ a → a ∈ toList all → a ∈ toList (all ∩ all)
-        all⊆all∩all a a∈ = ∈-∩ .Equivalence.to (a∈ , a∈)
-          where open import Function.Bundles using (Equivalence)
-  ... | no ¬dp | _ = no (¬□₁-dead ¬dp)
-    where
-      opaque
-        unfolding setToList
-        ¬□₁-dead : {Z : ℙ A} → ¬ (P ⊢ᶠ (⟨⟩ , Z)) → ¬ ((P □ Q) ⊢ᶠ (⟨⟩ , Z))
-        ¬□₁-dead ¬dp (□⟨⟩ {X = X} {Y = Y} dpX _) =
-          ¬dp (⊆ᶠ (λ a a∈ → proj₂ (∈-filter⁻' {X = X} {P = λ x → x ∈ toList Y} a∈)) dpX)
-        ¬□₁-dead ¬dp (□₁ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₁-dead ¬dp (□₂ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₁-dead ¬dp (⊆ᶠ sub p) = ¬□₁-dead (λ r → ¬dp (⊆ᶠ sub r)) p
-  ... | _ | no ¬dq = no (¬□₂-dead ¬dq)
-    where
-      opaque
-        unfolding setToList
-        ¬□₂-dead : {Z : ℙ A} → ¬ (Q ⊢ᶠ (⟨⟩ , Z)) → ¬ ((P □ Q) ⊢ᶠ (⟨⟩ , Z))
-        ¬□₂-dead ¬dq (□⟨⟩ {X = X} {Y = Y} _ dqY) =
-          ¬dq (⊆ᶠ (λ a a∈ → proj₁ (∈-filter⁻' {X = X} {P = λ x → x ∈ toList Y} a∈)) dqY)
-        ¬□₂-dead ¬dq (□₁ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₂-dead ¬dq (□₂ s≢⟨⟩ _) = s≢⟨⟩ refl
-        ¬□₂-dead ¬dq (⊆ᶠ sub p) = ¬□₂-dead (λ r → ¬dq (⊆ᶠ sub r)) p
-  deadlocked? (P ⊓ Q) with deadlocked? P | deadlocked? Q
-  ... | yes dp | _ = yes (⊓₁ᶠ dp)
-  ... | _ | yes dq = yes (⊓₂ᶠ dq)
-  ... | no ¬dp | no ¬dq = no (¬⊓-dead-gen ¬dp ¬dq)
-    where
-      ¬⊓-dead-gen : {Z : ℙ A} → ¬ (P ⊢ᶠ (⟨⟩ , Z)) → ¬ (Q ⊢ᶠ (⟨⟩ , Z)) → ¬ ((P ⊓ Q) ⊢ᶠ (⟨⟩ , Z))
-      ¬⊓-dead-gen ¬dp ¬dq (⊓₁ᶠ p) = ¬dp p
-      ¬⊓-dead-gen ¬dp ¬dq (⊓₂ᶠ q) = ¬dq q
-      ¬⊓-dead-gen ¬dp ¬dq (⊆ᶠ sub p) = ¬⊓-dead-gen (λ r → ¬dp (⊆ᶠ sub r)) (λ r → ¬dq (⊆ᶠ sub r)) p
-  deadlocked? (P ∥⦅ As ⦆ Q) = deadlocked?-∥-TODO
-    where postulate deadlocked?-∥-TODO : Dec ((P ∥⦅ As ⦆ Q) ⊢ᶠ (⟨⟩ , all))
+  deadlocked? P   = refuses? P all
 ```
 
 ### TDD for ∥ failures
@@ -718,24 +1124,3 @@ moved (synced or async), mirroring the `∥₁`/`∥₂`/`∥₃` reduction rule
           go p = go-gen p (here refl)
 ```
 
-### Old set-valued sketch
-
-Retained for reference while the relation-based definition is fleshed out; to be
-deleted once `_⊢ᶠ_` is complete.
-
-```
-{-
--- FIXME: Actually, this probably can't be a map because the internal choice will have two failure elements for ⟨⟩
-  failures : Process α → FailureSet α
-  failures STOP = fromListᵐ [ (⟨⟩ , all) ]
-  failures SKIP = fromListᵐ ((⟨⟩ , all excluding [ ✓ ]) ∷ (⟨ ✓ ⟩ , all) ∷ [])
-  failures (x ➔ P) = fromListᵐ ([ (⟨⟩ , (all excluding [ x ])) ] ++ (concatMap (λ { (t , f) → (⟨ x ⟩ ^ t , f) ∷ [] }) (toListᵐ (failures P))))
-  failures (P □ Q) with failures P | failures Q
-  ... | fP | fQ with lookupᵐ? fP ⟨⟩ | lookupᵐ? fQ ⟨⟩
-  ... | just fp | just fq = (insertᵐ fP ⟨⟩ (fp excluding (toList (all excluding (toList fq))))) ∪ˡ (insertᵐ fQ ⟨⟩ (fq excluding (toList (all excluding (toList fp)))))
-  ... | _ | nothing = fP ∪ˡ fQ
-  ... | nothing | _ = fP ∪ˡ fQ
-  failures (P ⊓ Q) = {!!} -- (failures P) ++ (failures Q) -- FIXME: is this right?
-  failures (P ∥⦅ x ⦆ Q) = {!!}
-  -}
-```

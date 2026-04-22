@@ -10,14 +10,15 @@ module Traces.LTL where
 ## Imports
 
 ```
-open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl)
+open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl; sym)
+open import Data.Sum using (inj₁; inj₂)
 open import Data.Bool as Bool using (Bool; true; false)
 open import Data.List as L using (List; []; _∷_)
-open import Data.Product using (proj₂; _,_)
+open import Data.Product using (proj₁; proj₂; _,_)
 open import Data.Bool.ListAction using () renaming (all to allᵇ)
 open import Data.List.Relation.Unary.All using (All; []; _∷_)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
-open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; fromList) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
+open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; fromList; _≡ᵉ_) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
 open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_)
 import Traces.CSP
@@ -269,41 +270,43 @@ module Satisfaction (α : Alphabet) where
       → P ⊨ q
       → P ⊨ p ⇒ q
 
-    -- Atomic event propositions.  ` a holds for processes whose current
-    -- stable head event is a.  `a ➔ P` and `SKIP` are the only direct matchers;
-    -- anything else is either derived via the structural rules or not true.
-    `_ : {P : Process α} {a : A} → a ➔ P ⊨ ` a
-    SKIP : SKIP ⊨ ` ✓
+    -- Atomic event propositions.  ` a holds for P iff every τ-reachable
+    -- offer of P is exactly {a} — Milner's weak-initials reading. This
+    -- covers `a ➔ P` directly, Roscoe's identical-initials collapse
+    -- `(a ➔ P) □ (a ➔ Q)`, and τ-hidden-prefix forms like
+    -- `(b ➔ a ➔ P) ∖ {b}`.
+    `_ : {P : Process α} {a : A} → initials* P ≡ᵉ ⟪ a ⟫ → P ⊨ ` a
 
-    -- Next: progress-capable + every obs-successor satisfies p + every
-    -- τ-successor still satisfies X p (so τ-resolved branches are constrained).
+    -- Next: progress-capable + every next step (obs OR τ) lands in p.
     X-step : {P : Process α} {p : Prop α}
       → Null.¬ (P ⊢ᶠ (⟨⟩ , all))                         -- not deadlocked
       → All (_⊨ p) (L.map proj₂ (followups P))           -- all obs-steps land in p
-      → All (_⊨ X p) (τ-followups P)                     -- every τ-resolution still ⊨ X p
+      → All (_⊨ p) (τ-followups P)                       -- all τ-steps land in p
       → P ⊨ X p
 
-    -- Eventually: three cases.
+    -- Eventually: two cases.
     -- F-now: p already holds here.
     F-now : {P : Process α} {p : Prop α}
       → P ⊨ p
       → P ⊨ F p
-    -- F-obs: some event a is observably enabled AND not stably refused AND the
-    -- a-successor will eventually satisfy p.  The non-refusal premise is what
-    -- protects against dead ⊓-branches hiding behind a live followup.
-    F-obs : {P P' : Process α} {p : Prop α} {a : A}
-      → (a , P') ∈ᴸ followups P
-      → Null.¬ (P ⊢ᶠ (⟨⟩ , ⟪ a ⟫))
-      → P' ⊨ F p
+    -- F-step: on the next step (obs or τ), F p still holds. Reuses X
+    -- directly — this is the adversarial reading: every possible next
+    -- step must still eventually reach p, and the process must not be
+    -- deadlocked (so "eventually" actually gets a chance to fire).
+    F-step : {P : Process α} {p : Prop α}
+      → P ⊨ X (F p)
       → P ⊨ F p
-    -- F-τ: every τ-resolution eventually satisfies p.  Used for ⊓ (both
-    -- branches demonically) and ∥'s τ-interleavings. We require at least
-    -- one τ-successor so F-τ is not vacuously applicable on STOP / SKIP /
-    -- ➔ / stable processes — those must use F-now or F-obs.
-    F-τ : {P : Process α} {P' : Process α} {p : Prop α}
-      → P' ∈ᴸ τ-followups P
-      → All (_⊨ F p) (τ-followups P)
+
+    -- F□: external choice is "pick a side". F p on the composite holds
+    -- when each offered side ⊨ F p — evaluated on the side itself, not
+    -- its successor after the env picks. This matches Roscoe's reading
+    -- that □ offers a menu; picking an initial commits to that branch.
+    -- τ-prefixed □ is not special here: `τ ➔ Q` in a □ reduces to ⊓
+    -- (internal choice) by Roscoe's step law, which is covered by F⊓.
+    F□ : {P Q : Process α} {p : Prop α}
       → P ⊨ F p
+      → Q ⊨ F p
+      → P □ Q ⊨ F p
 
     -- Globally: p holds now AND at every obs-successor AND at every τ-successor.
     -- No deadlock premise: when both followup lists are empty (STOP), the
@@ -341,16 +344,7 @@ ergonomics (and so the old usage patterns still work).
     → P ⊨ F p
     → Q ⊨ F p
     → P ⊓ Q ⊨ F p
-  F⊓ pF qF = F-τ (here refl) (pF ∷ qF ∷ [])
-
-  -- □ adversarial for liveness: both branches must eventually. Deferred —
-  -- needs case analysis on the F-evidence shape (F-now/F-obs/F-τ) and
-  -- a proof that non-refusal and followups lift through the □.
-  -- F□ : {P Q : Process α} {p : Prop α}
-  --   → P ⊨ F p
-  --   → Q ⊨ F p
-  --   → P □ Q ⊨ F p
-  -- F□ pF qF = ?
+  F⊓ pF qF = F-step (X-step (¬Stable→¬⊢ᶠ (λ ())) [] (pF ∷ qF ∷ []))
 
   -- Prefix: F p on the body gives F p on the prefixed process. The only
   -- obs-followup of `a ➔ P` is `(a , P)`, and `a ➔ P` cannot stably refuse
@@ -358,11 +352,30 @@ ergonomics (and so the old usage patterns still work).
   F➔ : {P : Process α} {p : Prop α} {a : A}
     → P ⊨ F p
     → a ➔ P ⊨ F p
-  F➔ pF = F-obs (here refl) ¬➔-refuses-self pF
+  F➔ pF = F-step (X-step ¬➔-deadlocked (pF ∷ []) [])
+
+  -- Helpers for building `_⊨ ` a` witnesses without hand-proving ≡ᵉ.
+  -- Each lemma corresponds to a CSP combinator whose weak-initials
+  -- reduce to a singleton by definition.
+  open import Axiom.Set.Properties (abstract-set-theory.FiniteSetTheory.th) using (≡ᵉ-isEquivalence; ∉-∅)
+  open import Relation.Binary.Structures using (IsEquivalence)
+  open import Function.Bundles using (Equivalence)
+  open import abstract-set-theory.FiniteSetTheory using (∈-singleton; ∈-∪)
+
+  private
+    module ≡ᵉ = IsEquivalence (≡ᵉ-isEquivalence {A})
+
+  -- Prefix atom: `a ➔ P` offers exactly {a}.
+  `➔ : {P : Process α} {a : A} → a ➔ P ⊨ ` a
+  `➔ = `_ ≡ᵉ.refl
+
+  -- SKIP atom
+  `SKIP : SKIP ⊨ ` ✓
+  `SKIP = `_ ≡ᵉ.refl
 
   -- SKIP eventually terminates (trivially now)
   FSKIP : SKIP ⊨ F (` ✓)
-  FSKIP = F-now SKIP
+  FSKIP = F-now `SKIP
 ```
 
 ## Decision procedure
@@ -380,9 +393,9 @@ Left as future work once the rule set stabilises.
   module Soundness where
     open import Data.List.Relation.Unary.Any using (here; there)
 
-    -- STOP never witnesses any atom
+    -- STOP never witnesses any atom: initials* STOP = ∅, so ⟪a⟫ ⊆ ∅ is absurd.
     STOP-⊭-atom : ∀ {a : A} → Null.¬ (STOP ⊨ ` a)
-    STOP-⊭-atom ()
+    STOP-⊭-atom (`_ (_ , ⟪a⟫⊆∅)) = ∉-∅ (⟪a⟫⊆∅ (Equivalence.to ∈-singleton refl))
 
     -- STOP is not progress-capable: X p always fails on STOP
     STOP-⊭-X : ∀ {p : Prop α} → Null.¬ (STOP ⊨ X p)
@@ -391,21 +404,49 @@ Left as future work once the rule set stabilises.
     -- STOP can never eventually satisfy an atom (no successors, no local match,
     -- and F-τ guard fails because τ-followups STOP = []).
     STOP-⊭-F-atom : ∀ {a : A} → Null.¬ (STOP ⊨ F (` a))
-    STOP-⊭-F-atom (F-now ())
-    STOP-⊭-F-atom (F-obs () _ _)
-    STOP-⊭-F-atom (F-τ () _)
+    STOP-⊭-F-atom (F-now p) = STOP-⊭-atom p
+    STOP-⊭-F-atom (F-step xF) = STOP-⊭-X xF
 
     -- STOP satisfies any negation of F atom (via ¬₁)
     STOP-⊨-¬F-atom : ∀ {a : A} → STOP ⊨ ¬ F (` a)
     STOP-⊨-¬F-atom = ¬₁ STOP-⊭-F-atom
 
+    -- `b ➔ STOP` can never F-satisfy an atom distinct from b: F-now requires
+    -- initials to match, F-step lands at STOP, F□ doesn't apply.
+    ➔STOP-⊭-F-atom : ∀ {a b : A}
+      → Null.¬ (a ≡ b)
+      → Null.¬ (b ➔ STOP ⊨ F (` a))
+    ➔STOP-⊭-F-atom a≢b (F-now (`_ (_ , ⟪a⟫⊆⟪b⟫))) =
+      a≢b (Equivalence.from ∈-singleton
+        (⟪a⟫⊆⟪b⟫ (Equivalence.to ∈-singleton refl)))
+    ➔STOP-⊭-F-atom _ (F-step (X-step _ (stopF ∷ []) _)) = STOP-⊭-F-atom stopF
+
     -- Internal choice with STOP breaks F (` ✓): the STOP branch deadlocks
     -- No matter which F-rule we try, the process can τ-pick STOP and refuse ✓.
-    dead-⊓ : ∀ {a : A} {P : Process α}
+    -- The a≢✓ premise rules out the F-now branch: if a ≡ ✓ then
+    -- initials* (a ➔ SKIP) ⊓ STOP) = ⟪a⟫ ∪ ∅ ≡ᵉ ⟪✓⟫ and F-now could fire.
+    dead-⊓ : ∀ {a : A}
+      → Null.¬ (a ≡ ✓)
       → Null.¬ ((a ➔ SKIP) ⊓ STOP ⊨ F (` ✓))
-    dead-⊓ (F-now ())
-    dead-⊓ (F-obs () _ _)
-    dead-⊓ (F-τ _ (pF ∷ stopF ∷ [])) = STOP-⊭-F-atom stopF
+    dead-⊓ a≢✓ (F-now (`_ (⟪a⟫∪∅⊆⟪✓⟫ , _))) =
+      a≢✓ (Equivalence.from ∈-singleton
+        (⟪a⟫∪∅⊆⟪✓⟫ (Equivalence.to ∈-∪ (inj₁ (Equivalence.to ∈-singleton refl)))))
+    dead-⊓ _ (F-step (X-step _ _ (_ ∷ stopF ∷ []))) = STOP-⊭-F-atom stopF
+
+    -- External choice is adversarial for liveness. The environment may
+    -- pick the b-branch and deadlock, so the composite CANNOT promise
+    -- eventual ✓. Under F-step = X (F p), every obs-successor must
+    -- satisfy F (` ✓) — but STOP does not.
+    dead-□ : ∀ {a b : A}
+      → Null.¬ (a ≡ ✓) → Null.¬ (b ≡ ✓)
+      → Null.¬ (((a ➔ SKIP) □ (b ➔ STOP)) ⊨ F (` ✓))
+    dead-□ a≢✓ b≢✓ (F-now (`_ (⟪a⟫∪⟪b⟫⊆⟪✓⟫ , _))) =
+      a≢✓ (Equivalence.from ∈-singleton
+        (⟪a⟫∪⟪b⟫⊆⟪✓⟫ (Equivalence.to ∈-∪ (inj₁ (Equivalence.to ∈-singleton refl)))))
+    dead-□ _ _ (F-step (X-step _ (_ ∷ stopF ∷ []) _)) = STOP-⊭-F-atom stopF
+    dead-□ _ b≢✓ (F□ _ qF) = ➔STOP-⊭-F-atom (b≢✓ ∘ sym) qF
+      where open import Relation.Binary.PropositionalEquality using (sym)
+            open import Function using (_∘_)
 ```
 
 ## Examples
@@ -417,18 +458,18 @@ Left as future work once the rule set stabilises.
     open L using (_∷_; [])
 
     -- Both branches eventually reach `b`: the left does `a` then `b`,
-    -- the right does `b` directly. Needs F□ or a direct F-obs on the □
-    -- (the latter requires a ¬-refusal proof for ⟪a⟫/⟪b⟫ on the combined
-    -- □⟨⟩ refusal).  Deferred until we fill in F□.
-    -- sat-ex₁ : (a ➔ b ➔ STOP) □ (b ➔ a ➔ STOP) ⊨ F (` b)
-    -- sat-ex₁ = ?
+    -- the right does `b` directly. F□ evaluates F (` b) on each
+    -- offered side itself: `a ➔ b ➔ STOP` via F➔ ∘ F-now of `➔;
+    -- `b ➔ a ➔ STOP` directly via F-now of `➔.
+    sat-ex₁ : (a ➔ b ➔ STOP) □ (b ➔ a ➔ STOP) ⊨ F (` b)
+    sat-ex₁ = F□ (F➔ (F-now `➔)) (F-now `➔)
 
     -- a then a then b satisfies (` a) U (` b): at every step before `b`
     -- the head is `a`, so `a` holds; eventually `b` fires and U terminates.
     sat-ex₂ : a ➔ a ➔ b ➔ STOP ⊨ (` a) U (` b)
-    sat-ex₂ = U-step `_ ¬➔-deadlocked
-                    (U-step `_ ¬➔-deadlocked
-                            (U-now `_ ∷ [])
+    sat-ex₂ = U-step `➔ ¬➔-deadlocked
+                    (U-step `➔ ¬➔-deadlocked
+                            (U-now `➔ ∷ [])
                             [] ∷ [])
                     []
 ```
@@ -485,13 +526,10 @@ Left as future work once the rule set stabilises.
 ```
   module _ {a b : Alphabet.A α} where
     -- Internal choice does NOT make the next event certain: the process
-    -- could τ-pick either branch, so X p has to succeed on both.
-    -- Internal choice does NOT make the next event certain: the process
-    -- could τ-pick (b ➔ STOP), whose single obs-followup STOP cannot
-    -- witness ` a.  The X-step rule forces all τ-branches to still satisfy
-    -- X (` a), but (b ➔ STOP) ⊨ X (` a) would require every obs-followup
-    -- (namely STOP) to ⊨ ` a, which fails.
-    next-⊓ : Null.¬ ((a ➔ STOP) ⊓ (b ➔ STOP) ⊨ (X_ (` a)))
-    next-⊓ (X-step _ _ (_ ∷ bX ∷ [])) with bX
-    ... | X-step _ (() ∷ []) _
+    -- could τ-pick (b ➔ STOP), whose head atom is b.  Under the new
+    -- X-step, τ-branches must directly witness ` a, but (b ➔ STOP) ⊨ ` a
+    -- only if b ≡ a.
+    next-⊓ : Null.¬ (a ≡ b) → Null.¬ ((a ➔ STOP) ⊓ (b ➔ STOP) ⊨ (X_ (` a)))
+    next-⊓ a≢b (X-step _ _ (_ ∷ `_ (_ , ⟪a⟫⊆⟪b⟫) ∷ [])) =
+      a≢b (Equivalence.from ∈-singleton (⟪a⟫⊆⟪b⟫ (Equivalence.to ∈-singleton refl)))
 ```
