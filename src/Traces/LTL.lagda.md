@@ -11,7 +11,7 @@ module Traces.LTL where
 
 ```
 open import abstract-set-theory.Prelude using (Type; Maybe; nothing; just; DecEq; _≡_; _≟_; refl; sym)
-open import Data.Sum using (inj₁; inj₂)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Bool as Bool using (Bool; true; false)
 open import Data.List as L using (List; []; _∷_)
 open import Data.Product using (proj₁; proj₂; _,_)
@@ -20,7 +20,7 @@ open import Data.List.Relation.Unary.All using (All; []; _∷_)
 open import Relation.Nullary as Null using (yes; no; Dec; contradiction)
 open import abstract-set-theory.FiniteSetTheory using (ℙ_; mapˢ; fromList; _≡ᵉ_) renaming (❴_❵ˢ to ⟪_⟫; setToList to toList)
 
-open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_)
+open import Traces.CSP using (Trace; Process; Alphabet; STOP; SKIP; _➔_; _□_; _⊓_; _∥⦅_⦆_; _∖_)
 import Traces.CSP
 ```
 ## Propositions and Operators
@@ -224,10 +224,9 @@ module TraceLTL {α : Alphabet} where
     prop-a-before-c : Prop α
     prop-a-before-c = ((¬ (` c)) U (` a))
 
-    -- Agda tries to unroll the traces...
-    -- This is why the structural approach is needed.
-    --a-Before-c : Holdsᵖ  R
-    --a-Before-c = (U₃ (¬ (λ ()))) All.∷ {!!}
+    -- Structural proof lives in the Satisfaction module below — the
+    -- trace-level version here would need to enumerate `traces R` by
+    -- hand, which Agda can't normalise against abstract `a b c`.
 ```
 # Structural Satisfaction
 
@@ -380,11 +379,129 @@ ergonomics (and so the old usage patterns still work).
 
 ## Decision procedure
 
-Left as future work once the rule set stabilises.
+Syntax-directed on the proposition for the non-temporal cases. Atoms reduce
+to a pair of set-membership decisions on `initials*`. `X p` uses `deadlocked?`
+for the progress premise and `All?` over the decidable finite `followups`
+and `τ-followups` lists. `F`, `G`, `U` are deferred: their natural
+structural recursion goes through `followups`, which contains wrapped terms
+like `_ ∥⦅ As ⦆ Q` that are not structurally smaller than the composite.
+Closing this properly needs either a termination metric (e.g. a bound on
+τ-steps until stability) or sized-types-style coinduction — out of scope
+for the current pass.
 
 ```
-  -- _⊨?_ : (P : Process α) → (p : Prop α) → Dec (P ⊨ p)
-  -- _⊨?_ = ?
+  open import Data.List.Relation.Unary.All as Allᵖ using (all?)
+  open import Data.List.Membership.DecPropositional (DecEq._≟_ DecEq-A)
+    using () renaming (_∈?_ to _∈ᴸ?_)
+
+  -- initials* P ≡ᵉ ⟪ a ⟫  iff  a ∈ initials* P  AND every b ∈ initials* P
+  -- equals a. Both halves are decidable on the finite underlying list.
+  -- The `opaque unfolding setToList` block lets us bridge between the
+  -- set-level `_∈_` used in `≡ᵉ` and the list `_∈ᴸ_` used by `all?`.
+  open import abstract-set-theory.FiniteSetTheory using (setToList)
+
+  opaque
+    unfolding setToList
+
+    initials*-≡ᵉ-singleton? : (P : Process α) (a : A)
+                            → Dec (initials* P ≡ᵉ ⟪ a ⟫)
+    initials*-≡ᵉ-singleton? P a with a ∈ᴸ? toList (initials* P)
+                                   | all? (λ b → b ≟ a) (toList (initials* P))
+    ... | yes a∈ | yes uniform =
+            yes ( (λ {b} b∈ → subst (λ x → x ∈ᴸ toList ⟪ a ⟫)
+                                    (sym (Allᵖ.lookup uniform b∈))
+                                    (Equivalence.to ∈-singleton refl))
+                , (λ {b} b∈⟪a⟫ → subst (λ x → x ∈ᴸ toList (initials* P))
+                                       (sym (Equivalence.from ∈-singleton b∈⟪a⟫))
+                                       a∈))
+      where open import Relation.Binary.PropositionalEquality using (subst)
+    ... | no a∉ | _ = no λ eq → a∉ (proj₂ eq (Equivalence.to ∈-singleton refl))
+    ... | yes _ | no ¬uniform = no ¬init≡a
+      where
+        ¬init≡a : Null.¬ (initials* P ≡ᵉ ⟪ a ⟫)
+        ¬init≡a eq =
+          ¬uniform (Allᵖ.tabulate
+                      λ {b} b∈ → Equivalence.from ∈-singleton
+                                   (proj₁ eq b∈))
+
+  -- G / U: still deferred. F is decidable below; G/U need the same
+  -- termination treatment (recurse through `X (G p)` / `X (p U q)`).
+  postulate
+    G?-stub : ∀ (P : Process α) (p : Prop α) → Dec (P ⊨ G p)
+    U?-stub : ∀ (P : Process α) (p q : Prop α) → Dec (P ⊨ p U q)
+
+  F-□-refute
+    : ∀ {L R : Process α} {p : Prop α}
+    → Null.¬ (L □ R ⊨ p)
+    → Null.¬ (L □ R ⊨ X (F p))
+    → (Null.¬ (L ⊨ F p)) ⊎ (Null.¬ (R ⊨ F p))
+    → Null.¬ (L □ R ⊨ F p)
+  F-□-refute ¬now _     _            (F-now x)    = ¬now x
+  F-□-refute _    ¬step _            (F-step x)   = ¬step x
+  F-□-refute _    _     (inj₁ ¬L⊨Fp) (F□ L⊨Fp _)  = ¬L⊨Fp L⊨Fp
+  F-□-refute _    _     (inj₂ ¬R⊨Fp) (F□ _ R⊨Fp)  = ¬R⊨Fp R⊨Fp
+
+  infix 1 _⊨?_
+  _⊨?_ : (P : Process α) → (p : Prop α) → Dec (P ⊨ p)
+
+  -- Conjunction
+  P ⊨? (p ∧ q) with P ⊨? p | P ⊨? q
+  ... | yes pp  | yes qq  = yes (pp ∧ qq)
+  ... | no ¬pp  | _       = no λ { (pp ∧ _) → ¬pp pp }
+  ... | _       | no ¬qq  = no λ { (_ ∧ qq) → ¬qq qq }
+
+  -- Disjunction (try left first)
+  P ⊨? (p ∨ q) with P ⊨? p
+  ... | yes pp = yes (_∨₁_ pp)
+  ... | no ¬pp with P ⊨? q
+  ...   | yes qq = yes (_∨₂_ qq)
+  ...   | no ¬qq = no λ { (_∨₁_ pp) → ¬pp pp ; (_∨₂_ qq) → ¬qq qq }
+
+  -- Negation
+  P ⊨? (¬ p) with P ⊨? p
+  ... | yes pp = no λ { (¬₁_ ¬pp) → ¬pp pp }
+  ... | no ¬pp = yes (¬₁_ ¬pp)
+
+  -- Implication
+  P ⊨? (p ⇒ q) with P ⊨? p
+  ... | no ¬pp = yes (imp₁ ¬pp)
+  ... | yes pp with P ⊨? q
+  ...   | yes qq = yes (imp₂ pp qq)
+  ...   | no ¬qq = no λ { (imp₁ ¬pp) → ¬pp pp ; (imp₂ _ qq) → ¬qq qq }
+
+  -- Atomic event
+  P ⊨? (` a) with initials*-≡ᵉ-singleton? P a
+  ... | yes eq = yes (`_ eq)
+  ... | no ¬eq = no λ { (`_ eq) → ¬eq eq }
+
+  -- Next: not deadlocked, and every followup (obs + τ) lands in p.
+  P ⊨? (X p) with deadlocked? P
+  ... | yes dead = no λ { (X-step ¬dead _ _) → ¬dead dead }
+  ... | no ¬dead with all? (λ P' → P' ⊨? p) (L.map proj₂ (followups P))
+                    | all? (λ P' → P' ⊨? p) (τ-followups P)
+  ...   | yes obs | yes τs = yes (X-step ¬dead obs τs)
+  ...   | no ¬obs | _      = no λ { (X-step _ obs _) → ¬obs obs }
+  ...   | _       | no ¬τs = no λ { (X-step _ _ τs) → ¬τs τs }
+
+  P ⊨? (F p) with P ⊨? p
+  ... | yes P⊨p = yes (F-now P⊨p)
+  ... | no ¬P⊨p with P ⊨? X (F p)
+  ...    | yes P⊨Xp = yes (F-step P⊨Xp)
+  P ⊨? (F p) | no ¬P⊨p | no ¬P⊨Xp with P
+  ...    | STOP        = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
+  ...    | SKIP        = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
+  ...    | a ➔ Q       = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
+  ...    | Q ⊓ R       = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
+  ...    | Q ∥⦅ As ⦆ R = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
+  ...    | Q ∖ As      = no λ { (F-now x)  → ¬P⊨p x ; (F-step x) → ¬P⊨Xp x }
+  ...    | L □ R with L ⊨? F p | R ⊨? F p
+  ...       | yes L⊨Fp | yes R⊨Fp = yes (F□ L⊨Fp R⊨Fp)
+  ...       | no ¬L⊨Fp | _        = no (F-□-refute ¬P⊨p ¬P⊨Xp (inj₁ ¬L⊨Fp))
+  ...       | _        | no ¬R⊨Fp = no (F-□-refute ¬P⊨p ¬P⊨Xp (inj₂ ¬R⊨Fp))
+
+
+  P ⊨? (G p)   = G?-stub P p
+  P ⊨? (p U q) = U?-stub P p q
 ```
 
 ## Soundness sanity checks
@@ -514,11 +631,99 @@ Left as future work once the rule set stabilises.
     R : Process α
     R = P ∥⦅ fromList (a ∷ (c ∷ [])) ⦆ Q
 
-    -- Blocked on atom-through-∥ and U over ∥: R's obs-followups are ∥
-    -- composites whose head atoms aren't directly witnessable via `` `_ ``.
-    -- Same root cause as VM₁-VMSpec.  Deferred.
-    -- r-sat : R ⊨ prop-a-before-c
-    -- r-sat = ?
+    -- Under ∥ with sync set {a, c}, both P and Q offer `a` as their only
+    -- initial, so initials* R = {a} (sync intersection) — R ⊨ ` a
+    -- directly. `(¬ ` c) U ` a` then discharges via U-now without needing
+    -- to descend into any ∥-successor.
+    --
+    -- The only real work is the ≡ᵉ witness: initials* R normalises to
+    -- `({a}∩{a}∩{a,c}) ∪ ({a}＼{a,c}) ∪ ({a}＼{a,c})`, which is {a}
+    -- extensionally but not definitionally. We assume `a ≢ c` so the
+    -- `＼` differences are empty and the whole set is ≡ᵉ ⟪ a ⟫.
+    -- `a-before-c` via the structural `_⊨_`: under ∥ with sync set {a,c},
+    -- both P and Q offer `a` as their only initial, so `initials* R = {a}`
+    -- (sync intersection), giving R ⊨ ` a directly. `(¬ ` c) U ` a` then
+    -- discharges by U-now with no descent into ∥-successors.
+    --
+    -- The ≡ᵉ witness: `initials* R` reduces to
+    --   (⟪a⟫ ∩ ⟪a⟫ ∩ {a,c}) ∪ (⟪a⟫ ＼ {a,c}) ∪ (⟪a⟫ ＼ {a,c})
+    -- which is ⟪a⟫ when `a ≢ c` (both ＼-legs are empty, ∩-leg is ⟪a⟫).
+    -- The `opaque unfolding` block exposes the List-Modelᵈ projections
+    -- so ∪/∩/＼ match up with ∈-∪⁻/∈-∩/∈-filter⁻' definitionally.
+    -- Prove `toList (initials* R) ≡ a ∷ []` under `a ≢ c`.
+    -- At list-level, `initials* R` normalises to
+    --     filter (_∈? Rhs) (a ∷ []) ++ filter (¬ _∈? {a,c}) (a ∷ []) ++ ...
+    -- The outer `filter` keys off `a ≟ a` (which only computes on concrete
+    -- `a`) and `a ≟ c` (needs `a≢c`).  We close the proof by producing
+    -- the list equality via explicit filter lemmas.
+    opaque
+      unfolding abstract-set-theory.FiniteSetTheory.List-Modelᵈ
+                abstract-set-theory.FiniteSetTheory.setToList
+
+      r-sat : Null.¬ (a ≡ c) → R ⊨ prop-a-before-c
+      r-sat a≢c = U-now (`_ R≡ᵉ⟪a⟫)
+        where
+        open import abstract-set-theory.FiniteSetTheory
+          using (∈-∩; _∩_; _＼_; _∪_; ∈-fromList; th; ∈-sp)
+        open import Axiom.Set using (Theory)
+        open Theory th using (_∈_)
+        open import Axiom.Set.Properties
+                     (abstract-set-theory.FiniteSetTheory.th)
+          using (∈-∪⁺; ∈-∪⁻; ∈-filter⁻'; ∈-filter⁺')
+        open import Relation.Binary.PropositionalEquality using (subst; cong)
+
+        As : ℙ A
+        As = fromList (a L.∷ c L.∷ L.[])
+
+        a∈⟪a⟫ : a ∈ ⟪ a ⟫
+        a∈⟪a⟫ = Equivalence.to ∈-singleton refl
+
+        a∈As : a ∈ As
+        a∈As = Equivalence.to ∈-fromList (here refl)
+
+        -- `⟪a⟫ ＼ As` is empty: anything in it equals `a` and is ∉ As,
+        -- contradicting `a ∈ As`.
+        open import Relation.Nullary as RN
+        open Theory th using (sp-¬)
+        ＼-empty : ∀ {b} → b ∈ (⟪ a ⟫ ＼ As) → abstract-set-theory.Prelude.⊥
+        ＼-empty {b} b∈ =
+          let (b∉As , b∈⟪a⟫) = ∈-filter⁻'
+                                 {X = ⟪ a ⟫}
+                                 {P = λ x → RN.¬ (x ∈ As)}
+                                 {sp-P = sp-¬ ∈-sp} b∈
+              b≡a = Equivalence.from ∈-singleton b∈⟪a⟫
+          in b∉As (subst (_∈ As) (sym b≡a) a∈As)
+
+        a∈∩ : a ∈ (⟪ a ⟫ ∩ (⟪ a ⟫ ∩ As))
+        a∈∩ = Equivalence.to ∈-∩
+                (a∈⟪a⟫ , Equivalence.to ∈-∩ (a∈⟪a⟫ , a∈As))
+
+        -- `∪` is right-associative, so `initials* R` is
+        --     A ∪ B ∪ C  =  A ∪ (B ∪ C)
+        -- where `A = ⟪a⟫ ∩ ⟪a⟫ ∩ As`, `B = C = ⟪a⟫ ＼ As`.
+        -- Hence a single `∈-∪⁺ (inj₁ a∈∩)` suffices.
+        a∈R : a ∈ initials* R
+        a∈R = ∈-∪⁺ (inj₁ a∈∩)
+
+        -- initials* R = A ∪ (B ∪ C). Case-split on the outer ∪: A-leg
+        -- gives `b ∈ ⟪a⟫ ∩ ⟪a⟫ ∩ As` hence `b ∈ ⟪a⟫`.  B/C-legs are
+        -- `⟪a⟫ ＼ As` which is empty under `a ∈ As`.
+        ⊆-fwd : ∀ {b} → b ∈ initials* R → b ∈ ⟪ a ⟫
+        ⊆-fwd {b} b∈ with ∈-∪⁻ {X = ⟪ a ⟫ ∩ ⟪ a ⟫ ∩ As}
+                              {Y = (⟪ a ⟫ ＼ As) ∪ (⟪ a ⟫ ＼ As)} b∈
+        ... | inj₁ b∈∩ = proj₁ (Equivalence.from
+                                  (∈-∩ {X = ⟪ a ⟫} {Y = ⟪ a ⟫ ∩ As}) b∈∩)
+        ... | inj₂ b∈B∪C with ∈-∪⁻ {X = ⟪ a ⟫ ＼ As}
+                                  {Y = ⟪ a ⟫ ＼ As} b∈B∪C
+        ...   | inj₁ b∈＼ = Null.contradiction (＼-empty b∈＼) (λ ())
+        ...   | inj₂ b∈＼ = Null.contradiction (＼-empty b∈＼) (λ ())
+
+        ⊆-bwd : ∀ {b} → b ∈ ⟪ a ⟫ → b ∈ initials* R
+        ⊆-bwd {b} b∈⟪a⟫ =
+          subst (_∈ initials* R) (sym (Equivalence.from ∈-singleton b∈⟪a⟫)) a∈R
+
+        R≡ᵉ⟪a⟫ : initials* R ≡ᵉ ⟪ a ⟫
+        R≡ᵉ⟪a⟫ = (λ {b} → ⊆-fwd {b}) , (λ {b} → ⊆-bwd {b})
 ```
 
 ### next-⊓ refutation

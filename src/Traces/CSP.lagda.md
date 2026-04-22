@@ -366,8 +366,9 @@ we add proper fixpoint support.
   initials* (x ➔ P)        = ⟪ x ⟫
   initials* (P □ Q)        = initials* P ∪ initials* Q
   initials* (P ⊓ Q)        = initials* P ∪ initials* Q
-  initials* (P ∥⦅ As ⦆ Q)  with initials* P | initials* Q
-  ... | ip | iq             = (ip ∩ iq ∩ As) ∪ (ip ＼ As) ∪ (iq ＼ As)
+  initials* (P ∥⦅ As ⦆ Q)  = (initials* P ∩ initials* Q ∩ As)
+                             ∪ (initials* P ＼ As)
+                             ∪ (initials* Q ＼ As)
   initials* (P ∖ As)        = initials*∖ P As
 
   initials*∖ STOP          As = ∅
@@ -377,8 +378,9 @@ we add proper fixpoint support.
   ... | no  _                 = ⟪ x ⟫ ＼ As
   initials*∖ (P □ Q)       As = initials*∖ P As ∪ initials*∖ Q As
   initials*∖ (P ⊓ Q)       As = initials*∖ P As ∪ initials*∖ Q As
-  initials*∖ (P ∥⦅ Bs ⦆ Q) As with initials*∖ P As | initials*∖ Q As
-  ... | ip | iq               = (ip ∩ iq ∩ Bs) ∪ (ip ＼ Bs) ∪ (iq ＼ Bs)
+  initials*∖ (P ∥⦅ Bs ⦆ Q) As = (initials*∖ P As ∩ initials*∖ Q As ∩ Bs)
+                                ∪ (initials*∖ P As ＼ Bs)
+                                ∪ (initials*∖ Q As ＼ Bs)
   initials*∖ (P ∖ Bs)      As = initials*∖ P Bs ＼ As
 ```
 
