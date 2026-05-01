@@ -20,7 +20,7 @@ open import Relation.Binary                using (Rel)
 -- open import Relation.Binary.Definitions using (DecidableEquality)
 open import Class.DecEq
 open import Level using (Level; 0ℓ)
-open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Data.Sum using (_⊎_; inj₁; inj₂) renaming ([_,_] to case-⊎)
 open import Data.Bool using (Bool; true; false; if_then_else_)
 
@@ -357,4 +357,10 @@ module Traces where
   _⊑ᵀ_ : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
       → ITree E I R → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
   P ⊑ᵀ Q = ∀ {s} → traces Q s → traces P s
+
+-- The Failures module (refusals, failures, _⊑F_) lives in
+-- `ITree_Relations.FailuresDivergences`, alongside `Divergent`, `IsDivergence`,
+-- `failures⊥`, `_⊑F⊥_`, and `_⊑FD_`.  The whole denotational-model
+-- bestiary is collected there since `failures⊥` couples failures with
+-- divergences.
 

@@ -164,7 +164,7 @@ isStable : ∀ {ℓ ℓe ℓi ℓr : Level}
              {R : Set ℓr}
            → ITree E I R → Set
 isStable t with ITree.force t
-... | ret _ = ⊤
+... | ret _ = ⊥                 -- In CSP, termination is not controlled by the environment, so not stable 
 ... | sil _ = ⊥
 ... | vis _ = ⊤
 ... | ndbr _ _ _ _ = ⊥
@@ -175,7 +175,7 @@ isUnstable : ∀ {ℓ ℓe ℓi ℓr : Level}
                {R : Set ℓr}
              → ITree E I R → Set
 isUnstable t with ITree.force t
-... | ret _ = ⊥
+... | ret _ = ⊤
 ... | sil _ = ⊤
 ... | vis _ = ⊥
 ... | ndbr _ _ _ _ = ⊤

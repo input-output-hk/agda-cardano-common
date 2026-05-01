@@ -31,7 +31,7 @@ open import ITree_Relations.LTS {-using (EvLabel; Label; ev; τ; _─[_]─►_;
                                       _─[τ^_]─►_; τ^-zero; τ^-suc;
                                       _═⟨_⟩═►_; bNil; bTau; bStep;
                                       ) -}
-open import ITree_Relations.Divergence
+open import ITree_Relations.FailuresDivergences
 
 module ITree_Relations.StrongBisim where
 open Traces

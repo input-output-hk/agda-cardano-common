@@ -905,20 +905,19 @@ bind-trace P k (t-f , bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | ()
 
 -----------------------------------------------------------------------------------------
 -- Bind >>
--- traces [P >> Q] =
 
 data Bind₀Split {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
   (P : ITree E I R) (Q : ITree E I S) (t-final : ITree E I S)
   : List (Event√ E S) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs) where
   -- Case 1: P is still executing
-  in-P_ : ∀ {P'} {s : List (Event E)}
+  in-P₀ : ∀ {P'} {s : List (Event E)}
        -- We lift plain events s into Event√ E S to match the bind's trace
        → traces P (map evl s)              
        → t-final ≡ (_>>_ {R = R} P' Q)
        → Bind₀Split P Q t-final (map evl s)
 
   -- Case 2: P finished and we transitioned to k
-  in-Q_ : ∀ {s : List (Event√ E S)} 
+  in-Q₀ : ∀ {s : List (Event√ E S)} 
        → (r : R) 
        → (s1 : List (Event E))            -- Plain events from P
        → (s2 : List (Event√ E S))         -- Full trace from k (can include √ S)
@@ -939,7 +938,375 @@ bind₀-trace {ℓr = ℓr} {R = R} {s = s} P Q tr =
       help : ∀ {t-f} → BindSplit {ℓr = ℓr} {R = R} P (λ _ → Q) t-f _ → Bind₀Split P Q t-f _
       -- We explicitly name P' here to help unification
       help (in-P {P' = P'} sP trP) = 
-        in-P_ {P' = P'} sP trP
+        in-P₀ {P' = P'} sP trP
         
       help (in-k r s1 s2 eq trP trQ) = 
-        in-Q_ r s1 s2 eq trP trQ
+        in-Q₀ r s1 s2 eq trP trQ
+
+-----------------------------------------------------------------------------------------
+-- Kleisli composition >=> or ⨾
+
+data KleisliSplit {ℓi ℓr ℓs ℓt} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs} {T : Set ℓt}
+  (P : KTree E (ExtI I) R S) (Q : KTree E (ExtI I) S T) (x : R) (t-final : ITree E (ExtI I) T)
+  : List (Event√ E T) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs ⊔ ℓt) where
+
+  in-Pᵏ : ∀ {P'} {s : List (Event E)}
+       → traces (P x) (map evl s)
+       → t-final ≡ (P' >>= Q)
+       → KleisliSplit P Q x t-final (map evl s)
+
+  in-Qᵏ : ∀ {s : List (Event√ E T)} 
+       → (r : S) (s1 : List (Event E)) (s2 : List (Event√ E T))
+       → (s ≡ map evl s1 ++ s2)
+       → traces (P x) (map evl s1 ++ [ √ r ])
+       → traces (Q r) s2
+       → KleisliSplit P Q x t-final s
+
+kleisli-trace : ∀ {ℓi ℓr ℓs ℓt} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs} {T : Set ℓt}
+  {s : List (Event√ E T)} (x : R)
+  (P : KTree E (ExtI I) R S) (Q : KTree E (ExtI I) S T)
+  → traces ((P >=> Q) x) s
+  → Σ (ITree E (ExtI I) T) (λ t-f → KleisliSplit P Q x t-f s)
+kleisli-trace {S = S} {T = T} {s = s} x P Q tr = 
+  -- We leverage the bind-trace lemma we already finished
+  let (t-f , bsplit) = bind-trace (P x) Q tr 
+  in t-f , help bsplit
+  where
+    -- Helper to solve the UnsolvedConstraints for S and T (the return types)
+    help : ∀ {t-f} → BindSplit {R = S} {S = T} (P x) Q t-f s → KleisliSplit P Q x t-f s
+    
+    -- Case 1: P x is still running
+    help (in-P {P' = P'} sP trP) = 
+      in-Pᵏ sP trP
+      
+    -- Case 2: P x finished with result 'r', and Q r took over
+    help (in-k r s1 s2 eq trP trQ) = 
+      in-Qᵏ r s1 s2 eq trP trQ
+
+
+-----------------------------------------------------------------------------------------
+-- Sliding : P ▷ Q
+
+sliding-trace-helper : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ dec : DecEq R ⦄
+  {s : List (Event√ E R)}
+   (P Q : ITree E (ExtI I) R) (t-f : ITree E (ExtI I) R)
+   → (P ▷ Q) ═⟨ s ⟩═► t-f 
+   → traces P s ⊎ traces Q s
+
+-- Base Case
+sliding-trace-helper P Q t-f bNil = inj₁ (P , bNil)
+
+-- 1. Silent Step: sSil
+sliding-trace-helper P Q t-f (bTau (sSil eq) big-step) with P .force in eq-P | eq
+... | ret r | ()  -- Agda now sees `ret r ≡ sil t'`, which is absurd!
+... | sil P' | refl = 
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sSil eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | vis fP | eq-sil = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bTau (sSil eq-sil) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+... | ndbr fP wi wa wp | eq-sil = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bTau (sSil eq-sil) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+
+-- 2. Silent Step: sNdbr
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) with P .force in eq-P | eq
+... | ret r | ()
+... | sil P' | () -- sil ≡ ndbr is absurd
+... | vis fP | eq-ndbr = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bTau (sNdbr eq-ndbr eq-j) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+... | ndbr fP wi wa wp | eq-ndbr = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bTau (sNdbr eq-ndbr eq-j) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+
+-- 3. Visible Step: sVis
+sliding-trace-helper P Q t-f (bStep (sVis eq eq-j) big-step) with P .force in eq-P | eq
+... | ret r | ()
+... | sil P' | ()
+... | vis fP | eq-vis = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bStep (sVis eq-vis eq-j) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+... | ndbr fP wi wa wp | eq-vis = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bStep (sVis eq-vis eq-j) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+
+-- 4. Visible Step: sRet
+sliding-trace-helper P Q t-f (bStep (sRet eq) big-step) with P .force in eq-P | eq
+... | ret r | refl = 
+    -- If P ▷ Q successfully returns, it's because P successfully returned!
+    -- We can hand this straight back to P.
+    inj₁ (t-f , bStep (sRet eq-P) big-step)
+... | sil P' | ()
+... | vis fP | eq-ret = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bStep (sRet eq-ret) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+... | ndbr fP wi wa wp | eq-ret = 
+    case InternalChoice-trace (P □ Q) Q (t-f , bStep (sRet eq-ret) big-step) of λ where
+      (inj₁ trExt) → ExternalChoice-trace P Q trExt
+      (inj₂ trQ)   → inj₂ trQ
+      
+Sliding-trace : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ dec : DecEq R ⦄
+  (P Q : ITree E (ExtI I) R) {s : List (Event√ E R)}
+  → traces {I = ExtI I} {R = R} (_▷_ {I = I} {R = R} P Q) s
+  → traces P s ⊎ traces Q s
+Sliding-trace P Q (t-f , tr) = sliding-trace-helper P Q t-f tr  
+
+-----------------------------------------------------------------------------------------
+-- iter-bind
+
+-- Specifically for iter-bind, similar to bindSplit or iterSplit
+data IterGBindSplit {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+  (c : ITree E (ExtI I) (A ⊎ R)) (body : A → ITree E (ExtI I) (A ⊎ R))
+  (t-final : ITree E (ExtI I) R)
+  : List (Event√ E R) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+
+  -- Case 1: c is still executing
+  in-c : ∀ {c'} {s : List (Event E)}
+       → traces c (map evl s)
+       → t-final ≡ iter-bind c' body
+       → IterGBindSplit c body t-final (map evl s)
+
+  -- Case 2: c finished with inj₁ a', handing control directly to the loop.
+  in-loop' : ∀ {a' : A} {s1 : List (Event E)} {s2 : List (Event√ E R)} {s}
+       → (s ≡ map evl s1 ++ s2)            
+       → traces c (map evl s1 ++ [ √ (inj₁ a') ]) 
+       → traces (iter body a') s2
+       → IterGBindSplit c body t-final s
+
+  -- Case 3: c finished with inj₂ r, finalizing the result.
+  in-done' : ∀ {r : R} {s1 : List (Event E)} {s2 : List (Event√ E R)} {s}
+       → (s ≡ map evl s1 ++ s2)            
+       → traces c (map evl s1 ++ [ √ (inj₂ r) ]) 
+       → traces {I = ExtI I} (Ret r) s2     
+       → IterGBindSplit c body t-final s
+
+-- A helper to allow us to induct on the transition directly for iter-bind
+iter-bind-trace-helper : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+   (c : ITree E (ExtI I) (A ⊎ R)) (body : A → ITree E (ExtI I) (A ⊎ R))
+   {s : List (Event√ E R)} (t-f : ITree E (ExtI I) R)
+   → iter-bind c body ═⟨ s ⟩═► t-f 
+   → Σ (ITree E (ExtI I) R) (λ t-f' → IterGBindSplit c body t-f' s)
+
+-- Base Case
+iter-bind-trace-helper c body t-f bNil = t-f , in-c (c , bNil) refl
+
+-- 1. Handling Silent Steps (Tau via sSil)
+iter-bind-trace-helper c body t-f (bTau (sSil {t = next} eq-f) big-step) with c .force in c-eq | eq-f
+... | sil c' | refl =
+    case iter-bind-trace-helper c' body t-f big-step of λ where
+      (tend , in-c (c'' , c-step) eq) → 
+          tend , in-c (c'' , bTau (sSil c-eq) c-step) eq
+      (tend , in-loop' eq-s (c'' , c-step) trk2) → 
+          tend , in-loop' eq-s (c'' , bTau (sSil c-eq) c-step) trk2
+      (tend , in-done' eq-s (c'' , c-step) trk2) → 
+          tend , in-done' eq-s (c'' , bTau (sSil c-eq) c-step) trk2
+
+... | ret (inj₁ a') | refl = 
+    -- iter-bind c body evaluates to sil (iter body a'). 
+    -- Matching refl proves `next` is exactly `iter body a'`, 
+    -- meaning `big-step` is exactly the trace of `iter body a'`!
+    t-f , in-loop' refl (_ , bStep (sRet c-eq) bNil) (t-f , big-step)
+
+... | ret (inj₂ r) | () -- ret ≡ sil is absurd
+
+... | vis _        | ()
+... | ndbr _ _ _ _ | ()
+
+-- 2. Handling Non-deterministic Steps (Tau via sNdbr)
+iter-bind-trace-helper c body t-f (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step) with c .force in c-eq | eq-f
+... | ndbr f wi wa wp | refl with f i a in fi-eq | eq-j
+... | just c' | refl =
+    case iter-bind-trace-helper c' body t-f big-step of λ where
+      (tend , in-c (c'' , c-step) eq) → 
+          tend , in-c (c'' , bTau (sNdbr c-eq fi-eq) c-step) eq
+      (tend , in-loop' eq-s (c'' , c-step) trk2) → 
+          tend , in-loop' eq-s (c'' , bTau (sNdbr c-eq fi-eq) c-step) trk2
+      (tend , in-done' eq-s (c'' , c-step) trk2) → 
+          tend , in-done' eq-s (c'' , bTau (sNdbr c-eq fi-eq) c-step) trk2
+... | nothing | ()
+
+-- Absurd cases for sNdbr
+iter-bind-trace-helper c body t-f (bTau (sNdbr eq-f eq-j) big-step) | sil _   | ()
+iter-bind-trace-helper c body t-f (bTau (sNdbr eq-f eq-j) big-step) | vis _   | ()
+iter-bind-trace-helper c body t-f (bTau (sNdbr eq-f eq-j) big-step) | ret (inj₁ _) | ()
+iter-bind-trace-helper c body t-f (bTau (sNdbr eq-f eq-j) big-step) | ret (inj₂ _) | ()
+
+-- 3. Handling Visible Steps (e via sVis)
+iter-bind-trace-helper c body t-f (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step) with c .force in c-eq | eq-f
+... | vis f | refl with f at a in fi-eq | eq-j
+... | just c' | refl =
+    case iter-bind-trace-helper c' body t-f big-step of λ where
+      (tend , in-c {s = sP} (c'' , c-step) eq) → 
+          tend , in-c {s = (evLabel (proj₁ at) (proj₂ at) a) ∷ sP} (c'' , bStep (sVis c-eq fi-eq) c-step) eq
+      (tend , in-loop' eq-s (c'' , c-step) trk2) → 
+          tend , in-loop' (cong (λ xs → evl (evLabel (proj₁ at) (proj₂ at) a) ∷ xs) eq-s) (c'' , bStep (sVis c-eq fi-eq) c-step) trk2
+      (tend , in-done' eq-s (c'' , c-step) trk2) → 
+          tend , in-done' (cong (λ xs → evl (evLabel (proj₁ at) (proj₂ at) a) ∷ xs) eq-s) (c'' , bStep (sVis c-eq fi-eq) c-step) trk2
+... | nothing | ()
+
+-- Absurd cases for sVis
+iter-bind-trace-helper c body t-f (bStep (sVis eq-f eq-j) big-step) | sil _        | ()
+iter-bind-trace-helper c body t-f (bStep (sVis eq-f eq-j) big-step) | ndbr _ _ _ _ | ()
+iter-bind-trace-helper c body t-f (bStep (sVis eq-f eq-j) big-step) | ret (inj₁ _) | ()
+iter-bind-trace-helper c body t-f (bStep (sVis eq-f eq-j) big-step) | ret (inj₂ _) | ()
+
+-- 4. Handling Termination (sRet)
+iter-bind-trace-helper c body t-f (bStep (sRet {x = res} eq-f) big-step) with c .force in c-eq | eq-f
+... | ret (inj₂ r) | refl = 
+    -- Hand-off point. iter-bind evaluated to `ret r`.
+    t-f , in-done' {s1 = []} refl (_ , bStep (sRet c-eq) bNil) (t-f , bStep (sRet refl) big-step)
+
+... | ret (inj₁ a') | () -- sil ≡ ret is absurd
+
+-- Absurd cases for sRet
+iter-bind-trace-helper c body t-f (bStep (sRet eq-f) big-step) | sil _        | ()
+iter-bind-trace-helper c body t-f (bStep (sRet eq-f) big-step) | vis _        | ()
+iter-bind-trace-helper c body t-f (bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | ()
+
+-----------------------------------------------------------------------------------------
+-- iter
+
+data IterSplit {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+  (body : A → ITree E (ExtI I) (A ⊎ R)) (a : A) (t-final : ITree E (ExtI I) R) 
+  : List (Event√ E R) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+
+  -- Case 1: Actively executing `body a`. (Maps to BindSplit.in-P)
+  in-body : ∀ {P'} {s : List (Event E)}
+       → traces (body a) (map evl s)
+       → t-final ≡ iter-bind P' body -- (P' >>= iterStep body)
+       → IterSplit body a t-final (map evl s)
+
+  -- Case 2: The body finished with `inj₁ a'`, handing control back to the loop.
+  in-loop : ∀ {a' : A} {s1 : List (Event E)} {s2 : List (Event√ E R)} {s}
+       → (s ≡ map evl s1 ++ s2)
+       → traces (body a) (map evl s1 ++ [ √ (inj₁ a') ])
+       → traces (Tau (iter body a')) s2
+       → IterSplit body a t-final s
+
+  -- Case 3: The body finished with `inj₂ r`, returning the final result.
+  in-done : ∀ {r : R} {s1 : List (Event E)} {s2 : List (Event√ E R)} {s}
+       → (s ≡ map evl s1 ++ s2)
+       → traces (body a) (map evl s1 ++ [ √ (inj₂ r) ])
+       → traces {I = ExtI I} (Ret r) s2
+       → IterSplit body a t-final s
+
+iter-trace : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+   (body : A → ITree E (ExtI I) (A ⊎ R)) (a : A)
+   {s : List (Event√ E R)}
+   → traces (iter body a) s
+   → Σ (ITree E (ExtI I) R) (λ t-f → IterSplit body a t-f s)
+
+iter-trace body a (t-f , bNil) = 
+    t-f , in-body (body a , bNil) refl
+
+iter-trace body a (t-f , bTau (sSil {t = next} eq-f) big-step) 
+    with body a .force in b-eq
+... | ret (inj₁ a') with eq-f
+...                  | refl  =
+    -- Because `body a` returned `inj₁ a'`, the body has completed 
+    -- its step and handed control back to the loop. 
+    -- This is always an `in-loop` case for `body a`.
+    t-f , in-loop refl (_ , bStep (sRet b-eq) bNil) (_ , bTau (sSil refl) big-step)
+
+iter-trace body a (t-f , bTau (sSil {t = next} eq-f) big-step) 
+  | ret (inj₂ r) = 
+    -- iter body a .force = ret r in this branch, sSil is impossible
+    t-f , in-done refl (_ , bStep (sRet b-eq) bNil) (_ , bTau (sSil eq-f) big-step)
+
+iter-trace body a (t-f , bTau (sSil {t = next} eq-f) big-step) 
+  | sil c with eq-f
+...        | refl = 
+    -- iter body a .force = sil (c >>= iterStep body)
+    case iter-bind-trace-helper c body t-f big-step of λ where
+      (tend , in-c {c' = c'} (c_end , c-step) eq-P) → 
+          tend , in-body (c_end , bTau (sSil b-eq) c-step) eq-P
+
+      (tend , in-loop' eq-s (c_end , c-step) (k_end , k-step)) → 
+          tend , in-loop eq-s 
+              (c_end , bTau (sSil b-eq) c-step) 
+              (k_end , bTau (sSil refl) k-step)
+              
+      (tend , in-done' eq-s (c_end , c-step) trK) → 
+          tend , in-done eq-s 
+              (c_end , bTau (sSil b-eq) c-step) 
+              trK
+              
+iter-trace body a (t-f , bTau (sSil {t = next} eq-f) big-step) 
+  | vis f = 
+    -- iter body a .force = vis (...), sSil is impossible here
+    case eq-f of λ ()
+
+iter-trace body a (t-f , bTau (sSil {t = next} eq-f) big-step) 
+  | ndbr f wi wa wp = 
+    case eq-f of λ ()
+
+iter-trace body a (t-f , bTau (sNdbr {i = i} {a = a'} eq-f eq-j) big-step) 
+    with body a .force in b-eq
+... | ret (inj₁ a'') = case eq-f of λ ()
+... | ret (inj₂ r)   = case eq-f of λ ()
+... | sil c          = case eq-f of λ ()
+... | vis f          = case eq-f of λ ()
+... | ndbr f wi wa wp with eq-f
+...   | refl with f i a' in fi-eq | eq-j
+...     | just t' | refl =
+        -- We pass t' and big-step! 
+        case iter-bind-trace-helper t' body t-f big-step of λ where
+          (tend , in-c (c' , c-step) eq-P) → 
+              tend , in-body (c' , bTau (sNdbr b-eq fi-eq) c-step) eq-P
+              
+          (tend , in-loop' eq-s (c' , c-step) (k_end , k-step)) → 
+              tend , in-loop eq-s 
+                  (c' , bTau (sNdbr b-eq fi-eq) c-step) 
+                  (k_end , bTau (sSil refl) k-step)
+                  
+          (tend , in-done' eq-s (c' , c-step) trK) → 
+              tend , in-done eq-s 
+                  (c' , bTau (sNdbr b-eq fi-eq) c-step) 
+                  trK
+...     | nothing | ()
+
+iter-trace body a (t-f , bStep (sVis {at = at} {a = a'} eq-f eq-j) big-step) 
+    with body a .force in b-eq
+... | ret (inj₁ a'') = case eq-f of λ ()
+... | ret (inj₂ r)   = case eq-f of λ ()
+... | sil c          = case eq-f of λ ()
+... | ndbr f wi wa wp = case eq-f of λ ()
+... | vis f with eq-f
+...   | refl with f at a' in fi-eq | eq-j
+...     | just t' | refl =
+        -- We pass t' and big-step!
+        case iter-bind-trace-helper t' body t-f big-step of λ where
+          (tend , in-c {s = sP} (c' , c-step) eq-P) → 
+              tend , in-body (c' , bStep (sVis b-eq fi-eq) c-step) eq-P
+              
+          (tend , in-loop' eq-s (c' , c-step) (k_end , k-step)) → 
+              tend , in-loop (cong (λ xs → evl (evLabel (proj₁ at) (proj₂ at) a') ∷ xs) eq-s) 
+                  (c' , bStep (sVis b-eq fi-eq) c-step) 
+                  (k_end , bTau (sSil refl) k-step)
+                  
+          (tend , in-done' eq-s (c' , c-step) trK) → 
+              tend , in-done (cong (λ xs → evl (evLabel (proj₁ at) (proj₂ at) a') ∷ xs) eq-s) 
+                  (c' , bStep (sVis b-eq fi-eq) c-step) 
+                  trK
+
+iter-trace body a (t-f , bStep (sRet {x = x} eq-f) big-step) 
+    with body a .force in b-eq
+... | ret (inj₁ a'') = case eq-f of λ ()
+... | ret (inj₂ r)   = 
+    -- iter body a .force = ret r, sRet step gives x = r
+    t-f , in-done {s1 = []} refl 
+        (_ , bStep (sRet b-eq) bNil) 
+        (_ , bStep (sRet eq-f) big-step)
+... | sil c          = case eq-f of λ ()
+... | vis f          = case eq-f of λ ()
+... | ndbr f wi wa wp = case eq-f of λ ()
+

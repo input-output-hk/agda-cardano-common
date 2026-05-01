@@ -107,7 +107,10 @@ QR = do
 guardP : ITree IO (ExtI IO) (⊥)
 guardP = do
   x ← Ret 1
-  (x == suc zero) ＆ Stop'
+  (x == suc zero) ＆ Stop
 
 PorQ : ITree IO (ExtI IO) ⊥
 PorQ = P ⊓ R 0
+
+P1 : ITree IO (ExtI IO) ⊥
+P1 = ((P ⊓ P) ⊓ (P □ P)) □ R 0

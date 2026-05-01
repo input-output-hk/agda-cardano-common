@@ -142,6 +142,63 @@ mergeNdbr fP fQ (.(AP × AQ) , pair {AP} {AQ} iP iQ) (aP , aQ) =
 mergeNdbr fP fQ (A , base i) a = nothing            -- non-pair index: blocked
 mergeNdbr fP fQ (_ , fin) a = nothing            -- non-pair index: blocked
 
+-- Witness lemma for `mergeNdbr`: if both operands are `just` at their
+-- respective witnesses, then the merged `pair`-indexed branch is also
+-- `just`.  Used by rule J of `_□_`'s `force` (ndbr/ndbr).
+mergeNdbr-witness : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (fP fQ : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R)))
+  → ∀ {AP AQ iP iQ waP waQ}
+  → Is-just (fP (AP , iP) waP)
+  → Is-just (fQ (AQ , iQ) waQ)
+  → Is-just (mergeNdbr fP fQ ((AP × AQ) , pair iP iQ) (waP , waQ))
+mergeNdbr-witness fP fQ {AP} {AQ} {iP} {iQ} {waP} {waQ} pP pQ
+  with fP (AP , iP) waP | pP | fQ (AQ , iQ) waQ | pQ
+... | just _  | _  | just _  | _  = any-just tt₀
+... | just _  | _  | nothing | ()
+... | nothing | () | _       | _
+
+-- Rule H continuation (vis/ndbr): given a left process P (the `vis`
+-- side) and the right side's `ndbr` continuation `fQ`, bundle each
+-- enabled Q-branch with P.
+mergeNdbr-vis-L : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → ITree E (ExtI I) R
+  → ((i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R)))
+  → (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
+mergeNdbr-vis-L P fQ i a = case fQ i a of λ where
+    nothing    → nothing
+    (just Q')  → just (P □ Q')
+
+mergeNdbr-vis-L-witness : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (P : ITree E (ExtI I) R)
+  → (fQ : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R)))
+  → ∀ {wi wa}
+  → Is-just (fQ wi wa)
+  → Is-just (mergeNdbr-vis-L P fQ wi wa)
+mergeNdbr-vis-L-witness P fQ {wi} {wa} p with fQ wi wa | p
+... | just _  | _  = any-just tt₀
+... | nothing | ()
+
+-- Rule I continuation (ndbr/vis): given the left side's `ndbr`
+-- continuation `fP` and a right process Q (the `vis` side), bundle each
+-- enabled P-branch with Q.
+mergeNdbr-vis-R : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → ((i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R)))
+  → ITree E (ExtI I) R
+  → (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))
+mergeNdbr-vis-R fP Q i a = case fP i a of λ where
+    nothing    → nothing
+    (just P')  → just (P' □ Q)
+
+mergeNdbr-vis-R-witness : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (fP : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R)))
+  → (Q : ITree E (ExtI I) R)
+  → ∀ {wi wa}
+  → Is-just (fP wi wa)
+  → Is-just (mergeNdbr-vis-R fP Q wi wa)
+mergeNdbr-vis-R-witness fP Q {wi} {wa} p with fP wi wa | p
+... | just _  | _  = any-just tt₀
+... | nothing | ()
+
 -- P is τ, P □ Q ⇒ P' □ Q silently, and τ is not kept
 force (P □ Q) with P .force | Q .force
 
@@ -184,31 +241,11 @@ force (P □ Q) | ndbr _ _ _ _ | ret r  = ret r
 -- Merge two functions into one 
 force (P □ Q) | vis fP | vis fQ = vis (λ Ae → mergeVis (fP Ae) (fQ Ae))
 
-force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | vis fP | ndbr fQ wi wa wp = ndbr (λ ai → λ a →
-      fQ' ai a) wi wa (go wp)
-  where
-    fQ' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) R)
-    fQ' i a = (case fQ i a of λ where
-        nothing → nothing
-        (just Q') → just (P □ Q'))
-      
-    go : Is-just (fQ wi wa) → Is-just (fQ' wi wa)
-    go p with fQ wi wa | p
-    ... | just x | _ = any-just tt₀
-    ... | nothing | ()  
+force (P □ Q) | vis fP | ndbr fQ wi wa wp =
+      ndbr (mergeNdbr-vis-L P fQ) wi wa (mergeNdbr-vis-L-witness P fQ wp)
 
-force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP wi wa wp | vis fQ = ndbr (λ ai → λ a →
-      fP' ai a) wi wa (go wp)
-  where
-    fP' : (i : AnyTypes (ExtI I)) → (a : proj₁ i) → Maybe (ITree E (ExtI I) R)
-    fP' i a = (case fP i a of λ where
-        nothing → nothing
-        (just P') → just (P' □ Q))
-      
-    go : Is-just (fP wi wa) → Is-just (fP' wi wa)
-    go p with fP wi wa | p
-    ... | just x | _ = any-just tt₀
-    ... | nothing | ()
+force (P □ Q) | ndbr fP wi wa wp | vis fQ =
+      ndbr (mergeNdbr-vis-R fP Q) wi wa (mergeNdbr-vis-R-witness fP Q wp)
 
 -- P is br
 {- P1 ⊓ ... ⊓ Pn) □ (Q1 ⊓ ... ⊓ Qm)
@@ -220,17 +257,9 @@ force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP wi wa wp
 -- P = ⨅ i∈I . Pi
 -- Q = ⨅ j∈J . Qj
 -- P □ Q = ⨅i∈I,j∈J​(Pi​□Qj​)
-force (_□_ {ℓi = ℓi} {ℓr = ℓr} {I = I} {R = R} P Q) | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ = ndbr (mergeNdbr fP fQ)
-         ((AP × AQ) , pair iP iQ) (waP , waQ) (go wpP wpQ)
-
-  where
-    go : Is-just (fP (AP , iP) waP)
-       → Is-just (fQ (AQ , iQ) waQ)
-       → Is-just (mergeNdbr fP fQ ((AP × AQ) , pair iP iQ) (waP , waQ))
-    go pP pQ with fP (AP , iP) waP | pP | fQ (AQ , iQ) waQ | pQ
-    ... | just P' | _ | just Q' | _ = any-just tt₀
-    ... | just P' | _ | nothing | ()
-    ... | nothing | () | _      | _
+force (P □ Q) | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ =
+      ndbr (mergeNdbr fP fQ) ((AP × AQ) , pair iP iQ) (waP , waQ)
+           (mergeNdbr-witness fP fQ wpP wpQ)
 
 -------------------------------------------------------------------------------------
 -- Internal choice
@@ -244,7 +273,12 @@ force (_⊓_ {I = I} {R = R} P Q) = ndbr (br2 P Q) (Lift _ (Fin 2) , fin) (lift 
 -- Sliding or asymmetric choice operator, or sometime called untimed time-out operator
 -- See TPC and UCS for more details
 -- 
--- P ▷ Q = (P ⊓ Stop') □ Q = (P □ Q) ⊓ Q
+-- P ▷ Q = (P ⊓ Stop) □ Q = (P □ Q) ⊓ Q                    -- this is from TPC, but UCS prefers it is a premitive operator
+-- (P ⊓ Stop) □ Q :
+-- (P □ Q) ⊓ Q : Q becomes available via two different τ paths: the "Timeout" Path
+--   (Right τ) and the "External Choice" Path (left τ):
+--   The system does τ → (P □ Q). 
+
 -- Equal in denotational semantics, but not in operational semantics
 -- For an event a in P (? A → P' where a ∈ A) but not in Q, a will resolve sliding to P'
 -- For an event b not in P (? A → P' where a ∉ A) but in Q, b will resolve sliding to Q'
@@ -253,16 +287,31 @@ force (_⊓_ {I = I} {R = R} P Q) = ndbr (br2 P Q) (Lift _ (Fin 2) , fin) (lift 
 
 -- TODO: is this definition correct?
 
-force (P ▷ Q) with P .force | Q .force
+-- From UCS, there are three combinator rules:
+--   R1: (a, a),
+--   R2: (·, τ, 2)
+--   R3: (√, √)
 
-force (P ▷ Q) | sil P' | _  = sil (P' ▷ Q)
-force (P ▷ Q) | ret r | _ = ret r
-force (P ▷ Q) | vis fP | _ = ((P □ Q) ⊓ Q) .force
-force (P ▷ Q) | ndbr fP wi wa wp | _ = ((P □ Q) ⊓ Q) .force
+force (P ▷ Q) with P .force
+
+force (P ▷ Q) | ret r = ret r                   -- R3
+
+-- This actually is not specified in R1-3. We treat this as a τ sliding outside.
+-- This means Q may occur timeout after several τs, (not only one τ as original meaning).
+-- This makes not strongly bisimilar (because of additional τ), not perfectly fine with
+-- weakly bisimilar.
+force (P ▷ Q) | sil P'  = sil (P' ▷ Q)
+  -- We branch: either P continues its silent work, or we timeout to Q.
+  -- ((P' ▷ Q) ⊓ Q) .force
+
+-- 
+force (P ▷ Q) | vis fP = ((P □ Q) ⊓ Q) .force
+
+
+force (P ▷ Q) | ndbr fP wi wa wp = ((P □ Q) ⊓ Q) .force
 
 -------------------------------------------------------------------------------------
 -- bind operator
--- {-# TERMINATING #-}
 -- _>>=_ : {R S : Set} → ITree E (ExtI I) R → (R → ITree E (ExtI I) S) → ITree E (ExtI I) S
 force (_>>=_ {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} {I = I} {R = R} {S = S} t k) with force t
 ... | ret r   = (k r) .force
@@ -294,66 +343,67 @@ P >> Q = P >>= (λ _ → Q)
 _⨾_ = _>=>_
 
 {-
-The following two versions of definition of iter in terms of >>= are not okay in
-agda.
-error: [TerminationIssue]
-Termination checking failed for the following functions:
-  iter
-Problematic calls:
-  λ { (inj₂ r) → Ret r ; (inj₁ a′) → Tau (iter body a′) }
-
-Agda does not support general guarded corecursion through higher-order functions.
-Even though this is logically fine:
-
-This is a known limitation of Agda's productivity checker.
-
-Coq allows the higher-order version because:
-- CoFixpoint uses a semantic guardedness criterion
-- Guard is syntactically tracked
-
-Agda uses purely syntactic guardedness.
--}
-
-{-
+{-# NON_TERMINATING #-}
+iter : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+    → (A → ITree E (ExtI I) (A ⊎ R)) → A → ITree E (ExtI I) R
 iter body a =
   (body a) >>= λ where
     (inj₂ r)  → Ret r
     (inj₁ a′) → Tau (iter body a′)
 -}
-{-
-iter body x =
-  do
-    ar ← body x
-    case ar of λ
-      { (inj₁ a) → Tau (iter body a)
-      ; (inj₂ r) → Ret r
-      }
--}
 
+{-
 mutual
   {-# NON_TERMINATING #-}
+  -- NON_TERMINATING will cause (iter body a) not to be reduced to
+  -- (body a >>= iterStep body). So proof will be a problem.
   iter : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
-    → (A → ITree E (ExtI I) (A ⊎ R)) → A → ITree E (ExtI I) R
-  force (iter {ℓi = ℓi} {ℓr = ℓr} {I = I} {A = A} {R = R} body a) with body a .force
-  ... | ret (inj₁ a′) = sil (iter body a′)
-  ... | ret (inj₂ r)  = ret r
-  ... | sil c         = sil (c >>= iterStep body)
-  ... | vis  f        = vis  (λ at a → mapMaybe (λ t' → t' >>= iterStep body ) (f at a))
-  -- ... | ndbr f wi wa wp = ndbr  (λ ai a → mapMaybe (λ t' → t' >>= iterStep body ) (f ai a)) wi wa ?
-  ... | ndbr f wi wa wp = ndbr (λ ai → λ i → f' ai i) wi wa (go wp)
-    where
-      f' : (ai : AnyTypes (ExtI I)) → (a : proj₁ ai) → Maybe (ITree E (ExtI I) R)
-      f' ai a = (mapMaybe (λ t' → t' >>= iterStep body ) (f ai a))
-
-      go : Is-just (f wi wa) → Is-just (f' wi wa)
-      go p with f wi wa | p
-      ... | just x | _ = any-just tt₀
-      ... | nothing | ()
-
+      → (A → ITree E (ExtI I) (A ⊎ R)) → A → ITree E (ExtI I) R
 
   iterStep : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
-    → (A → ITree E (ExtI I) (A ⊎ R)) → A ⊎ R → ITree E (ExtI I) R
-  force (iterStep body (inj₂ r))  = ret r
-  force (iterStep body (inj₁ a')) = sil (iter body a')
+           → (A → ITree E (ExtI I) (A ⊎ R)) → A ⊎ R → ITree E (ExtI I) R
+  iterStep body (inj₂ r)  = Ret r
+  iterStep body (inj₁ a′) = Tau (iter body a′)
 
+  -- iter : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+  --    → (A → ITree E (ExtI I) (A ⊎ R)) → A → ITree E (ExtI I) R
+  force (iter body a) = (body a >>= iterStep body) .force
 
+-}
+
+iter : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+  → (A → ITree E (ExtI I) (A ⊎ R))
+  → A
+  → ITree E (ExtI I) R
+
+-- Similar to bind, but redefine it for the iter logic
+-- It satisfies the guardedness
+iter-bind : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+  → ITree E (ExtI I) (A ⊎ R)
+  → (A → ITree E (ExtI I) (A ⊎ R))
+  → ITree E (ExtI I) R
+
+force (iter-bind {I = I} {R = R} t k) with t .force
+... | ret (inj₁ a′)   = sil (iter k a′)
+... | ret (inj₂ r)    = ret r
+... | sil c           = sil (iter-bind c k)
+-- Avoid to use map or mapMaybe to break guardedness
+--    ... | vis f           = vis  (λ at i → mapMaybe (iter-bind body) (f at i))
+... | vis f = vis (λ at → λ a → 
+  case f at a of λ where
+    nothing → nothing
+    (just t') → just (iter-bind t' k))
+
+... | ndbr f wi wa wp = ndbr (λ ai → λ i → f' ai i) wi wa (go wp)
+  where
+    f' : (ai : AnyTypes (ExtI I)) → (a : proj₁ ai) → Maybe (ITree E (ExtI I) R)
+    f' ai a = (case f ai a of λ where
+        nothing → nothing
+        (just t') → just (iter-bind t' k))
+
+    go : Is-just (f wi wa) → Is-just (f' wi wa)
+    go p with f wi wa | p
+    ... | just x | _ = any-just tt₀
+    ... | nothing | ()                                 
+
+iter body a = iter-bind (body a) body
