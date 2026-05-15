@@ -44,7 +44,7 @@ open import ITree_Relations.StrongBisim renaming (_∼_ to _≈ˢ_)
 open import ITree_Relations.StrongBisim using (Sbisim; SSimF)
 open import ITree_Relations.WeakBisim renaming (_≈_ to _≈ʷ_)
 open import ITree_Relations.DRWeakBisim renaming (_≈_ to _≈ᵈ_)
-open import ITree_Relations.Divergence
+open import ITree_Relations.FailuresDivergences
 
 module ITree_Relations.Relations 
   where

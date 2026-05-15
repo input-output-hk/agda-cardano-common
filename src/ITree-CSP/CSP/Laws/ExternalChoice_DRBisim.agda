@@ -51,7 +51,7 @@ open import Class.DecEq using (DecEq; _≟_)
 
 open import Prelude
 open import Interaction_Trees
-open import CSP.Basic_Processes
+open import CSP.Definitions.Basic_Processes
 open import ITree_Relations.LTS
 open import ITree_Relations.FailuresDivergences using (Divergent; divergent-prefix)
 open import ITree_Relations.DRWeakBisim
@@ -61,7 +61,7 @@ module CSP.Laws.ExternalChoice_DRBisim
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 
-import CSP.Operators {ℓ} {ℓe} {E} as CSPOps
+import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
 open CSPOps E-≟
 
 -- Internal-choice laws (`⊓-comm`, `⊓-idem`) are proved in a separate
@@ -98,6 +98,7 @@ open DRWbisim
 -- `□-Stop-left` is proved below (after the congruence/commutativity
 -- scaffolding) with the same decomposition used for `□-cong`/`□-comm`.
 -- `□-Stop-right` is then derived from `□-comm` + `□-Stop-left`.
+{-
 postulate
 
 -- Idempotence: external choice of P with itself is P (up to ≈).
@@ -140,6 +141,7 @@ postulate
     ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
     → (P Q R' : ITree E (ExtI I) R)
     → (P □ (Q ⊓ R')) ≈ ((P □ Q) ⊓ (P □ R'))
+-}
 
 -----------------------------------------------------------------------------
 -- Inversion lemmas for `force (P □ Q)`
@@ -167,22 +169,30 @@ postulate
 -- Rule (G): the productive case.
 ... | vis fP        | [ eqP ] | vis fQ        | [ eqQ ] =
         fP , fQ , refl , refl , sym (vis-injective eq)
--- Remaining 15 non-vis/vis force combinations yield a non-`vis` node
--- for `force (P □ Q)`, so `eq : _ ≡ vis _` is absurd in each.
+-- sil P: rule (A), force = sil (P' □ Q). Absurd for vis-inv.
 ... | sil _         | _       | _             | _       = case eq of λ ()
+-- ret|ret: with r ≟ r' yields ret r or (P ⊓ Q).force = ndbr.  Absurd.
 ... | ret r         | _       | ret r'        | _       with r ≟ r'
 ...   | yes refl = case eq of λ ()
 ...   | no  _    = case eq of λ ()
 □-force-vis-inv eq | ret _        | _ | sil _          | _ = case eq of λ ()
-□-force-vis-inv eq | ret _        | _ | vis _          | _ = case eq of λ ()
+□-force-vis-inv eq | ret _        | _ | vis _          | _ = case eq of λ ()  -- mix fQ P
 □-force-vis-inv eq | ret _        | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-vis-inv eq | ret _        | _ | mix _ _        | _ = case eq of λ ()
 □-force-vis-inv eq | vis _        | _ | sil _          | _ = case eq of λ ()
-□-force-vis-inv eq | vis _        | _ | ret _          | _ = case eq of λ ()
+□-force-vis-inv eq | vis _        | _ | ret _          | _ = case eq of λ ()  -- mix fP Q
 □-force-vis-inv eq | vis _        | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-vis-inv eq | vis _        | _ | mix _ _        | _ = case eq of λ ()
 □-force-vis-inv eq | ndbr _ _ _ _ | _ | sil _          | _ = case eq of λ ()
 □-force-vis-inv eq | ndbr _ _ _ _ | _ | ret _          | _ = case eq of λ ()
 □-force-vis-inv eq | ndbr _ _ _ _ | _ | vis _          | _ = case eq of λ ()
 □-force-vis-inv eq | ndbr _ _ _ _ | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-vis-inv eq | ndbr _ _ _ _ | _ | mix _ _        | _ = case eq of λ ()
+□-force-vis-inv eq | mix _ _      | _ | sil _          | _ = case eq of λ ()
+□-force-vis-inv eq | mix _ _      | _ | ret _          | _ = case eq of λ ()
+□-force-vis-inv eq | mix _ _      | _ | vis _          | _ = case eq of λ ()
+□-force-vis-inv eq | mix _ _      | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-vis-inv eq | mix _ _      | _ | mix _ _        | _ = case eq of λ ()
 
 -- If `force (P □ Q) ≡ sil u`, then either `force P ≡ sil P'` (and
 -- `u = P' □ Q` — rule A) or `force Q ≡ sil Q'` with P stable (and
@@ -201,25 +211,34 @@ postulate
 -- Rule (A): P has a sil, regardless of Q.
 ... | sil P'        | _       | _             | _       =
         inj₁ (P' , refl , sym (sil-injective eq))
--- Rule (B): P is stable (ret/vis/ndbr), Q has a sil.
+-- Rule (B): P is stable (ret/vis/ndbr/mix), Q has a sil.
 ... | ret _         | _       | sil Q'        | _       =
         inj₂ (Q' , refl , sym (sil-injective eq))
 ... | vis _         | _       | sil Q'        | _       =
         inj₂ (Q' , refl , sym (sil-injective eq))
 ... | ndbr _ _ _ _  | _       | sil Q'        | _       =
         inj₂ (Q' , refl , sym (sil-injective eq))
+... | mix _ _       | _       | sil Q'        | _       =
+        inj₂ (Q' , refl , sym (sil-injective eq))
 -- Remaining combinations: force (P □ Q) ≠ sil.
 ... | ret r         | _       | ret r'        | _       with r ≟ r'
 ...   | yes refl = case eq of λ ()
 ...   | no  _    = case eq of λ ()
-□-force-sil-inv eq | ret _  | _ | vis _          | _ = case eq of λ ()
+□-force-sil-inv eq | ret _  | _ | vis _          | _ = case eq of λ ()  -- mix fQ P
 □-force-sil-inv eq | ret _  | _ | ndbr _ _ _ _   | _ = case eq of λ ()
-□-force-sil-inv eq | vis _  | _ | ret _          | _ = case eq of λ ()
+□-force-sil-inv eq | ret _  | _ | mix _ _        | _ = case eq of λ ()
+□-force-sil-inv eq | vis _  | _ | ret _          | _ = case eq of λ ()  -- mix fP Q
 □-force-sil-inv eq | vis _  | _ | vis _          | _ = case eq of λ ()
 □-force-sil-inv eq | vis _  | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-sil-inv eq | vis _  | _ | mix _ _        | _ = case eq of λ ()
 □-force-sil-inv eq | ndbr _ _ _ _ | _ | ret _          | _ = case eq of λ ()
 □-force-sil-inv eq | ndbr _ _ _ _ | _ | vis _          | _ = case eq of λ ()
 □-force-sil-inv eq | ndbr _ _ _ _ | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-sil-inv eq | ndbr _ _ _ _ | _ | mix _ _        | _ = case eq of λ ()
+□-force-sil-inv eq | mix _ _ | _ | ret _              | _ = case eq of λ ()
+□-force-sil-inv eq | mix _ _ | _ | vis _              | _ = case eq of λ ()
+□-force-sil-inv eq | mix _ _ | _ | ndbr _ _ _ _       | _ = case eq of λ ()
+□-force-sil-inv eq | mix _ _ | _ | mix _ _            | _ = case eq of λ ()
 
 -- If `force (P □ Q) ≡ ret r`, the r came from P (rule C/E) or from Q
 -- (rule F).
@@ -232,27 +251,44 @@ postulate
 □-force-ret-inv {P = P} {Q = Q} eq
   with ITree.force P | inspect ITree.force P | ITree.force Q | inspect ITree.force Q
 ... | sil _         | _ | _             | _ = case eq of λ ()
+-- Only productive case: both sides ret with equal returns.
 ... | ret r'        | _ | ret r''       | _ with r' ≟ r''
 ...   | yes refl = inj₁ eq
 ...   | no  _    = case eq of λ ()
+-- Under post-mix _□_, ret|vis = mix, ret|ndbr = ndbr, ret|mix = mix.  All non-ret.
 □-force-ret-inv eq | ret _  | _ | sil _          | _ = case eq of λ ()
-□-force-ret-inv eq | ret _  | _ | vis _          | _ = inj₁ eq
-□-force-ret-inv eq | ret _  | _ | ndbr _ _ _ _   | _ = inj₁ eq
+□-force-ret-inv eq | ret _  | _ | vis _          | _ = case eq of λ ()
+□-force-ret-inv eq | ret _  | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-ret-inv eq | ret _  | _ | mix _ _        | _ = case eq of λ ()
+-- vis|ret = mix, vis|vis = vis, vis|ndbr = ndbr, vis|mix = mix.  All non-ret.
 □-force-ret-inv eq | vis _  | _ | sil _          | _ = case eq of λ ()
-□-force-ret-inv eq | vis _  | _ | ret _          | _ = inj₂ eq
+□-force-ret-inv eq | vis _  | _ | ret _          | _ = case eq of λ ()
 □-force-ret-inv eq | vis _  | _ | vis _          | _ = case eq of λ ()
 □-force-ret-inv eq | vis _  | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-ret-inv eq | vis _  | _ | mix _ _        | _ = case eq of λ ()
+-- ndbr|* = ndbr (any Q).
 □-force-ret-inv eq | ndbr _ _ _ _ | _ | sil _          | _ = case eq of λ ()
-□-force-ret-inv eq | ndbr _ _ _ _ | _ | ret _          | _ = inj₂ eq
+□-force-ret-inv eq | ndbr _ _ _ _ | _ | ret _          | _ = case eq of λ ()
 □-force-ret-inv eq | ndbr _ _ _ _ | _ | vis _          | _ = case eq of λ ()
 □-force-ret-inv eq | ndbr _ _ _ _ | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-ret-inv eq | ndbr _ _ _ _ | _ | mix _ _        | _ = case eq of λ ()
+-- mix|* = mix (or sil when *=sil, or ndbr when *=ndbr).  All non-ret.
+□-force-ret-inv eq | mix _ _ | _ | sil _          | _ = case eq of λ ()
+□-force-ret-inv eq | mix _ _ | _ | ret _          | _ = case eq of λ ()
+□-force-ret-inv eq | mix _ _ | _ | vis _          | _ = case eq of λ ()
+□-force-ret-inv eq | mix _ _ | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-ret-inv eq | mix _ _ | _ | mix _ _        | _ = case eq of λ ()
 
--- If `force (P □ Q) ≡ ndbr _ _ _ _`, then one of four productive rules
+-- If `force (P □ Q) ≡ ndbr _ _ _ _`, then one of eight productive rules
 -- of `_□_` produced it:
 --   (D) ret r | ret r' | no _  (the `ret_r ⊓ ret_r'` unfold)
 --   (H) vis   | ndbr                 (bundle P with Q's branches)
 --   (I) ndbr  | vis                  (bundle P's branches with Q)
 --   (J) ndbr  | ndbr                 (mergeNdbr pair-bundling)
+--   (K) ret   | ndbr  (post-mix)     (same ndbr shape as H, via mergeNdbr-vis-L)
+--   (L) ndbr  | ret   (post-mix)     (same ndbr shape as I, via mergeNdbr-vis-R)
+--   (M) mix   | ndbr  (post-mix)     (same ndbr shape as H/K)
+--   (N) ndbr  | mix   (post-mix)     (same ndbr shape as I/L)
 -- The returned disjunction captures the force kinds of P and Q, which is
 -- enough to trigger further unfolding at call sites.
 □-force-ndbr-inv :
@@ -277,29 +313,61 @@ postulate
        Σ[ fQ ∈ _ ] Σ[ wiQ ∈ _ ] Σ[ waQ ∈ _ ] Σ[ wpQ ∈ _ ]
          ( ITree.force P ≡ ndbr fP wiP waP wpP
          × ITree.force Q ≡ ndbr fQ wiQ waQ wpQ ))
+    ⊎ -- (K) ret / ndbr  (post-mix _□_ — same ndbr shape as H)
+      (Σ[ r ∈ _ ] Σ[ fQ ∈ _ ]
+       Σ[ wiQ ∈ _ ] Σ[ waQ ∈ _ ] Σ[ wpQ ∈ _ ]
+         (ITree.force P ≡ ret r × ITree.force Q ≡ ndbr fQ wiQ waQ wpQ))
+    ⊎ -- (L) ndbr / ret
+      (Σ[ fP ∈ _ ] Σ[ wiP ∈ _ ] Σ[ waP ∈ _ ] Σ[ wpP ∈ _ ]
+       Σ[ r ∈ _ ]
+         (ITree.force P ≡ ndbr fP wiP waP wpP × ITree.force Q ≡ ret r))
+    ⊎ -- (M) mix / ndbr
+      (Σ[ fmP ∈ _ ] Σ[ Pt ∈ _ ]
+       Σ[ fQ ∈ _ ] Σ[ wiQ ∈ _ ] Σ[ waQ ∈ _ ] Σ[ wpQ ∈ _ ]
+         (ITree.force P ≡ mix fmP Pt × ITree.force Q ≡ ndbr fQ wiQ waQ wpQ))
+    ⊎ -- (N) ndbr / mix
+      (Σ[ fP ∈ _ ] Σ[ wiP ∈ _ ] Σ[ waP ∈ _ ] Σ[ wpP ∈ _ ]
+       Σ[ fmQ ∈ _ ] Σ[ Qt ∈ _ ]
+         (ITree.force P ≡ ndbr fP wiP waP wpP × ITree.force Q ≡ mix fmQ Qt))
 □-force-ndbr-inv {P = P} {Q = Q} eq
   with ITree.force P | inspect ITree.force P | ITree.force Q | inspect ITree.force Q
 -- Case D: ret r | ret r' with r ≟ r'.
 ... | ret r  | _ | ret r' | _ with r ≟ r'
 ...   | yes refl = case eq of λ ()
 ...   | no  neq  = inj₁ (r , r' , neq , refl , refl)
--- Case H, I, J, and remaining absurd combinations handled below.
+-- Case H, I, J, K, L, M, N, and remaining absurd combinations handled below.
 □-force-ndbr-inv eq | vis fP         | _ | ndbr fQ wiQ waQ wpQ | _ =
         inj₂ (inj₁ (fP , fQ , wiQ , waQ , wpQ , refl , refl))
 □-force-ndbr-inv eq | ndbr fP wiP waP wpP | _ | vis fQ              | _ =
         inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , fQ , refl , refl)))
 □-force-ndbr-inv eq | ndbr fP wiP waP wpP | _ | ndbr fQ wiQ waQ wpQ | _ =
-        inj₂ (inj₂ (inj₂ (fP , wiP , waP , wpP , fQ , wiQ , waQ , wpQ , refl , refl)))
--- Absurd combinations (force reduces to sil / ret / vis, not ndbr).
+        inj₂ (inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , fQ , wiQ , waQ , wpQ , refl , refl))))
+-- (K) ret / ndbr — new under post-mix _□_.
+□-force-ndbr-inv eq | ret r           | _ | ndbr fQ wiQ waQ wpQ | _ =
+        inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (r , fQ , wiQ , waQ , wpQ , refl , refl)))))
+-- (L) ndbr / ret.
+□-force-ndbr-inv eq | ndbr fP wiP waP wpP | _ | ret r              | _ =
+        inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , r , refl , refl))))))
+-- (M) mix / ndbr.
+□-force-ndbr-inv eq | mix fmP Pt      | _ | ndbr fQ wiQ waQ wpQ | _ =
+        inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fmP , Pt , fQ , wiQ , waQ , wpQ , refl , refl)))))))
+-- (N) ndbr / mix.
+□-force-ndbr-inv eq | ndbr fP wiP waP wpP | _ | mix fmQ Qt          | _ =
+        inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (fP , wiP , waP , wpP , fmQ , Qt , refl , refl)))))))
+-- Absurd combinations: force reduces to sil / ret / vis / mix, not ndbr.
 □-force-ndbr-inv eq | sil _          | _ | _              | _ = case eq of λ ()
 □-force-ndbr-inv eq | ret _          | _ | sil _          | _ = case eq of λ ()
-□-force-ndbr-inv eq | ret _          | _ | vis _          | _ = case eq of λ ()
-□-force-ndbr-inv eq | ret _          | _ | ndbr _ _ _ _   | _ = case eq of λ ()
+□-force-ndbr-inv eq | ret _          | _ | vis _          | _ = case eq of λ ()  -- mix fQ P
+□-force-ndbr-inv eq | ret _          | _ | mix _ _        | _ = case eq of λ ()
 □-force-ndbr-inv eq | vis _          | _ | sil _          | _ = case eq of λ ()
-□-force-ndbr-inv eq | vis _          | _ | ret _          | _ = case eq of λ ()
+□-force-ndbr-inv eq | vis _          | _ | ret _          | _ = case eq of λ ()  -- mix fP Q
 □-force-ndbr-inv eq | vis _          | _ | vis _          | _ = case eq of λ ()
+□-force-ndbr-inv eq | vis _          | _ | mix _ _        | _ = case eq of λ ()
 □-force-ndbr-inv eq | ndbr _ _ _ _   | _ | sil _          | _ = case eq of λ ()
-□-force-ndbr-inv eq | ndbr _ _ _ _   | _ | ret _          | _ = case eq of λ ()
+□-force-ndbr-inv eq | mix _ _        | _ | sil _          | _ = case eq of λ ()
+□-force-ndbr-inv eq | mix _ _        | _ | ret _          | _ = case eq of λ ()
+□-force-ndbr-inv eq | mix _ _        | _ | vis _          | _ = case eq of λ ()
+□-force-ndbr-inv eq | mix _ _        | _ | mix _ _        | _ = case eq of λ ()
 
 -----------------------------------------------------------------------------
 -- Foundational bisim lemmas (Option B)
@@ -328,16 +396,22 @@ sil-τ-refl {P = P} {P' = P'} eqP .fwd .on-ret eq =
       case trans (sym eqP) eq of λ ()
 sil-τ-refl eqP .fwd .on-vis (sVis force-eq _) =
       case trans (sym eqP) force-eq of λ ()
+sil-τ-refl eqP .fwd .on-vis (sMixVis force-eq _) =
+      case trans (sym eqP) force-eq of λ ()
 sil-τ-refl eqP .fwd .on-tau (sSil force-eq)
   with sil-injective (trans (sym force-eq) eqP)
 ... | refl = _ , weak-τ τ*-zero , DRWbisimEquiv.drwbisim-refl ≡-equiv _
 sil-τ-refl eqP .fwd .on-tau (sNdbr force-eq _) =
+      case trans (sym eqP) force-eq of λ ()
+sil-τ-refl eqP .fwd .on-tau (sMixSlide force-eq) =
       case trans (sym eqP) force-eq of λ ()
 sil-τ-refl eqP .fwd .on-div d
   with d .Divergent.step
 ...  | sSil force-eq with sil-injective (trans (sym force-eq) eqP)
 ...  | refl = d .Divergent.diverge
 sil-τ-refl eqP .fwd .on-div d | sNdbr force-eq _ =
+      case trans (sym eqP) force-eq of λ ()
+sil-τ-refl eqP .fwd .on-div d | sMixSlide force-eq =
       case trans (sym eqP) force-eq of λ ()
 -- bwd: P' simulated by P.  Every step of P' is matched by P doing its
 -- own sil first (via sSil eqP) and then the same step on P'.
@@ -395,28 +469,38 @@ ret-equiv {Q = Q} {r = r} eqP eqQ .fwd .on-ret eq
 ... | refl = Q , r , weak-τ τ*-zero , eqQ , refl
 ret-equiv eqP _ .fwd .on-vis (sVis force-eq _) =
       case trans (sym eqP) force-eq of λ ()
+ret-equiv eqP _ .fwd .on-vis (sMixVis force-eq _) =
+      case trans (sym eqP) force-eq of λ ()
 ret-equiv eqP _ .fwd .on-tau (sSil force-eq) =
       case trans (sym eqP) force-eq of λ ()
 ret-equiv eqP _ .fwd .on-tau (sNdbr force-eq _) =
+      case trans (sym eqP) force-eq of λ ()
+ret-equiv eqP _ .fwd .on-tau (sMixSlide force-eq) =
       case trans (sym eqP) force-eq of λ ()
 ret-equiv eqP _ .fwd .on-div d
   with d .Divergent.step
 ...  | sSil force-eq    = case trans (sym eqP) force-eq of λ ()
 ...  | sNdbr force-eq _ = case trans (sym eqP) force-eq of λ ()
+...  | sMixSlide force-eq = case trans (sym eqP) force-eq of λ ()
 -- bwd: Q simulated by P.  Symmetric.
 ret-equiv {P = P} {r = r} eqP eqQ .bwd .on-ret eq
   with trans (sym eqQ) eq
 ... | refl = P , r , weak-τ τ*-zero , eqP , refl
 ret-equiv _ eqQ .bwd .on-vis (sVis force-eq _) =
       case trans (sym eqQ) force-eq of λ ()
+ret-equiv _ eqQ .bwd .on-vis (sMixVis force-eq _) =
+      case trans (sym eqQ) force-eq of λ ()
 ret-equiv _ eqQ .bwd .on-tau (sSil force-eq) =
       case trans (sym eqQ) force-eq of λ ()
 ret-equiv _ eqQ .bwd .on-tau (sNdbr force-eq _) =
+      case trans (sym eqQ) force-eq of λ ()
+ret-equiv _ eqQ .bwd .on-tau (sMixSlide force-eq) =
       case trans (sym eqQ) force-eq of λ ()
 ret-equiv _ eqQ .bwd .on-div d
   with d .Divergent.step
 ...  | sSil force-eq    = case trans (sym eqQ) force-eq of λ ()
 ...  | sNdbr force-eq _ = case trans (sym eqQ) force-eq of λ ()
+...  | sMixSlide force-eq = case trans (sym eqQ) force-eq of λ ()
 
 -----------------------------------------------------------------------------
 -- Congruence of `_□_` under DRWbisim
@@ -489,7 +573,6 @@ force-□-vis-vis' {P = P} {Q = Q} eqP eqQ
 -- scope).  Proof strategy: lift P₁'s vis step into `(P₁ □ Q₁)`'s force-G
 -- step (yields P' directly since fQ at a = nothing), then apply
 -- `□-cong bP bQ .fwd .on-vis` to the compound step.
-{-# NON_TERMINATING #-}
 vis-liftL :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -518,7 +601,6 @@ vis-liftL {P₁ = P₁} {Q₁ = Q₁} bP bQ {fP = fP} {fQ = fQ} eqP eqQ
 -- `vis-liftR` proved.  Symmetric to `vis-liftL`: only Q offers the
 -- event (`fQ at a ≡ just Q'`, `fP at a ≡ nothing`).  Compound (P₁ □ Q₁)
 -- still steps to Q' via mergeMaybe; apply □-cong's on-vis.
-{-# NON_TERMINATING #-}
 vis-liftR :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -547,7 +629,6 @@ vis-liftR {P₁ = P₁} {Q₁ = Q₁} bP bQ {fP = fP} {fQ = fQ} eqP eqQ
 -- `vis-liftM` proved.  Both sides offer the event; mergeMaybe yields
 -- `just (P' ⊓ Q')`.  Same pattern — compound steps to `P' ⊓ Q'`,
 -- □-cong matches.
-{-# NON_TERMINATING #-}
 vis-liftM :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -583,6 +664,7 @@ vis-liftM {P₁ = P₁} {Q₁ = Q₁} bP bQ {fP = fP} {fQ = fQ} eqP eqQ
 -- by rule G, `force P₁ ≡ vis fP` and `force Q₁ ≡ vis fQ`, and the
 -- continuation is `mergeVis fP fQ`.  A `just t` case of `mergeMaybe`
 -- picks exactly which of `vis-liftL/R/M` fires.
+{-# NON_TERMINATING #-}
 □-cong-fwd-on-vis :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -594,7 +676,9 @@ vis-liftM {P₁ = P₁} {Q₁ = Q₁} bP bQ {fP = fP} {fQ = fQ} eqP eqQ
       × t ≈ t' )
 □-cong-fwd-on-vis {P₁ = P₁} {P₂} {Q₁} {Q₂} bP bQ {at = at} {a = a} step
   with ev-ndbr step
-... | f , force-eq , f-eq
+-- ev-ndbr now returns vis-disjunct (inj₁) or mix-disjunct (inj₂).
+-- vis branch: P₁ □ Q₁ is vis-shaped, so by □-force-vis-inv both P₁, Q₁ are vis.
+... | inj₁ (f , force-eq , f-eq)
     with □-force-vis-inv {P = P₁} {Q = Q₁} {f = f} force-eq
 ...   | fP , fQ , eqP , eqQ , eqF
         rewrite eqF
@@ -613,6 +697,12 @@ vis-liftM {P₁ = P₁} {Q₁ = Q₁} bP bQ {fP = fP} {fQ = fQ} eqP eqQ
                         eqP eqQ {at = at} {a = a} {P' = P'} {Q' = Q'} eqFP eqFQ
 -- Absurd: mergeMaybe nothing nothing = nothing ≠ just t.
 ...        | nothing | _        | nothing | _       | ()
+-- mix branch: P₁ □ Q₁ is mix-shaped.  Reconstruct the original `sMixVis`
+-- step and delegate back through `□-cong bP bQ .fwd .on-vis` — the same
+-- coinductive trick used by `vis-liftL`/`R`/`M` for the vis|vis sub-cases.
+-- Permitted under the `NON_TERMINATING` pragma on `□-cong-fwd-on-vis`.
+□-cong-fwd-on-vis bP bQ _ | inj₂ (_ , _ , force-eq , f-eq) =
+    (□-cong bP bQ) .fwd .on-vis (sMixVis force-eq f-eq)
 
 -- The `on-ret` sub-lemma — proved equationally via foundations.
 --
@@ -696,7 +786,6 @@ vis-liftM {P₁ = P₁} {Q₁ = Q₁} bP bQ {fP = fP} {fQ = fQ} eqP eqQ
 --
 -- `tau-lift-ndbr-step` is still postulated; it handles the remaining
 -- `sNdbr` cases (D, H, I, J).
-{-# NON_TERMINATING #-}
 tau-lift-L :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -707,7 +796,6 @@ tau-lift-L :
       ((P₂ □ Q₂) ═[ τ ]═► t' × (P₁' □ Q₁) ≈ t')
 tau-lift-L bP bQ eq-sil = (□-cong bP bQ) .fwd .on-tau (sSil eq-sil)
 
-{-# NON_TERMINATING #-}
 tau-lift-R :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -723,7 +811,6 @@ tau-lift-R bP bQ eq-sil = (□-cong bP bQ) .fwd .on-tau (sSil eq-sil)
 -- to `(□-cong bP bQ) .fwd .on-tau (sNdbr eq-ndbr eq-j)` — Agda accepts
 -- the productive coinductive recursion through `□-cong` under
 -- `NON_TERMINATING`.
-{-# NON_TERMINATING #-}
 tau-lift-ndbr-step :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -745,6 +832,7 @@ tau-lift-ndbr-step bP bQ eq-ndbr eq-j =
 --          `tau-lift-R` on the reconstructed single-side step.
 --   sNdbr: all four ndbr-producing rules (D, H, I, J) collapse into a
 --          single `tau-lift-ndbr-step` call.
+{-# NON_TERMINATING #-}
 □-cong-fwd-on-tau :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
@@ -764,8 +852,15 @@ tau-lift-ndbr-step bP bQ eq-ndbr eq-j =
 -- Case B (sNdbr): the τ is an ndbr branch.  All four sub-cases (D, H,
 -- I, J) are lumped into `tau-lift-ndbr-step`.
 □-cong-fwd-on-tau {P₁ = P₁} {P₂} {Q₁} {Q₂} bP bQ _
-    | inj₂ (_ , _ , _ , _ , _ , _ , eq-ndbr , eq-j) =
+    | inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , eq-ndbr , eq-j)) =
           tau-lift-ndbr-step bP bQ eq-ndbr eq-j
+-- Case C (sMixSlide): reconstruct the original `sMixSlide` step and
+-- delegate back through `□-cong bP bQ .fwd .on-tau` — same coinductive
+-- trick as `tau-lift-L`/`tau-lift-R`/`tau-lift-ndbr-step`.  Permitted
+-- under the `NON_TERMINATING` pragma on `□-cong-fwd-on-tau`.
+□-cong-fwd-on-tau bP bQ _
+    | inj₂ (inj₂ (_ , _ , force-eq , refl)) =
+    (□-cong bP bQ) .fwd .on-tau (sMixSlide force-eq)
 
 -- The `on-div` sub-lemma.  Given `Divergent (P₁ □ Q₁)`, we invoke
 -- `□-cong-fwd-on-tau` on the single τ step supplied by the divergence
@@ -826,25 +921,33 @@ force-□-comm-ret {P = P} {Q = Q} eq
   with ITree.force P | ITree.force Q
 -- sil on either side: force (P □ Q) = sil, absurd.
 ... | sil _ | _ = case eq of λ ()
--- ret/ret: force (P □ Q) reduces via r₁ ≟ r₂; force (Q □ P) reduces via
--- r₂ ≟ r₁.  We match on both to let Agda reduce each independently —
--- Agda's DecEq reduction doesn't automatically cross the argument flip.
+-- ret/ret: under post-mix _□_, force = ret r only when r ≟ r' = yes.  Otherwise
+-- it's (P ⊓ Q).force = ndbr (br2 P Q) ... — non-ret.  Symmetric on Q □ P.
 ... | ret r₁ | ret r₂ with r₁ ≟ r₂ | r₂ ≟ r₁
 ...   | yes refl | yes refl = eq
 ...   | yes refl | no  neq  = ⊥-elim (neq refl)
 ...   | no  neq  | yes refl = ⊥-elim (neq refl)
 ...   | no  _    | no  _    = case eq of λ ()
+-- Under post-mix _□_, all of these reduce to mix or ndbr — never ret.  Absurd.
 force-□-comm-ret eq | ret _ | sil _            = case eq of λ ()
-force-□-comm-ret eq | ret _ | vis _            = eq
-force-□-comm-ret eq | ret _ | ndbr _ _ _ _     = eq
+force-□-comm-ret eq | ret _ | vis _            = case eq of λ ()  -- mix fQ P
+force-□-comm-ret eq | ret _ | ndbr _ _ _ _     = case eq of λ ()  -- ndbr (mergeNdbr-vis-L)
+force-□-comm-ret eq | ret _ | mix _ _          = case eq of λ ()
 force-□-comm-ret eq | vis _ | sil _            = case eq of λ ()
-force-□-comm-ret eq | vis _ | ret _            = eq
+force-□-comm-ret eq | vis _ | ret _            = case eq of λ ()  -- mix fP Q
 force-□-comm-ret eq | vis _ | vis _            = case eq of λ ()
 force-□-comm-ret eq | vis _ | ndbr _ _ _ _     = case eq of λ ()
+force-□-comm-ret eq | vis _ | mix _ _          = case eq of λ ()
 force-□-comm-ret eq | ndbr _ _ _ _ | sil _         = case eq of λ ()
-force-□-comm-ret eq | ndbr _ _ _ _ | ret _         = eq
+force-□-comm-ret eq | ndbr _ _ _ _ | ret _         = case eq of λ ()
 force-□-comm-ret eq | ndbr _ _ _ _ | vis _         = case eq of λ ()
 force-□-comm-ret eq | ndbr _ _ _ _ | ndbr _ _ _ _  = case eq of λ ()
+force-□-comm-ret eq | ndbr _ _ _ _ | mix _ _       = case eq of λ ()
+force-□-comm-ret eq | mix _ _ | sil _          = case eq of λ ()
+force-□-comm-ret eq | mix _ _ | ret _          = case eq of λ ()
+force-□-comm-ret eq | mix _ _ | vis _          = case eq of λ ()
+force-□-comm-ret eq | mix _ _ | ndbr _ _ _ _   = case eq of λ ()
+force-□-comm-ret eq | mix _ _ | mix _ _        = case eq of λ ()
 
 -- `on-ret`: use the force-symmetry helper to produce a ret-configuration for
 -- `(Q □ P)` at τ*-zero distance; r ≡ r' is refl.
@@ -872,6 +975,99 @@ force-□-vis-vis :
 force-□-vis-vis {P = P} {Q = Q} eqP eqQ
   with ITree.force P | eqP | ITree.force Q | eqQ
 ... | vis _ | refl | vis _ | refl = refl
+
+-- The seven mix-producing _□_ rules.  Each helper rewrites
+-- `force (P □ Q)` to its `mix` normal form given the matching force
+-- equations on P and Q.  Used by the comm/cong mix-shape dispatchers.
+force-□-vis-ret-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {r : R}
+  → ITree.force P ≡ vis fP
+  → ITree.force Q ≡ ret r
+  → ITree.force (P □ Q) ≡ mix fP Q
+force-□-vis-ret-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | vis _ | refl | ret _ | refl = refl
+
+force-□-ret-vis-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {r : R}
+  → {fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → ITree.force P ≡ ret r
+  → ITree.force Q ≡ vis fQ
+  → ITree.force (P □ Q) ≡ mix fQ P
+force-□-ret-vis-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ret _ | refl | vis _ | refl = refl
+
+force-□-ret-mix-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {r : R}
+  → {fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force P ≡ ret r
+  → ITree.force Q ≡ mix fQ Qt
+  → ITree.force (P □ Q) ≡ mix fQ (P □ Qt)
+force-□-ret-mix-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ret _ | refl | mix _ _ | refl = refl
+
+force-□-mix-ret-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Pt : ITree E (ExtI I) R}
+  → {r : R}
+  → ITree.force P ≡ mix fP Pt
+  → ITree.force Q ≡ ret r
+  → ITree.force (P □ Q) ≡ mix fP (Pt □ Q)
+force-□-mix-ret-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | mix _ _ | refl | ret _ | refl = refl
+
+force-□-vis-mix-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force P ≡ vis fP
+  → ITree.force Q ≡ mix fQ Qt
+  → ITree.force (P □ Q) ≡ mix fQ (P □ Qt)
+force-□-vis-mix-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | vis _ | refl | mix _ _ | refl = refl
+
+force-□-mix-vis-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Pt : ITree E (ExtI I) R}
+  → {fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → ITree.force P ≡ mix fP Pt
+  → ITree.force Q ≡ vis fQ
+  → ITree.force (P □ Q) ≡ mix fP (Pt □ Q)
+force-□-mix-vis-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | mix _ _ | refl | vis _ | refl = refl
+
+force-□-mix-mix-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Pt : ITree E (ExtI I) R}
+  → {fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force P ≡ mix fP Pt
+  → ITree.force Q ≡ mix fQ Qt
+  → ITree.force (P □ Q) ≡ mix (λ Ae → mergeVis (fP Ae) (fQ Ae)) (Pt □ Qt)
+force-□-mix-mix-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | mix _ _ | refl | mix _ _ | refl = refl
 
 -- `on-vis`: visible step out of `(P □ Q)` only via rule G (vis/vis).
 -- The merged continuation is `mergeMaybe (fP at a) (fQ at a)`; the swap
@@ -937,15 +1133,136 @@ force-□-vis-vis {P = P} {Q = Q} eqP eqQ
 ...   | yes refl = case eq of λ ()
 ...   | no  _    = case eq of λ ()
 □-comm-on-vis _ _ (sVis _ _) | ret _ | _ | sil _ | _ | eq = case eq of λ ()
-□-comm-on-vis _ _ (sVis _ _) | ret _ | _ | vis _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | ret _ | _ | vis _ | _ | eq = case eq of λ ()  -- mix fQ P
 □-comm-on-vis _ _ (sVis _ _) | ret _ | _ | ndbr _ _ _ _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | ret _ | _ | mix _ _ | _ | eq = case eq of λ ()
 □-comm-on-vis _ _ (sVis _ _) | vis _ | _ | sil _ | _ | eq = case eq of λ ()
-□-comm-on-vis _ _ (sVis _ _) | vis _ | _ | ret _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | vis _ | _ | ret _ | _ | eq = case eq of λ ()  -- mix fP Q
 □-comm-on-vis _ _ (sVis _ _) | vis _ | _ | ndbr _ _ _ _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | vis _ | _ | mix _ _ | _ | eq = case eq of λ ()
 □-comm-on-vis _ _ (sVis _ _) | ndbr _ _ _ _ | _ | sil _ | _ | eq = case eq of λ ()
 □-comm-on-vis _ _ (sVis _ _) | ndbr _ _ _ _ | _ | ret _ | _ | eq = case eq of λ ()
 □-comm-on-vis _ _ (sVis _ _) | ndbr _ _ _ _ | _ | vis _ | _ | eq = case eq of λ ()
 □-comm-on-vis _ _ (sVis _ _) | ndbr _ _ _ _ | _ | ndbr _ _ _ _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | ndbr _ _ _ _ | _ | mix _ _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | mix _ _ | _ | sil _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | mix _ _ | _ | ret _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | mix _ _ | _ | vis _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | mix _ _ | _ | ndbr _ _ _ _ | _ | eq = case eq of λ ()
+□-comm-on-vis _ _ (sVis _ _) | mix _ _ | _ | mix _ _ | _ | eq = case eq of λ ()
+-- sMixVis case: force (P □ Q) ≡ mix f Qt.  Seven mix-producing cases.
+-- For the six "asymmetric" cases (one mix or vis, the other ret or
+-- straight vis/mix) the fire function is unchanged across the swap,
+-- so the swap fires the same continuation at the same `t` — bisim refl.
+-- The mix|mix case mirrors vis|vis: branches are merged and the
+-- both-accept sub-case has a (P_s ⊓ Q_s) successor related by ⊓-comm.
+□-comm-on-vis P Q {at = at} {a = a} (sMixVis force-eq f-eq)
+  with ITree.force P | inspect ITree.force P
+     | ITree.force Q | inspect ITree.force Q | force-eq
+-- Rule "ret | vis = mix fQ P".
+... | ret _ | [ eqP ] | vis fQ | [ eqQ ] | refl =
+        _ ,
+        weak-ev τ*-zero
+          (sMixVis {p = Q □ P} {f = fQ} {Qt = P}
+                   (force-□-vis-ret-mix {P = Q} {Q = P} eqQ eqP)
+                   f-eq)
+          τ*-zero ,
+        drwbisim-refl _
+-- Rule "vis | ret = mix fP Q".
+... | vis fP | [ eqP ] | ret _ | [ eqQ ] | refl =
+        _ ,
+        weak-ev τ*-zero
+          (sMixVis {p = Q □ P} {f = fP} {Qt = Q}
+                   (force-□-ret-vis-mix {P = Q} {Q = P} eqQ eqP)
+                   f-eq)
+          τ*-zero ,
+        drwbisim-refl _
+-- Rule "ret | mix = mix fQ (P □ Q')".  Swap is mix|ret = mix fQ (Q' □ P).
+... | ret _ | [ eqP ] | mix fQ Q' | [ eqQ ] | refl =
+        _ ,
+        weak-ev τ*-zero
+          (sMixVis {p = Q □ P} {f = fQ} {Qt = Q' □ P}
+                   (force-□-mix-ret-mix {P = Q} {Q = P} eqQ eqP)
+                   f-eq)
+          τ*-zero ,
+        drwbisim-refl _
+-- Rule "mix | ret = mix fP (P' □ Q)".  Swap is ret|mix = mix fP (Q □ P').
+... | mix fP P' | [ eqP ] | ret _ | [ eqQ ] | refl =
+        _ ,
+        weak-ev τ*-zero
+          (sMixVis {p = Q □ P} {f = fP} {Qt = Q □ P'}
+                   (force-□-ret-mix-mix {P = Q} {Q = P} eqQ eqP)
+                   f-eq)
+          τ*-zero ,
+        drwbisim-refl _
+-- Rule "vis | mix = mix fQ (P □ Q')".  Swap is mix|vis = mix fQ (Q' □ P).
+... | vis fP | [ eqP ] | mix fQ Q' | [ eqQ ] | refl =
+        _ ,
+        weak-ev τ*-zero
+          (sMixVis {p = Q □ P} {f = fQ} {Qt = Q' □ P}
+                   (force-□-mix-vis-mix {P = Q} {Q = P} eqQ eqP)
+                   f-eq)
+          τ*-zero ,
+        drwbisim-refl _
+-- Rule "mix | vis = mix fP (P' □ Q)".  Swap is vis|mix = mix fP (Q □ P').
+... | mix fP P' | [ eqP ] | vis fQ | [ eqQ ] | refl =
+        _ ,
+        weak-ev τ*-zero
+          (sMixVis {p = Q □ P} {f = fP} {Qt = Q □ P'}
+                   (force-□-vis-mix-mix {P = Q} {Q = P} eqQ eqP)
+                   f-eq)
+          τ*-zero ,
+        drwbisim-refl _
+-- Rule "mix | mix = mix (mergeVis fP fQ) (P' □ Q')".  Mergeable continuations.
+... | mix fP P' | [ eqP ] | mix fQ Q' | [ eqQ ] | refl
+    with fP at a | inspect (fP at) a | fQ at a | inspect (fQ at) a | f-eq
+...    | just _   | [ eqfP ] | nothing  | [ eqfQ ] | refl =
+          _ ,
+          weak-ev τ*-zero
+            (sMixVis {p = Q □ P} {f = λ Ae → mergeVis (fQ Ae) (fP Ae)}
+                     {Qt = Q' □ P'}
+                     (force-□-mix-mix-mix {P = Q} {Q = P} eqQ eqP)
+                     (cong₂ mergeMaybe eqfQ eqfP))
+            τ*-zero ,
+          drwbisim-refl _
+...    | nothing  | [ eqfP ] | just _   | [ eqfQ ] | refl =
+          _ ,
+          weak-ev τ*-zero
+            (sMixVis {p = Q □ P} {f = λ Ae → mergeVis (fQ Ae) (fP Ae)}
+                     {Qt = Q' □ P'}
+                     (force-□-mix-mix-mix {P = Q} {Q = P} eqQ eqP)
+                     (cong₂ mergeMaybe eqfQ eqfP))
+            τ*-zero ,
+          drwbisim-refl _
+...    | just P_s | [ eqfP ] | just Q_s | [ eqfQ ] | refl =
+          _ ,
+          weak-ev τ*-zero
+            (sMixVis {p = Q □ P} {f = λ Ae → mergeVis (fQ Ae) (fP Ae)}
+                     {Qt = Q' □ P'}
+                     (force-□-mix-mix-mix {P = Q} {Q = P} eqQ eqP)
+                     (cong₂ mergeMaybe eqfQ eqfP))
+            τ*-zero ,
+          ⊓-comm P_s Q_s
+...    | nothing  | _        | nothing  | _        | ()
+-- Absurd: remaining force combinations don't reduce to mix.  Restate the
+-- function-name pattern to escape the nested-with for mix|mix's f-eq.
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | sil _ | _ | _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ret r₁ | _ | ret r₂ | _ | force-eq'
+  with r₁ ≟ r₂
+... | yes refl = case force-eq' of λ ()
+... | no  _    = case force-eq' of λ ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ret _ | _ | sil _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ret _ | _ | ndbr _ _ _ _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | vis _ | _ | sil _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | vis _ | _ | vis _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | vis _ | _ | ndbr _ _ _ _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ndbr _ _ _ _ | _ | sil _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ndbr _ _ _ _ | _ | ret _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ndbr _ _ _ _ | _ | vis _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ndbr _ _ _ _ | _ | ndbr _ _ _ _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | ndbr _ _ _ _ | _ | mix _ _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | mix _ _ | _ | sil _ | _ | ()
+□-comm-on-vis P Q (sMixVis force-eq f-eq) | mix _ _ | _ | ndbr _ _ _ _ | _ | ()
 
 -- Force-unfolding helper: if the *left* argument of `_□_` has `sil P'`,
 -- the compound reduces via rule A to `sil (P' □ Q)`.
@@ -992,6 +1309,19 @@ force-□-sil-R-ndbr :
 force-□-sil-R-ndbr {P = P} {Q = Q} eqQ eqP
   with ITree.force Q | eqQ | ITree.force P | eqP
 ... | ndbr _ _ _ _ | refl | sil _ | refl = refl
+
+-- New under post-mix _□_: mix on the left, sil on the right.
+force-□-sil-R-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q P' : ITree E (ExtI I) R}
+  → {fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force Q ≡ mix fQ Qt
+  → ITree.force P ≡ sil P'
+  → ITree.force (Q □ P) ≡ sil (Q □ P')
+force-□-sil-R-mix {P = P} {Q = Q} eqQ eqP
+  with ITree.force Q | eqQ | ITree.force P | eqP
+... | mix _ _ | refl | sil _ | refl = refl
 
 -- Sub-case helpers for `□-comm-on-tau`.
 --
@@ -1166,6 +1496,68 @@ mergeNdbr-vis-L-just :
 mergeNdbr-vis-L-just P fQ {i} {a} eq with fQ i a | eq
 ... | just _ | refl = refl
 
+-- Force-eq helpers for the four new productive ndbr-producing rules under
+-- post-mix `_□_` (K: ret/ndbr, L: ndbr/ret, M: mix/ndbr, N: ndbr/mix).  All
+-- of them use the same `mergeNdbr-vis-L` / `mergeNdbr-vis-R` continuations
+-- as H / I do; only the witness for `force P` / `force Q` differs.
+force-□-ret-ndbr-eq :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {r : R}
+  → {fQ : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {wp : Is-just (fQ wi wa)}
+  → ITree.force P ≡ ret r
+  → ITree.force Q ≡ ndbr fQ wi wa wp
+  → ITree.force (P □ Q) ≡
+        ndbr (mergeNdbr-vis-L P fQ) wi wa (mergeNdbr-vis-L-witness P fQ wp)
+force-□-ret-ndbr-eq {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ret _ | refl | ndbr _ _ _ _ | refl = refl
+
+force-□-ndbr-ret-eq :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {wp : Is-just (fP wi wa)}
+  → {r : R}
+  → ITree.force P ≡ ndbr fP wi wa wp
+  → ITree.force Q ≡ ret r
+  → ITree.force (P □ Q) ≡
+        ndbr (mergeNdbr-vis-R fP Q) wi wa (mergeNdbr-vis-R-witness fP Q wp)
+force-□-ndbr-ret-eq {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ndbr _ _ _ _ | refl | ret _ | refl = refl
+
+force-□-mix-ndbr-eq :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fmP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Pt : ITree E (ExtI I) R}
+  → {fQ : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {wp : Is-just (fQ wi wa)}
+  → ITree.force P ≡ mix fmP Pt
+  → ITree.force Q ≡ ndbr fQ wi wa wp
+  → ITree.force (P □ Q) ≡
+        ndbr (mergeNdbr-vis-L P fQ) wi wa (mergeNdbr-vis-L-witness P fQ wp)
+force-□-mix-ndbr-eq {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | mix _ _ | refl | ndbr _ _ _ _ | refl = refl
+
+force-□-ndbr-mix-eq :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q : ITree E (ExtI I) R}
+  → {fP : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {wp : Is-just (fP wi wa)}
+  → {fmQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force P ≡ ndbr fP wi wa wp
+  → ITree.force Q ≡ mix fmQ Qt
+  → ITree.force (P □ Q) ≡
+        ndbr (mergeNdbr-vis-R fP Q) wi wa (mergeNdbr-vis-R-witness fP Q wp)
+force-□-ndbr-mix-eq {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ndbr _ _ _ _ | refl | mix _ _ | refl = refl
+
 -- Force-eq for rule J (ndbr/ndbr): the compound's force is `ndbr` of the
 -- top-level `mergeNdbr fP fQ`, indexed by the swapped/paired witness.
 force-□-ndbr-ndbr-eq :
@@ -1250,7 +1642,6 @@ comm-H-lift {P = P} {Q = Q} {fQ = fQ} {wiQ = wiQ} {waQ = waQ} {wpQ = wpQ}
 -- "just (P □ Q')".  In the swap (Q □ P), rule I fires (ndbr/vis) with
 -- branches mapping fQ's "just Q'" to "just (Q' □ P)".  Same index
 -- (i, a), successor bisim `□-comm P Q'`.
-{-# NON_TERMINATING #-}
 comm-tau-ndbr-H :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → (P Q : ITree E (ExtI I) R)
@@ -1436,7 +1827,6 @@ comm-tau-sSil-R :
 -- Same structural-recursion-through-propositional-equations issue as
 -- `□-Stop-left-fwd-on-tau`: Q' is smaller than Q but Agda cannot see
 -- this through `force Q ≡ sil Q'`.  Semantically productive.
-{-# NON_TERMINATING #-}
 comm-tau-sSil-R P Q {Q' = Q'} eqQ =
     (Q' □ P) ,
     weak-τ (τ*-step (sSil {p = Q □ P} {t = Q' □ P}
@@ -1476,7 +1866,148 @@ comm-tau-sSil-L P Q {P' = P'} eqP
                             (force-□-sil-R-ndbr {P = P} {Q = Q} eqQ eqP))
                       τ*-zero) ,
       □-comm P' Q
+... | mix _ _ | [ eqQ ] =
+      (Q □ P') ,
+      weak-τ (τ*-step (sSil {p = Q □ P} {t = Q □ P'}
+                            (force-□-sil-R-mix {P = P} {Q = Q} eqQ eqP))
+                      τ*-zero) ,
+      □-comm P' Q
 ... | sil _ | [ eqQ ] = comm-tau-sSil-LL-silQ P Q eqP eqQ
+
+-- Case K: ret/ndbr (new under post-mix _□_).  Force (P □ Q) = ndbr
+-- (mergeNdbr-vis-L P fQ) ...; swap (Q □ P) fires rule (ndbr | ret) with
+-- mergeNdbr-vis-R fQ P.  Same fire on branch (i, a); successor bisim
+-- (P □ Q') ≈ (Q' □ P) is `□-comm P Q'`.
+comm-tau-ndbr-K :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (P Q : ITree E (ExtI I) R)
+  → {r : R}
+  → {fQ : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wiQ : AnyTypes (ExtI I)} {waQ : proj₁ wiQ} {wpQ : Is-just (fQ wiQ waQ)}
+  → ITree.force P ≡ ret r
+  → ITree.force Q ≡ ndbr fQ wiQ waQ wpQ
+  → {f : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {prf : Is-just (f wi wa)}
+  → ITree.force (P □ Q) ≡ ndbr f wi wa prf
+  → {i : AnyTypes (ExtI I)} {a : proj₁ i} {t : ITree E (ExtI I) R}
+  → f i a ≡ just t
+  → Σ[ t' ∈ ITree E (ExtI I) R ]
+      ( (Q □ P) ═[ τ ]═► t'
+      × t ≈ t' )
+comm-tau-ndbr-K P Q {fQ = fQ} {wpQ = wpQ} eqP eqQ eq-ndbr {i} {a} eq-j
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ret _ | refl | ndbr _ _ _ _ | refl with eq-ndbr
+...   | refl with fQ i a | inspect (fQ i) a | eq-j
+...     | just Q' | [ fQ-eq ] | refl =
+          (Q' □ P) ,
+          weak-τ (τ*-step
+                    (sNdbr {p = Q □ P} {f = mergeNdbr-vis-R fQ P}
+                           {prf = mergeNdbr-vis-R-witness fQ P wpQ}
+                           (force-□-ndbr-ret-eq {P = Q} {Q = P} eqQ eqP)
+                           (mergeNdbr-vis-R-just fQ P fQ-eq))
+                    τ*-zero) ,
+          □-comm P Q'
+...     | nothing | _ | ()
+
+-- Case L: ndbr/ret.  Symmetric to K.
+comm-tau-ndbr-L :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (P Q : ITree E (ExtI I) R)
+  → {fP : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wiP : AnyTypes (ExtI I)} {waP : proj₁ wiP} {wpP : Is-just (fP wiP waP)}
+  → {r : R}
+  → ITree.force P ≡ ndbr fP wiP waP wpP
+  → ITree.force Q ≡ ret r
+  → {f : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {prf : Is-just (f wi wa)}
+  → ITree.force (P □ Q) ≡ ndbr f wi wa prf
+  → {i : AnyTypes (ExtI I)} {a : proj₁ i} {t : ITree E (ExtI I) R}
+  → f i a ≡ just t
+  → Σ[ t' ∈ ITree E (ExtI I) R ]
+      ( (Q □ P) ═[ τ ]═► t'
+      × t ≈ t' )
+comm-tau-ndbr-L P Q {fP = fP} {wpP = wpP} eqP eqQ eq-ndbr {i} {a} eq-j
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ndbr _ _ _ _ | refl | ret _ | refl with eq-ndbr
+...   | refl with fP i a | inspect (fP i) a | eq-j
+...     | just P' | [ fP-eq ] | refl =
+          (Q □ P') ,
+          weak-τ (τ*-step
+                    (sNdbr {p = Q □ P} {f = mergeNdbr-vis-L Q fP}
+                           {prf = mergeNdbr-vis-L-witness Q fP wpP}
+                           (force-□-ret-ndbr-eq {P = Q} {Q = P} eqQ eqP)
+                           (mergeNdbr-vis-L-just Q fP fP-eq))
+                    τ*-zero) ,
+          □-comm P' Q
+...     | nothing | _ | ()
+
+-- Case M: mix/ndbr.  Force (P □ Q) = ndbr (mergeNdbr-vis-L P fQ) ...
+-- (P is mix-shape, doesn't matter for the merge).  Swap (Q □ P) fires
+-- rule (ndbr | mix) with mergeNdbr-vis-R fQ P.
+comm-tau-ndbr-M :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (P Q : ITree E (ExtI I) R)
+  → {fmP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Pt : ITree E (ExtI I) R}
+  → {fQ : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wiQ : AnyTypes (ExtI I)} {waQ : proj₁ wiQ} {wpQ : Is-just (fQ wiQ waQ)}
+  → ITree.force P ≡ mix fmP Pt
+  → ITree.force Q ≡ ndbr fQ wiQ waQ wpQ
+  → {f : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {prf : Is-just (f wi wa)}
+  → ITree.force (P □ Q) ≡ ndbr f wi wa prf
+  → {i : AnyTypes (ExtI I)} {a : proj₁ i} {t : ITree E (ExtI I) R}
+  → f i a ≡ just t
+  → Σ[ t' ∈ ITree E (ExtI I) R ]
+      ( (Q □ P) ═[ τ ]═► t'
+      × t ≈ t' )
+comm-tau-ndbr-M P Q {fQ = fQ} {wpQ = wpQ} eqP eqQ eq-ndbr {i} {a} eq-j
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | mix _ _ | refl | ndbr _ _ _ _ | refl with eq-ndbr
+...   | refl with fQ i a | inspect (fQ i) a | eq-j
+...     | just Q' | [ fQ-eq ] | refl =
+          (Q' □ P) ,
+          weak-τ (τ*-step
+                    (sNdbr {p = Q □ P} {f = mergeNdbr-vis-R fQ P}
+                           {prf = mergeNdbr-vis-R-witness fQ P wpQ}
+                           (force-□-ndbr-mix-eq {P = Q} {Q = P} eqQ eqP)
+                           (mergeNdbr-vis-R-just fQ P fQ-eq))
+                    τ*-zero) ,
+          □-comm P Q'
+...     | nothing | _ | ()
+
+-- Case N: ndbr/mix.  Symmetric to M.
+comm-tau-ndbr-N :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → (P Q : ITree E (ExtI I) R)
+  → {fP : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wiP : AnyTypes (ExtI I)} {waP : proj₁ wiP} {wpP : Is-just (fP wiP waP)}
+  → {fmQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force P ≡ ndbr fP wiP waP wpP
+  → ITree.force Q ≡ mix fmQ Qt
+  → {f : (i : AnyTypes (ExtI I)) → ContinueType i (Maybe (ITree E (ExtI I) R))}
+  → {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {prf : Is-just (f wi wa)}
+  → ITree.force (P □ Q) ≡ ndbr f wi wa prf
+  → {i : AnyTypes (ExtI I)} {a : proj₁ i} {t : ITree E (ExtI I) R}
+  → f i a ≡ just t
+  → Σ[ t' ∈ ITree E (ExtI I) R ]
+      ( (Q □ P) ═[ τ ]═► t'
+      × t ≈ t' )
+comm-tau-ndbr-N P Q {fP = fP} {wpP = wpP} eqP eqQ eq-ndbr {i} {a} eq-j
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | ndbr _ _ _ _ | refl | mix _ _ | refl with eq-ndbr
+...   | refl with fP i a | inspect (fP i) a | eq-j
+...     | just P' | [ fP-eq ] | refl =
+          (Q □ P') ,
+          weak-τ (τ*-step
+                    (sNdbr {p = Q □ P} {f = mergeNdbr-vis-L Q fP}
+                           {prf = mergeNdbr-vis-L-witness Q fP wpP}
+                           (force-□-mix-ndbr-eq {P = Q} {Q = P} eqQ eqP)
+                           (mergeNdbr-vis-L-just Q fP fP-eq))
+                    τ*-zero) ,
+          □-comm P' Q
+...     | nothing | _ | ()
 
 -- `comm-tau-ndbr-step`: real dispatcher via `□-force-ndbr-inv`, splitting
 -- into the four sub-cases D/H/I/J.
@@ -1499,11 +2030,24 @@ comm-tau-ndbr-step P Q eq-ndbr eq-j
       comm-tau-ndbr-H P Q eqP eqQ eq-ndbr eq-j
 ... | inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , fQ , eqP , eqQ))) =
       comm-tau-ndbr-I P Q eqP eqQ eq-ndbr eq-j
-... | inj₂ (inj₂ (inj₂ (fP , wiP , waP , wpP , fQ , wiQ , waQ , wpQ , eqP , eqQ))) =
+... | inj₂ (inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , fQ , wiQ , waQ , wpQ , eqP , eqQ)))) =
       comm-tau-ndbr-J P Q eqP eqQ eq-ndbr eq-j
+-- (K) ret / ndbr — new under post-mix _□_.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (r , fQ , wiQ , waQ , wpQ , eqP , eqQ))))) =
+      comm-tau-ndbr-K P Q eqP eqQ eq-ndbr eq-j
+-- (L) ndbr / ret — symmetric to K.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , r , eqP , eqQ)))))) =
+      comm-tau-ndbr-L P Q eqP eqQ eq-ndbr eq-j
+-- (M) mix / ndbr — Q-distribution.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fmP , Pt , fQ , wiQ , waQ , wpQ , eqP , eqQ))))))) =
+      comm-tau-ndbr-M P Q eqP eqQ eq-ndbr eq-j
+-- (N) ndbr / mix — P-distribution.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (fP , wiP , waP , wpP , fmQ , Qt , eqP , eqQ))))))) =
+      comm-tau-ndbr-N P Q eqP eqQ eq-ndbr eq-j
 
 -- `□-comm-on-tau`: real dispatcher over τ-ndbr + force inversions.
 -- Each sub-case delegates to one of the three `comm-tau-*` helpers.
+{-# NON_TERMINATING #-}
 □-comm-on-tau :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → (P Q : ITree E (ExtI I) R)
@@ -1522,8 +2066,101 @@ comm-tau-ndbr-step P Q eq-ndbr eq-j
 ...    | inj₂ (Q' , eqQ , refl) = comm-tau-sSil-R P Q eqQ
 -- sNdbr case: delegate to the umbrella ndbr-step helper.
 □-comm-on-tau P Q _
-    | inj₂ (_ , _ , _ , _ , _ , _ , eq-ndbr , eq-j) =
+    | inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , eq-ndbr , eq-j)) =
       comm-tau-ndbr-step P Q eq-ndbr eq-j
+-- sMixSlide case: force (P □ Q) ≡ mix f Qt, t ≡ Qt.  Seven mix-producing
+-- rules of `_□_` (post-mix); dispatch via force-shape analysis on P/Q.
+□-comm-on-tau P Q _
+    | inj₂ (inj₂ (_ , _ , force-eq , refl))
+  with ITree.force P | inspect ITree.force P
+     | ITree.force Q | inspect ITree.force Q | force-eq
+-- Rule "ret | vis = mix fQ P": both original and swap slide to P.
+... | ret _ | [ eqP ] | vis _ | [ eqQ ] | refl =
+        P ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-vis-ret-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        drwbisim-refl P
+-- Rule "vis | ret = mix fP Q": both slide to Q.
+... | vis _ | [ eqP ] | ret _ | [ eqQ ] | refl =
+        Q ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-ret-vis-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        drwbisim-refl Q
+-- Rule "ret | mix = mix fQ (P □ Q')": slide P □ Q' ≈ Q' □ P via □-comm.
+... | ret _ | [ eqP ] | mix _ Q' | [ eqQ ] | refl =
+        (Q' □ P) ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-mix-ret-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        □-comm P Q'
+-- Rule "mix | ret = mix fP (P' □ Q)": slide P' □ Q ≈ Q □ P' via □-comm.
+... | mix _ P' | [ eqP ] | ret _ | [ eqQ ] | refl =
+        (Q □ P') ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-ret-mix-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        □-comm P' Q
+-- Rule "vis | mix = mix fQ (P □ Q')".
+... | vis _ | [ eqP ] | mix _ Q' | [ eqQ ] | refl =
+        (Q' □ P) ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-mix-vis-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        □-comm P Q'
+-- Rule "mix | vis = mix fP (P' □ Q)".
+... | mix _ P' | [ eqP ] | vis _ | [ eqQ ] | refl =
+        (Q □ P') ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-vis-mix-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        □-comm P' Q
+-- Rule "mix | mix = mix _ (P' □ Q')".
+... | mix _ P' | [ eqP ] | mix _ Q' | [ eqQ ] | refl =
+        (Q' □ P') ,
+        weak-τ (τ*-step
+                  (sMixSlide {p = Q □ P}
+                             (force-□-mix-mix-mix {P = Q} {Q = P} eqQ eqP))
+                  τ*-zero) ,
+        □-comm P' Q'
+-- All other force combinations don't reduce force(P □ Q) to mix — expand
+-- explicitly per (P.force × Q.force) shape.
+... | sil _ | _ | _ | _ | ()
+-- ret | ret splits on r ≟ r' (yes ⇒ ret, no ⇒ ndbr); both non-mix.
+... | ret r₁ | _ | ret r₂ | _ | force-eq' with r₁ ≟ r₂
+...   | yes refl = case force-eq' of λ ()
+...   | no  _    = case force-eq' of λ ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ret _ | _ | sil _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ret _ | _ | ndbr _ _ _ _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | vis _ | _ | sil _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | vis _ | _ | vis _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | vis _ | _ | ndbr _ _ _ _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ndbr _ _ _ _ | _ | sil _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ndbr _ _ _ _ | _ | ret _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ndbr _ _ _ _ | _ | vis _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ndbr _ _ _ _ | _ | ndbr _ _ _ _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | ndbr _ _ _ _ | _ | mix _ _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | mix _ _ | _ | sil _ | _ | ()
+□-comm-on-tau P Q _ | inj₂ (inj₂ (_ , _ , force-eq , refl))
+    | mix _ _ | _ | ndbr _ _ _ _ | _ | ()
 
 -- `on-div` is derived: use `on-tau` on the divergence's τ step, then the
 -- returned bisim's `on-div` field transports `Divergent` to the witness,
@@ -1600,8 +2237,23 @@ comm-tau-ndbr-step P Q eq-ndbr eq-j
           drwbisim-refl P'
 ...    | nothing | _ | ()
 □-Stop-left-fwd-on-vis _ (sVis force-eq _) | sil _          | _ | eq = case eq of λ ()
-□-Stop-left-fwd-on-vis _ (sVis force-eq _) | ret _          | _ | eq = case eq of λ ()
+□-Stop-left-fwd-on-vis _ (sVis force-eq _) | ret _          | _ | eq = case eq of λ ()  -- post-mix: mix fStop P
 □-Stop-left-fwd-on-vis _ (sVis force-eq _) | ndbr _ _ _ _   | _ | eq = case eq of λ ()
+□-Stop-left-fwd-on-vis _ (sVis force-eq _) | mix _ _        | _ | eq = case eq of λ ()
+-- sMixVis case (post-mix): force (Stop □ P) ≡ mix f Qt.  Cases on force P:
+--   • ret r → mix's f is (λ _ → nothing); f-eq absurd.
+--   • mix fP P' → mix fP (Stop □ P'); same fP fires on P.
+--   • sil/vis/ndbr → force is not mix, force-eq absurd.
+□-Stop-left-fwd-on-vis P (sMixVis {at = at} {a = a} force-eq f-eq)
+  with ITree.force P | inspect ITree.force P | force-eq
+... | ret _      | _ | refl = case f-eq of λ ()
+... | mix fP P'  | [ eqP ] | refl =
+        _ ,
+        weak-ev τ*-zero (sMixVis {p = P} {f = fP} {Qt = P'} eqP f-eq) τ*-zero ,
+        drwbisim-refl _
+... | sil _      | _ | ()
+... | vis _      | _ | ()
+... | ndbr _ _ _ _ | _ | ()
 
 -- Forward declarations.  The `□-Stop-left-swap` restructure removed the
 -- `NON_TERMINATING` that was previously required on `bwd-on-tau` (due to
@@ -1639,15 +2291,12 @@ comm-tau-ndbr-step P Q eq-ndbr eq-j
   → (P : ITree E (ExtI I) R)
   → P ≈ (Stop □ P)
 
--- Forward-direction auxiliary: if `force P ≡ ret r`, then
--- `force (Stop □ P) ≡ ret r` by rule F (vis/ret).
-force-Stop-□-ret :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
-  → {P : ITree E (ExtI I) R} {r : R}
-  → ITree.force P ≡ ret r
-  → ITree.force (Stop □ P) ≡ ret r
-force-Stop-□-ret {P = P} eqP with ITree.force P | eqP
-... | ret r | refl = refl
+-- Note: under OLD `_□_`, `force P ≡ ret r` made `force (Stop □ P) ≡ ret r`
+-- by rule F (vis/ret).  Under POST-MIX `_□_`, vis/ret produces `mix _ P`
+-- instead, so the direct ret-equation no longer holds.  The corresponding
+-- proof obligation (reach `ret r` from `Stop □ P` along a τ*-chain) is
+-- discharged in `□-Stop-left-bwd-on-ret` below using `sMixSlide` over
+-- `force-Stop-□-mix-ret`.
 
 -- Auxiliary: if `force P ≡ vis fP`, `(Stop □ P)` has the merged vis with
 -- `λ _ → nothing` on the left.
@@ -1671,6 +2320,30 @@ force-Stop-□-sil :
 force-Stop-□-sil {P = P} eqP with ITree.force P | eqP
 ... | sil _ | refl = refl
 
+-- Auxiliary: if `force P ≡ ret r`, then `(Stop □ P)` is a mix node whose
+-- vis function is empty (Stop's `λ _ → nothing`) and whose slide target is P.
+-- New under post-mix `_□_` (rule "vis | ret = mix fP_stop Q").
+force-Stop-□-mix-ret :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P : ITree E (ExtI I) R} {r : R}
+  → ITree.force P ≡ ret r
+  → ITree.force (Stop □ P) ≡ mix (λ _ _ → nothing) P
+force-Stop-□-mix-ret {P = P} eqP with ITree.force P | eqP
+... | ret _ | refl = refl
+
+-- Auxiliary: if `force P ≡ mix fP Qt`, then `(Stop □ P)` is a mix node
+-- with the same vis function fP and slide target `Stop □ Qt` (rule
+-- "vis | mix = mix fP (Stop □ Qt)").
+force-Stop-□-vis-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P : ITree E (ExtI I) R}
+  → {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+  → {Qt : ITree E (ExtI I) R}
+  → ITree.force P ≡ mix fP Qt
+  → ITree.force (Stop □ P) ≡ mix fP (Stop □ Qt)
+force-Stop-□-vis-mix {P = P} eqP with ITree.force P | eqP
+... | mix _ _ | refl = refl
+
 -- Backward `on-ret`: take t' = (Stop □ P), which has force ret r by the
 -- auxiliary above.
 □-Stop-left-bwd-on-ret :
@@ -1683,8 +2356,17 @@ force-Stop-□-sil {P = P} eqP with ITree.force P | eqP
       ( (Stop □ P) ═[ τ ]═► t'
       × ITree.force t' ≡ ret r'
       × r ≡ r' )
+-- Under post-mix `_□_`, force(Stop □ P) when P=ret r is `mix (λ _ _ → nothing) P`
+-- (not `ret r` directly).  Reach P via one τ-step (sMixSlide); P itself has
+-- force ≡ ret r.
 □-Stop-left-bwd-on-ret P {r} eqP =
-    (Stop □ P) , r , weak-τ τ*-zero , force-Stop-□-ret {P = P} eqP , refl
+    P , r ,
+    weak-τ (τ*-step (sMixSlide {p = Stop □ P}
+                                {f = λ _ _ → nothing}
+                                {Qt = P}
+                                (force-Stop-□-mix-ret {P = P} eqP))
+                    τ*-zero) ,
+    eqP , refl
 
 -- Backward `on-vis`.  P offers the event via `fP at a ≡ just t`, which
 -- lifts to `mergeMaybe nothing (fP at a) ≡ just t` via `cong`; that in
@@ -1704,6 +2386,17 @@ force-Stop-□-sil {P = P} eqP with ITree.force P | eqP
         (sVis {p = Stop □ P} {at = at} {a = a} {t′ = t}
               (force-Stop-□-vis {P = P} force-eq-P)
               (cong (mergeMaybe nothing) fP-eq))
+        τ*-zero ,
+      drwbisim-refl t
+-- sMixVis case: P.force ≡ mix fP Qt, fP at a ≡ just t.  Under rule
+-- "vis | mix", force(Stop □ P) = mix fP (Stop □ Qt) — same fP, same fire.
+-- Target on (Stop □ P)'s side is also `t`, so bisim is reflexive.
+□-Stop-left-bwd-on-vis P {at = at} {a = a} {t = t}
+    (sMixVis {f = fP} {Qt = Qt} force-eq-P fP-eq) =
+      t ,
+      weak-ev τ*-zero
+        (sMixVis {p = Stop □ P} {f = fP} {Qt = Stop □ Qt}
+                 (force-Stop-□-vis-mix {P = P} force-eq-P) fP-eq)
         τ*-zero ,
       drwbisim-refl t
 
@@ -1740,7 +2433,7 @@ bwd-tau-ndbr-lift P {fP = fP} {wiP = wiP} {waP = waP} {wpP = wpP}
           □-Stop-left P'
 -- sNdbr: only rule H applies (force Stop = vis).
 □-Stop-left-fwd-on-tau P _
-    | inj₂ (_ , _ , _ , _ , i , a , eq-ndbr , eq-j)
+    | inj₂ (inj₁ (_ , _ , _ , _ , i , a , eq-ndbr , eq-j))
     with ITree.force P | inspect ITree.force P | eq-ndbr
 ...    | ndbr fP wiP waP wpP | [ eqP ] | refl
           with fP i a | inspect (fP i) a | eq-j
@@ -1751,12 +2444,31 @@ bwd-tau-ndbr-lift P {fP = fP} {wiP = wiP} {waP = waP} {wpP = wpP}
                                      eqP fP-eq) τ*-zero) ,
               □-Stop-left P'
 ...         | nothing | _ | ()
-□-Stop-left-fwd-on-tau _ _ | inj₂ (_ , _ , _ , _ , _ , _ , _ , _)
+□-Stop-left-fwd-on-tau _ _ | inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , _ , _))
     | sil _ | _ | eq = case eq of λ ()
-□-Stop-left-fwd-on-tau _ _ | inj₂ (_ , _ , _ , _ , _ , _ , _ , _)
+□-Stop-left-fwd-on-tau _ _ | inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , _ , _))
     | ret _ | _ | eq = case eq of λ ()
-□-Stop-left-fwd-on-tau _ _ | inj₂ (_ , _ , _ , _ , _ , _ , _ , _)
+□-Stop-left-fwd-on-tau _ _ | inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , _ , _))
     | vis _ | _ | eq = case eq of λ ()
+□-Stop-left-fwd-on-tau _ _ | inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , _ , _))
+    | mix _ _ | _ | eq = case eq of λ ()
+-- sMixSlide case: force (Stop □ P) ≡ mix f Qt, t ≡ Qt.  Cases on force P:
+--   • ret r → force (Stop □ P) = mix (λ _ → nothing) P; Qt = P, t = P.
+--     P is at ret r and admits no further step; return P with empty chain.
+--   • mix fP P' → force (Stop □ P) = mix fP (Stop □ P'); Qt = Stop □ P'.
+--     P slides via sMixSlide to P'; bisim Stop □ P' ≈ P' is `□-Stop-left P'`.
+--   • sil/vis/ndbr → force is not mix, force-eq absurd.
+□-Stop-left-fwd-on-tau P _ | inj₂ (inj₂ (f , Qt , force-eq , refl))
+  with ITree.force P | inspect ITree.force P | force-eq
+... | ret _ | [ eqP ] | refl =
+        P , weak-τ τ*-zero , drwbisim-refl _
+... | mix _ P' | [ eqP ] | refl =
+        P' ,
+        weak-τ (τ*-step (sMixSlide {p = P} eqP) τ*-zero) ,
+        □-Stop-left P'
+... | sil _ | _ | ()
+... | vis _ | _ | ()
+... | ndbr _ _ _ _ | _ | ()
 
 -- bwd-on-tau: successor bisim is `□-Stop-left-swap t` — a raw recursive
 -- call with no projection.  No pragma needed here (the swap restructure
@@ -1770,6 +2482,15 @@ bwd-tau-ndbr-lift P {fP = fP} {wiP = wiP} {waP = waP} {wpP = wpP}
       Stop □ t ,
       weak-τ (τ*-step (bwd-tau-ndbr-lift P eqP fP-eq) τ*-zero) ,
       □-Stop-left-swap t
+-- sMixSlide case: P.force ≡ mix fP Qt.  (Stop □ P) is mix-shaped with the
+-- same fP and slide target (Stop □ Qt); lift the slide.  Successor bisim
+-- is Stop □ Qt ≈ Qt via `□-Stop-left-swap`.
+□-Stop-left-bwd-on-tau P (sMixSlide {f = fP} {Qt = Qt} force-eq-P) =
+      Stop □ Qt ,
+      weak-τ (τ*-step (sMixSlide {p = Stop □ P} {f = fP} {Qt = Stop □ Qt}
+                                  (force-Stop-□-vis-mix {P = P} force-eq-P))
+                       τ*-zero) ,
+      □-Stop-left-swap Qt
 
 -- on-div derivations reuse on-tau.
 □-Stop-left-fwd-on-div :

@@ -93,6 +93,24 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
      → f i a ≡ just t′                   -- ANY branch (i, a) can be taken
      → p ─[ τ ]─► t′
 
+  -- mix: visible offers from its vis-side function
+  sMixVis : ∀ {p : ITree E I R}
+            {f  : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+            {Qt : ITree E I R}
+            {at : AnyTypes E} {a : proj₁ at} {t′ : ITree E I R}
+          → ITree.force p ≡ mix f Qt
+          → f at a ≡ just t′
+          ---------------------------------------------
+          → p ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► t′
+
+  -- mix: silent timeout / slide to the fallback subtree
+  sMixSlide : ∀ {p : ITree E I R}
+              {f  : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+              {Qt : ITree E I R}
+            → ITree.force p ≡ mix f Qt
+            ---------------------------------------------
+            → p ─[ τ ]─► Qt
+
 √-is-ret : ∀ {ℓ ℓe ℓi ℓr : Level}
               {E : Set ℓ → Set ℓe}
               {I : Set ℓ → Set ℓi}
@@ -118,15 +136,21 @@ data _─[_]─►_ {ℓ ℓe ℓi ℓr : Level}
      Σ[ wi ∈ AnyTypes I ] Σ[ wa ∈ proj₁ wi ] Σ[ prf ∈ Is-just {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr} (f wi wa) ]
      Σ[ i ∈ AnyTypes I ] Σ[ a ∈ proj₁ i ]
        (ITree.force t ≡ ndbr f wi wa prf × f i a ≡ just t′))
+  ⊎ (Σ[ f ∈ ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))) ]
+     Σ[ Qt ∈ ITree E I R ]
+       (ITree.force t ≡ mix f Qt × t′ ≡ Qt))
 τ-ndbr (sSil eq) =
   inj₁ (_ , (eq , refl))
 
 τ-ndbr (sNdbr {f = f} {wi = wi} {wa = wa} {prf = prf} {i = i} {a = a} {t′ = t′} eq1 eq2 ) =
-  inj₂ (f , wi , wa , prf , i , a , (eq1 , eq2))
+  inj₂ (inj₁ (f , wi , wa , prf , i , a , (eq1 , eq2)))
+
+τ-ndbr (sMixSlide {f = f} {Qt = Qt} eq) =
+  inj₂ (inj₂ (f , Qt , (eq , refl)))
 
 
 -- An ev inversion
---   if an ev transition, it must be vis
+--   if an ev transition, it must come from either a vis node or a mix node
 ev-ndbr : ∀ {ℓ ℓe ℓi ℓr}
     {E : Set ℓ → Set ℓe}
     {I : Set ℓ → Set ℓi}
@@ -134,9 +158,13 @@ ev-ndbr : ∀ {ℓ ℓe ℓi ℓr}
     {t t′ : ITree E I R}
     {A : Set ℓ} {e : E A} {a : A}
   → t ─[ (ev (evl (evLabel A e a))) ]─► t′
-  → Σ[ f ∈ ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R)))]
-      (ITree.force t ≡ vis f × f (A , e) a ≡ just t′)
-ev-ndbr (sVis eq1 eq2) = _ , (eq1 , eq2)
+  → (Σ[ f ∈ ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R)))]
+        (ITree.force t ≡ vis f × f (A , e) a ≡ just t′))
+  ⊎ (Σ[ f ∈ ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R)))]
+     Σ[ Qt ∈ ITree E I R ]
+        (ITree.force t ≡ mix f Qt × f (A , e) a ≡ just t′))
+ev-ndbr (sVis eq1 eq2) = inj₁ (_ , (eq1 , eq2))
+ev-ndbr (sMixVis eq1 eq2) = inj₂ (_ , _ , (eq1 , eq2))
 
 -- A τ transition is not possible from vis
 τ-from-force-vis-impossible :
@@ -156,6 +184,9 @@ ev-ndbr (sVis eq1 eq2) = _ , (eq1 , eq2)
 ... | sNdbr force≡ndbr _ =
       vis≢ndbr (trans (sym force≡vis) force≡ndbr)
 
+... | sMixSlide force≡mix =
+      vis≢mix (trans (sym force≡vis) force≡mix)
+
 -- Stop or stuck has no transition
 ev-from-force-vis-impossible :
   ∀ {ℓ ℓe ℓi ℓr}
@@ -169,7 +200,22 @@ ev-from-force-vis-impossible :
   → ⊥
 ev-from-force-vis-impossible forceEq (sVis forceEq′ branch-eq)
   with trans (sym forceEq′) forceEq
-... | refl = case branch-eq of λ ()  
+... | refl = case branch-eq of λ ()
+ev-from-force-vis-impossible forceEq (sMixVis force≡mix _) =
+  vis≢mix (trans (sym forceEq) force≡mix)
+
+-- No τ transition is possible when force P = ret r
+no-τ-from-ret :
+  ∀ {ℓ ℓe ℓi ℓr}
+    {E : Set ℓ → Set ℓe}
+    {I : Set ℓ → Set ℓi}
+    {R : Set ℓr}
+    {P Q : ITree E I R} {r : R}
+  → ITree.force P ≡ ret r
+  → P ─[ τ ]─► Q → ⊥
+no-τ-from-ret force-ret (sSil eq)      = case trans (sym force-ret) eq of λ ()
+no-τ-from-ret force-ret (sNdbr eq _)   = case trans (sym force-ret) eq of λ ()
+no-τ-from-ret force-ret (sMixSlide eq) = case trans (sym force-ret) eq of λ ()
 
 --------------------------------------------------------------------------------------
 -- This relation denotes a ITree t' is reachable from t via n transitions, including τ
@@ -340,8 +386,29 @@ data _═⟨_⟩═►_ {ℓ ℓe ℓi ℓr : Level}
           {t′′ : ITree E I R}
         → t  ─[ ev el ]─► t′
         → t′ ═⟨ els ⟩═► t′′
-       ---------------------------------------------        
+       ---------------------------------------------
         → t  ═⟨ el ∷ els ⟩═► t′′
+
+-- No τ transition is possible from a state reachable from deadlock via bigstep
+no-τ-from-deadlock-bigstep :
+  ∀ {ℓ ℓe ℓi ℓr}
+    {E : Set ℓ → Set ℓe}
+    {I : Set ℓ → Set ℓi}
+    {R : Set ℓr}
+    {s : List (Event√ E R)}
+    {P′ Q : ITree E I R}
+  → deadlock ═⟨ s ⟩═► P′
+  → P′ ─[ τ ]─► Q → ⊥
+no-τ-from-deadlock-bigstep bNil τ-step =
+  τ-from-force-vis-impossible refl τ-step
+no-τ-from-deadlock-bigstep (bTau τ-step _) _ =
+  τ-from-force-vis-impossible refl τ-step
+no-τ-from-deadlock-bigstep (bStep (sVis refl eq') _) _ =
+  case eq' of λ ()
+no-τ-from-deadlock-bigstep (bStep (sRet eq') _) _ =
+  case eq' of λ ()
+no-τ-from-deadlock-bigstep (bStep (sMixVis force≡mix _) _) _ =
+  case force≡mix of λ ()
 
 -----------------------------------------------------------------
 module Traces where

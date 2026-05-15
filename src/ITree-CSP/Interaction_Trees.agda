@@ -125,6 +125,12 @@ mutual
         -- where i a are witnesses of at least one just branch
         → NodeKind E I R
 
+    -- NEW: Mixed choice state (make the sliding in CSP (P ▷ Q) as a primitive operator)
+    -- Offers a visible external choice, but can silently timeout to a fallback tree.
+    mix : ((at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))) -- Visible events from P
+        → ITree E I R -- The silent timeout transition to Q
+        → NodeKind E I R
+
   record ITree {ℓ ℓe ℓi ℓr : Level}
                (E : Set ℓ → Set ℓe)
                (I : Set ℓ → Set ℓi)
@@ -164,10 +170,11 @@ isStable : ∀ {ℓ ℓe ℓi ℓr : Level}
              {R : Set ℓr}
            → ITree E I R → Set
 isStable t with ITree.force t
-... | ret _ = ⊥                 -- In CSP, termination is not controlled by the environment, so not stable 
+... | ret _ = ⊥                 -- In CSP, termination is not controlled by the environment, so not stable
 ... | sil _ = ⊥
 ... | vis _ = ⊤
 ... | ndbr _ _ _ _ = ⊥
+... | mix _ _ = ⊥               -- mix can perform a silent timeout τ, so it is not stable
 
 isUnstable : ∀ {ℓ ℓe ℓi ℓr : Level}
                {E : Set ℓ → Set ℓe}
@@ -179,6 +186,7 @@ isUnstable t with ITree.force t
 ... | sil _ = ⊤
 ... | vis _ = ⊥
 ... | ndbr _ _ _ _ = ⊤
+... | mix _ _ = ⊤               -- mix has an enabled silent τ to the timeout tree
 
 -- The image of f: the set of ITrees reachable via f
 Image : ∀ {ℓ ℓe ℓi ℓr : Level}
@@ -213,10 +221,32 @@ vis≢ndbr ()
 
 sil≢ndbr : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     {t : ITree E I R}
-    {f : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}    
+    {f : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}
     {i : AnyTypes I} {a : proj₁ i} {p : Is-just (f i a)}
   → sil t ≡ ndbr f i a p  → ⊥
 sil≢ndbr ()
+
+vis≢mix : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    {g : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    {t : ITree E I R}
+  → vis f ≡ mix g t → ⊥
+vis≢mix ()
+
+sil≢mix : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {t : ITree E I R}
+    {g : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    {Qt : ITree E I R}
+  → sil t ≡ mix g Qt → ⊥
+sil≢mix ()
+
+ndbr≢mix : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+    {f : (at : AnyTypes I) → ContinueType at (Maybe (ITree E I R))}
+    {i : AnyTypes I} {a : proj₁ i} {p : Is-just (f i a)}
+    {g : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    {Qt : ITree E I R}
+  → ndbr f i a p ≡ mix g Qt → ⊥
+ndbr≢mix ()
 
 -- vis is injective in its continuation argument
 vis-injective : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}

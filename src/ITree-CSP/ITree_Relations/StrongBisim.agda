@@ -297,6 +297,14 @@ traces-fwd bisim (bTau step@(sNdbr _ _) rest)
 ... | t''' , rest' , bisim''
     = t''' , bTau step' rest' , bisim''
 
+-- sMixSlide: t does τ via mix's silent timeout
+traces-fwd bisim (bTau step@(sMixSlide _) rest)
+    with bisim .Sbisim.fwd .SSimF.on-tau step
+... | t₂' , step' , bisim'
+    with traces-fwd bisim' rest
+... | t''' , rest' , bisim''
+    = t''' , bTau step' rest' , bisim''
+
 -- sVis: t does a visible step
 traces-fwd bisim (bStep step@(sRet _) rest)
     with bisim .Sbisim.fwd .SSimF.on-ret step
@@ -307,6 +315,14 @@ traces-fwd bisim (bStep step@(sRet _) rest)
 
 -- sVis: t does a visible step
 traces-fwd bisim (bStep step@(sVis _ _) rest)
+    with bisim .Sbisim.fwd .SSimF.on-vis step
+... | t₂' , step' , bisim'
+    with traces-fwd bisim' rest
+... | t''' , rest' , bisim''
+    = t''' , bStep step' rest' , bisim''
+
+-- sMixVis: t does a visible step from a mix node
+traces-fwd bisim (bStep step@(sMixVis _ _) rest)
     with bisim .Sbisim.fwd .SSimF.on-vis step
 ... | t₂' , step' , bisim'
     with traces-fwd bisim' rest

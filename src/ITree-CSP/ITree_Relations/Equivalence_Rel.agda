@@ -66,6 +66,13 @@ data EqNodeKindF {ℓ ℓe ℓi ℓr ℓ≡ ℓ≈ : Level}
           → Pointwise TreeRel (f₁ i val) (f₂ i val))
        → EqNodeKindF RetRel TreeRel (ndbr f₁ i₁ a₁ p₁) (ndbr f₂ i₂ a₂ p₂)
 
+  -- mix: vis-side functions pointwise related, timeout subtrees related
+  mixF : ∀ {f₁ f₂ t₁ t₂}
+       → (∀ (at : AnyTypes E) (a : proj₁ at)
+       → Pointwise TreeRel (f₁ at a) (f₂ at a))
+       → TreeRel t₁ t₂
+       → EqNodeKindF RetRel TreeRel (mix f₁ t₁) (mix f₂ t₂)
+
 {-
   -- Use this weak version if the previous one is too strong
   ndbrF : ∀ {f₁ f₂ i₁ i₂ a₁ a₂ p₁ p₂}
@@ -145,6 +152,11 @@ module SEquivEquiv
       go : ∀ m → Pointwise (SEquiv RetRel) m m
       go (just t') = MPW.just (sequiv-refl t')
       go nothing   = MPW.nothing
+  ... | mix f t' = mixF (λ at a → go (f at a)) (sequiv-refl t')
+    where
+      go : ∀ m → Pointwise (SEquiv RetRel) m m
+      go (just t'') = MPW.just (sequiv-refl t'')
+      go nothing    = MPW.nothing
 
   {-# NON_TERMINATING #-}
   sequiv-sym : ∀ {t₁ t₂ : ITree E I R} → SEquiv RetRel t₁ t₂ → SEquiv RetRel t₂ t₁
@@ -158,10 +170,12 @@ module SEquivEquiv
     where
       -- Helper to handle the symmetry of the witness value when the index changes
       sym-val : ∀ {i₁ i₂} {a₁ : proj₁ i₁} {a₂ : proj₁ i₂}
-              → (e : i₁ ≡ i₂) 
-              → subst (λ i → proj₁ i) e a₁ ≡ a₂ 
+              → (e : i₁ ≡ i₂)
+              → subst (λ i → proj₁ i) e a₁ ≡ a₂
               → subst (λ i → proj₁ i) (sym e) a₂ ≡ a₁
       sym-val refl refl = refl
+  ... | mix _ _ | mix _ _ | mixF h ht =
+        mixF (λ at a → MPW.sym sequiv-sym (h at a)) (sequiv-sym ht)
     
 
   {-# NON_TERMINATING #-}
@@ -175,17 +189,20 @@ module SEquivEquiv
   ... | vis _  | vis _  | vis _  | visF hp  | visF hq  =
         visF (λ at a → MPW.trans sequiv-trans (hp at a) (hq at a))
   ... | ndbr _ _ _ _ | ndbr _ _ _ _  | ndbr _ _ _ _  | ndbrF eq-idx-p eq-val-p hp  | ndbrF eq-idx-q eq-val-q hq  =
-        ndbrF (trans eq-idx-p eq-idx-q) 
+        ndbrF (trans eq-idx-p eq-idx-q)
            (trans-val eq-idx-p eq-idx-q eq-val-p eq-val-q)
            (λ i  a → MPW.trans sequiv-trans (hp i  a) (hq i  a))
       where
         -- Helper to handle transitivity of the dependent witness values
         trans-val : ∀ {i₁ i₂ i₃} {a₁ : proj₁ i₁} {a₂ : proj₁ i₂} {a₃ : proj₁ i₃}
                   → (e1 : i₁ ≡ i₂) (e2 : i₂ ≡ i₃)
-                  → subst (λ i → proj₁ i) e1 a₁ ≡ a₂ 
+                  → subst (λ i → proj₁ i) e1 a₁ ≡ a₂
                   → subst (λ i → proj₁ i) e2 a₂ ≡ a₃
                   → subst (λ i → proj₁ i) (trans e1 e2) a₁ ≡ a₃
-        trans-val refl refl refl refl = refl           
+        trans-val refl refl refl refl = refl
+  ... | mix _ _ | mix _ _ | mix _ _ | mixF hp htp | mixF hq htq =
+        mixF (λ at a → MPW.trans sequiv-trans (hp at a) (hq at a))
+             (sequiv-trans htp htq)
 
   -- Package as a Setoid
   SEquiv-isEquivalence : IsEquivalence (SEquiv RetRel)

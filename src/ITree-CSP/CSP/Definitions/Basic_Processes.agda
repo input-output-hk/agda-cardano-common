@@ -14,7 +14,7 @@ open import Data.Bool using (Bool; true; false; if_then_else_)
 
 open import Interaction_Trees
 
-module CSP.Basic_Processes where
+module CSP.Definitions.Basic_Processes where
 open ITree
 {-
 Stop : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi}
@@ -24,7 +24,7 @@ force Stop = vis (λ _ _ → nothing)
 
 Stop : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
       → ITree E I R
-force Stop = vis (λ _ _ → nothing)
+Stop = deadlock
 
 Ret : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
     → R → ITree E I R

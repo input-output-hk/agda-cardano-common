@@ -20,7 +20,7 @@ open import Relation.Nullary.Decidable using (map′)
 open import Class.DecEq using (DecEq-⊥; _==_)
 
 open import Interaction_Trees
-open import CSP.Basic_Processes
+open import CSP.Definitions.Basic_Processes
 
 module CSP.Examples.IO where
 data IO : Set → Set where
@@ -61,10 +61,18 @@ IO-AnyTypes-≟ (_ , inout _ _) (_ , output _) = no λ ()
 
 -- decEs : (es : AnyTypes IO → Set) → (at : AnyTypes IO) → Dec (es at)
 
-import CSP.Operators {E = IO} as CSPOps
+import CSP.Definitions.Operators {E = IO} as CSPOps
 open CSPOps IO-AnyTypes-≟
-import CSP.Iterate {E = IO} as CSPIte
-open CSPIte IO-AnyTypes-≟    
+import CSP.Definitions.Iterate {E = IO} as CSPIte
+open CSPIte IO-AnyTypes-≟
+import CSP.Definitions.Parallel {E = IO} as CSPPar
+open CSPPar IO-AnyTypes-≟
+
+-- Decidable membership for the OnlyInput synchronisation set
+OnlyInput-dec : (at : AnyTypes IO) → Dec (OnlyInput at)
+OnlyInput-dec (_ , input)     = yes tt
+OnlyInput-dec (_ , output _)  = no λ ()
+OnlyInput-dec (_ , inout _ _) = no λ ()
 
 -- A process that takes an input, outputs it, and then terminates.
 copy⊤ : ITree IO (ExtI IO) (⊤)
@@ -114,3 +122,19 @@ PorQ = P ⊓ R 0
 
 P1 : ITree IO (ExtI IO) ⊥
 P1 = ((P ⊓ P) ⊓ (P □ P)) □ R 0
+
+-- Parallel composition of P and Q synchronising on `input` events.
+-- P offers `input` (via copy⊥) and `Run`; Q offers `input`.
+-- On the shared `input` event they must agree; other events interleave.
+P∥Q : ITree IO (ExtI IO) (⊥ × ℕ)
+P∥Q = P ∥⇘ OnlyInput ¿ OnlyInput-dec ⇙ Q
+
+-- Pure interleaving variant (empty synchronisation set).
+NoSync : AnyTypes IO → Set
+NoSync _ = ⊥
+
+NoSync-dec : (at : AnyTypes IO) → Dec (NoSync at)
+NoSync-dec _ = no λ ()
+
+P∥∅Q : ITree IO (ExtI IO) (⊥ × ℕ)
+P∥∅Q = P ∥⇘ NoSync ¿ NoSync-dec ⇙ Q

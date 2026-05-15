@@ -21,13 +21,13 @@ open import Data.Bool using (Bool; true; false; if_then_else_)
 open import Class.DecEq
 
 open import Interaction_Trees
-open import CSP.Basic_Processes
+open import CSP.Definitions.Basic_Processes
 
-module CSP.Hide  {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
+module CSP.Definitions.Hide  {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 open ITree
 
-import CSP.Operators {ℓ} {ℓe} {E} as CSPOps
+import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
 open CSPOps E-≟
 
 -------------------------------------------------------------------------------------

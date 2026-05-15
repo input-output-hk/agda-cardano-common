@@ -42,7 +42,7 @@ module CSP.Laws.InternalChoice_DRBisim
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 
-import CSP.Operators {ℓ} {ℓe} {E} as CSPOps
+import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
 open CSPOps E-≟
 
 open ITree
@@ -55,7 +55,7 @@ private
   open module EQ {ℓ' ℓe' ℓi' ℓr'} {E' : Set ℓ' → Set ℓe'}
                  {I' : Set ℓ' → Set ℓi'} {R' : Set ℓr'} =
         DRWbisimEquiv {E = E'} {I = I'} {R = R'} {RetRel = _≡_} ≡-equiv
-        using (drwbisim-refl)
+        using (drwbisim-refl; drwbisim-sym)
 
 -----------------------------------------------------------------------------
 -- Commutativity of internal choice.
@@ -209,6 +209,80 @@ private
               {i = (Lift ℓ (Fin 2) , fin)} {a = lift fzero}
               refl refl
     aux .Divergent.diverge = d
+
+-----------------------------------------------------------------------------
+-- Congruence of internal choice.
+--
+-- `force (P ⊓ Q) = ndbr (br2 P Q) ...`, and the only τ-successors are
+-- `P` (via `lift fzero`) and `Q` (via `lift (fsuc fzero)`).  For
+-- `(P₁ ⊓ Q₁) ≈ (P₂ ⊓ Q₂)` we match each branch with the same branch
+-- on the RHS, using the supplied bisims `bP : P₁ ≈ P₂` and `bQ : Q₁ ≈ Q₂`.
+⊓-cong :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  → {P₁ P₂ Q₁ Q₂ : ITree E (ExtI I) R}
+  → P₁ ≈ P₂ → Q₁ ≈ Q₂
+  → (P₁ ⊓ Q₁) ≈ (P₂ ⊓ Q₂)
+-- fwd: τ steps of (P₁ ⊓ Q₁) matched by same-index step of (P₂ ⊓ Q₂).
+⊓-cong bP bQ .fwd .on-ret ()
+⊓-cong bP bQ .fwd .on-vis (sVis () _)
+⊓-cong bP bQ .fwd .on-tau (sSil ())
+⊓-cong bP bQ .fwd .on-tau (sNdbr {i = (_ , base _)}   refl ())
+⊓-cong bP bQ .fwd .on-tau (sNdbr {i = (_ , pair _ _)} refl ())
+⊓-cong {P₂ = P₂} {Q₂ = Q₂} bP bQ .fwd .on-tau
+  (sNdbr {i = (_ , fin)} {a = lift fzero} refl refl) =
+    P₂ ,
+    weak-τ (τ*-step
+              (sNdbr {p = P₂ ⊓ Q₂} {f = br2 P₂ Q₂}
+                     {i = (Lift ℓ (Fin 2) , fin)} {a = lift fzero}
+                     refl refl)
+              τ*-zero) ,
+    bP
+⊓-cong {P₂ = P₂} {Q₂ = Q₂} bP bQ .fwd .on-tau
+  (sNdbr {i = (_ , fin)} {a = lift (fsuc fzero)} refl refl) =
+    Q₂ ,
+    weak-τ (τ*-step
+              (sNdbr {p = P₂ ⊓ Q₂} {f = br2 P₂ Q₂}
+                     {i = (Lift ℓ (Fin 2) , fin)} {a = lift (fsuc fzero)}
+                     refl refl)
+              τ*-zero) ,
+    bQ
+⊓-cong bP bQ .fwd .on-tau
+  (sNdbr {i = (_ , fin)} {a = lift (fsuc (fsuc _))} refl ())
+⊓-cong bP bQ .fwd .on-div d
+  with ⊓-cong bP bQ .fwd .on-tau (d .Divergent.step)
+... | t' , weak-τ chain , bisim =
+        divergent-prefix chain (bisim .fwd .on-div (d .Divergent.diverge))
+-- bwd: symmetric — match same-index steps using `drwbisim-sym` of the
+-- supplied bisims.
+⊓-cong bP bQ .bwd .on-ret ()
+⊓-cong bP bQ .bwd .on-vis (sVis () _)
+⊓-cong bP bQ .bwd .on-tau (sSil ())
+⊓-cong bP bQ .bwd .on-tau (sNdbr {i = (_ , base _)}   refl ())
+⊓-cong bP bQ .bwd .on-tau (sNdbr {i = (_ , pair _ _)} refl ())
+⊓-cong {P₁ = P₁} {Q₁ = Q₁} bP bQ .bwd .on-tau
+  (sNdbr {i = (_ , fin)} {a = lift fzero} refl refl) =
+    P₁ ,
+    weak-τ (τ*-step
+              (sNdbr {p = P₁ ⊓ Q₁} {f = br2 P₁ Q₁}
+                     {i = (Lift ℓ (Fin 2) , fin)} {a = lift fzero}
+                     refl refl)
+              τ*-zero) ,
+    drwbisim-sym bP
+⊓-cong {P₁ = P₁} {Q₁ = Q₁} bP bQ .bwd .on-tau
+  (sNdbr {i = (_ , fin)} {a = lift (fsuc fzero)} refl refl) =
+    Q₁ ,
+    weak-τ (τ*-step
+              (sNdbr {p = P₁ ⊓ Q₁} {f = br2 P₁ Q₁}
+                     {i = (Lift ℓ (Fin 2) , fin)} {a = lift (fsuc fzero)}
+                     refl refl)
+              τ*-zero) ,
+    drwbisim-sym bQ
+⊓-cong bP bQ .bwd .on-tau
+  (sNdbr {i = (_ , fin)} {a = lift (fsuc (fsuc _))} refl ())
+⊓-cong bP bQ .bwd .on-div d
+  with ⊓-cong bP bQ .bwd .on-tau (d .Divergent.step)
+... | t' , weak-τ chain , bisim =
+        divergent-prefix chain (bisim .fwd .on-div (d .Divergent.diverge))
 
 -----------------------------------------------------------------------------
 -- ⊓-assoc :  (P ⊓ Q) ⊓ R  ≈  P ⊓ (Q ⊓ R)

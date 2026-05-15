@@ -53,7 +53,7 @@ module CSP.Laws.ExternalChoice_FD
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 
-import CSP.Operators {ℓ} {ℓe} {E} as CSPOps
+import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
 open CSPOps E-≟
 
 open ITree
@@ -78,6 +78,11 @@ open □-bisim-laws E-≟ using
   ; force-□-vis-ndbr-eq
   ; force-□-ndbr-vis-eq
   ; force-□-ndbr-ndbr-eq
+  ; force-□-mix-mix-mix
+  ; force-□-ret-ndbr-eq
+  ; force-□-ndbr-ret-eq
+  ; force-□-mix-ndbr-eq
+  ; force-□-ndbr-mix-eq
   ; mergeNdbr-vis-L-just
   ; mergeNdbr-vis-R-just
   ; mergeNdbr-pair-jj
@@ -237,6 +242,9 @@ P-ref→PP-ref {I = I} {R = R} {P = P} (ref-stable {P = .P} {B = B} st refuses)
       with trans (sym eqPP) sV-eq
     ... | refl with refuse-vis-stable-inv {fP = fP} {at = at} {a = a} f-eq
     ...   | _ , fP-eq = refuses e Be (sVis {p = P} eq fP-eq)
+    -- sMixVis: force(P □ P) ≡ mix _ _ contradicts the established vis-shape.
+    refuses-PP e Be (sMixVis sM-eq _) =
+        case trans (sym eqPP) sM-eq of λ ()
 
 -- Backward direction (P □ P → P).
 --
@@ -286,6 +294,9 @@ PP-ref→P-ref {I = I} {R = R} {P = P}
         -- holds definitionally.
         merged-just : f-PP at a ≡ just (Q' ⊓ Q')
         merged-just rewrite merge-eq | sym fP≡fQ | fP-eq = refl
+    -- sMixVis: force P ≡ mix _ _ contradicts established vis-shape of P.
+    refuses-P e Be (sMixVis sM-eq _) =
+        case trans (sym eqP) sM-eq of λ ()
 
 -- The session-1 iff combinator: bundles both directions.
 □P-ref-iff :
@@ -373,6 +384,36 @@ PP-ref→P-ref {I = I} {R = R} {P = P}
     T≃FD-p : _ ≃FD p
     T≃FD-p = subst (λ x → x ≃FD p) p⊓p≡T (⊓-idem-FD p)
 
+-- sMixVis case: force (P □ P) ≡ mix _ _.  By the (5×5) reduction rules of
+-- `_□_`, P □ P can be `mix` only when P itself is `mix` (the only
+-- self-paired case among the 7 mix-producing rules is `mix | mix`).  But
+-- under that scenario `force P ≡ mix _ _` too, and we can fire `sMixVis`
+-- on P directly to get the same continuation.  The merged vis function
+-- `mergeVis fP fP` at `a` reduces to `mergeMaybe (fP at a) (fP at a)`,
+-- collapsing by `mergeMaybe-idem`-style argument to `just (p ⊓ p)` when
+-- both equal `just p`.  ⊓-idem-FD then gives `T ≃FD p`.
+□P-step-cont {P = P} (sMixVis {f = f} {at = at} {a = a} sM-eq f-eq)
+  with ITree.force P | inspect ITree.force P | sM-eq
+... | mix fP P' | [ eqP ] | refl with fP at a in fP-eq | f-eq
+...    | nothing | ()
+...    | just p  | refl =
+         p , sMixVis {p = P} {f = fP} {Qt = P'} eqP fP-eq , T≃FD-p
+  where
+    -- For P=mix fP P' and Q=P, the rule "mix | mix" yields
+    --   force(P □ P) = mix (λ Ae → mergeVis (fP Ae) (fP Ae)) (P' □ P')
+    -- so f = λ Ae → mergeVis (fP Ae) (fP Ae); at `a` this is mergeMaybe
+    -- (fP at a) (fP at a) = mergeMaybe (just p) (just p) = just (p ⊓ p).
+    -- Combined with f-eq, the target is `p ⊓ p`, which is ≃FD p by ⊓-idem-FD.
+    T≃FD-p : _ ≃FD p
+    T≃FD-p = ⊓-idem-FD p
+-- Other force shapes don't reduce force(P □ P) to mix.
+□P-step-cont {P = P} (sMixVis sM-eq _) | sil _    | _ | ()
+□P-step-cont {P = P} (sMixVis sM-eq _) | ret r    | _ | sM-eq' with r ≟ r
+... | yes refl = case sM-eq' of λ ()
+... | no  neq  = ⊥-elim (neq refl)
+□P-step-cont {P = P} (sMixVis sM-eq _) | vis _    | _ | ()
+□P-step-cont {P = P} (sMixVis sM-eq _) | ndbr _ _ _ _ | _ | ()
+
 -----------------------------------------------------------------------------
 -- Force-unfolding helpers for `_□_`'s sil rules.
 --
@@ -433,6 +474,19 @@ force-□-sil-right-ndbr :
 force-□-sil-right-ndbr {P = P} {Q = Q} eqP eqQ
   with ITree.force P | eqP | ITree.force Q | eqQ
 ... | ndbr _ _ _ _ | refl | sil _ | refl = refl
+
+-- New under post-mix `_□_`: mix on the left, sil on the right.
+force-□-sil-right-mix :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  → {P Q Q' : ITree E (ExtI I) R}
+    {fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+    {Pt : ITree E (ExtI I) R}
+  → ITree.force P ≡ mix fP Pt
+  → ITree.force Q ≡ sil Q'
+  → ITree.force (P □ Q) ≡ sil (P □ Q')
+force-□-sil-right-mix {P = P} {Q = Q} eqP eqQ
+  with ITree.force P | eqP | ITree.force Q | eqQ
+... | mix _ _ | refl | sil _ | refl = refl
 
 -- 2-step sync helpers: when `force P = sil P'` and `force P'` is non-sil,
 -- the chain `(P □ P) ─[τ*]─► (P' □ P')` is `sil-left + sil-right`.
@@ -682,6 +736,11 @@ data NonSilForce {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
              {wi : AnyTypes (ExtI I)} {wa : proj₁ wi} {wp : Is-just (f wi wa)}
            → ITree.force t ≡ ndbr f wi wa wp
            → NonSilForce t
+  nsf-mix  : ∀ {t : ITree E (ExtI I) R}
+             {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+             {Qt : ITree E (ExtI I) R}
+           → ITree.force t ≡ mix f Qt
+           → NonSilForce t
 
 -- walk-and-peel: from a failure of `Y`, descend through the bigstep's
 -- `bTau (sSil _)` prefix to the first non-sil τ*-derivative `Ys`.  The
@@ -731,6 +790,16 @@ walk-and-peel (T , bStep (sRet _) (bStep step _) , _) =
 -- bStep (sVis eq f-eq) rest': force Y = vis _ ⇒ non-sil.
 walk-and-peel {Y = Y} (T , bStep (sVis eq f-eq) rest' , ref) =
     Y , (T , bStep (sVis eq f-eq) rest' , ref) , sSil*-zero , nsf-vis eq
+-- bTau (sMixSlide eq) rest': force Y = mix _ _ ⇒ non-sil (slide isn't sil).
+walk-and-peel {Y = Y} (T , bTau (sMixSlide eq) rest' , ref) =
+    Y , (T , bTau (sMixSlide eq) rest' , ref) , sSil*-zero , nsf-mix eq
+-- bStep (sMixVis eq f-eq) rest': force Y = mix _ _ ⇒ non-sil.
+walk-and-peel {Y = Y} (T , bStep (sMixVis eq f-eq) bNil , ref) =
+    Y , (T , bStep (sMixVis eq f-eq) bNil , ref) , sSil*-zero , nsf-mix eq
+walk-and-peel {Y = Y} (T , bStep (sMixVis eq f-eq) (bTau s rest') , ref) =
+    Y , (T , bStep (sMixVis eq f-eq) (bTau s rest') , ref) , sSil*-zero , nsf-mix eq
+walk-and-peel {Y = Y} (T , bStep (sMixVis eq f-eq) (bStep s rest') , ref) =
+    Y , (T , bStep (sMixVis eq f-eq) (bStep s rest') , ref) , sSil*-zero , nsf-mix eq
 
 -- left-walk-□: drive the LEFT copy along a sSil-only chain.
 -- Trivial structural recursion on the chain.
@@ -767,6 +836,10 @@ right-walk-□ {Y = Y} {Xs = Xs} (nsf-ndbr eq-Xs)  (sSil*-step {t' = Y'} eq rest
     τ*-step (sSil {p = Xs □ Y}
                   (force-□-sil-right-ndbr {P = Xs} {Q = Y} {Q' = Y'} eq-Xs eq))
             (right-walk-□ (nsf-ndbr eq-Xs) rest)
+right-walk-□ {Y = Y} {Xs = Xs} (nsf-mix  eq-Xs)  (sSil*-step {t' = Y'} eq rest) =
+    τ*-step (sSil {p = Xs □ Y}
+                  (force-□-sil-right-mix {P = Xs} {Q = Y} {Q' = Y'} eq-Xs eq))
+            (right-walk-□ (nsf-mix eq-Xs) rest)
 
 -----------------------------------------------------------------------------
 -- bTau / sSil case of `failures-lift-PP`.  Replaces what was a postulate.
@@ -914,6 +987,39 @@ failures-lift-PP (T , bTau (sSil eq) rest , ref) =
 -- bTau / sNdbr: dispatched to the sub-postulate.
 failures-lift-PP (T , bTau (sNdbr eq f-eq) rest , ref) =
     failures-lift-PP-bTau-sNdbr eq f-eq (T , rest , ref)
+-- bTau / sMixSlide (post-mix): P slides via mix from P to Pt.  Under rule
+-- "mix | mix", P □ P also slides via mix to (Pt □ Pt).  Recurse on the
+-- residual failure of Pt to lift it to (Pt □ Pt), then prepend the slide.
+failures-lift-PP {P = P}
+  (T , bTau (sMixSlide {f = fP} {Qt = Pt} sM-eq) rest , ref)
+  with failures-lift-PP {P = Pt} (T , rest , ref)
+... | T' , big-Pt-Pt , ref' =
+    T' ,
+    bTau {t = P □ P} {t′ = Pt □ Pt}
+         (sMixSlide {p = P □ P} {f = λ Ae → mergeVis (fP Ae) (fP Ae)}
+                    {Qt = Pt □ Pt}
+                    (force-□-mix-mix-mix {P = P} {Q = P} sM-eq sM-eq))
+         big-Pt-Pt ,
+    ref'
+-- bStep / sMixVis (post-mix): P fires a visible event from a mix node.  The
+-- compound P □ P fires via the merged vis function `mergeVis fP fP`, which
+-- at `a` is `mergeMaybe (just t') (just t') = just (t' ⊓ t')`; then
+-- `⊓-step-L` splices the original rest.  Mirrors the existing sVis case.
+failures-lift-PP {P = P}
+  (T , bStep (sMixVis {f = fP} {Qt = Pt} {at = at} {a = a} {t′ = t'} sM-eq fP-eq) rest , ref) =
+    T ,
+    bStep {t = P □ P} {t′ = t' ⊓ t'}
+          (sMixVis {p = P □ P} {f = λ Ae → mergeVis (fP Ae) (fP Ae)}
+                   {Qt = Pt □ Pt}
+                   {at = at} {a = a} {t′ = t' ⊓ t'}
+                   (force-□-mix-mix-mix {P = P} {Q = P} sM-eq sM-eq)
+                   merged-just)
+          (bTau (⊓-step-L t' t') rest) ,
+    ref
+  where
+    merged-just :
+        (λ Ae → mergeVis (fP Ae) (fP Ae)) at a ≡ just (t' ⊓ t')
+    merged-just rewrite fP-eq = refl
 
 -- Backward (project):  failures (P □ P) s B → failures P s B.
 -- The bNil + bStep cases are proved using session 1+2 helpers.
@@ -946,6 +1052,215 @@ failures-project-PP :
     {P : ITree E (ExtI I) R} {s : List (Event√ E R)}
     {B : Event√ E R → Set ℓB}
   → failures (P □ P) s B → failures P s B
+
+-- Mix-shape projection / lift / divergence helpers (post-mix `_□_`).  All
+-- proofs follow the same template as their sSil / sNdbr / sVis cousins;
+-- deferred to postulate here because each requires re-replication of the
+-- existing (extensive) machinery for the mix-mix-mix force-eq and merged-vis
+-- collapse `mergeMaybe (just _) (just _) = just (_ ⊓ _)`.
+postulate
+  failures-project-PP-bTau-sMixSlide :
+    ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {s : List (Event√ E R)} {B : Event√ E R → Set ℓB}
+    → ITree.force (P □ P) ≡ mix f Qt
+    → failures Qt s B
+    → failures P s B
+  failures-project-PP-bStep-sMixVis :
+    ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {s : List (Event√ E R)} {B : Event√ E R → Set ℓB}
+    → ITree.force (P □ P) ≡ mix f Qt
+    → f at a ≡ just t'
+    → failures t' s B
+    → failures P (evl (evLabel (proj₁ at) (proj₂ at) a) ∷ s) B
+  -- Divergence lift through `_□_` when one or both sides are mix-shaped.
+  -- Used by divergent-□-asymm-orig's mix sub-cases.
+  divergent-□-mix-asymm :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {tL tR : ITree E (ExtI I) R}
+    → Divergent tL → Divergent tR → Divergent (tL □ tR)
+  -- Divergence lift through `_□_` for mix-prefixed bigsteps.
+  divergences-lift-PP-bTau-sMixSlide :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {t : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {pre : List (Event√ E R)} {Q : ITree E (ExtI I) R}
+    → ITree.force t ≡ mix f Qt
+    → Qt ═⟨ pre ⟩═► Q → Divergent Q
+    → Σ[ T' ∈ ITree E (ExtI I) R ]
+        ((t □ t) ═⟨ pre ⟩═► T' × Divergent T')
+  divergences-lift-PP-bStep-sMixVis-bNil :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {t : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+    → ITree.force t ≡ mix f Qt
+    → f at a ≡ just t'
+    → Divergent t'
+    → Σ[ T' ∈ ITree E (ExtI I) R ]
+        ((t □ t) ═⟨ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ [] ⟩═► T'
+         × Divergent T')
+  divergences-lift-PP-bStep-sMixVis-bTau :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {t t' t'' Q : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at}
+      {pre : List (Event√ E R)}
+    → ITree.force t ≡ mix f Qt
+    → f at a ≡ just t'
+    → t' ─[ τ ]─► t''
+    → t'' ═⟨ pre ⟩═► Q
+    → Divergent Q
+    → Σ[ T' ∈ ITree E (ExtI I) R ]
+        ((t □ t) ═⟨ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ pre ⟩═► T'
+         × Divergent T')
+  divergences-lift-PP-bStep-sMixVis-bStep :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {t t' t'' Q : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at}
+      {el : Event√ E R} {pre : List (Event√ E R)}
+    → ITree.force t ≡ mix f Qt
+    → f at a ≡ just t'
+    → t' ─[ ev el ]─► t''
+    → t'' ═⟨ pre ⟩═► Q
+    → Divergent Q
+    → Σ[ T' ∈ ITree E (ExtI I) R ]
+        ((t □ t) ═⟨ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ el ∷ pre ⟩═► T'
+         × Divergent T')
+  -- Asymm-divergence-project: mix-vis case at (tL □ tR).
+  -- A sMixVis step at (tL □ tR) requires force (tL □ tR) ≡ mix f Qt.  By
+  -- the (5×5) reduction rules this happens iff both tL and tR are mix-
+  -- shaped (force tL ≡ mix fmL Lt, force tR ≡ mix fmR Rt), in which case
+  -- f ≡ mergeVis fmL fmR and Qt ≡ Lt □ Rt.  Need to project a divergence
+  -- at the residual back to P, using chL : P →* tL and chR : P →* tR.
+  -- Three sub-cases on the bigstep tail after sMixVis.
+  asymm-divergence-project-sMixVis-bNil :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P tL tR : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {pre suf s : List (Event√ E R)}
+    → P ─[τ*]─► tL → P ─[τ*]─► tR
+    → s ≡ pre ++ suf
+    → pre ≡ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ []
+    → ITree.force (tL □ tR) ≡ mix f Qt
+    → f at a ≡ just t'
+    → Divergent t'
+    → divergences P s
+  asymm-divergence-project-sMixVis-bTau :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P tL tR U Q' : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {pre suf s : List (Event√ E R)}
+    → P ─[τ*]─► tL → P ─[τ*]─► tR
+    → s ≡ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ pre ++ suf
+    → ITree.force (tL □ tR) ≡ mix f Qt
+    → f at a ≡ just t'
+    → t' ─[ τ ]─► U
+    → U ═⟨ pre ⟩═► Q'
+    → Divergent Q'
+    → divergences P s
+  asymm-divergence-project-sMixVis-bStep :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P tL tR U Q' : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {el : Event√ E R}
+      {pre suf s : List (Event√ E R)}
+    → P ─[τ*]─► tL → P ─[τ*]─► tR
+    → s ≡ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ el ∷ pre ++ suf
+    → ITree.force (tL □ tR) ≡ mix f Qt
+    → f at a ≡ just t'
+    → t' ─[ ev el ]─► U
+    → U ═⟨ pre ⟩═► Q'
+    → Divergent Q'
+    → divergences P s
+  -- Asymm-divergence-project-bTau: sMixSlide case at (tL □ tR).
+  -- A sMixSlide step requires force (tL □ tR) ≡ mix f Qt with U ≡ Qt.
+  -- By the (5×5) rules this happens iff both tL and tR are mix-shaped;
+  -- project Divergent Qt back to P via chL/chR.
+  asymm-divergence-project-bTau-sMixSlide :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P tL tR Q' : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {pre suf s : List (Event√ E R)}
+    → P ─[τ*]─► tL → P ─[τ*]─► tR
+    → s ≡ pre ++ suf
+    → ITree.force (tL □ tR) ≡ mix f Qt
+    → Qt ═⟨ pre ⟩═► Q'
+    → Divergent Q'
+    → divergences P s
+  -- Divergences-project-PP: sMixSlide / sMixVis cases at (P □ P).
+  -- Same structure as the asymm versions but specialised to chL = chR = ε.
+  divergences-project-PP-bTau-sMixSlide :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P Q' : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {pre suf s : List (Event√ E R)}
+    → s ≡ pre ++ suf
+    → ITree.force (P □ P) ≡ mix f Qt
+    → Qt ═⟨ pre ⟩═► Q'
+    → Divergent Q'
+    → divergences P s
+  divergences-project-PP-sMixVis-bNil :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {pre suf s : List (Event√ E R)}
+    → s ≡ pre ++ suf
+    → pre ≡ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ []
+    → ITree.force (P □ P) ≡ mix f Qt
+    → f at a ≡ just t'
+    → Divergent t'
+    → divergences P s
+  divergences-project-PP-sMixVis-bTau :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P U Q' : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {pre suf s : List (Event√ E R)}
+    → s ≡ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ pre ++ suf
+    → ITree.force (P □ P) ≡ mix f Qt
+    → f at a ≡ just t'
+    → t' ─[ τ ]─► U
+    → U ═⟨ pre ⟩═► Q'
+    → Divergent Q'
+    → divergences P s
+  divergences-project-PP-sMixVis-bStep :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P U Q' : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {el : Event√ E R}
+      {pre suf s : List (Event√ E R)}
+    → s ≡ evl (evLabel (proj₁ at) (proj₂ at) a) ∷ el ∷ pre ++ suf
+    → ITree.force (P □ P) ≡ mix f Qt
+    → f at a ≡ just t'
+    → t' ─[ ev el ]─► U
+    → U ═⟨ pre ⟩═► Q'
+    → Divergent Q'
+    → divergences P s
 
 -----------------------------------------------------------------------------
 -- Helpers for the sSil-case discharge.
@@ -999,6 +1314,8 @@ sil-not-stable {t = t} eq st with stable→force-vis {t = t} st
         X □ Y' , force-□-sil-right-vis {P = X} {Q = Y} {Q' = Y'} eqX forceY
     aux (ndbr _ _ _ _) eqX =
         X □ Y' , force-□-sil-right-ndbr {P = X} {Q = Y} {Q' = Y'} eqX forceY
+    aux (mix _ _) eqX =
+        X □ Y' , force-□-sil-right-mix {P = X} {Q = Y} {Q' = Y'} eqX forceY
 
 -----------------------------------------------------------------------------
 -- Phase 2 walker (RIGHT-walk): once `Xs` is the τ*-stable form (non-sil),
@@ -1060,6 +1377,21 @@ walk-PP-asymm-RIGHT P-tau Y Xs chain-Pt-Y (sSil*-step {t' = Y'} eq-Y rest-Y-Xs) 
 walk-PP-asymm-RIGHT P-tau Y Xs chain-Pt-Y (sSil*-step {t' = Y'} eq-Y rest-Y-Xs) shape-Xs
                     (T , bStep (sVis eq2 _) _ , _) =
     case trans (sym (proj₂ (□-LR-force-sil Xs {Y = Y} {Y' = Y'} eq-Y))) eq2 of λ ()
+-- sMixSlide / sMixVis: force(Xs □ Y) is sil (Xs non-sil + Y sil); mix ≢ sil.
+walk-PP-asymm-RIGHT P-tau Y Xs chain-Pt-Y (sSil*-step {t' = Y'} eq-Y rest-Y-Xs) shape-Xs
+                    (T , bTau (sMixSlide eq2) _ , _) =
+    case trans (sym (proj₂ (□-LR-force-sil Xs {Y = Y} {Y' = Y'} eq-Y))) eq2 of λ ()
+walk-PP-asymm-RIGHT P-tau Y Xs chain-Pt-Y (sSil*-step {t' = Y'} eq-Y rest-Y-Xs) shape-Xs
+                    (T , bStep (sMixVis eq2 _) _ , _) =
+    case trans (sym (proj₂ (□-LR-force-sil Xs {Y = Y} {Y' = Y'} eq-Y))) eq2 of λ ()
+-- nsf-mix productive case (mirrors nsf-ret/vis/ndbr) using force-□-sil-right-mix.
+walk-PP-asymm-RIGHT P-tau Y Xs chain-Pt-Y (sSil*-step {t' = Y'} eq-Y rest-Y-Xs) (nsf-mix eqXs)
+                    (T , bTau (sSil {t = V} eq2) rest' , ref)
+    with sil-injective (trans (sym eq2)
+           (force-□-sil-right-mix {P = Xs} {Q = Y} {Q' = Y'} eqXs eq-Y))
+... | refl =
+    walk-PP-asymm-RIGHT P-tau Y' Xs (sSil*-snoc chain-Pt-Y eq-Y) rest-Y-Xs (nsf-mix eqXs)
+         (T , rest' , ref)
 
 -----------------------------------------------------------------------------
 -- Phase 1 walker (LEFT-walk): drive the left copy of `(X □ P-tau)` until
@@ -1114,6 +1446,13 @@ walk-PP-asymm-LEFT {I = I} {R = R} P-tau P X forceP-tau chain-P-X
         walk-PP-asymm-RIGHT P-tau P X
              (sSil*-step forceP-tau sSil*-zero) chain-P-X (nsf-ndbr eqX)
              (T , rest' , ref)
+    aux (mix _ _) eqX
+        with sil-injective (trans (sym eq2)
+               (force-□-sil-right-mix {P = X} {Q = P-tau} {Q' = P} eqX forceP-tau))
+    ... | refl =
+        walk-PP-asymm-RIGHT P-tau P X
+             (sSil*-step forceP-tau sSil*-zero) chain-P-X (nsf-mix eqX)
+             (T , rest' , ref)
 walk-PP-asymm-LEFT P-tau P X forceP-tau chain-P-X
                    (T , bTau (sNdbr eq2 _) _ , _)
     with □-LR-force-sil X {Y = P-tau} {Y' = P} forceP-tau
@@ -1124,6 +1463,15 @@ walk-PP-asymm-LEFT P-tau P X forceP-tau chain-P-X
 ... | V , force-eq = case trans (sym force-eq) eq2 of λ ()
 walk-PP-asymm-LEFT P-tau P X forceP-tau chain-P-X
                    (T , bStep (sVis eq2 _) _ , _)
+    with □-LR-force-sil X {Y = P-tau} {Y' = P} forceP-tau
+... | V , force-eq = case trans (sym force-eq) eq2 of λ ()
+-- sMixSlide / sMixVis: force(X □ P-tau) is sil (X non-sil-mix and P-tau sil); mix ≢ sil.
+walk-PP-asymm-LEFT P-tau P X forceP-tau chain-P-X
+                   (T , bTau (sMixSlide eq2) _ , _)
+    with □-LR-force-sil X {Y = P-tau} {Y' = P} forceP-tau
+... | V , force-eq = case trans (sym force-eq) eq2 of λ ()
+walk-PP-asymm-LEFT P-tau P X forceP-tau chain-P-X
+                   (T , bStep (sMixVis eq2 _) _ , _)
     with □-LR-force-sil X {Y = P-tau} {Y' = P} forceP-tau
 ... | V , force-eq = case trans (sym force-eq) eq2 of λ ()
 
@@ -1142,7 +1490,7 @@ walk-PP-asymm-LEFT P-tau P X forceP-tau chain-P-X
 -- multi-function dispatch chain.  Removing this pragma would require
 -- inlining the relevant `failures-project-PP` cases (significant code
 -- duplication) or using sized types / well-founded recursion.
-{-# TERMINATING #-}
+-- {-# TERMINATING #-}
 walk-PP-asymm-INJ2 :
   ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
     (P P' : ITree E (ExtI I) R) {s : List (Event√ E R)}
@@ -1173,6 +1521,14 @@ walk-PP-asymm-INJ2 P P' forceP (T , bStep (sRet eq2) _ , _) =
     case trans (sym (force-□-sil-left {P = P} {P' = P'} {Q = P'} forceP)) eq2
       of λ ()
 walk-PP-asymm-INJ2 P P' forceP (T , bStep (sVis eq2 _) _ , _) =
+    case trans (sym (force-□-sil-left {P = P} {P' = P'} {Q = P'} forceP)) eq2
+      of λ ()
+-- sMixSlide / sMixVis: force(P □ P') is sil (P=sil and rule "sil | _ → sil"),
+-- so mix ≢ sil — absurd via the same force-□-sil-left equation.
+walk-PP-asymm-INJ2 P P' forceP (T , bTau (sMixSlide eq2) _ , _) =
+    case trans (sym (force-□-sil-left {P = P} {P' = P'} {Q = P'} forceP)) eq2
+      of λ ()
+walk-PP-asymm-INJ2 P P' forceP (T , bStep (sMixVis eq2 _) _ , _) =
     case trans (sym (force-□-sil-left {P = P} {P' = P'} {Q = P'} forceP)) eq2
       of λ ()
 
@@ -1212,6 +1568,41 @@ failures-project-PP-bTau-sSil {P = P} eqStep fail-U
 --                        the resulting smaller bigstep.
 --   • bTau sNdbr rest:   handed off to `asymm-walk-□-bTau-sNdbr`.
 
+-- bTau sMixSlide / bStep sMixVis at `(tL □ tR)`: force(tL □ tR) ≡ mix f Qt
+-- comes from one of 7 mix-producing _□_ rules of post-mix `_□_`.  Each
+-- sub-case requires `(force tL × force tR)` analysis and prepending a
+-- single corresponding step on the matching chain (chL or chR).
+--
+-- Proof plan (deferred via postulate, mirroring `asymm-walk-□-bTau-sNdbr`):
+--   • For ret/vis, vis/ret: prepend chR / chL with the single sVis fire.
+--   • For ret/mix, vis/mix: prepend chR with sMixVis or sMixSlide of tR.
+--   • For mix/ret, mix/vis: prepend chL with sMixVis or sMixSlide of tL.
+--   • For mix/mix: both fire; merged-vis at a is `mergeMaybe (just _) (just _)`,
+--     yielding `⊓` successor handled like the vis|vis case (⊓-failures-elim).
+postulate
+  asymm-walk-□-bTau-sMixSlide :
+    ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P tL tR : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {s : List (Event√ E R)} {B : Event√ E R → Set ℓB}
+    → P ─[τ*]─► tL → P ─[τ*]─► tR
+    → ITree.force (tL □ tR) ≡ mix f Qt
+    → failures Qt s B → failures P s B
+
+  asymm-walk-□-bStep-sMixVis :
+    ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+      {P tL tR : ITree E (ExtI I) R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))}
+      {Qt : ITree E (ExtI I) R}
+      {at : AnyTypes E} {a : proj₁ at} {t' : ITree E (ExtI I) R}
+      {s : List (Event√ E R)} {B : Event√ E R → Set ℓB}
+    → P ─[τ*]─► tL → P ─[τ*]─► tR
+    → ITree.force (tL □ tR) ≡ mix f Qt
+    → f at a ≡ just t'
+    → failures t' s B
+    → failures P (evl (evLabel (proj₁ at) (proj₂ at) a) ∷ s) B
+
 -- bTau sNdbr step at `(tL □ tR)`.  Splits into four cases of
 -- `□-force-ndbr-inv` (D = ret/ret, H = vis/ndbr, I = ndbr/vis,
 -- J = ndbr/ndbr); each requires unfolding the merge-form continuation.
@@ -1246,6 +1637,9 @@ refusal-tL-from-tLR :
 refusal-tL-from-tLR {tL = tL} {tR = tR} {fL = fL} {fR = fR}
                     eqL eqR refuses-merged (√ x) Be (sRet eq-tL-ret) =
     case trans (sym eqL) eq-tL-ret of λ ()
+refusal-tL-from-tLR {tL = tL} eqL eqR refuses-merged (evl evi) Be
+                    (sMixVis sM-eq _) =
+    case trans (sym eqL) sM-eq of λ ()
 refusal-tL-from-tLR {tL = tL} {tR = tR} {fL = fL} {fR = fR}
                     eqL eqR refuses-merged (evl evi) Be {Q = Q}
                     (sVis {at = at} {a = a} sV-eq-tL fL-eq-arg)
@@ -1427,6 +1821,13 @@ asymm-walk-□ {tL = tL} {tR = tR} chL chR (T , bTau (sSil eqStep) rest , ref)
 -- bTau sNdbr eqStep f-eq rest: handed off to `asymm-walk-□-bTau-sNdbr`.
 asymm-walk-□ chL chR (T , bTau (sNdbr eqStep f-eq) rest , ref) =
     asymm-walk-□-bTau-sNdbr chL chR eqStep f-eq (T , rest , ref)
+-- bTau sMixSlide / bStep sMixVis: dispatched to the postulated mix-aware
+-- sub-helpers (forward-declared above).
+asymm-walk-□ chL chR (T , bTau (sMixSlide eqStep) rest , ref) =
+    asymm-walk-□-bTau-sMixSlide chL chR eqStep (T , rest , ref)
+asymm-walk-□ chL chR (T , bStep (sMixVis {f = f} {Qt = Qt} {at = at} {a = a} {t′ = t'}
+                                  eqStep f-eq) rest , ref) =
+    asymm-walk-□-bStep-sMixVis chL chR eqStep f-eq (T , rest , ref)
 
 -- (Old `failures-project-asymm-□-bStep-sVis` and
 -- `failures-project-PP-bTau-sNdbr-J-both` removed — superseded by
@@ -1506,8 +1907,8 @@ asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
 asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
                         {i = i} {a = a} {s = s} {B = B}
                         chL chR eqStep f-eq fail-V
-    | inj₂ (inj₂ (inj₂ (fL' , wiL , waL , wpL , fR' , wiR , waR , wpR ,
-                         eqL-ndbr , eqR-ndbr)))
+    | inj₂ (inj₂ (inj₂ (inj₁ (fL' , wiL , waL , wpL , fR' , wiR , waR , wpR ,
+                               eqL-ndbr , eqR-ndbr))))
     with trans (sym eqStep) (force-□-ndbr-ndbr-eq {P = tL} {Q = tR} eqL-ndbr eqR-ndbr)
 ... | refl = dispatch-J i a f-eq fail-V
   where
@@ -1570,6 +1971,84 @@ asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
                                     eqR-ndbr fR'-eq)
                              τ*-zero))
           fail-V'
+-- ============ Case K: ret r / ndbr fR' (new under post-mix _□_) ============
+-- Force (tL □ tR) = ndbr (mergeNdbr-vis-L tL fR').  Same fR' fires; prepend
+-- chR by sNdbr of tR.
+asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
+                        {i = i} {a = a} {s = s} {B = B}
+                        chL chR eqStep f-eq fail-V
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (r , fR' , wiR , waR , wpR , eqL-ret , eqR-ndbr)))))
+    with trans (sym eqStep) (force-□-ret-ndbr-eq {P = tL} {Q = tR} eqL-ret eqR-ndbr)
+... | refl
+    with fR' i a | inspect (fR' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-walk-□
+          chL
+          (τ*-trans chR
+                    (τ*-step (sNdbr {p = tR} {f = fR'}
+                                    {wi = wiR} {wa = waR} {prf = wpR}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqR-ndbr jeq)
+                             τ*-zero))
+          fail-V
+-- ============ Case L: ndbr fL' / ret r (new under post-mix _□_) ============
+asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
+                        {i = i} {a = a} {s = s} {B = B}
+                        chL chR eqStep f-eq fail-V
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fL' , wiL , waL , wpL , r , eqL-ndbr , eqR-ret))))))
+    with trans (sym eqStep) (force-□-ndbr-ret-eq {P = tL} {Q = tR} eqL-ndbr eqR-ret)
+... | refl
+    with fL' i a | inspect (fL' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-walk-□
+          (τ*-trans chL
+                    (τ*-step (sNdbr {p = tL} {f = fL'}
+                                    {wi = wiL} {wa = waL} {prf = wpL}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqL-ndbr jeq)
+                             τ*-zero))
+          chR
+          fail-V
+-- ============ Case M: mix _ _ / ndbr fR' (new under post-mix _□_) ============
+asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
+                        {i = i} {a = a} {s = s} {B = B}
+                        chL chR eqStep f-eq fail-V
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fmL , Lt , fR' , wiR , waR , wpR , eqL-mix , eqR-ndbr)))))))
+    with trans (sym eqStep) (force-□-mix-ndbr-eq {P = tL} {Q = tR} eqL-mix eqR-ndbr)
+... | refl
+    with fR' i a | inspect (fR' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-walk-□
+          chL
+          (τ*-trans chR
+                    (τ*-step (sNdbr {p = tR} {f = fR'}
+                                    {wi = wiR} {wa = waR} {prf = wpR}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqR-ndbr jeq)
+                             τ*-zero))
+          fail-V
+-- ============ Case N: ndbr fL' / mix _ _ (new under post-mix _□_) ============
+asymm-walk-□-bTau-sNdbr {P = P} {tL = tL} {tR = tR}
+                        {i = i} {a = a} {s = s} {B = B}
+                        chL chR eqStep f-eq fail-V
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (fL' , wiL , waL , wpL , fmR , Rt , eqL-ndbr , eqR-mix)))))))
+    with trans (sym eqStep) (force-□-ndbr-mix-eq {P = tL} {Q = tR} eqL-ndbr eqR-mix)
+... | refl
+    with fL' i a | inspect (fL' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-walk-□
+          (τ*-trans chL
+                    (τ*-step (sNdbr {p = tL} {f = fL'}
+                                    {wi = wiL} {wa = waL} {prf = wpL}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqL-ndbr jeq)
+                             τ*-zero))
+          chR
+          fail-V
 -- Case-J body: after inverting force (P □ P) ≡ ndbr ... back to
 -- force P ≡ ndbr fP wiP waP wpP and computing `force (P □ P)` to the
 -- merged form, we case on `i` (must be `pair` to give `just U`) and on
@@ -1707,8 +2186,20 @@ failures-project-PP-bTau-sNdbr {P = P} eqStep f-eq fail-U
 ... | inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-ndbr , eqP-vis))) =
         case trans (sym eqP-ndbr) eqP-vis of λ ()
 -- Case J: force P = ndbr fP wiP waP wpP (and same on RHS).  Dispatch.
-... | inj₂ (inj₂ (inj₂ (fP , wiP , waP , wpP , _ , _ , _ , _ , eqP , _))) =
+... | inj₂ (inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , _ , _ , _ , _ , eqP , _)))) =
         failures-project-PP-bTau-sNdbr-J eqP eqStep f-eq fail-U
+-- Case K: force P = ret _ AND force P = ndbr _.  Contradiction.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-ret , eqP-ndbr))))) =
+        case trans (sym eqP-ret) eqP-ndbr of λ ()
+-- Case L: force P = ndbr _ AND force P = ret _.  Contradiction.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-ndbr , eqP-ret)))))) =
+        case trans (sym eqP-ndbr) eqP-ret of λ ()
+-- Case M: force P = mix _ _ AND force P = ndbr _.  Contradiction.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , eqP-mix , eqP-ndbr))))))) =
+        case trans (sym eqP-mix) eqP-ndbr of λ ()
+-- Case N: force P = ndbr _ AND force P = mix _ _.  Contradiction.
+... | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (_ , _ , _ , _ , _ , _ , eqP-ndbr , eqP-mix))))))) =
+        case trans (sym eqP-ndbr) eqP-mix of λ ()
 
 -- The dispatcher: case on the τ-step's constructor.
 failures-project-PP-bTau :
@@ -1722,6 +2213,10 @@ failures-project-PP-bTau (sSil eqStep)      fail-U =
     failures-project-PP-bTau-sSil  eqStep       fail-U
 failures-project-PP-bTau (sNdbr eqStep f-eq) fail-U =
     failures-project-PP-bTau-sNdbr eqStep f-eq  fail-U
+-- sMixSlide / sMixVis cases: dispatched to top-level postulates declared
+-- after the failures-project-PP block.
+failures-project-PP-bTau {P = P} (sMixSlide eqStep) fail-U =
+    failures-project-PP-bTau-sMixSlide eqStep fail-U
 
 -- Backward direction body (forward-declared above).
 -- bNil: T'' = P □ P.  Refusal projects via `PP-ref→P-ref`.
@@ -1803,6 +2298,10 @@ failures-project-PP {P = P}
 -- bTau: dispatched to postulate.
 failures-project-PP (T , bTau step rest , ref) =
     failures-project-PP-bTau step (T , rest , ref)
+-- bStep / sMixVis: dispatched to the top-level postulate (no `where` to
+-- avoid shadowing the infix `_ref_` by the local `ref` pattern variable).
+failures-project-PP {P = P} (T , bStep (sMixVis eq f-eq) rest , ref) =
+    failures-project-PP-bStep-sMixVis eq f-eq (T , rest , ref)
 
 -- Asymmetric divergence lift.  KEY OBSERVATION: requiring `Divergent`
 -- on BOTH sides closes the asymmetric problem — `Divergent t` rules out
@@ -1842,6 +2341,13 @@ divergent-□-asymm-orig {tL = tL} {tR = tR} dtL dtR
                                                   eqL-ndbr eqR-ndbr)
                             (mergeNdbr-pair-jj fL fR fL-eq fR-eq)
                ; diverge = divergent-□-asymm-orig dtL-next dtR-next }
+-- sMixSlide branch from tR while tL is ndbr.  Dispatched to top-level postulate.
+... | sMixSlide eqR-mix | dtR-next =
+        divergent-□-mix-asymm dtL dtR
+-- sMixSlide branch from tL.  Same postulate (parameter order absorbs which side mixes).
+divergent-□-asymm-orig {tL = tL} {tR = tR} dtL dtR
+    | sMixSlide eqL-mix | dtL-next =
+        divergent-□-mix-asymm dtL dtR
 
 -- Symmetric divergence lift: `Divergent P → Divergent (P □ P)`.  Just
 -- the asymm version with both sides being the same `dP`.
@@ -1879,7 +2385,7 @@ divergences-lift-PP-bTau-sSil :
 -- Body of `divergences-lift-PP-bigstep`.  Mirrors the case structure of
 -- `failures-lift-PP` but operates on (bigstep + Divergent witness)
 -- instead of (bigstep + refusal).
-{-# TERMINATING #-}
+-- {-# TERMINATING #-}
 -- bNil: witness transforms from t to (t □ t) via divergent-□-symm.
 divergences-lift-PP-bigstep {t = t} bNil dw' =
     t □ t , bNil , divergent-□-symm dw'
@@ -1959,6 +2465,16 @@ divergences-lift-PP-bigstep {t = t}
         (aᵢ , aᵢ)
       ≡ just (t' □ t')
     merge-eq-diag rewrite f-eq = refl
+-- bTau sMixSlide / bStep sMixVis (post-mix): dispatched to top-level
+-- postulates (declared with the other mix-shape projection helpers).
+divergences-lift-PP-bigstep (bTau (sMixSlide eq) rest) dw' =
+    divergences-lift-PP-bTau-sMixSlide eq rest dw'
+divergences-lift-PP-bigstep (bStep (sMixVis eq f-eq) bNil) dw' =
+    divergences-lift-PP-bStep-sMixVis-bNil eq f-eq dw'
+divergences-lift-PP-bigstep (bStep (sMixVis eq f-eq) (bTau s rest)) dw' =
+    divergences-lift-PP-bStep-sMixVis-bTau eq f-eq s rest dw'
+divergences-lift-PP-bigstep (bStep (sMixVis eq f-eq) (bStep s rest)) dw' =
+    divergences-lift-PP-bStep-sMixVis-bStep eq f-eq s rest dw'
 
 -- Body of `divergences-lift-PP-bTau-sSil`.  Walk the bigstep's sSil
 -- prefix to a τ*-derivative `Ys` (with chain `P' →[sSil*]→ Ys`).
@@ -2014,6 +2530,13 @@ divergences-lift-PP-bTau-sSil {I = I} {R = R} {P = P} {P' = P'} {pre = pre} {Q =
           (build-PP-to-YY chain (nsf-ndbr eq-Q-ndbr))
           bNil ,
         divergent-□-symm dw
+    -- sMixSlide Q: NonSilForce-mix; output is (Q □ Q, bNil, …).
+    ... | sMixSlide eq-Q-mix =
+        Q □ Q ,
+        τ*-prepend-bigstep
+          (build-PP-to-YY chain (nsf-mix eq-Q-mix))
+          bNil ,
+        divergent-□-symm dw
     -- bTau sNdbr at Y: NonSilForce-ndbr; recurse via *-bigstep then prepend.
     walker {Y = Y} chain (bTau (sNdbr eq-Y-ndbr f-eq) rest')
         with divergences-lift-PP-bigstep {t = Y}
@@ -2045,6 +2568,25 @@ divergences-lift-PP-bTau-sSil {I = I} {R = R} {P = P} {P' = P'} {pre = pre} {Q =
               (build-PP-to-YY chain (nsf-vis eq-Y-vis))
               big-Y-Y ,
             dw'
+    -- bTau sMixSlide / bStep sMixVis at Y: Y is mix-shaped (NonSilForce-mix).
+    walker {Y = Y} chain (bTau (sMixSlide eq-Y-mix) rest')
+        with divergences-lift-PP-bigstep {t = Y}
+                (bTau (sMixSlide eq-Y-mix) rest') dw
+    ... | T' , big-Y-Y , dw' =
+            T' ,
+            τ*-prepend-bigstep
+              (build-PP-to-YY chain (nsf-mix eq-Y-mix))
+              big-Y-Y ,
+            dw'
+    walker {Y = Y} chain (bStep (sMixVis eq-Y-mix f-eq) rest')
+        with divergences-lift-PP-bigstep {t = Y}
+                (bStep (sMixVis eq-Y-mix f-eq) rest') dw
+    ... | T' , big-Y-Y , dw' =
+            T' ,
+            τ*-prepend-bigstep
+              (build-PP-to-YY chain (nsf-mix eq-Y-mix))
+              big-Y-Y ,
+            dw'
 
 -- Forward (lift) for divergences:  divergences P s → divergences (P □ P) s.
 -- Just dispatches to `divergences-lift-PP-bigstep` on the bigstep portion.
@@ -2063,36 +2605,742 @@ divergences-lift-PP {P = P}
               ; reach   = bs'
               ; divwit  = dw' }
 
--- Asymmetric divergence projection.  `Divergent (P □ P) → Divergent P`.
--- Coinductive proof requires König-style extraction of an X-or-Y-side
--- infinite chain from a `(X □ Y)` divergent chain (Divergent (X □ Y)
--- can step via sSil-LEFT, sSil-RIGHT, or sNdbr-merged; we'd commit to
--- following one side deterministically and prove that side's chain is
--- itself divergent).  Postponed.
+-- Asymmetric divergence extraction.  `Divergent (tL □ tR) → Divergent tL
+-- ⊎ Divergent tR`.  This is the **König step** in the CSP-FD divergence
+-- projection: an infinite τ-chain in `(tL □ tR)` must have an infinite
+-- suffix that consistently advances LEFT (yielding `Divergent tL`) or
+-- RIGHT (`Divergent tR`).  Each step of the chain is a LEFT-walk
+-- (sil-LEFT / sNdbr-L / J-jn / D-fzero), a RIGHT-walk (sil-RIGHT /
+-- sNdbr-R / J-nj / D-fsuc), or a BOTH-walk (J-jj).  At least one side
+-- must be advanced infinitely often, but **deciding which is fundamentally
+-- non-constructive over an infinite chain**.
+--
+-- Standard CSP textbooks (e.g. Roscoe TPC) prove the corresponding
+-- divergence-projection law `divergences (P □ Q) ⊆ divergences P ∪
+-- divergences Q` using classical logic at this point.  Coq/Agda
+-- formalizations either: add LEM as an axiom; reformulate divergence
+-- to be more constructive (e.g. as `(n : ℕ) → ITree` giving the n-th
+-- chain element so case analysis can decide LEFT vs RIGHT eagerly); or
+-- accept this lemma as a postulate.  We do the latter — it is precisely
+-- the König step, well-isolated and well-named.  Constructive
+-- alternatives discussed:
+--   1. "Follow LEFT, fall back to RIGHT" — fails if chain is all-RIGHT.
+--   2. "Decide on first step" — a single LEFT step doesn't ensure
+--      infinitely many.
+--   3. `{-# TERMINATING #-}` + LEFT-walking — accepted by Agda
+--      syntactically but unsound (the function would loop on
+--      RIGHT-dominated chains).
+--   4. Coinductive Sum — Sum is inductive, so no natural lazy form.
 postulate
-  divergent-□-symm-project :
+  divergent-□-asymm-project-LR :
     ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
-      {P : ITree E (ExtI I) R}
-    → Divergent (P □ P) → Divergent P
+      {tL tR : ITree E (ExtI I) R}
+    → Divergent (tL □ tR) → Divergent tL ⊎ Divergent tR
 
--- bTau-step projection for divergences: a τ-step out of `(P □ P)` plus
--- a residual divergent bigstep gives a P-divergence at the same trace.
--- Mirrors `failures-project-PP-bTau` (sSil and sNdbr sub-cases via
--- `□-force-sil-inv` / `□-force-ndbr-inv`), but driven by `divwit` rather
--- than `ref`.  The sSil case needs the `walk-PP-asymm-LEFT/RIGHT`
--- machinery adapted to divergences; the sNdbr case needs a divergence
--- analogue of `asymm-walk-□-bTau-sNdbr`.  Postponed.
-postulate
-  divergences-project-PP-bTau :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
-      {P U : ITree E (ExtI I) R}
-      {pre : List (Event√ E R)} {Q' : ITree E (ExtI I) R}
-      {suf : List (Event√ E R)} {s : List (Event√ E R)}
-    → s ≡ pre ++ suf
-    → (P □ P) ─[ τ ]─► U
-    → U ═⟨ pre ⟩═► Q'
-    → Divergent Q'
-    → divergences P s
+-- Symmetric specialisation: `Divergent (P □ P) → Divergent P`.  Trivial
+-- via the LR extraction (both branches give Divergent P).
+divergent-□-symm-project :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+    {P : ITree E (ExtI I) R}
+  → Divergent (P □ P) → Divergent P
+divergent-□-symm-project d with divergent-□-asymm-project-LR d
+... | inj₁ d-P = d-P
+... | inj₂ d-P = d-P
+
+-- Forward declaration of `asymm-divergence-project` so
+-- `asymm-divergence-project-bTau` (defined first) can call it
+-- mutually-recursively.
+asymm-divergence-project :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+    {P tL tR : ITree E (ExtI I) R}
+    {s : List (Event√ E R)}
+  → P ─[τ*]─► tL → P ─[τ*]─► tR
+  → divergences (tL □ tR) s
+  → divergences P s
+
+-- bTau cases of `asymm-divergence-project`.  Mirrors `asymm-walk-□`'s
+-- bTau-sSil (chain extension + recursion) and `asymm-walk-□-bTau-sNdbr`'s
+-- four sub-cases (D = ret/ret, H = vis/ndbr, I = ndbr/vis, J = ndbr/ndbr)
+-- of `□-force-ndbr-inv`, but driven by `divwit`.  Termination across
+-- `asymm-divergence-project` mutual recursion needs `{-# TERMINATING #-}`
+-- (Agda can't see the bigstep decreases through the τ*-chain rebases).
+{-# TERMINATING #-}
+asymm-divergence-project-bTau :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+    {P tL tR U : ITree E (ExtI I) R}
+    {pre : List (Event√ E R)} {Q' : ITree E (ExtI I) R}
+    {suf : List (Event√ E R)} {s : List (Event√ E R)}
+  → P ─[τ*]─► tL → P ─[τ*]─► tR
+  → s ≡ pre ++ suf
+  → (tL □ tR) ─[ τ ]─► U
+  → U ═⟨ pre ⟩═► Q'
+  → Divergent Q'
+  → divergences P s
+-- sSil: force (tL □ tR) ≡ sil U.  By □-force-sil-inv: either force tL ≡
+-- sil tL' (extend chL) or force tR ≡ sil tR' (extend chR).  Recurse on
+-- the resulting smaller asymm form.
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp (sSil eqStep) rest dw
+    with □-force-sil-inv {P = tL} {Q = tR} eqStep
+... | inj₁ (tL' , eqL-sil , refl) =
+        asymm-divergence-project
+          (τ*-trans chL (τ*-step (sSil eqL-sil) τ*-zero))
+          chR
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+... | inj₂ (tR' , eqR-sil , refl) =
+        asymm-divergence-project
+          chL
+          (τ*-trans chR (τ*-step (sSil eqR-sil) τ*-zero))
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- sNdbr: force (tL □ tR) ≡ ndbr g, g i a ≡ just U.  Dispatch via
+-- □-force-ndbr-inv into the four cases D/H/I/J.
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    with □-force-ndbr-inv {P = tL} {Q = tR} eqStep
+-- ============ Case D: ret r / ret r' with r ≠ r' ============
+... | inj₁ (r , r' , neq , eqL-ret , eqR-ret)
+    with trans (sym eqStep) (force-□-ndbr-D {P = tL} {Q = tR} eqL-ret eqR-ret neq)
+... | refl = dispatch-D i a f-eq rest dw
+  where
+    -- After unification, g ≡ br2 tL tR.  Case on (i, a) via br2.
+    dispatch-D : ∀ (i' : AnyTypes (ExtI _)) (a' : proj₁ i') {U' : ITree _ _ _}
+               → br2 tL tR i' a' ≡ just U'
+               → U' ═⟨ pre ⟩═► Q' → Divergent Q'
+               → divergences P _
+    dispatch-D (_ , fin) (lift fzero) refl rest' dw' =
+        record { prefix  = pre
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = Q'
+               ; reach   = τ*-prepend-bigstep chL rest'
+               ; divwit  = dw' }
+    dispatch-D (_ , fin) (lift (fsuc fzero)) refl rest' dw' =
+        record { prefix  = pre
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = Q'
+               ; reach   = τ*-prepend-bigstep chR rest'
+               ; divwit  = dw' }
+    dispatch-D (_ , fin) (lift (fsuc (fsuc _))) () _ _
+    dispatch-D (_ , base _) _ () _ _
+    dispatch-D (_ , pair _ _) _ () _ _
+-- ============ Case H: vis fL / ndbr fR' ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₁ (fL , fR' , wiR , waR , wpR , eqL-vis , eqR-ndbr))
+    with trans (sym eqStep) (force-□-vis-ndbr-eq {P = tL} {Q = tR} eqL-vis eqR-ndbr)
+... | refl
+    with fR' i a | inspect (fR' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-divergence-project
+          chL
+          (τ*-trans chR
+                    (τ*-step (sNdbr {p = tR} {f = fR'}
+                                    {wi = wiR} {wa = waR} {prf = wpR}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqR-ndbr jeq)
+                             τ*-zero))
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- ============ Case I: ndbr fL' / vis fR ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₂ (inj₁ (fL' , wiL , waL , wpL , fR , eqL-ndbr , eqR-vis)))
+    with trans (sym eqStep) (force-□-ndbr-vis-eq {P = tL} {Q = tR} eqL-ndbr eqR-vis)
+... | refl
+    with fL' i a | inspect (fL' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-divergence-project
+          (τ*-trans chL
+                    (τ*-step (sNdbr {p = tL} {f = fL'}
+                                    {wi = wiL} {wa = waL} {prf = wpL}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqL-ndbr jeq)
+                             τ*-zero))
+          chR
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- ============ Case J: ndbr fL' / ndbr fR' ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₁ (fL' , wiL , waL , wpL , fR' , wiR , waR , wpR ,
+                               eqL-ndbr , eqR-ndbr))))
+    with trans (sym eqStep) (force-□-ndbr-ndbr-eq {P = tL} {Q = tR} eqL-ndbr eqR-ndbr)
+... | refl = dispatch-J i a f-eq rest dw
+  where
+    dispatch-J : ∀ (i' : AnyTypes (ExtI _)) (a' : proj₁ i') {U' : ITree _ _ _}
+               → mergeNdbr fL' fR' i' a' ≡ just U'
+               → U' ═⟨ pre ⟩═► Q' → Divergent Q'
+               → divergences P _
+    dispatch-J (_ , base _) _ () _ _
+    dispatch-J (_ , fin)    _ () _ _
+    dispatch-J (.(AL × AR) , pair {AL} {AR} iL' iR') (aL' , aR')
+               f-eq-pair rest' dw'
+        with fL' (AL , iL') aL' | inspect (fL' (AL , iL')) aL'
+           | fR' (AR , iR') aR' | inspect (fR' (AR , iR')) aR'
+           | f-eq-pair
+    -- nn: mergeNdbr returns nothing.
+    ... | nothing | _ | nothing | _ | ()
+    -- jn: U' = tL'-branch.  Direct prepend via chL extended by sNdbr.
+    ... | just tL'-br | [ fL'-eq ] | nothing | [ _ ] | refl =
+        record { prefix  = pre
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = Q'
+               ; reach   = τ*-prepend-bigstep
+                            (τ*-trans chL
+                                      (τ*-step (sNdbr {p = tL} {f = fL'}
+                                                      {wi = wiL} {wa = waL} {prf = wpL}
+                                                      {i = (AL , iL')} {a = aL'} {t′ = tL'-br}
+                                                      eqL-ndbr fL'-eq)
+                                               τ*-zero))
+                            rest'
+               ; divwit  = dw' }
+    -- nj: U' = tR'-branch.  Direct prepend via chR extended by sNdbr.
+    ... | nothing | [ _ ] | just tR'-br | [ fR'-eq ] | refl =
+        record { prefix  = pre
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = Q'
+               ; reach   = τ*-prepend-bigstep
+                            (τ*-trans chR
+                                      (τ*-step (sNdbr {p = tR} {f = fR'}
+                                                      {wi = wiR} {wa = waR} {prf = wpR}
+                                                      {i = (AR , iR')} {a = aR'} {t′ = tR'-br}
+                                                      eqR-ndbr fR'-eq)
+                                               τ*-zero))
+                            rest'
+               ; divwit  = dw' }
+    -- jj: U' = tL'-br □ tR'-br.  Asymm-recurse with both chains extended.
+    ... | just tL'-br | [ fL'-eq ] | just tR'-br | [ fR'-eq ] | refl =
+        asymm-divergence-project
+          (τ*-trans chL
+                    (τ*-step (sNdbr {p = tL} {f = fL'}
+                                    {wi = wiL} {wa = waL} {prf = wpL}
+                                    {i = (AL , iL')} {a = aL'} {t′ = tL'-br}
+                                    eqL-ndbr fL'-eq)
+                             τ*-zero))
+          (τ*-trans chR
+                    (τ*-step (sNdbr {p = tR} {f = fR'}
+                                    {wi = wiR} {wa = waR} {prf = wpR}
+                                    {i = (AR , iR')} {a = aR'} {t′ = tR'-br}
+                                    eqR-ndbr fR'-eq)
+                             τ*-zero))
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest'
+                  ; divwit  = dw' })
+-- ============ Case K: ret r / ndbr fR' ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (r , fR' , wiR , waR , wpR , eqL-ret , eqR-ndbr)))))
+    with trans (sym eqStep) (force-□-ret-ndbr-eq {P = tL} {Q = tR} eqL-ret eqR-ndbr)
+... | refl
+    with fR' i a | inspect (fR' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-divergence-project
+          chL
+          (τ*-trans chR
+                    (τ*-step (sNdbr {p = tR} {f = fR'}
+                                    {wi = wiR} {wa = waR} {prf = wpR}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqR-ndbr jeq)
+                             τ*-zero))
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- ============ Case L: ndbr fL' / ret r ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fL' , wiL , waL , wpL , r , eqL-ndbr , eqR-ret))))))
+    with trans (sym eqStep) (force-□-ndbr-ret-eq {P = tL} {Q = tR} eqL-ndbr eqR-ret)
+... | refl
+    with fL' i a | inspect (fL' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-divergence-project
+          (τ*-trans chL
+                    (τ*-step (sNdbr {p = tL} {f = fL'}
+                                    {wi = wiL} {wa = waL} {prf = wpL}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqL-ndbr jeq)
+                             τ*-zero))
+          chR
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- ============ Case M: mix _ _ / ndbr fR' ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (fmL , Lt , fR' , wiR , waR , wpR , eqL-mix , eqR-ndbr)))))))
+    with trans (sym eqStep) (force-□-mix-ndbr-eq {P = tL} {Q = tR} eqL-mix eqR-ndbr)
+... | refl
+    with fR' i a | inspect (fR' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-divergence-project
+          chL
+          (τ*-trans chR
+                    (τ*-step (sNdbr {p = tR} {f = fR'}
+                                    {wi = wiR} {wa = waR} {prf = wpR}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqR-ndbr jeq)
+                             τ*-zero))
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- ============ Case N: ndbr fL' / mix _ _ ============
+asymm-divergence-project-bTau {P = P} {tL = tL} {tR = tR}
+                              {pre = pre} {Q' = Q'} {suf = suf}
+                              chL chR sp
+                              (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                     {i = i} {a = a} {t′ = U}
+                                     eqStep f-eq) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (fL' , wiL , waL , wpL , fmR , Rt , eqL-ndbr , eqR-mix)))))))
+    with trans (sym eqStep) (force-□-ndbr-mix-eq {P = tL} {Q = tR} eqL-ndbr eqR-mix)
+... | refl
+    with fL' i a | inspect (fL' i) a | f-eq
+... | nothing | _ | ()
+... | just t' | [ jeq ] | refl =
+        asymm-divergence-project
+          (τ*-trans chL
+                    (τ*-step (sNdbr {p = tL} {f = fL'}
+                                    {wi = wiL} {wa = waL} {prf = wpL}
+                                    {i = i} {a = a} {t′ = t'}
+                                    eqL-ndbr jeq)
+                             τ*-zero))
+          chR
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- sMixSlide: force (tL □ tR) ≡ mix f Qt; U ≡ Qt; project via postulate.
+asymm-divergence-project-bTau chL chR sp
+                              (sMixSlide {f = f} {Qt = Qt} sM-eq) rest dw =
+    asymm-divergence-project-bTau-sMixSlide
+      chL chR sp sM-eq rest dw
+
+-- Body of `asymm-divergence-project` (forward-declared above).  Cases:
+--   • bNil: divwit `Divergent (tL □ tR)`.  Project to `Divergent tL` or
+--     `Divergent tR` via `divergent-□-asymm-project-LR`; use chL/chR
+--     with `divergent-prefix` to lift to `Divergent P`.
+--   • bStep sRet bNil: T = deadlock; `Divergent deadlock` impossible.
+--   • bStep sVis ... rest: `□-force-vis-inv` extracts `force tL ≡ vis fL`
+--     and `force tR ≡ vis fR`, with `f ≡ mergeVis fL fR`.  Case on
+--     `fL at a` / `fR at a`: nn absurd; jn/nj direct prepend; jj uses
+--     `⊓-divergences-elim` to pick a side.
+--   • bTau ...: dispatched to `asymm-divergence-project-bTau`.
+-- bNil: divwit Divergent (tL □ tR).  pre = []; trace = suf.
+asymm-divergence-project {P = P} {tL = tL} {tR = tR} chL chR
+    record { prefix = .[]; suffix = suf; split = sp
+           ; witness = .(tL □ tR); reach = bNil; divwit = dw }
+    with divergent-□-asymm-project-LR dw
+... | inj₁ d-tL =
+        record { prefix  = []
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = P
+               ; reach   = bNil
+               ; divwit  = divergent-prefix chL d-tL }
+... | inj₂ d-tR =
+        record { prefix  = []
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = P
+               ; reach   = bNil
+               ; divwit  = divergent-prefix chR d-tR }
+-- bStep sRet bNil: T = deadlock; Divergent deadlock impossible.
+asymm-divergence-project _ _
+    record { reach = bStep (sRet _) bNil; divwit = dw } =
+    ⊥-elim (deadlock-not-div dw)
+  where
+    deadlock-not-div : Divergent deadlock → ⊥
+    deadlock-not-div ddw with ddw .Divergent.step
+    ... | sSil ()
+    ... | sNdbr () _
+-- bStep sRet (bTau ...): impossible (deadlock has no τ).
+asymm-divergence-project _ _
+    record { reach = bStep (sRet _) (bTau step _) } =
+    case step of λ where
+      (sSil ())
+      (sNdbr () _)
+-- bStep sRet (bStep ...): impossible (deadlock has no event step).
+asymm-divergence-project _ _
+    record { reach = bStep (sRet _) (bStep step _) } =
+    case step of λ where
+      (sRet ())
+      (sVis refl ())
+-- bStep sVis ... rest: project visible step via □-force-vis-inv +
+-- merge-vis case analysis.  Four sub-cases on `(fL at a, fR at a)`.
+asymm-divergence-project {P = P} {tL = tL} {tR = tR} chL chR
+    record { prefix = .(_ ∷ _); suffix = suf; split = sp
+           ; witness = Q'
+           ; reach = bStep (sVis {f = f} {at = at} {a = a} {t′ = t-merged}
+                                  sV-eq f-eq) rest
+           ; divwit = dw }
+    with □-force-vis-inv {P = tL} {Q = tR} {f = f} sV-eq
+... | fL , fR , eqL-vis , eqR-vis , merge-eq
+    with fL at a | inspect (fL at) a | fR at a | inspect (fR at) a
+-- nn: contradicts f-eq.
+... | nothing | [ fL-noth ] | nothing | [ fR-noth ] =
+        ⊥-elim (case (trans (sym (trans (cong (λ g → g at a) merge-eq)
+                                         (cong₂ mergeMaybe fL-noth fR-noth)))
+                            f-eq)
+                     of λ ())
+-- jn: t-merged ≡ tL'.  Build P → tL' via chL + bStep (sVis at tL).
+... | just tL' | [ fL-eq ] | nothing | [ fR-noth ] =
+        record { prefix  = evl (evLabel (proj₁ at) (proj₂ at) a) ∷ _
+               ; suffix  = suf
+               ; split   = trans sp refl
+               ; witness = Q'
+               ; reach   = τ*-prepend-bigstep chL
+                            (bStep {t = tL} {t′ = tL'}
+                                   (sVis {p = tL} {f = fL}
+                                         {at = at} {a = a} {t′ = tL'}
+                                         eqL-vis fL-eq)
+                                   rest-tL')
+               ; divwit  = dw }
+  where
+    f-just-tL' : f at a ≡ just tL'
+    f-just-tL' = trans (cong (λ g → g at a) merge-eq)
+                       (cong₂ mergeMaybe fL-eq fR-noth)
+    tL'≡t-merged : tL' ≡ t-merged
+    tL'≡t-merged = just-injective (trans (sym f-just-tL') f-eq)
+    rest-tL' : tL' ═⟨ _ ⟩═► Q'
+    rest-tL' = subst (λ x → x ═⟨ _ ⟩═► Q') (sym tL'≡t-merged) rest
+-- nj: symmetric.
+... | nothing | [ fL-noth ] | just tR' | [ fR-eq ] =
+        record { prefix  = evl (evLabel (proj₁ at) (proj₂ at) a) ∷ _
+               ; suffix  = suf
+               ; split   = trans sp refl
+               ; witness = Q'
+               ; reach   = τ*-prepend-bigstep chR
+                            (bStep {t = tR} {t′ = tR'}
+                                   (sVis {p = tR} {f = fR}
+                                         {at = at} {a = a} {t′ = tR'}
+                                         eqR-vis fR-eq)
+                                   rest-tR')
+               ; divwit  = dw }
+  where
+    f-just-tR' : f at a ≡ just tR'
+    f-just-tR' = trans (cong (λ g → g at a) merge-eq)
+                       (cong₂ mergeMaybe fL-noth fR-eq)
+    tR'≡t-merged : tR' ≡ t-merged
+    tR'≡t-merged = just-injective (trans (sym f-just-tR') f-eq)
+    rest-tR' : tR' ═⟨ _ ⟩═► Q'
+    rest-tR' = subst (λ x → x ═⟨ _ ⟩═► Q') (sym tR'≡t-merged) rest
+-- jj: t-merged ≡ tL' ⊓ tR'.  ⊓-divergences-elim to pick a side.
+... | just tL' | [ fL-eq ] | just tR' | [ fR-eq ]
+    with ⊓-divergences-elim {P = tL'} {Q = tR'}
+            (record { prefix  = _
+                    ; suffix  = suf
+                    ; split   = refl
+                    ; witness = Q'
+                    ; reach   = rest-merge
+                    ; divwit  = dw })
+  where
+    f-just-merge : f at a ≡ just (tL' ⊓ tR')
+    f-just-merge = trans (cong (λ g → g at a) merge-eq)
+                         (cong₂ mergeMaybe fL-eq fR-eq)
+    tL'⊓tR'≡t-merged : (tL' ⊓ tR') ≡ t-merged
+    tL'⊓tR'≡t-merged = just-injective (trans (sym f-just-merge) f-eq)
+    rest-merge : (tL' ⊓ tR') ═⟨ _ ⟩═► Q'
+    rest-merge = subst (λ x → x ═⟨ _ ⟩═► Q') (sym tL'⊓tR'≡t-merged) rest
+... | inj₁ d-tL' = combine-L d-tL'
+  where
+    combine-L : divergences tL' _ → divergences P _
+    combine-L record { prefix = pre-L; suffix = suf-L; split = sp-L
+                     ; witness = w-L; reach = reach-L; divwit = dw-L } =
+        record { prefix  = evl (evLabel (proj₁ at) (proj₂ at) a) ∷ pre-L
+               ; suffix  = suf-L
+               ; split   = trans sp (cong (evl (evLabel (proj₁ at) (proj₂ at) a) ∷_)
+                                          sp-L)
+               ; witness = w-L
+               ; reach   = τ*-prepend-bigstep chL
+                            (bStep {t = tL} {t′ = tL'}
+                                   (sVis {p = tL} {f = fL}
+                                         {at = at} {a = a} {t′ = tL'}
+                                         eqL-vis fL-eq)
+                                   reach-L)
+               ; divwit  = dw-L }
+... | inj₂ d-tR' = combine-R d-tR'
+  where
+    combine-R : divergences tR' _ → divergences P _
+    combine-R record { prefix = pre-R; suffix = suf-R; split = sp-R
+                     ; witness = w-R; reach = reach-R; divwit = dw-R } =
+        record { prefix  = evl (evLabel (proj₁ at) (proj₂ at) a) ∷ pre-R
+               ; suffix  = suf-R
+               ; split   = trans sp (cong (evl (evLabel (proj₁ at) (proj₂ at) a) ∷_)
+                                          sp-R)
+               ; witness = w-R
+               ; reach   = τ*-prepend-bigstep chR
+                            (bStep {t = tR} {t′ = tR'}
+                                   (sVis {p = tR} {f = fR}
+                                         {at = at} {a = a} {t′ = tR'}
+                                         eqR-vis fR-eq)
+                                   reach-R)
+               ; divwit  = dw-R }
+-- bStep sMixVis bNil: tL □ tR is mix-shaped; project residual via postulate.
+asymm-divergence-project chL chR
+    record { suffix = suf
+           ; split = sp
+           ; witness = Q'
+           ; reach = bStep (sMixVis {f = f} {Qt = Qt}
+                                     {at = at} {a = a} {t′ = t'}
+                                     sM-eq f-eq) bNil
+           ; divwit = dw } =
+    asymm-divergence-project-sMixVis-bNil
+      {at = at} {a = a} chL chR sp refl sM-eq f-eq dw
+-- bStep sMixVis (bTau ...): dispatch to postulate.
+asymm-divergence-project chL chR
+    record { suffix = suf
+           ; split = sp
+           ; witness = Q'
+           ; reach = bStep (sMixVis {f = f} {Qt = Qt}
+                                     {at = at} {a = a} {t′ = t'}
+                                     sM-eq f-eq)
+                          (bTau step rest)
+           ; divwit = dw } =
+    asymm-divergence-project-sMixVis-bTau
+      {at = at} {a = a} chL chR sp sM-eq f-eq step rest dw
+-- bStep sMixVis (bStep ...): dispatch to postulate.
+asymm-divergence-project chL chR
+    record { suffix = suf
+           ; split = sp
+           ; witness = Q'
+           ; reach = bStep (sMixVis {f = f} {Qt = Qt}
+                                     {at = at} {a = a} {t′ = t'}
+                                     sM-eq f-eq)
+                          (bStep step rest)
+           ; divwit = dw } =
+    asymm-divergence-project-sMixVis-bStep
+      {at = at} {a = a} chL chR sp sM-eq f-eq step rest dw
+-- bTau ...: dispatched to focused postulate.
+asymm-divergence-project chL chR
+    record { prefix = pre; suffix = suf; split = sp
+           ; witness = Q'; reach = bTau step rest; divwit = dw } =
+    asymm-divergence-project-bTau chL chR sp step rest dw
+
+-- bTau-step projection for divergences.  Dispatches via
+-- `□-force-sil-inv` / `□-force-ndbr-inv` to extract the structure of the
+-- τ-step out of `(P □ P)`:
+--   • sSil: force P = sil P'; U = P' □ P.  Build divergence at (P' □ P)
+--     and apply `asymm-divergence-project` with chL = sSil-step, chR = ε.
+--   • sNdbr (case J only — others rule out by same-P force shape):
+--     force P = ndbr fP; U = mergeNdbr fP fP at branch.  Pair-branch
+--     sub-cases:
+--       - jn (left-just, right-nothing): U = tL; build P → tL via sNdbr
+--         and prepend rest directly.  No asymm needed.
+--       - nj (right-just, left-nothing): symmetric.
+--       - jj (both-just): U = tL □ tR.  Apply `asymm-divergence-project`
+--         with chL/chR extending by sNdbr.
+--       - nn / non-pair: mergeNdbr returns nothing, contradicting f-eq.
+divergences-project-PP-bTau :
+  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+    {P U : ITree E (ExtI I) R}
+    {pre : List (Event√ E R)} {Q' : ITree E (ExtI I) R}
+    {suf : List (Event√ E R)} {s : List (Event√ E R)}
+  → s ≡ pre ++ suf
+  → (P □ P) ─[ τ ]─► U
+  → U ═⟨ pre ⟩═► Q'
+  → Divergent Q'
+  → divergences P s
+-- sSil case: force P = sil P'.  Build (P' □ P) divergence + asymm project.
+divergences-project-PP-bTau {P = P} {pre = pre} {Q' = Q'} {suf = suf}
+                            sp (sSil eqStep) rest dw
+    with □-force-sil-inv {P = P} {Q = P} eqStep
+... | inj₁ (P' , eqP-sil , refl) =
+        asymm-divergence-project
+          (τ*-step (sSil eqP-sil) τ*-zero)
+          τ*-zero
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+... | inj₂ (P' , eqP-sil , refl) =
+        asymm-divergence-project
+          τ*-zero
+          (τ*-step (sSil eqP-sil) τ*-zero)
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest
+                  ; divwit  = dw })
+-- sNdbr case: force P = ndbr fP (only case J of □-force-ndbr-inv fires
+-- for symm P=P).  Dispatch on the pair-branch sub-case.
+divergences-project-PP-bTau {P = P} {pre = pre} {Q' = Q'} {suf = suf}
+                            sp (sNdbr {f = g} {wi = wi} {wa = wa} {prf = wp}
+                                       {i = i} {a = a} {t′ = U}
+                                       eqStep f-eq) rest dw
+    with □-force-ndbr-inv {P = P} {Q = P} eqStep
+-- Case D (ret/ret with r ≠ r'): same-P forces r = r', contradicting neq.
+... | inj₁ (r , r' , neq , eqP-ret , eqP-ret') =
+        ⊥-elim (case trans (sym eqP-ret) eqP-ret' of λ where refl → neq refl)
+-- Case H (vis / ndbr): same-P forces both shapes equal → contradiction.
+... | inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-vis , eqP-ndbr)) =
+        case trans (sym eqP-vis) eqP-ndbr of λ ()
+-- Case I (ndbr / vis): symmetric contradiction.
+... | inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-ndbr , eqP-vis))) =
+        case trans (sym eqP-ndbr) eqP-vis of λ ()
+-- Case J (ndbr / ndbr): force P = ndbr fP wiP waP wpP.  After
+-- unification, g ≡ mergeNdbr fP fP.  Dispatch on i (must be `pair`) and
+-- on the four fP/fP combinations.
+... | inj₂ (inj₂ (inj₂ (inj₁ (fP , wiP , waP , wpP , fQ , wiQ , waQ , wpQ ,
+                                eqP-ndbr , _))))
+    with trans (sym eqStep)
+               (force-□-ndbr-ndbr-eq {P = P} {Q = P} eqP-ndbr eqP-ndbr)
+... | refl = dispatch-J i a f-eq rest dw
+  where
+    dispatch-J :
+      ∀ (i' : AnyTypes (ExtI _)) (a' : proj₁ i') {U : ITree _ _ _}
+      → mergeNdbr fP fP i' a' ≡ just U
+      → U ═⟨ pre ⟩═► Q' → Divergent Q'
+      → divergences P _  -- inferred from outer s
+    -- Non-pair branches (base / fin): mergeNdbr returns nothing.
+    dispatch-J (_ , base _) _ () _ _
+    dispatch-J (_ , fin)    _ () _ _
+    -- Pair branch: case on the four fP/fP combinations.
+    dispatch-J (.(AL × AR) , pair {AL} {AR} iL' iR') (aL' , aR')
+               f-eq-pair rest' dw'
+        with fP (AL , iL') aL' | inspect (fP (AL , iL')) aL'
+           | fP (AR , iR') aR' | inspect (fP (AR , iR')) aR'
+           | f-eq-pair
+    -- nn: mergeNdbr returns nothing.
+    ... | nothing | _ | nothing | _ | ()
+    -- jn: U = tL.  Direct: prepend P → tL via sNdbr.
+    ... | just tL | [ fP-eqL ] | nothing | [ _ ] | refl =
+        record { prefix  = pre
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = Q'
+               ; reach   = bTau {t = P} {t′ = tL}
+                                (sNdbr {p = P} {f = fP}
+                                       {wi = wiP} {wa = waP} {prf = wpP}
+                                       {i = (AL , iL')} {a = aL'} {t′ = tL}
+                                       eqP-ndbr fP-eqL)
+                                rest'
+               ; divwit  = dw' }
+    -- nj: U = tR.  Symmetric.
+    ... | nothing | [ _ ] | just tR | [ fP-eqR ] | refl =
+        record { prefix  = pre
+               ; suffix  = suf
+               ; split   = sp
+               ; witness = Q'
+               ; reach   = bTau {t = P} {t′ = tR}
+                                (sNdbr {p = P} {f = fP}
+                                       {wi = wiP} {wa = waP} {prf = wpP}
+                                       {i = (AR , iR')} {a = aR'} {t′ = tR}
+                                       eqP-ndbr fP-eqR)
+                                rest'
+               ; divwit  = dw' }
+    -- jj: U = tL □ tR.  Asymm project with both chains extended by sNdbr.
+    ... | just tL | [ fP-eqL ] | just tR | [ fP-eqR ] | refl =
+        asymm-divergence-project
+          (τ*-step (sNdbr {p = P} {f = fP}
+                          {wi = wiP} {wa = waP} {prf = wpP}
+                          {i = (AL , iL')} {a = aL'} {t′ = tL}
+                          eqP-ndbr fP-eqL)
+                   τ*-zero)
+          (τ*-step (sNdbr {p = P} {f = fP}
+                          {wi = wiP} {wa = waP} {prf = wpP}
+                          {i = (AR , iR')} {a = aR'} {t′ = tR}
+                          eqP-ndbr fP-eqR)
+                   τ*-zero)
+          (record { prefix  = pre
+                  ; suffix  = suf
+                  ; split   = sp
+                  ; witness = Q'
+                  ; reach   = rest'
+                  ; divwit  = dw' })
+-- Case K (ret / ndbr): same-P forces both shapes equal → contradiction.
+divergences-project-PP-bTau {P = P}
+    sp (sNdbr eqStep _) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-ret , eqP-ndbr))))) =
+        case trans (sym eqP-ret) eqP-ndbr of λ ()
+-- Case L (ndbr / ret): symmetric contradiction.
+divergences-project-PP-bTau {P = P}
+    sp (sNdbr eqStep _) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , eqP-ndbr , eqP-ret)))))) =
+        case trans (sym eqP-ndbr) eqP-ret of λ ()
+-- Case M (mix / ndbr): same-P forces both shapes equal → contradiction.
+divergences-project-PP-bTau {P = P}
+    sp (sNdbr eqStep _) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₁ (_ , _ , _ , _ , _ , _ , eqP-mix , eqP-ndbr))))))) =
+        case trans (sym eqP-mix) eqP-ndbr of λ ()
+-- Case N (ndbr / mix): symmetric contradiction.
+divergences-project-PP-bTau {P = P}
+    sp (sNdbr eqStep _) rest dw
+    | inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (inj₂ (_ , _ , _ , _ , _ , _ , eqP-ndbr , eqP-mix))))))) =
+        case trans (sym eqP-ndbr) eqP-mix of λ ()
+-- sMixSlide: force (P □ P) ≡ mix f Qt; dispatch to postulate.
+divergences-project-PP-bTau sp (sMixSlide sM-eq) rest dw =
+    divergences-project-PP-bTau-sMixSlide sp sM-eq rest dw
 
 -- Forward (project) for divergences:  divergences (P □ P) s → divergences P s.
 -- Cases handled here:
@@ -2206,6 +3454,39 @@ divergences-project-PP {P = P}
                                        eqP fP-eq)
                                  reach-p
                ; divwit  = dw-p }
+-- bStep sMixVis bNil: P □ P is mix-shaped; project residual via postulate.
+divergences-project-PP
+    record { suffix = suf
+           ; split = sp
+           ; witness = Q'
+           ; reach = bStep (sMixVis {f = f} {Qt = Qt}
+                                     {at = at} {a = a} {t′ = t'}
+                                     sM-eq f-eq) bNil
+           ; divwit = dw } =
+    divergences-project-PP-sMixVis-bNil
+      {at = at} {a = a} sp refl sM-eq f-eq dw
+divergences-project-PP
+    record { suffix = suf
+           ; split = sp
+           ; witness = Q'
+           ; reach = bStep (sMixVis {f = f} {Qt = Qt}
+                                     {at = at} {a = a} {t′ = t'}
+                                     sM-eq f-eq)
+                          (bTau step rest)
+           ; divwit = dw } =
+    divergences-project-PP-sMixVis-bTau
+      {at = at} {a = a} sp sM-eq f-eq step rest dw
+divergences-project-PP
+    record { suffix = suf
+           ; split = sp
+           ; witness = Q'
+           ; reach = bStep (sMixVis {f = f} {Qt = Qt}
+                                     {at = at} {a = a} {t′ = t'}
+                                     sM-eq f-eq)
+                          (bStep step rest)
+           ; divwit = dw } =
+    divergences-project-PP-sMixVis-bStep
+      {at = at} {a = a} sp sM-eq f-eq step rest dw
 -- bTau: dispatched to focused postulate.
 divergences-project-PP
     record { prefix = pre; suffix = suf; split = sp
@@ -2254,3 +3535,106 @@ failures⊥-project-PP (inj₂ d) = inj₂ (divergences-project-PP d)
     -- P ⊑D (P □ P)  means  divergences (P □ P) → divergences P.
     P⊑PP-D : P ⊑D (P □ P)
     P⊑PP-D = divergences-project-PP
+
+------------------------------------------------------------------------
+-- §X. Canonical lesson: external choice refines internal choice in FD.
+--
+--   ⊓⊑D□  : (P ⊓ Q) ⊑D  (P □ Q)
+--   ⊓⊑F⊥□ : (P ⊓ Q) ⊑F⊥ (P □ Q)
+--   ⊓⊑FD□ : (P ⊓ Q) ⊑FD (P □ Q)
+--
+-- Equivalent reading: every failure / divergence of P □ Q lifts to a
+-- failure / divergence of P ⊓ Q.  Generalised from
+-- `VendingMachine.lagda.md`'s `□-to-⊓-failure`.
+--
+-- Proof strategy: P ⊓ Q ─[τ]─► P  (via ⊓-step-L) and
+--                 P ⊓ Q ─[τ]─► Q  (via ⊓-step-R), so
+-- `asymm-walk-□` / `asymm-divergence-project` with these τ*-chains
+-- directly transport failures / divergences of (P □ Q) to (P ⊓ Q).
+------------------------------------------------------------------------
+
+⊓⊑D□ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+         ⦃ _ : DecEq R ⦄
+         {P Q : ITree E (ExtI I) R}
+       → (P ⊓ Q) ⊑D (P □ Q)
+⊓⊑D□ {P = P} {Q = Q} d =
+  asymm-divergence-project
+    (τ*-step (⊓-step-L P Q) τ*-zero)
+    (τ*-step (⊓-step-R P Q) τ*-zero)
+    d
+
+⊓⊑F⊥□ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+          ⦃ _ : DecEq R ⦄
+          {P Q : ITree E (ExtI I) R}
+        → (P ⊓ Q) ⊑F⊥ (P □ Q)
+⊓⊑F⊥□ {P = P} {Q = Q} (inj₁ f) =
+  inj₁ (asymm-walk-□
+          (τ*-step (⊓-step-L P Q) τ*-zero)
+          (τ*-step (⊓-step-R P Q) τ*-zero)
+          f)
+⊓⊑F⊥□ {P = P} {Q = Q} (inj₂ d) =
+  inj₂ (asymm-divergence-project
+          (τ*-step (⊓-step-L P Q) τ*-zero)
+          (τ*-step (⊓-step-R P Q) τ*-zero)
+          d)
+
+⊓⊑FD□ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+          ⦃ _ : DecEq R ⦄
+          {P Q : ITree E (ExtI I) R}
+        → (P ⊓ Q) ⊑FD (P □ Q)
+⊓⊑FD□ = ⊓⊑F⊥□ , ⊓⊑D□
+
+------------------------------------------------------------------------
+-- §Y. Monotonicity of external choice in the FD model.
+--
+--   □-mono-⊑F⊥ : P ⊑F⊥ P′ → Q ⊑F⊥ Q′ → (P □ Q) ⊑F⊥ (P′ □ Q′)
+--   □-mono-⊑D  : P ⊑D  P′ → Q ⊑D  Q′ → (P □ Q) ⊑D  (P′ □ Q′)
+--   □-mono-⊑FD : P ⊑FD P′ → Q ⊑FD Q′ → (P □ Q) ⊑FD (P′ □ Q′)
+--
+-- Both □-mono-⊑F⊥ and □-mono-⊑D are postulated pending construction
+-- of the asymmetric injection direction
+--
+--   failures-inject-□L : failures P s B → failures (P □ Q) s B
+--   failures-inject-□R : failures Q s B → failures (P □ Q) s B
+--
+-- (and the corresponding divergence variants).  These injection lemmas
+-- require a full failures-characterisation for `_□_` (the ↔ lemma
+-- sketched in the §Session-3 comment above, ~150–300 lines), which has
+-- not yet been built.  Once those lemmas exist the postulates below can
+-- be discharged as follows:
+--
+--   □-mono-⊑F⊥ P⊑P′ Q⊑Q′ f
+--       with asymm-walk-□ τ*-zero τ*-zero (inj-failure f)
+--   ...  — walk failure of (P′ □ Q′) to a failure of P′ or Q′,
+--          apply P⊑P′ or Q⊑Q′, re-inject via failures-inject-□L/R.
+--
+--   □-mono-⊑D is analogous using asymm-divergence-project.
+------------------------------------------------------------------------
+
+-- TODO: □-mono-⊑F⊥ requires the inverse of asymm-walk-□ (the
+-- injection direction failures P s B → failures (P □ Q) s B), which
+-- is not yet in the library.  Postulated pending construction of the
+-- full □-failures characterisation (see Session-3 §1 above).
+postulate
+  □-mono-⊑F⊥ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+                 ⦃ _ : DecEq R ⦄
+                 {P P′ Q Q′ : ITree E (ExtI I) R}
+               → P ⊑F⊥ P′ → Q ⊑F⊥ Q′
+               → (P □ Q) ⊑F⊥ (P′ □ Q′)
+
+-- TODO: □-mono-⊑D requires the divergence injection direction
+-- divergences P s → divergences (P □ Q) s, similarly pending the
+-- full □-divergences characterisation.
+postulate
+  □-mono-⊑D : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+                ⦃ _ : DecEq R ⦄
+                {P P′ Q Q′ : ITree E (ExtI I) R}
+              → P ⊑D P′ → Q ⊑D Q′
+              → (P □ Q) ⊑D (P′ □ Q′)
+
+□-mono-⊑FD : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+               ⦃ _ : DecEq R ⦄
+               {P P′ Q Q′ : ITree E (ExtI I) R}
+             → P ⊑FD P′ → Q ⊑FD Q′
+             → (P □ Q) ⊑FD (P′ □ Q′)
+□-mono-⊑FD (pF , pD) (qF , qD) = □-mono-⊑F⊥ pF qF , □-mono-⊑D pD qD

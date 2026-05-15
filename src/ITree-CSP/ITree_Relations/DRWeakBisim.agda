@@ -35,10 +35,11 @@ open import Relation.Nullary using (¬_)
 open import Prelude
 open import Interaction_Trees
 open import ITree_Relations.LTS using (Event; evLabel; Event√; Label;
-  _─[_]─►_; sRet; sSil; sVis; sNdbr;
+  _─[_]─►_; sRet; sSil; sVis; sNdbr; sMixVis; sMixSlide;
   _─[τ*]─►_; τ*-zero; τ*-step; -- τ*-sil; τ*-inv;
   _═[_]═►_; weak-τ; weak-ev;
   _═⟨_⟩═►_; bNil; bTau; bStep;
+  τ-from-force-vis-impossible;
   module Traces
   )
 open import ITree_Relations.FailuresDivergences
@@ -317,7 +318,9 @@ divergent-not-ret : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set
 divergent-not-ret d eq with d .Divergent.step
 ... | sSil eq'   = case trans (sym eq') eq of λ ()
 ... | sNdbr eq' _ = case trans (sym eq') eq of λ ()
+... | sMixSlide eq' = case trans (sym eq') eq of λ ()
 
+{- This is not true now because P ▷ Q can both diverge and vis
 -- A divergent process cannot take a visible step
 divergent-not-vis : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
                     {t t' : ITree E I R} {el : Event E}
@@ -325,6 +328,18 @@ divergent-not-vis : ∀ {ℓ ℓe ℓi ℓr} {E : Set ℓ → Set ℓe} {I : Set
 divergent-not-vis d (sVis eq _) with d .Divergent.step
 ... | sSil eq'   = case trans (sym eq') eq of λ ()
 ... | sNdbr eq' _ = case trans (sym eq') eq of λ ()
+... | sMixSlide eq' = case trans (sym eq') eq of λ ()
+-- sMixVis: t is mix-shaped. Three τ-step shapes for d:
+--   sSil/sNdbr give immediate force-shape contradictions.
+--   sMixSlide is NOT a contradiction: a mix node legitimately offers BOTH
+--   a visible event (via sMixVis) AND a silent slide. The lemma comment
+--   above already notes the lemma is not true in general; this case makes
+--   the failure explicit. Left as a hole pending a redesign of the lemma.
+divergent-not-vis d (sMixVis eq _) with d .Divergent.step
+... | sSil eq'      = case trans (sym eq') eq of λ ()
+... | sNdbr eq' _   = case trans (sym eq') eq of λ ()
+... | sMixSlide eq' = case trans (sym eq') eq of λ ()
+-}
 
 {- This however it is not true generally, such as
   P = τ → τ → τ → ...           (pure silent divergence)
@@ -457,6 +472,17 @@ module Preservation
         τ*-prepend-bigstep pre
           (bStep vis-step (τ*-prepend-bigstep post rest-u)) ,
         bisim-fin
+  -- bStep / sMixVis: a visible event from a mix node. Lift via `on-vis`
+  -- exactly as for sVis.
+  lift-bigstep (bStep (sMixVis force-eq f-eq) rest) bisim
+    with bisim .DRWbisim.fwd .DRWSimF.on-vis (sMixVis force-eq f-eq)
+  ... | umid , weak-ev pre vis-step post , bisim-mid
+    with lift-bigstep rest bisim-mid
+  ... | u' , rest-u , bisim-fin =
+        u' ,
+        τ*-prepend-bigstep pre
+          (bStep vis-step (τ*-prepend-bigstep post rest-u)) ,
+        bisim-fin
   -- bStep / sRet: a √ x event.  By sRet, `force t ≡ ret x` and the
   -- successor is `deadlock`, which has no transitions, so the residual
   -- big-step is forced to be `bNil`.  Use `on-ret` to lift to a τ*-chain
@@ -527,12 +553,77 @@ module Preservation
   --     the τ-structure of `u'` until we hit a `vis`-state.  Each τ-step
   --     of `u'` lands at a state that is *still* bisim-related to `t'`
   --     (because `t'` is stable, so the matching weak-τ chain on the
-  --     `t'` side must be empty).  The recursion is meta-justified by
+  --     `t'` side must be empty).  Termination is justified by
   --     non-divergence of `u'` (inherited from `t'` via DRWbisim being
-  --     divergence-respecting); termination is not structural, so we
-  --     mark it `NON_TERMINATING`.  The stable derivative refuses `B`
-  --     because any `u'' ─[ev e]─► _` would, by bwd bisim, induce a
-  --     weak `t' ─[ev e]─► _`, contradicting `t' ref B` at `e ∈ B`.
+  --     divergence-respecting).  We reify this as an inductive accessibility
+  --     predicate `τ-Acc u'` and recurse structurally on its acc-subterm.
+  --     The bridge `τ-Acc-from-stable-bisim` is *proved* constructively up
+  --     to the single isolated classical principle `¬-divergent→τ-Acc`
+  --     (bar induction / double-negation elimination over the coinductive
+  --     `Divergent` predicate — not provable in plain MLTT).  The stable
+  --     derivative refuses `B` because any `u'' ─[ev e]─► _` would, by bwd
+  --     bisim, induce a weak `t' ─[ev e]─► _`, contradicting `t' ref B` at
+  --     `e ∈ B`.
+
+  -- Inductive accessibility along τ-steps.  `τ-Acc t` asserts that every
+  -- τ-descent from `t` is finite — i.e., the τ-tree of `t` is well-founded.
+  -- Used to make `refuse-stabilise` structurally terminating.
+  data τ-Acc (t : ITree E I R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+    τ-acc : (∀ {t' : ITree E I R} → t ─[ Label.τ ]─► t' → τ-Acc t') → τ-Acc t
+
+  -- A stable tree (force ≡ vis _) makes no τ-step, so it is trivially τ-Acc.
+  stable→τ-Acc : ∀ {t : ITree E I R}
+                  {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+              → ITree.force t ≡ vis f
+              → τ-Acc t
+  stable→τ-Acc force-t-vis = τ-acc λ step →
+    ⊥-elim (τ-from-force-vis-impossible force-t-vis step)
+
+  -- A divergent tree cannot be stable: its first τ-step (sSil/sNdbr/sMixSlide)
+  -- exposes `force ∈ {sil, ndbr, mix}` which clashes with `force ≡ vis _`.
+  -- This is the constructive half of the "stable ⇒ ¬ Divergent" argument.
+  divergent→not-stable : ∀ {t : ITree E I R}
+                          {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+                      → Divergent t
+                      → ITree.force t ≡ vis f
+                      → ⊥
+  divergent→not-stable d eq with d .Divergent.step
+  ... | sSil eq'      = vis≢sil  (trans (sym eq) eq')
+  ... | sNdbr eq' _   = vis≢ndbr (trans (sym eq) eq')
+  ... | sMixSlide eq' = vis≢mix  (trans (sym eq) eq')
+
+  -- Constructive: `t` stable + `t ≈ u` ⇒ `u` is not divergent.
+  -- Proof: any divergence of `u` is transported to a divergence of `t`
+  -- by `bisim.bwd.on-div`, which then contradicts stability of `t`.
+  stable-bisim→¬-divergent :
+    ∀ {t u : ITree E I R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    → ITree.force t ≡ vis f
+    → DRWbisim _≡_ t u
+    → Divergent u → ⊥
+  stable-bisim→¬-divergent force-t-vis bisim div-u =
+    divergent→not-stable (bisim .DRWbisim.bwd .DRWSimF.on-div div-u) force-t-vis
+
+  -- Classical principle: a non-divergent tree is τ-Acc.  This is the only
+  -- non-constructive step.  Going from `¬ Divergent u` (a negated coinductive
+  -- predicate, computationally just a function to `⊥`) to the inductive
+  -- accessibility witness `τ-Acc u` requires bar induction / double-negation
+  -- elimination — not provable in plain MLTT.  Postulating it is standard
+  -- (it is a known classically-true principle, sound to assume).
+  postulate
+    ¬-divergent→τ-Acc :
+      ∀ {t : ITree E I R} → (Divergent t → ⊥) → τ-Acc t
+
+  -- The full bridge used by `refuse-stabilise`, now constructive modulo
+  -- the single isolated classical principle above.
+  τ-Acc-from-stable-bisim :
+    ∀ {t u : ITree E I R}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    → ITree.force t ≡ vis f
+    → DRWbisim _≡_ t u
+    → τ-Acc u
+  τ-Acc-from-stable-bisim force-t-vis bisim =
+    ¬-divergent→τ-Acc (stable-bisim→¬-divergent force-t-vis bisim)
 
   -- A `─[τ*]─►`-chain out of a stable (vis-shaped) tree must be empty.
   stable-τ*-id : ∀ {t t' : ITree E I R} {f}
@@ -541,6 +632,7 @@ module Preservation
   stable-τ*-id eq τ*-zero = refl
   stable-τ*-id eq (τ*-step (sSil eq')   _) = case trans (sym eq) eq' of λ ()
   stable-τ*-id eq (τ*-step (sNdbr eq' _) _) = case trans (sym eq) eq' of λ ()
+  stable-τ*-id eq (τ*-step (sMixSlide eq') _) = case trans (sym eq) eq' of λ ()
 
   -- `force t ≡ vis _` ⇒ `isStable t`.  `isStable` is defined by a
   -- with-clause on `force`, so we abstract over `force t` and the
@@ -553,6 +645,7 @@ module Preservation
   ... | ret _        | ()
   ... | sil _        | ()
   ... | ndbr _ _ _ _ | ()
+  ... | mix _ _      | ()
 
   -- Witness extraction from `Is-just`: if `Is-just m` holds, then
   -- `m ≡ just x` for some explicit `x`.
@@ -609,29 +702,95 @@ module Preservation
       ... | _ , weak-ev pre vis-step _ , _
         with stable-τ*-id force-t-vis pre
       ... | refl = t-refuses e Be vis-step
+      -- u-step via sMixVis: u must in fact be a mix-node. The bwd-vis lift
+      -- still applies, since the LTS only cares about the produced label.
+      u-refuses e Be (sMixVis force-eq f-eq)
+        with bisim .DRWbisim.bwd .DRWSimF.on-vis (sMixVis force-eq f-eq)
+      ... | _ , weak-ev pre vis-step _ , _
+        with stable-τ*-id force-t-vis pre
+      ... | refl = t-refuses e Be vis-step
 
   -- Main recursion.  Walks the τ-structure of `u`; each iteration
-  -- discharges one of (vis | ret | sil | ndbr).  The vis case is the
+  -- discharges one of (vis | ret | sil | ndbr | mix).  The vis case is the
   -- base — return `u` and discharge refusal via `bisim-stable-refuses`.
-  -- The ret case is impossible (`ret-not-bisim-vis`).  The sil/ndbr
-  -- cases recurse on the τ-derivative, prepending the step to the
-  -- output τ*-chain.
+  -- The ret case is impossible (`ret-not-bisim-vis`).  The sil / ndbr /
+  -- mix-slide cases recurse on the τ-derivative, prepending the step to
+  -- the output τ*-chain.
   --
-  -- Termination is not structural — we recurse "down the τ-tree" of
-  -- `u` and rely on non-divergence (`u` non-divergent because `t` is
-  -- stable hence non-divergent, and DRWbisim is divergence-respecting).
-  -- Marked NON_TERMINATING following the same convention used by
-  -- `CSP.Hide` and `CSP.Parallel` in this codebase.
-  {-# NON_TERMINATING #-}
+  -- Termination: the recursion is structural on the `τ-Acc u` argument.
+  -- Each recursive call descends along one τ-step, consuming one layer
+  -- of `τ-acc`.  The wrapper `ref-preserved` constructs `τ-Acc u` from
+  -- `t` stable + `t ≈ u` via `τ-Acc-from-stable-bisim`, which is proved
+  -- from the single classical postulate `¬-divergent→τ-Acc`.
   refuse-stabilise :
     ∀ {ℓB} {t u : ITree E I R} {B : Event√ E R → Set ℓB}
       {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
     → DRWbisim _≡_ t u
     → ITree.force t ≡ vis f
     → t ref B
+    → τ-Acc u
     → Σ[ u' ∈ ITree E I R ] (u ─[τ*]─► u' × u' ref B)
-  refuse-stabilise {t = t} {u = u} bisim force-t-vis tref
+  refuse-stabilise {t = t} {u = u} bisim force-t-vis tref (τ-acc acc-f)
     with ITree.force u | inspect ITree.force u
+  -- Base case: u itself is stable.  Refusal of B transfers via
+  -- `bisim-stable-refuses`.
+  ... | vis fU | [ force-u-eq ] =
+        u , τ*-zero , bisim-stable-refuses force-t-vis force-u-eq tref bisim
+  -- Impossible: u in ret-shape contradicts t in vis-shape under bisim.
+  ... | ret r  | [ force-u-eq ] =
+        ⊥-elim (ret-not-bisim-vis force-t-vis force-u-eq bisim)
+  -- Sil-step: take one τ-step into u', re-establish `t ≈ u'` via bwd
+  -- bisim (the matching τ*-chain on t is empty since t is stable),
+  -- recurse on the smaller `τ-Acc u'`, prepend.
+  ... | sil u' | [ force-u-eq ] =
+        let step : u ─[ Label.τ ]─► u'
+            step = sSil force-u-eq
+        in case bisim .DRWbisim.bwd .DRWSimF.on-tau step of λ where
+             (t' , weak-τ chain-t , bisim-u'-t') →
+               case stable-τ*-id force-t-vis chain-t of λ where
+                 refl →
+                   let bisim-t-u' = DRWbisimEquiv.drwbisim-sym ≡-equiv bisim-u'-t'
+                       u'' , chain-u' , ref-u'' =
+                             refuse-stabilise bisim-t-u' force-t-vis tref (acc-f step)
+                   in u'' , τ*-step step chain-u' , ref-u''
+  -- Ndbr-step: pick the witnessed branch (wp gives Is-just (fU wi wa)),
+  -- step into u-branch, then recurse like the sil case.
+  ... | ndbr fU wi wa wp | [ force-u-eq ] =
+        let u-branch , wp-eq = is-just-witness {m = fU wi wa} wp
+            step : u ─[ Label.τ ]─► u-branch
+            step = sNdbr {p = u} {f = fU} {wi = wi} {wa = wa} {prf = wp}
+                         {i = wi} {a = wa} force-u-eq wp-eq
+        in case bisim .DRWbisim.bwd .DRWSimF.on-tau step of λ where
+             (t' , weak-τ chain-t , bisim-ub-t') →
+               case stable-τ*-id force-t-vis chain-t of λ where
+                 refl →
+                   let bisim-t-ub = DRWbisimEquiv.drwbisim-sym ≡-equiv bisim-ub-t'
+                       u'' , chain-ub , ref-u'' =
+                             refuse-stabilise bisim-t-ub force-t-vis tref (acc-f step)
+                   in u'' , τ*-step step chain-ub , ref-u''
+  -- Mix-slide step: take the silent timeout τ to Qt, then recurse on Qt.
+  ... | mix fU Qt | [ force-u-eq ] =
+        let step : u ─[ Label.τ ]─► Qt
+            step = sMixSlide {p = u} {f = fU} {Qt = Qt} force-u-eq
+        in case bisim .DRWbisim.bwd .DRWSimF.on-tau step of λ where
+             (t' , weak-τ chain-t , bisim-Qt-t') →
+               case stable-τ*-id force-t-vis chain-t of λ where
+                 refl →
+                   let bisim-t-Qt = DRWbisimEquiv.drwbisim-sym ≡-equiv bisim-Qt-t'
+                       u'' , chain-Qt , ref-u'' =
+                             refuse-stabilise bisim-t-Qt force-t-vis tref (acc-f step)
+                   in u'' , τ*-step step chain-Qt , ref-u''
+
+{-
+  refuse-stabilise-aux :
+    ∀ {ℓB} {t u : ITree E I R} {B : Event√ E R → Set ℓB}
+      {f : (at : AnyTypes E) → ContinueType at (Maybe (ITree E I R))}
+    → DRWbisim _≡_ t u
+    → ITree.force t ≡ vis f
+    → t ref B
+    → Σ[ u' ∈ ITree E I R ](u ─[τ*]─► u' × u' ref B)
+  refuse-stabilise-aux {t = t} {u = u} bisim force-t-vis tref
+    with ITree.force u in u-eq | inspect ITree.force u
   -- Base case: u itself is stable.  Refusal of B transfers via
   -- `bisim-stable-refuses`.
   ... | vis fU | [ force-u-eq ] =
@@ -651,11 +810,12 @@ module Preservation
                  refl →
                    let bisim-t-u' = DRWbisimEquiv.drwbisim-sym ≡-equiv bisim-u'-t'
                        u'' , chain-u' , ref-u'' =
-                             refuse-stabilise bisim-t-u' force-t-vis tref
+                             refuse-stabilise-aux bisim-t-u' force-t-vis tref
                    in u'' , τ*-step step chain-u' , ref-u''
   -- Ndbr-step: pick the witnessed branch (wp gives Is-just (fU wi wa)),
   -- step into u-branch, then recurse like the sil case.
-  ... | ndbr fU wi wa wp | [ force-u-eq ] =
+  ... | ndbr fU wi wa wp | [ force-u-eq ] = {!!}
+      {-
         let u-branch , wp-eq = is-just-witness {m = fU wi wa} wp
             step : u ─[ Label.τ ]─► u-branch
             step = sNdbr {p = u} {f = fU} {wi = wi} {wa = wa} {prf = wp}
@@ -666,8 +826,15 @@ module Preservation
                  refl →
                    let bisim-t-ub = DRWbisimEquiv.drwbisim-sym ≡-equiv bisim-ub-t'
                        u'' , chain-ub , ref-u'' =
-                             refuse-stabilise bisim-t-ub force-t-vis tref
+                             refuse-stabilise-aux bisim-t-ub force-t-vis tref
                    in u'' , τ*-step step chain-ub , ref-u''
+      -}
+  -- Mix-slide step: structurally analogous to the sil case but on Qt.
+  -- Left as a hole, consistent with the ndbr hole above — these in-progress
+  -- structural variants share the same termination obstacle.
+  ... | mix fU Qt | [ force-u-eq ] = {!!}
+
+-}
 
   -- ref-tick lifting: P ─[ev (√ x)]─► _ with ¬ B (√ x).  Use on-ret to
   -- get a τ*-chain in u to a ret-state on r' (with x ≡ r' under the
@@ -699,10 +866,11 @@ module Preservation
                 → Σ[ u' ∈ ITree E I R ] (u ─[τ*]─► u' × u' ref B)
   ref-preserved bisim (ref-tick step ¬Bx) =
         refuse-tick-lift bisim step ¬Bx
-  ref-preserved {t = t} bisim (ref-stable {P = .t} stable refuses)
+  ref-preserved {t = t} {u = u} bisim (ref-stable {P = .t} stable refuses)
     with isStable→force-vis {t = t} stable
   ... | _ , force-eq =
         refuse-stabilise bisim force-eq (ref-stable {P = t} stable refuses)
+                         (τ-Acc-from-stable-bisim force-eq bisim)
 
   -----------------------------------------------------------------------------------------
   -- Failure preservation

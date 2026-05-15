@@ -48,7 +48,7 @@ module CSP.Laws.InternalChoice_FD
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 
-import CSP.Operators {ℓ} {ℓe} {E} as CSPOps
+import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
 open CSPOps E-≟
 
 open ITree
@@ -355,3 +355,30 @@ open ⊓-bisim-laws E-≟ using () renaming (⊓-comm to ⊓-comm-≈; ⊓-idem 
   → (P : ITree E (ExtI I) R)
   → (P ⊓ P) ≃FD P
 ⊓-idem-FD P = ≈⇒≃FD (⊓-idem-≈ P)
+
+------------------------------------------------------------------------
+-- Monotonicity of _⊓_ under _⊑F⊥_, _⊑D_, _⊑FD_.
+------------------------------------------------------------------------
+⊓-mono-⊑F⊥ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+               {P P′ Q Q′ : ITree E (ExtI I) R}
+             → P ⊑F⊥ P′ → Q ⊑F⊥ Q′
+             → (P ⊓ Q) ⊑F⊥ (P′ ⊓ Q′)
+⊓-mono-⊑F⊥ P⊑P′ Q⊑Q′ f
+  with ⊓-failures⊥-elim f
+... | inj₁ fP′ = ⊓-failures⊥-introL (P⊑P′ fP′)
+... | inj₂ fQ′ = ⊓-failures⊥-introR (Q⊑Q′ fQ′)
+
+⊓-mono-⊑D : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+              {P P′ Q Q′ : ITree E (ExtI I) R}
+            → P ⊑D P′ → Q ⊑D Q′
+            → (P ⊓ Q) ⊑D (P′ ⊓ Q′)
+⊓-mono-⊑D P⊑P′ Q⊑Q′ d
+  with ⊓-divergences-elim d
+... | inj₁ dP′ = ⊓-divergences-introL (P⊑P′ dP′)
+... | inj₂ dQ′ = ⊓-divergences-introR (Q⊑Q′ dQ′)
+
+⊓-mono-⊑FD : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+               {P P′ Q Q′ : ITree E (ExtI I) R}
+             → P ⊑FD P′ → Q ⊑FD Q′
+             → (P ⊓ Q) ⊑FD (P′ ⊓ Q′)
+⊓-mono-⊑FD (pF , pD) (qF , qD) = ⊓-mono-⊑F⊥ pF qF , ⊓-mono-⊑D pD qD
