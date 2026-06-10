@@ -274,6 +274,19 @@ _⦀_ :              -- C-x 8 RET and then 2980 to type ⦀
   → ITree E (ExtI I) R
   → ITree E (ExtI I) S
   → ITree E (ExtI I) (R × S)
+
+-- Internal-choice (collision) node emitted by _⦀_ when both sides offer the same
+-- event: nondeterministically let P step (P' ⦀ Q) or Q step (P ⦀ Q').
+-- Named (not inlined) so this collision node is a referenceable NEUTRAL term for the
+-- state-level reach laws (CSP.Laws.Parallel) — an inline `λ where .force → …` is an
+-- extended-lambda that, under --guardedness (no eta), is never definitionally equal to
+-- any other term, so it could not be pinned.  Do NOT re-inline.  (The analogous ⊓-nodes
+-- in _∥⇘_ and the `mix` branches stay inline; only _⦀_'s is named, for that law.)
+-- Mutually coinductive with _⦀_; force body is at the end of the file (near _⦀_'s force).
+⦀-choice : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+  (P' : ITree E (ExtI I) R) (Q : ITree E (ExtI I) S)
+  (P  : ITree E (ExtI I) R) (Q' : ITree E (ExtI I) S)
+  → ITree E (ExtI I) (R × S)
 force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
 
 ... | sil P' | _  = sil (P' ⦀ Q)
@@ -313,14 +326,7 @@ force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
         (just P' , nothing)    → just (P' ⦀ Q)   -- only P moves
         (nothing , just Q')  → just (P  ⦀ Q')  -- only Q moves
         (just P' , just Q')  → -- just ((P' ⦀ Q) ⊓ (P ⦀ Q'))
-          just λ where
-            .force → ndbr (λ where
-                            (_ , fin) (lift fzero)        → just (P' ⦀ Q)
-                            (_ , fin) (lift (fsuc fzero)) → just (P ⦀ Q')
-                            (_ , fin) _                   → nothing
-                            (_ , base _)   _              → nothing
-                            (_ , pair _ _) _              → nothing)
-                          (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
+          just (⦀-choice P' Q P Q')
    )
 
 ... | vis fP | ndbr fQ wi wa wp = ndbr (λ ai a →
@@ -402,15 +408,7 @@ force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
       (nothing  , nothing) → nothing
       (just P'' , nothing) → just (P'' ⦀ Q)
       (nothing  , just Q') → just (P   ⦀ Q')
-      (just P'' , just Q') →
-        just λ where
-          .force → ndbr (λ where
-                          (_ , fin) (lift fzero)        → just (P'' ⦀ Q)
-                          (_ , fin) (lift (fsuc fzero)) → just (P   ⦀ Q')
-                          (_ , fin) _                   → nothing
-                          (_ , base _)   _              → nothing
-                          (_ , pair _ _) _              → nothing)
-                        (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
+      (just P'' , just Q') → just (⦀-choice P'' Q P Q')
   ) (P' ⦀ Q)
 
 ... | vis fP | mix fQ Q' = mix (λ at x →
@@ -418,15 +416,7 @@ force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
       (nothing , nothing)  → nothing
       (just P' , nothing)  → just (P' ⦀ Q)
       (nothing , just Q'') → just (P  ⦀ Q'')
-      (just P' , just Q'') →
-        just λ where
-          .force → ndbr (λ where
-                          (_ , fin) (lift fzero)        → just (P' ⦀ Q)
-                          (_ , fin) (lift (fsuc fzero)) → just (P  ⦀ Q'')
-                          (_ , fin) _                   → nothing
-                          (_ , base _)   _              → nothing
-                          (_ , pair _ _) _              → nothing)
-                        (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
+      (just P' , just Q'') → just (⦀-choice P' Q P Q'')
   ) (P ⦀ Q')
 
 ... | mix fP P' | ndbr fQ wi wa wp = ndbr (λ ai a → f' ai a) wi wa (go wp)
@@ -458,13 +448,15 @@ force (_⦀_ {I = I} {R = R} {S = S} P Q) with P .force | Q .force
       (nothing  , nothing)  → nothing
       (just P'' , nothing)  → just (P'' ⦀ Q)
       (nothing  , just Q'') → just (P   ⦀ Q'')
-      (just P'' , just Q'') →
-        just λ where
-          .force → ndbr (λ where
-                          (_ , fin) (lift fzero)        → just (P'' ⦀ Q)
-                          (_ , fin) (lift (fsuc fzero)) → just (P   ⦀ Q'')
-                          (_ , fin) _                   → nothing
-                          (_ , base _)   _              → nothing
-                          (_ , pair _ _) _              → nothing)
-                        (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)
+      (just P'' , just Q'') → just (⦀-choice P'' Q P Q'')
   ) (P' ⦀ Q')
+
+-- force body for ⦀-choice (signature + rationale near _⦀_, above); mutual with _⦀_.
+force (⦀-choice P' Q P Q') =
+  ndbr (λ where
+          (_ , fin) (lift fzero)        → just (P' ⦀ Q)
+          (_ , fin) (lift (fsuc fzero)) → just (P  ⦀ Q')
+          (_ , fin) _                   → nothing
+          (_ , base _)   _              → nothing
+          (_ , pair _ _) _              → nothing)
+       (Lift _ (Fin 2) , fin) (lift fzero) (any-just tt₀)

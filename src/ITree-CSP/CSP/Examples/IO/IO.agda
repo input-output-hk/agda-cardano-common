@@ -22,7 +22,7 @@ open import Class.DecEq using (DecEq-⊥; _==_)
 open import Interaction_Trees
 open import CSP.Definitions.Basic_Processes
 
-module CSP.Examples.IO where
+module CSP.Examples.IO.IO where
 data IO : Set → Set where
   input  : IO ℕ
   output : ℕ → IO ⊥

@@ -40,8 +40,12 @@ open Failures using (failures)
 
 -----------------------------------------------------------------------------------------
 -- Failures-divergences equivalence: refinement in both directions.
-_≃FD_ : Rel (ITree E I R) (lsuc (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr))
-P ≃FD Q = (P ⊑FD Q) × (Q ⊑FD P)
+-- Predicate-polymorphic over the refusal predicate's universe `ℓB`,
+-- inherited from `_⊑FD_`.
+_≃FD_ : ∀ {ℓB : Level}
+      → ITree E I R → ITree E I R
+      → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ lsuc ℓB)
+_≃FD_ {ℓB} P Q = (_⊑FD_ {ℓB = ℓB} P Q) × (_⊑FD_ {ℓB = ℓB} Q P)
 
 -----------------------------------------------------------------------------------------
 -- `_≃FD_` is an equivalence.
@@ -51,19 +55,21 @@ P ≃FD Q = (P ⊑FD Q) × (Q ⊑FD P)
 -- failures⊥/divergences sets, which are reflexive (identity), symmetric
 -- (in the bidirectional pairing), and transitive (function composition).
 
-≃FD-refl : ∀ {P : ITree E I R} → P ≃FD P
+≃FD-refl : ∀ {ℓB : Level} {P : ITree E I R} → _≃FD_ {ℓB = ℓB} P P
 ≃FD-refl = ((λ x → x) , (λ x → x)) , ((λ x → x) , (λ x → x))
 
-≃FD-sym : ∀ {P Q : ITree E I R} → P ≃FD Q → Q ≃FD P
+≃FD-sym : ∀ {ℓB : Level} {P Q : ITree E I R}
+        → _≃FD_ {ℓB = ℓB} P Q → _≃FD_ {ℓB = ℓB} Q P
 ≃FD-sym (P⊑Q , Q⊑P) = Q⊑P , P⊑Q
 
-≃FD-trans : ∀ {P Q S : ITree E I R} → P ≃FD Q → Q ≃FD S → P ≃FD S
+≃FD-trans : ∀ {ℓB : Level} {P Q S : ITree E I R}
+          → _≃FD_ {ℓB = ℓB} P Q → _≃FD_ {ℓB = ℓB} Q S → _≃FD_ {ℓB = ℓB} P S
 ≃FD-trans ((P⊑F⊥Q , P⊑DQ) , (Q⊑F⊥P , Q⊑DP))
           ((Q⊑F⊥S , Q⊑DS) , (S⊑F⊥Q , S⊑DQ)) =
     ((λ s-fail → P⊑F⊥Q (Q⊑F⊥S s-fail)) , (λ s-div → P⊑DQ (Q⊑DS s-div))) ,
     ((λ p-fail → S⊑F⊥Q (Q⊑F⊥P p-fail)) , (λ p-div → S⊑DQ (Q⊑DP p-div)))
 
-≃FD-isEquivalence : IsEquivalence _≃FD_
+≃FD-isEquivalence : ∀ {ℓB : Level} → IsEquivalence (_≃FD_ {ℓB = ℓB})
 ≃FD-isEquivalence = record
   { refl  = ≃FD-refl
   ; sym   = ≃FD-sym
@@ -80,19 +86,22 @@ P ≃FD Q = (P ⊑FD Q) × (Q ⊑FD P)
 module _ where
   open Preservation
 
-  ≈⇒⊑F⊥ : ∀ {P Q : ITree E I R} → P ≈ Q → Q ⊑F⊥ P
+  ≈⇒⊑F⊥ : ∀ {ℓB : Level} {P Q : ITree E I R}
+        → P ≈ Q → _⊑F⊥_ {ℓB = ℓB} Q P
   ≈⇒⊑F⊥ bisim (inj₁ failure-P) = inj₁ (failures-preserved bisim failure-P)
   ≈⇒⊑F⊥ bisim (inj₂ div-P)     = inj₂ (divergences-preserved bisim div-P)
 
   ≈⇒⊑D : ∀ {P Q : ITree E I R} → P ≈ Q → Q ⊑D P
   ≈⇒⊑D bisim div-P = divergences-preserved bisim div-P
 
-  ≈⇒⊑FD : ∀ {P Q : ITree E I R} → P ≈ Q → Q ⊑FD P
+  ≈⇒⊑FD : ∀ {ℓB : Level} {P Q : ITree E I R}
+        → P ≈ Q → _⊑FD_ {ℓB = ℓB} Q P
   ≈⇒⊑FD bisim = ≈⇒⊑F⊥ bisim , ≈⇒⊑D bisim
 
   -- Top-level coercion: every DRWbisim is a failures-divergences
   -- equivalence.  Use the symmetry of `≈` to get both refinements.
-  ≈⇒≃FD : ∀ {P Q : ITree E I R} → P ≈ Q → P ≃FD Q
+  ≈⇒≃FD : ∀ {ℓB : Level} {P Q : ITree E I R}
+        → P ≈ Q → _≃FD_ {ℓB = ℓB} P Q
   ≈⇒≃FD {P = P} {Q = Q} bisim =
       ≈⇒⊑FD (DRWbisimEquiv.drwbisim-sym ≡-equiv bisim)
     , ≈⇒⊑FD bisim

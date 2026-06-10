@@ -287,9 +287,9 @@ open IsDivergence
 -----------------------------------------------------------------------------
 
 ⊓-assoc-FD :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → (P Q R' : ITree E (ExtI I) R)
-  → ((P ⊓ Q) ⊓ R') ≃FD (P ⊓ (Q ⊓ R'))
+  → _≃FD_ {ℓB = ℓB} ((P ⊓ Q) ⊓ R') (P ⊓ (Q ⊓ R'))
 ⊓-assoc-FD P Q R' = fwd , bwd
   where
     -- ((P ⊓ Q) ⊓ R')  ⊑FD  (P ⊓ (Q ⊓ R')):
@@ -345,24 +345,24 @@ import CSP.Laws.InternalChoice_DRBisim {ℓ} {ℓe} {E} as ⊓-bisim-laws
 open ⊓-bisim-laws E-≟ using () renaming (⊓-comm to ⊓-comm-≈; ⊓-idem to ⊓-idem-≈)
 
 ⊓-comm-FD :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → (P Q : ITree E (ExtI I) R)
-  → (P ⊓ Q) ≃FD (Q ⊓ P)
+  → _≃FD_ {ℓB = ℓB} (P ⊓ Q) (Q ⊓ P)
 ⊓-comm-FD P Q = ≈⇒≃FD (⊓-comm-≈ P Q)
 
 ⊓-idem-FD :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
   → (P : ITree E (ExtI I) R)
-  → (P ⊓ P) ≃FD P
+  → _≃FD_ {ℓB = ℓB} (P ⊓ P) P
 ⊓-idem-FD P = ≈⇒≃FD (⊓-idem-≈ P)
 
 ------------------------------------------------------------------------
 -- Monotonicity of _⊓_ under _⊑F⊥_, _⊑D_, _⊑FD_.
 ------------------------------------------------------------------------
-⊓-mono-⊑F⊥ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+⊓-mono-⊑F⊥ : ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
                {P P′ Q Q′ : ITree E (ExtI I) R}
-             → P ⊑F⊥ P′ → Q ⊑F⊥ Q′
-             → (P ⊓ Q) ⊑F⊥ (P′ ⊓ Q′)
+             → _⊑F⊥_ {ℓB = ℓB} P P′ → _⊑F⊥_ {ℓB = ℓB} Q Q′
+             → _⊑F⊥_ {ℓB = ℓB} (P ⊓ Q) (P′ ⊓ Q′)
 ⊓-mono-⊑F⊥ P⊑P′ Q⊑Q′ f
   with ⊓-failures⊥-elim f
 ... | inj₁ fP′ = ⊓-failures⊥-introL (P⊑P′ fP′)
@@ -377,8 +377,8 @@ open ⊓-bisim-laws E-≟ using () renaming (⊓-comm to ⊓-comm-≈; ⊓-idem 
 ... | inj₁ dP′ = ⊓-divergences-introL (P⊑P′ dP′)
 ... | inj₂ dQ′ = ⊓-divergences-introR (Q⊑Q′ dQ′)
 
-⊓-mono-⊑FD : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+⊓-mono-⊑FD : ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
                {P P′ Q Q′ : ITree E (ExtI I) R}
-             → P ⊑FD P′ → Q ⊑FD Q′
-             → (P ⊓ Q) ⊑FD (P′ ⊓ Q′)
+             → _⊑FD_ {ℓB = ℓB} P P′ → _⊑FD_ {ℓB = ℓB} Q Q′
+             → _⊑FD_ {ℓB = ℓB} (P ⊓ Q) (P′ ⊓ Q′)
 ⊓-mono-⊑FD (pF , pD) (qF , qD) = ⊓-mono-⊑F⊥ pF qF , ⊓-mono-⊑D pD qD

@@ -97,9 +97,10 @@ module Failures where
   failures P s B = Σ[ P′ ∈ ITree _ _ _ ] (P ═⟨ s ⟩═► P′) × (P′ ref B)
 
   -- Failures refinement: every failure of Q is a failure of P
-  _⊑F_ : ITree E I R → ITree E I R → Set (lsuc (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr))
-  _⊑F_ P Q =
-        ∀ {s} {B : Event√ E R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)}
+  -- Predicate-polymorphic over the refusal predicate's universe level `ℓB`.
+  _⊑F_ : ∀ {ℓB : Level} → ITree E I R → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ lsuc ℓB)
+  _⊑F_ {ℓB} P Q =
+        ∀ {s} {B : Event√ E R → Set ℓB}
       → failures Q s B → failures P s B
 
 {-
@@ -312,9 +313,16 @@ failures⊥ P s B = failures P s B ⊎ divergences P s
 
 -- failures⊥ refinement:  P ⊑F⊥ Q  iff every divergence-strict failure
 -- of Q is also one of P (i.e. `failures⊥ Q ⊆ failures⊥ P`).
-_⊑F⊥_ : ITree E I R → ITree E I R → Set (lsuc (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr))
-_⊑F⊥_ P Q =
-      ∀ {s} {B : Event√ E R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)}
+--
+-- Predicate-polymorphic over `ℓB`: the refusal predicate's universe
+-- level is no longer fixed to `lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr` so that downstream
+-- monos (e.g. loop-mono-⊑F⊥) can transport refusal sets across return
+-- types of differing universe levels.
+_⊑F⊥_ : ∀ {ℓB : Level}
+      → ITree E I R → ITree E I R
+      → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ lsuc ℓB)
+_⊑F⊥_ {ℓB} P Q =
+      ∀ {s} {B : Event√ E R → Set ℓB}
     → failures⊥ Q s B → failures⊥ P s B
 
 -- Divergence refinement:  P ⊑D Q  iff every divergence of Q is a
@@ -324,5 +332,8 @@ _⊑D_ P Q = ∀ {s} → divergences Q s → divergences P s
 
 -- Failures-divergences refinement:  the conjunction.  In CSP-FD, this
 -- is the standard refinement order (`⊑FD`).
-_⊑FD_ : ITree E I R → ITree E I R → Set (lsuc (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr))
-_⊑FD_ P Q = (P ⊑F⊥ Q) × (P ⊑D Q)
+-- Inherits predicate-polymorphism from `_⊑F⊥_`.
+_⊑FD_ : ∀ {ℓB : Level}
+      → ITree E I R → ITree E I R
+      → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ lsuc ℓB)
+_⊑FD_ {ℓB} P Q = (_⊑F⊥_ {ℓB = ℓB} P Q) × (P ⊑D Q)

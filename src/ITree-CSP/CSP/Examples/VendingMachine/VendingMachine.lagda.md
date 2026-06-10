@@ -12,7 +12,7 @@ refines internal choice" lesson.
 ```agda
 {-# OPTIONS --guardedness #-}
 
-module CSP.Examples.VendingMachine where
+module CSP.Examples.VendingMachine.VendingMachine where
 ```
 
 ## §1. Imports
@@ -98,8 +98,8 @@ under `_⊑ᵀ_` / `_⊑FD_` that are currently stubs in
 `CSP.Laws.FailuresDivergences`; we record that as future work.
 
 ```agda
-open import Data.List using (List; []; _∷_; _++_)
-open import Data.Maybe using (just; nothing)
+open import Data.List using (List; []; _∷_; _++_; [_]; map)
+open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Unit using () renaming (tt to tt₀)
 
 open import ITree_Relations.LTS
@@ -451,6 +451,317 @@ canonical-lesson-✗ refines =
   no-such-failure-impl (proj₁ refines fail-coin-refuses-tea)
 ```
 
+### §5.3b Loop-level refinement
+
+The body-level results lift to the `loop0`-wrapped processes. The
+**forward** direction is now a direct consequence of the iterate
+monotonicity law `loop0-mono-⊑FD` (discharged in `CSP.Laws.Iterate_FD`
+atop the generic iteration bisimulation), which was the stub §5.5
+previously flagged.
+
+```agda
+import CSP.Laws.Iterate_FD {E = VM} as IterFD
+open IterFD VM-AnyTypes-≟ using (loop0-mono-⊑FD)
+
+-- VM_spec = loop0 VM_body_spec, VM_impl = loop0 VM_body_impl (both at R = ⊥).
+VM_spec⊑FD-VM_impl : VM_spec ⊑FD VM_impl
+VM_spec⊑FD-VM_impl = loop0-mono-⊑FD canonical-lesson-✓
+```
+
+### §5.3c Loop-level strictness (reverse)
+
+The reverse refinement `VM_impl ⊑FD VM_spec` is **false**, mirroring the
+body-level `canonical-lesson-✗` one iteration deep through `loop0`. We
+reuse the body-level building blocks, threading them through the
+`iter-bind` one-iteration prefix via the `loop0-failures⊥` characterisation
+laws (already proved in `CSP.Laws.Iterate`).
+
+```agda
+import CSP.Laws.Iterate {E = VM} as IterL
+open IterL VM-AnyTypes-≟
+  using ( LoopSplit; in-body; in-loop
+        ; LoopFailureSplit; loop-fail
+        ; LoopDivergenceSplit; loop-div
+        ; Loop0FailureSplit; Loop0DivergenceSplit
+        ; loop0-failures⊥-elim; loop0-failures⊥-intro-failures
+        ; iter-bind-force-vis; iter-bind-cont-vis-just )
+
+import CSP.Laws.Bind {E = VM} as BindL
+open BindL VM-AnyTypes-≟ using (lift-bind-bigstep; bind-force-vis)
+```
+
+The loop processes carry return type `⊥`, so the refusal predicate must
+live over `Event√ VM ⊥`. We reuse the same "refuse the tea event" idea.
+
+```agda
+RefusesTea⊥ : Event√ VM ⊥ → Set (lsuc lzero)
+RefusesTea⊥ (evl (evLabel A tea a)) = Lift (lsuc lzero) (⊤ {lzero})
+RefusesTea⊥ _                       = Lift (lsuc lzero) ⊥
+```
+
+We name the one-iteration body bigstep of the spec: fire `coin`, then
+τ-resolve the inner `⊓` to the coffee branch, landing at `coffee ⟶₀ Skip`.
+This reuses the very shape from the body-level `fail-coin-refuses-tea`.
+
+```agda
+private
+  -- VM_body_spec ═⟨ [coin] ⟩═► (coffee ⟶₀ Skip).
+  spec-body-bigstep
+    : VM_body_spec ═⟨ evl (evLabel ⊤ coin tt) ∷ [] ⟩═► (coffee ⟶₀ Skip)
+  spec-body-bigstep =
+    bStep (sVis {at = ⊤ , coin} {a = tt} refl
+                (Prefix-cont-just coin (λ _ → (tea ⟶₀ Skip) ⊓ (coffee ⟶₀ Skip)) tt))
+          (bTau (⊓-step-R _ _) bNil)
+
+  -- The continuation that loopStep appends after the body.
+  loop-k : ⊤ {lzero} → ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)
+  loop-k = λ a' → Ret (inj₁ a')
+
+  -- P' : the body endpoint lifted through loopStep's bind.
+  spec-P' : ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)
+  spec-P' = (coffee ⟶₀ Skip) >>= loop-k
+
+  -- loopStep specialised to the spec body (loopStep is private in Iterate,
+  -- so we spell out its definition `body a >>= λ a' → Ret (inj₁ a')`).
+  spec-loopStep : ⊤ {lzero} → ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)
+  spec-loopStep = λ a → VM_body_spec >>= loop-k
+
+  -- Q : one-iteration reachable loop state, wrapped through iter-bind.
+  spec-Q : ITree VM (ExtI VM) ⊥
+  spec-Q = iter-bind spec-P' spec-loopStep
+```
+
+`spec-Q` is doubly vis-wrapped (`coffee ⟶₀ Skip` is vis-shaped, so both
+the `>>= loop-k` bind layer and the outer `iter-bind` layer keep a `vis`
+force). Hence `spec-Q` is stable, and the only event it can fire is
+`coffee` — never `tea`. This is the two-continuation-layer analogue of the
+body-level `coffee-refuses-tea`.
+
+```agda
+private
+  spec-Q-refuses-tea : ∀ e → RefusesTea⊥ e
+                     → ∀ {Q : ITree VM (ExtI VM) ⊥}
+                     → spec-Q ─[ ev e ]─► Q → ⊥
+  -- tea: the only event with RefusesTea ≠ ⊥. A sVis from spec-Q at (⊤,tea)
+  -- needs eq-j : iter-bind-cont-vis _ (bind-cont-vis loop-k fcoffee) (⊤,tea) a ≡ just Q.
+  -- That continuation chain returns nothing (coffee ≠ tea), so eq-j is absurd.
+  spec-Q-refuses-tea (evl (evLabel A tea a)) _ (sVis {at = at} refl eq-j) = case eq-j of λ ()
+  spec-Q-refuses-tea (evl (evLabel A tea a)) _ (sMixVis eq-mix _) = case eq-mix of λ ()
+  spec-Q-refuses-tea (evl (evLabel A coffee a)) (lift ()) _
+  spec-Q-refuses-tea (evl (evLabel A coin   a)) (lift ()) _
+  spec-Q-refuses-tea (√ _)                      (lift ()) _
+```
+
+Assemble the loop-level failure: lift the body bigstep through
+`loopStep`'s bind, package it as a `LoopSplit` (`in-body`), and attach the
+stable refusal at `spec-Q`.
+
+```agda
+spec-loop-fail : failures⊥ VM_spec (evl (evLabel ⊤ coin tt) ∷ []) RefusesTea⊥
+spec-loop-fail =
+  loop0-failures⊥-intro-failures VM_body_spec
+    (loop-fail
+      (in-body {P' = spec-P'} {s = evLabel ⊤ coin tt ∷ []}
+               (lift-bind-bigstep VM_body_spec loop-k
+                                  (evLabel ⊤ coin tt ∷ []) spec-body-bigstep)
+               refl)
+      (ref-stable tt₀ spec-Q-refuses-tea))
+```
+
+### (B) The impl loop cannot refuse `tea` after `coin`
+
+After `coin`, the impl sits at `((tea ⟶₀ Skip) □ (coffee ⟶₀ Skip)) >>= k`
+inside `iter-bind`, which still OFFERS `tea`. We refute both arms of
+`loop0-failures⊥-elim`.
+
+```agda
+private
+  -- impl loopStep continuation (spelled out, loopStep is private).
+  impl-loopStep : ⊤ {lzero} → ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)
+  impl-loopStep = λ a → VM_body_impl >>= loop-k
+
+  -- The impl one-iteration state after firing coin (the □-state, bind- then
+  -- iter-bind-wrapped).  It OFFERS tea, so it cannot refuse it.
+  impl-P' : ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)
+  impl-P' = ((tea ⟶₀ Skip) □ (coffee ⟶₀ Skip)) >>= loop-k
+
+  impl-Q : ITree VM (ExtI VM) ⊥
+  impl-Q = iter-bind impl-P' impl-loopStep
+
+  -- The force-continuation of (tea □ coffee), fully annotated to avoid
+  -- level/index ambiguity.
+  f□ : (at : AnyTypes VM) → ContinueType at (Maybe (ITree VM (ExtI VM) (⊤ {lzero})))
+  f□ = λ Ae → mergeVis (Prefix-cont tea    (λ (_ : ⊤ {lzero}) → Skip {E = VM} {I = ExtI VM}) Ae)
+                       (Prefix-cont coffee (λ (_ : ⊤ {lzero}) → Skip {E = VM} {I = ExtI VM}) Ae)
+
+  -- impl-Q fires tea: chase the merge / bind / iter-bind continuations.
+  impl-Q-fires-tea : impl-Q ─[ ev (evl (evLabel ⊤ tea tt)) ]─►
+                     iter-bind (Skip {E = VM} {I = ExtI VM} >>= loop-k) impl-loopStep
+  impl-Q-fires-tea =
+    sVis {at = ⊤ , tea} {a = tt} refl
+      (iter-bind-cont-vis-just impl-loopStep (bind-cont-vis loop-k f□) (⊤ , tea) tt
+        (bind-cont-vis-just loop-k f□ (⊤ , tea) tt
+          (cong (λ x → mergeMaybe x nothing)
+                (Prefix-cont-just tea (λ (_ : ⊤ {lzero}) → Skip {E = VM} {I = ExtI VM}) tt))))
+
+  -- A bigstep of the impl loopStep along [coin] must end exactly at impl-P'.
+  -- force (VM_body_impl >>= loop-k) = vis (bind-cont-vis loop-k fcoin), so the
+  -- only viable first step is sVis firing coin; the empty tail leaves us at
+  -- impl-P' = (tea□coffee) >>= loop-k (vis-shaped, so bNil is forced).
+  loopStep-coin-inv : ∀ {P' : ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)}
+                    → (VM_body_impl >>= loop-k) ═⟨ evl (evLabel ⊤ coin tt) ∷ [] ⟩═► P'
+                    → P' ≡ impl-P'
+  -- τ from a vis-shaped node is impossible.
+  loopStep-coin-inv (bTau (sSil ())      _)
+  loopStep-coin-inv (bTau (sNdbr () _)   _)
+  loopStep-coin-inv (bTau (sMixSlide ()) _)
+  loopStep-coin-inv (bStep (sMixVis eq-mix _) _) = case eq-mix of λ ()
+  -- The trace head `evl (evLabel ⊤ coin tt)` forces at = (⊤,coin); the coin
+  -- continuation yields just impl-P', so eq-j pins t′ = impl-P'.
+  loopStep-coin-inv (bStep (sVis refl eq-j) rest)
+    with eq-j
+  ... | refl = inv-tail rest
+    where
+      -- After firing coin we are at impl-P' (vis-shaped); the empty trace
+      -- forces bNil, pinning the endpoint.
+      inv-tail : ∀ {P' : ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)}
+               → impl-P' ═⟨ [] ⟩═► P' → P' ≡ impl-P'
+      inv-tail bNil = refl
+      inv-tail (bTau (sSil ())      _)
+      inv-tail (bTau (sNdbr () _)   _)
+      inv-tail (bTau (sMixSlide ()) _)
+
+  -- A vis-shaped tree cannot perform a √-tick as its first action: the only
+  -- step producing a √-label is sRet, which requires force ≡ ret.
+  vis-no-immediate-tick
+    : ∀ {a' : ⊤ {lzero}} {rest : List (Event√ VM (⊤ {lzero} ⊎ ⊥))}
+        {P T : ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)}
+        {f}
+    → ITree.force P ≡ vis f
+    → P ═⟨ √ (inj₁ a') ∷ rest ⟩═► T → ⊥
+  vis-no-immediate-tick fv (bTau step _) = τ-from-force-vis-impossible fv step
+  vis-no-immediate-tick fv (bStep (sRet eq-r) _) = case trans (sym fv) eq-r of λ ()
+
+  -- From a [coin]-split (over any R), the visible prefix s1 ∈ {[], [coin]}.
+  s1-from-coin-split
+    : ∀ {ℓr'} {R' : Set ℓr'} (s1 : List (Event VM)) {s2 : List (Event√ VM R')}
+    → map (evl {R = R'}) s1 ++ s2 ≡ evl (evLabel ⊤ coin tt) ∷ []
+    → (s1 ≡ []) ⊎ (s1 ≡ evLabel ⊤ coin tt ∷ [])
+  s1-from-coin-split []                          _   = inj₁ refl
+  s1-from-coin-split (.(evLabel ⊤ coin tt) ∷ []) refl = inj₂ refl
+  s1-from-coin-split (e ∷ _ ∷ _)                 ()
+
+  -- loopStep tt cannot tick √(inj₁ a') with s1 ∈ {[], [coin]}: it needs to
+  -- fire coin AND a drink before completing one iteration.
+  impl-tick-absurd
+    : ∀ {a' : ⊤ {lzero}} (s1 : List (Event VM))
+    → (s1 ≡ []) ⊎ (s1 ≡ evLabel ⊤ coin tt ∷ [])
+    → (VM_body_impl >>= loop-k) ═⟨ map (evl {R = ⊤ {lzero} ⊎ ⊥}) s1 ++ [ √ (inj₁ a') ] ⟩═► deadlock
+    → ⊥
+  -- s1 = []: tick immediately from the (vis-shaped) coin offer — impossible.
+  impl-tick-absurd .[]                      (inj₁ refl) bs = vis-no-immediate-tick refl bs
+  -- s1 = [coin]: fire coin then tick from impl-P' (vis-shaped) — impossible.
+  impl-tick-absurd .(evLabel ⊤ coin tt ∷ []) (inj₂ refl) bs = go-coin bs
+    where
+      go-coin : (VM_body_impl >>= loop-k)
+                  ═⟨ evl (evLabel ⊤ coin tt) ∷ [ √ (inj₁ _) ] ⟩═► deadlock → ⊥
+      go-coin (bTau (sSil ())      _)
+      go-coin (bTau (sNdbr () _)   _)
+      go-coin (bTau (sMixSlide ()) _)
+      go-coin (bStep (sMixVis eq-mix _) _) = case eq-mix of λ ()
+      go-coin (bStep (sVis refl eq-j) rest)
+        with eq-j
+      ... | refl = vis-no-immediate-tick refl rest
+
+  -- After firing a prefix of [coin] through loopStep, the residual P' is
+  -- always vis-shaped (force P' = vis): for s1 = [] it is loopStep tt, for
+  -- s1 = [coin] it is impl-P'.  Hence iter-bind P' impl-loopStep is vis too.
+  in-body-Q-no-τ
+    : ∀ (s1 : List (Event VM)) {P' : ITree VM (ExtI VM) (⊤ {lzero} ⊎ ⊥)}
+        {Q' : ITree VM (ExtI VM) ⊥}
+    → (s1 ≡ []) ⊎ (s1 ≡ evLabel ⊤ coin tt ∷ [])
+    → (VM_body_impl >>= loop-k) ═⟨ map (evl {R = ⊤ {lzero} ⊎ ⊥}) s1 ⟩═► P'
+    → iter-bind P' impl-loopStep ─[ τ ]─► Q' → ⊥
+  -- s1 = []: P' = loopStep tt (force vis); iter-bind force vis; no τ.
+  in-body-Q-no-τ .[] (inj₁ refl) bNil                   step =
+    τ-from-force-vis-impossible refl step
+  in-body-Q-no-τ .[] (inj₁ refl) (bTau (sSil ())      _) _
+  in-body-Q-no-τ .[] (inj₁ refl) (bTau (sNdbr () _)   _) _
+  in-body-Q-no-τ .[] (inj₁ refl) (bTau (sMixSlide ()) _) _
+  -- s1 = coin ∷ []: P' = impl-P' (force vis); iter-bind force vis; no τ.
+  in-body-Q-no-τ .(evLabel ⊤ coin tt ∷ []) (inj₂ refl) bs step
+    with loopStep-coin-inv bs
+  ... | refl = τ-from-force-vis-impossible refl step
+
+  -- A refusal at a vis-shaped Q is necessarily ref-stable (ref-tick needs ret).
+  -- Its noev claims no RefusesTea⊥-event fires; we contradict it with the tea
+  -- step.  Used in the failure arm after pinning Q = impl-Q.
+  impl-Q-no-ref : impl-Q ref RefusesTea⊥ → ⊥
+  impl-Q-no-ref (ref-tick (sRet ()) _)
+  impl-Q-no-ref (ref-stable _ noev) =
+    noev (evl (evLabel ⊤ tea tt)) (lift tt) impl-Q-fires-tea
+```
+
+Now refute both arms of `loop0-failures⊥-elim` and assemble the loop-level
+analogue of `no-such-failure-impl`.
+
+```agda
+no-loop-fail-impl
+  : failures⊥ VM_impl (evl (evLabel ⊤ coin tt) ∷ []) RefusesTea⊥ → ⊥
+no-loop-fail-impl f with loop0-failures⊥-elim VM_body_impl f
+-- Divergence arm: VM_impl fires a visible coin every iteration, never diverges.
+... | inj₂ (loop-div prefix suffix split (in-body {s = s1} bs refl) divwit) =
+      in-body-Q-no-τ s1 (s1-from-coin-split s1 {s2 = suffix} (sym split)) bs
+                     (divwit .Divergent.step)
+... | inj₂ (loop-div prefix suffix split
+              (in-loop {s1 = s1} {s2 = s2} eq-s tick-bs trk) divwit) =
+      impl-tick-absurd s1
+        (s1-from-coin-split s1 {s2 = s2 ++ suffix} (helper (sym split) eq-s)) tick-bs
+  where
+    open import Data.List.Properties using (++-assoc)
+    -- prefix = map evl s1 ++ s2 and prefix ++ suffix = [coin], so
+    -- map evl s1 ++ (s2 ++ suffix) = [coin].
+    helper : prefix ++ suffix ≡ evl (evLabel ⊤ coin tt) ∷ []
+           → prefix ≡ map (evl {R = ⊥}) s1 ++ s2
+           → map (evl {R = ⊥}) s1 ++ (s2 ++ suffix) ≡ evl (evLabel ⊤ coin tt) ∷ []
+    helper sp es rewrite sym (++-assoc (map (evl {R = ⊥}) s1) s2 suffix)
+                       | sym es = sp
+-- Failure arm: after coin the impl sits at the □-state, which OFFERS tea.
+-- We abstract the LoopSplit's trace to a variable `s` (so the `in-body`
+-- `map evl s'` index unifies without getting stuck), then use the
+-- propositional `s ≡ [coin]` to pin the iteration shape.
+... | inj₁ (loop-fail ls ref) = fail-absurd _ ls refl ref
+  where
+    fail-absurd : ∀ {Q : ITree VM (ExtI VM) ⊥} (s : List (Event√ VM ⊥))
+                → LoopSplit (λ _ → VM_body_impl) tt Q s
+                → s ≡ evl (evLabel ⊤ coin tt) ∷ []
+                → _ref_ Q RefusesTea⊥ → ⊥
+    -- in-body: the single coin event forces s' = [coin]; then loopStep-coin-inv
+    -- pins P' = impl-P', so Q = impl-Q, which offers tea (impl-Q-no-ref).
+    fail-absurd s (in-body {s = []}        bs refl) () _
+    fail-absurd s (in-body {s = _ ∷ _ ∷ _} bs refl) () _
+    fail-absurd s (in-body {s = _ ∷ []}    bs refl) refl ref'
+      with loopStep-coin-inv bs
+    ... | refl = impl-Q-no-ref ref'
+    -- in-loop: loopStep cannot complete an iteration (√-tick) within [coin].
+    fail-absurd s (in-loop {s1 = s1} {s2 = s2} eq-s tick-bs trk) s≡coin _ =
+      impl-tick-absurd s1
+        (s1-from-coin-split s1 {s2 = s2} (trans (sym eq-s) s≡coin)) tick-bs
+```
+
+Assemble the loop-level strictness: if the impl FD-refined the spec, the
+spec's `[coin]`-then-refuse-`tea` failure would transfer to the impl —
+but the impl cannot refuse `tea`.
+
+```agda
+canonical-lesson-loop-✗ : VM_impl ⊑FD VM_spec → ⊥
+canonical-lesson-loop-✗ refines =
+  no-loop-fail-impl (proj₁ refines spec-loop-fail)
+```
+
+
+
+
 ### §5.4 LTL on a sample trace
 
 We illustrate LTL safety and liveness on a finite witness trace of
@@ -570,13 +881,86 @@ liveness : ⟦ livenessFormula ⟧ sampleTrace
 liveness = 1 , tt , (λ _ _ → lift tt₀)
 ```
 
+### §5.4b Further LTL properties on the witness trace
+
+The same trace satisfies a spread of LTL connectives: conjunction with
+`X` (next), `U` (until), nested `X` reaching the `done` terminator, and a
+second `G`/`¬` safety property. (We rename the LTL negation to `¬ᵗ_` to
+avoid the clash with `Relation.Nullary.¬_` already in scope.)
+
+```agda
+open import ITree_Relations.LTL.Traces_Based
+  using (_U_; _∧_; atDone) renaming (¬_ to ¬ᵗ_)
+open import Data.Nat using (_<_; s≤s)
+```
+
+**(a) Conjunction + next.** The run starts with `coin`, and the next
+observation is `coffee`.
+
+```agda
+startThenCoffee : ⟦ atCoin ∧ X atCoffee ⟧ sampleTrace
+startThenCoffee = tt , tt
+```
+
+**(b) Until.** `coin` holds until a drink is served — the drink lands at
+position 1, and `coin` holds at the only earlier position 0.
+
+```agda
+coinUntilDrink : ⟦ atCoin U atDrink ⟧ sampleTrace
+coinUntilDrink = 1 , tt , λ { zero _ → tt ; (suc _) (s≤s ()) }
+```
+
+**(c) Reaching termination.** After two steps the trace is `done`.
+`⟦ X (X (atDone _)) ⟧` reduces to the `atDone` predicate at the `done tt`
+frame, which we take to be trivially `⊤`.
+
+```agda
+reachesDone : ⟦ X (X (atDone (λ _ → ⊤ {lzero}))) ⟧ sampleTrace
+reachesDone = tt
+```
+
+**(d) Safety: no tea.** This run never serves `tea` (the `□` resolved to
+coffee). Proved via `⟦G⟧⁺` (the constructive global form), casing the
+position into `0`, `1`, and `≥ 2`; from position 2 on the trace stutters
+at the `done` frame (`drop-stutter`), where `atTea` is `⊥`.
+
+```agda
+neverTea : ⟦ G (¬ᵗ atTea) ⟧ sampleTrace
+neverTea = ⟦G⟧⁺⇒⟦G⟧ {φ = ¬ᵗ atTea} {tr = sampleTrace} neverTea⁺
+  where
+    neverTea⁺ : ⟦G⟧⁺ (¬ᵗ atTea) sampleTrace
+    neverTea⁺ zero       = λ ()
+    neverTea⁺ (suc zero) = λ ()
+    neverTea⁺ (suc (suc n)) =
+      subst (⟦_⟧ {E = VM} {I = ExtI VM} {R = ⊤ {lzero}} (¬ᵗ atTea))
+            (sym (drop-stutter n (done {t = Skip {E = VM} {I = ExtI VM}} refl) tt₀))
+            (λ ())
+```
+
+**(e) Liveness culminating in termination.** Eventually a `coffee` is
+served, immediately after which the machine is `done` — combining `F`,
+`∧`, `X`, and the `done` terminator in a single formula.
+
+```agda
+coffeeThenDone : ⟦ F (atCoffee ∧ X (atDone (λ _ → ⊤ {lzero}))) ⟧ sampleTrace
+coffeeThenDone = 1 , (tt , tt) , (λ _ _ → lift tt₀)
+```
+
 ### §5.5 What is intentionally deferred
 
-- **Loop-level refinement.** Lifting `canonical-lesson-✓` /
-  `canonical-lesson-✗` from the body to the `loop0`-wrapped
-  `VM_impl` / `VM_spec` requires `>>=` and `loop0` monotonicity laws
-  for `_⊑ᵀ_` / `_⊑FD_`. These are stubs in
-  `CSP.Laws.FailuresDivergences` (sections "Bind" and "Iterate").
+- **Loop-level refinement (forward).** ✅ Done — see §5.3b:
+  `VM_spec ⊑FD VM_impl` follows from `loop0-mono-⊑FD`
+  (`CSP.Laws.Iterate_FD`, built on the iteration-tag-generic
+  bisimulation). The monotonicity laws that were stubs are now
+  discharged.
+
+- **Loop-level strictness (reverse).** ✅ Done — see §5.3b
+  (`canonical-lesson-loop-✗`). Refuting `VM_impl ⊑FD VM_spec` at the
+  loop level needed NO new law: it is assembled from the
+  `loop0-failures⊥-elim` / `loop0-failures⊥-intro-failures`
+  characterisation laws (already in `CSP.Laws.Iterate`) plus the
+  body-level refusal arguments, threaded through the `iter-bind`
+  one-iteration prefix.
 
 - **`_⊨_`-shaped LTL claims.** `t ⊨ φ` quantifies over *every* trace
   rooted at `t`. Proving `VM_impl ⊨ G (atCoin ⇒ X atDrink)` requires

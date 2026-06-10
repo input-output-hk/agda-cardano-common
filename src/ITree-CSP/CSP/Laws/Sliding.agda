@@ -1,115 +1,359 @@
 {-
-  Sliding-choice laws for ITree-CSP under failures-divergences
-  equivalence `_≃FD_`.
-
-  This module replaces the six `▷-step-*` postulates that used to live
-  in `CSP.Laws.FailuresDivergences` (lines 485–526) and which became
-  unprovable after the `_▷_` operator was extended with the `mix`
-  constructor and with a Q-ndbr-distributes-first clause in
-  `CSP.Definitions.Operators` (lines 390–421).
-
-  ---------------------------------------------------------------------
-  Truth table for `force (P ▷ Q)`
-  ---------------------------------------------------------------------
-
-  The operator branches on `force Q` FIRST.  If `force Q = ndbr fQ wi wa wp`
-  then the result is `ndbr (mergeNdbr▷-R P fQ) wi wa _`, **regardless of
-  the shape of `force P`** (i.e. Q's internal nondeterminism distributes
-  through `▷` on the right).
-
-  Only when `force Q ≢ ndbr _ _ _ _` do the P-shape clauses apply.  Let
-  `force Q ≢ ndbr _ _ _ _` (predicate `Q-not-ndbr Q` below).  Then:
-
-       force P             force (P ▷ Q)
-       ---------           -------------------------------
-       ret r               ret r
-       sil P'              sil (P' ▷ Q)
-       vis fP              mix fP Q
-       ndbr fP wi wa wp    ndbr (mergeNdbr▷-L fP Q) wi wa _
-       mix fP P'           mix fP (P' ▷ Q)
-
-  (And in the Q-is-ndbr row, every entry collapses to
-   `ndbr (mergeNdbr▷-R P fQ) …`.)
-
-  Consequences for the formerly-postulated step lemmas:
-
-   * `▷-step-sil-τ`     : KEPT — with `Q-not-ndbr Q`, `force (P ▷ Q)`
-                          reduces to `sil (P' ▷ Q)`, so `sSil` applies.
-
-   * `▷-step-ret-√`     : KEPT — with `Q-not-ndbr Q`, `force (P ▷ Q)`
-                          reduces to `ret r`, so `sRet` applies.
-
-   * `▷-step-vis-τ-L`   : DELETED — when `force P ≡ vis fP` and
-                          `Q-not-ndbr Q`, `force (P ▷ Q) ≡ mix fP Q`.
-                          The `mix` node has no τ-transition to
-                          `P □ Q`.  The only τ-step from `mix fP Q` is
-                          `sMixSlide` going to `Q` (covered by `-R`),
-                          and visible offers from `fP` resolve via
-                          `sMixVis` directly to a P-branch — not via a
-                          τ-routed `P □ Q` intermediate.
-
-   * `▷-step-vis-τ-R`   : KEPT (restated) — with `Q-not-ndbr Q`,
-                          `force (P ▷ Q) ≡ mix fP Q`, hence `sMixSlide`
-                          gives `(P ▷ Q) ─[τ]─► Q` directly.
-
-   * `▷-step-ndbr-τ-L`  : RESTATED — when `force P ≡ ndbr fP …`
-                          and `Q-not-ndbr Q`, `force (P ▷ Q)` reduces
-                          to a fresh `ndbr (mergeNdbr▷-L fP Q) …`, NOT
-                          to `P □ Q`.  The τ-steps available from
-                          there go to `P' ▷ Q` for any branch
-                          `fP i a ≡ just P'`, so the restated form
-                          takes that branch-witness as an extra
-                          premise.
-
-   * `▷-step-ndbr-τ-R`  : DELETED — when `force P ≡ ndbr fP …` and
-                          `Q-not-ndbr Q`, `force (P ▷ Q)` is an
-                          `ndbr (mergeNdbr▷-L fP Q) …` node whose
-                          τ-steps go to `P' ▷ Q` only, not to `Q`.
-                          The "fall-through to Q" intuition is now
-                          discharged either (a) when Q itself is an
-                          `ndbr` via the Q-distribution clause, or
-                          (b) when P is `vis`/`mix` via `sMixSlide`.
-
-  No callers in the current tree depend on these names — verified by
-  `grep -rn "▷-step" src/`.
+  Trace and failures/divergences laws for sliding choice _▷_.
 -}
 
 {-# OPTIONS --guardedness #-}
 
-open import Level using (Level; _⊔_)
-                 renaming (zero to lzero; suc to lsuc)
-open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂; _×_)
-open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Data.Maybe using (Maybe; just; nothing; Is-just)
+open import Data.Maybe using (Maybe; just; nothing; Is-just) renaming (map to mapMaybe)
+open import Data.Maybe.Properties using (just-injective)
+open import Data.Maybe.Relation.Unary.Any using (Any) renaming (just to any-just)
 open import Data.Empty using (⊥; ⊥-elim)
-open import Data.Unit using (⊤)
-open import Data.List using (List; _∷_; []; _++_)
+open import Data.Unit.Polymorphic using (⊤; tt)
+open import Data.Unit.Base using () renaming (tt to tt₀)
+open import Data.Product using (Σ; _,_; proj₁; proj₂; _×_; ∃; Σ-syntax; ∃-syntax)
+open import Data.Sum using (_⊎_; inj₁; inj₂) renaming ([_,_] to case-⊎)
+open import Data.Bool using (Bool; true; false; if_then_else_)
+open import Data.List using (List; _++_; _∷_; []; [_]; length; reverse; map; foldr; downFrom)
+open import Data.List.Relation.Unary.Any using (Any; here; there)
+open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
+import Data.List.Membership.Propositional as Relation
+open Relation using (_∈_; _∉_)
+open import Relation.Unary using (∅)
 open import Function using (case_of_)
-open import Relation.Nullary using (Dec; no; ¬_)
+open import Relation.Nullary using (¬_; Dec; yes; no; contradiction)
 open import Relation.Binary.PropositionalEquality
-     using (_≡_; _≢_; refl)
+     using (_≡_; _≢_; refl; sym; trans; subst; cong; inspect)
+open import Level using (Level; _⊔_; Lift; lift; lower) renaming (zero to lzero; suc to lsuc)
 
-open import Class.DecEq using (DecEq)
+open import Class.DecEq using (DecEq; _≟_)
+open import Prelude using (to-witness; just-to-witness)
 
-open import Prelude
 open import Interaction_Trees
+open import CSP.Definitions.Basic_Processes
 open import ITree_Relations.LTS
 open import ITree_Relations.FailuresDivergences
-open Traces
-open Failures
-open IsDivergence
 
-module CSP.Laws.Sliding_FD
+module CSP.Laws.Sliding
   {ℓ ℓe} {E : Set ℓ → Set ℓe}
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 
-import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
-open CSPOps E-≟
-
 open ITree
 open Label
 open Event√
+open Traces
+open Failures
+open IsDivergence
+
+import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
+open CSPOps E-≟
+
+open import CSP.Laws.BasicProcesses {ℓ} {ℓe} {E} E-≟
+
+-----------------------------------------------------------------------------------------
+-- Sliding : P ▷ Q
+
+sliding-trace-helper : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ dec : DecEq R ⦄
+  {s : List (Event√ E R)}
+   (P Q : ITree E (ExtI I) R) (t-f : ITree E (ExtI I) R)
+   → (P ▷ Q) ═⟨ s ⟩═► t-f 
+   → traces P s ⊎ traces Q s
+
+-- Base Case
+sliding-trace-helper P Q t-f bNil = inj₁ (P , bNil)
+
+-- 1. Silent Step: sSil
+-- Productive only when P.force = sil P' and Q.force ≠ ndbr (force(P ▷ Q) = sil (P' ▷ Q)).
+-- All other 5×5−4 = 21 combinations are absurd.  Wildcards on Q.force can't reduce
+-- past ▷'s with-abstraction; we must case explicitly on each Q.force shape.
+sliding-trace-helper P Q t-f (bTau (sSil eq) big-step)
+  with P .force in eq-P | Q .force in eq-Q | eq
+... | sil P' | ret _ | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sSil eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | sil P' | sil _ | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sSil eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | sil P' | vis _ | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sSil eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | sil P' | mix _ _ | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sSil eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | sil _ | ndbr _ _ _ _ | ()  -- ▷-rule-1: force = ndbr
+-- ret | * : force = ret (or ndbr when *=ndbr)
+... | ret _ | ret _ | ()
+... | ret _ | sil _ | ()
+... | ret _ | vis _ | ()
+... | ret _ | mix _ _ | ()
+... | ret _ | ndbr _ _ _ _ | ()
+-- vis | * : force = mix fP Q (or ndbr when *=ndbr)
+... | vis _ | ret _ | ()
+... | vis _ | sil _ | ()
+... | vis _ | vis _ | ()
+... | vis _ | mix _ _ | ()
+... | vis _ | ndbr _ _ _ _ | ()
+-- ndbr | * : force = ndbr (P-distr or Q-distr)
+... | ndbr _ _ _ _ | ret _ | ()
+... | ndbr _ _ _ _ | sil _ | ()
+... | ndbr _ _ _ _ | vis _ | ()
+... | ndbr _ _ _ _ | mix _ _ | ()
+... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
+-- mix | * : force = mix (or ndbr when *=ndbr)
+... | mix _ _ | ret _ | ()
+... | mix _ _ | sil _ | ()
+... | mix _ _ | vis _ | ()
+... | mix _ _ | mix _ _ | ()
+... | mix _ _ | ndbr _ _ _ _ | ()
+
+-- 2. Silent Step: sNdbr
+-- Productive when force(P ▷ Q) is ndbr:
+--   (a) Q.force = ndbr fQ  → ndbr (mergeNdbr▷-R P fQ) ...     (Q distributes; any P)
+--   (b) Q.force ≠ ndbr ∧ P.force = ndbr fP → ndbr (mergeNdbr▷-L fP Q) ... (P distributes)
+-- (a) Q distributes — all 5 P-shapes × ndbr Q.
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  with P .force in eq-P | Q .force in eq-Q | eq
+... | ret _ | ndbr fQ _ _ _ | refl with fQ i a in fq-eq | eq-j
+... | just Q' | refl =
+    case sliding-trace-helper P Q' t-f big-step of λ where
+      (inj₁ trP)           → inj₁ trP
+      (inj₂ (tend , trQ')) → inj₂ (tend , bTau (sNdbr eq-Q fq-eq) trQ')
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | sil _ | ndbr fQ _ _ _ | refl with fQ i a in fq-eq | eq-j
+... | just Q' | refl =
+    case sliding-trace-helper P Q' t-f big-step of λ where
+      (inj₁ trP)           → inj₁ trP
+      (inj₂ (tend , trQ')) → inj₂ (tend , bTau (sNdbr eq-Q fq-eq) trQ')
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | vis _ | ndbr fQ _ _ _ | refl with fQ i a in fq-eq | eq-j
+... | just Q' | refl =
+    case sliding-trace-helper P Q' t-f big-step of λ where
+      (inj₁ trP)           → inj₁ trP
+      (inj₂ (tend , trQ')) → inj₂ (tend , bTau (sNdbr eq-Q fq-eq) trQ')
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | ndbr _ _ _ _ | ndbr fQ _ _ _ | refl with fQ i a in fq-eq | eq-j
+... | just Q' | refl =
+    case sliding-trace-helper P Q' t-f big-step of λ where
+      (inj₁ trP)           → inj₁ trP
+      (inj₂ (tend , trQ')) → inj₂ (tend , bTau (sNdbr eq-Q fq-eq) trQ')
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | mix _ _ | ndbr fQ _ _ _ | refl with fQ i a in fq-eq | eq-j
+... | just Q' | refl =
+    case sliding-trace-helper P Q' t-f big-step of λ where
+      (inj₁ trP)           → inj₁ trP
+      (inj₂ (tend , trQ')) → inj₂ (tend , bTau (sNdbr eq-Q fq-eq) trQ')
+... | nothing | ()
+-- (b) P distributes — Q is not ndbr.  Sub-case on fP i a.
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | ndbr fP _ _ _ | ret _ | refl with fP i a in fp-eq | eq-j
+... | just P' | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sNdbr eq-P fp-eq) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | ndbr fP _ _ _ | sil _ | refl with fP i a in fp-eq | eq-j
+... | just P' | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sNdbr eq-P fp-eq) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | ndbr fP _ _ _ | vis _ | refl with fP i a in fp-eq | eq-j
+... | just P' | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sNdbr eq-P fp-eq) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | nothing | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr {i = i} {a = a} eq eq-j) big-step)
+  | ndbr fP _ _ _ | mix _ _ | refl with fP i a in fp-eq | eq-j
+... | just P' | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sNdbr eq-P fp-eq) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | nothing | ()
+-- Absurd cases — force is not ndbr.
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | ret _ | ret _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | ret _ | sil _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | ret _ | vis _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | ret _ | mix _ _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | sil _ | ret _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | sil _ | sil _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | sil _ | vis _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | sil _ | mix _ _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | vis _ | ret _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | vis _ | sil _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | vis _ | vis _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | vis _ | mix _ _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | mix _ _ | ret _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | mix _ _ | sil _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | mix _ _ | vis _ | ()
+sliding-trace-helper P Q t-f (bTau (sNdbr eq eq-j) big-step) | mix _ _ | mix _ _ | ()
+
+-- 3. Visible Step: sVis
+-- Under new ▷, force(P ▷ Q) is never `vis _`: it's ret / sil / mix / ndbr.
+-- All sVis cases are therefore absurd; wildcard Q is left unreduced past ▷'s
+-- with-abstraction, so we must enumerate every Q.force shape per P.force shape.
+sliding-trace-helper P Q t-f (bStep (sVis eq eq-j) big-step)
+  with P .force in eq-P | Q .force in eq-Q | eq
+... | ret _ | ret _ | ()
+... | ret _ | sil _ | ()
+... | ret _ | vis _ | ()
+... | ret _ | ndbr _ _ _ _ | ()
+... | ret _ | mix _ _ | ()
+... | sil _ | ret _ | ()
+... | sil _ | sil _ | ()
+... | sil _ | vis _ | ()
+... | sil _ | ndbr _ _ _ _ | ()
+... | sil _ | mix _ _ | ()
+... | vis _ | ret _ | ()
+... | vis _ | sil _ | ()
+... | vis _ | vis _ | ()
+... | vis _ | ndbr _ _ _ _ | ()
+... | vis _ | mix _ _ | ()
+... | ndbr _ _ _ _ | ret _ | ()
+... | ndbr _ _ _ _ | sil _ | ()
+... | ndbr _ _ _ _ | vis _ | ()
+... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
+... | ndbr _ _ _ _ | mix _ _ | ()
+... | mix _ _ | ret _ | ()
+... | mix _ _ | sil _ | ()
+... | mix _ _ | vis _ | ()
+... | mix _ _ | ndbr _ _ _ _ | ()
+... | mix _ _ | mix _ _ | ()
+
+-- 4. Visible Step: sRet
+sliding-trace-helper P Q t-f (bStep (sRet eq) big-step)
+  with P .force in eq-P | Q .force in eq-Q | eq
+... | ret r | ndbr _ _ _ _ | ()  -- new _▷_: ret|ndbr produces ndbr, not ret
+... | ret r | ret _ | refl =
+    inj₁ (t-f , bStep (sRet eq-P) big-step)
+... | ret r | sil _ | refl =
+    inj₁ (t-f , bStep (sRet eq-P) big-step)
+... | ret r | vis _ | refl =
+    inj₁ (t-f , bStep (sRet eq-P) big-step)
+... | ret r | mix _ _ | refl =
+    inj₁ (t-f , bStep (sRet eq-P) big-step)
+-- sil | * : force = sil (P' ▷ Q) or ndbr
+... | sil _ | ret _ | ()
+... | sil _ | sil _ | ()
+... | sil _ | vis _ | ()
+... | sil _ | ndbr _ _ _ _ | ()
+... | sil _ | mix _ _ | ()
+-- vis | * : force = mix fP Q (or ndbr if Q=ndbr)
+... | vis _ | ret _ | ()
+... | vis _ | sil _ | ()
+... | vis _ | vis _ | ()
+... | vis _ | ndbr _ _ _ _ | ()
+... | vis _ | mix _ _ | ()
+-- ndbr | * : force = ndbr (always)
+... | ndbr _ _ _ _ | ret _ | ()
+... | ndbr _ _ _ _ | sil _ | ()
+... | ndbr _ _ _ _ | vis _ | ()
+... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
+... | ndbr _ _ _ _ | mix _ _ | ()
+-- mix | * : force = mix (or ndbr if Q=ndbr)
+... | mix _ _ | ret _ | ()
+... | mix _ _ | sil _ | ()
+... | mix _ _ | vis _ | ()
+... | mix _ _ | ndbr _ _ _ _ | ()
+... | mix _ _ | mix _ _ | ()
+
+-- 5. NEW: Silent Step: sMixSlide
+-- Under new ▷:
+--   P=vis fP, Q≠ndbr → force = mix fP Q.  Slide goes to Q.  Result: Q-trace.
+--   P=mix fP P', Q≠ndbr → force = mix fP (P' ▷ Q).  Slide goes to (P' ▷ Q); recurse.
+sliding-trace-helper P Q t-f (bTau (sMixSlide eq) big-step)
+  with P .force in eq-P | Q .force in eq-Q | eq
+... | vis _ | ret _   | refl = inj₂ (t-f , big-step)
+... | vis _ | sil _   | refl = inj₂ (t-f , big-step)
+... | vis _ | vis _   | refl = inj₂ (t-f , big-step)
+... | vis _ | mix _ _ | refl = inj₂ (t-f , big-step)
+... | vis _ | ndbr _ _ _ _ | ()
+... | mix _ P' | ret _   | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sMixSlide eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | mix _ P' | sil _   | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sMixSlide eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | mix _ P' | vis _   | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sMixSlide eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | mix _ P' | mix _ _ | refl =
+    case sliding-trace-helper P' Q t-f big-step of λ where
+      (inj₁ (tend , trP')) → inj₁ (tend , bTau (sMixSlide eq-P) trP')
+      (inj₂ trQ)           → inj₂ trQ
+... | mix _ _  | ndbr _ _ _ _ | ()
+-- Absurd shapes: force isn't mix.
+... | ret _ | ret _ | ()
+... | ret _ | sil _ | ()
+... | ret _ | vis _ | ()
+... | ret _ | ndbr _ _ _ _ | ()
+... | ret _ | mix _ _ | ()
+... | sil _ | ret _ | ()
+... | sil _ | sil _ | ()
+... | sil _ | vis _ | ()
+... | sil _ | ndbr _ _ _ _ | ()
+... | sil _ | mix _ _ | ()
+... | ndbr _ _ _ _ | ret _ | ()
+... | ndbr _ _ _ _ | sil _ | ()
+... | ndbr _ _ _ _ | vis _ | ()
+... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
+... | ndbr _ _ _ _ | mix _ _ | ()
+
+-- 6. NEW: Visible Step: sMixVis
+-- P=vis fP, Q≠ndbr → force = mix fP Q.  Visible fire of fP at a — P-side step.
+-- P=mix fP P', Q≠ndbr → force = mix fP (P' ▷ Q).  Visible fire of fP at a — P-side step.
+sliding-trace-helper P Q t-f (bStep (sMixVis {at = at} {a = a} eq eq-j) big-step)
+  with P .force in eq-P | Q .force in eq-Q | eq
+... | vis _ | ret _   | refl = inj₁ (t-f , bStep (sVis eq-P eq-j) big-step)
+... | vis _ | sil _   | refl = inj₁ (t-f , bStep (sVis eq-P eq-j) big-step)
+... | vis _ | vis _   | refl = inj₁ (t-f , bStep (sVis eq-P eq-j) big-step)
+... | vis _ | mix _ _ | refl = inj₁ (t-f , bStep (sVis eq-P eq-j) big-step)
+... | vis _ | ndbr _ _ _ _ | ()
+... | mix _ _ | ret _   | refl = inj₁ (t-f , bStep (sMixVis eq-P eq-j) big-step)
+... | mix _ _ | sil _   | refl = inj₁ (t-f , bStep (sMixVis eq-P eq-j) big-step)
+... | mix _ _ | vis _   | refl = inj₁ (t-f , bStep (sMixVis eq-P eq-j) big-step)
+... | mix _ _ | mix _ _ | refl = inj₁ (t-f , bStep (sMixVis eq-P eq-j) big-step)
+... | mix _ _ | ndbr _ _ _ _ | ()
+-- Absurd shapes: force isn't mix.
+... | ret _ | ret _ | ()
+... | ret _ | sil _ | ()
+... | ret _ | vis _ | ()
+... | ret _ | ndbr _ _ _ _ | ()
+... | ret _ | mix _ _ | ()
+... | sil _ | ret _ | ()
+... | sil _ | sil _ | ()
+... | sil _ | vis _ | ()
+... | sil _ | ndbr _ _ _ _ | ()
+... | sil _ | mix _ _ | ()
+... | ndbr _ _ _ _ | ret _ | ()
+... | ndbr _ _ _ _ | sil _ | ()
+... | ndbr _ _ _ _ | vis _ | ()
+... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
+... | ndbr _ _ _ _ | mix _ _ | ()
+
+Sliding-trace : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ dec : DecEq R ⦄
+  (P Q : ITree E (ExtI I) R) {s : List (Event√ E R)}
+  → traces {I = ExtI I} {R = R} (_▷_ {I = I} {R = R} P Q) s
+  → traces P s ⊎ traces Q s
+Sliding-trace P Q (t-f , tr) = sliding-trace-helper P Q t-f tr  
+
+
+-----------------------------------------------------------------------------
+-- FD lemmas
+-----------------------------------------------------------------------------
 
 -----------------------------------------------------------------------------
 -- Side-condition: `force Q` is not an `ndbr` node.

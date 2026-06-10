@@ -217,6 +217,15 @@ no-τ-from-ret force-ret (sSil eq)      = case trans (sym force-ret) eq of λ ()
 no-τ-from-ret force-ret (sNdbr eq _)   = case trans (sym force-ret) eq of λ ()
 no-τ-from-ret force-ret (sMixSlide eq) = case trans (sym force-ret) eq of λ ()
 
+-- A state is stuck (real deadlock) when no LTS label is enabled.
+IsStuck : ∀ {ℓ ℓe ℓi ℓr}
+            {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+          → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+IsStuck {E = E} {I = I} {R = R} t =
+  ∀ {l : Label E R} {t' : ITree E I R} → t ─[ l ]─► t' → ⊥
+  -- ⊥ here is non-polymorphic Data.Empty.⊥ at level 0, which embeds
+  -- into the codomain level lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr via _⊔_.
+
 --------------------------------------------------------------------------------------
 -- This relation denotes a ITree t' is reachable from t via n transitions, including τ
 

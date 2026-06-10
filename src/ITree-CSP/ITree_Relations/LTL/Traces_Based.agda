@@ -64,15 +64,6 @@ IsTerminator (div   _  ) = ⊤
 -- §2 Trace
 ------------------------------------------------------------
 
--- A state is stuck (real deadlock) when no LTS label is enabled.
-IsStuck : ∀ {ℓ ℓe ℓi ℓr}
-            {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-          → ITree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
-IsStuck {E = E} {I = I} {R = R} t =
-  ∀ {l : Label E R} {t' : ITree E I R} → t ─[ l ]─► t' → ⊥
-  -- ⊥ here is non-polymorphic Data.Empty.⊥ at level 0, which embeds
-  -- into the codomain level lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr via _⊔_.
-
 -- Intrinsic, finite-or-infinite, valid-by-construction execution trace.
 -- `step` is the only coinductive carrier (its tail is thunked); the
 -- three terminator constructors are leaves.

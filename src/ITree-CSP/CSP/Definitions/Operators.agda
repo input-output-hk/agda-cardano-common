@@ -590,33 +590,53 @@ iter-bind : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set �
   → (A → ITree E (ExtI I) (A ⊎ R))
   → ITree E (ExtI I) R
 
-force (iter-bind {I = I} {R = R} t k) with t .force
+-- Named continuation factorisations for iter-bind (mirror bind-cont-* for
+-- the bind operator).  Defined between iter-bind's signature and its
+-- definition so the force clauses below can reduce in terms of them, and
+-- so downstream proofs (Iterate.agda's lift-iter-bind-bigstep) can use the
+-- named forms in force-equality lemmas.
+
+iter-bind-cont-vis : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+                   → (k : A → ITree E (ExtI I) (A ⊎ R))
+                   → ((at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) (A ⊎ R))))
+                   → (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))
+iter-bind-cont-vis k f at a = case f at a of λ where
+  nothing   → nothing
+  (just t') → just (iter-bind t' k)
+
+iter-bind-cont-ndbr : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+                    → (k : A → ITree E (ExtI I) (A ⊎ R))
+                    → ((ai : AnyTypes (ExtI I)) → ContinueType ai (Maybe (ITree E (ExtI I) (A ⊎ R))))
+                    → (ai : AnyTypes (ExtI I)) → ContinueType ai (Maybe (ITree E (ExtI I) R))
+iter-bind-cont-ndbr k f ai a = case f ai a of λ where
+  nothing   → nothing
+  (just t') → just (iter-bind t' k)
+
+iter-bind-cont-ndbr-witness : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+                            → (k : A → ITree E (ExtI I) (A ⊎ R))
+                            → (f : (ai : AnyTypes (ExtI I)) → ContinueType ai (Maybe (ITree E (ExtI I) (A ⊎ R))))
+                            → ∀ {wi wa}
+                            → Is-just (f wi wa)
+                            → Is-just (iter-bind-cont-ndbr k f wi wa)
+iter-bind-cont-ndbr-witness k f {wi} {wa} p with f wi wa | p
+... | just _  | _  = any-just tt₀
+... | nothing | ()
+
+iter-bind-cont-mix : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {A : Set ℓ} {R : Set ℓr}
+                   → (k : A → ITree E (ExtI I) (A ⊎ R))
+                   → ((at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) (A ⊎ R))))
+                   → (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R))
+iter-bind-cont-mix k f at a = case f at a of λ where
+  nothing   → nothing
+  (just t') → just (iter-bind t' k)
+
+force (iter-bind t k) with t .force
 ... | ret (inj₁ a′)   = sil (iter k a′)
 ... | ret (inj₂ r)    = ret r
 ... | sil c           = sil (iter-bind c k)
--- Avoid to use map or mapMaybe to break guardedness
---    ... | vis f           = vis  (λ at i → mapMaybe (iter-bind body) (f at i))
-... | vis f = vis (λ at → λ a → 
-  case f at a of λ where
-    nothing → nothing
-    (just t') → just (iter-bind t' k))
-
-... | ndbr f wi wa wp = ndbr (λ ai → λ i → f' ai i) wi wa (go wp)
-  where
-    f' : (ai : AnyTypes (ExtI I)) → (a : proj₁ ai) → Maybe (ITree E (ExtI I) R)
-    f' ai a = (case f ai a of λ where
-        nothing → nothing
-        (just t') → just (iter-bind t' k))
-
-    go : Is-just (f wi wa) → Is-just (f' wi wa)
-    go p with f wi wa | p
-    ... | just x | _ = any-just tt₀
-    ... | nothing | ()
-
-force (iter-bind t k) | mix f Qt = mix
-  (λ at a → case f at a of λ where 
-    nothing   → nothing
-    (just t') → just (iter-bind t' k))
-  (iter-bind Qt k)
+... | vis f           = vis (iter-bind-cont-vis k f)
+... | ndbr f wi wa wp = ndbr (iter-bind-cont-ndbr k f) wi wa
+                              (iter-bind-cont-ndbr-witness k f wp)
+... | mix f Qt        = mix (iter-bind-cont-mix k f) (iter-bind Qt k)
 
 iter body a = iter-bind (body a) body

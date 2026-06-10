@@ -95,9 +95,9 @@ import CSP.Laws.InternalChoice_FD {ℓ} {ℓe} {E} as ⊓-FD-laws
 open ⊓-FD-laws E-≟ using (⊓-idem-FD; ⊓-step-L; ⊓-step-R; ⊓-failures-elim; ⊓-divergences-elim)
 
 □-comm-FD :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → (P Q : ITree E (ExtI I) R)
-  → (P □ Q) ≃FD (Q □ P)
+  → _≃FD_ {ℓB = ℓB} (P □ Q) (Q □ P)
 □-comm-FD P Q = ≈⇒≃FD (□-comm-≈ P Q)
 
 -----------------------------------------------------------------------------
@@ -327,11 +327,11 @@ PP-ref→P-ref {I = I} {R = R} {P = P}
 -----------------------------------------------------------------------------
 
 □P-step-cont :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
     {P : ITree E (ExtI I) R} {e : Event√ E R} {T : ITree E (ExtI I) R}
   → (P □ P) ─[ ev e ]─► T
   → Σ[ t ∈ ITree E (ExtI I) R ]
-      ((P ─[ ev e ]─► t) × (T ≃FD t))
+      ((P ─[ ev e ]─► t) × (_≃FD_ {ℓB = ℓB} T t))
 -- sRet case: force (P □ P) ≡ ret r.  By inversion, force P ≡ ret r,
 -- so P also fires √r.  Both destinations are `deadlock`, so the FD
 -- relation is reflexive.
@@ -3515,9 +3515,9 @@ failures⊥-project-PP (inj₂ d) = inj₂ (divergences-project-PP d)
 -- Idempotence of external choice in the FD model — assembled from
 -- the four pointwise inclusions above.
 □-idem-FD :
-  ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
+  ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr} ⦃ _ : DecEq R ⦄
   → (P : ITree E (ExtI I) R)
-  → (P □ P) ≃FD P
+  → _≃FD_ {ℓB = ℓB} (P □ P) P
 □-idem-FD P = (PP⊑P-F⊥ , PP⊑P-D) , (P⊑PP-F⊥ , P⊑PP-D)
   where
     -- (P □ P) ⊑F⊥ P  means  failures⊥ P → failures⊥ (P □ P).
@@ -3563,10 +3563,10 @@ failures⊥-project-PP (inj₂ d) = inj₂ (divergences-project-PP d)
     (τ*-step (⊓-step-R P Q) τ*-zero)
     d
 
-⊓⊑F⊥□ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+⊓⊑F⊥□ : ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
           ⦃ _ : DecEq R ⦄
           {P Q : ITree E (ExtI I) R}
-        → (P ⊓ Q) ⊑F⊥ (P □ Q)
+        → _⊑F⊥_ {ℓB = ℓB} (P ⊓ Q) (P □ Q)
 ⊓⊑F⊥□ {P = P} {Q = Q} (inj₁ f) =
   inj₁ (asymm-walk-□
           (τ*-step (⊓-step-L P Q) τ*-zero)
@@ -3578,10 +3578,10 @@ failures⊥-project-PP (inj₂ d) = inj₂ (divergences-project-PP d)
           (τ*-step (⊓-step-R P Q) τ*-zero)
           d)
 
-⊓⊑FD□ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+⊓⊑FD□ : ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
           ⦃ _ : DecEq R ⦄
           {P Q : ITree E (ExtI I) R}
-        → (P ⊓ Q) ⊑FD (P □ Q)
+        → _⊑FD_ {ℓB = ℓB} (P ⊓ Q) (P □ Q)
 ⊓⊑FD□ = ⊓⊑F⊥□ , ⊓⊑D□
 
 ------------------------------------------------------------------------
@@ -3616,11 +3616,11 @@ failures⊥-project-PP (inj₂ d) = inj₂ (divergences-project-PP d)
 -- is not yet in the library.  Postulated pending construction of the
 -- full □-failures characterisation (see Session-3 §1 above).
 postulate
-  □-mono-⊑F⊥ : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  □-mono-⊑F⊥ : ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
                  ⦃ _ : DecEq R ⦄
                  {P P′ Q Q′ : ITree E (ExtI I) R}
-               → P ⊑F⊥ P′ → Q ⊑F⊥ Q′
-               → (P □ Q) ⊑F⊥ (P′ □ Q′)
+               → _⊑F⊥_ {ℓB = ℓB} P P′ → _⊑F⊥_ {ℓB = ℓB} Q Q′
+               → _⊑F⊥_ {ℓB = ℓB} (P □ Q) (P′ □ Q′)
 
 -- TODO: □-mono-⊑D requires the divergence injection direction
 -- divergences P s → divergences (P □ Q) s, similarly pending the
@@ -3632,9 +3632,9 @@ postulate
               → P ⊑D P′ → Q ⊑D Q′
               → (P □ Q) ⊑D (P′ □ Q′)
 
-□-mono-⊑FD : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+□-mono-⊑FD : ∀ {ℓi ℓr ℓB} {I : Set ℓ → Set ℓi} {R : Set ℓr}
                ⦃ _ : DecEq R ⦄
                {P P′ Q Q′ : ITree E (ExtI I) R}
-             → P ⊑FD P′ → Q ⊑FD Q′
-             → (P □ Q) ⊑FD (P′ □ Q′)
+             → _⊑FD_ {ℓB = ℓB} P P′ → _⊑FD_ {ℓB = ℓB} Q Q′
+             → _⊑FD_ {ℓB = ℓB} (P □ Q) (P′ □ Q′)
 □-mono-⊑FD (pF , pD) (qF , qD) = □-mono-⊑F⊥ pF qF , □-mono-⊑D pD qD
