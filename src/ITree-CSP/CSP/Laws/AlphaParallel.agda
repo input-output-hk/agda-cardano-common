@@ -1,10 +1,12 @@
 {-# OPTIONS --guardedness #-}
 
-open import Level using (_⊔_; Lift; lift) renaming (suc to lsuc)
+open import Level using (_⊔_; Lift; lift; lower) renaming (zero to lzero; suc to lsuc)
+open import Data.Nat using (ℕ)
+open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Maybe.Properties using (just-injective)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit.Polymorphic using (⊤; tt)
-open import Data.Unit.Base using () renaming (tt to tt₀)
 open import Data.Product using (Σ; _,_; proj₁; proj₂; _×_; Σ-syntax)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.List using (List; _++_; _∷_; []; [_]; map)
@@ -13,23 +15,29 @@ open import Relation.Nullary using (¬_; Dec; yes; no)
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; _≢_; refl; sym; trans; subst)
 
-open import Interaction_Trees
-open import CSP.Definitions.Basic_Processes
-open import ITree_Relations.LTS
+open import Process_Trees
+open import Semantics.LTS
+open import Semantics.Failures using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces)
+open import Semantics.Deadlock
+open import Semantics.Refusals
 
 module CSP.Laws.AlphaParallel
   {ℓ ℓe} {E : Set ℓ → Set ℓe}
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   where
 
-open ITree
-open Label
-open Traces
+open PTree
+open Event
 
-import CSP.Definitions.Operators {ℓ} {ℓe} {E} as CSPOps
-open CSPOps E-≟
-import CSP.Definitions.AlphaParallel {ℓ} {ℓe} {E} as CSPAPar
-open CSPAPar E-≟
+import CSP.Operators {ℓ} {ℓe} {E} E-≟ as CSPOps
+open CSPOps using
+  ( EventSet
+  ; _⟦_∥_⟧_
+  ; αpar-pTau; αpar-hTauR; αpar-hTauL
+  ; αpar-sync-step; αpar-soloL-step; αpar-soloR-step
+  ; Stop
+  )
+open EventSet
 
 -------------------------------------------------------------------------------------
 -- Synchronisation merge predicate (two alphabets, dual guards).
@@ -38,47 +46,56 @@ open CSPAPar E-≟
 --   sync-r    : event in B only      → Q performs it solo
 --   sync-both : event in both A and B → P and Q synchronise
 
-data AlphaSync (A B : Alpha)
-  : List (Event E) → List (Event E) → List (Event E) → Set (lsuc ℓ ⊔ ℓe) where
+data AlphaSync {ℓi} {I : Set ℓ → Set ℓi} (A B : EventSet)
+  : List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I}) → List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I}) → List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I})
+  → Set (lsuc ℓ ⊔ ℓe) where
   sync-nil  : AlphaSync A B [] [] []
   sync-l    : ∀ {sP sQ s e}
-            →   A (Event.A e , Event.e e) → ¬ B (Event.A e , Event.e e)
+            →   A .mem (Event.A e , Event.e e) (Event.a e) → ¬ B .mem (Event.A e , Event.e e) (Event.a e)
             → AlphaSync A B sP sQ s → AlphaSync A B (e ∷ sP) sQ (e ∷ s)
   sync-r    : ∀ {sP sQ s e}
-            → ¬ A (Event.A e , Event.e e) →   B (Event.A e , Event.e e)
+            → ¬ A .mem (Event.A e , Event.e e) (Event.a e) →   B .mem (Event.A e , Event.e e) (Event.a e)
             → AlphaSync A B sP sQ s → AlphaSync A B sP (e ∷ sQ) (e ∷ s)
   sync-both : ∀ {sP sQ s e}
-            →   A (Event.A e , Event.e e) →   B (Event.A e , Event.e e)
+            →   A .mem (Event.A e , Event.e e) (Event.a e) →   B .mem (Event.A e , Event.e e) (Event.a e)
             → AlphaSync A B sP sQ s → AlphaSync A B (e ∷ sP) (e ∷ sQ) (e ∷ s)
 
 -- Splitting witness for traces of the binary alphabetised parallel.
 data AlphaSyncSplit {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-  (A B : Alpha) (P : ITree E (ExtI I) R) (Q : ITree E (ExtI I) S)
-  : List (Event√ E (R × S)) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs) where
-  in-progress : ∀ {sP sQ s : List (Event E)}
-              → AlphaSync A B sP sQ s
+  (A B : EventSet) (P : PTree E (ExtI I) R) (Q : PTree E (ExtI I) S)
+  : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (R × S))
+  → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs) where
+  in-progress : ∀ {sP sQ s : List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I})}
+              → AlphaSync {I = I} A B sP sQ s
               → traces P (map evl sP) → traces Q (map evl sQ)
               → AlphaSyncSplit A B P Q (map evl s)
-  done : ∀ {sP sQ s : List (Event E)} {r : R} {q : S}
-       → AlphaSync A B sP sQ s
+  done : ∀ {sP sQ s : List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I})} {r : R} {q : S}
+       → AlphaSync {I = I} A B sP sQ s
        → traces P (map evl sP ++ [ √ r ]) → traces Q (map evl sQ ++ [ √ q ])
        → AlphaSyncSplit A B P Q (map evl s ++ [ √ (r , q) ])
 
 -------------------------------------------------------------------------------------
 -- Refusal-composition (IsStuck) for binary alphabetised parallel.
 --
--- When both operands are `vis`-shaped and *every* event (at , a) is "blocked" — the
--- routing offer on the side(s) the alphabets require is `nothing` — the composite can
--- fire no event at all, hence `IsStuck`.  This is the key tool for deadlock proofs.
+-- When both operands are `react`-headed AND stable (their τ-maps are everywhere
+-- `nothing`) and *every* event (at , a) is "blocked" — the routing offer on the
+-- side(s) the alphabets require is `nothing` — the composite can fire neither an
+-- event nor a τ, hence `IsStuck`.  This is the key tool for deadlock proofs.
+--
+-- NOTE (react port): the legacy hypothesis was `P .force ≡ vis fP`, where a `vis`
+-- node carried no τ-branch.  Under the fused `react` node a node CAN offer τ even
+-- while react-headed, so to preserve the legacy fact ("no move at all is possible")
+-- we additionally require the operands to be STABLE (`τcP`/`τcQ` everywhere `nothing`).
+-- For `vis`-derived operands (Stop, prefix-guarded choices) this holds definitionally.
 
 -- The routing fails for event (at , a): the composite cannot fire it.
 Blocked : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    (A B : Alpha) (da : Dec-Alpha A) (db : Dec-Alpha B)
-    (fP : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) R)))
-    (fQ : (at : AnyTypes E) → ContinueType at (Maybe (ITree E (ExtI I) S)))
+    (A B : EventSet)
+    (fP : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) R)))
+    (fQ : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) S)))
     (at : AnyTypes E) (a : proj₁ at) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs)
-Blocked {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} A B da db fP fQ at a =
-  case (da at , db at) of λ where
+Blocked {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} A B fP fQ at a =
+  case (A .dec at a , B .dec at a) of λ where
     -- both alphabets claim e: blocked iff either side refuses the offer
     (yes _ , yes _) → Lift (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs)
                           ((fP at a ≡ nothing) ⊎ (fQ at a ≡ nothing))
@@ -90,1829 +107,801 @@ Blocked {ℓi = ℓi} {ℓr = ℓr} {ℓs = ℓs} A B da db fP fQ at a =
     (no  _ , no  _) → ⊤ {lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs}
 
 αpar-IsStuck : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-    {fP fQ}
-  → P .force ≡ vis fP → Q .force ≡ vis fQ
-  → (∀ (at : AnyTypes E) (a : proj₁ at) → Blocked A B da db fP fQ at a)
-  → IsStuck (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
--- silent / ndbr / mix-slide steps: force is `vis`, contradicting the premise.
-αpar-IsStuck eqP eqQ blocked (sRet eq)      rewrite eqP | eqQ = case eq of λ ()
-αpar-IsStuck eqP eqQ blocked (sSil eq)      rewrite eqP | eqQ = case eq of λ ()
-αpar-IsStuck eqP eqQ blocked (sNdbr eq _)   rewrite eqP | eqQ = case eq of λ ()
-αpar-IsStuck eqP eqQ blocked (sMixSlide eq) rewrite eqP | eqQ = case eq of λ ()
-αpar-IsStuck eqP eqQ blocked (sMixVis eq _) rewrite eqP | eqQ = case eq of λ ()
+    {A B : EventSet}
+    {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
+    {vP τcP vQ τcQ}
+  → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ
+  → (∀ i a → τcP i a ≡ nothing) → (∀ i a → τcQ i a ≡ nothing)
+  → (∀ (at : AnyTypes E) (a : proj₁ at) → Blocked A B vP vQ at a)
+  → IsStuck (P ⟦ A ∥ B ⟧ Q)
+-- ret / sil steps: composite force is a `react` node, contradicting the constructor's
+-- force equality (mirrors Semantics.Deadlock.deadlock-IsStuck).
+αpar-IsStuck eqP eqQ _ _ _ (sRet eq) rewrite eqP | eqQ = case eq of λ ()
+αpar-IsStuck eqP eqQ _ _ _ (sSil eq) rewrite eqP | eqQ = case eq of λ ()
 -- visible step: the merged offer at (at , a) is `nothing`, contradicting branch-eq.
-αpar-IsStuck {da = da} {db = db} {fP = fP} {fQ = fQ} eqP eqQ blocked
+αpar-IsStuck {A = A} {B = B} {vP = vP} {vQ = vQ} eqP eqQ _ _ blocked
              (sVis {at = at} {a = a} feq branch-eq)
   rewrite eqP | eqQ with feq
-... | refl with da at      | db at      | blocked at a
-...   | yes _    | yes _    | lift bl with fP at a | fQ at a | bl
+... | refl with A .dec at a  | B .dec at a  | blocked at a
+...   | yes _    | yes _    | lift bl with vP at a | vQ at a | bl
 ...     | nothing  | _        | inj₁ refl = case branch-eq of λ ()
 ...     | just _   | nothing  | inj₂ refl = case branch-eq of λ ()
-αpar-IsStuck {fP = fP} eqP eqQ blocked (sVis {at = at} {a = a} feq branch-eq)
-  | refl | yes _ | no _ | lift bl with fP at a | bl
+αpar-IsStuck {A = A} {B = B} {vP = vP} eqP eqQ _ _ blocked (sVis {at = at} {a = a} feq branch-eq)
+  | refl | yes _ | no _ | lift bl with vP at a | bl
 ...   | nothing | refl = case branch-eq of λ ()
-αpar-IsStuck {fQ = fQ} eqP eqQ blocked (sVis {at = at} {a = a} feq branch-eq)
-  | refl | no _ | yes _ | lift bl with fQ at a | bl
+αpar-IsStuck {A = A} {B = B} {vQ = vQ} eqP eqQ _ _ blocked (sVis {at = at} {a = a} feq branch-eq)
+  | refl | no _ | yes _ | lift bl with vQ at a | bl
 ...   | nothing | refl = case branch-eq of λ ()
-αpar-IsStuck eqP eqQ blocked (sVis {at = at} {a = a} feq branch-eq)
+αpar-IsStuck eqP eqQ _ _ blocked (sVis {at = at} {a = a} feq branch-eq)
   | refl | no _ | no _ | _ = case branch-eq of λ ()
+-- τ step: both operands are stable (τcP / τcQ everywhere `nothing`), and the
+-- composite's τ-map (`αpar-pTau`) only forwards an operand τ — so every τ target
+-- of the composite is `nothing`, refuting `τc i a ≡ just t′`.
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , base _}            feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl = case branch-eq of λ ()
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , fin}               feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl = case branch-eq of λ ()
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , pair (base _) _}   feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl = case branch-eq of λ ()
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , pair (pair _ _) _} feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl = case branch-eq of λ ()
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , pair fin i} {a = lift fzero , a} feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl rewrite stP (_ , i) a = case branch-eq of λ ()
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , pair fin i} {a = lift (fsuc fzero) , a} feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl rewrite stQ (_ , i) a = case branch-eq of λ ()
+αpar-IsStuck eqP eqQ stP stQ _
+             (sTau {i = _ , pair fin i} {a = lift (fsuc (fsuc _)) , a} feq branch-eq)
+  rewrite eqP | eqQ with feq
+... | refl = case branch-eq of λ ()
 
 -------------------------------------------------------------------------------------
--- Elimination law: every trace of (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) decomposes into
--- traces of P and Q merged by alphabet-driven synchronisation (AlphaSync).
-
-AlphaParallel-trace-aux : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-  (P : ITree E (ExtI I) R) (Q : ITree E (ExtI I) S)
-  (A : Alpha) (da : Dec-Alpha A) (B : Alpha) (db : Dec-Alpha B)
-  {s : List (Event√ E (R × S))} {t′ : ITree E (ExtI I) (R × S)}
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ═⟨ s ⟩═► t′
-  → AlphaSyncSplit A B P Q s
-
--- 1. Empty trace
-AlphaParallel-trace-aux P Q A da B db bNil =
-  in-progress sync-nil (_ , bNil) (_ , bNil)
-
--- 2. Tau via sSil — sil head from P or from Q
-AlphaParallel-trace-aux P Q A da B db (bTau (sSil {t = next} eq-f) big-step)
-  with P .force in p-eq | Q .force in q-eq | eq-f
-... | sil P' | _ | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sSil p-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sSil p-eq) trP') trQ
-... | ret _ | sil Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sSil q-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sSil q-eq) trQ')
-... | vis _ | sil Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sSil q-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sSil q-eq) trQ')
-... | ndbr _ _ _ _ | sil Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sSil q-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sSil q-eq) trQ')
-... | mix _ _ | sil Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sSil q-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sSil q-eq) trQ')
--- impossible (force(P ⟦…⟧ Q) is not sil for these heads)
-... | ret _ | ret _ | ()
-... | ret _ | vis _ | ()
-... | ret _ | ndbr _ _ _ _ | ()
-... | vis _ | ret _ | ()
-... | vis _ | vis _ | ()
-... | vis _ | ndbr _ _ _ _ | ()
-... | ndbr _ _ _ _ | ret _ | ()
-... | ndbr _ _ _ _ | vis _ | ()
-... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
-... | ret _ | mix _ _ | ()
-... | vis _ | mix _ _ | ()
-... | ndbr _ _ _ _ | mix _ _ | ()
-... | mix _ _ | ret _ | ()
-... | mix _ _ | vis _ | ()
-... | mix _ _ | ndbr _ _ _ _ | ()
-... | mix _ _ | mix _ _ | ()
-
--- 4. Termination via sRet — only when both P and Q are at ret simultaneously
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step)
-  with P .force in p-eq | Q .force in q-eq | eq-f
-... | ret rP | ret rQ | refl with big-step
-...   | bNil =
-        done sync-nil
-             (_ , bStep (sRet p-eq) bNil)
-             (_ , bStep (sRet q-eq) bNil)
-...   | bTau (sSil ()) _
-...   | bTau (sNdbr () _) _
-...   | bStep (sRet ()) _
-...   | bStep (sVis refl ()) _
--- absurd head combinations for sRet
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | sil _ | _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ret _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ret _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ret _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | vis _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | vis _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | vis _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | vis _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | mix _ _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | mix _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | mix _ _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | mix _ _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | mix _ _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ret _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | vis _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sRet eq-f) big-step) | ndbr _ _ _ _ | mix _ _ | ()
-
--- 5. Tau via sNdbr — at least one of P, Q has an ndbr head (alphabets irrelevant for τ)
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  with P .force in p-eq | Q .force in q-eq | eq-f
-
--- (a) ret | ndbr : Q moves alone (Q-distribution)
-... | ret _ | ndbr fQ wi wa wp | refl with fQ i a in fq-eq | eq-j
-... | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sNdbr q-eq fq-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sNdbr q-eq fq-eq) trQ')
-... | nothing | ()
-
--- (b) vis | ndbr : Q moves alone
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  | vis _ | ndbr fQ wi wa wp | refl with fQ i a in fq-eq | eq-j
-... | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sNdbr q-eq fq-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sNdbr q-eq fq-eq) trQ')
-... | nothing | ()
-
--- (c) ndbr | ret : P moves alone (P-distribution)
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  | ndbr fP wi wa wp | ret _ | refl with fP i a in fp-eq | eq-j
-... | just P' | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sNdbr p-eq fp-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sNdbr p-eq fp-eq) trP') trQ
-... | nothing | ()
-
--- (d) ndbr | vis : P moves alone
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  | ndbr fP wi wa wp | vis _ | refl with fP i a in fp-eq | eq-j
-... | just P' | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sNdbr p-eq fp-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sNdbr p-eq fp-eq) trP') trQ
-... | nothing | ()
-
--- (e) ndbr | ndbr : both ndbr; merge on pair indices
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  | ndbr fP (AP , iP) waP wpP | ndbr fQ (AQ , iQ) waQ wpQ | refl
-  with i | a
-... | (_ , base _) | _ = case eq-j of λ ()
-... | (_ , fin)    | _ = case eq-j of λ ()
-... | (.(AP' × AQ') , pair {AP'} {AQ'} iP' iQ') | (aP' , aQ')
-  with fP (AP' , iP') aP' in fp'-eq | fQ (AQ' , iQ') aQ' in fq'-eq | eq-j
-... | just P' | nothing | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sNdbr p-eq fp'-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sNdbr p-eq fp'-eq) trP') trQ
-... | nothing | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sNdbr q-eq fq'-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sNdbr q-eq fq'-eq) trQ')
-... | just P' | just Q' | refl =
-    case AlphaParallel-trace-aux P' Q' A da B db big-step of λ where
-      (in-progress merge (_ , trP') (_ , trQ')) →
-        in-progress merge
-                    (_ , bTau (sNdbr p-eq fp'-eq) trP')
-                    (_ , bTau (sNdbr q-eq fq'-eq) trQ')
-      (done merge (_ , trP') (_ , trQ')) →
-        done merge
-             (_ , bTau (sNdbr p-eq fp'-eq) trP')
-             (_ , bTau (sNdbr q-eq fq'-eq) trQ')
-... | nothing | nothing | ()
-
--- (f) absurd head combinations for sNdbr
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | sil _ | _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | ret _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | ret _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | ret _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | vis _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | vis _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | vis _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | ndbr _ _ _ _ | sil _ | ()
-
--- (g) mix | ndbr — Q distributes through ndbr.
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  | mix _ _ | ndbr fQ wi wa wp | refl with fQ i a in fq-eq | eq-j
-... | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sNdbr q-eq fq-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sNdbr q-eq fq-eq) trQ')
-... | nothing | ()
-
--- (h) ndbr | mix — P distributes through ndbr.
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr {i = i} {a = a} eq-f eq-j) big-step)
-  | ndbr fP wi wa wp | mix _ _ | refl with fP i a in fp-eq | eq-j
-... | just P' | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sNdbr p-eq fp-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sNdbr p-eq fp-eq) trP') trQ
-... | nothing | ()
-
--- (i) mix-shape absurds for sNdbr.
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | mix _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | mix _ _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | mix _ _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | mix _ _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | ret _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bTau (sNdbr eq-f eq-j) big-step) | vis _ | mix _ _ | ()
-
--- 3. Visible step via sVis — routing by (da at , db at)
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  with P .force in p-eq | Q .force in q-eq | eq-f
--- (a) vis | ret : only A-solo (yes , no) can fire; other routings refuse.
-... | vis fP | ret _ | refl with da at | db at
-... | yes pA | no ¬pB with fP at a in fp-eq | eq-j
-... | just P' | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress {sP = sPi} merge (_ , trP') trQ) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    (sync-l pA ¬pB merge)
-                    (_ , bStep (sVis p-eq fp-eq) trP')
-                    trQ
-      (done {sP = sPi} merge (_ , trP') trQ) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             (sync-l pA ¬pB merge)
-             (_ , bStep (sVis p-eq fp-eq) trP')
-             trQ
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | ret _ | refl | yes _ | yes _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | ret _ | refl | no _ | yes _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | ret _ | refl | no _ | no _ = case eq-j of λ ()
-
--- (b) ret | vis : only B-solo (no , yes) can fire; other routings refuse.
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | vis fQ | refl with da at | db at
-... | no ¬pA | yes pB with fQ at a in fq-eq | eq-j
-... | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress {sQ = sQi} merge trP (_ , trQ')) →
-        in-progress {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-r ¬pA pB merge)
-                    trP
-                    (_ , bStep (sVis q-eq fq-eq) trQ')
-      (done {sQ = sQi} merge trP (_ , trQ')) →
-        done {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-r ¬pA pB merge)
-             trP
-             (_ , bStep (sVis q-eq fq-eq) trQ')
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | vis fQ | refl | yes _ | yes _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | vis fQ | refl | yes _ | no _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | vis fQ | refl | no _ | no _ = case eq-j of λ ()
-
--- (c) vis | vis : split on (da at , db at)
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | vis fQ | refl with da at | db at
--- (c.1) both alphabets claim e: must synchronise
-... | yes pA | yes pB with fP at a in fp-eq | fQ at a in fq-eq | eq-j
-... | just P' | just Q' | refl =
-    case AlphaParallel-trace-aux P' Q' A da B db big-step of λ where
-      (in-progress {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-both pA pB merge)
-                    (_ , bStep (sVis p-eq fp-eq) trP')
-                    (_ , bStep (sVis q-eq fq-eq) trQ')
-      (done {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-both pA pB merge)
-             (_ , bStep (sVis p-eq fp-eq) trP')
-             (_ , bStep (sVis q-eq fq-eq) trQ')
-... | just _ | nothing | ()
-... | nothing | just _ | ()
-... | nothing | nothing | ()
--- (c.2) only A claims e: P steps alone
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | vis fQ | refl | yes pA | no ¬pB with fP at a in fp-eq | eq-j
-... | just P' | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress {sP = sPi} merge (_ , trP') trQ) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    (sync-l pA ¬pB merge)
-                    (_ , bStep (sVis p-eq fp-eq) trP')
-                    trQ
-      (done {sP = sPi} merge (_ , trP') trQ) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             (sync-l pA ¬pB merge)
-             (_ , bStep (sVis p-eq fp-eq) trP')
-             trQ
-... | nothing | ()
--- (c.3) only B claims e: Q steps alone
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | vis fQ | refl | no ¬pA | yes pB with fQ at a in fq-eq | eq-j
-... | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress {sQ = sQi} merge trP (_ , trQ')) →
-        in-progress {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-r ¬pA pB merge)
-                    trP
-                    (_ , bStep (sVis q-eq fq-eq) trQ')
-      (done {sQ = sQi} merge trP (_ , trQ')) →
-        done {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-r ¬pA pB merge)
-             trP
-             (_ , bStep (sVis q-eq fq-eq) trQ')
-... | nothing | ()
--- (c.4) e in neither alphabet: refused — merged offer is nothing, eq-j absurd
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | vis fQ | refl | no _ | no _ = case eq-j of λ ()
-
--- (d) absurd head combinations for sVis
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | sil _ | _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ret _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ret _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ret _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | vis _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | vis _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ndbr _ _ _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ndbr _ _ _ _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ndbr _ _ _ _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | mix _ _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | mix _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | mix _ _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | mix _ _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | mix _ _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ret _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | vis _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sVis eq-f eq-j) big-step) | ndbr _ _ _ _ | mix _ _ | ()
-
--- 6. bTau via sMixSlide. force (P ⟦…⟧ Q) ≡ mix _ _.
-AlphaParallel-trace-aux P Q A da B db (bTau (sMixSlide eq-f) big-step)
-  with P .force in p-eq | Q .force in q-eq | eq-f
--- ret | mix: Q slides.
-... | ret _ | mix _ Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sMixSlide q-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sMixSlide q-eq) trQ')
--- vis | mix: Q slides.
-... | vis _ | mix _ Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress merge trP (_ , trQ')) →
-        in-progress merge trP (_ , bTau (sMixSlide q-eq) trQ')
-      (done merge trP (_ , trQ')) →
-        done merge trP (_ , bTau (sMixSlide q-eq) trQ')
--- mix | ret: P slides.
-... | mix _ P' | ret _ | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sMixSlide p-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sMixSlide p-eq) trP') trQ
--- mix | vis: P slides.
-... | mix _ P' | vis _ | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress merge (_ , trP') trQ) →
-        in-progress merge (_ , bTau (sMixSlide p-eq) trP') trQ
-      (done merge (_ , trP') trQ) →
-        done merge (_ , bTau (sMixSlide p-eq) trP') trQ
--- mix | mix: both slide.
-... | mix _ P' | mix _ Q' | refl =
-    case AlphaParallel-trace-aux P' Q' A da B db big-step of λ where
-      (in-progress merge (_ , trP') (_ , trQ')) →
-        in-progress merge
-                    (_ , bTau (sMixSlide p-eq) trP')
-                    (_ , bTau (sMixSlide q-eq) trQ')
-      (done merge (_ , trP') (_ , trQ')) →
-        done merge
-             (_ , bTau (sMixSlide p-eq) trP')
-             (_ , bTau (sMixSlide q-eq) trQ')
--- Absurd: all non-mix shapes.
-... | sil _ | _ | ()
-... | ret _ | ret _ | ()
-... | ret _ | sil _ | ()
-... | ret _ | vis _ | ()
-... | ret _ | ndbr _ _ _ _ | ()
-... | vis _ | ret _ | ()
-... | vis _ | sil _ | ()
-... | vis _ | vis _ | ()
-... | vis _ | ndbr _ _ _ _ | ()
-... | ndbr _ _ _ _ | ret _ | ()
-... | ndbr _ _ _ _ | sil _ | ()
-... | ndbr _ _ _ _ | vis _ | ()
-... | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
-... | ndbr _ _ _ _ | mix _ _ | ()
-... | mix _ _ | sil _ | ()
-... | mix _ _ | ndbr _ _ _ _ | ()
-
--- 7. bStep via sMixVis — routing by (da at , db at).
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  with P .force in p-eq | Q .force in q-eq | eq-f
--- ret | mix: only B-solo (no , yes) can fire.
-... | ret _ | mix fQ _ | refl with da at | db at
-... | no ¬pA | yes pB with fQ at a in fq-eq | eq-j
-... | just _ | refl =
-    case AlphaParallel-trace-aux P _ A da B db big-step of λ where
-      (in-progress {sQ = sQi} merge trP (_ , trQ')) →
-        in-progress {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-r ¬pA pB merge)
-                    trP
-                    (_ , bStep (sMixVis q-eq fq-eq) trQ')
-      (done {sQ = sQi} merge trP (_ , trQ')) →
-        done {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-r ¬pA pB merge)
-             trP
-             (_ , bStep (sMixVis q-eq fq-eq) trQ')
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | mix fQ _ | refl | yes _ | yes _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | mix fQ _ | refl | yes _ | no _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | ret _ | mix fQ _ | refl | no _ | no _ = case eq-j of λ ()
-
--- mix | ret: only A-solo (yes , no) can fire.
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | ret _ | refl with da at | db at
-... | yes pA | no ¬pB with fP at a in fp-eq | eq-j
-... | just _ | refl =
-    case AlphaParallel-trace-aux _ Q A da B db big-step of λ where
-      (in-progress {sP = sPi} merge (_ , trP') trQ) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    (sync-l pA ¬pB merge)
-                    (_ , bStep (sMixVis p-eq fp-eq) trP')
-                    trQ
-      (done {sP = sPi} merge (_ , trP') trQ) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             (sync-l pA ¬pB merge)
-             (_ , bStep (sMixVis p-eq fp-eq) trP')
-             trQ
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | ret _ | refl | yes _ | yes _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | ret _ | refl | no _ | yes _ = case eq-j of λ ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | ret _ | refl | no _ | no _ = case eq-j of λ ()
-
--- vis | mix: routing by (da at , db at).  P fires via sVis, Q via sMixVis.
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | mix fQ _ | refl with da at | db at
-... | yes pA | yes pB with fP at a in fp-eq | fQ at a in fq-eq | eq-j
-... | just P' | just _ | refl =
-    case AlphaParallel-trace-aux P' _ A da B db big-step of λ where
-      (in-progress {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-both pA pB merge)
-                    (_ , bStep (sVis p-eq fp-eq) trP')
-                    (_ , bStep (sMixVis q-eq fq-eq) trQ')
-      (done {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-both pA pB merge)
-             (_ , bStep (sVis p-eq fp-eq) trP')
-             (_ , bStep (sMixVis q-eq fq-eq) trQ')
-... | just _  | nothing | ()
-... | nothing | just _  | ()
-... | nothing | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | mix fQ _ | refl | yes pA | no ¬pB with fP at a in fp-eq | eq-j
-... | just P' | refl =
-    case AlphaParallel-trace-aux P' Q A da B db big-step of λ where
-      (in-progress {sP = sPi} merge (_ , trP') trQ) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    (sync-l pA ¬pB merge)
-                    (_ , bStep (sVis p-eq fp-eq) trP')
-                    trQ
-      (done {sP = sPi} merge (_ , trP') trQ) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             (sync-l pA ¬pB merge)
-             (_ , bStep (sVis p-eq fp-eq) trP')
-             trQ
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | mix fQ _ | refl | no ¬pA | yes pB with fQ at a in fq-eq | eq-j
-... | just _ | refl =
-    case AlphaParallel-trace-aux P _ A da B db big-step of λ where
-      (in-progress {sQ = sQi} merge trP (_ , trQ')) →
-        in-progress {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-r ¬pA pB merge)
-                    trP
-                    (_ , bStep (sMixVis q-eq fq-eq) trQ')
-      (done {sQ = sQi} merge trP (_ , trQ')) →
-        done {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-r ¬pA pB merge)
-             trP
-             (_ , bStep (sMixVis q-eq fq-eq) trQ')
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | vis fP | mix fQ _ | refl | no _ | no _ = case eq-j of λ ()
-
--- mix | vis: routing by (da at , db at).  P fires via sMixVis, Q via sVis.
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | vis fQ | refl with da at | db at
-... | yes pA | yes pB with fP at a in fp-eq | fQ at a in fq-eq | eq-j
-... | just _ | just Q' | refl =
-    case AlphaParallel-trace-aux _ Q' A da B db big-step of λ where
-      (in-progress {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-both pA pB merge)
-                    (_ , bStep (sMixVis p-eq fp-eq) trP')
-                    (_ , bStep (sVis q-eq fq-eq) trQ')
-      (done {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-both pA pB merge)
-             (_ , bStep (sMixVis p-eq fp-eq) trP')
-             (_ , bStep (sVis q-eq fq-eq) trQ')
-... | just _  | nothing | ()
-... | nothing | just _  | ()
-... | nothing | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | vis fQ | refl | yes pA | no ¬pB with fP at a in fp-eq | eq-j
-... | just _ | refl =
-    case AlphaParallel-trace-aux _ Q A da B db big-step of λ where
-      (in-progress {sP = sPi} merge (_ , trP') trQ) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    (sync-l pA ¬pB merge)
-                    (_ , bStep (sMixVis p-eq fp-eq) trP')
-                    trQ
-      (done {sP = sPi} merge (_ , trP') trQ) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             (sync-l pA ¬pB merge)
-             (_ , bStep (sMixVis p-eq fp-eq) trP')
-             trQ
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | vis fQ | refl | no ¬pA | yes pB with fQ at a in fq-eq | eq-j
-... | just Q' | refl =
-    case AlphaParallel-trace-aux P Q' A da B db big-step of λ where
-      (in-progress {sQ = sQi} merge trP (_ , trQ')) →
-        in-progress {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-r ¬pA pB merge)
-                    trP
-                    (_ , bStep (sVis q-eq fq-eq) trQ')
-      (done {sQ = sQi} merge trP (_ , trQ')) →
-        done {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-r ¬pA pB merge)
-             trP
-             (_ , bStep (sVis q-eq fq-eq) trQ')
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | vis fQ | refl | no _ | no _ = case eq-j of λ ()
-
--- mix | mix: routing by (da at , db at).  both fire via sMixVis.
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | mix fQ _ | refl with da at | db at
-... | yes pA | yes pB with fP at a in fp-eq | fQ at a in fq-eq | eq-j
-... | just _ | just _ | refl =
-    case AlphaParallel-trace-aux _ _ A da B db big-step of λ where
-      (in-progress {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-both pA pB merge)
-                    (_ , bStep (sMixVis p-eq fp-eq) trP')
-                    (_ , bStep (sMixVis q-eq fq-eq) trQ')
-      (done {sP = sPi} {sQ = sQi} merge (_ , trP') (_ , trQ')) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-both pA pB merge)
-             (_ , bStep (sMixVis p-eq fp-eq) trP')
-             (_ , bStep (sMixVis q-eq fq-eq) trQ')
-... | just _  | nothing | ()
-... | nothing | just _  | ()
-... | nothing | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | mix fQ _ | refl | yes pA | no ¬pB with fP at a in fp-eq | eq-j
-... | just _ | refl =
-    case AlphaParallel-trace-aux _ Q A da B db big-step of λ where
-      (in-progress {sP = sPi} merge (_ , trP') trQ) →
-        in-progress {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-                    (sync-l pA ¬pB merge)
-                    (_ , bStep (sMixVis p-eq fp-eq) trP')
-                    trQ
-      (done {sP = sPi} merge (_ , trP') trQ) →
-        done {sP = evLabel (proj₁ at) (proj₂ at) a ∷ sPi}
-             (sync-l pA ¬pB merge)
-             (_ , bStep (sMixVis p-eq fp-eq) trP')
-             trQ
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | mix fQ _ | refl | no ¬pA | yes pB with fQ at a in fq-eq | eq-j
-... | just _ | refl =
-    case AlphaParallel-trace-aux P _ A da B db big-step of λ where
-      (in-progress {sQ = sQi} merge trP (_ , trQ')) →
-        in-progress {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-                    (sync-r ¬pA pB merge)
-                    trP
-                    (_ , bStep (sMixVis q-eq fq-eq) trQ')
-      (done {sQ = sQi} merge trP (_ , trQ')) →
-        done {sQ = evLabel (proj₁ at) (proj₂ at) a ∷ sQi}
-             (sync-r ¬pA pB merge)
-             trP
-             (_ , bStep (sMixVis q-eq fq-eq) trQ')
-... | nothing | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis {at = at} {a = a} eq-f eq-j) big-step)
-  | mix fP _ | mix fQ _ | refl | no _ | no _ = case eq-j of λ ()
-
--- Absurd: non-mix/non-vis shapes for sMixVis.
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | sil _ | _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ret _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ret _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ret _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ret _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | vis _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | vis _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | vis _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | vis _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ndbr _ _ _ _ | ret _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ndbr _ _ _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ndbr _ _ _ _ | vis _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ndbr _ _ _ _ | ndbr _ _ _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | ndbr _ _ _ _ | mix _ _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | mix _ _ | sil _ | ()
-AlphaParallel-trace-aux P Q A da B db (bStep (sMixVis eq-f eq-j) big-step) | mix _ _ | ndbr _ _ _ _ | ()
-
-AlphaParallel-trace : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-  (P : ITree E (ExtI I) R) (Q : ITree E (ExtI I) S)
-  (A : Alpha) (da : Dec-Alpha A) (B : Alpha) (db : Dec-Alpha B)
-  {s : List (Event√ E (R × S))}
-  → traces (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) s
-  → AlphaSyncSplit A B P Q s
-AlphaParallel-trace P Q A da B db (_ , bs) = AlphaParallel-trace-aux P Q A da B db bs
-
-
--------------------------------------------------------------------------------------
--- STAGE 1: composite single-τ-step building blocks (introduction direction)
--------------------------------------------------------------------------------------
+-- Elimination law: every trace of (P ⟦ A ∥ B ⟧ Q) decomposes into traces
+-- of P and Q merged by alphabet-driven synchronisation (AlphaSync).
+--
+-- react port: the legacy ITree had SIX node kinds (ret/sil/vis/ndbr/mix), so the
+-- elimination enumerated a 6×6 head-pair matrix with separate sNdbr / sMixSlide /
+-- sMixVis transition rules.  Under the fused `react` node there are only THREE node
+-- kinds (ret/sil/react) and FOUR transition rules (sRet/sSil/sVis/sTau).  Hence:
+--   * the entire sNdbr block and all mix / sMixVis / sMixSlide blocks VANISH;
+--   * internal choice / sliding now both fire `sTau` from a `react` head, so the
+--     legacy `sNdbr` τ-cases are CONSOLIDATED into one `sTau` clause; and
+--   * the τ-flush over a leading silent run uses BOTH `sSil` (a `sil`-head operand)
+--     and `sTau` (a `react`-head operand whose τ-map forwards an operand τ).
 
 private
-  -- ===== sil cases =====
-  -- clause 1 (P sil): composite.force ≡ sil (P′⟦…⟧Q), for ANY Q.
+  -- deadlock makes no LTS step, so its only big-step trace is the empty one.
+  deadlock-trace-nil :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} R)} {t′ : PTree E (ExtI I) R}
+    → deadlock {E = E} {I = ExtI I} {R = R} ⟹⟨ s ⟩ t′
+    → s ≡ [] × t′ ≡ deadlock
+  deadlock-trace-nil ⟹-refl              = refl , refl
+  deadlock-trace-nil (⟹-τ  (sSil eq) _)  = case eq of λ ()
+  deadlock-trace-nil (⟹-τ  (sTau refl br) _) = case br of λ ()
+  deadlock-trace-nil (⟹-ev (sRet eq) _)  = case eq of λ ()
+  deadlock-trace-nil (⟹-ev (sVis refl br) _) = case br of λ ()
+
+  -- τ-step inversion of the composite's fused τ-branch (`αpar-pTau`): a τ from the
+  -- merged node is exactly P's τ (tag 0 → P′ ∥ Q) or Q's τ (tag 1 → P ∥ Q′).  This
+  -- single inversion replaces the legacy `sNdbr`-on-pair + mix-slide case analysis.
+  αpar-pTau-inv :
+    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
+      {vP τcP vQ τcQ}
+      {v  : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) (R × S)))}
+      {τc : (i  : AnyTypes (ExtI I)) → ContinueType i (Maybe (PTree E (ExtI I) (R × S)))}
+      {i  : AnyTypes (ExtI I)} {a : proj₁ i} {M : PTree E (ExtI I) (R × S)}
+    → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ react v τc
+    → τc i a ≡ just M
+    → (Σ[ j ∈ AnyTypes (ExtI I) ] Σ[ a′ ∈ proj₁ j ] Σ[ P′ ∈ PTree E (ExtI I) R ]
+          (τcP j a′ ≡ just P′) × (M ≡ (P′ ⟦ A ∥ B ⟧ Q)))
+    ⊎ (Σ[ j ∈ AnyTypes (ExtI I) ] Σ[ a′ ∈ proj₁ j ] Σ[ Q′ ∈ PTree E (ExtI I) S ]
+          (τcQ j a′ ≡ just Q′) × (M ≡ (P ⟦ A ∥ B ⟧ Q′)))
+  αpar-pTau-inv {i = _ , base _}            eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl = case br of λ ()
+  αpar-pTau-inv {i = _ , fin}               eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl = case br of λ ()
+  αpar-pTau-inv {i = _ , pair (base _) _}   eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl = case br of λ ()
+  αpar-pTau-inv {i = _ , pair (pair _ _) _} eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl = case br of λ ()
+  αpar-pTau-inv {τcP = τcP} {i = _ , pair fin j} {a = lift fzero , a′}
+    eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl with τcP (_ , j) a′ in pe
+  ...   | just P′ = inj₁ ((_ , j) , a′ , P′ , pe , sym (just-injective br))
+  ...   | nothing = case br of λ ()
+  αpar-pTau-inv {τcQ = τcQ} {i = _ , pair fin j} {a = lift (fsuc fzero) , a′}
+    eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl with τcQ (_ , j) a′ in qe
+  ...   | just Q′ = inj₂ ((_ , j) , a′ , Q′ , qe , sym (just-injective br))
+  ...   | nothing = case br of λ ()
+  αpar-pTau-inv {i = _ , pair fin j} {a = lift (fsuc (fsuc _)) , a′}
+    eqP eqQ feq br rewrite eqP | eqQ with feq
+  ... | refl = case br of λ ()
+
+-- Visible-step inversion of the composite.  A single `sVis` out of (P ⟦A∥B⟧ Q) is
+-- one of: a synchronisation (event in both A and B, both operands offer), a P-solo
+-- (event in A only), a Q-solo (event in B only), or a joint √ (both operands at ret).
+-- (The "event in neither alphabet" routing is refused — `αpar-pVis`/`-hVis*` map it
+-- to `nothing` — so it never appears.)  This collapses the legacy `sVis`/`sMixVis`
+-- disjunction: there is exactly ONE `react` head per side, fired by `sVis`.
+data αVisR {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+           (A B : EventSet)
+           (P : PTree E (ExtI I) R) (Q : PTree E (ExtI I) S)
+     : PTree E (ExtI I) (R × S)
+     → Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (R × S) → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs) where
+  vSync : ∀ {X} {e : E X} {a : X} {P′ Q′}
+        → A .mem (X , e) a → B .mem (X , e) a
+        → P ─[ ev (evl (evLabel X e a)) ]─► P′
+        → Q ─[ ev (evl (evLabel X e a)) ]─► Q′
+        → αVisR A B P Q (P′ ⟦ A ∥ B ⟧ Q′) (evl (evLabel X e a))
+  vSoloL : ∀ {X} {e : E X} {a : X} {P′}
+         → A .mem (X , e) a → ¬ B .mem (X , e) a
+         → P ─[ ev (evl (evLabel X e a)) ]─► P′
+         → αVisR A B P Q (P′ ⟦ A ∥ B ⟧ Q) (evl (evLabel X e a))
+  vSoloR : ∀ {X} {e : E X} {a : X} {Q′}
+         → ¬ A .mem (X , e) a → B .mem (X , e) a
+         → Q ─[ ev (evl (evLabel X e a)) ]─► Q′
+         → αVisR A B P Q (P ⟦ A ∥ B ⟧ Q′) (evl (evLabel X e a))
+  v√ : ∀ {r : R} {s : S}
+     → P .force ≡ ret r → Q .force ≡ ret s
+     → αVisR A B P Q deadlock (√ (r , s))
+
+private
+  -- visible-offer inversion: drive the routing by (force P , force Q) and (da , db).
+  -- Each non-refused, non-absurd quadrant rebuilds the αVisR routing witness.
+  αpar-vis-inv :
+    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
+      {v  : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) (R × S)))}
+      {τc : (i  : AnyTypes (ExtI I)) → ContinueType i (Maybe (PTree E (ExtI I) (R × S)))}
+      {at : AnyTypes E} {a : proj₁ at} {M : PTree E (ExtI I) (R × S)}
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ react v τc → v at a ≡ just M
+    → αVisR A B P Q M (evl (evLabel (proj₁ at) (proj₂ at) a))
+  αpar-vis-inv {A = A} {B = B} {P = P} {Q = Q} {at = at} {a = a} feq br
+    with PTree.force P in p-eq | PTree.force Q in q-eq
+  -- ret | react : only the (no A , yes B) quadrant fires; Q acts solo.
+  ... | ret r | react vQ τcQ with feq
+  ...   | refl with A .dec at a | B .dec at a
+  ...     | no ¬pA | yes pB with vQ at a in qe | br
+  ...       | just Q′ | refl = vSoloR ¬pA pB (sVis q-eq qe)
+  αpar-vis-inv feq br | ret r | react vQ τcQ | refl | no _ | yes _ | nothing | ()
+  αpar-vis-inv feq br | ret r | react vQ τcQ | refl | yes _ | _    = case br of λ ()
+  αpar-vis-inv feq br | ret r | react vQ τcQ | refl | no _  | no _ = case br of λ ()
+  -- react | ret : only the (yes A , no B) quadrant fires; P acts solo.
+  αpar-vis-inv {A = A} {B = B} {at = at} {a = a} feq br | react vP τcP | ret s with feq
+  ...   | refl with A .dec at a | B .dec at a
+  ...     | yes pA | no ¬pB with vP at a in pe | br
+  ...       | just P′ | refl = vSoloL pA ¬pB (sVis p-eq pe)
+  αpar-vis-inv feq br | react vP τcP | ret s | refl | yes _ | no _ | nothing | ()
+  αpar-vis-inv feq br | react vP τcP | ret s | refl | no _  | _     = case br of λ ()
+  αpar-vis-inv feq br | react vP τcP | ret s | refl | yes _ | yes _ = case br of λ ()
+  -- ret | ret : the composite force is `ret (r , s)`, not react — absurd.
+  αpar-vis-inv feq br | ret r | ret s = case feq of λ ()
+  -- sil heads: composite force is `sil`, not react — absurd.
+  αpar-vis-inv feq br | sil _ | _      = case feq of λ ()
+  αpar-vis-inv feq br | ret _ | sil _  = case feq of λ ()
+  αpar-vis-inv feq br | react _ _ | sil _ = case feq of λ ()
+  -- react | react : the full 4-way routing.
+  αpar-vis-inv {A = A} {B = B} {at = at} {a = a} feq br | react vP τcP | react vQ τcQ
+    with feq
+  ...   | refl with A .dec at a | B .dec at a
+  ...     | yes pA | yes pB with vP at a in pe | vQ at a in qe | br
+  ...       | just P′ | just Q′ | refl = vSync pA pB (sVis p-eq pe) (sVis q-eq qe)
+  αpar-vis-inv feq br | react vP τcP | react vQ τcQ | refl | yes _ | yes _ | just _ | nothing | ()
+  αpar-vis-inv feq br | react vP τcP | react vQ τcQ | refl | yes _ | yes _ | nothing | _ | ()
+  αpar-vis-inv {at = at} {a = a} feq br | react vP τcP | react vQ τcQ | refl | yes pA | no ¬pB
+    with vP at a in pe | br
+  ...   | just P′ | refl = vSoloL pA ¬pB (sVis p-eq pe)
+  αpar-vis-inv feq br | react vP τcP | react vQ τcQ | refl | yes _ | no _ | nothing | ()
+  αpar-vis-inv {at = at} {a = a} feq br | react vP τcP | react vQ τcQ | refl | no ¬pA | yes pB
+    with vQ at a in qe | br
+  ...   | just Q′ | refl = vSoloR ¬pA pB (sVis q-eq qe)
+  αpar-vis-inv feq br | react vP τcP | react vQ τcQ | refl | no _ | yes _ | nothing | ()
+  αpar-vis-inv feq br | react vP τcP | react vQ τcQ | refl | no _ | no _ = case br of λ ()
+
+  -- τ-step inversion: a τ out of (P ⟦A∥B⟧ Q) is P's τ (→ P′ ∥ Q) or Q's τ (→ P ∥ Q′).
+  -- This consolidates the legacy sSil-distribution + sNdbr + sMixSlide cases into one:
+  --   * a `sil`-headed operand fires `sSil` and the composite forces to `sil`;
+  --   * a `react`-headed operand fires its τ-branch through the fused `αpar-pTau`.
+  αpar-τ-inv :
+    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S} {M : PTree E (ExtI I) (R × S)}
+    → (P ⟦ A ∥ B ⟧ Q) ─[ τ ]─► M
+    → (Σ[ P′ ∈ PTree E (ExtI I) R ] (P ─[ τ ]─► P′) × (M ≡ (P′ ⟦ A ∥ B ⟧ Q)))
+    ⊎ (Σ[ Q′ ∈ PTree E (ExtI I) S ] (Q ─[ τ ]─► Q′) × (M ≡ (P ⟦ A ∥ B ⟧ Q′)))
+  -- sSil: the composite forces to `sil M`.  Decompose by which operand is sil-headed.
+  αpar-τ-inv {P = P} {Q = Q} (sSil feq) with PTree.force P in p-eq | PTree.force Q in q-eq
+  ... | sil P0 | _            = inj₁ (P0 , sSil p-eq , sym (sil-injective feq))
+  ... | ret r  | sil Q0       = inj₂ (Q0 , sSil q-eq , sym (sil-injective feq))
+  ... | react vP τcP | sil Q0 = inj₂ (Q0 , sSil q-eq , sym (sil-injective feq))
+  ... | ret r  | ret s        = case feq of λ ()
+  ... | ret r  | react _ _    = case feq of λ ()
+  ... | react _ _ | ret s     = case feq of λ ()
+  ... | react _ _ | react _ _ = case feq of λ ()
+  -- sTau: the composite forces to `react` in three head-pairs.  Decode the fused τ-map:
+  --   react|react → αpar-pTau (P's τ or Q's τ);  ret|react → αpar-hTauR (Q's τ);
+  --   react|ret   → αpar-hTauL (P's τ).
+  αpar-τ-inv {I = I} {R = R} {S = S} {A = A} {B = B} {P = P} {Q = Q}
+             (sTau {i = i} {a = a} feq br)
+    with PTree.force P in p-eq | PTree.force Q in q-eq
+  -- react | react : decode αpar-pTau by the τ-index shape.
+  ... | react vP τcP | react vQ τcQ =
+        pp i a (case feq of λ { refl → br })
+    where
+      pp : ∀ j (a′ : proj₁ j) {M : PTree E (ExtI I) (R × S)}
+         → αpar-pTau A B _,_ τcP τcQ P Q j a′ ≡ just M
+         → (Σ[ P′ ∈ PTree E (ExtI I) R ] (P ─[ τ ]─► P′) × (M ≡ (P′ ⟦ A ∥ B ⟧ Q)))
+         ⊎ (Σ[ Q′ ∈ PTree E (ExtI I) S ] (Q ─[ τ ]─► Q′) × (M ≡ (P ⟦ A ∥ B ⟧ Q′)))
+      pp (_ , base _)            _  br = case br of λ ()
+      pp (_ , fin)               _  br = case br of λ ()
+      pp (_ , pair (base _) _)   _  br = case br of λ ()
+      pp (_ , pair (pair _ _) _) _  br = case br of λ ()
+      pp (_ , pair fin j) (lift fzero , a′)        br with τcP (_ , j) a′ in pe
+      ... | just P′ = inj₁ (P′ , sTau p-eq pe , sym (just-injective br))
+      ... | nothing = case br of λ ()
+      pp (_ , pair fin j) (lift (fsuc fzero) , a′) br with τcQ (_ , j) a′ in qe
+      ... | just Q′ = inj₂ (Q′ , sTau q-eq qe , sym (just-injective br))
+      ... | nothing = case br of λ ()
+      pp (_ , pair fin j) (lift (fsuc (fsuc _)) , a′) br = case br of λ ()
+  -- ret | react : composite τ-map is αpar-hTauR, forwarding Q's τ at the same (i,a).
+  ... | ret r | react vQ τcQ =
+        qp (case feq of λ { refl → br })
+    where
+      qp : ∀ {M : PTree E (ExtI I) (R × S)}
+         → αpar-hTauR A B _,_ r τcQ P Q i a ≡ just M
+         → (Σ[ P′ ∈ PTree E (ExtI I) R ] (P ─[ τ ]─► P′) × (M ≡ (P′ ⟦ A ∥ B ⟧ Q)))
+         ⊎ (Σ[ Q′ ∈ PTree E (ExtI I) S ] (Q ─[ τ ]─► Q′) × (M ≡ (P ⟦ A ∥ B ⟧ Q′)))
+      qp br with τcQ i a in qe
+      ... | just Q′ = inj₂ (Q′ , sTau q-eq qe , sym (just-injective br))
+      ... | nothing = case br of λ ()
+  -- react | ret : composite τ-map is αpar-hTauL, forwarding P's τ at the same (i,a).
+  ... | react vP τcP | ret s =
+        rp (case feq of λ { refl → br })
+    where
+      rp : ∀ {M : PTree E (ExtI I) (R × S)}
+         → αpar-hTauL A B _,_ s τcP P Q i a ≡ just M
+         → (Σ[ P′ ∈ PTree E (ExtI I) R ] (P ─[ τ ]─► P′) × (M ≡ (P′ ⟦ A ∥ B ⟧ Q)))
+         ⊎ (Σ[ Q′ ∈ PTree E (ExtI I) S ] (Q ─[ τ ]─► Q′) × (M ≡ (P ⟦ A ∥ B ⟧ Q′)))
+      rp br with τcP i a in pe
+      ... | just P′ = inj₁ (P′ , sTau p-eq pe , sym (just-injective br))
+      ... | nothing = case br of λ ()
+  -- remaining head-pairs: composite force is `sil`/`ret`, not react — feq absurd.
+  ... | sil _ | _          = case feq of λ ()
+  ... | ret _ | sil _      = case feq of λ ()
+  ... | ret _ | ret _      = case feq of λ ()
+  ... | react _ _ | sil _  = case feq of λ ()
+
+  -- the √-step inversion: composite force ≡ ret (r , s) forces both operands at ret.
+  αpar-√-inv :
+    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S} {x : R × S}
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ ret x
+    → αVisR A B P Q deadlock (√ x)
+  αpar-√-inv {P = P} {Q = Q} feq with PTree.force P in p-eq | PTree.force Q in q-eq
+  ... | ret r | ret s     = case feq of λ { refl → v√ p-eq q-eq }
+  ... | ret _ | sil _     = case feq of λ ()
+  ... | ret _ | react _ _ = case feq of λ ()
+  ... | sil _ | _         = case feq of λ ()
+  ... | react _ _ | ret _    = case feq of λ ()
+  ... | react _ _ | sil _    = case feq of λ ()
+  ... | react _ _ | react _ _ = case feq of λ ()
+
+-- The elimination proper.  Structural recursion on the composite's big-step trace
+-- derivation: each τ/visible head is inverted into the operand step(s) that produced
+-- it (via αpar-τ-inv / αpar-vis-inv / αpar-√-inv), and the recursive call on the
+-- (strictly smaller) tail supplies the merged AlphaSync + the operand sub-traces, to
+-- which we prepend the just-inverted operand step.
+AlphaParallel-trace-aux : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+  (P : PTree E (ExtI I) R) (Q : PTree E (ExtI I) S)
+  (A B : EventSet)
+  {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (R × S))} {t′ : PTree E (ExtI I) (R × S)}
+  → (P ⟦ A ∥ B ⟧ Q) ⟹⟨ s ⟩ t′
+  → AlphaSyncSplit A B P Q s
+
+-- 1. empty trace
+AlphaParallel-trace-aux P Q A B ⟹-refl =
+  in-progress sync-nil (_ , ⟹-refl) (_ , ⟹-refl)
+
+-- 2. a τ-step: invert to P's τ (→ P′ ∥ Q) or Q's τ (→ P ∥ Q′), recurse, prepend.
+AlphaParallel-trace-aux P Q A B (⟹-τ step rest)
+  with αpar-τ-inv {P = P} {Q = Q} step
+... | inj₁ (P′ , Pτ , refl) =
+      case AlphaParallel-trace-aux P′ Q A B rest of λ where
+        (in-progress merge (_ , trP′) trQ) →
+          in-progress merge (_ , ⟹-τ Pτ trP′) trQ
+        (done merge (_ , trP′) trQ) →
+          done merge (_ , ⟹-τ Pτ trP′) trQ
+... | inj₂ (Q′ , Qτ , refl) =
+      case AlphaParallel-trace-aux P Q′ A B rest of λ where
+        (in-progress merge trP (_ , trQ′)) →
+          in-progress merge trP (_ , ⟹-τ Qτ trQ′)
+        (done merge trP (_ , trQ′)) →
+          done merge trP (_ , ⟹-τ Qτ trQ′)
+
+-- 3. a √-step: composite at ret ⇒ both operands at ret.  After √ the residual is
+-- `deadlock`, whose only trace is empty, so the whole trace ends here: `done`.
+AlphaParallel-trace-aux P Q A B (⟹-ev (sRet feq) rest)
+  with αpar-√-inv {P = P} {Q = Q} feq | deadlock-trace-nil rest
+... | v√ pe qe | refl , refl =
+      done sync-nil (_ , ⟹-ev (sRet pe) ⟹-refl) (_ , ⟹-ev (sRet qe) ⟹-refl)
+
+-- 4. a visible event: invert the routing (sync / solo-L / solo-R), recurse, prepend.
+AlphaParallel-trace-aux P Q A B (⟹-ev (sVis feq br) rest)
+  with αpar-vis-inv {P = P} {Q = Q} feq br
+... | vSync {e = e} {a = a} pA pB Pev Qev =
+      case AlphaParallel-trace-aux _ _ A B rest of λ where
+        (in-progress merge (_ , trP′) (_ , trQ′)) →
+          in-progress (sync-both pA pB merge)
+                      (_ , ⟹-ev Pev trP′) (_ , ⟹-ev Qev trQ′)
+        (done merge (_ , trP′) (_ , trQ′)) →
+          done (sync-both pA pB merge)
+               (_ , ⟹-ev Pev trP′) (_ , ⟹-ev Qev trQ′)
+... | vSoloL {e = e} {a = a} pA ¬pB Pev =
+      case AlphaParallel-trace-aux _ Q A B rest of λ where
+        (in-progress merge (_ , trP′) trQ) →
+          in-progress (sync-l pA ¬pB merge) (_ , ⟹-ev Pev trP′) trQ
+        (done merge (_ , trP′) trQ) →
+          done (sync-l pA ¬pB merge) (_ , ⟹-ev Pev trP′) trQ
+... | vSoloR {e = e} {a = a} ¬pA pB Qev =
+      case AlphaParallel-trace-aux P _ A B rest of λ where
+        (in-progress merge trP (_ , trQ′)) →
+          in-progress (sync-r ¬pA pB merge) trP (_ , ⟹-ev Qev trQ′)
+        (done merge trP (_ , trQ′)) →
+          done (sync-r ¬pA pB merge) trP (_ , ⟹-ev Qev trQ′)
+
+-- Public elimination (over the existential `traces`).
+AlphaParallel-trace : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+  (P : PTree E (ExtI I) R) (Q : PTree E (ExtI I) S)
+  (A B : EventSet)
+  {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (R × S))}
+  → traces (P ⟦ A ∥ B ⟧ Q) s
+  → AlphaSyncSplit A B P Q s
+AlphaParallel-trace P Q A B (_ , bs) = AlphaParallel-trace-aux P Q A B bs
+
+-------------------------------------------------------------------------------------
+-- INTRODUCTION direction: τ-flush + the restricted vis-driven introduction law.
+--
+-- react port note: STAGE 1's `αpar-ndbr-*` and STAGE 1b's `αpar-mix-slide-*` lemmas
+-- are OBSOLETE — internal choice / sliding no longer use dedicated `ndbr`/`mix` nodes,
+-- so there is no `sNdbr`/`sMixSlide` to build; an operand's internal τ now fires the
+-- fused `react` τ-branch (`sTau`).  They are replaced by the single composite τ-step
+-- lemma `αpar-τ`.  STAGE 3's `vis`-OR-`mix` disjunction collapses too: a head is one
+-- `react` node fired by `sVis`, so the unprimed `αpar-sync-step`/`-soloL-step`/
+-- `-soloR-step` (already provided by the operator module) ARE the step lemmas the
+-- introduction needs — no `⊎`-of-mix arguments.
+
+private
+  -- A stable tree (react head, τc ≡ nothing) admits no τ-step.
+  no-τ-from-stable :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {t t′ : PTree E (ExtI I) R}
+    → isStable t → t ─[ τ ]─► t′ → ⊥
+  no-τ-from-stable {t = t} st (sSil eq)    with PTree.force t
+  ... | react _ _ = case eq of λ ()
+  no-τ-from-stable {t = t} st (sTau {i = i} {a = a} eq br) with PTree.force t
+  ... | react _ τc′ =
+        case trans (sym (st i a))
+                   (subst (λ m → m i a ≡ just _) (sym (proj₂ (react-injective eq))) br)
+             of λ ()
+
+  -- A stable tree's only empty (τ-only) trace is the trivial one.
+  stable-trace-nil :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {t t′ : PTree E (ExtI I) R}
+    → isStable t → t ⟹⟨ [] ⟩ t′ → t′ ≡ t
+  stable-trace-nil st ⟹-refl       = refl
+  stable-trace-nil st (⟹-τ s _)    = ⊥-elim (no-τ-from-stable st s)
+
+  -- non-react heads are not stable.
+  stable-not-sil :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {t u : PTree E (ExtI I) R} → isStable t → t .force ≡ sil u → ⊥
+  stable-not-sil {t = t} st eq with PTree.force t
+  ... | react _ _ = case eq of λ ()
+  stable-ret :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {t : PTree E (ExtI I) R} {r} → isStable t → t .force ≡ ret r → ⊥
+  stable-ret {t = t} st eq with PTree.force t
+  ... | react _ _ = case eq of λ ()
+
+  -- a stable tree is react-headed; extract its offer function.
+  isStable⇒react :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {t : PTree E (ExtI I) R}
+    → isStable t
+    → Σ[ v ∈ ((at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) R))) ]
+      Σ[ τc ∈ ((i : AnyTypes (ExtI I)) → ContinueType i (Maybe (PTree E (ExtI I) R))) ]
+        t .force ≡ react v τc
+  isStable⇒react {I = I} {R = R} {t = t} st = helper (t .force) refl st
+    where
+      helper : ∀ (n : NodeKind E (ExtI I) R) → t .force ≡ n → isStable t
+             → Σ[ v ∈ _ ] Σ[ τc ∈ _ ] t .force ≡ react v τc
+      helper (react v τc) eq _  = v , τc , eq
+      helper (ret _) eq st = ⊥-elim (stable-ret {t = t} st eq)
+      helper (sil _) eq st = ⊥-elim (stable-not-sil {t = t} st eq)
+
+  -- a react-headed tree whose τc is everywhere nothing is stable.
+  react⇒isStable :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {t : PTree E (ExtI I) R} {v τc}
+    → t .force ≡ react v τc → (∀ i a → τc i a ≡ nothing) → isStable t
+  react⇒isStable {t = t} eq tn with PTree.force t
+  ... | react v τc rewrite proj₂ (react-injective eq) = tn
+
+  -- concatenate a τ-only front with an arbitrary big-step.
+  bigstep-++ :
+    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+      {X Y Z : PTree E (ExtI I) R} {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} R)}
+    → X ⟹⟨ [] ⟩ Y → Y ⟹⟨ s ⟩ Z → X ⟹⟨ s ⟩ Z
+  bigstep-++ ⟹-refl        bs = bs
+  bigstep-++ (⟹-τ s front) bs = ⟹-τ s (bigstep-++ front bs)
+
+-------------------------------------------------------------------------------------
+-- STAGE 1: sil / τ composite single-step building blocks (introduction direction).
+
+private
   αpar-fsil-L :
     ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
+      {A B : EventSet}
+      {P P′ : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
     → P .force ≡ sil P′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ sil (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ sil (P′ ⟦ A ∥ B ⟧ Q)
   αpar-fsil-L eqP rewrite eqP = refl
 
-  -- clause 2 (Q sil, P non-sil): composite.force ≡ sil (P⟦…⟧Q′).
   αpar-fsil-R :
     ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S}
     → (∀ {t} → P .force ≢ sil t)
     → Q .force ≡ sil Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ sil (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ sil (P ⟦ A ∥ B ⟧ Q′)
   αpar-fsil-R {P = P} ¬sP eqQ with P .force
-  ... | ret _        rewrite eqQ = refl
-  ... | vis _        rewrite eqQ = refl
-  ... | ndbr _ _ _ _ rewrite eqQ = refl
-  ... | mix _ _      rewrite eqQ = refl
-  ... | sil _        = ⊥-elim (¬sP refl)
+  ... | ret _     rewrite eqQ = refl
+  ... | react _ _ rewrite eqQ = refl
+  ... | sil _     = ⊥-elim (¬sP refl)
 
 -- (1) P-sil advances unconditionally (operator clause 1).
 αpar-sil-L :
   ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
+    {A B : EventSet}
+    {P P′ : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
   → P .force ≡ sil P′
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
+  → (P ⟦ A ∥ B ⟧ Q) ─[ τ ]─► (P′ ⟦ A ∥ B ⟧ Q)
 αpar-sil-L eqP = sSil (αpar-fsil-L eqP)
 
 -- (2) Q-sil advances only when P is not sil (operator clause 2).
 αpar-sil-R :
   ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
+    {A B : EventSet}
+    {P : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S}
   → (∀ {t} → P .force ≢ sil t)
   → Q .force ≡ sil Q′
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
+  → (P ⟦ A ∥ B ⟧ Q) ─[ τ ]─► (P ⟦ A ∥ B ⟧ Q′)
 αpar-sil-R ¬sP eqQ = sSil (αpar-fsil-R ¬sP eqQ)
 
 private
-  -- ===== P-ndbr distributes alone (Q ∈ {ret,vis,mix}) =====
-  -- force helpers (one per Q-shape): composite.force ≡ ndbr f wi wa prf, f existential.
-  αpar-fndbrL-ret :
+  -- composite is react when both operands are react-headed (force-reduction witness).
+  αpar-freact :
     ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP wi wa wp} {s}
-    → P .force ≡ ndbr fP wi wa wp → Q .force ≡ ret s
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf)
-  αpar-fndbrL-ret eqP eqQ rewrite eqP | eqQ = _ , _ , refl
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S} {vP τcP vQ τcQ}
+    → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ
+    → Σ[ v ∈ ((at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) (R × S)))) ]
+      Σ[ τc ∈ ((i : AnyTypes (ExtI I)) → ContinueType i (Maybe (PTree E (ExtI I) (R × S)))) ]
+        ((P ⟦ A ∥ B ⟧ Q) .force ≡ react v τc)
+  αpar-freact eqP eqQ rewrite eqP | eqQ = _ , _ , refl
 
-  αpar-fndbrL-vis :
+  -- offer lemma: the composite's fused τ-map carries P's τ at tag 0.
+  αpar-τ-offL-at :
     ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP wi wa wp} {fQ}
-    → P .force ≡ ndbr fP wi wa wp → Q .force ≡ vis fQ
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf)
-  αpar-fndbrL-vis eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  αpar-fndbrL-mix :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP wi wa wp} {fQ Qt}
-    → P .force ≡ ndbr fP wi wa wp → Q .force ≡ mix fQ Qt
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf)
-  αpar-fndbrL-mix eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  -- offer helpers: f i a ≡ just (P′⟦…⟧Q)  (P-distribution), one per Q-shape.
-  αpar-offndbrL-ret :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP wi wa wp i a} {s} {f prf}
-    → P .force ≡ ndbr fP wi wa wp → Q .force ≡ ret s → fP i a ≡ just P′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf
-    → f i a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  αpar-offndbrL-ret eqP eqQ bP feq rewrite eqP | eqQ with feq
+      {A B : EventSet}
+      {P P′ : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
+      {vP τcP vQ τcQ} {Ai} {ii : ExtI I Ai} {a : Ai}
+      {v τc}
+    → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ → τcP (Ai , ii) a ≡ just P′
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ react v τc
+    → τc (_ , pair (fin {n = 2}) ii) (lift fzero , a) ≡ just (P′ ⟦ A ∥ B ⟧ Q)
+  αpar-τ-offL-at eqP eqQ bP feq rewrite eqP | eqQ with feq
   ... | refl rewrite bP = refl
 
-  αpar-offndbrL-vis :
+  -- offer lemma: the composite's fused τ-map carries Q's τ at tag 1.
+  αpar-τ-offR-at :
     ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP wi wa wp i a} {fQ} {f prf}
-    → P .force ≡ ndbr fP wi wa wp → Q .force ≡ vis fQ → fP i a ≡ just P′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf
-    → f i a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  αpar-offndbrL-vis eqP eqQ bP feq rewrite eqP | eqQ with feq
-  ... | refl rewrite bP = refl
-
-  αpar-offndbrL-mix :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP wi wa wp i a} {fQ Qt} {f prf}
-    → P .force ≡ ndbr fP wi wa wp → Q .force ≡ mix fQ Qt → fP i a ≡ just P′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf
-    → f i a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  αpar-offndbrL-mix eqP eqQ bP feq rewrite eqP | eqQ with feq
-  ... | refl rewrite bP = refl
-
--- (3) P-ndbr advances alone, when Q is ret / vis / mix (NOT sil, NOT ndbr).
-αpar-ndbr-L :
-  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-    {fP wi wa wp i a}
-  → P .force ≡ ndbr fP wi wa wp → fP i a ≡ just P′
-  → (∀ {t} → Q .force ≢ sil t)
-  → (∀ {f wi′ wa′ wp′} → Q .force ≢ ndbr f wi′ wa′ wp′)
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-αpar-ndbr-L {Q = Q} eqP bP ¬sQ ¬nQ with Q .force in eqQ
-... | ret _ with αpar-fndbrL-ret eqP eqQ
-...   | f , prf , feq = sNdbr feq (αpar-offndbrL-ret eqP eqQ bP feq)
-αpar-ndbr-L {Q = Q} eqP bP ¬sQ ¬nQ | vis _ with αpar-fndbrL-vis eqP eqQ
-...   | f , prf , feq = sNdbr feq (αpar-offndbrL-vis eqP eqQ bP feq)
-αpar-ndbr-L {Q = Q} eqP bP ¬sQ ¬nQ | mix _ _ with αpar-fndbrL-mix eqP eqQ
-...   | f , prf , feq = sNdbr feq (αpar-offndbrL-mix eqP eqQ bP feq)
-αpar-ndbr-L {Q = Q} eqP bP ¬sQ ¬nQ | sil _ = ⊥-elim (¬sQ refl)
-αpar-ndbr-L {Q = Q} eqP bP ¬sQ ¬nQ | ndbr _ _ _ _ = ⊥-elim (¬nQ refl)
-
-private
-  -- ===== Q-ndbr distributes alone (P ∈ {ret,vis,mix}, P not sil/ndbr) =====
-  αpar-fndbrR-ret :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fQ wi wa wp} {r}
-    → P .force ≡ ret r → Q .force ≡ ndbr fQ wi wa wp
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf)
-  αpar-fndbrR-ret eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  αpar-fndbrR-vis :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fQ wi wa wp} {fP}
-    → P .force ≡ vis fP → Q .force ≡ ndbr fQ wi wa wp
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf)
-  αpar-fndbrR-vis eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  αpar-fndbrR-mix :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fQ wi wa wp} {fP Pt}
-    → P .force ≡ mix fP Pt → Q .force ≡ ndbr fQ wi wa wp
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf)
-  αpar-fndbrR-mix eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  αpar-offndbrR-ret :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fQ wi wa wp i a} {r} {f prf}
-    → P .force ≡ ret r → Q .force ≡ ndbr fQ wi wa wp → fQ i a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf
-    → f i a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  αpar-offndbrR-ret eqP eqQ bQ feq rewrite eqP | eqQ with feq
+      {A B : EventSet}
+      {P : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S}
+      {vP τcP vQ τcQ} {Ai} {ii : ExtI I Ai} {a : Ai}
+      {v τc}
+    → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ → τcQ (Ai , ii) a ≡ just Q′
+    → (P ⟦ A ∥ B ⟧ Q) .force ≡ react v τc
+    → τc (_ , pair (fin {n = 2}) ii) (lift (fsuc fzero) , a) ≡ just (P ⟦ A ∥ B ⟧ Q′)
+  αpar-τ-offR-at eqP eqQ bQ feq rewrite eqP | eqQ with feq
   ... | refl rewrite bQ = refl
 
-  αpar-offndbrR-vis :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fQ wi wa wp i a} {fP} {f prf}
-    → P .force ≡ vis fP → Q .force ≡ ndbr fQ wi wa wp → fQ i a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf
-    → f i a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  αpar-offndbrR-vis eqP eqQ bQ feq rewrite eqP | eqQ with feq
-  ... | refl rewrite bQ = refl
-
-  αpar-offndbrR-mix :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fQ wi wa wp i a} {fP Pt} {f prf}
-    → P .force ≡ mix fP Pt → Q .force ≡ ndbr fQ wi wa wp → fQ i a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f wi wa prf
-    → f i a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  αpar-offndbrR-mix eqP eqQ bQ feq rewrite eqP | eqQ with feq
-  ... | refl rewrite bQ = refl
-
--- (4) Q-ndbr advances alone, when P is ret / vis / mix (NOT sil, NOT ndbr).
-αpar-ndbr-R :
+-- ONE composite τ-step lemma over `sTau`, consolidating the legacy `αpar-ndbr-*` +
+-- `αpar-mix-*`: an operand's internal τ (P's routed to composite tag 0 → P′ ∥ Q, Q's
+-- routed to tag 1 → P ∥ Q′) fires the fused τ-branch of the merged react node.
+αpar-τ-L :
   ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-    {fQ wi wa wp i a}
-  → Q .force ≡ ndbr fQ wi wa wp → fQ i a ≡ just Q′
-  → (∀ {t} → P .force ≢ sil t)
-  → (∀ {f wi′ wa′ wp′} → P .force ≢ ndbr f wi′ wa′ wp′)
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-αpar-ndbr-R {P = P} eqQ bQ ¬sP ¬nP with P .force in eqP
-... | ret _ with αpar-fndbrR-ret eqP eqQ
-...   | f , prf , feq = sNdbr feq (αpar-offndbrR-ret eqP eqQ bQ feq)
-αpar-ndbr-R {P = P} eqQ bQ ¬sP ¬nP | vis _ with αpar-fndbrR-vis eqP eqQ
-...   | f , prf , feq = sNdbr feq (αpar-offndbrR-vis eqP eqQ bQ feq)
-αpar-ndbr-R {P = P} eqQ bQ ¬sP ¬nP | mix _ _ with αpar-fndbrR-mix eqP eqQ
-...   | f , prf , feq = sNdbr feq (αpar-offndbrR-mix eqP eqQ bQ feq)
-αpar-ndbr-R {P = P} eqQ bQ ¬sP ¬nP | sil _ = ⊥-elim (¬sP refl)
-αpar-ndbr-R {P = P} eqQ bQ ¬sP ¬nP | ndbr _ _ _ _ = ⊥-elim (¬nP refl)
+    {A B : EventSet}
+    {P P′ : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
+    {vP τcP vQ τcQ} {i : AnyTypes (ExtI I)} {a : proj₁ i}
+  → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ → τcP i a ≡ just P′
+  → (P ⟦ A ∥ B ⟧ Q) ─[ τ ]─► (P′ ⟦ A ∥ B ⟧ Q)
+αpar-τ-L {i = Ai , ii} {a = a} eqP eqQ bP with αpar-freact eqP eqQ
+... | v , τc , feq = sTau {i = _ , pair (fin {n = 2}) ii} {a = lift fzero , a} feq
+                          (αpar-τ-offL-at eqP eqQ bP feq)
+
+αpar-τ-R :
+  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+    {A B : EventSet}
+    {P : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S}
+    {vP τcP vQ τcQ} {i : AnyTypes (ExtI I)} {a : proj₁ i}
+  → P .force ≡ react vP τcP → Q .force ≡ react vQ τcQ → τcQ i a ≡ just Q′
+  → (P ⟦ A ∥ B ⟧ Q) ─[ τ ]─► (P ⟦ A ∥ B ⟧ Q′)
+αpar-τ-R {i = Ai , ii} {a = a} eqP eqQ bQ with αpar-freact eqP eqQ
+... | v , τc , feq = sTau {i = _ , pair (fin {n = 2}) ii} {a = lift (fsuc fzero) , a} feq
+                          (αpar-τ-offR-at eqP eqQ bQ feq)
 
 private
-  -- ===== both ndbr: synchronous merge at a `pair` index =====
-  αpar-fndbr-both :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP AP iP waP wpP} {fQ AQ iQ waQ wpQ}
-    → P .force ≡ ndbr fP (AP , iP) waP wpP
-    → Q .force ≡ ndbr fQ (AQ , iQ) waQ wpQ
-    → Σ[ f ∈ _ ] Σ[ prf ∈ _ ]
-        ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force
-           ≡ ndbr f ((AP × AQ) , pair iP iQ) (waP , waQ) prf)
-  αpar-fndbr-both eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  αpar-offndbr-both :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP AP iP waP wpP} {fQ AQ iQ waQ wpQ}
-      {APx iPx aPx AQx iQx aQx} {f prf}
-    → P .force ≡ ndbr fP (AP , iP) waP wpP
-    → Q .force ≡ ndbr fQ (AQ , iQ) waQ wpQ
-    → fP (APx , iPx) aPx ≡ just P′ → fQ (AQx , iQx) aQx ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ ndbr f ((AP × AQ) , pair iP iQ) (waP , waQ) prf
-    → f ((APx × AQx) , pair iPx iQx) (aPx , aQx) ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  αpar-offndbr-both eqP eqQ bP bQ feq rewrite eqP | eqQ with feq
-  ... | refl rewrite bP | bQ = refl
-
--- (5) both ndbr: synchronous pair merge (resolves BOTH choices in one τ-step).
-αpar-ndbr-both :
-  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-    {fP AP iP waP wpP} {fQ AQ iQ waQ wpQ}
-    {APx iPx aPx AQx iQx aQx}
-  → P .force ≡ ndbr fP (AP , iP) waP wpP
-  → Q .force ≡ ndbr fQ (AQ , iQ) waQ wpQ
-  → fP (APx , iPx) aPx ≡ just P′ → fQ (AQx , iQx) aQx ≡ just Q′
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-αpar-ndbr-both eqP eqQ bP bQ with αpar-fndbr-both eqP eqQ
-... | f , prf , feq = sNdbr feq (αpar-offndbr-both eqP eqQ bP bQ feq)
-
--------------------------------------------------------------------------------------
--- STAGE 1b: mix single-τ-step building blocks (introduction direction)
--------------------------------------------------------------------------------------
-
-private
-  -- ===== P-mix slides alone (Q ∈ {ret,vis}) =====
-  -- force helpers: composite.force ≡ mix f (P′⟦…⟧Q), f existential.
-  αpar-fmixL-ret :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP} {s}
-    → P .force ≡ mix fP P′ → Q .force ≡ ret s
-    → Σ[ f ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q))
-  αpar-fmixL-ret eqP eqQ rewrite eqP | eqQ = _ , refl
-
-  αpar-fmixL-vis :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP} {fQ}
-    → P .force ≡ mix fP P′ → Q .force ≡ vis fQ
-    → Σ[ f ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q))
-  αpar-fmixL-vis eqP eqQ rewrite eqP | eqQ = _ , refl
-
--- (6) P-mix slides alone, when Q is ret / vis (NOT sil, NOT ndbr, NOT mix).
-αpar-mix-slide-L :
-  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP}
-  → P .force ≡ mix fP P′
-  → (∀ {t} → Q .force ≢ sil t)
-  → (∀ {f wi wa wp} → Q .force ≢ ndbr f wi wa wp)
-  → (∀ {g Qt} → Q .force ≢ mix g Qt)
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-αpar-mix-slide-L {Q = Q} eqP ¬sQ ¬nQ ¬mQ with Q .force in eqQ
-... | ret _ with αpar-fmixL-ret eqP eqQ
-...   | f , feq = sMixSlide feq
-αpar-mix-slide-L {Q = Q} eqP ¬sQ ¬nQ ¬mQ | vis _ with αpar-fmixL-vis eqP eqQ
-...   | f , feq = sMixSlide feq
-αpar-mix-slide-L {Q = Q} eqP ¬sQ ¬nQ ¬mQ | sil _        = ⊥-elim (¬sQ refl)
-αpar-mix-slide-L {Q = Q} eqP ¬sQ ¬nQ ¬mQ | ndbr _ _ _ _ = ⊥-elim (¬nQ refl)
-αpar-mix-slide-L {Q = Q} eqP ¬sQ ¬nQ ¬mQ | mix _ _      = ⊥-elim (¬mQ refl)
-
-private
-  -- ===== Q-mix slides alone (P ∈ {ret,vis}, P not sil/ndbr/mix) =====
-  αpar-fmixR-ret :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S} {fQ} {r}
-    → P .force ≡ ret r → Q .force ≡ mix fQ Q′
-    → Σ[ f ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′))
-  αpar-fmixR-ret eqP eqQ rewrite eqP | eqQ = _ , refl
-
-  αpar-fmixR-vis :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S} {fQ} {fP}
-    → P .force ≡ vis fP → Q .force ≡ mix fQ Q′
-    → Σ[ f ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′))
-  αpar-fmixR-vis eqP eqQ rewrite eqP | eqQ = _ , refl
-
--- (7) Q-mix slides alone, when P is ret / vis (NOT sil, NOT ndbr, NOT mix).
-αpar-mix-slide-R :
-  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S} {fQ}
-  → Q .force ≡ mix fQ Q′
-  → (∀ {t} → P .force ≢ sil t)
-  → (∀ {f wi wa wp} → P .force ≢ ndbr f wi wa wp)
-  → (∀ {g Pt} → P .force ≢ mix g Pt)
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-αpar-mix-slide-R {P = P} eqQ ¬sP ¬nP ¬mP with P .force in eqP
-... | ret _ with αpar-fmixR-ret eqP eqQ
-...   | f , feq = sMixSlide feq
-αpar-mix-slide-R {P = P} eqQ ¬sP ¬nP ¬mP | vis _ with αpar-fmixR-vis eqP eqQ
-...   | f , feq = sMixSlide feq
-αpar-mix-slide-R {P = P} eqQ ¬sP ¬nP ¬mP | sil _        = ⊥-elim (¬sP refl)
-αpar-mix-slide-R {P = P} eqQ ¬sP ¬nP ¬mP | ndbr _ _ _ _ = ⊥-elim (¬nP refl)
-αpar-mix-slide-R {P = P} eqQ ¬sP ¬nP ¬mP | mix _ _      = ⊥-elim (¬mP refl)
-
-private
-  -- ===== both mix: slide both jointly =====
-  αpar-fmix-both :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S} {fP} {fQ}
-    → P .force ≡ mix fP P′ → Q .force ≡ mix fQ Q′
-    → Σ[ f ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′))
-  αpar-fmix-both eqP eqQ rewrite eqP | eqQ = _ , refl
-
--- (8) both mix: slide both jointly (one τ-step).
-αpar-mix-both :
-  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S} {fP} {fQ}
-  → P .force ≡ mix fP P′ → Q .force ≡ mix fQ Q′
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ─[ τ ]─► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-αpar-mix-both eqP eqQ with αpar-fmix-both eqP eqQ
-... | f , feq = sMixSlide feq
-
--------------------------------------------------------------------------------------
--- STAGE 2: τ-flush — drive both operands through their leading τ's, in lock-step
--- respecting the operator's priority, to a pair of stable (vis-headed) residuals.
--------------------------------------------------------------------------------------
-
-private
-  -- A vis-headed tree admits no τ-step.
-  no-τ-from-vis :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t t′ : ITree E (ExtI I) R} {f}
-    → t .force ≡ vis f → t ─[ τ ]─► t′ → ⊥
-  no-τ-from-vis eq (sSil s)      = case trans (sym eq) s of λ ()
-  no-τ-from-vis eq (sNdbr s _)   = case trans (sym eq) s of λ ()
-  no-τ-from-vis eq (sMixSlide s) = case trans (sym eq) s of λ ()
-
-  -- A stable (vis-headed source) tree is end-of-bigstep: empty bigstep is bNil.
-  stable-bigNil :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t t′ : ITree E (ExtI I) R} {f}
-    → t .force ≡ vis f → t ═⟨ [] ⟩═► t′ → t′ ≡ t
-  stable-bigNil eq bNil = refl
-  stable-bigNil eq (bTau τ-step rest) = ⊥-elim (no-τ-from-vis eq τ-step)
-
-  -- isStable + non-vis head is absurd.
-  stable-not-sil :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t u : ITree E (ExtI I) R}
-    → isStable t → t .force ≡ sil u → ⊥
-  stable-not-sil {t = t} st eq with t .force
-  ... | vis _ = case eq of λ ()
-
-  stable-ret :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {r}
-    → isStable t → t .force ≡ ret r → ⊥
-  stable-ret {t = t} st eq with t .force
-  ... | vis _ = case eq of λ ()
-
-  stable-ndbr :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {f wi wa wp}
-    → isStable t → t .force ≡ ndbr f wi wa wp → ⊥
-  stable-ndbr {t = t} st eq with t .force
-  ... | vis _ = case eq of λ ()
-
-  stable-mix :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {f Qt}
-    → isStable t → t .force ≡ mix f Qt → ⊥
-  stable-mix {t = t} st eq with t .force
-  ... | vis _ = case eq of λ ()
-
-  -- From a known head shape, refute the other head shapes.  These let the mix/ndbr
-  -- step lemmas' "Q is not sil / not ndbr / not mix" hypotheses be discharged even
-  -- when `Q .force` is abstracted by an outer `with … in` and only `q-eq` is known.
+  -- shape refutations used to discharge the τ-flush priority hypotheses.
   ¬sil-of-ret :
     ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {r} → t .force ≡ ret r → ∀ {u} → t .force ≢ sil u
+      {t : PTree E (ExtI I) R} {r} → t .force ≡ ret r → ∀ {u} → t .force ≢ sil u
   ¬sil-of-ret eq e = case trans (sym eq) e of λ ()
-  ¬sil-of-vis :
+  ¬sil-of-react :
     ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {f} → t .force ≡ vis f → ∀ {u} → t .force ≢ sil u
-  ¬sil-of-vis eq e = case trans (sym eq) e of λ ()
-  ¬sil-of-mix :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {g Qt} → t .force ≡ mix g Qt → ∀ {u} → t .force ≢ sil u
-  ¬sil-of-mix eq e = case trans (sym eq) e of λ ()
-  ¬sil-of-ndbr :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {g wi wa wp} → t .force ≡ ndbr g wi wa wp
-    → ∀ {u} → t .force ≢ sil u
-  ¬sil-of-ndbr eq e = case trans (sym eq) e of λ ()
-  ¬ndbr-of-ret :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {r} → t .force ≡ ret r
-    → ∀ {f wi wa wp} → t .force ≢ ndbr f wi wa wp
-  ¬ndbr-of-ret eq e = case trans (sym eq) e of λ ()
-  ¬ndbr-of-vis :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {f} → t .force ≡ vis f
-    → ∀ {g wi wa wp} → t .force ≢ ndbr g wi wa wp
-  ¬ndbr-of-vis eq e = case trans (sym eq) e of λ ()
-  ¬ndbr-of-mix :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {g Qt} → t .force ≡ mix g Qt
-    → ∀ {h wi wa wp} → t .force ≢ ndbr h wi wa wp
-  ¬ndbr-of-mix eq e = case trans (sym eq) e of λ ()
-  ¬mix-of-ret :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {r} → t .force ≡ ret r → ∀ {g Qt} → t .force ≢ mix g Qt
-  ¬mix-of-ret eq e = case trans (sym eq) e of λ ()
-  ¬mix-of-vis :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {f} → t .force ≡ vis f → ∀ {g Qt} → t .force ≢ mix g Qt
-  ¬mix-of-vis eq e = case trans (sym eq) e of λ ()
+      {t : PTree E (ExtI I) R} {v τc} → t .force ≡ react v τc → ∀ {u} → t .force ≢ sil u
+  ¬sil-of-react eq e = case trans (sym eq) e of λ ()
 
--- The τ-flush proper.  Recursion is structural on the operand bigsteps: every
--- recursive call shrinks restP and/or restQ (sub-derivations of the input bTau's).
+-------------------------------------------------------------------------------------
+-- STAGE 2: τ-flush — drive both operands through their leading τ's (respecting the
+-- operator's sil-priority) to a pair of stable residuals.  react port: the legacy
+-- ndbr / mix-slide clauses of the 9-way matrix collapse into the single react|react
+-- case, where the leading operand τ is a `sTau` forwarded by the fused τ-branch.
+-- Termination: each recursive call passes a strict sub-derivation (`restP`/`restQ`)
+-- of the matched `⟹-τ`, driven by the step's own force-eq.
+
 αpar-τ-flush : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-  → P ═⟨ [] ⟩═► P′ → Q ═⟨ [] ⟩═► Q′ → isStable P′ → isStable Q′
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ═⟨ [] ⟩═► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
+    {A B : EventSet}
+    {P P′ : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S}
+  → P ⟹⟨ [] ⟩ P′ → Q ⟹⟨ [] ⟩ Q′ → isStable P′ → isStable Q′
+  → (P ⟦ A ∥ B ⟧ Q) ⟹⟨ [] ⟩ (P′ ⟦ A ∥ B ⟧ Q′)
 αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ with P .force in p-eq | Q .force in q-eq
-
--- ===== P sil-headed: consume P's τ head (operator clause 1) =====
--- We drive the operator with the step's OWN force-eq `e` (not p-eq), so the residual
--- `restP` of the matched bTau is exactly the recursion argument — no subst, hence
--- structurally smaller and termination is accepted.
+-- P sil-headed: consume P's leading τ (operator clause 1).
 ... | sil P0 | _ with bP
-...   | bNil = ⊥-elim (stable-not-sil {t = P} stP p-eq)
-...   | bTau (sSil e) restP =
-        bTau (αpar-sil-L e) (αpar-τ-flush restP bQ stP stQ)
-...   | bTau (sNdbr e _) _   = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym p-eq) e of λ ()
-
--- ===== P non-sil, Q sil-headed: consume Q's τ head (operator clause 2) =====
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret _ | sil Q0 with bQ
-...   | bNil = ⊥-elim (stable-not-sil {t = Q} stQ q-eq)
-...   | bTau (sSil e) restQ =
-        bTau (αpar-sil-R (¬sil-of-ret {t = P} p-eq) e) (αpar-τ-flush bP restQ stP stQ)
-...   | bTau (sNdbr e _) _   = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | vis _ | sil Q0 with bQ
-...   | bNil = ⊥-elim (stable-not-sil {t = Q} stQ q-eq)
-...   | bTau (sSil e) restQ =
-        bTau (αpar-sil-R (¬sil-of-vis {t = P} p-eq) e) (αpar-τ-flush bP restQ stP stQ)
-...   | bTau (sNdbr e _) _   = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ndbr _ _ _ _ | sil Q0 with bQ
-...   | bNil = ⊥-elim (stable-not-sil {t = Q} stQ q-eq)
-...   | bTau (sSil e) restQ =
-        bTau (αpar-sil-R (¬sil-of-ndbr {t = P} p-eq) e) (αpar-τ-flush bP restQ stP stQ)
-...   | bTau (sNdbr e _) _   = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | mix _ _ | sil Q0 with bQ
-...   | bNil = ⊥-elim (stable-not-sil {t = Q} stQ q-eq)
-...   | bTau (sSil e) restQ =
-        bTau (αpar-sil-R (¬sil-of-mix {t = P} p-eq) e) (αpar-τ-flush bP restQ stP stQ)
-...   | bTau (sNdbr e _) _   = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-
--- ===== both non-sil =====
-
--- both vis: both bigsteps are bNil (vis has no τ); residuals are P,Q themselves.
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | vis _ | vis _ =
-      subst (λ z → _ ═⟨ [] ⟩═► (z ⟦ _ ¿ _ ∥ _ ¿ _ ⟧ _))
-            (sym (stable-bigNil p-eq bP))
-            (subst (λ z → _ ═⟨ [] ⟩═► (_ ⟦ _ ¿ _ ∥ _ ¿ _ ⟧ z))
-                   (sym (stable-bigNil q-eq bQ)) bNil)
-
--- both ndbr: joint τ-step (operator's synchronous ndbr|ndbr).
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ndbr _ _ _ _ | ndbr _ _ _ _ with bP | bQ
-...   | bTau (sNdbr eqfP bp) restP | bTau (sNdbr eqfQ bq) restQ =
-        bTau (αpar-ndbr-both eqfP eqfQ bp bq)
-             (αpar-τ-flush restP restQ stP stQ)
-...   | bNil | _ = ⊥-elim (stable-ndbr {t = P} stP p-eq)
-...   | bTau (sSil e) _ | _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ | _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sNdbr _ _) _ | bNil = ⊥-elim (stable-ndbr {t = Q} stQ q-eq)
-...   | bTau (sNdbr _ _) _ | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sNdbr _ _) _ | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-
--- P ndbr, Q ret/vis/mix: P distributes alone (operator's ndbr|{ret,vis,mix}).
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ndbr _ _ _ _ | ret _ with bP
-...   | bTau (sNdbr eqfP bp) restP =
-        bTau (αpar-ndbr-L eqfP bp (¬sil-of-ret {t = Q} q-eq) (¬ndbr-of-ret {t = Q} q-eq))
-             (αpar-τ-flush restP bQ stP stQ)
-...   | bNil = ⊥-elim (stable-ndbr {t = P} stP p-eq)
-...   | bTau (sSil e) _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym p-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ndbr _ _ _ _ | vis _ with bP
-...   | bTau (sNdbr eqfP bp) restP =
-        bTau (αpar-ndbr-L eqfP bp (¬sil-of-vis {t = Q} q-eq) (¬ndbr-of-vis {t = Q} q-eq))
-             (αpar-τ-flush restP bQ stP stQ)
-...   | bNil = ⊥-elim (stable-ndbr {t = P} stP p-eq)
-...   | bTau (sSil e) _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym p-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ndbr _ _ _ _ | mix _ _ with bP
-...   | bTau (sNdbr eqfP bp) restP =
-        bTau (αpar-ndbr-L eqfP bp (¬sil-of-mix {t = Q} q-eq) (¬ndbr-of-mix {t = Q} q-eq))
-             (αpar-τ-flush restP bQ stP stQ)
-...   | bNil = ⊥-elim (stable-ndbr {t = P} stP p-eq)
-...   | bTau (sSil e) _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym p-eq) e of λ ()
-
--- Q ndbr, P ret/vis/mix (P non-ndbr): Q distributes alone.
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret _ | ndbr _ _ _ _ with bQ
-...   | bTau (sNdbr eqfQ bq) restQ =
-        bTau (αpar-ndbr-R eqfQ bq (¬sil-of-ret {t = P} p-eq) (¬ndbr-of-ret {t = P} p-eq))
-             (αpar-τ-flush bP restQ stP stQ)
-...   | bNil = ⊥-elim (stable-ndbr {t = Q} stQ q-eq)
-...   | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | vis _ | ndbr _ _ _ _ with bQ
-...   | bTau (sNdbr eqfQ bq) restQ =
-        bTau (αpar-ndbr-R eqfQ bq (¬sil-of-vis {t = P} p-eq) (¬ndbr-of-vis {t = P} p-eq))
-             (αpar-τ-flush bP restQ stP stQ)
-...   | bNil = ⊥-elim (stable-ndbr {t = Q} stQ q-eq)
-...   | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | mix _ _ | ndbr _ _ _ _ with bQ
-...   | bTau (sNdbr eqfQ bq) restQ =
-        bTau (αpar-ndbr-R eqfQ bq (¬sil-of-mix {t = P} p-eq) (¬ndbr-of-mix {t = P} p-eq))
-             (αpar-τ-flush bP restQ stP stQ)
-...   | bNil = ⊥-elim (stable-ndbr {t = Q} stQ q-eq)
-...   | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-
--- both mix: joint slide.
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | mix _ _ | mix _ _ with bP | bQ
-...   | bTau (sMixSlide eqP) restP | bTau (sMixSlide eqQ) restQ =
-        bTau (αpar-mix-both eqP eqQ)
-             (αpar-τ-flush restP restQ stP stQ)
-...   | bNil | _ = ⊥-elim (stable-mix {t = P} stP p-eq)
-...   | bTau (sSil e) _ | _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sNdbr e _) _ | _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide _) _ | bNil = ⊥-elim (stable-mix {t = Q} stQ q-eq)
-...   | bTau (sMixSlide _) _ | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide _) _ | bTau (sNdbr e _) _ = case trans (sym q-eq) e of λ ()
-
--- P mix, Q ret/vis: P slides alone.
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | mix _ _ | ret _ with bP
-...   | bTau (sMixSlide eqP) restP =
-        bTau (αpar-mix-slide-L eqP (¬sil-of-ret {t = Q} q-eq) (¬ndbr-of-ret {t = Q} q-eq) (¬mix-of-ret {t = Q} q-eq))
-             (αpar-τ-flush restP bQ stP stQ)
-...   | bNil = ⊥-elim (stable-mix {t = P} stP p-eq)
-...   | bTau (sSil e) _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sNdbr e _) _ = case trans (sym p-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | mix _ _ | vis _ with bP
-...   | bTau (sMixSlide eqP) restP =
-        bTau (αpar-mix-slide-L eqP (¬sil-of-vis {t = Q} q-eq) (¬ndbr-of-vis {t = Q} q-eq) (¬mix-of-vis {t = Q} q-eq))
-             (αpar-τ-flush restP bQ stP stQ)
-...   | bNil = ⊥-elim (stable-mix {t = P} stP p-eq)
-...   | bTau (sSil e) _ = case trans (sym p-eq) e of λ ()
-...   | bTau (sNdbr e _) _ = case trans (sym p-eq) e of λ ()
-
--- Q mix, P ret/vis: Q slides alone.
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret _ | mix _ _ with bQ
-...   | bTau (sMixSlide eqQ) restQ =
-        bTau (αpar-mix-slide-R eqQ (¬sil-of-ret {t = P} p-eq) (¬ndbr-of-ret {t = P} p-eq) (¬mix-of-ret {t = P} p-eq))
-             (αpar-τ-flush bP restQ stP stQ)
-...   | bNil = ⊥-elim (stable-mix {t = Q} stQ q-eq)
-...   | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sNdbr e _) _ = case trans (sym q-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | vis _ | mix _ _ with bQ
-...   | bTau (sMixSlide eqQ) restQ =
-        bTau (αpar-mix-slide-R eqQ (¬sil-of-vis {t = P} p-eq) (¬ndbr-of-vis {t = P} p-eq) (¬mix-of-vis {t = P} p-eq))
-             (αpar-τ-flush bP restQ stP stQ)
-...   | bNil = ⊥-elim (stable-mix {t = Q} stQ q-eq)
-...   | bTau (sSil e) _ = case trans (sym q-eq) e of λ ()
-...   | bTau (sNdbr e _) _ = case trans (sym q-eq) e of λ ()
-
--- remaining both-non-sil combinations where neither side moves nor needs to:
--- ret|ret, ret|vis, vis|ret.  These have NO τ (both bigsteps bNil), but the
--- residual must be stable (vis).  ret-headed stable is impossible.
--- A ret-headed operand has no τ, so its empty bigstep is bNil ⇒ residual = itself,
--- which is ret-headed, contradicting stability of the residual.
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret _ | ret _ with bP
-...   | bNil = ⊥-elim (stable-ret {t = P} stP p-eq)
-...   | bTau (sSil e) _      = case trans (sym p-eq) e of λ ()
-...   | bTau (sNdbr e _) _   = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym p-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret _ | vis _ with bP
-...   | bNil = ⊥-elim (stable-ret {t = P} stP p-eq)
-...   | bTau (sSil e) _      = case trans (sym p-eq) e of λ ()
-...   | bTau (sNdbr e _) _   = case trans (sym p-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym p-eq) e of λ ()
-αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | vis _ | ret _ with bQ
-...   | bNil = ⊥-elim (stable-ret {t = Q} stQ q-eq)
-...   | bTau (sSil e) _      = case trans (sym q-eq) e of λ ()
-...   | bTau (sNdbr e _) _   = case trans (sym q-eq) e of λ ()
-...   | bTau (sMixSlide e) _ = case trans (sym q-eq) e of λ ()
-
--------------------------------------------------------------------------------------
--- STAGE 3: general introduction law.
--------------------------------------------------------------------------------------
-
-private
-  -- A component bigstep with a leading visible event splits into: leading τ's to a
-  -- stable-or-mix head X₁, the visible step, and the tail.
-  split-head :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {X X″ : ITree E (ExtI I) R} {e rest}
-    → X ═⟨ evl e ∷ rest ⟩═► X″
-    → Σ[ X₁ ∈ ITree E (ExtI I) R ] Σ[ X₂ ∈ ITree E (ExtI I) R ]
-        (X ═⟨ [] ⟩═► X₁
-         × ((Σ[ f ∈ _ ] X₁ .force ≡ vis f)
-            ⊎ (Σ[ f ∈ _ ] Σ[ Qt ∈ ITree E (ExtI I) R ] X₁ .force ≡ mix f Qt))
-         × (X₁ ─[ ev (evl e) ]─► X₂)
-         × (X₂ ═⟨ rest ⟩═► X″))
-  split-head (bStep {t = X} step tail) with ev-ndbr step
-  ... | inj₁ (f , (fe , _))      = _ , _ , bNil , inj₁ (f , fe) , step , tail
-  ... | inj₂ (f , Qt , (fe , _)) = _ , _ , bNil , inj₂ (f , Qt , fe) , step , tail
-  split-head (bTau τ-step rest) with split-head rest
-  ... | X₁ , X₂ , flush , headshape , vstep , tail =
-        X₁ , X₂ , bTau τ-step flush , headshape , vstep , tail
-
--------------------------------------------------------------------------------------
--- Generalised composite visible-step lemmas, allowing each operand to be either
--- `vis`-headed (fires via sVis) or `mix`-headed (fires via sMixVis).  These extend
--- αpar-sync-step / αpar-soloL-step / αpar-soloR-step to mix-headed operands.
-
-private
-  -- A head is "ready" (vis or mix) and offers `just t′` at the event.
-  ReadyAt : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-            → ITree E (ExtI I) R → (at : AnyTypes E) → proj₁ at
-            → ITree E (ExtI I) R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
-  ReadyAt {I = I} {R = R} P at a P′ =
-      (Σ[ f ∈ _ ] (P .force ≡ vis f × f at a ≡ just P′))
-    ⊎ (Σ[ f ∈ _ ] Σ[ Qt ∈ ITree E (ExtI I) R ] (P .force ≡ mix f Qt × f at a ≡ just P′))
-
-
-
-  -- A head is "ready" (vis or mix) without a specific offer — used for the
-  -- stationary operand of a solo step (only its head-shape matters).
-  Headed : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-         → ITree E (ExtI I) R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
-  Headed {I = I} {R = R} Q =
-      (Σ[ f ∈ _ ] Q .force ≡ vis f)
-    ⊎ (Σ[ f ∈ _ ] Σ[ Qt ∈ ITree E (ExtI I) R ] Q .force ≡ mix f Qt)
-
-  -- Force-reduction helpers for the sync step (one per head-shape combo).
-  fsync-vv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP fQ}
-    → P .force ≡ vis fP → Q .force ≡ vis fQ
-    → Σ[ f ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ vis f)
-  fsync-vv eqP eqQ rewrite eqP | eqQ = _ , refl
-
-  fsync-vm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP fQ Qt}
-    → P .force ≡ vis fP → Q .force ≡ mix fQ Qt
-    → Σ[ f ∈ _ ] Σ[ Rt ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt)
-  fsync-vm eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  fsync-mv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP Pt fQ}
-    → P .force ≡ mix fP Pt → Q .force ≡ vis fQ
-    → Σ[ f ∈ _ ] Σ[ Rt ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt)
-  fsync-mv eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  fsync-mm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S} {fP Pt fQ Qt}
-    → P .force ≡ mix fP Pt → Q .force ≡ mix fQ Qt
-    → Σ[ f ∈ _ ] Σ[ Rt ∈ _ ] ((P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt)
-  fsync-mm eqP eqQ rewrite eqP | eqQ = _ , _ , refl
-
-  -- Offer helpers for the sync step.  After rewriting both operand force eqs, the
-  -- composite's merged offer at (at,a) under (yes,yes) routing is just(P′⟦…⟧Q′).
-  osync-vv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP fQ} {at a} {f}
-    → A at → B at → P .force ≡ vis fP → fP at a ≡ just P′
-    → Q .force ≡ vis fQ → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ vis f
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osync-vv {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA mB eqP bP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | yes _ rewrite bP | bQ = refl
-  osync-vv mA mB eqP bP eqQ bQ fe | refl | yes _ | no ¬B = ⊥-elim (¬B mB)
-  osync-vv mA mB eqP bP eqQ bQ fe | refl | no ¬A | _     = ⊥-elim (¬A mA)
-
-  osync-vm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP fQ Qt} {at a} {f Rt}
-    → A at → B at → P .force ≡ vis fP → fP at a ≡ just P′
-    → Q .force ≡ mix fQ Qt → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osync-vm {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA mB eqP bP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | yes _ rewrite bP | bQ = refl
-  osync-vm mA mB eqP bP eqQ bQ fe | refl | yes _ | no ¬B = ⊥-elim (¬B mB)
-  osync-vm mA mB eqP bP eqQ bQ fe | refl | no ¬A | _     = ⊥-elim (¬A mA)
-
-  osync-mv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP Pt fQ} {at a} {f Rt}
-    → A at → B at → P .force ≡ mix fP Pt → fP at a ≡ just P′
-    → Q .force ≡ vis fQ → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osync-mv {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA mB eqP bP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | yes _ rewrite bP | bQ = refl
-  osync-mv mA mB eqP bP eqQ bQ fe | refl | yes _ | no ¬B = ⊥-elim (¬B mB)
-  osync-mv mA mB eqP bP eqQ bQ fe | refl | no ¬A | _     = ⊥-elim (¬A mA)
-
-  osync-mm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP Pt fQ Qt} {at a} {f Rt}
-    → A at → B at → P .force ≡ mix fP Pt → fP at a ≡ just P′
-    → Q .force ≡ mix fQ Qt → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osync-mm {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA mB eqP bP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | yes _ rewrite bP | bQ = refl
-  osync-mm mA mB eqP bP eqQ bQ fe | refl | yes _ | no ¬B = ⊥-elim (¬B mB)
-  osync-mm mA mB eqP bP eqQ bQ fe | refl | no ¬A | _     = ⊥-elim (¬A mA)
-
-  -- Generalised synchronisation step assembled from the helpers.
-  αpar-sync-step' :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {at : AnyTypes E} {a : proj₁ at}
-    → A at → B at
-    → ReadyAt P at a P′ → ReadyAt Q at a Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-        ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─►
-      (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  αpar-sync-step' mA mB (inj₁ (fP , eqP , bP)) (inj₁ (fQ , eqQ , bQ))
-    with fsync-vv eqP eqQ
-  ... | f , fe = sVis fe (osync-vv mA mB eqP bP eqQ bQ fe)
-  αpar-sync-step' mA mB (inj₁ (fP , eqP , bP)) (inj₂ (fQ , Qt , eqQ , bQ))
-    with fsync-vm eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osync-vm mA mB eqP bP eqQ bQ fe)
-  αpar-sync-step' mA mB (inj₂ (fP , Pt , eqP , bP)) (inj₁ (fQ , eqQ , bQ))
-    with fsync-mv eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osync-mv mA mB eqP bP eqQ bQ fe)
-  αpar-sync-step' mA mB (inj₂ (fP , Pt , eqP , bP)) (inj₂ (fQ , Qt , eqQ , bQ))
-    with fsync-mm eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osync-mm mA mB eqP bP eqQ bQ fe)
-
-  ---------------------------------------------------------------------------------
-  -- Solo-L offer helpers (moving = P, stationary = Q; event in A only).
-  -- The operator's (yes,no) branch consults only fP, yielding just (P′⟦…⟧Q).
-  osoloL-vv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP fQ} {at a} {f}
-    → A at → ¬ (B at) → P .force ≡ vis fP → fP at a ≡ just P′
-    → Q .force ≡ vis fQ
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ vis f
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  osoloL-vv {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA ¬mB eqP bP eqQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | no _ rewrite bP = refl
-  osoloL-vv mA ¬mB eqP bP eqQ fe | refl | yes _ | yes mB = ⊥-elim (¬mB mB)
-  osoloL-vv mA ¬mB eqP bP eqQ fe | refl | no ¬A | _      = ⊥-elim (¬A mA)
-
-  osoloL-vm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP fQ Qt} {at a} {f Rt}
-    → A at → ¬ (B at) → P .force ≡ vis fP → fP at a ≡ just P′
-    → Q .force ≡ mix fQ Qt
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  osoloL-vm {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA ¬mB eqP bP eqQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | no _ rewrite bP = refl
-  osoloL-vm mA ¬mB eqP bP eqQ fe | refl | yes _ | yes mB = ⊥-elim (¬mB mB)
-  osoloL-vm mA ¬mB eqP bP eqQ fe | refl | no ¬A | _      = ⊥-elim (¬A mA)
-
-  osoloL-mv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP Pt fQ} {at a} {f Rt}
-    → A at → ¬ (B at) → P .force ≡ mix fP Pt → fP at a ≡ just P′
-    → Q .force ≡ vis fQ
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  osoloL-mv {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA ¬mB eqP bP eqQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | no _ rewrite bP = refl
-  osoloL-mv mA ¬mB eqP bP eqQ fe | refl | yes _ | yes mB = ⊥-elim (¬mB mB)
-  osoloL-mv mA ¬mB eqP bP eqQ fe | refl | no ¬A | _      = ⊥-elim (¬A mA)
-
-  osoloL-mm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {fP Pt fQ Qt} {at a} {f Rt}
-    → A at → ¬ (B at) → P .force ≡ mix fP Pt → fP at a ≡ just P′
-    → Q .force ≡ mix fQ Qt
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  osoloL-mm {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} mA ¬mB eqP bP eqQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | yes _ | no _ rewrite bP = refl
-  osoloL-mm mA ¬mB eqP bP eqQ fe | refl | yes _ | yes mB = ⊥-elim (¬mB mB)
-  osoloL-mm mA ¬mB eqP bP eqQ fe | refl | no ¬A | _      = ⊥-elim (¬A mA)
-
-  ---------------------------------------------------------------------------------
-  -- Solo-R offer helpers (moving = Q, stationary = P; event in B only).
-  -- The operator's (no,yes) branch consults only fQ, yielding just (P⟦…⟧Q′).
-  osoloR-vv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP fQ} {at a} {f}
-    → ¬ (A at) → B at → P .force ≡ vis fP
-    → Q .force ≡ vis fQ → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ vis f
-    → f at a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osoloR-vv {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} ¬mA mB eqP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | no _ | yes _ rewrite bQ = refl
-  osoloR-vv ¬mA mB eqP eqQ bQ fe | refl | yes mA | _     = ⊥-elim (¬mA mA)
-  osoloR-vv ¬mA mB eqP eqQ bQ fe | refl | no _   | no ¬B = ⊥-elim (¬B mB)
-
-  osoloR-vm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP fQ Qt} {at a} {f Rt}
-    → ¬ (A at) → B at → P .force ≡ vis fP
-    → Q .force ≡ mix fQ Qt → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osoloR-vm {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} ¬mA mB eqP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | no _ | yes _ rewrite bQ = refl
-  osoloR-vm ¬mA mB eqP eqQ bQ fe | refl | yes mA | _     = ⊥-elim (¬mA mA)
-  osoloR-vm ¬mA mB eqP eqQ bQ fe | refl | no _   | no ¬B = ⊥-elim (¬B mB)
-
-  osoloR-mv :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP Pt fQ} {at a} {f Rt}
-    → ¬ (A at) → B at → P .force ≡ mix fP Pt
-    → Q .force ≡ vis fQ → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osoloR-mv {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} ¬mA mB eqP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | no _ | yes _ rewrite bQ = refl
-  osoloR-mv ¬mA mB eqP eqQ bQ fe | refl | yes mA | _     = ⊥-elim (¬mA mA)
-  osoloR-mv ¬mA mB eqP eqQ bQ fe | refl | no _   | no ¬B = ⊥-elim (¬B mB)
-
-  osoloR-mm :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {fP Pt fQ Qt} {at a} {f Rt}
-    → ¬ (A at) → B at → P .force ≡ mix fP Pt
-    → Q .force ≡ mix fQ Qt → fQ at a ≡ just Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) .force ≡ mix f Rt
-    → f at a ≡ just (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  osoloR-mm {da = da} {db = db} {fP = fP} {fQ = fQ} {at = at} {a = a} ¬mA mB eqP eqQ bQ fe
-    rewrite eqP | eqQ with fe
-  ... | refl with da at | db at
-  ...   | no _ | yes _ rewrite bQ = refl
-  osoloR-mm ¬mA mB eqP eqQ bQ fe | refl | yes mA | _     = ⊥-elim (¬mA mA)
-  osoloR-mm ¬mA mB eqP eqQ bQ fe | refl | no _   | no ¬B = ⊥-elim (¬B mB)
-
-  ---------------------------------------------------------------------------------
-  -- Generalised solo step lemmas.
-  αpar-soloL-step' :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P P′ : ITree E (ExtI I) R} {Q : ITree E (ExtI I) S}
-      {at : AnyTypes E} {a : proj₁ at}
-    → A at → ¬ (B at)
-    → ReadyAt P at a P′ → Headed Q
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-        ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─►
-      (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-  αpar-soloL-step' mA ¬mB (inj₁ (fP , eqP , bP)) (inj₁ (fQ , eqQ))
-    with fsync-vv eqP eqQ
-  ... | f , fe = sVis fe (osoloL-vv mA ¬mB eqP bP eqQ fe)
-  αpar-soloL-step' mA ¬mB (inj₁ (fP , eqP , bP)) (inj₂ (fQ , Qt , eqQ))
-    with fsync-vm eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osoloL-vm mA ¬mB eqP bP eqQ fe)
-  αpar-soloL-step' mA ¬mB (inj₂ (fP , Pt , eqP , bP)) (inj₁ (fQ , eqQ))
-    with fsync-mv eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osoloL-mv mA ¬mB eqP bP eqQ fe)
-  αpar-soloL-step' mA ¬mB (inj₂ (fP , Pt , eqP , bP)) (inj₂ (fQ , Qt , eqQ))
-    with fsync-mm eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osoloL-mm mA ¬mB eqP bP eqQ fe)
-
-  αpar-soloR-step' :
-    ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-      {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      {P : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-      {at : AnyTypes E} {a : proj₁ at}
-    → ¬ (A at) → B at
-    → Headed P → ReadyAt Q at a Q′
-    → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q)
-        ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─►
-      (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
-  αpar-soloR-step' ¬mA mB (inj₁ (fP , eqP)) (inj₁ (fQ , eqQ , bQ))
-    with fsync-vv eqP eqQ
-  ... | f , fe = sVis fe (osoloR-vv ¬mA mB eqP eqQ bQ fe)
-  αpar-soloR-step' ¬mA mB (inj₁ (fP , eqP)) (inj₂ (fQ , Qt , eqQ , bQ))
-    with fsync-vm eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osoloR-vm ¬mA mB eqP eqQ bQ fe)
-  αpar-soloR-step' ¬mA mB (inj₂ (fP , Pt , eqP)) (inj₁ (fQ , eqQ , bQ))
-    with fsync-mv eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osoloR-mv ¬mA mB eqP eqQ bQ fe)
-  αpar-soloR-step' ¬mA mB (inj₂ (fP , Pt , eqP)) (inj₂ (fQ , Qt , eqQ , bQ))
-    with fsync-mm eqP eqQ
-  ... | f , Rt , fe = sMixVis fe (osoloR-mm ¬mA mB eqP eqQ bQ fe)
+...   | ⟹-refl = ⊥-elim (stable-not-sil {t = P} stP p-eq)
+...   | ⟹-τ (sSil e) restP =
+        ⟹-τ (αpar-sil-L e) (αpar-τ-flush restP bQ stP stQ)
+...   | ⟹-τ (sTau e _) _ = case trans (sym p-eq) e of λ ()
+-- P ret-headed, Q sil-headed: consume Q's leading τ (operator clause 2).
+αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret r | sil Q0 with bQ
+...   | ⟹-refl = ⊥-elim (stable-not-sil {t = Q} stQ q-eq)
+...   | ⟹-τ (sSil e) restQ =
+        ⟹-τ (αpar-sil-R (¬sil-of-ret {t = P} p-eq) e) (αpar-τ-flush bP restQ stP stQ)
+...   | ⟹-τ (sTau e _) _ = case trans (sym q-eq) e of λ ()
+-- P react-headed, Q sil-headed: consume Q's leading τ.
+αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | react vP τcP | sil Q0 with bQ
+...   | ⟹-refl = ⊥-elim (stable-not-sil {t = Q} stQ q-eq)
+...   | ⟹-τ (sSil e) restQ =
+        ⟹-τ (αpar-sil-R (¬sil-of-react {t = P} p-eq) e) (αpar-τ-flush bP restQ stP stQ)
+...   | ⟹-τ (sTau e _) _ = case trans (sym q-eq) e of λ ()
+-- both react-headed: a leading operand τ is a `sTau`; route P's (→ P′ ∥ Q) then Q's.
+αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | react vP τcP | react vQ τcQ with bP
+...   | ⟹-τ (sTau eP bp) restP =
+        ⟹-τ (αpar-τ-L eP q-eq bp) (αpar-τ-flush restP bQ stP stQ)
+...   | ⟹-τ (sSil e) _ = case trans (sym p-eq) e of λ ()
+...   | ⟹-refl with bQ
+...     | ⟹-τ (sTau eQ bq) restQ =
+          ⟹-τ (αpar-τ-R p-eq eQ bq) (αpar-τ-flush ⟹-refl restQ stP stQ)
+...     | ⟹-τ (sSil e) _ = case trans (sym q-eq) e of λ ()
+...     | ⟹-refl = ⟹-refl
+-- ret|ret, ret|react, react|ret with NO τ: a ret-headed operand is not stable, so its
+-- empty trace must end at a non-stable residual — contradicting the stability premise.
+αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret r | ret s with bP
+...   | ⟹-refl = ⊥-elim (stable-ret {t = P} stP p-eq)
+...   | ⟹-τ (sSil e) _ = case trans (sym p-eq) e of λ ()
+...   | ⟹-τ (sTau e _) _ = case trans (sym p-eq) e of λ ()
+αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | ret r | react vQ τcQ with bP
+...   | ⟹-refl = ⊥-elim (stable-ret {t = P} stP p-eq)
+...   | ⟹-τ (sSil e) _ = case trans (sym p-eq) e of λ ()
+...   | ⟹-τ (sTau e _) _ = case trans (sym p-eq) e of λ ()
+αpar-τ-flush {P = P} {Q = Q} bP bQ stP stQ | react vP τcP | ret s with bQ
+...   | ⟹-refl = ⊥-elim (stable-ret {t = Q} stQ q-eq)
+...   | ⟹-τ (sSil e) _ = case trans (sym q-eq) e of λ ()
+...   | ⟹-τ (sTau e _) _ = case trans (sym q-eq) e of λ ()
 
 -------------------------------------------------------------------------------------
 -- STAGE 4: restricted introduction law (vis-headed visible events).
 --
--- `VisDriven bs` asserts that every VISIBLE step in the bigstep `bs` is a `sVis`
--- (fired from a `vis` head).  τ-steps — including `sMixSlide` (mix-slides) — are
--- unconstrained.  This is exactly the restriction under which the binary
--- alphabetised parallel admits an introduction law: synchronisation events must be
--- offered from genuine `vis` heads, not from sliding `mix` heads.
--------------------------------------------------------------------------------------
+-- `VisDriven bs` asserts every VISIBLE step in `bs` is a `sVis` (fired from a `react`
+-- head's vis-part); τ-steps (`sSil`/`sTau`) are unconstrained.  This is the exact
+-- restriction under which the binary alphabetised parallel admits an introduction
+-- law: synchronisation events come from genuine react `vis`-offers.
 
 data VisDriven {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-  : {X X′ : ITree E (ExtI I) R} {s : List (Event√ E R)} → X ═⟨ s ⟩═► X′
-  → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
-  vd-nil  : ∀ {X} → VisDriven (bNil {t = X})
-  vd-tau  : ∀ {X X′ X″ s} {τstep : X ─[ τ ]─► X′} {rest : X′ ═⟨ s ⟩═► X″}
-          → VisDriven rest → VisDriven (bTau τstep rest)
-  vd-vis  : ∀ {X X′ X″ at a fX s} {rest : X′ ═⟨ s ⟩═► X″}
-          → (fe : X .force ≡ vis fX) → (je : fX at a ≡ just X′)
+  : {X X′ : PTree E (ExtI I) R} {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} R)}
+  → X ⟹⟨ s ⟩ X′ → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+  vd-nil  : ∀ {X} → VisDriven (⟹-refl {p = X})
+  vd-tau  : ∀ {X X′ X″ s} {τstep : X ─[ τ ]─► X′} {rest : X′ ⟹⟨ s ⟩ X″}
+          → VisDriven rest → VisDriven (⟹-τ τstep rest)
+  vd-vis  : ∀ {X X′ X″ at a v τc s} {rest : X′ ⟹⟨ s ⟩ X″}
+          → (fe : X .force ≡ react v τc) → (je : v at a ≡ just X′)
           → VisDriven rest
-          → VisDriven (bStep (sVis {p = X} {f = fX} {at = at} {a = a} {t′ = X′} fe je) rest)
+          → VisDriven (⟹-ev
+              (sVis {p = X} {v = v} {τc = τc} {at = at} {a = a} {t′ = X′} fe je) rest)
 
-private
-  -- A stable tree is `vis`-headed; extract the offer function.
-  isStable⇒vis :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R}
-    → isStable t
-    → Σ[ f ∈ _ ] t .force ≡ vis f
-  isStable⇒vis {I = I} {R = R} {t = t} st = helper (t .force) refl st
-    where
-      helper : ∀ (n : NodeKind E (ExtI I) R) → t .force ≡ n
-             → (isStable t)
-             → Σ[ f ∈ _ ] t .force ≡ vis f
-      helper (vis f) eq _ = f , eq
-      helper (ret _) eq st = ⊥-elim (stable-ret {t = t} st eq)
-      helper (sil _) eq st = ⊥-elim (stable-not-sil {t = t} st eq)
-      helper (ndbr _ _ _ _) eq st = ⊥-elim (stable-ndbr {t = t} st eq)
-      helper (mix _ _) eq st = ⊥-elim (stable-mix {t = t} st eq)
+-- Front split landing at a react head: a vis-driven big-step decomposes into leading
+-- τ's to a react-headed X₁ followed by EITHER (empty trace) the endpoint reached, OR
+-- (cons trace) the visible offer at X₁ and the vis-driven tail.  The SUM exposes the
+-- head shape so the caller need not re-case the (existential) tail's VisDriven.
+LeadVis : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+            (X X′ : PTree E (ExtI I) R)
+            (s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} R))
+        → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+LeadVis {ℓi = ℓi} {I = I} {R = R} X X′ s =
+  Σ[ X₁ ∈ PTree E (ExtI I) R ] Σ[ vX₁ ∈ _ ] Σ[ τcX₁ ∈ _ ]
+    (X ⟹⟨ [] ⟩ X₁ × X₁ .force ≡ react vX₁ τcX₁
+     × Σ[ bs₁ ∈ (X₁ ⟹⟨ s ⟩ X′) ] VisDriven bs₁          -- residual from X₁ (for stationary side)
+     × ((s ≡ [] × X₁ ≡ X′)
+        ⊎ (Σ[ e ∈ Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} ] Σ[ rest ∈ _ ] Σ[ X₂ ∈ _ ]
+               (s ≡ evl e ∷ rest
+                × vX₁ (Event.A e , Event.e e) (Event.a e) ≡ just X₂
+                × Σ[ bs₂ ∈ (X₂ ⟹⟨ rest ⟩ X′) ] VisDriven bs₂))))
 
-  -- A vis-headed tree is stable.
-  vis⇒isStable :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {t : ITree E (ExtI I) R} {f}
-    → t .force ≡ vis f → isStable t
-  vis⇒isStable {t = t} eq with t .force
-  ... | vis _ = tt₀
-
-  -- Concatenate a τ-only front with an arbitrary bigstep.
-  bigstep-++ :
-    ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-      {X Y Z : ITree E (ExtI I) R} {s : List (Event√ E R)}
-    → X ═⟨ [] ⟩═► Y → Y ═⟨ s ⟩═► Z → X ═⟨ s ⟩═► Z
-  bigstep-++ bNil               bs = bs
-  bigstep-++ (bTau τstep front) bs = bTau τstep (bigstep-++ front bs)
-
--- Front split landing at a vis head: a vis-driven bigstep whose endpoint is stable
--- decomposes into leading τ's to a vis-headed X₁ followed by the same trace from X₁.
 lead-split-vis :
   ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
-    {X X′ : ITree E (ExtI I) R} {s : List (Event√ E R)} (bs : X ═⟨ s ⟩═► X′)
-  → VisDriven bs → isStable X′
-  → Σ[ X₁ ∈ ITree E (ExtI I) R ] Σ[ fX₁ ∈ _ ]
-      (X ═⟨ [] ⟩═► X₁ × X₁ .force ≡ vis fX₁ × Σ[ bs₁ ∈ (X₁ ═⟨ s ⟩═► X′) ] VisDriven bs₁)
-lead-split-vis {X = X} {X′ = X′} bNil vd-nil stX′ with isStable⇒vis {t = X′} stX′
-... | f , eq = X′ , f , bNil {t = X′} , eq , bNil {t = X′} , vd-nil {X = X′}
-lead-split-vis (bTau τstep rest) (vd-tau vd) stX′ with lead-split-vis rest vd stX′
-... | X₁ , fX₁ , flush , eq , bs₁ , vd₁ =
-      X₁ , fX₁ , bTau τstep flush , eq , bs₁ , vd₁
-lead-split-vis (bStep (sVis fe je) rest) (vd-vis _ _ vd) _ =
-  _ , _ , bNil , fe , bStep (sVis fe je) rest , vd-vis fe je vd
+    {X X′ : PTree E (ExtI I) R} {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} R)}
+    (bs : X ⟹⟨ s ⟩ X′)
+  → VisDriven bs → isStable X′ → LeadVis X X′ s
+lead-split-vis {X = X} {X′ = X′} ⟹-refl vd-nil stX′ with isStable⇒react {t = X′} stX′
+... | v , τc , eq = X′ , v , τc , ⟹-refl , eq , ⟹-refl , vd-nil , inj₁ (refl , refl)
+lead-split-vis (⟹-τ τstep rest) (vd-tau vd) stX′ with lead-split-vis rest vd stX′
+... | X₁ , vX₁ , τcX₁ , flush , eq , bs₁ , vd₁ , sum =
+      X₁ , vX₁ , τcX₁ , ⟹-τ τstep flush , eq , bs₁ , vd₁ , sum
+lead-split-vis {X = X} (⟹-ev (sVis {at = at} {a = a} fe je) rest) (vd-vis _ _ vd) _ =
+  X , _ , _ , ⟹-refl , fe ,
+  ⟹-ev (sVis fe je) rest , vd-vis fe je vd ,
+  inj₂ (evLabel (proj₁ at) (proj₂ at) a , _ , _ , refl , je , rest , vd)
+
+-- A τ-only run congruence: replay GIVEN leading-τ runs of P and Q (ending at
+-- react-headed residuals, not necessarily stable) as a τ-only run of the composite.
+-- Unlike `αpar-τ-flush` this does NOT need stability of the endpoints — react-headed
+-- suffices to rule out the `sil`-priority forced-step at the endpoints — which is what
+-- the introduction needs at the pre-visible-event heads `P₁`/`Q₁`.
+αpar-flush-react : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+    {A B : EventSet}
+    {P P′ : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S} {vP τcP vQ τcQ}
+  → P ⟹⟨ [] ⟩ P′ → Q ⟹⟨ [] ⟩ Q′
+  → P′ .force ≡ react vP τcP → Q′ .force ≡ react vQ τcQ
+  → (P ⟦ A ∥ B ⟧ Q) ⟹⟨ [] ⟩ (P′ ⟦ A ∥ B ⟧ Q′)
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ with P .force in p-eq | Q .force in q-eq
+... | sil P0 | _ with bP
+...   | ⟹-refl = ⊥-elim (case trans (sym rP) p-eq of λ ())
+...   | ⟹-τ (sSil e) restP = ⟹-τ (αpar-sil-L e) (αpar-flush-react restP bQ rP rQ)
+...   | ⟹-τ (sTau e _) _ = case trans (sym p-eq) e of λ ()
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ | ret r | sil Q0 with bQ
+...   | ⟹-refl = ⊥-elim (case trans (sym rQ) q-eq of λ ())
+...   | ⟹-τ (sSil e) restQ =
+        ⟹-τ (αpar-sil-R (¬sil-of-ret {t = P} p-eq) e) (αpar-flush-react bP restQ rP rQ)
+...   | ⟹-τ (sTau e _) _ = case trans (sym q-eq) e of λ ()
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ | react vP τcP | sil Q0 with bQ
+...   | ⟹-refl = ⊥-elim (case trans (sym rQ) q-eq of λ ())
+...   | ⟹-τ (sSil e) restQ =
+        ⟹-τ (αpar-sil-R (¬sil-of-react {t = P} p-eq) e) (αpar-flush-react bP restQ rP rQ)
+...   | ⟹-τ (sTau e _) _ = case trans (sym q-eq) e of λ ()
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ | react vP τcP | react vQ τcQ with bP
+...   | ⟹-τ (sTau eP bp) restP =
+        ⟹-τ (αpar-τ-L eP q-eq bp) (αpar-flush-react restP bQ rP rQ)
+...   | ⟹-τ (sSil e) _ = case trans (sym p-eq) e of λ ()
+...   | ⟹-refl with bQ
+...     | ⟹-τ (sTau eQ bq) restQ =
+          ⟹-τ (αpar-τ-R p-eq eQ bq) (αpar-flush-react ⟹-refl restQ rP rQ)
+...     | ⟹-τ (sSil e) _ = case trans (sym q-eq) e of λ ()
+...     | ⟹-refl = ⟹-refl
+-- ret base cases: a react-headed endpoint reached by an empty run from a ret head is
+-- impossible (ret heads have no τ, so P′ = P would be ret, contradicting `react`).
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ | ret r | ret s with bP
+...   | ⟹-refl = ⊥-elim (case trans (sym rP) p-eq of λ ())
+...   | ⟹-τ (sSil e) _ = case trans (sym p-eq) e of λ ()
+...   | ⟹-τ (sTau e _) _ = case trans (sym p-eq) e of λ ()
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ | ret r | react vQ τcQ with bP
+...   | ⟹-refl = ⊥-elim (case trans (sym rP) p-eq of λ ())
+...   | ⟹-τ (sSil e) _ = case trans (sym p-eq) e of λ ()
+...   | ⟹-τ (sTau e _) _ = case trans (sym p-eq) e of λ ()
+αpar-flush-react {P = P} {Q = Q} bP bQ rP rQ | react vP τcP | ret s with bQ
+...   | ⟹-refl = ⊥-elim (case trans (sym rQ) q-eq of λ ())
+...   | ⟹-τ (sSil e) _ = case trans (sym q-eq) e of λ ()
+...   | ⟹-τ (sTau e _) _ = case trans (sym q-eq) e of λ ()
 
 -------------------------------------------------------------------------------------
--- The restricted introduction law.
---
--- Given a synchronisation split `AlphaSync A B sP sQ s` and vis-driven component
--- bigsteps for P and Q ending at stable (vis-headed) residuals, the binary
--- alphabetised parallel performs the merged trace `map evl s`, ending at the
--- composite of the residuals.
--------------------------------------------------------------------------------------
+-- The restricted introduction law.  Given a synchronisation split `AlphaSync A B sP
+-- sQ s` and vis-driven component big-steps for P and Q ending at stable (react)
+-- residuals, the binary alphabetised parallel performs the merged trace `map evl s`,
+-- ending at the composite of the residuals.
 
 αpar-trace-intro : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-    {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-    {P P′ : ITree E (ExtI I) R} {Q Q′ : ITree E (ExtI I) S}
-    {sP sQ s : List (Event E)}
-  → AlphaSync A B sP sQ s
-  → (bP : P ═⟨ map evl sP ⟩═► P′) → VisDriven bP
-  → (bQ : Q ═⟨ map evl sQ ⟩═► Q′) → VisDriven bQ
+    {A B : EventSet}
+    {P P′ : PTree E (ExtI I) R} {Q Q′ : PTree E (ExtI I) S}
+    {sP sQ s : List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I})}
+  → AlphaSync {I = I} A B sP sQ s
+  → (bP : P ⟹⟨ map evl sP ⟩ P′) → VisDriven bP
+  → (bQ : Q ⟹⟨ map evl sQ ⟩ Q′) → VisDriven bQ
   → isStable P′ → isStable Q′
-  → (P ⟦ A ¿ da ∥ B ¿ db ⟧ Q) ═⟨ map evl s ⟩═► (P′ ⟦ A ¿ da ∥ B ¿ db ⟧ Q′)
+  → (P ⟦ A ∥ B ⟧ Q) ⟹⟨ map evl s ⟩ (P′ ⟦ A ∥ B ⟧ Q′)
 
--- empty: both operands just τ-flush to their stable endpoints.
+-- empty: both operands τ-flush to their stable endpoints.
 αpar-trace-intro sync-nil bP _ bQ _ stP stQ = αpar-τ-flush bP bQ stP stQ
 
--- synchronisation: P and Q both fire `e`.
-αpar-trace-intro {da = da} {db = db} (sync-both {e = e} pA pB rest)
+-- synchronisation: P and Q both fire `e`.  Each operand flushes its leading τ's to a
+-- react head, fires `e` via sVis (operator `αpar-sync-step`), then tails recurse.
+αpar-trace-intro (sync-both {e = e} pA pB rest)
                  bP vdP bQ vdQ stP stQ
   with lead-split-vis bP vdP stP | lead-split-vis bQ vdQ stQ
-... | P₁ , fP₁ , flushP , eqP₁ , bP₁ , vdP₁
-    | Q₁ , fQ₁ , flushQ , eqQ₁ , bQ₁ , vdQ₁
-  with vdP₁
-...   | vd-tau {τstep = τstep} _ = ⊥-elim (no-τ-from-vis eqP₁ τstep)
-...   | vd-vis {at = atP} {a = aP} {fX = fXP} {rest = bP₂} feP jeP vdP₂
-        with vdQ₁
-...       | vd-tau {τstep = τstep} _ = ⊥-elim (no-τ-from-vis eqQ₁ τstep)
-...       | vd-vis {at = atQ} {a = aQ} {fX = fXQ} {rest = bQ₂} feQ jeQ vdQ₂ =
-            bigstep-++
-              (αpar-τ-flush flushP flushQ (vis⇒isStable {t = P₁} eqP₁) (vis⇒isStable {t = Q₁} eqQ₁))
-              (bStep
-                (αpar-sync-step' {da = da} {db = db} {P = P₁} {Q = Q₁}
-                  {at = atP} {a = aP} pA pB
-                  (inj₁ (fXP , feP , jeP)) (inj₁ (fXQ , feQ , jeQ)))
-                (αpar-trace-intro rest bP₂ vdP₂ bQ₂ vdQ₂ stP stQ))
+... | P₁ , vP₁ , τcP₁ , flushP , eqP₁ , _ , _ , inj₂ (_ , _ , _ , refl , jeP , bP₂ , vdP₂)
+    | Q₁ , vQ₁ , τcQ₁ , flushQ , eqQ₁ , _ , _ , inj₂ (_ , _ , _ , refl , jeQ , bQ₂ , vdQ₂) =
+      bigstep-++ (αpar-flush-react flushP flushQ eqP₁ eqQ₁)
+        (⟹-ev (αpar-sync-step pA pB eqP₁ jeP eqQ₁ jeQ)
+          (αpar-trace-intro rest bP₂ vdP₂ bQ₂ vdQ₂ stP stQ))
 
--- solo-L: P fires `e` (in A only), Q stationary.
-αpar-trace-intro {da = da} {db = db} (sync-l {e = e} pA ¬pB rest)
+-- solo-L: P fires `e` (in A only), Q stationary (Q's own trace resumed from Q₁).
+αpar-trace-intro (sync-l {e = e} pA ¬pB rest)
                  bP vdP bQ vdQ stP stQ
   with lead-split-vis bP vdP stP | lead-split-vis bQ vdQ stQ
-... | P₁ , fP₁ , flushP , eqP₁ , bP₁ , vdP₁
-    | Q₁ , fQ₁ , flushQ , eqQ₁ , bQ₁ , vdQ₁
-  with vdP₁
-...   | vd-tau {τstep = τstep} _ = ⊥-elim (no-τ-from-vis eqP₁ τstep)
-...   | vd-vis {at = atP} {a = aP} {fX = fXP} {rest = bP₂} feP jeP vdP₂ =
-          bigstep-++
-            (αpar-τ-flush flushP flushQ (vis⇒isStable {t = P₁} eqP₁) (vis⇒isStable {t = Q₁} eqQ₁))
-            (bStep
-              (αpar-soloL-step' {da = da} {db = db} pA ¬pB
-                (inj₁ (fXP , feP , jeP)) (inj₁ (fQ₁ , eqQ₁)))
-              (αpar-trace-intro rest bP₂ vdP₂ bQ₁ vdQ₁ stP stQ))
+... | P₁ , vP₁ , τcP₁ , flushP , eqP₁ , _ , _ , inj₂ (_ , _ , _ , refl , jeP , bP₂ , vdP₂)
+    | Q₁ , vQ₁ , τcQ₁ , flushQ , eqQ₁ , bQ₁ , vdQ₁ , _ =
+      bigstep-++ (αpar-flush-react flushP flushQ eqP₁ eqQ₁)
+        (⟹-ev (αpar-soloL-step pA ¬pB eqP₁ jeP eqQ₁)
+          (αpar-trace-intro rest bP₂ vdP₂ bQ₁ vdQ₁ stP stQ))
 
--- solo-R: Q fires `e` (in B only), P stationary.
-αpar-trace-intro {da = da} {db = db} (sync-r {e = e} ¬pA pB rest)
+-- solo-R: Q fires `e` (in B only), P stationary (P's own trace resumed from P₁).
+αpar-trace-intro (sync-r {e = e} ¬pA pB rest)
                  bP vdP bQ vdQ stP stQ
   with lead-split-vis bP vdP stP | lead-split-vis bQ vdQ stQ
-... | P₁ , fP₁ , flushP , eqP₁ , bP₁ , vdP₁
-    | Q₁ , fQ₁ , flushQ , eqQ₁ , bQ₁ , vdQ₁
-  with vdQ₁
-...   | vd-tau {τstep = τstep} _ = ⊥-elim (no-τ-from-vis eqQ₁ τstep)
-...   | vd-vis {at = atQ} {a = aQ} {fX = fXQ} {rest = bQ₂} feQ jeQ vdQ₂ =
-          bigstep-++
-            (αpar-τ-flush flushP flushQ (vis⇒isStable {t = P₁} eqP₁) (vis⇒isStable {t = Q₁} eqQ₁))
-            (bStep
-              (αpar-soloR-step' {da = da} {db = db} ¬pA pB
-                (inj₁ (fP₁ , eqP₁)) (inj₁ (fXQ , feQ , jeQ)))
-              (αpar-trace-intro rest bP₁ vdP₁ bQ₂ vdQ₂ stP stQ))
-
--------------------------------------------------------------------------------------
--- Sanity: the deadlock-composition path end-to-end.  A composite of two `Stop`s,
--- under ANY alphabets, is `IsStuck` (every event is blocked since `Stop` offers
--- nothing), hence `HasDeadlock`.  This is exactly what the dining-philosophers
--- deadlock proof relies on.
+... | P₁ , vP₁ , τcP₁ , flushP , eqP₁ , bP₁ , vdP₁ , _
+    | Q₁ , vQ₁ , τcQ₁ , flushQ , eqQ₁ , _ , _ , inj₂ (_ , _ , _ , refl , jeQ , bQ₂ , vdQ₂) =
+      bigstep-++ (αpar-flush-react flushP flushQ eqP₁ eqQ₁)
+        (⟹-ev (αpar-soloR-step ¬pA pB eqP₁ eqQ₁ jeQ)
+          (αpar-trace-intro rest bP₁ vdP₁ bQ₂ vdQ₂ stP stQ))
 
 private
   module Sanity where
-    open import ITree_Relations.Deadlock using (HasDeadlock; DeadlockFree; hasDeadlock⇒¬deadlockFree)
+    open CSPOps using (Stop)
 
+    -- `Stop`'s force is `react ∅v ∅t`, both maps everywhere `nothing`.
     stop∥stop-stuck :
-      ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-        {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      → IsStuck (Stop {E = E} {I = ExtI I} {R = R} ⟦ A ¿ da ∥ B ¿ db ⟧ Stop {E = E} {I = ExtI I} {R = S})
-    stop∥stop-stuck {da = da} {db = db} =
-      αpar-IsStuck refl refl blocked
+      ∀ {ℓr ℓs} {R : Set ℓr} {S : Set ℓs}
+        {A B : EventSet}
+      → IsStuck (Stop {R = R} ⟦ A ∥ B ⟧ Stop {R = S})
+    stop∥stop-stuck {A = A} {B = B} =
+      αpar-IsStuck refl refl (λ _ _ → refl) (λ _ _ → refl) blocked
       where
-        blocked : ∀ at a → Blocked _ _ da db _ _ at a
-        blocked at a with da at | db at
+        blocked : ∀ at a → Blocked A B _ _ at a
+        blocked at a with A .dec at a | B .dec at a
         ... | yes _ | yes _ = lift (inj₁ refl)
         ... | yes _ | no  _ = lift refl
         ... | no  _ | yes _ = lift refl
         ... | no  _ | no  _ = tt
 
     stop∥stop-hasDeadlock :
-      ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
-        {A : Alpha} {da : Dec-Alpha A} {B : Alpha} {db : Dec-Alpha B}
-      → HasDeadlock (Stop {E = E} {I = ExtI I} {R = R} ⟦ A ¿ da ∥ B ¿ db ⟧ Stop {E = E} {I = ExtI I} {R = S})
-    stop∥stop-hasDeadlock = [] , _ , bNil , stop∥stop-stuck
+      ∀ {ℓr ℓs} {R : Set ℓr} {S : Set ℓs}
+        {A B : EventSet}
+      → HasDeadlock (Stop {R = R} ⟦ A ∥ B ⟧ Stop {R = S})
+    stop∥stop-hasDeadlock = [] , _ , ⟹-refl , stop∥stop-stuck

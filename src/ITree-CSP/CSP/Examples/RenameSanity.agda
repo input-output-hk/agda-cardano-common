@@ -1,5 +1,10 @@
 {-# OPTIONS --guardedness #-}
 
+-- Sanity checks (reduction / refl-style) for the pure-react renaming operator.
+-- Mirrors CSP.Examples.RenameSanity (old vis/ndbr/mix) on the react layer; the
+-- operator is productive, so we observe `force (P ⟦…⟧)` directly and read the
+-- offered continuation out of the `react` node's visible part.
+
 open import Level using (Lift) renaming (zero to lzero; suc to lsuc)
 open import Data.Unit using (⊤; tt)
 import Data.Unit.Polymorphic as Poly
@@ -12,11 +17,10 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
-open import Interaction_Trees
-open import CSP.Definitions.Basic_Processes
+open import Process_Trees
 
 module CSP.Examples.RenameSanity where
-open ITree
+open PTree
 
 -- Four simple events, each carrying ⊤ (so a visible step can fire them).
 data Ev : Set → Set where
@@ -40,11 +44,8 @@ Ev-≟ (_ , evC)  (_ , evA)  = no λ ()
 Ev-≟ (_ , evC)  (_ , evA′) = no λ ()
 Ev-≟ (_ , evC)  (_ , evB)  = no λ ()
 
-import CSP.Definitions.Operators {E = Ev} as CSPOps
-open CSPOps Ev-≟
-import CSP.Definitions.Rename {E₁ = Ev} {E₂ = Ev}
-  (λ e → e) (λ e → just e) (λ _ → refl) as CSPRen
-open CSPRen
+open import CSP.Operators Ev-≟
+open import CSP.Rename {E₁ = Ev} {E₂ = Ev} (λ e → e) (λ e → just e) (λ _ → refl)
 
 Rr : Set
 Rr = Poly.⊤ {lzero}
@@ -56,19 +57,17 @@ instance
 ⊥₁ : Set₁
 ⊥₁ = Lift (lsuc lzero) ⊥
 
-Stop⊤ : ITree Ev (ExtI Ev) Rr
+Stop⊤ : PTree Ev (ExtI Ev) Rr
 Stop⊤ = Stop
 
-Skip⊤ : ITree Ev (ExtI Ev) Rr
+Skip⊤ : PTree Ev (ExtI Ev) Rr
 Skip⊤ = Skip
 
--- Read the visible continuation out of a node (partial; used only on vis nodes).
--- The renaming operator now reduces (no NON_TERMINATING pragma), so we observe
--- `force (P ⟦…⟧)` directly.
+-- read the visible continuation out of a node (the react vis-part)
 visCont : NodeKind Ev (ExtI Ev) Rr
-        → (bt : AnyTypes Ev) → proj₁ bt → Maybe (ITree Ev (ExtI Ev) Rr)
-visCont (vis f) = f
-visCont _       = λ _ _ → nothing
+        → (bt : AnyTypes Ev) → proj₁ bt → Maybe (PTree Ev (ExtI Ev) Rr)
+visCont (react v _) = v
+visCont _          = λ _ _ → nothing
 
 ceA : ConcEvent₁
 ceA = ((⊤ , evA) , tt)
@@ -88,7 +87,7 @@ preimg₁ (_ , evA)  _ = []
 preimg₁ (_ , evA′) _ = []
 preimg₁ (_ , evC)  _ = []
 
-P₁R : ITree Ev (ExtI Ev) Rr
+P₁R : PTree Ev (ExtI Ev) Rr
 P₁R = (evA ⟶₀ Stop⊤) ⟦ R₁ ¿ preimg₁ ⟧
 
 check₁-B : visCont (force P₁R) (⊤ , evB) tt ≡ just (Stop⊤ ⟦ R₁ ¿ preimg₁ ⟧)
@@ -98,9 +97,8 @@ check₁-A : visCont (force P₁R) (⊤ , evA) tt ≡ nothing
 check₁-A = refl
 
 ------------------------------------------------------------------------
--- Check 2: fan-in. (evA → Stop) □ (evA′ → Skip) under evA,evA′ ↦ evB
--- offers evB as the internal choice (fan-in) of the two renamed sources,
--- and drops evA. The offer is exactly `rnFan` of the two collected sources.
+-- Check 2: fan-in.  (evA → Stop) □ (evA′ → Skip) under evA,evA′ ↦ evB
+-- offers evB as the internal choice (fan-in) of the two renamed sources.
 ------------------------------------------------------------------------
 
 R₂ : ConcEvent₁ → ConcEvent₂ → Set₁
@@ -116,7 +114,7 @@ preimg₂ (_ , evA)  _ = []
 preimg₂ (_ , evA′) _ = []
 preimg₂ (_ , evC)  _ = []
 
-P₂R : ITree Ev (ExtI Ev) Rr
+P₂R : PTree Ev (ExtI Ev) Rr
 P₂R = ((evA ⟶₀ Stop⊤) □ (evA′ ⟶₀ Skip⊤)) ⟦ R₂ ¿ preimg₂ ⟧
 
 check₂-fan-in : visCont (force P₂R) (⊤ , evB) tt
@@ -127,8 +125,7 @@ check₂-A-gone : visCont (force P₂R) (⊤ , evA) tt ≡ nothing
 check₂-A-gone = refl
 
 ------------------------------------------------------------------------
--- Check 3: fan-out. (evA → Stop) under evA ↦ evB and evA ↦ evC
--- offers both evB and evC, and drops evA.
+-- Check 3: fan-out.  (evA → Stop) under evA ↦ evB and evA ↦ evC offers both.
 ------------------------------------------------------------------------
 
 R₃ : ConcEvent₁ → ConcEvent₂ → Set₁
@@ -143,7 +140,7 @@ preimg₃ (_ , evC)  _ = ((⊤ , evA) , tt , refl) ∷ []
 preimg₃ (_ , evA)  _ = []
 preimg₃ (_ , evA′) _ = []
 
-P₃R : ITree Ev (ExtI Ev) Rr
+P₃R : PTree Ev (ExtI Ev) Rr
 P₃R = (evA ⟶₀ Stop⊤) ⟦ R₃ ¿ preimg₃ ⟧
 
 check₃-B : visCont (force P₃R) (⊤ , evB) tt ≡ just (Stop⊤ ⟦ R₃ ¿ preimg₃ ⟧)
@@ -163,7 +160,7 @@ inv₁ : (bt : AnyTypes Ev) → proj₁ bt → Maybe ConcEvent₁
 inv₁ (_ , evB) _ = just ceA
 inv₁ _         _ = nothing
 
-P-invR : ITree Ev (ExtI Ev) Rr
+P-invR : PTree Ev (ExtI Ev) Rr
 P-invR = renameInv (evA ⟶₀ Stop⊤) inv₁
 
 check-inv-B : visCont (force P-invR) (⊤ , evB) tt
@@ -174,12 +171,9 @@ check-inv-A : visCont (force P-invR) (⊤ , evA) tt ≡ nothing
 check-inv-A = refl
 
 ------------------------------------------------------------------------
--- Check 5: genuine E₁ ≠ E₂. Two distinct alphabets Ev₁, Ev₂ with an
--- injective ι₁₂. Renaming `a₁ ⟶₀ Stop` over Ev₁ → Ev₂ via the relation
--- a₁ ↦ a₂ offers a₂ at the target and drops the source label a₁.
+-- Check 5: genuine E₁ ≠ E₂ via distinct alphabets Ev₁, Ev₂ and injective ι₁₂.
 ------------------------------------------------------------------------
 
--- Two distinct alphabets, to exercise the E₁ ≠ E₂ generality.
 data Ev₁ : Set → Set where  a₁ b₁ : Ev₁ ⊤
 data Ev₂ : Set → Set where  a₂ b₂ : Ev₂ ⊤
 
@@ -201,21 +195,18 @@ Ev₁-≟ (_ , b₁) (_ , b₁) = yes refl
 Ev₁-≟ (_ , a₁) (_ , b₁) = no λ ()
 Ev₁-≟ (_ , b₁) (_ , a₁) = no λ ()
 
-import CSP.Definitions.Operators {E = Ev₁} as Ops₁
+import CSP.Operators {E = Ev₁} as Ops₁
 module Ops₁′ = Ops₁ Ev₁-≟
-import CSP.Definitions.Rename {E₁ = Ev₁} {E₂ = Ev₂} ι₁₂ ι₁₂⁻¹ ι₁₂-linv as Ren₁₂
+import CSP.Rename {E₁ = Ev₁} {E₂ = Ev₂} ι₁₂ ι₁₂⁻¹ ι₁₂-linv as Ren₁₂
 
--- Source `a₁ ⟶₀ Stop` over Ev₁, and Stop over each alphabet.
-Stop₁ : ITree Ev₁ (ExtI Ev₁) Rr
-Stop₁ = Stop
+Stop₁ : PTree Ev₁ (ExtI Ev₁) Rr
+Stop₁ = Ops₁′.Stop
 
--- Target-typed observation helper over Ev₂.
 visCont₂ : NodeKind Ev₂ (ExtI Ev₂) Rr
-         → (bt : AnyTypes Ev₂) → proj₁ bt → Maybe (ITree Ev₂ (ExtI Ev₂) Rr)
-visCont₂ (vis f) = f
-visCont₂ _       = λ _ _ → nothing
+         → (bt : AnyTypes Ev₂) → proj₁ bt → Maybe (PTree Ev₂ (ExtI Ev₂) Rr)
+visCont₂ (react v _) = v
+visCont₂ _          = λ _ _ → nothing
 
--- Relation: the source a₁ renames to the target a₂; nothing else.
 R₁₂ : Ren₁₂.ConcEvent₁ → Ren₁₂.ConcEvent₂ → Set₁
 R₁₂ ce ((_ , a₂) , _) = ce ≡ ((⊤ , a₁) , tt)
 R₁₂ _  _              = ⊥₁
@@ -225,24 +216,22 @@ preimg₁₂ : (bt : AnyTypes Ev₂) (b : proj₁ bt)
 preimg₁₂ (_ , a₂) _ = ((⊤ , a₁) , tt , refl) ∷ []
 preimg₁₂ (_ , b₂) _ = []
 
-P₁₂R : ITree Ev₂ (ExtI Ev₂) Rr
+P₁₂R : PTree Ev₂ (ExtI Ev₂) Rr
 P₁₂R = (Ops₁′.Prefix₀ a₁ Stop₁) Ren₁₂.⟦ R₁₂ ¿ preimg₁₂ ⟧
 
--- a₁ ↦ a₂ across distinct alphabets: target offers a₂ with the renamed Stop.
 check-E₁₂-a : visCont₂ (force P₁₂R) (⊤ , a₂) tt
             ≡ just (Stop₁ Ren₁₂.⟦ R₁₂ ¿ preimg₁₂ ⟧)
 check-E₁₂-a = refl
 
--- The other target label b₂ is not offered (no source maps to it).
 check-E₁₂-b : visCont₂ (force P₁₂R) (⊤ , b₂) tt ≡ nothing
 check-E₁₂-b = refl
 
--- ext-linv round-trip on a sample internal `base` index: post-hide path is wired.
+-- ext-linv round-trip on a sample internal `base` index (post-hide path wired)
 check-ext-linv : Ren₁₂.extBwd (Ren₁₂.extFwd (base a₁)) ≡ just (base a₁)
 check-ext-linv = refl
 
--- renameMap: functional injective relabel via the module's ι (a₁ ↦ a₂).
-PmapR : ITree Ev₂ (ExtI Ev₂) Rr
+-- renameMap: functional injective relabel via ι (a₁ ↦ a₂)
+PmapR : PTree Ev₂ (ExtI Ev₂) Rr
 PmapR = Ren₁₂.renameMap (Ops₁′.Prefix₀ a₁ Stop₁)
 
 check-renameMap : visCont₂ (force PmapR) (⊤ , a₂) tt

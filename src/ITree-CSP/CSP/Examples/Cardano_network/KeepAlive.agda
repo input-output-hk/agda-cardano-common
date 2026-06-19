@@ -44,8 +44,7 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; _≟_)
 
-open import Interaction_Trees
-open import CSP.Definitions.Basic_Processes using (Skip; Ret)
+open import Process_Trees
 
 open import CSP.Examples.Cardano_network.Base
 open import CSP.Examples.Cardano_network.Data p
@@ -53,7 +52,7 @@ open import CSP.Examples.Cardano_network.Net  p
 
 -- abstract domains (Cookie + DecEq) and numConns in scope
 open Params p
-open ITree
+open PTree
 
 ------------------------------------------------------------------------
 -- Step 1: the per-protocol event type `KAEv` (all ⊤-carried).
@@ -132,7 +131,7 @@ instance
 -- CSP operators over the small KeepAlive alphabet.
 ------------------------------------------------------------------------
 
-import CSP.Definitions.Operators {E = KAEv} as KAOps
+import CSP.Operators {E = KAEv} as KAOps
 open KAOps KAEv-≟
 
 ------------------------------------------------------------------------
@@ -204,18 +203,18 @@ instance
 
 -- Client peer ---------------------------------------------------------
 
-clientStep : Conn N2N_KeepAlive → CState → ITree KAEv (ExtI KAEv) (CState ⊎ Rr)
+clientStep : Conn N2N_KeepAlive → CState → PTree KAEv (ExtI KAEv) (CState ⊎ Rr)
 -- StClient: either send a keepalive request carrying `cookieReq` and
 -- move to StServer, or send Done and terminate.
 clientStep c (cClient cookieReq) =
   (apiKAev c (sendKAMsg cookieReq)
-     ⟶₀ sendKA c zero FromInitiator zero (keepAlive (MsgKeepAlive cookieReq))
-     ⟶₀ Ret (inj₁ (cServer cookieReq)))
+     ⟶₀ (sendKA c zero FromInitiator zero (keepAlive (MsgKeepAlive cookieReq))
+     ⟶₀ Ret (inj₁ (cServer cookieReq))))
   □
   (apiKAev c sendKADone
-     ⟶₀ sendKA c zero FromInitiator zero (keepAlive MsgKADone)
-     ⟶₀ doneKA c
-     ⟶₀ Ret (inj₂ _))
+     ⟶₀ (sendKA c zero FromInitiator zero (keepAlive MsgKADone)
+     ⟶₀ (doneKA c
+     ⟶₀ Ret (inj₂ _))))
 -- StServer: receive the response (echoing `cookieReq`), then a guarded
 -- choice on the cookie match. Match ⇒ loop back to StClient; mismatch ⇒
 -- signal the error and terminate. Decided by `cookieReq ≟ cookieRsp`
@@ -226,17 +225,17 @@ clientStep c (cServer cookieReq) =
   where
   cookieRsp : Cookie
   cookieRsp = cookieReq
-  step : ITree KAEv (ExtI KAEv) (CState ⊎ Rr)
+  step : PTree KAEv (ExtI KAEv) (CState ⊎ Rr)
   step with cookieReq ≟ cookieRsp
   ... | yes _ = Ret (inj₁ (cClient cookieReq))
   ... | no  _ = apiKAev c (errCookie cookieReq cookieRsp) ⟶₀ Ret (inj₂ _)
 
-clientStClient : Conn N2N_KeepAlive → Cookie → ITree KAEv (ExtI KAEv) Rr
+clientStClient : Conn N2N_KeepAlive → Cookie → PTree KAEv (ExtI KAEv) Rr
 clientStClient c cookie = iter (clientStep c) (cClient cookie)
 
 -- Server peer ---------------------------------------------------------
 
-serverStep : Conn N2N_KeepAlive → SState → ITree KAEv (ExtI KAEv) (SState ⊎ Rr)
+serverStep : Conn N2N_KeepAlive → SState → PTree KAEv (ExtI KAEv) (SState ⊎ Rr)
 -- StClient (server side): receive either a keepalive request (carrying
 -- `cookieReq`) and move to StServer, or a Done and terminate.
 serverStep c (sClient cookieReq) =
@@ -244,15 +243,15 @@ serverStep c (sClient cookieReq) =
      ⟶₀ Ret (inj₁ (sServer cookieReq)))
   □
   (receiveKA c zero FromInitiator zero (keepAlive MsgKADone)
-     ⟶₀ doneKA c
-     ⟶₀ Ret (inj₂ _))
+     ⟶₀ (doneKA c
+     ⟶₀ Ret (inj₂ _)))
 -- StServer (server side): send the response echoing `cookieReq`, then
 -- loop back to StClient.
 serverStep c (sServer cookieReq) =
   sendKA c zero FromResponder zero (keepAlive (MsgKeepAliveResponse cookieReq))
     ⟶₀ Ret (inj₁ (sClient cookieReq))
 
-serverStClient : Conn N2N_KeepAlive → Cookie → ITree KAEv (ExtI KAEv) Rr
+serverStClient : Conn N2N_KeepAlive → Cookie → PTree KAEv (ExtI KAEv) Rr
 serverStClient c cookie = iter (serverStep c) (sClient cookie)
 
 ------------------------------------------------------------------------
@@ -288,9 +287,8 @@ serverStClient c cookie = iter (serverStep c) (sClient cookie)
 -- them by interleaving (parallel with empty sync set over `Net`).
 ------------------------------------------------------------------------
 
-import CSP.Definitions.Rename {E₁ = KAEv} {E₂ = Net} ιKA ιKA⁻¹ ιKA-linv as RenKA
-import CSP.Definitions.Parallel {E = Net} Net-≟ as NetPar
-open NetPar using (_∥⇘_¿_⇙_)
+import CSP.Rename {E₁ = KAEv} {E₂ = Net} ιKA ιKA⁻¹ ιKA-linv as RenKA
+import CSP.Operators {E = Net} Net-≟ as NetPar
 
 -- empty synchronisation set over `Net` (interleaving): no event synchs.
 ∅Net : AnyTypes Net → Set
@@ -300,11 +298,11 @@ open NetPar using (_∥⇘_¿_⇙_)
 ∅Net-dec _ = no λ ()
 
 -- The interleave's natural return type is `Rr × Rr` (the framework's
--- `_∥⇘_¿_⇙_` returns `R × S`); since `Rr = Poly.⊤`, this is `Poly.⊤`-like
+-- `_∥⇘_⇙_` returns `R × S`); since `Rr = Poly.⊤`, this is `Poly.⊤`-like
 -- and `DecEq`-decidable. Downstream `Top` composes this interleave with
 -- `Network` over the same empty/`netSync` set.
-KeepAlivePeer : Conn N2N_KeepAlive → Cookie → ITree Net (ExtI Net) (Rr × Rr)
+KeepAlivePeer : Conn N2N_KeepAlive → Cookie → PTree Net (ExtI Net) (Rr × Rr)
 KeepAlivePeer c cookie =
-  RenKA.renameMap (clientStClient c cookie)
-    ∥⇘ ∅Net ¿ ∅Net-dec ⇙
-  RenKA.renameMap (serverStClient c cookie)
+  NetPar.Par ∅Net ∅Net-dec _,_
+    (RenKA.renameMap (clientStClient c cookie))
+    (RenKA.renameMap (serverStClient c cookie))

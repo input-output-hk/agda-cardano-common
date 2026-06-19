@@ -26,9 +26,8 @@ open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; Irrelevant⇒DecEq)
 
-open import Interaction_Trees
-open import CSP.Definitions.Basic_Processes
-open ITree
+open import Process_Trees
+open PTree
 
 instance
   DecEq-⊤poly : DecEq (⊤ {lzero})
@@ -56,12 +55,8 @@ module Sys (m : ℕ) where
   DP-AnyTypes-≟ (_ , picks _ _)    (_ , putsdown _ _) = no λ ()
   DP-AnyTypes-≟ (_ , putsdown _ _) (_ , picks _ _)    = no λ ()
 
-  import CSP.Definitions.Operators {E = DP} as CSPOps
+  import CSP.Operators {E = DP} as CSPOps
   open CSPOps DP-AnyTypes-≟
-  import CSP.Definitions.Iterate {E = DP} as CSPIte
-  open CSPIte DP-AnyTypes-≟
-  import CSP.Definitions.Parallel {E = DP} as CSPPar
-  open CSPPar DP-AnyTypes-≟
 
   _⊕1 : Fin n → Fin n
   _⊕1 i with suc (toℕ i) <? n
@@ -78,15 +73,15 @@ given by `first`/`second`), then puts them both down again. Each fork `j` is
 held by at most one of its two neighbouring philosophers at a time.
 
 ```agda
-  PHIL : (first second : Phil → Fork) → Phil → ITree DP (ExtI DP) ⊥
+  PHIL : (first second : Phil → Fork) → Phil → PTree DP (ExtI DP) ⊥
   PHIL first second i =
-    loop0 ( picks i (first i)     ⟶₀ picks i (second i)    ⟶₀
-            putsdown i (second i) ⟶₀ putsdown i (first i)  ⟶₀ Skip )
+    loop0 ( picks i (first i) ⟶₀ (picks i (second i) ⟶₀
+            (putsdown i (second i) ⟶₀ (putsdown i (first i) ⟶₀ Skip))) )
 
-  FORK : Fork → ITree DP (ExtI DP) ⊥
+  FORK : Fork → PTree DP (ExtI DP) ⊥
   FORK j =
-    loop0 ( (picks j j      ⟶₀ putsdown j j      ⟶₀ Skip)
-          □ (picks (j ⊖1) j ⟶₀ putsdown (j ⊖1) j ⟶₀ Skip) )
+    loop0 ( (picks j j      ⟶₀ (putsdown j j      ⟶₀ Skip))
+          □ (picks (j ⊖1) j ⟶₀ (putsdown (j ⊖1) j ⟶₀ Skip)) )
 ```
 
 The replicated interleave `⦀list` folds the library interleave `_⦀_` over a
@@ -94,17 +89,22 @@ list of processes, with `Skip` as the unit. Its return type `IProd ps` records
 the (empty) product of the component return types.
 
 ```agda
-  IProd : List (ITree DP (ExtI DP) ⊥) → Set
+  IProd : List (PTree DP (ExtI DP) ⊥) → Set
   IProd []       = ⊤ {lzero}
   IProd (_ ∷ ps) = ⊥ × IProd ps
 
-  ⦀list : (ps : List (ITree DP (ExtI DP) ⊥)) → ITree DP (ExtI DP) (IProd ps)
+  ∅sync : AnyTypes DP → Set
+  ∅sync _ = ⊥
+  ∅sync-dec : (at : AnyTypes DP) → Dec (∅sync at)
+  ∅sync-dec _ = no λ ()
+
+  ⦀list : (ps : List (PTree DP (ExtI DP) ⊥)) → PTree DP (ExtI DP) (IProd ps)
   ⦀list []       = Skip
-  ⦀list (p ∷ ps) = p ⦀ ⦀list ps
+  ⦀list (p ∷ ps) = Par (chanSet ∅sync ∅sync-dec) _,_ p (⦀list ps)
 ```
 
 `PHILS` interleaves all `n` philosophers; `FORKS` interleaves all `n` forks.
-`SYSTEM′` composes them with the interface parallel `_∥⇘_¿_⇙_`, synchronising
+`SYSTEM′` composes them with the generalised parallel `Par`, synchronising
 on the full event set (`syncAll`). Two configurations are provided: the
 symmetric one (every philosopher takes the same-handed fork first, which
 deadlocks) and the asymmetric one (philosopher `0` reverses its order, which is
@@ -115,10 +115,10 @@ deadlock-free).
   allPhils = toList (tabulate (λ (i : Fin n) → i))
 
   PHILS : (first second : Phil → Fork)
-        → ITree DP (ExtI DP) (IProd (map (PHIL first second) allPhils))
+        → PTree DP (ExtI DP) (IProd (map (PHIL first second) allPhils))
   PHILS first second = ⦀list (map (PHIL first second) allPhils)
 
-  FORKS : ITree DP (ExtI DP) (IProd (map FORK allPhils))
+  FORKS : PTree DP (ExtI DP) (IProd (map FORK allPhils))
   FORKS = ⦀list (map FORK allPhils)
 
   syncAll : AnyTypes DP → Set
@@ -127,8 +127,8 @@ deadlock-free).
   syncAll-dec _ = yes tt
 
   SYSTEM′ : (first second : Phil → Fork)
-          → ITree DP (ExtI DP) (IProd (map (PHIL first second) allPhils) × IProd (map FORK allPhils))
-  SYSTEM′ first second = PHILS first second ∥⇘ syncAll ¿ syncAll-dec ⇙ FORKS
+          → PTree DP (ExtI DP) (IProd (map (PHIL first second) allPhils) × IProd (map FORK allPhils))
+  SYSTEM′ first second = Par (chanSet syncAll syncAll-dec) _,_ (PHILS first second) FORKS
 
   symFirst symSecond : Phil → Fork
   symFirst  i = i

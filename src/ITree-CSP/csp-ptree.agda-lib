@@ -1,0 +1,6 @@
+name: csp-ptree
+depend: 
+  standard-library
+  standard-library-classes
+include:
+  .
