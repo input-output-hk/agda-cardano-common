@@ -63,7 +63,7 @@ open import CSP.Examples.Cardano_network.Net p
 open Params p using (numConns)
 
 import CSP.Operators {E = Net Data} (Net-≟ {Data}) as Op
-open Op using (Par⊤; _⦀_; ⦀⋆; ⦀Fin; _∖_; pchoice; Prefix₀; Skip; loop0; chanSet)
+open Op using (Par⊤; _∥⇘_⇙_; _⦀_; ⦀⋆; ⦀Fin; _∖_; pchoice; Prefix₀; Skip; loop0; chanSet)
 
 ------------------------------------------------------------------------
 -- A process over the network alphabet, returning the unit on √.
@@ -230,15 +230,15 @@ csTA-dec (_ , rcvack _ _)   = no λ ()
 ------------------------------------------------------------------------
 
 TxSide : NetProc
-TxSide = (Par⊤ (chanSet csSR csSR-dec) Inputs (Transmitter ⦀ RcvAck))
+TxSide = (Inputs ∥⇘ chanSet csSR csSR-dec ⇙ (Transmitter ⦀ RcvAck))
            ∖ chanSet csSR csSR-dec
 
 RxSide : NetProc
-RxSide = (Par⊤ (chanSet csRS csRS-dec) Outputs (Receiver ⦀ SndAck))
+RxSide = (Outputs ∥⇘ chanSet csRS csRS-dec ⇙ (Receiver ⦀ SndAck))
            ∖ chanSet csRS csRS-dec
 
 Network : NetProc
-Network = (Par⊤ (chanSet csTA csTA-dec) TxSide RxSide)
+Network = (TxSide ∥⇘ chanSet csTA csTA-dec ⇙ RxSide)
             ∖ chanSet csTA csTA-dec
 
 ------------------------------------------------------------------------

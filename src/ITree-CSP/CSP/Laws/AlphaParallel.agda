@@ -477,6 +477,109 @@ AlphaParallel-trace : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set �
 AlphaParallel-trace P Q A B (_ , bs) = AlphaParallel-trace-aux P Q A B bs
 
 -------------------------------------------------------------------------------------
+-- Public re-exports of the single-step inversion helpers (the originals are private
+-- helpers of the trace elimination).  Downstream deadlock-freedom proofs need to invert
+-- a single composite LTS step into the operand step(s): a visible step routes (αVisR =
+-- sync / solo-L / solo-R / √), a τ-step is one operand's τ.
+αpar-vis-step-inv :
+  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+    {A B : EventSet}
+    {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S}
+    {v  : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI I) (R × S)))}
+    {τc : (i  : AnyTypes (ExtI I)) → ContinueType i (Maybe (PTree E (ExtI I) (R × S)))}
+    {at : AnyTypes E} {a : proj₁ at} {M : PTree E (ExtI I) (R × S)}
+  → (P ⟦ A ∥ B ⟧ Q) .force ≡ react v τc → v at a ≡ just M
+  → αVisR A B P Q M (evl (evLabel (proj₁ at) (proj₂ at) a))
+αpar-vis-step-inv = αpar-vis-inv
+
+αpar-τ-step-inv :
+  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+    {A B : EventSet}
+    {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S} {M : PTree E (ExtI I) (R × S)}
+  → (P ⟦ A ∥ B ⟧ Q) ─[ τ ]─► M
+  → (Σ[ P′ ∈ PTree E (ExtI I) R ] (P ─[ τ ]─► P′) × (M ≡ (P′ ⟦ A ∥ B ⟧ Q)))
+  ⊎ (Σ[ Q′ ∈ PTree E (ExtI I) S ] (Q ─[ τ ]─► Q′) × (M ≡ (P ⟦ A ∥ B ⟧ Q′)))
+αpar-τ-step-inv = αpar-τ-inv
+
+αpar-√-step-inv :
+  ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+    {A B : EventSet}
+    {P : PTree E (ExtI I) R} {Q : PTree E (ExtI I) S} {x : R × S}
+  → (P ⟦ A ∥ B ⟧ Q) .force ≡ ret x
+  → αVisR A B P Q deadlock (√ x)
+αpar-√-step-inv = αpar-√-inv
+
+-------------------------------------------------------------------------------------
+-- STATE-RETAINING elimination (reach).  `AlphaSyncSplit`/`AlphaParallel-trace` are
+-- TRACE-only: they discard the composite endpoint `t′`.  `DeadlockFree` reasons about
+-- `IsStuck t′`, so it needs the endpoint PINNED.  `AlphaParReachSplit` is `AlphaSyncSplit`
+-- additionally INDEXED by `t′`, with `in-progress` pinning `t′ ≡ P′ ⟦A∥B⟧ Q′` and `done`
+-- pinning `t′ ≡ deadlock`.  `αpar-reach` is the same structural recursion as
+-- `AlphaParallel-trace-aux`, threading the endpoint through unchanged.
+
+data AlphaParReachSplit {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+  (A B : EventSet) (P : PTree E (ExtI I) R) (Q : PTree E (ExtI I) S)
+  : PTree E (ExtI I) (R × S)
+  → List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (R × S))
+  → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓs) where
+  in-progress : ∀ {sP sQ s : List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I})}
+                  {P′ : PTree E (ExtI I) R} {Q′ : PTree E (ExtI I) S}
+              → AlphaSync {I = I} A B sP sQ s
+              → P ⟹⟨ map evl sP ⟩ P′ → Q ⟹⟨ map evl sQ ⟩ Q′
+              → AlphaParReachSplit A B P Q (P′ ⟦ A ∥ B ⟧ Q′) (map evl s)
+  done : ∀ {sP sQ s : List (Event {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I})} {r : R} {q : S}
+       → AlphaSync {I = I} A B sP sQ s
+       → P ⟹⟨ map evl sP ++ [ √ r ] ⟩ deadlock
+       → Q ⟹⟨ map evl sQ ++ [ √ q ] ⟩ deadlock
+       → AlphaParReachSplit A B P Q deadlock (map evl s ++ [ √ (r , q) ])
+
+αpar-reach : ∀ {ℓi ℓr ℓs} {I : Set ℓ → Set ℓi} {R : Set ℓr} {S : Set ℓs}
+  (P : PTree E (ExtI I) R) (Q : PTree E (ExtI I) S)
+  (A B : EventSet)
+  {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (R × S))} {t′ : PTree E (ExtI I) (R × S)}
+  → (P ⟦ A ∥ B ⟧ Q) ⟹⟨ s ⟩ t′
+  → AlphaParReachSplit A B P Q t′ s
+
+-- 1. empty trace: endpoint is the start composite.
+αpar-reach P Q A B ⟹-refl = in-progress sync-nil ⟹-refl ⟹-refl
+
+-- 2. τ-step: invert to P's or Q's τ, recurse, prepend (endpoint threaded by recursion).
+αpar-reach P Q A B (⟹-τ step rest)
+  with αpar-τ-inv {P = P} {Q = Q} step
+... | inj₁ (P′ , Pτ , refl) =
+      case αpar-reach P′ Q A B rest of λ where
+        (in-progress merge trP′ trQ) → in-progress merge (⟹-τ Pτ trP′) trQ
+        (done        merge trP′ trQ) → done        merge (⟹-τ Pτ trP′) trQ
+... | inj₂ (Q′ , Qτ , refl) =
+      case αpar-reach P Q′ A B rest of λ where
+        (in-progress merge trP trQ′) → in-progress merge trP (⟹-τ Qτ trQ′)
+        (done        merge trP trQ′) → done        merge trP (⟹-τ Qτ trQ′)
+
+-- 3. √-step: both operands at ret ⇒ endpoint is deadlock, trace ends here (`done`).
+αpar-reach P Q A B (⟹-ev (sRet feq) rest)
+  with αpar-√-inv {P = P} {Q = Q} feq | deadlock-trace-nil rest
+... | v√ pe qe | refl , refl =
+      done sync-nil (⟹-ev (sRet pe) ⟹-refl) (⟹-ev (sRet qe) ⟹-refl)
+
+-- 4. visible event: invert routing (sync / solo-L / solo-R), recurse, prepend.
+αpar-reach P Q A B (⟹-ev (sVis feq br) rest)
+  with αpar-vis-inv {P = P} {Q = Q} feq br
+... | vSync pA pB Pev Qev =
+      case αpar-reach _ _ A B rest of λ where
+        (in-progress merge trP′ trQ′) →
+          in-progress (sync-both pA pB merge) (⟹-ev Pev trP′) (⟹-ev Qev trQ′)
+        (done merge trP′ trQ′) →
+          done (sync-both pA pB merge) (⟹-ev Pev trP′) (⟹-ev Qev trQ′)
+... | vSoloL pA ¬pB Pev =
+      case αpar-reach _ Q A B rest of λ where
+        (in-progress merge trP′ trQ) → in-progress (sync-l pA ¬pB merge) (⟹-ev Pev trP′) trQ
+        (done        merge trP′ trQ) → done        (sync-l pA ¬pB merge) (⟹-ev Pev trP′) trQ
+... | vSoloR ¬pA pB Qev =
+      case αpar-reach P _ A B rest of λ where
+        (in-progress merge trP trQ′) → in-progress (sync-r ¬pA pB merge) trP (⟹-ev Qev trQ′)
+        (done        merge trP trQ′) → done        (sync-r ¬pA pB merge) trP (⟹-ev Qev trQ′)
+
+-------------------------------------------------------------------------------------
 -- INTRODUCTION direction: τ-flush + the restricted vis-driven introduction law.
 --
 -- react port note: STAGE 1's `αpar-ndbr-*` and STAGE 1b's `αpar-mix-slide-*` lemmas

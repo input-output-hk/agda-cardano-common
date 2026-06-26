@@ -55,7 +55,7 @@ open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Product using (_,_; proj₁; proj₂; Σ; Σ-syntax; _×_)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (yes; ¬_)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong₂; sym; trans)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; cong; cong₂; sym; trans)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees
@@ -66,6 +66,7 @@ open import CSP.Examples.Cardano_network.Base using
   ; N2N_LeiosNotify; N2N_LeiosFetch )
 open import CSP.Examples.Cardano_network.NetModel
   using ( CS; mkCS; cs0
+        ; inp; tr; ra; out; rc; sa
         ; IP; I0; I1; I2; Ig
         ; TP; T0; T1; Tg
         ; RP; R0; R1; Rg
@@ -96,7 +97,9 @@ p1 = record
   ; numConns = λ where N2N_KeepAlive → 1 ; _ → 0
   ; decCookie  = decEq⊤ ; decBlock    = decEq⊤ ; decTxid    = decEq⊤
   ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
-  ; decVoteBlob = decEq⊤ }
+  ; decVoteBlob = decEq⊤
+  ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
+  ; decTime = decEq⊤ ; decLength = decEq⊤ }
 
 open import CSP.Examples.Cardano_network.Net p1
   using (Net; Conn; input; output; sndmsg; tx)
@@ -104,17 +107,22 @@ open import CSP.Examples.Cardano_network.Network p1 ⊤
 
 open import Semantics.LTS {E = Net ⊤} {I = ExtI (Net ⊤)}
 open import Semantics.WeakBisim {E = Net ⊤} {I = ExtI (Net ⊤)}
-open import Semantics.DRBisim {E = Net ⊤} {I = ExtI (Net ⊤)} using (Diverges; _≈DR_; deadlock-converges)
+open import Semantics.DRBisim {E = Net ⊤} {I = ExtI (Net ⊤)}
+  using (Diverges; _≈DR_; deadlock-converges; drbisim→wbisim; drbisim-sym)
 open import Semantics.Failures {E = Net ⊤} {I = ExtI (Net ⊤)}
-  using (_⊑T_; traces; _⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
+  using (_⊑T_; traces; _⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces-respects-≈)
 open import Semantics.FailuresDivergences {E = Net ⊤} {I = ExtI (Net ⊤)}
-  using (_⊑D_; divergences; IsDivergence)
+  using (_⊑D_; divergences; IsDivergence; _⊑F⊥_; _⊑FD_; _≈FD_)
+open import Semantics.DRImpliesFD {E = Net ⊤} {I = ExtI (Net ⊤)}
+  using (drbisim→≈FD)
+open import Semantics.Expansion {E = Net ⊤} {I = ExtI (Net ⊤)}
+  using (Expand; ExpBwdF; _⪰_; ⪯→≈DR)
 
 -- the Net-decidable-equality used to instantiate every law module
 open import CSP.Examples.Cardano_network.Net p1 using (Net-≟)
 
 open import CSP.Operators {E = Net ⊤} (Net-≟ {⊤})
-  using (Par⊤; _⦀_; _∖_; chanSet; ∅ES; EventSet; Skip)
+  using (Par⊤; _∥⇘_⇙_; _⦀_; _∖_; chanSet; ∅ES; EventSet; Skip; Par; viewV)
 open EventSet
 
 ⊤merge : Poly.⊤ {0ℓ} → Poly.⊤ {0ℓ} → Poly.⊤ {0ℓ}
@@ -126,10 +134,15 @@ open import CSP.Laws.Bisim.DRCongruence (Net-≟ {⊤})
   using (ModAStep; maτ; maE; DivModA)
 open import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {⊤})
   using (Par-τ-elim; ParτR; τL; τR
-        ; Par-ev-elim; ParevR; evSync; evL; evR; evBoth; ev√)
+        ; Par-ev-elim; ParevR; evSync; evL; evR; evBoth; ev√
+        ; Par-force-ret-inv)
+open import CSP.Laws.Traces.TraceLawsParallel (Net-≟ {⊤})
+  using (Par-soloL; Par-soloR; Par-sync; Par-τ-L; Par-τ-R)
 open import CSP.Laws.Traces.TraceLawsHide (Net-≟ {⊤})
   using (Hide-τ-elim; HideτR; hτP; hτH
-        ; Hide-ev-elim; HideevR; heV; he√)
+        ; Hide-ev-elim; HideevR; heV; he√
+        ; Hide-τ; Hide-keep; Hide-hidden
+        ; fHide-ret-inv)
 open import CSP.Laws.Traces.TraceLawsParallelTrace (Net-≟ {⊤})
   using (deadlock-no-τ; deadlock-no-ev)
 
@@ -563,7 +576,7 @@ csTA' = chanSet csTA csTA-dec
 -- offers neither sndmsg nor rcvack ⇒ contradiction.
 TxSide-stable : ∀ {t} → TxSide ─[ τ ]─► t → ⊥
 TxSide-stable step
-  with Hide-τ-elim csSR' (Par⊤ csSR' Inputs (Transmitter ⦀ RcvAck)) step
+  with Hide-τ-elim csSR' (Inputs ∥⇘ csSR' ⇙ (Transmitter ⦀ RcvAck)) step
 ... | hτP _ parτ _
       with Par-τ-elim csSR' ⊤merge Inputs (Transmitter ⦀ RcvAck) parτ
 ...   | τL _ Iτ  _ = Inputs-stable Iτ
@@ -609,7 +622,7 @@ RS-no-rcvmsg step with Par-ev-elim ∅ES ⊤merge Receiver SndAck step
 -- RxSide is τ-stable (symmetric to TxSide; hidden events rcvmsg/sndack).
 RxSide-stable : ∀ {t} → RxSide ─[ τ ]─► t → ⊥
 RxSide-stable step
-  with Hide-τ-elim csRS' (Par⊤ csRS' Outputs (Receiver ⦀ SndAck)) step
+  with Hide-τ-elim csRS' (Outputs ∥⇘ csRS' ⇙ (Receiver ⦀ SndAck)) step
 ... | hτP _ parτ _
       with Par-τ-elim csRS' ⊤merge Outputs (Receiver ⦀ SndAck) parτ
 ...   | τL _ Oτ  _ = Outputs-stable Oτ
@@ -666,7 +679,7 @@ TR-no-tx step with Par-ev-elim ∅ES ⊤merge Transmitter RcvAck step
 TxSide-no-tx : ∀ {t a id} {c : Conn id} →
   TxSide ─[ ev (evl (evLabel ⊤ (tx id c) a)) ]─► t → ⊥
 TxSide-no-tx step
-  with Hide-ev-elim csSR' (Par⊤ csSR' Inputs (Transmitter ⦀ RcvAck)) step
+  with Hide-ev-elim csSR' (Inputs ∥⇘ csSR' ⇙ (Transmitter ⦀ RcvAck)) step
 ... | heV _ _ parev with Par-ev-elim csSR' ⊤merge Inputs (Transmitter ⦀ RcvAck) parev
 ...   | evSync mem _ _ = mem
 ...   | evL  _ Iev   = Inputs-no-tx Iev
@@ -698,7 +711,7 @@ RS-no-ack step with Par-ev-elim ∅ES ⊤merge Receiver SndAck step
 RxSide-no-ack : ∀ {t a id} {c : Conn id} →
   RxSide ─[ ev (evl (evLabel ⊤ (ack id c) a)) ]─► t → ⊥
 RxSide-no-ack step
-  with Hide-ev-elim csRS' (Par⊤ csRS' Outputs (Receiver ⦀ SndAck)) step
+  with Hide-ev-elim csRS' (Outputs ∥⇘ csRS' ⇙ (Receiver ⦀ SndAck)) step
 ... | heV _ _ parev with Par-ev-elim csRS' ⊤merge Outputs (Receiver ⦀ SndAck) parev
 ...   | evSync mem _ _ = mem
 ...   | evL  _ Oev   = Outputs-no-ack Oev
@@ -714,7 +727,7 @@ RxSide-no-ack step
 ------------------------------------------------------------------------
 
 Top-noModA : ∀ {t} →
-  ModAStep csTA' (Par⊤ csTA' TxSide RxSide) t → ⊥
+  ModAStep csTA' (TxSide ∥⇘ csTA' ⇙ RxSide) t → ⊥
 Top-noModA (maτ parτ) with Par-τ-elim csTA' ⊤merge TxSide RxSide parτ
 ... | τL _ Tτ _ = TxSide-stable Tτ
 ... | τR _ Rτ _ = RxSide-stable Rτ
@@ -737,7 +750,7 @@ Top-noModA (maE {B} {e} {a} mem parev) | rcvmsg id c = mem
 Top-noModA (maE {B} {e} {a} mem parev) | sndack id c = mem
 Top-noModA (maE {B} {e} {a} mem parev) | rcvack id c = mem
 
-Top-MAcc : MAcc csTA' (Par⊤ csTA' TxSide RxSide)
+Top-MAcc : MAcc csTA' (TxSide ∥⇘ csTA' ⇙ RxSide)
 Top-MAcc = macc (λ step → ⊥-elim (Top-noModA step))
 
 ------------------------------------------------------------------------
@@ -747,7 +760,7 @@ Top-MAcc = macc (λ step → ⊥-elim (Top-noModA step))
 
 ¬Diverges-Network : ¬ Diverges Network
 ¬Diverges-Network =
-  Hide-noDiv-from-MAcc csTA' (Par⊤ csTA' TxSide RxSide) Top-MAcc
+  Hide-noDiv-from-MAcc csTA' (TxSide ∥⇘ csTA' ⇙ RxSide) Top-MAcc
 
 ------------------------------------------------------------------------
 -- Network is τ-stable at its initial (deadlocked) state: a τ of
@@ -756,7 +769,7 @@ Top-MAcc = macc (λ step → ⊥-elim (Top-noModA step))
 ------------------------------------------------------------------------
 
 Network-noτ : ∀ {t} → Network ─[ τ ]─► t → ⊥
-Network-noτ step with Hide-τ-elim csTA' (Par⊤ csTA' TxSide RxSide) step
+Network-noτ step with Hide-τ-elim csTA' (TxSide ∥⇘ csTA' ⇙ RxSide) step
 ... | hτP _ parτ _      = Top-noModA (maτ parτ)
 ... | hτH _ mem parev _ = Top-noModA (maE mem parev)
 
@@ -860,7 +873,7 @@ succV p at a with vis-of (force p) at a
 ... | nothing = p
 
 T : NetProc
-T = Par⊤ csTA' TxSide RxSide
+T = TxSide ∥⇘ csTA' ⇙ RxSide
 
 -- U0 = the un-hidden composite.
 U0 : NetProc
@@ -1209,13 +1222,13 @@ decS Sag = succV (succV SndAck sndackAtN tt) ackAtN tt
 -- The two sides and the whole, in the EXACT operator forms of Network.agda.
 ------------------------------------------------------------------------
 decTx : IP → TP → RP → NetProc
-decTx i t r = (Par⊤ csSR' (decI i) (decT t ⦀ decR r)) ∖ csSR'
+decTx i t r = ((decI i) ∥⇘ csSR' ⇙ (decT t ⦀ decR r)) ∖ csSR'
 
 decRx : OP → CP → SP → NetProc
-decRx o c s = (Par⊤ csRS' (decO o) (decC c ⦀ decS s)) ∖ csRS'
+decRx o c s = ((decO o) ∥⇘ csRS' ⇙ (decC c ⦀ decS s)) ∖ csRS'
 
 ⟦_⟧ : CS → NetProc
-⟦ mkCS i t r o c s ⟧ = Par⊤ csTA' (decTx i t r) (decRx o c s)
+⟦ mkCS i t r o c s ⟧ = (decTx i t r) ∥⇘ csTA' ⇙ (decRx o c s)
 
 ------------------------------------------------------------------------
 -- VALIDATION (all by `refl`).
@@ -1646,22 +1659,22 @@ sim-Tx-τ : ∀ {i t r W} → decTx i t r ─[ τ ]─► W →
   ⊎ ((t ≡ Tg) × (W ≡ decTx i T0 r))                 -- guard gT
   ⊎ ((r ≡ Rg) × (W ≡ decTx i t R0))                 -- guard gR
 sim-Tx-τ {i} {t} {r} step
-  with Hide-τ-elim csSR' (Par⊤ csSR' (decI i) (decT t ⦀ decR r)) step
+  with Hide-τ-elim csSR' ((decI i) ∥⇘ csSR' ⇙ (decT t ⦀ decR r)) step
 -- (A) the inner Par's own τ: decI guard, or a τ of TR (decT/decR guard).
 ... | hτP _ parτ refl
       with Par-τ-elim csSR' ⊤merge (decI i) (decT t ⦀ decR r) parτ
 ...   | τL _ Iτ refl =
         inj₂ (inj₂ (inj₁ (proj₁ cl ,
-          cong (λ z → (Par⊤ csSR' z (decT t ⦀ decR r)) ∖ csSR') (proj₂ cl))))
+          cong (λ z → ((z ∥⇘ csSR' ⇙ (decT t ⦀ decR r)) ∖ csSR')) (proj₂ cl))))
   where cl = decI-τ-class Iτ
 sim-Tx-τ {i} {t} {r} step | hτP _ parτ refl
       | τR _ TRτ refl with TR-τ-class TRτ
 ...     | inj₁ (gt , weq) =
           inj₂ (inj₂ (inj₂ (inj₁ (gt ,
-            cong (λ z → (Par⊤ csSR' (decI i) z) ∖ csSR') weq))))
+            cong (λ z → (((decI i) ∥⇘ csSR' ⇙ z) ∖ csSR')) weq))))
 ...     | inj₂ (gr , weq) =
           inj₂ (inj₂ (inj₂ (inj₂ (gr ,
-            cong (λ z → (Par⊤ csSR' (decI i) z) ∖ csSR') weq))))
+            cong (λ z → (((decI i) ∥⇘ csSR' ⇙ z) ∖ csSR')) weq))))
 -- (B) a HIDDEN csSR-event of the inner Par: a sndmsg or rcvack SYNC.
 sim-Tx-τ {i} {t} {r} step
   | hτH {B} {e} {a} _ mem parev refl with e
@@ -1675,7 +1688,7 @@ sim-Tx-τ {i} {t} {r} step
 ... | sndmsg N2N_KeepAlive zero
       with Par-ev-elim csSR' ⊤merge (decI i) (decT t ⦀ decR r) parev
 ...   | evSync _ Iev TRev = inj₁ (proj₁ clI , proj₁ clTR ,
-          cong₂ (λ z w → (Par⊤ csSR' z w) ∖ csSR') (proj₂ clI) (proj₂ clTR))
+          cong₂ (λ z w → ((z ∥⇘ csSR' ⇙ w) ∖ csSR')) (proj₂ clI) (proj₂ clTR))
   where clI  = decI-sndmsg-class {i} Iev
         clTR = TR-sndmsg-class {t} {r} TRev
 sim-Tx-τ {i} {t} {r} step | hτH {B} {e} {a} _ mem parev refl | sndmsg N2N_KeepAlive zero
@@ -1693,7 +1706,7 @@ sim-Tx-τ {i} {t} {r} step | hτH {B} {e} {a} _ mem parev refl | rcvack N2N_Leio
 sim-Tx-τ {i} {t} {r} step | hτH {B} {e} {a} _ mem parev refl | rcvack N2N_KeepAlive zero
       with Par-ev-elim csSR' ⊤merge (decI i) (decT t ⦀ decR r) parev
 ...   | evSync _ Iev TRev = inj₂ (inj₁ (proj₁ clR , proj₁ clI ,
-          cong₂ (λ z w → (Par⊤ csSR' z w) ∖ csSR') (proj₂ clI) (proj₂ clR)))
+          cong₂ (λ z w → ((z ∥⇘ csSR' ⇙ w) ∖ csSR')) (proj₂ clI) (proj₂ clR)))
   where clI = decI-rcvack-class {i} Iev
         clR = TR-rcvack-class {t} {r} TRev
 sim-Tx-τ {i} {t} {r} step | hτH {B} {e} {a} _ mem parev refl | rcvack N2N_KeepAlive zero
@@ -1913,7 +1926,7 @@ sim-Tx-ev : ∀ {i t r B} {e : Net ⊤ B} {a} {W} →
   ⊎ ((t ≡ T1) × (evl (evLabel B e a) ≡ txLbl)    × (W ≡ decTx i Tg r))
   ⊎ ((r ≡ R0) × (evl (evLabel B e a) ≡ ackLbl)   × (W ≡ decTx i t R1))
 sim-Tx-ev {i} {t} {r} step
-  with Hide-ev-elim csSR' (Par⊤ csSR' (decI i) (decT t ⦀ decR r)) step
+  with Hide-ev-elim csSR' ((decI i) ∥⇘ csSR' ⇙ (decT t ⦀ decR r)) step
 ... | heV {B} {e} {a} _ ¬cs parev with e
 -- input: ∉csSR'; decI offers it solo at I0.
 ... | input N2N_ChainSync    ()
@@ -1925,7 +1938,7 @@ sim-Tx-ev {i} {t} {r} step
       with Par-ev-elim csSR' ⊤merge (decI i) (decT t ⦀ decR r) parev
 ...   | evSync mem _ _   = ⊥-elim mem
 ...   | evL  _ Iev       = inj₁ (proj₁ cl , refl ,
-          cong (λ z → (Par⊤ csSR' z (decT t ⦀ decR r)) ∖ csSR') (proj₂ cl))
+          cong (λ z → ((z ∥⇘ csSR' ⇙ (decT t ⦀ decR r)) ∖ csSR')) (proj₂ cl))
   where cl = decI-input-class {i} Iev
 sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | input N2N_KeepAlive zero
       | evR  _ TRev      = ⊥-elim (TR-no-input {t} {r} TRev)
@@ -1943,7 +1956,7 @@ sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | tx N2N_KeepAlive zer
 ...   | evL  _ Iev       = ⊥-elim (decI-no-tx {i} Iev)
 sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | tx N2N_KeepAlive zero
       | evR  _ TRev      = inj₂ (inj₁ (proj₁ cl , refl ,
-          cong (λ z → (Par⊤ csSR' (decI i) z) ∖ csSR') (proj₂ cl)))
+          cong (λ z → (((decI i) ∥⇘ csSR' ⇙ z) ∖ csSR')) (proj₂ cl)))
   where cl = TR-tx-class {t} {r} TRev
 sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | tx N2N_KeepAlive zero
       | evBoth _ Iev _   = ⊥-elim (decI-no-tx {i} Iev)
@@ -1959,7 +1972,7 @@ sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | ack N2N_KeepAlive ze
 ...   | evL  _ Iev       = ⊥-elim (decI-no-ack {i} Iev)
 sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | ack N2N_KeepAlive zero
       | evR  _ TRev      = inj₂ (inj₂ (proj₁ cl , refl ,
-          cong (λ z → (Par⊤ csSR' (decI i) z) ∖ csSR') (proj₂ cl)))
+          cong (λ z → (((decI i) ∥⇘ csSR' ⇙ z) ∖ csSR')) (proj₂ cl)))
   where cl = TR-ack-class {t} {r} TRev
 sim-Tx-ev {i} {t} {r} step | heV {B} {e} {a} _ ¬cs parev | ack N2N_KeepAlive zero
       | evBoth _ Iev _   = ⊥-elim (decI-no-ack {i} Iev)
@@ -2135,22 +2148,22 @@ sim-Rx-τ : ∀ {o c s W} → decRx o c s ─[ τ ]─► W →
   ⊎ ((c ≡ Rcg) × (W ≡ decRx o Rc0 s))                -- gRc
   ⊎ ((s ≡ Sag) × (W ≡ decRx o c Sa0))                -- gSa
 sim-Rx-τ {o} {c} {s} step
-  with Hide-τ-elim csRS' (Par⊤ csRS' (decO o) (decC c ⦀ decS s)) step
+  with Hide-τ-elim csRS' ((decO o) ∥⇘ csRS' ⇙ (decC c ⦀ decS s)) step
 -- (A) the inner Par's own τ: decO guard, or a τ of RS (decC/decS guard).
 ... | hτP _ parτ refl
       with Par-τ-elim csRS' ⊤merge (decO o) (decC c ⦀ decS s) parτ
 ...   | τL _ Oτ refl =
         inj₂ (inj₂ (inj₁ (proj₁ cl ,
-          cong (λ z → (Par⊤ csRS' z (decC c ⦀ decS s)) ∖ csRS') (proj₂ cl))))
+          cong (λ z → ((z ∥⇘ csRS' ⇙ (decC c ⦀ decS s)) ∖ csRS')) (proj₂ cl))))
   where cl = decO-τ-class Oτ
 sim-Rx-τ {o} {c} {s} step | hτP _ parτ refl
       | τR _ RSτ refl with RS-τ-class RSτ
 ...     | inj₁ (gc , weq) =
           inj₂ (inj₂ (inj₂ (inj₁ (gc ,
-            cong (λ z → (Par⊤ csRS' (decO o) z) ∖ csRS') weq))))
+            cong (λ z → (((decO o) ∥⇘ csRS' ⇙ z) ∖ csRS')) weq))))
 ...     | inj₂ (gs , weq) =
           inj₂ (inj₂ (inj₂ (inj₂ (gs ,
-            cong (λ z → (Par⊤ csRS' (decO o) z) ∖ csRS') weq))))
+            cong (λ z → (((decO o) ∥⇘ csRS' ⇙ z) ∖ csRS')) weq))))
 -- (B) a HIDDEN csRS-event of the inner Par: a rcvmsg or sndack SYNC.
 sim-Rx-τ {o} {c} {s} step
   | hτH {B} {e} {a} _ mem parev refl with e
@@ -2163,7 +2176,7 @@ sim-Rx-τ {o} {c} {s} step
 ... | rcvmsg N2N_KeepAlive zero
       with Par-ev-elim csRS' ⊤merge (decO o) (decC c ⦀ decS s) parev
 ...   | evSync _ Oev RSev = inj₁ (proj₁ clRS , proj₁ clO ,
-          cong₂ (λ z w → (Par⊤ csRS' z w) ∖ csRS') (proj₂ clO) (proj₂ clRS))
+          cong₂ (λ z w → ((z ∥⇘ csRS' ⇙ w) ∖ csRS')) (proj₂ clO) (proj₂ clRS))
   where clO  = decO-rcvmsg-class {o} Oev
         clRS = RS-rcvmsg-class {c} {s} RSev
 sim-Rx-τ {o} {c} {s} step | hτH {B} {e} {a} _ mem parev refl | rcvmsg N2N_KeepAlive zero
@@ -2181,7 +2194,7 @@ sim-Rx-τ {o} {c} {s} step | hτH {B} {e} {a} _ mem parev refl | sndack N2N_Leio
 sim-Rx-τ {o} {c} {s} step | hτH {B} {e} {a} _ mem parev refl | sndack N2N_KeepAlive zero
       with Par-ev-elim csRS' ⊤merge (decO o) (decC c ⦀ decS s) parev
 ...   | evSync _ Oev RSev = inj₂ (inj₁ (proj₁ clO , proj₁ clRS ,
-          cong₂ (λ z w → (Par⊤ csRS' z w) ∖ csRS') (proj₂ clO) (proj₂ clRS)))
+          cong₂ (λ z w → ((z ∥⇘ csRS' ⇙ w) ∖ csRS')) (proj₂ clO) (proj₂ clRS)))
   where clO  = decO-sndack-class {o} Oev
         clRS = RS-sndack-class {c} {s} RSev
 sim-Rx-τ {o} {c} {s} step | hτH {B} {e} {a} _ mem parev refl | sndack N2N_KeepAlive zero
@@ -2401,7 +2414,7 @@ sim-Rx-ev : ∀ {o c s B} {e : Net ⊤ B} {a} {W} →
   ⊎ ((c ≡ Rc0) × (evl (evLabel B e a) ≡ txLbl)     × (W ≡ decRx o Rc1 s))
   ⊎ ((s ≡ Sa1) × (evl (evLabel B e a) ≡ ackLbl)    × (W ≡ decRx o c Sag))
 sim-Rx-ev {o} {c} {s} step
-  with Hide-ev-elim csRS' (Par⊤ csRS' (decO o) (decC c ⦀ decS s)) step
+  with Hide-ev-elim csRS' ((decO o) ∥⇘ csRS' ⇙ (decC c ⦀ decS s)) step
 ... | heV {B} {e} {a} _ ¬cs parev with e
 -- output: ∉csRS'; decO offers it solo at O1.
 ... | output N2N_ChainSync    ()
@@ -2413,7 +2426,7 @@ sim-Rx-ev {o} {c} {s} step
       with Par-ev-elim csRS' ⊤merge (decO o) (decC c ⦀ decS s) parev
 ...   | evSync mem _ _   = ⊥-elim mem
 ...   | evL  _ Oev       = inj₁ (proj₁ cl , refl ,
-          cong (λ z → (Par⊤ csRS' z (decC c ⦀ decS s)) ∖ csRS') (proj₂ cl))
+          cong (λ z → ((z ∥⇘ csRS' ⇙ (decC c ⦀ decS s)) ∖ csRS')) (proj₂ cl))
   where cl = decO-output-class {o} Oev
 sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | output N2N_KeepAlive zero
       | evR  _ RSev      = ⊥-elim (RS-no-output {c} {s} RSev)
@@ -2431,7 +2444,7 @@ sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | tx N2N_KeepAlive zer
 ...   | evL  _ Oev       = ⊥-elim (decO-no-tx {o} Oev)
 sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | tx N2N_KeepAlive zero
       | evR  _ RSev      = inj₂ (inj₁ (proj₁ cl , refl ,
-          cong (λ z → (Par⊤ csRS' (decO o) z) ∖ csRS') (proj₂ cl)))
+          cong (λ z → (((decO o) ∥⇘ csRS' ⇙ z) ∖ csRS')) (proj₂ cl)))
   where cl = RS-tx-class {c} {s} RSev
 sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | tx N2N_KeepAlive zero
       | evBoth _ Oev _   = ⊥-elim (decO-no-tx {o} Oev)
@@ -2447,7 +2460,7 @@ sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | ack N2N_KeepAlive ze
 ...   | evL  _ Oev       = ⊥-elim (decO-no-ack {o} Oev)
 sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | ack N2N_KeepAlive zero
       | evR  _ RSev      = inj₂ (inj₂ (proj₁ cl , refl ,
-          cong (λ z → (Par⊤ csRS' (decO o) z) ∖ csRS') (proj₂ cl)))
+          cong (λ z → (((decO o) ∥⇘ csRS' ⇙ z) ∖ csRS')) (proj₂ cl)))
   where cl = RS-ack-class {c} {s} RSev
 sim-Rx-ev {o} {c} {s} step | heV {B} {e} {a} _ ¬cs parev | ack N2N_KeepAlive zero
       | evBoth _ Oev _   = ⊥-elim (decO-no-ack {o} Oev)
@@ -2536,36 +2549,36 @@ sim-modA (mkCS i t r o c s) (maτ parτ)
 ... | τL P′ Txτ refl with sim-Tx-τ {i} {t} {r} Txτ
 ...   | inj₁ (refl , refl , Weq) =
         mkCS I2 T1 r o c s , NM.sndmsg ,
-        cong (λ z → Par⊤ csTA' z (decRx o c s)) Weq
+        cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq
 ...   | inj₂ (inj₁ (refl , refl , Weq)) =
         mkCS Ig t Rg o c s , NM.rcvack ,
-        cong (λ z → Par⊤ csTA' z (decRx o c s)) Weq
+        cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq
 ...   | inj₂ (inj₂ (inj₁ (refl , Weq))) =
         mkCS I0 t r o c s , gI ,
-        cong (λ z → Par⊤ csTA' z (decRx o c s)) Weq
+        cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq
 ...   | inj₂ (inj₂ (inj₂ (inj₁ (refl , Weq)))) =
         mkCS i T0 r o c s , gT ,
-        cong (λ z → Par⊤ csTA' z (decRx o c s)) Weq
+        cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq
 ...   | inj₂ (inj₂ (inj₂ (inj₂ (refl , Weq)))) =
         mkCS i t R0 o c s , gR ,
-        cong (λ z → Par⊤ csTA' z (decRx o c s)) Weq
+        cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq
 sim-modA (mkCS i t r o c s) (maτ parτ)
   | τR Q′ Rxτ refl with sim-Rx-τ {o} {c} {s} Rxτ
 ...   | inj₁ (refl , refl , Weq) =
         mkCS i t r O1 Rcg s , NM.rcvmsg ,
-        cong (λ z → Par⊤ csTA' (decTx i t r) z) Weq
+        cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq
 ...   | inj₂ (inj₁ (refl , refl , Weq)) =
         mkCS i t r Og c Sa1 , NM.sndack ,
-        cong (λ z → Par⊤ csTA' (decTx i t r) z) Weq
+        cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq
 ...   | inj₂ (inj₂ (inj₁ (refl , Weq))) =
         mkCS i t r O0 c s , gO ,
-        cong (λ z → Par⊤ csTA' (decTx i t r) z) Weq
+        cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq
 ...   | inj₂ (inj₂ (inj₂ (inj₁ (refl , Weq)))) =
         mkCS i t r o Rc0 s , gRc ,
-        cong (λ z → Par⊤ csTA' (decTx i t r) z) Weq
+        cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq
 ...   | inj₂ (inj₂ (inj₂ (inj₂ (refl , Weq)))) =
         mkCS i t r o c Sa0 , gSa ,
-        cong (λ z → Par⊤ csTA' (decTx i t r) z) Weq
+        cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq
 -- (2) a hidden csTA-event (tx/ack): a SYNC between Tx- and Rx-sides.
 --   The non-sync eliminations (evL/evR/evBoth) carry `¬cs` contradicting `mem`.
 sim-modA (mkCS i t r o c s) (maE mem parev)
@@ -2613,7 +2626,7 @@ sim-uVis (mkCS i t r o c s) ¬cs st
 ... | evL _ Txev with sim-Tx-ev {i} {t} {r} Txev
 ...   | inj₁ (refl , _ , Weq) =
         mkCS I1 t r o c s , NM.input ,
-        cong (λ z → Par⊤ csTA' z (decRx o c s)) Weq
+        cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq
 ...   | inj₂ (inj₁ (_ , Ltx  , _)) = ⊥-elim (¬cs (txLbl→mem Ltx))
 ...   | inj₂ (inj₂ (_ , Lack , _)) = ⊥-elim (¬cs (ackLbl→mem Lack))
 -- a SOLO Rx-side offer (∉csTA): must be `output`.
@@ -2621,7 +2634,7 @@ sim-uVis (mkCS i t r o c s) ¬cs st
   | evR _ Rxev with sim-Rx-ev {o} {c} {s} Rxev
 ...   | inj₁ (refl , _ , Weq) =
         mkCS i t r O2 c s , NM.output ,
-        cong (λ z → Par⊤ csTA' (decTx i t r) z) Weq
+        cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq
 ...   | inj₂ (inj₁ (_ , Ltx  , _)) = ⊥-elim (¬cs (txLbl→mem Ltx))
 ...   | inj₂ (inj₂ (_ , Lack , _)) = ⊥-elim (¬cs (ackLbl→mem Lack))
 -- a SYNC: the synced event is in csTA', contradicting `¬cs`.
@@ -2694,3 +2707,1578 @@ goodU-T0 = subst GoodU dec-cs0 (goodU-cs cs0)
 CopySpec⊑D-Network : CopySpec ⊑D Network
 CopySpec⊑D-Network div =
   ⊥-elim (Reach-noDiv goodU-T0 (IsDivergence.reach div) (IsDivergence.divwit div))
+
+------------------------------------------------------------------------
+-- MILESTONE 3 (reverse): `Network ⊑D CopySpec`.
+--
+-- `Network ⊑D CopySpec = ∀{s} → divergences CopySpec s → divergences Network s`.
+-- `CopySpec` is divergence-free along EVERY trace, so `divergences CopySpec`
+-- is empty and the inclusion is vacuous.
+--
+-- `CopySpec` (instance p1) = `⦀⋆ (map CopysId allIDs)` with ONE live leaf
+-- `Copy N2N_KeepAlive c0` (the other ids give `⦀Fin 0 = Skip`, inert).  Its
+-- lifecycle is exactly three reachable states — NO hiding, NO sync, NO
+-- diamonds:
+--   C0 = CopySpec  — offers `input` only, τ-stable; `input` → C1.
+--   C1             — offers `output` only, τ-stable; `output` → Cg.
+--   Cg             — the post-`output` loop0 restart guard; ONE τ → C0
+--                    (definitionally C0 = CopySpec), offers NO visible event.
+------------------------------------------------------------------------
+
+-- The three reachable states, defined by reduction off `CopySpec`.
+C0 C1 Cg : NetProc
+C0 = CopySpec
+C1 = succV C0 inputAt tt
+Cg = succV C1 outputAt tt
+
+-- Sanity probes (definitional, by `refl`).
+C0-offers-input : is-just (vis-of (force C0) inputAt tt) ≡ true
+C0-offers-input = refl
+
+C0-no-output : vis-of (force C0) outputAt tt ≡ nothing
+C0-no-output = refl
+
+C1-offers-output : is-just (vis-of (force C1) outputAt tt) ≡ true
+C1-offers-output = refl
+
+C1-no-input : vis-of (force C1) inputAt tt ≡ nothing
+C1-no-input = refl
+
+Cg-no-input : vis-of (force Cg) inputAt tt ≡ nothing
+Cg-no-input = refl
+
+Cg-no-output : vis-of (force Cg) outputAt tt ≡ nothing
+Cg-no-output = refl
+
+-- Step characterizations.
+-- C0 is τ-stable (= `CopySpec-stable`).
+C0-noτ : ∀ {W} → C0 ─[ τ ]─► W → ⊥
+C0-noτ = CopySpec-stable
+
+-- C1 is τ-stable (mid-state, only a visible `output` offer; no enabled τ).
+C1-noτ : ∀ {W} → C1 ─[ τ ]─► W → ⊥
+C1-noτ (sSil ())
+C1-noτ (sTau {i = _ , fin}                       refl ())
+C1-noτ (sTau {i = _ , base _}                    refl ())
+C1-noτ (sTau {i = _ , pair fin (base _)}         refl ())
+C1-noτ (sTau {i = _ , pair fin fin}              refl ())
+C1-noτ (sTau {i = _ , pair fin (pair _ _)}       refl ())
+C1-noτ (sTau {i = _ , pair (base _) _}           refl ())
+C1-noτ (sTau {i = _ , pair (pair _ _) _}         refl ())
+
+-- Cg has the single restart-guard τ to C0 (a `sSil refl`, like the decI/decO
+-- guards); no other τ.
+Cg-τ : ∀ {W} → Cg ─[ τ ]─► W → W ≡ C0
+Cg-τ (sSil refl) = refl
+Cg-τ (sTau () _)
+
+-- Cg (the restart guard) offers NO visible event (mirror `decI-Ig-noev`).
+Cg-noev : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  Cg ─[ ev (evl (evLabel B e a)) ]─► W → ⊥
+Cg-noev (sVis () _)
+
+-- Skip (= Ret tt) offers no visible event: a `sVis` needs `force Skip ≡
+-- react …`, but `force Skip = ret tt`.
+Skip-no-ev : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  Skip {0ℓ} ─[ ev (evl (evLabel B e a)) ]─► W → ⊥
+Skip-no-ev (sVis () _)
+
+------------------------------------------------------------------------
+-- Interleave peeling: `CopySpec` is `⦀⋆ (map CopysId allIDs)`, a nest of
+-- `_⦀_` (= `Par ∅ES ⊤merge`) whose only live operand is `Copy KA c0`; every
+-- other operand is `Skip` (`numConns id = 0 ⇒ ⦀Fin 0 = Skip`, and the empty
+-- `⦀⋆ [] = Skip`).  We peel visible steps through the inert (`NoEv`) Skips.
+------------------------------------------------------------------------
+
+-- `P` offers no visible event.
+NoEv : NetProc → Set₁
+NoEv P = ∀ {B} {e : Net ⊤ B} {a} {W} →
+         P ─[ ev (evl (evLabel B e a)) ]─► W → ⊥
+
+-- `_⦀_` of two `NoEv` operands is `NoEv` (no sync in `∅ES`; solos/both
+-- delegate to an operand step, both refuted).
+⦀-NoEv : ∀ {P Q} → NoEv P → NoEv Q → NoEv (P ⦀ Q)
+⦀-NoEv {P} {Q} nP nQ st with Par-ev-elim ∅ES ⊤merge P Q st
+... | evSync () _ _
+... | evL  _ pst     = nP pst
+... | evR  _ qst     = nQ qst
+... | evBoth _ pst _ = nP pst
+
+-- The five inert `CopysId`s reduce to `Skip` (numConns = 0).
+CopysId-CS-Skip : CopysId N2N_ChainSync ≡ Skip {0ℓ}
+CopysId-CS-Skip = refl
+CopysId-BF-Skip : CopysId N2N_BlockFetch ≡ Skip {0ℓ}
+CopysId-BF-Skip = refl
+CopysId-TS-Skip : CopysId N2N_TxSubmission ≡ Skip {0ℓ}
+CopysId-TS-Skip = refl
+CopysId-LN-Skip : CopysId N2N_LeiosNotify ≡ Skip {0ℓ}
+CopysId-LN-Skip = refl
+CopysId-LF-Skip : CopysId N2N_LeiosFetch ≡ Skip {0ℓ}
+CopysId-LF-Skip = refl
+
+-- The KeepAlive operand is `Copy KA c0 ⦀ Skip`.
+CopysId-KA : CopysId N2N_KeepAlive ≡ (Copy N2N_KeepAlive c0 ⦀ Skip {0ℓ})
+CopysId-KA = refl
+
+-- CopySpec laid out as the explicit interleave nest.
+CopySpec-layout :
+  CopySpec ≡
+    ( Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀
+      ((Copy N2N_KeepAlive c0 ⦀ Skip {0ℓ}) ⦀ (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ Skip {0ℓ}))))))
+CopySpec-layout = refl
+
+-- Live-leaf characterization.  `Copy KA c0`'s offer map fires ONLY
+-- `input KA c0`, landing on its input-successor (= `Output(KA,c0) tt Skip`).
+CopyLeaf : NetProc
+CopyLeaf = Copy N2N_KeepAlive c0
+
+CopyLeaf-in : NetProc
+CopyLeaf-in = succV CopyLeaf inputAt tt
+CopyLeaf-ev : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  CopyLeaf ─[ ev (evl (evLabel B e a)) ]─► W → W ≡ CopyLeaf-in
+CopyLeaf-ev {e = input N2N_KeepAlive zero}    (sVis refl refl) = refl
+CopyLeaf-ev {e = input N2N_ChainSync    c}    (sVis refl ())
+CopyLeaf-ev {e = input N2N_BlockFetch   c}    (sVis refl ())
+CopyLeaf-ev {e = input N2N_TxSubmission c}    (sVis refl ())
+CopyLeaf-ev {e = input N2N_LeiosNotify  c}    (sVis refl ())
+CopyLeaf-ev {e = input N2N_LeiosFetch   c}    (sVis refl ())
+CopyLeaf-ev {e = output id c}                 (sVis refl ())
+CopyLeaf-ev {e = sndmsg id c}                 (sVis refl ())
+CopyLeaf-ev {e = rcvmsg id c}                 (sVis refl ())
+CopyLeaf-ev {e = tx     id c}                 (sVis refl ())
+CopyLeaf-ev {e = sndack id c}                 (sVis refl ())
+CopyLeaf-ev {e = rcvack id c}                 (sVis refl ())
+CopyLeaf-ev {e = ack    id c}                 (sVis refl ())
+
+-- Label-pinned: the fired label is exactly `inputLbl`.
+CopyLeaf-evL : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  CopyLeaf ─[ ev (evl (evLabel B e a)) ]─► W → evl (evLabel B e a) ≡ inputLbl
+CopyLeaf-evL {e = input N2N_KeepAlive zero}    (sVis refl refl) = refl
+CopyLeaf-evL {e = input N2N_ChainSync    c}    (sVis refl ())
+CopyLeaf-evL {e = input N2N_BlockFetch   c}    (sVis refl ())
+CopyLeaf-evL {e = input N2N_TxSubmission c}    (sVis refl ())
+CopyLeaf-evL {e = input N2N_LeiosNotify  c}    (sVis refl ())
+CopyLeaf-evL {e = input N2N_LeiosFetch   c}    (sVis refl ())
+CopyLeaf-evL {e = output id c}                 (sVis refl ())
+CopyLeaf-evL {e = sndmsg id c}                 (sVis refl ())
+CopyLeaf-evL {e = rcvmsg id c}                 (sVis refl ())
+CopyLeaf-evL {e = tx     id c}                 (sVis refl ())
+CopyLeaf-evL {e = sndack id c}                 (sVis refl ())
+CopyLeaf-evL {e = rcvack id c}                 (sVis refl ())
+CopyLeaf-evL {e = ack    id c}                 (sVis refl ())
+
+-- A visible step of `P ⦀ Q` with `Q` inert (`NoEv`) is a solo step of `P`,
+-- and the residual is `P′ ⦀ Q`.
+⦀-ev-left : ∀ {P Q B} {e : Net ⊤ B} {a} {W} → NoEv Q →
+  (P ⦀ Q) ─[ ev (evl (evLabel B e a)) ]─► W →
+  Σ[ P′ ∈ NetProc ] ((P ─[ ev (evl (evLabel B e a)) ]─► P′) × (W ≡ (P′ ⦀ Q)))
+⦀-ev-left {P} {Q} nQ st with Par-ev-elim ∅ES ⊤merge P Q st
+... | evSync () _ _
+... | evL  _ pst      = _ , pst , refl
+... | evR  _ qst      = ⊥-elim (nQ qst)
+... | evBoth _ _ qst  = ⊥-elim (nQ qst)
+
+-- Symmetric: with `P` inert, a visible step of `P ⦀ Q` is a solo of `Q`.
+⦀-ev-right : ∀ {P Q B} {e : Net ⊤ B} {a} {W} → NoEv P →
+  (P ⦀ Q) ─[ ev (evl (evLabel B e a)) ]─► W →
+  Σ[ Q′ ∈ NetProc ] ((Q ─[ ev (evl (evLabel B e a)) ]─► Q′) × (W ≡ (P ⦀ Q′)))
+⦀-ev-right {P} {Q} nP st with Par-ev-elim ∅ES ⊤merge P Q st
+... | evSync () _ _
+... | evL  _ pst      = ⊥-elim (nP pst)
+... | evR  _ qst      = _ , qst , refl
+... | evBoth _ pst _  = ⊥-elim (nP pst)
+
+-- Inert (NoEv) building blocks.
+Skip0-NoEv : NoEv (Skip {0ℓ})
+Skip0-NoEv = Skip-no-ev
+
+-- The post-KeepAlive tail `Skip ⦀ (Skip ⦀ Skip)` is inert.
+tail-NoEv : NoEv (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ Skip {0ℓ}))
+tail-NoEv = ⦀-NoEv Skip0-NoEv (⦀-NoEv Skip0-NoEv Skip0-NoEv)
+
+-- C1 is the input-successor laid out: the live leaf advanced to its
+-- input-successor, every Skip unchanged.
+C1-layout :
+  C1 ≡
+    ( Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀
+      ((CopyLeaf-in ⦀ Skip {0ℓ}) ⦀ (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ Skip {0ℓ}))))))
+C1-layout = refl
+
+-- C0 fires ONLY `input`, landing on C1.  Peel the three leading Skips
+-- (`⦀-ev-right`), the trailing tail (`⦀-ev-left`), and the right Skip of the
+-- KeepAlive operand (`⦀-ev-left`), down to the live `Copy KA c0` leaf
+-- (`CopyLeaf-ev`); each residual reassembles definitionally to `C1`.
+C0-ev : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  C0 ─[ ev (evl (evLabel B e a)) ]─► W → W ≡ C1
+C0-ev st
+  with ⦀-ev-right Skip0-NoEv st
+... | _ , st1 , refl
+  with ⦀-ev-right Skip0-NoEv st1
+... | _ , st2 , refl
+  with ⦀-ev-right Skip0-NoEv st2
+... | _ , st3 , refl
+  with ⦀-ev-left tail-NoEv st3
+... | _ , st4 , refl
+  with ⦀-ev-left Skip0-NoEv st4
+... | _ , st5 , refl
+  with CopyLeaf-ev st5
+... | refl = refl
+
+-- The live leaf after `input`: `CopyLeaf-in` fires ONLY `output`, landing on
+-- its output-successor.
+CopyLeaf-g : NetProc
+CopyLeaf-g = succV CopyLeaf-in outputAt tt
+
+CopyLeaf-in-ev : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  CopyLeaf-in ─[ ev (evl (evLabel B e a)) ]─► W → W ≡ CopyLeaf-g
+CopyLeaf-in-ev {e = output N2N_KeepAlive zero}     (sVis refl refl) = refl
+CopyLeaf-in-ev {e = output N2N_ChainSync    c}     (sVis refl ())
+CopyLeaf-in-ev {e = output N2N_BlockFetch   c}     (sVis refl ())
+CopyLeaf-in-ev {e = output N2N_TxSubmission c}     (sVis refl ())
+CopyLeaf-in-ev {e = output N2N_LeiosNotify  c}     (sVis refl ())
+CopyLeaf-in-ev {e = output N2N_LeiosFetch   c}     (sVis refl ())
+CopyLeaf-in-ev {e = input  id c}                   (sVis refl ())
+CopyLeaf-in-ev {e = sndmsg id c}                   (sVis refl ())
+CopyLeaf-in-ev {e = rcvmsg id c}                   (sVis refl ())
+CopyLeaf-in-ev {e = tx     id c}                   (sVis refl ())
+CopyLeaf-in-ev {e = sndack id c}                   (sVis refl ())
+CopyLeaf-in-ev {e = rcvack id c}                   (sVis refl ())
+CopyLeaf-in-ev {e = ack    id c}                   (sVis refl ())
+
+-- Label-pinned: the fired label is exactly `outputLbl`.
+CopyLeaf-in-evL : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  CopyLeaf-in ─[ ev (evl (evLabel B e a)) ]─► W → evl (evLabel B e a) ≡ outputLbl
+CopyLeaf-in-evL {e = output N2N_KeepAlive zero}     (sVis refl refl) = refl
+CopyLeaf-in-evL {e = output N2N_ChainSync    c}     (sVis refl ())
+CopyLeaf-in-evL {e = output N2N_BlockFetch   c}     (sVis refl ())
+CopyLeaf-in-evL {e = output N2N_TxSubmission c}     (sVis refl ())
+CopyLeaf-in-evL {e = output N2N_LeiosNotify  c}     (sVis refl ())
+CopyLeaf-in-evL {e = output N2N_LeiosFetch   c}     (sVis refl ())
+CopyLeaf-in-evL {e = input  id c}                   (sVis refl ())
+CopyLeaf-in-evL {e = sndmsg id c}                   (sVis refl ())
+CopyLeaf-in-evL {e = rcvmsg id c}                   (sVis refl ())
+CopyLeaf-in-evL {e = tx     id c}                   (sVis refl ())
+CopyLeaf-in-evL {e = sndack id c}                   (sVis refl ())
+CopyLeaf-in-evL {e = rcvack id c}                   (sVis refl ())
+CopyLeaf-in-evL {e = ack    id c}                   (sVis refl ())
+
+-- Cg laid out: the live leaf advanced to its output-successor, Skips fixed.
+Cg-layout :
+  Cg ≡
+    ( Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀
+      ((CopyLeaf-g ⦀ Skip {0ℓ}) ⦀ (Skip {0ℓ} ⦀ (Skip {0ℓ} ⦀ Skip {0ℓ}))))))
+Cg-layout = refl
+
+-- C1 fires ONLY `output`, landing on Cg.  Same peel as C0-ev.
+C1-ev : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  C1 ─[ ev (evl (evLabel B e a)) ]─► W → W ≡ Cg
+C1-ev st
+  with ⦀-ev-right Skip0-NoEv st
+... | _ , st1 , refl
+  with ⦀-ev-right Skip0-NoEv st1
+... | _ , st2 , refl
+  with ⦀-ev-right Skip0-NoEv st2
+... | _ , st3 , refl
+  with ⦀-ev-left tail-NoEv st3
+... | _ , st4 , refl
+  with ⦀-ev-left Skip0-NoEv st4
+... | _ , st5 , refl
+  with CopyLeaf-in-ev st5
+... | refl = refl
+
+-- Label-pinned C0 / C1 visible steps (label = input/output, residual = C1/Cg).
+C0-evL : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  C0 ─[ ev (evl (evLabel B e a)) ]─► W → (evl (evLabel B e a) ≡ inputLbl) × (W ≡ C1)
+C0-evL st
+  with ⦀-ev-right Skip0-NoEv st
+... | _ , st1 , refl with ⦀-ev-right Skip0-NoEv st1
+... | _ , st2 , refl with ⦀-ev-right Skip0-NoEv st2
+... | _ , st3 , refl with ⦀-ev-left tail-NoEv st3
+... | _ , st4 , refl with ⦀-ev-left Skip0-NoEv st4
+... | _ , st5 , refl with CopyLeaf-evL st5 | CopyLeaf-ev st5
+... | refl | refl = refl , refl
+
+C1-evL : ∀ {B} {e : Net ⊤ B} {a} {W} →
+  C1 ─[ ev (evl (evLabel B e a)) ]─► W → (evl (evLabel B e a) ≡ outputLbl) × (W ≡ Cg)
+C1-evL st
+  with ⦀-ev-right Skip0-NoEv st
+... | _ , st1 , refl with ⦀-ev-right Skip0-NoEv st1
+... | _ , st2 , refl with ⦀-ev-right Skip0-NoEv st2
+... | _ , st3 , refl with ⦀-ev-left tail-NoEv st3
+... | _ , st4 , refl with ⦀-ev-left Skip0-NoEv st4
+... | _ , st5 , refl with CopyLeaf-in-evL st5 | CopyLeaf-in-ev st5
+... | refl | refl = refl , refl
+
+-- The three CopySpec lifecycle STRONG steps (intros for the builder).
+C0─input─►C1 : C0 ─[ ev inputLbl ]─► C1
+C0─input─►C1 = sVis {at = inputAt} refl refl
+
+C1─output─►Cg : C1 ─[ ev outputLbl ]─► Cg
+C1─output─►Cg = sVis {at = outputAt} refl refl
+
+Cg─τ─►C0 : Cg ─[ τ ]─► C0
+Cg─τ─►C0 = sSil refl
+
+------------------------------------------------------------------------
+-- ¬ Diverges at each state, then the coinductive `GoodC` invariant.
+------------------------------------------------------------------------
+
+¬Div-C0 : ¬ Diverges C0
+¬Div-C0 = ¬Diverges-CopySpec
+
+¬Div-C1 : ¬ Diverges C1
+¬Div-C1 d = C1-noτ (d .Diverges.step)
+
+¬Div-Cg : ¬ Diverges Cg
+¬Div-Cg d = ¬Div-C0 (subst Diverges (Cg-τ (d .Diverges.step)) (d .Diverges.rest))
+
+
+-- Coinductive divergence-freedom invariant.  `gcev` is stated for ANY
+-- `ev e` (an `evl` visible event OR a `√` termination), so the reach-walk can
+-- consume any `⟹-ev`.
+record GoodC (W : NetProc) : Set₁ where
+  coinductive
+  field
+    gcnd : ¬ Diverges W
+    gcτ  : ∀ {W′} → W ─[ τ ]─► W′ → GoodC W′
+    gcev : ∀ {W′} {e : Event√ NetR} → W ─[ ev e ]─► W′ → GoodC W′
+open GoodC
+
+goodC-C0 : GoodC C0
+goodC-C1 : GoodC C1
+goodC-Cg : GoodC Cg
+
+-- A `√` step lands on `deadlock` (inert); an `evl` step is routed by the
+-- per-state event characterization.  `with`-matching the `≡`-lemma to `refl`
+-- keeps the corecursive call directly under the copattern (productive),
+-- mirroring `goodU-cs`/`goodU-next` of MILESTONE 2.
+goodC-C0 .gcnd                  = ¬Div-C0
+goodC-C0 .gcτ  st               = ⊥-elim (C0-noτ st)
+goodC-C0 .gcev {e = √ x}    (sRet ())
+goodC-C0 .gcev {e = evl _} st  with C0-ev st
+... | refl                      = goodC-C1
+
+goodC-C1 .gcnd                  = ¬Div-C1
+goodC-C1 .gcτ  st               = ⊥-elim (C1-noτ st)
+goodC-C1 .gcev {e = √ x}    (sRet ())
+goodC-C1 .gcev {e = evl _} st  with C1-ev st
+... | refl                      = goodC-Cg
+
+goodC-Cg .gcnd                  = ¬Div-Cg
+goodC-Cg .gcτ  st               with Cg-τ st
+... | refl                      = goodC-C0
+goodC-Cg .gcev {e = √ x}    (sRet ())
+goodC-Cg .gcev {e = evl _} st  = ⊥-elim (Cg-noev st)
+
+------------------------------------------------------------------------
+-- No weakly-reachable state of CopySpec diverges, hence `divergences
+-- CopySpec` is empty and `Network ⊑D CopySpec` is vacuous.
+------------------------------------------------------------------------
+
+copy-reach-noDiv : ∀ {s W} → CopySpec ⟹⟨ s ⟩ W → ¬ Diverges W
+copy-reach-noDiv = go goodC-C0
+  where
+  go : ∀ {s W W′} → GoodC W → W ⟹⟨ s ⟩ W′ → ¬ Diverges W′
+  go g ⟹-refl         = g .gcnd
+  go g (⟹-τ  st rest) = go (g .gcτ  st) rest
+  go g (⟹-ev st rest) = go (g .gcev st) rest
+
+-- THE REVERSE DIVERGENCE REFINEMENT.
+--   `Network ⊑D CopySpec = ∀{s} → divergences CopySpec s → divergences
+--   Network s`.  `divergences CopySpec s` carries a weakly-reachable witness
+--   `W` with `Diverges W`; `copy-reach-noDiv` rules every such `W` out, so the
+--   inclusion is vacuous.
+Network⊑D-CopySpec : Network ⊑D CopySpec
+Network⊑D-CopySpec div =
+  ⊥-elim (copy-reach-noDiv (IsDivergence.reach div) (IsDivergence.divwit div))
+
+------------------------------------------------------------------------
+-- D1: SINGLE-STEP BISIMULATION  Network ↔ the abstract CS-automaton.
+--
+-- `⟦_⟧N := ⟦_⟧ ∖ csTA'` decodes each abstract state to the corresponding
+-- Network state.  We show (both directions, single step):
+--   ⇒ᵢ  ↔  Network-τ        (internal, hidden)
+--   ⇒ᵥ  ↔  Network-visible   (input / output)
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+-- D1.1: the hidden decode and its initial agreement with Network.
+------------------------------------------------------------------------
+
+⟦_⟧N : CS → NetProc
+⟦ cs ⟧N = ⟦ cs ⟧ ∖ csTA'
+
+decN-cs0 : ⟦ cs0 ⟧N ≡ Network
+decN-cs0 = refl
+
+------------------------------------------------------------------------
+-- D1' : the CONVERSE simulation for the ABSTRACT decode `⟦_⟧N`.
+--
+--   real-⇒ᵢ-Net : cs ⇒ᵢ cs′ → ⟦ cs ⟧N ─[ τ ]─► ⟦ cs′ ⟧N
+--   real-⇒ᵥ-Net : cs ⇒ᵥ cs′ → Σ l. ⟦ cs ⟧N ─[ ev l ]─► ⟦ cs′ ⟧N
+--
+-- Every abstract step is realised by lifting the active leaf's concrete
+-- LTS step (sVis/sSil) through the ⦀ / Par⊤ / ∖ layers via the
+-- Par-τ-L/R, Par-soloL/R, Par-sync, Hide-τ/keep/hidden tools.
+------------------------------------------------------------------------
+
+-- viewV-non-offer helpers (the idle operands at each solo lift).
+-- Each is case-split over the partner's positions; bare `refl` per case.
+
+-- single-leaf non-offers (for the inner ⦀ solos).
+nR-sndmsg : ∀ r → viewV (PTree.force (decR r)) (⊤ , sndmsg N2N_KeepAlive c0) tt ≡ nothing
+nR-sndmsg R0 = refl
+nR-sndmsg R1 = refl
+nR-sndmsg Rg = refl
+
+nT-rcvack : ∀ t → viewV (PTree.force (decT t)) (⊤ , rcvack N2N_KeepAlive c0) tt ≡ nothing
+nT-rcvack T0 = refl
+nT-rcvack T1 = refl
+nT-rcvack Tg = refl
+
+nS-rcvmsg : ∀ s → viewV (PTree.force (decS s)) (⊤ , rcvmsg N2N_KeepAlive c0) tt ≡ nothing
+nS-rcvmsg Sa0 = refl
+nS-rcvmsg Sa1 = refl
+nS-rcvmsg Sag = refl
+
+nC-sndack : ∀ c → viewV (PTree.force (decC c)) (⊤ , sndack N2N_KeepAlive c0) tt ≡ nothing
+nC-sndack Rc0 = refl
+nC-sndack Rc1 = refl
+nC-sndack Rcg = refl
+
+-- single-leaf non-offers of tx / ack (for the top-sync solos).
+nR-tx : ∀ r → viewV (PTree.force (decR r)) (⊤ , tx N2N_KeepAlive c0) tt ≡ nothing
+nR-tx R0 = refl
+nR-tx R1 = refl
+nR-tx Rg = refl
+
+nI-tx : ∀ i → viewV (PTree.force (decI i)) (⊤ , tx N2N_KeepAlive c0) tt ≡ nothing
+nI-tx I0 = refl
+nI-tx I1 = refl
+nI-tx I2 = refl
+nI-tx Ig = refl
+
+nS-tx : ∀ s → viewV (PTree.force (decS s)) (⊤ , tx N2N_KeepAlive c0) tt ≡ nothing
+nS-tx Sa0 = refl
+nS-tx Sa1 = refl
+nS-tx Sag = refl
+
+nO-tx : ∀ o → viewV (PTree.force (decO o)) (⊤ , tx N2N_KeepAlive c0) tt ≡ nothing
+nO-tx O0 = refl
+nO-tx O1 = refl
+nO-tx O2 = refl
+nO-tx Og = refl
+
+nT-ack : ∀ t → viewV (PTree.force (decT t)) (⊤ , ack N2N_KeepAlive c0) tt ≡ nothing
+nT-ack T0 = refl
+nT-ack T1 = refl
+nT-ack Tg = refl
+
+nI-ack : ∀ i → viewV (PTree.force (decI i)) (⊤ , ack N2N_KeepAlive c0) tt ≡ nothing
+nI-ack I0 = refl
+nI-ack I1 = refl
+nI-ack I2 = refl
+nI-ack Ig = refl
+
+nC-ack : ∀ c → viewV (PTree.force (decC c)) (⊤ , ack N2N_KeepAlive c0) tt ≡ nothing
+nC-ack Rc0 = refl
+nC-ack Rc1 = refl
+nC-ack Rcg = refl
+
+nO-ack : ∀ o → viewV (PTree.force (decO o)) (⊤ , ack N2N_KeepAlive c0) tt ≡ nothing
+nO-ack O0 = refl
+nO-ack O1 = refl
+nO-ack O2 = refl
+nO-ack Og = refl
+
+-- composite ⦀ non-offers of input / output (for the visible solos).
+nTR-input : ∀ t r → viewV (PTree.force (decT t ⦀ decR r)) (⊤ , input N2N_KeepAlive c0) tt ≡ nothing
+nTR-input T0 R0 = refl
+nTR-input T0 R1 = refl
+nTR-input T0 Rg = refl
+nTR-input T1 R0 = refl
+nTR-input T1 R1 = refl
+nTR-input T1 Rg = refl
+nTR-input Tg R0 = refl
+nTR-input Tg R1 = refl
+nTR-input Tg Rg = refl
+
+nCS-output : ∀ c s → viewV (PTree.force (decC c ⦀ decS s)) (⊤ , output′ N2N_KeepAlive c0) tt ≡ nothing
+nCS-output Rc0 Sa0 = refl
+nCS-output Rc0 Sa1 = refl
+nCS-output Rc0 Sag = refl
+nCS-output Rc1 Sa0 = refl
+nCS-output Rc1 Sa1 = refl
+nCS-output Rc1 Sag = refl
+nCS-output Rcg Sa0 = refl
+nCS-output Rcg Sa1 = refl
+nCS-output Rcg Sag = refl
+
+-- composite Par⊤/∖ side non-offers of input / output (top-level visible solos).
+nRx-input : ∀ o c s → viewV (PTree.force (decRx o c s)) (⊤ , input N2N_KeepAlive c0) tt ≡ nothing
+nRx-input O0 Rc0 Sa0 = refl
+nRx-input O0 Rc0 Sa1 = refl
+nRx-input O0 Rc0 Sag = refl
+nRx-input O0 Rc1 Sa0 = refl
+nRx-input O0 Rc1 Sa1 = refl
+nRx-input O0 Rc1 Sag = refl
+nRx-input O0 Rcg Sa0 = refl
+nRx-input O0 Rcg Sa1 = refl
+nRx-input O0 Rcg Sag = refl
+nRx-input O1 Rc0 Sa0 = refl
+nRx-input O1 Rc0 Sa1 = refl
+nRx-input O1 Rc0 Sag = refl
+nRx-input O1 Rc1 Sa0 = refl
+nRx-input O1 Rc1 Sa1 = refl
+nRx-input O1 Rc1 Sag = refl
+nRx-input O1 Rcg Sa0 = refl
+nRx-input O1 Rcg Sa1 = refl
+nRx-input O1 Rcg Sag = refl
+nRx-input O2 Rc0 Sa0 = refl
+nRx-input O2 Rc0 Sa1 = refl
+nRx-input O2 Rc0 Sag = refl
+nRx-input O2 Rc1 Sa0 = refl
+nRx-input O2 Rc1 Sa1 = refl
+nRx-input O2 Rc1 Sag = refl
+nRx-input O2 Rcg Sa0 = refl
+nRx-input O2 Rcg Sa1 = refl
+nRx-input O2 Rcg Sag = refl
+nRx-input Og Rc0 Sa0 = refl
+nRx-input Og Rc0 Sa1 = refl
+nRx-input Og Rc0 Sag = refl
+nRx-input Og Rc1 Sa0 = refl
+nRx-input Og Rc1 Sa1 = refl
+nRx-input Og Rc1 Sag = refl
+nRx-input Og Rcg Sa0 = refl
+nRx-input Og Rcg Sa1 = refl
+nRx-input Og Rcg Sag = refl
+
+nTx-output : ∀ i t r → viewV (PTree.force (decTx i t r)) (⊤ , output′ N2N_KeepAlive c0) tt ≡ nothing
+nTx-output I0 T0 R0 = refl
+nTx-output I0 T0 R1 = refl
+nTx-output I0 T0 Rg = refl
+nTx-output I0 T1 R0 = refl
+nTx-output I0 T1 R1 = refl
+nTx-output I0 T1 Rg = refl
+nTx-output I0 Tg R0 = refl
+nTx-output I0 Tg R1 = refl
+nTx-output I0 Tg Rg = refl
+nTx-output I1 T0 R0 = refl
+nTx-output I1 T0 R1 = refl
+nTx-output I1 T0 Rg = refl
+nTx-output I1 T1 R0 = refl
+nTx-output I1 T1 R1 = refl
+nTx-output I1 T1 Rg = refl
+nTx-output I1 Tg R0 = refl
+nTx-output I1 Tg R1 = refl
+nTx-output I1 Tg Rg = refl
+nTx-output I2 T0 R0 = refl
+nTx-output I2 T0 R1 = refl
+nTx-output I2 T0 Rg = refl
+nTx-output I2 T1 R0 = refl
+nTx-output I2 T1 R1 = refl
+nTx-output I2 T1 Rg = refl
+nTx-output I2 Tg R0 = refl
+nTx-output I2 Tg R1 = refl
+nTx-output I2 Tg Rg = refl
+nTx-output Ig T0 R0 = refl
+nTx-output Ig T0 R1 = refl
+nTx-output Ig T0 Rg = refl
+nTx-output Ig T1 R0 = refl
+nTx-output Ig T1 R1 = refl
+nTx-output Ig T1 Rg = refl
+nTx-output Ig Tg R0 = refl
+nTx-output Ig Tg R1 = refl
+nTx-output Ig Tg Rg = refl
+
+------------------------------------------------------------------------
+-- D1'.A : the internal converse simulation  cs ⇒ᵢ cs′ → ⟦cs⟧N ─[τ]→ ⟦cs′⟧N.
+------------------------------------------------------------------------
+
+real-⇒ᵢ-Net : ∀ {cs cs′} → cs NM.⇒ᵢ cs′ → ⟦ cs ⟧N ─[ τ ]─► ⟦ cs′ ⟧N
+
+-- INNER SYNC: sndmsg  (decI I1→I2 ∥ decT T0→T1 solo past decR; ∈ csSR').
+real-⇒ᵢ-Net (NM.sndmsg {r} {o} {c} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-L csTA' ⊤merge (decTx I1 T0 r) (decRx o c s)
+     (Hide-hidden csSR' _ Poly.tt
+       (Par-sync csSR' ⊤merge (decI I1) (decT T0 ⦀ decR r) Poly.tt
+         (sVis refl refl)
+         (Par-soloL ∅ES ⊤merge (decT T0) (decR r) (λ ()) (sVis refl refl)
+           (nR-sndmsg r)))))
+
+-- TOP SYNC: tx  (decT T1→Tg solo to decTx-level ∥ decC Rc0→Rc1 solo to decRx-level; ∈ csTA').
+real-⇒ᵢ-Net (NM.tx {i} {r} {o} {s}) =
+  Hide-hidden csTA' _ Poly.tt
+   (Par-sync csTA' ⊤merge (decTx i T1 r) (decRx o Rc0 s) Poly.tt
+     (Hide-keep csSR' _ (λ ())
+       (Par-soloR csSR' ⊤merge (decI i) (decT T1 ⦀ decR r) (λ ())
+         (Par-soloL ∅ES ⊤merge (decT T1) (decR r) (λ ()) (sVis refl refl)
+           (nR-tx r))
+         (nI-tx i)))
+     (Hide-keep csRS' _ (λ ())
+       (Par-soloR csRS' ⊤merge (decO o) (decC Rc0 ⦀ decS s) (λ ())
+         (Par-soloL ∅ES ⊤merge (decC Rc0) (decS s) (λ ()) (sVis refl refl)
+           (nS-tx s))
+         (nO-tx o))))
+
+-- INNER SYNC: rcvmsg  (decO O0→O1 ∥ decC Rc1→Rcg solo past decS; ∈ csRS').
+real-⇒ᵢ-Net (NM.rcvmsg {i} {t} {r} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-R csTA' ⊤merge (decTx i t r) (decRx O0 Rc1 s)
+     (Hide-hidden csRS' _ Poly.tt
+       (Par-sync csRS' ⊤merge (decO O0) (decC Rc1 ⦀ decS s) Poly.tt
+         (sVis refl refl)
+         (Par-soloL ∅ES ⊤merge (decC Rc1) (decS s) (λ ()) (sVis refl refl)
+           (nS-rcvmsg s)))))
+
+-- INNER SYNC: sndack  (decO O2→Og ∥ decS Sa0→Sa1 solo past decC; ∈ csRS').
+real-⇒ᵢ-Net (NM.sndack {i} {t} {r} {c}) =
+  Hide-τ csTA' _
+   (Par-τ-R csTA' ⊤merge (decTx i t r) (decRx O2 c Sa0)
+     (Hide-hidden csRS' _ Poly.tt
+       (Par-sync csRS' ⊤merge (decO O2) (decC c ⦀ decS Sa0) Poly.tt
+         (sVis refl refl)
+         (Par-soloR ∅ES ⊤merge (decC c) (decS Sa0) (λ ()) (sVis refl refl)
+           (nC-sndack c)))))
+
+-- TOP SYNC: ack  (decR R0→R1 solo to decTx-level ∥ decS Sa1→Sag solo to decRx-level; ∈ csTA').
+real-⇒ᵢ-Net (NM.ack {i} {t} {o} {c}) =
+  Hide-hidden csTA' _ Poly.tt
+   (Par-sync csTA' ⊤merge (decTx i t R0) (decRx o c Sa1) Poly.tt
+     (Hide-keep csSR' _ (λ ())
+       (Par-soloR csSR' ⊤merge (decI i) (decT t ⦀ decR R0) (λ ())
+         (Par-soloR ∅ES ⊤merge (decT t) (decR R0) (λ ()) (sVis refl refl)
+           (nT-ack t))
+         (nI-ack i)))
+     (Hide-keep csRS' _ (λ ())
+       (Par-soloR csRS' ⊤merge (decO o) (decC c ⦀ decS Sa1) (λ ())
+         (Par-soloR ∅ES ⊤merge (decC c) (decS Sa1) (λ ()) (sVis refl refl)
+           (nC-ack c))
+         (nO-ack o))))
+
+-- INNER SYNC: rcvack  (decI I2→Ig ∥ decR R1→Rg solo past decT; ∈ csSR').
+real-⇒ᵢ-Net (NM.rcvack {t} {o} {c} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-L csTA' ⊤merge (decTx I2 t R1) (decRx o c s)
+     (Hide-hidden csSR' _ Poly.tt
+       (Par-sync csSR' ⊤merge (decI I2) (decT t ⦀ decR R1) Poly.tt
+         (sVis refl refl)
+         (Par-soloR ∅ES ⊤merge (decT t) (decR R1) (λ ()) (sVis refl refl)
+           (nT-rcvack t)))))
+
+-- GUARD gI  (decI Ig→I0, τ; left of Par⊤ csSR', TxSide left at top).
+real-⇒ᵢ-Net (NM.gI {t} {r} {o} {c} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-L csTA' ⊤merge (decTx Ig t r) (decRx o c s)
+     (Hide-τ csSR' _
+       (Par-τ-L csSR' ⊤merge (decI Ig) (decT t ⦀ decR r) (sSil refl))))
+
+-- GUARD gT  (decT Tg→T0, τ; left of ⦀, right of Par⊤ csSR').
+real-⇒ᵢ-Net (NM.gT {i} {r} {o} {c} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-L csTA' ⊤merge (decTx i Tg r) (decRx o c s)
+     (Hide-τ csSR' _
+       (Par-τ-R csSR' ⊤merge (decI i) (decT Tg ⦀ decR r)
+         (Par-τ-L ∅ES ⊤merge (decT Tg) (decR r) (sSil refl)))))
+
+-- GUARD gR  (decR Rg→R0, τ; right of ⦀, right of Par⊤ csSR').
+real-⇒ᵢ-Net (NM.gR {i} {t} {o} {c} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-L csTA' ⊤merge (decTx i t Rg) (decRx o c s)
+     (Hide-τ csSR' _
+       (Par-τ-R csSR' ⊤merge (decI i) (decT t ⦀ decR Rg)
+         (Par-τ-R ∅ES ⊤merge (decT t) (decR Rg) (sSil refl)))))
+
+-- GUARD gO  (decO Og→O0, τ; left of Par⊤ csRS', RxSide right at top).
+real-⇒ᵢ-Net (NM.gO {i} {t} {r} {c} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-R csTA' ⊤merge (decTx i t r) (decRx Og c s)
+     (Hide-τ csRS' _
+       (Par-τ-L csRS' ⊤merge (decO Og) (decC c ⦀ decS s) (sSil refl))))
+
+-- GUARD gRc  (decC Rcg→Rc0, τ; left of ⦀, right of Par⊤ csRS').
+real-⇒ᵢ-Net (NM.gRc {i} {t} {r} {o} {s}) =
+  Hide-τ csTA' _
+   (Par-τ-R csTA' ⊤merge (decTx i t r) (decRx o Rcg s)
+     (Hide-τ csRS' _
+       (Par-τ-R csRS' ⊤merge (decO o) (decC Rcg ⦀ decS s)
+         (Par-τ-L ∅ES ⊤merge (decC Rcg) (decS s) (sSil refl)))))
+
+-- GUARD gSa  (decS Sag→Sa0, τ; right of ⦀, right of Par⊤ csRS').
+real-⇒ᵢ-Net (NM.gSa {i} {t} {r} {o} {c}) =
+  Hide-τ csTA' _
+   (Par-τ-R csTA' ⊤merge (decTx i t r) (decRx o c Sag)
+     (Hide-τ csRS' _
+       (Par-τ-R csRS' ⊤merge (decO o) (decC c ⦀ decS Sag)
+         (Par-τ-R ∅ES ⊤merge (decC c) (decS Sag) (sSil refl)))))
+
+------------------------------------------------------------------------
+-- D1'.B : the visible converse simulation  cs ⇒ᵥ cs′ → Σ l. ⟦cs⟧N ─[ev l]→ ⟦cs′⟧N.
+------------------------------------------------------------------------
+
+real-⇒ᵥ-Net : ∀ {cs cs′} → cs NM.⇒ᵥ cs′
+            → Σ[ l ∈ Event√ NetR ] (⟦ cs ⟧N ─[ ev l ]─► ⟦ cs′ ⟧N)
+
+-- VISIBLE input  (decI I0→I1, solo all the way; ∉ csSR', ∉ csTA').
+real-⇒ᵥ-Net (NM.input {t} {r} {o} {c} {s}) =
+  inputLbl ,
+  Hide-keep csTA' _ (λ ())
+   (Par-soloL csTA' ⊤merge (decTx I0 t r) (decRx o c s) (λ ())
+     (Hide-keep csSR' _ (λ ())
+       (Par-soloL csSR' ⊤merge (decI I0) (decT t ⦀ decR r) (λ ())
+         (sVis refl refl)
+         (nTR-input t r)))
+     (nRx-input o c s))
+
+-- VISIBLE output  (decO O1→O2, solo all the way; ∉ csRS', ∉ csTA').
+real-⇒ᵥ-Net (NM.output {i} {t} {r} {c} {s}) =
+  outputLbl ,
+  Hide-keep csTA' _ (λ ())
+   (Par-soloR csTA' ⊤merge (decTx i t r) (decRx O1 c s) (λ ())
+     (Hide-keep csRS' _ (λ ())
+       (Par-soloL csRS' ⊤merge (decO O1) (decC c ⦀ decS s) (λ ())
+         (sVis refl refl)
+         (nCS-output c s)))
+     (nTx-output i t r))
+
+------------------------------------------------------------------------
+-- E1: EXPANSION SCAFFOLDING  CopySpec ⪰ Network  (parametrized builder).
+--
+-- We prove `Network ≈DR CopySpec` via the EXPANSION preorder
+-- (`Semantics.Expansion`): building `CopySpec ⪰ ⟦ cs ⟧N` at every
+-- reachable abstract state `cs` and feeding it to `⪯→≈DR` (E3) yields
+-- `⟦ cs ⟧N ≈DR CopySpec`, hence at `cs0` `Network ≈DR CopySpec`.
+--
+-- THE SHAPE OF THE PROOF.  The CopySpec lifecycle has THREE states,
+--   C0 ─input─► C1 ─output─► Cg ─τ─► C0,
+-- whereas the Network side has 192 reachable control-states (the
+-- intrinsic diamond product of the six leaf-guards draining
+-- asynchronously).  Of those, 112 are PHASE-A (weakly offer input, not
+-- output) and 80 are PHASE-B (weakly offer output, not input); phase is
+-- well-defined (no state weakly offers both, none offers neither).
+--
+-- We therefore relate a CopySpec state to a Network state by a tag
+-- `CSt ∈ {sC0, sC1, sCg}` whose phase is `sC0,sCg ↦ pA`, `sC1 ↦ pB`:
+--   · sC0  ⟷ a phase-A network state             (C0 expands it)
+--   · sC1  ⟷ a phase-B network state             (C1 expands it)
+--   · sCg  ⟷ the *output-target* phase-A state    (Cg expands it; the
+--             extra Cg─τ─►C0 is CopySpec's own move, matched by the
+--             network STAYING — fwd; on the network's first τ, Cg fires
+--             its single τ to C0 and we drop to sC0 — bwd inj₁).
+--
+-- The reachable set with phase is captured by a 4-constructor CLOSURE
+-- relation `Reach : CS → Phase → Set` (NOT a 192-state enumeration):
+-- `cs0` is pA; internal `⇒ᵢ` preserve phase; visible `input` flips A→B,
+-- `output` flips B→A.  This is sound by construction (every tag is a
+-- genuine cs0-reachable state with its true phase) and the lifecycle
+-- lemmas the builder needs are exactly its constructors.
+--
+-- The builder fills the parts needing NO construction:
+--   · bwd.bon-tau  (network τ): reflect (Hide-τ-elim + sim-modA) to
+--       `cs ⇒ᵢ cs′`; CopySpec STUTTERS (inj₂), phase preserved.  EXCEPT
+--       at sCg, where Cg fires its single τ to C0 (inj₁), dropping to sC0.
+--   · fwd.on-tau   (CopySpec τ): C0/C1 are τ-stable ⇒ vacuous; Cg's only
+--       τ (Cg→C0) is matched by the network STAYING (τ*-refl).
+--   · div→/div←    : both sides are divergence-free ⇒ vacuous.
+-- and takes the VISIBLE obligations (E2 + phase soundness) as the
+-- parameter record `VisWit` below — proved in E2, NOT here.
+------------------------------------------------------------------------
+
+open import Relation.Nullary using (¬_)
+
+-- Phases.
+data Phase : Set where pA pB : Phase
+
+-- The reachable-with-phase closure relation (4 constructors).
+data Reach : CS → Phase → Set where
+  reach-cs0 : Reach cs0 pA
+  reach-i   : ∀ {cs cs′ ph} → Reach cs ph → cs ⇒ᵢ cs′ → Reach cs′ ph
+  reach-vA  : ∀ {cs cs′}    → Reach cs pA → cs ⇒ᵥ cs′ → Reach cs′ pB
+  reach-vB  : ∀ {cs cs′}    → Reach cs pB → cs ⇒ᵥ cs′ → Reach cs′ pA
+
+-- LIFECYCLE LEMMAS (exactly the constructors; named for the report/E3).
+reach-init : Reach cs0 pA
+reach-init = reach-cs0
+
+reach-internal : ∀ {cs cs′ ph} → Reach cs ph → cs ⇒ᵢ cs′ → Reach cs′ ph
+reach-internal = reach-i
+
+reach-input  : ∀ {cs cs′} → Reach cs pA → cs ⇒ᵥ cs′ → Reach cs′ pB
+reach-input = reach-vA
+
+reach-output : ∀ {cs cs′} → Reach cs pB → cs ⇒ᵥ cs′ → Reach cs′ pA
+reach-output = reach-vB
+
+-- The non-divergence of every decoded network state (reusing MILESTONE 2):
+-- `goodU-cs` gives `GoodU ⟦ cs ⟧`, and `GoodU→noDiv` hides it.
+¬Div-⟦⟧N : ∀ cs → ¬ Diverges ⟦ cs ⟧N
+¬Div-⟦⟧N cs = GoodU→noDiv (goodU-cs cs)
+
+------------------------------------------------------------------------
+-- E2: THE STRUCTURAL REACHABILITY INVARIANT (a place-invariant).
+--
+-- The 192 reachable control-states are EXACTLY characterised by a single
+-- ℕ place-invariant plus a structural phase function:
+--
+--   Inv cs :   #{tr=T1} + #{ra=R1} + #{out∈{O1,O2}} + #{rc=Rc1} + #{sa=Sa1}
+--            ≡ #{inp=I2}
+--
+--   phase cs :  #{inp=I1} + #{tr=T1} + #{out=O1} + #{rc=Rc1}
+--               (pA ⟺ ≡0 ; pB ⟺ ≡1)
+--
+-- `Inv` says there is at most one "in-flight" token, accounted by I2; it
+-- holds at cs0 and is preserved by every `⇒ᵢ`/`⇒ᵥ` edge.  Together with the
+-- phase agreement (`Reach … pA ⇒ phase ≡ 0`), it implies the LIVENESS
+-- engine `liveA`/`liveB` (a phase-A non-input-enabled state always has an
+-- internal move), the crux of the abstract drains.
+------------------------------------------------------------------------
+
+open import Data.Nat using (zero; suc; _+_)
+import Data.Nat.Solver as ℕSolver
+open ℕSolver.+-*-Solver
+  using ()
+  renaming (solve to ℕsolve; _:=_ to _:≡_; _:+_ to _:⊕_; con to ℕcon)
+
+-- per-leaf token / phase indicators -----------------------------------
+aT : TP → ℕ
+aT T1 = 1
+aT _  = 0
+aR : RP → ℕ
+aR R1 = 1
+aR _  = 0
+aO : OP → ℕ
+aO O1 = 1
+aO O2 = 1
+aO _  = 0
+aC : CP → ℕ
+aC Rc1 = 1
+aC _   = 0
+aS : SP → ℕ
+aS Sa1 = 1
+aS _   = 0
+aI : IP → ℕ
+aI I2 = 1
+aI _  = 0
+
+-- token count on a state (LHS of the place-invariant).
+tok : CS → ℕ
+tok cs = aT (tr cs) + aR (ra cs) + aO (out cs) + aC (rc cs) + aS (sa cs)
+
+-- the place-invariant.
+Inv : CS → Set
+Inv cs = tok cs ≡ aI (inp cs)
+
+-- structural phase.
+pI : IP → ℕ
+pI I1 = 1
+pI _  = 0
+pT : TP → ℕ
+pT T1 = 1
+pT _  = 0
+pO : OP → ℕ
+pO O1 = 1
+pO _  = 0
+pC : CP → ℕ
+pC Rc1 = 1
+pC _   = 0
+
+phaseN : CS → ℕ
+phaseN cs = pI (inp cs) + pT (tr cs) + pO (out cs) + pC (rc cs)
+
+------------------------------------------------------------------------
+-- E2.a  Inv holds at cs0 and is preserved by every abstract edge.
+------------------------------------------------------------------------
+
+Inv-cs0 : Inv cs0
+Inv-cs0 = refl
+
+-- `suc`-injectivity (for the rcvack cancellation).
+sucinj : ∀ {m n} → suc m ≡ suc n → m ≡ n
+sucinj refl = refl
+
+Inv-step : ∀ {cs cs′} → cs ⇒ᵢ cs′ → Inv cs → Inv cs′
+-- sndmsg I1T0→I2T1 : tok 0+rest → 1+rest, aI 0→1.  inv: rest≡0 ⇒ suc rest≡1.
+Inv-step NM.sndmsg inv = cong suc inv
+-- tx T1Rc0→TgRc1 : tok unchanged (1+r+o+0+s = 0+r+o+1+s), aI unchanged.
+Inv-step (NM.tx {i} {r} {o} {s}) inv =
+  trans (ℕsolve 3 (λ b d e → ℕcon 0 :⊕ b :⊕ d :⊕ ℕcon 1 :⊕ e
+                          :≡ ℕcon 1 :⊕ b :⊕ d :⊕ ℕcon 0 :⊕ e)
+           refl (aR r) (aO o) (aS s)) inv
+-- rcvmsg O0Rc1→O1Rcg : tok unchanged (t+r+0+1+s = t+r+1+0+s).
+Inv-step (NM.rcvmsg {i} {t} {r} {s}) inv =
+  trans (ℕsolve 3 (λ a b e → a :⊕ b :⊕ ℕcon 1 :⊕ ℕcon 0 :⊕ e
+                          :≡ a :⊕ b :⊕ ℕcon 0 :⊕ ℕcon 1 :⊕ e)
+           refl (aT t) (aR r) (aS s)) inv
+-- sndack O2Sa0→OgSa1 : tok unchanged (t+r+0+c+1 = t+r+1+c+0).
+Inv-step (NM.sndack {i} {t} {r} {c}) inv =
+  trans (ℕsolve 3 (λ a b d → a :⊕ b :⊕ ℕcon 0 :⊕ d :⊕ ℕcon 1
+                          :≡ a :⊕ b :⊕ ℕcon 1 :⊕ d :⊕ ℕcon 0)
+           refl (aT t) (aR r) (aC c)) inv
+-- ack R0Sa1→R1Sag : tok unchanged (t+1+o+c+0 = t+0+o+c+1).
+Inv-step (NM.ack {i} {t} {o} {c}) inv =
+  trans (ℕsolve 3 (λ a d e → a :⊕ ℕcon 1 :⊕ d :⊕ e :⊕ ℕcon 0
+                          :≡ a :⊕ ℕcon 0 :⊕ d :⊕ e :⊕ ℕcon 1)
+           refl (aT t) (aO o) (aC c)) inv
+-- rcvack I2R1→IgRg : tok (t+1+o+c+s) → (t+0+o+c+s), aI 1→0.  cancel suc.
+Inv-step (NM.rcvack {t} {o} {c} {s}) inv =
+  sucinj
+    (trans (ℕsolve 4 (λ a d e f → ℕcon 1 :⊕ (a :⊕ ℕcon 0 :⊕ d :⊕ e :⊕ f)
+                              :≡ a :⊕ ℕcon 1 :⊕ d :⊕ e :⊕ f)
+             refl (aT t) (aO o) (aC c) (aS s))
+       inv)
+Inv-step NM.gI     inv = inv
+Inv-step NM.gT     inv = inv
+Inv-step NM.gR     inv = inv
+Inv-step NM.gO     inv = inv
+Inv-step NM.gRc    inv = inv
+Inv-step NM.gSa    inv = inv
+
+Inv-vis : ∀ {cs cs′} → cs ⇒ᵥ cs′ → Inv cs → Inv cs′
+Inv-vis NM.input  inv = inv
+Inv-vis NM.output inv = inv
+
+------------------------------------------------------------------------
+-- E2.b  Phase agreement: Reach … pA ⇒ phaseN ≡ 0 ; Reach … pB ⇒ ≡ 1.
+------------------------------------------------------------------------
+
+phase-step : ∀ {cs cs′} → cs ⇒ᵢ cs′ → phaseN cs ≡ phaseN cs′
+-- sndmsg I1T0→I2T1 : pI 1→0, pT 0→1.  (1+0+o+c = 0+1+o+c)
+phase-step (NM.sndmsg {r} {o} {c} {s}) =
+  ℕsolve 2 (λ d e → ℕcon 1 :⊕ ℕcon 0 :⊕ d :⊕ e
+                 :≡ ℕcon 0 :⊕ ℕcon 1 :⊕ d :⊕ e)
+    refl (pO o) (pC c)
+-- tx T1Rc0→TgRc1 : pT 1→0, pC 0→1.
+phase-step (NM.tx {i} {r} {o} {s}) =
+  ℕsolve 2 (λ a d → a :⊕ ℕcon 1 :⊕ d :⊕ ℕcon 0
+                 :≡ a :⊕ ℕcon 0 :⊕ d :⊕ ℕcon 1)
+    refl (pI i) (pO o)
+-- rcvmsg O0Rc1→O1Rcg : pO 0→1, pC 1→0.
+phase-step (NM.rcvmsg {i} {t} {r} {s}) =
+  ℕsolve 2 (λ a b → a :⊕ b :⊕ ℕcon 0 :⊕ ℕcon 1
+                 :≡ a :⊕ b :⊕ ℕcon 1 :⊕ ℕcon 0)
+    refl (pI i) (pT t)
+phase-step NM.sndack = refl
+phase-step NM.ack    = refl
+phase-step NM.rcvack = refl
+phase-step NM.gI     = refl
+phase-step NM.gT     = refl
+phase-step NM.gR     = refl
+phase-step NM.gO     = refl
+phase-step NM.gRc    = refl
+phase-step NM.gSa    = refl
+
+o≢0 : ∀ {n} → suc n ≡ 0 → ⊥
+o≢0 ()
+
+-- An out=O1 state (pO=1) has positive phaseN.
+phaseN-O1 : ∀ i t c → pI i + pT t + pO O1 + pC c ≡ 0 → ⊥
+phaseN-O1 i t c e =
+  o≢0 (trans (ℕsolve 3 (λ a b d → ℕcon 1 :⊕ (a :⊕ b :⊕ d)
+                              :≡ a :⊕ b :⊕ ℕcon 1 :⊕ d)
+                refl (pI i) (pT t) (pC c)) e)
+
+-- From `Inv` with inp=I0 (so tok ≡ 0) the phase is 0.  We case-split on the
+-- three phase-relevant leaves; the `token` positions (T1/O1/O2/Rc1) make
+-- `tok` (= `Inv`'s LHS) a `suc _`, contradicting `tok ≡ aI I0 = 0`.
+Inv-I0-phase0 : ∀ {cs} → inp cs ≡ I0 → Inv cs → phaseN cs ≡ 0
+Inv-I0-phase0 {mkCS I0 T0  r O0 Rc0 s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 T0  r O0 Rcg s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 T0  r Og Rc0 s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 T0  r Og Rcg s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 Tg  r O0 Rc0 s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 Tg  r O0 Rcg s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 Tg  r Og Rc0 s} refl inv = refl
+Inv-I0-phase0 {mkCS I0 Tg  r Og Rcg s} refl inv = refl
+-- token leaves ⇒ tok = suc _ ≡ 0 absurd:
+Inv-I0-phase0 {mkCS I0 T1  r o   c   s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ b d e f → ℕcon 1 :⊕ (b :⊕ d :⊕ e :⊕ f)
+                                         :≡ ℕcon 1 :⊕ b :⊕ d :⊕ e :⊕ f)
+                       refl (aR r) (aO o) (aC c) (aS s)) inv))
+Inv-I0-phase0 {mkCS I0 t   r O1  c   s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ a b e f → ℕcon 1 :⊕ (a :⊕ b :⊕ e :⊕ f)
+                                         :≡ a :⊕ b :⊕ ℕcon 1 :⊕ e :⊕ f)
+                       refl (aT t) (aR r) (aC c) (aS s)) inv))
+Inv-I0-phase0 {mkCS I0 t   r O2  c   s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ a b e f → ℕcon 1 :⊕ (a :⊕ b :⊕ e :⊕ f)
+                                         :≡ a :⊕ b :⊕ ℕcon 1 :⊕ e :⊕ f)
+                       refl (aT t) (aR r) (aC c) (aS s)) inv))
+Inv-I0-phase0 {mkCS I0 t   r o   Rc1 s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ a b d f → ℕcon 1 :⊕ (a :⊕ b :⊕ d :⊕ f)
+                                         :≡ a :⊕ b :⊕ d :⊕ ℕcon 1 :⊕ f)
+                       refl (aT t) (aR r) (aO o) (aS s)) inv))
+
+-- Same for inp = Ig (aI Ig = pI Ig = 0).
+Inv-Ig-phase0 : ∀ {cs} → inp cs ≡ Ig → Inv cs → phaseN cs ≡ 0
+Inv-Ig-phase0 {mkCS Ig T0  r O0 Rc0 s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig T0  r O0 Rcg s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig T0  r Og Rc0 s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig T0  r Og Rcg s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig Tg  r O0 Rc0 s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig Tg  r O0 Rcg s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig Tg  r Og Rc0 s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig Tg  r Og Rcg s} refl inv = refl
+Inv-Ig-phase0 {mkCS Ig T1  r o   c   s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ b d e f → ℕcon 1 :⊕ (b :⊕ d :⊕ e :⊕ f)
+                                         :≡ ℕcon 1 :⊕ b :⊕ d :⊕ e :⊕ f)
+                       refl (aR r) (aO o) (aC c) (aS s)) inv))
+Inv-Ig-phase0 {mkCS Ig t   r O1  c   s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ a b e f → ℕcon 1 :⊕ (a :⊕ b :⊕ e :⊕ f)
+                                         :≡ a :⊕ b :⊕ ℕcon 1 :⊕ e :⊕ f)
+                       refl (aT t) (aR r) (aC c) (aS s)) inv))
+Inv-Ig-phase0 {mkCS Ig t   r O2  c   s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ a b e f → ℕcon 1 :⊕ (a :⊕ b :⊕ e :⊕ f)
+                                         :≡ a :⊕ b :⊕ ℕcon 1 :⊕ e :⊕ f)
+                       refl (aT t) (aR r) (aC c) (aS s)) inv))
+Inv-Ig-phase0 {mkCS Ig t   r o   Rc1 s} refl inv =
+  ⊥-elim (o≢0 (trans (ℕsolve 4 (λ a b d f → ℕcon 1 :⊕ (a :⊕ b :⊕ d :⊕ f)
+                                         :≡ a :⊕ b :⊕ d :⊕ ℕcon 1 :⊕ f)
+                       refl (aT t) (aR r) (aO o) (aS s)) inv))
+
+phase-input  : ∀ {cs cs′} → cs ⇒ᵥ cs′ → phaseN cs ≡ 0 → phaseN cs′ ≡ 1
+-- input I0→I1 : pI 0→1.  goal 1+rest ≡ 1 from rest ≡ 0.
+phase-input NM.input  eq = cong suc eq
+-- output O1→O2 : the source has out=O1 so phaseN ≡ 0 is impossible.
+phase-input (NM.output {i} {t} {r} {c} {s}) eq = ⊥-elim (phaseN-O1 i t c eq)
+
+-- `phase-output` is only ever applied to the OUTPUT edge from a genuine pB
+-- state; the `input` edge needs inp=I0, which `Inv` + pB (phaseN≡1) refutes.
+phase-output : ∀ {cs cs′} → Inv cs → cs ⇒ᵥ cs′ → phaseN cs ≡ 1 → phaseN cs′ ≡ 0
+-- input I0→I1 : a pB state with inp=I0 contradicts `Inv` (gives phaseN≡0≠1).
+phase-output {cs} inv NM.input  eq =
+  ⊥-elim (o≢0 (trans (sym eq) (Inv-I0-phase0 {cs} refl inv)))
+-- output O1→O2 : pO 1→0.  goal rest ≡ 0 from 1+rest ≡ 1.
+phase-output {mkCS i t r O1 c s} inv NM.output eq = sucinj (trans (helper i t c) eq)
+  where
+  -- 1 + phaseN(i t r O2 c s) ≡ phaseN(i t r O1 c s)
+  helper : ∀ i t c → suc (pI i + pT t + pO O2 + pC c)
+                   ≡ pI i + pT t + pO O1 + pC c
+  helper i t c =
+    ℕsolve 3 (λ a b d → ℕcon 1 :⊕ (a :⊕ b :⊕ ℕcon 0 :⊕ d)
+                     :≡ a :⊕ b :⊕ ℕcon 1 :⊕ d)
+      refl (pI i) (pT t) (pC c)
+
+-- Reach gives both Inv and the matching phase number.
+reach-Inv : ∀ {cs ph} → Reach cs ph → Inv cs
+reach-Inv reach-cs0          = Inv-cs0
+reach-Inv (reach-i r step)   = Inv-step step (reach-Inv r)
+reach-Inv (reach-vA r step)  = Inv-vis step (reach-Inv r)
+reach-Inv (reach-vB r step)  = Inv-vis step (reach-Inv r)
+
+reach-phaseA : ∀ {cs} → Reach cs pA → phaseN cs ≡ 0
+reach-phaseB : ∀ {cs} → Reach cs pB → phaseN cs ≡ 1
+
+reach-phaseA reach-cs0         = refl
+reach-phaseA (reach-i r step)  =
+  trans (sym (phase-step step)) (reach-phaseA r)
+reach-phaseA (reach-vB r step) =
+  phase-output (reach-Inv r) step (reach-phaseB r)
+
+reach-phaseB (reach-i r step)  =
+  trans (sym (phase-step step)) (reach-phaseB r)
+reach-phaseB (reach-vA r step) = phase-input step (reach-phaseA r)
+
+------------------------------------------------------------------------
+-- E2.c  LIVENESS: a phase-A non-input-enabled state, and a phase-B
+-- non-output-enabled state, always have an internal `⇒ᵢ` move.  This is
+-- the crux of the abstract drains; it is a finite case analysis on the
+-- six leaves, with the unreachable leaf combinations refuted by `Inv`
+-- (the place count is wrong) or by the structural phase (a `token` leaf
+-- T1/O1/Rc1 contradicts phaseN ≡ 0).
+------------------------------------------------------------------------
+
+-- phase-A liveness (inp ≠ I0 ⇒ an internal move).
+liveA : ∀ cs → Inv cs → phaseN cs ≡ 0 → inp cs ≢ I0
+      → Σ[ cs′ ∈ CS ] (cs ⇒ᵢ cs′)
+-- inp = I0 : excluded by hypothesis.
+liveA (mkCS I0 t r o c s) inv ph i≢ = ⊥-elim (i≢ refl)
+-- inp = I1 : pI I1 = 1, so phaseN = suc _ ≢ 0.
+liveA (mkCS I1 t r o c s) inv ph i≢ = ⊥-elim (o≢0 ph)
+-- inp = Ig : guard gI.
+liveA (mkCS Ig t r o c s) inv ph i≢ = mkCS I0 t r o c s , NM.gI
+-- inp = I2 : the in-flight token is somewhere; drive it.
+liveA (mkCS I2 t  Rg o c s) inv ph i≢ = mkCS I2 t R0 o c s , NM.gR
+liveA (mkCS I2 t  R1 o c s) inv ph i≢ = mkCS Ig t Rg o c s , NM.rcvack
+-- ra = R0 from here.
+liveA (mkCS I2 Tg R0 o c s) inv ph i≢ = mkCS I2 T0 R0 o c s , NM.gT
+-- tr = T1 contradicts phaseN ≡ 0 (pT T1 = 1).
+liveA (mkCS I2 T1 R0 o c s) inv ph i≢ = ⊥-elim (o≢0 ph)
+-- tr = T0, ra = R0 from here.
+liveA (mkCS I2 T0 R0 Og  c   s)   inv ph i≢ = mkCS I2 T0 R0 O0 c s , NM.gO
+liveA (mkCS I2 T0 R0 O2  c   Sa0) inv ph i≢ = mkCS I2 T0 R0 Og c Sa1 , NM.sndack
+liveA (mkCS I2 T0 R0 O2  c   Sag) inv ph i≢ = mkCS I2 T0 R0 O2 c Sa0 , NM.gSa
+-- O2 with Sa1 : tok = aO O2 + aC c + aS Sa1 ≥ 2 ≢ 1 = aI I2.
+liveA (mkCS I2 T0 R0 O2  Rc0 Sa1) inv ph i≢ = ⊥-elim (o≢0 (sucinj inv))
+liveA (mkCS I2 T0 R0 O2  Rc1 Sa1) inv ph i≢ = ⊥-elim (o≢0 (sucinj inv))
+liveA (mkCS I2 T0 R0 O2  Rcg Sa1) inv ph i≢ = ⊥-elim (o≢0 (sucinj inv))
+-- out = O1 contradicts phaseN ≡ 0 (pO O1 = 1).
+liveA (mkCS I2 T0 R0 O1  c   s)   inv ph i≢ = ⊥-elim (o≢0 ph)
+-- out = O0, tr = T0, ra = R0.
+liveA (mkCS I2 T0 R0 O0  Rcg s)   inv ph i≢ = mkCS I2 T0 R0 O0 Rc0 s , NM.gRc
+-- rc = Rc1 contradicts phaseN ≡ 0 (pC Rc1 = 1).
+liveA (mkCS I2 T0 R0 O0  Rc1 s)   inv ph i≢ = ⊥-elim (o≢0 ph)
+-- rc = Rc0 : the token must be the pending ack (sa = Sa1).
+liveA (mkCS I2 T0 R0 O0  Rc0 Sa1) inv ph i≢ = mkCS I2 T0 R1 O0 Rc0 Sag , NM.ack
+-- everything clear ⇒ tok = 0 ≢ 1 = aI I2.
+liveA (mkCS I2 T0 R0 O0  Rc0 Sa0) inv ph i≢ = ⊥-elim (o≢0 (sym inv))
+liveA (mkCS I2 T0 R0 O0  Rc0 Sag) inv ph i≢ = ⊥-elim (o≢0 (sym inv))
+
+-- phase-B liveness (out ≠ O1 ⇒ an internal move).
+liveB : ∀ cs → Inv cs → phaseN cs ≡ 1 → out cs ≢ O1
+      → Σ[ cs′ ∈ CS ] (cs ⇒ᵢ cs′)
+-- inp = I0 / Ig : `Inv` forces phaseN ≡ 0 ≢ 1.
+liveB (mkCS I0 t r o c s) inv ph o≢ =
+  ⊥-elim (o≢0 (sym (trans (sym (Inv-I0-phase0 {mkCS I0 t r o c s} refl inv)) ph)))
+liveB (mkCS Ig t r o c s) inv ph o≢ =
+  ⊥-elim (o≢0 (sym (trans (sym (Inv-Ig-phase0 {mkCS Ig t r o c s} refl inv)) ph)))
+-- inp = I1 : drive the transmitter (sndmsg if T0, else guard / refute T1).
+liveB (mkCS I1 T0 r o c s) inv ph o≢ = mkCS I2 T1 r o c s , NM.sndmsg
+liveB (mkCS I1 Tg r o c s) inv ph o≢ = mkCS I1 T0 r o c s , NM.gT
+-- tr = T1 makes phaseN = pI I1 + pT T1 + … = 2 ≢ 1.
+liveB (mkCS I1 T1 r o c s) inv ph o≢ = ⊥-elim (o≢0 (sucinj ph))
+-- inp = I2 : drive the in-flight token towards the receiver.
+liveB (mkCS I2 t  Rg o   c   s)   inv ph o≢ = mkCS I2 t R0 o c s , NM.gR
+liveB (mkCS I2 t  R1 o   c   s)   inv ph o≢ = mkCS Ig t Rg o c s , NM.rcvack
+-- ra = R0 from here.
+liveB (mkCS I2 Tg R0 o   c   s)   inv ph o≢ = mkCS I2 T0 R0 o c s , NM.gT
+-- tr ∈ {T0,T1}.
+liveB (mkCS I2 t  R0 Og  c   s)   inv ph o≢ = mkCS I2 t R0 O0 c s , NM.gO
+-- out = O1 excluded by hypothesis.
+liveB (mkCS I2 t  R0 O1  c   s)   inv ph o≢ = ⊥-elim (o≢ refl)
+-- out ∈ {O0,O2}.
+liveB (mkCS I2 t  R0 o   Rcg s)   inv ph o≢ = mkCS I2 t R0 o Rc0 s , NM.gRc
+-- rc ∈ {Rc0,Rc1}.
+liveB (mkCS I2 t  R0 o   c   Sag) inv ph o≢ = mkCS I2 t R0 o c Sa0 , NM.gSa
+-- sa ∈ {Sa0,Sa1} — now only the two sync states survive `Inv`.
+liveB (mkCS I2 T0 R0 O0  Rc1 Sa0) inv ph o≢ = mkCS I2 T0 R0 O1 Rcg Sa0 , NM.rcvmsg
+liveB (mkCS I2 T1 R0 O0  Rc0 Sa0) inv ph o≢ = mkCS I2 Tg R0 O0 Rc1 Sa0 , NM.tx
+-- the remaining (t,o,c,s) combinations are excluded by `Inv` (wrong token
+-- count, refuted by `inv`) or by the phase (phaseN ≡ 0 ≠ 1, refuted by `ph`).
+liveB (mkCS I2 T0 R0 O0  Rc0 Sa0) inv ph o≢ = ⊥-elim (o≢0 (sym inv))     -- tok 0
+liveB (mkCS I2 T0 R0 O0  Rc0 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sym ph))      -- phase 0
+liveB (mkCS I2 T0 R0 O0  Rc1 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 2
+liveB (mkCS I2 T0 R0 O2  Rc0 Sa0) inv ph o≢ = ⊥-elim (o≢0 (sym ph))      -- phase 0
+liveB (mkCS I2 T0 R0 O2  Rc0 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 2
+liveB (mkCS I2 T0 R0 O2  Rc1 Sa0) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 2
+liveB (mkCS I2 T0 R0 O2  Rc1 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 3
+liveB (mkCS I2 T1 R0 O0  Rc0 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 2
+liveB (mkCS I2 T1 R0 O0  Rc1 Sa0) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 2
+liveB (mkCS I2 T1 R0 O0  Rc1 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 3
+liveB (mkCS I2 T1 R0 O2  Rc0 Sa0) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 2
+liveB (mkCS I2 T1 R0 O2  Rc0 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 3
+liveB (mkCS I2 T1 R0 O2  Rc1 Sa0) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 3
+liveB (mkCS I2 T1 R0 O2  Rc1 Sa1) inv ph o≢ = ⊥-elim (o≢0 (sucinj inv))  -- tok 4
+
+------------------------------------------------------------------------
+-- E2.d  THE ABSTRACT DRAINS (pure NetModel, by well-founded recursion on μ).
+--
+--   drainA : a phase-A reachable state internally reduces to an
+--            input-enabled state (inp ≡ I0);
+--   drainB : a phase-B reachable state internally reduces to an
+--            output-enabled state (out ≡ O1).
+--
+-- `_⇒ᵢ*_` is the reflexive-transitive closure of `_⇒ᵢ_`.  Each step strictly
+-- drops `μ` (`μ-dec`), so the recursion is well-founded; `liveA`/`liveB`
+-- supply the move while not yet enabled.
+------------------------------------------------------------------------
+
+infix 4 _⇒ᵢ*_
+data _⇒ᵢ*_ : CS → CS → Set where
+  ε   : ∀ {cs} → cs ⇒ᵢ* cs
+  _◅_ : ∀ {cs cs′ cs″} → cs ⇒ᵢ cs′ → cs′ ⇒ᵢ* cs″ → cs ⇒ᵢ* cs″
+
+-- decide `inp ≡ I0`.
+decI0 : ∀ i → (i ≡ I0) ⊎ (i ≢ I0)
+decI0 I0 = inj₁ refl
+decI0 I1 = inj₂ (λ ())
+decI0 I2 = inj₂ (λ ())
+decI0 Ig = inj₂ (λ ())
+decO1 : ∀ o → (o ≡ O1) ⊎ (o ≢ O1)
+decO1 O0 = inj₂ (λ ())
+decO1 O1 = inj₁ refl
+decO1 O2 = inj₂ (λ ())
+decO1 Og = inj₂ (λ ())
+
+drainA-acc : ∀ cs → Reach cs pA → Acc _<_ (NM.μ cs)
+           → Σ[ cs-d ∈ CS ] ((cs ⇒ᵢ* cs-d) × (inp cs-d ≡ I0))
+drainA-acc cs r (acc rs) with decI0 (inp cs)
+... | inj₁ i≡    = cs , ε , i≡
+... | inj₂ i≢ with liveA cs (reach-Inv r) (reach-phaseA r) i≢
+...   | cs′ , step with drainA-acc cs′ (reach-i r step) (rs (NM.μ-dec step))
+...     | cs-d , path , i≡ = cs-d , step ◅ path , i≡
+
+drainA : ∀ cs → Reach cs pA
+       → Σ[ cs-d ∈ CS ] ((cs ⇒ᵢ* cs-d) × (inp cs-d ≡ I0))
+drainA cs r = drainA-acc cs r (<-wellFounded (NM.μ cs))
+
+drainB-acc : ∀ cs → Reach cs pB → Acc _<_ (NM.μ cs)
+           → Σ[ cs-d ∈ CS ] ((cs ⇒ᵢ* cs-d) × (out cs-d ≡ O1))
+drainB-acc cs r (acc rs) with decO1 (out cs)
+... | inj₁ o≡    = cs , ε , o≡
+... | inj₂ o≢ with liveB cs (reach-Inv r) (reach-phaseB r) o≢
+...   | cs′ , step with drainB-acc cs′ (reach-i r step) (rs (NM.μ-dec step))
+...     | cs-d , path , o≡ = cs-d , step ◅ path , o≡
+
+drainB : ∀ cs → Reach cs pB
+       → Σ[ cs-d ∈ CS ] ((cs ⇒ᵢ* cs-d) × (out cs-d ≡ O1))
+drainB cs r = drainB-acc cs r (<-wellFounded (NM.μ cs))
+
+------------------------------------------------------------------------
+-- E2.e  Realise an abstract drain as a Network τ* run.
+------------------------------------------------------------------------
+
+real-⇒ᵢ*-Net : ∀ {cs cs-d} → cs ⇒ᵢ* cs-d → ⟦ cs ⟧N ─[τ*]─► ⟦ cs-d ⟧N
+real-⇒ᵢ*-Net ε            = τ*-refl
+real-⇒ᵢ*-Net (step ◅ path) =
+  τ*-step (real-⇒ᵢ-Net step) (real-⇒ᵢ*-Net path)
+
+------------------------------------------------------------------------
+-- The VISIBLE obligations (E2 + phase soundness) — PARAMETERS only.
+-- Everything visible-and-phase-sensitive the builder cannot derive from
+-- the divergence/τ machinery is collected here; E2 proves it (NOT here).
+--   `_≢I0_` / `_≢O1_` are the structural facts that an output-target
+--   phase-A state has no strong visible step (input needs I0, output O1).
+------------------------------------------------------------------------
+
+record VisWit : Set₁ where
+  field
+    -- FWD (CopySpec's visible step weakly matched by the network):
+    --   from a phase-A state the network ═input═► a phase-B state;
+    --   from a phase-B state the network ═output═► a phase-A state.  The
+    --   output-target additionally has inp≠I0 ∧ out≠O1 (no strong ev),
+    --   which lets `expG`'s bon-ev be discharged at Cg.
+    fwd-in  : ∀ {cs} → Reach cs pA
+            → Σ[ cs′ ∈ CS ] ((⟦ cs ⟧N ═[ ev inputLbl  ]═► ⟦ cs′ ⟧N) × Reach cs′ pB)
+    fwd-out : ∀ {cs} → Reach cs pB
+            → Σ[ cs′ ∈ CS ]
+                ((⟦ cs ⟧N ═[ ev outputLbl ]═► ⟦ cs′ ⟧N)
+                 × Reach cs′ pA × (inp cs′ ≢ I0) × (out cs′ ≢ O1))
+    -- BWD (the network's strong visible step, label-resolved + Reach-tracked):
+    --   at phase-A the only strong visible label is `input`, landing at pB;
+    --   at phase-B the only strong visible label is `output`, landing at pA.
+    bwd-in  : ∀ {cs} {l : Event√ NetR} {t₂′} → Reach cs pA
+            → ⟦ cs ⟧N ─[ ev l ]─► t₂′
+            → Σ[ eq ∈ l ≡ inputLbl ] (Σ[ cs′ ∈ CS ] ((t₂′ ≡ ⟦ cs′ ⟧N) × Reach cs′ pB))
+    --   the output-target is again an output-target (inp≠I0 ∧ out≠O1).
+    bwd-out : ∀ {cs} {l : Event√ NetR} {t₂′} → Reach cs pB
+            → ⟦ cs ⟧N ─[ ev l ]─► t₂′
+            → Σ[ eq ∈ l ≡ outputLbl ]
+                (Σ[ cs′ ∈ CS ]
+                  ((t₂′ ≡ ⟦ cs′ ⟧N) × Reach cs′ pA × (inp cs′ ≢ I0) × (out cs′ ≢ O1)))
+    -- A phase-A state with inp≠I0 ∧ out≠O1 has NO strong visible step.
+    noev-AO : ∀ {cs} {l : Event√ NetR} {t₂′}
+            → inp cs ≢ I0 → out cs ≢ O1 → ⟦ cs ⟧N ─[ ev l ]─► t₂′ → ⊥
+
+------------------------------------------------------------------------
+-- E2.f  PROVING `theVisWit : VisWit`.
+------------------------------------------------------------------------
+
+-- transitivity of `⇒ᵢ*` (used to keep the drain's `Reach` evidence).
+reach-i* : ∀ {cs cs-d ph} → Reach cs ph → cs ⇒ᵢ* cs-d → Reach cs-d ph
+reach-i* r ε            = r
+reach-i* r (step ◅ path) = reach-i* (reach-i r step) path
+
+-- A phase-B state never has inp ≡ I0 (else `Inv` ⇒ phaseN ≡ 0 ≠ 1).
+pB-inp≢I0 : ∀ {cs} → Reach cs pB → inp cs ≢ I0
+pB-inp≢I0 {cs} r i≡ =
+  o≢0 (sym (trans (sym (Inv-I0-phase0 {cs} i≡ (reach-Inv r))) (reach-phaseB r)))
+
+-- A label-aware non-csTA visible inversion.  We expose the WITNESSED leaf
+-- shape (input ⇒ source has inp=I0; output ⇒ source has out=O1) so the
+-- abstract `⇒ᵥ` constructor is *determined* (no spurious cross cases).
+data uVisR (cs : CS) {B} (e : Net ⊤ B) (a : B) (W′ : NetProc) : Set₁ where
+  uIn  : ∀ {t r o c s} → cs ≡ mkCS I0 t r o c s
+       → evl (evLabel B e a) ≡ inputLbl  → W′ ≡ ⟦ mkCS I1 t r o c s ⟧
+       → uVisR cs e a W′
+  uOut : ∀ {i t r c s} → cs ≡ mkCS i t r O1 c s
+       → evl (evLabel B e a) ≡ outputLbl → W′ ≡ ⟦ mkCS i t r O2 c s ⟧
+       → uVisR cs e a W′
+
+sim-uVis-lbl : ∀ cs {B} {e : Net ⊤ B} {a} {W′}
+             → ¬ csTA' .mem (B , e) a
+             → ⟦ cs ⟧ ─[ ev (evl (evLabel B e a)) ]─► W′
+             → uVisR cs e a W′
+sim-uVis-lbl (mkCS i t r o c s) ¬cs st
+  with Par-ev-elim csTA' ⊤merge (decTx i t r) (decRx o c s) st
+... | evL _ Txev with sim-Tx-ev {i} {t} {r} Txev
+...   | inj₁ (refl , Lin , Weq) =
+        uIn refl Lin (cong (λ z → (z ∥⇘ csTA' ⇙ (decRx o c s))) Weq)
+...   | inj₂ (inj₁ (_ , Ltx  , _)) = ⊥-elim (¬cs (txLbl→mem Ltx))
+...   | inj₂ (inj₂ (_ , Lack , _)) = ⊥-elim (¬cs (ackLbl→mem Lack))
+sim-uVis-lbl (mkCS i t r o c s) ¬cs st
+  | evR _ Rxev with sim-Rx-ev {o} {c} {s} Rxev
+...   | inj₁ (refl , Lout , Weq) =
+        uOut refl Lout (cong (λ z → ((decTx i t r) ∥⇘ csTA' ⇙ z)) Weq)
+...   | inj₂ (inj₁ (_ , Ltx  , _)) = ⊥-elim (¬cs (txLbl→mem Ltx))
+...   | inj₂ (inj₂ (_ , Lack , _)) = ⊥-elim (¬cs (ackLbl→mem Lack))
+sim-uVis-lbl (mkCS i t r o c s) ¬cs st | evSync mem _ _ = ⊥-elim (¬cs mem)
+sim-uVis-lbl (mkCS i t r o c s) ¬cs st
+  | evBoth _ Txev Rxev with sim-Tx-ev {i} {t} {r} Txev | sim-Rx-ev {o} {c} {s} Rxev
+...   | inj₁ (_ , Lin , _)        | inj₁ (_ , Lout , _) =
+          ⊥-elim (inputLbl≢outputLbl (trans (sym Lin) Lout))
+...   | inj₁ (_ , Lin , _)        | inj₂ (inj₁ (_ , Ltx , _)) =
+          ⊥-elim (inputLbl≢txLbl (trans (sym Lin) Ltx))
+...   | inj₁ (_ , Lin , _)        | inj₂ (inj₂ (_ , Lack , _)) =
+          ⊥-elim (inputLbl≢ackLbl (trans (sym Lin) Lack))
+...   | inj₂ (inj₁ (_ , Ltx , _)) | _ = ⊥-elim (¬cs (txLbl→mem Ltx))
+...   | inj₂ (inj₂ (_ , Lack , _)) | _ = ⊥-elim (¬cs (ackLbl→mem Lack))
+
+-- Reflect a network strong visible step into the same label-resolved shape.
+data netVisR (cs : CS) (l : Event√ NetR) (t₂′ : NetProc) : Set₁ where
+  nIn  : ∀ {t r o c s} → cs ≡ mkCS I0 t r o c s
+       → l ≡ inputLbl  → t₂′ ≡ ⟦ mkCS I1 t r o c s ⟧N → netVisR cs l t₂′
+  nOut : ∀ {i t r c s} → cs ≡ mkCS i t r O1 c s
+       → l ≡ outputLbl → t₂′ ≡ ⟦ mkCS i t r O2 c s ⟧N → netVisR cs l t₂′
+
+-- The decoded state never terminates: `force ⟦cs⟧` is always a `react`
+-- (the input leaf `decI i` is always a `react` menu), so the `√` branch of
+-- `Hide-ev-elim` is impossible.
+decI-noret : ∀ i {x} → PTree.force (decI i) ≡ ret x → ⊥
+decI-noret I0 ()
+decI-noret I1 ()
+decI-noret I2 ()
+decI-noret Ig ()
+
+decTx-noret : ∀ i t r {x} → PTree.force (decTx i t r) ≡ ret x → ⊥
+decTx-noret i t r eqf
+  with Par-force-ret-inv csSR' ⊤merge {P = decI i} {Q = decT t ⦀ decR r}
+         (fHide-ret-inv csSR' ((decI i) ∥⇘ csSR' ⇙ (decT t ⦀ decR r)) eqf)
+... | r₁ , _ , decIret , _ , _ = decI-noret i decIret
+
+⟦⟧-noret : ∀ cs {x} → PTree.force ⟦ cs ⟧ ≡ ret x → ⊥
+⟦⟧-noret (mkCS i t r o c s) eqf
+  with Par-force-ret-inv csTA' ⊤merge {P = decTx i t r} {Q = decRx o c s} eqf
+... | r₁ , _ , decTxret , _ , _ = decTx-noret i t r decTxret
+
+reflectV : ∀ cs {l : Event√ NetR} {t₂′} → ⟦ cs ⟧N ─[ ev l ]─► t₂′
+         → netVisR cs l t₂′
+reflectV cs step with Hide-ev-elim csTA' ⟦ cs ⟧ step
+... | heV T′ ¬cs Tev with sim-uVis-lbl cs ¬cs Tev
+...   | uIn  ceq Lin  Weq = nIn  ceq Lin  (cong (_∖ csTA') Weq)
+...   | uOut ceq Lout Weq = nOut ceq Lout (cong (_∖ csTA') Weq)
+reflectV cs step | he√ eqf = ⊥-elim (⟦⟧-noret cs eqf)
+
+-- A phase-A network state offers NO `output` (out=O1 ⇒ phaseN ≥ 1 ≠ 0).
+phaseA-out≢O1 : ∀ {cs} → Reach cs pA → out cs ≢ O1
+phaseA-out≢O1 {mkCS i t rr O1 c s} rA oeq = phaseN-O1 i t c (reach-phaseA rA)
+phaseA-out≢O1 {mkCS i t rr O0 c s} rA ()
+phaseA-out≢O1 {mkCS i t rr O2 c s} rA ()
+phaseA-out≢O1 {mkCS i t rr Og c s} rA ()
+
+-- The output-target (out=O2) of an `output` step satisfies inp≠I0 ∧ out≠O1.
+out-step-tgt : ∀ {i t r c s} → out (mkCS i t r O2 c s) ≢ O1
+out-step-tgt ()
+
+theVisWit : VisWit
+theVisWit = record
+  { fwd-in  = λ {cs} r →
+      let (cs-d , path , i≡) = drainA cs r
+          rA               = reach-i* r path
+      in fwd-in-build cs r cs-d path i≡ rA
+  ; fwd-out = λ {cs} r →
+      let (cs-d , path , o≡) = drainB cs r
+          rB               = reach-i* r path
+      in fwd-out-build cs r cs-d path o≡ rB
+  ; bwd-in  = λ {cs} {l} {t₂′} r step → bwd-in-build cs r step
+  ; bwd-out = λ {cs} {l} {t₂′} r step → bwd-out-build cs r step
+  ; noev-AO = λ {cs} {l} {t₂′} i≢ o≢ step → noev-build cs i≢ o≢ step
+  }
+  where
+  -- fwd-in : drain to inp=I0, then the input is enabled.
+  fwd-in-build :
+    ∀ cs (r : Reach cs pA) cs-d → cs ⇒ᵢ* cs-d → inp cs-d ≡ I0 → Reach cs-d pA
+    → Σ[ cs′ ∈ CS ] ((⟦ cs ⟧N ═[ ev inputLbl ]═► ⟦ cs′ ⟧N) × Reach cs′ pB)
+  fwd-in-build cs r (mkCS I0 t rr o c s) path refl rA =
+    mkCS I1 t rr o c s ,
+    wev (real-⇒ᵢ*-Net path) (proj₂ (real-⇒ᵥ-Net (NM.input {t} {rr} {o} {c} {s})))
+        τ*-refl′ ,
+    reach-vA rA NM.input
+    where
+    -- `real-⇒ᵥ-Net NM.input` returns `(inputLbl , step)`; project the step.
+    τ*-refl′ : ⟦ mkCS I1 t rr o c s ⟧N ─[τ*]─► ⟦ mkCS I1 t rr o c s ⟧N
+    τ*-refl′ = τ*-refl
+
+  -- fwd-out : drain to out=O1, then the output is enabled.
+  fwd-out-build :
+    ∀ cs (r : Reach cs pB) cs-d → cs ⇒ᵢ* cs-d → out cs-d ≡ O1 → Reach cs-d pB
+    → Σ[ cs′ ∈ CS ]
+        ((⟦ cs ⟧N ═[ ev outputLbl ]═► ⟦ cs′ ⟧N)
+         × Reach cs′ pA × (inp cs′ ≢ I0) × (out cs′ ≢ O1))
+  fwd-out-build cs r (mkCS i t rr O1 c s) path refl rB =
+    mkCS i t rr O2 c s ,
+    wev (real-⇒ᵢ*-Net path) (proj₂ (real-⇒ᵥ-Net (NM.output {i} {t} {rr} {c} {s})))
+        τ*-refl ,
+    reach-vB rB NM.output ,
+    (λ i≡ → pB-inp≢I0 rB i≡) ,
+    out-step-tgt {i} {t} {rr} {c} {s}
+
+  -- bwd-in : invert the network ev; at phase A it must be input.
+  bwd-in-build :
+    ∀ cs {l : Event√ NetR} {t₂′} → Reach cs pA → ⟦ cs ⟧N ─[ ev l ]─► t₂′
+    → Σ[ eq ∈ l ≡ inputLbl ] (Σ[ cs′ ∈ CS ] ((t₂′ ≡ ⟦ cs′ ⟧N) × Reach cs′ pB))
+  bwd-in-build cs r step with reflectV cs step
+  ... | nIn  {t} {rr} {o} {c} {s} refl Lin Weq =
+        Lin , mkCS I1 t rr o c s , Weq , reach-vA r NM.input
+  -- output at phase A is impossible (phaseA-out≢O1).
+  ... | nOut refl Lout Weq = ⊥-elim (phaseA-out≢O1 r refl)
+
+  -- bwd-out : invert the network ev; at phase B it must be output.
+  bwd-out-build :
+    ∀ cs {l : Event√ NetR} {t₂′} → Reach cs pB → ⟦ cs ⟧N ─[ ev l ]─► t₂′
+    → Σ[ eq ∈ l ≡ outputLbl ]
+        (Σ[ cs′ ∈ CS ]
+          ((t₂′ ≡ ⟦ cs′ ⟧N) × Reach cs′ pA × (inp cs′ ≢ I0) × (out cs′ ≢ O1)))
+  bwd-out-build cs r step with reflectV cs step
+  ... | nOut {i} {t} {rr} {c} {s} refl Lout Weq =
+        Lout , mkCS i t rr O2 c s , Weq , reach-vB r NM.output ,
+        (λ i≡ → pB-inp≢I0 r i≡) , out-step-tgt {i} {t} {rr} {c} {s}
+  -- input at phase B forces inp=I0, impossible (pB-inp≢I0).
+  ... | nIn refl Lin Weq = ⊥-elim (pB-inp≢I0 r refl)
+
+  -- noev-AO : an inp≠I0 ∧ out≠O1 state offers no strong visible event.
+  noev-build :
+    ∀ cs {l : Event√ NetR} {t₂′} → inp cs ≢ I0 → out cs ≢ O1
+    → ⟦ cs ⟧N ─[ ev l ]─► t₂′ → ⊥
+  noev-build cs i≢ o≢ step with reflectV cs step
+  ... | nIn  refl Lin  Weq = i≢ refl
+  ... | nOut refl Lout Weq = o≢ refl
+
+------------------------------------------------------------------------
+-- THE GENERIC EXPANSION BUILDER (parametrized by `VisWit`).
+--
+-- Three mutually-corecursive builders, one per CopySpec tag:
+--   expA :  C0 ⪰ ⟦cs⟧N   for a phase-A state cs
+--   expB :  C1 ⪰ ⟦cs⟧N   for a phase-B state cs
+--   expG :  Cg ⪰ ⟦cs⟧N   for an *output-target* phase-A state
+--           (carries inp≠I0 ∧ out≠O1 so its bon-ev is refutable until the
+--            network's first τ collapses Cg to C0 and drops us to expA).
+--
+-- The τ / divergence halves are constructed here (no VisWit needed); the
+-- VISIBLE halves consult `w`.
+------------------------------------------------------------------------
+
+module _ (w : VisWit) where
+  open VisWit w
+
+  expA : ∀ cs → Reach cs pA → C0 ⪰ ⟦ cs ⟧N
+  expB : ∀ cs → Reach cs pB → C1 ⪰ ⟦ cs ⟧N
+  expG : ∀ cs → inp cs ≢ I0 → out cs ≢ O1 → Reach cs pA → Cg ⪰ ⟦ cs ⟧N
+
+  -- shared: reflect a network τ to an internal `⇒ᵢ` step (phase preserved).
+  reflectτ : ∀ cs {t₂′} → ⟦ cs ⟧N ─[ τ ]─► t₂′
+           → Σ[ cs′ ∈ CS ] ((cs ⇒ᵢ cs′) × (t₂′ ≡ ⟦ cs′ ⟧N))
+  reflectτ cs step with Hide-τ-elim csTA' ⟦ cs ⟧ step
+  ... | hτP T′ Tτ refl      = let (cs′ , red , Weq) = sim-modA cs (maτ Tτ)
+                              in cs′ , red , cong (_∖ csTA') Weq
+  ... | hτH T′ mem Tev refl = let (cs′ , red , Weq) = sim-modA cs (maE mem Tev)
+                              in cs′ , red , cong (_∖ csTA') Weq
+
+  -- ===========================  expA  (C0)  ===========================
+  -- fwd: C0's input matched WEAKLY by the network (VisWit.fwd-in).
+  --   (`sRet` is impossible: C0 = CopySpec is a Par⊤, never a `ret`.)
+  expA cs r .Expand.fwd .WSimF.on-ev (sRet ())
+  expA cs r .Expand.fwd .WSimF.on-ev (sVis eqf breq) with C0-evL (sVis eqf breq)
+  ... | refl , refl with fwd-in r
+  ...   | cs′ , wstep , r′ = ⟦ cs′ ⟧N , wstep , expB cs′ r′
+  -- C0 is τ-stable ⇒ no τ.
+  expA cs r .Expand.fwd .WSimF.on-tau step = ⊥-elim (C0-noτ step)
+  -- bwd: a network τ → ⇒ᵢ; C0 STUTTERS (inj₂), phase preserved.
+  expA cs r .Expand.bwd .ExpBwdF.bon-tau step with reflectτ cs step
+  ... | cs′ , red , refl = inj₂ (expA cs′ (reach-i r red))
+  -- bwd: a network strong ev (input, at pA) matched by C0─input─►C1.
+  expA cs r .Expand.bwd .ExpBwdF.bon-ev step with bwd-in r step
+  ... | refl , cs′ , refl , r′ = C1 , C0─input─►C1 , expB cs′ r′
+  expA cs r .Expand.div→ d = ⊥-elim (¬Div-C0 d)
+  expA cs r .Expand.div← d = ⊥-elim (¬Div-⟦⟧N cs d)
+
+  -- ===========================  expB  (C1)  ===========================
+  expB cs r .Expand.fwd .WSimF.on-ev (sRet ())
+  expB cs r .Expand.fwd .WSimF.on-ev (sVis eqf breq) with C1-evL (sVis eqf breq)
+  ... | refl , refl with fwd-out r
+  ...   | cs′ , wstep , r′ , i≢ , o≢ = ⟦ cs′ ⟧N , wstep , expG cs′ i≢ o≢ r′
+  expB cs r .Expand.fwd .WSimF.on-tau step = ⊥-elim (C1-noτ step)
+  expB cs r .Expand.bwd .ExpBwdF.bon-tau step with reflectτ cs step
+  ... | cs′ , red , refl = inj₂ (expB cs′ (reach-i r red))
+  expB cs r .Expand.bwd .ExpBwdF.bon-ev step with bwd-out r step
+  ... | refl , cs′ , refl , r′ , i≢ , o≢ = Cg , C1─output─►Cg , expG cs′ i≢ o≢ r′
+  expB cs r .Expand.div→ d = ⊥-elim (¬Div-C1 d)
+  expB cs r .Expand.div← d = ⊥-elim (¬Div-⟦⟧N cs d)
+
+  -- ===========================  expG  (Cg)  ===========================
+  -- fwd: Cg's only move is τ→C0, matched by the network STAYING (τ*-refl).
+  expG cs i≢ o≢ r .Expand.fwd .WSimF.on-ev (sRet ())
+  expG cs i≢ o≢ r .Expand.fwd .WSimF.on-ev (sVis eqf breq) = ⊥-elim (Cg-noev (sVis eqf breq))
+  expG cs i≢ o≢ r .Expand.fwd .WSimF.on-tau step with Cg-τ step
+  ... | refl = ⟦ cs ⟧N , wτ τ*-refl , expA cs r
+  -- bwd: a network τ → Cg fires its single τ to C0 (inj₁), drop to expA.
+  expG cs i≢ o≢ r .Expand.bwd .ExpBwdF.bon-tau step with reflectτ cs step
+  ... | cs′ , red , refl = inj₁ (C0 , Cg─τ─►C0 , expA cs′ (reach-i r red))
+  -- bwd: the output-target has NO strong ev (inp≠I0 ∧ out≠O1) ⇒ refute.
+  expG cs i≢ o≢ r .Expand.bwd .ExpBwdF.bon-ev step = ⊥-elim (noev-AO {cs = cs} i≢ o≢ step)
+  expG cs i≢ o≢ r .Expand.div→ d = ⊥-elim (¬Div-Cg d)
+  expG cs i≢ o≢ r .Expand.div← d = ⊥-elim (¬Div-⟦⟧N cs d)
+
+------------------------------------------------------------------------
+-- E3.  MASTER KEY & COROLLARIES.
+--
+--   Network ≈DR CopySpec        (the master key: divergence-respecting
+--                                weak bisimulation, built by the E1
+--                                expansion at `theVisWit`/`cs0`)
+--     ⇒ Network ≈FD CopySpec     (failures-divergences equivalence —
+--                                FDR's `[FD=` BOTH ways; via drbisim→≈FD,
+--                                which internally relies on the certified
+--                                postulate `¬-divergent→normal` from
+--                                Semantics.DRImpliesFD — APPROVED)
+--       ⇒ failures-half both ways  (Network ⊑F⊥ CopySpec, CopySpec ⊑F⊥ Network)
+--     ⇒ Network ⟺T CopySpec      (trace equivalence; derived from the
+--                                weak-bisim shadow drbisim→wbisim WITHOUT
+--                                the postulate).
+--
+-- Defeq used in step 1:  `C0 = CopySpec` (definitional, see C0's def) and
+-- `⟦ cs0 ⟧N ≡ Network` (decN-cs0 = refl, definitional), so the builder's
+-- result type `C0 ⪰ ⟦ cs0 ⟧N` is `CopySpec ⪰ Network` on the nose — no
+-- `subst` is needed (decN-cs0 reduces to refl).
+------------------------------------------------------------------------
+
+-- 1.  The expansion at the start state, with its type reduced via the
+--     two definitional equalities (C0 = CopySpec, ⟦ cs0 ⟧N = Network).
+net-exp : CopySpec ⪰ Network
+net-exp = expA theVisWit cs0 reach-cs0
+
+-- 2.  Master key:  Network ≈DR CopySpec
+--     (⪯→≈DR : t₁ ⪰ t₂ → t₂ ≈DR t₁, with t₁ = CopySpec, t₂ = Network).
+net≈DR : Network ≈DR CopySpec
+net≈DR = ⪯→≈DR net-exp
+
+-- 3.  Failures-divergences equivalence (FDR `[FD=` both ways).
+net≈FD : Network ≈FD CopySpec
+net≈FD = drbisim→≈FD net≈DR
+
+-- 4.  The headline FAILURES results (both directions of ≈FD).
+net⊑FD : Network ⊑FD CopySpec
+net⊑FD = proj₁ net≈FD
+
+spec⊑FD : CopySpec ⊑FD Network
+spec⊑FD = proj₂ net≈FD
+
+--   The failures-half both ways.  `CopySpec ⊑F⊥ Network` is the standard
+--   refinement statement "the Network refines the CopySpec".
+net⊑F⊥ : Network ⊑F⊥ CopySpec
+net⊑F⊥ = proj₁ net⊑FD
+
+spec⊑F⊥ : CopySpec ⊑F⊥ Network
+spec⊑F⊥ = proj₁ spec⊑FD
+
+-- 5.  TRACE equivalence (derivable from ≈DR via its weak-bisim shadow,
+--     WITHOUT the ¬-divergent→normal postulate).
+net≈W : Wbisim NetR Network CopySpec
+net≈W = drbisim→wbisim net≈DR
+
+--   `P ⊑T Q = ∀ s → traces Q s → traces P s`, and
+--   `traces-respects-≈ : Wbisim R P Q → (traces P s → traces Q s)
+--                                      × (traces Q s → traces P s)`.
+net⊑T : Network ⊑T CopySpec
+net⊑T s = proj₂ (traces-respects-≈ net≈W)
+
+spec⊑T : CopySpec ⊑T Network
+spec⊑T s = proj₁ (traces-respects-≈ net≈W)

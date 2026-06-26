@@ -66,7 +66,7 @@ module CSP.Examples.Example where
 
   -- parallel synchronising on `a` (both must offer `a` together)
   W : PTree Ch (ExtI Ch) (⊤ {0ℓ})
-  W = Par⊤ (chanSet csa deca) (a ⟶₀ Skip) (a ⟶₀ Skip)
+  W = (a ⟶₀ Skip) ∥⇘ chanSet csa deca ⇙ (a ⟶₀ Skip)
 
   -- iteration: non-stateful forever loop
   L : PTree Ch (ExtI Ch) (⊤ {0ℓ})

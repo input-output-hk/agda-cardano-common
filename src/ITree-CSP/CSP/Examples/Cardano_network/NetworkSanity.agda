@@ -50,7 +50,9 @@ p = record
   ; numConns = λ _ → 1
   ; decCookie  = decEq⊤ ; decBlock    = decEq⊤ ; decTxid    = decEq⊤
   ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
-  ; decVoteBlob = decEq⊤ }
+  ; decVoteBlob = decEq⊤
+  ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
+  ; decTime = decEq⊤ ; decLength = decEq⊤ }
 
 open import CSP.Examples.Cardano_network.Net p
   using (Net; Conn; input; sndmsg; tx)

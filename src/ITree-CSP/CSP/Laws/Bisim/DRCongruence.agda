@@ -294,24 +294,24 @@ cong-∖ A {P} {Q} pq .DRbisim.div← d =
 -------------------------------------------------------------------------------------
 
 Par-τ*-L : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr})) {P′ : PTree E (ExtI E) (⊤ {ℓr})}
-         → P ─[τ*]─► P′ → (Par⊤ A P Q) ─[τ*]─► (Par⊤ A P′ Q)
+         → P ─[τ*]─► P′ → (P ∥⇘ A ⇙ Q) ─[τ*]─► (P′ ∥⇘ A ⇙ Q)
 Par-τ*-L A P Q τ*-refl           = τ*-refl
 Par-τ*-L A P Q (τ*-step Pτ rest) =
   τ*-step (Par-τ-L A ⊤merge P Q Pτ) (Par-τ*-L A _ Q rest)
 
 Par-τ*-R : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr})) {Q′ : PTree E (ExtI E) (⊤ {ℓr})}
-         → Q ─[τ*]─► Q′ → (Par⊤ A P Q) ─[τ*]─► (Par⊤ A P Q′)
+         → Q ─[τ*]─► Q′ → (P ∥⇘ A ⇙ Q) ─[τ*]─► (P ∥⇘ A ⇙ Q′)
 Par-τ*-R A P Q τ*-refl           = τ*-refl
 Par-τ*-R A P Q (τ*-step Qτ rest) =
   τ*-step (Par-τ-R A ⊤merge P Q Qτ) (Par-τ*-R A P _ rest)
 
 -- a weak τ̂ of one operand lifts to a weak τ̂ of the composite (left/right).
 Par-wτ-L : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr})) {P′ : PTree E (ExtI E) (⊤ {ℓr})}
-         → P ═[ τ ]═► P′ → (Par⊤ A P Q) ═[ τ ]═► (Par⊤ A P′ Q)
+         → P ═[ τ ]═► P′ → (P ∥⇘ A ⇙ Q) ═[ τ ]═► (P′ ∥⇘ A ⇙ Q)
 Par-wτ-L A P Q (wτ run) = wτ (Par-τ*-L A P Q run)
 
 Par-wτ-R : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr})) {Q′ : PTree E (ExtI E) (⊤ {ℓr})}
-         → Q ═[ τ ]═► Q′ → (Par⊤ A P Q) ═[ τ ]═► (Par⊤ A P Q′)
+         → Q ═[ τ ]═► Q′ → (P ∥⇘ A ⇙ Q) ═[ τ ]═► (P ∥⇘ A ⇙ Q′)
 Par-wτ-R A P Q (wτ run) = wτ (Par-τ*-R A P Q run)
 
 -------------------------------------------------------------------------------------
@@ -326,14 +326,14 @@ Par-wτ-R A P Q (wτ run) = wτ (Par-τ*-R A P Q run)
 
 cong-Par⊤-div→ : (A : EventSet) {P P′ Q : PTree E (ExtI E) (⊤ {ℓr})}
                → DRbisim (⊤ {ℓr}) P P′
-               → Diverges (Par⊤ A P Q) → Diverges (Par⊤ A P′ Q)
+               → Diverges (P ∥⇘ A ⇙ Q) → Diverges (P′ ∥⇘ A ⇙ Q)
 cong-Par⊤-div→ A {P} {P′} {Q} pp′ d with Par-Diverges→ A ⊤merge d
 ... | inj₁ dP = Par-Diverges-L A ⊤merge Q (pp′ .DRbisim.div→ dP)
 ... | inj₂ dQ = Par-Diverges-R A ⊤merge P′ dQ
 
 cong-Par⊤-div← : (A : EventSet) {P P′ Q : PTree E (ExtI E) (⊤ {ℓr})}
                → DRbisim (⊤ {ℓr}) P P′
-               → Diverges (Par⊤ A P′ Q) → Diverges (Par⊤ A P Q)
+               → Diverges (P′ ∥⇘ A ⇙ Q) → Diverges (P ∥⇘ A ⇙ Q)
 cong-Par⊤-div← A {P} {P′} {Q} pp′ d with Par-Diverges→ A ⊤merge d
 ... | inj₁ dP′ = Par-Diverges-L A ⊤merge Q (pp′ .DRbisim.div← dP′)
 ... | inj₂ dQ  = Par-Diverges-R A ⊤merge P dQ
@@ -341,14 +341,14 @@ cong-Par⊤-div← A {P} {P′} {Q} pp′ d with Par-Diverges→ A ⊤merge d
 -- RIGHT-operand divergence transfer (mirror, transferring the Q-summand across Q ≈DR Q′).
 cong-Par⊤-div→-R : (A : EventSet) {P Q Q′ : PTree E (ExtI E) (⊤ {ℓr})}
                  → DRbisim (⊤ {ℓr}) Q Q′
-                 → Diverges (Par⊤ A P Q) → Diverges (Par⊤ A P Q′)
+                 → Diverges (P ∥⇘ A ⇙ Q) → Diverges (P ∥⇘ A ⇙ Q′)
 cong-Par⊤-div→-R A {P} {Q} {Q′} qq′ d with Par-Diverges→ A ⊤merge d
 ... | inj₁ dP = Par-Diverges-L A ⊤merge Q′ dP
 ... | inj₂ dQ = Par-Diverges-R A ⊤merge P (qq′ .DRbisim.div→ dQ)
 
 cong-Par⊤-div←-R : (A : EventSet) {P Q Q′ : PTree E (ExtI E) (⊤ {ℓr})}
                  → DRbisim (⊤ {ℓr}) Q Q′
-                 → Diverges (Par⊤ A P Q′) → Diverges (Par⊤ A P Q)
+                 → Diverges (P ∥⇘ A ⇙ Q′) → Diverges (P ∥⇘ A ⇙ Q)
 cong-Par⊤-div←-R A {P} {Q} {Q′} qq′ d with Par-Diverges→ A ⊤merge d
 ... | inj₁ dP  = Par-Diverges-L A ⊤merge Q dP
 ... | inj₂ dQ′ = Par-Diverges-R A ⊤merge P (qq′ .DRbisim.div← dQ′)
@@ -427,21 +427,21 @@ Par-soloL-step : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
                → ¬ A .mem (X , e) a
                → P ─[ ev (evl (evLabel X e a)) ]─► P₁
                → Σ[ M ∈ PTree E (ExtI E) (⊤ {ℓr}) ]
-                   ((Par⊤ A P Q ─[ ev (evl (evLabel X e a)) ]─► M)
-                    × (M ─[τ*]─► (Par⊤ A P₁ Q)))
+                   (((P ∥⇘ A ⇙ Q) ─[ ev (evl (evLabel X e a)) ]─► M)
+                    × (M ─[τ*]─► (P₁ ∥⇘ A ⇙ Q)))
 Par-soloL-step A P Q {X} {e} {a} {P₁} ¬cs (sVis {v = vP} {τc = τcP} eqP veqP)
   with PTree.force Q in eqQ
-... | ret r₂ = Par⊤ A P₁ Q
+... | ret r₂ = (P₁ ∥⇘ A ⇙ Q)
              , sVis (fPar-er A ⊤merge eqP eqQ)
                     (par-hVisL-eq A ⊤merge {vP = vP} Q {at = X , e} {a = a} ¬cs veqP)
              , τ*-refl
-... | sil Q' = Par⊤ A P₁ Q
+... | sil Q' = (P₁ ∥⇘ A ⇙ Q)
              , sVis (fPar-nn A ⊤merge eqP eqQ U0.tt U0.tt)
                     (par-pVis-soloL-eq A ⊤merge (react vP τcP) (sil Q') P Q
                                        {at = X , e} {a = a} ¬cs veqP refl)
              , τ*-refl
 ... | react vQ τcQ with vQ (X , e) a in vqeq
-...   | nothing = Par⊤ A P₁ Q
+...   | nothing = (P₁ ∥⇘ A ⇙ Q)
                 , sVis (fPar-nn A ⊤merge eqP eqQ U0.tt U0.tt)
                        (par-pVis-soloL-eq A ⊤merge (react vP τcP) (react vQ τcQ) P Q
                                           {at = X , e} {a = a} ¬cs veqP vqeq)
@@ -457,21 +457,21 @@ Par-soloR-step : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
                → ¬ A .mem (X , e) a
                → Q ─[ ev (evl (evLabel X e a)) ]─► Q₁
                → Σ[ M ∈ PTree E (ExtI E) (⊤ {ℓr}) ]
-                   ((Par⊤ A P Q ─[ ev (evl (evLabel X e a)) ]─► M)
-                    × (M ─[τ*]─► (Par⊤ A P Q₁)))
+                   (((P ∥⇘ A ⇙ Q) ─[ ev (evl (evLabel X e a)) ]─► M)
+                    × (M ─[τ*]─► (P ∥⇘ A ⇙ Q₁)))
 Par-soloR-step A P Q {X} {e} {a} {Q₁} ¬cs (sVis {v = vQ} {τc = τcQ} eqQ veqQ)
   with PTree.force P in eqP
-... | ret r₁ = Par⊤ A P Q₁
+... | ret r₁ = (P ∥⇘ A ⇙ Q₁)
              , sVis (fPar-re A ⊤merge eqP eqQ)
                     (par-hVisR-eq A ⊤merge P {vQ = vQ} {at = X , e} {a = a} ¬cs veqQ)
              , τ*-refl
-... | sil P' = Par⊤ A P Q₁
+... | sil P' = (P ∥⇘ A ⇙ Q₁)
              , sVis (fPar-nn A ⊤merge eqP eqQ U0.tt U0.tt)
                     (par-pVis-soloR-eq A ⊤merge (sil P') (react vQ τcQ) P Q
                                        {at = X , e} {a = a} ¬cs refl veqQ)
              , τ*-refl
 ... | react vP τcP with vP (X , e) a in vpeq
-...   | nothing = Par⊤ A P Q₁
+...   | nothing = (P ∥⇘ A ⇙ Q₁)
                 , sVis (fPar-nn A ⊤merge eqP eqQ U0.tt U0.tt)
                        (par-pVis-soloR-eq A ⊤merge (react vP τcP) (react vQ τcQ) P Q
                                           {at = X , e} {a = a} ¬cs vpeq veqQ)
@@ -487,7 +487,7 @@ Par-wsoloL : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
                {X : Set ℓ} {e : E X} {a : X} {P′ : PTree E (ExtI E) (⊤ {ℓr})}
            → ¬ A .mem (X , e) a
            → P ═[ ev (evl (evLabel X e a)) ]═► P′
-           → (Par⊤ A P Q) ═[ ev (evl (evLabel X e a)) ]═► (Par⊤ A P′ Q)
+           → (P ∥⇘ A ⇙ Q) ═[ ev (evl (evLabel X e a)) ]═► (P′ ∥⇘ A ⇙ Q)
 Par-wsoloL A P Q ¬cs (wev p→pₛ pₛev pₘ→p′)
   with Par-soloL-step A _ Q ¬cs pₛev
 ... | M , Pstep , M→Par =
@@ -497,7 +497,7 @@ Par-wsoloR : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
                {X : Set ℓ} {e : E X} {a : X} {Q′ : PTree E (ExtI E) (⊤ {ℓr})}
            → ¬ A .mem (X , e) a
            → Q ═[ ev (evl (evLabel X e a)) ]═► Q′
-           → (Par⊤ A P Q) ═[ ev (evl (evLabel X e a)) ]═► (Par⊤ A P Q′)
+           → (P ∥⇘ A ⇙ Q) ═[ ev (evl (evLabel X e a)) ]═► (P ∥⇘ A ⇙ Q′)
 Par-wsoloR A P Q ¬cs (wev q→qₛ qₛev qₘ→q′)
   with Par-soloR-step A P _ ¬cs qₛev
 ... | M , Qstep , M→Par =
@@ -512,7 +512,7 @@ Par-wsync : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
           → A .mem (X , e) a
           → P ═[ ev (evl (evLabel X e a)) ]═► P′
           → Q ─[ ev (evl (evLabel X e a)) ]─► Q₂
-          → (Par⊤ A P Q) ═[ ev (evl (evLabel X e a)) ]═► (Par⊤ A P′ Q₂)
+          → (P ∥⇘ A ⇙ Q) ═[ ev (evl (evLabel X e a)) ]═► (P′ ∥⇘ A ⇙ Q₂)
 Par-wsync A P Q {Q₂ = Q₂} cs (wev p→pₛ pₛev pₘ→p′) Qev =
   wev (Par-τ*-L A P Q p→pₛ)
       (Par-sync A ⊤merge _ Q cs pₛev Qev)
@@ -525,7 +525,7 @@ Par-wsync-R : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
             → A .mem (X , e) a
             → P ─[ ev (evl (evLabel X e a)) ]─► P₂
             → Q ═[ ev (evl (evLabel X e a)) ]═► Q′
-            → (Par⊤ A P Q) ═[ ev (evl (evLabel X e a)) ]═► (Par⊤ A P₂ Q′)
+            → (P ∥⇘ A ⇙ Q) ═[ ev (evl (evLabel X e a)) ]═► (P₂ ∥⇘ A ⇙ Q′)
 Par-wsync-R A P Q {P₂ = P₂} cs Pev (wev q→qₛ qₛev qₘ→q′) =
   wev (Par-τ*-R A P Q q→qₛ)
       (Par-sync A ⊤merge P _ cs Pev qₛev)
@@ -537,7 +537,7 @@ Par-w√-L : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
              {r₂ : ⊤ {ℓr}} {P′ : PTree E (ExtI E) (⊤ {ℓr})}
          → PTree.force Q ≡ ret r₂
          → P ═[ ev (√ tt) ]═► P′
-         → (Par⊤ A P Q) ═[ ev (√ tt) ]═► deadlock
+         → (P ∥⇘ A ⇙ Q) ═[ ev (√ tt) ]═► deadlock
 Par-w√-L A P Q {r₂} eqQ (wev p→pₛ pₛev _) =
   wev (Par-τ*-L A P Q p→pₛ)
       (sRet (fPar-rr A ⊤merge (√-source pₛev) eqQ))
@@ -547,7 +547,7 @@ Par-w√-R : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
              {r₁ : ⊤ {ℓr}} {Q′ : PTree E (ExtI E) (⊤ {ℓr})}
          → PTree.force P ≡ ret r₁
          → Q ═[ ev (√ tt) ]═► Q′
-         → (Par⊤ A P Q) ═[ ev (√ tt) ]═► deadlock
+         → (P ∥⇘ A ⇙ Q) ═[ ev (√ tt) ]═► deadlock
 Par-w√-R A P Q {r₁} eqP (wev q→qₛ qₛev _) =
   wev (Par-τ*-R A P Q q→qₛ)
       (sRet (fPar-rr A ⊤merge eqP (√-source qₛev)))
@@ -567,11 +567,11 @@ Par-w√-R A P Q {r₁} eqP (wev q→qₛ qₛev _) =
 
 cong-Par⊤-L : (A : EventSet) {P P′ Q : PTree E (ExtI E) (⊤ {ℓr})}
             → Sep A P Q → Sep A P′ Q → P ≈DR P′
-            → Par⊤ A P Q ≈DR Par⊤ A P′ Q
+            → (P ∥⇘ A ⇙ Q) ≈DR (P′ ∥⇘ A ⇙ Q)
 
 dr-sim-Par⊤-L : (A : EventSet) {P P′ Q : PTree E (ExtI E) (⊤ {ℓr})}
               → Sep A P Q → Sep A P′ Q → P ≈DR P′
-              → WSimF (DRbisim (⊤ {ℓr})) (Par⊤ A P Q) (Par⊤ A P′ Q)
+              → WSimF (DRbisim (⊤ {ℓr})) (P ∥⇘ A ⇙ Q) (P′ ∥⇘ A ⇙ Q)
 
 -- on-ev: invert the visible step
 dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-ev step
@@ -580,7 +580,7 @@ dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-ev step
 ... | evSync {X} {e} {a} {P₂} {Q₂} cs Pev Qev
       with pp′ .DRbisim.fwd .WSimF.on-ev Pev
 ...     | P₃ , P′weak , P₂≈P₃ =
-          Par⊤ A P₃ Q₂
+          (P₃ ∥⇘ A ⇙ Q₂)
         , Par-wsync A P′ Q cs P′weak Qev
         , cong-Par⊤-L A ((sPQ .stepL Pev) .stepR Qev)
                         ((sep-wev-L A P′weak sP′Q) .stepR Qev)
@@ -588,11 +588,11 @@ dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-ev step
 dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-ev step | evL {X} {e} {a} {P₂} ¬cs Pev
       with pp′ .DRbisim.fwd .WSimF.on-ev Pev
 ...     | P₃ , P′weak , P₂≈P₃ =
-          Par⊤ A P₃ Q
+          (P₃ ∥⇘ A ⇙ Q)
         , Par-wsoloL A P′ Q ¬cs P′weak
         , cong-Par⊤-L A (sPQ .stepL Pev) (sep-wev-L A P′weak sP′Q) P₂≈P₃
 dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-ev step | evR {X} {e} {a} {Q₂} ¬cs Qev =
-          Par⊤ A P′ Q₂
+          (P′ ∥⇘ A ⇙ Q₂)
         , Par-wsoloR A P′ Q ¬cs (wev τ*-refl Qev τ*-refl)
         , cong-Par⊤-L A (sPQ .stepR Qev) (sP′Q .stepR Qev) pp′
 -- evBoth: impossible — both operands offered a non-sync event (Sep .now).
@@ -610,11 +610,11 @@ dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-tau step
 ... | τL P₂ Pτ refl
       with pp′ .DRbisim.fwd .WSimF.on-tau Pτ
 ...     | P₃ , wτ P′→P₃ , P₂≈P₃ =
-          Par⊤ A P₃ Q
+          (P₃ ∥⇘ A ⇙ Q)
         , Par-wτ-L A P′ Q (wτ P′→P₃)
         , cong-Par⊤-L A (sPQ .stepL Pτ) (sep-τ*-L A P′→P₃ sP′Q) P₂≈P₃
 dr-sim-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .WSimF.on-tau step | τR Q₂ Qτ refl =
-          Par⊤ A P′ Q₂
+          (P′ ∥⇘ A ⇙ Q₂)
         , Par-wτ-R A P′ Q (wτ (τ*-step Qτ τ*-refl))
         , cong-Par⊤-L A (sPQ .stepR Qτ) (sP′Q .stepR Qτ) pp′
 
@@ -631,30 +631,30 @@ cong-Par⊤-L A {P} {P′} {Q} sPQ sP′Q pp′ .DRbisim.div← d = cong-Par⊤-
 
 cong-Par⊤-R : (A : EventSet) {P Q Q′ : PTree E (ExtI E) (⊤ {ℓr})}
             → Sep A P Q → Sep A P Q′ → Q ≈DR Q′
-            → Par⊤ A P Q ≈DR Par⊤ A P Q′
+            → (P ∥⇘ A ⇙ Q) ≈DR (P ∥⇘ A ⇙ Q′)
 
 dr-sim-Par⊤-R : (A : EventSet) {P Q Q′ : PTree E (ExtI E) (⊤ {ℓr})}
               → Sep A P Q → Sep A P Q′ → Q ≈DR Q′
-              → WSimF (DRbisim (⊤ {ℓr})) (Par⊤ A P Q) (Par⊤ A P Q′)
+              → WSimF (DRbisim (⊤ {ℓr})) (P ∥⇘ A ⇙ Q) (P ∥⇘ A ⇙ Q′)
 
 dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-ev step
   with Par-ev-elim A ⊤merge P Q step
 ... | evSync {X} {e} {a} {P₂} {Q₂} cs Pev Qev
       with qq′ .DRbisim.fwd .WSimF.on-ev Qev
 ...     | Q₃ , Q′weak , Q₂≈Q₃ =
-          Par⊤ A P₂ Q₃
+          (P₂ ∥⇘ A ⇙ Q₃)
         , Par-wsync-R A P Q′ cs Pev Q′weak
         , cong-Par⊤-R A ((sPQ .stepR Qev) .stepL Pev)
                         ((sep-wev-R A Q′weak sPQ′) .stepL Pev)
                         Q₂≈Q₃
 dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-ev step | evL {X} {e} {a} {P₂} ¬cs Pev =
-          Par⊤ A P₂ Q′
+          (P₂ ∥⇘ A ⇙ Q′)
         , Par-wsoloL A P Q′ ¬cs (wev τ*-refl Pev τ*-refl)
         , cong-Par⊤-R A (sPQ .stepL Pev) (sPQ′ .stepL Pev) qq′
 dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-ev step | evR {X} {e} {a} {Q₂} ¬cs Qev
       with qq′ .DRbisim.fwd .WSimF.on-ev Qev
 ...     | Q₃ , Q′weak , Q₂≈Q₃ =
-          Par⊤ A P Q₃
+          (P ∥⇘ A ⇙ Q₃)
         , Par-wsoloR A P Q′ ¬cs Q′weak
         , cong-Par⊤-R A (sPQ .stepR Qev) (sep-wev-R A Q′weak sPQ′) Q₂≈Q₃
 dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-ev step | evBoth ¬cs Pev Qev =
@@ -667,13 +667,13 @@ dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-ev step | ev√ {r�
 dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-tau step
   with Par-τ-elim A ⊤merge P Q step
 ... | τL P₂ Pτ refl =
-          Par⊤ A P₂ Q′
+          (P₂ ∥⇘ A ⇙ Q′)
         , Par-wτ-L A P Q′ (wτ (τ*-step Pτ τ*-refl))
         , cong-Par⊤-R A (sPQ .stepL Pτ) (sPQ′ .stepL Pτ) qq′
 dr-sim-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .WSimF.on-tau step | τR Q₂ Qτ refl
       with qq′ .DRbisim.fwd .WSimF.on-tau Qτ
 ...     | Q₃ , wτ Q′→Q₃ , Q₂≈Q₃ =
-          Par⊤ A P Q₃
+          (P ∥⇘ A ⇙ Q₃)
         , Par-wτ-R A P Q′ (wτ Q′→Q₃)
         , cong-Par⊤-R A (sPQ .stepR Qτ) (sep-τ*-R A Q′→Q₃ sPQ′) Q₂≈Q₃
 
@@ -692,7 +692,7 @@ cong-Par⊤-R A {P} {Q} {Q′} sPQ sPQ′ qq′ .DRbisim.div← d = cong-Par⊤-
 cong-Par⊤ : (A : EventSet) {P P′ Q Q′ : PTree E (ExtI E) (⊤ {ℓr})}
           → Sep A P Q → Sep A P′ Q → Sep A P′ Q′
           → P ≈DR P′ → Q ≈DR Q′
-          → Par⊤ A P Q ≈DR Par⊤ A P′ Q′
+          → (P ∥⇘ A ⇙ Q) ≈DR (P′ ∥⇘ A ⇙ Q′)
 cong-Par⊤ A {P} {P′} {Q} {Q′} sPQ sP′Q sP′Q′ pp′ qq′ =
   drbisim-trans (cong-Par⊤-L A sPQ sP′Q pp′)
                 (cong-Par⊤-R A sP′Q sP′Q′ qq′)

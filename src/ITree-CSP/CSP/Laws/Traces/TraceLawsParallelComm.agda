@@ -82,8 +82,8 @@ Par-comm-≈T A merge P Q =
 -- synchronised parallel on the EventSet A (R₁ = R₂ = R = ⊤)
 Par⊤-comm : ∀ {ℓr} (A : EventSet)
               (P Q : PTree E (ExtI E) (⊤ {ℓr}))
-          → ((Par⊤ A Q P) ⊑T (Par⊤ A P Q))
-          × ((Par⊤ A P Q) ⊑T (Par⊤ A Q P))
+          → ((Q ∥⇘ A ⇙ P) ⊑T (P ∥⇘ A ⇙ Q))
+          × ((P ∥⇘ A ⇙ Q) ⊑T (Q ∥⇘ A ⇙ P))
 Par⊤-comm A P Q = Par-comm-≈T A (λ _ _ → tt) P Q
 
 -- interleaving (empty synchronisation set)

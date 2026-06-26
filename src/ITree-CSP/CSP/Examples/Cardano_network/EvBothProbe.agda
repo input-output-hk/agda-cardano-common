@@ -50,12 +50,15 @@ p1 = record
   ; numConns = λ where N2N_KeepAlive → 1 ; _ → 0
   ; decCookie  = decEq⊤ ; decBlock = decEq⊤ ; decTxid = decEq⊤
   ; decLSlot = decEq⊤ ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤
-  ; decVoteBlob = decEq⊤ }
+  ; decVoteBlob = decEq⊤
+  ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
+  ; decTime = decEq⊤ ; decLength = decEq⊤ }
 
 open import CSP.Examples.Cardano_network.Net p1
   using (Net; Conn; Net-≟; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)
 open import CSP.Examples.Cardano_network.Network p1 ⊤
 import CSP.Operators {E = Net ⊤} (Net-≟ {⊤}) as Op
+open Op using (Par⊤; _∥⇘_⇙_)
 
 NetR : Set
 NetR = Poly.⊤ {0ℓ}

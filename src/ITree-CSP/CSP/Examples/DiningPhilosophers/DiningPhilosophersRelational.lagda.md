@@ -879,6 +879,7 @@ the obvious three-constructor decision.
   open import Function using (case_of_)
   open import Data.Unit.Polymorphic using (⊤; tt)
   open import Data.Maybe using (Maybe; just; nothing)
+  open import Data.Maybe.Properties using (just-injective)
   open import Relation.Nullary using (Dec; yes; no)
 
   open import Process_Trees
@@ -887,7 +888,8 @@ the obvious three-constructor decision.
   data DP : Set → Set where act : Phil → Kind → DP (⊤ {lzero})
 
   open import Semantics.LTS {E = DP} {I = ExtI DP}
-  open import Semantics.Deadlock {E = DP} {I = ExtI DP} using (IsStuck)
+  open import Semantics.Deadlock {E = DP} {I = ExtI DP} using (IsStuck; DeadlockFree)
+  open import Semantics.Failures {E = DP} {I = ExtI DP} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 
   Kind-≟ : (k k' : Kind) → Dec (k ≡ k')
   Kind-≟ takeFirst  takeFirst  = yes refl
@@ -1054,6 +1056,78 @@ process-tree `IsStuck`.
   ... | nothing = case eqj of λ ()
 ```
 
+### §F.4. Lifting deadlock-freedom to the generated tree
+
+The deadlock lift (`proc-stuck`) turns a relational `Stuck c` into a process-tree
+`IsStuck (proc c)`. We now lift the *dual* — relational deadlock-freedom
+(`Reachable c → Enabled c`, the §8 `no-deadlock`) to a genuine `DeadlockFree (proc c)`.
+
+The argument rests on one structural fact: every `proc c` is a **stable** `react`
+node (τ-map everywhere `nothing`), so the only LTS move out of `proc c` is a visible
+`act i k` step, and it lands back on a `proc c'` with `c ⟶[ i , k ] c'`. Hence the
+τ-absorbing big-step `proc c ⟹⟨ s ⟩ t′` can only thread visible steps through
+`proc`-states, each a genuine relational transition; the endpoint `t′` is itself some
+`proc c'` with `c'` reachable.
+
+`proc-noτ`: `proc c` has no τ-transition (`sSil` needs `force ≡ sil`, but the force is
+a `react`; `sTau` needs the τ-map at some point to be `just`, but it is everywhere
+`nothing`).
+
+```agda
+  proc-noτ : ∀ {c t′} → ¬ (proc c ─[ τ ]─► t′)
+  proc-noτ (sSil eq)       = case eq of λ ()
+  proc-noτ (sTau refl br)  = case br of λ ()
+```
+
+`proc-step-inv`: invert a single LTS step of `proc c`.  `sRet`/`sSil` clash with the
+`react` force; `sTau` with the everywhere-`nothing` τ-map; the lone `sVis` clause (every
+`AnyTypes DP` is `(⊤ , act i k)`) carries `eqj : procStep (stepTo? c i k) ≡ just t′`,
+which forces `stepTo? c i k ≡ just c'`, so `t′ ≡ proc c'` (`just-injective`) and
+`stepTo?-sound` returns the witnessing relational step.
+
+```agda
+  proc-step-inv : ∀ {c l t′} → proc c ─[ l ]─► t′
+                → Σ[ i ∈ Phil ] Σ[ k ∈ Kind ] Σ[ c′ ∈ Config ]
+                    ( l ≡ ev (evl (evLabel (⊤ {lzero}) (act i k) tt))
+                    × t′ ≡ proc c′
+                    × c ⟶[ i , k ] c′ )
+  proc-step-inv (sRet eq)      = case eq of λ ()
+  proc-step-inv (sSil eq)      = case eq of λ ()
+  proc-step-inv (sTau refl br) = case br of λ ()
+  proc-step-inv {c} (sVis {at = _ , act i k} {a = tt} refl eqj)
+    with stepTo? c i k in eqs
+  ... | just c′ = i , k , c′ , refl , sym (just-injective eqj) , stepTo?-sound {c} {i} {k} {c′} eqs
+  ... | nothing = case eqj of λ ()
+```
+
+`reach-transport`: every endpoint of a big-step from a reachable `proc c` is again a
+`proc c'` of a reachable `c'`.  Induct on `⟹⟨_⟩`: `⟹-refl` stays put; `⟹-τ` is refuted
+by `proc-noτ`; `⟹-ev` inverts the head step with `proc-step-inv` (landing on `proc c'`
+with `c ⟶ c'`, hence `c'` reachable via `step`) and recurses.
+
+```agda
+  reach-transport : ∀ {c s t′} → Reachable c → proc c ⟹⟨ s ⟩ t′
+                  → Σ[ c′ ∈ Config ] (t′ ≡ proc c′ × Reachable c′)
+  reach-transport {c} r ⟹-refl          = c , refl , r
+  reach-transport     r (⟹-τ  pτ  _)    = ⊥-elim (proc-noτ pτ)
+  reach-transport     r (⟹-ev pev rest) with proc-step-inv pev
+  ... | _ , _ , _ , _ , refl , tr = reach-transport (step r tr) rest
+```
+
+`proc-deadlock-free`: from a reachable `c`, the tree `proc c` is deadlock-free.  Given a
+big-step to `t′` and a putative `IsStuck t′`, `reach-transport` exhibits `t′` as `proc c'`
+with `c'` reachable; `no-deadlock` (the §8 result, under the `asym-order` hypothesis) makes
+`c'` enabled — and `proc-step` lifts that enabled action to a real LTS move out of `t′`,
+contradicting stuckness.
+
+```agda
+  proc-deadlock-free : (asym-order : ∀ i → first i Fin.< second i)
+                     → ∀ {c} → Reachable c → DeadlockFree (proc c)
+  proc-deadlock-free asym r bs stk with reach-transport r bs
+  ... | c′ , refl , r′ with no-deadlock asym r′
+  ...   | (i , k) , c″ , tr = stk (proc-step tr)
+```
+
 The top-level corollary specialises §F to the **symmetric** instance and its
 deadlocked configuration `allOne`: the generated tree at `allOne` is a real
 process-tree deadlock. It appears at the end of §10, after `module Sym`.
@@ -1157,11 +1231,26 @@ lifts, through the §F bridge, to a real process-tree deadlock: the
 generated tree `Sym.proc Sym.allOne` admits no LTS transition whatsoever.
 
 ```agda
-open import Semantics.Deadlock using (IsStuck)
+open import Semantics.Deadlock using (IsStuck; DeadlockFree)
 
 -- The generated process tree of the symmetric deadlock configuration
 -- is genuinely stuck: no LTS label is enabled.
 proc-allOne-IsStuck : ∀ {m} → IsStuck (Sym.proc {m} Sym.allOne)
 proc-allOne-IsStuck {m} =
   Sym.proc-stuck (Sym.allOne-stuck (λ _ → refl) (λ _ → refl))
+```
+
+### §10.6. The asymmetric system is genuinely deadlock-free
+
+Dually, the §F.4 lift turns the relational deadlock-freedom of the **asymmetric**
+(resource-ordered) strategy into a genuine `DeadlockFree` of the generated tree:
+no state reachable from `Asym.proc Asym.init` along the τ-absorbing big-step is
+ever stuck.  The `asym-order` hypothesis of `no-deadlock` is discharged by
+`asymOrder`, exactly as in `philosophers-deadlock-free`.
+
+```agda
+-- The generated process tree of the asymmetric system, started from the initial
+-- (all-thinking) configuration, is deadlock-free: every reachable state has a move.
+proc-init-DeadlockFree-asym : ∀ {m} → DeadlockFree (Asym.proc {m} Asym.init)
+proc-init-DeadlockFree-asym {m} = Asym.proc-deadlock-free asymOrder Asym.rfl
 ```

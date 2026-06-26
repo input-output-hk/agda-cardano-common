@@ -10,8 +10,9 @@
 --   `Mode`          — message direction (FromInitiator / FromResponder),
 --   `BlockingStyle` — TxSubmission blocking flag.
 --
--- The numeric domains `Length` and `Time` are *not* defined here: they
--- are simply `ℕ` and used directly downstream.
+-- `Length` and `Time` are *not* defined here either: they are abstract
+-- opaque domains carried by `Params` (with `DecEq` + distinguished
+-- fillers `time₀`/`length₀`), since they carry no behaviour in the model.
 --
 -- Each enum is given a hand-written `Class.DecEq` instance so that the
 -- abstract data domains (`Params`) and the message datatypes (`Data`)

@@ -63,7 +63,7 @@ module _ (A : EventSet) (merge : Mg R₁ R₂ R) where
 -- instances: ⊤-merge (Par⊤) and interleaving (⦀, cs = ∅)
 -------------------------------------------------------------------------------------
 Par⊤-zero-FD : (A : EventSet) (P : PTree E (ExtI E) (⊤ {ℓr}))
-             → Par⊤ A div P ≈FD div
+             → (div ∥⇘ A ⇙ P) ≈FD div
 Par⊤-zero-FD A P = Par-zero-FD A (λ _ _ → tt) P
 
 ⦀-zero-FD : (P : PTree E (ExtI E) (⊤ {ℓr})) → (div ⦀ P) ≈FD div

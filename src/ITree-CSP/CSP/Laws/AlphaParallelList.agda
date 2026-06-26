@@ -42,6 +42,7 @@ import CSP.Laws.AlphaParallel {ℓ} {ℓe} {E} as CSPAParLaws
 open CSPAParLaws E-≟ using
   ( αpar-IsStuck; Blocked
   ; AlphaSync; AlphaSyncSplit; AlphaParallel-trace; αpar-trace-intro
+  ; AlphaParReachSplit; αpar-reach
   ; VisDriven )
 
 -------------------------------------------------------------------------------------
@@ -380,6 +381,36 @@ data ListSyncSplit {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
 ∥ₐ⁺-trace c (d ∷ ds) tr =
   cons-split (AlphaParallel-trace (Comp.proc c) (∥ₐ⁺ d ds)
                                   (Comp.alpha c) (unionα (d ∷ ds)) tr)
+
+-------------------------------------------------------------------------------------
+-- State-retaining n-ary elimination (reach).  The endpoint-pinning analogue of
+-- `∥ₐ⁺-trace`: like the binary `αpar-reach`, it RETAINS the composite endpoint `t′`
+-- (which `DeadlockFree` needs for `IsStuck t′`).  Shallow, exactly as `∥ₐ⁺-trace`:
+-- the singleton leaf carries the bare-head big-step; the cons case carries ONE binary
+-- `AlphaParReachSplit` of the head against the tail-composite, whose `in-progress` pins
+-- `t′ ≡ c′ ⟦ alpha c ∥ unionα (d ∷ ds) ⟧ xs′` (and `done` pins `t′ ≡ deadlock`).  The
+-- tail-composite residual `xs′` can be recursively decomposed by re-applying `∥ₐ⁺-reach`.
+
+data ListReachSplit {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  : (c : Comp I R) (xs : List (Comp I R))
+  → PTree E (ExtI I) (RetOf⁺ c xs)
+  → List (Event√ {ℓ = ℓ} {ℓe = ℓe} {ℓi = lsuc ℓ ⊔ ℓi} {E = E} {I = ExtI I} (RetOf⁺ c xs))
+  → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr) where
+  nil-split  : ∀ {c t′ s} → (∥ₐ⁺ {I = I} {R = R} c [] ⟹⟨ s ⟩ t′)
+                          → ListReachSplit c [] t′ s
+  cons-split : ∀ {c d ds t′ s}
+             → AlphaParReachSplit (Comp.alpha c) (unionα (d ∷ ds)) (Comp.proc c) (∥ₐ⁺ d ds) t′ s
+             → ListReachSplit c (d ∷ ds) t′ s
+
+∥ₐ⁺-reach : ∀ {ℓi ℓr} {I : Set ℓ → Set ℓi} {R : Set ℓr}
+  → (c : Comp I R) (xs : List (Comp I R))
+    {s : List (Event√ {ℓi = lsuc ℓ ⊔ ℓi} {I = ExtI I} (RetOf⁺ c xs))}
+    {t′ : PTree E (ExtI I) (RetOf⁺ c xs)}
+  → (∥ₐ⁺ c xs ⟹⟨ s ⟩ t′) → ListReachSplit c xs t′ s
+∥ₐ⁺-reach c []       bs = nil-split bs
+∥ₐ⁺-reach c (d ∷ ds) bs =
+  cons-split (αpar-reach (Comp.proc c) (∥ₐ⁺ d ds)
+                         (Comp.alpha c) (unionα (d ∷ ds)) bs)
 
 -------------------------------------------------------------------------------------
 -- (e) n-ary trace-introduction law for the replicated parallel.

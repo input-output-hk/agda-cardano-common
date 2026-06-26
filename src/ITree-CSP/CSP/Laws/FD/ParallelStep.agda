@@ -76,7 +76,7 @@ Par-step-FD A merge vA vB = drbisim→≈FD (sbisim→drbisim (Par-step-∼ A me
 -- ⊤-merge (Par⊤) and interleaving (⦀) instances.
 Par⊤-step-FD : (A : EventSet)
                (vA vB : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) (⊤ {ℓr}))))
-             → Par⊤ A (pchoice vA) (pchoice vB)
+             → (pchoice vA ∥⇘ A ⇙ pchoice vB)
                ≈FD pchoice (par-pVis A (λ _ _ → tt) (react vA ∅t) (react vB ∅t) (pchoice vA) (pchoice vB))
 Par⊤-step-FD A vA vB = Par-step-FD A (λ _ _ → tt) vA vB
 

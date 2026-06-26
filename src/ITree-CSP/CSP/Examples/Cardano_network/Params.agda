@@ -26,6 +26,9 @@ open import CSP.Examples.Cardano_network.Base using (IDs)
 record Params : Set₁ where
   field
     Cookie Block Txid LSlot VoterId LFBitmap VoteBlob : Set
+    Time Length : Set
+    time₀   : Time
+    length₀ : Length
     numConns : IDs → ℕ
     ⦃ decCookie ⦄   : DecEq Cookie
     ⦃ decBlock ⦄    : DecEq Block
@@ -34,3 +37,5 @@ record Params : Set₁ where
     ⦃ decVoterId ⦄  : DecEq VoterId
     ⦃ decLFBitmap ⦄ : DecEq LFBitmap
     ⦃ decVoteBlob ⦄ : DecEq VoteBlob
+    ⦃ decTime ⦄     : DecEq Time
+    ⦃ decLength ⦄   : DecEq Length

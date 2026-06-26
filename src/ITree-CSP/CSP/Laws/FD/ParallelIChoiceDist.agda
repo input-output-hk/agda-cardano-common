@@ -161,7 +161,7 @@ module _ (A : EventSet) (merge : Mg R₁ R₂ R)
 -- instances: ⊤-merge (Par⊤) and interleaving (⦀, cs = ∅)
 -------------------------------------------------------------------------------------
 Par⊤-⊓-dist-FD : (A : EventSet) (P Q R₀ : PTree E (ExtI E) (⊤ {ℓr}))
-               → Par⊤ A P (Q ⊓ R₀) ≈FD (Par⊤ A P Q ⊓ Par⊤ A P R₀)
+               → (P ∥⇘ A ⇙ (Q ⊓ R₀)) ≈FD ((P ∥⇘ A ⇙ Q) ⊓ (P ∥⇘ A ⇙ R₀))
 Par⊤-⊓-dist-FD A P Q R₀ = Par-⊓-dist-FD A (λ _ _ → tt) P Q R₀
 
 ⦀-⊓-dist-FD : (P Q R₀ : PTree E (ExtI E) (⊤ {ℓr})) → (P ⦀ (Q ⊓ R₀)) ≈FD ((P ⦀ Q) ⊓ (P ⦀ R₀))

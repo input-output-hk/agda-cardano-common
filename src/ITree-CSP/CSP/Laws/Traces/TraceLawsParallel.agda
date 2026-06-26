@@ -235,6 +235,66 @@ Par-τ-R A merge P Q {Q'} (sTau {v = vQ} {τc = τcQ} {i = iₚ} {a = aₚ} eqQ 
                          {a = lift (fsuc fzero) , aₚ} (fPar-nn A merge eqP eqQ tt tt)
                          (par-pTau-tag1-eq A merge (react vP τcP) (react vQ τcQ) P Q {iₚ = iₚ} {aₚ = aₚ} brQ)
 
+-- SOLO (non-sync) visible step, L: P offers, Q does NOT, event ∉ A  (→ P′ ∥ Q)
+-- via the both-live combinator `par-pVis`.  Consumes `viewV nQ at a ≡ nothing` as a
+-- hypothesis; does NOT force Q (nQ is the abstract NodeKind given to par-pVis).
+par-pVis-soloL-eq : (A : EventSet) (merge : Mg R₁ R₂ R)
+                      (nP : NodeKind E (ExtI E) R₁) (nQ : NodeKind E (ExtI E) R₂)
+                      (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+                      {at : AnyTypes E} {a : proj₁ at} {P' : PTree E (ExtI E) R₁}
+                  → ¬ A .mem at a → viewV nP at a ≡ just P' → viewV nQ at a ≡ nothing
+                  → par-pVis A merge nP nQ P Q at a ≡ just (Par A merge P' Q)
+par-pVis-soloL-eq A merge nP nQ P Q {at = at} {a = a} ¬cs veP veQ
+  with A .dec at a | viewV nP at a | viewV nQ at a
+... | yes cs  | _       | _       = ⊥-elim (¬cs cs)
+... | no  _   | just _  | nothing = case veP of λ { refl → refl }
+... | no  _   | just _  | just _  = case veQ of λ ()
+... | no  _   | nothing | _       = case veP of λ ()
+
+-- SOLO visible step via the `par-hVisL` combinator (Q terminated, P live).
+-- Consumes ¬(e ∈ A); does NOT use any property of Q's offer map.
+par-hVisL-soloL-eq : (A : EventSet) (merge : Mg R₁ R₂ R)
+                       {vP : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R₁))}
+                       (Q : PTree E (ExtI E) R₂)
+                       {at : AnyTypes E} {a : proj₁ at} {P' : PTree E (ExtI E) R₁}
+                   → ¬ A .mem at a → vP at a ≡ just P'
+                   → par-hVisL A merge vP Q at a ≡ just (Par A merge P' Q)
+par-hVisL-soloL-eq A merge {vP = vP} Q {at = at} {a = a} ¬cs veP
+  with A .dec at a
+... | yes cs = ⊥-elim (¬cs cs)
+... | no  _  with vP at a
+...   | just _  = case veP of λ { refl → refl }
+...   | nothing = case veP of λ ()
+
+-- SOLO visible step via `par-pVis`, R side: Q offers, P does NOT, event ∉ A  (→ P ∥ Q′)
+par-pVis-soloR-eq : (A : EventSet) (merge : Mg R₁ R₂ R)
+                      (nP : NodeKind E (ExtI E) R₁) (nQ : NodeKind E (ExtI E) R₂)
+                      (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+                      {at : AnyTypes E} {a : proj₁ at} {Q' : PTree E (ExtI E) R₂}
+                  → ¬ A .mem at a → viewV nP at a ≡ nothing → viewV nQ at a ≡ just Q'
+                  → par-pVis A merge nP nQ P Q at a ≡ just (Par A merge P Q')
+par-pVis-soloR-eq A merge nP nQ P Q {at = at} {a = a} ¬cs veP veQ
+  with A .dec at a | viewV nP at a | viewV nQ at a
+... | yes cs  | _       | _       = ⊥-elim (¬cs cs)
+... | no  _   | nothing | just _  = case veQ of λ { refl → refl }
+... | no  _   | just _  | just _  = case veP of λ ()
+... | no  _   | just _  | nothing = case veP of λ ()
+... | no  _   | nothing | nothing = case veQ of λ ()
+
+-- SOLO visible step via `par-hVisR` combinator (P terminated, Q live).
+par-hVisR-soloR-eq : (A : EventSet) (merge : Mg R₁ R₂ R)
+                       (P : PTree E (ExtI E) R₁)
+                       {vQ : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R₂))}
+                       {at : AnyTypes E} {a : proj₁ at} {Q' : PTree E (ExtI E) R₂}
+                   → ¬ A .mem at a → vQ at a ≡ just Q'
+                   → par-hVisR A merge P vQ at a ≡ just (Par A merge P Q')
+par-hVisR-soloR-eq A merge P {vQ = vQ} {at = at} {a = a} ¬cs veQ
+  with A .dec at a
+... | yes cs = ⊥-elim (¬cs cs)
+... | no  _  with vQ at a
+...   | just _  = case veQ of λ { refl → refl }
+...   | nothing = case veQ of λ ()
+
 -- a shared (in `A`) event: both operands offer it, the composite synchronises (→ P′ ∥ Q′)
 Par-sync : (A : EventSet) (merge : Mg R₁ R₂ R)
            (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
@@ -247,3 +307,68 @@ Par-sync A merge P Q csat (sVis {v = vP} {τc = τcP} {at = at} {a = a} eqP brP)
                                (sVis {v = vQ} {τc = τcQ} eqQ brQ) =
   sVis (fPar-nn A merge eqP eqQ tt tt)
        (par-pVis-sync-eq A merge (react vP τcP) (react vQ τcQ) P Q csat brP brQ)
+
+-------------------------------------------------------------------------------------
+-- SOLO (non-synchronised) visible intro: one operand's step lifts past an idle
+-- operand, taking the idle operand's NON-OFFER as an explicit hypothesis.
+-- The proof forces Q (it cases on PTree.force Q) but APPLICATIONS of the proven
+-- lemma do NOT — the non-offer hypothesis `viewV (force Q) at a ≡ nothing` is
+-- enough, so Q may stay abstract at use sites.
+-------------------------------------------------------------------------------------
+
+-- P does a non-sync visible step; Q is idle (does not offer that event)  (→ P′ ∥ Q)
+Par-soloL : (A : EventSet) (merge : Mg R₁ R₂ R)
+            (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+            {X : Set ℓ} {e : E X} {a : X} {P' : PTree E (ExtI E) R₁}
+          → ¬ A .mem (X , e) a
+          → P ─[ ev (evl (evLabel X e a)) ]─► P'
+          → viewV (PTree.force Q) (X , e) a ≡ nothing
+          → (Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─► (Par A merge P' Q)
+Par-soloL A merge P Q ¬cs (sVis {v = vP} {τc = τcP} eqP brP) nq
+  with PTree.force Q in eqQ
+... | ret r        = sVis (fPar-er A merge eqP eqQ)
+                          (par-hVisL-soloL-eq A merge {vP = vP} Q ¬cs brP)
+... | sil Q'       = sVis (fPar-nn A merge eqP eqQ tt tt)
+                          (par-pVis-soloL-eq A merge (react vP τcP) (sil Q') P Q ¬cs brP nq)
+... | react vQ τcQ = sVis (fPar-nn A merge eqP eqQ tt tt)
+                          (par-pVis-soloL-eq A merge (react vP τcP) (react vQ τcQ) P Q ¬cs brP nq)
+
+-- Mirror: Q does a non-sync visible step; P is idle  (→ P ∥ Q′)
+Par-soloR : (A : EventSet) (merge : Mg R₁ R₂ R)
+            (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+            {X : Set ℓ} {e : E X} {a : X} {Q' : PTree E (ExtI E) R₂}
+          → ¬ A .mem (X , e) a
+          → Q ─[ ev (evl (evLabel X e a)) ]─► Q'
+          → viewV (PTree.force P) (X , e) a ≡ nothing
+          → (Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─► (Par A merge P Q')
+Par-soloR A merge P Q ¬cs (sVis {v = vQ} {τc = τcQ} eqQ brQ) np
+  with PTree.force P in eqP
+... | ret r        = sVis (fPar-re A merge eqP eqQ)
+                          (par-hVisR-soloR-eq A merge P {vQ = vQ} ¬cs brQ)
+... | sil P'       = sVis (fPar-nn A merge eqP eqQ tt tt)
+                          (par-pVis-soloR-eq A merge (sil P') (react vQ τcQ) P Q ¬cs np brQ)
+... | react vP τcP = sVis (fPar-nn A merge eqP eqQ tt tt)
+                          (par-pVis-soloR-eq A merge (react vP τcP) (react vQ τcQ) P Q ¬cs np brQ)
+
+-------------------------------------------------------------------------------------
+-- VALIDATION: applying Par-soloL / Par-soloR with an ABSTRACT (un-forced) idle operand.
+-- These typecheck only if the proven lemmas need NO reduction of `force Q` / `force P`.
+-------------------------------------------------------------------------------------
+
+_test-soloL : (A : EventSet) (merge : Mg R₁ R₂ R)
+              (P P' : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+              {X : Set ℓ} {e : E X} {a : X}
+            → ¬ A .mem (X , e) a
+            → P ─[ ev (evl (evLabel X e a)) ]─► P'
+            → viewV (PTree.force Q) (X , e) a ≡ nothing
+            → (Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─► (Par A merge P' Q)
+_test-soloL A merge P P' Q ¬cs st nq = Par-soloL A merge P Q ¬cs st nq
+
+_test-soloR : (A : EventSet) (merge : Mg R₁ R₂ R)
+              (P : PTree E (ExtI E) R₁) (Q Q' : PTree E (ExtI E) R₂)
+              {X : Set ℓ} {e : E X} {a : X}
+            → ¬ A .mem (X , e) a
+            → Q ─[ ev (evl (evLabel X e a)) ]─► Q'
+            → viewV (PTree.force P) (X , e) a ≡ nothing
+            → (Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─► (Par A merge P Q')
+_test-soloR A merge P Q Q' ¬cs st np = Par-soloR A merge P Q ¬cs st np

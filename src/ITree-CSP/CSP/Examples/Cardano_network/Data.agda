@@ -35,10 +35,11 @@ open import Data.Nat using (ℕ)
 open import Data.List using (List; []; _∷_)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Data.Product using (_×_; _,_)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import CSP.Examples.Cardano_network.Base
-  using ( BlockingStyle; Blocking; NonBlocking )
+  using ( BlockingStyle; Blocking; NonBlocking; Mode; DecEq-Mode )
 
 -- Abstract opaque domains + their DecEq instances, in scope here.
 open Params p
@@ -609,3 +610,28 @@ instance
     go (leiosFetch _)   (chainSync _)    = no λ ()
     go (leiosFetch _)   (txSubmission _) = no λ ()
     go (leiosFetch _)   (leiosNotify _)  = no λ ()
+
+------------------------------------------------------------------------
+-- Step 4: the negotiated payload `t.m.l.msg` (shared by every peer).
+--
+-- Each mini-protocol peer negotiates this 4-tuple as the `?`/`!` value of
+-- its wire `send`/`receive` events.  It lives here (not in any one peer
+-- module) so all peers share ONE `Payload` type and can compose over a
+-- single `Net_Api Payload` alphabet.  `Time`/`Length` + their `DecEq`s come
+-- from `open Params p`; `Mode`/`DecEq-Mode` from `Base`; `Messages` is local.
+------------------------------------------------------------------------
+
+-- the negotiated `Time × Mode × Length × Messages` tuple
+Payload : Set
+Payload = Time × Mode × Length × Messages
+
+instance
+  -- componentwise decidable equality on the payload tuple
+  DecEq-Payload : DecEq Payload
+  DecEq-Payload ._≟_ (t₁ , m₁ , l₁ , d₁) (t₂ , m₂ , l₂ , d₂)
+    with t₁ ≟ t₂ | m₁ ≟ m₂ | l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬p | _ | _ | _ = no λ where refl → ¬p refl
+  ... | _ | no ¬p | _ | _ = no λ where refl → ¬p refl
+  ... | _ | _ | no ¬p | _ = no λ where refl → ¬p refl
+  ... | _ | _ | _ | no ¬p = no λ where refl → ¬p refl

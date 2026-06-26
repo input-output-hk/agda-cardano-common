@@ -277,7 +277,7 @@ module _ (A : EventSet) (merge : Mg R R R)
 -- instances: ⊤-merge (Par⊤) and interleaving (⦀, cs = ∅)
 -------------------------------------------------------------------------------------
 Par⊤-assoc-FD : (A : EventSet) (P Q R₀ : PTree E (ExtI E) (⊤ {ℓr}))
-              → Par⊤ A (Par⊤ A P Q) R₀ ≈FD Par⊤ A P (Par⊤ A Q R₀)
+              → ((P ∥⇘ A ⇙ Q) ∥⇘ A ⇙ R₀) ≈FD (P ∥⇘ A ⇙ (Q ∥⇘ A ⇙ R₀))
 Par⊤-assoc-FD A P Q R₀ = Par-assoc-FD A (λ _ _ → tt) (λ a b c → refl) P Q R₀
 
 ⦀-assoc-FD : (P Q R₀ : PTree E (ExtI E) (⊤ {ℓr})) → ((P ⦀ Q) ⦀ R₀) ≈FD (P ⦀ (Q ⦀ R₀))

@@ -169,7 +169,7 @@ overlap-comm A P Q P' Q' .Sbisim.bwd = overlap-comm A Q P Q' P' .Sbisim.fwd
 -------------------------------------------------------------------------------------
 
 Par⊤-comm-FD : (A : EventSet) (P Q : PTree E (ExtI E) (⊤ {ℓr}))
-             → (Par⊤ A P Q) ≈FD (Par⊤ A Q P)
+             → (P ∥⇘ A ⇙ Q) ≈FD (Q ∥⇘ A ⇙ P)
 Par⊤-comm-FD A P Q = drbisim→≈FD (sbisim→drbisim (Par-comm A P Q))
 
 ⦀-comm-FD : (P Q : PTree E (ExtI E) (⊤ {ℓr})) → (P ⦀ Q) ≈FD (Q ⦀ P)
