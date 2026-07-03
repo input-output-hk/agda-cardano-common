@@ -85,6 +85,7 @@ data ApiBFTag : Set where
   sendBFRequestRange sendBFClientDone sendBFStartBatch sendBFNoBlocks
     sendBFBlock sendBFBatchDone recvBFBlock reqBFRange : ApiBFTag
 
+-- Carrier of each API
 ApiBFCar : ApiBFTag → Set
 ApiBFCar sendBFRequestRange = ChainRange
 ApiBFCar sendBFClientDone   = ⊤

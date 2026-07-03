@@ -47,6 +47,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees
+open import Classical using (dne)
 
 module CSP.Laws.ClassicalFromLEM {ℓ ℓe} {E : Set ℓ → Set ℓe}
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y)) where
@@ -76,9 +77,9 @@ private
     R₁ : Set ℓ₁
     R₂ : Set ℓ₂
 
--- THE single classical axiom
-postulate
-  dne : ∀ {ℓa} {A : Set ℓa} → ¬ ¬ A → A
+-- THE single classical axiom — now shared from the common `Classical`
+-- module (imported above). `((A → ⊥) → ⊥) → A` is definitionally `¬ ¬ A → A`,
+-- so every `dne` use below is unchanged.
 
 -------------------------------------------------------------------------------------
 -- Derivation 1:  ¬-divergent→normal  from  dne.

@@ -2916,9 +2916,6 @@ CopyLeaf = Copy N2N_KeepAlive c0
 CopyLeaf-in : Data → NetProc
 CopyLeaf-in d = succV CopyLeaf inputAt d
 
-CopyLeaf-g : Data → NetProc
-CopyLeaf-g d = succV (CopyLeaf-in d) outputAt d
-
 -- CopyLeaf fires ONLY `input` (some payload `d : Data`), landing on `CopyLeaf-in d`,
 -- with label `inputLbl d`.  The payload is existential because the signature
 -- quantifies `a : B` (general), while `inputLbl`/`CopyLeaf-in` need a `Data` arg.
@@ -2939,30 +2936,12 @@ CopyLeaf-ev {e = sndack id c}                 (sVis refl ())
 CopyLeaf-ev {e = rcvack id c}                 (sVis refl ())
 CopyLeaf-ev {e = ack    id c}                 (sVis refl ())
 
--- CopyLeaf-in d fires ONLY `output`, value forced to `d`; lands on CopyLeaf-g d.
--- The fired label is `outputLbl d` and the target is `CopyLeaf-g d` (current d).
--- Well-typed: the payload constraint is expressed through the LABEL equation
--- (`outputLbl d`), never `a ≡ d` (`a : B` is heterogeneous with `d : Data`).
-CopyLeaf-in-ev : ∀ {d B} {e : Net Data B} {a} {W} →
-  CopyLeaf-in d ─[ ev (evl (evLabel B e a)) ]─► W →
-  (evl (evLabel B e a) ≡ outputLbl d) × (W ≡ CopyLeaf-g d)
-CopyLeaf-in-ev {d = d} {e = output N2N_KeepAlive zero} {a = a} (sVis refl h)
-  with a ≟ d
-... | no  _    = nothing-absurd h
-CopyLeaf-in-ev {d = d} {e = output N2N_KeepAlive zero} {a = a} (sVis refl h)
-  | yes refl rewrite ≟-diag d = refl , sym (just-injective h)
-CopyLeaf-in-ev {e = output N2N_ChainSync    c}     (sVis refl ())
-CopyLeaf-in-ev {e = output N2N_BlockFetch   c}     (sVis refl ())
-CopyLeaf-in-ev {e = output N2N_TxSubmission c}     (sVis refl ())
-CopyLeaf-in-ev {e = output N2N_LeiosNotify  c}     (sVis refl ())
-CopyLeaf-in-ev {e = output N2N_LeiosFetch   c}     (sVis refl ())
-CopyLeaf-in-ev {e = input  id c}                   (sVis refl ())
-CopyLeaf-in-ev {e = sndmsg id c}                   (sVis refl ())
-CopyLeaf-in-ev {e = rcvmsg id c}                   (sVis refl ())
-CopyLeaf-in-ev {e = tx     id c}                   (sVis refl ())
-CopyLeaf-in-ev {e = sndack id c}                   (sVis refl ())
-CopyLeaf-in-ev {e = rcvack id c}                   (sVis refl ())
-CopyLeaf-in-ev {e = ack    id c}                   (sVis refl ())
+-- NOTE: the raw-leaf output inversion `CopyLeaf-in-ev` is GONE.  Under an
+-- arbitrary `DecEq Data`, the raw `Copy` leaf's `output` offer is immediately
+-- followed by loop-restart, so its value comparison is neutralised and cannot
+-- be reduced/inverted (`≟-diag` does not fire, `with a ≟ d` does not align).
+-- The C1-level inversion `C1-evL` (below) does the job at the INTERLEAVING
+-- level, where the Par-merge re-binds the offered value syntactically.
 
 ------------------------------------------------------------------------
 -- C0 / C1 / Cg step characterizations (peel the inert Skips).
@@ -2983,16 +2962,26 @@ C0-evL st
 ... | d , Lin , refl = d , Lin , refl
 
 -- C1 d fires only `output d` (value forced to d), landing on Cg d.
+-- Inverted DIRECTLY at the interleaving level (not peeled to the raw leaf):
+-- here `≟-diag` fires (the interleaving's Par-merge re-binds the offered value
+-- syntactically, unlike the raw `Copy` loop, where the value is neutralised).
 C1-evL : ∀ {d B} {e : Net Data B} {a} {W} →
   C1 d ─[ ev (evl (evLabel B e a)) ]─► W → (evl (evLabel B e a) ≡ outputLbl d) × (W ≡ Cg d)
-C1-evL {d} st
-  with ⦀-ev-right Skip0-NoEv st
-... | _ , st1 , refl with ⦀-ev-right Skip0-NoEv st1
-... | _ , st2 , refl with ⦀-ev-right Skip0-NoEv st2
-... | _ , st3 , refl with ⦀-ev-left tail-NoEv st3
-... | _ , st4 , refl with ⦀-ev-left Skip0-NoEv st4
-... | _ , st5 , refl with CopyLeaf-in-ev st5
-... | Lout , refl rewrite ≟-diag d = Lout , refl
+C1-evL {d} {e = output N2N_KeepAlive zero} {a} (sVis refl h) with a ≟ d
+... | yes refl rewrite ≟-diag d = refl , sym (just-injective h)
+... | no  _    = nothing-absurd h
+C1-evL {e = output N2N_ChainSync    c} (sVis refl ())
+C1-evL {e = output N2N_BlockFetch   c} (sVis refl ())
+C1-evL {e = output N2N_TxSubmission c} (sVis refl ())
+C1-evL {e = output N2N_LeiosNotify  c} (sVis refl ())
+C1-evL {e = output N2N_LeiosFetch   c} (sVis refl ())
+C1-evL {e = input  id c} (sVis refl ())
+C1-evL {e = sndmsg id c} (sVis refl ())
+C1-evL {e = rcvmsg id c} (sVis refl ())
+C1-evL {e = tx     id c} (sVis refl ())
+C1-evL {e = sndack id c} (sVis refl ())
+C1-evL {e = rcvack id c} (sVis refl ())
+C1-evL {e = ack    id c} (sVis refl ())
 
 ------------------------------------------------------------------------
 -- τ-stability of C0/C1; the single τ of Cg.

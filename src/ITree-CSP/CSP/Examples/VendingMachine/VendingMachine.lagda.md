@@ -697,7 +697,7 @@ open import Data.Unit using () renaming (tt to tt₀)
 open import Semantics.LTL.Traces_Based {E = VM} {I = ExtI VM}
   using ( LTLᵗ; atom; ⟦_⟧; G_; F_; X_; _⇒_; _U_; _∧_; atDone
         ; Frame; Trace; ∞Trace; step; done; stuck
-        ; ⟦G⟧⁺; ⟦G⟧⁺⇒⟦G⟧; tail; drop; drop-stutter; frameOf )
+        ; ⟦G⟧⁺; ⟦G⟧⁺⇒⟦G⟧; tail; drop; drop-stutter; dropIdx-stutter; frameOf )
   renaming (¬_ to ¬ᵗ_)
 open ∞Trace
 
@@ -750,7 +750,7 @@ private
          (cong (mergeMaybe nothing)
                (refl {x = just (Skip)}))
 
-sampleTrace : Trace (⊤ {lzero})
+sampleTrace : Trace (⊤ {lzero}) VM_body_impl
 sampleTrace =
   step (wev {p = VM_body_impl} τ*-refl
                 (sVis {at = ⊤ , coin} {a = tt} refl
@@ -793,7 +793,20 @@ safety = ⟦G⟧⁺⇒⟦G⟧ {φ = atCoin ⇒ X atDrink} {tr = sampleTrace} saf
     safety⁺ (suc (suc n)) =
       subst (⟦_⟧ {R = ⊤ {lzero}} (atCoin ⇒ X atDrink))
             (sym (drop-stutter n (done {t = Skip} refl) tt₀))
-            (λ (notnotCoin , _) → notnotCoin (λ x → ⊥-elim x))
+            (doneφ n)
+      where
+        -- At the stuttering `done` frame, ⟦ atCoin ⟧ = ⊥ and ⟦ X atDrink ⟧ = ⊥.
+        -- The proof inhabits ⟦ φ ⟧ at the subst-transported done trace, which
+        -- is drop-stutter's RHS. dropIdx-stutter (suc n) (done refl) reduces to
+        -- dropIdx-stutter n (done refl) definitionally, so the (suc n) goal is
+        -- the (n) goal — discharge by induction on n.
+        doneφ : (n : ℕ)
+              → ⟦_⟧ {R = ⊤ {lzero}} (atCoin ⇒ X atDrink)
+                    (subst (Trace (⊤ {lzero}))
+                           (sym (dropIdx-stutter n (done {t = Skip} refl) tt₀))
+                           (done {t = Skip} refl))
+        doneφ zero    = λ (notnotCoin , _) → notnotCoin (λ x → ⊥-elim x)
+        doneφ (suc n) = doneφ n
 ```
 
 **Liveness**: a coffee event occurs.
@@ -861,7 +874,15 @@ neverTea = ⟦G⟧⁺⇒⟦G⟧ {φ = ¬ᵗ atTea} {tr = sampleTrace} neverTea�
     neverTea⁺ (suc (suc n)) =
       subst (⟦_⟧ {R = ⊤ {lzero}} (¬ᵗ atTea))
             (sym (drop-stutter n (done {t = Skip} refl) tt₀))
-            (λ ())
+            (doneφ n)
+      where
+        doneφ : (n : ℕ)
+              → ⟦_⟧ {R = ⊤ {lzero}} (¬ᵗ atTea)
+                    (subst (Trace (⊤ {lzero}))
+                           (sym (dropIdx-stutter n (done {t = Skip} refl) tt₀))
+                           (done {t = Skip} refl))
+        doneφ zero    = λ ()
+        doneφ (suc n) = doneφ n
 ```
 
 **(e) Liveness culminating in termination.** Eventually a `coffee` is
@@ -881,12 +902,50 @@ above, lifting the body-level lesson through `loop0` via the iteration law
 infrastructure (`CSP.Laws.FD.IterateMonoFD` / `IterateFD` / `BindFD`).
 What remains deferred:
 
-- **`_⊨_`-shaped LTL claims.** `t ⊨ φ` quantifies over *every* trace
-  rooted at `t`. Proving `VM_impl ⊨ G (atCoin ⇒ X atDrink)` requires
-  trace-uniqueness / inversion lemmas the LTL module flags as v2 (see
-  the footer of `Semantics.LTL.Traces_Based`).
+- **`_⊨_`-shaped LTL claims (body *and* loop level).** These are now all
+  **discharged** in the sibling module
+  `CSP.Examples.VendingMachine.VendingMachine_LTL_Sat`, using a re-indexed
+  `Trace` type that bakes in coherence (the root process is part of the
+  type), giving trace inversion for free.  At the *body* level (`R = ⊤`) the
+  proved theorems are:
+  - `vm-safety   : VM_body_impl ⊨ G (atCoin ⇒ X atDrink)`
+  - `vm-liveness : VM_body_impl ⊨ F atDrink`
+  - `vm-until    : VM_body_impl ⊨ (atCoin U atDrink)`
+  - `vm-terminates : VM_body_impl ⊨ F (atDone (λ _ → ⊤) ∨ atStuck)`
 
-- **DR-weak bisimulation between `VM_impl` and `VM_spec`.** Plausible
-  but out of scope here; the natural next step toward bisim-invariant
-  LTL claims.
+  The *loop* level (`R = ⊥`, `VM_impl = loop0 VM_body_impl`) is now **also**
+  discharged in the same module, both theorems **fully constructive** (no
+  postulate, no `NON_TERMINATING`):
+  - `vm-loop-safety   : VM_impl ⊨ G (atCoin ⇒ X atDrink)` — after every coin
+    the next observation is a drink, at every position of every loop run;
+  - `vm-loop-liveness : VM_impl ⊨ G (F atDrink)` — a drink recurs forever
+    (henceforth, eventually a drink).
+
+  Both rest on a structural (non-coinductive) period-2 / re-rooting drop
+  analysis: the three cycle roots `{VM_impl, P₁, P₂}` form the `LoopState`
+  invariant, every position `dropIdx n tr` is again a loop state
+  (`loop-state-drop`), and from any loop position a drink frame is reached
+  within ≤ 1 step.  Because this recurses on the position index `n` (not
+  coinductively), productivity is never at issue, so `--guardedness` is
+  satisfied with no holes.
+
+- **The body-level safety property does NOT transfer from `VM_impl` to
+  `VM_spec` via trace refinement `⊑T`.** This is now a *certified negative
+  result* (see `CSP.Examples.VendingMachine.VendingMachine_LTL_Sat`'s
+  "Negative result" section, `vm-⊨ᵀ-safety-impossible`): the trace-based
+  satisfaction relation `_⊨ᵀ_` of `Semantics.LTL.Refinement` is refuted for
+  `G (atCoin ⇒ X atDrink)` by the one-letter CSP trace `[coin]`, which
+  truncates the `X` ("next") obligation before any drink event is observed —
+  even though the *same* formula is proved under the operational `_⊨_`
+  (`vm-safety`). So although `⊑T-transfer-ᵀ` is itself a sound, monotone
+  transfer lemma, it cannot be used to carry guarded-`X` safety from
+  `VM_body_impl` to a trace-refined specification: next-time LTL needs a
+  bisimulation-level refinement, not (prefix-closed) trace refinement.
+
+- **DR-weak bisimulation between `VM_impl` and `VM_spec`.** This is the one
+  remaining deferred item, and is now also the prerequisite for transferring
+  next-time LTL claims (the point above): `VM_impl`/`VM_spec` are known to be
+  trace-equivalent but not yet shown DR-bisimilar, and trace-equivalence alone
+  is insufficient per the negative result above.  Plausible but out of scope
+  here; the natural next step toward bisim-invariant LTL claims.
 ```

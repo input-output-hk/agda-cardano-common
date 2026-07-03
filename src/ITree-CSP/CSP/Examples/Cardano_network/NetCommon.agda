@@ -82,7 +82,7 @@ NetworkA = RenNet.renameMap Network
 ------------------------------------------------------------------------
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open Op using (chanSet; EventSet)
+open Op using (chanSet; EventSet; _∥⇘_⇙_; _⦀_)
 
 -- sync set {| input, output |} (membership by channel, ignoring payload)
 ioSet : AnyTypes (Net_Api Payload) → Set
@@ -111,3 +111,13 @@ ioSet-dec (_ , apiLF  _ _) = no λ ()
 -- the {| input, output |} event set
 ioES : EventSet
 ioES = chanSet ioSet ioSet-dec
+
+-- a process composed with the network medium, synchronised on the io channels {| input, output |}
+withNet : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+        → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+withNet q = NetworkA ∥⇘ ioES ⇙ q
+
+-- a client and a server, each composed with the medium, then interleaved
+clientServerNet : (client server : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ}))
+                → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+clientServerNet cl sv = withNet cl ⦀ withNet sv

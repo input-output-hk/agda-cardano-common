@@ -1007,4 +1007,4 @@ private
       ∀ {ℓr ℓs} {R : Set ℓr} {S : Set ℓs}
         {A B : EventSet}
       → HasDeadlock (Stop {R = R} ⟦ A ∥ B ⟧ Stop {R = S})
-    stop∥stop-hasDeadlock = [] , _ , ⟹-refl , stop∥stop-stuck
+    stop∥stop-hasDeadlock = [] , _ , ∖√-refl , stop∥stop-stuck

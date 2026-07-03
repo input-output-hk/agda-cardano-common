@@ -34,7 +34,7 @@ open import Function using (case_of_)
 open import Process_Trees
 open import Semantics.LTS
 open import Semantics.Failures using (_⟹⟨_⟩_; ⟹-refl; ⟹-ev; ⟹-τ)
-open import Semantics.Deadlock using (IsStuck; HasDeadlock; DeadlockFree)
+open import Semantics.Deadlock using (IsStuck; HasDeadlock; DeadlockFree; embed∖√)
 open PTree
 
 open import CSP.Examples.DiningPhilosophers.DiningPhilosophersCSP
@@ -1561,5 +1561,5 @@ reach-cons = go cfg0 cons0 refl
 -- THE THEOREM: the asymmetric dining-philosophers system (n = 2), built with the
 -- compositional alphabetised parallel ∥ₐ⁺, is deadlock-free.
 deadlock-free-asym : DeadlockFree SYSTEMasym
-deadlock-free-asym bs stuck with reach-cons bs
+deadlock-free-asym bs stuck with reach-cons (embed∖√ bs)
 ... | (cfg′ , refl , cons′) = progress cfg′ cons′ stuck

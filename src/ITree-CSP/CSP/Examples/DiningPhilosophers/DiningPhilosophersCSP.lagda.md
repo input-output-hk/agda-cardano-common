@@ -44,7 +44,7 @@ open import Class.DecEq using (DecEq; Irrelevant⇒DecEq)
 open import Process_Trees
 open import Semantics.LTS
 open import Semantics.Failures using (⟹-refl)
-open import Semantics.Deadlock using (IsStuck; HasDeadlock)
+open import Semantics.Deadlock using (IsStuck; HasDeadlock; ∖√-refl; strip∖√)
 open PTree
 
 instance
@@ -324,7 +324,7 @@ discussion above.
   -- philosophers still offer their (blocked) second picks, but the composite genuinely
   -- declines every event.
   dp-csp-deadlock : HasDeadlock (∥ₐ⁺ deadHead deadTail)
-  dp-csp-deadlock = [] , ∥ₐ⁺ deadHead deadTail , ⟹-refl , dead-IsStuck
+  dp-csp-deadlock = [] , ∥ₐ⁺ deadHead deadTail , ∖√-refl , dead-IsStuck
 ```
 
 ## The reachable symmetric deadlock
@@ -807,9 +807,9 @@ module DeadlockReachable where
 
   dp-csp-deadlock-reachable : HasDeadlock SYSTEMsym
   dp-csp-deadlock-reachable =
-    map evl ( evLabel (⊤ {lzero}) (picks fzero fzero) tt
-            ∷ evLabel (⊤ {lzero}) (picks (fsuc fzero) (fsuc fzero)) tt ∷ [])
-    , top-end , reach-bs , top-end-IsStuck
+    ( evLabel (⊤ {lzero}) (picks fzero fzero) tt
+    ∷ evLabel (⊤ {lzero}) (picks (fsuc fzero) (fsuc fzero)) tt ∷ [])
+    , top-end , strip∖√ reach-bs , top-end-IsStuck
 ```
 
 Sanity check: instantiate the module at `m = 0` (so `n = 2`) and force both

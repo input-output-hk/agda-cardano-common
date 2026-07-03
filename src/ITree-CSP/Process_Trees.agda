@@ -1,40 +1,45 @@
 {-
-  This module defines Process Trees (PTree), including basic definitions and proofs related to PTree
+  This module defines Process Trees (PTree), including basic definitions and proofs related to PTree.
+
+  NodeKind has THREE constructors: `ret`, `sil`, and a SINGLE fused branching node
+  `react`.  An earlier model had separate `vis` (visible / external choice), `ndbr`
+  (internal nondeterministic choice), and a `mix`/slide constructor.  These are NO
+  LONGER distinct constructors — they are all ENCODED in the one `react` node, which
+  carries BOTH a visible-offer map `v` and a τ-branch map `τc` at once:
+
+    * pure `vis`             = `react v τc` with `τc` everywhere-`nothing` (stable node);
+    * pure `ndbr` (internal) = `react v τc` with `v`  everywhere-`nothing`;
+    * sliding / timeout      = `react v τc` with BOTH `v` and `τc` inhabited — a state
+                               that offers visible events AND has an enabled τ.
+
+  Carrying both maps in one node is exactly what lets the model express sliding/timeout,
+  which a separate `vis`/`ndbr` split cannot.
 
 PTree E I R (Coinductive Record)
   |
   +-- force: NodeKind E I R (Data Type)
               |
-              +-- ret r: R
+              +-- ret r : R
               |   (Terminal node returning value r)
               |
-              +-- sil t: PTree E I R
+              +-- sil t : PTree E I R
               |   (Silent transition τ to next tree t)
               |
-              +-- vis choices: (at : AnyTypes E) -> ContinueType at (Maybe (PTree E I R))
-              |   (Visible event choices)
-              |   |
-              |   +-- (at : (A, _)) -> (a : A) -> Just t: PTree E I R
-              |   |   (Event (at, a) leads to next tree t)
-              |   |
-              |   +-- (at : (A, _)) -> (a : A) -> Nothing
-              |   |   (Event (at, a) is not enabled in this choice)
-              |   .
-              |   .
-              |   .              
-              |
-              +-- ndbr branches: (it : AnyTypes I) -> ContinueType it (Maybe (PTree E I R))
-                  witness: (i : AnyTypes I) -> (a : proj1 i) -> Is-just (branches i a)
-                  (Nondeterministic internal branches)
+              +-- react v τc : the single branching node (fuses vis / ndbr / slide)
                   |
-                  +-- (it : (A, _)) -> (a : A) -> Just t: PTree E I R
-                  |   (Branch indexed by (it, a) leads to next tree t)
+                  +-- v  : (at : AnyTypes E) → ContinueType at (Maybe (PTree E I R))
+                  |        VISIBLE offers (external / prefix choice) — the old `vis`
+                  |        |
+                  |        +-- (at:(A,_)) → (a:A) → Just t : event (at,a) leads to t
+                  |        +-- (at:(A,_)) → (a:A) → Nothing  : event (at,a) not offered
                   |
-                  +-- (it : (A, _)) -> (a : A) -> Nothing
-                  |   (Branch indexed by (it, a) does not exist)
-                  |
-                  .
-                  ,                  
+                  +-- τc : (i : AnyTypes I) → ContinueType i (Maybe (PTree E I R))
+                           SILENT τ-branches (internal choice) — the old `ndbr`,
+                           witness-free: a τ-move exists only where `τc` is `just`,
+                           so an everywhere-`nothing` `τc` means the node is stable.
+                           |
+                           +-- (i:(A,_)) → (a:A) → Just t : τ-branch (i,a) leads to t
+                           +-- (i:(A,_)) → (a:A) → Nothing : τ-branch (i,a) absent
 
 Or similarly represented as below.
 
@@ -42,22 +47,25 @@ Or similarly represented as below.
               |
            .force
               |
-      _______/ \___________________________________________
-     |                |                 |                  |
- [ ret ]           [ sil ]           [ vis ]            [ ndbr ]
-    |                 |                 |                  |
- (Value R)      (Next PTree)     (Visible Events)   (Internal Choice)
-    |                 |                 |                  |
- [Term]            [ τ ]          (AnyTypes E)       (AnyTypes I)
-                                        |                  |
-                                 (ContinueType)     (ContinueType)
-                                        |                  |
-                                 +------+------+    +------+------+
-                                 |             |    |             |
-                              [Just]       [Nothing] [Just]    [Nothing]
-                                 |             |    |             |
-                            (Next PTree)    (Dead) (Next PTree) (Dead)
-                            
+      _______/ \________________________
+     |            |                      |
+ [ ret ]       [ sil ]            [ react v τc ]
+    |             |          (single fused branching node:
+ (Value R)   (Next PTree)         vis ⊕ ndbr ⊕ slide)
+    |             |             ______/          \______
+ [Term]         [ τ ]         |                          |
+                        [ v : visible ]            [ τc : silent ]
+                        (AnyTypes E)               (AnyTypes I, no witness)
+                              |                          |
+                        (ContinueType)             (ContinueType)
+                        +-----+-----+               +-----+-----+
+                        |           |               |           |
+                     [Just]    [Nothing]         [Just]    [Nothing]
+                        |           |               |           |
+                  (Next PTree) (not offered)  (Next PTree)    (no τ)
+
+  (An everywhere-`nothing` `τc` ⇒ stable node = pure `vis`; an everywhere-`nothing`
+   `v` ⇒ pure internal `ndbr`; both inhabited ⇒ sliding / timeout.)
 -}
 
 {-# OPTIONS --guardedness #-}

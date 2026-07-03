@@ -45,7 +45,7 @@ open import CSP.Examples.Cardano_network.ChainSync p
 open import CSP.Examples.Cardano_network.TxSubmission p
   using (TSEv; sendTS; receiveTS; apiTSev; doneTS; TSclientStClient; TSserverStClient)
 -- the shared (renamed) Network multiplexer and `{| input, output |}` sync set
-open import CSP.Examples.Cardano_network.NetCommon p using (NetworkA; ioES)
+open import CSP.Examples.Cardano_network.NetCommon p using (NetworkA; ioES; withNet; clientServerNet)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Par⊤; _∥⇘_⇙_; _⦀_; _∖_; Skip)
@@ -95,19 +95,19 @@ KAserverA c = RenKA.renameMap (KAserverStClient c)
 -- the whole `Network` synchronised with one KeepAlive client on `c`
 clientNetWithKA : Conn N2N_KeepAlive
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientNetWithKA c = NetworkA ∥⇘ ioES ⇙ KAclientA c
+clientNetWithKA c = withNet (KAclientA c)
 
 -- the whole `Network` synchronised with one KeepAlive server on `c` (cookie `ck`)
 serverNetWithKA : Conn N2N_KeepAlive
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-serverNetWithKA c = NetworkA ∥⇘ ioES ⇙ KAserverA c
+serverNetWithKA c = withNet (KAserverA c)
 
 -- the client-with-network and server-with-network interleaved (no shared
 -- events; each `Network` is a self-contained loopback).  Client on `cc`,
 -- server on `cs` (nominal cookie `ck`).
 clientServerNetWithKA : Conn N2N_KeepAlive → Conn N2N_KeepAlive
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientServerNetWithKA cc cs = clientNetWithKA cc ⦀ serverNetWithKA cs
+clientServerNetWithKA cc cs = clientServerNet (KAclientA cc) (KAserverA cs)
 
 ------------------------------------------------------------------------
 -- BlockFetch:  BFEv ↪ Net_Api Payload
@@ -148,19 +148,19 @@ BFserverA c = RenBF.renameMap (BFserverStClient c)
 -- the whole `Network` synchronised with one BlockFetch client on `c`
 clientNetWithBF : Conn N2N_BlockFetch
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientNetWithBF c = NetworkA ∥⇘ ioES ⇙ BFclientA c
+clientNetWithBF c = withNet (BFclientA c)
 
 -- the whole `Network` synchronised with one BlockFetch server on `c`
 serverNetWithBF : Conn N2N_BlockFetch
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-serverNetWithBF c = NetworkA ∥⇘ ioES ⇙ BFserverA c
+serverNetWithBF c = withNet (BFserverA c)
 
 -- the client-with-network and server-with-network interleaved (no shared
 -- events; each `Network` is a self-contained loopback).  Client on `cc`,
 -- server on `cs`.
 clientServerNetWithBF : Conn N2N_BlockFetch → Conn N2N_BlockFetch
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientServerNetWithBF cc cs = clientNetWithBF cc ⦀ serverNetWithBF cs
+clientServerNetWithBF cc cs = clientServerNet (BFclientA cc) (BFserverA cs)
 
 ------------------------------------------------------------------------
 -- ChainSync:  CSEv ↪ Net_Api Payload
@@ -201,19 +201,19 @@ CSserverA c = RenCS.renameMap (CSserverStClient c)
 -- the whole `Network` synchronised with one ChainSync client on `c`
 clientNetWithCS : Conn N2N_ChainSync
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientNetWithCS c = NetworkA ∥⇘ ioES ⇙ CSclientA c
+clientNetWithCS c = withNet (CSclientA c)
 
 -- the whole `Network` synchronised with one ChainSync server on `c`
 serverNetWithCS : Conn N2N_ChainSync
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-serverNetWithCS c = NetworkA ∥⇘ ioES ⇙ CSserverA c
+serverNetWithCS c = withNet (CSserverA c)
 
 -- the client-with-network and server-with-network interleaved (no shared
 -- events; each `Network` is a self-contained loopback).  Client on `cc`,
 -- server on `cs`.
 clientServerNetWithCS : Conn N2N_ChainSync → Conn N2N_ChainSync
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientServerNetWithCS cc cs = clientNetWithCS cc ⦀ serverNetWithCS cs
+clientServerNetWithCS cc cs = clientServerNet (CSclientA cc) (CSserverA cs)
 
 ------------------------------------------------------------------------
 -- TxSubmission2:  TSEv ↪ Net_Api Payload
@@ -254,19 +254,19 @@ TSserverA c = RenTS.renameMap (TSserverStClient c)
 -- the whole `Network` synchronised with one TxSubmission submitter on `c`
 clientNetWithTS : Conn N2N_TxSubmission
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientNetWithTS c = NetworkA ∥⇘ ioES ⇙ TSclientA c
+clientNetWithTS c = withNet (TSclientA c)
 
 -- the whole `Network` synchronised with one TxSubmission requester on `c`
 serverNetWithTS : Conn N2N_TxSubmission
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-serverNetWithTS c = NetworkA ∥⇘ ioES ⇙ TSserverA c
+serverNetWithTS c = withNet (TSserverA c)
 
 -- the submitter-with-network and requester-with-network interleaved (no shared
 -- events; each `Network` is a self-contained loopback).  Submitter on `cc`,
 -- requester on `cs`.
 clientServerNetWithTS : Conn N2N_TxSubmission → Conn N2N_TxSubmission
           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-clientServerNetWithTS cc cs = clientNetWithTS cc ⦀ serverNetWithTS cs
+clientServerNetWithTS cc cs = clientServerNet (TSclientA cc) (TSserverA cs)
 
 ------------------------------------------------------------------------
 -- Example: a node running two TCP connections to two other nodes.
@@ -308,6 +308,5 @@ nodeNetwork : (kc1 ks1 : Conn N2N_KeepAlive)
             → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 nodeNetwork kc1 ks1 sc1 ss1 bc1 bs1 tc1 ts1
             kc2 ks2 sc2 ss2 bc2 bs2 tc2 ts2 =
-  (NetworkA ∥⇘ ioES ⇙
-    (miniProtocols kc1 ks1 sc1 ss1 bc1 bs1 tc1 ts1
-      ⦀ miniProtocols kc2 ks2 sc2 ss2 bc2 bs2 tc2 ts2)) ∖ ioES
+  withNet (miniProtocols kc1 ks1 sc1 ss1 bc1 bs1 tc1 ts1
+      ⦀ miniProtocols kc2 ks2 sc2 ss2 bc2 bs2 tc2 ts2) ∖ ioES

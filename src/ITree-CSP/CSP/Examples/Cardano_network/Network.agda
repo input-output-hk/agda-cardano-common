@@ -248,16 +248,18 @@ Network = (TxSide ∥⇘ chanSet csTA csTA-dec ⇙ RxSide)
 -- CopySpec = ||| i:IDs @ Copy(i)
 ------------------------------------------------------------------------
 
+-- Copy's offer menu (top-level so the deadlock-free proof can name the residual
+-- `Op.Output (output id c) d Skip`): accept `input id c` for any `d`, emit it.
+copyMenu : (id : IDs) → Conn id → Menu
+copyMenu id c (_ , input id′ c′) d with id′ ≟ id
+... | no  _    = nothing
+... | yes refl with c′ ≟ c
+...   | yes refl = just (Op.Output (output id c) d Skip)
+...   | no  _    = nothing
+copyMenu id c _ _ = nothing
+
 Copy : (id : IDs) → Conn id → NetProc
-Copy id c = loop0 (pchoice v)
-  where
-  v : Menu
-  v (_ , input id′ c′) d with id′ ≟ id
-  ... | no  _    = nothing
-  ... | yes refl with c′ ≟ c
-  ...   | yes refl = just (Op.Output (output id c) d Skip)
-  ...   | no  _    = nothing
-  v _ _ = nothing
+Copy id c = loop0 (pchoice (copyMenu id c))
 
 CopysId : IDs → NetProc
 CopysId id = ⦀Fin (numConns id) (Copy id)

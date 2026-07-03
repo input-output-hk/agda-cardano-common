@@ -258,7 +258,7 @@ private
 
     stops-deadlock : ∀ {ℓr} {R : Set ℓr}
                    → HasDeadlock (∥ₐ⁺ (stopC {R = R}) (stopC ∷ []))
-    stops-deadlock = [] , _ , ⟹-refl , stops-stuck
+    stops-deadlock = [] , _ , ∖√-refl , stops-stuck
 
   -------------------------------------------------------------------------------------
   -- (c′) Sanity (the strengthening): a network whose HEAD OFFERS a shared sync event
@@ -347,7 +347,7 @@ private
 
     net-deadlock : ∀ {ℓr} (at₀ : AnyTypes E)
                  → HasDeadlock (∥ₐ⁺ (offerC {ℓr} at₀) (stopC ∷ []))
-    net-deadlock at₀ = [] , _ , ⟹-refl , net-stuck at₀
+    net-deadlock at₀ = [] , _ , ∖√-refl , net-stuck at₀
 
 -------------------------------------------------------------------------------------
 -- (d) n-ary trace-decomposition (elimination) law for the replicated parallel.
