@@ -25,7 +25,7 @@ open import Process_Trees using (PTree; AnyTypes; ExtI)
 open import CSP.Examples.Cardano_network.Base
 open import CSP.Examples.Cardano_network.Net p
 open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.Network p Payload using (Network)
+open import CSP.Examples.Cardano_network.Network p Payload using (Network; CopySpec)
 
 ------------------------------------------------------------------------
 -- Net Payload ↪ Net_Api Payload   (identity on channel names)
@@ -76,6 +76,11 @@ import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload} ιNet ιNet⁻¹
 -- the renamed Network multiplexer over the Net_Api alphabet
 NetworkA : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 NetworkA = RenNet.renameMap Network
+
+-- the renamed CopySpec (input.c ? d → output.c ! d copy medium) over the
+-- Net_Api alphabet; the FD-equivalent (`NetworkA ≈FD CopySpec`) drop-in for NetworkA
+CopySpecA : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+CopySpecA = RenNet.renameMap CopySpec
 
 ------------------------------------------------------------------------
 -- The `{| input, output |}` synchronisation set.
