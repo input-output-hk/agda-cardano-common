@@ -16,7 +16,7 @@ module Semantics.LTL.WBisimInvariant
 
 open PTree
 
-open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I}
+open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I} hiding (Diverges)
 open import Semantics.WeakBisim {ℓ} {ℓe} {ℓi} {E} {I}
   using (_─[τ*]─►_; τ*-refl; τ*-step; τ*-trans; wτ; wev; WSimF)
 open import Semantics.DRBisim   {ℓ} {ℓe} {ℓi} {E} {I}

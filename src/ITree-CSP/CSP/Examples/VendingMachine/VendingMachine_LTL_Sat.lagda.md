@@ -31,7 +31,7 @@ open import CSP.Examples.VendingMachine.VendingMachine
 import CSP.Operators {E = VM} as CSPOps
 open CSPOps VM-AnyTypes-≟
 
-open import Semantics.LTS       {E = VM} {I = ExtI VM}
+open import Semantics.LTS       {E = VM} {I = ExtI VM} hiding (Diverges)
 open import Semantics.WeakBisim {E = VM} {I = ExtI VM} using (_═[_]═►_; wev; _─[τ*]─►_; τ*-refl; τ*-step)
 open import Semantics.DRBisim   {E = VM} {I = ExtI VM} using (Diverges)
 open import Semantics.Deadlock  {E = VM} {I = ExtI VM} using (IsStuck)

@@ -49,3 +49,11 @@ open import Semantics.LTL.Traces_Based {ℓ} {ℓe} {ℓi} {E} {I}
      {t} {φ : LTLᵗ ℓa R} {tr : Trace R t}
    → ⟦ ¬ (F_ φ) ⟧ tr → ⟦ G_ (¬ φ) ⟧ tr
 ¬F⇒G¬-constructive notF (n , nnφ , bef) = nnφ (λ p → notF (n , p , bef))
+
+-- ⟦ ¬ ¬ (F_ φ) ⟧ tr reduces to ¬¬⟦ F_ φ ⟧ tr; a single dne. Certifies the
+-- ¬¬F-elimination axiom of Semantics.LTL.ClassicalDescent (`¬¬F⇒F`) — the one
+-- classical step of the FourNode-liveness descent — is "just classical logic".
+¬¬F⇒F-fromLEM : ∀ {ℓr ℓa} {R : Set ℓr}
+     {t} {φ : LTLᵗ ℓa R} {tr : Trace R t}
+   → ⟦ ¬ ¬ (F_ φ) ⟧ tr → ⟦ F_ φ ⟧ tr
+¬¬F⇒F-fromLEM H = dne (λ nF → lower (H (λ f → lift (nF f))))

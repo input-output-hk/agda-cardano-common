@@ -33,7 +33,7 @@ module CSP.Laws.FD.HideStep {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators E-≟
-open import Semantics.LTS   {E = E} {I = ExtI E}
+open import Semantics.LTS   {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Bisim {E = E} {I = ExtI E}
 open import Semantics.WeakBisim {E = E} {I = ExtI E}
   using (_─[τ*]─►_; τ*-refl; τ*-step; _═[_]═►_; wτ; wev; WSimF)

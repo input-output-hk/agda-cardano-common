@@ -27,7 +27,7 @@ module CSP.Laws.FD.HideDivergence {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators E-≟
-open import Semantics.LTS     {E = E} {I = ExtI E}
+open import Semantics.LTS     {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.DRBisim {E = E} {I = ExtI E} using (Diverges)
 open import CSP.Laws.Bisim.DRCongruence E-≟
   using (ModAStep; maτ; maE; DivModA; div∖→modA; modA→div∖)

@@ -140,7 +140,7 @@ and failures-divergences machinery, the `⊓` τ-step lemmas, and the
 `Prefix-cont` reduction lemma into scope for the strictness proof.
 
 ```agda
-open import Semantics.LTS {E = VM} {I = ExtI VM}
+open import Semantics.LTS {E = VM} {I = ExtI VM} hiding (Diverges)
   using (_─[_]─►_; sRet; sSil; sVis; sTau; ev; τ; Event√; evl; evLabel; √)
 open import Semantics.Failures {E = VM} {I = ExtI VM}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)

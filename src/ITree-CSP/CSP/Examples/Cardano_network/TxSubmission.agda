@@ -46,10 +46,10 @@ open Params p
 
 -- the TxSubmission2 peer alphabet
 data TSEv : Set → Set where
-  sendTS    : Conn N2N_TxSubmission → TSEv Payload   -- peer→net (→ input)
-  receiveTS : Conn N2N_TxSubmission → TSEv Payload   -- net→peer (→ output)
-  apiTSev   : (c : Conn N2N_TxSubmission) (m : ApiTSTag) → TSEv (ApiTSCar m)  -- peer-local
-  doneTS    : Conn N2N_TxSubmission → TSEv ⊤          -- peer-local: Done
+  sendTS    : Link → Dir → TSEv Payload   -- peer→net (→ input)
+  receiveTS : Link → Dir → TSEv Payload   -- net→peer (→ output)
+  apiTSev   : (l : Link) (d : Dir) (m : ApiTSTag) → TSEv (ApiTSCar m)  -- peer-local
+  doneTS    : Link → Dir → TSEv ⊤          -- peer-local: Done
 
 ------------------------------------------------------------------------
 -- Step 2: decidable equality on `AnyTypes TSEv`.
@@ -60,31 +60,35 @@ TSEv-≟ : (x y : AnyTypes TSEv) → Dec (x ≡ y)
 TSEv-≟ = go
   where
   go : (x y : AnyTypes TSEv) → Dec (x ≡ y)
-  go (_ , sendTS c₁)     (_ , sendTS c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , receiveTS c₁)  (_ , receiveTS c₂)  with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiTSev c₁ m₁) (_ , apiTSev c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
+  go (_ , sendTS l₁ d₁)     (_ , sendTS l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
   ... | yes refl | yes refl = yes refl
-  ... | no ¬p | _ = no λ where refl → ¬p refl
-  ... | _ | no ¬p = no λ where refl → ¬p refl
-  go (_ , doneTS c₁)     (_ , doneTS c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , sendTS _)    (_ , receiveTS _) = no λ ()
-  go (_ , sendTS _)    (_ , apiTSev _ _) = no λ ()
-  go (_ , sendTS _)    (_ , doneTS _)    = no λ ()
-  go (_ , receiveTS _) (_ , sendTS _)    = no λ ()
-  go (_ , receiveTS _) (_ , apiTSev _ _) = no λ ()
-  go (_ , receiveTS _) (_ , doneTS _)    = no λ ()
-  go (_ , apiTSev _ _) (_ , sendTS _)    = no λ ()
-  go (_ , apiTSev _ _) (_ , receiveTS _) = no λ ()
-  go (_ , apiTSev _ _) (_ , doneTS _)    = no λ ()
-  go (_ , doneTS _)    (_ , sendTS _)    = no λ ()
-  go (_ , doneTS _)    (_ , receiveTS _) = no λ ()
-  go (_ , doneTS _)    (_ , apiTSev _ _) = no λ ()
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , receiveTS l₁ d₁)  (_ , receiveTS l₂ d₂)  with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , apiTSev l₁ d₁ m₁) (_ , apiTSev l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬p | _ | _ = no λ where refl → ¬p refl
+  ... | _ | no ¬p | _ = no λ where refl → ¬p refl
+  ... | _ | _ | no ¬p = no λ where refl → ¬p refl
+  go (_ , doneTS l₁ d₁)     (_ , doneTS l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , sendTS _ _)    (_ , receiveTS _ _) = no λ ()
+  go (_ , sendTS _ _)    (_ , apiTSev _ _ _) = no λ ()
+  go (_ , sendTS _ _)    (_ , doneTS _ _)    = no λ ()
+  go (_ , receiveTS _ _) (_ , sendTS _ _)    = no λ ()
+  go (_ , receiveTS _ _) (_ , apiTSev _ _ _) = no λ ()
+  go (_ , receiveTS _ _) (_ , doneTS _ _)    = no λ ()
+  go (_ , apiTSev _ _ _) (_ , sendTS _ _)    = no λ ()
+  go (_ , apiTSev _ _ _) (_ , receiveTS _ _) = no λ ()
+  go (_ , apiTSev _ _ _) (_ , doneTS _ _)    = no λ ()
+  go (_ , doneTS _ _)    (_ , sendTS _ _)    = no λ ()
+  go (_ , doneTS _ _)    (_ , receiveTS _ _) = no λ ()
+  go (_ , doneTS _ _)    (_ , apiTSev _ _ _) = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 3: return type + carrier DecEq instances.
@@ -174,161 +178,161 @@ instance
 ------------------------------------------------------------------------
 
 -- one submitter step (the body of the `iter` loop)
-clientStep : Conn N2N_TxSubmission → TSState → PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)
-clientStep c stInit =
+clientStep : Link → Dir → TSState → PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)
+clientStep l d stInit =
   -- auto-send the protocol Init, then hand agency to the requester
-  sendTS c ! (time₀ , FromInitiator , length₀ , txSubmission MsgTSInit) ⟶
+  sendTS l d ! (time₀ , FromInitiator , length₀ , txSubmission MsgTSInit) ⟶
     Ret (inj₁ stIdle)
-clientStep c stIdle = pchoice v
+clientStep l d stIdle = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission (MsgTSRequestTxIds Blocking a r)) with c′ ≟ c
-  ... | yes refl = just (Output ⦃ DecEq-BS×ℕ×ℕ ⦄ (apiTSev c recvTSRequestTxIds) (Blocking , a , r) (Ret (inj₁ stTxIdsBlocking)))
-  ... | no _     = nothing
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission (MsgTSRequestTxIds NonBlocking a r)) with c′ ≟ c
-  ... | yes refl = just (Output ⦃ DecEq-BS×ℕ×ℕ ⦄ (apiTSev c recvTSRequestTxIds) (NonBlocking , a , r) (Ret (inj₁ stTxIdsNonBlocking)))
-  ... | no _     = nothing
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission (MsgTSRequestTxs txids)) with c′ ≟ c
-  ... | yes refl = just (Output ⦃ DecEq-ListTxid ⦄ (apiTSev c recvTSRequestTxs) txids (Ret (inj₁ stTxs)))
-  ... | no _     = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-clientStep c stTxIdsBlocking = pchoice v
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSRequestTxIds Blocking a r)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Output ⦃ DecEq-BS×ℕ×ℕ ⦄ (apiTSev l d recvTSRequestTxIds) (Blocking , a , r) (Ret (inj₁ stTxIdsBlocking)))
+  ... | _        | _        = nothing
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSRequestTxIds NonBlocking a r)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Output ⦃ DecEq-BS×ℕ×ℕ ⦄ (apiTSev l d recvTSRequestTxIds) (NonBlocking , a , r) (Ret (inj₁ stTxIdsNonBlocking)))
+  ... | _        | _        = nothing
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSRequestTxs txids)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Output ⦃ DecEq-ListTxid ⦄ (apiTSev l d recvTSRequestTxs) txids (Ret (inj₁ stTxs)))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+clientStep l d stTxIdsBlocking = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , apiTSev c′ sendTSReplyTxIds) txids with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromInitiator , length₀ , txSubmission (MsgTSReplyTxIds txids)) ⟶
+  v (_ , apiTSev l′ d′ sendTSReplyTxIds) txids with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromInitiator , length₀ , txSubmission (MsgTSReplyTxIds txids)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiTSev c′ sendTSDone) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromInitiator , length₀ , txSubmission MsgTSDone) ⟶
-           (doneTS c ⟶₀ Ret (inj₁ stDone)))
-  ... | no _     = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-clientStep c stTxIdsNonBlocking = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiTSev l′ d′ sendTSDone) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromInitiator , length₀ , txSubmission MsgTSDone) ⟶
+           (doneTS l d ⟶₀ Ret (inj₁ stDone)))
+  ... | _        | _        = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+clientStep l d stTxIdsNonBlocking = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , apiTSev c′ sendTSReplyTxIds) txids with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromInitiator , length₀ , txSubmission (MsgTSReplyTxIds txids)) ⟶
+  v (_ , apiTSev l′ d′ sendTSReplyTxIds) txids with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromInitiator , length₀ , txSubmission (MsgTSReplyTxIds txids)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-clientStep c stTxs = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+clientStep l d stTxs = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , apiTSev c′ sendTSReplyTxs) txs with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromInitiator , length₀ , txSubmission (MsgTSReplyTxs txs)) ⟶
+  v (_ , apiTSev l′ d′ sendTSReplyTxs) txs with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromInitiator , length₀ , txSubmission (MsgTSReplyTxs txs)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
+  ... | _        | _        = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
 -- StDone: successful termination (√)
-clientStep _ stDone = Ret (inj₂ _)
+clientStep _ _ stDone = Ret (inj₂ _)
 
 -- the submitter peer: loop the step from the init state
-TSclientStClient : Conn N2N_TxSubmission → PTree TSEv (ExtI TSEv) Rr
-TSclientStClient c = iter (clientStep c) stInit
+TSclientStClient : Link → Dir → PTree TSEv (ExtI TSEv) Rr
+TSclientStClient l d = iter (clientStep l d) stInit
 
 ------------------------------------------------------------------------
 -- Step 6: the server (requester) peer — application-driven pulls.
 ------------------------------------------------------------------------
 
 -- one requester step (the body of the `iter` loop)
-serverStep : Conn N2N_TxSubmission → TSState → PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)
-serverStep c stInit = pchoice v
+serverStep : Link → Dir → TSState → PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)
+serverStep l d stInit = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission MsgTSInit) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-serverStep c stIdle = pchoice v
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission MsgTSInit) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStep l d stIdle = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , apiTSev c′ sendTSRequestTxIdsBlocking) (a , r) with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromResponder , length₀ , txSubmission (MsgTSRequestTxIds Blocking a r)) ⟶
+  v (_ , apiTSev l′ d′ sendTSRequestTxIdsBlocking) (a , r) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromResponder , length₀ , txSubmission (MsgTSRequestTxIds Blocking a r)) ⟶
            Ret (inj₁ stTxIdsBlocking))
-  ... | no _     = nothing
-  v (_ , apiTSev c′ sendTSRequestTxIdsPipelined) (a , r) with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromResponder , length₀ , txSubmission (MsgTSRequestTxIds NonBlocking a r)) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiTSev l′ d′ sendTSRequestTxIdsPipelined) (a , r) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromResponder , length₀ , txSubmission (MsgTSRequestTxIds NonBlocking a r)) ⟶
            Ret (inj₁ stTxIdsNonBlocking))
-  ... | no _     = nothing
-  v (_ , apiTSev c′ sendTSRequestTxsPipelined) txids with c′ ≟ c
-  ... | yes refl = just
-        (sendTS c ! (time₀ , FromResponder , length₀ , txSubmission (MsgTSRequestTxs txids)) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiTSev l′ d′ sendTSRequestTxsPipelined) txids with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendTS l d ! (time₀ , FromResponder , length₀ , txSubmission (MsgTSRequestTxs txids)) ⟶
            Ret (inj₁ stTxs))
-  ... | no _     = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-serverStep c stTxIdsBlocking = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStep l d stTxIdsBlocking = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission (MsgTSReplyTxIds txids)) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission MsgTSDone) with c′ ≟ c
-  ... | yes refl = just (doneTS c ⟶₀ Ret (inj₁ stDone))
-  ... | no _     = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-serverStep c stTxIdsNonBlocking = pchoice v
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxIds txids)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission MsgTSDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (doneTS l d ⟶₀ Ret (inj₁ stDone))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStep l d stTxIdsNonBlocking = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission (MsgTSReplyTxIds txids)) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
-serverStep c stTxs = pchoice v
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxIds txids)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStep l d stTxs = pchoice v
   where
   v : (at : AnyTypes TSEv)
     → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
-  v (_ , receiveTS c′) (_ , _ , _ , txSubmission (MsgTSReplyTxs txs)) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveTS _) _ = nothing
-  v (_ , sendTS _)    _ = nothing
-  v (_ , apiTSev _ _) _ = nothing
-  v (_ , doneTS _)    _ = nothing
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxs txs)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
 -- StDone: successful termination (√)
-serverStep _ stDone = Ret (inj₂ _)
+serverStep _ _ stDone = Ret (inj₂ _)
 
 -- the requester peer: loop the step from the init state
-TSserverStClient : Conn N2N_TxSubmission → PTree TSEv (ExtI TSEv) Rr
-TSserverStClient c = iter (serverStep c) stInit
+TSserverStClient : Link → Dir → PTree TSEv (ExtI TSEv) Rr
+TSserverStClient l d = iter (serverStep l d) stInit
 
 ------------------------------------------------------------------------
 -- Step 7: network-fragment injection into `Net` (documentation stub).
@@ -336,7 +340,7 @@ TSserverStClient c = iter (serverStep c) stInit
 
 -- intended Net images of the TxSubmission wire events (api/done: none)
 ιTSNet : ∀ {A} → TSEv A → Maybe (Net Payload A)
-ιTSNet (sendTS c)    = just (input  N2N_TxSubmission c)
-ιTSNet (receiveTS c) = just (output N2N_TxSubmission c)
-ιTSNet (apiTSev _ _) = nothing
-ιTSNet (doneTS _)    = nothing
+ιTSNet (sendTS l d)    = just (input  l d N2N_TxSubmission)
+ιTSNet (receiveTS l d) = just (output l d N2N_TxSubmission)
+ιTSNet (apiTSev _ _ _) = nothing
+ιTSNet (doneTS _ _)    = nothing

@@ -32,7 +32,7 @@ module CSP.Laws.FD.ExtChoiceFD {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators            E-≟
-open import Semantics.LTS                 {E = E} {I = ExtI E}
+open import Semantics.LTS                 {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges; deadlock-converges)
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)

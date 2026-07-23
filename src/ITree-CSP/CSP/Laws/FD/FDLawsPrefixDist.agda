@@ -28,7 +28,7 @@ module CSP.Laws.FD.FDLawsPrefixDist {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators            E-≟
-open import Semantics.LTS                 {E = E} {I = ExtI E}
+open import Semantics.LTS                 {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Offers; Refuses)
 open import Semantics.Failures            {E = E} {I = ExtI E}

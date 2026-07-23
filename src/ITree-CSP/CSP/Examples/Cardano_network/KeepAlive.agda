@@ -80,10 +80,10 @@ instance
 ------------------------------------------------------------------------
 
 data KAEv : Set → Set where
-  sendKA    : Conn N2N_KeepAlive → KAEv Payload   -- peer→net (→ input);  emitted via !
-  receiveKA : Conn N2N_KeepAlive → KAEv Payload   -- net→peer (→ output); bound via ?
-  apiKAev   : (c : Conn N2N_KeepAlive) (m : ApiKATag) → KAEv (ApiKACar m)  -- peer-local: SendKAMsg* / errCookie
-  doneKA    : Conn N2N_KeepAlive → KAEv ⊤          -- peer-local: Done
+  sendKA    : Link → Dir → KAEv Payload   -- peer→net (→ input);  emitted via !
+  receiveKA : Link → Dir → KAEv Payload   -- net→peer (→ output); bound via ?
+  apiKAev   : (l : Link) (d : Dir) (m : ApiKATag) → KAEv (ApiKACar m)  -- peer-local: SendKAMsg* / errCookie
+  doneKA    : Link → Dir → KAEv ⊤          -- peer-local: Done
 
 ------------------------------------------------------------------------
 -- Step 3: decidable equality on `AnyTypes KAEv`.
@@ -93,31 +93,35 @@ KAEv-≟ : (x y : AnyTypes KAEv) → Dec (x ≡ y)
 KAEv-≟ = go
   where
   go : (x y : AnyTypes KAEv) → Dec (x ≡ y)
-  go (_ , sendKA c₁)     (_ , sendKA c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , receiveKA c₁)  (_ , receiveKA c₂)  with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiKAev c₁ m₁) (_ , apiKAev c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
+  go (_ , sendKA l₁ d₁)     (_ , sendKA l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
   ... | yes refl | yes refl = yes refl
-  ... | no ¬p | _ = no λ where refl → ¬p refl
-  ... | _ | no ¬p = no λ where refl → ¬p refl
-  go (_ , doneKA c₁)     (_ , doneKA c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , sendKA _)    (_ , receiveKA _) = no λ ()
-  go (_ , sendKA _)    (_ , apiKAev _ _) = no λ ()
-  go (_ , sendKA _)    (_ , doneKA _)    = no λ ()
-  go (_ , receiveKA _) (_ , sendKA _)    = no λ ()
-  go (_ , receiveKA _) (_ , apiKAev _ _) = no λ ()
-  go (_ , receiveKA _) (_ , doneKA _)    = no λ ()
-  go (_ , apiKAev _ _) (_ , sendKA _)    = no λ ()
-  go (_ , apiKAev _ _) (_ , receiveKA _) = no λ ()
-  go (_ , apiKAev _ _) (_ , doneKA _)    = no λ ()
-  go (_ , doneKA _)    (_ , sendKA _)    = no λ ()
-  go (_ , doneKA _)    (_ , receiveKA _) = no λ ()
-  go (_ , doneKA _)    (_ , apiKAev _ _) = no λ ()
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , receiveKA l₁ d₁)  (_ , receiveKA l₂ d₂)  with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , apiKAev l₁ d₁ m₁) (_ , apiKAev l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬p | _ | _ = no λ where refl → ¬p refl
+  ... | _ | no ¬p | _ = no λ where refl → ¬p refl
+  ... | _ | _ | no ¬p = no λ where refl → ¬p refl
+  go (_ , doneKA l₁ d₁)     (_ , doneKA l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , sendKA _ _)    (_ , receiveKA _ _) = no λ ()
+  go (_ , sendKA _ _)    (_ , apiKAev _ _ _) = no λ ()
+  go (_ , sendKA _ _)    (_ , doneKA _ _)    = no λ ()
+  go (_ , receiveKA _ _) (_ , sendKA _ _)    = no λ ()
+  go (_ , receiveKA _ _) (_ , apiKAev _ _ _) = no λ ()
+  go (_ , receiveKA _ _) (_ , doneKA _ _)    = no λ ()
+  go (_ , apiKAev _ _ _) (_ , sendKA _ _)    = no λ ()
+  go (_ , apiKAev _ _ _) (_ , receiveKA _ _) = no λ ()
+  go (_ , apiKAev _ _ _) (_ , doneKA _ _)    = no λ ()
+  go (_ , doneKA _ _)    (_ , sendKA _ _)    = no λ ()
+  go (_ , doneKA _ _)    (_ , receiveKA _ _) = no λ ()
+  go (_ , doneKA _ _)    (_ , apiKAev _ _ _) = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 4: peer return type and its DecEq.
@@ -174,44 +178,45 @@ instance
     go stDone       stClient     = no λ ()
     go stDone       (stServer _) = no λ ()
 
-clientStep : Conn N2N_KeepAlive → KAState → PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)
-clientStep c stClient = pchoice v
+clientStep : Link → Dir → KAState → PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)
+clientStep l d stClient = pchoice v
   where
   v : (at : AnyTypes KAEv)
     → ContinueType at (Maybe (PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)))
-  v (_ , apiKAev c′ sendKAMsg) cookieReq with c′ ≟ c
-  ... | yes refl = just
-        (sendKA c ! (time₀ , FromInitiator , length₀ , keepAlive (MsgKeepAlive cookieReq)) ⟶
+  v (_ , apiKAev l′ d′ sendKAMsg) cookieReq with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendKA l d ! (time₀ , FromInitiator , length₀ , keepAlive (MsgKeepAlive cookieReq)) ⟶
            Ret (inj₁ (stServer cookieReq)))
-  ... | no _     = nothing
-  v (_ , apiKAev c′ sendKADone) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendKA c ! (time₀ , FromInitiator , length₀ , keepAlive MsgKADone) ⟶
-           (doneKA c ⟶₀ Ret (inj₁ stDone)))
-  ... | no _     = nothing
-  v (_ , apiKAev _ errCookie) _ = nothing
-  v (_ , sendKA _)    _ = nothing
-  v (_ , receiveKA _) _ = nothing
-  v (_ , doneKA _)    _ = nothing
-clientStep c (stServer cookieReq) = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiKAev l′ d′ sendKADone) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendKA l d ! (time₀ , FromInitiator , length₀ , keepAlive MsgKADone) ⟶
+           (doneKA l d ⟶₀ Ret (inj₁ stDone)))
+  ... | _        | _        = nothing
+  v (_ , apiKAev _ _ errCookie) _ = nothing
+  v (_ , sendKA _ _)    _ = nothing
+  v (_ , receiveKA _ _) _ = nothing
+  v (_ , doneKA _ _)    _ = nothing
+clientStep l d (stServer cookieReq) = pchoice v
   where
   v : (at : AnyTypes KAEv)
     → ContinueType at (Maybe (PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)))
-  v (_ , receiveKA c′) (_ , _ , _ , keepAlive (MsgKeepAliveResponse cookieRsp))
-    with c′ ≟ c
-  ... | no _      = nothing
-  ... | yes refl  with cookieReq ≟ cookieRsp
+  v (_ , receiveKA l′ d′) (_ , _ , _ , keepAlive (MsgKeepAliveResponse cookieRsp))
+    with l′ ≟ l | d′ ≟ d
+  ... | no _      | _       = nothing
+  ... | _         | no _    = nothing
+  ... | yes refl  | yes refl with cookieReq ≟ cookieRsp
   ...   | yes _ = just (Ret (inj₁ stClient))
-  ...   | no  _ = just (apiKAev c errCookie ! (cookieReq , cookieRsp) ⟶ Ret (inj₂ _))
-  v (_ , receiveKA _) _ = nothing
-  v (_ , sendKA _)    _ = nothing
-  v (_ , apiKAev _ _) _ = nothing
-  v (_ , doneKA _)    _ = nothing
+  ...   | no  _ = just (apiKAev l d errCookie ! (cookieReq , cookieRsp) ⟶ Ret (inj₂ _))
+  v (_ , receiveKA _ _) _ = nothing
+  v (_ , sendKA _ _)    _ = nothing
+  v (_ , apiKAev _ _ _) _ = nothing
+  v (_ , doneKA _ _)    _ = nothing
 -- StDone: successful termination (√)
-clientStep _ stDone = Ret (inj₂ _)
+clientStep _ _ stDone = Ret (inj₂ _)
 
-KAclientStClient : Conn N2N_KeepAlive → PTree KAEv (ExtI KAEv) Rr
-KAclientStClient c = iter (clientStep c) stClient
+KAclientStClient : Link → Dir → PTree KAEv (ExtI KAEv) Rr
+KAclientStClient l d = iter (clientStep l d) stClient
 
 ------------------------------------------------------------------------
 -- Step 6: the server peer.
@@ -224,29 +229,29 @@ KAclientStClient c = iter (clientStep c) stClient
 -- wire, so it is otherwise unused.
 ------------------------------------------------------------------------
 
-serverStep : Conn N2N_KeepAlive → KAState → PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)
-serverStep c stClient = pchoice v
+serverStep : Link → Dir → KAState → PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)
+serverStep l d stClient = pchoice v
   where
   v : (at : AnyTypes KAEv)
     → ContinueType at (Maybe (PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)))
-  v (_ , receiveKA c′) (_ , _ , _ , keepAlive (MsgKeepAlive cookieReq)) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ (stServer cookieReq)))
-  ... | no _     = nothing
-  v (_ , receiveKA c′) (_ , _ , _ , keepAlive MsgKADone) with c′ ≟ c
-  ... | yes refl = just (doneKA c ⟶₀ Ret (inj₁ stDone))
-  ... | no _     = nothing
-  v (_ , receiveKA _) _ = nothing
-  v (_ , sendKA _)    _ = nothing
-  v (_ , apiKAev _ _) _ = nothing
-  v (_ , doneKA _)    _ = nothing
-serverStep c (stServer cookieReq) =
-  sendKA c ! (time₀ , FromResponder , length₀ , keepAlive (MsgKeepAliveResponse cookieReq)) ⟶
+  v (_ , receiveKA l′ d′) (_ , _ , _ , keepAlive (MsgKeepAlive cookieReq)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ (stServer cookieReq)))
+  ... | _        | _        = nothing
+  v (_ , receiveKA l′ d′) (_ , _ , _ , keepAlive MsgKADone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (doneKA l d ⟶₀ Ret (inj₁ stDone))
+  ... | _        | _        = nothing
+  v (_ , receiveKA _ _) _ = nothing
+  v (_ , sendKA _ _)    _ = nothing
+  v (_ , apiKAev _ _ _) _ = nothing
+  v (_ , doneKA _ _)    _ = nothing
+serverStep l d (stServer cookieReq) =
+  sendKA l d ! (time₀ , FromResponder , length₀ , keepAlive (MsgKeepAliveResponse cookieReq)) ⟶
     Ret (inj₁ stClient)
 -- StDone: successful termination (√)
-serverStep _ stDone = Ret (inj₂ _)
+serverStep _ _ stDone = Ret (inj₂ _)
 
-KAserverStClient : Conn N2N_KeepAlive → PTree KAEv (ExtI KAEv) Rr
-KAserverStClient c = iter (serverStep c) stClient
+KAserverStClient : Link → Dir → PTree KAEv (ExtI KAEv) Rr
+KAserverStClient l d = iter (serverStep l d) stClient
 
 ------------------------------------------------------------------------
 -- Step 7: network-fragment injection into `Net` (documentation stub).
@@ -260,7 +265,7 @@ KAserverStClient c = iter (serverStep c) stClient
 ------------------------------------------------------------------------
 
 ιKANet : ∀ {A} → KAEv A → Maybe (Net Payload A)
-ιKANet (sendKA c)    = just (input  N2N_KeepAlive c)
-ιKANet (receiveKA c) = just (output N2N_KeepAlive c)
-ιKANet (apiKAev _ _) = nothing
-ιKANet (doneKA _)    = nothing
+ιKANet (sendKA l d)    = just (input  l d N2N_KeepAlive)
+ιKANet (receiveKA l d) = just (output l d N2N_KeepAlive)
+ιKANet (apiKAev _ _ _) = nothing
+ιKANet (doneKA _ _)    = nothing

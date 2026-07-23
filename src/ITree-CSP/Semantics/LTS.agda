@@ -78,3 +78,11 @@ ev-inv : ∀ {ℓr} {R : Set ℓr} {t t′ : PTree E I R} {A : Set ℓ} {e : E A
          Σ[ τc ∈ ((i : AnyTypes I) → ContinueType i (Maybe (PTree E I R))) ]
            (PTree.force t ≡ react v τc × v (A , e) a ≡ just t′)
 ev-inv (sVis {v = v} {τc = τc} eq br) = v , τc , eq , br
+
+-- divergence: an infinite τ-path (single home for DRBisim + TauAcc to reuse)
+record Diverges {ℓr} {R : Set ℓr} (t : PTree E I R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
+  coinductive
+  field
+    {next} : PTree E I R
+    step   : t ─[ τ ]─► next
+    rest   : Diverges next

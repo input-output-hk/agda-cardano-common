@@ -13,7 +13,7 @@ open import Process_Trees
 module Semantics.StrongImpliesDR
   {ℓ ℓe ℓi} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} where
 open PTree
-open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I}
+open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I} hiding (Diverges)
 open import Semantics.WeakBisim {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.DRBisim   {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Bisim     {ℓ} {ℓe} {ℓi} {E} {I}

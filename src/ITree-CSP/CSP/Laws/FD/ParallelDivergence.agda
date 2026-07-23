@@ -29,7 +29,7 @@ module CSP.Laws.FD.ParallelDivergence {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators E-≟
-open import Semantics.LTS     {E = E} {I = ExtI E}
+open import Semantics.LTS     {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Failures {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 open import Semantics.DRBisim {E = E} {I = ExtI E} using (Diverges; deadlock-converges; deadlock-no-τ)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (deadlock-no-offer)

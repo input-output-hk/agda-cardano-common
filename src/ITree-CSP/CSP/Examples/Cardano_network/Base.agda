@@ -94,3 +94,20 @@ instance
   DecEq-BlockingStyle ._≟_ NonBlocking NonBlocking = yes refl
   DecEq-BlockingStyle ._≟_ Blocking    NonBlocking = no λ ()
   DecEq-BlockingStyle ._≟_ NonBlocking Blocking    = no λ ()
+
+------------------------------------------------------------------------
+-- Direction of a mini-protocol instance over a link.
+------------------------------------------------------------------------
+
+-- Direction of a mini-protocol instance over a link: which endpoint initiates
+-- (is client). `lo` = the lower-indexed endpoint initiates; `hi` = the higher.
+data Dir : Set where
+  lo hi : Dir
+
+-- decidable equality on Dir (2×2)
+instance
+  DecEq-Dir : DecEq Dir
+  DecEq-Dir ._≟_ lo lo = yes refl
+  DecEq-Dir ._≟_ hi hi = yes refl
+  DecEq-Dir ._≟_ lo hi = no λ ()
+  DecEq-Dir ._≟_ hi lo = no λ ()

@@ -40,7 +40,7 @@ module CSP.Laws.FD.SeqDistR {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators E-≟ using (_>>=_; _>>_; _⊓_; bindV; bindT; viewT)
-open import Semantics.LTS       {E = E} {I = ExtI E}
+open import Semantics.LTS       {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Refusals  {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.Failures  {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}

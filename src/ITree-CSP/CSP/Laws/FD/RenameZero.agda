@@ -20,7 +20,7 @@ open PTree
 
 open import CSP.Rename {E₁ = E} {E₂ = E} (λ e → e) (λ e → just e) (λ _ → refl)
   using (renameInv; ConcEvent₁)
-open import Semantics.LTS     {E = E} {I = ExtI E}
+open import Semantics.LTS     {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.DRBisim {E = E} {I = ExtI E} using (Diverges; div-diverges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (divergences; _≈FD_; empty-div; div-extension-closed; div-divergence)

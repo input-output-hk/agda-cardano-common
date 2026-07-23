@@ -58,10 +58,10 @@ open Params p
 
 -- the ChainSync peer alphabet
 data CSEv : Set → Set where
-  sendCS    : Conn N2N_ChainSync → CSEv Payload   -- peer→net (→ input)
-  receiveCS : Conn N2N_ChainSync → CSEv Payload   -- net→peer (→ output)
-  apiCSev   : (c : Conn N2N_ChainSync) (m : ApiCSTag) → CSEv (ApiCSCar m)  -- peer-local
-  doneCS    : Conn N2N_ChainSync → CSEv ⊤          -- peer-local: Done
+  sendCS    : Link → Dir → CSEv Payload   -- peer→net (→ input)
+  receiveCS : Link → Dir → CSEv Payload   -- net→peer (→ output)
+  apiCSev   : (l : Link) (d : Dir) (m : ApiCSTag) → CSEv (ApiCSCar m)  -- peer-local
+  doneCS    : Link → Dir → CSEv ⊤          -- peer-local: Done
 
 ------------------------------------------------------------------------
 -- Step 2: decidable equality on `AnyTypes CSEv`.
@@ -72,31 +72,35 @@ CSEv-≟ : (x y : AnyTypes CSEv) → Dec (x ≡ y)
 CSEv-≟ = go
   where
   go : (x y : AnyTypes CSEv) → Dec (x ≡ y)
-  go (_ , sendCS c₁)     (_ , sendCS c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , receiveCS c₁)  (_ , receiveCS c₂)  with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiCSev c₁ m₁) (_ , apiCSev c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
+  go (_ , sendCS l₁ d₁)     (_ , sendCS l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
   ... | yes refl | yes refl = yes refl
-  ... | no ¬p | _ = no λ where refl → ¬p refl
-  ... | _ | no ¬p = no λ where refl → ¬p refl
-  go (_ , doneCS c₁)     (_ , doneCS c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , sendCS _)    (_ , receiveCS _) = no λ ()
-  go (_ , sendCS _)    (_ , apiCSev _ _) = no λ ()
-  go (_ , sendCS _)    (_ , doneCS _)    = no λ ()
-  go (_ , receiveCS _) (_ , sendCS _)    = no λ ()
-  go (_ , receiveCS _) (_ , apiCSev _ _) = no λ ()
-  go (_ , receiveCS _) (_ , doneCS _)    = no λ ()
-  go (_ , apiCSev _ _) (_ , sendCS _)    = no λ ()
-  go (_ , apiCSev _ _) (_ , receiveCS _) = no λ ()
-  go (_ , apiCSev _ _) (_ , doneCS _)    = no λ ()
-  go (_ , doneCS _)    (_ , sendCS _)    = no λ ()
-  go (_ , doneCS _)    (_ , receiveCS _) = no λ ()
-  go (_ , doneCS _)    (_ , apiCSev _ _) = no λ ()
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , receiveCS l₁ d₁)  (_ , receiveCS l₂ d₂)  with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , apiCSev l₁ d₁ m₁) (_ , apiCSev l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬p | _ | _ = no λ where refl → ¬p refl
+  ... | _ | no ¬p | _ = no λ where refl → ¬p refl
+  ... | _ | _ | no ¬p = no λ where refl → ¬p refl
+  go (_ , doneCS l₁ d₁)     (_ , doneCS l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , sendCS _ _)    (_ , receiveCS _ _) = no λ ()
+  go (_ , sendCS _ _)    (_ , apiCSev _ _ _) = no λ ()
+  go (_ , sendCS _ _)    (_ , doneCS _ _)    = no λ ()
+  go (_ , receiveCS _ _) (_ , sendCS _ _)    = no λ ()
+  go (_ , receiveCS _ _) (_ , apiCSev _ _ _) = no λ ()
+  go (_ , receiveCS _ _) (_ , doneCS _ _)    = no λ ()
+  go (_ , apiCSev _ _ _) (_ , sendCS _ _)    = no λ ()
+  go (_ , apiCSev _ _ _) (_ , receiveCS _ _) = no λ ()
+  go (_ , apiCSev _ _ _) (_ , doneCS _ _)    = no λ ()
+  go (_ , doneCS _ _)    (_ , sendCS _ _)    = no λ ()
+  go (_ , doneCS _ _)    (_ , receiveCS _ _) = no λ ()
+  go (_ , doneCS _ _)    (_ , apiCSev _ _ _) = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 3: peer return type, its DecEq, and carrier DecEq instances.
@@ -172,170 +176,170 @@ instance
     go stDone      stIntersect = no λ ()
 
 -- one client step (the body of the `iter` loop)
-clientStep : Conn N2N_ChainSync → CSState → PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)
-clientStep c stIdle = pchoice v
+clientStep : Link → Dir → CSState → PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)
+clientStep l d stIdle = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , apiCSev c′ sendCSRequestNext) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromInitiator , length₀ , chainSync MsgCSRequestNext) ⟶
+  v (_ , apiCSev l′ d′ sendCSRequestNext) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromInitiator , length₀ , chainSync MsgCSRequestNext) ⟶
            Ret (inj₁ stCanAwait))
-  ... | no _     = nothing
-  v (_ , apiCSev c′ sendCSFindIntersect) points with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromInitiator , length₀ , chainSync (MsgCSFindIntersect points)) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiCSev l′ d′ sendCSFindIntersect) points with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromInitiator , length₀ , chainSync (MsgCSFindIntersect points)) ⟶
            Ret (inj₁ stIntersect))
-  ... | no _     = nothing
-  v (_ , apiCSev c′ sendCSDone) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromInitiator , length₀ , chainSync MsgCSDone) ⟶
-           (doneCS c ⟶₀ Ret (inj₁ stDone)))
-  ... | no _     = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
-clientStep c stCanAwait = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiCSev l′ d′ sendCSDone) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromInitiator , length₀ , chainSync MsgCSDone) ⟶
+           (doneCS l d ⟶₀ Ret (inj₁ stDone)))
+  ... | _        | _        = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
+clientStep l d stCanAwait = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSRollForward h t)) with c′ ≟ c
-  ... | yes refl = just (apiCSev c recvCSRollforward ! (h , t) ⟶ Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSRollBackward pt tp)) with c′ ≟ c
-  ... | yes refl = just (apiCSev c recvCSRollback ! (pt , tp) ⟶ Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync MsgCSAwaitReply) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stMustReply))
-  ... | no _     = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
-clientStep c stMustReply = pchoice v
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSRollForward h t)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d recvCSRollforward ! (h , t) ⟶ Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSRollBackward pt tp)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d recvCSRollback ! (pt , tp) ⟶ Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync MsgCSAwaitReply) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stMustReply))
+  ... | _        | _        = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
+clientStep l d stMustReply = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSRollForward h t)) with c′ ≟ c
-  ... | yes refl = just (apiCSev c recvCSRollforward ! (h , t) ⟶ Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSRollBackward pt tp)) with c′ ≟ c
-  ... | yes refl = just (apiCSev c recvCSRollback ! (pt , tp) ⟶ Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
-clientStep c stIntersect = pchoice v
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSRollForward h t)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d recvCSRollforward ! (h , t) ⟶ Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSRollBackward pt tp)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d recvCSRollback ! (pt , tp) ⟶ Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
+clientStep l d stIntersect = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSIntersectFound pt tp)) with c′ ≟ c
-  ... | yes refl = just (apiCSev c recvCSIntersectFound ! (pt , tp) ⟶ Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSIntersectNotFound tp)) with c′ ≟ c
-  ... | yes refl = just (apiCSev c recvCSIntersectNotFound ! tp ⟶ Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSIntersectFound pt tp)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d recvCSIntersectFound ! (pt , tp) ⟶ Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSIntersectNotFound tp)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d recvCSIntersectNotFound ! tp ⟶ Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
 -- Done: successful termination (√)
-clientStep _ stDone = Ret (inj₂ _)
+clientStep _ _ stDone = Ret (inj₂ _)
 
 -- the client peer: loop the step from the idle state
-CSclientStClient : Conn N2N_ChainSync → PTree CSEv (ExtI CSEv) Rr
-CSclientStClient c = iter (clientStep c) stIdle
+CSclientStClient : Link → Dir → PTree CSEv (ExtI CSEv) Rr
+CSclientStClient l d = iter (clientStep l d) stIdle
 
 ------------------------------------------------------------------------
 -- Step 5: the server (producer) peer — application-driven.
 ------------------------------------------------------------------------
 
 -- one server step (the body of the `iter` loop)
-serverStep : Conn N2N_ChainSync → CSState → PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)
-serverStep c stIdle = pchoice v
+serverStep : Link → Dir → CSState → PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)
+serverStep l d stIdle = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync MsgCSRequestNext) with c′ ≟ c
-  ... | yes refl = just (apiCSev c reqCSRequestNext ⟶₀ Ret (inj₁ stCanAwait))
-  ... | no _     = nothing
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync (MsgCSFindIntersect points)) with c′ ≟ c
-  ... | yes refl = just (Output ⦃ DecEq-ListPoint ⦄ (apiCSev c reqCSFindIntersect) points (Ret (inj₁ stIntersect)))
-  ... | no _     = nothing
-  v (_ , receiveCS c′) (_ , _ , _ , chainSync MsgCSDone) with c′ ≟ c
-  ... | yes refl = just (doneCS c ⟶₀ Ret (inj₁ stDone))
-  ... | no _     = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
-serverStep c stCanAwait = pchoice v
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync MsgCSRequestNext) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiCSev l d reqCSRequestNext ⟶₀ Ret (inj₁ stCanAwait))
+  ... | _        | _        = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync (MsgCSFindIntersect points)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Output ⦃ DecEq-ListPoint ⦄ (apiCSev l d reqCSFindIntersect) points (Ret (inj₁ stIntersect)))
+  ... | _        | _        = nothing
+  v (_ , receiveCS l′ d′) (_ , _ , _ , chainSync MsgCSDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (doneCS l d ⟶₀ Ret (inj₁ stDone))
+  ... | _        | _        = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
+serverStep l d stCanAwait = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , apiCSev c′ sendCSRollForward) (h , t) with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollForward h t)) ⟶
+  v (_ , apiCSev l′ d′ sendCSRollForward) (h , t) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollForward h t)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiCSev c′ sendCSRollBackward) (pt , tp) with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollBackward pt tp)) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiCSev l′ d′ sendCSRollBackward) (pt , tp) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollBackward pt tp)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiCSev c′ sendCSAwaitReply) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync MsgCSAwaitReply) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiCSev l′ d′ sendCSAwaitReply) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync MsgCSAwaitReply) ⟶
            Ret (inj₁ stMustReply))
-  ... | no _     = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
-serverStep c stMustReply = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
+serverStep l d stMustReply = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , apiCSev c′ sendCSRollForward) (h , t) with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollForward h t)) ⟶
+  v (_ , apiCSev l′ d′ sendCSRollForward) (h , t) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollForward h t)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiCSev c′ sendCSRollBackward) (pt , tp) with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollBackward pt tp)) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiCSev l′ d′ sendCSRollBackward) (pt , tp) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync (MsgCSRollBackward pt tp)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
-serverStep c stIntersect = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
+serverStep l d stIntersect = pchoice v
   where
   v : (at : AnyTypes CSEv)
     → ContinueType at (Maybe (PTree CSEv (ExtI CSEv) (CSState ⊎ Rr)))
-  v (_ , apiCSev c′ sendCSIntersectFound) (pt , tp) with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync (MsgCSIntersectFound pt tp)) ⟶
+  v (_ , apiCSev l′ d′ sendCSIntersectFound) (pt , tp) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync (MsgCSIntersectFound pt tp)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiCSev c′ sendCSIntersectNotFound) tp with c′ ≟ c
-  ... | yes refl = just
-        (sendCS c ! (time₀ , FromResponder , length₀ , chainSync (MsgCSIntersectNotFound tp)) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiCSev l′ d′ sendCSIntersectNotFound) tp with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendCS l d ! (time₀ , FromResponder , length₀ , chainSync (MsgCSIntersectNotFound tp)) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiCSev _ _) _ = nothing
-  v (_ , sendCS _)    _ = nothing
-  v (_ , receiveCS _) _ = nothing
-  v (_ , doneCS _)    _ = nothing
+  ... | _        | _        = nothing
+  v (_ , apiCSev _ _ _) _ = nothing
+  v (_ , sendCS _ _)    _ = nothing
+  v (_ , receiveCS _ _) _ = nothing
+  v (_ , doneCS _ _)    _ = nothing
 -- Done: successful termination (√)
-serverStep _ stDone = Ret (inj₂ _)
+serverStep _ _ stDone = Ret (inj₂ _)
 
 -- the server peer: loop the step from the idle state
-CSserverStClient : Conn N2N_ChainSync → PTree CSEv (ExtI CSEv) Rr
-CSserverStClient c = iter (serverStep c) stIdle
+CSserverStClient : Link → Dir → PTree CSEv (ExtI CSEv) Rr
+CSserverStClient l d = iter (serverStep l d) stIdle
 
 ------------------------------------------------------------------------
 -- Step 6: network-fragment injection into `Net` (documentation stub).
@@ -343,7 +347,7 @@ CSserverStClient c = iter (serverStep c) stIdle
 
 -- intended Net images of the ChainSync wire events (api/done: none)
 ιCSNet : ∀ {A} → CSEv A → Maybe (Net Payload A)
-ιCSNet (sendCS c)    = just (input  N2N_ChainSync c)
-ιCSNet (receiveCS c) = just (output N2N_ChainSync c)
-ιCSNet (apiCSev _ _) = nothing
-ιCSNet (doneCS _)    = nothing
+ιCSNet (sendCS l d)    = just (input  l d N2N_ChainSync)
+ιCSNet (receiveCS l d) = just (output l d N2N_ChainSync)
+ιCSNet (apiCSev _ _ _) = nothing
+ιCSNet (doneCS _ _)    = nothing

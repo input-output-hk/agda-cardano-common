@@ -14,18 +14,11 @@ open import Process_Trees
 
 module Semantics.DRBisim {ℓ ℓe ℓi} {E : Set ℓ → Set ℓe} {I : Set ℓ → Set ℓi} where
 open PTree
-open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I}
+open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I} hiding (Diverges)
+open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I} using (Diverges) public
 open import Semantics.WeakBisim {ℓ} {ℓe} {ℓi} {E} {I}
 
--- divergence: an infinite τ-path
-record Diverges {ℓr} {R : Set ℓr} (t : PTree E I R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr) where
-  coinductive
-  field
-    {next} : PTree E I R
-    step   : t ─[ τ ]─► next
-    rest   : Diverges next
-
--- div diverges; deadlock converges
+-- div diverges; deadlock converges (`Diverges` re-exported from LTS)
 div-diverges : ∀ {ℓr} {R : Set ℓr} → Diverges (div {E = E} {I = I} {R = R})
 div-diverges .Diverges.next = div
 div-diverges .Diverges.step = sSil refl

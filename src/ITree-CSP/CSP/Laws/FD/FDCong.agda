@@ -26,7 +26,7 @@ module CSP.Laws.FD.FDCong {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators            E-≟
-open import Semantics.LTS                 {E = E} {I = ExtI E}
+open import Semantics.LTS                 {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.WeakBisim           {E = E} {I = ExtI E}
 open import Semantics.DRBisim             {E = E} {I = ExtI E}
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E} using (_≈FD_)

@@ -23,7 +23,7 @@ open PTree
 
 open import CSP.Operators E-≟
 open EventSet
-open import Semantics.LTS      {E = E} {I = ExtI E}
+open import Semantics.LTS      {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Failures {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 open import Semantics.DRBisim  {E = E} {I = ExtI E} using (Diverges; deadlock-converges; deadlock-no-τ)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}

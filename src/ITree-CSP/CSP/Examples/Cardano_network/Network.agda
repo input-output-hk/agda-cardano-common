@@ -17,33 +17,39 @@
 --   Network = (TxSide  [|{| tx, ack |}|]      RxSide) \ {| tx, ack |}
 --
 -- Adaptation to the refined `Net` type (see `Net.agda`):
---   * CSPm `Connection` becomes the explicit `Conn id` argument of each channel.
+--   * CSPm `Connection` becomes the explicit `(l : Link) (d : Dir)` pair
+--     threaded through every channel — `Link = Fin numLinks` is the TCP
+--     link index and `Dir` (`lo`/`hi`) picks which endpoint initiates that
+--     link's instance of the protocol; there is no separate `Conn` type.
 --   * CSPm `Time.Mode.Length.Messages` becomes the opaque payload `Data`; the
 --     Network only *forwards* it, so this module is generic in `(Data : Set)`
 --     with `⦃ DecEq Data ⦄` (the latter feeds `Net-≟` → `CSP.Operators`).
 --   * The CSPm ack channels correlate a message with its acknowledgement by
---     `Time`; the refined `Net` ack channels carry `Conn id` instead, so here
---     the **connection `c`** is the correlation token threaded through
---     `input id c d → sndmsg id c d → rcvack id c` (and dually on the Rx side).
+--     `Time`; the refined `Net` ack channels carry `(l, d)` instead, so here
+--     the **link/direction pair `(l, d)`** is the correlation token threaded
+--     through `input l d id x → sndmsg l d id x → rcvack l d id` (and dually
+--     on the Rx side).
 --
 -- Each forever-loop is `loop0 body`; each `body` is a `pchoice` menu that
--- pattern-matches the event constructor — needed because `input.id?…d`
--- accepts *any* `d : Data`, which the single-event `⟶₀` cannot express.
--- Connection is now an explicit parameter: each leaf is `Input(id, c)` /
--- `Output(id, c)` for one fixed `id` AND one fixed `c : Conn id`, and the
--- per-connection / per-id replicated interleavings rebuild the whole:
---   Inputs = ||| id : IDs @ (||| c : Conn(id) @ Input(id, c))
--- realised by `interleaveConn` (over `Conn id = Fin (numConns id)`) and
--- `⦀⋆` (over `allIDs`); the empty set ⇒ Skip, the unit of `|||`.
+-- pattern-matches the event constructor — needed because `input.l.d.id?…x`
+-- accepts *any* `x : Data`, which the single-event `⟶₀` cannot express.
+-- `(l, d, id)` is now the explicit instance key: each leaf is `Input(l,d,id)`
+-- / `Output(l,d,id)` for one fixed link/direction/protocol triple, and the
+-- config-driven replicated interleavings rebuild the whole, one live cell
+-- per `(d, id)` **configured** on each link by `linkConfig`:
+--   Inputs = ||| l : Link @ (||| (d,id) ∈ linkConfig(l) @ Input(l,d,id))
+-- realised by `⦀Fin` (over `Link = Fin numLinks`) and `⦀⋆` (over the
+-- per-link configured `(Dir × IDs)` list); unconfigured instances
+-- contribute no cell and an empty list ⇒ Skip, the unit of `|||`.
 -- `Transmitter`/`Receiver`/`SndAck`/`RcvAck` are single loops handling every
--- `id` via their menu (the CSPm `[] id:IDs @ …`).  All combinators are
--- productive, so no `NON_TERMINATING`.
+-- `(l, d, id)` via their menu (the CSPm `[] id:IDs @ …`).  All combinators
+-- are productive, so no `NON_TERMINATING`.
 ------------------------------------------------------------------------
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Empty using (⊥)
-open import Data.List using (List; []; _∷_; map)
+open import Data.List using (map)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_,_)
 open import Relation.Nullary using (Dec; yes; no)
@@ -58,9 +64,9 @@ module CSP.Examples.Cardano_network.Network
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
 open import CSP.Examples.Cardano_network.Net p
-  using ( Net; Conn; Net-≟
+  using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
-open Params p using (numConns)
+open Params p using (numLinks; linkConfig)
 
 import CSP.Operators {E = Net Data} (Net-≟ {Data}) as Op
 open Op using (Par⊤; _∥⇘_⇙_; _⦀_; ⦀⋆; ⦀Fin; _∖_; pchoice; Prefix₀; Skip; loop0; chanSet)
@@ -77,153 +83,147 @@ Menu : Set₁
 Menu = (at : AnyTypes (Net Data)) → ContinueType at (Maybe NetProc)
 
 ------------------------------------------------------------------------
--- Replicated-interleaving combinators (the CSP `|||` over a finite set).
-------------------------------------------------------------------------
-
--- all six protocol ids (for ||| id : IDs @ …)
-allIDs : List IDs
-allIDs = N2N_ChainSync ∷ N2N_BlockFetch ∷ N2N_TxSubmission
-       ∷ N2N_KeepAlive ∷ N2N_LeiosNotify ∷ N2N_LeiosFetch ∷ []
-
-------------------------------------------------------------------------
 -- Tx side leaves
 ------------------------------------------------------------------------
 
--- Input(id, c): accept input on this id AND connection c, forward as
--- sndmsg, await rcvack, repeat.
-Input : (id : IDs) → Conn id → NetProc
-Input id c = loop0 (pchoice v)
-  where
-  v : Menu
-  v (_ , input id′ c′) d with id′ ≟ id
-  ... | no  _    = nothing
-  ... | yes refl with c′ ≟ c
-  ...   | yes refl = just (Op.Output (sndmsg id c) d (rcvack id c ⟶₀ Skip))
-  ...   | no  _    = nothing
-  v _ _ = nothing
+-- Input(l, d, id)'s offer menu (hoisted to top level so confinement proofs
+-- can name it): accept input l d id for any x, forward as sndmsg, await rcvack.
+inputMenu : (l : Link) (d : Dir) (id : IDs) → Menu
+inputMenu l d id (_ , input l′ d′ id′) x with l′ ≟ l
+... | no  _    = nothing
+... | yes refl with d′ ≟ d
+...   | no  _    = nothing
+...   | yes refl with id′ ≟ id
+...     | no  _    = nothing
+...     | yes refl = just (Op.Output (sndmsg l d id) x (rcvack l d id ⟶₀ Skip))
+inputMenu l d id _ _ = nothing
 
--- Transmitter: accept sndmsg on any id, emit tx, repeat ([] id:IDs @ …).
+-- Input(l, d, id): accept input on this link/direction/id, forward as
+-- sndmsg, await rcvack, repeat.
+Input : (l : Link) (d : Dir) (id : IDs) → NetProc
+Input l d id = loop0 (pchoice (inputMenu l d id))
+
+-- Transmitter: accept sndmsg on any (l, d, id), emit tx, repeat.
 Transmitter : NetProc
 Transmitter = loop0 (pchoice v)
   where
   v : Menu
-  v (_ , sndmsg id c) d = just (Op.Output (tx id c) d Skip)
+  v (_ , sndmsg l d id) x = just (Op.Output (tx l d id) x Skip)
   v _ _ = nothing
 
--- RcvAck: accept ack on any id, emit rcvack, repeat.
+-- RcvAck: accept ack on any (l, d, id), emit rcvack, repeat.
 RcvAck : NetProc
 RcvAck = loop0 (pchoice v)
   where
   v : Menu
-  v (_ , ack id c) _ = just (rcvack id c ⟶₀ Skip)
+  v (_ , ack l d id) _ = just (rcvack l d id ⟶₀ Skip)
   v _ _ = nothing
 
 ------------------------------------------------------------------------
 -- Rx side leaves
 ------------------------------------------------------------------------
 
--- Output(id, c): accept rcvmsg on this id AND connection c, emit output,
--- emit sndack, repeat.
-Output : (id : IDs) → Conn id → NetProc
-Output id c = loop0 (pchoice v)
-  where
-  v : Menu
-  v (_ , rcvmsg id′ c′) d with id′ ≟ id
-  ... | no  _    = nothing
-  ... | yes refl with c′ ≟ c
-  ...   | yes refl = just (Op.Output (output id c) d (sndack id c ⟶₀ Skip))
-  ...   | no  _    = nothing
-  v _ _ = nothing
+-- Output(l, d, id)'s offer menu (hoisted to top level so confinement proofs
+-- can name it): accept rcvmsg l d id for any x, emit output, emit sndack.
+outputMenu : (l : Link) (d : Dir) (id : IDs) → Menu
+outputMenu l d id (_ , rcvmsg l′ d′ id′) x with l′ ≟ l
+... | no  _    = nothing
+... | yes refl with d′ ≟ d
+...   | no  _    = nothing
+...   | yes refl with id′ ≟ id
+...     | no  _    = nothing
+...     | yes refl = just (Op.Output (output l d id) x (sndack l d id ⟶₀ Skip))
+outputMenu l d id _ _ = nothing
 
--- Receiver: accept tx on any id, emit rcvmsg, repeat.
+-- Output(l, d, id): accept rcvmsg on this link/direction/id, emit output,
+-- emit sndack, repeat.
+Output : (l : Link) (d : Dir) (id : IDs) → NetProc
+Output l d id = loop0 (pchoice (outputMenu l d id))
+
+-- Receiver: accept tx on any (l, d, id), emit rcvmsg, repeat.
 Receiver : NetProc
 Receiver = loop0 (pchoice v)
   where
   v : Menu
-  v (_ , tx id c) d = just (Op.Output (rcvmsg id c) d Skip)
+  v (_ , tx l d id) x = just (Op.Output (rcvmsg l d id) x Skip)
   v _ _ = nothing
 
--- SndAck: accept sndack on any id, emit ack, repeat.
+-- SndAck: accept sndack on any (l, d, id), emit ack, repeat.
 SndAck : NetProc
 SndAck = loop0 (pchoice v)
   where
   v : Menu
-  v (_ , sndack id c) _ = just (ack id c ⟶₀ Skip)
+  v (_ , sndack l d id) _ = just (ack l d id ⟶₀ Skip)
   v _ _ = nothing
 
 ------------------------------------------------------------------------
--- Replicated interleavings:
---   InputsId(id) = ||| c : Conn(id) @ Input(id, c)
---   Inputs       = ||| id : IDs @ InputsId(id)
--- (Output side symmetric).  `interleaveConn`/`⦀⋆` realise the replicated
--- `|||`s; the empty set ⇒ Skip, the CSP unit of `|||`.
+-- Config-driven replicated interleavings:
+--   Inputs = ||| l : Link @ (||| (d,id) ∈ linkConfig(l) @ Input(l,d,id))
+-- (Output side symmetric).  `⦀Fin` ranges over every link, `⦀⋆` ranges
+-- over that link's *configured* `(Dir × IDs)` instances only — an
+-- unconfigured instance contributes no cell, and `linkConfig l ≡ []` ⇒
+-- Skip, the CSP unit of `|||`.
 ------------------------------------------------------------------------
 
-InputsId : IDs → NetProc
-InputsId id = ⦀Fin (numConns id) (Input id)
-
 Inputs : NetProc
-Inputs = ⦀⋆ (map InputsId allIDs)
-
-OutputsId : IDs → NetProc
-OutputsId id = ⦀Fin (numConns id) (Output id)
+Inputs = ⦀Fin numLinks (λ l → ⦀⋆ (map (λ { (d , id) → Input l d id }) (linkConfig l)))
 
 Outputs : NetProc
-Outputs = ⦀⋆ (map OutputsId allIDs)
+Outputs = ⦀Fin numLinks (λ l → ⦀⋆ (map (λ { (d , id) → Output l d id }) (linkConfig l)))
 
 ------------------------------------------------------------------------
 -- Channel-level synchronisation / hiding sets ( {| … |} in CSPm ).
 -- Each predicate selects events purely by their channel (constructor),
--- ignoring the (id , Conn , Data) payload.
+-- ignoring the (l , d , id , Data) payload.
 ------------------------------------------------------------------------
 
 -- {| sndmsg, rcvack |}
 csSR : AnyTypes (Net Data) → Set
-csSR (_ , sndmsg _ _) = ⊤
-csSR (_ , rcvack _ _)   = ⊤
+csSR (_ , sndmsg _ _ _) = ⊤
+csSR (_ , rcvack _ _ _)   = ⊤
 csSR _                  = ⊥
 
 csSR-dec : (at : AnyTypes (Net Data)) → Dec (csSR at)
-csSR-dec (_ , sndmsg _ _) = yes tt
-csSR-dec (_ , rcvack _ _)   = yes tt
-csSR-dec (_ , input _ _)  = no λ ()
-csSR-dec (_ , output _ _) = no λ ()
-csSR-dec (_ , rcvmsg _ _) = no λ ()
-csSR-dec (_ , tx _ _)     = no λ ()
-csSR-dec (_ , sndack _ _)   = no λ ()
-csSR-dec (_ , ack _ _)      = no λ ()
+csSR-dec (_ , sndmsg _ _ _) = yes tt
+csSR-dec (_ , rcvack _ _ _)   = yes tt
+csSR-dec (_ , input _ _ _)  = no λ ()
+csSR-dec (_ , output _ _ _) = no λ ()
+csSR-dec (_ , rcvmsg _ _ _) = no λ ()
+csSR-dec (_ , tx _ _ _)     = no λ ()
+csSR-dec (_ , sndack _ _ _)   = no λ ()
+csSR-dec (_ , ack _ _ _)      = no λ ()
 
 -- {| rcvmsg, sndack |}
 csRS : AnyTypes (Net Data) → Set
-csRS (_ , rcvmsg _ _) = ⊤
-csRS (_ , sndack _ _)   = ⊤
+csRS (_ , rcvmsg _ _ _) = ⊤
+csRS (_ , sndack _ _ _)   = ⊤
 csRS _                  = ⊥
 
 csRS-dec : (at : AnyTypes (Net Data)) → Dec (csRS at)
-csRS-dec (_ , rcvmsg _ _) = yes tt
-csRS-dec (_ , sndack _ _)   = yes tt
-csRS-dec (_ , input _ _)  = no λ ()
-csRS-dec (_ , output _ _) = no λ ()
-csRS-dec (_ , sndmsg _ _) = no λ ()
-csRS-dec (_ , tx _ _)     = no λ ()
-csRS-dec (_ , rcvack _ _)   = no λ ()
-csRS-dec (_ , ack _ _)      = no λ ()
+csRS-dec (_ , rcvmsg _ _ _) = yes tt
+csRS-dec (_ , sndack _ _ _)   = yes tt
+csRS-dec (_ , input _ _ _)  = no λ ()
+csRS-dec (_ , output _ _ _) = no λ ()
+csRS-dec (_ , sndmsg _ _ _) = no λ ()
+csRS-dec (_ , tx _ _ _)     = no λ ()
+csRS-dec (_ , rcvack _ _ _)   = no λ ()
+csRS-dec (_ , ack _ _ _)      = no λ ()
 
 -- {| tx, ack |}
 csTA : AnyTypes (Net Data) → Set
-csTA (_ , tx _ _) = ⊤
-csTA (_ , ack _ _)  = ⊤
+csTA (_ , tx _ _ _) = ⊤
+csTA (_ , ack _ _ _)  = ⊤
 csTA _              = ⊥
 
 csTA-dec : (at : AnyTypes (Net Data)) → Dec (csTA at)
-csTA-dec (_ , tx _ _)     = yes tt
-csTA-dec (_ , ack _ _)      = yes tt
-csTA-dec (_ , input _ _)  = no λ ()
-csTA-dec (_ , output _ _) = no λ ()
-csTA-dec (_ , sndmsg _ _) = no λ ()
-csTA-dec (_ , rcvmsg _ _) = no λ ()
-csTA-dec (_ , sndack _ _)   = no λ ()
-csTA-dec (_ , rcvack _ _)   = no λ ()
+csTA-dec (_ , tx _ _ _)     = yes tt
+csTA-dec (_ , ack _ _ _)      = yes tt
+csTA-dec (_ , input _ _ _)  = no λ ()
+csTA-dec (_ , output _ _ _) = no λ ()
+csTA-dec (_ , sndmsg _ _ _) = no λ ()
+csTA-dec (_ , rcvmsg _ _ _) = no λ ()
+csTA-dec (_ , sndack _ _ _)   = no λ ()
+csTA-dec (_ , rcvack _ _ _)   = no λ ()
 
 ------------------------------------------------------------------------
 -- The two sides and the whole Network.
@@ -249,20 +249,25 @@ Network = (TxSide ∥⇘ chanSet csTA csTA-dec ⇙ RxSide)
 ------------------------------------------------------------------------
 
 -- Copy's offer menu (top-level so the deadlock-free proof can name the residual
--- `Op.Output (output id c) d Skip`): accept `input id c` for any `d`, emit it.
-copyMenu : (id : IDs) → Conn id → Menu
-copyMenu id c (_ , input id′ c′) d with id′ ≟ id
+-- `Op.Output (output l d id) x Skip`): accept `input l d id` for any `x`, emit it.
+copyMenu : (l : Link) (d : Dir) (id : IDs) → Menu
+copyMenu l d id (_ , input l′ d′ id′) x with l′ ≟ l
 ... | no  _    = nothing
-... | yes refl with c′ ≟ c
-...   | yes refl = just (Op.Output (output id c) d Skip)
+... | yes refl with d′ ≟ d
 ...   | no  _    = nothing
-copyMenu id c _ _ = nothing
+...   | yes refl with id′ ≟ id
+...     | no  _    = nothing
+...     | yes refl = just (Op.Output (output l d id) x Skip)
+copyMenu l d id _ _ = nothing
 
-Copy : (id : IDs) → Conn id → NetProc
-Copy id c = loop0 (pchoice (copyMenu id c))
+-- a one-place copy buffer for one mini-protocol instance
+Copy : (l : Link) (d : Dir) (id : IDs) → NetProc
+Copy l d id = loop0 (pchoice (copyMenu l d id))
 
-CopysId : IDs → NetProc
-CopysId id = ⦀Fin (numConns id) (Copy id)
+-- the copy cells for one link's configured (d, id) instances (unconfigured absent)
+linkCopy : Link → NetProc
+linkCopy l = ⦀⋆ (map (λ { (d , id) → Copy l d id }) (linkConfig l))
 
+-- the copy medium: every link's bundle, interleaved
 CopySpec : NetProc
-CopySpec = ⦀⋆ (map CopysId allIDs)
+CopySpec = ⦀Fin numLinks linkCopy

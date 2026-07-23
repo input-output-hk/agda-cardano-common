@@ -90,10 +90,10 @@ open Params p
 
 -- the BlockFetch peer alphabet
 data BFEv : Set → Set where
-  sendBF    : Conn N2N_BlockFetch → BFEv Payload   -- peer→net (→ input);  emitted via !
-  receiveBF : Conn N2N_BlockFetch → BFEv Payload   -- net→peer (→ output); bound via ?
-  apiBFev   : (c : Conn N2N_BlockFetch) (m : ApiBFTag) → BFEv (ApiBFCar m)  -- peer-local
-  doneBF    : Conn N2N_BlockFetch → BFEv ⊤          -- peer-local: Done
+  sendBF    : Link → Dir → BFEv Payload   -- peer→net (→ input);  emitted via !
+  receiveBF : Link → Dir → BFEv Payload   -- net→peer (→ output); bound via ?
+  apiBFev   : (l : Link) (d : Dir) (m : ApiBFTag) → BFEv (ApiBFCar m)  -- peer-local
+  doneBF    : Link → Dir → BFEv ⊤          -- peer-local: Done
 
 ------------------------------------------------------------------------
 -- Step 2: decidable equality on `AnyTypes BFEv`.
@@ -104,31 +104,35 @@ BFEv-≟ : (x y : AnyTypes BFEv) → Dec (x ≡ y)
 BFEv-≟ = go
   where
   go : (x y : AnyTypes BFEv) → Dec (x ≡ y)
-  go (_ , sendBF c₁)     (_ , sendBF c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , receiveBF c₁)  (_ , receiveBF c₂)  with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiBFev c₁ m₁) (_ , apiBFev c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
+  go (_ , sendBF l₁ d₁)     (_ , sendBF l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
   ... | yes refl | yes refl = yes refl
-  ... | no ¬p | _ = no λ where refl → ¬p refl
-  ... | _ | no ¬p = no λ where refl → ¬p refl
-  go (_ , doneBF c₁)     (_ , doneBF c₂)     with c₁ ≟ c₂
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-  go (_ , sendBF _)    (_ , receiveBF _) = no λ ()
-  go (_ , sendBF _)    (_ , apiBFev _ _) = no λ ()
-  go (_ , sendBF _)    (_ , doneBF _)    = no λ ()
-  go (_ , receiveBF _) (_ , sendBF _)    = no λ ()
-  go (_ , receiveBF _) (_ , apiBFev _ _) = no λ ()
-  go (_ , receiveBF _) (_ , doneBF _)    = no λ ()
-  go (_ , apiBFev _ _) (_ , sendBF _)    = no λ ()
-  go (_ , apiBFev _ _) (_ , receiveBF _) = no λ ()
-  go (_ , apiBFev _ _) (_ , doneBF _)    = no λ ()
-  go (_ , doneBF _)    (_ , sendBF _)    = no λ ()
-  go (_ , doneBF _)    (_ , receiveBF _) = no λ ()
-  go (_ , doneBF _)    (_ , apiBFev _ _) = no λ ()
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , receiveBF l₁ d₁)  (_ , receiveBF l₂ d₂)  with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , apiBFev l₁ d₁ m₁) (_ , apiBFev l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬p | _ | _ = no λ where refl → ¬p refl
+  ... | _ | no ¬p | _ = no λ where refl → ¬p refl
+  ... | _ | _ | no ¬p = no λ where refl → ¬p refl
+  go (_ , doneBF l₁ d₁)     (_ , doneBF l₂ d₂)     with l₁ ≟ l₂ | d₁ ≟ d₂
+  ... | yes refl | yes refl = yes refl
+  ... | no ¬p    | _        = no λ where refl → ¬p refl
+  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , sendBF _ _)    (_ , receiveBF _ _) = no λ ()
+  go (_ , sendBF _ _)    (_ , apiBFev _ _ _) = no λ ()
+  go (_ , sendBF _ _)    (_ , doneBF _ _)    = no λ ()
+  go (_ , receiveBF _ _) (_ , sendBF _ _)    = no λ ()
+  go (_ , receiveBF _ _) (_ , apiBFev _ _ _) = no λ ()
+  go (_ , receiveBF _ _) (_ , doneBF _ _)    = no λ ()
+  go (_ , apiBFev _ _ _) (_ , sendBF _ _)    = no λ ()
+  go (_ , apiBFev _ _ _) (_ , receiveBF _ _) = no λ ()
+  go (_ , apiBFev _ _ _) (_ , doneBF _ _)    = no λ ()
+  go (_ , doneBF _ _)    (_ , sendBF _ _)    = no λ ()
+  go (_ , doneBF _ _)    (_ , receiveBF _ _) = no λ ()
+  go (_ , doneBF _ _)    (_ , apiBFev _ _ _) = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 3: peer return type and its DecEq.
@@ -185,122 +189,122 @@ instance
     go stDone      stStreaming = no λ ()
 
 -- one client step (the body of the `iter` loop)
-clientStep : Conn N2N_BlockFetch → BFState → PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)
-clientStep c stIdle = pchoice v
+clientStep : Link → Dir → BFState → PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)
+clientStep l d stIdle = pchoice v
   where
   v : (at : AnyTypes BFEv)
     → ContinueType at (Maybe (PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)))
-  v (_ , apiBFev c′ sendBFRequestRange) range with c′ ≟ c
-  ... | yes refl = just
-        (sendBF c ! (time₀ , FromInitiator , length₀ , blockFetch (MsgRequestRange range)) ⟶
+  v (_ , apiBFev l′ d′ sendBFRequestRange) range with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendBF l d ! (time₀ , FromInitiator , length₀ , blockFetch (MsgRequestRange range)) ⟶
            Ret (inj₁ stBusy))
-  ... | no _     = nothing
-  v (_ , apiBFev c′ sendBFClientDone) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendBF c ! (time₀ , FromInitiator , length₀ , blockFetch MsgClientDone) ⟶
-           (doneBF c ⟶₀ Ret (inj₁ stDone)))
-  ... | no _     = nothing
-  v (_ , apiBFev _ _) _ = nothing
-  v (_ , sendBF _)    _ = nothing
-  v (_ , receiveBF _) _ = nothing
-  v (_ , doneBF _)    _ = nothing
-clientStep c stBusy = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiBFev l′ d′ sendBFClientDone) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendBF l d ! (time₀ , FromInitiator , length₀ , blockFetch MsgClientDone) ⟶
+           (doneBF l d ⟶₀ Ret (inj₁ stDone)))
+  ... | _        | _        = nothing
+  v (_ , apiBFev _ _ _) _ = nothing
+  v (_ , sendBF _ _)    _ = nothing
+  v (_ , receiveBF _ _) _ = nothing
+  v (_ , doneBF _ _)    _ = nothing
+clientStep l d stBusy = pchoice v
   where
   v : (at : AnyTypes BFEv)
     → ContinueType at (Maybe (PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)))
-  v (_ , receiveBF c′) (_ , _ , _ , blockFetch MsgStartBatch) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stStreaming))
-  ... | no _     = nothing
-  v (_ , receiveBF c′) (_ , _ , _ , blockFetch MsgNoBlocks) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveBF _) _ = nothing
-  v (_ , sendBF _)    _ = nothing
-  v (_ , apiBFev _ _) _ = nothing
-  v (_ , doneBF _)    _ = nothing
-clientStep c stStreaming = pchoice v
+  v (_ , receiveBF l′ d′) (_ , _ , _ , blockFetch MsgStartBatch) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stStreaming))
+  ... | _        | _        = nothing
+  v (_ , receiveBF l′ d′) (_ , _ , _ , blockFetch MsgNoBlocks) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveBF _ _) _ = nothing
+  v (_ , sendBF _ _)    _ = nothing
+  v (_ , apiBFev _ _ _) _ = nothing
+  v (_ , doneBF _ _)    _ = nothing
+clientStep l d stStreaming = pchoice v
   where
   v : (at : AnyTypes BFEv)
     → ContinueType at (Maybe (PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)))
-  v (_ , receiveBF c′) (_ , _ , _ , blockFetch (MsgBlock b)) with c′ ≟ c
-  ... | yes refl = just (apiBFev c recvBFBlock ! b ⟶ Ret (inj₁ stStreaming))
-  ... | no _     = nothing
-  v (_ , receiveBF c′) (_ , _ , _ , blockFetch MsgBatchDone) with c′ ≟ c
-  ... | yes refl = just (Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , receiveBF _) _ = nothing
-  v (_ , sendBF _)    _ = nothing
-  v (_ , apiBFev _ _) _ = nothing
-  v (_ , doneBF _)    _ = nothing
+  v (_ , receiveBF l′ d′) (_ , _ , _ , blockFetch (MsgBlock b)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiBFev l d recvBFBlock ! b ⟶ Ret (inj₁ stStreaming))
+  ... | _        | _        = nothing
+  v (_ , receiveBF l′ d′) (_ , _ , _ , blockFetch MsgBatchDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
+  v (_ , receiveBF _ _) _ = nothing
+  v (_ , sendBF _ _)    _ = nothing
+  v (_ , apiBFev _ _ _) _ = nothing
+  v (_ , doneBF _ _)    _ = nothing
 -- Done: successful termination (√)
-clientStep _ stDone = Ret (inj₂ _)
+clientStep _ _ stDone = Ret (inj₂ _)
 
 -- the client peer: loop the step from the idle state
-BFclientStClient : Conn N2N_BlockFetch → PTree BFEv (ExtI BFEv) Rr
-BFclientStClient c = iter (clientStep c) stIdle
+BFclientStClient : Link → Dir → PTree BFEv (ExtI BFEv) Rr
+BFclientStClient l d = iter (clientStep l d) stIdle
 
 ------------------------------------------------------------------------
 -- Step 5: the server (responder) peer — application-driven.
 ------------------------------------------------------------------------
 
 -- one server step (the body of the `iter` loop)
-serverStep : Conn N2N_BlockFetch → BFState → PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)
-serverStep c stIdle = pchoice v
+serverStep : Link → Dir → BFState → PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)
+serverStep l d stIdle = pchoice v
   where
   v : (at : AnyTypes BFEv)
     → ContinueType at (Maybe (PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)))
-  v (_ , receiveBF c′) (_ , _ , _ , blockFetch (MsgRequestRange range)) with c′ ≟ c
-  ... | yes refl = just (apiBFev c reqBFRange ! range ⟶ Ret (inj₁ stBusy))
-  ... | no _     = nothing
-  v (_ , receiveBF c′) (_ , _ , _ , blockFetch MsgClientDone) with c′ ≟ c
-  ... | yes refl = just (doneBF c ⟶₀ Ret (inj₁ stDone))
-  ... | no _     = nothing
-  v (_ , receiveBF _) _ = nothing
-  v (_ , sendBF _)    _ = nothing
-  v (_ , apiBFev _ _) _ = nothing
-  v (_ , doneBF _)    _ = nothing
-serverStep c stBusy = pchoice v
+  v (_ , receiveBF l′ d′) (_ , _ , _ , blockFetch (MsgRequestRange range)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiBFev l d reqBFRange ! range ⟶ Ret (inj₁ stBusy))
+  ... | _        | _        = nothing
+  v (_ , receiveBF l′ d′) (_ , _ , _ , blockFetch MsgClientDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (doneBF l d ⟶₀ Ret (inj₁ stDone))
+  ... | _        | _        = nothing
+  v (_ , receiveBF _ _) _ = nothing
+  v (_ , sendBF _ _)    _ = nothing
+  v (_ , apiBFev _ _ _) _ = nothing
+  v (_ , doneBF _ _)    _ = nothing
+serverStep l d stBusy = pchoice v
   where
   v : (at : AnyTypes BFEv)
     → ContinueType at (Maybe (PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)))
-  v (_ , apiBFev c′ sendBFStartBatch) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendBF c ! (time₀ , FromResponder , length₀ , blockFetch MsgStartBatch) ⟶
+  v (_ , apiBFev l′ d′ sendBFStartBatch) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendBF l d ! (time₀ , FromResponder , length₀ , blockFetch MsgStartBatch) ⟶
            Ret (inj₁ stStreaming))
-  ... | no _     = nothing
-  v (_ , apiBFev c′ sendBFNoBlocks) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendBF c ! (time₀ , FromResponder , length₀ , blockFetch MsgNoBlocks) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiBFev l′ d′ sendBFNoBlocks) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendBF l d ! (time₀ , FromResponder , length₀ , blockFetch MsgNoBlocks) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiBFev _ _) _ = nothing
-  v (_ , sendBF _)    _ = nothing
-  v (_ , receiveBF _) _ = nothing
-  v (_ , doneBF _)    _ = nothing
-serverStep c stStreaming = pchoice v
+  ... | _        | _        = nothing
+  v (_ , apiBFev _ _ _) _ = nothing
+  v (_ , sendBF _ _)    _ = nothing
+  v (_ , receiveBF _ _) _ = nothing
+  v (_ , doneBF _ _)    _ = nothing
+serverStep l d stStreaming = pchoice v
   where
   v : (at : AnyTypes BFEv)
     → ContinueType at (Maybe (PTree BFEv (ExtI BFEv) (BFState ⊎ Rr)))
-  v (_ , apiBFev c′ sendBFBlock) b with c′ ≟ c
-  ... | yes refl = just
-        (sendBF c ! (time₀ , FromResponder , length₀ , blockFetch (MsgBlock b)) ⟶
+  v (_ , apiBFev l′ d′ sendBFBlock) b with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendBF l d ! (time₀ , FromResponder , length₀ , blockFetch (MsgBlock b)) ⟶
            Ret (inj₁ stStreaming))
-  ... | no _     = nothing
-  v (_ , apiBFev c′ sendBFBatchDone) _ with c′ ≟ c
-  ... | yes refl = just
-        (sendBF c ! (time₀ , FromResponder , length₀ , blockFetch MsgBatchDone) ⟶
+  ... | _        | _        = nothing
+  v (_ , apiBFev l′ d′ sendBFBatchDone) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendBF l d ! (time₀ , FromResponder , length₀ , blockFetch MsgBatchDone) ⟶
            Ret (inj₁ stIdle))
-  ... | no _     = nothing
-  v (_ , apiBFev _ _) _ = nothing
-  v (_ , sendBF _)    _ = nothing
-  v (_ , receiveBF _) _ = nothing
-  v (_ , doneBF _)    _ = nothing
+  ... | _        | _        = nothing
+  v (_ , apiBFev _ _ _) _ = nothing
+  v (_ , sendBF _ _)    _ = nothing
+  v (_ , receiveBF _ _) _ = nothing
+  v (_ , doneBF _ _)    _ = nothing
 -- Done: successful termination (√)
-serverStep _ stDone = Ret (inj₂ _)
+serverStep _ _ stDone = Ret (inj₂ _)
 
 -- the server peer: loop the step from the idle state
-BFserverStClient : Conn N2N_BlockFetch → PTree BFEv (ExtI BFEv) Rr
-BFserverStClient c = iter (serverStep c) stIdle
+BFserverStClient : Link → Dir → PTree BFEv (ExtI BFEv) Rr
+BFserverStClient l d = iter (serverStep l d) stIdle
 
 ------------------------------------------------------------------------
 -- Step 6: network-fragment injection into `Net` (documentation stub).
@@ -314,10 +318,10 @@ BFserverStClient c = iter (serverStep c) stIdle
 
 -- intended Net images of the BlockFetch wire events (api/done: none)
 ιBFNet : ∀ {A} → BFEv A → Maybe (Net Payload A)
-ιBFNet (sendBF c)    = just (input  N2N_BlockFetch c)
-ιBFNet (receiveBF c) = just (output N2N_BlockFetch c)
-ιBFNet (apiBFev _ _) = nothing
-ιBFNet (doneBF _)    = nothing
+ιBFNet (sendBF l d)    = just (input  l d N2N_BlockFetch)
+ιBFNet (receiveBF l d) = just (output l d N2N_BlockFetch)
+ιBFNet (apiBFev _ _ _) = nothing
+ιBFNet (doneBF _ _)    = nothing
 ```
 
 ## Abstract BlockFetch process (from the state-machine diagram)
@@ -336,7 +340,7 @@ carry `⊤`. At each state the process offers — by external choice, via
 - `stDone` — √ (successful termination)
 
 (Channel-agnostic on purpose. To make it network-facing, give each
-constructor a `Conn N2N_BlockFetch` parameter as in `BFEv`.)
+constructor `(l : Link) (d : Dir)` parameters as in `BFEv`.)
 
 ```agda
 -- the abstract BlockFetch alphabet: one channel per protocol message (carrying

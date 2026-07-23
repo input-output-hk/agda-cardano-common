@@ -15,6 +15,7 @@
 --   Postulate 7  offer-LEM            (decidability of an offer — a plain LEM instance)
 --   Postulate 8  modA-transfer        (the hiding-divergence transfer across ≈DR)
 --   Postulate 9  Hide-Diverges→       (¬DivModAC→MAccC — the hiding-divergence König step)
+--   Postulate 10 Diverges-LEM         (traces⊥ transfer LEM instance)
 --
 -- IMPORTANT:
 --   * Nothing in the development imports this module, and NOTHING SHOULD.  Importing
@@ -30,6 +31,7 @@
 --       - `offer-LEM`          from CSP.Laws.FD.ParallelRefusals
 --       - `modA-transfer`      from CSP.Laws.Bisim.DRCongruence
 --       - `Hide-Diverges→`     from CSP.Laws.FD.HideDivergence
+--       - `Diverges-LEM`       from CSP.Laws.FD.FDTransfer
 --   * So this file is a standalone soundness witness, kept green but never depended on.
 --     Treat the names below (`¬-divergent→normal`, `□-Diverges→`, `△-Diverges→`,
 --     `>>-Diverges→`, `Par-Diverges→`, `offer-LEM`, `dne`, helpers) as off-limits for any
@@ -54,7 +56,7 @@ module CSP.Laws.ClassicalFromLEM {ℓ ℓe} {E : Set ℓ → Set ℓe}
 open PTree
 
 open import CSP.Operators  E-≟
-open import Semantics.LTS       {E = E} {I = ExtI E}
+open import Semantics.LTS       {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.WeakBisim {E = E} {I = ExtI E}
 open import Semantics.DRBisim   {E = E} {I = ExtI E}
   using (Diverges; DRbisim; _≈DR_)
@@ -595,3 +597,12 @@ nonMAccC→DivModAC A nAcc .maRest = nonMAccC→DivModAC A (proj₂ (proj₂ (no
 -- certifies the Hide-Diverges→ postulate (classical half) in CSP.Laws.FD.HideDivergence
 ¬DivModAC→MAccC : (A : EventSet) {t : PTree E (ExtI E) R} → ¬ DivModAC A t → MAccC A t
 ¬DivModAC→MAccC A nd = dne (λ nAcc → nd (nonMAccC→DivModAC A nAcc))
+
+-------------------------------------------------------------------------------------
+-- Derivation 10:  Diverges-LEM from dne — a plain instance of the law of excluded
+-- middle (divergence of a state is decidable classically).  Certifies the sole new
+-- postulate of CSP.Laws.FD.FDTransfer (the traces⊥-transfer bridge `FD→trace⊥`).
+-------------------------------------------------------------------------------------
+-- certifies the Diverges-LEM postulate in FDTransfer
+Diverges-LEM-cert : (t : PTree E (ExtI E) R) → Diverges t ⊎ ¬ Diverges t
+Diverges-LEM-cert t = dne (λ k → k (inj₂ (λ d → k (inj₁ d))))

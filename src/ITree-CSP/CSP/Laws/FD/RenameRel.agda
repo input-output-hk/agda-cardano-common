@@ -27,7 +27,7 @@ open PTree
 open import CSP.Operators E-≟ using (_⊓_; ∅v)
 open import CSP.Rename {E₁ = E} {E₂ = E} (λ e → e) (λ e → just e) (λ _ → refl)
   using (_⟦_¿_⟧; ConcEvent₁; ConcEvent₂; rnCollect; rnFan)
-open import Semantics.LTS     {E = E} {I = ExtI E}
+open import Semantics.LTS     {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Bisim   {E = E} {I = ExtI E}
 open import Semantics.DRBisim {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}

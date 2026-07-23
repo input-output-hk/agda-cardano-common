@@ -39,7 +39,7 @@ open import CSP.Rename {E₁ = E} {E₂ = E} (λ e → e) (λ e → just e) (λ 
   using (_⟦_¿_⟧; rnBranch; rnNth; ConcEvent₁; ConcEvent₂)
 open import CSP.Laws.Traces.TraceLawsRenameGen {E = E}
   using (fanNode; ren-fanin-τ-inv; fanin-no-ev; rnNth-mem)
-open import Semantics.LTS                 {E = E} {I = ExtI E}
+open import Semantics.LTS                 {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.Failures            {E = E} {I = ExtI E}

@@ -23,7 +23,7 @@ module Semantics.LTL.Traces_Based {ℓ ℓe ℓi} {E : Set ℓ → Set ℓe} {I 
 
 open PTree
 
-open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I}
+open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I} hiding (Diverges)
 open import Semantics.WeakBisim {ℓ} {ℓe} {ℓi} {E} {I} using (_═[_]═►_)
 open import Semantics.DRBisim   {ℓ} {ℓe} {ℓi} {E} {I} using (Diverges)
 open import Semantics.Deadlock  {ℓ} {ℓe} {ℓi} {E} {I} using (IsStuck)

@@ -5,18 +5,18 @@
 --
 -- This module is parametrised by `(p : Params)` and `open Params p`,
 -- which supplies the abstract data domains (+ their `DecEq` instances)
--- and the connection-count assignment `numConns : IDs → ℕ`
+-- and the link-count assignment `numLinks : ℕ`
 -- (instantiated to concrete values by a scenario module). From it we
--- derive the dependent connection type `Conn id = Fin (numConns id)`,
+-- derive the protocol-independent link type `Link = Fin numLinks`,
 -- the per-protocol API/handler datatypes `ApiKA … ApiLF`, the shared
 -- ⊤-carried network event type `Net : Set → Set`, and its decidable
 -- equality `Net-≟` over `AnyTypes Net`.
 --
 -- Every constructor of `Net` yields `Net ⊤`, so the carried `Set` in an
 -- `AnyTypes Net = Σ Set Net` is always `⊤`. Each network data payload is
--- led by `(id : IDs)` and its dependent connection `Conn id`, followed
+-- led by `(l : Link) (d : Dir)`, then the protocol `id : IDs`, followed
 -- by `Time = ℕ`, `Mode`, `Length = ℕ`, `Messages`; the API folds fix
--- `id` to a single protocol and carry only `Conn N2N_P`.
+-- `id` to a single protocol and carry the same `Link`/`Dir` pair.
 ------------------------------------------------------------------------
 
 open import Data.Nat using (ℕ)
@@ -34,17 +34,18 @@ open import CSP.Examples.Cardano_network.Base
 
 module CSP.Examples.Cardano_network.Net (p : Params) where
 
--- abstract data domains (+ their DecEq) and `numConns` from the params
+-- abstract data domains (+ their DecEq) and `numLinks` from the params
 open Params p
 -- derived structured types + messages (+ their DecEq) over those domains
 open import CSP.Examples.Cardano_network.Data p
 
 ------------------------------------------------------------------------
--- Step 1: dependent connection.
+-- Step 1: protocol-independent link.
 ------------------------------------------------------------------------
 
-Conn : IDs → Set
-Conn id = Fin (numConns id)
+-- A link (TCP connection) index, shared across all mini-protocols.
+Link : Set
+Link = Fin numLinks
 
 ------------------------------------------------------------------------
 -- The six per-protocol API/handler datatypes.
@@ -58,11 +59,11 @@ Conn id = Fin (numConns id)
 -- (`ApiKACar sendKAMsg = Cookie`); payload-free tags carry `⊤`; multi-
 -- field payloads carry a product (`errCookie ↦ Cookie × Cookie`).
 --
--- The leading `Connection` and the tag are supplied by the `Net_Api`
--- constructor `apiP : (c : Conn N2N_P) (m : ApiPTag) → Net_Api Data (ApiPCar m)`;
+-- The leading `Link`/`Dir` and the tag are supplied by the `Net_Api`
+-- constructor `apiP : (l : Link) (d : Dir) (m : ApiPTag) → Net_Api Data (ApiPCar m)`;
 -- the carrier `ApiPCar m` is computed from the *value* `m`, so the index
 -- is small — no `--large-indices` (which Agda 2.8 deems unsafe). Event
--- identity (and hence `Net_Api-≟`) is `Connection` + tag only; the
+-- identity (and hence `Net_Api-≟`) is `Link`/`Dir` + tag only; the
 -- payload lives in the carrier, not the identity. See
 -- `docs/superpowers/specs/2026-06-24-carrier-indexed-api-design.md`.
 ------------------------------------------------------------------------
@@ -865,28 +866,27 @@ instance
 -- `Net` is parametrised by an abstract payload type `Data`: at the
 -- network level the carried data is opaque — its contents are a
 -- mini-protocol concern, supplied concretely downstream as `Net <D>`.
--- The protocol id `(id : IDs)` and its dependent connection `Conn id`
--- lead every channel; the five message channels have carried type
+-- The link `(l : Link)`, its direction `(d : Dir)`, and the protocol id
+-- `IDs` lead every channel; the five message channels have carried type
 -- `Data` (the ITrees-style `E A` value type, negotiated by `?`/`!`),
 -- while the three acknowledgement channels have carried type `⊤`.
 ------------------------------------------------------------------------
 
 data Net (Data : Set) : Set → Set where
-  input output sndmsg rcvmsg tx : (id : IDs) → Conn id → Net Data Data
-  sndack rcvack ack             : (id : IDs) → Conn id → Net Data ⊤
+  input output sndmsg rcvmsg tx : (l : Link) (d : Dir) → IDs → Net Data Data
+  sndack rcvack ack             : (l : Link) (d : Dir) → IDs → Net Data ⊤
 
 ------------------------------------------------------------------------
 -- Step 3: decidable equality on `AnyTypes (Net Data)`.
 --
--- `Net-≟` identifies an event by `(constructor, id, Conn id)` only — the
+-- `Net-≟` identifies an event by `(constructor, l, d, id)` only — the
 -- carried `Data` is negotiated by `?`/`!`, not part of the event
 -- identity, so no `DecEq Data` is needed. We destructure each
 -- `AnyTypes (Net Data)` as `(_ , ctor …)` and decide via the helper `go`.
 --
--- The leading `(id , c)` of every channel is a dependent pair: we first
--- decide `id₁ ≟ id₂` (IDs DecEq); on `refl` the connections `c₁ c₂ :
--- Conn id` share a type and are compared by the Fin DecEq instance;
--- mismatched ids ⇒ `no λ ()`.
+-- The leading `l d id` of every channel are compared pointwise: first
+-- `l₁ ≟ l₂` (Fin DecEq), then `d₁ ≟ d₂` (Dir DecEq), then `id₁ ≟ id₂`
+-- (IDs DecEq); any mismatch ⇒ `no λ { refl → ¬p refl }`.
 ------------------------------------------------------------------------
 
 Net-≟ : {Data : Set} → (x y : AnyTypes (Net Data)) → Dec (x ≡ y)
@@ -894,110 +894,110 @@ Net-≟ {Data} = go
   where
   go : (x y : AnyTypes (Net Data)) → Dec (x ≡ y)
   -- input / input
-  go (_ , input i₁ c₁) (_ , input i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , input l₁ d₁ i₁) (_ , input l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- output / output
-  go (_ , output i₁ c₁) (_ , output i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , output l₁ d₁ i₁) (_ , output l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- sndmsg / sndmsg
-  go (_ , sndmsg i₁ c₁) (_ , sndmsg i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , sndmsg l₁ d₁ i₁) (_ , sndmsg l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- rcvmsg / rcvmsg
-  go (_ , rcvmsg i₁ c₁) (_ , rcvmsg i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , rcvmsg l₁ d₁ i₁) (_ , rcvmsg l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- tx / tx
-  go (_ , tx i₁ c₁) (_ , tx i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , tx l₁ d₁ i₁) (_ , tx l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- sndack / sndack
-  go (_ , sndack i₁ c₁) (_ , sndack i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , sndack l₁ d₁ i₁) (_ , sndack l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- rcvack / rcvack
-  go (_ , rcvack i₁ c₁) (_ , rcvack i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , rcvack l₁ d₁ i₁) (_ , rcvack l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- ack / ack
-  go (_ , ack i₁ c₁) (_ , ack i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
+  go (_ , ack l₁ d₁ i₁) (_ , ack l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
   -- off-diagonal: distinct constructors are never equal
-  go (_ , input _ _)  (_ , output _ _) = no λ ()
-  go (_ , input _ _)  (_ , sndmsg _ _) = no λ ()
-  go (_ , input _ _)  (_ , rcvmsg _ _) = no λ ()
-  go (_ , input _ _)  (_ , tx _ _)     = no λ ()
-  go (_ , input _ _)  (_ , sndack _ _)   = no λ ()
-  go (_ , input _ _)  (_ , rcvack _ _)   = no λ ()
-  go (_ , input _ _)  (_ , ack _ _)      = no λ ()
-  go (_ , output _ _) (_ , input _ _)  = no λ ()
-  go (_ , output _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , output _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , output _ _) (_ , tx _ _)     = no λ ()
-  go (_ , output _ _) (_ , sndack _ _)   = no λ ()
-  go (_ , output _ _) (_ , rcvack _ _)   = no λ ()
-  go (_ , output _ _) (_ , ack _ _)      = no λ ()
-  go (_ , sndmsg _ _) (_ , input _ _)  = no λ ()
-  go (_ , sndmsg _ _) (_ , output _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , tx _ _)     = no λ ()
-  go (_ , sndmsg _ _) (_ , sndack _ _)   = no λ ()
-  go (_ , sndmsg _ _) (_ , rcvack _ _)   = no λ ()
-  go (_ , sndmsg _ _) (_ , ack _ _)      = no λ ()
-  go (_ , rcvmsg _ _) (_ , input _ _)  = no λ ()
-  go (_ , rcvmsg _ _) (_ , output _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , tx _ _)     = no λ ()
-  go (_ , rcvmsg _ _) (_ , sndack _ _)   = no λ ()
-  go (_ , rcvmsg _ _) (_ , rcvack _ _)   = no λ ()
-  go (_ , rcvmsg _ _) (_ , ack _ _)      = no λ ()
-  go (_ , tx _ _)     (_ , input _ _)  = no λ ()
-  go (_ , tx _ _)     (_ , output _ _) = no λ ()
-  go (_ , tx _ _)     (_ , sndmsg _ _) = no λ ()
-  go (_ , tx _ _)     (_ , rcvmsg _ _) = no λ ()
-  go (_ , tx _ _)     (_ , sndack _ _)   = no λ ()
-  go (_ , tx _ _)     (_ , rcvack _ _)   = no λ ()
-  go (_ , tx _ _)     (_ , ack _ _)      = no λ ()
-  go (_ , sndack _ _)   (_ , input _ _)  = no λ ()
-  go (_ , sndack _ _)   (_ , output _ _) = no λ ()
-  go (_ , sndack _ _)   (_ , sndmsg _ _) = no λ ()
-  go (_ , sndack _ _)   (_ , rcvmsg _ _) = no λ ()
-  go (_ , sndack _ _)   (_ , tx _ _)     = no λ ()
-  go (_ , sndack _ _)   (_ , rcvack _ _)   = no λ ()
-  go (_ , sndack _ _)   (_ , ack _ _)      = no λ ()
-  go (_ , rcvack _ _)   (_ , input _ _)  = no λ ()
-  go (_ , rcvack _ _)   (_ , output _ _) = no λ ()
-  go (_ , rcvack _ _)   (_ , sndmsg _ _) = no λ ()
-  go (_ , rcvack _ _)   (_ , rcvmsg _ _) = no λ ()
-  go (_ , rcvack _ _)   (_ , tx _ _)     = no λ ()
-  go (_ , rcvack _ _)   (_ , sndack _ _)   = no λ ()
-  go (_ , rcvack _ _)   (_ , ack _ _)      = no λ ()
-  go (_ , ack _ _)      (_ , input _ _)  = no λ ()
-  go (_ , ack _ _)      (_ , output _ _) = no λ ()
-  go (_ , ack _ _)      (_ , sndmsg _ _) = no λ ()
-  go (_ , ack _ _)      (_ , rcvmsg _ _) = no λ ()
-  go (_ , ack _ _)      (_ , tx _ _)     = no λ ()
-  go (_ , ack _ _)      (_ , sndack _ _)   = no λ ()
-  go (_ , ack _ _)      (_ , rcvack _ _)   = no λ ()
+  go (_ , input _ _ _)  (_ , output _ _ _) = no λ ()
+  go (_ , input _ _ _)  (_ , sndmsg _ _ _) = no λ ()
+  go (_ , input _ _ _)  (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , input _ _ _)  (_ , tx _ _ _)     = no λ ()
+  go (_ , input _ _ _)  (_ , sndack _ _ _)   = no λ ()
+  go (_ , input _ _ _)  (_ , rcvack _ _ _)   = no λ ()
+  go (_ , input _ _ _)  (_ , ack _ _ _)      = no λ ()
+  go (_ , output _ _ _) (_ , input _ _ _)  = no λ ()
+  go (_ , output _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , tx _ _ _)     = no λ ()
+  go (_ , output _ _ _) (_ , sndack _ _ _)   = no λ ()
+  go (_ , output _ _ _) (_ , rcvack _ _ _)   = no λ ()
+  go (_ , output _ _ _) (_ , ack _ _ _)      = no λ ()
+  go (_ , sndmsg _ _ _) (_ , input _ _ _)  = no λ ()
+  go (_ , sndmsg _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , tx _ _ _)     = no λ ()
+  go (_ , sndmsg _ _ _) (_ , sndack _ _ _)   = no λ ()
+  go (_ , sndmsg _ _ _) (_ , rcvack _ _ _)   = no λ ()
+  go (_ , sndmsg _ _ _) (_ , ack _ _ _)      = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , input _ _ _)  = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , tx _ _ _)     = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , sndack _ _ _)   = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , rcvack _ _ _)   = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , ack _ _ _)      = no λ ()
+  go (_ , tx _ _ _)     (_ , input _ _ _)  = no λ ()
+  go (_ , tx _ _ _)     (_ , output _ _ _) = no λ ()
+  go (_ , tx _ _ _)     (_ , sndmsg _ _ _) = no λ ()
+  go (_ , tx _ _ _)     (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , tx _ _ _)     (_ , sndack _ _ _)   = no λ ()
+  go (_ , tx _ _ _)     (_ , rcvack _ _ _)   = no λ ()
+  go (_ , tx _ _ _)     (_ , ack _ _ _)      = no λ ()
+  go (_ , sndack _ _ _)   (_ , input _ _ _)  = no λ ()
+  go (_ , sndack _ _ _)   (_ , output _ _ _) = no λ ()
+  go (_ , sndack _ _ _)   (_ , sndmsg _ _ _) = no λ ()
+  go (_ , sndack _ _ _)   (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , sndack _ _ _)   (_ , tx _ _ _)     = no λ ()
+  go (_ , sndack _ _ _)   (_ , rcvack _ _ _)   = no λ ()
+  go (_ , sndack _ _ _)   (_ , ack _ _ _)      = no λ ()
+  go (_ , rcvack _ _ _)   (_ , input _ _ _)  = no λ ()
+  go (_ , rcvack _ _ _)   (_ , output _ _ _) = no λ ()
+  go (_ , rcvack _ _ _)   (_ , sndmsg _ _ _) = no λ ()
+  go (_ , rcvack _ _ _)   (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , rcvack _ _ _)   (_ , tx _ _ _)     = no λ ()
+  go (_ , rcvack _ _ _)   (_ , sndack _ _ _)   = no λ ()
+  go (_ , rcvack _ _ _)   (_ , ack _ _ _)      = no λ ()
+  go (_ , ack _ _ _)      (_ , input _ _ _)  = no λ ()
+  go (_ , ack _ _ _)      (_ , output _ _ _) = no λ ()
+  go (_ , ack _ _ _)      (_ , sndmsg _ _ _) = no λ ()
+  go (_ , ack _ _ _)      (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , ack _ _ _)      (_ , tx _ _ _)     = no λ ()
+  go (_ , ack _ _ _)      (_ , sndack _ _ _)   = no λ ()
+  go (_ , ack _ _ _)      (_ , rcvack _ _ _)   = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 4: an api-carrying *superset* network event type `Net_Api`.
@@ -1016,27 +1016,30 @@ Net-≟ {Data} = go
 -- remain inert plumbing after composition (still hidden); only
 -- `input`/`output` (and the client-local `apiKA`/`done`) are observable.
 --
--- Each `apiP` fixes `id` to its protocol and carries `Conn N2N_P` with
--- the full `ApiP` value, so every api event is `top`-carried; the
--- channels keep the `(id : IDs) -> Conn id` prefix and `Net`'s carrier.
+-- Each `apiP` carries the same `(l : Link) (d : Dir)` pair as the wire
+-- channels together with the full `ApiP` value, so every api event is
+-- `top`-carried; the channels keep the `(l : Link) (d : Dir) -> IDs`
+-- prefix and `Net`'s carrier.
 ------------------------------------------------------------------------
 
 data Net_Api (Data : Set) : Set → Set where
-  input output sndmsg rcvmsg tx : (id : IDs) → Conn id → Net_Api Data Data
-  sndack rcvack ack done        : (id : IDs) → Conn id → Net_Api Data ⊤
-  apiCS : (c : Conn N2N_ChainSync)    (m : ApiCSTag) → Net_Api Data (ApiCSCar m)
-  apiBF : (c : Conn N2N_BlockFetch)   (m : ApiBFTag) → Net_Api Data (ApiBFCar m)
-  apiTS : (c : Conn N2N_TxSubmission) (m : ApiTSTag) → Net_Api Data (ApiTSCar m)
-  apiKA : (c : Conn N2N_KeepAlive)    (m : ApiKATag) → Net_Api Data (ApiKACar m)
-  apiLN : (c : Conn N2N_LeiosNotify)  (m : ApiLNTag) → Net_Api Data (ApiLNCar m)
-  apiLF : (c : Conn N2N_LeiosFetch)   (m : ApiLFTag) → Net_Api Data (ApiLFCar m)
+  input output sndmsg rcvmsg tx : (l : Link) (d : Dir) → IDs → Net_Api Data Data
+  sndack rcvack ack done        : (l : Link) (d : Dir) → IDs → Net_Api Data ⊤
+  apiCS : (l : Link) (d : Dir) (m : ApiCSTag) → Net_Api Data (ApiCSCar m)
+  apiBF : (l : Link) (d : Dir) (m : ApiBFTag) → Net_Api Data (ApiBFCar m)
+  apiTS : (l : Link) (d : Dir) (m : ApiTSTag) → Net_Api Data (ApiTSCar m)
+  apiKA : (l : Link) (d : Dir) (m : ApiKATag) → Net_Api Data (ApiKACar m)
+  apiLN : (l : Link) (d : Dir) (m : ApiLNTag) → Net_Api Data (ApiLNCar m)
+  apiLF : (l : Link) (d : Dir) (m : ApiLFTag) → Net_Api Data (ApiLFCar m)
+  -- fault injection: sever the whole (duplex) TCP link l (interrupt trigger)
+  break : (l : Link) → Net_Api Data ⊤
 
 ------------------------------------------------------------------------
 -- Step 5: decidable equality on `AnyTypes (Net_Api Data)`.
 --
--- Channels are identified by `(constructor, id, Conn id)` -- the carried
+-- Channels are identified by `(constructor, l, d, id)` -- the carried
 -- `Data` is negotiated by the value, not part of the identity.  Each
--- `apiP` is identified by its (fixed-type) `Conn N2N_P` and the api
+-- `apiP` is identified by its `(l, d)` link/direction pair and the api
 -- sub-constructor tag only; the `ApiP` payload now lives in the carrier
 -- value, not the event identity, so there is nothing further to compare.
 ------------------------------------------------------------------------
@@ -1045,283 +1048,323 @@ Net_Api-≟ : {Data : Set} → (x y : AnyTypes (Net_Api Data)) → Dec (x ≡ y)
 Net_Api-≟ {Data} = go
   where
   go : (x y : AnyTypes (Net_Api Data)) → Dec (x ≡ y)
-  go (_ , input i₁ c₁) (_ , input i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , output i₁ c₁) (_ , output i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , sndmsg i₁ c₁) (_ , sndmsg i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , rcvmsg i₁ c₁) (_ , rcvmsg i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , tx i₁ c₁) (_ , tx i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , sndack i₁ c₁) (_ , sndack i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , rcvack i₁ c₁) (_ , rcvack i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , ack i₁ c₁) (_ , ack i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , done i₁ c₁) (_ , done i₂ c₂) with i₁ ≟ i₂
-  ... | no ¬p = no λ where refl → ¬p refl
-  ... | yes refl with c₁ ≟ c₂
-  ...   | yes refl = yes refl
-  ...   | no ¬p = no λ where refl → ¬p refl
-  go (_ , apiCS c₁ m₁) (_ , apiCS c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl = yes refl
-  ... | no ¬p    | _        = no λ where refl → ¬p refl
-  ... | _        | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiBF c₁ m₁) (_ , apiBF c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl = yes refl
-  ... | no ¬p    | _        = no λ where refl → ¬p refl
-  ... | _        | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiTS c₁ m₁) (_ , apiTS c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl = yes refl
-  ... | no ¬p    | _        = no λ where refl → ¬p refl
-  ... | _        | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiKA c₁ m₁) (_ , apiKA c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl = yes refl
-  ... | no ¬p    | _        = no λ where refl → ¬p refl
-  ... | _        | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiLN c₁ m₁) (_ , apiLN c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl = yes refl
-  ... | no ¬p    | _        = no λ where refl → ¬p refl
-  ... | _        | no ¬p    = no λ where refl → ¬p refl
-  go (_ , apiLF c₁ m₁) (_ , apiLF c₂ m₂) with c₁ ≟ c₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl = yes refl
-  ... | no ¬p    | _        = no λ where refl → ¬p refl
-  ... | _        | no ¬p    = no λ where refl → ¬p refl
+  go (_ , input l₁ d₁ i₁) (_ , input l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , output l₁ d₁ i₁) (_ , output l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , sndmsg l₁ d₁ i₁) (_ , sndmsg l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , rcvmsg l₁ d₁ i₁) (_ , rcvmsg l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , tx l₁ d₁ i₁) (_ , tx l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , sndack l₁ d₁ i₁) (_ , sndack l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , rcvack l₁ d₁ i₁) (_ , rcvack l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , ack l₁ d₁ i₁) (_ , ack l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , done l₁ d₁ i₁) (_ , done l₂ d₂ i₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | i₁ ≟ i₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬i    = no λ { refl → ¬i refl }
+  go (_ , apiCS l₁ d₁ m₁) (_ , apiCS l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , apiBF l₁ d₁ m₁) (_ , apiBF l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , apiTS l₁ d₁ m₁) (_ , apiTS l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , apiKA l₁ d₁ m₁) (_ , apiKA l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , apiLN l₁ d₁ m₁) (_ , apiLN l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , apiLF l₁ d₁ m₁) (_ , apiLF l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , break l₁) (_ , break l₂) with l₁ ≟ l₂
+  ... | yes refl = yes refl
+  ... | no ¬l    = no λ { refl → ¬l refl }
   -- off-diagonal: distinct constructors are never equal
-  go (_ , input _ _) (_ , output _ _) = no λ ()
-  go (_ , input _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , input _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , input _ _) (_ , tx _ _) = no λ ()
-  go (_ , input _ _) (_ , sndack _ _) = no λ ()
-  go (_ , input _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , input _ _) (_ , ack _ _) = no λ ()
-  go (_ , input _ _) (_ , done _ _) = no λ ()
-  go (_ , input _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , input _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , input _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , input _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , input _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , input _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , output _ _) (_ , input _ _) = no λ ()
-  go (_ , output _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , output _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , output _ _) (_ , tx _ _) = no λ ()
-  go (_ , output _ _) (_ , sndack _ _) = no λ ()
-  go (_ , output _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , output _ _) (_ , ack _ _) = no λ ()
-  go (_ , output _ _) (_ , done _ _) = no λ ()
-  go (_ , output _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , output _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , output _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , output _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , output _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , output _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , input _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , output _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , tx _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , sndack _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , ack _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , done _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , sndmsg _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , input _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , output _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , tx _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , sndack _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , ack _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , done _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , rcvmsg _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , tx _ _) (_ , input _ _) = no λ ()
-  go (_ , tx _ _) (_ , output _ _) = no λ ()
-  go (_ , tx _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , tx _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , tx _ _) (_ , sndack _ _) = no λ ()
-  go (_ , tx _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , tx _ _) (_ , ack _ _) = no λ ()
-  go (_ , tx _ _) (_ , done _ _) = no λ ()
-  go (_ , tx _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , tx _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , tx _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , tx _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , tx _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , tx _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , sndack _ _) (_ , input _ _) = no λ ()
-  go (_ , sndack _ _) (_ , output _ _) = no λ ()
-  go (_ , sndack _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , sndack _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , sndack _ _) (_ , tx _ _) = no λ ()
-  go (_ , sndack _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , sndack _ _) (_ , ack _ _) = no λ ()
-  go (_ , sndack _ _) (_ , done _ _) = no λ ()
-  go (_ , sndack _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , sndack _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , sndack _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , sndack _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , sndack _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , sndack _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , input _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , output _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , tx _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , sndack _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , ack _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , done _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , rcvack _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , ack _ _) (_ , input _ _) = no λ ()
-  go (_ , ack _ _) (_ , output _ _) = no λ ()
-  go (_ , ack _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , ack _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , ack _ _) (_ , tx _ _) = no λ ()
-  go (_ , ack _ _) (_ , sndack _ _) = no λ ()
-  go (_ , ack _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , ack _ _) (_ , done _ _) = no λ ()
-  go (_ , ack _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , ack _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , ack _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , ack _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , ack _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , ack _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , done _ _) (_ , input _ _) = no λ ()
-  go (_ , done _ _) (_ , output _ _) = no λ ()
-  go (_ , done _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , done _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , done _ _) (_ , tx _ _) = no λ ()
-  go (_ , done _ _) (_ , sndack _ _) = no λ ()
-  go (_ , done _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , done _ _) (_ , ack _ _) = no λ ()
-  go (_ , done _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , done _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , done _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , done _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , done _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , done _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , input _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , output _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , tx _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , sndack _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , ack _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , done _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , apiCS _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , input _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , output _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , tx _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , sndack _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , ack _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , done _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , apiBF _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , input _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , output _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , tx _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , sndack _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , ack _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , done _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , apiTS _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , input _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , output _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , tx _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , sndack _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , ack _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , done _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , apiLN _ _) = no λ ()
-  go (_ , apiKA _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , input _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , output _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , tx _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , sndack _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , ack _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , done _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , apiLN _ _) (_ , apiLF _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , input _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , output _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , sndmsg _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , rcvmsg _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , tx _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , sndack _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , rcvack _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , ack _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , done _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , apiCS _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , apiBF _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , apiTS _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , apiKA _ _) = no λ ()
-  go (_ , apiLF _ _) (_ , apiLN _ _) = no λ ()
+  go (_ , input _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , break _) = no λ ()
+  -- break / other constructors (both orders)
+  go (_ , break _) (_ , input _ _ _) = no λ ()
+  go (_ , break _) (_ , output _ _ _) = no λ ()
+  go (_ , break _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , break _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , break _) (_ , tx _ _ _) = no λ ()
+  go (_ , break _) (_ , sndack _ _ _) = no λ ()
+  go (_ , break _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , break _) (_ , ack _ _ _) = no λ ()
+  go (_ , break _) (_ , done _ _ _) = no λ ()
+  go (_ , break _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , break _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , break _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , break _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , break _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , break _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , input _ _ _) (_ , break _) = no λ ()
+  go (_ , output _ _ _) (_ , break _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , break _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , break _) = no λ ()
+  go (_ , tx _ _ _) (_ , break _) = no λ ()
+  go (_ , sndack _ _ _) (_ , break _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , break _) = no λ ()
+  go (_ , ack _ _ _) (_ , break _) = no λ ()
+  go (_ , done _ _ _) (_ , break _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , break _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , break _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , break _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , break _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , break _) = no λ ()
