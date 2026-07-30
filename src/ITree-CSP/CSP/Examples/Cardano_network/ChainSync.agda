@@ -194,7 +194,7 @@ clientStep l d stIdle = pchoice v
   v (_ , apiCSev l′ d′ sendCSDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendCS l d ! (time₀ , FromInitiator , length₀ , chainSync MsgCSDone) ⟶
-           (doneCS l d ⟶₀ Ret (inj₁ stDone)))
+           Ret (inj₁ stDone))
   ... | _        | _        = nothing
   v (_ , apiCSev _ _ _) _ = nothing
   v (_ , sendCS _ _)    _ = nothing

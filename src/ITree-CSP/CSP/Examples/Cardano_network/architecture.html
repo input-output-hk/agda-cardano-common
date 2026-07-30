@@ -1,0 +1,640 @@
+<title>system over NetworkLink — general</title>
+<style>
+  :root {
+    --ground:#f4f6f9; --panel:#ffffff; --panel-2:#eef1f6; --ink:#171c26; --slate:#59616f;
+    --slate-soft:#8b93a1; --hair:#d5dae2; --hair-soft:#e4e8ee; --medium:#0c7c7c;
+    --medium-soft:#e2f1f0; --node:#3f51b5; --node-soft:#e7e9f7; --fault:#b26206;
+    --fault-soft:#f6ecdc; --hide:#7a8390;
+    /* categorical mini-protocol palette (constant across themes) */
+    --p-cs:#2f9e6b; --p-bf:#3f6fd6; --p-ts:#8a5cd0; --p-ka:#6f9a2e; --p-ln:#c1902b; --p-lf:#cf5140;
+    --io:#2e8b57;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0f131a; --panel:#161c26; --panel-2:#1c232f; --ink:#e7ebf1; --slate:#a7b0be;
+      --slate-soft:#737d8c; --hair:#2a323f; --hair-soft:#222a35; --medium:#35c2bd;
+      --medium-soft:#12312f; --node:#8b9bff; --node-soft:#1c2340; --fault:#e6a94a;
+      --fault-soft:#362a15; --hide:#6b7684;
+      --p-cs:#43b783; --p-bf:#6d92e6; --p-ts:#a883e0; --p-ka:#9ac04e; --p-ln:#d6a840; --p-lf:#e0705f;
+      --io:#57c48a;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f4f6f9;--panel:#fff;--panel-2:#eef1f6;--ink:#171c26;--slate:#59616f;--slate-soft:#8b93a1;
+    --hair:#d5dae2;--hair-soft:#e4e8ee;--medium:#0c7c7c;--medium-soft:#e2f1f0;--node:#3f51b5;
+    --node-soft:#e7e9f7;--fault:#b26206;--fault-soft:#f6ecdc;--hide:#7a8390;
+    --p-cs:#2f9e6b;--p-bf:#3f6fd6;--p-ts:#8a5cd0;--p-ka:#6f9a2e;--p-ln:#c1902b;--p-lf:#cf5140;--io:#2e8b57;
+  }
+  :root[data-theme="dark"]{
+    --ground:#0f131a;--panel:#161c26;--panel-2:#1c232f;--ink:#e7ebf1;--slate:#a7b0be;--slate-soft:#737d8c;
+    --hair:#2a323f;--hair-soft:#222a35;--medium:#35c2bd;--medium-soft:#12312f;--node:#8b9bff;
+    --node-soft:#1c2340;--fault:#e6a94a;--fault-soft:#362a15;--hide:#6b7684;
+    --p-cs:#43b783;--p-bf:#6d92e6;--p-ts:#a883e0;--p-ka:#9ac04e;--p-ln:#d6a840;--p-lf:#e0705f;--io:#57c48a;
+  }
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans);
+    line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1060px; margin:0 auto; padding:56px 28px 96px; }
+  code, .mono { font-family:var(--mono); font-variant-ligatures:none; }
+
+  header { margin-bottom:40px; }
+  .eyebrow { font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--medium); margin:0 0 14px; }
+  h1 { font-size:clamp(27px,4.4vw,42px); line-height:1.06; margin:0 0 16px; letter-spacing:-.02em;
+    text-wrap:balance; font-weight:680; }
+  h1 .lo { color:var(--medium); }
+  .lede { max-width:66ch; color:var(--slate); font-size:16.5px; margin:0; }
+
+  .eqn { margin:32px 0 0; padding:20px 22px; background:var(--panel); border:1px solid var(--hair);
+    border-left:3px solid var(--medium); border-radius:8px; overflow-x:auto; }
+  .eqn pre { margin:0; font-family:var(--mono); font-size:13.5px; line-height:1.95; color:var(--ink); white-space:pre; }
+  .eqn .kw  { color:var(--medium); font-weight:600; }
+  .eqn .brk { color:var(--fault); font-weight:600; }
+  .eqn .cmt { color:var(--slate-soft); }
+  .eqn .idx { color:var(--node); }
+
+  section { margin-top:54px; }
+  h2 { font-size:13px; letter-spacing:.13em; text-transform:uppercase; color:var(--slate);
+    font-family:var(--mono); font-weight:600; margin:0 0 6px; display:flex; align-items:baseline; gap:10px; }
+  h2 .n { color:var(--medium); }
+  .sub { color:var(--slate); max-width:70ch; margin:0 0 22px; font-size:15px; }
+
+  .box { border:1px solid var(--hair); border-radius:9px; background:var(--panel); }
+  .box-hd { font-family:var(--mono); font-size:12px; padding:9px 14px; border-bottom:1px solid var(--hair-soft);
+    color:var(--slate); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .box-hd .op { color:var(--ink); font-weight:600; }
+
+  .hide-frame { border:1.5px dashed var(--hide); border-radius:12px; padding:16px; position:relative;
+    background:color-mix(in srgb,var(--panel) 45%,transparent); }
+  .hide-tag { position:absolute; top:-11px; left:18px; background:var(--ground); padding:0 9px;
+    font-family:var(--mono); font-size:12px; color:var(--hide); font-weight:600; }
+  .hide-tag b { color:var(--ink); }
+
+  .par { display:grid; grid-template-columns:1fr auto 1fr; gap:0; align-items:stretch; }
+  @media (max-width:760px){ .par { grid-template-columns:1fr; } }
+  .sync { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 18px;
+    gap:8px; position:relative; min-width:96px; }
+  .sync .bar { width:2px; flex:1; background:linear-gradient(var(--node),var(--medium)); border-radius:2px; }
+  .sync .glyph { font-family:var(--mono); font-size:22px; color:var(--slate); line-height:1; }
+  .sync .lbl { font-family:var(--mono); font-size:11px; color:var(--slate); text-align:center;
+    background:var(--panel-2); border:1px solid var(--hair); border-radius:20px; padding:3px 10px; white-space:nowrap; }
+  .sync .lbl b { color:var(--medium); }
+  @media (max-width:760px){ .sync { flex-direction:row; padding:12px 0; min-width:0; }
+    .sync .bar { width:100%; height:2px; flex:1; } }
+
+  .medium-panel { border-color:var(--medium); }
+  .medium-panel .box-hd { color:var(--medium); border-color:color-mix(in srgb,var(--medium) 22%,transparent); }
+  .swap-flag { font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    background:var(--medium); color:#04201f; border-radius:4px; padding:2px 7px; font-weight:600; }
+
+  .cells { display:flex; flex-direction:column; gap:7px; padding:12px; }
+  .cell { display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--medium-soft);
+    border:1px solid color-mix(in srgb,var(--medium) 30%,transparent); border-radius:7px;
+    font-family:var(--mono); font-size:12.5px; }
+  .cell .id { color:var(--medium); font-weight:700; min-width:64px; }
+  .cell .body { color:var(--ink); }
+  .cell .intr { color:var(--fault); font-weight:600; }
+  .cells .interleave { text-align:center; font-family:var(--mono); font-size:11px; color:var(--slate-soft); }
+  .ell { text-align:center; color:var(--slate-soft); font-family:var(--mono); font-size:15px; letter-spacing:.2em; padding:2px 0; }
+
+  .nodes-panel .box-hd { color:var(--node); }
+  .node-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px; }
+  .nd { padding:10px 12px; border-radius:7px; background:var(--node-soft);
+    border:1px solid color-mix(in srgb,var(--node) 28%,transparent); }
+  .nd.ghost { display:flex; align-items:center; justify-content:center; background:transparent;
+    border-style:dashed; color:var(--slate-soft); font-family:var(--mono); font-size:18px; letter-spacing:.15em; }
+  .nd .name { font-family:var(--mono); font-weight:700; color:var(--node); font-size:13px; }
+  .nd .role { font-size:11.5px; color:var(--slate); margin-top:2px; }
+  .nd .lk { font-family:var(--mono); font-size:10.5px; color:var(--slate-soft); margin-top:5px; }
+
+  /* mux figure */
+  .figure-scroll { overflow-x:auto; padding:16px; }
+  .figure-scroll svg { min-width:820px; width:100%; height:auto; display:block; }
+  svg text { font-family:var(--sans); }
+  svg .mono-t { font-family:var(--mono); }
+  .mux-note { display:flex; flex-wrap:wrap; gap:8px 24px; padding:2px 16px 16px; }
+  .mux-note code { font-family:var(--mono); font-size:12px; color:var(--medium); }
+  .mux-note span { font-size:13px; color:var(--slate); }
+  .mux-legend { display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center;
+    padding:14px 16px; border-top:1px solid var(--hair-soft); }
+  .lg { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--slate); }
+  .lg .sw { width:13px; height:13px; border-radius:3px; flex:none; }
+  .lg .ln { width:24px; flex:none; border-top:2px solid var(--ink); }
+  .lg .ln.d { border-top:2px dashed var(--slate-soft); }
+
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  @media (max-width:860px){ .cols { grid-template-columns:1fr; } }
+  .stack { display:flex; flex-direction:column; gap:9px; padding:13px; }
+  .lyr { font-family:var(--mono); font-size:12px; padding:8px 11px; border-radius:6px; background:var(--panel-2);
+    border:1px solid var(--hair-soft); color:var(--ink); }
+  .lyr .t { color:var(--slate); }
+  .lyr.h { border-style:dashed; border-color:var(--hide); background:transparent; color:var(--hide); }
+  .lyr.h b { color:var(--ink); }
+  .lyr.s { border-left:3px solid var(--node); }
+  .lyr.m { border-left:3px solid var(--medium); }
+  .lyr small { display:block; color:var(--slate-soft); font-family:var(--sans); font-size:11px; margin-top:3px; }
+
+  .topo-wrap { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+  .topo-wrap svg { flex:0 0 auto; max-width:100%; }
+  .topo-wrap svg text { font-family:var(--mono); }
+
+  .legend { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  @media (max-width:760px){ .legend { grid-template-columns:1fr; } }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--slate-soft); font-weight:600; padding:0 0 8px; border-bottom:1px solid var(--hair); }
+  td { padding:8px 10px 8px 0; border-bottom:1px solid var(--hair-soft); vertical-align:top; }
+  td.g { font-family:var(--mono); color:var(--ink); font-weight:600; white-space:nowrap; }
+  td.d { color:var(--slate); }
+  .es { font-family:var(--mono); color:var(--medium); font-weight:600; }
+
+  .note { margin-top:20px; padding:16px 18px; border-radius:9px; background:var(--panel);
+    border:1px solid var(--hair); border-left:3px solid var(--fault); font-size:14.5px; color:var(--slate); }
+  .note b { color:var(--ink); }
+  .note code { color:var(--medium); font-size:13px; }
+
+  .foot { margin-top:60px; padding-top:20px; border-top:1px solid var(--hair); font-size:12.5px;
+    color:var(--slate-soft); font-family:var(--mono); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Cardano network model · CSP process trees · general form</p>
+    <h1>A network of <span class="lo">n</span> nodes over <span class="lo">NetworkLink</span></h1>
+    <p class="lede">The same composition as the four-node example, written generically: <code class="mono">n</code>
+      nodes, <code class="mono">m</code> links, arbitrary topology. The medium is the concrete per-link
+      multiplexer <code class="mono">NetworkLink</code> (breakable), replacing the abstract
+      <code class="mono">CopySpec</code>. The wiring pattern is independent of node and link count.</p>
+
+    <div class="eqn"><pre><span class="cmt">-- top level: one medium, n interleaved nodes, io hidden</span>
+system  = ( <span class="kw">Medium</span> ∥⇘ ioES ⇙ <span class="idx">( ⦀ i∈Nodes · nodeᵢ )</span> ) ∖ ioES
+
+<span class="cmt">-- medium = concrete mux, one independently-breakable cell per link</span>
+<span class="kw">Medium</span>  = ⦀Fin m <span class="idx">( λ l → </span>NetOneLink l <span class="brk">△ (break l ⟶₀ Skip)</span><span class="idx"> )</span>
+        <span class="cmt">-- drop the △-interrupt for the non-faulty system</span></pre></div>
+  </header>
+
+  <!-- 01 TOP LEVEL -->
+  <section>
+    <h2><span class="n">01</span> Top-level composition &nbsp;·&nbsp; parametric in n, m</h2>
+    <p class="sub">One hiding frame over a single generalised-parallel rendezvous: the link medium on the left,
+      the <code class="mono">n</code> interleaved nodes on the right, synchronised on
+      <span class="es">ioES = {|input, output|}</span> and then hidden. Both operands scale with the topology —
+      <code class="mono">m</code> link cells, <code class="mono">n</code> node processes.</p>
+
+    <div class="hide-frame">
+      <span class="hide-tag">∖ <b>ioES</b> &nbsp;— hide {|input, output|}</span>
+      <div class="par">
+
+        <div class="box medium-panel">
+          <div class="box-hd"><span><span class="op">Medium</span> = NetworkLink (breakable)</span></div>
+          <div class="cells">
+            <div class="interleave">⦀Fin m&nbsp;&nbsp;— one cell per link l ∈ {0 … m−1}</div>
+            <div class="cell"><span class="id">link 0</span><span class="body">NetOneLink 0 <span class="intr">△ break</span></span></div>
+            <div class="cell"><span class="id">link 1</span><span class="body">NetOneLink 1 <span class="intr">△ break</span></span></div>
+            <div class="ell">⋮</div>
+            <div class="cell"><span class="id">link m−1</span><span class="body">NetOneLink (m−1) <span class="intr">△ break</span></span></div>
+          </div>
+        </div>
+
+        <div class="sync">
+          <div class="bar"></div>
+          <div class="glyph">∥</div>
+          <div class="lbl">sync <b>ioES</b></div>
+          <div class="bar"></div>
+        </div>
+
+        <div class="box nodes-panel">
+          <div class="box-hd"><span><span class="op">⦀ i · nodeᵢ</span></span><span>⦀ interleave, i ∈ {1 … n}</span></div>
+          <div class="node-grid">
+            <div class="nd"><div class="name">node₁</div><div class="role">runs peers on its incident links + app-logic</div><div class="lk">links(node₁)</div></div>
+            <div class="nd"><div class="name">node₂</div><div class="role">produce / consume / relay</div><div class="lk">links(node₂)</div></div>
+            <div class="nd"><div class="name">node₃</div><div class="role">produce / consume / relay</div><div class="lk">links(node₃)</div></div>
+            <div class="nd ghost">… nodeₙ</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Roles are per node, not per topology.</b> Each <code>nodeᵢ</code> is a <em>source</em> (produce),
+      <em>sink</em> (consume), or <em>relay</em> (consume then produce) depending only on which links it is
+      incident to and which direction it drives them. Add nodes/links by extending <code>n</code>, <code>m</code>
+      and the incidence — the composition shape is unchanged. <code>break l</code> is deliberately outside
+      <code>ioES</code>, so link faults stay observable while all wire traffic is hidden.
+    </div>
+  </section>
+
+  <!-- 02 ONE LINK BETWEEN TWO NODES -->
+  <section>
+    <h2><span class="n">02</span> One link, two endpoints — the mini-protocol level</h2>
+    <p class="sub">Zoom into a single edge of the graph. Each of the two nodes it joins runs the full set of
+      <b>mini-protocol peers</b>; a node's outgoing traffic is multiplexed by its <b>TxSide</b> (send mux) and
+      the peer's incoming traffic is demultiplexed by its <b>RxSide</b> (recv demux). The two sides are joined
+      by a <b>full-duplex link</b> — data frames (<code class="mono">tx</code>) one way, acknowledgements
+      (<code class="mono">ack</code>) back — in each direction independently. This is <code class="mono">NetOneLink l</code>
+      seen with both of its endpoints attached.</p>
+
+    <div class="box medium-panel">
+      <div class="box-hd"><span class="op">nodeᵢ ⟷ nodeⱼ &nbsp;over link l</span><span>full-duplex, per mini-protocol</span></div>
+
+      <div class="figure-scroll">
+        <svg viewBox="0 0 1120 520" role="img"
+             aria-label="One link joining two nodes. Each node runs a bundle of mini-protocol peers (client and server per protocol), a TxSide send mux and an RxSide recv demux. A duplex link in the middle carries tx data frames and ack in both directions.">
+          <defs>
+            <marker id="g" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--io)"/>
+            </marker>
+            <marker id="o" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--fault)"/>
+            </marker>
+          </defs>
+
+          <!-- node frames -->
+          <rect x="18"  y="70" width="474" height="418" rx="12" fill="none" stroke="var(--slate-soft)" stroke-width="1.4" stroke-dasharray="4 5"/>
+          <rect x="628" y="70" width="474" height="418" rx="12" fill="none" stroke="var(--slate-soft)" stroke-width="1.4" stroke-dasharray="4 5"/>
+          <text x="40"  y="98" font-size="15" font-weight="700" fill="var(--node)">nodeᵢ</text>
+          <text x="1080" y="98" text-anchor="end" font-size="15" font-weight="700" fill="var(--node)">nodeⱼ</text>
+
+          <!-- TCP duplex link -->
+          <rect x="512" y="120" width="96" height="330" rx="10" fill="var(--fault-soft)" stroke="var(--fault)" stroke-width="1.6"/>
+          <text x="560" y="272" text-anchor="middle" font-size="14" font-weight="600" fill="var(--fault)">duplex</text>
+          <text x="560" y="292" text-anchor="middle" font-size="14" font-weight="600" fill="var(--fault)">link l</text>
+          <text x="560" y="314" text-anchor="middle" class="mono-t" font-size="10.5" fill="var(--slate)">1 wire</text>
+
+          <!-- ===== mini-protocol peers (compact: client + server per protocol) ===== -->
+          <!-- nodeᵢ peers bundle -->
+          <rect x="38" y="150" width="150" height="306" rx="9" fill="var(--panel)" stroke="var(--node)" stroke-width="1.6"/>
+          <text x="113" y="178" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--node)">mini-protocol peers</text>
+          <text x="113" y="196" text-anchor="middle" font-size="9.5" fill="var(--slate)">client + server per protocol</text>
+          <!-- generic peer card -->
+          <rect x="48" y="212" width="130" height="54" rx="7" fill="var(--node-soft)" stroke="var(--node)" stroke-width="1"/>
+          <text x="113" y="229" text-anchor="middle" font-size="10.5" fill="var(--slate)">‹mini-protocol›</text>
+          <rect x="54" y="238" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="82" y="251" text-anchor="middle" font-size="9" fill="var(--node)">client</text>
+          <rect x="116" y="238" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="144" y="251" text-anchor="middle" font-size="9" fill="var(--node)">server</text>
+          <!-- generic peer card -->
+          <rect x="48" y="276" width="130" height="54" rx="7" fill="var(--node-soft)" stroke="var(--node)" stroke-width="1"/>
+          <text x="113" y="293" text-anchor="middle" font-size="10.5" fill="var(--slate)">‹mini-protocol›</text>
+          <rect x="54" y="302" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="82" y="315" text-anchor="middle" font-size="9" fill="var(--node)">client</text>
+          <rect x="116" y="302" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="144" y="315" text-anchor="middle" font-size="9" fill="var(--node)">server</text>
+          <!-- more -->
+          <text x="113" y="366" text-anchor="middle" font-size="20" fill="var(--slate-soft)">⋮</text>
+          <text x="113" y="390" text-anchor="middle" font-size="9.5" fill="var(--slate)">each configured</text>
+          <text x="113" y="404" text-anchor="middle" font-size="9.5" fill="var(--slate)">mini-protocol</text>
+
+          <!-- nodeⱼ peers bundle (mirror) -->
+          <rect x="932" y="150" width="150" height="306" rx="9" fill="var(--panel)" stroke="var(--node)" stroke-width="1.6"/>
+          <text x="1007" y="178" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--node)">mini-protocol peers</text>
+          <text x="1007" y="196" text-anchor="middle" font-size="9.5" fill="var(--slate)">client + server per protocol</text>
+          <rect x="942" y="212" width="130" height="54" rx="7" fill="var(--node-soft)" stroke="var(--node)" stroke-width="1"/>
+          <text x="1007" y="229" text-anchor="middle" font-size="10.5" fill="var(--slate)">‹mini-protocol›</text>
+          <rect x="948" y="238" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="976" y="251" text-anchor="middle" font-size="9" fill="var(--node)">client</text>
+          <rect x="1010" y="238" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="1038" y="251" text-anchor="middle" font-size="9" fill="var(--node)">server</text>
+          <rect x="942" y="276" width="130" height="54" rx="7" fill="var(--node-soft)" stroke="var(--node)" stroke-width="1"/>
+          <text x="1007" y="293" text-anchor="middle" font-size="10.5" fill="var(--slate)">‹mini-protocol›</text>
+          <rect x="948" y="302" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="976" y="315" text-anchor="middle" font-size="9" fill="var(--node)">client</text>
+          <rect x="1010" y="302" width="56" height="19" rx="5" fill="var(--panel)" stroke="var(--node)" stroke-width="1"/>
+          <text x="1038" y="315" text-anchor="middle" font-size="9" fill="var(--node)">server</text>
+          <text x="1007" y="366" text-anchor="middle" font-size="20" fill="var(--slate-soft)">⋮</text>
+          <text x="1007" y="390" text-anchor="middle" font-size="9.5" fill="var(--slate)">each configured</text>
+          <text x="1007" y="404" text-anchor="middle" font-size="9.5" fill="var(--slate)">mini-protocol</text>
+
+          <!-- ===== mux boxes ===== -->
+          <!-- nodeᵢ TxSide (top) / RxSide (bottom) -->
+          <rect x="212" y="150" width="250" height="96" rx="10" fill="var(--medium-soft)" stroke="var(--medium)" stroke-width="1.8"/>
+          <text x="337" y="192" text-anchor="middle" font-size="16" font-weight="600" fill="var(--medium)">TxSide</text>
+          <text x="337" y="214" text-anchor="middle" font-size="12" fill="var(--slate)">send mux</text>
+          <rect x="212" y="360" width="250" height="96" rx="10" fill="var(--medium-soft)" stroke="var(--medium)" stroke-width="1.8"/>
+          <text x="337" y="402" text-anchor="middle" font-size="16" font-weight="600" fill="var(--medium)">RxSide</text>
+          <text x="337" y="424" text-anchor="middle" font-size="12" fill="var(--slate)">recv demux</text>
+          <!-- nodeⱼ RxSide (top) / TxSide (bottom) -->
+          <rect x="658" y="150" width="250" height="96" rx="10" fill="var(--medium-soft)" stroke="var(--medium)" stroke-width="1.8"/>
+          <text x="783" y="192" text-anchor="middle" font-size="16" font-weight="600" fill="var(--medium)">RxSide</text>
+          <text x="783" y="214" text-anchor="middle" font-size="12" fill="var(--slate)">recv demux</text>
+          <rect x="658" y="360" width="250" height="96" rx="10" fill="var(--medium-soft)" stroke="var(--medium)" stroke-width="1.8"/>
+          <text x="783" y="402" text-anchor="middle" font-size="16" font-weight="600" fill="var(--medium)">TxSide</text>
+          <text x="783" y="424" text-anchor="middle" font-size="12" fill="var(--slate)">send mux</text>
+
+          <!-- ===== green input/output arrows ===== -->
+          <!-- nodeᵢ: peers -> TxSide (send), RxSide -> peers (recv) -->
+          <line x1="190" y1="198" x2="209" y2="198" stroke="var(--io)" stroke-width="2.4" marker-end="url(#g)"/>
+          <line x1="209" y1="408" x2="190" y2="408" stroke="var(--io)" stroke-width="2.4" marker-end="url(#g)"/>
+          <!-- nodeⱼ: RxSide -> peers (recv), peers -> TxSide (send) -->
+          <line x1="911" y1="198" x2="936" y2="198" stroke="var(--io)" stroke-width="2.4" marker-end="url(#g)"/>
+          <line x1="936" y1="408" x2="911" y2="408" stroke="var(--io)" stroke-width="2.4" marker-end="url(#g)"/>
+
+          <!-- ===== duplex A→B (top pair) ===== -->
+          <!-- tx solid: i.TxSide -> j.RxSide -->
+          <line x1="462" y1="186" x2="656" y2="186" stroke="var(--fault)" stroke-width="2.2" marker-end="url(#o)"/>
+          <text x="470" y="177" class="mono-t" font-size="11" fill="var(--fault)">tx</text>
+          <!-- ack dashed: j.RxSide -> i.TxSide -->
+          <line x1="656" y1="212" x2="462" y2="212" stroke="var(--fault)" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#o)"/>
+          <text x="470" y="228" class="mono-t" font-size="11" fill="var(--fault)">ack</text>
+
+          <!-- ===== duplex B→A (bottom pair) ===== -->
+          <!-- tx solid: j.TxSide -> i.RxSide -->
+          <line x1="656" y1="396" x2="462" y2="396" stroke="var(--fault)" stroke-width="2.2" marker-end="url(#o)"/>
+          <text x="632" y="387" class="mono-t" font-size="11" fill="var(--fault)">tx</text>
+          <!-- ack dashed: i.RxSide -> j.TxSide -->
+          <line x1="462" y1="422" x2="656" y2="422" stroke="var(--fault)" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#o)"/>
+          <text x="626" y="438" class="mono-t" font-size="11" fill="var(--fault)">ack</text>
+        </svg>
+      </div>
+
+      <div class="mux-note">
+        <span><b style="color:var(--ink)">cl ↔ sv:</b> for each protocol, <code>nodeᵢ</code>'s <code>client</code> talks to <code>nodeⱼ</code>'s <code>server</code>, and <code>nodeⱼ</code>'s <code>client</code> to <code>nodeᵢ</code>'s <code>server</code> — the two duplex directions.</span>
+      </div>
+
+      <div class="mux-legend">
+        <span class="lg"><span class="ln" style="border-top-color:var(--io)"></span>input / output (peers ↔ mux)</span>
+        <span class="lg"><span class="ln" style="border-top-color:var(--fault)"></span>tx · data frames</span>
+        <span class="lg"><span class="ln d" style="border-top-color:var(--fault)"></span>ack</span>
+        <span class="lg"><span class="sw" style="background:var(--node-soft); border:1px solid var(--node)"></span>mini-protocol peer (client + server)</span>
+        <span class="lg"><span class="sw" style="background:var(--medium-soft); border:1px solid var(--medium)"></span>Tx / Rx mux</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Both endpoints of every edge look like this.</b> On each link a node runs <em>both</em> the
+      <em>client</em> and the <em>server</em> of every configured mini-protocol (only two shown; the rest follow
+      the same pattern). All those peers are muxed onto one wire per direction — <code class="mono">tx</code>
+      forward, <code class="mono">ack</code> back. What §03 opens up is the inside of one
+      <code>TxSide</code>/<code>RxSide</code> pair — the same boxes, shown with their hidden
+      <code>sndmsg</code>/<code>tx</code>/<code>ack</code>/… channels. In the abstract <code>CopySpec</code> model
+      this entire duplex collapses to one <code>input?x → output!x</code> buffer per lane.
+    </div>
+  </section>
+
+  <!-- 03 INSIDE ONE LINK: THE MUX -->
+  <section>
+    <h2><span class="n">03</span> Inside one <code>NetOneLink&nbsp;l</code> — the multiplexer</h2>
+    <p class="sub">The concrete medium the swap introduces. Each link is a two-sided mux: a <b>TxSide</b> that
+      bundles per-mini-protocol inputs onto one wire, and an <b>RxSide</b> that unpacks them, connected by a
+      transmit/acknowledge handshake. Solid arrows are visible <code class="mono">input</code>/<code class="mono">output</code>;
+      every internal channel is hidden. Identical for every link, at any link count.</p>
+
+    <div class="box medium-panel">
+      <div class="box-hd"><span class="op">NetOneLink l = ( TxSideₗ ∥⇘ csTA ⇙ RxSideₗ ) ∖ csTA</span><span>concrete per-link mux</span></div>
+
+      <div class="figure-scroll">
+        <svg viewBox="0 0 924 460" role="img"
+             aria-label="NetOneLink mux: TxSide (Inputs, Transmitter, RcvAck) connected to RxSide (Receiver, Outputs, SndAck) via hidden tx and ack channels; input enters TxSide, output leaves RxSide.">
+          <defs>
+            <marker id="solid" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--ink)"/>
+            </marker>
+            <marker id="dash" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--slate-soft)"/>
+            </marker>
+          </defs>
+
+          <!-- outer NetOneLink / hide csTA -->
+          <rect x="16" y="40" width="892" height="404" rx="14" fill="none"
+                stroke="var(--hide)" stroke-width="1.5" stroke-dasharray="5 6"/>
+          <text x="38" y="66" font-size="15" font-weight="700" fill="var(--ink)">NetOneLink l</text>
+          <text x="152" y="66" class="mono-t" font-size="12.5" fill="var(--hide)">∖ hide csTA = {tx, ack}</text>
+
+          <!-- TxSide -->
+          <rect x="40" y="88" width="384" height="340" rx="12" fill="none"
+                stroke="var(--slate-soft)" stroke-width="1.3" stroke-dasharray="4 5"/>
+          <text x="58" y="114" font-size="14" font-weight="700" fill="var(--ink)">TxSide</text>
+          <text x="58" y="132" class="mono-t" font-size="10.5" fill="var(--slate)">sync + hide csSR = {sndmsg, rcvack}</text>
+
+          <!-- RxSide -->
+          <rect x="500" y="88" width="384" height="340" rx="12" fill="none"
+                stroke="var(--slate-soft)" stroke-width="1.3" stroke-dasharray="4 5"/>
+          <text x="518" y="114" font-size="14" font-weight="700" fill="var(--ink)">RxSide</text>
+          <text x="518" y="132" class="mono-t" font-size="10.5" fill="var(--slate)">sync + hide csRS = {rcvmsg, sndack}</text>
+
+          <!-- ===== shared processes (grey) ===== -->
+          <!-- Transmitter -->
+          <rect x="132" y="158" width="200" height="58" rx="9" fill="var(--panel-2)" stroke="var(--slate-soft)" stroke-width="1.6"/>
+          <text x="232" y="182" text-anchor="middle" font-size="14" font-weight="600" fill="var(--ink)">Transmitter</text>
+          <text x="232" y="200" text-anchor="middle" class="mono-t" font-size="11" fill="var(--slate)">sndmsg → tx</text>
+          <!-- RcvAck -->
+          <rect x="132" y="360" width="200" height="54" rx="9" fill="var(--panel-2)" stroke="var(--slate-soft)" stroke-width="1.6"/>
+          <text x="232" y="382" text-anchor="middle" font-size="14" font-weight="600" fill="var(--ink)">RcvAck</text>
+          <text x="232" y="400" text-anchor="middle" class="mono-t" font-size="11" fill="var(--slate)">ack → rcvack</text>
+          <!-- Receiver -->
+          <rect x="592" y="158" width="200" height="58" rx="9" fill="var(--panel-2)" stroke="var(--slate-soft)" stroke-width="1.6"/>
+          <text x="692" y="182" text-anchor="middle" font-size="14" font-weight="600" fill="var(--ink)">Receiver</text>
+          <text x="692" y="200" text-anchor="middle" class="mono-t" font-size="11" fill="var(--slate)">tx → rcvmsg</text>
+          <!-- SndAck -->
+          <rect x="592" y="360" width="200" height="54" rx="9" fill="var(--panel-2)" stroke="var(--slate-soft)" stroke-width="1.6"/>
+          <text x="692" y="382" text-anchor="middle" font-size="14" font-weight="600" fill="var(--ink)">SndAck</text>
+          <text x="692" y="400" text-anchor="middle" class="mono-t" font-size="11" fill="var(--slate)">sndack → ack</text>
+
+          <!-- ===== mux processes (green, per mini-protocol) ===== -->
+          <!-- Inputs -->
+          <rect x="127" y="252" width="210" height="80" rx="9" fill="var(--medium-soft)" stroke="var(--medium)" stroke-width="1.8"/>
+          <text x="232" y="276" text-anchor="middle" font-size="14" font-weight="600" fill="var(--medium)">Inputs</text>
+          <text x="232" y="293" text-anchor="middle" font-size="10.5" fill="var(--slate)">per mini-protocol</text>
+          <g>
+            <rect x="138" y="304" width="28" height="16" rx="3" fill="var(--p-cs)"/>
+            <rect x="171" y="304" width="28" height="16" rx="3" fill="var(--p-bf)"/>
+            <rect x="204" y="304" width="28" height="16" rx="3" fill="var(--p-ts)"/>
+            <rect x="237" y="304" width="28" height="16" rx="3" fill="var(--p-ka)"/>
+            <rect x="270" y="304" width="28" height="16" rx="3" fill="var(--p-ln)"/>
+            <rect x="303" y="304" width="28" height="16" rx="3" fill="var(--p-lf)"/>
+          </g>
+          <!-- Outputs -->
+          <rect x="587" y="252" width="210" height="80" rx="9" fill="var(--medium-soft)" stroke="var(--medium)" stroke-width="1.8"/>
+          <text x="692" y="276" text-anchor="middle" font-size="14" font-weight="600" fill="var(--medium)">Outputs</text>
+          <text x="692" y="293" text-anchor="middle" font-size="10.5" fill="var(--slate)">per mini-protocol</text>
+          <g>
+            <rect x="598" y="304" width="28" height="16" rx="3" fill="var(--p-cs)"/>
+            <rect x="631" y="304" width="28" height="16" rx="3" fill="var(--p-bf)"/>
+            <rect x="664" y="304" width="28" height="16" rx="3" fill="var(--p-ts)"/>
+            <rect x="697" y="304" width="28" height="16" rx="3" fill="var(--p-ka)"/>
+            <rect x="730" y="304" width="28" height="16" rx="3" fill="var(--p-ln)"/>
+            <rect x="763" y="304" width="28" height="16" rx="3" fill="var(--p-lf)"/>
+          </g>
+
+          <!-- ===== visible IO (solid) ===== -->
+          <line x1="18"  y1="292" x2="123" y2="292" stroke="var(--ink)" stroke-width="2.6" marker-end="url(#solid)"/>
+          <text x="22" y="282" class="mono-t" font-size="12" fill="var(--ink)">input</text>
+          <line x1="797" y1="292" x2="906" y2="292" stroke="var(--ink)" stroke-width="2.6" marker-end="url(#solid)"/>
+          <text x="836" y="282" class="mono-t" font-size="12" fill="var(--ink)">output</text>
+
+          <!-- ===== hidden channels (dashed) ===== -->
+          <!-- sndmsg: Inputs -> Transmitter -->
+          <line x1="232" y1="252" x2="232" y2="220" stroke="var(--slate-soft)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#dash)"/>
+          <text x="244" y="240" class="mono-t" font-size="11" fill="var(--slate)">sndmsg</text>
+          <!-- rcvack: RcvAck -> Inputs -->
+          <line x1="232" y1="360" x2="232" y2="336" stroke="var(--slate-soft)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#dash)"/>
+          <text x="244" y="352" class="mono-t" font-size="11" fill="var(--slate)">rcvack</text>
+          <!-- tx: Transmitter -> Receiver -->
+          <line x1="332" y1="187" x2="588" y2="187" stroke="var(--slate-soft)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#dash)"/>
+          <text x="460" y="178" text-anchor="middle" class="mono-t" font-size="11" fill="var(--slate)">tx</text>
+          <!-- ack: SndAck -> RcvAck -->
+          <line x1="592" y1="387" x2="336" y2="387" stroke="var(--slate-soft)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#dash)"/>
+          <text x="460" y="378" text-anchor="middle" class="mono-t" font-size="11" fill="var(--slate)">ack</text>
+          <!-- rcvmsg: Receiver -> Outputs -->
+          <line x1="692" y1="216" x2="692" y2="248" stroke="var(--slate-soft)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#dash)"/>
+          <text x="704" y="236" class="mono-t" font-size="11" fill="var(--slate)">rcvmsg</text>
+          <!-- sndack: Outputs -> SndAck -->
+          <line x1="692" y1="332" x2="692" y2="356" stroke="var(--slate-soft)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#dash)"/>
+          <text x="704" y="349" class="mono-t" font-size="11" fill="var(--slate)">sndack</text>
+        </svg>
+      </div>
+
+      <div class="mux-note">
+        <span><b style="color:var(--ink)">Forward path:</b> <code>input → Inputs →(sndmsg)→ Transmitter →(tx)→ Receiver →(rcvmsg)→ Outputs → output</code></span>
+        <span><b style="color:var(--ink)">Ack path:</b> <code>Outputs →(sndack)→ SndAck →(ack)→ RcvAck →(rcvack)→ Inputs</code></span>
+      </div>
+
+      <div class="mux-legend">
+        <span class="lg"><span class="sw" style="background:var(--p-cs)"></span>ChainSync</span>
+        <span class="lg"><span class="sw" style="background:var(--p-bf)"></span>BlockFetch</span>
+        <span class="lg"><span class="sw" style="background:var(--p-ts)"></span>TxSubmission</span>
+        <span class="lg"><span class="sw" style="background:var(--p-ka)"></span>KeepAlive</span>
+        <span class="lg"><span class="sw" style="background:var(--p-ln)"></span>LeiosNotify</span>
+        <span class="lg"><span class="sw" style="background:var(--p-lf)"></span>LeiosFetch</span>
+        <span class="lg"><span class="sw" style="background:var(--panel-2); border:1px solid var(--slate-soft)"></span>grey = shared process</span>
+        <span class="lg"><span class="ln"></span>solid = visible</span>
+        <span class="lg"><span class="ln d"></span>dashed = hidden channel</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Which lanes are live is per link.</b> <code>Inputs</code>/<code>Outputs</code> carry one lane per
+      <em>configured</em> mini-protocol for link <code>l</code> (from <code>linkConfig l</code>) — the six above
+      are the full N2N + Leios set; a given link may run any subset. The abstract <code>CopySpec</code> collapses
+      this whole box to a single <code>input?x → output!x</code> buffer per lane — same observable behaviour,
+      none of the handshake.
+    </div>
+  </section>
+
+  <!-- 04 INSIDE ONE NODE -->
+  <section>
+    <h2><span class="n">04</span> Inside one node — unchanged by the swap</h2>
+    <p class="sub">The node side is identical whether the medium is <code class="mono">CopySpec</code> or
+      <code class="mono">NetworkLink</code>: it only ever touches <code class="mono">input</code>/<code class="mono">output</code>
+      (plus the API and break events). Generic in the node's degree.</p>
+
+    <div class="box nodes-panel">
+      <div class="box-hd"><span class="op">nodeᵢ &nbsp;(generic)</span><span>same for every medium</span></div>
+      <div class="stack">
+        <div class="lyr s">peers &nbsp;<span class="t">∥⇘ <b>apiES</b> ⇙</span>&nbsp; app-logicᵢ
+          <small>rendezvous on {|apiCS, apiBF|} — synchronised, <b>not</b> hidden</small></div>
+        <div class="lyr">⦀ &nbsp;l ∈ links(nodeᵢ) &nbsp;·&nbsp; miniProtocols l dir dir
+          <small>one peer bundle per incident link, all interleaved — matches the mux's per-mini-protocol lanes</small></div>
+        <div class="lyr">miniProtocols l cl sv = KA ⦀ CS ⦀ BF ⦀ TS &nbsp;(+ Leios notify/fetch, config-dependent)
+          <small>client + server peers for each configured mini-protocol</small></div>
+        <div class="lyr">app-logicᵢ = produce b &nbsp;/&nbsp; consume &nbsp;/&nbsp; consume &gt;&gt;= produce
+          <small>chosen per node — source, sink, or relay</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 GENERAL TOPOLOGY -->
+  <section>
+    <h2><span class="n">05</span> Arbitrary topology</h2>
+    <p class="sub">Nodes and links form any graph. Every edge is one <code class="mono">NetOneLink</code>
+      instance (the mux above); every node runs mini-protocol peers on each of its incident links. The
+      four-node diamond is just one instantiation (n = 4, m = 4).</p>
+
+    <div class="topo-wrap">
+      <svg width="360" height="270" viewBox="0 0 360 270" role="img"
+           aria-label="An arbitrary network graph: several nodes joined by links, with one link broken and an ellipsis marking further nodes">
+        <defs>
+          <marker id="mk" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5">
+            <circle cx="3.5" cy="3.5" r="2.6" fill="var(--medium)"/>
+          </marker>
+        </defs>
+        <g stroke="var(--medium)" stroke-width="2.4" fill="none">
+          <line x1="70"  y1="60"  x2="180" y2="40"/>
+          <line x1="180" y1="40"  x2="290" y2="70"/>
+          <line x1="70"  y1="60"  x2="90"  y2="170"/>
+          <line x1="180" y1="40"  x2="90"  y2="170"/>
+          <line x1="290" y1="70"  x2="250" y2="180"/>
+          <line x1="90"  y1="170" x2="250" y2="180"/>
+        </g>
+        <line x1="180" y1="40" x2="250" y2="180" stroke="var(--fault)" stroke-width="2.4"
+              stroke-dasharray="6 7" fill="none"/>
+        <g transform="translate(215,110)">
+          <circle r="12" fill="var(--fault-soft)" stroke="var(--fault)" stroke-width="1.8"/>
+          <path d="M-3,-6 L1,-1 L-2,0 L3,6" stroke="var(--fault)" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+        </g>
+        <g>
+          <circle cx="70"  cy="60"  r="21" fill="var(--node-soft)" stroke="var(--node)" stroke-width="2.4"/>
+          <circle cx="180" cy="40"  r="21" fill="var(--node-soft)" stroke="var(--node)" stroke-width="2.4"/>
+          <circle cx="290" cy="70"  r="21" fill="var(--node-soft)" stroke="var(--node)" stroke-width="2.4"/>
+          <circle cx="90"  cy="170" r="21" fill="var(--node-soft)" stroke="var(--node)" stroke-width="2.4"/>
+          <circle cx="250" cy="180" r="21" fill="var(--node-soft)" stroke="var(--node)" stroke-width="2.4"/>
+        </g>
+        <g font-size="12" font-weight="700" fill="var(--node)" text-anchor="middle" dominant-baseline="central">
+          <text x="70"  y="60">n₁</text>
+          <text x="180" y="40">n₂</text>
+          <text x="290" y="70">n₃</text>
+          <text x="90"  y="170">n₄</text>
+          <text x="250" y="180">n₅</text>
+        </g>
+        <text x="190" y="235" text-anchor="middle" font-size="20" fill="var(--slate-soft)" letter-spacing="3">· · ·  nₙ</text>
+      </svg>
+
+      <div class="note" style="margin:0; flex:1 1 280px; border-left-color:var(--node);">
+        <b>edge = <code>NetOneLink</code>.</b> A link carries several protocol conversations
+        (KeepAlive / ChainSync / BlockFetch / TxSubmission, + Leios) multiplexed over one wire — the lanes in §02–§03.
+        <b>node = peers ∥ app-logic.</b> A node opens client/server peers on each incident link and drives them
+        from its application logic. Breaking any link severs that edge; the rest of the graph runs on — which is
+        what the liveness proofs check: can data still reach its destination by another path?
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 LEGEND -->
+  <section>
+    <h2><span class="n">06</span> Legend</h2>
+    <div class="legend">
+      <div>
+        <table>
+          <thead><tr><th>Operator</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td class="g">∥⇘ S ⇙</td><td class="d">generalised parallel, synchronise on set S</td></tr>
+            <tr><td class="g">⦀ · ⦀Fin</td><td class="d">interleave (no synchronisation), finite-indexed</td></tr>
+            <tr><td class="g">∖ S</td><td class="d">hide event set S (becomes τ)</td></tr>
+            <tr><td class="g">△</td><td class="d">Roscoe interrupt — fault injection</td></tr>
+            <tr><td class="g">⟶₀ · Skip</td><td class="d">prefix (⊤-carried) · terminate √</td></tr>
+            <tr><td class="g">&gt;&gt;=</td><td class="d">sequential composition / bind</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Event set</th><th>Channels · scope</th></tr></thead>
+          <tbody>
+            <tr><td class="g"><span class="es">ioES</span></td><td class="d">{|input, output|} — medium↔node · <b>hidden</b> top-level</td></tr>
+            <tr><td class="g"><span class="es">apiES</span></td><td class="d">{|apiCS, apiBF|} — peers↔logic · synced, visible</td></tr>
+            <tr><td class="g"><span class="es">break l</span></td><td class="d">per-link fault · <b>observable</b></td></tr>
+            <tr><td class="g"><span class="es">csTA</span></td><td class="d">{|tx, ack|} — Tx↔Rx · hidden in NetOneLink</td></tr>
+            <tr><td class="g"><span class="es">csSR</span></td><td class="d">{|sndmsg, rcvack|} — TxSide internal · hidden</td></tr>
+            <tr><td class="g"><span class="es">csRS</span></td><td class="d">{|rcvmsg, sndack|} — RxSide internal · hidden</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Why the swap holds for any n, m.</b> <code>NetworkLink ≈FD CopySpec</code> is proved per link and lifts
+      through the interleaving (<code class="mono">⦀Fin m</code>), so the concrete mux is a
+      failures-divergences drop-in for the abstract buffer at any link count. Nodes only ever touch
+      <code>input</code>/<code>output</code> (plus <code>api*</code>/<code>break</code>); every mux channel
+      (<code>tx, ack, sndmsg, rcvack, rcvmsg, sndack</code>) is hidden inside <code>NetOneLink</code>, so it never
+      surfaces to the composition — the wiring in §01 is truly independent of topology size.
+    </div>
+  </section>
+
+  <p class="foot">general form · NetOneLink = (TxSide ∥csTA⇙ RxSide) ∖ csTA · Medium = ⦀Fin m NetOneLink · NetworkLink ≈FD CopySpec</p>
+</div>

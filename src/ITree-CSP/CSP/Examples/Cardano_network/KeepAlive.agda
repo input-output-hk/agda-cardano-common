@@ -191,9 +191,10 @@ clientStep l d stClient = pchoice v
   v (_ , apiKAev l′ d′ sendKADone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendKA l d ! (time₀ , FromInitiator , length₀ , keepAlive MsgKADone) ⟶
-           (doneKA l d ⟶₀ Ret (inj₁ stDone)))
+           Ret (inj₁ stDone))
   ... | _        | _        = nothing
   v (_ , apiKAev _ _ errCookie) _ = nothing
+  v (_ , apiKAev _ _ recvKACookie) _ = nothing   -- server-only api; client never offers it
   v (_ , sendKA _ _)    _ = nothing
   v (_ , receiveKA _ _) _ = nothing
   v (_ , doneKA _ _)    _ = nothing
@@ -235,7 +236,8 @@ serverStep l d stClient = pchoice v
   v : (at : AnyTypes KAEv)
     → ContinueType at (Maybe (PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)))
   v (_ , receiveKA l′ d′) (_ , _ , _ , keepAlive (MsgKeepAlive cookieReq)) with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just (Ret (inj₁ (stServer cookieReq)))
+  -- fire the server-side api `recvKACookie` reporting the received cookie, then loop
+  ... | yes refl | yes refl = just (apiKAev l d recvKACookie ! cookieReq ⟶ Ret (inj₁ (stServer cookieReq)))
   ... | _        | _        = nothing
   v (_ , receiveKA l′ d′) (_ , _ , _ , keepAlive MsgKADone) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just (doneKA l d ⟶₀ Ret (inj₁ stDone))

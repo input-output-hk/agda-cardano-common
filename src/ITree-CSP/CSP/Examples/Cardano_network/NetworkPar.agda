@@ -427,12 +427,15 @@ nodeBundle l cl sv =
               else Skip })
           (linkConfig l))
 
--- uniform bundle: every protocol, client on `cl`, server on `sv` (faithful
--- port of the original fixed-arity `miniProtocols`, independent of `linkConfig`)
+-- uniform bundle: every protocol (KA/CS/BF/TS/LeiosNotify/LeiosFetch), client on
+-- `cl`, server on `sv` (faithful port of the original fixed-arity `miniProtocols`,
+-- independent of `linkConfig`)
 miniProtocols : (l : Link) (cl sv : Dir)
               → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 miniProtocols l cl sv =
   KAclientA l cl ⦀ (KAserverA l sv
     ⦀ (CSclientA l cl ⦀ (CSserverA l sv
     ⦀ (BFclientA l cl ⦀ (BFserverA l sv
-    ⦀ (TSclientA l cl ⦀ TSserverA l sv))))))
+    ⦀ (TSclientA l cl ⦀ (TSserverA l sv
+    ⦀ (LNclientA l cl ⦀ (LNserverA l sv
+    ⦀ (LFclientA l cl ⦀ LFserverA l sv))))))))))

@@ -27,6 +27,7 @@ open import CSP.Examples.Cardano_network.Base
 open import CSP.Examples.Cardano_network.Net p
 open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
 open import CSP.Examples.Cardano_network.Network p Payload using (Network; CopySpec; linkCopy)
+open import CSP.Examples.Cardano_network.NetworkLink p Payload using (NetOneLink; NetworkLink)
 
 ------------------------------------------------------------------------
 -- Net Payload ↪ Net_Api Payload   (identity on channel names)
@@ -148,3 +149,19 @@ breakableLinkA l = linkMediumA l △ (break l ⟶₀ Skip)
 -- the breakable copy medium: every link independently breakable by its break event
 CopySpecBreakableA : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 CopySpecBreakableA = ⦀Fin numLinks breakableLinkA
+
+-- the concrete link-indexed mux in the Net_Api alphabet; the FD-equivalent drop-in for CopySpecA (NetworkLink ≈FD CopySpec)
+NetworkLinkA : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+NetworkLinkA = RenNet.renameMap NetworkLink
+
+-- one link's concrete NetOneLink mux, renamed into the Net_Api alphabet
+netLinkMediumA : Link → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+netLinkMediumA l = RenNet.renameMap (NetOneLink l)
+
+-- a single breakable NetworkLink cell: it muxes normally until `break l` fires, then becomes Skip
+breakableNetLinkA : Link → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+breakableNetLinkA l = netLinkMediumA l △ (break l ⟶₀ Skip)
+
+-- the breakable concrete medium: every link's NetworkLink cell, independently breakable, interleaved (the NetworkLink counterpart of CopySpecBreakableA)
+NetworkLinkBreakableA : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+NetworkLinkBreakableA = ⦀Fin numLinks breakableNetLinkA

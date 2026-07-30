@@ -46,7 +46,7 @@ and the alphabet from `Net p`; the `Payload` data domain from `Data p`:
 
 ```agda
 open import CSP.Examples.Cardano_network.NetCommon p
-  using ( CopySpecBreakableA; breakableLinkA; ioES )
+  using ( CopySpecBreakableA; breakableLinkA; NetworkLinkBreakableA; ioES )
 open import CSP.Examples.Cardano_network.Net p
   using ( break; Net_Api; Net_Api-≟; Link )
 open import CSP.Examples.Cardano_network.Data p using (Payload)
@@ -74,6 +74,17 @@ while `input`/`output` are still hidden.
 -- the four-node diamond over the breakable medium; break events stay observable (∉ ioES)
 systemBroken : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 systemBroken = (CopySpecBreakableA ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
+```
+
+The same diamond over the **concrete** per-link multiplexer `NetworkLinkBreakableA`
+instead of the abstract `CopySpecBreakableA`. This is sound because
+`NetworkLink ≈FD CopySpec` lifts through `⦀Fin numLinks`; only the medium operand
+changes, so the composition shape is identical to `systemBroken`.
+
+```agda
+-- the same diamond over the concrete NetworkLink mux (breakable); only the medium operand differs from systemBroken
+systemBrokenₗ : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+systemBrokenₗ = (NetworkLinkBreakableA ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 ```
 
 ## Isolated-medium break witness

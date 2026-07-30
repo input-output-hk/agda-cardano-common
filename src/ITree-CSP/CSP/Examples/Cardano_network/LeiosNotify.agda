@@ -155,7 +155,7 @@ clientStep l d stIdle = pchoice v
   v (_ , apiLNev l′ d′ sendLNDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendLN l d ! (time₀ , FromInitiator , length₀ , leiosNotify MsgLNDone) ⟶
-           (doneLN l d ⟶₀ Ret (inj₁ stDone)))
+           Ret (inj₁ stDone))
   ... | _        | _        = nothing
   v (_ , apiLNev _ _ _) _ = nothing
   v (_ , sendLN _ _)    _ = nothing

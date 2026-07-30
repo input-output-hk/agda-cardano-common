@@ -212,7 +212,7 @@ clientStep l d stTxIdsBlocking = pchoice v
   v (_ , apiTSev l′ d′ sendTSDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendTS l d ! (time₀ , FromInitiator , length₀ , txSubmission MsgTSDone) ⟶
-           (doneTS l d ⟶₀ Ret (inj₁ stDone)))
+           Ret (inj₁ stDone))
   ... | _        | _        = nothing
   v (_ , apiTSev _ _ _) _ = nothing
   v (_ , sendTS _ _)    _ = nothing

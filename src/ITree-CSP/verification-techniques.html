@@ -1,0 +1,367 @@
+<title>Verification techniques — CSP process trees</title>
+<style>
+  :root {
+    --ground:#f4f6f9; --panel:#ffffff; --panel-2:#eef1f6; --ink:#171c26; --slate:#59616f;
+    --slate-soft:#8b93a1; --hair:#d5dae2; --hair-soft:#e4e8ee;
+    --hub:#0c7c7c; --hub-soft:#e2f1f0;      /* equivalences / ≈DR hub */
+    --ref:#3f51b5; --ref-soft:#e7e9f7;       /* refinements */
+    --prop:#b26206; --prop-soft:#f6ecdc;     /* properties: deadlock/liveness/ltl */
+    --pri:#8a5cd0; --pri-soft:#efe8fa;       /* priority */
+    --cert:#2e8b57; --cert-soft:#e3f1e9;     /* classical certification */
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0f131a; --panel:#161c26; --panel-2:#1c232f; --ink:#e7ebf1; --slate:#a7b0be;
+      --slate-soft:#737d8c; --hair:#2a323f; --hair-soft:#222a35;
+      --hub:#35c2bd; --hub-soft:#12312f; --ref:#8b9bff; --ref-soft:#1c2340;
+      --prop:#e6a94a; --prop-soft:#362a15; --pri:#a883e0; --pri-soft:#241a38;
+      --cert:#57c48a; --cert-soft:#12291d;
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#f4f6f9;--panel:#fff;--panel-2:#eef1f6;--ink:#171c26;--slate:#59616f;--slate-soft:#8b93a1;
+    --hair:#d5dae2;--hair-soft:#e4e8ee;--hub:#0c7c7c;--hub-soft:#e2f1f0;--ref:#3f51b5;--ref-soft:#e7e9f7;
+    --prop:#b26206;--prop-soft:#f6ecdc;--pri:#8a5cd0;--pri-soft:#efe8fa;--cert:#2e8b57;--cert-soft:#e3f1e9;
+  }
+  :root[data-theme="dark"]{
+    --ground:#0f131a;--panel:#161c26;--panel-2:#1c232f;--ink:#e7ebf1;--slate:#a7b0be;--slate-soft:#737d8c;
+    --hair:#2a323f;--hair-soft:#222a35;--hub:#35c2bd;--hub-soft:#12312f;--ref:#8b9bff;--ref-soft:#1c2340;
+    --prop:#e6a94a;--prop-soft:#362a15;--pri:#a883e0;--pri-soft:#241a38;--cert:#57c48a;--cert-soft:#12291d;
+  }
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink); font-family:var(--sans);
+    line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1080px; margin:0 auto; padding:56px 28px 96px; }
+  code, .mono { font-family:var(--mono); font-variant-ligatures:none; }
+
+  header { margin-bottom:40px; }
+  .eyebrow { font-family:var(--mono); font-size:11.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--hub); margin:0 0 14px; }
+  h1 { font-size:clamp(28px,4.6vw,44px); line-height:1.05; margin:0 0 16px; letter-spacing:-.02em;
+    text-wrap:balance; font-weight:680; }
+  .lede { max-width:68ch; color:var(--slate); font-size:16.5px; margin:0; }
+  .lede b { color:var(--ink); }
+
+  section { margin-top:52px; }
+  h2 { font-size:13px; letter-spacing:.13em; text-transform:uppercase; color:var(--slate);
+    font-family:var(--mono); font-weight:600; margin:0 0 6px; display:flex; align-items:baseline; gap:10px; }
+  h2 .n { color:var(--hub); }
+  .sub { color:var(--slate); max-width:72ch; margin:0 0 22px; font-size:15px; }
+
+  /* method strip */
+  .method { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; align-items:stretch; }
+  @media (max-width:760px){ .method { grid-template-columns:1fr; } }
+  .step { background:var(--panel); border:1px solid var(--hair); border-radius:11px; padding:18px 18px; }
+  .step .k { font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--hub); font-weight:700; margin:0 0 8px; }
+  .step h3 { margin:0 0 6px; font-size:16px; font-weight:640; }
+  .step p { margin:0; color:var(--slate); font-size:13.5px; }
+  .step code { font-family:var(--mono); color:var(--hub); font-size:12.5px; }
+  .mstep-arr { display:flex; align-items:center; justify-content:center; color:var(--slate-soft);
+    font-size:22px; padding:0 14px; }
+  @media (max-width:760px){ .mstep-arr { transform:rotate(90deg); padding:8px 0; } }
+
+  /* ladder figure */
+  .figure { background:var(--panel); border:1px solid var(--hair); border-radius:12px; }
+  .figure-scroll { overflow-x:auto; padding:18px; }
+  .figure-scroll svg { min-width:760px; width:100%; height:auto; display:block; }
+  svg text { font-family:var(--sans); }
+  svg .m { font-family:var(--mono); }
+
+  /* catalog grid */
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:820px){ .grid { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--hair); border-radius:12px; overflow:hidden; }
+  .card > .hd { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--hair-soft); }
+  .card > .hd .tag { width:11px; height:11px; border-radius:3px; flex:none; }
+  .card > .hd h3 { margin:0; font-size:15px; font-weight:650; }
+  .card > .hd .cnt { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--slate-soft); }
+  .rows { display:flex; flex-direction:column; }
+  .row { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; padding:10px 16px; border-bottom:1px solid var(--hair-soft); }
+  .row:last-child { border-bottom:0; }
+  .row .sym { font-family:var(--mono); font-weight:700; font-size:13px; color:var(--ink); white-space:nowrap; }
+  .row .desc { color:var(--slate); font-size:13px; }
+  .row .path { grid-column:1 / -1; font-family:var(--mono); font-size:10.5px; color:var(--slate-soft); margin-top:2px; }
+  .accent-hub .sym { color:var(--hub); } .accent-ref .sym { color:var(--ref); }
+  .accent-prop .sym { color:var(--prop); } .accent-pri .sym { color:var(--pri); }
+  .accent-cert .sym { color:var(--cert); }
+
+  /* examples */
+  .ex { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:760px){ .ex { grid-template-columns:1fr; } }
+  .exi { background:var(--panel); border:1px solid var(--hair); border-left:3px solid var(--prop);
+    border-radius:10px; padding:14px 16px; }
+  .exi h4 { margin:0 0 5px; font-size:14.5px; font-weight:640; }
+  .exi p { margin:0; color:var(--slate); font-size:13px; }
+  .exi code { font-family:var(--mono); color:var(--hub); font-size:12px; }
+
+  .note { margin-top:22px; padding:16px 18px; border-radius:10px; background:var(--panel);
+    border:1px solid var(--hair); border-left:3px solid var(--hub); font-size:14.5px; color:var(--slate); }
+  .note b { color:var(--ink); } .note code { color:var(--hub); font-size:13px; }
+
+  .foot { margin-top:60px; padding-top:20px; border-top:1px solid var(--hair); font-size:12.5px;
+    color:var(--slate-soft); font-family:var(--mono); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">CSP process trees · Agda · verification toolkit</p>
+    <h1>How you prove things in this repository</h1>
+    <p class="lede">Every technique sits on one operational <b>LTS</b> over the coinductive
+      <code class="mono">PTree</code>. Above it are two families — <b>equivalences</b> (prove two processes equal)
+      and <b>refinements</b> (prove behaviour-set inclusion) — linked by a soundness ladder, plus property
+      layers for <b>deadlock/liveness</b>, <b>LTL</b>, and <b>priority</b>. The recurring method: prove a
+      property on a small spec, then transfer it to the real system along <code class="mono">≈DR</code>.</p>
+  </header>
+
+  <!-- METHOD -->
+  <section>
+    <h2><span class="n">◆</span> The method in three moves</h2>
+    <div class="method">
+      <div class="step">
+        <p class="k">1 · Specify</p>
+        <h3>Prove on a small spec</h3>
+        <p>Show the property (deadlock-freedom, an FD equation, an LTL formula) on an abstract, tractable
+          process — e.g. <code>CopySpec</code>.</p>
+      </div>
+      <div class="mstep-arr">→</div>
+      <div class="step">
+        <p class="k">2 · Transfer</p>
+        <h3>Carry it along <code>≈DR</code></h3>
+        <p>A divergence-respecting weak bisimulation between spec and implementation transfers the property
+          verbatim via a transfer theorem.</p>
+      </div>
+      <div class="mstep-arr">→</div>
+      <div class="step">
+        <p class="k">3 · Compose</p>
+        <h3>Scale with the laws</h3>
+        <p>Congruence + monotonicity (<code>Par</code>/<code>Hide</code>/…) assemble whole-system proofs from
+          component proofs.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LADDER -->
+  <section>
+    <h2><span class="n">◆</span> The soundness ladder &amp; transfer hub</h2>
+    <p class="sub"><code class="mono">≈DR</code> is the hub: strong bisim and expansion feed into it, it
+      projects down to the failures-divergences model, and it is the relation along which every property
+      transfers. Arrow labels are the actual theorems.</p>
+
+    <div class="figure">
+      <div class="figure-scroll">
+        <svg viewBox="0 0 900 400" role="img"
+             aria-label="Soundness ladder: strong bisim and expansion imply DR-bisim; DR-bisim implies FD equivalence which projects to the refinement preorders; DR-bisim also transfers deadlock-freedom, divergence-freedom, and LTL satisfaction.">
+          <defs>
+            <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--slate)"/>
+            </marker>
+          </defs>
+
+          <!-- feeders -->
+          <rect x="36" y="58" width="140" height="46" rx="9" fill="var(--hub-soft)" stroke="var(--hub)" stroke-width="1.6"/>
+          <text x="106" y="77" text-anchor="middle" class="m" font-size="15" font-weight="700" fill="var(--hub)">∼</text>
+          <text x="106" y="94" text-anchor="middle" font-size="10.5" fill="var(--slate)">strong bisim</text>
+
+          <rect x="36" y="140" width="140" height="46" rx="9" fill="var(--hub-soft)" stroke="var(--hub)" stroke-width="1.6"/>
+          <text x="106" y="159" text-anchor="middle" class="m" font-size="15" font-weight="700" fill="var(--hub)">⪰</text>
+          <text x="106" y="176" text-anchor="middle" font-size="10.5" fill="var(--slate)">expansion</text>
+
+          <!-- hub -->
+          <rect x="300" y="86" width="160" height="76" rx="11" fill="var(--hub-soft)" stroke="var(--hub)" stroke-width="2.4"/>
+          <text x="380" y="118" text-anchor="middle" class="m" font-size="20" font-weight="700" fill="var(--hub)">≈DR</text>
+          <text x="380" y="140" text-anchor="middle" font-size="10.5" fill="var(--slate)">DR weak bisim · hub</text>
+
+          <!-- ≈FD -->
+          <rect x="560" y="98" width="140" height="52" rx="9" fill="var(--hub-soft)" stroke="var(--hub)" stroke-width="1.6"/>
+          <text x="630" y="120" text-anchor="middle" class="m" font-size="15" font-weight="700" fill="var(--hub)">≈FD</text>
+          <text x="630" y="137" text-anchor="middle" font-size="10" fill="var(--slate)">FD model 𝒩</text>
+
+          <!-- refinements -->
+          <rect x="760" y="66" width="118" height="116" rx="9" fill="var(--ref-soft)" stroke="var(--ref)" stroke-width="1.6"/>
+          <text x="819" y="86" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ref)">refinements</text>
+          <text x="819" y="106" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊑FD</text>
+          <text x="819" y="125" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊑F⊥ · ⊑D</text>
+          <text x="819" y="144" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊑F · ⊑T</text>
+          <text x="819" y="168" text-anchor="middle" font-size="9" fill="var(--slate)">preorders</text>
+
+          <!-- properties -->
+          <rect x="96"  y="300" width="168" height="58" rx="9" fill="var(--prop-soft)" stroke="var(--prop)" stroke-width="1.6"/>
+          <text x="180" y="324" text-anchor="middle" font-size="12.5" font-weight="640" fill="var(--prop)">DeadlockFree</text>
+          <text x="180" y="342" text-anchor="middle" font-size="9.5" fill="var(--slate)">+ Live / Progress</text>
+
+          <rect x="298" y="300" width="168" height="58" rx="9" fill="var(--prop-soft)" stroke="var(--prop)" stroke-width="1.6"/>
+          <text x="382" y="324" text-anchor="middle" font-size="12.5" font-weight="640" fill="var(--prop)">DivergenceFree</text>
+          <text x="382" y="342" text-anchor="middle" font-size="9.5" fill="var(--slate)">τ-Acc</text>
+
+          <rect x="500" y="300" width="168" height="58" rx="9" fill="var(--prop-soft)" stroke="var(--prop)" stroke-width="1.6"/>
+          <text x="584" y="324" text-anchor="middle" font-size="12.5" font-weight="640" fill="var(--prop)">LTL &nbsp;⊨ᵂ φ</text>
+          <text x="584" y="342" text-anchor="middle" font-size="9.5" fill="var(--slate)">BisimStable φ</text>
+
+          <!-- arrows: feeders -> hub -->
+          <line x1="176" y1="80"  x2="298" y2="108" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="212" y="86" class="m" font-size="9.5" fill="var(--slate)">sbisim→drbisim</text>
+          <line x1="176" y1="162" x2="298" y2="132" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="232" y="168" class="m" font-size="9.5" fill="var(--slate)">⪰→≈DR</text>
+
+          <!-- hub -> ≈FD -> refinements -->
+          <line x1="460" y1="124" x2="558" y2="124" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="470" y="116" class="m" font-size="9.5" fill="var(--slate)">drbisim→≈FD</text>
+          <line x1="700" y1="124" x2="758" y2="124" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="702" y="116" class="m" font-size="9" fill="var(--slate)">project</text>
+
+          <!-- hub -> properties -->
+          <line x1="344" y1="162" x2="196" y2="298" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="196" y="230" text-anchor="end" class="m" font-size="9.5" fill="var(--slate)">drbisim-deadlockFree</text>
+          <line x1="380" y1="162" x2="382" y2="298" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="390" y="235" class="m" font-size="9.5" fill="var(--slate)">-divergenceFree</text>
+          <line x1="416" y1="162" x2="560" y2="298" stroke="var(--slate)" stroke-width="1.6" marker-end="url(#ah)"/>
+          <text x="470" y="235" class="m" font-size="9.5" fill="var(--slate)">⊨-DRWB-invariant</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATALOG -->
+  <section>
+    <h2><span class="n">◆</span> The technique catalog</h2>
+    <p class="sub">Each relation/technique, its home module, and what it lets you prove. Symbols are the actual
+      Agda names.</p>
+
+    <div class="grid">
+
+      <!-- equivalences -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--hub)"></span><h3>Equivalences</h3><span class="cnt">prove equal</span></div>
+        <div class="rows accent-hub">
+          <div class="row"><span class="sym">∼</span><span class="desc">strong bisim — τ observable, finest</span><span class="path">Semantics/Bisim.agda</span></div>
+          <div class="row"><span class="sym">≈</span><span class="desc">weak bisim — τ hidden</span><span class="path">Semantics/WeakBisim.agda</span></div>
+          <div class="row"><span class="sym">≈DR</span><span class="desc">divergence-respecting weak bisim — the workhorse</span><span class="path">Semantics/DRBisim.agda</span></div>
+          <div class="row"><span class="sym">⪰</span><span class="desc">expansion — "at least as fast as"</span><span class="path">Semantics/Expansion.agda</span></div>
+          <div class="row"><span class="sym">≈FD</span><span class="desc">failures-divergences equality (model 𝒩)</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">Deterministic</span><span class="desc">no accept + stable-refuse of same event</span><span class="path">Semantics/Determinism.agda</span></div>
+        </div>
+      </div>
+
+      <!-- refinements -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--ref)"></span><h3>Refinements (preorders)</h3><span class="cnt">prove ⊆</span></div>
+        <div class="rows accent-ref">
+          <div class="row"><span class="sym">⊑T</span><span class="desc">trace refinement</span><span class="path">Semantics/Failures.agda</span></div>
+          <div class="row"><span class="sym">⊑F</span><span class="desc">stable-failures refinement</span><span class="path">Semantics/Failures.agda</span></div>
+          <div class="row"><span class="sym">⊑F⊥</span><span class="desc">divergence-strict failures refinement</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">⊑D</span><span class="desc">divergence refinement</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">⊑FD</span><span class="desc">failures-divergences refinement (⊑F⊥ × ⊑D)</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">Offers / Refuses</span><span class="desc">refusal sets underpinning the FD model</span><span class="path">Semantics/Refusals.agda</span></div>
+        </div>
+      </div>
+
+      <!-- deadlock/liveness -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--prop)"></span><h3>Deadlock · liveness · divergence</h3><span class="cnt">transfer targets</span></div>
+        <div class="rows accent-prop">
+          <div class="row"><span class="sym">DeadlockFree</span><span class="desc">no reachable √-free stuck state</span><span class="path">Semantics/Deadlock.agda</span></div>
+          <div class="row"><span class="sym">Progress · Live</span><span class="desc">liveness building blocks</span><span class="path">Semantics/DeadlockDR.agda</span></div>
+          <div class="row"><span class="sym">drbisim-deadlockFree</span><span class="desc">transfer deadlock-freedom along ≈DR</span><span class="path">Semantics/DeadlockDR.agda</span></div>
+          <div class="row"><span class="sym">τ-Acc</span><span class="desc">τ-accessibility ⇒ divergence-freedom</span><span class="path">Semantics/TauAcc.agda</span></div>
+        </div>
+      </div>
+
+      <!-- LTL -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--prop)"></span><h3>LTL layer</h3><span class="cnt">temporal logic</span></div>
+        <div class="rows accent-prop">
+          <div class="row"><span class="sym">⊨</span><span class="desc">operational satisfaction (X U ¬ ∧ · F G W)</span><span class="path">Semantics/LTL/Traces_Based.agda</span></div>
+          <div class="row"><span class="sym">⊨ᵀ · Safety</span><span class="desc">word satisfaction + ⊑T-transfer of safety</span><span class="path">Semantics/LTL/Refinement.agda</span></div>
+          <div class="row"><span class="sym">⊨ᵂ</span><span class="desc">weak-trace satisfaction</span><span class="path">Semantics/LTL/WTrace.agda</span></div>
+          <div class="row"><span class="sym">⊨-DRWB-invariant</span><span class="desc">transfer ⊨ᵂ φ along ≈DR (BisimStable φ)</span><span class="path">Semantics/LTL/WBisimInvariant(R).agda</span></div>
+          <div class="row"><span class="sym">Fair · Fairᵂ</span><span class="desc">weak fairness + transfer</span><span class="path">Semantics/LTL/Fairness(Transfer).agda</span></div>
+        </div>
+      </div>
+
+      <!-- bridges -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--hub)"></span><h3>Bridges</h3><span class="cnt">∼ ⟹ ≈DR ⟹ ≈FD</span></div>
+        <div class="rows accent-hub">
+          <div class="row"><span class="sym">sbisim→drbisim</span><span class="desc">strong bisim ⇒ ≈DR (laws for free)</span><span class="path">Semantics/StrongImpliesDR.agda</span></div>
+          <div class="row"><span class="sym">drbisim→⊑FD / ≈FD</span><span class="desc">≈DR ⇒ FD refinement / equality</span><span class="path">Semantics/DRImpliesFD.agda</span></div>
+          <div class="row"><span class="sym">⪰→≈DR</span><span class="desc">expansion ⇒ ≈DR</span><span class="path">Semantics/Expansion.agda</span></div>
+          <div class="row"><span class="sym">BisimFromRel</span><span class="desc">discharge coinduction from a candidate relation</span><span class="path">Semantics/BisimFromRel.agda</span></div>
+        </div>
+      </div>
+
+      <!-- compositional laws -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--ref)"></span><h3>Compositional laws</h3><span class="cnt">congruence + mono</span></div>
+        <div class="rows accent-ref">
+          <div class="row"><span class="sym">Bisim / FD / Trace laws</span><span class="desc">per-operator laws, three families</span><span class="path">CSP/Laws/{Bisim,FD,Traces}/</span></div>
+          <div class="row"><span class="sym">cong-∖ · prefix-cong</span><span class="desc">hiding &amp; prefix are congruences</span><span class="path">CSP/Laws/Bisim/DRCongruence.agda</span></div>
+          <div class="row"><span class="sym">Par-mono-⊑FD</span><span class="desc">parallel is ⊑FD-monotone (∥ / ⦀)</span><span class="path">CSP/Laws/FD/ParallelMonoFD.agda</span></div>
+          <div class="row"><span class="sym">Hide-mono-⊑FD-df</span><span class="desc">hiding ⊑FD-monotone (conditional)</span><span class="path">CSP/Laws/FD/HideMonoFD.agda</span></div>
+          <div class="row"><span class="sym">Iterate / Choice mono</span><span class="desc">loop &amp; choice refinement</span><span class="path">CSP/Laws/FD/{Iterate,ChoiceRefine}…</span></div>
+        </div>
+      </div>
+
+      <!-- priority -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--pri)"></span><h3>Priority / prioritise</h3><span class="cnt">Roscoe / FDR</span></div>
+        <div class="rows accent-pri">
+          <div class="row"><span class="sym">─►ᵖ · PriOrder</span><span class="desc">prioritised LTS + priority order</span><span class="path">Semantics/PriLTS.agda · PriOrder.agda</span></div>
+          <div class="row"><span class="sym">Pri O t fb</span><span class="desc">executable priority operator (FinBr)</span><span class="path">CSP/Priority/Base.agda</span></div>
+          <div class="row"><span class="sym">pri-adequacy</span><span class="desc">Pri matches ─►ᵖ up to strong bisim</span><span class="path">CSP/Priority/Adequacy.agda</span></div>
+          <div class="row"><span class="sym">finBr-* · Priᶜ</span><span class="desc">closure witnesses + channel-level priority</span><span class="path">CSP/Priority/Closure.agda · Channel…</span></div>
+        </div>
+      </div>
+
+      <!-- certification + renaming -->
+      <div class="card">
+        <div class="hd"><span class="tag" style="background:var(--cert)"></span><h3>Renaming &amp; classical certification</h3><span class="cnt">honesty checks</span></div>
+        <div class="rows accent-cert">
+          <div class="row"><span class="sym">_⟦_¿_⟧</span><span class="desc">relational renaming E₁→E₂ (cross-alphabet transfer)</span><span class="path">CSP/Rename.agda</span></div>
+          <div class="row"><span class="sym">dne (LEM)</span><span class="desc">the single classical axiom — imported nowhere</span><span class="path">Classical.agda</span></div>
+          <div class="row"><span class="sym">ClassicalFromLEM</span><span class="desc">FD König-step postulates derivable from dne</span><span class="path">CSP/Laws/ClassicalFromLEM.agda</span></div>
+          <div class="row"><span class="sym">LTL ClassicalFromLEM</span><span class="desc">LTL postulates + liveness descent from dne</span><span class="path">Semantics/LTL/ClassicalFromLEM.agda</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- EXAMPLES -->
+  <section>
+    <h2><span class="n">◆</span> Worked applications</h2>
+    <p class="sub">Where the toolbox is exercised end-to-end.</p>
+    <div class="ex">
+      <div class="exi"><h4>Network deadlock- &amp; divergence-freedom</h4>
+        <p><code>DeadlockFree Network</code> via <code>net≈DR CopySpec</code> transfer.
+          <code>Cardano_network/NetworkVerification/</code></p></div>
+      <div class="exi"><h4>Network ≈FD / ⊑FD CopySpec</h4>
+        <p>Concrete mux equals the abstract copy medium in the FD model.
+          <code>NetworkRefinement*.agda</code></p></div>
+      <div class="exi"><h4>BlockFetch refinement</h4>
+        <p><code>BFabs-⊑D</code> and <code>cs≈DR</code> for hidden pipelined block streaming.
+          <code>BlockFetchRefinement/</code></p></div>
+      <div class="exi"><h4>Four-node diamond liveness</h4>
+        <p><code>confined ⇒ G(producedA ⇒ F arrivedD)</code> in LTL.
+          <code>FourNodeDiamondLiveness.lagda.md</code></p></div>
+      <div class="exi"><h4>Vending machine LTL</h4>
+        <p><code>Realisableᴿ</code> + ⊨ᵂ transfer across ≈DR.
+          <code>VendingMachine/VM_LTL_Realisable.agda</code></p></div>
+      <div class="exi"><h4>Dining philosophers &amp; UCS suite</h4>
+        <p>Deadlock-freedom, token ring, routing, ABP, livelock.
+          <code>DiningPhilosophers/ · Examples/UCS/Ch4–7</code></p></div>
+    </div>
+
+    <div class="note">
+      <b>Foundation.</b> All of the above quantify over one small-step LTS (<code>Semantics/LTS.agda</code>) on
+      the coinductive <code>PTree</code> (<code>Process_Trees.agda</code>): labels <code>ev</code>/<code>τ</code>,
+      rules <code>sRet/sSil/sVis/sTau</code>, coinductive <code>Diverges</code>. The generic
+      <code>Semantics/*</code> layer is model-agnostic; the CSP operators and their laws are layered on top.
+    </div>
+  </section>
+
+  <p class="foot">verification toolkit · equivalences ∼ ≈ ≈DR ⪰ ≈FD · refinements ⊑T ⊑F ⊑F⊥ ⊑D ⊑FD · deadlock · LTL · priority · all constructive except one certified dne</p>
+</div>

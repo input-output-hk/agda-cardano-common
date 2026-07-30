@@ -8,16 +8,24 @@ group** — G1 = {AB, BD} or G2 = {AC, CD}. ("No link broken" is subsumed:
 breaks confined to one group ⟺ the other path stays whole.) The property is
 phrased in the trace-based LTL layer `Semantics.LTL.Traces_Based`, first two
 ways — as a formula-level satisfaction statement (`BlockLiveness`) and as a
-positive, proof-friendly dual (`BlockLiveness⁺`) — and then, per the fairness
-spike (milestone F3), a **third, fairness-qualified** target
-`BlockLiveness⁺ᶠ` that is the campaign's honest proof goal (see the
-*Fairness amendment* section for why the un-qualified duals are FALSE for the
-full system). All three are `Set`s — deliberately unproved and NOT
-postulated; the only proofs here are sanity tests for the four atomic frame
-predicates and the two fairness classes. Design doc:
+positive, proof-friendly dual (`BlockLiveness⁺`). On this branch's model
+(`examples/praos_liveness`: `apiES` now gates **all** api channels — see
+`docs/superpowers/specs/2026-07-22-praos-liveness-model-change-design.md`) the
+non-Praos peers (KeepAlive, TxSubmission, Leios) cannot free-run, so
+**`BlockLiveness⁺` (no fairness antecedent) is the honest, provable headline
+target here** — it is no longer refuted by an unfair KA-starvation trace. A
+third, fairness-qualified target `BlockLiveness⁺ᶠ`, from an earlier fairness
+spike (milestone F3) against the free-running, api-narrow model
+(`examples/four_node_liveness`), is retained below for reference but is
+**superseded for this model** (see the *Fairness amendment* section). All
+three are `Set`s — deliberately unproved and NOT postulated; the only proofs
+here are sanity tests for the four atomic frame predicates and the two
+fairness classes. Design doc:
 `docs/superpowers/specs/2026-07-14-fournode-liveness-ltl-spec-design.md`;
 fairness spike report:
-`docs/superpowers/specs/2026-07-19-ltl-fairness-spike-report.md`.
+`docs/superpowers/specs/2026-07-19-ltl-fairness-spike-report.md`;
+Praos model-change design:
+`docs/superpowers/specs/2026-07-22-praos-liveness-model-change-design.md`.
 
 ```agda
 {-# OPTIONS --guardedness #-}
@@ -152,29 +160,33 @@ BlockLiveness⁺ = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) systemBroken)
                → ◇ᵗ (atom (arrivedD b)) (drop n tr)
 ```
 
-## Fairness amendment (F3) — the honest proof target
+## Fairness amendment (F3) — superseded on this model
 
-**The unfairness caveat.** `BlockLiveness`/`BlockLiveness⁺` above are
-retained verbatim, but they are **FALSE for the full `systemBroken`**
-(informally, per the M1 finding — no formal counterexample trace is
-constructed here) under fairness-free (maximal-trace) semantics. The M1
-(PipePair) soundness finding
-(`.superpowers/sdd/m1-report.md`) established why: the KeepAlive **client**
-is an autonomous, perpetual **visible** loop whose `apiKA … sendKAMsg` events
-lie **outside** the parallel sync alphabet `apiES = {apiCS, apiBF}`, so
-`∥⇘apiES⇙` interleaves them freely — they fire forever with no partner
-required. A maximal trace may therefore schedule the KA loop *exclusively*
-after a `producedA b` frame, starving the fetch pipeline: `arrivedD b` never
-appears, refuting `BlockLiveness⁺` (and hence `BlockLiveness`). Hiding KA
-merely converts the starvation into divergence — the same defect. The
-fairness spike (`docs/superpowers/specs/2026-07-19-ltl-fairness-spike-report.md`)
-resolves this **not** by editing the system but by qualifying the theorem
-with a **weak-fairness hypothesis on a visible event class** `C`
-(`Semantics.LTL.Fairness.Fair`): if `C` is continuously weakly enabled it
-eventually fires. `Fair C` is a plain constructive Σ/Π predicate and adds no
-classical axiom. `BlockLiveness⁺ᶠ` below is the campaign's honest,
-fairness-qualified target (M5); the un-qualified duals stay as the documented
-negative baseline.
+**The unfairness caveat — updated for `examples/praos_liveness`.** The
+original caveat below applied to the **free-running, api-narrow** model
+(`examples/four_node_liveness`, `apiES = {apiCS, apiBF}`): the KeepAlive
+**client** is an autonomous, perpetual **visible** loop whose
+`apiKA … sendKAMsg` events lay **outside** that narrower sync alphabet, so
+`∥⇘apiES⇙` interleaved them freely — they could fire forever with no
+partner required, and a maximal trace could schedule the KA loop
+*exclusively* after a `producedA b` frame, starving the fetch pipeline and
+refuting `BlockLiveness⁺` (informally, per the M1 finding
+(`.superpowers/sdd/m1-report.md`) — no formal counterexample trace is
+constructed here). **On this branch, `apiES` gates ALL api channels**
+(`apiCS`/`apiBF`/`apiKA`/`apiTS`/`apiLN`/`apiLF` — see
+`docs/superpowers/specs/2026-07-22-praos-liveness-model-change-design.md`), so
+the KeepAlive/TxSubmission/Leios peers must rendezvous with the (Praos-only)
+node drivers on every api event; drivers never offer those non-Praos api
+events, so those peers cannot fire at all — they go inert rather than
+free-running, and the KA-starvation counterexample no longer applies.
+`BlockLiveness⁺` is therefore the honest, fairness-free target on this
+model. The fairness spike
+(`docs/superpowers/specs/2026-07-19-ltl-fairness-spike-report.md`) that
+introduced a **weak-fairness hypothesis on a visible event class** `C`
+(`Semantics.LTL.Fairness.Fair`) to rescue the free-running model is
+**superseded for this model** — `BlockLiveness⁺ᶠ` and the two fairness
+classes below are kept, unmodified, for reference and for the free-running
+variant only; they are not this branch's proof target.
 
 ### The intact-path fetch-driver classes
 
@@ -193,6 +205,7 @@ wrong-direction `apiBF` — falls to the catch-all `⊥`). These classes exclude
 counterexample.
 
 ```agda
+-- superseded on the all-api-synced Praos model (kept for the free-running variant)
 -- intact-path A→B→D fetch driver: apiBF on {AB, BD} at hi — the wildcard tag
 -- captures ALL apiBF tags (requests, hand-off/server-side tags like
 -- reqBFRange/sendBFStartBatch/sendBFBatchDone, and recvBFBlock)
@@ -200,6 +213,7 @@ C-ABD : Event → Set
 C-ABD (evLabel _ (apiBF l d _) _) = ((l ≡ linkAB) ⊎ (l ≡ linkBD)) × (d ≡ hi)
 C-ABD _ = ⊥
 
+-- superseded on the all-api-synced Praos model (kept for the free-running variant)
 -- intact-path A→C→D fetch driver: apiBF on {AC, CD} at hi — the wildcard tag
 -- captures ALL apiBF tags (requests, hand-off/server-side tags like
 -- reqBFRange/sendBFStartBatch/sendBFBatchDone, and recvBFBlock)
@@ -228,6 +242,7 @@ intact; pairing supplies exactly that and no more. This refines the spike
 the class and cannot path-match once the disjunct is only known dynamically.
 
 ```agda
+-- superseded on the all-api-synced Praos model (kept for the free-running variant)
 -- fairness-qualified positive dual: each confinement disjunct is paired with
 -- weak fairness on that intact path's BF fetch driver (the honest M5 target)
 BlockLiveness⁺ᶠ : Set _

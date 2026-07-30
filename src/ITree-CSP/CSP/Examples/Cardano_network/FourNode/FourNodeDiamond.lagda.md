@@ -83,7 +83,9 @@ uniformCfg : List (Dir × IDs)
 uniformCfg = (lo , N2N_KeepAlive)    ∷ (hi , N2N_KeepAlive)
            ∷ (lo , N2N_ChainSync)    ∷ (hi , N2N_ChainSync)
            ∷ (lo , N2N_BlockFetch)   ∷ (hi , N2N_BlockFetch)
-           ∷ (lo , N2N_TxSubmission) ∷ (hi , N2N_TxSubmission) ∷ []
+           ∷ (lo , N2N_TxSubmission) ∷ (hi , N2N_TxSubmission)
+           ∷ (lo , N2N_LeiosNotify)  ∷ (hi , N2N_LeiosNotify)
+           ∷ (lo , N2N_LeiosFetch)   ∷ (hi , N2N_LeiosFetch) ∷ []
 ```
 
 Concrete scenario: 4 links, uniform config on each; `Block = Block₃`, other domains ⊤:
@@ -144,14 +146,19 @@ linkBD = # 2
 linkCD = # 3
 ```
 
-The API synchronisation set `{| apiCS, apiBF |}` — the rendezvous between a
+The API synchronisation set `{| all api channels |}` — the rendezvous between a
 node's peer bundle and its logic:
 
 ```agda
--- membership of the {| apiCS, apiBF |} sync set (by channel, ignoring payload)
+-- membership of the {| all api channels |} sync set (by channel, ignoring payload)
 apiSet : AnyTypes (Net_Api Payload) → Set
 apiSet (_ , apiCS _ _ _) = ⊤
 apiSet (_ , apiBF _ _ _) = ⊤
+apiSet (_ , apiKA _ _ _) = ⊤
+apiSet (_ , apiTS _ _ _) = ⊤
+apiSet (_ , apiLN _ _ _) = ⊤
+apiSet (_ , apiLF _ _ _) = ⊤
+apiSet (_ , done _ _ _)  = ⊤   -- `done` is now api-synced (driven teardown), not node-local
 apiSet _                 = ⊥
 
 -- decidability of apiSet membership
@@ -166,14 +173,14 @@ apiSet-dec (_ , tx     _ _ _) = no λ ()
 apiSet-dec (_ , sndack _ _ _) = no λ ()
 apiSet-dec (_ , rcvack _ _ _) = no λ ()
 apiSet-dec (_ , ack    _ _ _) = no λ ()
-apiSet-dec (_ , done   _ _ _) = no λ ()
-apiSet-dec (_ , apiTS  _ _ _) = no λ ()
-apiSet-dec (_ , apiKA  _ _ _) = no λ ()
-apiSet-dec (_ , apiLN  _ _ _) = no λ ()
-apiSet-dec (_ , apiLF  _ _ _) = no λ ()
+apiSet-dec (_ , done   _ _ _) = yes tt
+apiSet-dec (_ , apiTS  _ _ _) = yes tt
+apiSet-dec (_ , apiKA  _ _ _) = yes tt
+apiSet-dec (_ , apiLN  _ _ _) = yes tt
+apiSet-dec (_ , apiLF  _ _ _) = yes tt
 apiSet-dec (_ , break  _)     = no λ ()
 
--- the {| apiCS, apiBF |} event set
+-- the {| all api channels |} event set
 apiES : EventSet
 apiES = chanSet apiSet apiSet-dec
 ```
@@ -199,7 +206,9 @@ produce l d blk =
   (apiBF l d sendBFStartBatch ! U.tt ⟶
   (apiBF l d sendBFBlock ! blk ⟶
   (apiBF l d sendBFBatchDone ! U.tt ⟶
-  Skip)))))))
+  (done l d N2N_ChainSync ⟶₀   -- receive the ChainSync server's driven done callback
+  (done l d N2N_BlockFetch ⟶₀  -- receive the BlockFetch server's driven done callback
+  Skip)))))))))
 ```
 
 `consume l d` drives the ChainSync + BlockFetch **client** peers on link `l`,
@@ -208,19 +217,26 @@ receive the block, close both protocols, and return the received block (so
 relays can forward it).
 
 ```agda
+-- named RollForward-tail continuation of `consume` (extracted from the inline
+-- pattern-lambda so the driver decode can reference the SAME extended-lambda —
+-- behaviour-preserving: definitionally the same tree)
+consume-k : (l : Link) (d : Dir)
+          → Header × Tip
+          → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Block₃
+consume-k l d (header b , _) =
+  apiBF l d sendBFRequestRange ! (chainRange (point b) (point b)) ⟶
+  (apiBF l d recvBFBlock ⟶
+  (λ b′ →
+  (apiBF l d sendBFClientDone ! U.tt ⟶
+  (apiCS l d sendCSDone ⟶₀
+  Ret b′))))
+
 -- client-side logic on (l, d): fetch the announced block; returns the block received
 consume : (l : Link) (d : Dir)
         → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Block₃
 consume l d =
   apiCS l d sendCSRequestNext ⟶₀
-  (apiCS l d recvCSRollforward ⟶
-  (λ { (header b , _) →
-  (apiBF l d sendBFRequestRange ! (chainRange (point b) (point b)) ⟶
-  (apiBF l d recvBFBlock ⟶
-  (λ b′ →
-  (apiBF l d sendBFClientDone ! U.tt ⟶
-  (apiCS l d sendCSDone ⟶₀
-  Ret b′))))) }))
+  (apiCS l d recvCSRollforward ⟶ consume-k l d)
 ```
 
 ## Nodes

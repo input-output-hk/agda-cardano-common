@@ -202,7 +202,7 @@ clientStep l d stIdle = pchoice v
   v (_ , apiBFev l′ d′ sendBFClientDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendBF l d ! (time₀ , FromInitiator , length₀ , blockFetch MsgClientDone) ⟶
-           (doneBF l d ⟶₀ Ret (inj₁ stDone)))
+           Ret (inj₁ stDone))
   ... | _        | _        = nothing
   v (_ , apiBFev _ _ _) _ = nothing
   v (_ , sendBF _ _)    _ = nothing

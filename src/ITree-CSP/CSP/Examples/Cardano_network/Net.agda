@@ -72,11 +72,13 @@ Link = Fin numLinks
 --            errorCookieMismatchKeepAlive.Cookie.Cookie
 data ApiKATag : Set where
   sendKAMsg sendKADone errCookie : ApiKATag
+  recvKACookie : ApiKATag   -- server-side api emitted after receiving a keepalive: reports the received cookie
 
 ApiKACar : ApiKATag → Set
-ApiKACar sendKAMsg  = Cookie
-ApiKACar sendKADone = ⊤
-ApiKACar errCookie  = Cookie × Cookie
+ApiKACar sendKAMsg    = Cookie
+ApiKACar sendKADone   = ⊤
+ApiKACar errCookie    = Cookie × Cookie
+ApiKACar recvKACookie = Cookie
 
 -- BlockFetch: SendBFMsgRequestRange.ChainRange / SendBFMsgClientDone /
 --   SendBFMsgStartBatch / SendBFMsgNoBlocks / SendBFMsgBlock.Block /
@@ -207,12 +209,19 @@ instance
     go sendKAMsg sendKAMsg = yes refl
     go sendKADone sendKADone = yes refl
     go errCookie errCookie = yes refl
+    go recvKACookie recvKACookie = yes refl
     go sendKAMsg sendKADone = no λ ()
     go sendKAMsg errCookie = no λ ()
+    go sendKAMsg recvKACookie = no λ ()
     go sendKADone sendKAMsg = no λ ()
     go sendKADone errCookie = no λ ()
+    go sendKADone recvKACookie = no λ ()
     go errCookie sendKAMsg = no λ ()
     go errCookie sendKADone = no λ ()
+    go errCookie recvKACookie = no λ ()
+    go recvKACookie sendKAMsg = no λ ()
+    go recvKACookie sendKADone = no λ ()
+    go recvKACookie errCookie = no λ ()
 
   DecEq-ApiBFTag : DecEq ApiBFTag
   DecEq-ApiBFTag ._≟_ = go

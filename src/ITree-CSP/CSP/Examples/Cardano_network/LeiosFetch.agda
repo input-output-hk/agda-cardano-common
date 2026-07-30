@@ -208,7 +208,7 @@ clientStep l d stIdle = pchoice v
   v (_ , apiLFev l′ d′ sendLFDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendLF l d ! (time₀ , FromInitiator , length₀ , leiosFetch MsgLFDone) ⟶
-           (doneLF l d ⟶₀ Ret (inj₁ stDone)))
+           Ret (inj₁ stDone))
   ... | _        | _        = nothing
   v (_ , apiLFev _ _ _) _ = nothing
   v (_ , sendLF _ _)    _ = nothing
