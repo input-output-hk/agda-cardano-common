@@ -40,6 +40,9 @@ open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; empty-div; failures⊥;
          _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
+-- generic stability facts, kept qualified: the local names below re-expose them in
+-- the historic argument order.
+import Semantics.Stability {E = E} {I = ExtI E} as S
 open import CSP.Laws.FD.ExtChoiceDivergence E-≟ using (□-Diverges→; ▷-Diverges→)
 open import CSP.Laws.FD.FDLawsIChoiceAssoc  E-≟
   using (⊓-div→; ⊓-failures→; ⊓-div←l; ⊓-div←r; ⊓-failures⊥←l; ⊓-failures⊥←r; ⊓-failures⊥→)
@@ -289,29 +292,24 @@ deadlock-⟹-[] (⟹-ev (sVis refl ()) _)
 -- failure from a stable P□Q.
 -------------------------------------------------------------------------------------
 
+-- the three helpers below are the GENERIC stability facts of `Semantics.Stability`;
+-- they are kept here under their historic names (and historic argument order) so that
+-- every existing client of `CSP.Laws.FD.ExtChoiceFD` continues to work unchanged.
+
 -- a stable state has no τ-move
 stable-no-τ : {t M : PTree E (ExtI E) R} → isStable t → t ─[ τ ]─► M → ⊥
-stable-no-τ {t = t} st (sSil eq)             with PTree.force t | st
-... | sil _ | lift ()
-stable-no-τ {t = t} st (sTau {i = i} {a = a} eq br) with PTree.force t | st | eq
-... | react _ τc | st′ | refl = case trans (sym (st′ i a)) br of λ ()
+stable-no-τ {t = t} = S.stable-no-τ {t = t}
 
 -- a state whose force is ret is not stable
 stable-not-ret : {t : PTree E (ExtI E) R} {r : R} → PTree.force t ≡ ret r → isStable t → ⊥
-stable-not-ret {t = t} eqf st with PTree.force t | st
-... | ret _    | lift ()
-... | sil _    | lift ()
-... | react _ _ | _ = case eqf of λ ()
+stable-not-ret {t = t} eqf st = S.stable-not-ret {t = t} st eqf
 
 -- build stability from "the τ-branch function is everywhere nothing"
 mk-stable : {t : PTree E (ExtI E) R}
             {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
             {τc : (i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))}
           → PTree.force t ≡ react v τc → (∀ i a → τc i a ≡ nothing) → isStable t
-mk-stable {t = t} eqf h with PTree.force t
-... | ret _    = case eqf of λ ()
-... | sil _    = case eqf of λ ()
-... | react _ _ with refl ← eqf = h
+mk-stable {t = t} = S.mk-stable {t = t}
 
 -- a ▷-node always has the timeout τ, so it is never stable
 ▷-unstable : (A B : PTree E (ExtI E) R) → ¬ isStable (A ▷ B)

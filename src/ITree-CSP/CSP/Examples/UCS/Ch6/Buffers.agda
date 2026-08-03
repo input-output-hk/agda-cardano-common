@@ -128,7 +128,9 @@ BUFFN2 = BUFN 2 []
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Product using (Σ; Σ-syntax; _×_; proj₁; proj₂)
 
-open import Semantics.LTS       {E = BEv} {I = ExtI BEv}
+-- `Diverges` is hidden here because `Semantics.DRBisim` re-exports the very same LTS
+-- `Diverges`; importing both unqualified would make the name ambiguous.
+open import Semantics.LTS       {E = BEv} {I = ExtI BEv} hiding (Diverges)
 open import Semantics.WeakBisim {E = BEv} {I = ExtI BEv}
   using (_═[_]═►_; wev; τ*-refl)
 open import Semantics.DRBisim   {E = BEv} {I = ExtI BEv} using (Diverges; _≈DR_)

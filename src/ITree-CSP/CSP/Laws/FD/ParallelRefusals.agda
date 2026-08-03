@@ -33,6 +33,9 @@ open import CSP.Operators E-≟
 open EventSet
 open import Semantics.LTS      {E = E} {I = ExtI E}
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Offers; Refuses; deadlock-no-offer)
+-- the generic stability intro/elim, kept qualified so the historic local names below
+-- (which differ only in argument ORDER) can be defined as aliases without clashing.
+import Semantics.Stability {E = E} {I = ExtI E} as S
 open import CSP.Laws.Traces.TraceLawsParallel      E-≟
   using (Mg; Par-sync; fPar-er; fPar-re; fPar-nn)
 open import CSP.Laws.Traces.TraceLawsParallelMono   E-≟
@@ -152,7 +155,7 @@ ParRef {R = R} {R₁ = R₁} {R₂ = R₂} A X XP XQ =
 -------------------------------------------------------------------------------------
 -- the classical offer-LEM, used ONLY for the cs-event split (an immediate offer is
 -- decidable).  CERTIFIED sound from the single `dne` axiom in ClassicalFromLEM
--- (Derivation 6 — a plain LEM instance); postulated directly per the FD-layer convention.
+-- (Derivation 7 — a plain LEM instance); postulated directly per the FD-layer convention.
 -- (Off-cs and tick splits are CONSTRUCTIVE, via Par-offer-soloL/R and Par-offer-elim-√.)
 -------------------------------------------------------------------------------------
 postulate
@@ -185,32 +188,31 @@ Par-Refuses-elim-both A merge P* Q* stP stQ (_ , refC) =
       , (λ oQ → refC (evl (evLabel _ f a)) Xe (Par-offer-soloR A merge P* Q* ¬csat oQ))
 
 -------------------------------------------------------------------------------------
--- stability plumbing (local copies of the ExtChoiceFD helpers) + Par-stable.
+-- stability plumbing + Par-stable.
+--
+-- `stable→react` / `mk-stable` are the GENERIC intro/elim pair; they now live in
+-- `Semantics.Stability` (a single copy for the whole development).  The two names
+-- below are aliases at their historic home, so every existing client of
+-- `CSP.Laws.FD.ParallelRefusals` keeps working unchanged.
 -------------------------------------------------------------------------------------
 -- a stable state forces to an react node whose τ-branch function is everywhere nothing.
 stable→react : {t : PTree E (ExtI E) R} → isStable t
             → Σ[ v ∈ ((at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))) ]
               Σ[ τc ∈ ((i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))) ]
                 (PTree.force t ≡ react v τc × (∀ i a → τc i a ≡ nothing))
-stable→react {t = t} st with PTree.force t | st
-... | ret _    | lift ()
-... | sil _    | lift ()
-... | react v τc | h = v , τc , refl , h
+stable→react {t = t} = S.stable→react {t = t}
 
--- a state whose force is ret is not stable.
+-- a state whose force is ret is not stable (`Semantics.Stability.stable-not-ret`
+-- with the two arguments in the historic order).
 stable-not-ret : {t : PTree E (ExtI E) R} {r : R} → PTree.force t ≡ ret r → isStable t → ⊥
-stable-not-ret {t = t} eqf st with PTree.force t | st
-... | ret _    | lift ()
-... | sil _    | lift ()
-... | react _ _ | _ = case eqf of λ ()
+stable-not-ret {t = t} eqf st = S.stable-not-ret {t = t} st eqf
 
 -- build stability from "the τ-branch function is everywhere nothing".
 mk-stable : {t : PTree E (ExtI E) R}
             {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
             {τc : (i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))}
           → PTree.force t ≡ react v τc → (∀ i a → τc i a ≡ nothing) → isStable t
-mk-stable {t = t} eqf h with PTree.force t
-... | react _ _ with refl ← eqf = h
+mk-stable {t = t} = S.mk-stable {t = t}
 
 -- the parallel of two stable operands is stable: both force to react (not ret/sil),
 -- so Par lands in the general react|react node, and par-pTau is everywhere nothing

@@ -71,7 +71,7 @@ module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep where
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD; b1 )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; IDs )
+open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; IDs; Blocking; NonBlocking )
 open IDs using ( N2N_ChainSync; N2N_BlockFetch )
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output; apiCS; apiBF )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
@@ -83,6 +83,8 @@ import CSP.Examples.Cardano_network.ChainSync    p as CS
 import CSP.Examples.Cardano_network.BlockFetch   p as BF
 import CSP.Examples.Cardano_network.TxSubmission p as TS
 import CSP.Examples.Cardano_network.KeepAlive    p as KA
+import CSP.Examples.Cardano_network.LeiosNotify  p as LN
+import CSP.Examples.Cardano_network.LeiosFetch   p as LF
 
 -- Net_Api operators (the whole-system alphabet): the io-gated stack + node ⦀
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -109,9 +111,12 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
         ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
         ; BFsPos; bsHead; bsReq1; bsDone1; bsStart1; bsNoBlk1; bsBlk1; bsBatchDone1; bsSil
-        ; TScPos; tcHead; tcSil; TSsPos; tsHead; tsSil
-        ; KAcPos; kcHead; kcSil; KAsPos; ksHead; ksSil
-        ; InertPos; mkInert; tsc; tss; kac; kas; decTSc; decTSs; decKAc; decKAs
+        ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
+        ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
+        ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
+        ; decTSc; decTSs; decKAc; decKAs; decLNc; decLNs; decLFc; decLFs
         ; ProdPh; ConsPh; ConsDPh; CPPh; consuming; producing
         -- the SHARED driver decodes (identical to the abstract `produce`/`consume`)
         ; decProd; decConsD; decCP )
@@ -146,13 +151,22 @@ open NS using
   ; csClientSpec; csServerSpec; bfClientSpec; bfServerSpec
   ; csCfin; csCnxt; csSfin; csSnxt; bfCfin; bfCnxt; bfSfin; bfSnxt
   ; tsCfin; tsCnxt; tsSfin; tsSnxt; kaCfin; kaCnxt; kaSfin; kaSnxt
+  ; lnCfin; lnCnxt; lnSfin; lnSnxt; lfCfin; lfCnxt; lfSfin; lfSnxt
+  -- abstract LN-client / LN-server head positions (for coarsening)
+  ; lncIdle; lncBusy; lncTerm; lncRann; lncRoff; lncRtxs; lncRvot; lnsIdle; lnsBusy; lnsDone; lnsTerm
+  ; lncWreq; lncWdone; lnsWann; lnsWoff; lnsWtxs; lnsWvot
+  -- abstract LF-client / LF-server head positions (for coarsening)
+  ; lfcIdle; lfcBlk; lfcBtx; lfcVot; lfcRng; lfcTerm; lfcRblk; lfcRbtx; lfcRvot; lfcRnextRng; lfcRlastRng
+  ; lfcWblk; lfcWtxs; lfcWvot; lfcWrng; lfcWdone
+  ; lfsIdle; lfsBlk; lfsBtx; lfsVot; lfsRng; lfsDone; lfsTerm
+  ; lfsWblk; lfsWtxs; lfsWvot; lfsWnext; lfsWlast
   -- abstract KA-client positions + abstract KA-server positions (for coarsening)
   ; kcClient; kcWmsg; kcAwait; kcWdone; kcErr; kcTerm; kcTermE
   ; ksClient; ksRecv; ksResp; ksDdone; ksTerm
   -- abstract TS-client positions (only head states needed for coarsening)
-  ; tcInit; tcIdle; tcBlk; tcNbl; tcTxs; tcTerm
+  ; tcInit; tcIdle; tcBlk; tcNbl; tcTxs; tcTerm; tcAri; tcArt; tcWri; tcWdone; tcWrt
   -- abstract TS-server positions
-  ; tsInit; tsIdle; tsBlk; tsNbl; tsTxs; tsTerm
+  ; tsInit; tsIdle; tsBlk; tsNbl; tsTxs; tsTerm; tsDdone; tsWib; tsWin; tsWrt
   -- abstract CS-client positions
   ; ccIdle; ccWreq; ccAwait; ccWfi; ccInt; ccWdone; ccMust
   ; ccArf; ccArb; ccAif; ccAin; ccTerm
@@ -555,6 +569,13 @@ coarsenTScSt TS.stDone             = tcTerm
 -- loop re-entry sil coarsen to the SAME abstract head — coarsening-invariance)
 coarsenTSc : TScPos → NS.TScPos
 coarsenTSc (tcHead st) = coarsenTScSt st
+coarsenTSc (tcReqIdsB1 a r)  = tcAri (Blocking , a , r)
+coarsenTSc (tcReqIdsNB1 a r) = tcAri (NonBlocking , a , r)
+coarsenTSc (tcReqTxs1 ids)   = tcArt ids
+coarsenTSc (tcRepB1 ids)  = tcWri ids
+coarsenTSc tcDone1        = tcWdone
+coarsenTSc (tcRepNB1 ids) = tcWri ids
+coarsenTSc (tcRepTxs1 txs) = tcWrt txs
 coarsenTSc (tcSil st)  = coarsenTScSt st
 
 -- TS FSM state → abstract TS-server head position
@@ -569,6 +590,10 @@ coarsenTSsSt TS.stDone             = tsTerm
 -- concrete TS-server fine position → abstract TS-server position
 coarsenTSs : TSsPos → NS.TSsPos
 coarsenTSs (tsHead st) = coarsenTSsSt st
+coarsenTSs tsDone1     = tsDdone
+coarsenTSs (tsReqB1 ar)  = tsWib ar
+coarsenTSs (tsReqNB1 ar) = tsWin ar
+coarsenTSs (tsReqTxs1 ids) = tsWrt ids
 coarsenTSs (tsSil st)  = coarsenTSsSt st
 
 -- the two abstract TS peers, placed at the coarsened position via `tableSpec`
@@ -589,7 +614,13 @@ coarsenKAcSt KA.stDone         = kcTerm
 -- concrete KA-client fine position → abstract KA-client position
 coarsenKAc : KAcPos → NS.KAcPos
 coarsenKAc (kcHead st) = coarsenKAcSt st
+-- io-case error leaf: the errCookie-emitting state coarsens to the abstract kcErr position
+coarsenKAc (kcErr1 cq cr ne) = kcErr cq cr
+-- io-case send leaves: the wire-send states coarsen to the abstract wire-send positions
+coarsenKAc (kcReq1 c)  = kcWmsg c
+coarsenKAc kcDone1     = kcWdone
 coarsenKAc (kcSil st)  = coarsenKAcSt st
+coarsenKAc kcTermE1    = kcTermE
 
 -- concrete KA-server state → abstract KA-server position
 coarsenKAsSt : KA.KAState → NS.KAsPos
@@ -599,8 +630,10 @@ coarsenKAsSt KA.stDone         = ksTerm
 
 -- concrete KA-server fine position → abstract KA-server position
 coarsenKAs : KAsPos → NS.KAsPos
-coarsenKAs (ksHead st) = coarsenKAsSt st
-coarsenKAs (ksSil st)  = coarsenKAsSt st
+coarsenKAs (ksHead st)  = coarsenKAsSt st
+coarsenKAs (ksRecv1 c)  = ksRecv c
+coarsenKAs ksDdone1     = ksDdone
+coarsenKAs (ksSil st)   = coarsenKAsSt st
 
 -- the two abstract KA peers, placed at the coarsened position via `tableSpec`
 -- (at `kcHead stClient`/`ksHead stClient` this is the closed `kaClientSpec`/
@@ -610,6 +643,102 @@ absKAc l d q = tableSpec (record { isFin = kaCfin ; nxt = kaCnxt l d }) (coarsen
 
 absKAs : Link → Dir → KAsPos → NetProc
 absKAs l d q = tableSpec (record { isFin = kaSfin ; nxt = kaSnxt l d }) (coarsenKAs q)
+
+-- concrete LN-client state → abstract LN-client head position (term-injective:
+-- only stDone ↦ the √ position lncTerm)
+coarsenLNcSt : LN.LNState → NS.LNcPos
+coarsenLNcSt LN.stIdle = lncIdle
+coarsenLNcSt LN.stBusy = lncBusy
+coarsenLNcSt LN.stDone = lncTerm
+
+-- concrete LN-client fine position → abstract LN-client position (head and its
+-- loop re-entry sil coarsen to the SAME abstract head — coarsening-invariance)
+coarsenLNc : LNcPos → NS.LNcPos
+coarsenLNc (lncHead st) = coarsenLNcSt st
+coarsenLNc (lncRann1 h)  = lncRann h
+coarsenLNc (lncRoff1 q)  = lncRoff q
+coarsenLNc (lncRtxs1 q)  = lncRtxs q
+coarsenLNc (lncRvot1 vs) = lncRvot vs
+coarsenLNc lncReq1       = lncWreq
+coarsenLNc lncDone1      = lncWdone
+coarsenLNc (lncSil st)  = coarsenLNcSt st
+
+-- concrete LN-server state → abstract LN-server head position
+coarsenLNsSt : LN.LNState → NS.LNsPos
+coarsenLNsSt LN.stIdle = lnsIdle
+coarsenLNsSt LN.stBusy = lnsBusy
+coarsenLNsSt LN.stDone = lnsTerm
+
+-- concrete LN-server fine position → abstract LN-server position
+coarsenLNs : LNsPos → NS.LNsPos
+coarsenLNs (lnsHead st) = coarsenLNsSt st
+coarsenLNs lnsDone1     = lnsDone
+coarsenLNs (lnsWann1 h)  = lnsWann h
+coarsenLNs (lnsWoff1 q)  = lnsWoff q
+coarsenLNs (lnsWtxs1 q)  = lnsWtxs q
+coarsenLNs (lnsWvot1 vs) = lnsWvot vs
+coarsenLNs (lnsSil st)  = coarsenLNsSt st
+
+-- the two abstract LN peers, placed at the coarsened position via `tableSpec`
+-- (at `lncHead stIdle`/`lnsHead stIdle` this is the closed `lnClientSpec`/
+-- `lnServerSpec l d`, so `absDec-init` stays refl once LN is symmetrized in)
+absLNc : Link → Dir → LNcPos → NetProc
+absLNc l d q = tableSpec (record { isFin = lnCfin ; nxt = lnCnxt l d }) (coarsenLNc q)
+
+absLNs : Link → Dir → LNsPos → NetProc
+absLNs l d q = tableSpec (record { isFin = lnSfin ; nxt = lnSnxt l d }) (coarsenLNs q)
+
+-- concrete LF-client state → abstract LF-client head position (term-injective:
+-- only stDone ↦ lfcTerm)
+coarsenLFcSt : LF.LFState → NS.LFcPos
+coarsenLFcSt LF.stIdle       = lfcIdle
+coarsenLFcSt LF.stBlock      = lfcBlk
+coarsenLFcSt LF.stBlockTxs   = lfcBtx
+coarsenLFcSt LF.stVotes      = lfcVot
+coarsenLFcSt LF.stBlockRange = lfcRng
+coarsenLFcSt LF.stDone       = lfcTerm
+
+-- concrete LF-client fine position → abstract LF-client position
+coarsenLFc : LFcPos → NS.LFcPos
+coarsenLFc (lfcHead st) = coarsenLFcSt st
+coarsenLFc (lfcRblk1 b)     = lfcRblk b
+coarsenLFc (lfcRbtx1 ts)    = lfcRbtx ts
+coarsenLFc (lfcRvot1 vs)    = lfcRvot vs
+coarsenLFc (lfcRnext1 b ts) = lfcRnextRng (b , ts)
+coarsenLFc (lfcRlast1 b ts) = lfcRlastRng (b , ts)
+coarsenLFc (lfcWblk1 pt)  = lfcWblk pt
+coarsenLFc (lfcWtxs1 pb)  = lfcWtxs pb
+coarsenLFc (lfcWvot1 vs)  = lfcWvot vs
+coarsenLFc (lfcWrng1 r)   = lfcWrng r
+coarsenLFc lfcDone1       = lfcWdone
+coarsenLFc (lfcSil st)  = coarsenLFcSt st
+
+-- concrete LF-server state → abstract LF-server head position
+coarsenLFsSt : LF.LFState → NS.LFsPos
+coarsenLFsSt LF.stIdle       = lfsIdle
+coarsenLFsSt LF.stBlock      = lfsBlk
+coarsenLFsSt LF.stBlockTxs   = lfsBtx
+coarsenLFsSt LF.stVotes      = lfsVot
+coarsenLFsSt LF.stBlockRange = lfsRng
+coarsenLFsSt LF.stDone       = lfsTerm
+
+-- concrete LF-server fine position → abstract LF-server position
+coarsenLFs : LFsPos → NS.LFsPos
+coarsenLFs (lfsHead st) = coarsenLFsSt st
+coarsenLFs lfsDone1     = lfsDone
+coarsenLFs (lfsWblk1 b)  = lfsWblk b
+coarsenLFs (lfsWtxs1 ts) = lfsWtxs ts
+coarsenLFs (lfsWvot1 vs) = lfsWvot vs
+coarsenLFs (lfsWnext1 bt) = lfsWnext bt
+coarsenLFs (lfsWlast1 bt) = lfsWlast bt
+coarsenLFs (lfsSil st)  = coarsenLFsSt st
+
+-- the two abstract LF peers, placed at the coarsened position via `tableSpec`
+absLFc : Link → Dir → LFcPos → NetProc
+absLFc l d q = tableSpec (record { isFin = lfCfin ; nxt = lfCnxt l d }) (coarsenLFc q)
+
+absLFs : Link → Dir → LFsPos → NetProc
+absLFs l d q = tableSpec (record { isFin = lfSfin ; nxt = lfSnxt l d }) (coarsenLFs q)
 
 -- the abstract 8-peer bundle at (l, cl, sv): KA at head, CS/BF/TS at their
 -- coarsened positions (mirrors `bundleG`; at all-idle positions this is
@@ -621,7 +750,9 @@ absBundleG l cl sv qcc qcs qbc qbs ip =
   absKAc l cl (kac ip) ⦀ (absKAs l sv (kas ip)
     ⦀ (absCSc l cl qcc ⦀ (absCSs l sv qcs
     ⦀ (absBFc l cl qbc ⦀ (absBFs l sv qbs
-    ⦀ (absTSc l cl (tsc ip) ⦀ absTSs l sv (tss ip)))))))
+    ⦀ (absTSc l cl (tsc ip) ⦀ (absTSs l sv (tss ip)
+    ⦀ (absLNc l cl (lnc ip) ⦀ (absLNs l sv (lns ip)
+    ⦀ (absLFc l cl (lfc ip) ⦀ absLFs l sv (lfs ip)))))))))))
 
 -- the four abstract nodes (SAME skeleton as `decNodeX`, abstract bundles +
 -- shared drivers) — each equals `nodeXSpec` at the initial positions
@@ -1045,7 +1176,9 @@ absBundleAB-csC-collapse : (css : CSsPos) (bfc : BFcPos) (bfs : BFsPos) (ip : In
 absBundleAB-csC-collapse css bfc bfs ip st =
   cong (λ c → absKAc linkAB lo (kac ip) ⦀ (absKAs linkAB hi (kas ip)
               ⦀ (c ⦀ (absCSs linkAB hi css ⦀ (absBFc linkAB lo bfc
-              ⦀ (absBFs linkAB hi bfs ⦀ (absTSc linkAB lo (tsc ip) ⦀ absTSs linkAB hi (tss ip))))))))
+              ⦀ (absBFs linkAB hi bfs ⦀ (absTSc linkAB lo (tsc ip) ⦀ (absTSs linkAB hi (tss ip)
+              ⦀ (absLNc linkAB lo (lnc ip) ⦀ (absLNs linkAB hi (lns ip)
+              ⦀ (absLFc linkAB lo (lfc ip) ⦀ absLFs linkAB hi (lfs ip))))))))))))
        (absCSc-sil-collapse linkAB lo st)
 
 -- lift it to `absNodeA`

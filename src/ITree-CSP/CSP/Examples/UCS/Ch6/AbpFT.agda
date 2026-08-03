@@ -205,12 +205,17 @@ open import Data.Empty using (⊥-elim)
 open import Data.Product using (Σ; Σ-syntax; _×_; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality using (trans; sym)
 
-open import Semantics.LTS         {E = CEv} {I = ExtI CEv}
+-- `Diverges` is hidden here because `Semantics.DRBisim` re-exports the very same LTS
+-- `Diverges`; importing both unqualified would make the name ambiguous.
+open import Semantics.LTS         {E = CEv} {I = ExtI CEv} hiding (Diverges)
 open import Semantics.WeakBisim   {E = CEv} {I = ExtI CEv} using (_═[_]═►_; wev; τ*-refl)
 open import Semantics.DRBisim     {E = CEv} {I = ExtI CEv} using (Diverges; _≈DR_)
 open import Semantics.DRImpliesFD {E = CEv} {I = ExtI CEv} using (drbisim→⊑FD)
 open import Semantics.FailuresDivergences {E = CEv} {I = ExtI CEv} using (_⊑FD_)
 open import Semantics.BisimFromRel {E = CEv} {I = ExtI CEv}
+-- the gathered stability layer: `stable-no-τ` (generic) + `Par-stable` (parallel intro)
+open import Semantics.Stability {E = CEv} {I = ExtI CEv} using (stable-no-τ)
+open import CSP.Laws.FD.ParallelRefusals CEv-≟ using (Par-stable)
 
 -- The 3-state correspondence (COPY / COPYout ↔ the errors-off composite states).
 data CRel : CProc → CProc → Set where
@@ -246,40 +251,27 @@ comp-out x refl = go x
         go true  = sVis {at = Bool , cout} {a = true}  refl refl
         go false = sVis {at = Bool , cout} {a = false} refl refl
 
--- Both operands are `react … ∅t`, so the composite's τ-branch map is everywhere
--- `nothing`: every index shape of `par-pTau` reduces to `nothing` (τ-freeness).
-par-pTau-nothing : ∀ {vP vQ : (at : AnyTypes CEv) → ContinueType at (Maybe CProc)}
-                     (P Q : CProc)
-                     (i : AnyTypes (ExtI CEv)) (a : proj₁ i)
-                 → par-pTau {R = ⊤poly {lzero}} Errors (λ _ _ → tt) (react vP ∅t) (react vQ ∅t) P Q i a ≡ nothing
-par-pTau-nothing P Q (_ , base _)           a = refl
-par-pTau-nothing P Q (_ , fin)              a = refl
-par-pTau-nothing P Q (_ , pair (base _) _)  a = refl
-par-pTau-nothing P Q (_ , pair (pair _ _) _) a = refl
-par-pTau-nothing P Q (_ , pair fin i) (lift fzero , a)              = refl
-par-pTau-nothing P Q (_ , pair fin i) (lift (fsuc fzero) , a)       = refl
-par-pTau-nothing P Q (_ , pair fin i) (lift (fsuc (fsuc _)) , a)    = refl
+-- TAU-FREENESS of both sides of `CRel`.  Every operand here forces to `react … ∅t`,
+-- so `isStable` reduces to the single clause `λ _ _ → refl`; `Par-stable` lifts that
+-- through the parallel and `stable-no-τ` turns it into τ-freeness.  This replaces a
+-- hand-rolled "`par-pTau` is everywhere `nothing`" index case split — the gathered
+-- stability layer is `CSP.Laws.Stability.Closure`.
 
--- τ-freeness of the COPY side (Buffers-style: `∅t i a` reduces to `nothing`).
+-- the ⊤-valued merge that `Par⊤` uses (spelled out so `Par-stable` can be applied)
+mrg⊤ : ⊤poly {lzero} → ⊤poly {lzero} → ⊤poly {lzero}
+mrg⊤ _ _ = tt
+
+-- τ-freeness of the COPY side.
 noτ-L : ∀ {p q} → CRel p q → ∀ {p′} → p ─[ τ ]─► p′ → ⊥
-noτ-L rel-copy     (sSil ())
-noτ-L rel-copy     (sTau refl ())
-noτ-L (rel-mid x)  (sSil ())
-noτ-L (rel-mid x)  (sTau refl ())
-noτ-L (rel-post x) (sSil ())
-noτ-L (rel-post x) (sTau refl ())
+noτ-L rel-copy     = stable-no-τ {t = COPY}      (λ _ _ → refl)
+noτ-L (rel-mid x)  = stable-no-τ {t = COPYout x} (λ _ _ → refl)
+noτ-L (rel-post x) = stable-no-τ {t = COPY}      (λ _ _ → refl)
 
--- τ-freeness of the composite side (via `par-pTau-nothing`).
+-- τ-freeness of the composite side (`Par-stable` on two stable operands).
 noτ-R : ∀ {p q} → CRel p q → ∀ {q′} → q ─[ τ ]─► q′ → ⊥
-noτ-R rel-copy     (sSil ())
-noτ-R rel-copy     (sTau {i = i} {a = a} refl br) =
-  case trans (sym (par-pTau-nothing CE Stop i a)) br of λ ()
-noτ-R (rel-mid x)  (sSil ())
-noτ-R (rel-mid x)  (sTau {i = i} {a = a} refl br) =
-  case trans (sym (par-pTau-nothing (CEmid x) Stop i a)) br of λ ()
-noτ-R (rel-post x) (sSil ())
-noτ-R (rel-post x) (sTau {i = i} {a = a} refl br) =
-  case trans (sym (par-pTau-nothing (CE' x) Stop i a)) br of λ ()
+noτ-R rel-copy     = stable-no-τ (Par-stable Errors mrg⊤ CE        Stop (λ _ _ → refl) (λ _ _ → refl))
+noτ-R (rel-mid x)  = stable-no-τ (Par-stable Errors mrg⊤ (CEmid x) Stop (λ _ _ → refl) (λ _ _ → refl))
+noτ-R (rel-post x) = stable-no-τ (Par-stable Errors mrg⊤ (CE' x)   Stop (λ _ _ → refl) (λ _ _ → refl))
 
 -- The `DRFromRel` obligations.  Visible steps match on `cin`/`cout`; `lose`/`dup`
 -- step-cases are impossible (Stop refuses ⇒ `par-pVis … ≡ nothing` ⇒ `case br of λ ()`).

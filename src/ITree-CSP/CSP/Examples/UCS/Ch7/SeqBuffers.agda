@@ -145,7 +145,9 @@ BN2 = BN 2 []
 --   Iloop  ─[τ]─► I0            (sil)
 ------------------------------------------------------------------------------------
 
-open import Semantics.LTS       {E = BEv} {I = ExtI BEv}
+-- `Diverges` is hidden here because `Semantics.DRBisim` re-exports the very same LTS
+-- `Diverges`; importing both unqualified would make the name ambiguous.
+open import Semantics.LTS       {E = BEv} {I = ExtI BEv} hiding (Diverges)
 open import Semantics.WeakBisim {E = BEv} {I = ExtI BEv}
   using (_═[_]═►_; wev; wτ; _─[τ*]─►_; τ*-refl; τ*-step)
 open import Semantics.DRBisim             {E = BEv} {I = ExtI BEv} using (Diverges; _≈DR_)

@@ -38,6 +38,8 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
+-- generic stability facts (`stable-react` below is a thin alias for `stable→react`)
+import Semantics.Stability {E = E} {I = ExtI E} as S
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟
   using (NonRet; □-τ-tochoice-R; □-τ-toslide-R)
 open import CSP.Laws.FD.ExtChoiceFD E-≟
@@ -80,14 +82,12 @@ private
 -------------------------------------------------------------------------------------
 
 -- a stable P has force ≡ react vP τcP with τcP everywhere nothing
+-- (an alias for the generic `Semantics.Stability.stable→react`).
 stable-react : {P : PTree E (ExtI E) R} → isStable P
             → Σ[ vP ∈ ((at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))) ]
               Σ[ τcP ∈ ((i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))) ]
                 (PTree.force P ≡ react vP τcP × (∀ i a → τcP i a ≡ nothing))
-stable-react {P = P} st with PTree.force P | st
-... | ret _    | lift ()
-... | sil _    | lift ()
-... | react v τc | h = v , τc , refl , h
+stable-react {P = P} = S.stable→react {t = P}
 
 -- force(P□P) = react (mergeVis vP vP) (□-mt ..) when force P = react vP τcP
 double-force-eq : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R}

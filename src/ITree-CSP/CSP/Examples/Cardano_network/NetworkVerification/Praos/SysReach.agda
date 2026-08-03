@@ -124,6 +124,17 @@ open _↝_ public
 data Reachable : SysState → Set₁ where
   rInit : Reachable initial                                        -- the root config
   rStep : {s s′ : SysState} → Reachable s → s ↝ s′ → Reachable s′  -- extend by one transition
+  -- extend by a WEAK decode run.  A weak transition `⟦ s ⟧ ═[ l ]═► ⟦ s′ ⟧` is,
+  -- by definition of `_═[_]═►_`, a FINITE sequence of forward concrete decode
+  -- steps `─[ τ ]─►` / `─[ ev l ]─►` (the padding τ*'s + the one visible/τ hop)
+  -- threading through intermediate whole-system decodes; each such hop is a real
+  -- `SysState` transition (e.g. a peer `csSil→csHead` loop-back is a `SysState`
+  -- τ-step), so `s′` is genuinely reached from `s`.  Admitting this as a
+  -- CONSTRUCTOR (a data hypothesis, NOT an axiom) closes `Reachable` under the
+  -- backward node peels' padded weak runs (`top-nodes-abs`/`top-nodes-io-abs`), which land a
+  -- multi-step `═►` that no single `_↝_` can express.
+  rStepʷ : {s s′ : SysState} {l : Label (⊤ {0ℓ})}
+         → Reachable s → ⟦ s ⟧ ═[ l ]═► ⟦ s′ ⟧ → Reachable s′  -- extend by a weak decode run
 
 -- `RState` — a reachable whole-system config: a `SysState` PLUS its witness
 -- of reachability.  This is the reachable SUBTYPE of the `SysState` product,
@@ -194,3 +205,27 @@ rclose r st = mkR _ (rStep (reach r) st) , refl
 rclose-abs : (r : RState) {s′ : SysState} (st : toSys r ↝ s′)
            → radec (proj₁ (rclose r st)) ≡ absDec s′
 rclose-abs r st = refl
+
+------------------------------------------------------------------------
+-- WEAK CLOSURE — the reachable set is closed under a WEAK decode run.
+--
+-- Mirror of `rclose`/`rclose-abs`, but the transition is a WEAK run
+-- `rdec r ═[ l ]═► ⟦ s′ ⟧` (`= ⟦ toSys r ⟧ ═[ l ]═► ⟦ s′ ⟧`) instead of a single
+-- `_↝_`.  The backward node peels (`top-nodes-abs`/`top-nodes-io-abs`) produce
+-- genuinely multi-step concrete runs (a `csSil` loop-re-entry peer must first do
+-- its loop-back τ before firing), so their target `s′` cannot be reached by one
+-- `rStep`; `rStepʷ` supplies the reachability witness, and the returned config's
+-- decode is `⟦ s′ ⟧ = rdec r′` DEFINITIONALLY (`refl`).
+------------------------------------------------------------------------
+
+-- weak closure: the target `s′` of a weak decode run is again reachable
+rcloseʷ : (r : RState) {l : Label (⊤ {0ℓ})} {s′ : SysState}
+        → rdec r ═[ l ]═► ⟦ s′ ⟧
+        → Σ[ r′ ∈ RState ] (rdec r′ ≡ ⟦ s′ ⟧)
+rcloseʷ r {s′ = s′} run = mkR s′ (rStepʷ {s = toSys r} {s′ = s′} (reach r) run) , refl
+
+-- weak closure also identifies the abstract target: `radec r′ ≡ absDec s′` (`refl`)
+rcloseʷ-abs : (r : RState) {l : Label (⊤ {0ℓ})} {s′ : SysState}
+              (run : rdec r ═[ l ]═► ⟦ s′ ⟧)
+            → radec (proj₁ (rcloseʷ r {l = l} {s′ = s′} run)) ≡ absDec s′
+rcloseʷ-abs r {s′ = s′} run = refl

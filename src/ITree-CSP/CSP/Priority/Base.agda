@@ -20,10 +20,13 @@
 --                   not just the head node — unlike the plan's raw sketch).
 --   * `finBr-deadlock` / `pri-deadlock-smoke` — inhabitation + smoke test.
 --
--- Adequacy (`Pri` vs the relational `─►ᵖ`, up to strong bisim) is POSTULATED with
--- a TODO in the SEPARATE module `CSP.Priority.Adequacy` — kept apart because
--- `--safe` forbids `postulate` and THIS module is genuinely `--safe`-green (zero
--- postulates).
+-- Adequacy (`Pri` vs the relational `─►ᵖ`, up to strong bisim) is PROVED in the
+-- SEPARATE module `CSP.Priority.Adequacy`, as the cross-simulation pair
+-- `pri-adequacy-fwd` / `pri-adequacy-bwd`: every `Pri`-step is matched by a
+-- `─►ᵖ`-step whose residual, once RE-prioritised, is strongly bisimilar to the
+-- `Pri`-successor, and conversely.  It is kept apart purely for layering — it
+-- needs `Semantics.PriLTS`/`Semantics.Bisim`, which THIS module does not — and
+-- BOTH modules are genuinely `--safe`-green with zero postulates.
 --
 -- `--safe`: no `postulate`, no `NON_TERMINATING`, no `--sized-types`, and nothing
 -- imported from `Classical`.  Corecursion in `Pri` is guarded exactly like `_∖_`
@@ -51,40 +54,17 @@ open import Semantics.PriOrder {ℓ} {ℓe} {E}
 open import Semantics.LTS      {ℓ} {ℓe} {lsuc ℓ ⊔ ℓe} {E} {ExtI E}
 
 ------------------------------------------------------------------------
--- FinBr — a certificate carrying (i) a DECISION of stability, (ii) a finite
--- CHANNEL-level offer support, at each reachable state, closed under transitions.
+-- FinBr — the stability-decision + finite-visible-support certificate.
 --
--- The τ-support cannot be enumerated as a finite list: τ-indices are keyed on
--- `ExtI.fin`, and `fin : ∀ {n} → ExtI I (Lift ℓ (Fin n))` is ℕ-polymorphic, so
--- e.g. `br2 P Q (Lift ℓ (Fin n) , fin) (lift fzero) ≡ just P` for EVERY `n ≥ 1`.
--- Hence stability is carried as a DECISION (`no` is witnessed by ONE enabled τ
--- at, say, `fin {1}`), never by an enumeration.
---
--- Visible offers, by contrast, are indexed by `AnyTypes E` (E DIRECTLY — no
--- `ExtI`/`fin`/ℕ-polymorphism), and each node offers finitely many CHANNELS
--- (prefix 1, □/∥ a union, ⊓/Stop/div none, rename a relabel).  Value carriers
--- may be infinite, but we track CHANNELS, so `chan-supp` stays a finite list.
--- This is what makes hide (`∖`) decidable: "P offers an A-channel" is a finite
--- fold of A-membership over `chan-supp`.
+-- It is a GENERAL process-tree notion, so it now lives in `Semantics.FinBr`
+-- (parametric in the τ-index type `I`); here we merely instantiate it at the
+-- CSP τ-index type `I = ExtI E` and re-export it, so that the ~22 modules that
+-- get `FinBr` from `CSP.Priority.Base` need no change.  See `Semantics.FinBr`
+-- for the explanation of why the τ-support is a DECISION and only the VISIBLE
+-- channel support is a finite list.
 ------------------------------------------------------------------------
 
-record FinBr {ℓr} {R : Set ℓr} (t : PTree E (ExtI E) R)
-           : Set (lsuc ℓ ⊔ ℓe ⊔ ℓr) where
-  coinductive
-  field
-    -- a decision of `t`'s stability (drives `Pri`'s stable/unstable split)
-    stable?    : Dec (isStable t)
-    -- the finite list of channels this node visibly offers
-    chan-supp  : List (AnyTypes E)
-    -- every actually-offered channel at a react node is listed (finite completeness)
-    chan-compl : ∀ {v τc} → PTree.force t ≡ react v τc
-               → ∀ at a → Is-just (v at a) → at ∈ chan-supp
-    -- the certificate propagates along every transition
-    next       : ∀ {l t′} → t ─[ l ]─► t′ → FinBr t′
-
--- `Dec (isStable t)` is now read straight off the certificate.
-stab? : ∀ {ℓr} {R : Set ℓr} (t : PTree E (ExtI E) R) → FinBr t → Dec (isStable t)
-stab? t fb = FinBr.stable? fb
+open import Semantics.FinBr {ℓ} {ℓe} {lsuc ℓ ⊔ ℓe} {E} {ExtI E} public
 
 ------------------------------------------------------------------------
 -- The priority operator `Pri`.
@@ -219,7 +199,8 @@ pri-deadlock-smoke = Pri emptyPO deadlock finBr-deadlock
 
 ------------------------------------------------------------------------
 -- Adequacy (ties `Pri` to the relational spec `─►ᵖ` up to strong bisim) is
--- stated — POSTULATED with a TODO — in the SEPARATE module `CSP.Priority.Adequacy`.
--- It lives there, not here, because Agda's `--safe` flag forbids any `postulate`
--- (`error: [SafeFlagPostulate]`), and THIS module is kept genuinely `--safe`-green.
+-- PROVED in the SEPARATE module `CSP.Priority.Adequacy` (`pri-adequacy-fwd` /
+-- `pri-adequacy-bwd`).  It lives there, not here, only for layering: it imports
+-- `Semantics.PriLTS` and `Semantics.Bisim`, which this module has no need of.
+-- That module is `--safe`-green and postulate-free as well.
 ------------------------------------------------------------------------

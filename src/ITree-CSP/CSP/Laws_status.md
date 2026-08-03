@@ -19,7 +19,13 @@ CSP layer in `CSP/` (`Operators`, `Rename`, `Laws/{Traces,Bisim,FD}`, `Examples`
 **Legend:** ✅ done & typechecks · 🟡 partial · ❌ not started · ➖ N/A / degenerate /
 definitional.
 
-_Last updated: 2026-07-06._
+**Branch note (2026-07-31):** the header above names **`spike/extc-fd-laws`**, which is
+still the branch this document was written against and still the reference point for
+§1–§14. §15 and §16 (and the §6 additions cross-referencing §15) record work landed on a
+DIFFERENT branch, **`semantics/failure-sim`**; the branch name above has deliberately
+NOT been rewritten.
+
+_Last updated: 2026-08-01._
 
 ---
 
@@ -40,12 +46,17 @@ _Last updated: 2026-07-06._
 | §11 | Sliding choice `▷` | ✅ **core + ⊓/seq slide-dist + failures-char** (▷-id, ▷-assoc(cond), □-slide, ▷-⊓-ext, seq-slide, ▷-failures-char U13.26, □-SKIP-resolve, □-div, Div-slide, Div-SKIP-red, div-strict zeros); ✅ **COMPLETE** (every slide law incl. per-op hide-slide U13.3 + rename-slide U13.6); U13.14 SKIP-slide ✖ correctly (eager-`ret`) |
 | §13 | Zero / divergence-strictness | 🟡 `⊓`/`□`/`∥`/`;` zeros done; hide/rename zeros open |
 | §14 | Recursion | ❌ not started |
+| §15 | One-way failure simulation `FSim` (the `⊑FD` order) | ✅ **record + `⊑T`/`⊑D`/`⊑F⊥`/`⊑FD` bridges + preorder**, `FSimFromRel` coinduction principle, `drbisim→fsim` refactor, four operator congruences (`Par`/`>>=`/`∖`/`iter`), the FD-hide counterexample refuted at the simulation level, one worked smoke test |
+| §16 | Divergence-freedom (`τ-Acc`) + stability calculi | ✅ **generic `Semantics/DivergenceFree` + 19 per-operator `τ-Acc` closures + the gathered stability layer** (both new modules postulate-free); ⚠️ measured payoff at the EXISTING proof sites is nil — those sites need τ-FREENESS, which `τ-Acc` is strictly weaker than |
 
 **Bottom line:** the four core "untimed" operator algebras (`⊓`, `□`, prefix,
 conditional), sequential composition, interrupt/throw, **and parallel** are all fully
 validated at `≈FD`. Every FD-layer postulate is certified from a single `dne`. The next
 frontier is **hiding (§6) and renaming (§7)**: both have trace-level laws but no FD laws
-yet (each needs an FD decomposition, the larger lift).
+yet (each needs an FD decomposition, the larger lift). Alongside the two-way bridge
+`≈DR ⟹ ≈FD` there is now a **one-way refinement order** (§15): `FSim`, a three-field
+coinductive relation with no `bwd`/`div←`, giving `⊑FD` directly and carrying its own
+congruences for parallel, bind, hiding and the loops.
 
 ---
 
@@ -157,7 +168,7 @@ inversions, `∅es`, `_∪es_`). FD laws now started:
 | T3.6 (A∩X≠∅) | `(?x:A→P)∖X = (?x:A\X→(P∖X)) ▷ ⨅{P a∖X : a∈A∩X}` (MENU, multi-channel) | ✅ `HideStepFull` `hide-step-full-FD` (FD-direct over `pchoice v`; ops `RPrefix`/`GChoice` + reusable `slide-fuse-FD`; force-eq bridge, no connecting bisim) |
 | U13.3 | hide-slide `((?x:A→P)▷Q)∖X = (?x:A\X→(P∖X)) ▷ ⨅({Q∖X}∪{P[a/x]∖X : a∈X∩A})` (MENU) | ✅ `HideSlide` `hide-slide-FD` — `((pchoice v)▷Q)∖X ≈FD RPrefix v X ▷ GChoiceS v Q X`, general `R`, **no `DecEq`, no side-condition**. Near-clone of `HideStepFull`: `force((pchoice v ▷ Q)∖X)` IS the fused node with τ-map `hide-hTau X (force of the slide)` (tag0 timeout → `Q∖X`, tag1 hidden events → `P[a]∖X`). Hop1 `(S∖X)∼fused` strong bisim (visible offers agree pointwise via `hVis-eq` — NOT definitionally, `hide-hVis` guards on `dec` before `viewV`; τ-maps identical); hop2 `slide-fuse-FD`. The slide's timeout always gives `GChoiceS ─τ→ Q∖X` ⇒ unstable witness FREE, no `mem₀` side-condition (unlike T3.6 full). No postulates |
 | T3.7 / T3.8 | hide–parallel dist `(P∥Q)∖Z = (P∖Z)∥(Q∖Z)` (Z∩cs=∅) | 🚧 IN PROGRESS (FD-direct, not a bisim) — foundation `HideFD` failures **+** divergence decomposition ✅ (`Hide-failures-elim/intro`, `Hide-div-elim/intro`); TODO: `Hide-Diverges→` König (certify from dne) + combine with `ParallelFailures`/`ParallelDivergence` |
-| — | `P ⊑FD Q ⇒ (P∖A) ⊑FD (Q∖A)` (hide ⊑FD-monotone) | ⚠️ **CONDITIONAL** `HideMonoFD` — the UNCONDITIONAL law is **FALSE** in this model. Delivered: (i) `Hide-mono-fail` — the UNCONDITIONAL stable-failure transfer `P ⊑F⊥ Q ⇒ failures (Q∖A) s X ⇒ failures⊥ (P∖A) s X`; (ii) `Hide-mono-⊑FD-df` — the full law `(P∖A) ⊑FD (Q∖A)` **under a divergence-freedom side condition** `∀ s → ¬ divergences (Q∖A) s`. WHY unconditional fails: hiding can *create* divergence (an infinite hidden-event τ-path), which `⊑FD` does not constrain; under unbounded nondeterminism `P ⊑FD Q` does not give `(P∖A) ⊑D (Q∖A)` — counterexample (`Q = μX.h→X`, `P = ⊓ₙ hⁿ;STOP`) in the `HideMonoFD` header (Roscoe's known N-model hiding unsoundness). `modA-transfer` needs `≈DR` not `⊑FD`; no dne-certified postulate can rescue a false ∀-`E` statement. **ZERO postulates** (built on `HideFD`/`TraceLawsHide` only). For trace-only refinement `Hide-mono-⊑ᵀ` stays unconditional. |
+| — | `P ⊑FD Q ⇒ (P∖A) ⊑FD (Q∖A)` (hide ⊑FD-monotone) | ⚠️ **CONDITIONAL** `HideMonoFD` — the UNCONDITIONAL law is **FALSE** in this model. Delivered: (i) `Hide-mono-fail` — the UNCONDITIONAL stable-failure transfer `P ⊑F⊥ Q ⇒ failures (Q∖A) s X ⇒ failures⊥ (P∖A) s X`; (ii) `Hide-mono-⊑FD-df` — the full law `(P∖A) ⊑FD (Q∖A)` **under a divergence-freedom side condition** `∀ s → ¬ divergences (Q∖A) s`. WHY unconditional fails: hiding can *create* divergence (an infinite hidden-event τ-path), which `⊑FD` does not constrain; under unbounded nondeterminism `P ⊑FD Q` does not give `(P∖A) ⊑D (Q∖A)` — counterexample (`Q = μX.h→X`, `P = ⊓ₙ hⁿ;STOP`) in the `HideMonoFD` header (Roscoe's known N-model hiding unsoundness). `modA-transfer` needs `≈DR` not `⊑FD`; no dne-certified postulate can rescue a false ∀-`E` statement. **ZERO postulates** (built on `HideFD`/`TraceLawsHide` only). For trace-only refinement `Hide-mono-⊑ᵀ` stays unconditional. **(2026-07-31 additions, see §15.)** (a) At the SIMULATION level the congruence IS unconditional: `CSP/Laws/FSim/HideCong.agda`'s `Hide-fsim : FSim R P₁ P₂ → FSim R (P₁ ∖ A) (P₂ ∖ A)` has NO side condition. That is consistent, because `FSim` is strictly STRONGER than `⊑FD`: `CSP/Laws/FSim/HideCounterexample.agda`'s `¬fsim-Pinf-Qh : ¬ (FSim Rt Qh Pinf)` proves the very counterexample pair is not an `FSim`, so it can never be fed to `Hide-fsim`. The trade is real — you must supply a simulation WITNESS, not a `⊑FD` fact, and completeness (`⊑FD → FSim`) does **not** hold in general. (b) **`Hide-mono-⊑FD-finBr` is FALSE too** — `CSP/Laws/FD/HideMonoFinBrFail.agda` constructs `finBr-Pinf : FinBr Pinf` for the very `P = ⊓ₙ(hⁿ;STOP)` of the counterexample, so a `FinBr` hypothesis on the refining side excludes NOTHING. Reason: `FinBr` bounds only the VISIBLE channel support (`chan-supp`, here `[]` — `Pinf` offers `∅v`) and never τ-fan-out, which it records merely as a `Dec (isStable ·)`; the counterexample's unbounded branching is entirely on τ. **Generalise the lesson: `FinBr` cannot rescue any law whose obstruction is König.** (c) Still UNFORMALISED, stated plainly: that the counterexample pair genuinely satisfies `Pinf ⊑FD Qh` *denotationally* remains prose in `HideMonoFD`'s header — nothing in the repo proves it. Neither negative result needs it (refuting `Hide-fsim` would require exhibiting an `FSim`; refuting the `FinBr` repair only requires the certificate), but the denotational half of the classic counterexample is a genuine gap. |
 
 ## §7 — Renaming `⟦R⟧`  🟡 (FD layer begun)
 
@@ -293,25 +304,296 @@ VM module only widened its `using` lists to import existing definitions
 
 Not started.
 
+## §15 — One-way failure simulation `FSim` (the `⊑FD` refinement order)  ✅
+
+**What it is, and why it exists.** Until now `⊑FD` had exactly ONE route: `drbisim→⊑FD`,
+which consumes all four `DRbisim` fields (`fwd`, `bwd`, `div→`, `div←`). For a
+*refinement* the `bwd` and `div←` halves are dead weight — and worse than dead weight,
+because supplying them forces the abstract (spec) side of every proof to be reflected
+back through the whole operator stack. `FSim` is the one-way alternative: a coinductive
+record with **three** fields and no `bwd` / `div←`.
+
+**Orientation — state it explicitly, it is easy to get backwards.** In `FSim R t₁ t₂`
+the FIRST argument is the **IMPLEMENTATION** and the SECOND the **SPECIFICATION**
+(mirroring `Semantics.WeakSim`'s `WSim`), so the headline theorem reads
+
+```
+fsim→⊑FD : FSim R Q P → P ⊑FD Q
+```
+
+The three fields (`Semantics/FailureSim.agda`):
+
+| Field | Type | Reading |
+|---|---|---|
+| `fwd` | `WSimF (FSim R) t₁ t₂` | every impl step matched by a WEAK spec step — the `bwd`-free half of the existing DR congruences |
+| `stab` | `isStable t₁ → Σ[ t₂′ ] (t₂ ─[τ*]─► t₂′ × isStable t₂′ × (∀ e → Offers t₂′ e → Offers t₁ e))` | a stable impl lets the spec silently SETTLE into a stable state offering **no more** than the impl (the inclusion runs spec-offers ⊆ impl-offers, which is what lets a refusal travel impl→spec) |
+| `div→` | `Diverges t₁ → Diverges t₂` | the only divergence direction `⊑D` consumes |
+
+| Result | Module |
+|---|---|
+| `FSim` record; `fsim-trace-sim` (big-step replay), `fsim→wsim`, `fsim→⊑T`, `fsim→⊑D`, `fsim→⊑F⊥`, `fsim→⊑FD`; preorder `fsim-refl` / `fsim-trans` (with the `FSim`-specific weak-step lifts `fsim-τ*-sim` / `fsim-wev-sim`, since `WeakBisim`'s are hard-coded to `Wbisim`) | ✅ `Semantics/FailureSim.agda` — **postulate-free**, and deliberately imports nothing supplying `dne` |
+| `FSimFromRel` coinduction principle: `fwdE` / `fwdT` (the two FORWARD obligations of `DRFromRel`, reusable verbatim) + `stabR` (the `stab` field with `Rel p q` in front) + `ndivL`; `bwdE`, `bwdT`, `ndivR` are NOT required | ✅ `Semantics/BisimFromRel.agda` — postulate-free |
+| `drbisim→fsim` (a `DRbisim` is an `FSim` in the SAME orientation: keep `fwd`/`div→`, drop `bwd`, derive `stab` from `div←` + `¬-divergent→normal`); `drbisim→⊑D` / `⊑F⊥` / `⊑FD` rewired as ONE-LINERS through `FSim` — **all names and types preserved, all 58 consumers green** | ✅ `Semantics/DRImpliesFD.agda` |
+| postulate-free STABILITY helpers (`stable-not-sil` / `-not-ret` / `-react-τc`, `stable-no-τ`, `stable→¬div`, `stable→τ*-refl`, `nothing≢just`) hoisted OUT of the postulate-bearing bridge and re-exported from it, so postulate-free clients need not import `¬-divergent→normal` | ✅ `Semantics/Stability.agda` — postulate-free (`⟹-then-τ*` similarly moved to `Semantics/Failures.agda`) |
+| `Par-fsim` (generalised `Par A merge`) + corollaries `∥-fsim`, `⦀-fsim` | ✅ `CSP/Laws/FSim/ParCong.agda` |
+| `Bind-fsim` (`>>=`) + corollaries `bindNoτ-fsim`, `bindκ-fsim` (pure continuation), `>>-fsim` | ✅ `CSP/Laws/FSim/BindCong.agda` |
+| `Hide-fsim` (`∖`) | ✅ `CSP/Laws/FSim/HideCong.agda` |
+| `Iter-bind-fsim` + corollaries `iter-fsim`, `loop-fsim`, `loop0-fsim`, `loopc-fsim`, `while-fsim` | ✅ `CSP/Laws/FSim/LoopCong.agda` |
+| `¬fsim-Pinf-Qh : ¬ (FSim Rt Qh Pinf)` — the FD hiding counterexample pair is provably **not** an `FSim`, so it cannot refute the unconditional `Hide-fsim` | ✅ `CSP/Laws/FSim/HideCounterexample.agda` — postulate-free |
+| worked smoke test: `copy⊑FD-buff1 : COPY ⊑FD BUFFN1` via `FSimFromRel`, reusing `Buffers`' `BRel` / `fwdE` / `fwdT` / `ndivL` verbatim and adding one stability obligation; `orientation-check` pins the direction against `proj₂ copy-is-buff1` | ✅ `CSP/Examples/UCS/Ch6/BuffersFSim.agda` — postulate-free |
+
+**Side conditions — the interesting part, reported honestly:**
+
+- **`Par-fsim` needs `Sep A P₁ Q₁` on the IMPL operand pair ONLY** — HALF of what the
+  two-way `≈DR` congruence needs (being two-way, that one needs `Sep` on both operand
+  pairs). It is consumed in exactly ONE place: `fwd`'s `evBoth` overlap case, where
+  `Par-ev-elim` would otherwise put the impl composite into the inline overlap node
+  `(Par P′ Q₁) ⊓ (Par P₁ Q′)`. **`stab` needs no side condition at all.**
+- **`Bind-fsim` takes a `BindDivSplit k₁` hypothesis, for `div→` ONLY** (the bind König
+  step: an infinite τ-chain of `P >>= k` either stays inside `P` or crosses the
+  handover). It is DISCHARGED for τ-less continuation roots (`NoTauRoot` ⇒
+  `bind-noτ-split`, giving the side-condition-free `bindNoτ-fsim` and `bindκ-fsim`) and
+  for `_>>_` (via `>>-split`, off the pre-existing certified `>>-Diverges→`). It is
+  undischarged only when the continuation may itself begin with a τ. `fwd` and `stab`
+  need nothing.
+- **`Hide-fsim` is UNCONDITIONAL**, and so are **all five loop corollaries**
+  (`iter-fsim`, `loop-fsim`, `loop0-fsim`, `loopc-fsim`, `while-fsim` — `iter-div-split`
+  discharges the iterate König hypothesis for EVERY continuation and every state type).
+  See §6 for why unconditional `Hide-fsim` does not contradict the FALSITY of
+  unconditional `Hide-mono-⊑FD`.
+- **Across the whole suite, `fwd` and `stab` are classical-ingredient-free; the only
+  classical dependency is ever `div→`.**
+
+**Generic-layer housekeeping landed with this work:** `FinBr` was hoisted OUT of the
+priority layer into `Semantics/FinBr.agda`, where it belongs — it mentions only
+`Process_Trees` + `Semantics.LTS` — and is now generic in the τ-index type `I` exactly
+like `Semantics.LTS`. `CSP/Priority/Base.agda` re-exports it at `I = ExtI E`, so the ~22
+modules that get `FinBr` from there needed **zero** downstream edits.
+
+**Cost of the one-way route vs. the two-way one** (measured on the real-scale
+`Liveness/PipePairFlipBFs` BF-server peer refinement; the FSim re-proof is
+`CSP/Examples/Cardano_network/NetworkVerification/Liveness/PipePairFlipBFsFSim.agda`,
+which reuses `bfsFwdE` / `bfsFwdT` / `bfsNdivL` verbatim and replaces
+`bfsBwdE` / `bfsBwdT` / `bfsNdivR` by one `bfsStab`):
+
+| Metric | Route A (`≈DR`) | Route B (`FSim`) | Δ |
+|---|---|---|---|
+| backward half → `stabR` | 1590 lines / 1294 clauses | 1168 / 941 | **−27 %** |
+| whole proof | 3875 lines | 3458 lines | **−10.8 %** |
+| wall clock | 52.69 s | 46.39 s | **−12.0 %** |
+| peak RSS | 6.38 GB | 5.82 GB | **−8.8 %** |
+| `--profile=modules` self time | 46.9 s | 42.6 s | **−9.2 %** |
+
+⚠ **Two caveats, and they matter.** (i) The two routes do not deliver the same thing:
+Route A yields a full `≈DR` (hence `≈FD`, both directions), Route B yields ONE `⊑FD`.
+Route B is therefore doing strictly less work, and the table is not a like-for-like
+speed-up. (ii) The saving is far BELOW the 41–45 % line share that `bwd` / `div←`
+occupy, because `stabR` cannot avoid the alphabet enumeration that makes `bwdE` large in
+the first place — the offer-reflection lemmas still case-split over the whole event
+alphabet. The structural win (three obligations instead of six, no residual relation and
+no τ*-padded weak matching on the backward side) is real; the line-count win is modest.
+
+---
+
+## §16 — Divergence-freedom and stability calculi  ✅ built · ⚠️ payoff LIMITED
+
+Five commits on `semantics/failure-sim`: `732afee` + `33ce925` (the divergence-freedom
+calculus) and `e1260da` + `ab8cff3` + `db17141` (the stability consolidation). This
+section records **infrastructure**, not new laws — and the honest headline is that the
+divergence-freedom half did **not** pay off at the existing proof sites; see *Measured
+payoff* below, which also says exactly where it would.
+
+### The modules
+
+| Module | What it holds |
+|---|---|
+| `Semantics/DivergenceFree.agda` — generic in `E`/`I`, **postulate-free**, `--safe`-clean | ONE home for the three strengths of "does not diverge" (`τ-Acc` ⇒ `¬ Diverges` ⇒ the reachability-closed `DivergenceFree`). **Moved in:** `τ-Acc` / `acc` / `accSub` / `τ-Acc→¬Div` (from `Semantics/TauAcc.agda`) and `DivergenceFree` (from `Semantics/DeadlockDR.agda`, the √-free-reachability definition **unchanged**). **Re-exported, NOT moved:** `stable→¬div` (+ `stable-no-τ`, `stable→τ*-refl`) — owner stays `Semantics/Stability.agda`, which is postulate-free by design — and `deadlock-converges` (+ `div-diverges`, `deadlock-no-τ`) — owner stays `Semantics/DRBisim.agda`, next to the pathology they refute. **New leaf certificates:** `stable→τ-Acc`, `ret→τ-Acc` (+ `ret→no-τ`), `sil→τ-Acc`, `τ-step-transport`, `τ-AccReach` and its bridge `τ-AccReach→DivergenceFree` (+ `divergenceFree→¬Div`) |
+| `CSP/Laws/DivFree/Closure.agda` — **postulate-free**, typechecks green | **19** structural `τ-Acc` closures — leaves `Stop`, `deadlock`, `Ret`/`Skip`, `Tau`; prefixes `pchoice`, `⟶`, `⟶₀`, `Output` (`e ! v ⟶ P`); `⊓` and `⨅Fin`; `▷`; `□`; `Par` with `∥⇘⇙` / `⦀` / `⦀Fin`; `>>=` and `>>`. **10** of the 19 carry a `*-no-Diverges` corollary (`Stop`, `Skip`, `pchoice`, `prefix`, `⊓`, `▷`, `□`, `Par`, `>>=`, `>>`) — the shapes `DRFromRel`/`FSimFromRel` actually consume; the other nine are `τ-Acc`-only. Bind needed a τ-inversion the trace laws did not have (`BindτR` / `bind-τ-elim`, derived in the module). Also folds away the two remaining `prefix-no-Diverges` duplicates (`InterruptFD`, `ExtChoiceSlide`) |
+| `Semantics/Stability.agda` (extended) | now single-sources the **five** generic `isStable` lemmas: `mk-stable` (intro from an everywhere-`nothing` τ-map), `stable→react` (Σ-form elim), `isStable-force-eq` (forward transport along an equal force), `stable-force-eq` (the same, backward), `react-no-τ→stable` (intro from the LTS side). `mk-stable` alone had **four** identical copies (`ThrowFD`, `InterruptFD`, `ParallelRefusals`, `ExtChoiceFD`) |
+| `CSP/Laws/Stability/Closure.agda` — postulate-free, typechecks green, **not `--safe`** | one import for "is this state τ-free?". §1–§8 **re-export** the per-operator lemmas that already existed (nothing re-proved): generic core, leaves (`Stop`, `deadlock`, `deadlock ∖ Z`), the prefix/`pchoice`/menu family, the NEVER-stable operators (`⊓`, `▷`, the `ret`-shaped `□`s), `□`, the parallel group (intro, `ParNormal` elim, `StableClass` classifier, reassociation), hide, and bind/seq/iterate. §9 adds the four gap lemmas below |
+
+### Design findings — the durable part
+
+1. **State the calculus on `τ-Acc`, not on `¬ Diverges`.** The negative form is *not*
+   constructively closed under these operators: turning `Diverges (P □ Q)` into
+   `Diverges P ⊎ Diverges Q` requires deciding WHICH operand contributes infinitely many
+   of the τ's — a König-style classical step. `τ-Acc` is inductive, so every closure is
+   plain structural recursion on the operands' certificates, with no classical input,
+   and `τ-Acc→¬Div` then delivers exactly what `DRFromRel`'s `ndivL`/`ndivR` and
+   `FSimFromRel`'s `ndivL` ask for. **`⊓` is the one operator that also closes in the
+   negative form** (its τ-successors are literally the operands), and it is proved both
+   ways.
+2. **`τ-Acc-▷` is a PREREQUISITE for `τ-Acc-□`**, not an independent nicety:
+   `□-τ-elim`'s `sPQ` / `sQP` cases put the composite into genuine slide states, so the
+   `□` closure calls the `▷` one. (The `□` recursion is lexicographic: `chQ` keeps the
+   left certificate and shrinks the right.)
+3. **Divergence-freedom is NOT Agda productivity — same word, different guard.**
+   `div = sil div` is perfectly productive *and* maximally divergent. Agda's guardedness
+   asks for the corecursive call under **any** constructor; CSP's "guarded recursion"
+   asks for the loop-back under a **visible** action. So the productivity checker cannot
+   supply the loop hypothesis, and `loop`/`iterate` is deliberately OUT of the closure
+   module. Intended shape for a later commit, recorded in its header:
+   `Guarded B → τ-Acc B → τ-Acc (loop0 B)`, with `Guarded` ruling out a `ret` reachable
+   by τ's alone.
+4. **The four gap lemmas** (§9 of `CSP/Laws/Stability/Closure.agda`) — what the survey
+   showed was genuinely missing rather than merely scattered:
+
+   | Lemma | Statement | Why it was a gap |
+   |---|---|---|
+   | `□-force-nn` | force equation for a `react`\|`react` external choice | `ExtChoiceIdem` had only the DIAGONAL `double-force-eq` |
+   | `stable-□` | `isStable P → isStable Q → isStable (P □ Q)` | only the diagonal `stable-double : isStable P → isStable (P □ P)` existed |
+   | `□-stable-elim` | `isStable (P □ Q) → isStable P × isStable Q` | the converse, completing the iff; all nine force shapes, the eight non-`react`\|`react` ones refuted |
+   | `Par-stable?` | `Dec (isStable P) → Dec (isStable Q) → Dec (isStable (Par As merge P Q))` | intro (`Par-stable`/`-termL`/`-termR`) and elim (`Par-stable-normal`) lived in two separate files and had never been packaged as a DECISION; the `ret`/`sil` shapes need no input at all |
+
+5. **Structural blocker on deduplication, verified empirically.** An
+   `open … public` re-export of the SAME definition through two applications of a
+   parameterised module still yields `[AmbiguousName]` at a client that imports both.
+   One canonical name therefore **cannot** be achieved by re-export: every historic name
+   must survive as a locally-defined alias, and deduplication can only remove the
+   *body*, never the signature. This caps the achievable dedup saving repo-wide, and it
+   is why `CSP/Laws/Stability/Closure.agda` carries a usage note telling clients to
+   `hiding (…)` on one of the two imports rather than drop the re-export.
+
+### Measured payoff — recorded honestly
+
+⚠️ **The operator closures do NOT pay off against the existing `ndivL`/`ndivR` sites,
+and the reason generalises.** Every such site already needs strict **τ-freeness**
+(`isStable`) for its `fwdT`/`bwdT` obligation; once you have τ-freeness, `ndiv*` is
+`stable→¬div`, a one-liner. `τ-Acc` is strictly WEAKER than τ-freeness, so it cannot
+discharge `fwdT`/`bwdT`, and it buys nothing where τ-freeness was needed anyway. The
+closures pay only where a composite genuinely HAS τ's whose well-foundedness is
+non-trivial — the **hide** and **loop** cases, both currently out of scope. That is also
+why the follow-up commits pivoted to gathering STABILITY, which is the load-bearing
+notion in this tree.
+
+- **Hide is not redone.** `MAcc A P → ¬ Diverges (P ∖ A)` already exists as
+  `Hide-noDiv-from-MAcc` at `CSP/Laws/FD/HideDivergence.agda:78`.
+- **Sites.** `CSP/Examples/UCS/Ch6/AbpFT.agda` converted: the hand-rolled
+  `par-pTau-nothing` (an 11-line case split over the `ExtI` index shapes) deleted in
+  favour of `Par-stable` + `stable-no-τ`; **28 proof lines → 12**, file 460 → 450,
+  behaviour unchanged.
+- **Deliberately NOT converted, measured:** `Ch6/Buffers.agda` and
+  `Ch7/SeqBuffers.agda` — their τ-free states are plain `react … ∅t` leaves, **not**
+  operator composites, so the existing `sSil ()` / `sTau refl ()` refutations are already
+  minimal; converting would trade 2 lines of proof for an import plus a layer of
+  indirection. `Cardano_network/Terminable/NetworkTRefinement.agda` would go 18 → 8 lines
+  (`spec0-noτ` / `S1-noτ`, two 8-shape `sTau` case splits) but is a WIP experiment and
+  was left untouched.
+- **The consolidation itself was roughly a wash on line count** (`e1260da`: +127 / −88).
+  Its value is single-sourcing, not brevity.
+- **Deduplication NON-findings, worth recording so nobody re-opens them.**
+  `stable-react` was **two different lemmas under one name** — an alias of `mk-stable`
+  (intro) in `IterateMonoFD`, an alias of `stable→react` (Σ-elim) in `ExtChoiceIdem`.
+  The three prefix-stability copies have three DIFFERENT signatures (`prefix-stable` in
+  `FDCong`, implicit arguments; `pfx-stable` in `InputDist`, explicit; `prefix₀-stable`
+  in `FDLawsPrefixDist`, over `Prefix₀`) and each proof is the single clause
+  `_ _ = refl`, so deleting copies would save nothing. Several other apparent duplicates
+  take their arguments in the opposite order. All correctly left alone.
+
+### Postulate and `--safe` status
+
+All three new modules (`Semantics/DivergenceFree.agda`, `CSP/Laws/DivFree/Closure.agda`,
+`CSP/Laws/Stability/Closure.agda`) are **postulate-free**, with no `NON_TERMINATING` and
+no sized types.
+
+- `Semantics/DivergenceFree.agda` passes `agda --safe Semantics/DivergenceFree.agda`
+  (exit 0 — the invocation puts the whole dependency cone under `--safe` too). Its own
+  pragma says only `--guardedness`, because `--safe` is CO-infective and
+  `Process_Trees` / `Semantics.LTS` / `Semantics.DRBisim` do not carry it.
+- `CSP/Laws/Stability/Closure.agda` **does not** pass `--safe`, and the failure is
+  genuine rather than cosmetic: it gathers from modules above `Semantics/DRImpliesFD`,
+  so `agda --safe` stops at `[SafeFlagPostulate] Cannot postulate ¬-divergent→normal`
+  (`DRImpliesFD.agda:67`). Under a plain `agda` it typechecks green.
+- Incidental repair: `Semantics/TauAcc.agda` did **not** typecheck under a plain `agda`
+  before this work — it declared `{-# OPTIONS --safe #-}` while `Process_Trees` does not,
+  giving `[CoInfectiveImport]`. The pragma was dropped; the content is still
+  `--safe`-clean, and `agda --safe Semantics/TauAcc.agda` still exits 0.
+
 ---
 
 ## Postulate inventory (`spike/extc-fd-laws`)
 
-All six postulates are kept small and direct, and **each is certified derivable from a
-single classical axiom `dne` (¬¬A→A)** in `ClassicalFromLEM.agda` (a standalone soundness
-witness, imported by nothing):
+### (a) FD-layer postulates — all certified from the single `dne`
+
+**Eleven** postulated names, spread over **ten** modules. Each is kept small and direct, and
+**each is certified derivable from a single classical axiom `dne` (¬¬A→A)** in
+`CSP/Laws/ClassicalFromLEM.agda` (a standalone soundness witness, imported by nothing; `dne`
+itself lives in `src/Classical.agda` and is the development's only axiom):
 
 | Postulate | Used in | Certified |
 |---|---|---|
-| `¬-divergent→normal` | `DRImpliesFD` | ✅ Derivation 1 |
-| `□-Diverges→` | `ExtChoiceDivergence` | ✅ Derivation 2 |
-| `△-Diverges→` | `InterruptDivergence` | ✅ Derivation 3 |
-| `>>-Diverges→` | `SeqDistR` | ✅ Derivation 4 |
-| `Par-Diverges→` | `ParallelDivergence` | ✅ Derivation 5 |
-| `offer-LEM` | `ParallelRefusals` | ✅ Derivation 6 (plain LEM) |
+| `¬-divergent→normal` | `Semantics/DRImpliesFD` | ✅ Derivation 1 |
+| `□-Diverges→` | `CSP/Laws/FD/ExtChoiceDivergence` | ✅ Derivation 2 |
+| `▷-Diverges→` | `CSP/Laws/FD/ExtChoiceDivergence` | ✅ Derivation 2 (the "▷ analogue", same `DAcc` engine) |
+| `△-Diverges→` | `CSP/Laws/FD/InterruptDivergence` | ✅ "Postulate 3" of the certifier — the "△ analogue", certified inside the Derivation-2 block; there is **no banner literally reading "Derivation 3"** in `ClassicalFromLEM.agda` |
+| `>>-Diverges→` | `CSP/Laws/FD/SeqDistR` | ✅ Derivation 4 |
+| `Par-Diverges→` | `CSP/Laws/FD/ParallelDivergence` | ✅ Derivation 5 |
+| `loop-Diverges→` | `CSP/Laws/FD/IterateFD` | ✅ Derivation 6 |
+| `offer-LEM` | `CSP/Laws/FD/ParallelRefusals` | ✅ Derivation 7 (plain LEM) |
+| `modA-transfer` | `CSP/Laws/Bisim/DRCongruence` | ✅ Derivation 8 (certifier name `modA-transfer-cert`) |
+| `¬DivModA→MAcc` | `CSP/Laws/FD/HideDivergence` | ✅ Derivation 9 (headed `Hide-Diverges→` in the certifier; the certified statement is `¬DivModAC→MAccC`, over the certifier's local copies `DivModAC`/`ModAStepC` of DRCongruence's `DivModA`/`ModAStep`) |
+| `Diverges-LEM` | `CSP/Laws/FD/FDTransfer` | ✅ Derivation 10 (plain LEM; certifier name `Diverges-LEM-cert`) |
 
-**Every postulate in the FD layer now derives from the one `dne` axiom.** No module uses
+Caveats on the numbering, so the table can be checked against the file: `ClassicalFromLEM.agda`
+lists "Postulate 1 … Postulate 10" in its header but carries banners only for Derivations
+1, 2, 4, 5, 6, 7, 8, 9, 10 — Postulate 3 (`△-Diverges→`) and the unnumbered `▷-Diverges→`
+are both certified within the Derivation-2 section. Every postulated name above does exist
+under that name in its home module, and every certifier derivation does correspond to a live
+postulate: there are **no orphaned derivations**.
+
+**Every postulate in the FD layer derives from the one `dne` axiom.** No module uses
 `NON_TERMINATING`. The bridge `≈DR ⟹ ≈FD` and `∼ ⟹ ≈DR` lift bisim laws to FD.
+
+### (b) Postulates outside the FD layer
+
+These are **not** part of the `dne`-certified FD family and must not be counted with it.
+
+| Postulate(s) | Module | Status |
+|---|---|---|
+| `dne` | `src/Classical.agda` | the single classical axiom itself — deliberate, the thing everything in (a) reduces to |
+| `⟦G⟧⇒⟦G⟧⁺`, `¬G⇒F¬` | `Semantics/LTL/Traces_Based` | ✅ certified from one `dne` in the **separate** certifier `Semantics/LTL/ClassicalFromLEM.agda` |
+| `¬¬F⇒F` | `Semantics/LTL/ClassicalDescent` | ✅ certified in the same LTL certifier (`¬¬F⇒F-fromLEM`) |
+
+**Scope.** This inventory covers the core layers only — `Semantics/`, `CSP/Operators`,
+`CSP/Rename`, `CSP/Laws/` and `CSP/Priority/` (plus `src/Classical.agda`); experimental,
+work-in-progress and spike modules under `CSP/Examples/` are out of its scope and may carry
+postulates of their own, documented in their own module headers.
+
+Within that scope this is the **complete** list:
+`grep -rn '^[[:space:]]*postulate' --include='*.agda'` over those layers turns up no other
+`postulate` block. In particular `CSP/Priority/Adequacy.agda` is postulate-free (as is the
+whole `CSP/Priority/` tree).
+
+### (c) Additions from §15 (`FSim`), 2026-07-31
+
+The `FSim` layer declares **no new postulate**. What it consumes, all of it pre-existing
+and `dne`-certified:
+
+| §15 module | Classical input (all in `div→`; `fwd` and `stab` are constructive throughout) |
+|---|---|
+| `CSP/Laws/FSim/ParCong.agda` (`Par-fsim`) | `Par-Diverges→` (`CSP.Laws.FD.ParallelDivergence`) |
+| `CSP/Laws/FSim/BindCong.agda` (`>>-fsim` only) | `>>-Diverges→` (`CSP.Laws.FD.SeqDistR`), via `>>-split`; `Bind-fsim` itself takes the König step as the explicit `BindDivSplit` hypothesis, and `bindNoτ-fsim` / `bindκ-fsim` discharge it constructively |
+| `CSP/Laws/FSim/HideCong.agda` (`Hide-fsim`) | `Diverges-LEM` (`CSP.Laws.FD.FDTransfer`) **+** `¬DivModA→MAcc` (`CSP.Laws.FD.HideDivergence`) |
+| `CSP/Laws/FSim/LoopCong.agda` (all corollaries, via `iter-div-split`) | the same two: `Diverges-LEM` **+** `¬DivModA→MAcc` |
+| `Semantics/DRImpliesFD.agda` (`drbisim→fsim`) | `¬-divergent→normal` — unchanged, and now the SINGLE place the bridge consumes it |
+
+`Semantics/FailureSim.agda`, `Semantics/Stability.agda` and `Semantics/FinBr.agda` are
+themselves **postulate-free** (as are `CSP/Laws/FSim/HideCounterexample.agda`,
+`CSP/Laws/FD/HideMonoFinBrFail.agda` and both smoke tests). `FailureSim` and
+`BisimFromRel` in particular do NOT import `Semantics.DRImpliesFD`, keeping the one-way
+route free of `¬-divergent→normal`.
+
+Both classical inputs consumed here, `Diverges-LEM` and `¬DivModA→MAcc`, are rows of table
+(a) above (Derivations 10 and 9).
+
+### (d) Additions from §16 (divergence-freedom / stability), 2026-08-01
+
+The §16 layer declares **no new postulate** and consumes **no classical input at all**:
+`Semantics/DivergenceFree.agda` and `CSP/Laws/DivFree/Closure.agda` are postulate-free
+and `dne`-free (that is the point of stating the calculus on the inductive `τ-Acc` — see
+§16, finding 1), and `CSP/Laws/Stability/Closure.agda` adds no postulate of its own. The
+one `--safe` caveat is inherited, not new: `Stability/Closure` gathers from modules above
+`Semantics/DRImpliesFD`, so it sits under row 1 of table (a), `¬-divergent→normal`.
 
 ---
 
@@ -789,6 +1071,14 @@ all-singleton results are now corollaries of the general path. The subsystem is
 axiom-free modulo ONLY the FD layer's certified König/classical inputs
 (`Par-Diverges→`, `DRImpliesFD`), as everywhere else.
 
+**Repair note (2026-07-31), `NetworkVerification/Liveness/PipePair.agda`:** a
+pre-existing RED module, unrelated to §15 but blocking work on it, is green again. It
+carried **12 stale `OffersOnly` witnesses**: `e ! v ⟶ P` is `Output e v P` — a SINGLE
+`react` node — so four sites needed `OffersOnly-Output refl OffersOnly-Ret` where they
+had a bare `OffersOnly-Ret`, and eight had an extra `OffersOnly-Prefix₀` layer that the
+single node does not have. The fix unblocks **6 of the module's 23 importers**; the other
+17 have their own independent errors and remain red.
+
 ---
 
 ## Suggested next steps
@@ -797,5 +1087,31 @@ axiom-free modulo ONLY the FD layer's certified König/classical inputs
    (needs each operator's FD decomposition, the larger lift). Their zero laws
    (`Div ∖ X`, `Div⟦R⟧` — T11.7/T11.8) come for free once the FD layer exists.
 2. **Sliding choice (§11)** and the remaining cross-operator SKIP-termination laws.
+3. **A `FinHide A` certificate — the repair that would actually fix hide monotonicity;
+   SCOPED BUT DELIBERATELY NOT BUILT.** §6(b) shows `FinBr` is the wrong certificate
+   (it bounds visible channels, whereas the obstruction is τ-fan-out). The right one
+   enumerates, at each reachable state, the τ-successor **TREES** together with the
+   hidden-event successors for channels in `A` — i.e. finite branching of exactly the
+   step relation that hiding turns into τ. A **label-generic** version is FALSE:
+   `c?x → cont x` with an infinite value carrier has infinitely many `ev`-successors, so
+   the certificate must be indexed by the hidden set `A` and must enumerate SUCCESSORS,
+   not labels. Estimated cost: a **~700-line closure module** (the `FinHide` analogue of
+   `CSP.Priority.Closure`, one lemma per operator) plus **~300 lines of König**, plus a
+   **new `dne`-certified pigeonhole postulate**. Scoped during the §15 work and
+   deliberately not attempted.
+4. **Formalise `Pinf ⊑FD Qh`** — the denotational half of the classic hiding
+   counterexample, currently only prose in `HideMonoFD`'s header (§6(c)).
+5. **`FSim` completeness (`⊑FD → FSim`)** — OUT OF SCOPE. It is classical and would need
+   finite branching plus convergence hypotheses; §15 uses `FSim` purely as a SUFFICIENT
+   condition for `⊑FD`.
+6. **§16 follow-ons, with the honest read on each.** Further site-hunting for
+   `AbpFT`-shaped conversions is expected to be **thin**: the pattern that pays is a
+   *composite with stable operands*, and that is rarer in this tree than a name survey
+   over `noτ-*` / `ndiv*` suggests — most such states are plain `react … ∅t` leaves,
+   where the existing refutations are already minimal. The remaining HIGH-VALUE target is
+   the **hide** case via `MAcc` (`τ-Acc`-style closure for `P ∖ A`), which is precisely
+   where the only postulated non-divergence obligation lives (`¬DivModA→MAcc`, table (a)
+   Derivation 9). The **loop** case needs the `Guarded B → τ-Acc B → τ-Acc (loop0 B)`
+   hypothesis of §16 finding 3 first.
 
-_Last updated 2026-07-12._
+_Last updated 2026-08-01._

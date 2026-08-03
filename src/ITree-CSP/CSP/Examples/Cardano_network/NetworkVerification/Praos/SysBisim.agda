@@ -45,7 +45,8 @@ open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (¬_)
 open import Data.Empty using (⊥; ⊥-elim)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; subst; cong)
+open import Data.Maybe using (nothing)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; subst; cong; cong₂)
 
 open import Process_Trees using (PTree; ExtI)
 
@@ -55,15 +56,27 @@ module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysBisim where
 -- The concrete model, the two endpoints, and the shared alphabet.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
+open import Data.Unit using () renaming (⊤ to ⊤₀)
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 
 -- Net_Api operators (the whole-system alphabet), to state the inner-step probe
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open Op using ( _∥⇘_⇙_; _∖_; EventSet )
+open Op using ( _∥⇘_⇙_; _⦀_; _∖_; EventSet; viewV )
+-- the Hide-hidden law (an io ∈ ioES fire becomes a τ through `∖ ioES`), for the
+-- backward io-sync WEAK-τ lift; `Hide-ev-elim`/`heV` for `oevB`'s io refutation
+-- (SysStep imports these non-`public`, so import direct)
+open import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload})
+  using ( Hide-hidden; Hide-ev-elim; HideevR )
+open HideevR using ( heV )
+-- `noOffer→viewV` (the `¬ IoOffers → viewV ≡ nothing` bridge for the solo lift)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_GapBDisj as GB
 open EventSet using ( mem )
+
+-- the four concrete node decodes (the operands of `nodesOf`, for the nodesτ peel)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
 
 -- the whole-system process type (shared with `⟦_⟧` / `absDec` / the endpoints)
 NetProc : Set₁
@@ -71,7 +84,7 @@ NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- the R1 concrete decode + its home equality (`⟦ initial ⟧ ≡ systemBroken`)
 open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
-  using ( SysState; med; nA; nB; nC; nD; ⟦_⟧; initial; dec-init )
+  using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧; initial; dec-init )
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
   using ( systemBroken )
 -- the R2 abstract target + its home equality (`absDec initial ≡ abstractSystem`)
@@ -82,11 +95,17 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSyste
 open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
   using ( decMed )
 -- the whole generic step/reflection machinery (R2 Task 4)
+-- qualified alias too, for the `TopEvR` constructors (`medEv`/`nodesEv` clash
+-- with `comove-io-sync`'s argument names if opened unqualified)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep as SStep
 open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
   using ( absDec; absDec-init; nodesOf; absNodesOf
-        ; ReflOut; reflect-⟦⟧-τ; reflect-absDec-τ
-        ; InnerτR; reflect-inner-τ
+        ; absNodeA; absNodeB; absNodeC; absNodeD
+        ; ReflOut; innerτ; hidSync; reflect-⟦⟧-τ; reflect-absDec-τ
+        ; InnerτR; medτ; nodesτ; reflect-inner-τ
+        ; NodesτR; nAτ; nBτ; nCτ; nDτ; reflect-nodes-τ
         ; TopEvR; reflect-top-ev
+        ; ∖-τ; ∖-ev
         ; IoOffers; μ
         -- the operand-generic whole-system step-intro seals (the reflect-half's
         -- assembly of a concrete `⟦ s ⟧`/`absDec s` step from a leaf step)
@@ -96,21 +115,31 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
 -- `_↝_` + reachable closure `rclose`) — the domain the compositional bisim walks
 open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysReach
   using ( RState; toSys; rdec; radec; rinit; rclose; rclose-abs
+        ; rcloseʷ; rcloseʷ-abs
         ; _↝_; mkStep; Reachable; rStep; reach; mkR )
 -- the R2 D3 top-level co-moves + impossible-event refutations (visible classes)
 import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysRoute as SR
 -- the api-class witness constructors (`IsApiCSBF`), for the `oev` api dispatch
 import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle as SO
+-- the R2 D3 io leaf machinery (`top-nodes-io` for `otau`'s hidSync branch)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink3 as SIL
+-- the R2 D3 abstract node-τ collapse (`nodeX-τ-inv-abs` for `otau`'s nodesτ branch)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink4 as SIL4
+-- the abstract nodes-τ VACUITY (`absNodesOf-no-τ` for `otauB`'s nodesτ branch)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv as SNT
+-- the R2 D3 backward abstract node peels (`top-nodes-abs`/`top-nodes-io-abs` — the
+-- abstract-primary → concrete-nodes weak run — for the backward `oevB`/`otauB` fields)
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink6 as SIL6
 -- the io / event alphabet constructors (for the `oev` label dispatch)
 open import CSP.Examples.Cardano_network.Net p
-  using ( apiCS; apiBF; apiKA; apiTS; apiLN; apiLF
+  using ( apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; Link
         ; break; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 
 -- the LTS + weak-bisim vocabulary
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
-  using ( _─[_]─►_; ev; τ; evl; evLabel; Event√; √; Diverges )
+  using ( _─[_]─►_; ev; τ; evl; evLabel; Event; Event√; √; Diverges )
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
-  using ( _─[τ*]─►_; τ*-refl; τ*-step; _═[_]═►_; wτ; wev; WSimF )
+  using ( _─[τ*]─►_; τ*-refl; τ*-step; τ*-trans; _═[_]═►_; wτ; wev; WSimF )
 open WSimF
 open import Semantics.DRBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( DRbisim; _≈DR_ )
@@ -247,12 +276,22 @@ record StepOracle : Set₁ where
   field
     otau  : (r : RState) {M : NetProc} → rdec r ─[ τ ]─► M
           → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ τ ]═► radec r′))
-    oev   : (r : RState) {l : Event√ (⊤ {0ℓ})} {M : NetProc} → rdec r ─[ ev l ]─► M
-          → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ ev l ]═► radec r′))
+    -- visible (non-√) forward class: the target is a `rdec r′` Hide-tree
+    oev   : (r : RState) {e : Event} {M : NetProc} → rdec r ─[ ev (evl e) ]─► M
+          → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ ev (evl e) ]═► radec r′))
+    -- √ (terminal) forward class: a √ step targets `deadlock` (NOT any `rdec r′`),
+    -- so its output is the raw WSimF triple with the terminal residual bisim
+    -- (`drbisim-refl deadlock`).  This is the sound √ CO-MOVE enabled by the
+    -- STEP-5 symmetrization (both 12-peer sides ret exactly at all-stDone).
+    osqrt : (r : RState) {x : ⊤ {0ℓ}} {M : NetProc} → rdec r ─[ ev (√ x) ]─► M
+          → Σ[ t′ ∈ NetProc ] ((radec r ═[ ev (√ x) ]═► t′) × DRbisim (⊤ {0ℓ}) M t′)
     otauB : (r : RState) {M : NetProc} → radec r ─[ τ ]─► M
           → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ τ ]═► rdec r′))
-    oevB  : (r : RState) {l : Event√ (⊤ {0ℓ})} {M : NetProc} → radec r ─[ ev l ]─► M
-          → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ ev l ]═► rdec r′))
+    -- visible (non-√) backward class + √ backward CO-MOVE (mirror of oev/osqrt)
+    oevB  : (r : RState) {e : Event} {M : NetProc} → radec r ─[ ev (evl e) ]─► M
+          → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ ev (evl e) ]═► rdec r′))
+    osqrtB : (r : RState) {x : ⊤ {0ℓ}} {M : NetProc} → radec r ─[ ev (√ x) ]─► M
+          → Σ[ t′ ∈ NetProc ] ((rdec r ═[ ev (√ x) ]═► t′) × DRbisim (⊤ {0ℓ}) M t′)
     odiv→ : (r : RState) → Diverges (rdec r) → Diverges (radec r)
     odiv← : (r : RState) → Diverges (radec r) → Diverges (rdec r)
 open StepOracle public
@@ -268,25 +307,29 @@ bisim′ˢ-from : StepOracle → (r : RState) → DRbisim (⊤ {0ℓ}) (radec r)
 -- forward: concrete steps reflected via `otau`/`oev`, residual = walker at `r′`
 bisim′-from o r .fwd .on-tau step with o .otau r step
 ... | r′ , refl , wm = radec r′ , wm , bisim′-from o r′
-bisim′-from o r .fwd .on-ev  step with o .oev r step
+bisim′-from o r .fwd .on-ev {l = evl e} step with o .oev r step
 ... | r′ , refl , wm = radec r′ , wm , bisim′-from o r′
+bisim′-from o r .fwd .on-ev {l = √ x}  step = o .osqrt r step
 -- backward: abstract steps reflected via `otauB`/`oevB`, residual = SWAPPED walker
 bisim′-from o r .bwd .on-tau step with o .otauB r step
 ... | r′ , refl , wm = rdec r′ , wm , bisim′ˢ-from o r′
-bisim′-from o r .bwd .on-ev  step with o .oevB r step
+bisim′-from o r .bwd .on-ev {l = evl e} step with o .oevB r step
 ... | r′ , refl , wm = rdec r′ , wm , bisim′ˢ-from o r′
+bisim′-from o r .bwd .on-ev {l = √ x}  step = o .osqrtB r step
 bisim′-from o r .div→ d = o .odiv→ r d
 bisim′-from o r .div← d = o .odiv← r d
 -- swapped orientation (abstract on the left): mirrors the above with the
 -- concrete/abstract oracle components exchanged
 bisim′ˢ-from o r .fwd .on-tau step with o .otauB r step
 ... | r′ , refl , wm = rdec r′ , wm , bisim′ˢ-from o r′
-bisim′ˢ-from o r .fwd .on-ev  step with o .oevB r step
+bisim′ˢ-from o r .fwd .on-ev {l = evl e} step with o .oevB r step
 ... | r′ , refl , wm = rdec r′ , wm , bisim′ˢ-from o r′
+bisim′ˢ-from o r .fwd .on-ev {l = √ x}  step = o .osqrtB r step
 bisim′ˢ-from o r .bwd .on-tau step with o .otau r step
 ... | r′ , refl , wm = radec r′ , wm , bisim′-from o r′
-bisim′ˢ-from o r .bwd .on-ev  step with o .oev r step
+bisim′ˢ-from o r .bwd .on-ev {l = evl e} step with o .oev r step
 ... | r′ , refl , wm = radec r′ , wm , bisim′-from o r′
+bisim′ˢ-from o r .bwd .on-ev {l = √ x}  step = o .osqrt r step
 bisim′ˢ-from o r .div→ d = o .odiv← r d
 bisim′ˢ-from o r .div← d = o .odiv→ r d
 
@@ -479,34 +522,382 @@ pack-oev r {l} step (s′ , Meq , astep0) =
     st : toSys r ↝ s′
     st = comove-ev (toSys r) s′ l cstep0 astep0
 
--- the TOTAL `oev` field: a visible top step reflected to its reachable successor
--- + the matching abstract weak move (impossible labels are `⊥`-eliminated)
-oev-impl : (r : RState) {l : Event√ (⊤ {0ℓ})} {M : NetProc} → rdec r ─[ ev l ]─► M
-  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ ev l ]═► radec r′))
-oev-impl r {√ x} step = ⊥-elim (SR.oev-no-√ (toSys r) step)
-oev-impl r {evl (evLabel _ (apiCS l₀ d₀ m) a)} step = pack-oev r step (SR.top-api-comove (toSys r) SO.aicCS tt step)
-oev-impl r {evl (evLabel _ (apiBF l₀ d₀ m) a)} step = pack-oev r step (SR.top-api-comove (toSys r) SO.aicBF tt step)
-oev-impl r {evl (evLabel _ (done  l₀ d₀ id) a)} step = pack-oev r step (SR.top-api-comove (toSys r) SO.aicDone tt step)
-oev-impl r {evl (evLabel _ (break l₀) a)} step = pack-oev r step (SR.top-break-comove (toSys r) l₀ step)
-oev-impl r {evl (evLabel _ (input  l₀ d₀ id) a)} step = ⊥-elim (SR.oev-no-io (toSys r) tt step)
-oev-impl r {evl (evLabel _ (output l₀ d₀ id) a)} step = ⊥-elim (SR.oev-no-io (toSys r) tt step)
-oev-impl r {evl (evLabel _ (apiKA l₀ d₀ m) a)} step =
+-- the `oev` field (visible NON-√ class): a visible `evl` top step reflected to
+-- its reachable successor + the matching abstract weak move (impossible labels
+-- are `⊥`-eliminated).  The √ class is handled separately by `osqrt-impl` (a √
+-- step targets `deadlock`, not any `rdec r′`, so it cannot live in `oev`).
+oev-impl : (r : RState) {e : Event} {M : NetProc} → rdec r ─[ ev (evl e) ]─► M
+  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ ev (evl e) ]═► radec r′))
+oev-impl r {evLabel _ (apiCS l₀ d₀ m) a} step = pack-oev r step (SR.top-api-comove (toSys r) SO.aicCS tt step)
+oev-impl r {evLabel _ (apiBF l₀ d₀ m) a} step = pack-oev r step (SR.top-api-comove (toSys r) SO.aicBF tt step)
+oev-impl r {evLabel _ (done  l₀ d₀ id) a} step = pack-oev r step (SR.top-api-comove (toSys r) SO.aicDone tt step)
+oev-impl r {evLabel _ (break l₀) a} step = pack-oev r step (SR.top-break-comove (toSys r) l₀ step)
+oev-impl r {evLabel _ (input  l₀ d₀ id) a} step = ⊥-elim (SR.oev-no-io (toSys r) tt step)
+oev-impl r {evLabel _ (output l₀ d₀ id) a} step = ⊥-elim (SR.oev-no-io (toSys r) tt step)
+oev-impl r {evLabel _ (apiKA l₀ d₀ m) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiKA (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
-oev-impl r {evl (evLabel _ (apiTS l₀ d₀ m) a)} step =
+oev-impl r {evLabel _ (apiTS l₀ d₀ m) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiTS (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
-oev-impl r {evl (evLabel _ (apiLN l₀ d₀ m) a)} step =
+oev-impl r {evLabel _ (apiLN l₀ d₀ m) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiLN (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
-oev-impl r {evl (evLabel _ (apiLF l₀ d₀ m) a)} step =
+oev-impl r {evLabel _ (apiLF l₀ d₀ m) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiLF (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
-oev-impl r {evl (evLabel _ (sndmsg l₀ d₀ id) a)} step =
+oev-impl r {evLabel _ (sndmsg l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-sndmsg (med (toSys r))) (SR.nodes-no-sndmsg (toSys r)) step)
-oev-impl r {evl (evLabel _ (rcvmsg l₀ d₀ id) a)} step =
+oev-impl r {evLabel _ (rcvmsg l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-rcvmsg (med (toSys r))) (SR.nodes-no-rcvmsg (toSys r)) step)
-oev-impl r {evl (evLabel _ (tx     l₀ d₀ id) a)} step =
+oev-impl r {evLabel _ (tx     l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-tx (med (toSys r))) (SR.nodes-no-tx (toSys r)) step)
-oev-impl r {evl (evLabel _ (sndack l₀ d₀ id) a)} step =
+oev-impl r {evLabel _ (sndack l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-sndack (med (toSys r))) (SR.nodes-no-sndack (toSys r)) step)
-oev-impl r {evl (evLabel _ (rcvack l₀ d₀ id) a)} step =
+oev-impl r {evLabel _ (rcvack l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-rcvack (med (toSys r))) (SR.nodes-no-rcvack (toSys r)) step)
-oev-impl r {evl (evLabel _ (ack    l₀ d₀ id) a)} step =
+oev-impl r {evLabel _ (ack    l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-ack (med (toSys r))) (SR.nodes-no-ack (toSys r)) step)
+
+------------------------------------------------------------------------
+-- R2 D3 — the TOTAL `StepOracle.otau` field (`otau-impl`).  A forward τ of
+-- `rdec r = ⟦ toSys r ⟧` reflects (via `reflect-⟦⟧-τ`) into either an inner
+-- `Par⊤ ioES` τ (further split by `reflect-inner-τ` into a MEDIUM τ or a NODES
+-- τ) or a hidden io-SYNC.  Each class routes to a `SysState` successor `s′`
+-- (medium-only / nodes-only / medium+nodes update), builds the whole-system
+-- co-move (`comove-med-τ` / `comove-nodes-τ` / `comove-io-sync`), and packages
+-- it into the `otau` output via `pack-otau` (`M ≡ rdec r′` + abstract weak-τ).
+------------------------------------------------------------------------
+
+-- package a τ co-move (`s′` + `M ≡ ⟦ s′ ⟧` + the co-move's abstract weak-τ run)
+-- into the reachable `otau` output (mirror of `pack-oev`, on the τ side)
+pack-otau : (r : RState) {M : NetProc} {s′ : SysState}
+    (Meq : M ≡ ⟦ s′ ⟧)
+    (st  : toSys r ↝ s′)
+    (run : radec r ═[ τ ]═► radec (proj₁ (rclose r st)))
+  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ τ ]═► radec r′))
+pack-otau r Meq st run = proj₁ (rclose r st) , trans Meq (sym (proj₂ (rclose r st))) , run
+
+-- MEDIUM-τ branch: a copy cell drain (`draining → empty`) advances the medium
+-- alone; `medium-τ-inv` reflects the `MedState` successor, nodes/abstract fixed.
+otau-med : (r : RState) {M′ M : NetProc}
+    (ms  : decMed (med (toSys r)) ─[ τ ]─► M′)
+    (Meq : M ≡ ((M′ ∥⇘ ioES ⇙ nodesOf (toSys r)) ∖ ioES))
+  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ τ ]═► radec r′))
+otau-med r {M′} {M} ms Meq with SIL.medium-τ-inv (med (toSys r)) ms
+... | m′ , M′≡ =
+      pack-otau r
+        (trans Meq (cong (λ z → (z ∥⇘ ioES ⇙ nodesOf (toSys r)) ∖ ioES) M′≡))
+        st (_↝_.amatch st)
+  where
+    s′ : SysState
+    s′ = mkSys m′ (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
+    st : toSys r ↝ s′
+    st = comove-med-τ (toSys r) s′
+           (subst (λ z → decMed (med (toSys r)) ─[ τ ]─► z) M′≡ ms) refl refl
+
+-- HIDDEN io-SYNC branch: a delivered io `(e,a) ∈ ioES` fired by BOTH the medium
+-- (`medium-ev-inv`) and the unique recipient node (`top-nodes-io`, item 4);
+-- combine into ONE `s′` (medium + nodes updated) and co-move via `comove-io-sync`.
+otau-hidSync : (r : RState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M₁ N₁ M : NetProc}
+    (iomem : ioES .mem (X , e) a)
+    (sM : decMed (med (toSys r)) ─[ ev (evl (evLabel X e a)) ]─► M₁)
+    (sN : nodesOf (toSys r) ─[ ev (evl (evLabel X e a)) ]─► N₁)
+    (Meq : M ≡ ((M₁ ∥⇘ ioES ⇙ N₁) ∖ ioES))
+  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ τ ]═► radec r′))
+otau-hidSync r {X}{e}{a}{M₁}{N₁}{M} iomem sM sN Meq
+    with SIL.medium-ev-inv (med (toSys r)) iomem sM | SIL.top-nodes-io (toSys r) iomem sN
+... | m′ , M₁≡ | s″ , _ , N₁≡ , absStep =
+      pack-otau r
+        (trans Meq (cong₂ (λ mm nn → (mm ∥⇘ ioES ⇙ nn) ∖ ioES) M₁≡ N₁≡))
+        st (_↝_.amatch st)
+  where
+    s′ : SysState
+    s′ = mkSys m′ (nA s″) (nB s″) (nC s″) (nD s″)
+    st : toSys r ↝ s′
+    st = comove-io-sync (toSys r) s′ iomem
+           (subst (λ z → decMed (med (toSys r)) ─[ ev (evl (evLabel X e a)) ]─► z) M₁≡ sM)
+           (subst (λ z → nodesOf (toSys r) ─[ ev (evl (evLabel X e a)) ]─► z) N₁≡ sN)
+           absStep
+
+-- NODES-τ branch: a peer loop re-entry sil (`…Sil st → …Head st`) inside ONE of
+-- the four nodes advances `nodesOf` alone; `reflect-nodes-τ` pins the moving node
+-- and `SIL4.nodeX-τ-inv-abs` reflects its `NodeStateX` successor TOGETHER WITH the
+-- abstract collapse (`absNodeX nX ≡ absNodeX nX′`), so the abstract side matches by
+-- ZERO τ (`comove-nodes-τ`).  Medium/other-nodes fixed.
+otau-nodes : (r : RState) {N′ M : NetProc}
+    (ns  : nodesOf (toSys r) ─[ τ ]─► N′)
+    (Meq : M ≡ ((decMed (med (toSys r)) ∥⇘ ioES ⇙ N′) ∖ ioES))
+  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ τ ]═► radec r′))
+otau-nodes r {N′} {M} ns Meq
+    with reflect-nodes-τ (SN.decNodeA (nA (toSys r))) (SN.decNodeB (nB (toSys r)))
+                         (SN.decNodeC (nC (toSys r))) (SN.decNodeD (nD (toSys r))) ns
+... | nAτ A′ as eqA with SIL4.nodeA-τ-inv-abs (nA (toSys r)) as
+...   | na′ , A′≡ , abseq =
+        pack-otau r
+          (trans Meq (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ z) ∖ ioES) N′≡))
+          st (_↝_.amatch st)
+  where
+    s′ : SysState
+    s′ = mkSys (med (toSys r)) na′ (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
+    N′≡ : N′ ≡ nodesOf s′
+    N′≡ = trans eqA (cong (λ z → z ⦀ (SN.decNodeB (nB (toSys r)) ⦀ (SN.decNodeC (nC (toSys r)) ⦀ SN.decNodeD (nD (toSys r))))) A′≡)
+    st : toSys r ↝ s′
+    st = comove-nodes-τ (toSys r) s′
+           (subst (λ z → nodesOf (toSys r) ─[ τ ]─► z) N′≡ ns) refl
+           (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ (z ⦀ (absNodeB (nB (toSys r)) ⦀ (absNodeC (nC (toSys r)) ⦀ absNodeD (nD (toSys r)))))) ∖ ioES) abseq)
+otau-nodes r {N′} {M} ns Meq | nBτ B′ bs eqB with SIL4.nodeB-τ-inv-abs (nB (toSys r)) bs
+...   | nb′ , B′≡ , abseq =
+        pack-otau r
+          (trans Meq (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ z) ∖ ioES) N′≡))
+          st (_↝_.amatch st)
+  where
+    s′ : SysState
+    s′ = mkSys (med (toSys r)) (nA (toSys r)) nb′ (nC (toSys r)) (nD (toSys r))
+    N′≡ : N′ ≡ nodesOf s′
+    N′≡ = trans eqB (cong (λ z → SN.decNodeA (nA (toSys r)) ⦀ (z ⦀ (SN.decNodeC (nC (toSys r)) ⦀ SN.decNodeD (nD (toSys r))))) B′≡)
+    st : toSys r ↝ s′
+    st = comove-nodes-τ (toSys r) s′
+           (subst (λ z → nodesOf (toSys r) ─[ τ ]─► z) N′≡ ns) refl
+           (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ (absNodeA (nA (toSys r)) ⦀ (z ⦀ (absNodeC (nC (toSys r)) ⦀ absNodeD (nD (toSys r)))))) ∖ ioES) abseq)
+otau-nodes r {N′} {M} ns Meq | nCτ C′ cs eqC with SIL4.nodeC-τ-inv-abs (nC (toSys r)) cs
+...   | nc′ , C′≡ , abseq =
+        pack-otau r
+          (trans Meq (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ z) ∖ ioES) N′≡))
+          st (_↝_.amatch st)
+  where
+    s′ : SysState
+    s′ = mkSys (med (toSys r)) (nA (toSys r)) (nB (toSys r)) nc′ (nD (toSys r))
+    N′≡ : N′ ≡ nodesOf s′
+    N′≡ = trans eqC (cong (λ z → SN.decNodeA (nA (toSys r)) ⦀ (SN.decNodeB (nB (toSys r)) ⦀ (z ⦀ SN.decNodeD (nD (toSys r))))) C′≡)
+    st : toSys r ↝ s′
+    st = comove-nodes-τ (toSys r) s′
+           (subst (λ z → nodesOf (toSys r) ─[ τ ]─► z) N′≡ ns) refl
+           (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ (absNodeA (nA (toSys r)) ⦀ (absNodeB (nB (toSys r)) ⦀ (z ⦀ absNodeD (nD (toSys r)))))) ∖ ioES) abseq)
+otau-nodes r {N′} {M} ns Meq | nDτ D′ ds eqD with SIL4.nodeD-τ-inv-abs (nD (toSys r)) ds
+...   | nd′ , D′≡ , abseq =
+        pack-otau r
+          (trans Meq (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ z) ∖ ioES) N′≡))
+          st (_↝_.amatch st)
+  where
+    s′ : SysState
+    s′ = mkSys (med (toSys r)) (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) nd′
+    N′≡ : N′ ≡ nodesOf s′
+    N′≡ = trans eqD (cong (λ z → SN.decNodeA (nA (toSys r)) ⦀ (SN.decNodeB (nB (toSys r)) ⦀ (SN.decNodeC (nC (toSys r)) ⦀ z))) D′≡)
+    st : toSys r ↝ s′
+    st = comove-nodes-τ (toSys r) s′
+           (subst (λ z → nodesOf (toSys r) ─[ τ ]─► z) N′≡ ns) refl
+           (cong (λ z → (decMed (med (toSys r)) ∥⇘ ioES ⇙ (absNodeA (nA (toSys r)) ⦀ (absNodeB (nB (toSys r)) ⦀ (absNodeC (nC (toSys r)) ⦀ z)))) ∖ ioES) abseq)
+
+-- the TOTAL `otau` field: reflect a forward τ of `rdec r = ⟦ toSys r ⟧` and route
+-- it to the medium / nodes / hidden-io-sync branch.  `reflect-⟦⟧-τ` splits into
+-- an inner `Par⊤ ioES` τ (further `reflect-inner-τ` = MEDIUM vs NODES) or a hidden
+-- io-SYNC; all three branches close (no impossible τ class).
+otau-impl : (r : RState) {M : NetProc} → rdec r ─[ τ ]─► M
+  → Σ[ r′ ∈ RState ] ((M ≡ rdec r′) × (radec r ═[ τ ]═► radec r′))
+otau-impl r step with reflect-⟦⟧-τ (toSys r) step
+... | innerτ P′ innerStep Peq
+    with reflect-inner-τ (decMed (med (toSys r))) (nodesOf (toSys r)) innerStep
+...   | medτ   M′ ms eqP = otau-med   r ms (trans Peq (cong (λ z → z ∖ ioES) eqP))
+...   | nodesτ N′ ns eqP = otau-nodes r ns (trans Peq (cong (λ z → z ∖ ioES) eqP))
+otau-impl r step | hidSync M₁ N₁ iomem sM sN Peq = otau-hidSync r iomem sM sN Peq
+
+------------------------------------------------------------------------
+-- R2 D3 (D2-backward foundation) — WEAK-RUN LIFTS for the `oevB`/`otauB`
+-- fields.  A backward abstract step is matched by a concrete WEAK run whose
+-- padding τ's come from `csSil` loop-re-entry peers (a sil-positioned peer must
+-- first do its loop-back τ before firing).  These lift a COMPONENT weak run up
+-- the whole-system `∥⇘ ioES ⇙` / `∖ ioES` stack.  (The single-step versions
+-- `lift-*-whole-*` cannot express the padding; hence the weak analogues.)
+------------------------------------------------------------------------
+
+-- a `τ*` run survives hide `∖ A`
+∖-τ*w : (A : EventSet) (P : NetProc) {P′ : NetProc}
+      → P ─[τ*]─► P′ → (P ∖ A) ─[τ*]─► (P′ ∖ A)
+∖-τ*w A P τ*-refl          = τ*-refl
+∖-τ*w A P (τ*-step s rest) = τ*-step (∖-τ A P s) (∖-τ*w A _ rest)
+
+-- a WEAK visible run of an event ∉ A survives hide `∖ A` (event stays visible)
+∖-wev : (A : EventSet) (P : NetProc) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {P′ : NetProc}
+      → ¬ A .mem (X , e) a
+      → P ═[ ev (evl (evLabel X e a)) ]═► P′
+      → (P ∖ A) ═[ ev (evl (evLabel X e a)) ]═► (P′ ∖ A)
+∖-wev A P ¬mem (wev {p′ = P₁} {q′ = P₂} pre fire post) =
+  wev (∖-τ*w A P pre) (∖-ev A P₁ ¬mem fire) (∖-τ*w A P₂ post)
+
+-- lift a NODES weak visible run (event ∉ ioES) up to the whole system, medium fixed
+lift-nodes-whole-wev : (Med Nodes : NetProc) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {Nodes′ : NetProc}
+    → ¬ ioES .mem (X , e) a
+    → viewV (PTree.force Med) (X , e) a ≡ nothing
+    → Nodes ═[ ev (evl (evLabel X e a)) ]═► Nodes′
+    → ((Med ∥⇘ ioES ⇙ Nodes)  ∖ ioES) ═[ ev (evl (evLabel X e a)) ]═► ((Med ∥⇘ ioES ⇙ Nodes′) ∖ ioES)
+lift-nodes-whole-wev Med Nodes ¬mem nq wrun =
+  ∖-wev ioES (Med ∥⇘ ioES ⇙ Nodes) ¬mem (SIL6.∥⇘⇙-wev-soloR ioES Med Nodes ¬mem nq wrun)
+
+-- lift a synchronised medium+nodes WEAK io run up to a whole-system WEAK τ run
+-- (the io ∈ ioES sync is HIDDEN by `∖ ioES`, so the fire step becomes a τ)
+lift-io-sync-whole-wτ : (Med Nodes : NetProc) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {Med′ Nodes′ : NetProc}
+    → ioES .mem (X , e) a
+    → Med   ═[ ev (evl (evLabel X e a)) ]═► Med′
+    → Nodes ═[ ev (evl (evLabel X e a)) ]═► Nodes′
+    → ((Med ∥⇘ ioES ⇙ Nodes) ∖ ioES) ═[ τ ]═► ((Med′ ∥⇘ ioES ⇙ Nodes′) ∖ ioES)
+lift-io-sync-whole-wτ Med Nodes iomem wM wN with SIL6.∥⇘⇙-wev-sync ioES Med Nodes iomem wM wN
+... | wev {p′ = P₁} {q′ = P₂} pre fire post =
+      wτ (τ*-trans (∖-τ*w ioES _ pre)
+           (τ*-step (Hide-hidden ioES P₁ iomem fire) (∖-τ*w ioES P₂ post)))
+
+------------------------------------------------------------------------
+-- BACKWARD REACHABLE-PACKAGERS (mirror `pack-oev`/`pack-otau`, but on the
+-- backward side: the abstract step is PRIMARY, and the reachable successor is
+-- certified from a concrete WEAK run via `rcloseʷ` — SysReach's closure under
+-- weak decode runs).  `Meq : M ≡ absDec s′` identifies the abstract target;
+-- `wrun` is the concrete weak run into `⟦ s′ ⟧`.
+------------------------------------------------------------------------
+
+-- package a backward VISIBLE co-move into the `oevB` output via `rcloseʷ`
+pack-oevB : (r : RState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc} {s′ : SysState}
+    (Meq  : M ≡ absDec s′)
+    (wrun : rdec r ═[ ev (evl (evLabel X e a)) ]═► ⟦ s′ ⟧)
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ ev (evl (evLabel X e a)) ]═► rdec r′))
+pack-oevB r {X} {e} {a} {s′ = s′} Meq wrun =
+  proj₁ (rcloseʷ r {s′ = s′} wrun) ,
+  trans Meq (sym (rcloseʷ-abs r {s′ = s′} wrun)) ,
+  subst (λ z → rdec r ═[ ev (evl (evLabel X e a)) ]═► z) (sym (proj₂ (rcloseʷ r {s′ = s′} wrun))) wrun
+
+-- package a backward τ co-move into the `otauB` output via `rcloseʷ`
+pack-otauB : (r : RState) {M : NetProc} {s′ : SysState}
+    (Meq  : M ≡ absDec s′)
+    (wrun : rdec r ═[ τ ]═► ⟦ s′ ⟧)
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ τ ]═► rdec r′))
+pack-otauB r {s′ = s′} Meq wrun =
+  proj₁ (rcloseʷ r {s′ = s′} wrun) ,
+  trans Meq (sym (rcloseʷ-abs r {s′ = s′} wrun)) ,
+  subst (λ z → rdec r ═[ τ ]═► z) (sym (proj₂ (rcloseʷ r {s′ = s′} wrun))) wrun
+
+------------------------------------------------------------------------
+-- R2 D3 — the TOTAL `StepOracle.otauB` field (`otauB-impl`).  An abstract τ of
+-- `radec r = absDec (toSys r)` reflects (via `reflect-absDec-τ`) into an inner
+-- `∥⇘ ioES ⇙` τ (MEDIUM vs abstract-NODES) or a hidden io-SYNC.  The abstract
+-- nodes are native-react τ-free, so the NODES branch is VACUOUS; the MEDIUM τ is
+-- matched by the IDENTICAL concrete medium τ (shared, single step); the io-sync
+-- is matched by a concrete WEAK τ run (`top-nodes-io-abs`, padded).
+------------------------------------------------------------------------
+
+-- MEDIUM-τ branch: abstract medium τ matched by the IDENTICAL concrete medium τ
+otauB-med : (r : RState) {M′ M : NetProc}
+    (ms  : decMed (med (toSys r)) ─[ τ ]─► M′)
+    (Meq : M ≡ ((M′ ∥⇘ ioES ⇙ absNodesOf (toSys r)) ∖ ioES))
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ τ ]═► rdec r′))
+otauB-med r {M′} {M} ms Meq with SIL.medium-τ-inv (med (toSys r)) ms
+... | m′ , M′≡ = pack-otauB r {s′ = s′} Meq′ wrun
+  where
+    s′ : SysState
+    s′ = mkSys m′ (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
+    Meq′ : M ≡ absDec s′
+    Meq′ = trans Meq (cong (λ z → (z ∥⇘ ioES ⇙ absNodesOf (toSys r)) ∖ ioES) M′≡)
+    wrun : rdec r ═[ τ ]═► ⟦ s′ ⟧
+    wrun = wτ (τ*-step
+             (lift-med-whole-τ (decMed (med (toSys r))) (nodesOf (toSys r))
+               (subst (λ z → decMed (med (toSys r)) ─[ τ ]─► z) M′≡ ms))
+             τ*-refl)
+
+-- HIDDEN io-SYNC branch: abstract io fired by BOTH the (shared) medium and a
+-- unique abstract recipient node; concrete matches with a WEAK τ run (the
+-- concrete recipient run from `top-nodes-io-abs` is padded by sil loop-backs).
+otauB-hidSync : (r : RState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M₁ N₁ M : NetProc}
+    (iomem : ioES .mem (X , e) a)
+    (sM : decMed (med (toSys r)) ─[ ev (evl (evLabel X e a)) ]─► M₁)
+    (sN : absNodesOf (toSys r)   ─[ ev (evl (evLabel X e a)) ]─► N₁)
+    (Meq : M ≡ ((M₁ ∥⇘ ioES ⇙ N₁) ∖ ioES))
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ τ ]═► rdec r′))
+otauB-hidSync r {X} {e} {a} {M₁} {N₁} {M} iomem sM sN Meq
+    with SIL.medium-ev-inv (med (toSys r)) iomem sM | SIL6.top-nodes-io-abs (toSys r) iomem sN
+... | m′ , M₁≡ | s″ , medEq , N₁≡ , cWeakRun = pack-otauB r {s′ = s′} Meq′ wrun
+  where
+    s′ : SysState
+    s′ = mkSys m′ (nA s″) (nB s″) (nC s″) (nD s″)
+    Meq′ : M ≡ absDec s′
+    Meq′ = trans Meq (cong₂ (λ mm nn → (mm ∥⇘ ioES ⇙ nn) ∖ ioES) M₁≡ N₁≡)
+    medWeak : decMed (med (toSys r)) ═[ ev (evl (evLabel X e a)) ]═► decMed m′
+    medWeak = wev τ*-refl (subst (λ z → decMed (med (toSys r)) ─[ ev (evl (evLabel X e a)) ]─► z) M₁≡ sM) τ*-refl
+    wrun : rdec r ═[ τ ]═► ⟦ s′ ⟧
+    wrun = lift-io-sync-whole-wτ (decMed (med (toSys r))) (nodesOf (toSys r)) iomem medWeak cWeakRun
+
+-- the TOTAL `otauB` field: reflect an abstract τ of `radec r = absDec (toSys r)`
+-- and route it to the medium / VACUOUS-nodes / hidden-io-sync branch.
+otauB-impl : (r : RState) {M : NetProc} → radec r ─[ τ ]─► M
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ τ ]═► rdec r′))
+otauB-impl r step with reflect-absDec-τ (toSys r) step
+... | innerτ P′ innerStep Peq
+    with reflect-inner-τ (decMed (med (toSys r))) (absNodesOf (toSys r)) innerStep
+...   | medτ   M′ ms eqP = otauB-med r ms (trans Peq (cong (λ z → z ∖ ioES) eqP))
+...   | nodesτ N′ ns eqP = ⊥-elim (SNT.absNodesOf-no-τ (toSys r) ns)
+otauB-impl r step | hidSync M₁ N₁ iomem sM sN Peq = otauB-hidSync r iomem sM sN Peq
+
+------------------------------------------------------------------------
+-- R2 D3 — the `StepOracle.oevB` field (`oevB-impl`).  An abstract visible
+-- event of `radec r = absDec (toSys r)` is peeled by `reflect-top-ev` at the
+-- ABSTRACT operands (`decMed (med s)` / `absNodesOf s`) into a medium solo
+-- (`break`) or a nodes solo (api).  The api class routes through the backward
+-- abstract node peel `top-nodes-abs` (a PADDED concrete weak run — `csSil`
+-- loop-backs — packaged via `rcloseʷ`); `break` is a single shared-medium step;
+-- io is HIDDEN (refuted); the remaining labels are refuted at medium+nodes.
+------------------------------------------------------------------------
+
+-- api class (apiCS/apiBF/done): abstract nodes-solo peeled by `top-nodes-abs`,
+-- the concrete weak run lifted up the medium-fixed `∥⇘ ioES ⇙`/`∖ ioES` stack
+oevB-api : (r : RState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
+  → SO.IsApiCSBF e → apiES .mem (X , e) a
+  → radec r ─[ ev (evl (evLabel X e a)) ]─► M
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ ev (evl (evLabel X e a)) ]═► rdec r′))
+oevB-api r {X} {e} {a} aic apimem step
+    with reflect-top-ev (decMed (med (toSys r))) (absNodesOf (toSys r))
+           (inj₁ (SR.medium-api-non-offer (med (toSys r)) aic)) step
+... | SStep.medEv M₁ ms _   = ⊥-elim (SR.medium-api-non-offer (med (toSys r)) aic (M₁ , ms))
+... | SStep.nodesEv N₁ ns refl with SIL6.top-nodes-abs (toSys r) apimem ns
+...   | s′ , medEq , N₁≡ , cWeakRun = pack-oevB r {s′ = s′} Meq′ wrun
+  where
+    Meq′ : ((decMed (med (toSys r)) ∥⇘ ioES ⇙ N₁) ∖ ioES) ≡ absDec s′
+    Meq′ = cong₂ (λ mm nn → (decMed mm ∥⇘ ioES ⇙ nn) ∖ ioES) medEq N₁≡
+    wrun : rdec r ═[ ev (evl (evLabel X e a)) ]═► ⟦ s′ ⟧
+    wrun = subst (λ mm → rdec r ═[ ev (evl (evLabel X e a)) ]═► ((decMed mm ∥⇘ ioES ⇙ nodesOf s′) ∖ ioES))
+             medEq
+             (lift-nodes-whole-wev (decMed (med (toSys r))) (nodesOf (toSys r))
+               (SR.api∉ioES {X} {e} {a} aic)
+               (GB.noOffer→viewV _ (SR.medium-api-non-offer (med (toSys r)) aic))
+               cWeakRun)
+
+-- break class: abstract medium-solo `break`, matched by the IDENTICAL concrete
+-- medium break (medium SHARED, single visible step; zero padding)
+oevB-break : (r : RState) (l : Link) {a : ⊤₀} {M : NetProc}
+  → radec r ─[ ev (evl (evLabel ⊤₀ (break l) a)) ]─► M
+  → Σ[ r′ ∈ RState ] ((M ≡ radec r′) × (rdec r ═[ ev (evl (evLabel ⊤₀ (break l) a)) ]═► rdec r′))
+oevB-break r l {a} step
+    with reflect-top-ev (decMed (med (toSys r))) (absNodesOf (toSys r))
+           (inj₂ (SR.absnodes-no-break (toSys r))) step
+... | SStep.nodesEv N₁ ns _ = ⊥-elim (SR.absnodes-no-break (toSys r) (N₁ , ns))
+... | SStep.medEv M₁ medStep refl with SR.medium-break-ev-inv (med (toSys r)) l medStep
+...   | m′ , refl = pack-oevB r {s′ = s′} refl wrun
+  where
+    s′ : SysState
+    s′ = mkSys m′ (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
+    wrun : rdec r ═[ ev (evl (evLabel ⊤₀ (break l) a)) ]═► ⟦ s′ ⟧
+    wrun = wev τ*-refl
+             (SStep.lift-med-whole-ev (decMed (med (toSys r))) (nodesOf (toSys r))
+               (SR.break∉ioES {l} {a}) medStep
+               (GB.noOffer→viewV _ (SR.nodes-no-break (toSys r))))
+             τ*-refl
+
+-- io class (input/output ∈ ioES): a visible io of `absDec r` is IMPOSSIBLE (io
+-- is HIDDEN by `∖ ioES` — the `Hide-ev-elim` `keep` carries `¬ (io ∈ ioES)`)
+oevB-no-io : (r : RState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
+  → ioES .mem (X , e) a → radec r ─[ ev (evl (evLabel X e a)) ]─► M → ⊥
+oevB-no-io r iomem step
+  with Hide-ev-elim ioES (decMed (med (toSys r)) ∥⇘ ioES ⇙ absNodesOf (toSys r)) step
+... | heV P′ ¬mem _ = ¬mem iomem
+
+-- generic abstract top-level refutation: an event offered by NEITHER the medium
+-- NOR the abstract nodes cannot fire from `absDec r` (mirror of `oev-refute`)
+oevB-refute : (r : RState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
+  → ¬ IoOffers (decMed (med (toSys r))) e a → ¬ IoOffers (absNodesOf (toSys r)) e a
+  → radec r ─[ ev (evl (evLabel X e a)) ]─► M → ⊥
+oevB-refute r mno nno step
+  with reflect-top-ev (decMed (med (toSys r))) (absNodesOf (toSys r)) (inj₁ mno) step
+... | SStep.medEv M₁ ms _   = mno (M₁ , ms)
+... | SStep.nodesEv N₁ ns _ = nno (N₁ , ns)

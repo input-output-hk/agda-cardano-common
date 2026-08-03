@@ -50,10 +50,12 @@ open import Level using (0ℓ)
 import Data.Unit as U
 open import Data.Unit.Polymorphic using (⊤)
 open import Data.List using (List)
+open import Data.Nat using (ℕ)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Sum using (inj₁)
+open import Data.Sum using (inj₁; inj₂)
 open import Data.Product using (_×_; _,_; proj₁)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Nullary using (¬_)
 open import Class.DecEq using (DecEq)
 import Class.DecEq.Instances as DecEqI
 
@@ -69,8 +71,8 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; nodeA; nodeB; nodeC; nodeD; produce; consume; consume-k; Block₃; b1
         ; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Params using (Params)
-open Params p using ( time₀; length₀; Block )
-open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi; FromInitiator; N2N_ChainSync; N2N_BlockFetch)
+open Params p using ( time₀; length₀; Block; Cookie; VoteBlob; Txid; decCookie; LFBitmap )
+open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi; FromInitiator; N2N_ChainSync; N2N_BlockFetch; BlockingStyle; Blocking; NonBlocking)
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; done
         ; apiCS; apiBF
@@ -79,11 +81,24 @@ open import CSP.Examples.Cardano_network.Net p
         ; sendCSRequestNext; recvCSRollforward; sendCSDone
         ; sendBFRequestRange; recvBFBlock; sendBFClientDone
         ; sendCSFindIntersect; sendCSRollBackward
-        ; sendCSIntersectFound; sendCSIntersectNotFound; sendBFNoBlocks )
+        ; sendCSIntersectFound; sendCSIntersectNotFound; sendBFNoBlocks
+        ; errCookie; sendKAMsg; sendKADone
+        ; sendLNRequestNext; sendLNDone; sendLNBlockAnnouncement
+        ; sendLNBlockOffer; sendLNBlockTxsOffer; sendLNVotesOffer
+        ; sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
+        ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
+        ; sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
+        ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+        ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange )
 open import CSP.Examples.Cardano_network.Data p
   using ( Payload; Header; Tip; header; tip; DecEq-Header; DecEq-Tip
         ; Point; ChainRange; point; chainRange; DecEq-ChainRange
-        ; chainSync; blockFetch
+        ; chainSync; blockFetch; keepAlive; leiosNotify; leiosFetch
+        ; MsgKeepAlive; MsgKADone; MsgLNDone; MsgLFDone
+        ; MsgLNBlockAnnouncement; MsgLNBlockOffer; MsgLNBlockTxsOffer; MsgLNVotesOffer; Vote
+        ; MsgLFBlock; MsgLFBlockTxs; MsgLFVoteDelivery
+        ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; Tx
+        ; txSubmission; MsgTSRequestTxIds; MsgTSRequestTxs; MsgTSDone
         ; MsgCSRequestNext; MsgCSFindIntersect; MsgCSDone
         ; MsgCSRollForward; MsgCSRollBackward; MsgCSAwaitReply
         ; MsgCSIntersectFound; MsgCSIntersectNotFound
@@ -143,6 +158,9 @@ NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 instance
   DecEq-Header×Tip : DecEq (Header × Tip)
   DecEq-Header×Tip = DecEqI.DecEq-×
+  -- Cookie × Cookie DecEq for the KA `errCookie` output payload (kcErr1 leaf)
+  DecEq-Cookie² : DecEq (Cookie × Cookie)
+  DecEq-Cookie² = DecEqI.DecEq-×
 
 ------------------------------------------------------------------------
 -- FINE driven-peer decode (R2 Task 2): the REAL renamed CS / BF FSM at its
@@ -198,6 +216,54 @@ vis-ofB _           = λ _ _ → nothing
 -- visible successor of `q` along `at`/`a` (identity if not offered) — BF
 succVB : BFProc → (at : AnyTypes BF.BFEv) → proj₁ at → BFProc
 succVB q at a with vis-ofB (PTree.force q) at a
+... | just t  = t
+... | nothing = q
+
+-- the visible-offer map of a KeepAlive node (empty for non-react nodes)
+vis-ofK : NodeKind KA.KAEv (ExtI KA.KAEv) KA.Rr
+        → (at : AnyTypes KA.KAEv) → proj₁ at → Maybe KAProc
+vis-ofK (react v _) = v
+vis-ofK _           = λ _ _ → nothing
+
+-- visible successor of `q` along `at`/`a` (identity if not offered) — KA
+succVK : KAProc → (at : AnyTypes KA.KAEv) → proj₁ at → KAProc
+succVK q at a with vis-ofK (PTree.force q) at a
+... | just t  = t
+... | nothing = q
+
+-- the visible-offer map of a LeiosNotify node (empty for non-react nodes)
+vis-ofN : NodeKind LN.LNEv (ExtI LN.LNEv) LN.Rr
+        → (at : AnyTypes LN.LNEv) → proj₁ at → Maybe LNProc
+vis-ofN (react v _) = v
+vis-ofN _           = λ _ _ → nothing
+
+-- visible successor of `q` along `at`/`a` (identity if not offered) — LN
+succVN : LNProc → (at : AnyTypes LN.LNEv) → proj₁ at → LNProc
+succVN q at a with vis-ofN (PTree.force q) at a
+... | just t  = t
+... | nothing = q
+
+-- the visible-offer map of a LeiosFetch node (empty for non-react nodes)
+vis-ofF : NodeKind LF.LFEv (ExtI LF.LFEv) LF.Rr
+        → (at : AnyTypes LF.LFEv) → proj₁ at → Maybe LFProc
+vis-ofF (react v _) = v
+vis-ofF _           = λ _ _ → nothing
+
+-- visible successor of `q` along `at`/`a` (identity if not offered) — LF
+succVF : LFProc → (at : AnyTypes LF.LFEv) → proj₁ at → LFProc
+succVF q at a with vis-ofF (PTree.force q) at a
+... | just t  = t
+... | nothing = q
+
+-- the visible-offer map of a TxSubmission node (empty for non-react nodes)
+vis-ofT : NodeKind TS.TSEv (ExtI TS.TSEv) TS.Rr
+        → (at : AnyTypes TS.TSEv) → proj₁ at → Maybe TSProc
+vis-ofT (react v _) = v
+vis-ofT _           = λ _ _ → nothing
+
+-- visible successor of `q` along `at`/`a` (identity if not offered) — TS
+succVT : TSProc → (at : AnyTypes TS.TSEv) → proj₁ at → TSProc
+succVT q at a with vis-ofT (PTree.force q) at a
 ... | just t  = t
 ... | nothing = q
 
@@ -368,21 +434,58 @@ decBFs-src l d (bsSil st)    =
 -- the fine TxSubmission-client position
 data TScPos : Set where
   tcHead : TS.TSState → TScPos   -- loop head `iter (clientStep) st`
+  tcReqIdsB1  : ℕ → ℕ → TScPos       -- stIdle recv MsgTSRequestTxIds Blocking a r: offers `apiTSev recvTSRequestTxIds! (Blocking,a,r)` (Output) → tcSil stTxIdsBlocking
+  tcReqIdsNB1 : ℕ → ℕ → TScPos       -- stIdle recv MsgTSRequestTxIds NonBlocking a r: offers `apiTSev recvTSRequestTxIds! (NonBlocking,a,r)` (Output) → tcSil stTxIdsNonBlocking
+  tcReqTxs1   : List Txid → TScPos   -- stIdle recv MsgTSRequestTxs ids: offers `apiTSev recvTSRequestTxs! ids` (Output) → tcSil stTxs
+  tcRepB1  : List Txid → TScPos  -- stTxIdsBlocking post-apiTSev sendTSReplyTxIds ids: offers `sendTS!` (MsgTSReplyTxIds ids) → tcSil stIdle (io-case send leaf)
+  tcDone1  : TScPos              -- stTxIdsBlocking post-apiTSev sendTSDone: offers `sendTS!` (MsgTSDone) → tcSil stDone (io-case send leaf)
+  tcRepNB1 : List Txid → TScPos  -- stTxIdsNonBlocking post-apiTSev sendTSReplyTxIds ids: offers `sendTS!` (MsgTSReplyTxIds ids) → tcSil stIdle
+  tcRepTxs1 : List Tx → TScPos   -- stTxs post-apiTSev sendTSReplyTxs txs: offers `sendTS!` (MsgTSReplyTxs txs) → tcSil stIdle
   tcSil  : TS.TSState → TScPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (clientStep)`
 
 -- source-side decode of the TxSubmission client peer at a fine position
 decTSc-src : Link → Dir → TScPos → TSProc
 decTSc-src l d (tcHead st) = SrcOpT.iter (TS.clientStep l d) st
+decTSc-src l d (tcReqIdsB1 a r)  =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stIdle) (_ , TS.receiveTS l d)
+         (time₀ , FromInitiator , length₀ , txSubmission (MsgTSRequestTxIds Blocking a r))
+decTSc-src l d (tcReqIdsNB1 a r) =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stIdle) (_ , TS.receiveTS l d)
+         (time₀ , FromInitiator , length₀ , txSubmission (MsgTSRequestTxIds NonBlocking a r))
+decTSc-src l d (tcReqTxs1 ids)   =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stIdle) (_ , TS.receiveTS l d)
+         (time₀ , FromInitiator , length₀ , txSubmission (MsgTSRequestTxs ids))
+decTSc-src l d (tcRepB1 ids)  =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stTxIdsBlocking) (_ , TS.apiTSev l d sendTSReplyTxIds) ids
+decTSc-src l d tcDone1        =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stTxIdsBlocking) (_ , TS.apiTSev l d sendTSDone) U.tt
+decTSc-src l d (tcRepNB1 ids) =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stTxIdsNonBlocking) (_ , TS.apiTSev l d sendTSReplyTxIds) ids
+decTSc-src l d (tcRepTxs1 txs) =
+  succVT (SrcOpT.iter (TS.clientStep l d) TS.stTxs) (_ , TS.apiTSev l d sendTSReplyTxs) txs
 decTSc-src l d (tcSil st)  = SrcOpT.iter-bind (SrcOpT.Ret (inj₁ st)) (TS.clientStep l d)
 
 -- the fine TxSubmission-server position
 data TSsPos : Set where
   tsHead : TS.TSState → TSsPos   -- loop head `iter (serverStep) st`
+  tsDone1 : TSsPos               -- stTxIdsBlocking recv MsgTSDone: offers `doneTS` → tsSil stDone (io-case post-receive done leaf)
+  tsReqB1  : ℕ × ℕ → TSsPos      -- stIdle post-apiTSev sendTSRequestTxIdsBlocking (a,r): offers `sendTS!` (MsgTSRequestTxIds Blocking a r) → tsSil stTxIdsBlocking (io-case send leaf)
+  tsReqNB1 : ℕ × ℕ → TSsPos      -- stIdle post-apiTSev sendTSRequestTxIdsPipelined (a,r): offers `sendTS!` (MsgTSRequestTxIds NonBlocking a r) → tsSil stTxIdsNonBlocking
+  tsReqTxs1 : List Txid → TSsPos -- stIdle post-apiTSev sendTSRequestTxsPipelined ids: offers `sendTS!` (MsgTSRequestTxs ids) → tsSil stTxs
   tsSil  : TS.TSState → TSsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
 
 -- source-side decode of the TxSubmission server peer at a fine position
 decTSs-src : Link → Dir → TSsPos → TSProc
 decTSs-src l d (tsHead st) = SrcOpT.iter (TS.serverStep l d) st
+decTSs-src l d tsDone1     =
+  succVT (SrcOpT.iter (TS.serverStep l d) TS.stTxIdsBlocking) (_ , TS.receiveTS l d)
+         (time₀ , FromInitiator , length₀ , txSubmission MsgTSDone)
+decTSs-src l d (tsReqB1 ar)  =
+  succVT (SrcOpT.iter (TS.serverStep l d) TS.stIdle) (_ , TS.apiTSev l d sendTSRequestTxIdsBlocking) ar
+decTSs-src l d (tsReqNB1 ar) =
+  succVT (SrcOpT.iter (TS.serverStep l d) TS.stIdle) (_ , TS.apiTSev l d sendTSRequestTxIdsPipelined) ar
+decTSs-src l d (tsReqTxs1 ids) =
+  succVT (SrcOpT.iter (TS.serverStep l d) TS.stIdle) (_ , TS.apiTSev l d sendTSRequestTxsPipelined) ids
 decTSs-src l d (tsSil st)  = SrcOpT.iter-bind (SrcOpT.Ret (inj₁ st)) (TS.serverStep l d)
 
 ------------------------------------------------------------------------
@@ -401,22 +504,52 @@ decTSs-src l d (tsSil st)  = SrcOpT.iter-bind (SrcOpT.Ret (inj₁ st)) (TS.serve
 -- the fine KeepAlive-client position
 data KAcPos : Set where
   kcHead : KA.KAState → KAcPos   -- loop head `iter (clientStep) st`
+  kcErr1 : (cq cr : Cookie) → ¬ (cq ≡ cr) → KAcPos
+                                 -- stServer cq recv MsgKeepAliveResponse cr with cq≢cr:
+                                 -- offers `apiKAev errCookie! (cq,cr)` → ksSil stClient (io-case error leaf)
+  kcReq1 : Cookie → KAcPos       -- stClient post-apiKAev sendKAMsg c: offers `sendKA!` (MsgKeepAlive c) → kcSil (stServer c) (io-case send leaf)
+  kcDone1 : KAcPos               -- stClient post-apiKAev sendKADone: offers `sendKA!` (MsgKADone) → kcSil stDone (io-case send leaf)
   kcSil  : KA.KAState → KAcPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (clientStep)`
+  kcTermE1 : KAcPos              -- √ after the errCookie emit (successor of `kcErr1`:
+                                 -- `iter-bind (Ret (inj₂ _)) clientStep`, forces to `ret`;
+                                 -- coarsens to the abstract `kcTermE`, distinct from `kcTerm`)
 
 -- source-side decode of the KeepAlive client peer at a fine position
 decKAc-src : Link → Dir → KAcPos → KAProc
 decKAc-src l d (kcHead st) = SrcOpK.iter (KA.clientStep l d) st
+-- error leaf: the succV-successor of `iter clientStep (stServer cq)` along the
+-- `receiveKA` fire (with cq≢cr) is, in normal form, the raw errCookie output bound
+-- into the loop — written DIRECTLY (sidestepping the stuck `cq ≟ cr` guard of succVK)
+decKAc-src l d (kcErr1 cq cr ne) =
+  SrcOpK.iter-bind (SrcOpK.Output (KA.apiKAev l d errCookie) (cq , cr) (SrcOpK.Ret (inj₂ _)))
+                   (KA.clientStep l d)
+-- send leaves: the succV-successor of `iter clientStep stClient` along the api emit
+decKAc-src l d (kcReq1 c)  =
+  succVK (SrcOpK.iter (KA.clientStep l d) KA.stClient) (_ , KA.apiKAev l d sendKAMsg) c
+decKAc-src l d kcDone1     =
+  succVK (SrcOpK.iter (KA.clientStep l d) KA.stClient) (_ , KA.apiKAev l d sendKADone) U.tt
 decKAc-src l d (kcSil st)  = SrcOpK.iter-bind (SrcOpK.Ret (inj₁ st)) (KA.clientStep l d)
+-- errCookie terminal: the succV-successor of `kcErr1` along the errCookie emit is
+-- `iter-bind (Ret (inj₂ _)) clientStep` (defeq `iter clientStep stDone`), forces to `ret`
+decKAc-src l d kcTermE1    = SrcOpK.iter-bind (SrcOpK.Ret (inj₂ _)) (KA.clientStep l d)
 
 -- the fine KeepAlive-server position
 data KAsPos : Set where
-  ksHead : KA.KAState → KAsPos   -- loop head `iter (serverStep) st`
-  ksSil  : KA.KAState → KAsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
+  ksHead  : KA.KAState → KAsPos   -- loop head `iter (serverStep) st`
+  ksRecv1 : Cookie → KAsPos       -- stClient recv MsgKeepAlive c: offers `apiKAev recvKACookie! c` → ksSil (stServer c) (io-case post-receive leaf)
+  ksDdone1 : KAsPos               -- stClient recv MsgKADone: offers `doneKA` → ksSil stDone (io-case post-receive done leaf)
+  ksSil   : KA.KAState → KAsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
 
 -- source-side decode of the KeepAlive server peer at a fine position
 decKAs-src : Link → Dir → KAsPos → KAProc
-decKAs-src l d (ksHead st) = SrcOpK.iter (KA.serverStep l d) st
-decKAs-src l d (ksSil st)  = SrcOpK.iter-bind (SrcOpK.Ret (inj₁ st)) (KA.serverStep l d)
+decKAs-src l d (ksHead st)   = SrcOpK.iter (KA.serverStep l d) st
+decKAs-src l d (ksRecv1 c)   =
+  succVK (SrcOpK.iter (KA.serverStep l d) KA.stClient) (_ , KA.receiveKA l d)
+         (time₀ , FromInitiator , length₀ , keepAlive (MsgKeepAlive c))
+decKAs-src l d ksDdone1      =
+  succVK (SrcOpK.iter (KA.serverStep l d) KA.stClient) (_ , KA.receiveKA l d)
+         (time₀ , FromInitiator , length₀ , keepAlive MsgKADone)
+decKAs-src l d (ksSil st)    = SrcOpK.iter-bind (SrcOpK.Ret (inj₁ st)) (KA.serverStep l d)
 
 ------------------------------------------------------------------------
 -- LeiosNotify / LeiosFetch CLIENT / SERVER positions (R2 D3, LN/LF uniformity
@@ -433,42 +566,134 @@ decKAs-src l d (ksSil st)  = SrcOpK.iter-bind (SrcOpK.Ret (inj₁ st)) (KA.serve
 -- the fine LeiosNotify-client position
 data LNcPos : Set where
   lncHead : LN.LNState → LNcPos   -- loop head `iter (clientStep) st`
+  lncRann1 : Header → LNcPos      -- stBusy recv MsgLNBlockAnnouncement h: offers `apiLNev recvLNBlockAnnouncement! h` → lncSil stIdle (io-case post-receive leaf)
+  lncRoff1 : Point → LNcPos       -- stBusy recv MsgLNBlockOffer q: offers `apiLNev recvLNBlockOffer! q` → lncSil stIdle
+  lncRtxs1 : Point → LNcPos       -- stBusy recv MsgLNBlockTxsOffer q: offers `apiLNev recvLNBlockTxsOffer! q` → lncSil stIdle
+  lncRvot1 : List Vote → LNcPos   -- stBusy recv MsgLNVotesOffer vs: offers `apiLNev recvLNVotesOffer! vs` (Output) → lncSil stIdle
+  lncReq1 : LNcPos                -- stIdle post-apiLNev sendLNRequestNext: offers `sendLN!` (MsgLNRequestNext) → lncSil stBusy (io-case send leaf)
+  lncDone1 : LNcPos               -- stIdle post-apiLNev sendLNDone: offers `sendLN!` (MsgLNDone) → lncSil stDone (io-case send leaf)
   lncSil  : LN.LNState → LNcPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (clientStep)`
 
 -- source-side decode of the LeiosNotify client peer at a fine position
 decLNc-src : Link → Dir → LNcPos → LNProc
 decLNc-src l d (lncHead st) = SrcOpN.iter (LN.clientStep l d) st
+decLNc-src l d (lncRann1 h) =
+  succVN (SrcOpN.iter (LN.clientStep l d) LN.stBusy) (_ , LN.receiveLN l d)
+         (time₀ , FromInitiator , length₀ , leiosNotify (MsgLNBlockAnnouncement h))
+decLNc-src l d (lncRoff1 q) =
+  succVN (SrcOpN.iter (LN.clientStep l d) LN.stBusy) (_ , LN.receiveLN l d)
+         (time₀ , FromInitiator , length₀ , leiosNotify (MsgLNBlockOffer q))
+decLNc-src l d (lncRtxs1 q) =
+  succVN (SrcOpN.iter (LN.clientStep l d) LN.stBusy) (_ , LN.receiveLN l d)
+         (time₀ , FromInitiator , length₀ , leiosNotify (MsgLNBlockTxsOffer q))
+decLNc-src l d (lncRvot1 vs) =
+  succVN (SrcOpN.iter (LN.clientStep l d) LN.stBusy) (_ , LN.receiveLN l d)
+         (time₀ , FromInitiator , length₀ , leiosNotify (MsgLNVotesOffer vs))
+decLNc-src l d lncReq1  =
+  succVN (SrcOpN.iter (LN.clientStep l d) LN.stIdle) (_ , LN.apiLNev l d sendLNRequestNext) U.tt
+decLNc-src l d lncDone1 =
+  succVN (SrcOpN.iter (LN.clientStep l d) LN.stIdle) (_ , LN.apiLNev l d sendLNDone) U.tt
 decLNc-src l d (lncSil st)  = SrcOpN.iter-bind (SrcOpN.Ret (inj₁ st)) (LN.clientStep l d)
 
 -- the fine LeiosNotify-server position
 data LNsPos : Set where
-  lnsHead : LN.LNState → LNsPos   -- loop head `iter (serverStep) st`
-  lnsSil  : LN.LNState → LNsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
+  lnsHead  : LN.LNState → LNsPos   -- loop head `iter (serverStep) st`
+  lnsDone1 : LNsPos                -- stIdle recv MsgLNDone: offers `doneLN` → lnsSil stDone (io-case post-receive done leaf)
+  lnsWann1 : Header → LNsPos       -- stBusy post-apiLNev sendLNBlockAnnouncement h: offers `sendLN!` (MsgLNBlockAnnouncement h) → lnsSil stIdle (io-case send leaf)
+  lnsWoff1 : Point → LNsPos        -- stBusy post-apiLNev sendLNBlockOffer q: offers `sendLN!` (MsgLNBlockOffer q) → lnsSil stIdle
+  lnsWtxs1 : Point → LNsPos        -- stBusy post-apiLNev sendLNBlockTxsOffer q: offers `sendLN!` (MsgLNBlockTxsOffer q) → lnsSil stIdle
+  lnsWvot1 : List Vote → LNsPos    -- stBusy post-apiLNev sendLNVotesOffer vs: offers `sendLN!` (MsgLNVotesOffer vs) → lnsSil stIdle
+  lnsSil   : LN.LNState → LNsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
 
 -- source-side decode of the LeiosNotify server peer at a fine position
 decLNs-src : Link → Dir → LNsPos → LNProc
-decLNs-src l d (lnsHead st) = SrcOpN.iter (LN.serverStep l d) st
-decLNs-src l d (lnsSil st)  = SrcOpN.iter-bind (SrcOpN.Ret (inj₁ st)) (LN.serverStep l d)
+decLNs-src l d (lnsHead st)  = SrcOpN.iter (LN.serverStep l d) st
+decLNs-src l d lnsDone1      =
+  succVN (SrcOpN.iter (LN.serverStep l d) LN.stIdle) (_ , LN.receiveLN l d)
+         (time₀ , FromInitiator , length₀ , leiosNotify MsgLNDone)
+decLNs-src l d (lnsWann1 h) =
+  succVN (SrcOpN.iter (LN.serverStep l d) LN.stBusy) (_ , LN.apiLNev l d sendLNBlockAnnouncement) h
+decLNs-src l d (lnsWoff1 q) =
+  succVN (SrcOpN.iter (LN.serverStep l d) LN.stBusy) (_ , LN.apiLNev l d sendLNBlockOffer) q
+decLNs-src l d (lnsWtxs1 q) =
+  succVN (SrcOpN.iter (LN.serverStep l d) LN.stBusy) (_ , LN.apiLNev l d sendLNBlockTxsOffer) q
+decLNs-src l d (lnsWvot1 vs) =
+  succVN (SrcOpN.iter (LN.serverStep l d) LN.stBusy) (_ , LN.apiLNev l d sendLNVotesOffer) vs
+decLNs-src l d (lnsSil st)   = SrcOpN.iter-bind (SrcOpN.Ret (inj₁ st)) (LN.serverStep l d)
 
 -- the fine LeiosFetch-client position
 data LFcPos : Set where
-  lfcHead : LF.LFState → LFcPos   -- loop head `iter (clientStep) st`
-  lfcSil  : LF.LFState → LFcPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (clientStep)`
+  lfcHead : LF.LFState → LFcPos       -- loop head `iter (clientStep) st`
+  lfcRblk1  : Block → LFcPos          -- stBlock recv MsgLFBlock b: offers `apiLFev recvLFBlock! b` → lfcSil stIdle
+  lfcRbtx1  : List Tx → LFcPos        -- stBlockTxs recv MsgLFBlockTxs ts: offers `apiLFev recvLFBlockTxs! ts` (Output) → lfcSil stIdle
+  lfcRvot1  : List VoteBlob → LFcPos  -- stVotes recv MsgLFVoteDelivery vs: offers `apiLFev recvLFVoteDelivery! vs` (Output) → lfcSil stIdle
+  lfcRnext1 : Block → List Tx → LFcPos -- stBlockRange recv MsgLFNextBlockAndTxsInRange b ts: offers `apiLFev recvLFRangeBlock! (b,ts)` (Output) → lfcSil stBlockRange (loop)
+  lfcRlast1 : Block → List Tx → LFcPos -- stBlockRange recv MsgLFLastBlockAndTxsInRange b ts: offers `apiLFev recvLFRangeBlock! (b,ts)` (Output) → lfcSil stIdle (final)
+  lfcWblk1 : Point → LFcPos           -- stIdle post-apiLFev sendLFBlockRequest pt: offers `sendLF!` (MsgLFBlockRequest pt) → lfcSil stBlock (io-case send leaf)
+  lfcWtxs1 : Point × LFBitmap → LFcPos -- stIdle post-apiLFev sendLFBlockTxsRequest (pt,bm): offers `sendLF!` (MsgLFBlockTxsRequest pt bm) → lfcSil stBlockTxs
+  lfcWvot1 : List Vote → LFcPos       -- stIdle post-apiLFev sendLFVotesRequest vs: offers `sendLF!` (MsgLFVotesRequest vs) → lfcSil stVotes
+  lfcWrng1 : ChainRange → LFcPos      -- stIdle post-apiLFev sendLFBlockRangeRequest r: offers `sendLF!` (MsgLFBlockRangeRequest r) → lfcSil stBlockRange
+  lfcDone1 : LFcPos                   -- stIdle post-apiLFev sendLFDone: offers `sendLF!` (MsgLFDone) → lfcSil stDone
+  lfcSil  : LF.LFState → LFcPos       -- loop re-entry `iter-bind (Ret (inj₁ st)) (clientStep)`
 
 -- source-side decode of the LeiosFetch client peer at a fine position
 decLFc-src : Link → Dir → LFcPos → LFProc
 decLFc-src l d (lfcHead st) = SrcOpF.iter (LF.clientStep l d) st
+decLFc-src l d (lfcRblk1 b)     =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stBlock) (_ , LF.receiveLF l d)
+         (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlock b))
+decLFc-src l d (lfcRbtx1 ts)    =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stBlockTxs) (_ , LF.receiveLF l d)
+         (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxs ts))
+decLFc-src l d (lfcRvot1 vs)    =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stVotes) (_ , LF.receiveLF l d)
+         (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVoteDelivery vs))
+decLFc-src l d (lfcRnext1 b ts) =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stBlockRange) (_ , LF.receiveLF l d)
+         (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFNextBlockAndTxsInRange b ts))
+decLFc-src l d (lfcRlast1 b ts) =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stBlockRange) (_ , LF.receiveLF l d)
+         (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFLastBlockAndTxsInRange b ts))
+decLFc-src l d (lfcWblk1 pt) =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFBlockRequest) pt
+decLFc-src l d (lfcWtxs1 pb) =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFBlockTxsRequest) pb
+decLFc-src l d (lfcWvot1 vs) =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFVotesRequest) vs
+decLFc-src l d (lfcWrng1 r) =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFBlockRangeRequest) r
+decLFc-src l d lfcDone1 =
+  succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFDone) U.tt
 decLFc-src l d (lfcSil st)  = SrcOpF.iter-bind (SrcOpF.Ret (inj₁ st)) (LF.clientStep l d)
 
 -- the fine LeiosFetch-server position
 data LFsPos : Set where
-  lfsHead : LF.LFState → LFsPos   -- loop head `iter (serverStep) st`
-  lfsSil  : LF.LFState → LFsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
+  lfsHead  : LF.LFState → LFsPos   -- loop head `iter (serverStep) st`
+  lfsDone1 : LFsPos                -- stIdle recv MsgLFDone: offers `doneLF` → lfsSil stDone (io-case post-receive done leaf)
+  lfsWblk1 : Block → LFsPos        -- stBlock post-apiLFev sendLFBlock b: offers `sendLF!` (MsgLFBlock b) → lfsSil stIdle (io-case send leaf)
+  lfsWtxs1 : List Tx → LFsPos      -- stBlockTxs post-apiLFev sendLFBlockTxs ts: offers `sendLF!` (MsgLFBlockTxs ts) → lfsSil stIdle
+  lfsWvot1 : List VoteBlob → LFsPos -- stVotes post-apiLFev sendLFVoteDelivery vs: offers `sendLF!` (MsgLFVoteDelivery vs) → lfsSil stIdle
+  lfsWnext1 : Block × List Tx → LFsPos -- stBlockRange post-apiLFev sendLFNextBlockAndTxsInRange (b,ts): offers `sendLF!` → lfsSil stBlockRange (loop)
+  lfsWlast1 : Block × List Tx → LFsPos -- stBlockRange post-apiLFev sendLFLastBlockAndTxsInRange (b,ts): offers `sendLF!` → lfsSil stIdle (final)
+  lfsSil   : LF.LFState → LFsPos   -- loop re-entry `iter-bind (Ret (inj₁ st)) (serverStep)`
 
 -- source-side decode of the LeiosFetch server peer at a fine position
 decLFs-src : Link → Dir → LFsPos → LFProc
-decLFs-src l d (lfsHead st) = SrcOpF.iter (LF.serverStep l d) st
-decLFs-src l d (lfsSil st)  = SrcOpF.iter-bind (SrcOpF.Ret (inj₁ st)) (LF.serverStep l d)
+decLFs-src l d (lfsHead st)  = SrcOpF.iter (LF.serverStep l d) st
+decLFs-src l d lfsDone1      =
+  succVF (SrcOpF.iter (LF.serverStep l d) LF.stIdle) (_ , LF.receiveLF l d)
+         (time₀ , FromInitiator , length₀ , leiosFetch MsgLFDone)
+decLFs-src l d (lfsWblk1 b) =
+  succVF (SrcOpF.iter (LF.serverStep l d) LF.stBlock) (_ , LF.apiLFev l d sendLFBlock) b
+decLFs-src l d (lfsWtxs1 ts) =
+  succVF (SrcOpF.iter (LF.serverStep l d) LF.stBlockTxs) (_ , LF.apiLFev l d sendLFBlockTxs) ts
+decLFs-src l d (lfsWvot1 vs) =
+  succVF (SrcOpF.iter (LF.serverStep l d) LF.stVotes) (_ , LF.apiLFev l d sendLFVoteDelivery) vs
+decLFs-src l d (lfsWnext1 bt) =
+  succVF (SrcOpF.iter (LF.serverStep l d) LF.stBlockRange) (_ , LF.apiLFev l d sendLFNextBlockAndTxsInRange) bt
+decLFs-src l d (lfsWlast1 bt) =
+  succVF (SrcOpF.iter (LF.serverStep l d) LF.stBlockRange) (_ , LF.apiLFev l d sendLFLastBlockAndTxsInRange) bt
+decLFs-src l d (lfsSil st)   = SrcOpF.iter-bind (SrcOpF.Ret (inj₁ st)) (LF.serverStep l d)
 
 ------------------------------------------------------------------------
 -- The four fine peer decoders: rename the source-side derivative into the
@@ -640,7 +865,7 @@ bundleA l csc css bfc bfs ip =
     ⦀ (decBFc l lo bfc ⦀ (decBFs l hi bfs
     ⦀ (decTSc l lo (tsc ip) ⦀ (decTSs l hi (tss ip)
     ⦀ (decLNc l lo (lnc ip) ⦀ (decLNs l hi (lns ip)
-    ⦀ (LFclientA l lo ⦀ LFserverA l hi))))))))))
+    ⦀ (decLFc l lo (lfc ip) ⦀ decLFs l hi (lfs ip)))))))))))
 
 -- the node-A decode: rebuild the two link bundles interleaved, synchronised
 -- on `apiES` with the two produce drivers — the literal `nodeA` shape.
@@ -688,7 +913,7 @@ bundleG l cl sv csc css bfc bfs ip =
     ⦀ (decBFc l cl bfc ⦀ (decBFs l sv bfs
     ⦀ (decTSc l cl (tsc ip) ⦀ (decTSs l sv (tss ip)
     ⦀ (decLNc l cl (lnc ip) ⦀ (decLNs l sv (lns ip)
-    ⦀ (LFclientA l cl ⦀ LFserverA l sv))))))))))
+    ⦀ (decLFc l cl (lfc ip) ⦀ decLFs l sv (lfs ip)))))))))))
 
 ------------------------------------------------------------------------
 -- Consumer-driver decode: `consume l d` is a straight client chain of six api

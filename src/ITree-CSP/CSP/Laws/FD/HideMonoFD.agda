@@ -28,6 +28,17 @@
 -- Hence the divergence-freedom side condition below.  For trace-only needs the unconditional
 -- `Hide-mono-⊑ᵀ` (CSP.Laws.Traces.TraceLawsHide) remains available.
 --
+-- CROSS-REFERENCE: this very pair is now formally shown NOT to be a failure simulation —
+-- `CSP.Laws.FSim.HideCounterexample.¬fsim-Pinf-Qh` — which is why the OPERATIONAL hiding
+-- congruence `CSP.Laws.FSim.HideCong.Hide-fsim` can afford to be unconditional.
+--
+-- ⚠ AND: `FinBr` (`Semantics.FinBr`) is NOT a repair.  Replacing the divergence-freedom
+-- side condition by a finite-branching certificate `FinBr P` on the refining side does
+-- NOT recover the law: `CSP.Laws.FD.HideMonoFinBrFail.finBr-Pinf` CONSTRUCTS `FinBr Pinf`
+-- for the very `P = ⊓ₙ (hⁿ ; STOP)` above.  `FinBr` bounds only the VISIBLE channel
+-- support (`chan-supp`), while the pathology here is τ-fan-out, which `FinBr` records
+-- merely as a `Dec (isStable ·)`.
+--
 -- ZERO postulates in this module.  The only corecursion reused is `hide-Diverges-lift`
 -- (from HideFD); everything here is structural.
 

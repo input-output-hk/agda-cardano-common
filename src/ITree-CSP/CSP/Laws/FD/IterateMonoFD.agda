@@ -26,7 +26,10 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed; empty-div)
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; Offers; deadlock-refuses)
-open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
+open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges; deadlock-converges)
+-- generic stability facts, kept qualified: the historic local names below differ from
+-- the canonical ones only in argument order.
+import Semantics.Stability {E = E} {I = ExtI E} as S
 open import CSP.Laws.FD.BindFD     E-≟
   using (BindSplit; bind-bigstep-inv; lift-bind-bigstep; bind-force-ret
         ; bind-force-react; bind-force-sil; bind-cont-vis-just; ⟹-trans
@@ -99,37 +102,36 @@ iter-bind-force-sil : ∀ {ℓr} {R : Set ℓr}
 iter-bind-force-sil Q k eq with force Q | eq
 ... | sil c | refl = refl
 
+-- The five helpers below are GENERIC stability facts, proved once in
+-- `Semantics.Stability`; they are kept here under their historic names (and historic
+-- argument order) as aliases.
+
 -- `isStable` is read off `force`: transport it across an equal force.
 stable-force-eq : ∀ {ℓr} {R : Set ℓr} {p q : PTree E (ExtI E) R}
    → force p ≡ force q → isStable q → isStable p
-stable-force-eq {p = p} {q} eq st with force p | force q | eq
-... | react _ _ | react _ _ | refl = st
+stable-force-eq {p = p} {q} = S.stable-force-eq {p = p} {q = q}
 
 -- `isStable` for a react-forced tree is exactly "the τ-map is everywhere nothing".
 stable-react : ∀ {ℓr} {R : Set ℓr} {Q : PTree E (ExtI E) R}
    {v  : (at : AnyTypes E)        → ContinueType at (Maybe (PTree E (ExtI E) R))}
    {τc : (i  : AnyTypes (ExtI E)) → ContinueType i  (Maybe (PTree E (ExtI E) R))}
    → force Q ≡ react v τc → (∀ i a → τc i a ≡ nothing) → isStable Q
-stable-react {Q = Q} eqQ h with PTree.force Q | eqQ
-... | react v τc | refl = h
+stable-react {Q = Q} = S.mk-stable {t = Q}
 
 -- inverse of `stable-react`: a stable react-forced tree has an everywhere-nothing τ-map.
 stable-react-elim : ∀ {ℓr} {R : Set ℓr} {Q : PTree E (ExtI E) R}
    {v  : (at : AnyTypes E)        → ContinueType at (Maybe (PTree E (ExtI E) R))}
    {τc : (i  : AnyTypes (ExtI E)) → ContinueType i  (Maybe (PTree E (ExtI E) R))}
    → force Q ≡ react v τc → isStable Q → (∀ i a → τc i a ≡ nothing)
-stable-react-elim {Q = Q} eqQ st with PTree.force Q | eqQ
-... | react v τc | refl = st
+stable-react-elim {Q = Q} eqQ st = S.stable-react-τc {t = Q} st eqQ
 
 -- a sil/ret-forced tree is never stable.
 sil-not-stable : ∀ {ℓr} {R : Set ℓr} {t : PTree E (ExtI E) R} {c}
    → force t ≡ sil c → isStable t → ⊥
-sil-not-stable {t = t} eq st with force t | eq
-... | sil c | refl = lower st
+sil-not-stable {t = t} eq st = S.stable-not-sil {t = t} st eq
 ret-not-stable : ∀ {ℓr} {R : Set ℓr} {t : PTree E (ExtI E) R} {r}
    → force t ≡ ret r → isStable t → ⊥
-ret-not-stable {t = t} eq st with force t | eq
-... | ret r | refl = lower st
+ret-not-stable {t = t} eq st = S.stable-not-ret {t = t} st eq
 
 -- STABILITY reflection: a stable `iter-bind Q k` forces `Q` to be stable too.
 -- ret/sil sources make `iter-bind Q k` force to sil/ret (un-stable), absurd.
@@ -702,20 +704,16 @@ term→√failure {x = x} (⟹-ev step rest) fe with term→√failure rest fe
 
 -- ── divergence half of the reconstruction ────────────────────────────────────
 -- A `Diverges`-reaching run cannot pass a `√` tick: the √ steps to `deadlock`,
--- which is stable (no τ) and cannot diverge.  Hence a divergence witness reached
--- along a trace `s₁ ++ √ x ∷ rest` is impossible.
-deadlock-not-diverges : ∀ {ℓr} {R : Set ℓr} → ¬ Diverges (deadlock {E = E} {I = ExtI E} {R = R})
-deadlock-not-diverges dv with dv .step
-... | sSil ()
-... | sTau refl ()
-
+-- which is stable (no τ) and cannot diverge (`deadlock-converges`, imported —
+-- this used to be a local duplicate called `deadlock-not-diverges`).  Hence a
+-- divergence witness reached along a trace `s₁ ++ √ x ∷ rest` is impossible.
 no-div-through-√ : ∀ {ℓr} {R : Set ℓr} {P W : PTree E (ExtI E) R} {x : R}
    (s′ rest : List (Event√ R))
    → P ⟹⟨ s′ ++ √ x ∷ rest ⟩ W → Diverges W → ⊥
 -- empty s′: trace is `√ x ∷ rest`; a τ keeps it, the `√` ticks to deadlock.
 no-div-through-√ []        rest (⟹-τ step run) dv = no-div-through-√ [] rest run dv
 no-div-through-√ []        rest (⟹-ev (sRet _) run) dv with deadlock-run-inv run
-... | refl , refl = deadlock-not-diverges dv
+... | refl , refl = deadlock-converges dv
 -- non-empty s′: trace is `head ∷ …`; a τ keeps it, a visible step peels it.
 no-div-through-√ (e ∷ es) rest (⟹-τ step run) dv = no-div-through-√ (e ∷ es) rest run dv
 no-div-through-√ (e ∷ es) rest (⟹-ev step run) dv = no-div-through-√ es rest run dv

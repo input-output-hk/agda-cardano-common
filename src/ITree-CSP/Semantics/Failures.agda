@@ -76,6 +76,13 @@ weaken-ev : ∀ {ℓr} {R : Set ℓr} {p q r : PTree E I R} {s} {e : Event√ R}
           → p ═[ ev e ]═► q → q ⟹⟨ s ⟩ r → p ⟹⟨ e ∷ s ⟩ r
 weaken-ev (wev pre evs post) tr = τ*-then pre (⟹-ev evs (τ*-then post tr))
 
+-- appending a (silent) τ*-run to the end of a big-step keeps the same trace
+⟹-then-τ* : ∀ {ℓr} {R : Set ℓr} {P Q Q′ : PTree E I R} {s}
+           → P ⟹⟨ s ⟩ Q → Q ─[τ*]─► Q′ → P ⟹⟨ s ⟩ Q′
+⟹-then-τ* ⟹-refl         tτ = τ*-then tτ ⟹-refl
+⟹-then-τ* (⟹-τ pτ rest)   tτ = ⟹-τ pτ (⟹-then-τ* rest tτ)
+⟹-then-τ* (⟹-ev pev rest) tτ = ⟹-ev pev (⟹-then-τ* rest tτ)
+
 -- bisimilar processes simulate each other's traces
 trace-sim : ∀ {ℓr} {R : Set ℓr} {P Q P′ : PTree E I R} {s}
           → Wbisim R P Q → P ⟹⟨ s ⟩ P′

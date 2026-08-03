@@ -56,6 +56,9 @@ open import CSP.Laws.FD.ParallelFailures   E-≟ using (Par-failures-elim; Par-f
 open import CSP.Laws.FD.ParallelRefusals   E-≟
   using (MaxRef; ParRef; Par-stable; Par-stable-termL; Par-stable-termR;
          mk-stable; stable-not-ret; ret-no-vis-offer)
+-- generic stability facts, kept qualified (the two local names below are aliases
+-- in the historic argument order)
+import Semantics.Stability {E = E} {I = ExtI E} as S
 open import CSP.Laws.Traces.TraceLawsParallel E-≟
   using (Mg; fPar-rs; fPar-sr; fPar-re; fPar-er; fPar-nn;
          par-hTauL-eq; par-hTauR-eq; par-pTau-tag0-eq; par-pTau-tag1-eq)
@@ -181,24 +184,20 @@ ParInter-trunc2 A merge (e ∷ p′) (f ∷ q′) {prP} {prQ} eqP eqQ (p√ {r�
 -- sil on either side — those all make the composite ret/sil/τ-enabled).
 -------------------------------------------------------------------------------------
 
--- a state whose force is sil is not stable (mirror of ParallelRefusals.stable-not-ret)
+-- a state whose force is sil is not stable (mirror of ParallelRefusals.stable-not-ret;
+-- an alias for `Semantics.Stability.stable-not-sil`, whose arguments are the other way)
 stable-not-sil : ∀ {ℓr} {R : Set ℓr} {t u : PTree E (ExtI E) R}
                → PTree.force t ≡ sil u → isStable t → ⊥
-stable-not-sil {t = t} eqf st with PTree.force t | st
-... | ret _     | lift ()
-... | sil _     | lift ()
-... | react _ _ | _ = case eqf of λ ()
+stable-not-sil {t = t} eqf st = S.stable-not-sil {t = t} st eqf
 
 -- a stable state forcing to `react v τc` has its τ-branch everywhere nothing
+-- (an alias for `Semantics.Stability.stable-react-τc`)
 stable-τc≡nothing : ∀ {ℓr} {R : Set ℓr} {t : PTree E (ExtI E) R}
                     {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
                     {τc : (i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))}
                   → PTree.force t ≡ react v τc → isStable t
                   → ∀ i a → τc i a ≡ nothing
-stable-τc≡nothing {t = t} eqf st with PTree.force t | st
-... | ret _     | lift ()
-... | sil _     | lift ()
-... | react _ _ | h with refl ← eqf = h
+stable-τc≡nothing {t = t} eqf st = S.stable-react-τc {t = t} st eqf
 
 -- which normal form each operand of a stable Par is in (both-ret is impossible)
 ParNormal : ∀ {ℓr} {R₁ R₂ : Set ℓr} (P* : PTree E (ExtI E) R₁) (Q* : PTree E (ExtI E) R₂) → Set _

@@ -37,6 +37,8 @@ open import CSP.Laws.Traces.TraceLawsParallelMono E-≟
   using (Par-soloL-reach; Par-soloR-reach)
 open import CSP.Laws.FD.ParallelRefusals E-≟
   using (stable→react; stable-not-ret; mk-stable; Par-stable; Par-stable-termL; Par-stable-termR)
+-- generic stability facts (`react-no-τ→stable` below is a thin alias)
+import Semantics.Stability {E = E} {I = ExtI E} as S
 
 private
   variable
@@ -60,17 +62,13 @@ Par-force-ret-inv : (A : EventSet) (merge : Mg R R R)
 Par-force-ret-inv A merge {P} {Q} eq with Par-ev-elim A merge P Q (sRet eq)
 ... | ev√ {r₁ = r₁} {r₂ = r₂} fpP fpQ = r₁ , r₂ , fpP , fpQ , refl
 
--- an react state with no enabled τ is stable.
+-- an react state with no enabled τ is stable (an alias for the generic
+-- `Semantics.Stability.react-no-τ→stable`).
 react-no-τ→stable : {t : PTree E (ExtI E) R}
                    {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
                    {τc : (i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))}
                  → PTree.force t ≡ react v τc → (∀ {t'} → t ─[ τ ]─► t' → ⊥) → isStable t
-react-no-τ→stable {t = t} {τc = τc} eqf noτ = mk-stable {t = t} eqf go
-  where
-    go : ∀ i a → τc i a ≡ nothing
-    go i a with τc i a in eq
-    ... | nothing = refl
-    ... | just t' = ⊥-elim (noτ (sTau {p = t} eqf eq))
+react-no-τ→stable {t = t} = S.react-no-τ→stable {t = t}
 
 -- the stable-leaf classification of a parallel composite.
 data StableClass {ℓr} {R : Set ℓr} (A B : PTree E (ExtI E) R) : Set (lsuc ℓ ⊔ ℓe ⊔ lsuc ℓr) where

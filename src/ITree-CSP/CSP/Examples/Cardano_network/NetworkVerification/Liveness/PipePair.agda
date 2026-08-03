@@ -3584,7 +3584,7 @@ kaServerSrc-OO F.zero = SrcKA.OffersOnly-iter {k = serverStep F.zero lo} {a = st
   step stClient      = SrcKA.OffersOnly-pchoice mc
     where
     mc : SrcKA.MenuConf (srcAlphaKA lo) _
-    mc (_ , receiveKA F.zero lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Ret
+    mc (_ , receiveKA F.zero lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , receiveKA F.zero hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc F.zero) lo) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc F.zero) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
@@ -3619,7 +3619,7 @@ kaServerSrc-OO (F.suc F.zero) = SrcKA.OffersOnly-iter {k = serverStep (F.suc F.z
     mc : SrcKA.MenuConf (srcAlphaKA lo) _
     mc (_ , receiveKA F.zero lo) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA F.zero hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
-    mc (_ , receiveKA (F.suc F.zero) lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Ret
+    mc (_ , receiveKA (F.suc F.zero) lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , receiveKA (F.suc F.zero) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc (F.suc F.zero)) lo) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc (F.suc F.zero)) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
@@ -3654,7 +3654,7 @@ kaServerSrc-OO (F.suc (F.suc F.zero)) = SrcKA.OffersOnly-iter {k = serverStep (F
     mc (_ , receiveKA F.zero hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc F.zero) lo) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc F.zero) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
-    mc (_ , receiveKA (F.suc (F.suc F.zero)) lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Ret
+    mc (_ , receiveKA (F.suc (F.suc F.zero)) lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , receiveKA (F.suc (F.suc F.zero)) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc (F.suc (F.suc F.zero))) lo) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc (F.suc (F.suc F.zero))) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
@@ -3689,7 +3689,7 @@ kaServerSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcKA.OffersOnly-iter {k = serve
     mc (_ , receiveKA (F.suc F.zero) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc (F.suc F.zero)) lo) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA (F.suc (F.suc F.zero)) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
-    mc (_ , receiveKA (F.suc (F.suc (F.suc F.zero))) lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Ret
+    mc (_ , receiveKA (F.suc (F.suc (F.suc F.zero))) lo) (t , m , len , keepAlive (MsgKeepAlive c)) refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , receiveKA (F.suc (F.suc (F.suc F.zero))) hi) (t , m , len , keepAlive (MsgKeepAlive c)) ()
     mc (_ , receiveKA F.zero lo) (t , m , len , keepAlive (MsgKADone)) ()
     mc (_ , receiveKA F.zero hi) (t , m , len , keepAlive (MsgKADone)) ()
@@ -3734,7 +3734,7 @@ kaClientSrc-OO F.zero = SrcKA.OffersOnly-iter {k = clientStep F.zero hi} {a = st
     mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) lo sendKAMsg) a ()
     mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) hi sendKAMsg) a ()
     mc (_ , apiKAev F.zero lo sendKADone) a ()
-    mc (_ , apiKAev F.zero hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl (SrcKA.OffersOnly-Prefix₀ (λ _ → refl) SrcKA.OffersOnly-Ret)
+    mc (_ , apiKAev F.zero hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , apiKAev (F.suc F.zero) lo sendKADone) a ()
     mc (_ , apiKAev (F.suc F.zero) hi sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc F.zero)) lo sendKADone) a ()
@@ -3786,7 +3786,7 @@ kaClientSrc-OO (F.suc F.zero) = SrcKA.OffersOnly-iter {k = clientStep (F.suc F.z
     mc (_ , apiKAev F.zero lo sendKADone) a ()
     mc (_ , apiKAev F.zero hi sendKADone) a ()
     mc (_ , apiKAev (F.suc F.zero) lo sendKADone) a ()
-    mc (_ , apiKAev (F.suc F.zero) hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl (SrcKA.OffersOnly-Prefix₀ (λ _ → refl) SrcKA.OffersOnly-Ret)
+    mc (_ , apiKAev (F.suc F.zero) hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , apiKAev (F.suc (F.suc F.zero)) lo sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc F.zero)) hi sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) lo sendKADone) a ()
@@ -3838,7 +3838,7 @@ kaClientSrc-OO (F.suc (F.suc F.zero)) = SrcKA.OffersOnly-iter {k = clientStep (F
     mc (_ , apiKAev (F.suc F.zero) lo sendKADone) a ()
     mc (_ , apiKAev (F.suc F.zero) hi sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc F.zero)) lo sendKADone) a ()
-    mc (_ , apiKAev (F.suc (F.suc F.zero)) hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl (SrcKA.OffersOnly-Prefix₀ (λ _ → refl) SrcKA.OffersOnly-Ret)
+    mc (_ , apiKAev (F.suc (F.suc F.zero)) hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) lo sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) hi sendKADone) a ()
     mc (_ , apiKAev _ _ errCookie) a eq = case eq of λ ()
@@ -3890,7 +3890,7 @@ kaClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcKA.OffersOnly-iter {k = clien
     mc (_ , apiKAev (F.suc (F.suc F.zero)) lo sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc F.zero)) hi sendKADone) a ()
     mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) lo sendKADone) a ()
-    mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl (SrcKA.OffersOnly-Prefix₀ (λ _ → refl) SrcKA.OffersOnly-Ret)
+    mc (_ , apiKAev (F.suc (F.suc (F.suc F.zero))) hi sendKADone) a refl = refl , SrcKA.OffersOnly-Output refl SrcKA.OffersOnly-Ret
     mc (_ , apiKAev _ _ errCookie) a eq = case eq of λ ()
     mc (_ , sendKA _ _)    a eq = case eq of λ ()
     mc (_ , receiveKA _ _) a eq = case eq of λ ()
@@ -4381,7 +4381,7 @@ bfClientSrc-OO F.zero = SrcBF.OffersOnly-iter {k = BF.clientStep F.zero hi} {a =
     mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) lo sendBFRequestRange) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) hi sendBFRequestRange) a ()
     mc (_ , BF.apiBFev F.zero lo sendBFClientDone) a ()
-    mc (_ , BF.apiBFev F.zero hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl (SrcBF.OffersOnly-Prefix₀ (λ _ → refl) SrcBF.OffersOnly-Ret)
+    mc (_ , BF.apiBFev F.zero hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl SrcBF.OffersOnly-Ret
     mc (_ , BF.apiBFev (F.suc F.zero) lo sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc F.zero) hi sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) lo sendBFClientDone) a ()
@@ -4477,7 +4477,7 @@ bfClientSrc-OO (F.suc F.zero) = SrcBF.OffersOnly-iter {k = BF.clientStep (F.suc 
     mc (_ , BF.apiBFev F.zero lo sendBFClientDone) a ()
     mc (_ , BF.apiBFev F.zero hi sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc F.zero) lo sendBFClientDone) a ()
-    mc (_ , BF.apiBFev (F.suc F.zero) hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl (SrcBF.OffersOnly-Prefix₀ (λ _ → refl) SrcBF.OffersOnly-Ret)
+    mc (_ , BF.apiBFev (F.suc F.zero) hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl SrcBF.OffersOnly-Ret
     mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) lo sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) hi sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) lo sendBFClientDone) a ()
@@ -4573,7 +4573,7 @@ bfClientSrc-OO (F.suc (F.suc F.zero)) = SrcBF.OffersOnly-iter {k = BF.clientStep
     mc (_ , BF.apiBFev (F.suc F.zero) lo sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc F.zero) hi sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) lo sendBFClientDone) a ()
-    mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl (SrcBF.OffersOnly-Prefix₀ (λ _ → refl) SrcBF.OffersOnly-Ret)
+    mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl SrcBF.OffersOnly-Ret
     mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) lo sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) hi sendBFClientDone) a ()
     mc (_ , BF.apiBFev _ _ sendBFStartBatch) a eq = case eq of λ ()
@@ -4669,7 +4669,7 @@ bfClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcBF.OffersOnly-iter {k = BF.cl
     mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) lo sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc F.zero)) hi sendBFClientDone) a ()
     mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) lo sendBFClientDone) a ()
-    mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl (SrcBF.OffersOnly-Prefix₀ (λ _ → refl) SrcBF.OffersOnly-Ret)
+    mc (_ , BF.apiBFev (F.suc (F.suc (F.suc F.zero))) hi sendBFClientDone) a refl = refl , SrcBF.OffersOnly-Output refl SrcBF.OffersOnly-Ret
     mc (_ , BF.apiBFev _ _ sendBFStartBatch) a eq = case eq of λ ()
     mc (_ , BF.apiBFev _ _ sendBFNoBlocks)   a eq = case eq of λ ()
     mc (_ , BF.apiBFev _ _ sendBFBlock)      a eq = case eq of λ ()

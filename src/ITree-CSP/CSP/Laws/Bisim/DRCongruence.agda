@@ -1,6 +1,17 @@
 {-# OPTIONS --guardedness #-}
 
--- Divergence-respecting weak-bisimulation congruence for HIDING.
+-- Divergence-respecting weak-bisimulation congruences of the CSP operators.
+--
+-- Contents (each section has its own banner):
+--   1. HIDING     `cong-∖`                                       — unconditional
+--   2. PARALLEL   `cong-Par⊤-L/-R`, `cong-Par⊤`, `cong-⦀`        — conditioned on `Sep`
+--   3. INTERRUPT  `cong-△-L/-R`, `cong-△`                        — conditioned on `Sep△`
+--   4. RENAMING   `cong-renameInv`, `cong-renameMap`             — unconditional
+-- Sections 2 and 3 carry, in their banners, the counterexamples that make the
+-- UNCONDITIONAL laws false and hence force the `Sep` / `Sep△` side conditions.
+--
+-- ===================================================================================
+-- 1. HIDING.
 --
 --   cong-∖ : P ≈DR Q → (P ∖ A) ≈DR (Q ∖ A)
 --
@@ -24,6 +35,7 @@ open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (Σ; _,_; _×_; Σ-syntax; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Empty using (⊥; ⊥-elim)
+open import Function using (case_of_)
 open import Relation.Nullary using (Dec; ¬_; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; subst)
 
@@ -58,6 +70,23 @@ open import CSP.Laws.Traces.TraceLawsParallelElim E-≟
 open EventSet
 open import CSP.Laws.FD.ParallelDivergence E-≟
   using (Par-Diverges→; Par-Diverges-L; Par-Diverges-R)
+-- section 3 (interrupt)
+open import CSP.Laws.Traces.TraceLawsExtChoice E-≟ using (NonRet)
+open import CSP.Laws.Traces.TraceLawsThrowInterrupt E-≟
+  using ( force-△-Pret; force-△-LR; force-△-mt; ret-no-τ
+        ; △τR; △τP; △τQ; △τQret; △τ⊓P; △τ⊓Q; △-τ-elim
+        ; △evR; △evP; △evQ; △evPQ; △-ev-elim )
+open import CSP.Laws.FD.InterruptFD E-≟
+  using ( △-τ-lift-P; △-τ-lift-Q; △-Diverges-L; △-Diverges-R
+        ; △-toQ-Qret; △-merge-noP )
+open import CSP.Laws.FD.InterruptDivergence E-≟ using (△-Diverges→)
+-- section 4 (renaming): the target alphabet is supplied by the inner module further
+-- down, so these stay UN-APPLIED (aliases only, nothing brought into scope here)
+import CSP.Rename                     as Rnm
+import CSP.Laws.Traces.RenameDeadlock  as RDm
+import Semantics.LTS                   as LTSm
+import Semantics.WeakBisim             as WBm
+import Semantics.DRBisim               as DRBm
 
 private
   variable
@@ -267,7 +296,7 @@ cong-∖ A {P} {Q} pq .DRbisim.div← d =
   modA→div∖ A P (modA-transfer A (div∖→modA A Q d) (drbisim-sym pq))
 
 -------------------------------------------------------------------------------------
--- PARALLEL CONGRUENCE for divergence-respecting weak bisimulation.
+-- 2. PARALLEL CONGRUENCE for divergence-respecting weak bisimulation.
 --
 --   cong-Par⊤-L : P ≈DR P′ → Par⊤ A P Q ≈DR Par⊤ A P′ Q
 --   cong-Par⊤-R, cong-Par⊤, cong-⦀  derived from it.
@@ -731,3 +760,629 @@ cong-⦀ {P} {P′} {Q} {Q′} sPQ sP′Q sP′Q′ pp′ qq′ =
 -- certified König step Par-Diverges→ + the constructive Par-Diverges-L/-R, and is reused
 -- verbatim for the `div→`/`div←` fields.  No new postulate, no NON_TERMINATING, no hole.
 -------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------
+-- 3. INTERRUPT CONGRUENCE for divergence-respecting weak bisimulation.
+--
+--   cong-△-L : Sep△ P Q → Sep△ P′ Q → P ≈DR P′ → (P △ Q) ≈DR (P′ △ Q)
+--   cong-△-R : Sep△ P Q → Sep△ P Q′ → Q ≈DR Q′ → (P △ Q) ≈DR (P △ Q′)
+--   cong-△   : the two-sided composite (drbisim-trans of -L then -R).
+--
+-- ===================================================================================
+-- WHY THE LAW IS CONDITIONAL: the UNCONDITIONAL congruence is FALSE, on TWO independent
+-- counts.  We therefore ship the CONDITIONED law, guarded by the `Sep△` invariant below,
+-- whose two substantive fields (`liveL`, `now△`) are each forced by one of the two
+-- witnesses recorded here.
+--
+-- ⚠ (A) WHY `P ≈DR P′ → (P △ Q) ≈DR (P′ △ Q)` IS FALSE — the `ret`-collapse clause.
+-- `_△_`'s FIRST clause is  `force P ≡ ret r  ⇒  force (P △ Q) ≡ react ∅v (br2 P Q)`,
+-- i.e. `P △ Q` COLLAPSES to the internal choice `P ⊓ Q` as soon as P can terminate.
+-- Collapsing DISCARDS Q's ability to keep running beside P, so the τ that takes a
+-- `sil`-headed P to a `ret`-headed P *resolves a choice* — exactly the classical reason
+-- weak bisimulation fails to be a congruence for CCS `+`.  Concretely, with two distinct
+-- events `b , c` (all offers on `⊤`):
+--     P  = sil Skip            P′ = Skip            Q = (b ⟶₀ Stop) ⊓ (c ⟶₀ Stop)
+-- • `P ≈DR P′` : P's only step is `─τ→ Skip`, matched by the EMPTY weak τ; P′'s only
+--   step is its `√`, matched by `P ─τ→ Skip ─√→ deadlock`; neither diverges.
+-- • `P △ Q` (both operands live ⇒ third clause) offers NOTHING visible and has exactly
+--   three τ's:  `Skip △ Q`,  `P △ (b ⟶₀ Stop)`,  `P △ (c ⟶₀ Stop)`.
+-- • `P′ △ Q` = `Skip ⊓ Q` (first clause) has exactly two τ's: `Skip` and `Q`.
+-- Take the LHS step `P △ Q ─τ→ T` with `T = sil Skip △ (b ⟶₀ Stop)`.  `T` offers `b`
+-- (the interrupt firing) and τ's to `Skip ⊓ (b ⟶₀ Stop)`; so `T` has the traces ⟨b⟩ and
+-- ⟨√⟩ but NOT ⟨c⟩.  The τ*-closure of `P′ △ Q` is exactly
+--     { Skip ⊓ Q , Skip , Q , b ⟶₀ Stop , c ⟶₀ Stop }
+-- and every member is refuted at the TRACE level (≈DR ⇒ ≈FD ⇒ equal traces):
+--     Skip ⊓ Q   has ⟨c⟩, T has not        Skip        has no ⟨b⟩
+--     Q          has no ⟨√⟩                b ⟶₀ Stop   has no ⟨√⟩
+--     c ⟶₀ Stop  has no ⟨b⟩
+-- So no weak τ-match exists and `(P △ Q) ≉DR (P′ △ Q)`.  NOTE: here P and Q never
+-- both-offer ANY event (P's τ-closure {sil Skip, Skip} offers no `evl` event at all), so
+-- a `Sep`-style disjointness condition ALONE does NOT rescue the law.  This is what the
+-- `liveL` field (the left operand has not terminated) is for: it puts the `ret`-collapse
+-- clause out of reach, which is exactly what discharges `△-τ-elim`'s `△τ⊓P` / `△τ⊓Q`
+-- arms and what licenses `△-τ-lift-Q` on the right-hand side.
+--
+-- ⚠ (B) WHY IT IS ALSO FALSE FOR THE BOTH-OFFER OVERLAP — the `△-merge` ⊓-node.
+-- When P and Q offer the SAME event, `△-merge` produces the inline overlap node
+--     Ov(P₁) = ptree (react ∅v (△-br2 P₁ Q Q₁))   ≅   (P₁ △ Q) ⊓ Q₁
+-- which FREEZES the state reached immediately after the shared event: its only τ's are
+-- the two commits, so a trailing τ-run of the matching side cannot be absorbed.  This is
+-- structurally the same blocker as `Par`'s `evBoth` (see the blocker note closing
+-- section 2 just above).  It is not merely a proof obstruction — it is false.  With
+-- `Pₘ = Stop ⊓ (b ⟶₀ Stop)`:
+--     Pᵃ = (a ⟶₀ Stop) ▷ (a ⟶₀ Pₘ)      Pᵇ = a ⟶₀ Pₘ      Q = a ⟶₀ (c ⟶₀ Stop)
+-- • `Pᵃ ≈DR Pᵇ` : `Pᵃ ─a→ Stop` is matched by `Pᵇ ─a→ Pₘ ─τ→ Stop`; `Pᵃ ─τ→ Pᵇ` by the
+--   empty weak τ; `Pᵇ ─a→ Pₘ` by `Pᵃ ─τ→ Pᵇ ─a→ Pₘ`; neither diverges.
+-- • `Pᵃ △ Q ─a→ Ov(Stop)` (both offer `a`).  `Pᵇ △ Q` is STABLE, so its only weak
+--   `a`-runs start `Pᵇ △ Q ─a→ Ov(Pₘ)`, and the τ*-closure of `Ov(Pₘ)` is exactly
+--     { Ov(Pₘ) , Pₘ △ Q , Q₁ , Stop △ Q , (b ⟶₀ Stop) △ Q }   (Q₁ = c ⟶₀ Stop)
+--   Each is again refuted at the TRACE level against `Ov(Stop)` (whose τ's are
+--   `Stop △ Q` and `Q₁`, giving traces ⟨a⟩,⟨c⟩ but never ⟨b⟩):
+--     Ov(Pₘ) , Pₘ △ Q , (b ⟶₀ Stop) △ Q  all have ⟨b⟩, Ov(Stop) has not
+--     Q₁ has no ⟨a⟩                       Stop △ Q has no ⟨c⟩
+-- So `(Pᵃ △ Q) ≉DR (Pᵇ △ Q)` although `Pᵃ ≈DR Pᵇ`.  Note both operands are `ret`-free
+-- here, so `liveL` alone does not rescue it either — hence the `now△` field.
+-- (Both witnesses were verified by hand, not machine-checked; each refutation is purely
+-- trace-level, so it needs only `≈DR ⇒ ≈FD` and the finite τ*-closures listed above.)
+-- ===================================================================================
+--
+-- THE CONDITIONED LAW.  `Sep△ P Q` (coinductive, closed under stepping) says
+--   liveL  : the LEFT operand has not terminated (`NonRet (force P)`)  — kills (A);
+--   now△   : P and Q never both-offer the same visible event           — kills (B).
+-- Under it the three laws above are proved exactly along the `cong-∖` / `cong-Par⊤-L`
+-- template: fwd/bwd invert a composite step with `△-τ-elim` / `△-ev-elim`, match the
+-- operand step through the DR-simulation, and re-lift with the interrupt step lifts
+-- (`△-τ-lift-P`, `△-τ-lift-Q`, `△-toQ-Qret` from `CSP.Laws.FD.InterruptFD`, plus the two
+-- visible-step lifts built here).  `△evPQ` is discharged by `⊥-elim (… .now△ …)` and
+-- `△τ⊓P`/`△τ⊓Q` by `⊥-elim (subst NonRet … (… .liveL))`.  div→/div← reuse the
+-- ALREADY-CERTIFIED König step `△-Diverges→` (CSP.Laws.FD.InterruptDivergence, certified
+-- from one `dne` in CSP.Laws.ClassicalFromLEM) together with the constructive
+-- `△-Diverges-L` / `△-Diverges-R`.  NO NEW POSTULATE, no hole, no NON_TERMINATING.
+-------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------
+-- τ-lifting through the interrupt: an operand's τ* run lifts to a composite τ* run.
+-- LEFT is unconditional (`△-τ-lift-P`); RIGHT needs the left operand live, since a
+-- `ret`-headed P collapses `P △ Q` to `P ⊓ Q` (whose τ's commit instead of sliding).
+-------------------------------------------------------------------------------------
+
+-- P's τ* run lifts:  P ─τ*→ P′  ⇒  (P △ Q) ─τ*→ (P′ △ Q)
+△-τ*-L : (P Q : PTree E (ExtI E) R) {P′ : PTree E (ExtI E) R}
+       → P ─[τ*]─► P′ → (P △ Q) ─[τ*]─► (P′ △ Q)
+△-τ*-L P Q τ*-refl           = τ*-refl
+△-τ*-L P Q (τ*-step Pτ rest) = τ*-step (△-τ-lift-P Pτ) (△-τ*-L _ Q rest)
+
+-- Q's τ* run lifts, P live and FIXED throughout:  Q ─τ*→ Q′ ⇒ (P △ Q) ─τ*→ (P △ Q′)
+△-τ*-R : (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P) → {Q′ : PTree E (ExtI E) R}
+       → Q ─[τ*]─► Q′ → (P △ Q) ─[τ*]─► (P △ Q′)
+△-τ*-R P Q ntP τ*-refl           = τ*-refl
+△-τ*-R P Q ntP (τ*-step Qτ rest) = τ*-step (△-τ-lift-Q ntP Qτ) (△-τ*-R P _ ntP rest)
+
+-- a weak τ̂ step of the LEFT operand lifts
+△-wτ-L : (P Q : PTree E (ExtI E) R) {P′ : PTree E (ExtI E) R}
+       → P ═[ τ ]═► P′ → (P △ Q) ═[ τ ]═► (P′ △ Q)
+△-wτ-L P Q (wτ run) = wτ (△-τ*-L P Q run)
+
+-- a weak τ̂ step of the RIGHT operand lifts (P live)
+△-wτ-R : (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
+       → {Q′ : PTree E (ExtI E) R}
+       → Q ═[ τ ]═► Q′ → (P △ Q) ═[ τ ]═► (P △ Q′)
+△-wτ-R P Q ntP (wτ run) = wτ (△-τ*-R P Q ntP run)
+
+-------------------------------------------------------------------------------------
+-- Two offer equations for `△-merge` (mirroring `△-merge-noP` / `△-merge-bothP` in
+-- InterruptFD, which cover the Q-only and both-offer cells): the P-ONLY cell, and the
+-- Q-terminated cell.  Both match `△-merge`'s own `with viewV nP at a | viewV nQ at a`.
+-------------------------------------------------------------------------------------
+
+-- P offers, Q does not ⇒ the interrupt keeps running as (P′ △ Q)
+△-merge-onlyP : {Q P′ : PTree E (ExtI E) R} {at : AnyTypes E} {a : proj₁ at}
+                {nP nQ : NodeKind E (ExtI E) R}
+              → viewV nP at a ≡ just P′ → viewV nQ at a ≡ nothing
+              → △-merge nP nQ Q at a ≡ just (P′ △ Q)
+△-merge-onlyP {at = at} {a = a} {nP = nP} {nQ = nQ} vp vq
+  with viewV nP at a | viewV nQ at a
+... | just _  | nothing = case vp of λ { refl → refl }
+... | just _  | just _  = case vq of λ ()
+... | nothing | _       = case vp of λ ()
+
+-- Q has terminated ⇒ every P-offer passes through wrapped as (P′ △ Q)
+△-merge-Qret-eq : {Q P′ : PTree E (ExtI E) R} {at : AnyTypes E} {a : proj₁ at}
+                  {nP : NodeKind E (ExtI E) R}
+                → viewV nP at a ≡ just P′
+                → △-merge-Qret nP Q at a ≡ just (P′ △ Q)
+△-merge-Qret-eq {at = at} {a = a} {nP = nP} vp with viewV nP at a
+... | just _  = case vp of λ { refl → refl }
+... | nothing = case vp of λ ()
+
+-------------------------------------------------------------------------------------
+-- The two VISIBLE single-step lifts.  Each needs the OTHER operand not to offer the
+-- same event — otherwise `△-merge` routes the step into the overlap ⊓-node (case (B)).
+-------------------------------------------------------------------------------------
+
+-- P's visible step lifts, keeping the interrupt armed:  (P △ Q) ─e→ (P₁ △ Q)
+△-ev-lift-P : (P Q : PTree E (ExtI E) R) {X : Set ℓ} {e : E X} {a : X}
+                {P₁ : PTree E (ExtI E) R}
+            → P ─[ ev (evl (evLabel X e a)) ]─► P₁
+            → (∀ {Q₁ : PTree E (ExtI E) R} → Q ─[ ev (evl (evLabel X e a)) ]─► Q₁ → ⊥)
+            → (P △ Q) ─[ ev (evl (evLabel X e a)) ]─► (P₁ △ Q)
+△-ev-lift-P P Q {X} {e} {a} (sVis {v = vP} {τc = τcP} eqP br) ¬Qoff
+  with PTree.force Q in eqQ
+... | ret r′ = sVis (force-△-LR {P = P} {Q = Q} eqP eqQ U0.tt)
+                    (△-merge-Qret-eq {Q = Q} {at = X , e} {a = a} {nP = react vP τcP} br)
+... | sil Q′ = sVis (force-△-mt {P = P} {Q = Q} eqP eqQ U0.tt U0.tt)
+                    (△-merge-onlyP {Q = Q} {at = X , e} {a = a}
+                                   {nP = react vP τcP} {nQ = sil Q′} br refl)
+... | react vQ τcQ with vQ (X , e) a in vqeq
+...   | just Q₁  = ⊥-elim (¬Qoff (sVis eqQ vqeq))
+...   | nothing  = sVis (force-△-mt {P = P} {Q = Q} eqP eqQ U0.tt U0.tt)
+                        (△-merge-onlyP {Q = Q} {at = X , e} {a = a}
+                                       {nP = react vP τcP} {nQ = react vQ τcQ} br vqeq)
+
+-- Q's visible step FIRES the interrupt: the composite commits to the handler Q₁.
+△-ev-lift-Q : (P Q : PTree E (ExtI E) R) {X : Set ℓ} {e : E X} {a : X}
+                {Q₁ : PTree E (ExtI E) R}
+            → NonRet (PTree.force P)
+            → Q ─[ ev (evl (evLabel X e a)) ]─► Q₁
+            → (∀ {P₁ : PTree E (ExtI E) R} → P ─[ ev (evl (evLabel X e a)) ]─► P₁ → ⊥)
+            → (P △ Q) ─[ ev (evl (evLabel X e a)) ]─► Q₁
+△-ev-lift-Q P Q {X} {e} {a} ntP (sVis {v = vQ} {τc = τcQ} eqQ brQ) ¬Poff
+  with PTree.force P in eqP
+-- (`with PTree.force P in eqP` has already rewritten `ntP` to `NonRet (ret r)` = ⊥)
+... | ret r    = ⊥-elim ntP
+... | sil P′   = sVis (force-△-mt {P = P} {Q = Q} eqP eqQ U0.tt U0.tt)
+                      (△-merge-noP {Q = Q} {at = X , e} {a = a}
+                                   {vQ = vQ} {τcQ = τcQ} {nP = sil P′} refl brQ)
+... | react vP τcP with vP (X , e) a in vpeq
+...   | just P₁ = ⊥-elim (¬Poff (sVis eqP vpeq))
+...   | nothing = sVis (force-△-mt {P = P} {Q = Q} eqP eqQ U0.tt U0.tt)
+                       (△-merge-noP {Q = Q} {at = X , e} {a = a}
+                                    {vQ = vQ} {τcQ = τcQ} {nP = react vP τcP} vpeq brQ)
+
+-------------------------------------------------------------------------------------
+-- A `ret`-headed process forces its ≈DR partner to τ-reach a `ret`-headed state that is
+-- STILL ≈DR-related to it.  Used for the `△τQret` arm of the RIGHT congruence, where
+-- the LHS commits to the terminated handler and the RHS must τ-walk to its own `ret`.
+-------------------------------------------------------------------------------------
+
+-- a `ret`-headed tree has no τ, so any τ* run out of it is empty
+ret-τ*-refl : {P P″ : PTree E (ExtI E) R} {r : R}
+            → PTree.force P ≡ ret r → P ─[τ*]─► P″ → P″ ≡ P
+ret-τ*-refl eqP τ*-refl        = refl
+ret-τ*-refl eqP (τ*-step Pτ _) = ⊥-elim (ret-no-τ eqP Pτ)
+
+-- the ret-partner extraction itself
+△-ret-partner : {P P′ : PTree E (ExtI E) R} {r : R}
+              → PTree.force P ≡ ret r → P ≈DR P′
+              → Σ[ Pₛ ∈ PTree E (ExtI E) R ]
+                  ((P′ ─[τ*]─► Pₛ)
+                   × (Σ[ r′ ∈ R ] PTree.force Pₛ ≡ ret r′)
+                   × (P ≈DR Pₛ))
+△-ret-partner {P = P} {P′ = P′} {r = r} eqP pp′
+  with pp′ .DRbisim.fwd .WSimF.on-ev (sRet eqP)
+-- `ev (√ r)` admits only the `sRet` constructor, so the partner's `ret` is read off it
+... | _ , wev p′→pₛ (sRet eqPₛ) _ , _
+      with dr-τ*-sim p′→pₛ (drbisim-sym pp′)
+...     | P″ , P→P″ , pₛ≈p″ =
+          _ , p′→pₛ , (r , eqPₛ)
+            , drbisim-sym (subst (DRbisim _ _) (ret-τ*-refl eqP P→P″) pₛ≈p″)
+
+-------------------------------------------------------------------------------------
+-- THE `Sep△` INVARIANT.  Coinductive, closed under stepping of either operand.
+--   liveL : the LEFT operand has not terminated — puts the `ret`-collapse clause
+--           (counterexample (A)) out of reach, and licenses `△-τ-lift-Q`.
+--   now△  : the two operands never both-offer the same visible event — its hypotheses
+--           are EXACTLY the payload of `△evPQ`, so the overlap case (counterexample
+--           (B)) is discharged by `⊥-elim (sep .now△ Pev Qev)`.
+--   stepL△/stepR△ : closure, making `Sep△` available for the residual operands.
+-------------------------------------------------------------------------------------
+
+record Sep△ {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓr) where
+  coinductive
+  field
+    liveL  : NonRet (PTree.force P)
+    now△   : ∀ {X : Set ℓ} {e : E X} {a : X} {P′ Q′ : PTree E (ExtI E) R}
+           → P ─[ ev (evl (evLabel X e a)) ]─► P′
+           → Q ─[ ev (evl (evLabel X e a)) ]─► Q′
+           → ⊥
+    stepL△ : ∀ {l} {P′ : PTree E (ExtI E) R} → P ─[ l ]─► P′ → Sep△ P′ Q
+    stepR△ : ∀ {l} {Q′ : PTree E (ExtI E) R} → Q ─[ l ]─► Q′ → Sep△ P Q′
+open Sep△
+
+-- `Sep△` preservation along a τ* run of the LEFT / RIGHT operand
+sep△-τ*-L : {P P′ Q : PTree E (ExtI E) R} → P ─[τ*]─► P′ → Sep△ P Q → Sep△ P′ Q
+sep△-τ*-L τ*-refl         s = s
+sep△-τ*-L (τ*-step Pτ rs) s = sep△-τ*-L rs (s .stepL△ Pτ)
+
+sep△-τ*-R : {P Q Q′ : PTree E (ExtI E) R} → Q ─[τ*]─► Q′ → Sep△ P Q → Sep△ P Q′
+sep△-τ*-R τ*-refl         s = s
+sep△-τ*-R (τ*-step Qτ rs) s = sep△-τ*-R rs (s .stepR△ Qτ)
+
+-- `Sep△` preservation along a WEAK visible run of the LEFT / RIGHT operand
+sep△-wev-L : {P P′ Q : PTree E (ExtI E) R} {l : Event√ R}
+           → P ═[ ev l ]═► P′ → Sep△ P Q → Sep△ P′ Q
+sep△-wev-L (wev p→p₁ p₁ev p₂→p′) s =
+  sep△-τ*-L p₂→p′ ((sep△-τ*-L p→p₁ s) .stepL△ p₁ev)
+
+sep△-wev-R : {P Q Q′ : PTree E (ExtI E) R} {l : Event√ R}
+           → Q ═[ ev l ]═► Q′ → Sep△ P Q → Sep△ P Q′
+sep△-wev-R (wev q→q₁ q₁ev q₂→q′) s =
+  sep△-τ*-R q₂→q′ ((sep△-τ*-R q→q₁ s) .stepR△ q₁ev)
+
+-------------------------------------------------------------------------------------
+-- WEAK visible lifts, built from the single-step lifts + the τ*-lifts.  For the LEFT
+-- operand the interrupt stays armed, so the whole weak run re-lifts; for the RIGHT
+-- operand the middle step COMMITS to the handler, so the trailing τ* run of Q is
+-- already a τ* run of the (now bare) composite.
+-------------------------------------------------------------------------------------
+
+-- a weak visible step of P lifts to a weak visible step of P △ Q
+△-wsoloL : (P Q : PTree E (ExtI E) R) {X : Set ℓ} {e : E X} {a : X}
+             {P′ : PTree E (ExtI E) R}
+         → Sep△ P Q
+         → P ═[ ev (evl (evLabel X e a)) ]═► P′
+         → (P △ Q) ═[ ev (evl (evLabel X e a)) ]═► (P′ △ Q)
+△-wsoloL P Q sep (wev p→pₛ pₛev pₘ→p′) =
+  wev (△-τ*-L P Q p→pₛ)
+      (△-ev-lift-P _ Q pₛev (λ Qev → (sep△-τ*-L p→pₛ sep) .now△ pₛev Qev))
+      (△-τ*-L _ Q pₘ→p′)
+
+-- a weak visible step of Q lifts to a weak visible step of P △ Q FIRING the interrupt
+△-wsoloR : (P Q : PTree E (ExtI E) R) {X : Set ℓ} {e : E X} {a : X}
+             {Q′ : PTree E (ExtI E) R}
+         → Sep△ P Q
+         → Q ═[ ev (evl (evLabel X e a)) ]═► Q′
+         → (P △ Q) ═[ ev (evl (evLabel X e a)) ]═► Q′
+△-wsoloR P Q sep (wev q→qₛ qₛev qₘ→q′) =
+  wev (△-τ*-R P Q (sep .liveL) q→qₛ)
+      (△-ev-lift-Q P _ (sep .liveL) qₛev
+                   (λ Pev → (sep△-τ*-R q→qₛ sep) .now△ Pev qₛev))
+      qₘ→q′
+
+-------------------------------------------------------------------------------------
+-- DIVERGENCE TRANSFER (both operands).  `Diverges (P △ Q)` decomposes via the
+-- ALREADY-CERTIFIED König step `△-Diverges→` into `Diverges P ⊎ Diverges Q`; the
+-- relevant summand transfers across the ≈DR hypothesis and re-lifts via the
+-- constructive `△-Diverges-L` / `△-Diverges-R`.  Exactly the `cong-Par⊤-div→` pattern.
+-------------------------------------------------------------------------------------
+
+-- LEFT-operand divergence transfer, forwards
+cong-△-div→ : {P P′ Q : PTree E (ExtI E) R}
+            → P ≈DR P′ → Diverges (P △ Q) → Diverges (P′ △ Q)
+cong-△-div→ {Q = Q} pp′ d with △-Diverges→ d
+... | inj₁ dP = △-Diverges-L {Q = Q} (pp′ .DRbisim.div→ dP)
+... | inj₂ dQ = △-Diverges-R dQ
+
+-- LEFT-operand divergence transfer, backwards
+cong-△-div← : {P P′ Q : PTree E (ExtI E) R}
+            → P ≈DR P′ → Diverges (P′ △ Q) → Diverges (P △ Q)
+cong-△-div← {Q = Q} pp′ d with △-Diverges→ d
+... | inj₁ dP′ = △-Diverges-L {Q = Q} (pp′ .DRbisim.div← dP′)
+... | inj₂ dQ  = △-Diverges-R dQ
+
+-- RIGHT-operand divergence transfer, forwards
+cong-△-div→-R : {P Q Q′ : PTree E (ExtI E) R}
+              → Q ≈DR Q′ → Diverges (P △ Q) → Diverges (P △ Q′)
+cong-△-div→-R {Q′ = Q′} qq′ d with △-Diverges→ d
+... | inj₁ dP = △-Diverges-L {Q = Q′} dP
+... | inj₂ dQ = △-Diverges-R (qq′ .DRbisim.div→ dQ)
+
+-- RIGHT-operand divergence transfer, backwards
+cong-△-div←-R : {P Q Q′ : PTree E (ExtI E) R}
+              → Q ≈DR Q′ → Diverges (P △ Q′) → Diverges (P △ Q)
+cong-△-div←-R {Q = Q} qq′ d with △-Diverges→ d
+... | inj₁ dP  = △-Diverges-L {Q = Q} dP
+... | inj₂ dQ′ = △-Diverges-R (qq′ .DRbisim.div← dQ′)
+
+-------------------------------------------------------------------------------------
+-- THE LEFT INTERRUPT CONGRUENCE.  Invert a step of `P △ Q`, match the P-step through
+-- P ≈DR P′, re-lift, and thread the preserved `Sep△` to the residual operands.
+-------------------------------------------------------------------------------------
+
+-- forward declaration of the LEFT congruence (needed for the residuals below)
+cong-△-L : {P P′ Q : PTree E (ExtI E) R}
+         → Sep△ P Q → Sep△ P′ Q → P ≈DR P′ → (P △ Q) ≈DR (P′ △ Q)
+
+-- the simulation half, carrying FULL DRbisim residuals
+dr-sim-△-L : {P P′ Q : PTree E (ExtI E) R}
+           → Sep△ P Q → Sep△ P′ Q → P ≈DR P′
+           → WSimF (DRbisim R) (P △ Q) (P′ △ Q)
+
+-- on-ev: P's event keeps the interrupt armed; Q's event fires it; both-offer is refuted
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-ev step
+  with △-ev-elim P Q step
+... | △evP Pev with pp′ .DRbisim.fwd .WSimF.on-ev Pev
+...   | P₃ , P′weak , P₁≈P₃ =
+        (P₃ △ Q)
+      , △-wsoloL P′ Q sP′Q P′weak
+      , cong-△-L (sPQ .stepL△ Pev) (sep△-wev-L P′weak sP′Q) P₁≈P₃
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-ev step | △evQ Qev =
+        _
+      , wev τ*-refl
+            (△-ev-lift-Q P′ Q (sP′Q .liveL) Qev (λ P′ev → sP′Q .now△ P′ev Qev))
+            τ*-refl
+      , drbisim-refl _
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-ev step | △evPQ Pev Qev =
+        ⊥-elim (sPQ .now△ Pev Qev)
+
+-- on-tau: P's τ slides; Q's τ slides (P′ live); Q's √-interrupt commits; the two
+-- `ret`-collapse arms are impossible under `liveL`
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-tau step
+  with △-τ-elim P Q step
+... | △τP Pτ with pp′ .DRbisim.fwd .WSimF.on-tau Pτ
+...   | P₃ , wτ P′→P₃ , P₂≈P₃ =
+        (P₃ △ Q)
+      , △-wτ-L P′ Q (wτ P′→P₃)
+      , cong-△-L (sPQ .stepL△ Pτ) (sep△-τ*-L P′→P₃ sP′Q) P₂≈P₃
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-tau step | △τQ {Q′ = Q₂} Qτ =
+        (P′ △ Q₂)
+      , wτ (τ*-step (△-τ-lift-Q (sP′Q .liveL) Qτ) τ*-refl)
+      , cong-△-L (sPQ .stepR△ Qτ) (sP′Q .stepR△ Qτ) pp′
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-tau step | △τQret eqQ =
+        Q
+      , wτ (τ*-step (△-toQ-Qret P′ Q eqQ) τ*-refl)
+      , drbisim-refl Q
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-tau step | △τ⊓P eqP =
+        ⊥-elim (subst NonRet eqP (sPQ .liveL))
+dr-sim-△-L {P = P} {P′ = P′} {Q = Q} sPQ sP′Q pp′ .WSimF.on-tau step | △τ⊓Q eqP =
+        ⊥-elim (subst NonRet eqP (sPQ .liveL))
+
+cong-△-L sPQ sP′Q pp′ .DRbisim.fwd    = dr-sim-△-L sPQ sP′Q pp′
+cong-△-L sPQ sP′Q pp′ .DRbisim.bwd    = dr-sim-△-L sP′Q sPQ (drbisim-sym pp′)
+cong-△-L sPQ sP′Q pp′ .DRbisim.div→ d = cong-△-div→ pp′ d
+cong-△-L sPQ sP′Q pp′ .DRbisim.div← d = cong-△-div← pp′ d
+
+-------------------------------------------------------------------------------------
+-- THE RIGHT INTERRUPT CONGRUENCE — the handler side.  The interesting arms are `△evQ`
+-- (the interrupt fires, so the composite COLLAPSES to the handler and the residual is
+-- the bare `Q₁ ≈DR Q₃` with no congruence wrapper) and `△τQret` (the LHS commits to the
+-- terminated handler, matched by τ-walking Q′ to its own `ret` via `△-ret-partner`).
+-------------------------------------------------------------------------------------
+
+-- forward declaration of the RIGHT congruence (needed for the residuals below)
+cong-△-R : {P Q Q′ : PTree E (ExtI E) R}
+         → Sep△ P Q → Sep△ P Q′ → Q ≈DR Q′ → (P △ Q) ≈DR (P △ Q′)
+
+-- the simulation half, carrying FULL DRbisim residuals
+dr-sim-△-R : {P Q Q′ : PTree E (ExtI E) R}
+           → Sep△ P Q → Sep△ P Q′ → Q ≈DR Q′
+           → WSimF (DRbisim R) (P △ Q) (P △ Q′)
+
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-ev step
+  with △-ev-elim P Q step
+... | △evP {P₁ = P₁} Pev =
+        (P₁ △ Q′)
+      , wev τ*-refl
+            (△-ev-lift-P P Q′ Pev (λ Q′ev → sPQ′ .now△ Pev Q′ev))
+            τ*-refl
+      , cong-△-R (sPQ .stepL△ Pev) (sPQ′ .stepL△ Pev) qq′
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-ev step | △evQ Qev
+      with qq′ .DRbisim.fwd .WSimF.on-ev Qev
+...     | Q₃ , Q′weak , Q₁≈Q₃ = Q₃ , △-wsoloR P Q′ sPQ′ Q′weak , Q₁≈Q₃
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-ev step | △evPQ Pev Qev =
+        ⊥-elim (sPQ .now△ Pev Qev)
+
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-tau step
+  with △-τ-elim P Q step
+... | △τP {P′ = P₂} Pτ =
+        (P₂ △ Q′)
+      , wτ (τ*-step (△-τ-lift-P Pτ) τ*-refl)
+      , cong-△-R (sPQ .stepL△ Pτ) (sPQ′ .stepL△ Pτ) qq′
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-tau step | △τQ Qτ
+      with qq′ .DRbisim.fwd .WSimF.on-tau Qτ
+...     | Q₃ , wτ Q′→Q₃ , Q₂≈Q₃ =
+          (P △ Q₃)
+        , △-wτ-R P Q′ (sPQ′ .liveL) (wτ Q′→Q₃)
+        , cong-△-R (sPQ .stepR△ Qτ) (sep△-τ*-R Q′→Q₃ sPQ′) Q₂≈Q₃
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-tau step | △τQret eqQ
+      with △-ret-partner eqQ qq′
+...     | Q′ₛ , Q′→Q′ₛ , (_ , eqQ′ₛ) , Q≈Q′ₛ =
+          Q′ₛ
+        , wτ (τ*-trans (△-τ*-R P Q′ (sPQ′ .liveL) Q′→Q′ₛ)
+                       (τ*-step (△-toQ-Qret P Q′ₛ eqQ′ₛ) τ*-refl))
+        , Q≈Q′ₛ
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-tau step | △τ⊓P eqP =
+        ⊥-elim (subst NonRet eqP (sPQ .liveL))
+dr-sim-△-R {P = P} {Q = Q} {Q′ = Q′} sPQ sPQ′ qq′ .WSimF.on-tau step | △τ⊓Q eqP =
+        ⊥-elim (subst NonRet eqP (sPQ .liveL))
+
+cong-△-R sPQ sPQ′ qq′ .DRbisim.fwd    = dr-sim-△-R sPQ sPQ′ qq′
+cong-△-R sPQ sPQ′ qq′ .DRbisim.bwd    = dr-sim-△-R sPQ′ sPQ (drbisim-sym qq′)
+cong-△-R sPQ sPQ′ qq′ .DRbisim.div→ d = cong-△-div→-R qq′ d
+cong-△-R sPQ sPQ′ qq′ .DRbisim.div← d = cong-△-div←-R qq′ d
+
+-------------------------------------------------------------------------------------
+-- The two-sided interrupt congruence (drbisim-trans of -L then -R, as `cong-Par⊤`).
+-------------------------------------------------------------------------------------
+
+cong-△ : {P P′ Q Q′ : PTree E (ExtI E) R}
+       → Sep△ P Q → Sep△ P′ Q → Sep△ P′ Q′
+       → P ≈DR P′ → Q ≈DR Q′
+       → (P △ Q) ≈DR (P′ △ Q′)
+cong-△ sPQ sP′Q sP′Q′ pp′ qq′ =
+  drbisim-trans (cong-△-L sPQ sP′Q pp′) (cong-△-R sP′Q sP′Q′ qq′)
+
+-------------------------------------------------------------------------------------
+-- 4. RENAMING CONGRUENCE for divergence-respecting weak bisimulation.
+--
+--   cong-renameInv : P ≈DR Q → (P ⟦ inv ⟧ⁱ) ≈DR (Q ⟦ inv ⟧ⁱ)
+--   cong-renameMap : P ≈DR Q →  renameMap P  ≈DR  renameMap Q
+--
+-- ===================================================================================
+-- UNCONDITIONAL — no side condition, no injectivity requirement (contrast sections 2
+-- and 3, where the unconditional law is outright false).
+--
+-- `renameInv P inv` (and hence `renameMap = renameInv · ι-vis-inv`) is the wrapper whose
+-- per-target preimage list `invPreimg inv bt b` has length ≤ 1, so `rnFan` NEVER builds a
+-- fan-in node: the operator is a step-for-step STRUCTURAL relabelling —
+--   ret r        ↦ ret r
+--   sil P′       ↦ sil (renamed P′)
+--   react vP τcP ↦ react (b ↦ renamed (vP (inv b)))  (extBranch … τcP)
+-- Every target step therefore has exactly one source step behind it (`ren-τ-inv` /
+-- `ren-ev-inv`) and every source step pushes forward (`ren-τ-fwd` / `ren-ev-fwd` /
+-- `ren-√-fwd`), all in `CSP.Laws.Traces.RenameDeadlock`'s cross-alphabet Part 1.  Note in
+-- particular that `inv` need NOT be injective: it may send several target events to the
+-- same source event (fan-OUT), which merely duplicates offers — each duplicate still has
+-- a single continuation, so the step correspondence survives.  And it may be partial:
+-- targets outside the image simply offer nothing.
+--
+-- Consequently the divergence halves need NO classical/König step either: the τ-spaces
+-- correspond one-for-one, so `Diverges (P ⟦inv⟧ⁱ) ↔ Diverges P` is a CONSTRUCTIVE
+-- corecursive projection (`ren-Diverges→` / `ren-Diverges←` below).  This is what makes
+-- rename the cheap congruence and hiding/parallel/interrupt the expensive ones.
+-- ZERO postulates are used or introduced by this section's own reasoning (the module's
+-- one postulate, `modA-transfer`, belongs to section 1 and is not touched here).
+--
+-- ⚠ SCOPE.  This is the `renameInv` (functional / at-most-one-preimage) wrapper.  The
+-- GENERAL relational operator `_⟦ R ¿ preimg ⟧` is NOT covered and is NOT a ≈DR
+-- congruence: with ≥ 2 enabled preimages `rnFan` emits the fan-in node
+-- `ptree (react ∅ (rnBranch … ts))`, an internal choice over the sources ENABLED AT THAT
+-- HEAD.  That node freezes the post-event state exactly like `Par`'s `evBoth` overlap
+-- (the blocker note closing section 2) and the interrupt's `△-merge` both-offer node
+-- (counterexample (B) of section 3), so a matching side whose weak run has a nonempty
+-- trailing τ has no state to be matched against.  A conditioned relational version would
+-- need a `Sep`-style invariant pinning the enabled-preimage lists of the two sides
+-- together; not attempted here.
+-- ===================================================================================
+
+-------------------------------------------------------------------------------------
+-- The target alphabet `E₂` and the event injection inducing the rename, exactly as in
+-- `CSP.Rename` / `CSP.Laws.Traces.RenameDeadlock`.  Everything below is parametric in
+-- them; the SAME-alphabet instance is `E₂ = E`, `ι = id`, `ι⁻¹ = just`.
+-------------------------------------------------------------------------------------
+
+module _ {ℓe₂} {E₂ : Set ℓ → Set ℓe₂}
+  (ι      : ∀ {A} → E A → E₂ A)
+  (ι⁻¹    : ∀ {A} → E₂ A → Maybe (E A))
+  (ι-linv : ∀ {A} (e : E A) → ι⁻¹ (ι e) ≡ just e)
+  where
+
+  -- the rename operator and its cross-alphabet single-step lemmas
+  module Rn  = Rnm  {E₁ = E} {E₂ = E₂} ι ι⁻¹ ι-linv
+  module RD  = RDm  {E₁ = E} {E₂ = E₂} ι ι⁻¹ ι-linv
+  -- the TARGET-alphabet semantics (the source-alphabet ones are in scope unqualified)
+  module L2  = LTSm  {E = E₂} {I = ExtI E₂}
+  module W2  = WBm   {E = E₂} {I = ExtI E₂}
+  module DR2 = DRBm  {E = E₂} {I = ExtI E₂}
+
+  open Rn using (ConcEvent₁; renameInv; renameMap; ι-vis-inv)
+  open RD using (_⟦_⟧ⁱ; ren-τ-fwd; ren-ev-fwd; ren-√-fwd; ren-τ-inv; ren-ev-inv)
+  -- target-side names get a ₂ suffix so they never shadow the source-side ones
+  open L2 using () renaming
+    ( _─[_]─►_ to _─[_]─►₂_ ; Event√ to Event√₂ ; τ to τ₂ ; ev to ev₂
+    ; evl to evl₂ ; √ to √₂ ; evLabel to evLabel₂ ; sRet to sRet₂ ; Diverges to Diverges₂ )
+  open W2 using () renaming
+    ( _─[τ*]─►_ to _─[τ*]─►₂_ ; τ*-refl to τ*-refl₂ ; τ*-step to τ*-step₂
+    ; _═[_]═►_ to _═[_]═►₂_ ; wτ to wτ₂ ; wev to wev₂ ; WSimF to WSimF₂ )
+  open DR2 using () renaming
+    ( DRbisim to DRbisim₂ ; _≈DR_ to _≈DR₂_ ; drbisim-refl to drbisim-refl₂ )
+
+  -- the per-target partial inverse that drives `renameInv`
+  RenInv : Set (lsuc ℓ ⊔ ℓe ⊔ ℓe₂)
+  RenInv = (bt : AnyTypes E₂) → proj₁ bt → Maybe ConcEvent₁
+
+  -----------------------------------------------------------------------------------
+  -- Re-renaming WEAK steps: a weak step of P renames to a weak step of P ⟦inv⟧ⁱ.
+  -- (Each source τ is a target τ, so a τ* run renames to a τ* run of the same length.)
+  -----------------------------------------------------------------------------------
+
+  -- a source τ* run renames to a target τ* run
+  ren-τ* : {inv : RenInv} (P : PTree E (ExtI E) R) {P′ : PTree E (ExtI E) R}
+         → P ─[τ*]─► P′ → (P ⟦ inv ⟧ⁱ) ─[τ*]─►₂ (P′ ⟦ inv ⟧ⁱ)
+  ren-τ* P τ*-refl           = τ*-refl₂
+  ren-τ* P (τ*-step Pτ rest) = τ*-step₂ (ren-τ-fwd Pτ) (ren-τ* _ rest)
+
+  -- a weak τ̂ step renames
+  ren-wτ : {inv : RenInv} (P : PTree E (ExtI E) R) {P′ : PTree E (ExtI E) R}
+         → P ═[ τ ]═► P′ → (P ⟦ inv ⟧ⁱ) ═[ τ₂ ]═►₂ (P′ ⟦ inv ⟧ⁱ)
+  ren-wτ P (wτ run) = wτ₂ (ren-τ* P run)
+
+  -- a weak visible step renames, RELABELLED at the target event that `inv` maps back
+  ren-wev : {inv : RenInv} (P : PTree E (ExtI E) R)
+              {at : AnyTypes E} {a : proj₁ at} {bt : AnyTypes E₂} {b : proj₁ bt}
+              {P′ : PTree E (ExtI E) R}
+          → inv bt b ≡ just (at , a)
+          → P ═[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]═► P′
+          → (P ⟦ inv ⟧ⁱ) ═[ ev₂ (evl₂ (evLabel₂ (proj₁ bt) (proj₂ bt) b)) ]═►₂ (P′ ⟦ inv ⟧ⁱ)
+  ren-wev P eqinv (wev p→p₁ p₁ev p₂→p′) =
+    wev₂ (ren-τ* P p→p₁) (ren-ev-fwd p₁ev eqinv) (ren-τ* _ p₂→p′)
+
+  -- a weak √ step renames (√ passes through unchanged and lands in `deadlock`)
+  ren-w√ : {inv : RenInv} (P : PTree E (ExtI E) R) {r : R} {P′ : PTree E (ExtI E) R}
+         → P ═[ ev (√ r) ]═► P′
+         → (P ⟦ inv ⟧ⁱ) ═[ ev₂ (√₂ r) ]═►₂ deadlock
+  -- `ev (√ r)` admits only the `sRet` constructor, so the source `ret` is read off it
+  -- (`√-source` from section 1 would do just as well; destructing inline keeps this
+  --  section independent of the hide plumbing).
+  ren-w√ P (wev p→p₁ (sRet eqP) _) =
+    wev₂ (ren-τ* P p→p₁) (ren-√-fwd eqP) τ*-refl₂
+
+  -----------------------------------------------------------------------------------
+  -- DIVERGENCE, both ways, CONSTRUCTIVELY (no König step): the τ-spaces correspond
+  -- one-for-one, so an infinite τ-run on either side projects to one on the other.
+  -- `ren-Diverges→` uses the `div∖→modA` idiom — the single-step inversion is already
+  -- packaged as a Σ (`ren-τ-inv`), so the copattern definition uses pure PROJECTIONS.
+  -----------------------------------------------------------------------------------
+
+  -- an infinite τ-run of the RENAMED tree reflects to one of the source
+  ren-Diverges→ : {inv : RenInv} (P : PTree E (ExtI E) R)
+                → Diverges₂ (P ⟦ inv ⟧ⁱ) → Diverges P
+  ren-Diverges→ {inv = inv} P d .Diverges.next =
+    proj₁ (ren-τ-inv {inv = inv} {P = P} (d .Diverges₂.step))
+  ren-Diverges→ {inv = inv} P d .Diverges.step =
+    proj₁ (proj₂ (ren-τ-inv {inv = inv} {P = P} (d .Diverges₂.step)))
+  ren-Diverges→ {inv = inv} P d .Diverges.rest =
+    ren-Diverges→ _
+      (subst Diverges₂ (proj₂ (proj₂ (ren-τ-inv {inv = inv} {P = P} (d .Diverges₂.step))))
+             (d .Diverges₂.rest))
+
+  -- an infinite τ-run of the source renames to one of the renamed tree
+  ren-Diverges← : {inv : RenInv} (P : PTree E (ExtI E) R)
+                → Diverges P → Diverges₂ (P ⟦ inv ⟧ⁱ)
+  ren-Diverges← {inv = inv} P d .Diverges₂.next = (d .Diverges.next) ⟦ inv ⟧ⁱ
+  ren-Diverges← {inv = inv} P d .Diverges₂.step = ren-τ-fwd (d .Diverges.step)
+  ren-Diverges← {inv = inv} P d .Diverges₂.rest = ren-Diverges← _ (d .Diverges.rest)
+
+  -----------------------------------------------------------------------------------
+  -- THE CONGRUENCE.  Built as `fwd`/`bwd` from a single `dr-sim-renameInv` helper plus
+  -- the divergence transfer above — the `cong-∖` shape.  A step of `P ⟦inv⟧ⁱ` inverts
+  -- (`ren-ev-inv` / `ren-τ-inv`) to a source step of P, is matched through `P ≈DR Q`,
+  -- and the resulting WEAK Q-step is re-renamed (`ren-wev` / `ren-w√` / `ren-τ*`).
+  -- Residuals are related by `cong-renameInv` corecursively (productive: each residual
+  -- sits under the `WSimF` constructor of the on-ev / on-tau Σ-result).
+  -----------------------------------------------------------------------------------
+
+  -- forward declaration of the congruence (needed for the residuals below)
+  cong-renameInv : {inv : RenInv} {P Q : PTree E (ExtI E) R}
+                 → DRbisim R P Q → DRbisim₂ R (P ⟦ inv ⟧ⁱ) (Q ⟦ inv ⟧ⁱ)
+
+  -- the simulation half, carrying FULL DRbisim residuals
+  dr-sim-renameInv : {inv : RenInv} {P Q : PTree E (ExtI E) R}
+                   → DRbisim R P Q → WSimF₂ (DRbisim₂ R) (P ⟦ inv ⟧ⁱ) (Q ⟦ inv ⟧ⁱ)
+  dr-sim-renameInv {inv = inv} {P = P} {Q = Q} pq .WSimF₂.on-ev step
+    with ren-ev-inv {inv = inv} {P = P} step
+  ... | inj₁ (at , a , bt , b , P₁ , Pev , eqinv , refl , refl)
+        with pq .DRbisim.fwd .WSimF.on-ev Pev
+  ...     | Q′ , Qweak , P₁≈Q′ =
+            (Q′ ⟦ inv ⟧ⁱ) , ren-wev Q eqinv Qweak , cong-renameInv P₁≈Q′
+  dr-sim-renameInv {inv = inv} {P = P} {Q = Q} pq .WSimF₂.on-ev step
+      | inj₂ (r , refl , eqP , refl)
+        with pq .DRbisim.fwd .WSimF.on-ev (sRet eqP)
+  ...     | _ , Qweak , _ = deadlock , ren-w√ Q Qweak , drbisim-refl₂ deadlock
+  dr-sim-renameInv {inv = inv} {P = P} {Q = Q} pq .WSimF₂.on-tau step
+    with ren-τ-inv {inv = inv} {P = P} step
+  ... | P₁ , Pτ , refl with pq .DRbisim.fwd .WSimF.on-tau Pτ
+  ...   | Q′ , wτ Q→Q′ , P₁≈Q′ =
+          (Q′ ⟦ inv ⟧ⁱ) , wτ₂ (ren-τ* Q Q→Q′) , cong-renameInv P₁≈Q′
+
+  cong-renameInv pq .DRbisim₂.fwd = dr-sim-renameInv pq
+  cong-renameInv pq .DRbisim₂.bwd = dr-sim-renameInv (drbisim-sym pq)
+  cong-renameInv {P = P} {Q = Q} pq .DRbisim₂.div→ d =
+    ren-Diverges← Q (pq .DRbisim.div→ (ren-Diverges→ P d))
+  cong-renameInv {P = P} {Q = Q} pq .DRbisim₂.div← d =
+    ren-Diverges← P (pq .DRbisim.div← (ren-Diverges→ Q d))
+
+  -- the headline instance: the injective ALPHABET renaming induced by ι
+  cong-renameMap : {P Q : PTree E (ExtI E) R}
+                 → DRbisim R P Q → DRbisim₂ R (renameMap P) (renameMap Q)
+  cong-renameMap = cong-renameInv {inv = ι-vis-inv}

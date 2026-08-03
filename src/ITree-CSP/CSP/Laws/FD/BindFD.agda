@@ -23,6 +23,8 @@ open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (failures⊥; divergences; IsDivergence)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; Offers)
+-- generic stability facts (`stable-force-eq` below is a thin alias)
+import Semantics.Stability {E = E} {I = ExtI E} as St
 
 -- FORCE lemmas: `force (P >>= k)` reduces by case-analysis on `force P`.
 
@@ -412,11 +414,11 @@ bind-div-elim P k {s} d
 -- lemmas keep the clean draft shapes (suffix-free), so downstream callers that
 -- only build failures are unaffected.
 
--- `isStable` inspects only `force`, so an equal force transports stability.
+-- `isStable` inspects only `force`, so an equal force transports stability
+-- (generic; the proof lives once in `Semantics.Stability`).
 stable-force-eq : ∀ {ℓs} {S : Set ℓs} {p q : PTree E (ExtI E) S}
    → force p ≡ force q → isStable q → isStable p
-stable-force-eq {p = p} {q} eq st with force p | force q | eq
-... | react _ _ | react _ _ | refl = st
+stable-force-eq {p = p} {q} = St.stable-force-eq {p = p} {q = q}
 
 -- `Refuses` depends on its tree only through `force` (both `isStable` and
 -- `Offers` — the latter via the LTS steps, which read the source's `force`).

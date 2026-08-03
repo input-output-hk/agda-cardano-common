@@ -12,6 +12,12 @@
 -- terminated `ret` state is non-divergent yet never stable, so it would prove ⊥.)
 -- This is the only postulate in the development; it is the constructive obstruction
 -- (bar induction) that makes the failures model classically flavoured.
+--
+-- NOTE: the postulate-free STABILITY helpers (`nothing≢just`, `stable-not-sil`,
+-- `stable-not-ret`, `stable-react-τc`, `stable-no-τ`, `stable→¬div`, `stable→τ*-refl`)
+-- now live in `Semantics.Stability`, and `⟹-then-τ*` in `Semantics.Failures`, so that
+-- postulate-free clients can use them without importing this module.  Both are
+-- re-exported below, so existing consumers of this module see no change.
 
 open import Level using (Level; Lift; lift; lower; _⊔_) renaming (suc to lsuc)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -31,63 +37,25 @@ open import Semantics.WeakBisim           {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.DRBisim             {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Refusals            {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Failures            {ℓ} {ℓe} {ℓi} {E} {I}
+  hiding (⟹-then-τ*)
 open import Semantics.FailuresDivergences {ℓ} {ℓe} {ℓi} {E} {I}
   using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+-- the one-way failure simulation this module's bridge theorems now factor through.
+-- Imported with an explicit `using` (and NOT re-exported) so that the record fields
+-- `fwd`/`stab`/`div→` of `FSim` do not leak into the 60 downstream modules that name this
+-- one (`grep -rl DRImpliesFD --include='*.agda' src/`, minus this file); 52 of those carry
+-- an actual `import Semantics.DRImpliesFD`, the rest only mention it in comments.
+open import Semantics.FailureSim          {ℓ} {ℓe} {ℓi} {E} {I}
+  using (FSim; fsim→⊑D; fsim→⊑F⊥; fsim→⊑FD)
 
--------------------------------------------------------------------------------------
--- Stability vs. steps.
--- A `with` on `isStable t` only reduces once `PTree.force t` is concrete, so each
--- helper splits the force AND lists `isStable t` (and the force-equality) in the
--- `with` so the predicate computes in every branch.
--------------------------------------------------------------------------------------
-
-nothing≢just : ∀ {ℓa} {A : Set ℓa} {x : A} → nothing ≡ just x → ⊥
-nothing≢just ()
-
--- a stable state's force cannot be `sil`
-stable-not-sil : ∀ {ℓr} {R : Set ℓr} {t u : PTree E I R}
-               → isStable t → PTree.force t ≡ sil u → ⊥
-stable-not-sil {t = t} st eq with PTree.force t | st | eq
-... | ret _    | _       | ()
-... | sil _    | lift ()  | _
-... | react _ _ | _       | ()
-
--- a stable state's force cannot be `ret` either (ret is not stable)
-stable-not-ret : ∀ {ℓr} {R : Set ℓr} {t : PTree E I R} {r : R}
-               → isStable t → PTree.force t ≡ ret r → ⊥
-stable-not-ret {t = t} st eq with PTree.force t | st | eq
-... | ret _    | lift ()  | _
-... | sil _    | _        | ()
-... | react _ _ | _        | ()
-
--- a stable state's τ-branch continuation is everywhere `nothing`
-stable-react-τc : ∀ {ℓr} {R : Set ℓr} {t : PTree E I R}
-                 {v  : (at : AnyTypes E) → ContinueType at (Maybe (PTree E I R))}
-                 {τc : (i  : AnyTypes I) → ContinueType i  (Maybe (PTree E I R))}
-               → isStable t → PTree.force t ≡ react v τc
-               → ∀ (i : AnyTypes I) (a : proj₁ i) → τc i a ≡ nothing
-stable-react-τc {t = t} st eq with PTree.force t | st | eq
-... | ret _     | _    | ()
-... | sil _     | _    | ()
-... | react _ _  | stf  | refl = stf
-
--- hence a stable state performs no τ-step at all
-stable-no-τ : ∀ {ℓr} {R : Set ℓr} {t u : PTree E I R}
-            → isStable t → t ─[ τ ]─► u → ⊥
-stable-no-τ {t = t} st (sSil eq) = stable-not-sil {t = t} st eq
-stable-no-τ {t = t} st (sTau {τc = τc} {i = i} {a = a} eq br) =
-  nothing≢just (trans (sym (stable-react-τc {t = t} st eq i a)) br)
-
--- … so a stable state cannot diverge …
-stable→¬div : ∀ {ℓr} {R : Set ℓr} {t : PTree E I R}
-            → isStable t → ¬ Diverges t
-stable→¬div st d = stable-no-τ st (d .Diverges.step)
-
--- … and a τ*-run out of a stable state is necessarily empty
-stable→τ*-refl : ∀ {ℓr} {R : Set ℓr} {t t′ : PTree E I R}
-               → isStable t → t ─[τ*]─► t′ → t′ ≡ t
-stable→τ*-refl st τ*-refl        = refl
-stable→τ*-refl st (τ*-step s _)  = ⊥-elim (stable-no-τ st s)
+-- the stability helpers were moved out of this module (they are postulate-free);
+-- re-exported here so that existing consumers keep seeing them
+open import Semantics.Stability           {ℓ} {ℓe} {ℓi} {E} {I} public
+-- likewise `⟹-then-τ*`, which now sits beside `τ*-then`/`weaken-τ`/`weaken-ev` in
+-- Semantics.Failures.  It is `hiding`-ed from the import above so that this module
+-- application is its single source here (two applications would make it ambiguous).
+open import Semantics.Failures            {ℓ} {ℓe} {ℓi} {E} {I}
+  using (⟹-then-τ*) public
 
 -------------------------------------------------------------------------------------
 -- THE one classical postulate: convergence yields a reachable τ-normal-form,
@@ -115,13 +83,6 @@ dr-trace-sim pq (⟹-τ pτ rest) with pq .DRbisim.fwd .WSimF.on-tau pτ
 dr-trace-sim pq (⟹-ev pev rest) with pq .DRbisim.fwd .WSimF.on-ev pev
 ... | _ , qev , p₁q₁ with dr-trace-sim p₁q₁ rest
 ...   | Q′ , q⟹ , p′q′ = Q′ , weaken-ev qev q⟹ , p′q′
-
--- appending a (silent) τ*-run to the end of a big-step keeps the same trace
-⟹-then-τ* : ∀ {ℓr} {R : Set ℓr} {P Q Q′ : PTree E I R} {s}
-           → P ⟹⟨ s ⟩ Q → Q ─[τ*]─► Q′ → P ⟹⟨ s ⟩ Q′
-⟹-then-τ* ⟹-refl         tτ = τ*-then tτ ⟹-refl
-⟹-then-τ* (⟹-τ pτ rest)   tτ = ⟹-τ pτ (⟹-then-τ* rest tτ)
-⟹-then-τ* (⟹-ev pev rest) tτ = ⟹-ev pev (⟹-then-τ* rest tτ)
 
 -------------------------------------------------------------------------------------
 -- Stable-state absorption: a stable Q stays DR-bisimilar across P's silent moves
@@ -153,37 +114,55 @@ stable-≉-ret {Q = Q} {P = P} stQ qp eqP with qp .DRbisim.bwd .WSimF.on-ev (sRe
 ...     | sRet eqQ = stable-not-ret {t = Q} stQ eqQ
 
 -------------------------------------------------------------------------------------
--- The bridge.
+-- ≈DR is (in each direction) a failure simulation.  This is where — and the ONLY
+-- place where — the classical postulate is consumed: `stab` must hand back a STABLE
+-- specification state, and manufacturing one from mere non-divergence is exactly
+-- `¬-divergent→normal`.  `Semantics.FailureSim` itself stays postulate-free because
+-- its `stab` field is a hypothesis there rather than something to be established.
 -------------------------------------------------------------------------------------
 
--- divergences are respected (constructive): transport along the simulation + div→
-drbisim→⊑D : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑D Q
-drbisim→⊑D pq d with dr-trace-sim (drbisim-sym pq) (d .IsDivergence.reach)
-... | Pw , p⟹ , qwpw = record
-        { prefix  = d .IsDivergence.prefix
-        ; suffix  = d .IsDivergence.suffix
-        ; split   = d .IsDivergence.split
-        ; witness = Pw
-        ; reach   = p⟹
-        ; divwit  = qwpw .DRbisim.div→ (d .IsDivergence.divwit)
-        }
+-- forward-declared pair (no mutual block): the WSimF-level map, and the coinductive
+-- translation whose corecursive call sits under the Σ-result of the simulation
+dr-sim→f-sim : ∀ {ℓr} {R : Set ℓr} {t₁ t₂ : PTree E I R}
+             → WSimF (DRbisim R) t₁ t₂ → WSimF (FSim R) t₁ t₂
+-- a DRbisim yields a failure simulation in the SAME orientation (t₁ impl, t₂ spec):
+-- keep `fwd` and `div→`, drop `bwd`, and derive `stab` from `div←` + the postulate
+drbisim→fsim : ∀ {ℓr} {R : Set ℓr} {t₁ t₂ : PTree E I R} → DRbisim R t₁ t₂ → FSim R t₁ t₂
 
--- divergence-strict failures are respected (failures via the postulate)
+dr-sim→f-sim sim .WSimF.on-ev  st with sim .WSimF.on-ev  st
+... | _ , w , rel = _ , w , drbisim→fsim rel
+dr-sim→f-sim sim .WSimF.on-tau st with sim .WSimF.on-tau st
+... | _ , w , rel = _ , w , drbisim→fsim rel
+
+drbisim→fsim pq .FSim.fwd  = dr-sim→f-sim (pq .DRbisim.fwd)
+drbisim→fsim pq .FSim.div→ = pq .DRbisim.div→
+-- t₁ stable ⇒ t₁ converges ⇒ (via div←) t₂ converges ⇒ t₂ reaches a τ-normal form;
+-- that form cannot be `ret` (a stable state is never DR-bisimilar to a `ret`), so it
+-- is stable, and its offers are contained in t₁'s by `offers-preserved`
+drbisim→fsim pq .FSim.stab st₁
+  with ¬-divergent→normal (λ d₂ → stable→¬div st₁ (pq .DRbisim.div← d₂))
+... | t₂′ , t₂→t₂′ , inj₁ st₂′ =
+      t₂′ , t₂→t₂′ , st₂′ ,
+      λ e off → offers-preserved st₁ (dr-absorb-τ* st₁ pq t₂→t₂′) off
+... | t₂′ , t₂→t₂′ , inj₂ (r , eqret) =
+      ⊥-elim (stable-≉-ret st₁ (dr-absorb-τ* st₁ pq t₂→t₂′) eqret)
+
+-------------------------------------------------------------------------------------
+-- The bridge, now a corollary of `Semantics.FailureSim`.  The `drbisim-sym` is forced
+-- by the orientations: `drbisim→⊑D : DRbisim R P Q → P ⊑D Q` while
+-- `fsim→⊑D : FSim R Q P → P ⊑D Q`, so the FSim needed has Q as its impl.
+-------------------------------------------------------------------------------------
+
+-- divergences are respected (constructive part of the bridge)
+drbisim→⊑D : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑D Q
+drbisim→⊑D pq = fsim→⊑D (drbisim→fsim (drbisim-sym pq))
+
+-- divergence-strict failures are respected (the postulate is inside `drbisim→fsim`)
 drbisim→⊑F⊥ : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑F⊥ Q
-drbisim→⊑F⊥ pq (inj₂ dQ) = inj₂ (drbisim→⊑D pq dQ)
-drbisim→⊑F⊥ pq (inj₁ (Qw , q⟹ , stQw , norefuse))
-  with dr-trace-sim (drbisim-sym pq) q⟹
-... | Pw , p⟹ , qwpw
-      with ¬-divergent→normal (λ dPw → stable→¬div stQw (qwpw .DRbisim.div← dPw))
-...     | Pw′ , pw→pw′ , inj₁ stPw′ =
-          inj₁ (Pw′ , ⟹-then-τ* p⟹ pw→pw′ , stPw′ ,
-                λ e Be off → norefuse e Be
-                  (offers-preserved stQw (dr-absorb-τ* stQw qwpw pw→pw′) off))
-...     | Pw′ , pw→pw′ , inj₂ (r , eqret) =
-          ⊥-elim (stable-≉-ret stQw (dr-absorb-τ* stQw qwpw pw→pw′) eqret)
+drbisim→⊑F⊥ pq = fsim→⊑F⊥ (drbisim→fsim (drbisim-sym pq))
 
 drbisim→⊑FD : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑FD Q
-drbisim→⊑FD pq = drbisim→⊑F⊥ pq , drbisim→⊑D pq
+drbisim→⊑FD pq = fsim→⊑FD (drbisim→fsim (drbisim-sym pq))
 
 drbisim→≈FD : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ≈FD Q
 drbisim→≈FD pq = drbisim→⊑FD pq , drbisim→⊑FD (drbisim-sym pq)

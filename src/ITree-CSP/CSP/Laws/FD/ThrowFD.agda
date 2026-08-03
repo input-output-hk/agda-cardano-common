@@ -48,7 +48,8 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (_≈FD_; _⊑D_; _⊑F⊥_; _⊑FD_; IsDivergence; divergences; div-extension-closed; failures⊥)
 open import Semantics.StrongImpliesDR {E = E} {I = ExtI E} using (sbisim→drbisim)
-open import Semantics.DRImpliesFD        {E = E} {I = ExtI E} using (drbisim→≈FD; stable-not-ret; stable-react-τc)
+open import Semantics.DRImpliesFD        {E = E} {I = ExtI E}
+  using (drbisim→≈FD; stable-not-ret; stable-react-τc; mk-stable)
 open import CSP.Laws.Traces.TraceLawsThrowInterrupt E-≟
   using (force-Θ-ret; force-Θ-react; force-Θ-sil;
          Θ-τ-elim; Θ-ev-elim; ΘevR; Θthrow; Θpass; Θdone)
@@ -509,17 +510,6 @@ fail-ev-prepend step (W , reach , ref) = W , ⟹-ev step reach , ref
 ...   | yes _ = Y , refl
 ...   | no  _ = (P′ ⟦ A ▷ Y) , refl
 
--- build stability of `u` from "the τ-branch function of force u is everywhere nothing"
--- (the constructive converse of stable-react-τc; local copy of InterruptFD's mk-stable).
-mk-stable : {u : PTree E (ExtI E) R}
-            {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
-            {τc : (i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))}
-          → PTree.force u ≡ react v τc → (∀ i a → τc i a ≡ nothing) → isStable u
-mk-stable {u = u} eqf h with PTree.force u
-... | ret _    = case eqf of λ ()
-... | sil _    = case eqf of λ ()
-... | react _ _ with refl ← eqf = h
-
 -- stability of `P ⟦ A ▷ X` (NonRet P ⇒ react node) ⇒ stability of `P ⟦ A ▷ Y`.
 Θ-isStable-indep : (P X Y : PTree E (ExtI E) R) (A : EventSet)
                      {nP : NodeKind E (ExtI E) R}
@@ -529,11 +519,11 @@ mk-stable {u = u} eqf h with PTree.force u
   -- force (P⟦A▷X) ≡ ret r ⇒ not stable
   ⊥-elim (stable-not-ret {t = P ⟦ A ▷ X} stX (force-Θ-ret {P = P} {Q = X} {A = A} eqP))
 Θ-isStable-indep P X Y A {nP = sil P₁} eqP stX =
-  mk-stable {u = P ⟦ A ▷ Y} (force-Θ-sil {P = P} {Q = Y} {A = A} eqP)
+  mk-stable {t = P ⟦ A ▷ Y} (force-Θ-sil {P = P} {Q = Y} {A = A} eqP)
             (λ i a → Θ-τ-nothing-indep (sil P₁) A X Y {i = i} {a = a}
                        (stable-react-τc {t = P ⟦ A ▷ X} stX (force-Θ-sil {P = P} {Q = X} {A = A} eqP) i a))
 Θ-isStable-indep P X Y A {nP = react v τc} eqP stX =
-  mk-stable {u = P ⟦ A ▷ Y} (force-Θ-react {P = P} {Q = Y} {A = A} eqP)
+  mk-stable {t = P ⟦ A ▷ Y} (force-Θ-react {P = P} {Q = Y} {A = A} eqP)
             (λ i a → Θ-τ-nothing-indep (react v τc) A X Y {i = i} {a = a}
                        (stable-react-τc {t = P ⟦ A ▷ X} stX (force-Θ-react {P = P} {Q = X} {A = A} eqP) i a))
 

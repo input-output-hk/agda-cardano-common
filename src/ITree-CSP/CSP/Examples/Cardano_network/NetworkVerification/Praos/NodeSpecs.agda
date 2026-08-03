@@ -94,6 +94,15 @@ instance
   -- BlockingStyle × ℕ × ℕ (TS request-txids api payload)
   DecEq-BS×ℕ×ℕ : DecEq (BlockingStyle × ℕ × ℕ)
   DecEq-BS×ℕ×ℕ = DecEqI.DecEq-×
+  -- NOTE: List Vote / List Tx / List VoteBlob equality is resolved by the
+  -- AMBIENT generic `DecEqI.DecEq-List` — a NAMED local instance for them
+  -- clashes with the generic (UnsolvedConstraints ambiguity), so is omitted.
+  -- Point × LFBitmap (LF sendLFBlockTxsRequest api payload)
+  DecEq-Point×LFBitmap : DecEq (Point × LFBitmap)
+  DecEq-Point×LFBitmap = DecEqI.DecEq-×
+  -- Block × List Tx (LF recvLFRangeBlock api payload)
+  DecEq-Block×ListTx : DecEq (Block × List Tx)
+  DecEq-Block×ListTx = DecEqI.DecEq-×
 
 ------------------------------------------------------------------------
 -- Direction flip: the server runs on the direction opposite the client.
@@ -808,6 +817,407 @@ tsServerSpec : Link → Dir → NetTree
 tsServerSpec l d = tableSpec (record { isFin = tsSfin ; nxt = tsSnxt l d }) tsInit
 
 ------------------------------------------------------------------------
+-- LeiosNotify client spec (dir d, sends FromInitiator): the consumer loop
+-- `lncIdle → lncWreq → lncBusy → recv-api → lncIdle` and the `sendLNDone`
+-- exit to √.  Mirrors `LeiosNotify.clientStep` renamed through `ιLN`
+-- (apiLNev↦apiLN, sendLN↦input N2N_LeiosNotify, receiveLN↦output …).
+------------------------------------------------------------------------
+
+-- LN client positions (state heads + mid-prefix positions)
+data LNcPos : Set where
+  lncIdle : LNcPos                 -- loop head: request-next / done api offers
+  lncWreq : LNcPos                 -- wire-send MsgLNRequestNext (→ busy)
+  lncWdone : LNcPos                -- wire-send MsgLNDone (→ √)
+  lncBusy : LNcPos                 -- await one of the four notifications
+  lncRann : Header → LNcPos        -- api emit recvLNBlockAnnouncement h (→ idle)
+  lncRoff : Point → LNcPos         -- api emit recvLNBlockOffer q (→ idle)
+  lncRtxs : Point → LNcPos         -- api emit recvLNBlockTxsOffer q (→ idle)
+  lncRvot : List Vote → LNcPos     -- api emit recvLNVotesOffer vs (→ idle)
+  lncTerm : LNcPos                 -- √ after the done handshake
+
+-- LN client terminal positions
+lnCfin : LNcPos → Bool
+lnCfin lncTerm = true
+lnCfin _       = false
+
+-- LN client next-state table (mirrors `LeiosNotify.clientStep` renamed)
+lnCnxt : Link → Dir → LNcPos
+       → (at : AnyTypes (Net_Api Payload)) → ContinueType at (Maybe LNcPos)
+lnCnxt l d lncIdle (_ , apiLN l′ d′ sendLNRequestNext) _ with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lncWreq
+... | _        | _        = nothing
+lnCnxt l d lncIdle (_ , apiLN l′ d′ sendLNDone) _ with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lncWdone
+... | _        | _        = nothing
+lnCnxt l d lncWreq (_ , input l′ d′ N2N_LeiosNotify) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosNotify MsgLNRequestNext)
+...     | yes _ = just lncBusy
+...     | no  _ = nothing
+lnCnxt l d lncWreq (_ , input l′ d′ N2N_LeiosNotify) pl | _ | _ = nothing
+lnCnxt l d lncWdone (_ , input l′ d′ N2N_LeiosNotify) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosNotify MsgLNDone)
+...     | yes _ = just lncTerm
+...     | no  _ = nothing
+lnCnxt l d lncWdone (_ , input l′ d′ N2N_LeiosNotify) pl | _ | _ = nothing
+lnCnxt l d lncBusy (_ , output l′ d′ N2N_LeiosNotify)
+      (t , m , len , leiosNotify (MsgLNBlockAnnouncement h)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lncRann h)
+... | _        | _        = nothing
+lnCnxt l d lncBusy (_ , output l′ d′ N2N_LeiosNotify)
+      (t , m , len , leiosNotify (MsgLNBlockOffer q)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lncRoff q)
+... | _        | _        = nothing
+lnCnxt l d lncBusy (_ , output l′ d′ N2N_LeiosNotify)
+      (t , m , len , leiosNotify (MsgLNBlockTxsOffer q)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lncRtxs q)
+... | _        | _        = nothing
+lnCnxt l d lncBusy (_ , output l′ d′ N2N_LeiosNotify)
+      (t , m , len , leiosNotify (MsgLNVotesOffer vs)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lncRvot vs)
+... | _        | _        = nothing
+lnCnxt l d (lncRann h) (_ , apiLN l′ d′ recvLNBlockAnnouncement) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ h
+...   | yes _ = just lncIdle
+...   | no  _ = nothing
+lnCnxt l d (lncRann h) (_ , apiLN l′ d′ recvLNBlockAnnouncement) x | _ | _ = nothing
+lnCnxt l d (lncRoff q) (_ , apiLN l′ d′ recvLNBlockOffer) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ q
+...   | yes _ = just lncIdle
+...   | no  _ = nothing
+lnCnxt l d (lncRoff q) (_ , apiLN l′ d′ recvLNBlockOffer) x | _ | _ = nothing
+lnCnxt l d (lncRtxs q) (_ , apiLN l′ d′ recvLNBlockTxsOffer) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ q
+...   | yes _ = just lncIdle
+...   | no  _ = nothing
+lnCnxt l d (lncRtxs q) (_ , apiLN l′ d′ recvLNBlockTxsOffer) x | _ | _ = nothing
+lnCnxt l d (lncRvot vs) (_ , apiLN l′ d′ recvLNVotesOffer) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ vs
+...   | yes _ = just lncIdle
+...   | no  _ = nothing
+lnCnxt l d (lncRvot vs) (_ , apiLN l′ d′ recvLNVotesOffer) x | _ | _ = nothing
+lnCnxt l d _ _ = λ _ → nothing
+
+-- the LN client spec peer
+lnClientSpec : Link → Dir → NetTree
+lnClientSpec l d = tableSpec (record { isFin = lnCfin ; nxt = lnCnxt l d }) lncIdle
+
+------------------------------------------------------------------------
+-- LeiosNotify server spec (dir sv, sends FromResponder): the producer
+-- awaits a request off the wire, then either terminates (Done) or delivers
+-- exactly one of the four notifications, returning to idle.  Mirrors
+-- `LeiosNotify.serverStep` renamed through `ιLN`.
+------------------------------------------------------------------------
+
+-- LN server positions
+data LNsPos : Set where
+  lnsIdle : LNsPos                 -- await a request off the wire
+  lnsBusy : LNsPos                 -- choose which notification to send (api)
+  lnsWann : Header → LNsPos        -- wire-send MsgLNBlockAnnouncement h (→ idle)
+  lnsWoff : Point → LNsPos         -- wire-send MsgLNBlockOffer q (→ idle)
+  lnsWtxs : Point → LNsPos         -- wire-send MsgLNBlockTxsOffer q (→ idle)
+  lnsWvot : List Vote → LNsPos     -- wire-send MsgLNVotesOffer vs (→ idle)
+  lnsDone : LNsPos                 -- the server-local done event (→ √)
+  lnsTerm : LNsPos                 -- √ after the done handshake
+
+-- LN server terminal positions
+lnSfin : LNsPos → Bool
+lnSfin lnsTerm = true
+lnSfin _       = false
+
+-- LN server next-state table (mirrors `LeiosNotify.serverStep` renamed)
+lnSnxt : Link → Dir → LNsPos
+       → (at : AnyTypes (Net_Api Payload)) → ContinueType at (Maybe LNsPos)
+lnSnxt l d lnsIdle (_ , output l′ d′ N2N_LeiosNotify)
+      (t , m , len , leiosNotify MsgLNRequestNext) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lnsBusy
+... | _        | _        = nothing
+lnSnxt l d lnsIdle (_ , output l′ d′ N2N_LeiosNotify)
+      (t , m , len , leiosNotify MsgLNDone) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lnsDone
+... | _        | _        = nothing
+lnSnxt l d lnsBusy (_ , apiLN l′ d′ sendLNBlockAnnouncement) h with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lnsWann h)
+... | _        | _        = nothing
+lnSnxt l d lnsBusy (_ , apiLN l′ d′ sendLNBlockOffer) q with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lnsWoff q)
+... | _        | _        = nothing
+lnSnxt l d lnsBusy (_ , apiLN l′ d′ sendLNBlockTxsOffer) q with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lnsWtxs q)
+... | _        | _        = nothing
+lnSnxt l d lnsBusy (_ , apiLN l′ d′ sendLNVotesOffer) vs with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lnsWvot vs)
+... | _        | _        = nothing
+lnSnxt l d (lnsWann h) (_ , input l′ d′ N2N_LeiosNotify) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosNotify (MsgLNBlockAnnouncement h))
+...     | yes _ = just lnsIdle
+...     | no  _ = nothing
+lnSnxt l d (lnsWann h) (_ , input l′ d′ N2N_LeiosNotify) pl | _ | _ = nothing
+lnSnxt l d (lnsWoff q) (_ , input l′ d′ N2N_LeiosNotify) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosNotify (MsgLNBlockOffer q))
+...     | yes _ = just lnsIdle
+...     | no  _ = nothing
+lnSnxt l d (lnsWoff q) (_ , input l′ d′ N2N_LeiosNotify) pl | _ | _ = nothing
+lnSnxt l d (lnsWtxs q) (_ , input l′ d′ N2N_LeiosNotify) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosNotify (MsgLNBlockTxsOffer q))
+...     | yes _ = just lnsIdle
+...     | no  _ = nothing
+lnSnxt l d (lnsWtxs q) (_ , input l′ d′ N2N_LeiosNotify) pl | _ | _ = nothing
+lnSnxt l d (lnsWvot vs) (_ , input l′ d′ N2N_LeiosNotify) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosNotify (MsgLNVotesOffer vs))
+...     | yes _ = just lnsIdle
+...     | no  _ = nothing
+lnSnxt l d (lnsWvot vs) (_ , input l′ d′ N2N_LeiosNotify) pl | _ | _ = nothing
+lnSnxt l d lnsDone (_ , done l′ d′ N2N_LeiosNotify) _ with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lnsTerm
+... | _        | _        = nothing
+lnSnxt l d _ _ = λ _ → nothing
+
+-- the LN server spec peer
+lnServerSpec : Link → Dir → NetTree
+lnServerSpec l d = tableSpec (record { isFin = lnSfin ; nxt = lnSnxt l d }) lnsIdle
+
+------------------------------------------------------------------------
+-- LeiosFetch client spec (dir d, sends FromInitiator): the consumer loop
+-- requests one of five things (EB / txs / votes / block-range / done);
+-- the block-range case STREAMS (self-loop on `recvLFRangeBlock` until the
+-- Last message returns to idle).  Mirrors `LeiosFetch.clientStep` renamed
+-- through `ιLF` (apiLFev↦apiLF, sendLF↦input N2N_LeiosFetch, receiveLF↦output).
+------------------------------------------------------------------------
+
+-- LF client positions
+data LFcPos : Set where
+  lfcIdle : LFcPos                       -- loop head: five request api offers
+  lfcWblk : Point → LFcPos               -- wire-send MsgLFBlockRequest pt (→ blk)
+  lfcWtxs : Point × LFBitmap → LFcPos     -- wire-send MsgLFBlockTxsRequest (→ btx)
+  lfcWvot : List Vote → LFcPos           -- wire-send MsgLFVotesRequest vs (→ vot)
+  lfcWrng : ChainRange → LFcPos          -- wire-send MsgLFBlockRangeRequest r (→ rng)
+  lfcWdone : LFcPos                      -- wire-send MsgLFDone (→ √)
+  lfcBlk : LFcPos                        -- await MsgLFBlock
+  lfcBtx : LFcPos                        -- await MsgLFBlockTxs
+  lfcVot : LFcPos                        -- await MsgLFVoteDelivery
+  lfcRng : LFcPos                        -- await MsgLFNext/Last… (streaming head)
+  lfcRblk : Block → LFcPos               -- api emit recvLFBlock b (→ idle)
+  lfcRbtx : List Tx → LFcPos             -- api emit recvLFBlockTxs ts (→ idle)
+  lfcRvot : List VoteBlob → LFcPos       -- api emit recvLFVoteDelivery vs (→ idle)
+  lfcRnextRng : Block × List Tx → LFcPos  -- api emit recvLFRangeBlock (→ rng, loop)
+  lfcRlastRng : Block × List Tx → LFcPos  -- api emit recvLFRangeBlock (→ idle, final)
+  lfcTerm : LFcPos                       -- √ after the done handshake
+
+-- LF client terminal positions
+lfCfin : LFcPos → Bool
+lfCfin lfcTerm = true
+lfCfin _       = false
+
+-- LF client next-state table (mirrors `LeiosFetch.clientStep` renamed)
+lfCnxt : Link → Dir → LFcPos
+       → (at : AnyTypes (Net_Api Payload)) → ContinueType at (Maybe LFcPos)
+lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFBlockRequest) pt with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcWblk pt)
+... | _        | _        = nothing
+lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFBlockTxsRequest) pb with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcWtxs pb)
+... | _        | _        = nothing
+lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFVotesRequest) vs with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcWvot vs)
+... | _        | _        = nothing
+lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFBlockRangeRequest) r with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcWrng r)
+... | _        | _        = nothing
+lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFDone) _ with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfcWdone
+... | _        | _        = nothing
+lfCnxt l d (lfcWblk pt) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRequest pt))
+...     | yes _ = just lfcBlk
+...     | no  _ = nothing
+lfCnxt l d (lfcWblk pt) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfCnxt l d (lfcWtxs (pt , bm)) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm))
+...     | yes _ = just lfcBtx
+...     | no  _ = nothing
+lfCnxt l d (lfcWtxs (pt , bm)) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfCnxt l d (lfcWvot vs) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVotesRequest vs))
+...     | yes _ = just lfcVot
+...     | no  _ = nothing
+lfCnxt l d (lfcWvot vs) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfCnxt l d (lfcWrng r) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRangeRequest r))
+...     | yes _ = just lfcRng
+...     | no  _ = nothing
+lfCnxt l d (lfcWrng r) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfCnxt l d lfcWdone (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch MsgLFDone)
+...     | yes _ = just lfcTerm
+...     | no  _ = nothing
+lfCnxt l d lfcWdone (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfCnxt l d lfcBlk (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFBlock b)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcRblk b)
+... | _        | _        = nothing
+lfCnxt l d lfcBtx (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFBlockTxs ts)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcRbtx ts)
+... | _        | _        = nothing
+lfCnxt l d lfcVot (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFVoteDelivery vs)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcRvot vs)
+... | _        | _        = nothing
+lfCnxt l d lfcRng (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFNextBlockAndTxsInRange b ts)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcRnextRng (b , ts))
+... | _        | _        = nothing
+lfCnxt l d lfcRng (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFLastBlockAndTxsInRange b ts)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfcRlastRng (b , ts))
+... | _        | _        = nothing
+lfCnxt l d (lfcRblk b) (_ , apiLF l′ d′ recvLFBlock) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ b
+...   | yes _ = just lfcIdle
+...   | no  _ = nothing
+lfCnxt l d (lfcRblk b) (_ , apiLF l′ d′ recvLFBlock) x | _ | _ = nothing
+lfCnxt l d (lfcRbtx ts) (_ , apiLF l′ d′ recvLFBlockTxs) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ ts
+...   | yes _ = just lfcIdle
+...   | no  _ = nothing
+lfCnxt l d (lfcRbtx ts) (_ , apiLF l′ d′ recvLFBlockTxs) x | _ | _ = nothing
+lfCnxt l d (lfcRvot vs) (_ , apiLF l′ d′ recvLFVoteDelivery) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ vs
+...   | yes _ = just lfcIdle
+...   | no  _ = nothing
+lfCnxt l d (lfcRvot vs) (_ , apiLF l′ d′ recvLFVoteDelivery) x | _ | _ = nothing
+lfCnxt l d (lfcRnextRng bt) (_ , apiLF l′ d′ recvLFRangeBlock) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ bt
+...   | yes _ = just lfcRng
+...   | no  _ = nothing
+lfCnxt l d (lfcRnextRng bt) (_ , apiLF l′ d′ recvLFRangeBlock) x | _ | _ = nothing
+lfCnxt l d (lfcRlastRng bt) (_ , apiLF l′ d′ recvLFRangeBlock) x with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl with x ≟ bt
+...   | yes _ = just lfcIdle
+...   | no  _ = nothing
+lfCnxt l d (lfcRlastRng bt) (_ , apiLF l′ d′ recvLFRangeBlock) x | _ | _ = nothing
+lfCnxt l d _ _ = λ _ → nothing
+
+-- the LF client spec peer
+lfClientSpec : Link → Dir → NetTree
+lfClientSpec l d = tableSpec (record { isFin = lfCfin ; nxt = lfCnxt l d }) lfcIdle
+
+------------------------------------------------------------------------
+-- LeiosFetch server spec (dir sv, sends FromResponder): the producer
+-- awaits a request off the wire and delivers in the matching busy state,
+-- streaming the block-range case (self-loop on Next before the Last).
+-- Mirrors `LeiosFetch.serverStep` renamed through `ιLF`.
+------------------------------------------------------------------------
+
+-- LF server positions
+data LFsPos : Set where
+  lfsIdle : LFsPos                       -- await one of five requests off the wire
+  lfsBlk : LFsPos                        -- deliver a block (api)
+  lfsBtx : LFsPos                        -- deliver selective txs (api)
+  lfsVot : LFsPos                        -- deliver votes (api)
+  lfsRng : LFsPos                        -- deliver a range item (api, streaming head)
+  lfsDone : LFsPos                       -- the server-local done event (→ √)
+  lfsWblk : Block → LFsPos               -- wire-send MsgLFBlock b (→ idle)
+  lfsWtxs : List Tx → LFsPos             -- wire-send MsgLFBlockTxs ts (→ idle)
+  lfsWvot : List VoteBlob → LFsPos       -- wire-send MsgLFVoteDelivery vs (→ idle)
+  lfsWnext : Block × List Tx → LFsPos     -- wire-send MsgLFNext… (→ rng, loop)
+  lfsWlast : Block × List Tx → LFsPos     -- wire-send MsgLFLast… (→ idle, final)
+  lfsTerm : LFsPos                       -- √ after the done handshake
+
+-- LF server terminal positions
+lfSfin : LFsPos → Bool
+lfSfin lfsTerm = true
+lfSfin _       = false
+
+-- LF server next-state table (mirrors `LeiosFetch.serverStep` renamed)
+lfSnxt : Link → Dir → LFsPos
+       → (at : AnyTypes (Net_Api Payload)) → ContinueType at (Maybe LFsPos)
+lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFBlockRequest pt)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfsBlk
+... | _        | _        = nothing
+lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFBlockTxsRequest pt bm)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfsBtx
+... | _        | _        = nothing
+lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFVotesRequest vs)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfsVot
+... | _        | _        = nothing
+lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch (MsgLFBlockRangeRequest r)) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfsRng
+... | _        | _        = nothing
+lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
+      (t , m , len , leiosFetch MsgLFDone) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfsDone
+... | _        | _        = nothing
+lfSnxt l d lfsBlk (_ , apiLF l′ d′ sendLFBlock) b with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfsWblk b)
+... | _        | _        = nothing
+lfSnxt l d lfsBtx (_ , apiLF l′ d′ sendLFBlockTxs) ts with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfsWtxs ts)
+... | _        | _        = nothing
+lfSnxt l d lfsVot (_ , apiLF l′ d′ sendLFVoteDelivery) vs with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfsWvot vs)
+... | _        | _        = nothing
+lfSnxt l d lfsRng (_ , apiLF l′ d′ sendLFNextBlockAndTxsInRange) bt with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfsWnext bt)
+... | _        | _        = nothing
+lfSnxt l d lfsRng (_ , apiLF l′ d′ sendLFLastBlockAndTxsInRange) bt with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just (lfsWlast bt)
+... | _        | _        = nothing
+lfSnxt l d (lfsWblk b) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlock b))
+...     | yes _ = just lfsIdle
+...     | no  _ = nothing
+lfSnxt l d (lfsWblk b) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfSnxt l d (lfsWtxs ts) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts))
+...     | yes _ = just lfsIdle
+...     | no  _ = nothing
+lfSnxt l d (lfsWtxs ts) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfSnxt l d (lfsWvot vs) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFVoteDelivery vs))
+...     | yes _ = just lfsIdle
+...     | no  _ = nothing
+lfSnxt l d (lfsWvot vs) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfSnxt l d (lfsWnext (b , ts)) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFNextBlockAndTxsInRange b ts))
+...     | yes _ = just lfsRng
+...     | no  _ = nothing
+lfSnxt l d (lfsWnext (b , ts)) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfSnxt l d (lfsWlast (b , ts)) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl
+      with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFLastBlockAndTxsInRange b ts))
+...     | yes _ = just lfsIdle
+...     | no  _ = nothing
+lfSnxt l d (lfsWlast (b , ts)) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
+lfSnxt l d lfsDone (_ , done l′ d′ N2N_LeiosFetch) _ with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = just lfsTerm
+... | _        | _        = nothing
+lfSnxt l d _ _ = λ _ → nothing
+
+-- the LF server spec peer
+lfServerSpec : Link → Dir → NetTree
+lfServerSpec l d = tableSpec (record { isFin = lfSfin ; nxt = lfSnxt l d }) lfsIdle
+
+------------------------------------------------------------------------
 -- The τ-free spec bundles (mirror `miniProtocols l hi lo` / `l lo hi`).
 ------------------------------------------------------------------------
 
@@ -818,7 +1228,9 @@ specBundle l =
   kaClientSpec l hi ⦀ (kaServerSpec l lo
     ⦀ (csClientSpec l hi ⦀ (csServerSpec l lo
     ⦀ (bfClientSpec l hi ⦀ (bfServerSpec l lo
-    ⦀ (tsClientSpec l hi ⦀ tsServerSpec l lo))))))
+    ⦀ (tsClientSpec l hi ⦀ (tsServerSpec l lo
+    ⦀ (lnClientSpec l hi ⦀ (lnServerSpec l lo
+    ⦀ (lfClientSpec l hi ⦀ lfServerSpec l lo))))))))))
 
 -- the τ-free spec bundle for the PRODUCE orientation (client lo, server hi)
 -- (copied from Liveness.NodeAOffers:112-118)
@@ -827,15 +1239,17 @@ specBundleFlip l =
   kaClientSpec l lo ⦀ (kaServerSpec l hi
     ⦀ (csClientSpec l lo ⦀ (csServerSpec l hi
     ⦀ (bfClientSpec l lo ⦀ (bfServerSpec l hi
-    ⦀ (tsClientSpec l lo ⦀ tsServerSpec l hi))))))
+    ⦀ (tsClientSpec l lo ⦀ (tsServerSpec l hi
+    ⦀ (lnClientSpec l lo ⦀ (lnServerSpec l hi
+    ⦀ (lfClientSpec l lo ⦀ lfServerSpec l hi))))))))))
 
 ------------------------------------------------------------------------
--- The four abstract nodes (8-peer specBundle diamond).  Each mirrors its
+-- The four abstract nodes (12-peer specBundle diamond).  Each mirrors its
 -- route-1 impl node's exact `⦀`/`∥⇘ apiES ⇙`/driver skeleton, with the
 -- mini-protocol bundle replaced by its τ-free spec bundle and the driver
--- kept verbatim.  The two inert non-Praos peers per direction (LN/LF) are
--- api-gated by drivers that never offer their api events, hence
--- observationally inert and correctly ABSENT here (no LN/LF factor added).
+-- kept verbatim.  ALL 12 peers (KA/CS/BF/TS/LN/LF, client+server) are present
+-- both sides (STEP-5 symmetrization) so the √ done-condition matches the
+-- concrete `bundleG` peer-for-peer (the sound √ co-move of step 6).
 ------------------------------------------------------------------------
 
 -- abstract node A: the two FLIPPED spec bundles + verbatim produce pair

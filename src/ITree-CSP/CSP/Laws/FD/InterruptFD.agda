@@ -42,8 +42,11 @@ open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.Failures            {E = E} {I = ExtI E} using (failures)
 open import Semantics.StrongImpliesDR {E = E} {I = ExtI E} using (sbisim→drbisim)
-open import Semantics.DRImpliesFD        {E = E} {I = ExtI E} using (drbisim→≈FD; stable-no-τ)
+open import Semantics.DRImpliesFD        {E = E} {I = ExtI E}
+  using (drbisim→≈FD; stable-no-τ; isStable-force-eq)
 open import CSP.Laws.Bisim.Laws E-≟ using (⊓-stepL; ⊓-stepR; ⊓-τ-inv)
+-- prefix / visible-menu non-divergence (canonical versions; used to be duplicated here)
+open import CSP.Laws.DivFree.Closure E-≟ using (prefix-no-Diverges; pchoice-no-Diverges)
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟ using (NonRet)
 open import CSP.Laws.Traces.TraceLawsThrowInterrupt E-≟
   using (force-△-Pret; force-△-LR; force-△-mt;
@@ -528,22 +531,9 @@ step-force-eq eq (sVis feq br) = sVis (trans (sym eq) feq) br
 step-force-eq eq (sSil feq)    = sSil (trans (sym eq) feq)
 step-force-eq eq (sTau feq br) = sTau (trans (sym eq) feq) br
 
--- build stability of u from "the τ-branch function of force u is everywhere nothing".
-mk-stable : {u : PTree E (ExtI E) R}
-            {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
-            {τc : (i : AnyTypes (ExtI E)) → ContinueType i (Maybe (PTree E (ExtI E) R))}
-          → PTree.force u ≡ react v τc → (∀ i a → τc i a ≡ nothing) → isStable u
-mk-stable {u = u} eqf h with PTree.force u
-... | ret _    = case eqf of λ ()
-... | sil _    = case eqf of λ ()
-... | react _ _ with refl ← eqf = h
-
-isStable-force-eq : {t u : PTree E (ExtI E) R}
-                  → PTree.force t ≡ PTree.force u → isStable t → isStable u
-isStable-force-eq {t = t} {u = u} eq st with PTree.force t in ft | st
-... | ret _     | lift ()
-... | sil _     | lift ()
-... | react v τc | stf = mk-stable {u = u} (sym eq) stf
+-- `mk-stable` (stability intro) and `isStable-force-eq` (stability transports along an
+-- equal force) used to be re-proved here; both are generic and now come from
+-- `Semantics.Stability` via the `Semantics.DRImpliesFD` re-export above.
 
 Refuses-force-eq : {t u : PTree E (ExtI E) R} {X : Event√ R → Set ℓx}
                  → PTree.force t ≡ PTree.force u → Refuses t X → Refuses u X
@@ -1383,13 +1373,6 @@ private
   variable
     A : Set ℓ
 
--- the prefix can never diverge: force (e⟶P) ≡ react _ ∅t and a τ-step needs a `just`
--- out of ∅t.
-prefix-no-Diverges : (e : E A) (P : A → PTree E (ExtI E) R) → ¬ Diverges (e ⟶ P)
-prefix-no-Diverges e P d with d .Diverges.step
-... | sSil sile = case sile of λ ()
-... | sTau {i = i} {a = a} refl br = case br of λ ()
-
 -- S = (e⟶P) ▷ P′ forces to the slide node — NonRet, so its e-events / timeout classify
 -- via ▷-ev-elim / ▷-τ-elim.
 force-S-react : (e : E A) (P : A → PTree E (ExtI E) R) (P′ : PTree E (ExtI E) R)
@@ -1912,13 +1895,6 @@ slide-RHS-fail→LHS e P P′ Q (⟹-ev step rest) ref | sRet eqf = ⊥-elim (ca
           (Q : PTree E (ExtI E) R)
         → (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))
 △Q-menu v Q at a = map (λ Pc → Pc △ Q) (v at a)
-
-pchoice-no-Diverges : ∀ {ℓr} {R : Set ℓr}
-                      (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
-                    → ¬ Diverges (pchoice v)
-pchoice-no-Diverges v d with d .Diverges.step
-... | sSil sile = case sile of λ ()
-... | sTau {i = i} {a = a} refl br = case br of λ ()
 
 pchoice-no-τ : ∀ {ℓr} {R : Set ℓr}
                {w : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}

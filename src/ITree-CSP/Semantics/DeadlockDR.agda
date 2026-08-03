@@ -14,6 +14,12 @@ open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I} hiding (Diverges)
 open import Semantics.WeakBisim {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.DRBisim   {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Deadlock  {ℓ} {ℓe} {ℓi} {E} {I}
+-- `DivergenceFree` MOVED to `Semantics.DivergenceFree` (the divergence-freedom
+-- calculus); re-exported here so existing importers of this module still see it.
+-- The `≈DR` transfer `drbisim-divergenceFree` below stays here because it needs
+-- `drbisim-trace-sim`, which lives in this module.
+open import Semantics.DivergenceFree {ℓ} {ℓe} {ℓi} {E} {I}
+  using (DivergenceFree) public
 
 -- Positive deadlock-freedom over √-free reachability: every √-free-reachable state
 -- has at least one enabled LTS label (visible event, τ, or √).
@@ -131,11 +137,6 @@ Live⇒Progress : ∀ {ℓr} {R : Set ℓr} {t : PTree E I R} → Live t → Pro
 Live⇒Progress live ∖√-refl        = live .move
 Live⇒Progress live (∖√-τ  st rest) = Live⇒Progress (live .stepτ  st) rest
 Live⇒Progress live (∖√-ev st rest) = Live⇒Progress (live .stepev st) rest
-
--- Divergence-free: no √-free-reachable state can perform an infinite τ-run.
-DivergenceFree : ∀ {ℓr} {R : Set ℓr} → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
-DivergenceFree {R = R} t =
-  ∀ {s : List Event} {t′ : PTree E I R} → t ⟹∖√⟨ s ⟩ t′ → ¬ Diverges t′
 
 -- ≈DR transfers divergence-freedom: a √-free-reachable state of t₁ maps (by
 -- trace-sim) to one of t₂, and `div→` carries any divergence of it across.

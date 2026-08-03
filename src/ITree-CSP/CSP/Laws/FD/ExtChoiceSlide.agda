@@ -68,6 +68,8 @@ open import CSP.Laws.Traces.TraceLawsExtChoice E-≟
          mergeVis-L-eq; mergeVis-R-eq; mergeVis-LQ-eq;
          □-τ-tochoice; □-τ-toslide; □-τ-tochoice-R; □-τ-toslide-R)
 open import CSP.Laws.Bisim.Laws E-≟ using (⊓-stepL; ⊓-stepR; ⊓-τ-inv)
+-- the prefix can never diverge (canonical version; used to be duplicated here)
+open import CSP.Laws.DivFree.Closure E-≟ using (prefix-no-Diverges)
 open import CSP.Laws.FD.FDLawsIChoiceAssoc E-≟ using (⊓-failures→)
 
 private
@@ -79,12 +81,6 @@ private
 -------------------------------------------------------------------------------------
 -- Shared facts about the prefix / slide head.
 -------------------------------------------------------------------------------------
-
--- the prefix can never diverge: force (e⟶P) ≡ react _ ∅t and a τ needs a `just` out of ∅t
-prefix-no-Diverges : (e : E A) (P : A → PTree E (ExtI E) R) → ¬ Diverges (e ⟶ P)
-prefix-no-Diverges e P d with d .Diverges.step
-... | sSil sile = case sile of λ ()
-... | sTau {i = i} {a = a} refl br = case br of λ ()
 
 -- the prefix has no τ-step (force = react _ ∅t)
 prefix-no-τ : (e : E A) (P : A → PTree E (ExtI E) R) {M : PTree E (ExtI E) R}

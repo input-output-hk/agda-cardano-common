@@ -1479,38 +1479,47 @@ ts-c-pos-no-doneTS l d (SN.tcHead TS.stTxs)              step with TSL.ev-inv st
 ...     | ()
 ts-c-pos-no-doneTS l d (SN.tcHead TS.stDone)             step with TSL.ev-inv step
 ... | _ , _ , () , _
+ts-c-pos-no-doneTS l d (SN.tcReqIdsB1 a r) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ts-c-pos-no-doneTS l d (SN.tcReqIdsNB1 a r) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ts-c-pos-no-doneTS l d (SN.tcReqTxs1 ids) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ts-c-pos-no-doneTS l d (SN.tcRepB1 ids) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ts-c-pos-no-doneTS l d (SN.tcDone1) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ts-c-pos-no-doneTS l d (SN.tcRepNB1 ids) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ts-c-pos-no-doneTS l d (SN.tcRepTxs1 txs) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with TSL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
 ts-c-pos-no-doneTS l d (SN.tcSil st)                     step with TSL.ev-inv step
 ... | _ , _ , () , _
 
--- source-level: the TS server peer NEVER offers `doneTS` at any tracked position
--- (`doneTS` only occurs behind an api prefix — a mid-leaf — never at a head/sil).
-ts-s-pos-no-doneTS : (l : Link) (d : Dir) (pos : SN.TSsPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-    {P₁ : PTree TS.TSEv (ExtI TS.TSEv) _}
-  → SN.decTSs-src l d pos TSL.─[ TSL.ev (TSL.evl (TSL.evLabel ⊤₀ (TS.doneTS l₀ d₀) a)) ]─► P₁ → ⊥
-ts-s-pos-no-doneTS l d (SN.tsHead TS.stInit)             step with TSL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ts-s-pos-no-doneTS l d (SN.tsHead TS.stIdle)             step with TSL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ts-s-pos-no-doneTS l d (SN.tsHead TS.stTxIdsBlocking)    step with TSL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ts-s-pos-no-doneTS l d (SN.tsHead TS.stTxIdsNonBlocking) step with TSL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ts-s-pos-no-doneTS l d (SN.tsHead TS.stTxs)              step with TSL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ts-s-pos-no-doneTS l d (SN.tsHead TS.stDone)             step with TSL.ev-inv step
-... | _ , _ , () , _
-ts-s-pos-no-doneTS l d (SN.tsSil st)                     step with TSL.ev-inv step
-... | _ , _ , () , _
+-- NOTE (io-case ROUTE / A-done): the TS SERVER no-done refutations were
+-- REMOVED — the `tsDone1` post-receive leaf now OFFERS `done TS` (routed).
+-- Dead scaffolding (only consumer was the unused `bundleG-no-done-TS`).
 
 -- position-general renamed TS no-done (mirror TSclientA-no-done over any position)
 decTSc-no-done : (l : Link) (d : Dir) (pos : SN.TScPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
@@ -1518,11 +1527,6 @@ decTSc-no-done : (l : Link) (d : Dir) (pos : SN.TScPos) {l₀ : Link} {d₀ : Di
 decTSc-no-done l d pos {l₀} {d₀} =
   TSNOff.renameMap-noOffer (SN.decTSc-src l d pos)
     (λ { .(TS.doneTS l₀ d₀) refl (P₁ , step) → ts-c-pos-no-doneTS l d pos step })
-decTSs-no-done : (l : Link) (d : Dir) (pos : SN.TSsPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (SN.decTSs l d pos) (done l₀ d₀ N2N_TxSubmission) a
-decTSs-no-done l d pos {l₀} {d₀} =
-  TSNOff.renameMap-noOffer (SN.decTSs-src l d pos)
-    (λ { .(TS.doneTS l₀ d₀) refl (P₁ , step) → ts-s-pos-no-doneTS l d pos step })
 
 -- source-level: the KA client peer NEVER offers `doneKA` at any tracked position
 -- (the client only offers apiKAev / sendKA; every head/sil is a react/sil/ret)
@@ -1539,26 +1543,29 @@ ka-c-pos-no-doneKA l d (SN.kcHead (KA.stServer c)) step with KAL.ev-inv step
 ...     | ()
 ka-c-pos-no-doneKA l d (SN.kcHead KA.stDone)       step with KAL.ev-inv step
 ... | _ , _ , () , _
+ka-c-pos-no-doneKA l d (SN.kcErr1 cq cr ne)        step with KAL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ka-c-pos-no-doneKA l d (SN.kcReq1 c)               step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with KAL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ka-c-pos-no-doneKA l d (SN.kcDone1)                step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with KAL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
 ka-c-pos-no-doneKA l d (SN.kcSil st)               step with KAL.ev-inv step
 ... | _ , _ , () , _
+ka-c-pos-no-doneKA l d SN.kcTermE1                 step with KAL.ev-inv step
+... | _ , _ , () , _
 
--- source-level: the KA server peer NEVER offers `doneKA` at any tracked position
--- (`doneKA` only occurs behind the `receiveKA` io — a mid-leaf — never at a head/sil)
-ka-s-pos-no-doneKA : (l : Link) (d : Dir) (pos : SN.KAsPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-    {P₁ : PTree KA.KAEv (ExtI KA.KAEv) _}
-  → SN.decKAs-src l d pos KAL.─[ KAL.ev (KAL.evl (KAL.evLabel ⊤₀ (KA.doneKA l₀ d₀) a)) ]─► P₁ → ⊥
-ka-s-pos-no-doneKA l d (SN.ksHead KA.stClient)     step with KAL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ka-s-pos-no-doneKA l d (SN.ksHead (KA.stServer c)) step with KAL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ka-s-pos-no-doneKA l d (SN.ksHead KA.stDone)       step with KAL.ev-inv step
-... | _ , _ , () , _
-ka-s-pos-no-doneKA l d (SN.ksSil st)               step with KAL.ev-inv step
-... | _ , _ , () , _
+-- NOTE (io-case ROUTE / A-done): the KA SERVER no-done refutations
+-- (`ka-s-pos-no-doneKA`/`decKAs-no-done`) were REMOVED — the `ksDdone1`
+-- post-receive leaf now OFFERS `done KA` (routed, not refused).  They were
+-- dead scaffolding (only consumers were the unused `bundleG-no-done-KA`).
 
 -- position-general renamed KA no-done (mirror decTSc-no-done over any position)
 decKAc-no-done : (l : Link) (d : Dir) (pos : SN.KAcPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
@@ -1566,12 +1573,6 @@ decKAc-no-done : (l : Link) (d : Dir) (pos : SN.KAcPos) {l₀ : Link} {d₀ : Di
 decKAc-no-done l d pos {l₀} {d₀} =
   KANOff.renameMap-noOffer (SN.decKAc-src l d pos)
     (λ { .(KA.doneKA l₀ d₀) refl (P₁ , step) → ka-c-pos-no-doneKA l d pos step })
-decKAs-no-done : (l : Link) (d : Dir) (pos : SN.KAsPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (SN.decKAs l d pos) (done l₀ d₀ N2N_KeepAlive) a
-decKAs-no-done l d pos {l₀} {d₀} =
-  KANOff.renameMap-noOffer (SN.decKAs-src l d pos)
-    (λ { .(KA.doneKA l₀ d₀) refl (P₁ , step) → ka-s-pos-no-doneKA l d pos step })
-
 -- source-level: the LN client peer NEVER offers `doneLN` at any tracked position
 ln-c-pos-no-doneLN : (l : Link) (d : Dir) (pos : SN.LNcPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
     {P₁ : PTree LNp.LNEv (ExtI LNp.LNEv) _}
@@ -1586,25 +1587,42 @@ ln-c-pos-no-doneLN l d (SN.lncHead LNp.stBusy) step with LNL.ev-inv step
 ...     | ()
 ln-c-pos-no-doneLN l d (SN.lncHead LNp.stDone) step with LNL.ev-inv step
 ... | _ , _ , () , _
+ln-c-pos-no-doneLN l d (SN.lncRann1 h) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LNL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ln-c-pos-no-doneLN l d (SN.lncRoff1 q) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LNL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ln-c-pos-no-doneLN l d (SN.lncRtxs1 q) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LNL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ln-c-pos-no-doneLN l d (SN.lncRvot1 vs) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LNL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ln-c-pos-no-doneLN l d (SN.lncReq1) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LNL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+ln-c-pos-no-doneLN l d (SN.lncDone1) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LNL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
 ln-c-pos-no-doneLN l d (SN.lncSil st)          step with LNL.ev-inv step
 ... | _ , _ , () , _
 
--- source-level: the LN server peer NEVER offers `doneLN` at any tracked position
-ln-s-pos-no-doneLN : (l : Link) (d : Dir) (pos : SN.LNsPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-    {P₁ : PTree LNp.LNEv (ExtI LNp.LNEv) _}
-  → SN.decLNs-src l d pos LNL.─[ LNL.ev (LNL.evl (LNL.evLabel ⊤₀ (LNp.doneLN l₀ d₀) a)) ]─► P₁ → ⊥
-ln-s-pos-no-doneLN l d (SN.lnsHead LNp.stIdle) step with LNL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ln-s-pos-no-doneLN l d (SN.lnsHead LNp.stBusy) step with LNL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-ln-s-pos-no-doneLN l d (SN.lnsHead LNp.stDone) step with LNL.ev-inv step
-... | _ , _ , () , _
-ln-s-pos-no-doneLN l d (SN.lnsSil st)          step with LNL.ev-inv step
-... | _ , _ , () , _
+-- NOTE (io-case ROUTE / A-done): the LN SERVER no-done refutations were
+-- REMOVED — the `lnsDone1` post-receive leaf now OFFERS `done LN` (routed).
+-- Dead scaffolding (only consumer was the unused `bundleG-no-done-LN`).
 
 -- position-general renamed LN no-done (mirror decKAc-no-done over any position)
 decLNc-no-done : (l : Link) (d : Dir) (pos : SN.LNcPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
@@ -1612,11 +1630,98 @@ decLNc-no-done : (l : Link) (d : Dir) (pos : SN.LNcPos) {l₀ : Link} {d₀ : Di
 decLNc-no-done l d pos {l₀} {d₀} =
   LNNOff.renameMap-noOffer (SN.decLNc-src l d pos)
     (λ { .(LNp.doneLN l₀ d₀) refl (P₁ , step) → ln-c-pos-no-doneLN l d pos step })
-decLNs-no-done : (l : Link) (d : Dir) (pos : SN.LNsPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (SN.decLNs l d pos) (done l₀ d₀ N2N_LeiosNotify) a
-decLNs-no-done l d pos {l₀} {d₀} =
-  LNNOff.renameMap-noOffer (SN.decLNs-src l d pos)
-    (λ { .(LNp.doneLN l₀ d₀) refl (P₁ , step) → ln-s-pos-no-doneLN l d pos step })
+-- source-level: the LF client peer NEVER offers `doneLF` at any tracked position
+-- (DORMANT step-4 leaf: doneLF only occurs behind a receiveLF prefix, never at a
+-- tracked head/sil; mirrors `ln-c-pos-no-doneLN`)
+lf-c-pos-no-doneLF : (l : Link) (d : Dir) (pos : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
+    {P₁ : PTree LFp.LFEv (ExtI LFp.LFEv) _}
+  → SN.decLFc-src l d pos LFL.─[ LFL.ev (LFL.evl (LFL.evLabel ⊤₀ (LFp.doneLF l₀ d₀) a)) ]─► P₁ → ⊥
+lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stIdle) step with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stBlock) step with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stBlockTxs) step with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stVotes) step with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stBlockRange) step with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stDone) step with LFL.ev-inv step
+... | _ , _ , () , _
+lf-c-pos-no-doneLF l d (SN.lfcRblk1 b) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcRbtx1 ts) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcRvot1 vs) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcRnext1 b ts) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcRlast1 b ts) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcWblk1 pt) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcWtxs1 pb) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcWvot1 vs) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcWrng1 r) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcDone1) step
+  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
+... | v , τc , feq , veq with react-injective feq
+...   | refl , _ with veq
+...     | ()
+lf-c-pos-no-doneLF l d (SN.lfcSil st)          step with LFL.ev-inv step
+... | _ , _ , () , _
+
+-- NOTE (io-case ROUTE / A-done): the LF SERVER no-done refutations
+-- (`lf-s-pos-no-doneLF`/`decLFs-no-done`) were REMOVED — the `lfsDone1`
+-- post-receive leaf now OFFERS `done LF` (routed).  Dead scaffolding
+-- (only consumer was the unused `bundleG-no-done-LF`).
+
+-- position-general renamed LF no-done (mirror decLNc-no-done over any position)
+decLFc-no-done : (l : Link) (d : Dir) (pos : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
+  → ¬ IoOffers (SN.decLFc l d pos) (done l₀ d₀ N2N_LeiosFetch) a
+decLFc-no-done l d pos {l₀} {d₀} =
+  LFNOff.renameMap-noOffer (SN.decLFc-src l d pos)
+    (λ { .(LFp.doneLF l₀ d₀) refl (P₁ , step) → lf-c-pos-no-doneLF l d pos step })
 LNclientA-no-done : (l : Link) (d : Dir) {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
   → ¬ IoOffers (LNclientA l d) (done l₀ d₀ N2N_LeiosNotify) a
 LNclientA-no-done l d {l₀} {d₀} =
@@ -1639,78 +1744,9 @@ LFserverA-no-done l d {l₀} {d₀} =
     (λ { .(LFp.doneLF l₀ d₀) refl (P₁ , step) → lf-s-head-no-done l d step })
 
 
--- the whole 12-peer bundle refuses `done…{KA,TS,LN,LF}`: the matching-protocol
--- peers are FROZEN (`*-no-done`), every other peer's ι-preimage is `nothing`
--- (`renameMap-noOffer-χ`/`*-noOffer`, `refl`).  The `reflect-top-ev` nodes-side
--- non-offer for the impossible `done…proto` events (proto ∉ {CS,BF}).
-bundleG-no-done-KA : (l : Link) (cl sv : Dir)
-    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
-    {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (bundleG l cl sv csc css bfc bfs ip) (done l₀ d₀ N2N_KeepAlive) a
-bundleG-no-done-KA l cl sv csc css bfc bfs ip =
-  SStep.⦀-noOffer _ _ (decKAc-no-done l cl (SN.kac ip))
-   (SStep.⦀-noOffer _ _ (decKAs-no-done l sv (SN.kas ip))
-    (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSc-src l cl csc) refl)
-     (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSs-src l sv css) refl)
-      (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFc-src l cl bfc) refl)
-       (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFs-src l sv bfs) refl)
-        (SStep.⦀-noOffer _ _ (decTSc-noOffer l cl (SN.tsc ip) refl)
-         (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
-          (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
-           (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
-bundleG-no-done-TS : (l : Link) (cl sv : Dir)
-    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
-    {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (bundleG l cl sv csc css bfc bfs ip) (done l₀ d₀ N2N_TxSubmission) a
-bundleG-no-done-TS l cl sv csc css bfc bfs ip =
-  SStep.⦀-noOffer _ _ (decKAc-noOffer l cl (SN.kac ip) refl)
-   (SStep.⦀-noOffer _ _ (decKAs-noOffer l sv (SN.kas ip) refl)
-    (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSc-src l cl csc) refl)
-     (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSs-src l sv css) refl)
-      (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFc-src l cl bfc) refl)
-       (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFs-src l sv bfs) refl)
-        (SStep.⦀-noOffer _ _ (decTSc-no-done l cl (SN.tsc ip))
-         (SStep.⦀-noOffer _ _ (decTSs-no-done l sv (SN.tss ip))
-          (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
-           (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
-bundleG-no-done-LN : (l : Link) (cl sv : Dir)
-    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
-    {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (bundleG l cl sv csc css bfc bfs ip) (done l₀ d₀ N2N_LeiosNotify) a
-bundleG-no-done-LN l cl sv csc css bfc bfs ip =
-  SStep.⦀-noOffer _ _ (decKAc-noOffer l cl (SN.kac ip) refl)
-   (SStep.⦀-noOffer _ _ (decKAs-noOffer l sv (SN.kas ip) refl)
-    (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSc-src l cl csc) refl)
-     (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSs-src l sv css) refl)
-      (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFc-src l cl bfc) refl)
-       (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFs-src l sv bfs) refl)
-        (SStep.⦀-noOffer _ _ (decTSc-noOffer l cl (SN.tsc ip) refl)
-         (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
-          (SStep.⦀-noOffer _ _ (decLNc-no-done l cl (SN.lnc ip))
-           (SStep.⦀-noOffer _ _ (decLNs-no-done l sv (SN.lns ip))
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
-bundleG-no-done-LF : (l : Link) (cl sv : Dir)
-    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
-    {l₀ : Link} {d₀ : Dir} {a : ⊤₀}
-  → ¬ IoOffers (bundleG l cl sv csc css bfc bfs ip) (done l₀ d₀ N2N_LeiosFetch) a
-bundleG-no-done-LF l cl sv csc css bfc bfs ip =
-  SStep.⦀-noOffer _ _ (decKAc-noOffer l cl (SN.kac ip) refl)
-   (SStep.⦀-noOffer _ _ (decKAs-noOffer l sv (SN.kas ip) refl)
-    (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSc-src l cl csc) refl)
-     (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSs-src l sv css) refl)
-      (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFc-src l cl bfc) refl)
-       (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFs-src l sv bfs) refl)
-        (SStep.⦀-noOffer _ _ (decTSc-noOffer l cl (SN.tsc ip) refl)
-         (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
-          (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
-           (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-no-done l cl)
-                                 (LFserverA-no-done l sv)))))))))))
+-- NOTE (io-case ROUTE / A-done): `bundleG-no-done-{KA,TS,LN,LF}` all REMOVED —
+-- the {KA,TS,LN,LF} server done leaves (`ksDdone1`/`tsDone1`/`lnsDone1`/`lfsDone1`)
+-- now OFFER `done …` (routed, not refused).  Dead scaffolding (no consumers).
 
 ------------------------------------------------------------------------
 -- MEDIUM break ev-INVERSION LEAF (the `oev` break class).  A breakable link
@@ -1857,8 +1893,8 @@ bundleG-no-break l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `break` (they fire only apiCS/apiBF)
 decProd-no-break : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
@@ -2359,6 +2395,13 @@ tsCnxt-break-c l d (SN.tcHead TS.stTxIdsBlocking)    = refl
 tsCnxt-break-c l d (SN.tcHead TS.stTxIdsNonBlocking) = refl
 tsCnxt-break-c l d (SN.tcHead TS.stTxs)              = refl
 tsCnxt-break-c l d (SN.tcHead TS.stDone)             = refl
+tsCnxt-break-c l d (SN.tcReqIdsB1 a r)               = refl
+tsCnxt-break-c l d (SN.tcReqIdsNB1 a r)              = refl
+tsCnxt-break-c l d (SN.tcReqTxs1 ids)                = refl
+tsCnxt-break-c l d (SN.tcRepB1 ids)                  = refl
+tsCnxt-break-c l d (SN.tcDone1)                      = refl
+tsCnxt-break-c l d (SN.tcRepNB1 ids)                 = refl
+tsCnxt-break-c l d (SN.tcRepTxs1 txs)                = refl
 tsCnxt-break-c l d (SN.tcSil TS.stInit)              = refl
 tsCnxt-break-c l d (SN.tcSil TS.stIdle)              = refl
 tsCnxt-break-c l d (SN.tcSil TS.stTxIdsBlocking)     = refl
@@ -2375,6 +2418,10 @@ tsSnxt-break-c l d (SN.tsHead TS.stTxIdsBlocking)    = refl
 tsSnxt-break-c l d (SN.tsHead TS.stTxIdsNonBlocking) = refl
 tsSnxt-break-c l d (SN.tsHead TS.stTxs)              = refl
 tsSnxt-break-c l d (SN.tsHead TS.stDone)             = refl
+tsSnxt-break-c l d SN.tsDone1                        = refl
+tsSnxt-break-c l d (SN.tsReqB1 ar)                   = refl
+tsSnxt-break-c l d (SN.tsReqNB1 ar)                  = refl
+tsSnxt-break-c l d (SN.tsReqTxs1 ids)                = refl
 tsSnxt-break-c l d (SN.tsSil TS.stInit)              = refl
 tsSnxt-break-c l d (SN.tsSil TS.stIdle)              = refl
 tsSnxt-break-c l d (SN.tsSil TS.stTxIdsBlocking)     = refl
@@ -2411,9 +2458,13 @@ kaCnxt-break-c : (l : Link) (d : Dir) (q : SN.KAcPos) {l₀ : Link} {a : ⊤₀}
 kaCnxt-break-c l d (SN.kcHead KA.stClient)     = refl
 kaCnxt-break-c l d (SN.kcHead (KA.stServer c)) = refl
 kaCnxt-break-c l d (SN.kcHead KA.stDone)       = refl
+kaCnxt-break-c l d (SN.kcErr1 cq cr ne)        = refl
+kaCnxt-break-c l d (SN.kcReq1 c)               = refl
+kaCnxt-break-c l d (SN.kcDone1)                = refl
 kaCnxt-break-c l d (SN.kcSil KA.stClient)      = refl
 kaCnxt-break-c l d (SN.kcSil (KA.stServer c))  = refl
 kaCnxt-break-c l d (SN.kcSil KA.stDone)        = refl
+kaCnxt-break-c l d SN.kcTermE1                 = refl
 
 -- KA-server break next-table refl at the CONCRETE tracked positions
 kaSnxt-break-c : (l : Link) (d : Dir) (q : SN.KAsPos) {l₀ : Link} {a : ⊤₀}
@@ -2421,6 +2472,8 @@ kaSnxt-break-c : (l : Link) (d : Dir) (q : SN.KAsPos) {l₀ : Link} {a : ⊤₀}
 kaSnxt-break-c l d (SN.ksHead KA.stClient)     = refl
 kaSnxt-break-c l d (SN.ksHead (KA.stServer c)) = refl
 kaSnxt-break-c l d (SN.ksHead KA.stDone)       = refl
+kaSnxt-break-c l d (SN.ksRecv1 c)              = refl
+kaSnxt-break-c l d (SN.ksDdone1)               = refl
 kaSnxt-break-c l d (SN.ksSil KA.stClient)      = refl
 kaSnxt-break-c l d (SN.ksSil (KA.stServer c))  = refl
 kaSnxt-break-c l d (SN.ksSil KA.stDone)        = refl
@@ -2448,6 +2501,128 @@ absKAs-no-break l d q {l₀} {a} with NS.kaSfin (SStep.coarsenKAs q) in fEq
                    (SStep.coarsenKAs q) {e = break l₀} {a = a} fEq
                    (kaSnxt-break-c l d q {l₀} {a}))
 
+-- STEP 5 — abstract LN/LF `break` non-offers (concrete-position `break-c`
+-- table lemmas + lifted `absX-no-break`, mirroring the KA/TS pattern).
+lnCnxt-break-c : (l : Link) (d : Dir) (q : SN.LNcPos) {l₀ : Link} {a : ⊤₀}
+  → NS.lnCnxt l d (SStep.coarsenLNc q) (⊤₀ , break l₀) a ≡ nothing
+lnCnxt-break-c l d (SN.lncHead LNp.stIdle) = refl
+lnCnxt-break-c l d (SN.lncHead LNp.stBusy) = refl
+lnCnxt-break-c l d (SN.lncHead LNp.stDone) = refl
+lnCnxt-break-c l d (SN.lncRann1 h) = refl
+lnCnxt-break-c l d (SN.lncRoff1 q) = refl
+lnCnxt-break-c l d (SN.lncRtxs1 q) = refl
+lnCnxt-break-c l d (SN.lncRvot1 vs) = refl
+lnCnxt-break-c l d (SN.lncReq1) = refl
+lnCnxt-break-c l d (SN.lncDone1) = refl
+lnCnxt-break-c l d (SN.lncSil LNp.stIdle) = refl
+lnCnxt-break-c l d (SN.lncSil LNp.stBusy) = refl
+lnCnxt-break-c l d (SN.lncSil LNp.stDone) = refl
+
+absLNc-no-break : (l : Link) (d : Dir) (q : SN.LNcPos) {l₀ : Link} {a : ⊤₀}
+  → ¬ IoOffers (SStep.absLNc l d q) (break l₀) a
+absLNc-no-break l d q {l₀} {a} with NS.lnCfin (SStep.coarsenLNc q) in fEq
+... | true  = viewV→noOffer (SStep.absLNc l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lnCfin ; nxt = NS.lnCnxt l d })
+                   (SStep.coarsenLNc q) {e = break l₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLNc l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lnCfin ; nxt = NS.lnCnxt l d })
+                   (SStep.coarsenLNc q) {e = break l₀} {a = a} fEq
+                   (lnCnxt-break-c l d q {l₀} {a}))
+
+lnSnxt-break-c : (l : Link) (d : Dir) (q : SN.LNsPos) {l₀ : Link} {a : ⊤₀}
+  → NS.lnSnxt l d (SStep.coarsenLNs q) (⊤₀ , break l₀) a ≡ nothing
+lnSnxt-break-c l d (SN.lnsHead LNp.stIdle) = refl
+lnSnxt-break-c l d (SN.lnsHead LNp.stBusy) = refl
+lnSnxt-break-c l d (SN.lnsHead LNp.stDone) = refl
+lnSnxt-break-c l d (SN.lnsDone1)           = refl
+lnSnxt-break-c l d (SN.lnsWann1 h) = refl
+lnSnxt-break-c l d (SN.lnsWoff1 q) = refl
+lnSnxt-break-c l d (SN.lnsWtxs1 q) = refl
+lnSnxt-break-c l d (SN.lnsWvot1 vs) = refl
+lnSnxt-break-c l d (SN.lnsSil LNp.stIdle) = refl
+lnSnxt-break-c l d (SN.lnsSil LNp.stBusy) = refl
+lnSnxt-break-c l d (SN.lnsSil LNp.stDone) = refl
+
+absLNs-no-break : (l : Link) (d : Dir) (q : SN.LNsPos) {l₀ : Link} {a : ⊤₀}
+  → ¬ IoOffers (SStep.absLNs l d q) (break l₀) a
+absLNs-no-break l d q {l₀} {a} with NS.lnSfin (SStep.coarsenLNs q) in fEq
+... | true  = viewV→noOffer (SStep.absLNs l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lnSfin ; nxt = NS.lnSnxt l d })
+                   (SStep.coarsenLNs q) {e = break l₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLNs l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lnSfin ; nxt = NS.lnSnxt l d })
+                   (SStep.coarsenLNs q) {e = break l₀} {a = a} fEq
+                   (lnSnxt-break-c l d q {l₀} {a}))
+
+lfCnxt-break-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {a : ⊤₀}
+  → NS.lfCnxt l d (SStep.coarsenLFc q) (⊤₀ , break l₀) a ≡ nothing
+lfCnxt-break-c l d (SN.lfcHead LFp.stIdle) = refl
+lfCnxt-break-c l d (SN.lfcHead LFp.stBlock) = refl
+lfCnxt-break-c l d (SN.lfcHead LFp.stBlockTxs) = refl
+lfCnxt-break-c l d (SN.lfcHead LFp.stVotes) = refl
+lfCnxt-break-c l d (SN.lfcHead LFp.stBlockRange) = refl
+lfCnxt-break-c l d (SN.lfcHead LFp.stDone) = refl
+lfCnxt-break-c l d (SN.lfcRblk1 b) = refl
+lfCnxt-break-c l d (SN.lfcRbtx1 ts) = refl
+lfCnxt-break-c l d (SN.lfcRvot1 vs) = refl
+lfCnxt-break-c l d (SN.lfcRnext1 b ts) = refl
+lfCnxt-break-c l d (SN.lfcRlast1 b ts) = refl
+lfCnxt-break-c l d (SN.lfcWblk1 pt) = refl
+lfCnxt-break-c l d (SN.lfcWtxs1 pb) = refl
+lfCnxt-break-c l d (SN.lfcWvot1 vs) = refl
+lfCnxt-break-c l d (SN.lfcWrng1 r) = refl
+lfCnxt-break-c l d (SN.lfcDone1) = refl
+lfCnxt-break-c l d (SN.lfcSil LFp.stIdle) = refl
+lfCnxt-break-c l d (SN.lfcSil LFp.stBlock) = refl
+lfCnxt-break-c l d (SN.lfcSil LFp.stBlockTxs) = refl
+lfCnxt-break-c l d (SN.lfcSil LFp.stVotes) = refl
+lfCnxt-break-c l d (SN.lfcSil LFp.stBlockRange) = refl
+lfCnxt-break-c l d (SN.lfcSil LFp.stDone) = refl
+
+absLFc-no-break : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {a : ⊤₀}
+  → ¬ IoOffers (SStep.absLFc l d q) (break l₀) a
+absLFc-no-break l d q {l₀} {a} with NS.lfCfin (SStep.coarsenLFc q) in fEq
+... | true  = viewV→noOffer (SStep.absLFc l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lfCfin ; nxt = NS.lfCnxt l d })
+                   (SStep.coarsenLFc q) {e = break l₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLFc l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lfCfin ; nxt = NS.lfCnxt l d })
+                   (SStep.coarsenLFc q) {e = break l₀} {a = a} fEq
+                   (lfCnxt-break-c l d q {l₀} {a}))
+
+lfSnxt-break-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {a : ⊤₀}
+  → NS.lfSnxt l d (SStep.coarsenLFs q) (⊤₀ , break l₀) a ≡ nothing
+lfSnxt-break-c l d (SN.lfsHead LFp.stIdle) = refl
+lfSnxt-break-c l d (SN.lfsHead LFp.stBlock) = refl
+lfSnxt-break-c l d (SN.lfsHead LFp.stBlockTxs) = refl
+lfSnxt-break-c l d (SN.lfsHead LFp.stVotes) = refl
+lfSnxt-break-c l d (SN.lfsHead LFp.stBlockRange) = refl
+lfSnxt-break-c l d (SN.lfsHead LFp.stDone) = refl
+lfSnxt-break-c l d (SN.lfsDone1)           = refl
+lfSnxt-break-c l d (SN.lfsWblk1 b) = refl
+lfSnxt-break-c l d (SN.lfsWtxs1 ts) = refl
+lfSnxt-break-c l d (SN.lfsWvot1 vs) = refl
+lfSnxt-break-c l d (SN.lfsWnext1 bt) = refl
+lfSnxt-break-c l d (SN.lfsWlast1 bt) = refl
+lfSnxt-break-c l d (SN.lfsSil LFp.stIdle) = refl
+lfSnxt-break-c l d (SN.lfsSil LFp.stBlock) = refl
+lfSnxt-break-c l d (SN.lfsSil LFp.stBlockTxs) = refl
+lfSnxt-break-c l d (SN.lfsSil LFp.stVotes) = refl
+lfSnxt-break-c l d (SN.lfsSil LFp.stBlockRange) = refl
+lfSnxt-break-c l d (SN.lfsSil LFp.stDone) = refl
+
+absLFs-no-break : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {a : ⊤₀}
+  → ¬ IoOffers (SStep.absLFs l d q) (break l₀) a
+absLFs-no-break l d q {l₀} {a} with NS.lfSfin (SStep.coarsenLFs q) in fEq
+... | true  = viewV→noOffer (SStep.absLFs l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lfSfin ; nxt = NS.lfSnxt l d })
+                   (SStep.coarsenLFs q) {e = break l₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLFs l d q) {e = break l₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lfSfin ; nxt = NS.lfSnxt l d })
+                   (SStep.coarsenLFs q) {e = break l₀} {a = a} fEq
+                   (lfSnxt-break-c l d q {l₀} {a}))
+
+
 absBundleG-no-break : (l : Link) (cl sv : Dir)
     (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
     {l₀ : Link} {a : ⊤₀}
@@ -2460,7 +2635,11 @@ absBundleG-no-break l cl sv csc css bfc bfs ip =
       (SStep.⦀-noOffer _ _ (absBFc-no-break l cl bfc)
        (SStep.⦀-noOffer _ _ (absBFs-no-break l sv bfs)
         (SStep.⦀-noOffer _ _ (absTSc-no-break l cl (SN.tsc ip))
-                             (absTSs-no-break l sv (SN.tss ip))))))))
+         (SStep.⦀-noOffer _ _ (absTSs-no-break l sv (SN.tss ip))
+          (SStep.⦀-noOffer _ _ (absLNc-no-break l cl (SN.lnc ip))
+           (SStep.⦀-noOffer _ _ (absLNs-no-break l sv (SN.lns ip))
+            (SStep.⦀-noOffer _ _ (absLFc-no-break l cl (SN.lfc ip))
+                                 (absLFs-no-break l sv (SN.lfs ip))))))))))))
 
 -- abstract node-A refuses `break` (two producer legs; drivers shared)
 absNodeA-no-break : (na : SN.NodeStateA) {l₀ : Link} {a : ⊤₀}
@@ -2570,15 +2749,6 @@ LNclientA-no-ret l d eq
   with trans (sym eq) (LNNO.force-renameMap-react {P = LNp.LNclientStClient l d} refl)
 ... | ()
 
--- the LF-client renamed peer never rets (frozen iter-of-pchoice head is a react);
--- now the √-witness, since LN's head is a tracked position (CAN ret at lncHead stDone)
--- while LF stays a constant frozen peer until it too is tracked
-LFclientA-no-ret : (l : Link) (d : Dir) {r : ⊤ {0ℓ}}
-  → PTree.force (LFclientA l d) ≡ ret r → ⊥
-LFclientA-no-ret l d eq
-  with trans (sym eq) (LFNO.force-renameMap-react {P = LFp.LFclientStClient l d} refl)
-... | ()
-
 -- lazy left-/right-operand ret extractors for a `Par` (NO WHNF of the operands —
 -- the concrete KA-heavy bundle trees are never forced, keeping the descent cheap)
 parL-ret : (A : Op.EventSet) {mg : _} {P Q : NetProc} {x : ⊤ {0ℓ}}
@@ -2588,79 +2758,6 @@ parL-ret A eq = _ , proj₁ (proj₂ (proj₂ (PEA.Par-force-ret-inv A _ eq)))
 parR-ret : (A : Op.EventSet) {mg : _} {P Q : NetProc} {x : ⊤ {0ℓ}}
   → PTree.force (Op.Par A mg P Q) ≡ ret x → Σ[ r ∈ ⊤ {0ℓ} ] PTree.force Q ≡ ret r
 parR-ret A eq = _ , proj₁ (proj₂ (proj₂ (proj₂ (PEA.Par-force-ret-inv A _ eq))))
-
--- second half of the link-AB descent: peel BFc/BFs/TSc/TSs/LNc/LNs (parR) to
--- the still-frozen LF client (parL), which never rets (LN is now tracked, so
--- the descent goes one pair deeper to the LF client — still a constant peer).
-bAB-tail4-no-ret : (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos) {r : ⊤ {0ℓ}}
-  → PTree.force (SN.decBFc linkAB lo bfc ⦀ (SN.decBFs linkAB hi bfs ⦀ (SN.decTSc linkAB lo (SN.tsc ip) ⦀ (SN.decTSs linkAB hi (SN.tss ip) ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi))))))) ≡ ret r → ⊥
-bAB-tail4-no-ret bfc bfs ip eq = LFclientA-no-ret linkAB lo lfret
-  where
-  e1 : PTree.force (SN.decBFs linkAB hi bfs ⦀ (SN.decTSc linkAB lo (SN.tsc ip) ⦀ (SN.decTSs linkAB hi (SN.tss ip) ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi)))))) ≡ ret _
-  e1 = proj₂ (parR-ret ∅ESa eq)
-  e2 : PTree.force (SN.decTSc linkAB lo (SN.tsc ip) ⦀ (SN.decTSs linkAB hi (SN.tss ip) ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi))))) ≡ ret _
-  e2 = proj₂ (parR-ret ∅ESa e1)
-  e3 : PTree.force (SN.decTSs linkAB hi (SN.tss ip) ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi)))) ≡ ret _
-  e3 = proj₂ (parR-ret ∅ESa e2)
-  e4 : PTree.force (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi))) ≡ ret _
-  e4 = proj₂ (parR-ret ∅ESa e3)
-  e5 : PTree.force (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi)) ≡ ret _
-  e5 = proj₂ (parR-ret ∅ESa e4)
-  e6 : PTree.force (LFclientA linkAB lo ⦀ LFserverA linkAB hi) ≡ ret _
-  e6 = proj₂ (parR-ret ∅ESa e5)
-  lfret : PTree.force (LFclientA linkAB lo) ≡ ret _
-  lfret = proj₂ (parL-ret ∅ESa {P = LFclientA linkAB lo} {Q = LFserverA linkAB hi} e6)
-
--- a link-AB bundle never rets: peel the first 4 peers KAc/KAs/CSc/CSs (parR),
--- then hand the concrete BF-onward tail to `bAB-tail4-no-ret`.  Explicit tail
--- types again, for the same direct-unification reason.
-bundleA-AB-no-ret : (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos)
-    (ip : SN.InertPos) {r : ⊤ {0ℓ}}
-  → PTree.force (SN.bundleA linkAB csc css bfc bfs ip) ≡ ret r → ⊥
-bundleA-AB-no-ret csc css bfc bfs ip eq = bAB-tail4-no-ret bfc bfs ip f4
-  where
-  f1 : PTree.force (SN.decKAs linkAB hi (SN.kas ip) ⦀ (SN.decCSc linkAB lo csc
-        ⦀ (SN.decCSs linkAB hi css ⦀ (SN.decBFc linkAB lo bfc ⦀ (SN.decBFs linkAB hi bfs
-        ⦀ (SN.decTSc linkAB lo (SN.tsc ip) ⦀ (SN.decTSs linkAB hi (SN.tss ip)
-        ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip)
-        ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi)))))))))) ≡ ret _
-  f1 = proj₂ (parR-ret ∅ESa eq)
-  f2 : PTree.force (SN.decCSc linkAB lo csc ⦀ (SN.decCSs linkAB hi css
-        ⦀ (SN.decBFc linkAB lo bfc ⦀ (SN.decBFs linkAB hi bfs
-        ⦀ (SN.decTSc linkAB lo (SN.tsc ip) ⦀ (SN.decTSs linkAB hi (SN.tss ip)
-        ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip)
-        ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi))))))))) ≡ ret _
-  f2 = proj₂ (parR-ret ∅ESa f1)
-  f3 : PTree.force (SN.decCSs linkAB hi css ⦀ (SN.decBFc linkAB lo bfc
-        ⦀ (SN.decBFs linkAB hi bfs ⦀ (SN.decTSc linkAB lo (SN.tsc ip)
-        ⦀ (SN.decTSs linkAB hi (SN.tss ip) ⦀ (SN.decLNc linkAB lo (SN.lnc ip)
-        ⦀ (SN.decLNs linkAB hi (SN.lns ip) ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi)))))))) ≡ ret _
-  f3 = proj₂ (parR-ret ∅ESa f2)
-  f4 : PTree.force (SN.decBFc linkAB lo bfc ⦀ (SN.decBFs linkAB hi bfs
-        ⦀ (SN.decTSc linkAB lo (SN.tsc ip) ⦀ (SN.decTSs linkAB hi (SN.tss ip)
-        ⦀ (SN.decLNc linkAB lo (SN.lnc ip) ⦀ (SN.decLNs linkAB hi (SN.lns ip)
-        ⦀ (LFclientA linkAB lo ⦀ LFserverA linkAB hi))))))) ≡ ret _
-  f4 = proj₂ (parR-ret ∅ESa f3)
-
--- the √ tick of `⟦ s ⟧` is impossible: it needs `force (inner) ≡ ret`, but the
--- io-gated inner stack never rets (the node-A link-AB bundle never rets) —
--- descended lazily via `parR-ret`/`parL-ret`
-oev-no-√ : (s : SysState) {r : ⊤ {0ℓ}} {M : NetProc}
-  → ⟦ s ⟧ ─[ ev (√ r) ]─► M → ⊥
-oev-no-√ s step with Hide-ev-elim ioES (decMed (med s) ∥⇘ ioES ⇙ SStep.nodesOf s) step
-... | he√ feq =
-      -- descend nodesOf → nodeA → (bAB⦀bAC) → bAB, then hand the CONCRETE
-      -- link-AB bundle to `bundleA-AB-no-ret` (which peels the 8 tracked/driven
-      -- peers to the still-frozen LF client — a valid never-ret witness, since the
-      -- KA/CS/BF/TS/LN heads are now tracked positions that CAN ret at stDone)
-      bundleA-AB-no-ret
-        (SN.NodeStateA.csC-AB (nA s)) (SN.NodeStateA.csS-AB (nA s))
-        (SN.NodeStateA.bfC-AB (nA s)) (SN.NodeStateA.bfS-AB (nA s))
-        (SN.NodeStateA.inert-AB (nA s))
-        (proj₂ (parL-ret ∅ESa
-          (proj₂ (parL-ret apiES
-            (proj₂ (parL-ret ∅ESa
-              (proj₂ (parR-ret ioES feq))))))))
 
 -- io refutation: a visible io of `⟦ s ⟧` is impossible (io ∈ ioES is hidden by ∖)
 oev-no-io : (s : SysState) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
@@ -2969,8 +3066,8 @@ bundleG-no-sndmsg l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `sndmsg` (they fire only apiCS/apiBF/done)
 decProd-no-sndmsg : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
@@ -3052,8 +3149,8 @@ bundleG-no-rcvmsg l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `rcvmsg` (they fire only apiCS/apiBF/done)
 decProd-no-rcvmsg : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
@@ -3135,8 +3232,8 @@ bundleG-no-tx l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `tx` (they fire only apiCS/apiBF/done)
 decProd-no-tx : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
@@ -3218,8 +3315,8 @@ bundleG-no-sndack l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `sndack` (they fire only apiCS/apiBF/done)
 decProd-no-sndack : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
@@ -3301,8 +3398,8 @@ bundleG-no-rcvack l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `rcvack` (they fire only apiCS/apiBF/done)
 decProd-no-rcvack : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
@@ -3384,8 +3481,8 @@ bundleG-no-ack l cl sv csc css bfc bfs ip =
          (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
           (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
            (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
-            (SStep.⦀-noOffer _ _ (LFclientA-noOffer l cl refl)
-                                 (LFserverA-noOffer l sv refl)))))))))))
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
 
 -- the three drivers refuse `ack` (they fire only apiCS/apiBF/done)
 decProd-no-ack : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
