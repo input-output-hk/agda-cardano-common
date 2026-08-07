@@ -1,5 +1,8 @@
 {-# OPTIONS --guardedness #-}
 
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv (blkA : Block₃) where
+
 open import Level using (0ℓ; Level)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Unit using () renaming (tt to ttU; ⊤ to ⊤U)
@@ -35,9 +38,9 @@ open TLB using ( fBind-react; bindV-elim )
 open EventSet using ( mem )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 open Op using () renaming (∅ES to ∅ESa)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN; vis-of )
 open import CSP.Examples.Cardano_network.Network p Payload using ( Copy )
@@ -47,9 +50,10 @@ import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)} as LN
 import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {Payload}) as PEN
 open import CSP.Laws.Traces.TraceLawsParallel (Net-≟ {Payload}) using ( fPar-er; fPar-sr; fPar-nn )
 open import Data.List using ( List; []; _∷_; length; lookup; updateAt; map )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as SN
+open SN
   using ( decNodeA; decNodeB; decNodeC; decNodeD; bundleG; bundleA )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA
   using ( absDec; nodesOf; absNodesOf
         ; ReflOut; innerτ; hidSync; reflect-⟦⟧-τ; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ
@@ -64,9 +68,8 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
         -- io-offer predicate (GAP-B disjointness leaves; `RenNO` via `SStep`)
         ; IoOffers )
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; b1; produce )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
+  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
 open NS using ( tableSpec; tsNode; tMenu; tGo
               ; kaClientSpec; kaServerSpec; tsClientSpec; tsServerSpec )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -87,11 +90,11 @@ import CSP.Examples.Cardano_network.TxSubmission p as TS
 import CSP.Examples.Cardano_network.KeepAlive    p as KA
 import CSP.Examples.Cardano_network.LeiosNotify  p as LNp
 import CSP.Examples.Cardano_network.LeiosFetch   p as LFp
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
         ; decCSc; decCSc-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
         ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
@@ -106,7 +109,7 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
         ; decLNc; decLNc-src; decLNs; decLNs-src
         ; decLFc; decLFc-src; decLFs; decLFs-src
         ; decCSs; decCSs-src; decBFc; decBFc-src; decBFs; decBFs-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; ConsDPh; consD
@@ -123,8 +126,7 @@ open import CSP.Examples.Cardano_network.LeiosNotify p using ( LNclientStClient;
 open import CSP.Examples.Cardano_network.LeiosFetch p using ( LFclientStClient; LFserverStClient )
 open import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload} ιNet ιNet⁻¹ ιNet-linv using ( renameMap )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv where
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_TauCore public
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_TauCore blkA public
 
 ------------------------------------------------------------------------
 -- STAGE-2 NODE-τ BACKBONE — the 12-peer bundle τ-inversion.  A τ of a
@@ -407,7 +409,7 @@ bundle-τ-inv l cl sv csc css bfc bfs ip step
 
 -- fold a link-AB bundle inversion into node A's successor
 finishA-L : (na : SN.NodeStateA) {A′ Bd′ M1 : NetProc}
-  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)))
+  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)))
   → Bd′ ≡ (M1 ⦀ bundleA linkAC (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
   → BundleτR linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) M1
   → Σ[ na′ ∈ SN.NodeStateA ] (A′ ≡ decNodeA na′)
@@ -450,7 +452,7 @@ finishA-L na eq eqL (blfs st _ refl) rewrite eqL =
 
 -- fold a link-AC bundle inversion into node A's successor
 finishA-R : (na : SN.NodeStateA) {A′ Bd′ M2 : NetProc}
-  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)))
+  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)))
   → Bd′ ≡ (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) ⦀ M2)
   → BundleτR linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) M2
   → Σ[ na′ ∈ SN.NodeStateA ] (A′ ≡ decNodeA na′)
@@ -496,10 +498,10 @@ nodeA-τ-inv : (na : SN.NodeStateA) {A′ : NetProc}
   → decNodeA na ─[ τ ]─► A′ → Σ[ na′ ∈ SN.NodeStateA ] (A′ ≡ decNodeA na′)
 nodeA-τ-inv na step with reflect-node-τ _ _ step
 ... | driverτ Dr′ ds _
-    with PEA.Par-τ-elim ∅ESa (λ _ _ → tt) (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na))
-           (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) ds
-...   | PEA.τL _ ps _ = ⊥-elim (decProd-no-τ linkAB hi b1 (SN.NodeStateA.prod-AB na) ps)
-...   | PEA.τR _ qs _ = ⊥-elim (decProd-no-τ linkAC hi b1 (SN.NodeStateA.prod-AC na) qs)
+    with PEA.Par-τ-elim ∅ESa (λ _ _ → tt) (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na))
+           (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) ds
+...   | PEA.τL _ ps _ = ⊥-elim (decProd-no-τ linkAB hi blkA (SN.NodeStateA.prod-AB na) ps)
+...   | PEA.τR _ qs _ = ⊥-elim (decProd-no-τ linkAC hi blkA (SN.NodeStateA.prod-AC na) qs)
 nodeA-τ-inv na step | bundleτ Bd′ bs eq
     with PEA.Par-τ-elim ∅ESa (λ _ _ → tt)
            (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _ bs
@@ -878,9 +880,9 @@ absBundleG-no-τ l cl sv qcc qcs qbc qbs ip step
 absNodeA-no-τ : (na : SN.NodeStateA) {A′ : NetProc} → ¬ (absNodeA na ─[ τ ]─► A′)
 absNodeA-no-τ na step with reflect-node-τ _ _ step
 ... | driverτ _ ds _
-    with PEA.Par-τ-elim ∅ESa (λ _ _ → tt) (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ ds
-...   | PEA.τL _ ps _ = decProd-no-τ linkAB hi b1 (SN.NodeStateA.prod-AB na) ps
-...   | PEA.τR _ qs _ = decProd-no-τ linkAC hi b1 (SN.NodeStateA.prod-AC na) qs
+    with PEA.Par-τ-elim ∅ESa (λ _ _ → tt) (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ ds
+...   | PEA.τL _ ps _ = decProd-no-τ linkAB hi blkA (SN.NodeStateA.prod-AB na) ps
+...   | PEA.τR _ qs _ = decProd-no-τ linkAC hi blkA (SN.NodeStateA.prod-AC na) qs
 absNodeA-no-τ na step | bundleτ _ bs _
     with PEA.Par-τ-elim ∅ESa (λ _ _ → tt)
            (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na)
@@ -1297,7 +1299,7 @@ decProd-ev-inv l d blk pp8 step with ⟶₀-ev-inv step
 decProd-ev-inv l d blk pp9 step = ⊥-elim (ret-no-ev {P = decProd l d blk pp9} refl step)
 
 -- which consumer phase (+ the block carried onward) a visible step lands on.
--- The consumer chain THREADS a block (unlike the fixed-`b1` producer): the
+-- The consumer chain THREADS a block (unlike the fixed-`blkA` producer): the
 -- data-carrying phases cp1 (`recvCSRollforward`) / cp3 (`recvBFBlock`) update it
 -- to the received value, so the result phase carries its own block `b′`.
 data ConsEvR (l : Link) (d : Dir) (b : Block₃) (cp : ConsPh)
@@ -1360,7 +1362,7 @@ data ConsDEvR (l : Link) (cph : ConsDPh) (M : NetProc) : Set₁ where
 
 -- node-D consume-driver ev inversion: fire the consume event through the
 -- `>> Skip` bind (`bind-ev-inv`), advance the phase (`decCons-ev-inv`); cp6 =
--- `Ret b1 >> Skip` forces (via `>>=`-on-ret) to `Skip = ret`, so no visible step.
+-- `Ret blkA >> Skip` forces (via `>>=`-on-ret) to `Skip = ret`, so no visible step.
 decConsD-ev-inv : (l : Link) (cph : ConsDPh)
     {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
   → decConsD l cph ─[ ev (evl (evLabel X e a)) ]─► M → ConsDEvR l cph M
@@ -1395,7 +1397,7 @@ data CPEvR (l₁ l₂ : Link) (ph : CPPh) (M : NetProc) : Set₁ where
 
 -- transport a step across a force-equality (a step only inspects `PTree.force`);
 -- used to view the bind-ret boundary `decCP … (consuming cp6)` as `decProd … pp0`
--- (they are force-equal by the `Ret b1 >>= k` reduction, but not convertible as
+-- (they are force-equal by the `Ret blkA >>= k` reduction, but not convertible as
 -- neutral copattern terms without unfolding the `with` head)
 step-fcong : {R : Set} {P Q M : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) R}
     {l : Label R}
@@ -1406,7 +1408,7 @@ step-fcong fe (sVis feq br) = sVis (trans (sym fe) feq) br
 step-fcong fe (sTau feq br) = sTau (trans (sym fe) feq) br
 
 -- relay-driver ev inversion: consuming cp0..cp5 advance the consume phase (via
--- the `>>= produce` bind); consuming cp6 = `Ret b1 >>= produce l₂ hi` reduces
+-- the `>>= produce` bind); consuming cp6 = `Ret blkA >>= produce l₂ hi` reduces
 -- (via `>>=`-on-ret) to `decProd l₂ hi pp0`, so the fired event is produce's
 -- first (the `consuming cp6 → producing pp0` handoff, made explicit through
 -- `step-fcong refl`); producing pp delegates to `decProd-ev-inv`.

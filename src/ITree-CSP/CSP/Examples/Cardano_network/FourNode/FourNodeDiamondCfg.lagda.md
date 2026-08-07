@@ -54,7 +54,8 @@ instance
 ```
 
 A concrete three-value block type so `Point`/`Header`/`Tip` carry a
-distinguishable block (A produces `b1`; `b2`/`b3` populate the type):
+distinguishable block (A produces an *arbitrary* block `blkA : Block₃`, supplied
+as an argument to `nodeA`; `b1`/`b2`/`b3` populate the type):
 
 ```agda
 -- concrete block domain
@@ -248,10 +249,10 @@ A node **`produce`s on the direction where it is the server** and
 `produce`/`consume` pair lands on the same `(l, d)` instance.
 
 ```agda
--- A (lo-endpoint of AB, AC): client on lo, server on hi; A produces on its server dir = hi
-nodeA : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-nodeA = (nodeBundle linkAB lo hi ⦀ nodeBundle linkAC lo hi)
-          ∥⇘ apiES ⇙ (produce linkAB hi b1 ⦀ produce linkAC hi b1)
+-- A (lo-endpoint of AB, AC): client on lo, server on hi; A produces the block `blkA` on its server dir = hi
+nodeA : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+nodeA blkA = (nodeBundle linkAB lo hi ⦀ nodeBundle linkAC lo hi)
+               ∥⇘ apiES ⇙ (produce linkAB hi blkA ⦀ produce linkAC hi blkA)
 
 -- B (hi-endpoint of AB, lo-endpoint of BD): client on hi (AB), server on hi (BD)
 nodeB : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
@@ -276,13 +277,13 @@ io then hidden. Two variants over the same nodes: the `NetworkA` multiplexer
 (kept for future use) and the FD-equivalent `CopySpec` medium.
 
 ```agda
--- the whole network over the full NetworkA multiplexer, io hidden
-systemCfg : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-systemCfg = (NetworkA ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
+-- the whole network over the full NetworkA multiplexer, A producing `blkA`, io hidden
+systemCfg : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+systemCfg blkA = (NetworkA ∥⇘ ioES ⇙ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 
--- the same nodes over the FD-equivalent CopySpec medium (NetworkA ≈FD CopySpec)
-System_CopySpecCfg : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-System_CopySpecCfg = (CopySpecA ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
+-- the same nodes (A producing `blkA`) over the FD-equivalent CopySpec medium (NetworkA ≈FD CopySpec)
+System_CopySpecCfg : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+System_CopySpecCfg blkA = (CopySpecA ∥⇘ ioES ⇙ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 ```
 
 ## Reachability / has-trace — a documented limitation

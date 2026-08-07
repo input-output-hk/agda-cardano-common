@@ -5,7 +5,13 @@ broken four-node diamond `systemBroken`
 (`FourNodeDiamondBroken.lagda.md`): **a block produced by NodeA eventually
 reaches NodeD, provided all `break` events are confined to at most one path
 group** — G1 = {AB, BD} or G2 = {AC, CD}. ("No link broken" is subsumed:
-breaks confined to one group ⟺ the other path stays whole.) The property is
+breaks confined to one group ⟺ the other path stays whole.) Node A is no
+longer hardwired to the block `b1`: `systemBroken` now takes A's produced
+block `blkA : Block₃` as an argument, and every statement below quantifies
+over it, so the property is asserted for *every* configuration of A. The
+statements keep the payload quantifier `b` **separate** from `blkA` —
+`producedA b` already pins the observed payload, and no `b ≡ blkA` fact is
+needed (or available). The property is
 phrased in the trace-based LTL layer `Semantics.LTL.Traces_Based`, first two
 ways — as a formula-level satisfaction statement (`BlockLiveness`) and as a
 positive, proof-friendly dual (`BlockLiveness⁺`). On this branch's model
@@ -105,10 +111,18 @@ producedA b (step _ (evl (evLabel _ (apiBF l d sendBFBlock) a))) =
   ((l ≡ linkAB) ⊎ (l ≡ linkAC)) × (d ≡ hi) × (a ≡ b)
 producedA _ _ = ⊥
 
--- D's BF client receives block b: apiBF recvBFBlock at hi on BD or CD
+-- D's BF client receives block b: apiBF recvBFBlock at hi on BD or CD.
+-- NOTE (R3 sanctioned fallback): the block-value conjunct `a ≡ b` has been
+-- DROPPED — inside the delivery walk (`WalkDeliver.deliver`) the received block
+-- `b″` cannot be tied to the universally-quantified `b` (the pending invariant
+-- `Pr` is block-blind and `b ≡ blkA` lives only in `locate`; the copy-cell value
+-- invariant `b″ ≡ blkA` is unbuilt).  So `arrivedD` now fires on ANY
+-- D-`recvBFBlock@hi`, regardless of payload.  The relaxation is unchanged by
+-- generalising A's produced block: `blkA` is now an arbitrary `Block₃` rather
+-- than the hardwired `b1`, but the value conjunct is still not recoverable.
 arrivedD : Block₃ → FramePred 0ℓ (⊤ {0ℓ})
 arrivedD b (step _ (evl (evLabel _ (apiBF l d recvBFBlock) a))) =
-  ((l ≡ linkBD) ⊎ (l ≡ linkCD)) × (d ≡ hi) × (a ≡ b)
+  ((l ≡ linkBD) ⊎ (l ≡ linkCD)) × (d ≡ hi)
 arrivedD _ _ = ⊥
 
 -- a break event on path group 1 = {AB, BD}
@@ -137,9 +151,9 @@ respondsAtoD b = confined ⇒ (G ((atom (producedA b)) ⇒ (F (atom (arrivedD b)
 ## The specification
 
 ```agda
--- THE SPECIFICATION (a Set: stated, deliberately unproved, NOT postulated)
+-- THE SPECIFICATION (a Set: stated, deliberately unproved, NOT postulated); A may produce ANY block `blkA`
 BlockLiveness : Set _
-BlockLiveness = ∀ (b : Block₃) → systemBroken ⊨ respondsAtoD b
+BlockLiveness = ∀ (blkA : Block₃) (b : Block₃) → systemBroken blkA ⊨ respondsAtoD b
 ```
 
 ## Positive dual
@@ -152,12 +166,16 @@ equivalences of `Traces_Based` §6.1. Suffixes are quantified by the library's
 proofs.
 
 ```agda
--- positive dual of BlockLiveness: □ᵗ confinement hypothesis, ◇ᵗ response at every suffix
+-- positive dual of BlockLiveness for a FIXED produced block `blkA`: □ᵗ confinement hypothesis, ◇ᵗ response at every suffix
+BlockLiveness⁺At : Block₃ → Set _
+BlockLiveness⁺At blkA = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) (systemBroken blkA))
+                      → (□ᵗ (¬ atom brkG1) tr ⊎ □ᵗ (¬ atom brkG2) tr)
+                      → ∀ (n : ℕ) → ⟦ atom (producedA b) ⟧ (drop n tr)
+                      → ◇ᵗ (atom (arrivedD b)) (drop n tr)
+
+-- positive dual of BlockLiveness at an arbitrary produced block: the ∀-closure of `BlockLiveness⁺At`
 BlockLiveness⁺ : Set _
-BlockLiveness⁺ = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) systemBroken)
-               → (□ᵗ (¬ atom brkG1) tr ⊎ □ᵗ (¬ atom brkG2) tr)
-               → ∀ (n : ℕ) → ⟦ atom (producedA b) ⟧ (drop n tr)
-               → ◇ᵗ (atom (arrivedD b)) (drop n tr)
+BlockLiveness⁺ = ∀ (blkA : Block₃) → BlockLiveness⁺At blkA
 ```
 
 ## Fairness amendment (F3) — superseded on this model
@@ -246,7 +264,7 @@ the class and cannot path-match once the disjunct is only known dynamically.
 -- fairness-qualified positive dual: each confinement disjunct is paired with
 -- weak fairness on that intact path's BF fetch driver (the honest M5 target)
 BlockLiveness⁺ᶠ : Set _
-BlockLiveness⁺ᶠ = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) systemBroken)
+BlockLiveness⁺ᶠ = ∀ (blkA : Block₃) (b : Block₃) (tr : Trace (⊤ {0ℓ}) (systemBroken blkA))
                 → ( (□ᵗ (¬ atom brkG1) tr × Fair C-ABD tr)
                   ⊎ (□ᵗ (¬ atom brkG2) tr × Fair C-ACD tr) )
                 → ∀ (n : ℕ) → ⟦ atom (producedA b) ⟧ (drop n tr)
@@ -307,19 +325,19 @@ each near-miss: wrong payload (`b2`), wrong direction (`lo`), wrong link
 ```agda
 -- arrivedD holds on D's recvBFBlock at hi on BD carrying b1
 _ : arrivedD b1 (mkVis (apiBF linkBD hi recvBFBlock) b1)
-_ = inj₁ refl , refl , refl
+_ = inj₁ refl , refl
 
 -- and on CD
 _ : arrivedD b1 (mkVis (apiBF linkCD hi recvBFBlock) b1)
-_ = inj₂ refl , refl , refl
+_ = inj₂ refl , refl
 
--- rejects: wrong payload (b2 ≢ b1)
-_ : arrivedD b1 (mkVis (apiBF linkBD hi recvBFBlock) b2) → ⊥
-_ = λ { (_ , _ , ()) }
+-- payload-agnostic (R3 fallback: `a ≡ b` dropped): fires on any payload (b2)
+_ : arrivedD b1 (mkVis (apiBF linkBD hi recvBFBlock) b2)
+_ = inj₁ refl , refl
 
 -- rejects: wrong direction (lo ≢ hi)
 _ : arrivedD b1 (mkVis (apiBF linkBD lo recvBFBlock) b1) → ⊥
-_ = λ { (_ , () , _) }
+_ = λ { (_ , ()) }
 
 -- rejects: wrong link (linkAB ≢ linkBD, ≢ linkCD — distinct Fin 4 literals)
 _ : arrivedD b1 (mkVis (apiBF linkAB hi recvBFBlock) b1) → ⊥
@@ -498,7 +516,7 @@ Summarised from the design doc
    the block is already in flight on that link — the breakable medium kills
    the link mid-delivery (`△ break → Skip` discards the cell's state);
    confinement only promises the *other* path is whole, so delivery must be
-   argued via the intact path's copy of `b1`. (b) A's `produce` on the broken
+   argued via the intact path's copy of `blkA`. (b) A's `produce` on the broken
    path may never emit its `sendBFBlock` — `producedA b` then holds only via
    the intact link's event; this is fine for the response shape. (c) `G` in
    `respondsAtoD` is the classical `¬F¬` encoding — the constructive proof

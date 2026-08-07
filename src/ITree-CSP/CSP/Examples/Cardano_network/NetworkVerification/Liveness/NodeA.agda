@@ -1,13 +1,15 @@
 {-# OPTIONS --guardedness #-}
 
 ------------------------------------------------------------------------
--- FourNode liveness campaign — M3: `nodeA ≈DR nodeASpec`
+-- FourNode liveness campaign — M3: `nodeA b1 ≈DR nodeASpec`
 -- (`Liveness.NodeA`).  The produce-side node A is the two AB/AC link
 -- bundles interleaved (client on lo, server on hi — the FLIP of node D),
--- synchronised on `apiES` with the two produce drivers interleaved:
+-- synchronised on `apiES` with the two produce drivers interleaved.
+-- `nodeA` now takes A's produced block as an argument; this route-1
+-- milestone is PINNED at `b1`, preserving its original meaning:
 --
---   nodeA = (miniProtocols linkAB lo hi ⦀ miniProtocols linkAC lo hi)
---             ∥⇘ apiES ⇙ (produce linkAB hi b1 ⦀ produce linkAC hi b1)
+--   nodeA blkA = (miniProtocols linkAB lo hi ⦀ miniProtocols linkAC lo hi)
+--                  ∥⇘ apiES ⇙ (produce linkAB hi blkA ⦀ produce linkAC hi blkA)
 --
 -- `nodeASpec` MIRRORS that shape verbatim, replacing each mini-protocol
 -- bundle by its FLIPPED τ-free spec bundle (`specBundleFlip`) and keeping
@@ -97,8 +99,8 @@ drvPairA-OO = OffersOnly-⦀ (produce-OO-api linkAB hi b1) (produce-OO-api linkA
 implBundleFlip-onLink : (l : Link) → OffersOnly (apiLinkAlpha l) (miniProtocols l lo hi)
 implBundleFlip-onLink l = ≈DR-OO (b0flip l) (specBundleFlip-onLink l)
 
--- the M3 milestone theorem (mirror of NodeD.nodeD≈DR at the flipped dirs)
-nodeA≈DR : nodeA ≈DR nodeASpec
+-- the M3 milestone theorem (mirror of NodeD.nodeD≈DR at the flipped dirs), pinned at A producing b1
+nodeA≈DR : nodeA b1 ≈DR nodeASpec
 nodeA≈DR =
   cong-Par⊤ apiES
     (sep-R drvPairA-OO (λ x → x) _)

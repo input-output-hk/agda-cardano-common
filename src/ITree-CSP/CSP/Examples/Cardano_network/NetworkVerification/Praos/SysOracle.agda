@@ -1,5 +1,8 @@
 {-# OPTIONS --guardedness #-}
 
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle (blkA : Block₃) where
+
 open import Level using (0ℓ; Level)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Unit using () renaming (tt to ttU; ⊤ to ⊤U)
@@ -35,9 +38,9 @@ open TLB using ( fBind-react; bindV-elim )
 open EventSet using ( mem )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 open Op using () renaming (∅ES to ∅ESa)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN; vis-of )
 open import CSP.Examples.Cardano_network.Network p Payload using ( Copy )
@@ -47,9 +50,11 @@ import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)} as LN
 import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {Payload}) as PEN
 open import CSP.Laws.Traces.TraceLawsParallel (Net-≟ {Payload}) using ( fPar-er; fPar-sr; fPar-nn )
 open import Data.List using ( List; []; _∷_; length; lookup; updateAt; map )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as SN
+open SN
   using ( decNodeA; decNodeB; decNodeC; decNodeD; bundleG; bundleA )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA as SStep
+open SStep
   using ( absDec; nodesOf; absNodesOf
         ; ReflOut; innerτ; hidSync; reflect-⟦⟧-τ; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ
@@ -64,9 +69,8 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
         -- io-offer predicate (GAP-B disjointness leaves; `RenNO` via `SStep`)
         ; IoOffers )
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; b1; produce )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
+  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
 open NS using ( tableSpec; tsNode; tMenu; tGo
               ; kaClientSpec; kaServerSpec; tsClientSpec; tsServerSpec )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -87,11 +91,11 @@ import CSP.Examples.Cardano_network.TxSubmission p as TS
 import CSP.Examples.Cardano_network.KeepAlive    p as KA
 import CSP.Examples.Cardano_network.LeiosNotify  p as LNp
 import CSP.Examples.Cardano_network.LeiosFetch   p as LFp
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
         ; decCSc; decCSc-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
         ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
@@ -106,7 +110,7 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
         ; decLNc; decLNc-src; decLNs; decLNs-src
         ; decLFc; decLFc-src; decLFs; decLFs-src
         ; decCSs; decCSs-src; decBFc; decBFc-src; decBFs; decBFs-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; ConsDPh; consD
@@ -126,7 +130,7 @@ import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload}) as PInv
 open PInv using ( ⟶₀-ev-inv; Prefix-cont-fires )
 open Op using ( Prefix; Output; Output-cont )
 open import Class.DecEq using ( DecEq )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVC; vis-ofC; CSProc; succVB; vis-ofB; BFProc )
 import Semantics.LTS {E = CS.CSEv} {I = ExtI CS.CSEv} as CSL
 import Semantics.LTS {E = BF.BFEv} {I = ExtI BF.BFEv} as BFL
@@ -159,14 +163,14 @@ import CSP.Rename {E₁ = KA.KAEv} {E₂ = Net_Api Payload} ιKA ιKA⁻¹ ιKA-
 import CSP.Rename {E₁ = TS.TSEv} {E₂ = Net_Api Payload} ιTS ιTS⁻¹ ιTS-linv as RenTS
 import CSP.Rename {E₁ = LNp.LNEv} {E₂ = Net_Api Payload} ιLN ιLN⁻¹ ιLN-linv as RenLN
 import CSP.Rename {E₁ = LFp.LFEv} {E₂ = Net_Api Payload} ιLF ιLF⁻¹ ιLF-linv as RenLF
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVK; vis-ofK; KAProc )
 import Semantics.LTS {E = KA.KAEv} {I = ExtI KA.KAEv} as KAL
 open import CSP.Examples.Cardano_network.Net p using
   ( sendKAMsg; sendKADone; errCookie; recvKACookie )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVT; vis-ofT; TSProc )
 import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
 open import CSP.Examples.Cardano_network.Net p using
@@ -176,7 +180,7 @@ open import CSP.Examples.Cardano_network.Net p using
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 open import Data.List.Properties using (≡-dec)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVN; vis-ofN; LNProc )
 import Semantics.LTS {E = LNp.LNEv} {I = ExtI LNp.LNEv} as LNL
 open import CSP.Examples.Cardano_network.Net p using
@@ -186,7 +190,7 @@ open import CSP.Examples.Cardano_network.Net p using
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer
   ; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVF; vis-ofF; LFProc )
 import Semantics.LTS {E = LFp.LFEv} {I = ExtI LFp.LFEv} as LFL
 open import CSP.Examples.Cardano_network.Net p using
@@ -198,10 +202,8 @@ open import CSP.Examples.Cardano_network.Data p using
   ( MsgLFBlockRequest; MsgLFBlock; MsgLFBlockTxsRequest; MsgLFBlockTxs
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep as SStep
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle where
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_RouteLnLf public
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_RouteLnLf blkA public
 
 ------------------------------------------------------------------------
 -- GAP-B LINK-pinning leaf (mirror of the DIRECTION layer).  Each driven
@@ -2126,15 +2128,15 @@ linkAB≢linkAC ()
 
 -- driver on linkAC offers nothing on a linkAB-pinned api event (reuse apiLink-inj)
 nodeA-drvAC-no : (na : SN.NodeStateA) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X}
-  → ApiHasLink linkAB e → ¬ IoOffers (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) e a
+  → ApiHasLink linkAB e → ¬ IoOffers (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) e a
 nodeA-drvAC-no na ahl (_ , s) =
-  linkAB≢linkAC (sym (apiLink-inj (decProd-ev-link linkAC hi b1 (SN.NodeStateA.prod-AC na) s) ahl))
+  linkAB≢linkAC (sym (apiLink-inj (decProd-ev-link linkAC hi blkA (SN.NodeStateA.prod-AC na) s) ahl))
 
 -- driver on linkAB offers nothing on a linkAC-pinned api event
 nodeA-drvAB-no : (na : SN.NodeStateA) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X}
-  → ApiHasLink linkAC e → ¬ IoOffers (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) e a
+  → ApiHasLink linkAC e → ¬ IoOffers (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) e a
 nodeA-drvAB-no na ahl (_ , s) =
-  linkAB≢linkAC (apiLink-inj (decProd-ev-link linkAB hi b1 (SN.NodeStateA.prod-AB na) s) ahl)
+  linkAB≢linkAC (apiLink-inj (decProd-ev-link linkAB hi blkA (SN.NodeStateA.prod-AB na) s) ahl)
 
 -- `produce` fires a `done` event ONLY at pp7 (ChainSync done-receipt, → pp8) and
 -- pp8 (BlockFetch done-receipt, → pp9 = Skip): it pins the event to
@@ -2172,9 +2174,9 @@ nodeA-AB : (na : SN.NodeStateA) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X}
   → (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)
      ⦀ bundleA linkAC (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
       ─[ ev (evl (evLabel X e a)) ]─► B₁
-  → decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ─[ ev (evl (evLabel X e a)) ]─► D₁AB
+  → decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ─[ ev (evl (evLabel X e a)) ]─► D₁AB
   → IsApiCSBF e → ApiHasLink linkAB e
-  → NodeAEvR na e a (B₁ ∥⇘ apiES ⇙ (D₁AB ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)))
+  → NodeAEvR na e a (B₁ ∥⇘ apiES ⇙ (D₁AB ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)))
 nodeA-AB na {X} {a = a} mem bStep sDAB aicCS (ahlCS {d} {m})
   with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
          (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
@@ -2187,14 +2189,14 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicCS (ahlCS {d} {m})
         (apiLink-inj (bundleCS-ev-link linkAC lo hi (λ ()) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) {e₁ = CS.apiCSev linkAB d m} sBAC) ahlCS)))
 ... | PEA.evL _ sBAB
     with bundle-CS-ev-inv linkAB lo hi (λ ()) (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) {e₁ = CS.apiCSev linkAB d m} sBAB
-       | decProd-ev-inv linkAB hi b1 (SN.NodeStateA.prod-AB na) sDAB
+       | decProd-ev-inv linkAB hi blkA (SN.NodeStateA.prod-AB na) sDAB
 ...   | bcscE csc′ refl aStepAB | peR pp′ refl =
         naEv (SN.mkNodeA csc′ (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) pp′ (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.prod-AC na) (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
           (SStep.∥⇘⇙-ev-sync apiES _ _ mem
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (CS.apiCSev linkAB d m) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na ahlCS))))
 ...   | bcssE css′ refl aStepAB | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) css′ (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) pp′ (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.prod-AC na) (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2202,7 +2204,7 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicCS (ahlCS {d} {m})
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (CS.apiCSev linkAB d m) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na ahlCS))))
 nodeA-AB na {X} {a = a} mem bStep sDAB aicBF (ahlBF {d} {m})
   with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
@@ -2216,14 +2218,14 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicBF (ahlBF {d} {m})
         (apiLink-inj (bundleBF-ev-link linkAC lo hi (λ ()) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) {e₁ = BF.apiBFev linkAB d m} sBAC) ahlBF)))
 ... | PEA.evL _ sBAB
     with bundle-BF-ev-inv linkAB lo hi (λ ()) (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) {e₁ = BF.apiBFev linkAB d m} sBAB
-       | decProd-ev-inv linkAB hi b1 (SN.NodeStateA.prod-AB na) sDAB
+       | decProd-ev-inv linkAB hi blkA (SN.NodeStateA.prod-AB na) sDAB
 ...   | bcbcE bfc′ refl aStepAB | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) bfc′ (SN.NodeStateA.bfS-AB na) pp′ (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.prod-AC na) (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
           (SStep.∥⇘⇙-ev-sync apiES _ _ mem
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (BF.apiBFev linkAB d m) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na ahlBF))))
 ...   | bcbsE bfs′ refl aStepAB | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) bfs′ pp′ (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.prod-AC na) (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2231,11 +2233,11 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicBF (ahlBF {d} {m})
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (BF.apiBFev linkAB d m) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na ahlBF))))
 -- linkAB `done` (ChainSync): the CS SERVER fires doneCS, synced with the produce driver's pp7 done-receipt
 nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch})
-  with decProd-done-inv linkAB hi b1 (SN.NodeStateA.prod-AB na) sDAB
+  with decProd-done-inv linkAB hi blkA (SN.NodeStateA.prod-AB na) sDAB
 nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch}) | refl , inj₁ (refl , refl)
   with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
          (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
@@ -2254,7 +2256,7 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (CS.doneCS linkAB hi) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na (ahlDone {d = hi} {ch = N2N_ChainSync})))))
 ...   | bcssE css′ refl aStepAB =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) css′ (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) pp8 (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.prod-AC na) (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2262,7 +2264,7 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (CS.doneCS linkAB hi) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na (ahlDone {d = hi} {ch = N2N_ChainSync})))))
 -- linkAB `done` (BlockFetch): the BF SERVER fires doneBF, synced with the produce driver's pp8 done-receipt
 nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch}) | refl , inj₂ (refl , refl)
@@ -2283,7 +2285,7 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (BF.doneBF linkAB hi) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na (ahlDone {d = hi} {ch = N2N_BlockFetch})))))
 ...   | bcbsE bfs′ refl aStepAB =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) bfs′ pp9 (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.prod-AC na) (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2291,7 +2293,7 @@ nodeA-AB na {X} {a = a} mem bStep sDAB aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-L (absBundleG linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _
                aStepAB
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) (BF.doneBF linkAB hi) linkAB≢linkAC)))
-            (SStep.⦀-ev-L (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) _ sDAB
+            (SStep.⦀-ev-L (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) _ sDAB
                (noOffer→viewV _ (nodeA-drvAC-no na (ahlDone {d = hi} {ch = N2N_BlockFetch})))))
 
 -- firing link = linkAC (mirror of nodeA-AB via `⦀-ev-R`)
@@ -2301,9 +2303,9 @@ nodeA-AC : (na : SN.NodeStateA) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X}
   → (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)
      ⦀ bundleA linkAC (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
       ─[ ev (evl (evLabel X e a)) ]─► B₁
-  → decProd linkAC hi b1 (SN.NodeStateA.prod-AC na) ─[ ev (evl (evLabel X e a)) ]─► D₁AC
+  → decProd linkAC hi blkA (SN.NodeStateA.prod-AC na) ─[ ev (evl (evLabel X e a)) ]─► D₁AC
   → IsApiCSBF e → ApiHasLink linkAC e
-  → NodeAEvR na e a (B₁ ∥⇘ apiES ⇙ (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ D₁AC))
+  → NodeAEvR na e a (B₁ ∥⇘ apiES ⇙ (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ D₁AC))
 nodeA-AC na {X} {a = a} mem bStep sDAC aicCS (ahlCS {d} {m})
   with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
          (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
@@ -2316,14 +2318,14 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicCS (ahlCS {d} {m})
         (apiLink-inj (bundleCS-ev-link linkAB lo hi (λ ()) (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) {e₁ = CS.apiCSev linkAC d m} sBAB) ahlCS))
 ... | PEA.evR _ sBAC
     with bundle-CS-ev-inv linkAC lo hi (λ ()) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) {e₁ = CS.apiCSev linkAC d m} sBAC
-       | decProd-ev-inv linkAC hi b1 (SN.NodeStateA.prod-AC na) sDAC
+       | decProd-ev-inv linkAC hi blkA (SN.NodeStateA.prod-AC na) sDAC
 ...   | bcscE csc′ refl aStepAC | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.prod-AB na) csc′ (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) pp′ (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
           (SStep.∥⇘⇙-ev-sync apiES _ _ mem
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (CS.apiCSev linkAC d m) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na ahlCS))))
 ...   | bcssE css′ refl aStepAC | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.prod-AB na) (SN.NodeStateA.csC-AC na) css′ (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) pp′ (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2331,7 +2333,7 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicCS (ahlCS {d} {m})
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (CS.apiCSev linkAC d m) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na ahlCS))))
 nodeA-AC na {X} {a = a} mem bStep sDAC aicBF (ahlBF {d} {m})
   with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
@@ -2345,14 +2347,14 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicBF (ahlBF {d} {m})
         (apiLink-inj (bundleBF-ev-link linkAB lo hi (λ ()) (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) {e₁ = BF.apiBFev linkAC d m} sBAB) ahlBF))
 ... | PEA.evR _ sBAC
     with bundle-BF-ev-inv linkAC lo hi (λ ()) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) {e₁ = BF.apiBFev linkAC d m} sBAC
-       | decProd-ev-inv linkAC hi b1 (SN.NodeStateA.prod-AC na) sDAC
+       | decProd-ev-inv linkAC hi blkA (SN.NodeStateA.prod-AC na) sDAC
 ...   | bcbcE bfc′ refl aStepAC | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.prod-AB na) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) bfc′ (SN.NodeStateA.bfS-AC na) pp′ (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
           (SStep.∥⇘⇙-ev-sync apiES _ _ mem
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (BF.apiBFev linkAC d m) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na ahlBF))))
 ...   | bcbsE bfs′ refl aStepAC | peR pp′ refl =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.prod-AB na) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) bfs′ pp′ (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2360,11 +2362,11 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicBF (ahlBF {d} {m})
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (BF.apiBFev linkAC d m) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na ahlBF))))
 -- linkAC `done` (ChainSync): mirror of the linkAB done co-move via `⦀-ev-R`
 nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch})
-  with decProd-done-inv linkAC hi b1 (SN.NodeStateA.prod-AC na) sDAC
+  with decProd-done-inv linkAC hi blkA (SN.NodeStateA.prod-AC na) sDAC
 nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch}) | refl , inj₁ (refl , refl)
   with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
          (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
@@ -2383,7 +2385,7 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (CS.doneCS linkAC hi) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na (ahlDone {d = hi} {ch = N2N_ChainSync})))))
 ...   | bcssE css′ refl aStepAC =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.prod-AB na) (SN.NodeStateA.csC-AC na) css′ (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) pp8 (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2391,7 +2393,7 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-CS-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (CS.doneCS linkAC hi) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na (ahlDone {d = hi} {ch = N2N_ChainSync})))))
 -- linkAC `done` (BlockFetch): the BF SERVER fires doneBF, synced with the produce driver's pp8 done-receipt
 nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch}) | refl , inj₂ (refl , refl)
@@ -2412,7 +2414,7 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (BF.doneBF linkAC hi) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na (ahlDone {d = hi} {ch = N2N_BlockFetch})))))
 ...   | bcbsE bfs′ refl aStepAC =
         naEv (SN.mkNodeA (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.prod-AB na) (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) bfs′ pp9 (SN.NodeStateA.inert-AB na) (SN.NodeStateA.inert-AC na)) refl
@@ -2420,7 +2422,7 @@ nodeA-AC na {X} {a = a} mem bStep sDAC aicDone (ahlDone {d} {ch}) | refl , inj�
             (SStep.⦀-ev-R _ (absBundleG linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
                aStepAC
                (noOffer→viewV _ (absBundleG-BF-link-noIoOffer linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) (BF.doneBF linkAC hi) (λ q → linkAB≢linkAC (sym q)))))
-            (SStep.⦀-ev-R _ (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) sDAC
+            (SStep.⦀-ev-R _ (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) sDAC
                (noOffer→viewV _ (nodeA-drvAB-no na (ahlDone {d = hi} {ch = N2N_BlockFetch})))))
 
 -- node-A api inversion: reflect the driver↔peer sync, peel the driver `⦀`, dispatch
@@ -2432,23 +2434,23 @@ nodeA-ev-api na {X} {e} {a} mem step
   with SStep.reflect-node-api
          (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)
           ⦀ bundleA linkAC (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
-         (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na))
+         (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na))
          mem step
 ... | SStep.apiSync B₁ D₁ bStep dStep refl
     with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
-           (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na)) (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) dStep
+           (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na)) (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) dStep
 ... | PEA.evSync () _ _
 ... | PEA.evL _ sDAB =
         nodeA-AB na mem bStep sDAB
-          (decProd-apiCSBF linkAB hi b1 (SN.NodeStateA.prod-AB na) sDAB)
-          (decProd-ev-link linkAB hi b1 (SN.NodeStateA.prod-AB na) sDAB)
+          (decProd-apiCSBF linkAB hi blkA (SN.NodeStateA.prod-AB na) sDAB)
+          (decProd-ev-link linkAB hi blkA (SN.NodeStateA.prod-AB na) sDAB)
 ... | PEA.evR _ sDAC =
         nodeA-AC na mem bStep sDAC
-          (decProd-apiCSBF linkAC hi b1 (SN.NodeStateA.prod-AC na) sDAC)
-          (decProd-ev-link linkAC hi b1 (SN.NodeStateA.prod-AC na) sDAC)
+          (decProd-apiCSBF linkAC hi blkA (SN.NodeStateA.prod-AC na) sDAC)
+          (decProd-ev-link linkAC hi blkA (SN.NodeStateA.prod-AC na) sDAC)
 ... | PEA.evBoth _ sDAB sDAC = ⊥-elim (linkAB≢linkAC
-        (apiLink-inj (decProd-ev-link linkAB hi b1 (SN.NodeStateA.prod-AB na) sDAB)
-                     (decProd-ev-link linkAC hi b1 (SN.NodeStateA.prod-AC na) sDAC)))
+        (apiLink-inj (decProd-ev-link linkAB hi blkA (SN.NodeStateA.prod-AB na) sDAB)
+                     (decProd-ev-link linkAC hi blkA (SN.NodeStateA.prod-AC na) sDAC)))
 
 
 ------------------------------------------------------------------------

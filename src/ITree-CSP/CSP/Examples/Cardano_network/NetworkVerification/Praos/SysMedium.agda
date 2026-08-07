@@ -43,7 +43,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI; NodeKind; react)
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium (blkA : Block₃) where
 
 open PTree
 

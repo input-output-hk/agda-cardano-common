@@ -53,7 +53,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong
 
 open import Process_Trees
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.Route2Spike where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.Route2Spike (blkA : Block₃) where
 
 open PTree
 
@@ -137,7 +138,7 @@ postulate
   NodesState  : Set
   nodesInit   : NodesState
   decNodes    : NodesState → NetProc
-  decNodes-home : decNodes nodesInit ≡ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))
+  decNodes-home : decNodes nodesInit ≡ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))
 
 -- the whole-system abstract state
 record SysState : Set where
@@ -161,7 +162,7 @@ initial = mkSys (λ _ → home) nodesInit
 -- in seconds (no minutes/GB): `cong₂ f p q` produces `f _ _ ≡ f _ _` WITHOUT
 -- evaluating `f` — the `∥⇘ ioES ⇙` / `∖ ioES` composite is NEVER forced to
 -- WHNF.  This is the whole-system generalisation of PerLink.Decode.dec-init.
-dec-init : ⟦ initial ⟧ ≡ systemBroken
+dec-init : ⟦ initial ⟧ ≡ systemBroken blkA
 dec-init =
   cong₂ (λ Md Nd → (Md ∥⇘ ioES ⇙ Nd) ∖ ioES) decMed-home decNodes-home
 
@@ -246,10 +247,10 @@ reflect-hidden-io M N step with Hide-τ-elim ioES (M ∥⇘ ioES ⇙ N) step
 -- the actual medium and nodes-bundle; the lemma is used, not evaluated).
 reflect-systemBroken-τ :
     ∀ {M″ : NetProc}
-  → systemBroken ─[ τ ]─► M″
-  → ReflOut CopySpecBreakableA (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))) M″
+  → systemBroken blkA ─[ τ ]─► M″
+  → ReflOut CopySpecBreakableA (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))) M″
 reflect-systemBroken-τ step =
-  reflect-hidden-io CopySpecBreakableA (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))) step
+  reflect-hidden-io CopySpecBreakableA (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))) step
 
 -- RESIDUAL (documented, NOT a top-level obstruction).  In the `hidSync` case
 -- the nodes side yields `N ─[io]─► N₁` with `N = nodeA ⦀ (nodeB ⦀ …)`.

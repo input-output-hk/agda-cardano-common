@@ -63,14 +63,15 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Process_Trees using
   ( PTree; ExtI; AnyTypes; ContinueType; NodeKind; react; ret; sil; react-injective )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model, the decode, and the abstract target.
 ------------------------------------------------------------------------
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( p; apiES; linkAB; linkAC; linkBD; linkCD; b1 )
+  using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; IDs; Blocking; NonBlocking )
 open IDs using ( N2N_ChainSync; N2N_BlockFetch )
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output; apiCS; apiBF )
@@ -96,13 +97,14 @@ NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- the concrete whole-system decode `⟦_⟧` + its state (R1 SysDecode, R2 Task 2 fine)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧; initial )
 -- the medium sub-decode (SHARED between concrete and abstract)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( MedState; decMed )
 -- the concrete node decodes + the fine per-peer positions and driver phases
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as MSysNode
+open MSysNode
   using ( NodeStateA; NodeStateB; NodeStateC; NodeStateD; mkNodeA
         ; decNodeA; decNodeB; decNodeC; decNodeD
         ; CScPos; csHead; csReqNext1; csFindInt1; csDone1
@@ -126,7 +128,7 @@ open NodeStateA ; open NodeStateB ; open NodeStateC ; open NodeStateD
 open import CSP.Examples.Cardano_network.NetworkPar p
   using ( ιCS; ιCS⁻¹; ιCS-linv; ιBF; ιBF⁻¹; ιBF-linv )
 -- the fine driven-peer decoders + their source-side counterparts (R2 Task 2)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open MSysNode
   using ( decCSc; decCSs; decBFc; decBFs
         ; decCSc-src; decCSs-src; decBFc-src; decBFs-src )
 -- the SOURCE-alphabet ChainSync LTS (for the VALUE-route source non-offer);
@@ -141,9 +143,9 @@ open Params p using ( time₀; length₀ )
 
 -- the abstract target `abstractSystem` (R2 Task 3) + the τ-free peer specs and
 -- their tables (position-indexed, so any abstract position is directly nameable)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSystem
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSystem blkA
   using ( abstractSystem )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
 open NS.Table using ( isFin; nxt )
 open NS using
   ( tableSpec
@@ -760,7 +762,7 @@ absNodeA : NodeStateA → NetProc
 absNodeA s =
   (absBundleG linkAB lo hi (csC-AB s) (csS-AB s) (bfC-AB s) (bfS-AB s) (inert-AB s)
    ⦀ absBundleG linkAC lo hi (csC-AC s) (csS-AC s) (bfC-AC s) (bfS-AC s) (inert-AC s))
-    ∥⇘ apiES ⇙ (decProd linkAB hi b1 (prod-AB s) ⦀ decProd linkAC hi b1 (prod-AC s))
+    ∥⇘ apiES ⇙ (decProd linkAB hi blkA (prod-AB s) ⦀ decProd linkAC hi blkA (prod-AC s))
 
 absNodeB : NodeStateB → NetProc
 absNodeB s =
@@ -1190,7 +1192,7 @@ absNodeA-csC-AB-collapse :
   ≡ absNodeA (mkNodeA (csHead st) css bfc bfs pp csc′ css′ bfc′ bfs′ ppac ip ipac)
 absNodeA-csC-AB-collapse css bfc bfs pp csc′ css′ bfc′ bfs′ ppac ip ipac st =
   cong (λ bAB → (bAB ⦀ absBundleG linkAC lo hi csc′ css′ bfc′ bfs′ ipac)
-                ∥⇘ apiES ⇙ (decProd linkAB hi b1 pp ⦀ decProd linkAC hi b1 ppac))
+                ∥⇘ apiES ⇙ (decProd linkAB hi blkA pp ⦀ decProd linkAC hi blkA ppac))
        (absBundleAB-csC-collapse css bfc bfs ip st)
 
 -- the whole-system collapse (cheap `cong`-glue — the definitive whole-system

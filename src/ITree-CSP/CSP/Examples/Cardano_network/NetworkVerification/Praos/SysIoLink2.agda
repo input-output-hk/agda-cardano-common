@@ -8,7 +8,8 @@
 -- node io-fingerprints, and `top-nodes-io`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink2 where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink2 (blkA : Block₃) where
 
 
 open import Level using (0ℓ)
@@ -25,7 +26,7 @@ open import Process_Trees using (PTree; ExtI; react; ret; react-injective)
 
 -- links, api alphabet, block payloads
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
-  ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; b1; produce )
+  ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF
@@ -63,7 +64,7 @@ open import Data.Fin using ( Fin ) renaming ( zero to fzero; suc to fsuc )
 open import Data.List using ( map )
 open import Class.DecEq using ( _≟_ )
 -- the breakable medium decode (for the medium api-non-offer leaf)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken; CopyPhase )
 open import CSP.Examples.Cardano_network.Params using ( Params )
 open Params p using ( numLinks; linkConfig; Block; decBlock )
@@ -86,7 +87,8 @@ open import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload})
 open HideevR using ( heV; he√ )
 
 -- concrete node decodes + the generic bundle + the two drivers/phases
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as SN
+open SN
   using ( decNodeB; decNodeC; decNodeD; bundleG; decCP; decConsD
         ; consD; consuming; producing
         -- the two straight-chain drivers + their phase enumerations
@@ -95,32 +97,31 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
         ; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         -- the renamed-peer sources (for the concrete bundle break-non-offer)
         ; decCSc-src; decCSs-src; decBFc-src; decBFs-src )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
 -- the per-protocol process-type synonyms (the `{P′ : XProc}` sig fields of item 3a)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CSProc; BFProc; KAProc; TSProc; LNProc; LFProc )
 -- the τ-free peer interpreter (`tableSpec`) + abstract positions/tables + the
 -- inert KA/TS specs (for the ABSTRACT bundle break non-offer, `absBundleG` side)
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
 
 -- the Net_Api prefix (`⟶₀`) visible-step inversion (for the role discriminator)
 import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload}) as PInv
 open PInv using ( ⟶₀-ev-inv )
 -- abstract node decodes + the abstract bundle + the io-offer predicate
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA as SStep
+open SStep
   using ( absNodeA; absNodeB; absNodeC; absNodeD; absBundleG; IoOffers )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep as SStep
 -- the whole-system concrete decode + config record (for the top-level api peel)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧ )
 -- the shared io-hide alphabet (api events are disjoint from it)
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using ( LFProc )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN using ( LFProc )
+open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
         ; decCSc; decCSc-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
         ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
@@ -175,7 +176,7 @@ open import CSP.Examples.Cardano_network.Data p using
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink public
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink blkA public
 -- ιKA/ιTS/ιLN come via SysIoLink's body-level NetworkPar import (not its
 -- preamble), so re-import them here for the KA/TS/LN ι-bridges
 open import CSP.Examples.Cardano_network.NetworkPar p using ( ιKA; ιTS; ιLN )
@@ -749,7 +750,7 @@ nodeA-io-fp na {X} {e} {a} iomem step
   with PEA.Par-ev-elim apiES (λ _ _ → tt)
          (SN.bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)
           ⦀ SN.bundleA linkAC (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
-         (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na))
+         (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na))
          step
 ... | PEA.evSync amem _ _ = ⊥-elim (io⇒¬api {X} {e} {a} iomem amem)
 ... | PEA.evR _ sD      = ⊥-elim (nodeA-drv-io-no na iomem (_ , sD))

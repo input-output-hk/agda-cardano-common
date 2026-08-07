@@ -32,7 +32,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong₂)
 
 open import Process_Trees using (PTree; ExtI)
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model under study (Phase-1, `examples/praos_liveness`).
@@ -51,9 +52,9 @@ import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_ )
 
 -- the three genuine sub-decodes (Tasks 1–3)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( MedState; decMed; initMed; decMed-home )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA
   using ( NodeStateA; NodeStateB; NodeStateC; NodeStateD
         ; decNodeA; decNodeB; decNodeC; decNodeD
         ; initNodeA; initNodeB; initNodeC; initNodeD
@@ -101,7 +102,7 @@ initial = mkSys initMed initNodeA initNodeB initNodeC initNodeD
 -- with the node side glued by a nested `cong₂ _⦀_` over the four node ⦀s.  Fed
 -- by the five genuine home-equalities; `cong₂`/`cong` never force the composite
 -- to WHNF, so the typecheck stays in seconds (no 2.5-min/20-GB WHNF wall).
-dec-init : ⟦ initial ⟧ ≡ systemBroken
+dec-init : ⟦ initial ⟧ ≡ systemBroken blkA
 dec-init =
   cong₂ (λ Md Nd → (Md ∥⇘ ioES ⇙ Nd) ∖ ioES)
     decMed-home

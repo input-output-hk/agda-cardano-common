@@ -34,6 +34,9 @@
 -- No postulates, holes, or `--allow-unsolved-metas`.
 ------------------------------------------------------------------------
 
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSystem (blkA : Block₃) where
+
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
 
@@ -48,14 +51,13 @@ open import CSP.Examples.Cardano_network.NetCommon p
   using ( CopySpecBreakableA; ioES )
 
 -- the four τ-free node specs (Praos-namespace rebuild)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA
   using ( nodeASpec; nodeBSpec; nodeCSpec; nodeDSpec )
 
 -- Net_Api operators (the whole-system alphabet): top io-gated stack + node ⦀
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_ )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSystem where
 
 -- the whole-system process type (same alias as `Praos.SysDecode.NetProc` and
 -- `systemBroken`): abstractSystem inhabits this type — it is R2's bisim RHS

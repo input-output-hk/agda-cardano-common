@@ -54,7 +54,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; ExtI)
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysReach where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysReach (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The shared alphabet and the whole-system process type.
@@ -74,15 +75,15 @@ NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- R1 concrete decode `⟦_⟧`, its state `SysState`, `initial`, and the genuine
 -- home equality `dec-init : ⟦ initial ⟧ ≡ systemBroken`
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; ⟦_⟧; initial; dec-init )
 -- R2 abstract decode `absDec` + its home equality `absDec initial ≡ abstractSystem`
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA
   using ( absDec; absDec-init )
 -- the two bisimulation endpoints
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
   using ( systemBroken )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSystem
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.AbstractSystem blkA
   using ( abstractSystem )
 
 ------------------------------------------------------------------------
@@ -175,7 +176,7 @@ rinit-toSys : toSys rinit ≡ initial
 rinit-toSys = refl
 
 -- concrete endpoint: `rdec rinit ≡ systemBroken`, inherited from R1's `dec-init`
-rdec-init : rdec rinit ≡ systemBroken
+rdec-init : rdec rinit ≡ systemBroken blkA
 rdec-init = dec-init
 
 -- abstract endpoint: `radec rinit ≡ abstractSystem`, inherited from `absDec-init`

@@ -15,7 +15,8 @@
 -- import only SysIoLink5 (keeps SysIoLink4 frozen; cheap `.agdai` load).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink5 where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink5 (blkA : Block₃) where
 
 open import Level using (0ℓ; Level)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -24,7 +25,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Process_Trees using ( PTree; ExtI; AnyTypes; ContinueType; react )
 
 -- re-export PART 4 (node-τ abstract collapse) so downstream imports SysIoLink5
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink4 public
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink4 blkA public
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
@@ -55,14 +56,15 @@ open import CSP.Examples.Cardano_network.Data p using
 import CSP.Examples.Cardano_network.ChainSync p as CS
 open import CSP.Examples.Cardano_network.NetworkPar p using
   ( ιCS; ιCS⁻¹; ιCS-linv )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as MSysNode
+open MSysNode using
   ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
   ; csRF1; csRB1; csIF1; csINF1; csSil
   ; decCSc-src; vis-ofC; decCSc
   ; CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
   ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
   ; decCSs-src; decCSs )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_TauCore using
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_TauCore blkA using
   ( ≟-yes-refl )
 
 -- the CS SOURCE-alphabet LTS (same instance the peer `renameMap` reflects into)
@@ -77,12 +79,13 @@ open import Data.Empty using ( ⊥-elim )
 open import Relation.Nullary using ( yes; no )
 open import Data.Maybe.Properties using ( just-injective )
 open import Class.DecEq using ( _≟_ )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs using ( tableSpec )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
+open NS using ( tableSpec )
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA as MSysStep
+open MSysStep using
   ( NetProc; absCSc; coarsenCSc; coarsenCScSt; decCSc-sil-step
   ; absCSs; coarsenCSs; coarsenCSsSt; decCSs-sil-step )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv using
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using
   ( _═[_]═►_; wev; τ*-refl; τ*-step )
@@ -113,11 +116,11 @@ open import CSP.Examples.Cardano_network.Data p using
   ( ChainRange; DecEq-ChainRange
   ; MsgRequestRange; MsgClientDone; MsgStartBatch; MsgNoBlocks
   ; MsgBlock; MsgBatchDone )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+open MSysNode using
   ( BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
   ; BFsPos; bsHead; bsReq1; bsDone1; bsStart1; bsNoBlk1; bsBlk1; bsBatchDone1; bsSil
   ; decBFc-src; decBFs-src; decBFc; decBFs; vis-ofB )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+open MSysStep using
   ( absBFc; absBFs; coarsenBFc; coarsenBFs; decBFc-sil-step; decBFs-sil-step )
 -- the BF SOURCE-alphabet LTS
 import Semantics.LTS {E = BF.BFEv} {I = ExtI BF.BFEv} as BFL
@@ -132,11 +135,11 @@ open import CSP.Examples.Cardano_network.Net p using
   ( sendKAMsg; sendKADone; recvKACookie; errCookie )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+open MSysNode using
   ( KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1
   ; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
   ; decKAc-src; decKAs-src; decKAc; decKAs; vis-ofK )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+open MSysStep using
   ( absKAc; absKAs; coarsenKAc; coarsenKAs )
 -- the KA SOURCE-alphabet LTS
 import Semantics.LTS {E = KA.KAEv} {I = ExtI KA.KAEv} as KAL
@@ -157,11 +160,11 @@ open import CSP.Examples.Cardano_network.Base using
   ( BlockingStyle; Blocking; NonBlocking )
 open import Data.Nat using ( ℕ )
 open import Data.List using ( List )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+open MSysNode using
   ( TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil
   ; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
   ; decTSc-src; decTSs-src; decTSc; decTSs; vis-ofT )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+open MSysStep using
   ( absTSc; absTSs; coarsenTSc; coarsenTSs )
 -- the TS SOURCE-alphabet LTS
 import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
@@ -178,11 +181,11 @@ open import CSP.Examples.Cardano_network.Net p using
   ( sendLNRequestNext; sendLNDone; sendLNBlockAnnouncement; sendLNBlockOffer
   ; sendLNBlockTxsOffer; sendLNVotesOffer; recvLNBlockAnnouncement
   ; recvLNBlockOffer; recvLNBlockTxsOffer; recvLNVotesOffer )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+open MSysNode using
   ( LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil
   ; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
   ; decLNc-src; decLNs-src; decLNc; decLNs; vis-ofN )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+open MSysStep using
   ( absLNc; absLNs; coarsenLNc; coarsenLNs )
 -- the LN SOURCE-alphabet LTS
 import Semantics.LTS {E = LN.LNEv} {I = ExtI LN.LNEv} as LNL
@@ -202,12 +205,12 @@ open import CSP.Examples.Cardano_network.Net p using
   ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
   ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+open MSysNode using
   ( LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1
   ; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
   ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
   ; decLFc-src; decLFs-src; decLFc; decLFs; vis-ofF )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+open MSysStep using
   ( absLFc; absLFs; coarsenLFc; coarsenLFs )
 -- the LF SOURCE-alphabet LTS
 import Semantics.LTS {E = LF.LFEv} {I = ExtI LF.LFEv} as LFL

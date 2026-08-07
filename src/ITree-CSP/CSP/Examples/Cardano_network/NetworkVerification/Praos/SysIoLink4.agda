@@ -16,7 +16,8 @@
 -- `absEq : absDec s ≡ absDec s′` (the abstract side matches by ZERO τ).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink4 where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysIoLink4 (blkA : Block₃) where
 
 open import Level using (0ℓ; Level)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -27,7 +28,7 @@ open import Process_Trees using (PTree; ExtI)
 
 -- links, api alphabet, block payloads
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
-  ( p; apiES; linkAB; linkAC; linkBD; linkCD; b1 )
+  ( p; apiES; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
@@ -42,8 +43,8 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; τ )
 
 -- concrete node decodes + the node states + drivers + bundles + positions
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as SN
+open SN using
   ( NetProc; decNodeA; decNodeB; decNodeC; decNodeD
   ; bundleA; bundleG; decProd; decCP; decConsD
   ; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
@@ -51,12 +52,12 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode using
   ; kcHead; ksHead; lncHead; lnsHead; lfcHead; lfsHead )
 
 -- abstract node decodes + the per-node τ-reflection
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep using
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA using
   ( absNodeA; absNodeB; absNodeC; absNodeD
   ; NodeτR; bundleτ; driverτ; reflect-node-τ )
 
 -- the 12-peer bundle τ-inversion + its result type + the driver τ-freedom
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv using
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_NodeTauEv blkA using
   ( BundleτR; bcsc; bcss; bbfc; bbfs; btsc; btss; bkac; bkas; blnc; blns; blfc; blfs
   ; bundle-τ-inv; decProd-no-τ; decCP-no-τ; decConsD-no-τ )
 
@@ -68,7 +69,7 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_Nod
 
 -- fused: finishA-L-abs (also emits the abstract collapse `absNodeA` eq)
 finishA-L-abs : (na : SN.NodeStateA) {A′ Bd′ M1 : NetProc}
-  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)))
+  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)))
   → Bd′ ≡ (M1 ⦀ bundleA linkAC (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na))
   → BundleτR linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) M1
   → Σ[ na′ ∈ SN.NodeStateA ] (A′ ≡ decNodeA na′) × (absNodeA na ≡ absNodeA na′)
@@ -135,7 +136,7 @@ finishA-L-abs na eq eqL (blfs st poseq refl) rewrite eqL =
 
 -- fused: finishA-R-abs (also emits the abstract collapse `absNodeA` eq)
 finishA-R-abs : (na : SN.NodeStateA) {A′ Bd′ M2 : NetProc}
-  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)))
+  → A′ ≡ (Bd′ ∥⇘ apiES ⇙ (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na) ⦀ decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)))
   → Bd′ ≡ (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na) ⦀ M2)
   → BundleτR linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na) M2
   → Σ[ na′ ∈ SN.NodeStateA ] (A′ ≡ decNodeA na′) × (absNodeA na ≡ absNodeA na′)
@@ -607,10 +608,10 @@ nodeA-τ-inv-abs : (na : SN.NodeStateA) {A′ : NetProc}
   → decNodeA na ─[ τ ]─► A′ → Σ[ na′ ∈ SN.NodeStateA ] (A′ ≡ decNodeA na′) × (absNodeA na ≡ absNodeA na′)
 nodeA-τ-inv-abs na step with reflect-node-τ _ _ step
 ... | driverτ Dr′ ds _
-    with PEA.Par-τ-elim ∅ESa (λ _ _ → tt) (decProd linkAB hi b1 (SN.NodeStateA.prod-AB na))
-           (decProd linkAC hi b1 (SN.NodeStateA.prod-AC na)) ds
-...   | PEA.τL _ ps _ = ⊥-elim (decProd-no-τ linkAB hi b1 (SN.NodeStateA.prod-AB na) ps)
-...   | PEA.τR _ qs _ = ⊥-elim (decProd-no-τ linkAC hi b1 (SN.NodeStateA.prod-AC na) qs)
+    with PEA.Par-τ-elim ∅ESa (λ _ _ → tt) (decProd linkAB hi blkA (SN.NodeStateA.prod-AB na))
+           (decProd linkAC hi blkA (SN.NodeStateA.prod-AC na)) ds
+...   | PEA.τL _ ps _ = ⊥-elim (decProd-no-τ linkAB hi blkA (SN.NodeStateA.prod-AB na) ps)
+...   | PEA.τR _ qs _ = ⊥-elim (decProd-no-τ linkAC hi blkA (SN.NodeStateA.prod-AC na) qs)
 nodeA-τ-inv-abs na step | bundleτ Bd′ bs eq
     with PEA.Par-τ-elim ∅ESa (λ _ _ → tt)
            (bundleA linkAB (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na)) _ bs

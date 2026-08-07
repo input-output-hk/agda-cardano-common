@@ -1,7 +1,19 @@
 {-# OPTIONS --guardedness #-}
 
 -- Parallel FD-monotonicity: `Par` is ⊑FD-monotone in BOTH operands
--- (`Par-mono-⊑FD`), with the CSP corollaries `∥-mono-⊑FD` / `⦀-mono-⊑FD`.
+-- (`Par-mono-⊑FD`), with the CSP corollaries `∥-mono-⊑FD` / `⦀-mono-⊑FD`, and the
+-- replicated-interleaving folds `⦀Fin-mono-⊑FD` / `⦀⋆-mono-⊑FD` (Layer 8) and the
+-- replicated INTERFACE-parallel folds `∥⁺-mono-⊑FD` / `∥Fin-mono-⊑FD` (Layer 9).
+--
+-- Layer 10 adds the STABLE-FAILURES analogues `Par-mono-⊑F` + all six folds
+-- (`∥-mono-⊑F`, `⦀-mono-⊑F`, `⦀Fin-mono-⊑F`, `⦀⋆-mono-⊑F`, `∥⁺-mono-⊑F`, `∥Fin-mono-⊑F`),
+-- which need NO divergence layer at all — see that layer's header.
+--
+-- All of these are FACT-SHAPED (`⊑FD → ⊑FD`): they are true PRECONGRUENCES, consuming
+-- `⊑FD` facts from any source and composing freely — as opposed to a `FSim → ⊑FD`
+-- cash-out wrapper, which is a one-liner over the corresponding `*-fsim` and can never
+-- consume a `⊑FD` fact.  See `CSP.Laws.FD.IChoiceMonoFD`'s header for the full
+-- three-shape taxonomy.
 --
 -- Proof architecture (classical, via CSP.Laws.FD.FDTransfer's `FD→trace⊥` bridge):
 --   • ⊑D half : decompose a target divergence with `Par-reach-div`, push the diverging
@@ -20,7 +32,10 @@
 -- (offer-LEM, Par-Diverges→, Diverges-LEM — each certified in ClassicalFromLEM).
 
 open import Level using (Level; _⊔_; Lift; lift; lower) renaming (suc to lsuc)
+open import Data.Nat using (ℕ; zero; suc)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
+open import Data.List.Relation.Binary.Pointwise using (Pointwise)
+  renaming ([] to []ᵖ; _∷_ to _∷ᵖ_)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Unit using () renaming (⊤ to ⊤₀; tt to tt₀)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -44,11 +59,12 @@ open import CSP.Operators E-≟
 open EventSet
 open import Semantics.LTS      {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Failures {E = E} {I = ExtI E}
-  using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
+  using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures; _⊑F_; ⊑F-refl)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Offers; Refuses)
 open import Semantics.DRBisim  {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed)
+  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed;
+         ⊑FD-refl)
 open import CSP.Laws.FD.FDTransfer E-≟
   using (FD→trace⊥; ⟹-split; term→√failure; √-run-split-gen; div-√-truncate)
 open import CSP.Laws.FD.ParallelDivergence E-≟ using (Par-reach-div; Par-div-intro)
@@ -695,3 +711,223 @@ Par-mono-⊑FD A merge hP hQ = Par-mono-⊑F⊥ A merge hP hQ , Par-mono-⊑D A 
 ⦀-mono-⊑FD : ∀ {ℓr} {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
            → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ ⦀ Q₁) ⊑FD (P₂ ⦀ Q₂)
 ⦀-mono-⊑FD = Par-mono-⊑FD ∅ES (λ _ _ → tt)
+
+-------------------------------------------------------------------------------------
+-- Layer 8 : the REPLICATED-INTERLEAVING folds, FACT-SHAPED.
+--
+-- Plain inductions over the unconditional `⦀-mono-⊑FD` above, with `⊑FD-refl Skip`
+-- (`Semantics.FailuresDivergences`) at the base — `⦀Fin zero f = Skip` and `⦀⋆ [] = Skip`.
+--
+-- ⚠ NO SIDE CONDITION, BY DESIGN.  The FSim folds `⦀Fin-fsim` / `⦀⋆-fsim`
+-- (`CSP.Laws.FSim.ParCongRep`) each demand pairwise-disjoint alphabets (`Disj`) plus
+-- `OffersOnly` confinement, purely to discharge `Par-fsim`'s `Sep` obligation at every
+-- fold step.  `Par-mono-⊑FD` carries no `Sep`, so the fact-shaped folds below are BOTH
+-- simpler and strictly MORE GENERAL: pointwise `⊑FD` is all they ask for.  They
+-- therefore take the canonical `-mono-⊑FD` names, and the shape-`FSim → ⊑FD` cash-out
+-- wrappers that formerly held those names in `ParCongRep` were retired (write
+-- `fsim→⊑FD (⦀Fin-fsim …)` for the witness route; see `CSP.Laws.FD.IChoiceMonoFD`'s
+-- header for the three-shape taxonomy and why cash-outs are not worth naming).
+-------------------------------------------------------------------------------------
+
+-- `⦀Fin` is ⊑FD-monotone in its `Fin`-indexed family, pointwise and unconditionally
+⦀Fin-mono-⊑FD : ∀ {ℓr} {n : ℕ} {f g : Fin n → PTree E (ExtI E) (⊤ {ℓr})}
+              → (∀ i → f i ⊑FD g i) → ⦀Fin n f ⊑FD ⦀Fin n g
+⦀Fin-mono-⊑FD {n = zero}  h = ⊑FD-refl Skip
+⦀Fin-mono-⊑FD {n = suc n} h = ⦀-mono-⊑FD (h fzero) (⦀Fin-mono-⊑FD (λ i → h (fsuc i)))
+
+-- `⦀⋆` is ⊑FD-monotone in its list of operands, pointwise and unconditionally
+⦀⋆-mono-⊑FD : ∀ {ℓr} {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+            → Pointwise _⊑FD_ Ps Qs → ⦀⋆ Ps ⊑FD ⦀⋆ Qs
+⦀⋆-mono-⊑FD []ᵖ       = ⊑FD-refl Skip
+⦀⋆-mono-⊑FD (p ∷ᵖ ps) = ⦀-mono-⊑FD p (⦀⋆-mono-⊑FD ps)
+
+-------------------------------------------------------------------------------------
+-- Layer 9 : the REPLICATED INTERFACE-PARALLEL folds, FACT-SHAPED.
+--
+-- These fold `_∥⇘ A ⇙_` (= `Par⊤ A`, one SHARED synchronisation set `A` at every step),
+-- not `⦀`, so each carries the `EventSet` as an explicit first argument.
+--
+-- ⚠ BOTH ARE NON-EMPTY, like `⨅⁺`/`⨅Fin` and unlike Layer 8's `⦀`-folds: `[|A|]` has no
+-- unit, so `∥⁺` is head+list (`∥⁺ A P [] = P`, `CSP.Operators`:651) and `∥Fin` is
+-- `Fin (suc n)`-indexed (`∥Fin A zero f = f fzero`, `CSP.Operators`:656).  The base case
+-- therefore returns an OPERAND hypothesis and `⊑FD-refl` is not used.  `∥⁺`'s recursion
+-- re-heads on the list's head, exactly as `⨅⁺`'s does.
+--
+-- NO SIDE CONDITION, for the same reason Layer 8 needs none: `∥-mono-⊑FD` is
+-- unconditional (no `Sep`, no `Disj`, no `OffersOnly`, no divergence-freedom), so nothing
+-- accumulates along the fold.
+-------------------------------------------------------------------------------------
+
+-- `∥⁺` is ⊑FD-monotone in its head and (pointwise) in its tail list, for any shared
+-- synchronisation set, unconditionally
+∥⁺-mono-⊑FD : ∀ {ℓr} (A : EventSet) {P₁ P₂ : PTree E (ExtI E) (⊤ {ℓr})}
+                {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+            → P₁ ⊑FD P₂ → Pointwise _⊑FD_ Ps Qs → ∥⁺ A P₁ Ps ⊑FD ∥⁺ A P₂ Qs
+∥⁺-mono-⊑FD A hP []ᵖ       = hP
+∥⁺-mono-⊑FD A hP (q ∷ᵖ qs) = ∥-mono-⊑FD A hP (∥⁺-mono-⊑FD A q qs)
+
+-- `∥Fin` is ⊑FD-monotone in its `Fin (suc n)`-indexed family, pointwise and
+-- unconditionally
+∥Fin-mono-⊑FD : ∀ {ℓr} (A : EventSet) {n : ℕ} {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+              → (∀ i → f i ⊑FD g i) → ∥Fin A n f ⊑FD ∥Fin A n g
+∥Fin-mono-⊑FD A {n = zero}  h = h fzero
+∥Fin-mono-⊑FD A {n = suc n} h =
+  ∥-mono-⊑FD A (h fzero) (∥Fin-mono-⊑FD A (λ i → h (fsuc i)))
+
+-------------------------------------------------------------------------------------
+-- Layer 10 : the STABLE-FAILURES (`⊑F`) ANALOGUES, UNCONDITIONALLY.
+--
+-- `Par-mono-⊑F` and its folds are the `_⊑F_` cousins of Layers 7-9.  They are
+-- UNCONDITIONAL — no divergence-freedom, no `Sep`/`Disj`/`OffersOnly`, nothing beyond a
+-- pointwise `⊑F` hypothesis on each operand — and they need NO DIVERGENCE LAYER AT ALL.
+--
+-- Why the divergence machinery disappears.  `_⊑F_` (`Semantics.Failures`:42) is
+--     P ⊑F Q  =  ∀ s X → failures Q s X → failures P s X ,
+-- a plain failures-to-failures map: neither its hypothesis nor its conclusion has a
+-- `divergences` disjunct, unlike `_⊑F⊥_` whose conclusion is
+-- `failures P s X ⊎ divergences P s`.  Consequently:
+--   • `op-transfer-stable`/`op-transfer-ret` (Layer 4) already fed only `inj₁`
+--     (failures) arguments INTO their `⊑F⊥` hypotheses; it was purely their `⊎`-valued
+--     RESULT that forced `Par-mono-fail` to branch 4 ways per normal form.  Their `⊑F`
+--     versions below return a bare failure (resp. a bare terminated run), so each of the
+--     three `ParNormal` cases collapses to its single `Par-failures-intro` recombination.
+--   • Nothing ever produces a composite divergence, so Layer 5 in its entirety
+--     (`Par-div-out-L/R/2`, `ParInter-truncL/R/2`, `div-extension-closed`,
+--     `Par-div-intro`, `FD→trace⊥`) is dead weight here, and there is NO `Par-mono-⊑D`
+--     counterpart to prove or to pair up with: `Par-mono-⊑F` IS the headline.
+-- The failures decomposition/classification core is reused VERBATIM: Layer 2's
+-- `Par-stable-normal`, Layer 3's `routeL`/`routeR` ban-set carving with
+-- `routeL-covers`/`routeR-covers`/`route-rebuild`/`ret-routeL-cover`/`ret-routeR-cover`,
+-- and `Par-failures-elim`/`Par-failures-intro` — all of which are divergence-free
+-- already.  Only Layer 4 and Layer 6 get `⊑F` twins (four short definitions).
+--
+-- Companion law: `CSP.Laws.FD.HideMonoFD`'s `Hide-mono-⊑F` (also unconditional, for the
+-- same reason).  Together they let a `⊑F` refinement be composed up through an operator
+-- tree and then pushed through a hide — the route that unconditional `Hide-mono-⊑FD`
+-- (FALSE) and conditional `Hide-mono-⊑FD-df` (needs divergence-freedom of the refined
+-- side's hide) cannot offer.
+--
+-- Classical strength: unchanged and NOT new — the recombination still goes through
+-- `Par-stable`, hence through `ParallelRefusals`' fixed `offer-LEM` interface (certified
+-- `dne`-derivable in `CSP.Laws.ClassicalFromLEM`), exactly as `Par-mono-⊑FD` does.  No
+-- new postulate.
+-------------------------------------------------------------------------------------
+
+-- Layer-4 twin: transfer a stable target residual through a `⊑F` hypothesis.  Same
+-- witness as `op-transfer-stable`, but `⊑F` hands back a bare failure (no `⊎ divergences`).
+op-transfer-stable-F : ∀ {ℓr} {R₁ : Set ℓr}
+                       {P₁ P₂ P₂* : PTree E (ExtI E) R₁} {sP : List (Event√ R₁)}
+                       {BP : Event√ R₁ → Set ℓr}
+                     → P₁ ⊑F P₂
+                     → P₂ ⟹⟨ sP ⟩ P₂* → isStable P₂*
+                     → (∀ e → BP e → MaxRef P₂* e)
+                     → failures P₁ sP BP
+op-transfer-stable-F {P₂* = P₂*} {sP = sP} {BP = BP} fF run st covers =
+  fF sP BP (P₂* , run , (st , covers))
+
+-- Layer-4 twin: transfer a TERMINATED target residual through a `⊑F` hypothesis, via
+-- the same √-extension trick as `op-transfer-ret` (extend the run by the `√ r` tick into
+-- an empty-ban failure, push it through, split the tick back off).  The `⊑F` conclusion
+-- has no divergence disjunct, so `div-√-truncate` is not needed.
+op-transfer-ret-F : ∀ {ℓr} {R₁ : Set ℓr}
+                    {P₁ P₂ P₂* : PTree E (ExtI E) R₁} {sP : List (Event√ R₁)} {r : R₁}
+                  → P₁ ⊑F P₂
+                  → P₂ ⟹⟨ sP ⟩ P₂* → PTree.force P₂* ≡ ret r
+                  → Σ[ P₁ᵣ ∈ PTree E (ExtI E) R₁ ]
+                      ((P₁ ⟹⟨ sP ⟩ P₁ᵣ) × (PTree.force P₁ᵣ ≡ ret r))
+op-transfer-ret-F {ℓr = ℓr} {sP = sP} {r = r} fF run eqret
+  with fF (sP ++ √ r ∷ []) (λ _ → Lift ℓr ⊥) (term→√failure run eqret)
+... | T , run√ , _ = √-run-split-gen sP run√
+
+-- Layer-6 twin: recombine the per-operand `⊑F` transfers of a decomposed target failure.
+-- One clause per `ParNormal` case, each a single `Par-failures-intro` — the 4-way
+-- divergence branching of `Par-mono-fail` has no counterpart.
+Par-mono-fail-F : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
+                  {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
+                  {s : List (Event√ R)} {X : Event√ R → Set ℓr}
+                  {sP : List (Event√ R₁)} {sQ : List (Event√ R₂)}
+                  {P₂* : PTree E (ExtI E) R₁} {Q₂* : PTree E (ExtI E) R₂}
+                → P₁ ⊑F P₂ → Q₁ ⊑F Q₂
+                → P₂ ⟹⟨ sP ⟩ P₂* → Q₂ ⟹⟨ sQ ⟩ Q₂*
+                → ParInter A merge sP sQ s
+                → ParNormal P₂* Q₂*
+                → ParRef A X (MaxRef P₂*) (MaxRef Q₂*)
+                → failures (Par A merge P₁ Q₁) s X
+-- both operands stable
+Par-mono-fail-F A merge {P₁ = P₁} {Q₁ = Q₁} {X = X} {P₂* = P₂*} {Q₂* = Q₂*}
+    fP fQ rP rQ inter (inj₁ (stP , stQ)) pr
+  with op-transfer-stable-F fP rP stP (routeL-covers A X (MaxRef P₂*) (MaxRef Q₂*) pr)
+     | op-transfer-stable-F fQ rQ stQ (routeR-covers A X (MaxRef P₂*) (MaxRef Q₂*) pr)
+... | P₁* , rP₁ , refP | Q₁* , rQ₁ , refQ =
+      Par-failures-intro A merge P₁ Q₁ rP₁ rQ₁ inter
+        (Par-stable A merge P₁* Q₁* (proj₁ refP) (proj₁ refQ))
+        (route-rebuild A X (MaxRef P₂*) (MaxRef Q₂*) pr (proj₂ refP) (proj₂ refQ))
+-- left operand terminated, right stable
+Par-mono-fail-F A merge {P₁ = P₁} {Q₁ = Q₁} {X = X} {P₂* = P₂*} {Q₂* = Q₂*}
+    fP fQ rP rQ inter (inj₂ (inj₁ (r₁ , eqP , stQ))) pr
+  with op-transfer-ret-F fP rP eqP
+     | op-transfer-stable-F fQ rQ stQ (routeR-covers A X (MaxRef P₂*) (MaxRef Q₂*) pr)
+... | P₁ᵣ , rP₁ , feP | Q₁* , rQ₁ , refQ =
+      Par-failures-intro A merge P₁ Q₁ rP₁ rQ₁ inter
+        (Par-stable-termL A merge P₁ᵣ Q₁* feP (proj₁ refQ))
+        (route-rebuild A X (MaxRef P₂*) (MaxRef Q₂*) pr
+          (ret-routeL-cover A X (MaxRef P₂*) (MaxRef Q₂*) pr feP) (proj₂ refQ))
+-- left operand stable, right terminated (mirror)
+Par-mono-fail-F A merge {P₁ = P₁} {Q₁ = Q₁} {X = X} {P₂* = P₂*} {Q₂* = Q₂*}
+    fP fQ rP rQ inter (inj₂ (inj₂ (stP , r₂ , eqQ))) pr
+  with op-transfer-stable-F fP rP stP (routeL-covers A X (MaxRef P₂*) (MaxRef Q₂*) pr)
+     | op-transfer-ret-F fQ rQ eqQ
+... | P₁* , rP₁ , refP | Q₁ᵣ , rQ₁ , feQ =
+      Par-failures-intro A merge P₁ Q₁ rP₁ rQ₁ inter
+        (Par-stable-termR A merge P₁* Q₁ᵣ (proj₁ refP) feQ)
+        (route-rebuild A X (MaxRef P₂*) (MaxRef Q₂*) pr
+          (proj₂ refP) (ret-routeR-cover A X (MaxRef P₂*) (MaxRef Q₂*) pr feQ))
+
+-- HEADLINE (stable failures): parallel composition is ⊑F-monotone in BOTH operands,
+-- unconditionally.  Decompose the target failure (`Par-failures-elim`), classify the
+-- stable leaf (`Par-stable-normal`), transfer + recombine (`Par-mono-fail-F`).
+Par-mono-⊑F : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
+              {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
+            → P₁ ⊑F P₂ → Q₁ ⊑F Q₂
+            → (Par A merge P₁ Q₁) ⊑F (Par A merge P₂ Q₂)
+Par-mono-⊑F A merge {P₁} {P₂} {Q₁} {Q₂} hP hQ s X f
+  with Par-failures-elim A merge {P = P₂} {Q = Q₂} f
+... | sP , sQ , P₂* , Q₂* , rP , rQ , inter , stPar , pr =
+      Par-mono-fail-F A merge hP hQ rP rQ inter
+                      (Par-stable-normal A merge P₂* Q₂* stPar) pr
+
+-- CSP interface parallel (⊤-merge) is ⊑F-monotone
+∥-mono-⊑F : ∀ {ℓr} (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
+          → P₁ ⊑F P₂ → Q₁ ⊑F Q₂ → (P₁ ∥⇘ A ⇙ Q₁) ⊑F (P₂ ∥⇘ A ⇙ Q₂)
+∥-mono-⊑F A = Par-mono-⊑F A (λ _ _ → tt)
+
+-- interleaving is ⊑F-monotone
+⦀-mono-⊑F : ∀ {ℓr} {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
+          → P₁ ⊑F P₂ → Q₁ ⊑F Q₂ → (P₁ ⦀ Q₁) ⊑F (P₂ ⦀ Q₂)
+⦀-mono-⊑F = Par-mono-⊑F ∅ES (λ _ _ → tt)
+
+-- `⦀Fin` is ⊑F-monotone in its `Fin`-indexed family (base `⦀Fin zero f = Skip`)
+⦀Fin-mono-⊑F : ∀ {ℓr} {n : ℕ} {f g : Fin n → PTree E (ExtI E) (⊤ {ℓr})}
+             → (∀ i → f i ⊑F g i) → ⦀Fin n f ⊑F ⦀Fin n g
+⦀Fin-mono-⊑F {n = zero}  h = ⊑F-refl Skip
+⦀Fin-mono-⊑F {n = suc n} h = ⦀-mono-⊑F (h fzero) (⦀Fin-mono-⊑F (λ i → h (fsuc i)))
+
+-- `⦀⋆` is ⊑F-monotone in its list of operands (base `⦀⋆ [] = Skip`)
+⦀⋆-mono-⊑F : ∀ {ℓr} {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+           → Pointwise _⊑F_ Ps Qs → ⦀⋆ Ps ⊑F ⦀⋆ Qs
+⦀⋆-mono-⊑F []ᵖ       = ⊑F-refl Skip
+⦀⋆-mono-⊑F (p ∷ᵖ ps) = ⦀-mono-⊑F p (⦀⋆-mono-⊑F ps)
+
+-- `∥⁺` is ⊑F-monotone in head + tail list (non-empty fold: `∥⁺ A P [] = P`)
+∥⁺-mono-⊑F : ∀ {ℓr} (A : EventSet) {P₁ P₂ : PTree E (ExtI E) (⊤ {ℓr})}
+               {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+           → P₁ ⊑F P₂ → Pointwise _⊑F_ Ps Qs → ∥⁺ A P₁ Ps ⊑F ∥⁺ A P₂ Qs
+∥⁺-mono-⊑F A hP []ᵖ       = hP
+∥⁺-mono-⊑F A hP (q ∷ᵖ qs) = ∥-mono-⊑F A hP (∥⁺-mono-⊑F A q qs)
+
+-- `∥Fin` is ⊑F-monotone in its `Fin (suc n)`-indexed family (non-empty fold)
+∥Fin-mono-⊑F : ∀ {ℓr} (A : EventSet) {n : ℕ} {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+             → (∀ i → f i ⊑F g i) → ∥Fin A n f ⊑F ∥Fin A n g
+∥Fin-mono-⊑F A {n = zero}  h = h fzero
+∥Fin-mono-⊑F A {n = suc n} h =
+  ∥-mono-⊑F A (h fzero) (∥Fin-mono-⊑F A (λ i → h (fsuc i)))

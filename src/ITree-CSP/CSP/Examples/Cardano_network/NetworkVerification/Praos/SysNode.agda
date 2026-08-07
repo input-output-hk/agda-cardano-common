@@ -7,7 +7,7 @@
 -- `nodeA` (FourNodeDiamond.nodeA) is a PRODUCER node:
 --
 --   nodeA = (miniProtocols linkAB lo hi ⦀ miniProtocols linkAC lo hi)
---             ∥⇘ apiES ⇙ (produce linkAB hi b1 ⦀ produce linkAC hi b1)
+--             ∥⇘ apiES ⇙ (produce linkAB hi blkA ⦀ produce linkAC hi blkA)
 --
 -- Each `miniProtocols l lo hi` interleaves the twelve mini-protocol peers
 -- (NetworkPar.435): KA / CS / BF / TS / LN / LF, client on `lo`, server on
@@ -29,7 +29,7 @@
 --     renamed FSM `RenCS.renameMap (iter (serverStep l d) st)` (definitionally
 --     the NetworkPar builder at `st = stIdle`), NOT the τ-free PipePair spec;
 --   · the `produce` driver at its position-derived derivative (the literal
---     prefix-chain tail, i.e. the genuine successor of `produce l d b1`).
+--     prefix-chain tail, i.e. the genuine successor of `produce l d blkA`).
 -- `decNodeA-home` is GENUINE (`refl`): at the initial position every peer
 -- decodes to its NetworkPar builder and `produce` to its whole body, so the
 -- inline reconstruction is definitionally `nodeA` — no WHNF forcing.
@@ -61,14 +61,15 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (PTree; ExtI; AnyTypes; NodeKind; react)
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model under study (Phase-1, `examples/praos_liveness`).
 ------------------------------------------------------------------------
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( p; apiES; nodeA; nodeB; nodeC; nodeD; produce; consume; consume-k; Block₃; b1
+  using ( p; apiES; nodeA; nodeB; nodeC; nodeD; produce; consume; consume-k; Block₃
         ; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Params using (Params)
 open Params p using ( time₀; length₀; Block; Cookie; VoteBlob; Txid; decCookie; LFBitmap )
@@ -781,7 +782,7 @@ initInert = mkInert (tcHead TS.stInit) (tsHead TS.stInit) (kcHead KA.stClient) (
                     (lncHead LN.stIdle) (lnsHead LN.stIdle) (lfcHead LF.stIdle) (lfsHead LF.stIdle)
 
 ------------------------------------------------------------------------
--- Producer-driver decode: `produce l d b1` is a straight prefix chain of
+-- Producer-driver decode: `produce l d blkA` is a straight prefix chain of
 -- nine api events (the trailing two are the `done` receipt callbacks synced with
 -- the CS and BF servers); its position is the number of events already fired
 -- (`pp0` = the whole body, `pp7` = the ChainSync `done`-receipt offer, `pp8` =
@@ -794,7 +795,7 @@ data ProdPh : Set where
   pp0 pp1 pp2 pp3 pp4 pp5 pp6 pp7 pp8 pp9 : ProdPh
 
 -- decode the `produce l d blk` driver at phase `ph` (the block `blk` is now a
--- parameter — nodeA passes `b1`; relay nodes B/C pass their consumed block)
+-- parameter — nodeA passes `blkA`; relay nodes B/C pass their consumed block)
 decProd : Link → Dir → Block₃ → ProdPh → NetProc
 decProd l d blk pp0 = produce l d blk
 decProd l d blk pp1 =
@@ -843,13 +844,13 @@ record NodeStateA : Set where
     csS-AB  : CSsPos       -- ChainSync server  (AB, hi) — produce-driven
     bfC-AB  : BFcPos       -- BlockFetch client (AB, lo)
     bfS-AB  : BFsPos       -- BlockFetch server (AB, hi) — produce-driven
-    prod-AB : ProdPh       -- produce linkAB hi b1 phase
+    prod-AB : ProdPh       -- produce linkAB hi blkA phase
     -- link AC
     csC-AC  : CScPos
     csS-AC  : CSsPos
     bfC-AC  : BFcPos
     bfS-AC  : BFsPos
-    prod-AC : ProdPh       -- produce linkAC hi b1 phase
+    prod-AC : ProdPh       -- produce linkAC hi blkA phase
     -- the tracked TxSubmission pair per link (KA/LN/LF stay constant)
     inert-AB : InertPos
     inert-AC : InertPos
@@ -873,7 +874,7 @@ decNodeA : NodeStateA → NetProc
 decNodeA s =
   (bundleA linkAB (csC-AB s) (csS-AB s) (bfC-AB s) (bfS-AB s) (inert-AB s)
    ⦀ bundleA linkAC (csC-AC s) (csS-AC s) (bfC-AC s) (bfS-AC s) (inert-AC s))
-    ∥⇘ apiES ⇙ (decProd linkAB hi b1 (prod-AB s) ⦀ decProd linkAC hi b1 (prod-AC s))
+    ∥⇘ apiES ⇙ (decProd linkAB hi blkA (prod-AB s) ⦀ decProd linkAC hi blkA (prod-AC s))
 
 -- the initial node-A position: every peer at its loop-head idle position +
 -- both produce drivers unstepped + both TS pairs at their init head
@@ -887,7 +888,7 @@ initNodeA = mkNodeA (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bs
 -- each `produce` decode is its whole body, so the inline bundle is
 -- definitionally `miniProtocols linkAB lo hi ⦀ miniProtocols linkAC lo hi`
 -- and the composite is `nodeA` — WITHOUT forcing the composite tree to WHNF.
-decNodeA-home : decNodeA initNodeA ≡ nodeA
+decNodeA-home : decNodeA initNodeA ≡ nodeA blkA
 decNodeA-home = refl
 
 ------------------------------------------------------------------------
@@ -957,7 +958,7 @@ decCons l d b cp5 =
 decCons l d b cp6 = Ret b
 
 -- node-D consume-driver phase: the received/in-flight block `cblk` plus the
--- straight-chain phase `cph` (the block is a placeholder `b1` until cp1/cp3
+-- straight-chain phase `cph` (the block is a placeholder `blkA` until cp1/cp3
 -- rebind it to the received value)
 record ConsDPh : Set where
   constructor consD
@@ -1008,8 +1009,8 @@ decNodeD s =
 -- the initial node-D position: every peer at its loop-head idle position +
 -- both consume drivers unstepped + both TS pairs at their init head
 initNodeD : NodeStateD
-initNodeD = mkNodeD (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consD b1 cp0)
-                    (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consD b1 cp0)
+initNodeD = mkNodeD (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consD blkA cp0)
+                    (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consD blkA cp0)
                     initInert initInert
 
 -- NODE-D home-equality, GENUINE and `refl`: at init each CS/BF peer decode is
@@ -1022,7 +1023,7 @@ decNodeD-home = refl
 -- Relay driver decode: `consume l₁ hi >>= λ b → produce l₂ hi b`.  Its phase
 -- is either the consume stage (a `ConsPh`, with the produce leg still bound
 -- under `>>=`) or the produce stage (a `ProdPh`, REUSING `decProd`; in this
--- scenario the relayed block is `b1`, so `decProd` is the genuine leg).
+-- scenario the relayed block is `blkA`, so `decProd` is the genuine leg).
 ------------------------------------------------------------------------
 
 -- the consume-then-produce driver phase for a relay node (B, C); both arms
@@ -1074,11 +1075,11 @@ decNodeB s =
 -- driver at consume-init + both TS pairs at their init head
 initNodeB : NodeStateB
 initNodeB = mkNodeB (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle)
-                    (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consuming b1 cp0)
+                    (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consuming blkA cp0)
                     initInert initInert
 
 -- NODE-B home-equality, GENUINE and `refl`: at init the driver decode is
--- `decCons linkAB hi b1 cp0 >>= …` = `consume linkAB hi >>= λ b → produce linkBD hi b`
+-- `decCons linkAB hi blkA cp0 >>= …` = `consume linkAB hi >>= λ b → produce linkBD hi b`
 -- and each peer is its builder, so the reconstruction is definitionally `nodeB`.
 decNodeB-home : decNodeB initNodeB ≡ nodeB
 decNodeB-home = refl
@@ -1120,7 +1121,7 @@ decNodeC s =
 -- driver at consume-init + both TS pairs at their init head
 initNodeC : NodeStateC
 initNodeC = mkNodeC (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle)
-                    (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consuming b1 cp0)
+                    (csHead CS.stIdle) (ssHead CS.stIdle) (bcHead BF.stIdle) (bsHead BF.stIdle) (consuming blkA cp0)
                     initInert initInert
 
 -- NODE-C home-equality, GENUINE and `refl`: mirror of node B on linkAC/linkCD.

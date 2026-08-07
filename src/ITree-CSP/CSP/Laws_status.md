@@ -25,7 +25,7 @@ still the branch this document was written against and still the reference point
 DIFFERENT branch, **`semantics/failure-sim`**; the branch name above has deliberately
 NOT been rewritten.
 
-_Last updated: 2026-08-01._
+_Last updated: 2026-08-04._
 
 ---
 
@@ -42,12 +42,13 @@ _Last updated: 2026-08-01._
 | §7 | Renaming `⟦R⟧` | ✅ **FD law list complete** for injective `_⟦inv⟧ⁱ` (zero T11.8, dist-⊓ T3.13, dist-□ T3.14, step T3.15, combine T3.16-17, rename-slide U13.6, +aux rename-▷-dist). 🟡 **RELATIONAL `_⟦R¿preimg⟧` begun**: rename-zero + rename-⊓-dist (`RenameRel`); fan-in bridge `fanNode ≈FD ⨅⁺` (`RenameFanIn`); ✅ **rename-step relational** (the fan-in `⨅` law, `RenameStepRel.rename-step-rel-FD`, via `pchoice-cong-FD` + `rnFan-list-FD`) + ✅ **rename-slide relational** (`RenameSlideRel.rename-slide-rel-FD` — `node-pw2`, fan-in symmetric so `vis-pw=refl`; crux `tau-pw` via `extBwd-just`). Relational dist-□/combine remain |
 | §8 | Piping `≫` / enslavement | ❌ not started (UCS treats as derived) |
 | §9 | Sequential `;`, `SKIP` | ✅ **core complete** (T6.1–6.7); cross-op SKIP-term laws open |
-| §10 | Interrupt `△` / Throw `⟦A▷` | ✅ **complete** (Fig 13.6 + throw suite) |
+| §10 | Interrupt `△` / Throw `⟦A▷` | ✅ **complete** (Fig 13.6 + throw suite); ✅ throw `FSim` congruence `Θ-fsim`/`Θ-mono-⊑FD` (2026-08-04, two-sided, unconditional, `--safe`-clean — `FSim/ThrowCong`) |
 | §11 | Sliding choice `▷` | ✅ **core + ⊓/seq slide-dist + failures-char** (▷-id, ▷-assoc(cond), □-slide, ▷-⊓-ext, seq-slide, ▷-failures-char U13.26, □-SKIP-resolve, □-div, Div-slide, Div-SKIP-red, div-strict zeros); ✅ **COMPLETE** (every slide law incl. per-op hide-slide U13.3 + rename-slide U13.6); U13.14 SKIP-slide ✖ correctly (eager-`ret`) |
 | §13 | Zero / divergence-strictness | 🟡 `⊓`/`□`/`∥`/`;` zeros done; hide/rename zeros open |
 | §14 | Recursion | ❌ not started |
-| §15 | One-way failure simulation `FSim` (the `⊑FD` order) | ✅ **record + `⊑T`/`⊑D`/`⊑F⊥`/`⊑FD` bridges + preorder**, `FSimFromRel` coinduction principle, `drbisim→fsim` refactor, four operator congruences (`Par`/`>>=`/`∖`/`iter`), the FD-hide counterexample refuted at the simulation level, one worked smoke test |
+| §15 | One-way failure simulation `FSim` (the `⊑FD` order) | ✅ **record + `⊑T`/`⊑D`/`⊑F⊥`/`⊑FD` bridges + preorder**, `FSimFromRel` coinduction principle, `drbisim→fsim` refactor, four operator congruences (`Par`/`>>=`/`∖`/`iter`), the FD-hide counterexample refuted at the simulation level, one worked smoke test; **2026-08-04:** throw `Θ-fsim`/`Θ-mono-⊑FD` (`FSim/ThrowCong`), the second `agda --safe`-clean FSim congruence overall and the first for an operand-deconstructing operator — see the §17 addendum's full sweep (2 of 7 clean) |
 | §16 | Divergence-freedom (`τ-Acc`) + stability calculi | ✅ **generic `Semantics/DivergenceFree` + 19 per-operator `τ-Acc` closures + the gathered stability layer** (both new modules postulate-free); ⚠️ measured payoff at the EXISTING proof sites is nil — those sites need τ-FREENESS, which `τ-Acc` is strictly weaker than |
+| §17 | Consolidated FD/DR/FSim congruence & monotonicity coverage (2026-08-03 campaign, + same-day addendum, + 2026-08-04 αpar addendum, + 2026-08-04 later throw addendum, + 2026-08-04 loop/rename fact-shaped addendum) | ✅ **`⊓`/prefix FSim congruences** (`FSim/IChoiceCong`, postulate-free), **9 `⊑FD`-mono loop/bind wrappers** (`FD/LoopMonoFD` — ALL NINE since RETIRED 2026-08-04 and the module DELETED: the 4 BIND ones + `loop0-mono-⊑FD-fsim` in favour of the fact-shaped `FD/BindMonoFD` / `FD/IterateMonoFD`, then the 4 LOOP ones in favour of `FD/IterMonoFD`), **fact-shaped bind/sequential precongruence `>>=`/`bindNoτ`/`bindκ`/`>>` + folds `⨾⋆`/`⨾Fin`** (`FD/BindMonoFD`, 2026-08-04) and the `force-≡→⊑FD` hoist into `Semantics/FailuresDivergences`, **fact-shaped LOOP precongruence `iter`/`loop`/`while`/`loopc`** (`FD/IterMonoFD`, 2026-08-04) and **fact-shaped RENAMING precongruence `renameInv`/`renameMap`** (`FD/RenameMonoFD`, 2026-08-04 — renaming's first monotonicity law at any shape), **`≈FD` congruence row + suite index** (`FD/Congruences`), **`⦀Fin`/`⦀⋆` FSim congruences** (`FSim/ParCongRep`), **assembled two-leaf `FSim` tower** (`CSP.Examples.FSimTower`); full operator × relation matrix + the two-regimes finding below; **addendum:** `□-fsim`/`□-mono-⊑FD` (`FSim/ExtChoiceCong`, two-sided, no `Sep`), one-sided `▷-fsim-R`/`▷-mono-R-⊑FD-fsim` (`FSim/SlideCong`) plus the two-sided `▷`-congruence proved FALSE (`FSim/SlideCounterexample`), the `fsim-τ*-prepend`/`div-prepend-τ*` linchpin (`Semantics/FailureSim`); **2026-08-04 addendum:** binary alphabetised parallel `αpar-fsim-df`/`αpar-mono-⊑FD-fsim-df` (`FSim/AlphaParCong`, conditional on `τ-AccReach` divergence-freedom of the SPEC operands, `CSP/Laws/AlphaParallelLift` support layer, no `Sep`/`DecEq R` needed), the two-sided congruence proved FALSE **and the one-sided form FALSE in both orientations** (`FSim/AlphaParCounterexample`, sharper than `▷`'s one-sided-true case), `fsim-sil-factor` (`Semantics/FailureSim`); **2026-08-04 later addendum:** throw `Θ-fsim`/`Θ-mono-⊑FD` (`FSim/ThrowCong`, two-sided, unconditional, `agda --safe`-clean — the second clean FSim congruence overall, the first for an operand-deconstructing operator), the `ThrowFD`→`TraceLawsThrowInterrupt` hoist, and a full `--safe` sweep of the 7 top-level FSim operator congruences (2 clean); **2026-08-05 addendum:** the **STABLE-FAILURES (`⊑F`) layer** — `Par-mono-⊑F` + six folds (`FD/ParallelMonoFD` Layer 10) pairing with `Hide-mono-⊑F` (`FD/HideMonoFD`:255), both **UNCONDITIONAL**, giving the first compositional route that crosses a hide with a bare refinement FACT at refusal strength; needs **no divergence layer at all** (`_⊑F_` has no `divergences` disjunct) and inherits `offer-LEM` only |
 
 **Bottom line:** the four core "untimed" operator algebras (`⊓`, `□`, prefix,
 conditional), sequential composition, interrupt/throw, **and parallel** are all fully
@@ -56,7 +57,9 @@ frontier is **hiding (§6) and renaming (§7)**: both have trace-level laws but 
 yet (each needs an FD decomposition, the larger lift). Alongside the two-way bridge
 `≈DR ⟹ ≈FD` there is now a **one-way refinement order** (§15): `FSim`, a three-field
 coinductive relation with no `bwd`/`div←`, giving `⊑FD` directly and carrying its own
-congruences for parallel, bind, hiding and the loops.
+congruences for parallel, bind, hiding, external choice (two-sided, no side condition)
+and the loops — plus a one-sided sliding-choice congruence, its two-sided form proved
+false rather than merely unattempted.
 
 ---
 
@@ -71,7 +74,7 @@ congruences for parallel, bind, hiding and the loops.
 | T1.6 | `(P⊓Q)⊓R = P⊓(Q⊓R)` (assoc, FD-direct) | ✅ | `FDLawsIChoiceAssoc` |
 | T11.2 / U13.23 | `Div ⊓ P = Div` (zero) | ✅ | `FDLawsIChoiceZero` |
 | U13.20 | replicated `⨅⁺` + flatten | ✅ | `FDLawsIChoiceRep` |
-| — | `⊓-cong-FD≈` (≈FD-premised congruence, reusable) | ✅ | `FDLawsIChoiceRep` |
+| — | `⊓-cong-FD≈` (≈FD-premised congruence, reusable) | ✅ | `FDLawsIChoiceRep` (§17 table: FSim-layer `⊓-fsim` counterpart; the fact-shaped `⊓-mono-⊑FD` is `FD/IChoiceMonoFD`) |
 | T11.14 / U13.24 | `P ⊓ Div = P` (div-ignoring unit) | ➖ | correctly **does not hold** (`𝒩` is divergence-strict) |
 
 Reusable `⊓` failures/divergence decomposition (`⊓-failures→/←l/←r`, `⊓-div→/←l/←r`,
@@ -91,6 +94,8 @@ every distribution law.
 | T1.13 / U2.13 | `P ⊓ (Q□S) = (P⊓Q)□(P⊓S)` ^* | ✅ | `IChoiceEChoiceDist` |
 | T1.14 / U2.14 | `(?x:A→P)□(?x:B→Q) = ?x:A∪B→…` (step) | ✅ | `ExtChoiceStep` |
 | — | `(P⊓Q) ⊑FD (P□Q)` (□ refines ⊓; strict refinement, not an equation) | ✅ | `ChoiceRefine` |
+| — | `□-fsim` (FSim congruence, TWO-sided, unconditional — **no `Sep`-style side condition**, unlike `Par-fsim`) + `□Fin-fsim`/`□⋆-fsim` (replicated folds) | ✅ | `FSim/ExtChoiceCong` (see §17 table + 2026-08-03 addendum) |
+| — | `□-mono-⊑FD` **FACT-SHAPED** (`⊑FD → ⊑FD`, the true precongruence — both operands, unconditional) + fact-shaped replicated folds `□Fin-mono-⊑FD`/`□⋆-mono-⊑FD` | ✅ | `FD/ExtChoiceMonoFD` (2026-08-04; the shape-3 `FSim → ⊑FD` cash-out that held this name in `FSim/ExtChoiceCong` was RETIRED — write `fsim→⊑FD (□-fsim …)`) |
 
 `□` decomposition (`□-failures-elim`, `□-div-elim/intro`, `□-fail-nil-→/←`,
 `□-fail-intro-cons-L/R`, `□-⟹`/`▷`-bridges) in `ExtChoiceFD`. König step `□-Diverges→`
@@ -111,7 +116,7 @@ full menu (`InputDistMenu`, FD-direct over `pchoice (menuOf dom K)`).
 | T1.11 / U2.11 | input dist `?x:A→(P⊓Q)=(?x:A→P)⊓(?x:A→Q)` | ✅ | single-channel `InputDist`; **MENU** (A=event set, multi-channel) `InputDistMenu.input-dist-menu` |
 | T1.12 / U2.12 | input-Dist `?x:A→⨅S = ⨅{?x:A→Q}` | ✅ | single-channel `PrefixDistRep`; **MENU** `InputDistMenu.input-Dist-menu` |
 | T1.15 | `STOP = ?x:∅→P` (step) | ➖ | definitional (degenerate) |
-| — | `P⊑FD Q ⇒ (a→₀P) ⊑FD (a→₀Q)` (prefix FD-monotone) | ✅ | `ChoiceRefine` (`⟶₀-mono-⊑FD`) |
+| — | `P⊑FD Q ⇒ (a→₀P) ⊑FD (a→₀Q)` (prefix FD-monotone) | ✅ | `ChoiceRefine` (`⟶₀-mono-⊑FD`; see §17 table for the FSim-layer `prefix-fsim`) |
 | T11.1 | input α-conversion | ➖ | N/A (prefix is a map, not a binder) |
 
 ## §4 — Conditional `P ◁ b ▷ Q`  ✅
@@ -139,10 +144,11 @@ interleaving (cs = ∅).
 | T2.13 / U3.13 | `(P∥Q)∥R = P∥(Q∥R)` (assoc) | ✅ | `ParallelAssoc` (failures + div), via `ParallelAssocFail`/`ParallelAssocDiv` |
 | T2.10 / U3.10 | `(?x:A→P)∥(?x:B→Q) = …` (step) | ✅ | `ParallelStep` — strong bisim; `par-pVis` realises the C-merge, τ vacuous |
 | T6.16 | `SKIP ⦀ P = P` (interleaving unit) | ✅ | `ParallelUnit` — strong bisim `Par Skip P ∼ P` (dead-left runs P solo) |
-| — | `cong-⦀Fin` (finite-indexed `⦀Fin`-congruence: pairwise-disjoint alphabet-confined families, pointwise `≈DR` ⇒ folds `≈DR`) | ✅ | `DRCongruenceRep` |
-| — | `cong-⦀⋆` (list-indexed `⦀⋆`-congruence, `AllPairs`-disjoint `CongCell` list ⇒ folds `≈DR`) | ✅ | `DRCongruenceRep` |
-| — | `sep-from-OffersOnly` + `OffersOnly` confinement closure family (`-mono`/`-Ret`/`-Skip`/`-pchoice`/`-Prefix`/`-Output`/`->>=`/`-iter-bind`/`-loop0`/`-Par`/`-∖`/`-⦀`/`-⦀Fin`/`-⦀⋆-u`) — reusable alphabet-confinement invariant discharging `cong-⦀`'s `Sep` obligations from disjointness alone | ✅ | `DRCongruenceRep` |
-| — | `P₁ ⊑FD P₂ ∧ Q₁ ⊑FD Q₂ ⇒ Par A m P₁ Q₁ ⊑FD Par A m P₂ Q₂` (parallel ⊑FD-monotone, generalised `Par`; corollaries `∥-mono-⊑FD` / `⦀-mono-⊑FD`) | ✅ | `ParallelMonoFD` (`Par-mono-⊑FD` = `Par-mono-⊑F⊥` × `Par-mono-⊑D`) — classical via `FDTransfer.FD→trace⊥`; no new postulates (inherits `offer-LEM`/`Par-Diverges→`/`Diverges-LEM`, all dne-certified) |
+| — | `cong-⦀Fin` (finite-indexed `⦀Fin`-congruence: pairwise-disjoint alphabet-confined families, pointwise `≈DR` ⇒ folds `≈DR`) | ✅ | `DRCongruenceRep` (§17 table: FSim-layer `⦀Fin-fsim`, `FSim/ParCongRep`; the fact-shaped `⦀Fin-mono-⊑FD` is `FD/ParallelMonoFD`) |
+| — | `cong-⦀⋆` (list-indexed `⦀⋆`-congruence, `AllPairs`-disjoint `CongCell` list ⇒ folds `≈DR`) | ✅ | `DRCongruenceRep` (§17 table: FSim-layer `⦀⋆-fsim`, `FSim/ParCongRep`; the fact-shaped `⦀⋆-mono-⊑FD` is `FD/ParallelMonoFD`) |
+| — | `sep-from-OffersOnly` + `OffersOnly` confinement closure family (`-mono`/`-Ret`/`-Skip`/`-pchoice`/`-Prefix`/`-Output`/`->>=`/`-iter-bind`/`-loop0`/`-Par`/`-∖`/`-⦀`/`-⦀Fin`/`-⦀⋆-u`) — reusable alphabet-confinement invariant discharging `cong-⦀`'s `Sep` obligations from disjointness alone | ✅ | `DRCongruenceRep` (the two-carrier `SepPar` analogue is `FSim/ParCongRep.sep-from-OffersOnlyᶠ` — see §17's `Sep` duality note) |
+| — | `P₁ ⊑FD P₂ ∧ Q₁ ⊑FD Q₂ ⇒ Par A m P₁ Q₁ ⊑FD Par A m P₂ Q₂` (parallel ⊑FD-monotone, generalised `Par`; corollaries `∥-mono-⊑FD` / `⦀-mono-⊑FD`) | ✅ | `ParallelMonoFD` (`Par-mono-⊑FD` = `Par-mono-⊑F⊥` × `Par-mono-⊑D`) — classical via `FDTransfer.FD→trace⊥`; no new postulates (inherits `offer-LEM`/`Par-Diverges→`/`Diverges-LEM`, all dne-certified) — **leaf-level only when composing through hiding, see §17 two-regimes note** |
+| — | `P₁ ⊑F P₂ ∧ Q₁ ⊑F Q₂ ⇒ Par A m P₁ Q₁ ⊑F Par A m P₂ Q₂` (parallel **STABLE-FAILURES**-monotone; folds `∥-mono-⊑F` / `⦀-mono-⊑F` / `⦀Fin-mono-⊑F` / `⦀⋆-mono-⊑F` / `∥⁺-mono-⊑F` / `∥Fin-mono-⊑F`) | ✅ | `ParallelMonoFD` **Layer 10** (`Par-mono-⊑F`, 2026-08-05) — **UNCONDITIONAL** and, unlike `Par-mono-⊑FD`, needing **NO divergence layer at all**: `_⊑F_` (`Semantics/Failures`:42) has no `divergences` disjunct in hypothesis or conclusion, so the `⊎`-branching that forces the `⊑FD` proof through `Par-div-out-L/R/2` / `ParInter-truncL/R/2` / `div-extension-closed` / `FD→trace⊥` simply does not arise, and there is **no `Par-mono-⊑D` counterpart** — `Par-mono-⊑F` IS the headline. Reuses the divergence-free core VERBATIM (`Par-failures-elim`/`-intro`, `Par-stable-normal`, the `routeL`/`routeR` ban-set carving); only two Layer-4 twins (`op-transfer-stable-F`/`op-transfer-ret-F`) and one Layer-6 twin (`Par-mono-fail-F`) are new. Same classical provenance as `Par-mono-⊑FD` and **no more**: `offer-LEM` only (via `Par-stable`), dne-certified in `ClassicalFromLEM`; it needs neither `Par-Diverges→` nor `Diverges-LEM`. Composes with the equally unconditional `HideMonoFD.Hide-mono-⊑F` — see §17's two-regimes note, "the stable-failures regime" |
 
 **Decomposition machinery (complete, reusable):** `ParallelDivergence`
 (`Par-div-elim/intro`, `Par-Diverges-L/R`), `ParallelFailures`
@@ -168,7 +174,7 @@ inversions, `∅es`, `_∪es_`). FD laws now started:
 | T3.6 (A∩X≠∅) | `(?x:A→P)∖X = (?x:A\X→(P∖X)) ▷ ⨅{P a∖X : a∈A∩X}` (MENU, multi-channel) | ✅ `HideStepFull` `hide-step-full-FD` (FD-direct over `pchoice v`; ops `RPrefix`/`GChoice` + reusable `slide-fuse-FD`; force-eq bridge, no connecting bisim) |
 | U13.3 | hide-slide `((?x:A→P)▷Q)∖X = (?x:A\X→(P∖X)) ▷ ⨅({Q∖X}∪{P[a/x]∖X : a∈X∩A})` (MENU) | ✅ `HideSlide` `hide-slide-FD` — `((pchoice v)▷Q)∖X ≈FD RPrefix v X ▷ GChoiceS v Q X`, general `R`, **no `DecEq`, no side-condition**. Near-clone of `HideStepFull`: `force((pchoice v ▷ Q)∖X)` IS the fused node with τ-map `hide-hTau X (force of the slide)` (tag0 timeout → `Q∖X`, tag1 hidden events → `P[a]∖X`). Hop1 `(S∖X)∼fused` strong bisim (visible offers agree pointwise via `hVis-eq` — NOT definitionally, `hide-hVis` guards on `dec` before `viewV`; τ-maps identical); hop2 `slide-fuse-FD`. The slide's timeout always gives `GChoiceS ─τ→ Q∖X` ⇒ unstable witness FREE, no `mem₀` side-condition (unlike T3.6 full). No postulates |
 | T3.7 / T3.8 | hide–parallel dist `(P∥Q)∖Z = (P∖Z)∥(Q∖Z)` (Z∩cs=∅) | 🚧 IN PROGRESS (FD-direct, not a bisim) — foundation `HideFD` failures **+** divergence decomposition ✅ (`Hide-failures-elim/intro`, `Hide-div-elim/intro`); TODO: `Hide-Diverges→` König (certify from dne) + combine with `ParallelFailures`/`ParallelDivergence` |
-| — | `P ⊑FD Q ⇒ (P∖A) ⊑FD (Q∖A)` (hide ⊑FD-monotone) | ⚠️ **CONDITIONAL** `HideMonoFD` — the UNCONDITIONAL law is **FALSE** in this model. Delivered: (i) `Hide-mono-fail` — the UNCONDITIONAL stable-failure transfer `P ⊑F⊥ Q ⇒ failures (Q∖A) s X ⇒ failures⊥ (P∖A) s X`; (ii) `Hide-mono-⊑FD-df` — the full law `(P∖A) ⊑FD (Q∖A)` **under a divergence-freedom side condition** `∀ s → ¬ divergences (Q∖A) s`. WHY unconditional fails: hiding can *create* divergence (an infinite hidden-event τ-path), which `⊑FD` does not constrain; under unbounded nondeterminism `P ⊑FD Q` does not give `(P∖A) ⊑D (Q∖A)` — counterexample (`Q = μX.h→X`, `P = ⊓ₙ hⁿ;STOP`) in the `HideMonoFD` header (Roscoe's known N-model hiding unsoundness). `modA-transfer` needs `≈DR` not `⊑FD`; no dne-certified postulate can rescue a false ∀-`E` statement. **ZERO postulates** (built on `HideFD`/`TraceLawsHide` only). For trace-only refinement `Hide-mono-⊑ᵀ` stays unconditional. **(2026-07-31 additions, see §15.)** (a) At the SIMULATION level the congruence IS unconditional: `CSP/Laws/FSim/HideCong.agda`'s `Hide-fsim : FSim R P₁ P₂ → FSim R (P₁ ∖ A) (P₂ ∖ A)` has NO side condition. That is consistent, because `FSim` is strictly STRONGER than `⊑FD`: `CSP/Laws/FSim/HideCounterexample.agda`'s `¬fsim-Pinf-Qh : ¬ (FSim Rt Qh Pinf)` proves the very counterexample pair is not an `FSim`, so it can never be fed to `Hide-fsim`. The trade is real — you must supply a simulation WITNESS, not a `⊑FD` fact, and completeness (`⊑FD → FSim`) does **not** hold in general. (b) **`Hide-mono-⊑FD-finBr` is FALSE too** — `CSP/Laws/FD/HideMonoFinBrFail.agda` constructs `finBr-Pinf : FinBr Pinf` for the very `P = ⊓ₙ(hⁿ;STOP)` of the counterexample, so a `FinBr` hypothesis on the refining side excludes NOTHING. Reason: `FinBr` bounds only the VISIBLE channel support (`chan-supp`, here `[]` — `Pinf` offers `∅v`) and never τ-fan-out, which it records merely as a `Dec (isStable ·)`; the counterexample's unbounded branching is entirely on τ. **Generalise the lesson: `FinBr` cannot rescue any law whose obstruction is König.** (c) Still UNFORMALISED, stated plainly: that the counterexample pair genuinely satisfies `Pinf ⊑FD Qh` *denotationally* remains prose in `HideMonoFD`'s header — nothing in the repo proves it. Neither negative result needs it (refuting `Hide-fsim` would require exhibiting an `FSim`; refuting the `FinBr` repair only requires the certificate), but the denotational half of the classic counterexample is a genuine gap. |
+| — | `P ⊑FD Q ⇒ (P∖A) ⊑FD (Q∖A)` (hide ⊑FD-monotone) | ⚠️ **CONDITIONAL** `HideMonoFD` — the UNCONDITIONAL law is **FALSE** in this model.<br><br>Delivered: (i) `Hide-mono-fail` — the UNCONDITIONAL stable-failure transfer `P ⊑F⊥ Q ⇒ failures (Q∖A) s X ⇒ failures⊥ (P∖A) s X`; (ii) `Hide-mono-⊑FD-df` — the full law `(P∖A) ⊑FD (Q∖A)` **under a divergence-freedom side condition** `∀ {s} → ¬ divergences (Q∖A) s`, i.e. on the **REFINED / RIGHT (implementation) operand's hide `Q∖A`**, NOT on the spec's (`HideMonoFD.agda:243`, :268-270); (iii) **`Hide-mono-⊑F` — the STABLE-FAILURES analogue, UNCONDITIONALLY** (`HideMonoFD.agda:255`, 4 lines, added 2026-08-04): `P ⊑F Q ⇒ (P∖A) ⊑F (Q∖A)`, no side condition of any kind. It is the `inj₁` branch of `Hide-mono-fail` verbatim: `_⊑F_` (`Semantics/Failures`:42) is a plain failures-to-failures map with **no `divergences` disjunct in either its hypothesis or its conclusion**, so the `inj₂ dP` branch — and everything it drags in (`HideTr-split`, `div-extension-closed`, `Hide-div-intro`, `hide-Diverges-lift`) — has no counterpart. This is the ONE hiding law that is both FD-flavoured (refusals, not just traces) and unconditional; the parallel half that composes with it is `ParallelMonoFD.Par-mono-⊑F` (Layer 10).<br><br>WHY unconditional fails: hiding can *create* divergence (an infinite hidden-event τ-path), which `⊑FD` does not constrain; under unbounded nondeterminism `P ⊑FD Q` does not give `(P∖A) ⊑D (Q∖A)` — counterexample (`Q = μX.h→X`, `P = ⊓ₙ hⁿ;STOP`) in the `HideMonoFD` header (Roscoe's known N-model hiding unsoundness). `modA-transfer` needs `≈DR` not `⊑FD`; no dne-certified postulate can rescue a false ∀-`E` statement.<br><br>**ZERO postulates** (built on `HideFD`/`TraceLawsHide` only). For trace-only refinement `Hide-mono-⊑ᵀ` stays unconditional.<br><br>**(2026-07-31 additions, see §15.)** (a) At the SIMULATION level the congruence IS unconditional: `CSP/Laws/FSim/HideCong.agda`'s `Hide-fsim : FSim R P₁ P₂ → FSim R (P₁ ∖ A) (P₂ ∖ A)` has NO side condition. That is consistent, because `FSim` is strictly STRONGER than `⊑FD`: `CSP/Laws/FSim/HideCounterexample.agda`'s `¬fsim-Pinf-Qh : ¬ (FSim Rt Qh Pinf)` proves the very counterexample pair is not an `FSim`, so it can never be fed to `Hide-fsim`. The trade is real — you must supply a simulation WITNESS, not a `⊑FD` fact, and completeness (`⊑FD → FSim`) does **not** hold in general.<br><br>(b) **`Hide-mono-⊑FD-finBr` is FALSE too** — `CSP/Laws/FD/HideMonoFinBrFail.agda` constructs `finBr-Pinf : FinBr Pinf` for the very `P = ⊓ₙ(hⁿ;STOP)` of the counterexample, so a `FinBr` hypothesis on the refining side excludes NOTHING. Reason: `FinBr` bounds only the VISIBLE channel support (`chan-supp`, here `[]` — `Pinf` offers `∅v`) and never τ-fan-out, which it records merely as a `Dec (isStable ·)`; the counterexample's unbounded branching is entirely on τ. **Generalise the lesson: `FinBr` cannot rescue any law whose obstruction is König.**<br><br>(c) Still UNFORMALISED, stated plainly: that the counterexample pair genuinely satisfies `Pinf ⊑FD Qh` *denotationally* remains prose in `HideMonoFD`'s header — nothing in the repo proves it. Neither negative result needs it (refuting `Hide-fsim` would require exhibiting an `FSim`; refuting the `FinBr` repair only requires the certificate), but the denotational half of the classic counterexample is a genuine gap.<br><br>**See §17 for the consolidated cross-relation table and the "why hiding is the crux" finding** (unconditional `Hide-mono-⊑FD` is FALSE, so carrying an FD-strength refinement through hiding needs a WITNESS — `Hide-fsim`/`fsim→⊑FD` one-way, or `cong-∖`/`hide-cong-FD` two-way — not a bare `⊑FD` fact).<br><br>**On the weaker orders, stated so this cell no longer contradicts itself:** `⊑T` *does* compose through hiding unconditionally (`Hide-mono-⊑ᵀ`). `⊑F⊥` does **not** — `Hide-mono-fail`, described at the top of this cell, has `failures` as its INPUT and `failures⊥` as its output, so it is the stable-failure transfer and **not** `(P∖A) ⊑F⊥ (Q∖A)`; unconditional `⊑F⊥` monotonicity through hiding fails by the same divergence-chaos mechanism that kills `⊑FD`, since what breaks is `failures⊥`'s `divergences` disjunct, which both orders contain. Full argument and line references in §17. |
 
 ## §7 — Renaming `⟦R⟧`  🟡 (FD layer begun)
 
@@ -211,6 +217,12 @@ Not started (UCS treats piping as derived from parallel+rename+hide; no spike op
 
 König step `>>-Diverges→` (postulate, certified) in `SeqDistR`.
 
+`⊑FD` MONOTONICITY of `;` is `>>-mono-⊑FD` (`FD/BindMonoFD`, 2026-08-04): FACT-SHAPED
+(`⊑FD → ⊑FD`), two-sided, unconditional, inheriting only `>>-Diverges→` (via `>>-split`)
+and `Diverges-LEM` (via `FDTransfer`). The replicated fold `⨾⋆`/`⨾Fin` follows by
+induction (`⨾⋆-mono-⊑FD` / `⨾Fin-mono-⊑FD`, same module — EMPTY-based, `⊑FD-refl Skip`
+at the base). See §17.
+
 ## §10 — Interrupt `△` / Throw `⟦A▷`  ✅
 
 | Group | Law | Status | Module |
@@ -220,9 +232,13 @@ König step `>>-Diverges→` (postulate, certified) in `SeqDistR`.
 | Fig 13.6 | interrupt: `△-Pret-⊓`, `△-div-row`, `△-⊓L/R-dist`, `△-step` | ✅ | `InterruptFD` |
 | U7.6 | throw step `(?x:A→P)⟦B▷Q = ?x:A→(P⟦B▷Q ◁ x∉B ▷ Q)` | ✅ | `ThrowFD`: single-channel `Θ-prefix-step`; **MENU** (A=event set) `Θ-step-menu-FD` |
 | — | throw: `Θ-Pret`, `Θ-div`, `Θ-⊓L/R-dist` | ✅ | `ThrowFD` |
+| — | `Θ-fsim` (FSim congruence, **TWO-SIDED, UNCONDITIONAL**, no `Sep`-style side condition, no divergence-freedom hypothesis, `--safe`-clean) | ✅ | `FSim/ThrowCong` (see §17 table + 2026-08-04 addendum) |
+| — | `Θ-mono-⊑FD` **FACT-SHAPED** (`⊑FD → ⊑FD`, the true precongruence — body AND handler, unconditional).  Rests on the new run decomposition `Θ-reach-split` (`θNo`/`θFire`/`θDone`) over `A`-free traces; 0 local postulates, inherits only `FD→trace⊥`'s `Diverges-LEM`/`¬-divergent→normal` (fire arm only), NOT a König step | ✅ | `FD/ThrowMonoFD` (2026-08-04; the shape-3 cash-out that held this name in `FSim/ThrowCong` was RETIRED — write `fsim→⊑FD (Θ-fsim …)`) |
 
 König step `△-Diverges→` (postulate, certified) in `InterruptDivergence`. Throw is
-postulate-free.
+postulate-free, and its own divergence bridge `Θ-Diverges→` (`FSim/ThrowCong`'s `div→`
+field) is **structural** — no König step, no postulate at all (see the 2026-08-04 §17
+addendum for why).
 
 ## §11 — Sliding choice `▷` (UCS Ch.13)  🟡
 
@@ -246,6 +262,8 @@ postulate-free.
 | U13.26 ^* | ▷-failures-char `P▷Q = (P□Q)⊓Q` | ✅ | `SlideFailuresChar.▷-failures-char-FD` — **general `P`/`Q`, side-condition `NonRet (force P)`** (eager-`ret` breaks it unconditionally), `DecEq R`. The model-characterising law (`*` = FD-model-specific). **FD-direct**, NOT a DR-bisim (the `P□Q` intermediate offers `init P∪init Q` which `P▷Q` never offers stably). EASY side (`RHS⊑·LHS`): `▷-failures-elim`/`▷-reach-div` (P▷Q never stable ⇒ `▷-unstable` kills the empty-trace base, no bare-P-refusal case). HARD side (`LHS⊑·RHS`): worker `□→▷-fail` recurses on `(Pc□Qc)⟹⟨s⟩W` carrying `P▷Q─τ*→Pc▷Q` and `Q─τ*→Qc` — P-events replay via `▷-ev-L`, Q-events/τ's + the joint stable refusal route through the root timeout (`route-Q`, via new Q-side mirror `□-refl-fail-R`); Qc-terminated slide residual handled by `▷→▷-fail`. No new postulates |
 | U13.18 | ▷-id `P▷P = P` | ✅ | `SlideId.▷-id-FD` — **general `P`, general `R`, NO side-condition, no `DecEq`**. **FD-direct** (NOT a bisim — intermediate `t▷P ≉ t`). `ret`-`P` case: identical `force` ⇒ `sbisim-force-eq`. Live-`P` case: both operands are `P`, so the eliminators `▷-reach-div P P` (⊑D) and a local DecEq-free `▷-fail-elim P P` (⊑F⊥) collapse to the `P`-side; the intro directions just prepend the single timeout τ (`P▷P ─[τ]─► P`, via `▷-timeout`) with `div-τ-prepend`/`fail-τ-prepend`. No new postulates |
 | U13.15 | □-slide `(P▷P′)□Q = P▷(P′□Q)` | ✅ | `ExtChoiceSlide.□-slide-FD` — single-channel prefix h.n.f. `((e⟶P)▷P′)□Q ≈FD (e⟶P)▷(P′□Q)`, **general `R`, NO side-condition**. **FD-direct, NOT a DR-bisim**: LHS can advance `Q` by an internal τ while *keeping the choice + timeout open*, but RHS can only progress `Q` *after* firing the timeout (committing, losing the prefix offer) — so that LHS τ has no DR-match; ≈FD abstracts the gap. The prefix gives ▷ a non-terminating left operand (no eager-`ret`); the slide-on `P′▷Q` *can* eager-`ret` but both sides expose the *same √-value set*, so FD survives. Structure mirrors `InterruptFD.△-slide-dist` (⊑D/⊒D/⊑F⊥/⊒F⊥), key asymmetry: prefix continuation `P` is **unchanged** on the RHS (a visible event resolves the choice, discards Q). ⊒F⊥ worker `□-slide-fail-elim` recurses on the LHS big-step carrying `Q ─τ*→ Qc`; reuses `▷-failures-elim`/`▷-reach-div`/`□-failures⊥-elim`/`□-div-elim`/`□→▷-term`/`slide-term-fail` + new R-mirror bridges. No new postulates |
+| — | `▷-fsim-R` (FSim congruence, **ONE-SIDED ONLY**: left operand `P` SHARED, right operand varies — `FSim R Q₁ Q₂ → FSim R (P▷Q₁) (P▷Q₂)`) + `▷-mono-R-⊑FD-fsim`, unconditional given that one-sided shape | ⚠️ one-sided | `FSim/SlideCong` (see §17 table + 2026-08-03 addendum) |
+| — | the TWO-sided `▷`-congruence (`FSim R P₁ P₂ → FSim R Q₁ Q₂ → FSim R (P₁▷Q₁) (P₂▷Q₂)`, both operands varying) is **PROVED FALSE** — `--safe`-clean, 0 postulates transitively | ✖ | `FSim/SlideCounterexample.¬▷-fsim` (see the 2026-08-03 addendum below §17 for the witnesses and mechanism; a proved negative result, not an unattempted gap — joins §6's `Hide-mono-⊑FD`/`Hide-mono-⊑FD-finBr` FALSE results as a further, independent point where a naive two-sided congruence fails; no uniqueness claim made about any one operator) |
 
 **SPIKE NOTE (§11):** the spike's `▷` has a *different termination semantics* from CSP's sliding choice — it resolves a terminated (`ret`) operand eagerly (P wins, the timeout/Q is dropped), whereas CSP's `▷` makes termination-vs-timeout an internal choice (`SKIP▷Q=SKIP⊓Q`).  So the CSP laws that depend on `▷`'s `ret`-handling FAIL *unconditionally* here (U13.14 SKIP-slide; U13.12 ▷-assoc when Q may terminate).  ▷-assoc is nevertheless recovered in the `NonRet Q` regime (where the eager-`ret` obstruction is absent) — see `SlideAssoc`.  The laws independent of `▷`'s `ret`-handling (the divergence-strict ones above) transfer unconditionally.
 
@@ -273,7 +291,8 @@ characterisation → **C** iterate refinement-monotonicity → **D** VM rewire.
 |---|---|---|
 | Bind FD characterisation: force (ret/sil/react) + continuation lemmas, `lift-bind-bigstep`, `BindSplit`/`bind-bigstep-inv`, bind divergence + failures⊥ elim/intro (**sub-project A**) | ✅ | `CSP.Laws.FD.BindFD` |
 | Iterate FD characterisation: iter-bind force/cont, `lift-iter-bigstep`, `IterSplit`/`iter-bind-inv`, `LoopSplit`/`loop-trace`/`-intro`, `loop0-failures⊥-elim`/`-intro`, loop0 divergence + silent-spin (**sub-project B**) | ✅ | `CSP.Laws.FD.IterateFD` |
-| Iterate refinement-monotonicity `loop0-mono-⊑FD` — **sub-project C** | ✅ | `CSP.Laws.FD.IterateMonoFD` |
+| Iterate refinement-monotonicity `loop0-mono-⊑FD` — **sub-project C** | ✅ | `CSP.Laws.FD.IterateMonoFD` (FD-direct, FACT-SHAPED, and the only `loop0` monotonicity law — the FSim-routed `loop0-mono-⊑FD-fsim` wrapper was retired 2026-08-04.  The rest of the family is now fact-shaped too, in `CSP.Laws.FD.IterMonoFD` (`iter`/`loop`/`while`/`loopc`, 2026-08-04), which generalises THIS proof to a state-indexed step; `loopc-mono-⊑FD` IS this law, `loopc` and `loop0` being the same definition) |
+| Bind refinement-monotonicity `>>=-mono-⊑FD` / `bindNoτ` / `bindκ` / `>>-mono-⊑FD` + the sequential folds `⨾⋆`/`⨾Fin` (2026-08-04) | ✅ | `CSP.Laws.FD.BindMonoFD` (FD-direct, FACT-SHAPED; the FSim-routed `Bind-`/`bindNoτ-`/`bindκ-`/`>>-mono-⊑FD` wrappers in `FD/LoopMonoFD` were RETIRED (that module is now deleted outright).  Built on **A**'s elim/intro suite plus a `bind-div-elim⁺` variant that RETAINS the `force Pᵣ ≡ ret r` handover witness `bind-div-elim` discards — re-introducing a handover divergence needs exactly that equation, which is why `bind-div-elim` alone is not enough here) |
 | VM loop-level FD rewire: `VM_spec⊑FD-VM_impl` (§5.3b, via `loop0-mono-⊑FD`) + `loop-lesson-✗` strictness (§5.3c, via `loop0-failures⊥-elim`/`-intro` + the refusal-transport helpers) — **sub-project D** | ✅ | `CSP.Examples.VendingMachine.VendingMachine` |
 
 Note (sub-project A): `bind-div-elim` keeps the in-`P` divergence witness inside
@@ -340,6 +359,8 @@ The three fields (`Semantics/FailureSim.agda`):
 | `Hide-fsim` (`∖`) | ✅ `CSP/Laws/FSim/HideCong.agda` |
 | `Iter-bind-fsim` + corollaries `iter-fsim`, `loop-fsim`, `loop0-fsim`, `loopc-fsim`, `while-fsim` | ✅ `CSP/Laws/FSim/LoopCong.agda` |
 | `¬fsim-Pinf-Qh : ¬ (FSim Rt Qh Pinf)` — the FD hiding counterexample pair is provably **not** an `FSim`, so it cannot refute the unconditional `Hide-fsim` | ✅ `CSP/Laws/FSim/HideCounterexample.agda` — postulate-free |
+| `fsim-sil-factor` (a `sil`-headed spec's simulation factors through its unique τ-successor — the converse of `fsim-τ*-prepend`) + generic inversions `sil-no-ev`, `sil-τ*-split`, `sil-div-factor` (2026-08-04, added for the αpar congruence's `αdrain`; see §17 addendum) | ✅ `Semantics/FailureSim.agda` — postulate-free |
+| `Θ-fsim` (throw, `⟦A▷`) + `Θ-mono-⊑FD` — **two-sided, unconditional, `agda --safe`-clean** (2026-08-04; see §17 addendum for the mechanism and the sweep) | ✅ `CSP/Laws/FSim/ThrowCong.agda` — 0 local postulates |
 | worked smoke test: `copy⊑FD-buff1 : COPY ⊑FD BUFFN1` via `FSimFromRel`, reusing `Buffers`' `BRel` / `fwdE` / `fwdT` / `ndivL` verbatim and adding one stability obligation; `orientation-check` pins the direction against `proj₂ copy-is-buff1` | ✅ `CSP/Examples/UCS/Ch6/BuffersFSim.agda` — postulate-free |
 
 **Side conditions — the interesting part, reported honestly:**
@@ -361,8 +382,21 @@ The three fields (`Semantics/FailureSim.agda`):
   discharges the iterate König hypothesis for EVERY continuation and every state type).
   See §6 for why unconditional `Hide-fsim` does not contradict the FALSITY of
   unconditional `Hide-mono-⊑FD`.
+- **`□-fsim` (2026-08-03 addendum below) needs NO `Sep`-style side condition at all** —
+  unlike `Par-fsim`, which needs half of one. `□` never synchronises, so an offer
+  overlap is legal and simply resolves into a real `⊓` (the `evPQ` case), whose
+  branches are the ordinary `⊓-stepL`/`⊓-stepR`, not a premise the caller must supply.
+  `▷-fsim-R`, by contrast, IS one-sided — not by a side condition but because the
+  two-sided form is outright false (`FSim/SlideCounterexample`).
+- **`Θ-fsim` (throw, `⟦A▷`, 2026-08-04 addendum) needs NO side condition of any kind** —
+  not even the `Sep`-freedom `□-fsim` already didn't need one of — and, uniquely among
+  the operand-deconstructing congruences, its `div→` field is fully STRUCTURAL rather
+  than resting on a postulated `Diverges→` inversion, which is what lets the whole
+  module pass `agda --safe`. See the §17 addendum for the mechanism and a full
+  `--safe`-sweep table across the FSim congruence suite (2 of 7 top-level operator
+  congruences clean: `IChoiceCong` and `ThrowCong`).
 - **Across the whole suite, `fwd` and `stab` are classical-ingredient-free; the only
-  classical dependency is ever `div→`.**
+  classical dependency is ever `div→`** (and even that is empty for `Θ-fsim`).
 
 **Generic-layer housekeeping landed with this work:** `FinBr` was hoisted OUT of the
 priority layer into `Semantics/FinBr.agda`, where it belongs — it mentions only
@@ -410,7 +444,8 @@ payoff* below, which also says exactly where it would.
 | `Semantics/DivergenceFree.agda` — generic in `E`/`I`, **postulate-free**, `--safe`-clean | ONE home for the three strengths of "does not diverge" (`τ-Acc` ⇒ `¬ Diverges` ⇒ the reachability-closed `DivergenceFree`). **Moved in:** `τ-Acc` / `acc` / `accSub` / `τ-Acc→¬Div` (from `Semantics/TauAcc.agda`) and `DivergenceFree` (from `Semantics/DeadlockDR.agda`, the √-free-reachability definition **unchanged**). **Re-exported, NOT moved:** `stable→¬div` (+ `stable-no-τ`, `stable→τ*-refl`) — owner stays `Semantics/Stability.agda`, which is postulate-free by design — and `deadlock-converges` (+ `div-diverges`, `deadlock-no-τ`) — owner stays `Semantics/DRBisim.agda`, next to the pathology they refute. **New leaf certificates:** `stable→τ-Acc`, `ret→τ-Acc` (+ `ret→no-τ`), `sil→τ-Acc`, `τ-step-transport`, `τ-AccReach` and its bridge `τ-AccReach→DivergenceFree` (+ `divergenceFree→¬Div`) |
 | `CSP/Laws/DivFree/Closure.agda` — **postulate-free**, typechecks green | **19** structural `τ-Acc` closures — leaves `Stop`, `deadlock`, `Ret`/`Skip`, `Tau`; prefixes `pchoice`, `⟶`, `⟶₀`, `Output` (`e ! v ⟶ P`); `⊓` and `⨅Fin`; `▷`; `□`; `Par` with `∥⇘⇙` / `⦀` / `⦀Fin`; `>>=` and `>>`. **10** of the 19 carry a `*-no-Diverges` corollary (`Stop`, `Skip`, `pchoice`, `prefix`, `⊓`, `▷`, `□`, `Par`, `>>=`, `>>`) — the shapes `DRFromRel`/`FSimFromRel` actually consume; the other nine are `τ-Acc`-only. Bind needed a τ-inversion the trace laws did not have (`BindτR` / `bind-τ-elim`, derived in the module). Also folds away the two remaining `prefix-no-Diverges` duplicates (`InterruptFD`, `ExtChoiceSlide`) |
 | `Semantics/Stability.agda` (extended) | now single-sources the **five** generic `isStable` lemmas: `mk-stable` (intro from an everywhere-`nothing` τ-map), `stable→react` (Σ-form elim), `isStable-force-eq` (forward transport along an equal force), `stable-force-eq` (the same, backward), `react-no-τ→stable` (intro from the LTS side). `mk-stable` alone had **four** identical copies (`ThrowFD`, `InterruptFD`, `ParallelRefusals`, `ExtChoiceFD`) |
-| `CSP/Laws/Stability/Closure.agda` — postulate-free, typechecks green, **not `--safe`** | one import for "is this state τ-free?". §1–§8 **re-export** the per-operator lemmas that already existed (nothing re-proved): generic core, leaves (`Stop`, `deadlock`, `deadlock ∖ Z`), the prefix/`pchoice`/menu family, the NEVER-stable operators (`⊓`, `▷`, the `ret`-shaped `□`s), `□`, the parallel group (intro, `ParNormal` elim, `StableClass` classifier, reassociation), hide, and bind/seq/iterate. §9 adds the four gap lemmas below |
+| `CSP/Laws/Stability/Closure.agda` — postulate-free, typechecks green, **not `--safe`** | one import for "is this state τ-free?". §1–§8 **re-export** the per-operator lemmas that already existed (nothing re-proved): generic core, leaves (`Stop`, `deadlock`, `deadlock ∖ Z`), the prefix/`pchoice`/menu family, the NEVER-stable operators (`⊓`, `▷`, the `ret`-shaped `□`s), `□`, the parallel group (intro, `ParNormal` elim, `StableClass` classifier, reassociation), hide, and bind/seq/iterate. §9 adds the four gap lemmas below (three of which now live in `Stability/ExtChoice.agda` and are re-exported from here) |
+| `CSP/Laws/Stability/ExtChoice.agda` — postulate-free, typechecks green, **not `--safe`** | the `□` half of §9, split out of the survey so it can be imported CHEAPLY: `□-force-nn`, `stable-□`, `□-stable-elim`, moved **verbatim** (nothing re-proved, nothing duplicated — `Closure.agda` re-exports them `public`, so its existing clients are unchanged). Its closure has **one** postulate-bearing module (`ExtChoiceDivergence`, via `ExtChoiceFD`'s `□-Lret-unstable`/`□-Rret-unstable`) against the survey's **ten**. Measured effect on the only client, `CSP/Laws/FSim/ExtChoiceCong.agda`: 67 → 27 modules in closure, 10 → 1 postulate-bearing, and the surviving one holds exactly the two postulates that module actually uses |
 
 ### Design findings — the durable part
 
@@ -435,8 +470,10 @@ payoff* below, which also says exactly where it would.
    module. Intended shape for a later commit, recorded in its header:
    `Guarded B → τ-Acc B → τ-Acc (loop0 B)`, with `Guarded` ruling out a `ret` reachable
    by τ's alone.
-4. **The four gap lemmas** (§9 of `CSP/Laws/Stability/Closure.agda`) — what the survey
-   showed was genuinely missing rather than merely scattered:
+4. **The four gap lemmas** (§9 of `CSP/Laws/Stability/Closure.agda`; the three `□` ones
+   were later moved verbatim to `CSP/Laws/Stability/ExtChoice.agda` and are re-exported
+   from the survey) — what the survey showed was genuinely missing rather than merely
+   scattered:
 
    | Lemma | Statement | Why it was a gap |
    |---|---|---|
@@ -515,7 +552,7 @@ no sized types.
 
 ### (a) FD-layer postulates — all certified from the single `dne`
 
-**Eleven** postulated names, spread over **ten** modules. Each is kept small and direct, and
+**Twelve** postulated names, spread over **eleven** modules. Each is kept small and direct, and
 **each is certified derivable from a single classical axiom `dne` (¬¬A→A)** in
 `CSP/Laws/ClassicalFromLEM.agda` (a standalone soundness witness, imported by nothing; `dne`
 itself lives in `src/Classical.agda` and is the development's only axiom):
@@ -533,6 +570,7 @@ itself lives in `src/Classical.agda` and is the development's only axiom):
 | `modA-transfer` | `CSP/Laws/Bisim/DRCongruence` | ✅ Derivation 8 (certifier name `modA-transfer-cert`) |
 | `¬DivModA→MAcc` | `CSP/Laws/FD/HideDivergence` | ✅ Derivation 9 (headed `Hide-Diverges→` in the certifier; the certified statement is `¬DivModAC→MAccC`, over the certifier's local copies `DivModAC`/`ModAStepC` of DRCongruence's `DivModA`/`ModAStep`) |
 | `Diverges-LEM` | `CSP/Laws/FD/FDTransfer` | ✅ Derivation 10 (plain LEM; certifier name `Diverges-LEM-cert`) |
+| `αpar-Diverges→` | `CSP/Laws/FD/AlphaParallelDivergence` | ✅ Derivation 11 (certifier name `αpar-no-inf` — a `τ-Acc`/`DAcc` well-founded recursion, strictly simpler than Derivation 2/5's since `αpar` has no both-offer overlap node) |
 
 Caveats on the numbering, so the table can be checked against the file: `ClassicalFromLEM.agda`
 lists "Postulate 1 … Postulate 10" in its header but carries banners only for Derivations
@@ -594,6 +632,72 @@ and `dne`-free (that is the point of stating the calculus on the inductive `τ-A
 §16, finding 1), and `CSP/Laws/Stability/Closure.agda` adds no postulate of its own. The
 one `--safe` caveat is inherited, not new: `Stability/Closure` gathers from modules above
 `Semantics/DRImpliesFD`, so it sits under row 1 of table (a), `¬-divergent→normal`.
+
+### (e) Additions from the `αpar` `FSim` congruence, 2026-08-04
+
+The `αpar` congruence work (§17 addendum above) declares exactly **one** NEW postulate,
+`αpar-Diverges→` (table (a), Derivation 11), and it is the only classical input the new
+modules consume: `Semantics/FailureSim.agda`'s `fsim-sil-factor` (+ its three
+inversions), `CSP/Laws/AlphaParallelLift.agda` (925 lines) and
+`CSP/Laws/FSim/AlphaParCounterexample.agda` (291 lines) are all postulate-free;
+`CSP/Laws/FSim/AlphaParCong.agda` inherits `αpar-Diverges→` through exactly one field,
+`div→` (`AlphaParCong.agda:414-416`) — `fwd` and `stab` are fully constructive.
+
+### (f) Additions from the throw (`⟦A▷`) `FSim` congruence, 2026-08-04
+
+The throw congruence work (§17 addendum above) declares **no new postulate** — it is
+the first FSim-congruence addition in this campaign that adds a row to the postulate
+inventory only to say "none". `CSP/Laws/FSim/ThrowCong.agda` (298 lines) is
+postulate-free end to end (`agda --safe` exits 0 on it directly), and so is its hoisted
+support, the new "Part 4" of `CSP/Laws/Traces/TraceLawsThrowInterrupt.agda`
+(`Θ-τ-lift-P`/`Θ-Diverges-L`/`Θ-div-step`/`Θ-Diverges→`/`Θ-throw-step`/`Θ-pass-step`,
+hoisted verbatim from `CSP/Laws/FD/ThrowFD.agda`, which itself keeps re-exporting all
+six `public` so its own consumers are unaffected). In particular `Θ-Diverges→` — the
+one field (`div→`) where every other operand-deconstructing congruence in this
+inventory (§17's `□`/`▷`/`Par`/αpar rows, table (a)'s Derivations 2/5/11) pays a
+postulated König step — is STRUCTURAL here, for the reason given in the addendum: the
+composite's τ-space is literally the body's τ-space, so the divergence bridge is a
+two-line projection, not a search.
+
+### (g) Additions from the replicated folds and derived operators, 2026-08-04
+
+**None.** The seven laws of the §17 "cheap fact-shaped remainder" addendum
+(`⨅⁺`/`⨅Fin`/`∥⁺`/`∥Fin`/`＆`/`◁▷`/`Output` `-mono-⊑FD`) declare no postulate and add no
+inherited one. The four replicated folds are inductions over binary laws already listed
+here, so they inherit exactly those rows (`⊓-mono-⊑FD`: none; `∥-mono-⊑FD`:
+`Par-mono-⊑FD`'s three). The new module `CSP/Laws/FD/DerivedMonoFD.agda` is
+`--safe`-clean end to end — its whole import closure is `Process_Trees` +
+`CSP/Operators` + seven `Semantics/*` modules (as of the 2026-08-04 hoist recorded in (h);
+before it, six plus `CSP/Laws/FD/BindFD`, itself postulate-free). Two deliberate choices
+keep it that way: `stable-no-τ` is taken from
+`Semantics/Stability` rather than from `Semantics/DRImpliesFD` (which re-exports it but
+carries `¬-divergent→normal`), and the `Bool` splits cross the missing coinductive η via
+the constructive `force-≡→⊑FD` rather than via
+`∼ → ≈DR → ≈FD` (which would inject `¬-divergent→normal` through `drbisim→≈FD`, exactly
+as table (a) records for every other bridge user).
+
+### (h) Additions from the bind/sequential fact-shaped precongruence, 2026-08-04
+
+**None.** `CSP/Laws/FD/BindMonoFD.agda` declares no postulate. Inherited, per lemma:
+
+* `>>=-mono-⊑FD` / `bindNoτ-mono-⊑FD` / `bindκ-mono-⊑FD` ← **`Diverges-LEM`**
+  (`FD/FDTransfer`, table (a)) and nothing else. It is used exactly once, in
+  `term-transfer`: `⊑FD` can observe TERMINATION only through the `√` tick (a `ret` state
+  is not stable, so it is no failure of its own), and settling the spec's `√`-extended
+  empty-ban failure at a τ-normal form is the classical step. The BIND KÖNIG STEP is NOT
+  inherited: for the general bind it is the caller's explicit `BindDivSplit k₂`, and for
+  the two restricted forms it is discharged constructively (`bind-noτ-split`,
+  `pure→NoTauRoot`).
+* `>>-mono-⊑FD` and the folds `⨾⋆`/`⨾Fin` ← `Diverges-LEM` **plus `>>-Diverges→`**
+  (`FD/SeqDistR`, table (a)) through `>>-split` — precisely the inheritance the FSim
+  analogue `>>-fsim` already had. The two folds add nothing of their own.
+
+Also in this campaign: `force-≡→⊑FD` was hoisted from `FD/DerivedMonoFD` into
+`Semantics/FailuresDivergences`. It stays postulate-free — the new home's closure is
+`Semantics/{LTS,Failures,Refusals,WeakBisim,DRBisim,Stability}` only, in particular NOT
+`Semantics/DRImpliesFD` — so `agda --safe CSP/Laws/FD/DerivedMonoFD.agda` still exits 0
+and subsection (g)'s `--safe` claim still holds (with `CSP/Laws/FD/BindFD` dropped from
+that closure and `Semantics/FailuresDivergences`'s two new imports added to it).
 
 ---
 
@@ -1079,6 +1183,892 @@ had a bare `OffersOnly-Ret`, and eight had an extra `OffersOnly-Prefix₀` layer
 single node does not have. The fix unblocks **6 of the module's 23 importers**; the other
 17 have their own independent errors and remain red.
 
+### Four-node diamond block-liveness — CSP failures-divergences refinement statement (`FourNode/FourNodeDiamondLivenessCSP.lagda.md`, 2026-08-05)
+
+`CSP/Examples/Cardano_network/FourNode/FourNodeDiamondLivenessCSP` states, as a
+CSP refinement, the block-liveness property of the broken four-node diamond
+`systemBroken` (`FourNode/FourNodeDiamondBroken.lagda.md`):
+
+```
+LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (systemBrokenOf b ∖ hidden b)
+```
+
+**Status: stated — deliberately NOT proved and NOT postulated.**
+`LivenessSpec` is a `Set`, exactly like `BlockLiveness`/`BlockLiveness⁺` in the
+sibling LTL module (`FourNode/FourNodeDiamondLiveness.lagda.md`) — no term of
+this type is constructed anywhere, and there is no postulate standing in for
+one. It is the CSP-refinement counterpart to the trace-LTL `BlockLiveness⁺`:
+both express "if at least one A→B→D/A→C→D path stays whole, NodeD receives
+NodeA's block", but `BlockLiveness⁺` uses **global** confinement (one path
+group never breaks, checked via an implication over the whole run) whereas
+`LivenessSpec` tracks path-wholeness **per state** by observing `break`
+events directly, so it needs no implication primitive and is strictly weaker
+as a hypothesis.
+
+The obligation the Spec actually imposes is **per path and conjunctive**: *if A
+produced `b` on path X's entry link **and** path X is whole, then D's receive of
+`b` on X's exit link is not refused.* The produce conjunct is load-bearing —
+gating on path-wholeness alone refuted the statement at trace length 1
+(`t = ⟨send@AB⟩`, `X = {recv@CD}`: the implementation has a stable state there
+refusing `recv@CD`, since C never got the block, while every branch of the old
+`Prod b true true` offered it). `Prod`/`delivMenu` therefore carry four flags,
+`b p1 g1 p2 g2`; see Decision 12 of the design doc.
+
+The module ships **45 computable `refl` sanity tests** (11 hide-set incl. a
+near-miss battery and two `EventSet.dec` probes, 9 delivery-menu, 6
+must-offer/may-event, 18 real-τ-map coverage over every flag-updating branch of
+`prodτ`/`idleτ`, 1 block-generic continuity) and is otherwise
+**postulate-free**; the statement quantifies over the block-generic
+`systemBrokenOf b` (not the `b1`-fixed shipped `systemBroken`), so `∀ b` is
+non-vacuous for every block in `Block₃`. Full truth analysis
+(divergence-freedom on both sides of the refinement, the produce-gating of the
+obligation, the must-offer/may-offer `Prod`-branch fix, the CHAOS `Done`
+requirement, the causal justification for the idle state offering no receive,
+boundary cases, and the future proof route) is in the module's own "Truth
+analysis" section; design rationale is
+`docs/superpowers/specs/2026-08-04-fournode-liveness-csp-refinement-design.md`.
+
+---
+
+## §17 — FD/DR/FSim congruence & monotonicity: consolidated coverage (2026-08-03 campaign)
+
+Eight tasks (`docs/superpowers/plans/2026-08-03-fd-congruence-campaign.md`) extended the
+congruence suite so that compositional refinement — proving leaves, then folding via
+operator monotonicity, rather than one monolithic bisim — is actually assemblable. This
+section is a single-page index over the scattered rows above (§1–§16); it adds no new
+result not already stated there, it only collects them. **Read the two-regimes note
+below before using any `⊑FD`-mono row in a composite proof** — several of them are
+leaf-level only.
+
+### Consolidated table
+
+Columns: `≈FD` cong = congruence at failures-divergences equivalence; `≈DR` cong =
+congruence at divergence-respecting weak bisimulation; `FSim` cong = congruence at the
+one-way failure-simulation order (§15); `⊑FD` mono = monotonicity of the `⊑FD` refinement
+order itself. ✅ = done & typechecks · ⚠️ = side-condition / conditional · ✖ = the
+UNCONDITIONAL form is proved FALSE · ❌ = not attempted.
+
+**THE `⊑FD` MONO COLUMN HOLDS TWO DIFFERENT SHAPES — check which before using a row.**
+
+| shape | statement | worth |
+|---|---|---|
+| **fact-shaped** | `⊑FD → ⊑FD` | **the valuable one.** A true precongruence. Its premise can come from ANYWHERE — a hand-built bisimulation, a denotational argument, an earlier refinement step, or a cashed-out `FSim` — and chains of these compose freely. |
+| cash-out | `FSim → ⊑FD` | mostly ceremony. The body is literally `fsim→⊑FD (X-fsim …)`, a one-liner the caller can write; it adds a NAME, not power. Since `⊑FD → FSim` completeness is out of scope (§15, line ~1104) it can never consume a `⊑FD` fact, so it cannot appear in a `⊑FD`-only chain. |
+
+(The `FSim` cong column is the third shape, `FSim → FSim` — essential, and the only thing
+that composes an FSim tower or crosses a hide.)
+
+**Policy, adopted 2026-08-04:** where a fact-shaped law exists it OWNS the `-mono-⊑FD`
+name, and the cash-out wrapper is DELETED rather than renamed. **Fifteen** have been
+retired on that basis: `⊓-mono-⊑FD` + `prefix-mono-⊑FD` (`FSim/IChoiceCong`),
+`⦀Fin-mono-⊑FD` + `⦀⋆-mono-⊑FD` (`FSim/ParCongRep`), `Θ-mono-⊑FD` (`FSim/ThrowCong`),
+`□-mono-⊑FD` (`FSim/ExtChoiceCong`), and — 2026-08-04, this campaign — **the entire
+`FD/LoopMonoFD` module, which is consequently DELETED**, in three waves:
+its bind half (`Bind-mono-⊑FD` / `bindNoτ-mono-⊑FD` / `bindκ-mono-⊑FD` / `>>-mono-⊑FD`,
+superseded by `FD/BindMonoFD`, the general one renamed `>>=-mono-⊑FD` after the operator to
+match `Traces`'s `>>=-mono-L`/`>>=-mono-k`); `loop0-mono-⊑FD-fsim` (whose `-fsim` suffix
+existed only to dodge the clash with the fact-shaped `IterateMonoFD.loop0-mono-⊑FD`); and
+finally its loop half `iter-mono-⊑FD` / `loop-mono-⊑FD` / `loopc-mono-⊑FD` /
+`while-mono-⊑FD`, superseded by **`FD/IterMonoFD`**.
+Callers holding a witness write `fsim→⊑FD (X-fsim …)` and,
+if they want, feed it to the fact-shaped law. Surviving cash-out rows are kept ONLY because
+no fact-shaped counterpart exists yet (`△` — now the ONLY such row)
+or because the law provably must stay conditional/one-sided (`▷-mono-R-⊑FD-fsim`,
+`αpar-mono-⊑FD-fsim-df`, `Hide-mono-⊑FD-df`). Do not mint new cash-out names for an operator
+that already has a fact-shaped law.
+
+**Naming amendment, adopted 2026-08-04 (closing a gap in the policy above).** The policy
+above says what happens when a fact-shaped law SUPERSEDES a cash-out (fact-shaped keeps
+the bare name, cash-out is deleted); it does not say what a SURVIVING cash-out — one with
+no fact-shaped counterpart, and provably never able to get one, since `⊑FD → FSim`
+completeness is out of scope — must be called. Left unnamed, three of them (`△`, `▷`,
+`αpar`) were still sitting on the bare `-mono-⊑FD` name, which misleads a reader into
+thinking they can feed it a `⊑FD` FACT when the definition can only ever consume a
+simulation WITNESS. Closing that gap:
+
+* the bare `‹op›-mono-⊑FD` name is reserved for a FACT-SHAPED law (premise itself a
+  `⊑FD`/`⊑F⊥`/`⊑D`, or a `Pointwise` of one), always — never a cash-out, even a surviving
+  one with no fact-shaped rival;
+* a witness-premised law MUST carry a suffix naming the premise's WITNESS SHAPE: `-fsim`
+  for an `FSim` premise, `-dr` for a `DRbisim` premise (the shape actually discharged —
+  not whatever shape the proof happens to route through internally: `△`'s witness is a
+  `DRbisim`, even though its body is `fsim→⊑FD (△-fsim …)`, hence `-dr` and not `-fsim`);
+* a PREMISE-SHAPE suffix (`-fsim`/`-dr`) is a different axis from a SIDE-CONDITION suffix
+  (`-df`, "divergence-free"), and the two compose independently rather than being
+  interchangeable spellings of "conditional": `Hide-mono-⊑FD-df` is FACT-SHAPED (its
+  premise is a bare `P ⊑FD Q`) WITH a side condition, so it carries `-df` alone; `▷-mono-
+  R-⊑FD-fsim` is WITNESS-shaped with no side condition, so it carries `-fsim` alone;
+  `αpar-mono-⊑FD-fsim-df` is WITNESS-shaped AND side-conditioned, so it carries both, in
+  that order (premise shape before side condition). A reader must be able to tell the two
+  suffix kinds apart from the name alone, without opening the module.
+
+Applied 2026-08-04: `△-mono-⊑FD` → **`△-mono-⊑FD-dr`**, `▷-mono-R-⊑FD` →
+**`▷-mono-R-⊑FD-fsim`**, `αpar-mono-⊑FD-df` → **`αpar-mono-⊑FD-fsim-df`** (all in
+`FD/Congruences`'s re-export list; the first two are DEFINED in `FD/Congruences` and
+`FSim/SlideCong` respectively, `αpar-mono-⊑FD-fsim-df` in `FSim/AlphaParCong`).
+`Hide-mono-⊑FD-df` (`FD/HideMonoFD`) is UNCHANGED — its premise genuinely is `P ⊑FD Q`,
+so it was already correctly named under this policy; `-df` there is a side condition, not
+a premise-shape marker, and renaming it would be wrong.
+
+| Operator | `≈FD` cong | `≈DR` cong | `FSim` cong | `⊑FD` mono |
+|---|---|---|---|---|
+| Internal choice `⊓` | ✅ `⊓-cong-FD` / `⊓-cong-FD≈` — `FDCong` / `FDLawsIChoiceRep` | ✅ `⊓-cong-DR` — `FDCong` | ✅ `⊓-fsim` — `FSim/IChoiceCong` | ✅ **`⊓-mono-⊑FD` — `FD/IChoiceMonoFD`, FACT-SHAPED (`⊑FD`→`⊑FD`), unconditional, 0 postulates** (+ `⊓-refine-⊑FD : (P⊓Q)⊑FD P`, the ⊓/□ strict refinement `FSim/IChoiceCong`/`ChoiceRefine`).  The former `FSim`→`⊑FD` wrapper of this name in `FSim/IChoiceCong` was RETIRED 2026-08-04 |
+| Replicated internal choice `⨅⁺` / `⨅Fin` | ❌ | ❌ | ❌ | ✅ **`⨅⁺-mono-⊑FD` / `⨅Fin-mono-⊑FD` — `FD/IChoiceMonoFD`, FACT-SHAPED, unconditional, 0 postulates** (inductions over `⊓-mono-⊑FD`).  ⚠️ BOTH FOLDS ARE **NON-EMPTY** — `⨅⁺ P [] = P` (head+list) and `⨅Fin zero f = f fzero` (`Fin (suc n)`-indexed) — so unlike the `⦀`/`□` folds the base case hands back an OPERAND and `⊑FD-refl` is never used; `⨅⁺`'s recursion RE-HEADS on the list's head |
+| Prefix `⟶₀` | ✅ `prefix-cong-FD` — `FDCong` | ✅ `prefix-cong-DR` — `FDCong` | ✅ `prefix-fsim` — `FSim/IChoiceCong` | ✅ **`⟶₀-mono-⊑FD` — `ChoiceRefine`, FACT-SHAPED**.  The `FSim`→`⊑FD` duplicate `prefix-mono-⊑FD` (`FSim/IChoiceCong`) was RETIRED 2026-08-04 |
+| Output prefix `e ! v ⟶` | ❌ | ❌ | ❌ | ✅ **`Output-mono-⊑FD` — `FD/DerivedMonoFD`, FACT-SHAPED, unconditional, `--safe`-clean**.  NOT a corollary of `⟶₀-mono-⊑FD`: `Output` shares `Prefix₀`'s event index `(A , e)` but has a DIFFERENT offer map — `Output-cont` fires only on the single carried value `v` (extra `x ≟ v` decision, hence `⦃ DecEq A ⦄`) — so the whole `⟹`-inversion / offers / refusals / failures / divergences decomposition of `FDLawsPrefixDist` had to be redone |
+| External choice `□` | ❌ | ❌ | ✅ `□-fsim` — `FSim/ExtChoiceCong`, **two-sided, unconditional, NO `Sep`-style side condition** (contrast `Par-fsim`) | ✅ `□-mono-⊑FD` — **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/ExtChoiceMonoFD` (+ the fact-shaped replicated folds `□Fin-mono-⊑FD`/`□⋆-mono-⊑FD`, one line each — no side condition to thread through the fold; the shape-3 cash-out formerly in `FSim/ExtChoiceCong` is retired; + the pre-existing cross-operator strict refinement `(P⊓Q)⊑FD(P□Q)`, `ChoiceRefine`) |
+| Sliding `▷` | ❌ | ❌ | ⚠️/✖ `▷-fsim-R` — `FSim/SlideCong`, **ONE-SIDED ONLY** (left operand shared); the TWO-sided form is **proved FALSE** (`FSim/SlideCounterexample.¬▷-fsim`) | ⚠️ `▷-mono-R-⊑FD-fsim` — `FSim/SlideCong`, one-sided by necessity given the counterexample; `-fsim` names its `FSim` WITNESS premise (2026-08-04 rename, was `▷-mono-R-⊑FD`) |
+| Interrupt `△` | ✅ `△-cong-FD` — `FD/Congruences` | ⚠️ `cong-△` — `Bisim/DRCongruence`, conditioned on `Sep△` (unconditional false) | ✅ `△-fsim` — `FD/Congruences` | ✅ `△-mono-⊑FD-dr` — `FD/Congruences`; `-dr` names its `DRbisim` WITNESS premise (2026-08-04 rename, was `△-mono-⊑FD` — NOT `-fsim`, despite routing through `△-fsim`, because the premise actually discharged is `DRbisim`) |
+| Throw `⟦A▷` (`_⟦_▷_` — DISTINCT operator from `△` above; **verify before reusing the row title**, see the note below the table) | ❌ | ❌ | ✅ `Θ-fsim` — `FSim/ThrowCong`, **two-sided, unconditional, `--safe`-clean**, no `Sep`-style condition, no divergence-freedom hypothesis | ✅ `Θ-mono-⊑FD` — **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/ThrowMonoFD` (the shape-3 cash-out formerly in `FSim/ThrowCong` is retired) |
+| Parallel `Par`/`∥`/`⦀` (pairwise) | ⚠️ `Par-cong-FD` / `⦀-cong-FD` — `FD/Congruences`, conditioned on `SepDR` (unconditional false) | ⚠️ `cong-Par⊤` / `cong-⦀` — `Bisim/DRCongruence`, conditioned on `Sep` (unconditional false) | ⚠️ `Par-fsim` / `⦀-fsim` — `FSim/ParCong`, conditioned on `Sep` **on the impl pair only** (half of what `≈DR`/`≈FD` need) | ✅ `Par-mono-⊑FD` / `∥-mono-⊑FD` / `⦀-mono-⊑FD` — `FD/ParallelMonoFD`.  ✅ **Also at STABLE FAILURES: `Par-mono-⊑F` / `∥-mono-⊑F` / `⦀-mono-⊑F` — `FD/ParallelMonoFD` (Layer 10, 2026-08-05), FACT-SHAPED, UNCONDITIONAL, and needing NO divergence layer** (`_⊑F_` has no `divergences` disjunct, so the `⊎`-branching of the `⊑FD` proof and its whole Layer-5 truncation machinery do not arise; no `⊑D` counterpart exists or is needed).  Classical provenance is `offer-LEM` ALONE (via `Par-stable`) — strictly less than `Par-mono-⊑FD`'s, which also inherits `Par-Diverges→`/`Diverges-LEM` |
+| Replicated interleaving `⦀Fin` / `⦀⋆` | ✅ `⦀Fin-cong-FD` / `⦀⋆-cong-FD` — `FD/Congruences` | ✅ `cong-⦀Fin` / `cong-⦀⋆` — `Bisim/DRCongruenceRep` (disjoint-alphabet `Sep` discharged from `OffersOnly` alone) | ✅ `⦀Fin-fsim` / `⦀⋆-fsim` — `FSim/ParCongRep` (`Sep` per fold step, from `sep-from-OffersOnlyᶠ`) | ✅ **`⦀Fin-mono-⊑FD` / `⦀⋆-mono-⊑FD` — `FD/ParallelMonoFD` (Layer 8), FACT-SHAPED and needing NO `Disj`/`OffersOnly`** (inductions over the unconditional `⦀-mono-⊑FD`; the `Disj`/`OffersOnly` of the FSim folds exist only to discharge `Par-fsim`'s `Sep`, which `Par-mono-⊑FD` has not).  The `FSim`→`⊑FD` wrappers of these names in `FSim/ParCongRep` were RETIRED 2026-08-04.  ✅ **Stable-failures twins `⦀Fin-mono-⊑F` / `⦀⋆-mono-⊑F` — `FD/ParallelMonoFD` (Layer 10), same inductions over the unconditional `⦀-mono-⊑F` with `⊑F-refl Skip` at the base, equally free of `Disj`/`OffersOnly`** |
+| Replicated interface parallel `∥⁺` / `∥Fin` | ❌ | ❌ | ❌ | ✅ **`∥⁺-mono-⊑FD` / `∥Fin-mono-⊑FD` — `FD/ParallelMonoFD` (Layer 9), FACT-SHAPED, NO side condition** (inductions over the unconditional `∥-mono-⊑FD`; each carries the one shared synchronisation `EventSet` as an explicit first argument).  ⚠️ Both are **NON-EMPTY** like `⨅⁺`/`⨅Fin` and unlike the `⦀` folds, because interface parallel has no unit: `∥⁺ A P [] = P`, `∥Fin A zero f = f fzero`.  ✅ **Stable-failures twins `∥⁺-mono-⊑F` / `∥Fin-mono-⊑F` — `FD/ParallelMonoFD` (Layer 10), same shape, same non-emptiness, over the unconditional `∥-mono-⊑F`** |
+| Hiding `∖` | ✅ `hide-cong-FD` — `FD/Congruences`, **unconditional** | ✅ `cong-∖` — `Bisim/DRCongruence`, **unconditional** | ✅ `Hide-fsim` — `FSim/HideCong`, **unconditional** | ✖ unconditional `Hide-mono-⊑FD` is **FALSE** (`FD/HideMonoFD`); only `Hide-mono-⊑FD-df`, conditional on divergence-freedom of the **REFINED / RIGHT (implementation) operand's hide `Q∖A`** — `∀ {s} → ¬ divergences (Q∖A) s`, NOT of the spec's hide `P∖A` (`HideMonoFD.agda:243` calls it "the refined side's hide"; signature at :268-270) — and the unconditional failures-only half `Hide-mono-fail`.  ✅ **BUT at STABLE FAILURES the law IS unconditional: `Hide-mono-⊑F` — `FD/HideMonoFD`:255 (2026-08-04), `P ⊑F Q ⇒ (P∖A) ⊑F (Q∖A)`, NO side condition**, because `_⊑F_` has no `divergences` disjunct for hiding's τ-introduction to break; pairs with `Par-mono-⊑F` (Layer 10 of `FD/ParallelMonoFD`) to give a hide-crossing compositional route at refusal strength |
+| Renaming `⟦R⟧` / `renameMap` | ✅ `rename-cong-FD` / `renameMap-cong-FD` — `FD/Congruences`, **unconditional** | ✅ `cong-renameInv` / `cong-renameMap` — `Bisim/DRCongruence`, **unconditional** | ❌ (no `rename-fsim` built) | ✅ **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/RenameMonoFD` (2026-08-04) — renaming's FIRST monotonicity law at any shape.  ✅ `renameInv-mono-⊑D` **UNCONDITIONAL and CONSTRUCTIVE** — `renameInv` relabels step-for-step, so `ren-τ-fwd`/`ren-τ-inv` are mutually inverse on steps and `Diverges (P⟦inv⟧ⁱ) ↔ Diverges P` is a plain corecursive projection: **no König step anywhere, zero postulates local or inherited** (the cheapest divergence transfer in the repo, and the reason rename is the cheap congruence).  ⚠️ `renameInv-mono-⊑F⊥` / `renameInv-mono-⊑FD` take `RenTight inv` (a forward section `fwd` with `inv (fwd ce) ≡ just ce`, plus `inv ce ≡ just ce′ → ce ≡ fwd ce′`, i.e. no visible fan-OUT).  That is a **LEVEL artefact, not mathematics**: transferring a reached refusal needs the target ban set pulled back along `inv`, and the honest pullback `Σ[b] (inv b ≡ just e × B (evl b))` lives at `lsuc ℓ ⊔ ℓe ⊔ ℓr` because it quantifies over `AnyTypes E`, whereas `_⊑F⊥_ {R = Rr}` pins ban sets to `Set ℓr`; `RenTight` makes the pullback POINTWISE (`banSrc B e = B (fwd e)`) and hence level-`ℓr`.  Same family of obstruction as `BindMonoFD`'s shared result level and `IterateMonoFD`'s `ℓr ≡ ℓ`.  ✅ It **DISCHARGES for `renameMap`** (`ι-vis-inv-tight`: at the same alphabet `ι = id`/`ι⁻¹ = just` makes `ι-vis-inv` the identity inverse), so `renameMap-mono-⊑D` / `-⊑F⊥` / `-⊑FD` are all UNCONDITIONAL.  ⚠️ Stated at the SAME alphabet, following the `⊑T` precedent `TraceLawsRename.renameInv-mono-⊑ᵀ` — so, unlike the `≈DR`/`≈FD` rename congruences, it needs NO `ι`/`ι⁻¹`/`ι-linv` telescope and no `E-≟`.  Scope: the GENERAL relational `_⟦R¿preimg⟧` (with fan-in) is NOT covered, same scope limit as `cong-renameInv` |
+| Bind `>>=` / `>>` | ❌ (not built directly at `≈FD`/`≈DR`) | ❌ | ⚠️ `Bind-fsim` (needs `BindDivSplit`) / `bindNoτ-fsim` / `bindκ-fsim` (both unconditional) / `>>-fsim` (unconditional, bakes in `>>-split`) — `FSim/BindCong` | ✅ **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/BindMonoFD` (2026-08-04): ⚠️ `>>=-mono-⊑FD` (needs `BindDivSplit k₂` — the König split, on the REFINED continuation, for the `⊑D` half ONLY) · ✅ `bindNoτ-mono-⊑FD` / `bindκ-mono-⊑FD` / **`>>-mono-⊑FD`** all UNCONDITIONAL (split discharged by `bind-noτ-split` / `pure→NoTauRoot` / `>>-split`).  All four pin a SHARED result level `R S : Set ℓr` — a LEVEL constraint, not a mathematical one: `_⊑F⊥_` ties a carrier's ban set to `Event√ R → Set ℓr`, and transferring a still-in-prefix failure needs the composite's `Event√ S` ban set RETAGGED over `Event√ R` (`banP`); `Lift` only raises levels.  Same reason `IterateMonoFD` pins `ℓr ≡ ℓ`, but weaker (any shared level).  These four SUPERSEDE and REPLACE the retired `FD/LoopMonoFD` cash-outs, and unlike them they are NOT leaf-level — a `⊑FD` fact from anywhere composes.  `bindκ-mono-⊑FD` is also what carries `loop`/`while` in `FD/IterMonoFD` (their `iter` steps are pure-continuation binds) |
+| Replicated sequential `⨾⋆` / `⨾Fin` | ❌ | ❌ | ❌ | ✅ **`⨾⋆-mono-⊑FD` / `⨾Fin-mono-⊑FD` — `FD/BindMonoFD`, FACT-SHAPED, unconditional** (inductions over `>>-mono-⊑FD`).  ⚠️ BOTH FOLDS ARE **EMPTY-BASED** — `⨾⋆ [] = Skip` and `⨾Fin zero f = Skip`, `Skip` being the unit of `;` (`Operators`:358-364) — so the base case is `⊑FD-refl Skip`, exactly like `⦀Fin`/`⦀⋆`/`□Fin`/`□⋆` and NOT like `⨅⁺`/`⨅Fin`/`∥⁺`/`∥Fin`, whose base hands back an operand.  Both fold with `_>>_`, never the general `_>>=_`, so no side condition is threaded through the fold |
+| Iterate / loop family (`iter`/`loop`/`loop0`/`loopc`/`while`) | ❌ (not built directly at `≈FD`/`≈DR`) | ❌ | ✅ `Iter-bind-fsim` + 5 corollaries — `FSim/LoopCong`, all **unconditional** (`iter-div-split` discharges the König step generically) | ✅ **FACT-SHAPED throughout** (`⊑FD → ⊑FD`), `FD/IterMonoFD` (2026-08-04): `iter-mono-⊑FD` / `loop-mono-⊑FD` / `while-mono-⊑FD` / `loopc-mono-⊑FD`, plus the pre-existing `loop0-mono-⊑FD` (`FD/IterateMonoFD`, §12).  These four SUPERSEDE and REPLACE the shape-3 cash-outs of the same names in `FD/LoopMonoFD`, whose deletion emptied and therefore DELETED that module.  **DEFINITIONAL RELATIONSHIPS (all `refl`, `Operators`:1017-1063), and they are what make this cheap:** `loop body a = iter (body a >>= Ret ∘ inj₁) a` and `while c body a = iter (body a >>= Ret ∘ tag c) a`, so `loop`/`while` fall out of the general `iter` law composed with the UNCONDITIONAL `bindκ-mono-⊑FD` (the step's continuation is pure); and `loopc body = loop (λ _ → body) tt = loop0 body` **TEXTUALLY**, not merely up to equivalence, so `loopc-mono-⊑FD` IS `loop0-mono-⊑FD` — `loopc` follows from `loop0`, not only from `loop`.  `iter-mono-⊑F⊥`/`-⊑D` generalise `IterateMonoFD`'s `loop0` proof from a `PTree ⊤` body to a state-indexed step: the `Acc _<_`-on-`runLen` recursion carries over UNCHANGED (`IterSplitN`/`iter-bind-invN` were already `iter`-generic), the loop state threads through as a pointwise premise, the loop-back states are forced to agree on the next state `a′` by the `√` tick CARRYING the returned value, and the `in-done` arm — vacuous for `loop0` — is new and constructive.  Side condition: `A R : Set ℓ`, the same ban-set level pin `IterateMonoFD` imposes.  ⚠️ Inheritance is STRICTLY WEAKER than the `loop0` specialisation's: the general laws use `FSim/LoopCong.iter-div-split` (a DERIVED lemma over `Diverges-LEM` + `¬DivModA→MAcc`) and **not** the `loop0`-specific postulate `IterateFD.loop-Diverges→` that `loop0-mono-⊑FD` leans on; the `⊑F⊥` half needs no classical ingredient of its own |
+| Guard `＆` (`b ＆ P = guard b >> P`) | ❌ | ❌ | ❌ | ✅ **`＆-mono-⊑FD` — `FD/DerivedMonoFD`, FACT-SHAPED, unconditional, `--safe`-clean**.  Not quite free: `PTree` is a COINDUCTIVE record, so there is no η and `Skip >> P` is a *different tree* from `P` with the same `force`.  The law goes through `force-≡→⊑FD` (force-equal trees are ⊑FD-interchangeable — the FD analogue of `Traces/TraceLawsGuard.force-≡→traces-⊆`, which proves the same law at `⊑T` as `＆-mono-⊑ᵀ`, and of `FD/SeqLaws.sbisim-force-eq` at `∼`).  That bridge was HOISTED 2026-08-04 out of `DerivedMonoFD` into `Semantics/FailuresDivergences` (beside `⊑FD-refl`/`⊑FD-trans`), where it is proved DIRECTLY over the LTS from a new generic `step-force-≡` — the statement is "every LTS rule reads its source only through `force`", generic in `E`/`I` and CSP-free; `DerivedMonoFD`'s `CSP.Laws.FD.BindFD` dependency went away with it.  The `false` branch is force-equal on both sides at once: `Stop >> P` deadlocks independently of `P` |
+| Conditional `P ◁ b ▷ Q` (§4) | ❌ | ❌ | ❌ | ✅ **`◁▷-mono-⊑FD` — `FD/DerivedMonoFD`, FACT-SHAPED, two-sided, unconditional**.  It IS `if_then_else_`, so each `b` selects the matching hypothesis; genuinely a one-liner (contrast `＆`, whose `guard b >> P` shape has no η) |
+| Menu / `pchoice` (multi-channel offer map) | ✅ `pchoice-cong-FD` — proved in `FD/RenameStepRel.agda:166`, **now re-exported from `FD/Congruences`** (with its premise type `MaybeFD`); see the promotion note below | ❌ | ❌ (no `pchoice-fsim` was built) | ❌ |
+| Alphabetised parallel `_⟦_∥_⟧_` (= `αpar A B _,_`) | ❌ | ❌ | ⚠️ `αpar-fsim-df` — `FSim/AlphaParCong`, conditioned on `τ-AccReach` divergence-freedom of the **SPEC operands only** (impl operands unconstrained); the UNCONDITIONAL two-sided form, and the ONE-SIDED form in BOTH orientations, are **proved FALSE** (`FSim/AlphaParCounterexample.¬αpar-fsim`/`¬αpar-fsim-R`) | ⚠️ `αpar-mono-⊑FD-fsim-df` — `FSim/AlphaParCong`, same `τ-AccReach` side condition; `-fsim` names the `FSim` WITNESS premise, `-df` the side condition — both suffixes, in that order (2026-08-04 rename, was `αpar-mono-⊑FD-df`) |
+
+**Addendum: FACT-SHAPED `⊑FD` precongruences for the LOOP family and for RENAMING
+(2026-08-04, later still).** Two new modules, and the *end* of `FD/LoopMonoFD`.
+
+* `FD/IterMonoFD` — `iter-mono-⊑FD` / `loop-mono-⊑FD` / `while-mono-⊑FD` /
+  `loopc-mono-⊑FD`, all shape 2. The four shape-3 wrappers of the same names were the
+  last things in `FD/LoopMonoFD`, so deleting them **deleted the module**; its re-export in
+  `FD/Congruences` is gone. The definitional findings are what made this cheap and are
+  worth remembering: `loop` and `while` are *literally* `iter` over a pure-continuation
+  bind step, and **`loopc` is `loop0` — the same definition text, so `loopc` follows from
+  `loop0`, not only from `loop`.** Only the general `iter` case needed real work, and it is
+  the `loop0` proof (`Acc _<_` on `runLen`) generalised to a state-indexed body, with the
+  next-state agreement supplied for free by the `√` tick carrying the returned value.
+* `FD/RenameMonoFD` — renaming's **first monotonicity law at any shape**. The `⊑D` half is
+  unconditional and needs no König step at all (rename's τ-space corresponds one-for-one).
+  The `⊑F⊥` half takes `RenTight inv`, and that hypothesis is a **level artefact of how
+  `_⊑F⊥_` is stated**, not a mathematical side condition: the honest ban-set pullback
+  quantifies over target events and so lands above the carrier level that `_⊑F⊥_` pins its
+  ban sets to. It discharges for `renameMap`. See the Renaming row for the full statement.
+* Both are stated with a level restriction of the same family as `BindMonoFD`'s shared
+  result level: `A R : Set ℓ` for the loop laws, `RenTight` for rename's failure half.
+  Neither is a mathematical weakening.
+
+**Addendum: FACT-SHAPED `⊑FD` precongruences for `□` and throw (2026-08-04, later).**
+`□-mono-⊑FD` (+ the folds `□Fin-mono-⊑FD`/`□⋆-mono-⊑FD`) now live in
+`FD/ExtChoiceMonoFD`, and `Θ-mono-⊑FD` in `FD/ThrowMonoFD`, both in the FACT shape
+`⊑FD → ⊑FD` (a true precongruence, consuming a `⊑FD` premise from ANY source).  The
+shape-3 `FSim → ⊑FD` cash-out wrappers that formerly held those two names in
+`FSim/ExtChoiceCong` and `FSim/ThrowCong` were RETIRED — write `fsim→⊑FD (□-fsim …)` /
+`fsim→⊑FD (Θ-fsim …)` at the call site, or feed that term to the fact-shaped law.  That
+brings the retired-wrapper count to SEVEN; `FD/Congruences`'s header POLICY note is the
+authoritative list, and the four matrix/registry rows above have been corrected in place.
+NARRATIVE STALENESS FLAG: the §10/§15/§17 campaign-record entries earlier in this file
+still describe `Θ-mono-⊑FD`/`□-mono-⊑FD` as living in the `FSim/*` modules; those are
+historical records of the FSim campaigns and were deliberately not rewritten — trust the
+rows and the `FD/Congruences` POLICY note over them.  Both new modules have ZERO local
+postulates.  `FD/ThrowMonoFD` inherits ONLY `FD→trace⊥`'s `Diverges-LEM` +
+`¬-divergent→normal`, and only in its `θFire` arm — there is NO König-style
+`Θ-Diverges→` (throw's divergence inversion is structural), so its `θNo`/`θDone` arms are
+fully constructive; `agda --safe` fails on `¬-divergent→normal` alone.
+`FD/ExtChoiceMonoFD` inherits `□-Diverges→`/`▷-Diverges→` (unavoidable for any `□` law
+touching divergences) and is pure routing through the existing `ExtChoiceFD`/
+`ExtChoiceAssoc` decompositions — nothing new is proved there.  STILL MISSING (checked,
+not attempted): a fact-shaped `△-mono-⊑FD` — `FD/InterruptFD` has only the Fig 13.6
+`ret`/`div` rows plus step lifts, so there is no `△-reach-div`/`△-failures-elim`/
+`△-div-intro-*` to route through, and interrupt's refusal is a CONJUNCTION of the two
+operands at EVERY trace (not just at `[]`, as for `□`), so the `⊑F⊥` half needs new
+`Par`-style two-operand failure decomposition machinery.
+
+**Addendum: the CHEAP fact-shaped remainder — replicated folds and derived operators
+(2026-08-04, later still).** Seven more fact-shaped (`⊑FD → ⊑FD`) laws, in three commits,
+adding **five new matrix rows** above. All unconditional; none needed a side condition,
+and none is a cash-out.
+
+* **`FD/IChoiceMonoFD`** gained `⨅⁺-mono-⊑FD` / `⨅Fin-mono-⊑FD`; **`FD/ParallelMonoFD`**
+  gained a Layer 9 with `∥⁺-mono-⊑FD` / `∥Fin-mono-⊑FD`. Three lines each, over the
+  existing binary laws. **Correction to the campaign brief, which claimed these folds
+  mirror `⦀Fin`/`⦀⋆`:** all FOUR are **non-empty** folds, so the base case is an OPERAND
+  hypothesis and `⊑FD-refl` never appears — `⨅⁺ P [] = P`, `⨅Fin zero f = f fzero`,
+  `∥⁺ A P [] = P`, `∥Fin A zero f = f fzero` (`CSP/Operators.agda:137,143,651,656`).
+  `⨅⁺`/`∥⁺` additionally RE-HEAD on the list's head at each step, so the induction
+  consumes a `Pointwise` cell and passes it on as the new head hypothesis rather than
+  keeping a fixed head. `∥⁺`/`∥Fin` are the *interface*-parallel forms (one shared
+  synchronisation `EventSet` at every step), so each takes that `EventSet` explicitly;
+  `∥-mono-⊑FD` being unconditional, nothing accumulates along the fold — confirming the
+  brief's expectation that no side condition would be needed.
+* **New module `FD/DerivedMonoFD.agda`** (`agda --safe` exits 0 — zero postulates, local
+  or inherited — its whole closure is `Process_Trees` + `CSP/Operators` + six `Semantics/*`
+  modules + `FD/BindFD`): `＆-mono-⊑FD`, `◁▷-mono-⊑FD`, `Output-mono-⊑FD`. `Output` is the substantive
+  one (~90 of the module's lines) for the offer-map reason in its row above. The two
+  `Bool` splits are *not* both trivial: `◁▷` is `if_then_else_` and reduces, but
+  `b ＆ P = guard b >> P` needs `force-≡→⊑FD` because coinductive records have no η —
+  see its row. Homed together rather than in `ChoiceRefine` (60 lines about `⊓`-vs-`□`
+  refinement, which the `Output` plumbing would swamp) or `FDLawsPrefixDist` (whose
+  subject is `⊓`-distribution over prefix).
+* All seven are re-exported from the `FD/Congruences` index (selective `using`; the
+  `Output` decomposition and `force-≡→⊑FD` stay internal as scaffolding), and its
+  postulate-provenance block records the two new entries.
+
+**Addendum: the STABLE-FAILURES (`⊑F`) layer — `Par-mono-⊑F` + folds, and why it is
+cheaper than its `⊑FD` twin (2026-08-05).** `FD/ParallelMonoFD` gained a **Layer 10**:
+`Par-mono-⊑F` plus all six folds `∥-mono-⊑F` / `⦀-mono-⊑F` / `⦀Fin-mono-⊑F` /
+`⦀⋆-mono-⊑F` / `∥⁺-mono-⊑F` / `∥Fin-mono-⊑F`, all fact-shaped (`⊑F → ⊑F`) and all
+**unconditional**. Together with the already-committed `HideMonoFD.Hide-mono-⊑F` this closes
+the compositional route at stable-failures strength: build a refinement up an operator tree,
+then push it through the hide.
+
+* **The divergence layer disappears entirely, and that is a type-level fact, not a
+  simplification.** `_⊑F_` (`Semantics/Failures.agda:42-43`) is `∀ s X → failures Q s X →
+  failures P s X`: no `divergences` disjunct in either the hypothesis or the conclusion.
+  Layer 4's `op-transfer-stable` / `op-transfer-ret` already fed only `inj₁` (failures)
+  arguments *into* their `⊑F⊥` hypotheses — what forced `Par-mono-fail` to branch four ways
+  per `ParNormal` case was purely their `⊎`-valued **result**. Their `⊑F` twins
+  (`op-transfer-stable-F` / `op-transfer-ret-F`) return a bare failure, so each of the three
+  `ParNormal` cases collapses to its single `Par-failures-intro` recombination. Nothing ever
+  produces a composite divergence, so **Layers 1 and 5 in their entirety** —
+  `ParInter-truncL/R/2`, `Par-div-transfer-L/R/2`, `Par-div-out-L/R/2`, `div-extend`,
+  `div-extension-closed`, `Par-div-intro`, `FD→trace⊥` — are unused here, and there is
+  **no `Par-mono-⊑D` counterpart** to prove or to pair with: `Par-mono-⊑F` *is* the
+  headline, not a half of one.
+* **The failures core was reused verbatim, as predicted.** `Par-failures-elim` /
+  `Par-failures-intro` (`FD/ParallelFailures`), Layer 2's `Par-stable-normal`, and Layer 3's
+  whole `routeL`/`routeR` ban-set carving (`routeL-covers`/`routeR-covers`/`route-rebuild`/
+  `ret-routeL-cover`/`ret-routeR-cover`) are all divergence-free already, so they took the
+  `⊑F` hypotheses unchanged. Net cost: **four new definitions** (two Layer-4 twins, one
+  Layer-6 twin, the headline) plus six one- or two-line folds. Typechecked first try.
+* **One real signature difference to watch when calling these:** `_⊑F_` takes its trace `s`
+  and ban set `X` **EXPLICITLY**, whereas `_⊑F⊥_` takes them implicitly. So the `⊑F` laws
+  are applied as `hP sP BP ⟨failure⟩`, not `hP ⟨failure⟩`, and the headline's clause head is
+  `Par-mono-⊑F A merge hP hQ s X f` rather than `… hP hQ {s} {X} f`. The ban-set level pin is
+  the same as everywhere else in this module (`X : Event√ R → Set ℓr`, all carriers at one
+  `ℓr`), which is what lets `routeL`/`routeR` be handed straight to a `⊑F` hypothesis.
+* **Classical cost is strictly LOWER than the `⊑FD` twin's**: `offer-LEM` alone (via
+  `Par-stable`/`Par-stable-termL/R`), *not* `Par-Diverges→` and *not* `Diverges-LEM` — see
+  the provenance block below for the dependency-cone argument. `offer-LEM` is pre-existing,
+  dne-certified in `ClassicalFromLEM`, and already incurred by `Par-mono-⊑FD`; **no new
+  postulate, no hole**.
+* **Why this matters (the motivating obstruction).** The FD route to a large hidden
+  composite is blocked twice over: unconditional `Hide-mono-⊑FD` is FALSE, and
+  `Hide-mono-⊑FD-df` needs divergence-freedom of the **implementation** composite's hide —
+  an intractable `MAcc` termination argument at ~150 leaves. The `⊑F` pair dodges both while
+  keeping the refusal content that a liveness property actually needs.
+
+**Correction: the "Interrupt / throw △" row's title was misleading (2026-08-04).** Its
+title used to read "Interrupt / throw `△`", but every entry in that row —
+`△-cong-FD`/`cong-△`/`△-fsim`/`△-mono-⊑FD-dr` — is built on `Bisim/DRCongruence`'s `cong-△`,
+which is about `_△_` (interrupt) alone; grepped, none of those names ever mentions
+`_⟦_▷_` (throw). So a row for throw did **not** already exist, despite the title
+suggesting otherwise — the same "assumed present, actually absent" trap the `αpar` row
+fell into earlier in this campaign (a prior task assumed that row was present when it
+was not). The title above is now corrected to "Interrupt `△`" alone, and a genuine new
+row, "Throw `⟦A▷`", is added directly below it for `Θ-fsim`/`Θ-mono-⊑FD`
+(`FSim/ThrowCong`, 2026-08-04) — see the addendum below for the full result. No cell
+content was deleted, only the row's own title corrected and a new row added.
+
+**Promotion, and a correction to the premise this note used to carry (the design's §A3
+item).** The campaign design (`docs/specs/2026-08-03-fd-congruence-campaign-design.md`,
+§A1 line 126 and §A3 line 156) offered two alternatives for the menu congruence: build
+`pchoice-fsim` if it fell out of `prefix-fsim`'s shape, **or else** promote the existing
+`pchoice-cong-FD` into `FD/Congruences` "by lifting it out of its local `module _` in
+`RenameStepRel.agda:166`". The second alternative is now **done**, and it needed no lifting
+at all — the premise that it was *not* a general export was **false**:
+
+* An anonymous `module _ {ℓr} {R-set : Set ℓr} where` block (opens at
+  `RenameStepRel.agda:93`) is **auto-opened into its parent**, so `pchoice-cong-FD` was
+  already exported by `CSP.Laws.FD.RenameStepRel`, with `{ℓr} {R-set}` prepended as
+  implicits. Machine-checked by importing it into a throw-away module.
+* The block's `Menu` abbreviation (`:95-97`) is `private`, but `private` in Agda hides only
+  the **name**: the definition still unfolds, so an outside caller can spell the type out
+  (`(at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R-set))`) and apply the
+  lemma. Also machine-checked, by discharging that hand-written signature with
+  `pchoice-cong-FD` directly.
+
+So the promotion is a **pure indexing change**: `FD/Congruences` re-exports
+`pchoice-cong-FD` and `MaybeFD`, and **`RenameStepRel.agda` is untouched** — no risk was
+taken with a working proof module. Verified against source: repo-wide there is still **no**
+`pchoice-fsim`; `pchoice-cong-FD` is declared at `RenameStepRel.agda:166`, used once
+in-module at `:241`, mentioned in that module's header at `:19`, and now also named in
+`FD/Congruences`. **Remaining follow-up:** build `pchoice-fsim` if a menu-shaped composite
+ever needs an `FSim`/`⊑FD` entry in that row. Nothing about `pchoice-cong-FD` itself is
+deferred any more.
+
+Not in this matrix: pre-existing congruences at plain (non-divergence-respecting) weak
+bisimulation `≈` — `prefix-cong` (`Bisim/Congruence`) and `iter-cong` (`Bisim/IterCong`)
+— predate the FD/FSim layers and answer a different, coarser question.
+
+**The `Sep` duality, stated once so it is never conflated:** `CSP.Laws.Bisim.DRCongruence.Sep`
+is a **⊤-carrier-only** record (both operands return `⊤`; drives `cong-Par⊤`/`cong-⦀` and,
+via `drbisim→≈FD`, `Par-cong-FD`/`⦀-cong-FD` — re-exported from `FD/Congruences` as
+`SepDR`). `CSP.Laws.FSim.ParCong.Sep` is a **different, two-carrier** `{R₁ R₂}` record —
+only the IMPL operand pair needs it, since an `FSim` proof only ever inverts the impl
+composite — re-exported from `FD/Congruences` as `SepPar`. They are not interchangeable
+even when both are instantiated at `R = ⊤`: their `stepL`/`stepR` fields quantify over
+different label sets. `CSP.Laws.FSim.ParCongRep.sep-from-OffersOnlyᶠ` re-proves, for
+`SepPar`, the same alphabet-confinement discharge that `Bisim.DRCongruenceRep`'s
+`sep-from-OffersOnly` gives for `SepDR`.
+
+**The one-import index.** `FD/Congruences` re-exports the whole suite above, `FSim/ParCongRep`
+included (`⦀Fin-fsim`, `⦀⋆-fsim`, `sep-from-OffersOnlyᶠ`,
+`FCell`, `unionAlphaF`, `OffersOnly-⦀⋆-fu`; the `⊑FD` folds `⦀Fin-mono-⊑FD`/`⦀⋆-mono-⊑FD` now
+come from `FD/ParallelMonoFD` instead — fact-shaped), **and** the premise types the statements mention
+— `SepDR`, `Sep△`, `SepPar`, `Alpha`, `Disj`, `OffersOnly`, `CongCell` — so a caller can name
+its own hypotheses through the index rather than importing `Bisim/DRCongruence{,Rep}` and
+`FSim/ParCong` separately. `SepDR` keeps its rename; the two `Sep` records stay distinct.
+
+**Completed 2026-08-04 — the index is now build-tested, and covers the addendum work.**
+Added to the re-export list: `FSim/SlideCong` (`▷-fsim-R`, `▷-mono-R-⊑FD-fsim`, `▷-τ*-L`,
+`▷-wτ-L`, `▷-wev-L`, `▷-Diverges-R`), `FSim/ExtChoiceLift` (`□-τ*-L/-R`,
+`□-τ*-L-live/-R-live`, `□-τ*-settle`, `□-wev-L/-R`, `□-wev-LR`, `□-w√-L/-R`,
+`□-offer-mono`), `FSim/ExtChoiceCong` (`□-fsim`, `□-mono-⊑FD`, `□Fin-fsim`, `□⋆-fsim`),
+`FD/RenameStepRel` (`pchoice-cong-FD`, `MaybeFD` — see the promotion note above), the two
+headline names of `FSim/SlideCounterexample` (`¬▷-fsim`, `▷-fsim-claim`, so the negative
+result is reachable from the index without its fixed-alphabet witness data), the statement
+vocabulary (`DRbisim`, `FSim`, `fsim→⊑FD`, `_≈FD_`, `_⊑FD_`) and the two `OffersOnly`
+introduction forms a consumer needs to BUILD the premise (`OffersOnly-Prefix₀`,
+`OffersOnly-Skip`). The three FSim modules are re-exported through explicit `using` lists,
+not wholesale: each also exports proof scaffolding (`f-sim-▷-R`, `▷-fsim-R-div→`, `ret-fsim`,
+`□-fsim-run`, `▷□-fsim-L/-R`, …) and, in `ExtChoiceLift`, LTS helpers with names too generic
+for a suite-wide namespace (`τ-live`, `ev-live`, `stable-live`, `τ*-ev-live`,
+`τ*-stable-live`). **No name clash arose** and no entry had to be dropped or renamed. There
+are no import cycles: none of the newly-indexed modules imports `FD/Congruences`.
+`CSP.Examples.FSimTower` now routes every suite name it uses through the index instead of
+importing `FSim/IChoiceCong`, `FSim/HideCong`, `FSim/ParCongRep`, `Bisim/DRCongruenceRep`,
+`Semantics/FailureSim` and `Semantics/FailuresDivergences` directly — its proof bodies are
+unchanged, so the "one import" claim is now something the build checks rather than an
+assertion. It still imports `Process_Trees` and `CSP.Operators` directly (process SYNTAX,
+not congruence results; the index opens `CSP.Operators` non-publicly on purpose).
+
+### Addendum (2026-08-03, later the same day) — `□`/`▷` FSim congruences
+
+Landed after the consolidated table above was first written, closing two of its ❌
+cells; recorded here as an addendum rather than folded into the numbered task list,
+since it postdates that list.
+
+- **`Semantics/FailureSim.agda`** gained two lemmas that `□-fsim` (below) is built on:
+  `div-prepend-τ*` (a finite τ-chain in front of a divergence is still a divergence) and
+  `fsim-τ*-prepend : t₂ ─[τ*]─► t₂′ → FSim R t₁ t₂′ → FSim R t₁ t₂` — "the spec may be
+  lazy": an `FSim` survives PREPENDING τ's to the SPEC side. Both `--safe`-clean.
+  **`fsim-τ*-prepend`/`div-prepend-τ*` are the LINCHPIN that lets `□-fsim` avoid ever
+  invoking the refuted two-sided `▷` congruence**: `□-fsim`'s proof carries the spec's
+  owed τ*-runs as debt and discharges them only through these two lemmas, so the spec
+  is never itself forced into a `▷`-shaped residual at a point where the (false)
+  two-sided `▷`-congruence would be needed.
+  - Two hand-rolled copies of the same lemma **predate this hoist and were NOT removed
+    by it** — verified against source, so this corrects rather than merely repeats the
+    original hoist claim: `CSP.Laws.FSim.BindCong.div-prepend-τ*`
+    (`BindCong.agda:203`, same name) and `CSP.Laws.FD.InterruptFD.τ*-Diverges`
+    (`InterruptFD.agda:1391`, **different name**, identical definition — its own
+    header comment even calls out `BindCong`'s copy by name and explains why it is not
+    imported instead: pulling in 1400 lines of interrupt-specific FD theory for four
+    lines would cost more typechecking time than it saves). `BindCong.agda` already
+    imports `Semantics.FailureSim` for `FSim` itself, so its local copy is a genuine,
+    if small, residual duplication; `InterruptFD.agda` does not import the FSim layer
+    at all. Neither file was touched here (this change is comment/prose-only).
+- **`CSP/Laws/FSim/SlideCounterexample.agda`** proves the TWO-sided `▷`-congruence
+  (`FSim R P₁ P₂ → FSim R Q₁ Q₂ → FSim R (P₁▷Q₁) (P₂▷Q₂)`) is **FALSE** — `¬▷-fsim`,
+  `--safe`-clean, 0 postulates transitively. Witnesses `P₁ = Tau (Ret tt)`,
+  `P₂ = Ret tt`, `Q₁ = Q₂ = a ⟶₀ Stop`. Mechanism: `FSim` legally relates a `sil` node
+  to a `ret` node (the spec may already "be there"), and `▷` branches on exactly that
+  distinction (timeout vs. live), so a live impl timeout has no matching spec timeout.
+  A proved NEGATIVE result, not an unattempted gap — joining §6's `Hide-mono-⊑FD` /
+  `Hide-mono-⊑FD-finBr` as a further, independent place where a naive two-sided
+  congruence fails. (No uniqueness claim: this is not being called the only place, or
+  the only regime, where such a congruence breaks — only that it breaks here too, for
+  its own, different reason.)
+- **`CSP/Laws/FSim/SlideCong.agda`** — `▷-fsim-R : FSim R Q₁ Q₂ → FSim R (P▷Q₁) (P▷Q₂)`
+  (left operand `P` SHARED, right operand varies), unconditional — one-sided **by
+  necessity** given the refutation above, not by choice. Plus `▷-τ*-L`, `▷-wτ-L`,
+  `▷-wev-L`, `▷-Diverges-R`, `▷-mono-R-⊑FD-fsim`.
+- **`CSP/Laws/FSim/ExtChoiceLift.agda`** — weak-lifting machinery for `□` in the
+  `FSim` layer's own currency (τ*-runs, weak steps, `Offers` inclusions). The naive
+  UNCONDITIONAL τ*-lift is FALSE when the other operand is terminated (`□` resolves
+  EAGERLY into a `▷`, Roscoe's R3), so the lift is stated as a disjunction (lands in
+  `P′□Q` or in `P′▷Q`) except where a `NonRet` witness is free (the `stab` field, whose
+  settle target is stable hence never a `ret`). **Not `--safe`-clean**: `agda --safe
+  CSP/Laws/FSim/ExtChoiceLift.agda` fails with two `SafeFlagPostulate` errors
+  (`□-Diverges→` and `▷-Diverges→`, both from `CSP.Laws.FD.ExtChoiceDivergence`),
+  because that module is reachable — TWICE over — via `CSP.Laws.FD.ExtChoiceFD`
+  (imported directly, for `□-offers-L`) and again via `CSP.Laws.FSim.SlideCong`
+  (imported for `▷-τ*-L`); neither postulated name is actually USED by this module's
+  own proofs (grepped: neither occurs outside its own header comment).
+- **`CSP/Laws/FSim/ExtChoiceCong.agda`** — the headline, `□-fsim : FSim R P₁ P₂ →
+  FSim R Q₁ Q₂ → FSim R (P₁□Q₁) (P₂□Q₂)`, **two-sided, unconditional, and — unlike
+  `Par-fsim` — with NO `Sep`-style side condition at all**: `□` never synchronises, so
+  an offer overlap is legal and simply resolves into a real `⊓` (the `evPQ` case of the
+  proof), whose branches are the ordinary `⊓-stepL`/`⊓-stepR`, not a side-condition
+  premise. Plus `□-mono-⊑FD`, `□Fin-fsim`, `□⋆-fsim` (replicated folds, one line each —
+  unlike `⦀Fin-fsim`, no side condition to thread through the fold). USES exactly TWO
+  postulates, both from `CSP.Laws.FD.ExtChoiceDivergence`, both only in `div→`:
+  `□-Diverges→` (one site, `□-run-div→`) and `▷-Diverges→` (two sites, the S2/S3
+  mirrors `▷□-L-div→`/`▷□-R-div→`). Its transitive import closure is now **TIGHT**: one
+  postulate-bearing module, `CSP.Laws.FD.ExtChoiceDivergence`, which declares exactly
+  those two postulates and nothing else — so every postulate reachable from this module
+  is one it genuinely uses. It formerly carried TEN, the other nine pulled in by a single
+  `CSP.Laws.Stability.Closure` edge, borrowed there for the two constructive facts
+  `stable-□`/`□-stable-elim`; those moved to `CSP/Laws/Stability/ExtChoice.agda` (see the
+  stability section above). It is still not `--safe` — `agda --safe` reports two
+  `SafeFlagPostulate` errors, one per genuinely-used name — and that residue is
+  irreducible short of discharging the two classical `Diverges→` inversions themselves.
+
+### Addendum (2026-08-04) — binary alphabetised parallel `_⟦_∥_⟧_` `FSim` congruence
+
+Closes the `αpar` cells of the consolidated table above. Four modules landed:
+
+- **`Semantics/FailureSim.agda`** gained `fsim-sil-factor : PTree.force t₂ ≡ sil t₂′ →
+  FSim R t₁ t₂ → FSim R t₁ t₂′` — "a `sil`-headed spec's simulation factors through its
+  unique τ-successor", the converse direction to `fsim-τ*-prepend` (2026-08-03 addendum
+  above): together the two say a spec's leading `sil` chain is `FSim`-invisible. Built on
+  three small generic inversions also added there: `sil-no-ev` (a `sil` node performs no
+  visible step), `sil-τ*-split` (a τ*-run out of a `sil` node either stands still or
+  factors through the successor), `sil-div-factor` (an infinite τ-run out of a `sil` node
+  continues out of the successor). All four are `--safe`-clean, 0 postulates.
+- **`CSP/Laws/AlphaParallelLift.agda`** (925 lines, 0 postulates) — the αpar analogue of
+  `FSim/ParCong`'s τ*/weak lifts plus the stability/offer layer of `FD/ParallelRefusals`/
+  `FD/ParallelMonoFD`: `NoSil` (`t.force ≢ sil u`) with intros `noSil-ret`/`-react`/
+  `-stable`/`-of-ev`, the one-sided lifts `αpar-τ*-L`/`-R`, the two-operand flush
+  `αpar-flush` (+ `-stable`/`-retL`/`-retR`/`-retLR` endpoint corollaries), weak lifts
+  `αpar-wsolo-L`/`-R`/`αpar-wsync`/`αpar-w√`, stability classification
+  (`αpar-stable-normal`) and offer monotonicity (`αpar-offer-mono`). **No `Sep`-style
+  overlap-alphabet side condition is needed**: `αpar` routes every visible event
+  determinately by alphabet membership, so its inversion datatype `αVisR` has no
+  `evBoth` analogue (contrast `Par-fsim`'s `Sep`). **No `DecEq R`** is needed either.
+- **`CSP/Laws/FD/AlphaParallelDivergence.agda`** — `αpar-Diverges-L`/`-R` (constructive,
+  `NoSil`-gated coinductive lifts of an operand's livelock) plus the module's ONE
+  postulate, the König step `αpar-Diverges→ : Diverges (P ⟦A∥B⟧ Q) → Diverges P ⊎
+  Diverges Q`, certified sound from the single `dne` of `CSP.Laws.ClassicalFromLEM` as
+  **Derivation 11** (`αpar-no-inf`, a `τ-Acc`/`DAcc` well-founded recursion — STRICTLY
+  simpler than `Par`'s Derivation 2/5 argument, since `αpar-τ-step-inv` gives only P's τ
+  or Q's τ: no both-offer overlap node, no third τ-shape to dispatch).
+- **`CSP/Laws/FSim/AlphaParCounterexample.agda`** (`--safe`-clean, 0 postulates) proves
+  the UNCONDITIONAL two-sided `αpar` `FSim` congruence FALSE (`¬αpar-fsim`), **and the
+  one-sided variant FALSE in BOTH orientations** (`¬αpar-fsim-R`) — a SHARPER result
+  than `▷`'s (where the one-sided form `▷-fsim-R` genuinely holds, unconditionally).
+  Witnesses `P₁ = P₂ = ea ⟶₀ Stop`, `Q₁ = div ⊓ div`, `Q₂ = div`, `A = all`, `B = ∅ES`;
+  failing field `fwd.on-ev` (the impl's solo `ea` step has no spec match). Mechanism:
+  `αpar`'s `force` gives a `sil`-headed operand ABSOLUTE priority, masking the other
+  operand's visible offers; finitely many masking τ's are absorbed by weak matching, but
+  the masking becomes PERMANENT when the spec operand's leading `sil` chain is infinite
+  (spec = `div`), and `FSim` legitimately relates a `react`-headed divergence (`div ⊓
+  div`) to `div`. Since `P₁ = P₂` literally in the witness, the SAME pair refutes the
+  one-sided law with the shared operand on the left, and the mirror witness refutes it
+  with the shared operand on the right — **`▷-fsim-R`'s dodge (the shared operand's
+  `force` never changes, so it can legally stand still) is unavailable for `αpar`,
+  because `αpar` inspects BOTH operand heads**, not just one. A bare `NoSil` invariant
+  cannot repair this either: `NoSil` is not preserved by τ-stepping, so it collapses
+  into divergence-freedom rather than surviving as a separate, weaker fix.
+- **`CSP/Laws/FSim/AlphaParCong.agda`** (0 local postulates) — the positive result:
+  ```agda
+  αpar-fsim-df : ∀ {ℓr ℓs} {R : Set ℓr} {S : Set ℓs} (A B : EventSet)
+                 {P₁ P₂ : PTree E (ExtI E) R} {Q₁ Q₂ : PTree E (ExtI E) S}
+               → τ-AccReach P₂ → τ-AccReach Q₂
+               → FSim R P₁ P₂ → FSim S Q₁ Q₂
+               → FSim (R × S) (P₁ ⟦ A ∥ B ⟧ Q₁) (P₂ ⟦ A ∥ B ⟧ Q₂)
+  ```
+  plus `αpar-mono-⊑FD-fsim-df`. The side condition is **`τ-AccReach`, not `τ-Acc`** — the
+  proof drains both spec operands' leading `sil`s at EVERY matched step (not just at the
+  two roots), via the well-founded induction `αdrain` (bounded by `τ-Acc`, carried across
+  each `sil` node by `fsim-sil-factor` above), so accessibility is needed after visible
+  steps too, which `τ-Acc` alone does not give. The condition constrains the SPEC
+  operands ONLY: `fwd` and `stab` are fully constructive; `div→` inherits exactly one
+  postulate, `αpar-Diverges→`, entering nowhere else. `_⟦_∥_⟧_` fixes `merge = _,_` — it
+  takes no `merge` argument, and the two operand carriers may sit at different universe
+  levels, unlike `Par-fsim`'s single-carrier `Par-stable-normal`.
+- **Honest scope caveat.** In the refuting witness above, BOTH composites diverge
+  (`impl-div`, `spec-div`): both are `⊥` in the failures-divergences model, so `⊑FD`
+  holds trivially between them. What the counterexample refutes is the **`FSim`
+  step-wise congruence**, not the `⊑FD`/FD-level law — `FSim`'s `fwd` obligation is not
+  weakened by a diverging specification the way `⊑FD` is. This is the same
+  divergence-freedom-as-necessary-condition pattern as `HideMonoFD`/`Hide-mono-⊑FD-df`,
+  applied at a different operator (no uniqueness claim: this is not the only place, or
+  the only regime, where a naive two-sided congruence needs such a side condition).
+- **Re-exported from `FD/Congruences`**: `αpar-fsim-df`, `αpar-mono-⊑FD-fsim-df`, the `NoSil`
+  vocabulary, `τ-Acc`/`acc`/`τ-AccReach` (`Semantics.DivergenceFree`, now re-exported for
+  the first time so a caller can name this side condition through the index), and the
+  two headline refutations `¬αpar-fsim`/`¬αpar-fsim-R` (+ their statement types). No
+  import cycle, no name clash.
+
+### Addendum (2026-08-04, later the same day) — throw `⟦A▷` (`_⟦_▷_`) `FSim` congruence
+
+Closes the ❌/❌ cells left in the throw row above. **The pre-existing "Interrupt /
+throw △" row was misleading**, not a real throw entry — see the correction note above
+the table; this addendum supplies the genuine one. Two commits: `77c81a7` (hoist),
+`a4ad5b9` (congruence).
+
+- **Hoist (`77c81a7`).** Six lemmas — `Θ-τ-lift-P`, `Θ-Diverges-L`, `Θ-div-step`,
+  `Θ-Diverges→`, `Θ-throw-step`, `Θ-pass-step` — moved BYTE-IDENTICAL out of the
+  (872-line, pre-hoist) FD law-suite `CSP/Laws/FD/ThrowFD.agda` into a new "Part 4" of
+  `CSP/Laws/Traces/TraceLawsThrowInterrupt.agda` (verified at source:
+  `TraceLawsThrowInterrupt.agda:193-295`). `ThrowFD.agda` re-exports all six `public`
+  (`ThrowFD.agda:57-61`), so its own API is unchanged and no consumer needed edits. The
+  point is the IMPORT CLOSURE: `ThrowFD` pulls in the classical `Semantics.DRImpliesFD`,
+  whereas `TraceLawsThrowInterrupt` does not and is itself `agda --safe`-clean (verified
+  directly) — which is what lets the FSim-layer congruence below stay `--safe` too.
+  Mirrors the earlier `stable-□` hoist into `CSP/Laws/Stability/ExtChoice.agda` (§16
+  table above) in spirit: move the constructive kernel somewhere with a smaller import
+  closure, re-export from the original home so nothing downstream breaks.
+- **`CSP/Laws/FSim/ThrowCong.agda`** (298 lines, 0 local postulates; commit `a4ad5b9`) —
+  the headline result:
+  ```agda
+  Θ-fsim : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
+         → FSim R P₁ P₂ → FSim R Q₁ Q₂ → FSim R (P₁ ⟦ A ▷ Q₁) (P₂ ⟦ A ▷ Q₂)
+  Θ-mono-⊑FD : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
+             → FSim R P₁ P₂ → FSim R Q₁ Q₂ → (P₂ ⟦ A ▷ Q₂) ⊑FD (P₁ ⟦ A ▷ Q₁)
+  ```
+  **TWO-SIDED and UNCONDITIONAL** — no divergence-freedom hypothesis, no `Sep`-style
+  separation condition, no side condition of any kind, and no `DecEq R`. Also
+  `Θ-τ*-L`, the weak lifts (`Θ-wev-fire`/`Θ-wev-pass`/`Θ-wτ`/`Θ-wev-√`), and the
+  composite↔body `Offers`/`isStable` elimination+introduction pair
+  (`Θ-stable-elim(-at)`/`Θ-stable-intro`/`Θ-offer-mono`) that the `stab` field needs.
+- **Why throw is unconditional where `▷`/`αpar` are not.** `force (P ⟦ A ▷ Q)` inspects
+  ONLY the body `P` (verified, `CSP/Operators.agda:388-392`: `_⟦_▷_` cases on
+  `PTree.force P` alone), so the composite's whole LTS is a function of the body's LTS:
+  the composite's τ-space IS the body's τ-space (no extra slide-τ ⇒ no `sil`-masking,
+  the mechanism that kills the two-sided `▷`/`αpar` congruences), and the composite's
+  visible offers are exactly the body's offers with only the TARGET decided by `A .dec`
+  (fire → `Q`, pass → continue under the throw) — so no both-offer overlap can arise
+  and no `Sep` hypothesis is ever needed. The handler is dormant until a visible
+  `A`-event fires the throw, the trigger event is consumed, and the handler starts at
+  once — so a spec body weakly matching the SAME label is forced into the SAME `A .dec`
+  branch and lands on `Q₂`, discharged by the `FSim R Q₁ Q₂` hypothesis directly, with
+  no invariant extension and no corecursion in that arm.
+- **`Θ-Diverges→` is STRUCTURAL — no König step, no postulate.** `ThrowCong.agda`'s
+  `div→` field (`Θ-fsim-div→`) is two lines: project the composite's infinite τ-path to
+  the body's (`Θ-Diverges→`), transfer with the body's own `div→`, re-lift
+  (`Θ-Diverges-L`) — no search, no bar induction. Contrast the FOUR postulated
+  `*-Diverges→` siblings that gate the other operand-deconstructing FSim congruences:
+  `△-Diverges→` (`FD/InterruptDivergence`, gates `FD/Congruences`'s `△-fsim` — the
+  DIFFERENT `_△_` operator, not throw), `□-Diverges→`/`▷-Diverges→`
+  (`FD/ExtChoiceDivergence`, gate `ExtChoiceCong`/`SlideCong`), `Par-Diverges→`
+  (`FD/ParallelDivergence`, gates `ParCong`, and reached — though not necessarily used —
+  by `HideCong`), `αpar-Diverges→` (`FD/AlphaParallelDivergence`, gates `AlphaParCong`).
+  Throw needs none of them and adds **no new postulate to the inventory** — see
+  postulate-inventory item (f) below.
+- **`--safe` sweep across the FSim operator-congruence suite (verified by direct
+  `agda --safe` invocation on each module, 2026-08-04).** Of the seven modules that
+  state a top-level operator's FSim congruence (as opposed to a weak-lift/helper module
+  such as `ExtChoiceLift`, or a counterexample module), exactly **two** pass
+  `agda --safe` cleanly:
+
+  | Module (operator) | `agda --safe` | First-reported blocking postulate |
+  |---|---|---|
+  | `FSim/IChoiceCong` (`⊓`, prefix) | ✅ pass | — |
+  | `FSim/ThrowCong` (`⟦A▷`) | ✅ pass | — |
+  | `FSim/ExtChoiceCong` (`□`) | ❌ fail | `□-Diverges→` **and** `▷-Diverges→` (`FD/ExtChoiceDivergence`) |
+  | `FSim/SlideCong` (`▷`) | ❌ fail | `□-Diverges→` **and** `▷-Diverges→` (`FD/ExtChoiceDivergence`) |
+  | `FSim/ParCong` (`Par`/`∥`/`⦀`) | ❌ fail | `offer-LEM` (`FD/ParallelRefusals`) |
+  | `FSim/HideCong` (`∖`) | ❌ fail | `Par-Diverges→` (`FD/ParallelDivergence`, reached transitively — `HideCong`'s own direct classical inputs, per §15(c) above, are `Diverges-LEM`/`¬DivModA→MAcc`) |
+  | `FSim/AlphaParCong` (αpar) | ❌ fail | `αpar-Diverges→` (`FD/AlphaParallelDivergence`) |
+
+  The common thread matches each module's own header: `⊓`/prefix never inspect an
+  operand's `force` at all (their composite is a fixed `react` node), and throw
+  inspects only the BODY's `force` with a structural divergence bridge; every other
+  operator DECONSTRUCTS a live operand and pays for it with a postulated `Diverges→`
+  inversion (a König-style step) somewhere in its closure. **This is not a uniqueness
+  claim** ("throw is the only/first ... " phrasing has been wrong four times already in
+  this campaign, see the postulate-provenance section above) — it states the measured
+  set, dated, and nothing stronger: throw is the first `--safe`-clean congruence for an
+  operator that DECONSTRUCTS a live operand, since `⊓`/prefix (the other clean case)
+  never do.
+- **No consumer needs `⊑FD`.** The only user of `_⟦_▷_` repo-wide is
+  `CSP/Examples/ThrowInterruptSanity.agda` (verified by grep across `src/`), and it is
+  purely `≡`-level `force`-reduction sanity checks
+  (`check-throw-fires`/`check-throw-passes`/`check-throw-skip`), not an `FSim`/`⊑FD`
+  consumer. So this result's value is recorded honestly as CLOSING a ❌ cell of the
+  coverage matrix (completeness of the FSim congruence suite), not as unblocking any
+  existing proof.
+- **Re-exported from `FD/Congruences`**: `Θ-fsim`, `Θ-mono-⊑FD`, and the weak lifts
+  `Θ-τ*-L`/`Θ-wτ`/`Θ-wev-fire`/`Θ-wev-pass`/`Θ-wev-√` (explicit `using`, following the
+  index's existing selective-export discipline — the composite↔body stability/offer
+  scaffolding stays internal, the same treatment `ExtChoiceCong`'s own S1-S4 helpers
+  get). No name clash arose and none had to be resolved by renaming. No import cycle:
+  `ThrowCong` does not import `FD/Congruences`. `agda CSP/Laws/FD/Congruences.agda` and
+  `agda CSP/Examples/FSimTower.agda` both exit 0 after the addition.
+
+### The two regimes — `⊑FD` facts and `FSim` witnesses do not mix
+
+`⊑FD` and `FSim` are **separate regimes**, joined **one-way only** by
+`fsim→⊑FD : FSim R Q P → P ⊑FD Q`. There is no route back: `FSim` completeness
+(`⊑FD → FSim`) is classical and deliberately **out of scope** (see "Suggested next
+steps" item 5 below) — it would need finite-branching and convergence hypotheses that
+`FSim` was built precisely to avoid assuming. Consequently a `⊑FD` fact can never be fed
+into an `FSim`-shaped proof obligation.
+
+**Why hiding is the crux.** Hiding is where a refinement built from bare `⊑FD` FACTS
+breaks down: unconditional `Hide-mono-⊑FD` is FALSE (§6, `HideMonoFD` carries the
+counterexample — Roscoe's known N-model hiding unsoundness under unbounded
+nondeterminism), so from `P ⊑FD Q` alone one cannot conclude `(P∖A) ⊑FD (Q∖A)`; only
+`Hide-mono-⊑FD-df` survives, under a divergence-freedom side condition **on the REFINED /
+RIGHT (implementation) operand's hide** — `∀ {s} → ¬ divergences (Q∖A) s`, where `Q` is the
+right-hand operand of `P ⊑FD Q` (`FD/HideMonoFD.agda:268-270`; the module's own comment at
+`:243` calls it "the refined side's hide"). **It is NOT a hypothesis about the spec `P`** —
+earlier revisions of this note and of the §17 coverage table said "the hidden spec", which
+was wrong: the spec side is unconstrained, and the side condition bites precisely because
+it is the *implementation* composite (the ~150-leaf mux) whose hide one must show
+divergence-free. And **every top-level refinement statement in this repo hides
+internal/message events** — the mux shape is always `(⦀Fin n leaf) ∖ msgs` or similar.
+
+What carries an FD-strength refinement through hiding unconditionally is a **witness**, and there are two
+independent routes here — neither recoverable from a bare `⊑FD` fact:
+
+- **one-way:** `Hide-fsim` (unconditional — its `Diverges` correspondence only needs
+  the FORWARD direction, which hiding's τ-introduction always preserves), then
+  `fsim→⊑FD`. `⊑FD → FSim` completeness is out of scope (see "Suggested next steps"
+  item 5 below), so a `⊑FD` fact can never be substituted for an `FSim` witness.
+- **two-way:** `cong-∖` (unconditional, `Bisim/DRCongruence`), then `drbisim→≈FD` —
+  i.e. `hide-cong-FD` (`FD/Congruences`). Needs the strictly stronger `DRbisim` fact.
+
+So a composite refinement must carry a witness through the hide rather than a `⊑FD`
+fact, and cash out once at the top. FSim is the cheaper witness when only refinement
+(not equivalence) is wanted: three obligations (`fwd`/`stab`/`div→`) instead of
+`DRbisim`'s four, and `Par-fsim` needs `Sep` on the impl operand pair only.
+
+**What the weaker orders actually give — read the two types.** Four earlier revisions of
+this paragraph asserted that `⊑F⊥` composes through hiding unconditionally "via
+`Hide-mono-fail`". **That was false**, and the corrected statement is *stronger*:
+
+- **`⊑T` does compose through hiding unconditionally.**
+  `Hide-mono-⊑ᵀ : (A : EventSet) {P Q} → P ⊑T Q → (P∖A) ⊑T (Q∖A)`
+  (`Traces/TraceLawsHide.agda:314-315`), no side condition.
+- **`⊑F⊥` does not.** `Hide-mono-fail` (`FD/HideMonoFD.agda:225-227`) is the unconditional
+  stable-**failure transfer**, *not* `⊑F⊥` monotonicity:
+  `P ⊑F⊥ Q → failures (Q∖A) s X → failures⊥ (P∖A) s X`. Its **input** is `failures`, not
+  `failures⊥`. Since `failures⊥ P s B = failures P s B ⊎ divergences P s`
+  (`Semantics/FailuresDivergences.agda:73`), it discharges only the `failures` disjunct and
+  says nothing about the `divergences` one — so it is not `(P∖A) ⊑F⊥ (Q∖A)`. Unconditional
+  `⊑F⊥` monotonicity through hiding **also fails**, by the same divergence-chaos mechanism
+  that kills `⊑FD`: `HideMonoFD`'s header states it at :24 ("via divergence-chaos at `[]`
+  even `(P′∖{h}) ⊑F⊥ (Q∖{h})` fails for a `b`-offering variant `P′`"), and the proof of
+  `Hide-mono-⊑FD-df` corroborates it — it handles the `failures` input via
+  `Hide-mono-fail` but refutes the `divergences` input **from its side condition**
+  (`fF⊥ (inj₂ dv) = ⊥-elim (hdf dv)`, `HideMonoFD.agda:256` — `:255` is the neighbouring
+  `inj₁` clause, which *is* discharged by proof), a line that would be unnecessary if `⊑F⊥`
+  were unconditionally hide-monotone.
+- **`⊑F` — Roscoe's *stable-failures* order — DOES compose through hiding
+  unconditionally.** `Hide-mono-⊑F : (A : EventSet) {P Q} → P ⊑F Q → (P∖A) ⊑F (Q∖A)`
+  (`FD/HideMonoFD.agda:255`, four lines, no side condition). Read the type to see why this
+  does not contradict the `⊑F⊥` bullet above: `_⊑F_` (`Semantics/Failures.agda:42-43`) is
+  `∀ s X → failures Q s X → failures P s X` — *both* ends are bare `failures`, whereas
+  `_⊑F⊥_`'s ends are `failures⊥ = failures ⊎ divergences`
+  (`Semantics/FailuresDivergences.agda:73`). The divergence-chaos mechanism that kills
+  `⊑F⊥` and `⊑FD` through a hide needs that `divergences` disjunct to break; `⊑F` has none
+  to break. The trade is honest and is exactly the standard one: `⊑F` says nothing about
+  divergence, so a divergent implementation refines everything at `⊑F` — but if the
+  property being proved is about *stable refusals* (as liveness properties are), `⊑F`
+  carries its full content.
+
+**The stable-failures regime — a third route, and the only one that crosses a hide with a
+bare FACT.** As of 2026-08-05 the `⊑F` order has both halves needed to assemble a composite
+refinement and then push it through a hide, both **unconditional** and both fact-shaped:
+
+- `ParallelMonoFD.Par-mono-⊑F` + `∥`/`⦀`/`⦀Fin`/`⦀⋆`/`∥⁺`/`∥Fin` folds (Layer 10) — build
+  the composite;
+- `HideMonoFD.Hide-mono-⊑F` — cross the hide;
+- `⊑F-trans` / `⊑F-refl` (`Semantics/Failures.agda:51-54`) — chain and terminate.
+
+This does **not** weaken the "carry a witness, not a fact" discipline for `⊑FD`: the two
+regimes above are about FD-strength refinement, and nothing here recovers `⊑FD` through a
+hide. What it does is give a *third* regime whose strength (traces + stable refusals) sits
+strictly between `⊑T` and `⊑FD`, and which — unlike `⊑FD` — needs neither an `FSim`/`DRbisim`
+witness nor a divergence-freedom certificate on a ~150-leaf composite. Use it when the
+property is a stable-refusal (liveness) property and divergence-freedom of the
+implementation is not itself part of the claim; use `FSim` when divergence must be tracked.
+Classical cost: `offer-LEM` only (via `Par-stable`), already incurred by `Par-mono-⊑FD` and
+dne-certified in `ClassicalFromLEM` — no new postulate.
+
+**Which component breaks — both, and by different witnesses.** An earlier revision said
+only "the component that breaks is `failures⊥`'s `divergences` disjunct". That is right for
+the `⊑F⊥` failure but it under-reports the `⊑FD` one, and a reader could wrongly infer that
+`⊑D` is fine. Attributing each precisely:
+
+- **`⊑D` breaks**, and the **canonical** counterexample pair breaks exactly it: with
+  `Q = μX.h→X` and `P = ⊓ₙ hⁿ;STOP`, `Q∖{h}` diverges while `P∖{h}` has no infinite τ-path
+  (infinite branching defeats König), so `(P∖{h}) ⊑D (Q∖{h})` **FAILS**
+  (`HideMonoFD.agda:24`). This is the `⊑FD` failure. Correspondingly
+  `Hide-mono-⊑FD-df` refutes the divergence obligation from its side condition in **both**
+  components — `fF⊥ (inj₂ dv)` at `:256` *and* `fD dv` at `:258`.
+- **`⊑F⊥` breaks** on `failures⊥`'s `divergences` disjunct, and needs the `b`-offering
+  **variant** `P′` of that same pair, via divergence-chaos at `[]`.
+
+Both are the one divergence-chaos phenomenon, which is why the failure takes down `⊑F⊥` and
+`⊑FD` together, and why carrying a **witness** (`FSim` or `DRbisim`) rather than a
+refinement **fact** is what gets a composite through a hide.
+
+**Consequence for this campaign's own deliverables:** the FOUR surviving `⊑FD`-mono
+wrappers that `FD/LoopMonoFD` used to hold (`iter`/`loop`/`loopc`/`while`) were therefore
+**leaf-level results only** — which is why they were replaced 2026-08-04 by the fact-shaped
+`FD/IterMonoFD`, emptying and deleting that module. (Its bind half — four more wrappers,
+plus `loop0-mono-⊑FD-fsim` — had already been
+retired 2026-08-04 in favour of FACT-SHAPED laws in `FD/BindMonoFD` /
+`FD/IterateMonoFD`, and those are NOT leaf-level: a fact-shaped law consumes a `⊑FD`
+premise from any source, so it composes freely with other `⊑FD` facts. The hide
+obstruction below is unchanged — no `⊑FD` chain, fact-shaped or not, crosses a hide.)
+They are correct and directly usable when the loop or bind operator IS the entire
+refinement being stated, but they must not be used partway up a composite: `Par-fsim`,
+`Hide-fsim` and `⦀Fin-fsim`/`⦀⋆-fsim` all consume `FSim` **witnesses**, not `⊑FD`
+**facts**. The discipline is: build the composite entirely at `FSim`, and cash out
+**once**, at the very top, via `fsim→⊑FD`. `CSP.Examples.FSimTower` demonstrates exactly
+this route — an assembled `⊑FD` refinement of a two-leaf `(⦀Fin 2 ·) ∖ msgs` tower,
+`per-leaf ⊓-refine-fsim → ⦀Fin-fsim → Hide-fsim → fsim→⊑FD` (one cash-out, at the top).
+**Note on what is and is not certified there:** the assembled `⊑FD` refinement itself
+IS certified (typechecks, no postulate, no hole). Its **strictness** — that the
+refinement is proper, not a disguised equivalence — is argued informally in the module
+(the `⟨out i, out i⟩` trace-separation argument) and is **not** formalised as an Agda
+`¬ (impl ⊑FD spec)` proof; treat that half as prose, the same status as the
+`Pinf ⊑FD Qh` half of `HideMonoFD`'s classic counterexample.
+
+### Postulate provenance across the FSim/FD congruence suite
+
+Verified against source (not transcribed from any plan draft — two errors in the
+original campaign plan's provenance text were caught and corrected during Task 4/5):
+
+- **Loop family** (`iter-fsim`/`loop-fsim`/`loop0-fsim`/`loopc-fsim`/`while-fsim`, and —
+  since 2026-08-04 — the fact-shaped `FD/IterMonoFD` laws too, which route through the
+  same `iter-div-split`): classical dependency is **both**
+  `Diverges-LEM` (`FD/FDTransfer`) **and** `¬DivModA→MAcc` (`FD/HideDivergence`),
+  composed inside `iter-div-split` (`FSim/LoopCong.agda:378-383`; imports at `:143`
+  (`¬DivModA→MAcc`) and `:144` (`Diverges-LEM`), uses at `:383` and `:379`). (`Par-Diverges→`
+  is **not** a dependency of this family — an earlier plan draft claimed it was; grepped,
+  no occurrence in `LoopCong.agda`.)
+- **`Bind-fsim` / `bindNoτ-fsim` / `bindκ-fsim`** (`FSim/BindCong`): **postulate-free**.
+  The bind König split is a **caller-supplied explicit hypothesis** (`BindDivSplit` /
+  `NoTauRoot` / the pure-continuation witness), not an inherited axiom
+  (`BindCong.agda:93`; no `postulate` keyword anywhere in the file).
+- **`>>-fsim`** (`FSim/BindCong`): genuinely inherits `>>-Diverges→`
+  (`FD/SeqDistR.agda:325`), used inside `>>-split` at `BindCong.agda:599`.
+- **`>>=-mono-⊑FD` / `bindNoτ-mono-⊑FD` / `bindκ-mono-⊑FD`** (`FD/BindMonoFD`,
+  2026-08-04): `Diverges-LEM` (`FD/FDTransfer`) and **nothing else**, used exactly once,
+  in `term-transfer` — `⊑FD` sees TERMINATION only through the `√` tick (a `ret` state is
+  not stable, hence no failure of its own), and settling the spec's `√`-extended empty-ban
+  failure at a τ-normal form is the classical step. The bind König step is **not**
+  inherited: explicit `BindDivSplit k₂` for the general bind, constructively discharged
+  (`bind-noτ-split` / `pure→NoTauRoot`) for the two restricted forms.
+- **`>>-mono-⊑FD`** and the folds **`⨾⋆-mono-⊑FD` / `⨾Fin-mono-⊑FD`** (`FD/BindMonoFD`):
+  `Diverges-LEM` **plus** `>>-Diverges→` via `>>-split` — exactly `>>-fsim`'s debt. The
+  two folds add nothing of their own (empty-based inductions over `>>-mono-⊑FD`).
+- **`iter-mono-⊑FD` / `loop-mono-⊑FD` / `while-mono-⊑FD`** (`FD/IterMonoFD`, 2026-08-04):
+  `iter-div-split` (`FSim/LoopCong`), i.e. `Diverges-LEM` + `¬DivModA→MAcc` — the loop
+  family's usual pair — for the `⊑D` half only, plus `bindκ-mono-⊑FD`'s `Diverges-LEM` for
+  `loop`/`while`. It does **NOT** inherit `IterateFD.loop-Diverges→`: that postulate is
+  `loop0`-specific, so the GENERAL `iter` law assumes strictly LESS than the `loop0`
+  specialisation `loop0-mono-⊑FD` that predates it (`loopc-mono-⊑FD`, being definitionally
+  the same law, does inherit it). The `⊑F⊥` half needs no classical ingredient of its own —
+  the body-side reconstruction goes through the `√` tick, which is structural.
+- **`renameInv-mono-⊑D` / `-⊑F⊥` / `-⊑FD` and the `renameMap` trio** (`FD/RenameMonoFD`,
+  2026-08-04): **NONE**, and structurally so rather than by argument — the τ-spaces of
+  `P` and `P ⟦inv⟧ⁱ` correspond one-for-one, so both divergence directions are plain
+  corecursive projections and the failure reconstruction is structural. The only
+  hypothesis anywhere is `RenTight`, a level artefact, discharged for `renameMap`.
+- **`Par-fsim` / `⦀-fsim` / `⦀Fin-fsim` / `⦀⋆-fsim`**: the FSim regime's real classical
+  debt here is `Par-Diverges→` (`FD/ParallelDivergence.agda:56`, dne-certified), entering
+  through `Par-fsim`'s `div→` field.
+- **`Par-mono-⊑FD`** (and `∥`/`⦀`/`⦀Fin`/`⦀⋆` corollaries, `FD/ParallelMonoFD`): `offer-LEM` (`FD/ParallelRefusals.agda:162`),
+  `Par-Diverges→` (`FD/ParallelDivergence.agda:56`) and `Diverges-LEM` (`FD/FDTransfer`) —
+  **all three reached transitively, on equal footing**: none of the three names occurs
+  anywhere in `ParallelMonoFD.agda` outside its own header comment, and that comment
+  mentions all three on **one line alone** (`:27` as of 2026-08-04) (`-- (offer-LEM, Par-Diverges→, Diverges-LEM — each
+  certified in ClassicalFromLEM).`) — an earlier revision also cited `:7`, which in fact
+  names `Par-reach-div`, an ordinary definition and not one of the three postulates; the
+  route is `ParallelMonoFD`'s single `FD/ParallelDivergence` import (`:65` as of
+  2026-08-04), which brings in only `Par-reach-div`/`Par-div-intro`. The FOUR replicated
+  folds add nothing to this provenance: `⦀Fin-mono-⊑FD`/`⦀⋆-mono-⊑FD` are inductions over
+  `⦀-mono-⊑FD` with `⊑FD-refl Skip` at the base, and `∥⁺-mono-⊑FD`/`∥Fin-mono-⊑FD`
+  (Layer 9) are inductions over `∥-mono-⊑FD` whose (non-empty) bases are operand
+  hypotheses. (An
+  earlier revision attached the "reached transitively" qualifier to `Par-Diverges→` alone,
+  implying the other two were direct. They are not.)
+- **`Par-mono-⊑F`** (and its six folds, `FD/ParallelMonoFD` Layer 10, 2026-08-05):
+  `offer-LEM` (`FD/ParallelRefusals.agda:162`) **and nothing else** — strictly LESS than
+  `Par-mono-⊑FD` above, which is the point of the layer. `Par-Diverges→` and `Diverges-LEM`
+  are *not* reached: the `⊑F` proof touches only `Par-failures-elim`/`Par-failures-intro`
+  (`FD/ParallelFailures`, which imports neither `FD/ParallelDivergence` nor
+  `FD/FDTransfer`), `Par-stable`/`Par-stable-termL/R` (`FD/ParallelRefusals`, where
+  `offer-LEM` lives), and the two purely structural `FDTransfer` helpers
+  `term→√failure` / `√-run-split-gen` used by `op-transfer-ret-F` (neither uses
+  `Diverges-LEM`). `FD/FDTransfer` and `FD/ParallelDivergence` remain imported by the
+  module as a whole, for Layers 1-9 — the claim here is about the `⊑F` laws' own
+  dependency cone, not the file's import list. Same for `Hide-mono-⊑F`
+  (`FD/HideMonoFD.agda:255`): **ZERO postulates**, as for the rest of that module.
+- **`Hide-fsim`** (`FSim/HideCong`): `Diverges-LEM` (`FDTransfer`) and `¬DivModA→MAcc`
+  (`HideDivergence`), both directly imported, at `HideCong.agda:124` and `:122`
+  respectively.
+- **`⊓-fsim` / `prefix-fsim` / `⊓-refine-fsim` / `⊓-refine-⊑FD`**
+  (`FSim/IChoiceCong`; its `⊓-mono-⊑FD`/`prefix-mono-⊑FD` wrappers were retired 2026-08-04): **none** — direct builds, deliberately not routed through
+  `drbisim→fsim` to avoid its postulate. It is **among** the FSim-layer modules that are
+  transitively clean of `Semantics.DRImpliesFD`. (Re-measured by computing the transitive
+  import closure of all **eleven** current `CSP/Laws/FSim/` modules: the clean set is
+  `IChoiceCong`, `SlideCong`, `ExtChoiceLift`, `ExtChoiceCong`, `HideCounterexample` and
+  `SlideCounterexample` — the last two **refutations** (`¬fsim-Pinf-Qh`, `¬▷-fsim`), not
+  congruences; `BindCong`, `HideCong`, `LoopCong`, `ParCong`, `ParCongRep` do reach it.
+  Successive earlier revisions of this line said "the only FSim-layer module" and then "the
+  only FSim-layer **congruence** module"; **both are now false** — the second went stale the
+  moment `SlideCong`/`ExtChoiceLift`/`ExtChoiceCong` landed, which is a standing warning
+  against phrasing this cell as a uniqueness claim at all. Note also that *reaching*
+  `DRImpliesFD` is not the same as *using* its postulate; see each module's own banner.)
+- **`＆-mono-⊑FD` / `◁▷-mono-⊑FD` / `Output-mono-⊑FD`** (`FD/DerivedMonoFD`, 2026-08-04):
+  **none, certified** — `agda --safe` exits 0 on the module, so its whole closure is
+  postulate-free. See inventory row (g) for the two choices that keep it so
+  (`stable-no-τ` from `Semantics/Stability`, not `Semantics/DRImpliesFD`; force-equality
+  crossed via `FD/BindFD`'s `cross-*-force-eq`, not via `drbisim→≈FD`).
+- **`⨅⁺-mono-⊑FD` / `⨅Fin-mono-⊑FD`** (`FD/IChoiceMonoFD`, 2026-08-04): **none** —
+  inductions over `⊓-mono-⊑FD`, which is itself postulate-free (a union transfer over
+  `FDLawsIChoiceAssoc`'s constructive decompositions).
+- **`¬-divergent→normal`** (`Semantics.DRImpliesFD`'s one postulate, declared and used
+  in its home module) has exactly **one** consumer beyond that home module, repo-wide:
+  `FD/FDTransfer.agda:42-43` (imported), used at line 210.
+- All of the above are certified sound from the single `dne` in
+  `CSP.Laws.ClassicalFromLEM`.
+
+### The `DRImpliesFD` transitive-reach erratum
+
+The original campaign constraint — "modules under `CSP/Laws/FSim/` must not import
+`Semantics.DRImpliesFD`" — holds literally (no FSim module imports it directly) but is
+**unsatisfiable under a transitive reading**, discovered during Task 6:
+
+- `FSim/ParCong` → `FD/ParallelMonoFD` → `FD/FDTransfer` → `Semantics.DRImpliesFD`
+  (`ParCong.agda:112`)
+- `FSim/HideCong` → `FD/HideMonoFD` → `Semantics.DRImpliesFD` (`HideCong.agda:123`)
+- `Bisim/DRCongruence` → `FD/InterruptFD` → `Semantics.DRImpliesFD`
+  (`DRCongruence.agda:79`)
+
+So `ParCong`, `HideCong` (hence `ParCongRep`, hence `FSimTower`), `LoopCong`, `BindCong`
+and `DRCongruence` all reach `DRImpliesFD` transitively, while `IChoiceCong`, `SlideCong`,
+`ExtChoiceLift`, `ExtChoiceCong`, `HideCounterexample` and `SlideCounterexample` do not.
+**Do not restate this as "only X is clean".** An earlier revision said only
+`FSim/IChoiceCong` was the clean congruence module; that became false as soon as the `▷`/`□`
+FSim modules landed, and this is the fourth time in this campaign that a "the only …"
+phrasing about hiding or `□` turned out to be wrong. State the measured set, dated, or
+state nothing.
+**The useful reformulation, which the reach above still satisfies:** the property that
+actually matters is "does this module **USE** `¬-divergent→normal` or `drbisim→≈FD`",
+not "does it **import** `DRImpliesFD`" — a module can import `DRImpliesFD` purely for
+its postulate-free `Semantics.Stability` re-exports (which is what `HideMonoFD` does)
+and add zero classical content. Under that reformulation the intent is satisfied:
+`¬-divergent→normal` has the single external consumer noted above, and the FSim
+regime's actual classical debt is `Par-Diverges→` via `Par-fsim`'s `div→`, not
+`¬-divergent→normal`. **Caveat, disclosed honestly:** this rests on manual name-level
+import/use tracing across the relevant modules, not a machine axiom tracer — none
+exists in this Agda setup, and `--safe` is not usable here since real postulates exist
+upstream of the whole FD layer.
+
+### Correction to a stale progress note
+
+An earlier project note (predating this campaign) recorded "Task 4 congruences
+(Par/Bind/Hide/loop0) remain" against the `FSim` layer. **Resolved** — verified against
+source, not transcribed: all four landed on `semantics/failure-sim` in PR #60
+(`0a4a9be` Par, `56ee517` Bind, `cb5f63e` Hide, `da5ea98` loop/iterate), and are the
+`Par-fsim`/`Bind-fsim`/`Hide-fsim`/`Iter-bind-fsim` rows of §15 and the table above —
+already recorded there as ✅ before this campaign started. The note was stale, not a gap.
+
+The genuinely-remaining item with a similar shape lives in a different document:
+`docs/specs/compositional-refinement-plan.md` Tasks 1–2 (`Par-mono-⊑FD`,
+`Hide-mono-⊑FD`) are marked done in that file (with the correction that unconditional
+`Hide-mono-⊑FD` is false — see §6 above); **Tasks 3–4 of that plan — restructuring a
+flat spec into leaf-decomposed form, and assembling the compositional Cardano mux
+refinement from it — have no "done" annotation in that file and genuinely remain.**
+(Verified by reading the file: only Task 2 carries an "UPDATE (done…)" note.)
+
 ---
 
 ## Suggested next steps
@@ -1114,4 +2104,4 @@ single node does not have. The fix unblocks **6 of the module's 23 importers**; 
    Derivation 9). The **loop** case needs the `Guarded B → τ-Acc B → τ-Acc (loop0 B)`
    hypothesis of §16 finding 3 first.
 
-_Last updated 2026-08-01._
+_Last updated 2026-08-04._

@@ -48,9 +48,9 @@ open import Process_Trees
 open PTree
 
 -- the concrete FourNode instantiation: shared Params `p`, the produce/consume
--- drivers, the `apiES` sync set, the seed block `b1`, and the four link ids
+-- drivers, the `apiES` sync set, the seed block `blkA`, and the four link ids
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( p; produce; consume; apiES; b1; linkAB; linkAC; linkBD; linkCD )
+  using ( p; produce; consume; apiES; linkAB; linkAC; linkBD; linkCD )
 
 open import CSP.Examples.Cardano_network.Params using (Params)
 open Params p   -- Cookie/Block/Txid/Time/Length/time₀/length₀ + DecEq instances
@@ -68,7 +68,8 @@ open import CSP.Examples.Cardano_network.Net p
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _>>_; _>>=_; Skip )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- Missing product/list DecEq instances for the `!`-output value gates
@@ -163,9 +164,11 @@ force (tableSpec T q) = tsNode T q (Table.isFin T q)
 ------------------------------------------------------------------------
 -- KeepAlive client spec (dir d, sends stamped FromInitiator).
 --
--- The autonomous KA loop `kcClient → kcWmsg c → kcAwait c → kcClient`
--- (apiKA ∉ apiES ⇒ free) plus the `sendKADone` exit to √ — THE loop the
--- fairness campaign's `BlockLiveness⁺ᶠ` excludes by `Fair`.
+-- The KA loop `kcClient → kcWmsg c → kcAwait c → kcClient` plus the
+-- `sendKADone` exit to √.  NOTE (Praos model): `apiKA ∈ apiES` on this branch
+-- (FourNodeDiamond:154-162 gates ALL api channels), and the node drivers never
+-- offer `apiKA`, so KA is INERT (frozen at `kcClient`), NOT a free-running
+-- loop — the fairness `BlockLiveness⁺ᶠ` route is superseded here.
 ------------------------------------------------------------------------
 
 -- KA client positions (state heads + mid-prefix positions)
@@ -641,7 +644,8 @@ bfServerSpec : Link → Dir → NetTree
 bfServerSpec l d = tableSpec (record { isFin = bfSfin ; nxt = bfSnxt l d }) bsIdle
 
 ------------------------------------------------------------------------
--- TxSubmission client (submitter) spec (dir d; apiTS ∉ apiES ⇒ free).
+-- TxSubmission client (submitter) spec (dir d; apiTS ∈ apiES on this branch, so
+-- TS is driver-gated: one MsgTSInit warm-up, then INERT at stIdle — not free).
 ------------------------------------------------------------------------
 
 -- TS client positions
@@ -1257,7 +1261,7 @@ specBundleFlip l =
 nodeASpec : NetTree
 nodeASpec =
   (specBundleFlip linkAB ⦀ specBundleFlip linkAC)
-    ∥⇘ apiES ⇙ (produce linkAB hi b1 ⦀ produce linkAC hi b1)
+    ∥⇘ apiES ⇙ (produce linkAB hi blkA ⦀ produce linkAC hi blkA)
 
 -- abstract node B: straight AB spec bundle ⦀ flipped BD spec bundle + relay
 -- (copied from Liveness.NodeBC:121-125)

@@ -42,7 +42,8 @@ open import Process_Trees
 open ExtI using (base; pair; fin)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.ChoiceMatchSpike where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.ChoiceMatchSpike (blkA : Block₃) where
 
 open PTree
 

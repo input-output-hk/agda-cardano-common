@@ -1,5 +1,8 @@
 {-# OPTIONS --guardedness #-}
 
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_GapBDisj (blkA : Block₃) where
+
 open import Level using (0ℓ; Level)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Unit using () renaming (tt to ttU; ⊤ to ⊤U)
@@ -35,9 +38,9 @@ open TLB using ( fBind-react; bindV-elim )
 open EventSet using ( mem )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 open Op using () renaming (∅ES to ∅ESa)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN; vis-of )
 open import CSP.Examples.Cardano_network.Network p Payload using ( Copy )
@@ -47,9 +50,11 @@ import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)} as LN
 import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {Payload}) as PEN
 open import CSP.Laws.Traces.TraceLawsParallel (Net-≟ {Payload}) using ( fPar-er; fPar-sr; fPar-nn )
 open import Data.List using ( List; []; _∷_; length; lookup; updateAt; map )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as SN
+open SN
   using ( decNodeA; decNodeB; decNodeC; decNodeD; bundleG; bundleA )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA as SStep
+open SStep
   using ( absDec; nodesOf; absNodesOf
         ; ReflOut; innerτ; hidSync; reflect-⟦⟧-τ; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ
@@ -64,9 +69,8 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
         -- io-offer predicate (GAP-B disjointness leaves; `RenNO` via `SStep`)
         ; IoOffers )
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; b1; produce )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
+  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
 open NS using ( tableSpec; tsNode; tMenu; tGo
               ; kaClientSpec; kaServerSpec; tsClientSpec; tsServerSpec )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -87,11 +91,11 @@ import CSP.Examples.Cardano_network.TxSubmission p as TS
 import CSP.Examples.Cardano_network.KeepAlive    p as KA
 import CSP.Examples.Cardano_network.LeiosNotify  p as LNp
 import CSP.Examples.Cardano_network.LeiosFetch   p as LFp
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
         ; decCSc; decCSc-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
         ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
@@ -106,7 +110,7 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
         ; decLNc; decLNc-src; decLNs; decLNs-src
         ; decLFc; decLFc-src; decLFs; decLFs-src
         ; decCSs; decCSs-src; decBFc; decBFc-src; decBFs; decBFs-src )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; ConsDPh; consD
@@ -126,7 +130,7 @@ import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload}) as PInv
 open PInv using ( ⟶₀-ev-inv; Prefix-cont-fires )
 open Op using ( Prefix; Output; Output-cont )
 open import Class.DecEq using ( DecEq )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVC; vis-ofC; CSProc; succVB; vis-ofB; BFProc )
 import Semantics.LTS {E = CS.CSEv} {I = ExtI CS.CSEv} as CSL
 import Semantics.LTS {E = BF.BFEv} {I = ExtI BF.BFEv} as BFL
@@ -159,14 +163,14 @@ import CSP.Rename {E₁ = KA.KAEv} {E₂ = Net_Api Payload} ιKA ιKA⁻¹ ιKA-
 import CSP.Rename {E₁ = TS.TSEv} {E₂ = Net_Api Payload} ιTS ιTS⁻¹ ιTS-linv as RenTS
 import CSP.Rename {E₁ = LNp.LNEv} {E₂ = Net_Api Payload} ιLN ιLN⁻¹ ιLN-linv as RenLN
 import CSP.Rename {E₁ = LFp.LFEv} {E₂ = Net_Api Payload} ιLF ιLF⁻¹ ιLF-linv as RenLF
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVK; vis-ofK; KAProc )
 import Semantics.LTS {E = KA.KAEv} {I = ExtI KA.KAEv} as KAL
 open import CSP.Examples.Cardano_network.Net p using
   ( sendKAMsg; sendKADone; errCookie; recvKACookie )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVT; vis-ofT; TSProc )
 import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
 open import CSP.Examples.Cardano_network.Net p using
@@ -176,7 +180,7 @@ open import CSP.Examples.Cardano_network.Net p using
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 open import Data.List.Properties using (≡-dec)
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVN; vis-ofN; LNProc )
 import Semantics.LTS {E = LNp.LNEv} {I = ExtI LNp.LNEv} as LNL
 open import CSP.Examples.Cardano_network.Net p using
@@ -186,7 +190,7 @@ open import CSP.Examples.Cardano_network.Net p using
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer
   ; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone )
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( succVF; vis-ofF; LFProc )
 import Semantics.LTS {E = LFp.LFEv} {I = ExtI LFp.LFEv} as LFL
 open import CSP.Examples.Cardano_network.Net p using
@@ -199,8 +203,7 @@ open import CSP.Examples.Cardano_network.Data p using
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_GapBDisj where
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_PeerEvIo public
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_PeerEvIo blkA public
 
 ------------------------------------------------------------------------
 -- GAP-B FOUNDATION — inert-peer channel DISJOINTNESS (the non-offer leaves).
@@ -220,7 +223,6 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_Pee
 
 -- SysStep qualified (its `RenNO` parameterised module is not brought in by the
 -- `using` open above — a module member needs a qualified path)
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep as SStep
 
 -- RenNO instances for the four inert protocols (mirror SysStep's `CSNO`/`BFNO`;
 -- the RenTC `KANO`/… names above are for the τ-freedom no-τ transport)

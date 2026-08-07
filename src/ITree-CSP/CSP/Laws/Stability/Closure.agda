@@ -26,7 +26,8 @@
 --   §6  parallel        `Par A merge P Q` (intro, elim, classify, reassociate)
 --   §7  hide            `P ∖ A`
 --   §8  bind / seq / iterate
---   §9  NEW: the gaps — `□-force-nn`, `stable-□`, `□-stable-elim`, `Par-stable?`
+--   §9  NEW: the gaps — `□-force-nn`, `stable-□`, `□-stable-elim` (these three now
+--           live in `CSP.Laws.Stability.ExtChoice` and are re-exported), `Par-stable?`
 --
 -- NOT gathered here, on purpose:
 --   * `CSP.Laws.FD.InterruptFD` / `ThrowFD` (2181 + 882 lines, imported by nothing
@@ -189,109 +190,16 @@ open import CSP.Laws.FD.IterateMonoFD E-≟
 -- NOT re-derived; only the stability statements below are new.
 -------------------------------------------------------------------------------------
 
-open import CSP.Laws.Traces.TraceLawsExtChoice E-≟
-  using (NonRet; fL-A; fL-B; □-mt-tag0-eq; □-mt-tag1-eq; □-τ-tochoice; □-τ-tochoice-R)
+-- (9.1)–(9.3) the `□` gap lemmas.  They MOVED to `CSP.Laws.Stability.ExtChoice`
+-- (verbatim, nothing re-proved) because their own dependency closure carries just ONE
+-- postulate-bearing module against this survey's ten, so a `□`-only client can now
+-- import them without paying for the `Par`/hide/iterate layers.  Re-exported here, so
+-- every existing client of this module keeps working unchanged.
+open import CSP.Laws.Stability.ExtChoice E-≟
+  using (□-force-nn; stable-□; □-stable-elim) public
+
 open import CSP.Laws.Traces.TraceLawsParallel E-≟ using (Par-τ-L; Par-τ-R)
 open import CSP.Laws.Traces.TraceLawsParallelElim E-≟ using (fPar-rr)
-
--- (9.1) the force equation for a `react|react` external choice.  `ExtChoiceIdem`
--- only had the DIAGONAL case (`double-force-eq`, for `P □ P`); this is the general
--- two-operand version, and it is what the `□` stability intro needs.
-□-force-nn : ⦃ _ : DecEq R ⦄ {P Q : PTree E (ExtI E) R}
-             {vP  : (at : AnyTypes E)        → ContinueType at (Maybe (PTree E (ExtI E) R))}
-             {τcP : (i  : AnyTypes (ExtI E)) → ContinueType i  (Maybe (PTree E (ExtI E) R))}
-             {vQ  : (at : AnyTypes E)        → ContinueType at (Maybe (PTree E (ExtI E) R))}
-             {τcQ : (i  : AnyTypes (ExtI E)) → ContinueType i  (Maybe (PTree E (ExtI E) R))}
-           → PTree.force P ≡ react vP τcP → PTree.force Q ≡ react vQ τcQ
-           → PTree.force (P □ Q)
-             ≡ react (mergeVis vP vQ) (□-mt (react vP τcP) (react vQ τcQ) P Q)
-□-force-nn {P = P} {Q = Q} eqP eqQ with PTree.force P | PTree.force Q | eqP | eqQ
-... | react _ _ | react _ _ | refl | refl = refl
-
--- (9.2) STABILITY INTRO for `□` in general.  Only the diagonal `stable-double`
--- (`isStable P → isStable (P □ P)`) existed.  The merged τ-map `□-mt` fires exactly
--- at the two `pair fin` tags — tag0 is `P`'s own τ-map, tag1 is `Q`'s — so both are
--- everywhere `nothing` when the operands are stable, and every other index shape of
--- `□-mt` is `nothing` by definition.
-stable-□ : ⦃ _ : DecEq R ⦄ {P Q : PTree E (ExtI E) R}
-         → isStable P → isStable Q → isStable (P □ Q)
-stable-□ {P = P} {Q = Q} stP stQ
-  with stable→react {t = P} stP | stable→react {t = Q} stQ
-... | vP , τcP , eqP , hP | vQ , τcQ , eqQ , hQ =
-      mk-stable {t = P □ Q} (□-force-nn {P = P} {Q = Q} eqP eqQ) mt-branch
-  where
-    -- the merged τ-map is everywhere nothing (tag0 ↦ τcP, tag1 ↦ τcQ, rest ↦ nothing)
-    mt-branch : ∀ i a → □-mt (react vP τcP) (react vQ τcQ) P Q i a ≡ nothing
-    mt-branch (_ , base _)            a = refl
-    mt-branch (_ , fin)               a = refl
-    mt-branch (_ , pair (base _) _)   a = refl
-    mt-branch (_ , pair (pair _ _) _) a = refl
-    mt-branch (_ , pair fin i) (lift fzero , a)        rewrite hP (_ , i) a = refl
-    mt-branch (_ , pair fin i) (lift (fsuc fzero) , a) rewrite hQ (_ , i) a = refl
-    mt-branch (_ , pair fin i) (lift (fsuc (fsuc _)) , a) = refl
-
--- (9.3) STABILITY ELIM for `□`: the converse of (9.2), completing the `iff`.  Every
--- non-`react|react` shape of `P □ Q` carries a τ — two terminated operands give a
--- `ret` (same value) or an internal-choice node (different values); one terminated
--- operand keeps its √ reachable behind a τ (`□-Lret-unstable`/`□-Rret-unstable`); a
--- `sil` operand's own τ is merged in at its tag (`□-τ-tochoice`).  So a stable
--- `P □ Q` forces both operands to be `react` nodes with an empty τ-map.
-□-stable-elim : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R)
-              → isStable (P □ Q) → isStable P × isStable Q
-□-stable-elim {R = R} P Q st = go (PTree.force P) refl (PTree.force Q) refl
-  where
-    -- both terminated: `ret r` if the values agree, otherwise the `⊓` node — and an
-    -- internal choice is never stable (`⊓-unstable`).
-    rr : ∀ {r r′ : R} → PTree.force P ≡ ret r → PTree.force Q ≡ ret r′ → ⊥
-    rr {r} {r′} eqP eqQ with r ≟ r′
-    ... | yes refl = stable-not-ret {t = P □ Q} st (fL-A {P = P} {Q = Q} eqP eqQ)
-    ... | no ¬eq   = ⊓-unstable P Q
-                       (isStable-force-eq {t = P □ Q} {u = P ⊓ Q}
-                                          (fL-B {P = P} {Q = Q} eqP eqQ ¬eq) st)
-    -- the nine force shapes; only `react|react` survives
-    go : (nP : NodeKind E (ExtI E) R) → PTree.force P ≡ nP
-       → (nQ : NodeKind E (ExtI E) R) → PTree.force Q ≡ nQ
-       → isStable P × isStable Q
-    go (ret r)       eqP (ret r′)      eqQ = ⊥-elim (rr eqP eqQ)
-    go (ret r)       eqP (sil Q′)      eqQ =
-      ⊥-elim (□-Lret-unstable P Q eqP (subst NonRet (sym eqQ) tt) st)
-    go (ret r)       eqP (react _ _)   eqQ =
-      ⊥-elim (□-Lret-unstable P Q eqP (subst NonRet (sym eqQ) tt) st)
-    go (sil P′)      eqP (ret r′)      eqQ =
-      ⊥-elim (□-Rret-unstable P Q (subst NonRet (sym eqP) tt) eqQ st)
-    go (sil P′)      eqP (sil Q′)      eqQ =
-      ⊥-elim (stable-no-τ st (□-τ-tochoice P Q (sSil eqP) eqQ tt))
-    go (sil P′)      eqP (react _ _)   eqQ =
-      ⊥-elim (stable-no-τ st (□-τ-tochoice P Q (sSil eqP) eqQ tt))
-    go (react _ _)   eqP (ret r′)      eqQ =
-      ⊥-elim (□-Rret-unstable P Q (subst NonRet (sym eqP) tt) eqQ st)
-    go (react _ _)   eqP (sil Q′)      eqQ =
-      ⊥-elim (stable-no-τ st (□-τ-tochoice-R P Q (sSil eqQ) eqP tt))
-    go (react vP τcP) eqP (react vQ τcQ) eqQ =
-        mk-stable {t = P} eqP hP , mk-stable {t = Q} eqQ hQ
-      where
-        -- the composite's τ-map, read off its known `react` force
-        mtn : ∀ i a → □-mt (react vP τcP) (react vQ τcQ) P Q i a ≡ nothing
-        mtn = stable-react-τc {t = P □ Q} st (□-force-nn {P = P} {Q = Q} eqP eqQ)
-        -- tag0 of that map IS `P`'s τ-map, so `P`'s is everywhere nothing …
-        hP : ∀ i a → τcP i a ≡ nothing
-        hP (B , i) a with τcP (B , i) a in tp
-        ... | nothing = refl
-        ... | just P₁ = case trans (sym (□-mt-tag0-eq {nP = react vP τcP} {nQ = react vQ τcQ}
-                                                      {P = P} {Q = Q} {iₚ = B , i} {aₚ = a}
-                                                      {P₁ = P₁} tp))
-                                   (mtn ((Lift ℓ (Fin 2) × B) , pair fin i) (lift fzero , a))
-                        of λ ()
-        -- … and tag1 is `Q`'s
-        hQ : ∀ i a → τcQ i a ≡ nothing
-        hQ (B , i) a with τcQ (B , i) a in tq
-        ... | nothing = refl
-        ... | just Q₁ = case trans (sym (□-mt-tag1-eq {nP = react vP τcP} {nQ = react vQ τcQ}
-                                                      {P = P} {Q = Q} {iₚ = B , i} {aₚ = a}
-                                                      {Q₁ = Q₁} tq))
-                                   (mtn ((Lift ℓ (Fin 2) × B) , pair fin i)
-                                        (lift (fsuc fzero) , a))
-                        of λ ()
 
 -- (9.4) DECIDING stability of a parallel composite.  `Par-stable` / `-termL` / `-termR`
 -- (intro) and `Par-stable-normal` (elim) together already form an IFF, but nobody had

@@ -43,7 +43,8 @@ open import Process_Trees using
   ( PTree; ExtI; AnyTypes; ContinueType; react; ret; sil; react-injective; sil-injective
   ; base; pair; fin )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_TauCore where
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module CSP.Examples.Cardano_network.NetworkVerification.Praos.SysOracle_TauCore (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The shared alphabet, the whole-system process type, and the model.
@@ -77,10 +78,10 @@ NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- the concrete decode + its state and projections
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; ⟦_⟧ )
 -- the shared medium decode + its state and per-cell / per-link decodes
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN; vis-of )
 -- the pre-rename copy cell head (Net Payload alphabet)
@@ -97,12 +98,13 @@ open import CSP.Laws.Traces.TraceLawsParallel (Net-≟ {Payload}) using ( fPar-e
 -- list helpers for the positional cell/list peel reconstruction
 open import Data.List using ( List; []; _∷_; length; lookup; updateAt; map )
 -- the concrete node decodes + the generic 12-peer bundle
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode blkA as SN
+open SN
   using ( decNodeA; decNodeB; decNodeC; decNodeD; bundleG; bundleA )
 
 -- the generic step machinery (R2 Task 4): the reflect-half's operand-generic
 -- inversions of a whole-system step down the operator stack
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
+open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep blkA
   using ( absDec; nodesOf; absNodesOf
         ; ReflOut; innerτ; hidSync; reflect-⟦⟧-τ; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ
@@ -119,11 +121,10 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysStep
 
 -- the four-node links + the api sync alphabet + the node-state records (SN)
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; b1; produce )
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode as SN
+  using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
 
 -- the abstract τ-free peer interpreter (`tableSpec`) + the inert KA/TS specs
-import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs as NS
+import CSP.Examples.Cardano_network.NetworkVerification.Praos.NodeSpecs blkA as NS
 open NS using ( tableSpec; tsNode; tMenu; tGo
               ; kaClientSpec; kaServerSpec; tsClientSpec; tsServerSpec )
 
@@ -465,7 +466,7 @@ import CSP.Examples.Cardano_network.TxSubmission p as TS
 import CSP.Examples.Cardano_network.KeepAlive    p as KA
 import CSP.Examples.Cardano_network.LeiosNotify  p as LNp
 import CSP.Examples.Cardano_network.LeiosFetch   p as LFp
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
         ; decCSc; decCSc-src )
@@ -524,7 +525,7 @@ decCSc-τ-inv l d (csSil st) step with τ-inv step
 -- CS-server / BF-client / BF-server τ-inversions (analogous to CS-client).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
         ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
@@ -686,7 +687,7 @@ ret-no-τ feqP step | inj₂ (v′ , τc′ , i , a , feq′ , beq)
   with trans (sym feq′) feqP
 ...   | ()
 
-open import CSP.Examples.Cardano_network.NetworkVerification.Praos.SysNode
+open SN
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; ConsDPh; consD
@@ -717,7 +718,7 @@ decCons-no-τ l d b cp4 = react-no-τ {P = decCons l d b cp4} refl (λ _ _ → r
 decCons-no-τ l d b cp5 = react-no-τ {P = decCons l d b cp5} refl (λ _ _ → refl)
 decCons-no-τ l d b cp6 = ret-no-τ  {P = decCons l d b cp6} refl
 
--- node-D consume driver `decCons l hi b1 ph >> Skip` (cp0..cp5 react; cp6 = Skip>>… = ret? no: react bind then Skip)
+-- node-D consume driver `decCons l hi blkA ph >> Skip` (cp0..cp5 react; cp6 = Skip>>… = ret? no: react bind then Skip)
 decConsD-no-τ : (l : Link) (cph : ConsDPh) {M : NetProc} → ¬ (decConsD l cph ─[ τ ]─► M)
 decConsD-no-τ l (consD b cp0) = react-no-τ {P = decConsD l (consD b cp0)} refl (λ _ _ → refl)
 decConsD-no-τ l (consD b cp1) = react-no-τ {P = decConsD l (consD b cp1)} refl (λ _ _ → refl)

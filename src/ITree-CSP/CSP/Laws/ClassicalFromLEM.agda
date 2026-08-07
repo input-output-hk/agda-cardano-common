@@ -32,9 +32,11 @@
 --       - `modA-transfer`      from CSP.Laws.Bisim.DRCongruence
 --       - `Hide-Diverges→`     from CSP.Laws.FD.HideDivergence
 --       - `Diverges-LEM`       from CSP.Laws.FD.FDTransfer
+--       - `αpar-Diverges→`     from CSP.Laws.FD.AlphaParallelDivergence
 --   * So this file is a standalone soundness witness, kept green but never depended on.
 --     Treat the names below (`¬-divergent→normal`, `□-Diverges→`, `△-Diverges→`,
---     `>>-Diverges→`, `Par-Diverges→`, `offer-LEM`, `dne`, helpers) as off-limits for any
+--     `>>-Diverges→`, `Par-Diverges→`, `αpar-Diverges→`, `offer-LEM`, `dne`, helpers) as
+--     off-limits for any
 --     actual law; use the direct postulates above.
 
 open import Level using (Level; _⊔_) renaming (suc to lsuc)
@@ -70,6 +72,7 @@ open import CSP.Laws.Bisim.LoopCong  E-≟ using (fBind-ret; fBind-sil; fBind-re
 open import Semantics.Refusals  {E = E} {I = ExtI E} using (Offers)
 open import CSP.Laws.Traces.TraceLawsParallel     E-≟ using (Mg)
 open import CSP.Laws.Traces.TraceLawsParallelElim E-≟ using (Par-τ-elim; τL; τR)
+open import CSP.Laws.AlphaParallel E-≟ using (αpar-τ-step-inv)
 
 private
   variable
@@ -308,6 +311,31 @@ Par-Diverges→ : (A : EventSet) (merge : Mg R₁ R₂ R)
 Par-Diverges→ A merge d =
   dne (λ k → Par-no-inf A merge (¬Div→DAcc (λ dP → k (inj₁ dP)))
                                 (¬Div→DAcc (λ dQ → k (inj₂ dQ))) d)
+
+-------------------------------------------------------------------------------------
+-- Derivation 11:  αpar-Diverges→ (the BINARY ALPHABETISED-PARALLEL König step) from dne.
+-- The same `DAcc` route as Derivations 2 / 5, and STRICTLY SIMPLER than `Par`'s: by the
+-- 2-way `αpar-τ-step-inv` a τ of `P ⟦A∥B⟧ Q` is P's τ (residual `P′ ⟦A∥B⟧ Q`) or Q's τ
+-- (residual `P ⟦A∥B⟧ Q′`) and NOTHING else — `αpar` routes every visible event
+-- determinately by alphabet, so it has no both-offer overlap node (and no slide), and the
+-- τ-chain provably stays in `⟦A∥B⟧` form.  Hence `P ⟦A∥B⟧ Q` cannot diverge when P and Q
+-- are both accessible.  (Kept next to Derivation 5, the `Par` analogue it mirrors.)
+-------------------------------------------------------------------------------------
+αpar-no-inf : (A B : EventSet) {P : PTree E (ExtI E) R} {Q : PTree E (ExtI E) S}
+            → DAcc P → DAcc Q → ¬ Diverges (P ⟦ A ∥ B ⟧ Q)
+αpar-no-inf A B {P = P} {Q = Q} (dacc rsP) (dacc rsQ) d
+  with αpar-τ-step-inv {A = A} {B = B} {P = P} {Q = Q} (d .Diverges.step)
+... | inj₁ (P′ , Pτ , m≡) =
+      αpar-no-inf A B (rsP Pτ) (dacc rsQ) (subst Diverges m≡ (d .Diverges.rest))
+... | inj₂ (Q′ , Qτ , m≡) =
+      αpar-no-inf A B (dacc rsP) (rsQ Qτ) (subst Diverges m≡ (d .Diverges.rest))
+
+-- certifies the αpar-Diverges→ postulate in CSP.Laws.FD.AlphaParallelDivergence
+αpar-Diverges→ : (A B : EventSet) {P : PTree E (ExtI E) R} {Q : PTree E (ExtI E) S}
+               → Diverges (P ⟦ A ∥ B ⟧ Q) → Diverges P ⊎ Diverges Q
+αpar-Diverges→ A B d =
+  dne (λ k → αpar-no-inf A B (¬Div→DAcc (λ dP → k (inj₁ dP)))
+                             (¬Div→DAcc (λ dQ → k (inj₂ dQ))) d)
 
 -------------------------------------------------------------------------------------
 -- Derivation 6:  loop-Diverges→ (the iterate / loop König step) from dne.

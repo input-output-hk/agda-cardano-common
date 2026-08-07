@@ -46,7 +46,10 @@ open import Semantics.FailuresDivergences {ℓ} {ℓe} {ℓi} {E} {I}
 -- one (`grep -rl DRImpliesFD --include='*.agda' src/`, minus this file); 52 of those carry
 -- an actual `import Semantics.DRImpliesFD`, the rest only mention it in comments.
 open import Semantics.FailureSim          {ℓ} {ℓe} {ℓi} {E} {I}
-  using (FSim; fsim→⊑D; fsim→⊑F⊥; fsim→⊑FD)
+  using (FSim; fsim→⊑D; fsim→⊑F; fsim→⊑F⊥; fsim→⊑FD)
+-- strong bisimulation's bridge into the DR layer, needed only for `bisim→⊑F` below
+open import Semantics.Bisim               {ℓ} {ℓe} {ℓi} {E} {I} using (_∼_)
+open import Semantics.StrongImpliesDR     {ℓ} {ℓe} {ℓi} {E} {I} using (sbisim→drbisim)
 
 -- the stability helpers were moved out of this module (they are postulate-free);
 -- re-exported here so that existing consumers keep seeing them
@@ -161,8 +164,24 @@ drbisim→⊑D pq = fsim→⊑D (drbisim→fsim (drbisim-sym pq))
 drbisim→⊑F⊥ : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑F⊥ Q
 drbisim→⊑F⊥ pq = fsim→⊑F⊥ (drbisim→fsim (drbisim-sym pq))
 
+-- stable failures are respected (the divergence-free half of `drbisim→⊑F⊥`, useful on
+-- its own when the target refinement is `⊑F` rather than `⊑F⊥`/`⊑FD`)
+drbisim→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑F Q
+drbisim→⊑F pq = fsim→⊑F (drbisim→fsim (drbisim-sym pq))
+
 drbisim→⊑FD : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑FD Q
 drbisim→⊑FD pq = fsim→⊑FD (drbisim→fsim (drbisim-sym pq))
 
 drbisim→≈FD : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ≈FD Q
 drbisim→≈FD pq = drbisim→⊑FD pq , drbisim→⊑FD (drbisim-sym pq)
+
+-------------------------------------------------------------------------------------
+-- STRONG bisimulation also gives `⊑F`, via `Semantics.StrongImpliesDR.sbisim→drbisim`
+-- (mirroring how CSP-layer call sites already compose `drbisim→≈FD (sbisim→drbisim …)`,
+-- e.g. `CSP.Laws.FD.HideCombine.hide-combine-FD`).  Kept here, next to `drbisim→⊑F`,
+-- since it is this module's postulate that the composed proof ultimately consumes.
+-------------------------------------------------------------------------------------
+
+-- stable failures are respected across a strong bisimulation
+bisim→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → P ∼ Q → P ⊑F Q
+bisim→⊑F pq = drbisim→⊑F (sbisim→drbisim pq)

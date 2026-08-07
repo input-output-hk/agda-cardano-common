@@ -190,6 +190,101 @@ data ΘevR {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R) (A : EventSet)
 Θ-ev-elim P Q {A = A} (sVis {at = at} {a = a} eqf breq) = Θ-vis-inv P Q A eqf breq
 
 -------------------------------------------------------------------------------------
+-- Part 4: the INTRO (forward) step lemmas and the two DIVERGENCE directions for Throw.
+--
+-- HOISTED VERBATIM from `CSP.Laws.FD.ThrowFD` (which now re-exports them `public`, so its
+-- API is unchanged).  They live here so that the FSim layer can reuse them without pulling
+-- the whole FD law-suite — and with it the classical `Semantics.DRImpliesFD` — into its
+-- import closure; this module is `--safe` clean and postulate-free.
+-------------------------------------------------------------------------------------
+
+-- P's τ-step lifts through the throw: (P ⟦ A ▷ Q) ─[τ]→ (P′ ⟦ A ▷ Q).
+-- Throw's τ-space IS P's own τ-space (no pair-fin tag): Θ-τ reads `viewT (force P)`,
+-- which is exactly what a P-τ exposes.  The forward analogue of Θ-τ-elim's source.
+Θ-τ-lift-P : {P P′ Q : PTree E (ExtI E) R} {A : EventSet}
+           → P ─[ τ ]─► P′ → (P ⟦ A ▷ Q) ─[ τ ]─► (P′ ⟦ A ▷ Q)
+-- sSil: force P ≡ sil P′; viewT (sil P′) (_,fin) (lift fzero) = just P′, so
+-- Θ-τ A (sil P′) Q (_,fin) (lift fzero) = just (P′ ⟦ A ▷ Q).
+Θ-τ-lift-P {P = P} {P′ = P′} {Q = Q} {A = A} (sSil eqP) =
+  sTau {i = _ , fin {n = 1}} {a = lift fzero}
+       (force-Θ-sil {P = P} {Q = Q} {A = A} eqP)
+       (Θ-tag eqP)
+  where
+    Θ-tag : PTree.force P ≡ sil P′
+          → Θ-τ A (sil P′) Q (_ , fin {n = 1}) (lift fzero) ≡ just (P′ ⟦ A ▷ Q)
+    Θ-tag _ = refl
+-- sTau: force P ≡ react v τc, τc i a ≡ just P′, and viewT (react v τc) i a = τc i a,
+-- so Θ-τ A (react v τc) Q i a = just (P′ ⟦ A ▷ Q).
+Θ-τ-lift-P {P = P} {P′ = P′} {Q = Q} {A = A} (sTau {v = v} {τc = τc} {i = i} {a = a} eqP brP) =
+  sTau {i = i} {a = a}
+       (force-Θ-react {P = P} {Q = Q} {A = A} eqP)
+       (Θ-tag brP)
+  where
+    Θ-tag : τc i a ≡ just P′
+          → Θ-τ A (react v τc) Q i a ≡ just (P′ ⟦ A ▷ Q)
+    Θ-tag b rewrite b = refl
+
+-- Diverges P lifts to Diverges (P ⟦ A ▷ Q).  COPATTERN form (guarded via .rest);
+-- all case analysis is inside the with-free Θ-τ-lift-P.
+Θ-Diverges-L : {P Q : PTree E (ExtI E) R} {A : EventSet}
+             → Diverges P → Diverges (P ⟦ A ▷ Q)
+Θ-Diverges-L {Q = Q} {A = A} divP .Diverges.next = (divP .Diverges.next) ⟦ A ▷ Q
+Θ-Diverges-L {Q = Q} {A = A} divP .Diverges.step =
+  Θ-τ-lift-P {P′ = divP .Diverges.next} {Q = Q} {A = A} (divP .Diverges.step)
+Θ-Diverges-L {Q = Q} {A = A} divP .Diverges.rest = Θ-Diverges-L {Q = Q} {A = A} (divP .Diverges.rest)
+
+-- one τ of (P ⟦ A ▷ Q) is a τ of P keeping the throw alive; reconstruct the residual
+-- divergence at the SAME index (M ≡ P′ ⟦ A ▷ Q refines `rest`).  No case-split here.
+Θ-div-step : {P Q : PTree E (ExtI E) R} {A : EventSet}
+           → Diverges (P ⟦ A ▷ Q)
+           → Σ[ P′ ∈ PTree E (ExtI E) R ] ((P ─[ τ ]─► P′) × Diverges (P′ ⟦ A ▷ Q))
+Θ-div-step {P = P} {Q = Q} {A = A} d
+  with Θ-τ-elim P Q (d .Diverges.step)
+... | (P′ , sP , m≡) = P′ , sP , subst Diverges m≡ (d .Diverges.rest)
+
+Θ-Diverges→ : {P Q : PTree E (ExtI E) R} {A : EventSet}
+            → Diverges (P ⟦ A ▷ Q) → Diverges P
+Θ-Diverges→ {P = P} {Q = Q} {A = A} d .Diverges.next =
+  proj₁ (Θ-div-step {P = P} {Q = Q} {A = A} d)
+Θ-Diverges→ {P = P} {Q = Q} {A = A} d .Diverges.step =
+  proj₁ (proj₂ (Θ-div-step {P = P} {Q = Q} {A = A} d))
+Θ-Diverges→ {P = P} {Q = Q} {A = A} d .Diverges.rest =
+  Θ-Diverges→ {Q = Q} {A = A} (proj₂ (proj₂ (Θ-div-step {P = P} {Q = Q} {A = A} d)))
+
+-- the throw fires: P offers an A-event, control transfers to X (P discarded).
+-- The sVis carries `force P ≡ react v τc` and `v at a ≡ just P′` (= viewV (react …) at a);
+-- force-Θ-react reduces force (P⟦A▷X) to react (Θ-vis …) …, and the tag lemma evaluates
+-- Θ-vis at a (rewrite the offer, then the yes-branch of A .dec) to `just X`.
+Θ-throw-step : {P P′ X : PTree E (ExtI E) R} {A : EventSet} {at : AnyTypes E} {a : proj₁ at}
+             → P ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► P′ → A .mem at a
+             → (P ⟦ A ▷ X) ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► X
+Θ-throw-step {P = P} {P′ = P′} {X = X} {A = A} {at = at} {a = a} (sVis {v = v} {τc = τc} eqP veq) m =
+  sVis {at = at} {a = a}
+       (force-Θ-react {P = P} {Q = X} {A = A} eqP)
+       (Θ-vis-throw veq m)
+  where
+    Θ-vis-throw : v at a ≡ just P′ → A .mem at a → Θ-vis A (react v τc) X at a ≡ just X
+    Θ-vis-throw vq mm rewrite vq with A .dec at a
+    ... | yes _  = refl
+    ... | no ¬m  = ⊥-elim (¬m mm)
+
+-- the throw passes: P offers a non-A event, P continues under the throw.
+Θ-pass-step : {P P′ X : PTree E (ExtI E) R} {A : EventSet} {at : AnyTypes E} {a : proj₁ at}
+            → P ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► P′ → ¬ (A .mem at a)
+            → (P ⟦ A ▷ X) ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► (P′ ⟦ A ▷ X)
+Θ-pass-step {P = P} {P′ = P′} {X = X} {A = A} {at = at} {a = a} (sVis {v = v} {τc = τc} eqP veq) ¬m =
+  sVis {at = at} {a = a}
+       (force-Θ-react {P = P} {Q = X} {A = A} eqP)
+       (Θ-vis-pass veq ¬m)
+  where
+    Θ-vis-pass : v at a ≡ just P′ → ¬ (A .mem at a)
+               → Θ-vis A (react v τc) X at a ≡ just (P′ ⟦ A ▷ X)
+    Θ-vis-pass vq ¬mm rewrite vq with A .dec at a
+    ... | yes m  = ⊥-elim (¬mm m)
+    ... | no  _  = refl
+
+
+-------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 -- INTERRUPT  `_△_`  LTS step-inversions.  Structurally analogous to Throw but with
 -- TWO live operands (cf. □-τ-elim / □-ev-elim in TraceLawsExtChoiceMono): a τ-step is

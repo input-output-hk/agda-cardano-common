@@ -63,7 +63,7 @@ open import CSP.Operators E-≟
 open EventSet
 open import Semantics.LTS      {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Offers; Refuses)
-open import Semantics.Failures {E = E} {I = ExtI E} using (failures)
+open import Semantics.Failures {E = E} {I = ExtI E} using (failures; _⊑F_)
 open import Semantics.DRImpliesFD {E = E} {I = ExtI E}
   using (stable-not-ret; stable-no-τ; nothing≢just)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
@@ -238,6 +238,25 @@ Hide-mono-fail A {P} {Q} f {s} {X} fl with Hide-failures-elim A Q fl
                   (div-extension-closed
                     (Hide-div-intro A P (dP .IsDivergence.reach) h₀
                       (hide-Diverges-lift A (dP .IsDivergence.divwit)))))
+
+-------------------------------------------------------------------------------------
+-- (i′) the STABLE-FAILURES analogue, UNCONDITIONALLY (no divergence hypothesis at all)
+-------------------------------------------------------------------------------------
+
+-- `Hide-mono-⊑F`: hiding is monotone for Roscoe's stable-failures refinement `⊑F`,
+-- with NO divergence side condition.  This is the `⊑F`-only cousin of `Hide-mono-fail`
+-- above: the FALSE unconditional `⊑FD` law (see the module header) is refuted by a
+-- process whose hide diverges, but `_⊑F_` has no divergence disjunct to begin with —
+-- `P ⊑F Q` only ever hands back a `Q`-failure re-matched as a `P`-failure, never a
+-- `P`-divergence — so the `inj₂ dP` branch of `Hide-mono-fail` (and everything it drags
+-- in: `HideTr-split`, `div-extension-closed`, `Hide-div-intro`, `hide-Diverges-lift`)
+-- has no counterpart here and simply does not arise.  The proof is the `inj₁` branch of
+-- `Hide-mono-fail` verbatim, with `f` now returning a bare failure instead of a `⊎`.
+Hide-mono-⊑F : (A : EventSet) {P Q : PTree E (ExtI E) R} → P ⊑F Q → (P ∖ A) ⊑F (Q ∖ A)
+Hide-mono-⊑F A {P} {Q} f s X fl with Hide-failures-elim A Q fl
+... | s′ , Q′ , run , h , ref
+      with f s′ (hideBan A X) (Q′ , run , hide-refuses-elim A Q′ ref)
+...   | P′ , runP , refP = Hide-failures-intro A P runP h (hide-refuses-intro A P′ refP)
 
 -------------------------------------------------------------------------------------
 -- (ii) the headline law, under divergence-freedom of the refined side's hide

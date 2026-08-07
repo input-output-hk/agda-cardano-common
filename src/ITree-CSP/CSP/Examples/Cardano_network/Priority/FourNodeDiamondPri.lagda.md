@@ -27,7 +27,7 @@ via a non-`public open import`), so it is imported here directly from
 
 ```agda
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
-  using (p; nodeA; nodeB; nodeC; nodeD)
+  using (p; b1; nodeA; nodeB; nodeC; nodeD)
 open import CSP.Examples.Cardano_network.Data p using (Payload)
 open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.NetCommon p using (ioES)
@@ -41,7 +41,7 @@ The whole network over the prioritised `NetworkLinkPriA` medium (in place of
 `NetworkA`), io hidden — otherwise identical wiring to `FourNodeDiamond.system`:
 
 ```agda
--- FourNodeDiamond with the BlockFetch≻LeiosFetch-prioritised NetworkLink medium.
+-- FourNodeDiamond with the BlockFetch≻LeiosFetch-prioritised NetworkLink medium; A pinned to producing b1.
 systemPri : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-systemPri = (NetworkLinkPriA ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
+systemPri = (NetworkLinkPriA ∥⇘ ioES ⇙ (nodeA b1 ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 ```

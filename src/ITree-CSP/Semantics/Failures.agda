@@ -9,7 +9,7 @@ open import Data.List using (List; []; _∷_)
 open import Data.Product using (Σ; _,_; _×_; Σ-syntax)
 open import Data.Empty using (⊥-elim)
 open import Relation.Binary using (Preorder; IsPreorder)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; isEquivalence)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; isEquivalence)
 
 open import Process_Trees
 
@@ -18,6 +18,9 @@ open PTree
 open import Semantics.LTS       {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Refusals  {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.WeakBisim {ℓ} {ℓe} {ℓi} {E} {I}
+-- only `stable-force-eq` is needed below; `Semantics.Stability` sits UPSTREAM of this
+-- module (it depends only on `LTS`/`WeakBisim`), so importing it here creates no cycle
+open import Semantics.Stability {ℓ} {ℓe} {ℓi} {E} {I} using (stable-force-eq)
 
 -- τ-abstracting big-step: p performs the visible trace s (τ's are silent) reaching q
 data _⟹⟨_⟩_ {ℓr} {R : Set ℓr}
@@ -52,6 +55,61 @@ _⊑F_ {ℓr = ℓr} {R = R} P Q = ∀ s (X : Event√ R → Set ℓr) → failu
 ⊑F-refl P s X f = f
 ⊑F-trans : ∀ {ℓr} {R : Set ℓr} {P Q S : PTree E I R} → P ⊑F Q → Q ⊑F S → P ⊑F S
 ⊑F-trans pq qs s X f = pq s X (qs s X f)
+
+-------------------------------------------------------------------------------------
+-- FORCE-EQUAL TREES ARE ⊑F-INTERCHANGEABLE.
+--
+-- `PTree` is a COINDUCTIVE record, so it has no η: a defined process `P` and an
+-- explicitly-unfolded one-step FSM `Q` with `PTree.force P ≡ PTree.force Q` need NOT
+-- be the propositionally-equal same term (e.g. `Skip >> P` vs `P`).  But every step of
+-- the LTS reads its source tree only through `force`, so `_⊑F_` is force-invariant —
+-- exactly the situation a calibrated leaf spec is in.  This is the `⊑F` sibling of
+-- `Semantics.FailuresDivergences.force-≡→⊑FD` (that module sits DOWNSTREAM of this one,
+-- so it cannot be reused directly); the three helpers below are private local
+-- transcriptions of its `step-force-≡`/`Refuses-force-≡`/`failures-force-≡`, kept
+-- private so they cannot collide with those public names when both modules are opened
+-- unqualified by a downstream consumer.
+-------------------------------------------------------------------------------------
+
+private
+  -- a step reads its source only through `force`, so an equal force admits the same step
+  step-force-≡ : ∀ {ℓr} {R : Set ℓr} {p q t : PTree E I R} {l : Label R}
+               → PTree.force p ≡ PTree.force q → q ─[ l ]─► t → p ─[ l ]─► t
+  step-force-≡ eq (sRet ef)    = sRet (trans eq ef)
+  step-force-≡ eq (sSil ef)    = sSil (trans eq ef)
+  step-force-≡ eq (sVis ef ej) = sVis (trans eq ef) ej
+  step-force-≡ eq (sTau ef ej) = sTau (trans eq ef) ej
+
+  -- `Refuses` reads its tree only through `force` (stability is a `force` predicate,
+  -- and every `Offers` witness is a step out of the root)
+  Refuses-force-≡ : ∀ {ℓr ℓx} {R : Set ℓr} {p q : PTree E I R} {X : Event√ R → Set ℓx}
+                   → PTree.force p ≡ PTree.force q → Refuses q X → Refuses p X
+  Refuses-force-≡ {p = p} {q = q} eq (st , noff) =
+    stable-force-eq {p = p} {q = q} eq st
+    , λ e Xe (t′ , step) → noff e Xe (t′ , step-force-≡ (sym eq) step)
+
+  -- …hence so does a failure: a non-trivial run transports its first step to the new
+  -- root, and a 0-step run reflects the endpoint's refusal back through the equal force
+  failures-force-≡ : ∀ {ℓr ℓx} {R : Set ℓr} {p q : PTree E I R}
+                     {s : List (Event√ R)} {X : Event√ R → Set ℓx}
+                   → PTree.force p ≡ PTree.force q → failures q s X → failures p s X
+  failures-force-≡ {p = p} eq (_ , ⟹-refl , ref) = p , ⟹-refl , Refuses-force-≡ eq ref
+  failures-force-≡ eq (w , ⟹-τ  step rest , ref) = w , ⟹-τ  (step-force-≡ eq step) rest , ref
+  failures-force-≡ eq (w , ⟹-ev step rest , ref) = w , ⟹-ev (step-force-≡ eq step) rest , ref
+
+-- ONE-DIRECTIONAL bridge: if a defined process and an explicitly-unfolded FSM agree on
+-- their `force`, the FSM's failures are among the process's — the exact fact a
+-- calibrated leaf spec needs to relate a `_>>=_`/`iter`-built process to its hand-drawn
+-- unfolding without building a full `FSim`/`Bisim`
+force-≡→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R}
+           → PTree.force P ≡ PTree.force Q → P ⊑F Q
+force-≡→⊑F eq s X f = failures-force-≡ eq f
+
+-- TWO-DIRECTIONAL version: force-equality gives failure-refinement both ways, since the
+-- equality itself is symmetric
+force-≡→⊑F-both : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R}
+                 → PTree.force P ≡ PTree.force Q → (P ⊑F Q) × (Q ⊑F P)
+force-≡→⊑F-both eq = force-≡→⊑F eq , force-≡→⊑F (sym eq)
 
 -- deadlock's only failure is the empty trace refusing anything (it is maximally refusing)
 deadlock-failure : ∀ {ℓr ℓx} {R : Set ℓr} {X : Event√ R → Set ℓx} → failures deadlock [] X
