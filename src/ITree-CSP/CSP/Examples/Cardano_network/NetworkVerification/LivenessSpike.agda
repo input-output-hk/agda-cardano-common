@@ -144,7 +144,7 @@ open import Semantics.LTL.FrameSim {E = E} {I = I}
   using ( FrameSim; BisimStable; bs-⊤; bs-atom; bs-¬; bs-∧; bs-X; bs-U )
 
 -- the real atoms + formula from the LTL spec module (unmodified).
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondLiveness
+open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2; confined; respondsAtoD )
 
 -- A `step`-frame atom is bisim-stable: `FrameSim` on two `step` frames

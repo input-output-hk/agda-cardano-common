@@ -741,6 +741,20 @@ Par-mono-⊑FD A merge hP hQ = Par-mono-⊑F⊥ A merge hP hQ , Par-mono-⊑D A 
 ⦀⋆-mono-⊑FD []ᵖ       = ⊑FD-refl Skip
 ⦀⋆-mono-⊑FD (p ∷ᵖ ps) = ⦀-mono-⊑FD p (⦀⋆-mono-⊑FD ps)
 
+-- `⦀Fin⁺` is ⊑FD-monotone in its family, pointwise and unconditionally; unlike
+-- `⦀Fin-mono-⊑FD` the base case is the leaf itself (`⦀Fin⁺ zero f = f fzero`), not `Skip`
+⦀Fin⁺-mono-⊑FD : ∀ {ℓr} {n : ℕ} {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+               → (∀ i → f i ⊑FD g i) → ⦀Fin⁺ n f ⊑FD ⦀Fin⁺ n g
+⦀Fin⁺-mono-⊑FD {n = zero}  h = h fzero
+⦀Fin⁺-mono-⊑FD {n = suc n} h = ⦀-mono-⊑FD (h fzero) (⦀Fin⁺-mono-⊑FD (λ i → h (fsuc i)))
+
+-- `⦀⁺` is ⊑FD-monotone in head and tail, pointwise and unconditionally
+⦀⁺-mono-⊑FD : ∀ {ℓr} {P Q : PTree E (ExtI E) (⊤ {ℓr})}
+                {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+            → P ⊑FD Q → Pointwise _⊑FD_ Ps Qs → ⦀⁺ P Ps ⊑FD ⦀⁺ Q Qs
+⦀⁺-mono-⊑FD h []ᵖ       = h
+⦀⁺-mono-⊑FD h (p ∷ᵖ ps) = ⦀-mono-⊑FD h (⦀⁺-mono-⊑FD p ps)
+
 -------------------------------------------------------------------------------------
 -- Layer 9 : the REPLICATED INTERFACE-PARALLEL folds, FACT-SHAPED.
 --

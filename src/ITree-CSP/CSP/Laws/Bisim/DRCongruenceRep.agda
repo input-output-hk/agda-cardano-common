@@ -538,6 +538,59 @@ cong-⦀Fin {n = suc n} αs {f} {g} disj oof oog eq =
         → Sep ∅ES P Q
   mkSep = sep-from-OffersOnly ∅ES hdDisj
 
+-- the non-empty fold confines to the union of its leaf alphabets
+OffersOnly-⦀Fin⁺ : ∀ {n} {αs : Fin (suc n) → Alpha}
+                     {f : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+                 → (∀ i → OffersOnly (αs i) (f i))
+                 → OffersOnly (unionAlpha αs) (⦀Fin⁺ n f)
+OffersOnly-⦀Fin⁺ {n = zero}  {αs = αs} oo = OffersOnly-mono inj-only (oo fzero)
+  where
+  -- at n = 0 the fold IS the single leaf, so its alphabet embeds at index fzero
+  inj-only : ∀ at a → αs fzero at a → unionAlpha αs at a
+  inj-only at a p = fzero , p
+OffersOnly-⦀Fin⁺ {n = suc n} {αs = αs} oo =
+  OffersOnly-⦀ (OffersOnly-mono inj-head (oo fzero))
+               (OffersOnly-mono inj-tail (OffersOnly-⦀Fin⁺ (λ i → oo (fsuc i))))
+  where
+  -- head alphabet embeds into the union at index fzero
+  inj-head : ∀ at a → αs fzero at a → unionAlpha αs at a
+  inj-head at a p = fzero , p
+  -- tail union embeds into the full union via fsuc
+  inj-tail : ∀ at a → unionAlpha (λ i → αs (fsuc i)) at a → unionAlpha αs at a
+  inj-tail at a (j , p) = fsuc j , p
+
+-- `⦀Fin⁺`-congruence: pairwise-disjoint per-index alphabets confining both families
+-- plus a pointwise ≈DR give ≈DR of the two folds.
+cong-⦀Fin⁺ : ∀ {n} (αs : Fin (suc n) → Alpha)
+               {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+           → (∀ i j → i ≢ j → Disj (αs i) (αs j))
+           → (∀ i → OffersOnly (αs i) (f i))
+           → (∀ i → OffersOnly (αs i) (g i))
+           → (∀ i → f i ≈DR g i)
+           → ⦀Fin⁺ n f ≈DR ⦀Fin⁺ n g
+cong-⦀Fin⁺ {n = zero}  αs disj oof oog eq = eq fzero
+cong-⦀Fin⁺ {n = suc n} αs {f} {g} disj oof oog eq =
+  cong-⦀ (mkSep (oof fzero) tailF)
+         (mkSep (oog fzero) tailF)
+         (mkSep (oog fzero) tailG)
+         (eq fzero)
+         (cong-⦀Fin⁺ (λ i → αs (fsuc i))
+                     (λ i j i≢j → disj (fsuc i) (fsuc j) (λ e → i≢j (suc-injective e)))
+                     (λ i → oof (fsuc i)) (λ i → oog (fsuc i)) (λ i → eq (fsuc i)))
+  where
+  -- the two tail folds confine to the tail-union alphabet
+  tailF = OffersOnly-⦀Fin⁺ (λ i → oof (fsuc i))
+  tailG = OffersOnly-⦀Fin⁺ (λ i → oog (fsuc i))
+  -- head alphabet clashes with nothing in the tail union (pairwise disj + fzero ≢ fsuc j)
+  hdDisj : ∀ {at a} → ¬ ∅ES .mem at a
+         → αs fzero at a → unionAlpha (λ i → αs (fsuc i)) at a → ⊥
+  hdDisj _ p (j , q) = disj fzero (fsuc j) (λ ()) _ _ p q
+  -- the shared `Sep ∅ES` builder for a head confined by `αs fzero` and a tail-union fold
+  mkSep : ∀ {P Q : PTree E (ExtI E) (⊤ {ℓr})}
+        → OffersOnly (αs fzero) P → OffersOnly (unionAlpha (λ i → αs (fsuc i))) Q
+        → Sep ∅ES P Q
+  mkSep = sep-from-OffersOnly ∅ES hdDisj
+
 -- a cell of the list-indexed congruence: an alphabet, a matched pair of processes both
 -- confined to it, and a proof they are ≈DR.
 -- NOTE: the field is named `alph` (not `α`) to avoid a ClashingDefinition with the

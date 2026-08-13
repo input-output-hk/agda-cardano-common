@@ -640,6 +640,20 @@ P ⦀ Q = Par ∅ES (λ _ _ → tt) P Q
 ⦀Fin zero    f = Skip
 ⦀Fin (suc n) f = f fzero ⦀ ⦀Fin n (λ i → f (fsuc i))
 
+-- non-empty replicated interleaving over a list: a head process and the rest, with
+-- NO trailing `Skip` (unlike `⦀⋆`), so a two-element fold is exactly `P ⦀ Q`.
+⦀⁺ : ∀ {ℓr} → PTree E (ExtI E) (⊤ {ℓr}) → List (PTree E (ExtI E) (⊤ {ℓr}))
+   → PTree E (ExtI E) (⊤ {ℓr})
+⦀⁺ P []       = P
+⦀⁺ P (Q ∷ Qs) = P ⦀ ⦀⁺ Q Qs
+
+-- non-empty replicated interleaving over `Fin (suc n)`, with NO trailing `Skip`
+-- (unlike `⦀Fin`), so `⦀Fin⁺ 3 f` is exactly `f 0 ⦀ (f 1 ⦀ (f 2 ⦀ f 3))`.
+⦀Fin⁺ : ∀ {ℓr} → (n : ℕ) → (Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr}))
+      → PTree E (ExtI E) (⊤ {ℓr})
+⦀Fin⁺ zero    f = f fzero
+⦀Fin⁺ (suc n) f = f fzero ⦀ ⦀Fin⁺ n (λ i → f (fsuc i))
+
 infix 4 _∥⇘_⇙_
 _∥⇘_⇙_ : ∀ {ℓr} → PTree E (ExtI E) (⊤ {ℓr}) → EventSet → PTree E (ExtI E) (⊤ {ℓr}) → PTree E (ExtI E) (⊤ {ℓr})
 P ∥⇘ A ⇙ Q = Par⊤ A P Q
