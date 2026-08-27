@@ -65,8 +65,6 @@ lineCfg = (lo , N2N_KeepAlive)    ∷ (hi , N2N_KeepAlive)
         ∷ (lo , N2N_TxSubmission) ∷ (hi , N2N_TxSubmission) ∷ []
 
 -- concrete Params for the line: all data domains ⊤, TWO links, uniform config
-import Data.Maybe as PMaybe
-
 lineParams : Params
 lineParams = record
   { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -76,10 +74,7 @@ lineParams = record
   ; decLSlot = lineDecEq⊤ ; decVoterId = lineDecEq⊤ ; decLFBitmap = lineDecEq⊤
   ; decVoteBlob = lineDecEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
-  ; decTime = lineDecEq⊤ ; decLength = lineDecEq⊤
-  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
-  ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = lineDecEq⊤ ; decEBHash = lineDecEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; decTime = lineDecEq⊤ ; decLength = lineDecEq⊤ }
 
 open import CSP.Examples.Cardano_network.Net lineParams using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data lineParams using (Payload)

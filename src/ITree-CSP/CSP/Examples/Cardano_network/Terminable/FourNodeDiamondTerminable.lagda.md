@@ -44,8 +44,6 @@ instance
   decEq⊤ : DecEq U.⊤
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
-import Data.Maybe as PMaybe
-
 p : Params
 p = record
   { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -56,10 +54,7 @@ p = record
   ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
-  ; decTime = decEq⊤ ; decLength = decEq⊤
-  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
-  ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; decTime = decEq⊤ ; decLength = decEq⊤ }
 ```
 
 The local `NetT` alphabet (with `mdone`), the terminable medium/multiplexer, and

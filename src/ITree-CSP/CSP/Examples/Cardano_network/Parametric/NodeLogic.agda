@@ -15,7 +15,7 @@
 --
 --   nodeLogic n held
 --     = (mint n ⦀ ⦀⁺ (endpointThreads n e₀) (map (endpointThreads n) es))
---         ∥⇘ storeES ⇙ blockStore n held
+--         ∥⇘ storeES ⇙ store n held
 --
 -- with `endpointThreads n (l , d) = clientLoop n (l , d) ⦀ serverLoop n
 -- (l , d)`, one such pair per incident endpoint of `n`.
@@ -45,7 +45,7 @@
 -- loop body below therefore performs at least one visible event per
 -- pass — see the per-thread comments, and the summary table:
 --
---   mint        : `env home(n) envMint`           (the mint channel)
+--   mint        : `tx  home(n) N2N_TxSubmission`  (the mint channel)
 --   clientLoop  : `apiCS l d sendCSRequestNext`   (+ 3 more api events)
 --   serverLoop  : `apiCS l d reqCSRequestNext`    (+ 5 more api events)
 --   store       : one of mint / put / get         (every branch is a prefix)
@@ -55,15 +55,15 @@
 -- what keeps a relay node perpetual and dodges the 2026-07-07
 -- "done-quiescence" deadlock of `System_CopySpec`.
 --
--- THE STORE CHANNELS.  A node's store rendezvous has its OWN `Net_Api`
--- channels, `store l d stPut` / `store l d stGet`, and the environment's
--- mint has `env l d envMint`.  An earlier draft rode all three on `tx`
--- with three different `IDs` tags; that was a latent bug, because `tx` is
--- the mux's INTERNAL channel — `Network.agda:17` hides it
--- (`(TxSide [|{| tx, ack |}|] RxSide) \ {| tx, ack |}`), so the reuse only
--- looked free while the scenarios ran `CopySpec*` rather than the real
--- `NetworkA`.  The node is named in the alphabet by its HOME endpoint (the
--- head of `endpointsOf n`), which `endpoints-sound` makes unique to it.
+-- THE STORE CHANNELS.  A node's store rendezvous rides on `tx`, which is
+-- inert plumbing in `Net_Api`: no peer and no medium ever performs it
+-- (the four-node development proves exactly that, as `medium-no-tx` /
+-- `absnodes-no-tx` in `FourNode/Liveness/LTL/Value/PipeEvStep.agda`).
+-- Using an existing channel means `Net.agda` needs no new constructor,
+-- so nothing under the ≈150-module `blockLiveness⁺` closure is touched.
+-- The node is named in the alphabet by its HOME endpoint (the head of
+-- `endpointsOf n`), which `endpoints-sound` makes unique to it, and the
+-- three rendezvous directions are told apart by the `IDs` tag.
 ------------------------------------------------------------------------
 
 module CSP.Examples.Cardano_network.Parametric.NodeLogic where
@@ -95,16 +95,14 @@ module Generic
   (p : Params) (t : Topology p)
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
-  open Params p using (Block; EB; time₀; length₀; decBlock)
-  open import Data.Maybe using (Maybe)
+  open Params p using (Block; time₀; length₀; decBlock)
   open import CSP.Examples.Cardano_network.Base
     using ( Dir; FromInitiator
           ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission )
   open N p
     using ( Link; Net_Api; Net_Api-≟
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break
-          ; stPut; stGet; envMint
+          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
           ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
           ; sendCSRequestNext; recvCSRollforward
           ; reqBFRange; sendBFStartBatch; sendBFBlock; sendBFBatchDone
@@ -143,39 +141,35 @@ module Generic
   ------------------------------------------------------------------------
 
   -- a node's HOME endpoint — the head of its incident-endpoint list.  `endpoints-
-  -- sound` makes an endpoint unique to one node, so this names the node on the
-  -- node-local `store`/`env` channels.
+  -- sound` makes an endpoint unique to one node, so this names the node in the
+  -- shared alphabet without any new `Net_Api` constructor.
   homeOf : Node → Link × Dir
   homeOf n = proj₁ (endpointsOf n)
 
-  -- the MINT channel of `n`: the environment injects a fresh RB (and, one day, the
-  -- EB it announces) into `n`'s store
-  mintEv : Node → Net_Api Payload (Maybe EB × Block)
-  mintEv n = env (proj₁ (homeOf n)) (proj₂ (homeOf n)) envMint
+  -- the MINT channel of `n`: the environment injects a fresh block into `n`'s store
+  mintEv : Node → Net_Api Payload Payload
+  mintEv n = tx (proj₁ (homeOf n)) (proj₂ (homeOf n)) N2N_TxSubmission
 
   -- the PUT channel of `n`: a client thread deposits a block it has just fetched
   -- (this event IS the observable "block `b` arrived at node `n`")
-  putEv : Node → Net_Api Payload Block
-  putEv n = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) stPut
+  putEv : Node → Net_Api Payload Payload
+  putEv n = tx (proj₁ (homeOf n)) (proj₂ (homeOf n)) N2N_BlockFetch
 
   -- the GET channel of `n`: a server thread takes a held block to serve it
-  getEv : Node → Net_Api Payload Block
-  getEv n = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) stGet
+  getEv : Node → Net_Api Payload Payload
+  getEv n = tx (proj₁ (homeOf n)) (proj₂ (homeOf n)) N2N_ChainSync
 
-  -- membership of the store rendezvous set: EVERY `store`/`env` channel.  Node-
-  -- uniform on purpose — nodes are interleaved by `systemOf`'s `⦀Fin⁺`, so one
-  -- node's `∥⇘ storeES ⇙` never meets another node's store, and inside a node only
-  -- that node's own three channels ever occur.
+  -- membership of the store rendezvous set: EVERY `tx` channel.  Node-uniform on
+  -- purpose — nodes are interleaved by `systemOf`'s `⦀Fin⁺`, so one node's
+  -- `∥⇘ storeES ⇙` never meets another node's `tx`, and inside a node only that
+  -- node's own three channels ever occur.
   storeSet : AnyTypes (Net_Api Payload) → Set
-  storeSet (_ , store _ _ _) = ⊤
-  storeSet (_ , env   _ _ _) = ⊤
-  storeSet _                 = ⊥
+  storeSet (_ , tx _ _ _) = ⊤
+  storeSet _              = ⊥
 
   -- decidability of `storeSet` membership (one clause per `Net_Api` constructor)
   storeSet-dec : (at : AnyTypes (Net_Api Payload)) → Dec (storeSet at)
-  storeSet-dec (_ , store  _ _ _) = yes tt
-  storeSet-dec (_ , env    _ _ _) = yes tt
-  storeSet-dec (_ , tx     _ _ _) = no λ ()
+  storeSet-dec (_ , tx     _ _ _) = yes tt
   storeSet-dec (_ , input  _ _ _) = no λ ()
   storeSet-dec (_ , output _ _ _) = no λ ()
   storeSet-dec (_ , sndmsg _ _ _) = no λ ()
@@ -201,43 +195,54 @@ module Generic
   -- The store
   ------------------------------------------------------------------------
 
+  -- the payload that carries a block on a store channel (the `tx` carrier is
+  -- `Payload`, so a block travels inside the shared message union)
+  blkPay : Block → Payload
+  blkPay b = time₀ , FromInitiator , length₀ , blockFetch (MsgBlock b)
+
+  -- add a deposited payload's block to the store; a payload that is not a block
+  -- deposit leaves the store unchanged.  Total by construction, so no default
+  -- `Block` is needed; the fallback is reachable only through a junk `mint`, which
+  -- is then a no-op transition rather than a stuck state.
+  deposit : Payload → Held → Held
+  deposit (_ , _ , _ , blockFetch (MsgBlock b)) held = b ∷ held
+  deposit _                                     held = held
+
   -- offer `get ! b` for every block of `bs`, leaving the state `held` intact.  Blocks
   -- are NEVER removed: once held, a block stays offered forever, which is what makes
   -- the monotone "the set of nodes holding b only grows" invariant of §6.2 true.
   offerHeld : Node → Held → Held → StoreProc
   offerHeld n held []       = Stop
-  offerHeld n held (b ∷ bs) = (getEv n ! b ⟶ Ret held) □ offerHeld n held bs
+  offerHeld n held (b ∷ bs) = (getEv n ! blkPay b ⟶ Ret held) □ offerHeld n held bs
 
-  -- one store step: accept a mint (keeping only its RB for now), accept a deposit,
-  -- or hand over any held block.  Every branch is a visible prefix, so the store's
-  -- loop can never τ-cycle.
+  -- one store step: accept a mint, accept a deposit, or hand over any held block.
+  -- Every branch is a visible prefix, so the store's loop can never τ-cycle.
   storeStep : Node → Held → StoreProc
   storeStep n held =
-      (mintEv n ⟶ (λ mb → Ret (proj₂ mb ∷ held)))
-    □ ((putEv n ⟶ (λ b → Ret (b ∷ held)))
+      (mintEv n ⟶ (λ pay → Ret (deposit pay held)))
+    □ ((putEv n ⟶ (λ pay → Ret (deposit pay held)))
     □  offerHeld n held held)
 
   -- the node's block store holding `held`: a stateful forever loop threading `Held`
-  -- (named `blockStore`, not `store`: `store` is now a `Net_Api` channel)
-  blockStore : Node → Held → Proc
-  blockStore n held = loop (storeStep n) held
+  store : Node → Held → Proc
+  store n held = loop (storeStep n) held
 
   ------------------------------------------------------------------------
   -- The threads
   ------------------------------------------------------------------------
 
   -- the mint thread: the origin of every block in the network.  VISIBLE EVENT PER
-  -- PASS: `env home(n) envMint` (the mint channel).
+  -- PASS: `tx home(n) N2N_TxSubmission` (the mint channel).
   mint : Node → Proc
   mint n = loop0 (mintEv n ⟶₀ Skip)
 
   -- the RollForward continuation of a client round: request the announced block's
   -- range, receive the block and deposit it in the store.  VISIBLE EVENTS:
-  -- `apiBF sendBFRequestRange`, `apiBF recvBFBlock`, `store home(n) stPut` (put).
+  -- `apiBF sendBFRequestRange`, `apiBF recvBFBlock`, `tx …N2N_BlockFetch` (put).
   clientBody-k : Node → Link → Dir → Header × Tip → Proc
   clientBody-k n l d (header b , _) =
     (apiBF l d sendBFRequestRange ! chainRange (point b) (point b) ⟶
-      (apiBF l d recvBFBlock ⟶ (λ b′ → (putEv n ! b′ ⟶ Skip))))
+      (apiBF l d recvBFBlock ⟶ (λ b′ → (putEv n ! blkPay b′ ⟶ Skip))))
 
   -- one client round on endpoint `(l , d)`: ask the far end for the next header, then
   -- fetch and store the announced block.  This is `FourNodeDiamond.consume` MINUS its
@@ -256,17 +261,19 @@ module Generic
 
   -- the tail of a server round, on the block the store handed over: announce it via
   -- ChainSync (through `stMustReply`, Praos-faithful, as `FourNodeDiamond.produce`
-  -- does) and serve it as a one-block BlockFetch batch.  The `get` channel now
-  -- carries a `Block` outright, so there is no payload to decode and no unreachable
-  -- fallback clause to justify.
-  serverBody-k : Node → Link → Dir → Block → Proc
-  serverBody-k n l d b =
+  -- does) and serve it as a one-block BlockFetch batch.  The catch-all clause is
+  -- UNREACHABLE — the store only ever offers `getEv ! blkPay b`, an `Output` pinned
+  -- to that single value — and is `Stop` rather than a default block, so no
+  -- `Block` inhabitant has to be invented.
+  serverBody-k : Node → Link → Dir → Payload → Proc
+  serverBody-k n l d (_ , _ , _ , blockFetch (MsgBlock b)) =
     apiCS l d sendCSAwaitReply ⟶₀
       ((apiCS l d sendCSRollForward ! (header b , tip b) ⟶
         (apiBF l d reqBFRange ⟶ (λ _ →
           apiBF l d sendBFStartBatch ⟶₀
             ((apiBF l d sendBFBlock ! b ⟶
               (apiBF l d sendBFBatchDone ⟶₀ Skip)))))))
+  serverBody-k n l d _ = Stop
 
   -- one server round on endpoint `(l , d)`: await the far end's RequestNext (reported
   -- by the ChainSync server peer as `reqCSRequestNext`), take a held block from the
@@ -301,7 +308,7 @@ module Generic
   -- as `Parametric.Node`'s `lg` argument it turns the scaffolding into a real
   -- N-node network; `systemOf (λ n → nodeLogic n [])` is that network.
   nodeLogic : Node → Held → Proc
-  nodeLogic n held = (mint n ⦀ allThreads n) ∥⇘ storeES ⇙ blockStore n held
+  nodeLogic n held = (mint n ⦀ allThreads n) ∥⇘ storeES ⇙ store n held
 
   ------------------------------------------------------------------------
   -- DRAFT node specification — NOT proved, stated to size the next milestone
@@ -324,7 +331,7 @@ module Generic
   nodeSpec : (Node → Link × Dir → Proc) → Node → Held → Proc
   nodeSpec epSpec n held =
     (⦀⁺ (epSpec n (proj₁ (endpointsOf n))) (map (epSpec n) (proj₂ (endpointsOf n))))
-      ∥⇘ storeES ⇙ blockStore n held
+      ∥⇘ storeES ⇙ store n held
 
   -- the per-node obligation Milestone 4 must discharge, as a type
   NodeObligation : (Node → Link × Dir → Proc) → Set₁
@@ -353,7 +360,7 @@ module Generic
   InterchangeGoal = ∀ n held →
       ((mint n ⦀ (⦀⁺ (endpointImpl n (proj₁ (endpointsOf n)))
                      (map (endpointImpl n) (proj₂ (endpointsOf n)))))
-         ∥⇘ storeES ⇙ blockStore n held)
+         ∥⇘ storeES ⇙ store n held)
     ⊑FD node n (nodeLogic n held)
 
 ------------------------------------------------------------------------

@@ -23,7 +23,6 @@ open import Data.Nat using (ℕ)
 open import Data.Fin using (Fin)
 open import Data.List using (List)
 open import Data.Product using (_×_)
-open import Data.Maybe using (Maybe)
 open import Class.DecEq using (DecEq)
 
 open import CSP.Examples.Cardano_network.Base using (IDs; Dir)
@@ -48,11 +47,3 @@ record Params : Set₁ where
     ⦃ decVoteBlob ⦄ : DecEq VoteBlob
     ⦃ decTime ⦄     : DecEq Time
     ⦃ decLength ⦄   : DecEq Length
-    -- Leios: an endorser block and its hash (opaque, like the Praos domains)
-    EB EBHash : Set
-    ⦃ decEB ⦄     : DecEq EB
-    ⦃ decEBHash ⦄ : DecEq EBHash
-    -- the hash of an endorser block
-    ebHash : EB → EBHash
-    -- the EB hash announced by a ranking block, if it announces one
-    announcedEB : Block → Maybe EBHash

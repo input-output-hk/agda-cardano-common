@@ -29,7 +29,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF; store; env
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF
   -- the producer/consumer api tags (the role discriminator's index values)
   ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
   ; sendCSRequestNext; recvCSRollforward; sendCSDone
@@ -203,8 +203,6 @@ dirOf (tx     _ d _) = d
 dirOf (sndack _ d _) = d
 dirOf (rcvack _ d _) = d
 dirOf (ack    _ d _) = d
-dirOf (store  _ d _) = d
-dirOf (env    _ d _) = d
 dirOf (break  _)     = lo
 
 -- ι-bridges: `dirOf` of a renamed source event equals that event's own dir

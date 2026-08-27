@@ -62,8 +62,6 @@ open import CSP.Examples.Cardano_network.NetworkLink p Payload using (NetOneLink
 ιNet⁻¹ (apiKA _ _ _) = nothing
 ιNet⁻¹ (apiLN _ _ _) = nothing
 ιNet⁻¹ (apiLF _ _ _) = nothing
-ιNet⁻¹ (store _ _ _) = nothing
-ιNet⁻¹ (env   _ _ _) = nothing
 ιNet⁻¹ (break _)     = nothing
 
 -- left inverse on the eight channels
@@ -118,9 +116,6 @@ ioSet-dec (_ , apiTS  _ _ _) = no λ ()
 ioSet-dec (_ , apiKA  _ _ _) = no λ ()
 ioSet-dec (_ , apiLN  _ _ _) = no λ ()
 ioSet-dec (_ , apiLF  _ _ _) = no λ ()
--- node-local, NOT wire channels: they must survive `∖ ioES`
-ioSet-dec (_ , store  _ _ _) = no λ ()
-ioSet-dec (_ , env    _ _ _) = no λ ()
 ioSet-dec (_ , break  _)     = no λ ()
 
 -- the {| input, output |} event set

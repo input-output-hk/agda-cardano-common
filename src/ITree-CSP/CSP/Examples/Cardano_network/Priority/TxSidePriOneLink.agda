@@ -63,8 +63,6 @@ decEq⊤ ._≟_ U.tt U.tt = yes refl
 
 -- minimal `Params`: one link running BlockFetch + LeiosFetch, all abstract
 -- data domains collapsed to `⊤` so every `DecEq` computes to `yes refl`.
-import Data.Maybe as PMaybe
-
 p₀ : Params
 p₀ = record
   { Cookie   = U.⊤ ; Block  = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -76,9 +74,7 @@ p₀ = record
   ; decCookie = decEq⊤ ; decBlock = decEq⊤ ; decTxid = decEq⊤ ; decLSlot = decEq⊤
   ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤ ; decVoteBlob = decEq⊤
   ; decTime = decEq⊤ ; decLength = decEq⊤
-  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
-  ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  }
 
 ------------------------------------------------------------------------
 -- Alphabet, data, operator layer, priority order — all at `p₀`.

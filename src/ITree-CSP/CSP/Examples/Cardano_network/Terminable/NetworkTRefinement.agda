@@ -79,8 +79,6 @@ instance
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
 -- single-instance params: numLinks = 1, linkConfig = one (lo , N2N_ChainSync)
-import Data.Maybe as PMaybe
-
 p1 : Params
 p1 = record
   { Cookie = ⊤ ; Block = ⊤ ; Txid = ⊤ ; LSlot = ⊤
@@ -91,10 +89,7 @@ p1 = record
   ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
-  ; decTime = decEq⊤ ; decLength = decEq⊤
-  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
-  ; EB = ⊤ ; EBHash = ⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; decTime = decEq⊤ ; decLength = decEq⊤ }
 
 ------------------------------------------------------------------------
 -- Instantiate the terminable copy-spec / multiplexer at `p1`, `Data`.

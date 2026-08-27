@@ -22,7 +22,6 @@
 open import Data.Nat using (ℕ)
 open import Data.Fin using (Fin)
 open import Data.Unit using (⊤)
-open import Data.Maybe using (Maybe)
 open import Data.List using (List)
 open import Data.Product using (_,_; _×_)
 open import Relation.Nullary using (Dec; yes; no)
@@ -183,46 +182,23 @@ data ApiLFTag : Set where
     recvLFBlock recvLFBlockTxs recvLFVoteDelivery recvLFRangeBlock : ApiLFTag
 
 ApiLFCar : ApiLFTag → Set
-ApiLFCar sendLFBlockRequest           = EBHash
+ApiLFCar sendLFBlockRequest           = Point
 ApiLFCar sendLFBlockTxsRequest        = Point × LFBitmap
 ApiLFCar sendLFVotesRequest           = List Vote
 ApiLFCar sendLFBlockRangeRequest      = ChainRange
 ApiLFCar sendLFDone                   = ⊤
-ApiLFCar sendLFBlock                  = EB
+ApiLFCar sendLFBlock                  = Block
 ApiLFCar sendLFBlockTxs               = List Tx
 ApiLFCar sendLFVoteDelivery           = List VoteBlob
 ApiLFCar sendLFNextBlockAndTxsInRange = Block × List Tx
 ApiLFCar sendLFLastBlockAndTxsInRange = Block × List Tx
-ApiLFCar recvLFBlock                  = EB
+ApiLFCar recvLFBlock                  = Block
 ApiLFCar recvLFBlockTxs               = List Tx
 ApiLFCar recvLFVoteDelivery           = List VoteBlob
 ApiLFCar recvLFRangeBlock             = Block × List Tx
 
 ------------------------------------------------------------------------
--- The two NODE-LOCAL channel families (not mini-protocol apis, not wire
--- channels): a node's block STORE and the ENVIRONMENT that mints blocks.
--- They are their own `Net_Api` constructors rather than a reuse of the
--- mux-internal `tx` channel, which `Network` hides.
-------------------------------------------------------------------------
-
--- the two directions of a node's block store rendezvous
-data StoreTag : Set where stPut stGet : StoreTag
-
--- both store directions hand over one block
-StoreCar : StoreTag → Set
-StoreCar stPut = Block
-StoreCar stGet = Block
-
--- the environment's channels into a node
-data EnvTag : Set where envMint : EnvTag
-
--- a mint delivers an optional EB minted together with its announcing RB
-EnvCar : EnvTag → Set
-EnvCar envMint = Maybe EB × Block
-
-------------------------------------------------------------------------
--- DecEq instances for the six finite api tag enums (payload-free) and
--- the two node-local tag enums.
+-- DecEq instances for the six finite api tag enums (payload-free).
 ------------------------------------------------------------------------
 
 instance
@@ -892,23 +868,6 @@ instance
     go recvLFRangeBlock recvLFBlockTxs = no λ ()
     go recvLFRangeBlock recvLFVoteDelivery = no λ ()
 
-  -- the store's two directions are distinguishable
-  DecEq-StoreTag : DecEq StoreTag
-  DecEq-StoreTag ._≟_ = go
-    where
-    go : (x y : StoreTag) → Dec (x ≡ y)
-    go stPut stPut = yes refl
-    go stGet stGet = yes refl
-    go stPut stGet = no λ ()
-    go stGet stPut = no λ ()
-
-  -- the environment currently has a single channel, so equality is trivial
-  DecEq-EnvTag : DecEq EnvTag
-  DecEq-EnvTag ._≟_ = go
-    where
-    go : (x y : EnvTag) → Dec (x ≡ y)
-    go envMint envMint = yes refl
-
 
 ------------------------------------------------------------------------
 -- Step 2: the shared network event type `Net`.
@@ -1081,10 +1040,6 @@ data Net_Api (Data : Set) : Set → Set where
   apiKA : (l : Link) (d : Dir) (m : ApiKATag) → Net_Api Data (ApiKACar m)
   apiLN : (l : Link) (d : Dir) (m : ApiLNTag) → Net_Api Data (ApiLNCar m)
   apiLF : (l : Link) (d : Dir) (m : ApiLFTag) → Net_Api Data (ApiLFCar m)
-  -- node-local: a node's block store, named by the node's head endpoint (l , d)
-  store : (l : Link) (d : Dir) (m : StoreTag) → Net_Api Data (StoreCar m)
-  -- node-local: the environment minting into the node at endpoint (l , d)
-  env   : (l : Link) (d : Dir) (m : EnvTag)   → Net_Api Data (EnvCar m)
   -- fault injection: sever the whole (duplex) TCP link l (interrupt trigger)
   break : (l : Link) → Net_Api Data ⊤
 
@@ -1422,81 +1377,3 @@ Net_Api-≟ {Data} = go
   go (_ , apiTS _ _ _) (_ , break _) = no λ ()
   go (_ , apiKA _ _ _) (_ , break _) = no λ ()
   go (_ , apiLN _ _ _) (_ , break _) = no λ ()
-  -- the two node-local channels: identity is constructor + link + dir + tag
-  go (_ , store l₁ d₁ m₁) (_ , store l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl | yes refl = yes refl
-  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
-  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
-  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
-  go (_ , env l₁ d₁ m₁) (_ , env l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
-  ... | yes refl | yes refl | yes refl = yes refl
-  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
-  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
-  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
-  -- off-diagonal: store / env against every other constructor (both orders)
-  go (_ , store _ _ _) (_ , input _ _ _) = no λ ()
-  go (_ , input _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , output _ _ _) = no λ ()
-  go (_ , output _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , sndmsg _ _ _) = no λ ()
-  go (_ , sndmsg _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , rcvmsg _ _ _) = no λ ()
-  go (_ , rcvmsg _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , tx _ _ _) = no λ ()
-  go (_ , tx _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , sndack _ _ _) = no λ ()
-  go (_ , sndack _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , rcvack _ _ _) = no λ ()
-  go (_ , rcvack _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , ack _ _ _) = no λ ()
-  go (_ , ack _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , done _ _ _) = no λ ()
-  go (_ , done _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , apiCS _ _ _) = no λ ()
-  go (_ , apiCS _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , apiBF _ _ _) = no λ ()
-  go (_ , apiBF _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , apiTS _ _ _) = no λ ()
-  go (_ , apiTS _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , apiKA _ _ _) = no λ ()
-  go (_ , apiKA _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , apiLN _ _ _) = no λ ()
-  go (_ , apiLN _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , apiLF _ _ _) = no λ ()
-  go (_ , apiLF _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , store _ _ _) = no λ ()
-  go (_ , store _ _ _) (_ , break _) = no λ ()
-  go (_ , break _) (_ , store _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , input _ _ _) = no λ ()
-  go (_ , input _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , output _ _ _) = no λ ()
-  go (_ , output _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , sndmsg _ _ _) = no λ ()
-  go (_ , sndmsg _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , rcvmsg _ _ _) = no λ ()
-  go (_ , rcvmsg _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , tx _ _ _) = no λ ()
-  go (_ , tx _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , sndack _ _ _) = no λ ()
-  go (_ , sndack _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , rcvack _ _ _) = no λ ()
-  go (_ , rcvack _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , ack _ _ _) = no λ ()
-  go (_ , ack _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , done _ _ _) = no λ ()
-  go (_ , done _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , apiCS _ _ _) = no λ ()
-  go (_ , apiCS _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , apiBF _ _ _) = no λ ()
-  go (_ , apiBF _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , apiTS _ _ _) = no λ ()
-  go (_ , apiTS _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , apiKA _ _ _) = no λ ()
-  go (_ , apiKA _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , apiLN _ _ _) = no λ ()
-  go (_ , apiLN _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , apiLF _ _ _) = no λ ()
-  go (_ , apiLF _ _ _) (_ , env _ _ _) = no λ ()
-  go (_ , env _ _ _) (_ , break _) = no λ ()
-  go (_ , break _) (_ , env _ _ _) = no λ ()

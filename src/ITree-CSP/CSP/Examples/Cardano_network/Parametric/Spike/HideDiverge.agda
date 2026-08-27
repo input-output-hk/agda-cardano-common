@@ -64,8 +64,6 @@ decEq⊤ ._≟_ U.tt U.tt = yes refl
 
 -- the smallest interesting scenario: ONE link, running KeepAlive in both
 -- directions and nothing else; every abstract data domain collapsed to ⊤
-import Data.Maybe as PMaybe
-
 pKA : Params
 pKA = record
   { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -75,10 +73,7 @@ pKA = record
   ; linkConfig = λ _ → (lo , N2N_KeepAlive) ∷ (hi , N2N_KeepAlive) ∷ []
   ; decCookie = decEq⊤ ; decBlock = decEq⊤ ; decTxid = decEq⊤
   ; decLSlot = decEq⊤ ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤
-  ; decVoteBlob = decEq⊤ ; decTime = decEq⊤ ; decLength = decEq⊤
-  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
-  ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; decVoteBlob = decEq⊤ ; decTime = decEq⊤ ; decLength = decEq⊤ }
 
 open import CSP.Examples.Cardano_network.Net pKA using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data pKA using (Payload)
