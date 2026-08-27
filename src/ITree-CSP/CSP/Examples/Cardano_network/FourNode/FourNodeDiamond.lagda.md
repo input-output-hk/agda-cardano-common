@@ -93,6 +93,8 @@ Concrete scenario: 4 links, uniform config on each; `Block = Block₃`, other do
 
 ```agda
 -- concrete Params: Block = Block₃, all other data domains ⊤, 4 links, uniform config
+import Data.Maybe as PMaybe
+
 p : Params
 p = record
   { Cookie = U.⊤ ; Block = Block₃ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -102,14 +104,21 @@ p = record
   ; decLSlot = decEq⊤ ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
-  ; decTime = decEq⊤ ; decLength = decEq⊤ }
+  ; decTime = decEq⊤ ; decLength = decEq⊤
+  -- Leios EB domains.  NOT ⊤ here: the three LeiosFetch api carriers now read
+  -- `EB`/`EBHash`, so collapsing them would collapse this scenario's LF value
+  -- domain (and with it every `x ≟ v` the liveness proofs split on).  `Block₃`
+  -- keeps those carriers exactly as wide as they were before the retarget.
+  ; EB = Block₃ ; EBHash = Block₃
+  ; decEB = DecEq-Block₃ ; decEBHash = DecEq-Block₃
+  ; ebHash = λ b → b ; announcedEB = λ _ → PMaybe.nothing }
 ```
 
 ```agda
 open import CSP.Examples.Cardano_network.Net p
   using ( Link; Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break
         ; reqCSRequestNext; sendCSRollForward; sendCSAwaitReply; sendCSRequestNext
         ; recvCSRollforward; sendCSDone
         ; reqBFRange; sendBFStartBatch; sendBFBlock; sendBFBatchDone
@@ -179,6 +188,9 @@ apiSet-dec (_ , apiTS  _ _ _) = yes tt
 apiSet-dec (_ , apiKA  _ _ _) = yes tt
 apiSet-dec (_ , apiLN  _ _ _) = yes tt
 apiSet-dec (_ , apiLF  _ _ _) = yes tt
+-- node-local, NOT peer apis: link bundles must not synchronise on them
+apiSet-dec (_ , store  _ _ _) = no λ ()
+apiSet-dec (_ , env    _ _ _) = no λ ()
 apiSet-dec (_ , break  _)     = no λ ()
 
 -- the {| all api channels |} event set

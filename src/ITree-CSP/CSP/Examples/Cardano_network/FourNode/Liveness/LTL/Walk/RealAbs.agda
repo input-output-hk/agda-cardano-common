@@ -5,7 +5,7 @@
 -- SOURCE-SIDE realisability, RISK-B) (`Praos.RealAbs`).
 --
 -- `⊨-DRWB-invariantᴿ→` transports `abstractSystem ⊨ᵂ φ` to
--- `systemBroken ⊨ᵂ φ` and needs `Realisableᴿ abstractSystem` on the SOURCE
+-- `breakableSystem ⊨ᵂ φ` and needs `Realisableᴿ abstractSystem` on the SOURCE
 -- side.  The record has two fields:
 --
 --   τprogᴿ : ∀ {s} → abstractSystem ↠ s → τ-progress s

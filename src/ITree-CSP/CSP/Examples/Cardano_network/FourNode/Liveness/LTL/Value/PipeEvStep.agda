@@ -188,8 +188,11 @@ legStep→pres l s s′ (ldProd padv re ce cue cde ue de) =
   pres-prod l s s′ padv re ce cue cde ue de
 -- SESSION-45: `wUp` now also reports the relayed block (for `PipeVal` clause
 -- (4)); `pres-relay-evo` wants only the `BFcHasBlk` half, so project
-legStep→pres l s s′ (ldRelay rk pe ce cue cde de upEvo wUp) =
-  pres-relay-evo l s s′ rk pe ce cue cde de upEvo (λ hPre hHas → proj₁ (wUp hPre hHas))
+legStep→pres l s s′ (ldRelay rk pe ce cue cde de upEvo wUp _) =
+  -- TASK-3 SLICE D: `wUp`'s premise is now the DISJUNCTION; this consumer wants
+  -- the original narrow form, which is the `inj₁` instance
+  pres-relay-evo l s s′ rk pe ce cue cde de upEvo
+    (λ hPre hHas → proj₁ (wUp (inj₁ (hPre , hHas))))
 legStep→pres l s s′ (ldCons cadv _lbl pe re cue cde ue dnEvo wDn) =
   pres-cons-evo l s s′ cadv pe re cue cde ue dnEvo wDn
 legStep→pres l s s′ (ldFix pe re ce cue cde ue de) =
@@ -227,7 +230,7 @@ legStep→pmono : (l : TwoLegs) (s s′ : SysState)
     {X : Set 0ℓ} {e : Net_Api Payload X} {a : X}
   → LegDriverStep l s s′ e a → ProdSent (prodOf l s) → ProdSent (prodOf l s′)
 legStep→pmono l s s′ (ldProd padv _ _ _ _ _ _)   = padv-sent-mono padv
-legStep→pmono l s s′ (ldRelay _ pe _ _ _ _ _ _)  = subst ProdSent pe
+legStep→pmono l s s′ (ldRelay _ pe _ _ _ _ _ _ _)  = subst ProdSent pe
 legStep→pmono l s s′ (ldCons _ _ pe _ _ _ _ _ _) = subst ProdSent pe
 legStep→pmono l s s′ (ldFix pe _ _ _ _ _ _)      = subst ProdSent pe
 
@@ -235,7 +238,7 @@ legStep→rmono : (l : TwoLegs) (s s′ : SysState)
     {X : Set 0ℓ} {e : Net_Api Payload X} {a : X}
   → LegDriverStep l s s′ e a → RelayFwd (relayOf l s) → RelayFwd (relayOf l s′)
 legStep→rmono l s s′ (ldProd _ re _ _ _ _ _)     = subst RelayFwd re
-legStep→rmono l s s′ (ldRelay rk _ _ _ _ _ _ _)  = rk-fwd-mono rk
+legStep→rmono l s s′ (ldRelay rk _ _ _ _ _ _ _ _)  = rk-fwd-mono rk
 legStep→rmono l s s′ (ldCons _ _ _ re _ _ _ _ _) = subst RelayFwd re
 legStep→rmono l s s′ (ldFix _ re _ _ _ _ _)      = subst RelayFwd re
 
@@ -288,20 +291,24 @@ reach-ev-driver l r {X} {e} {a} aic apimem step
 -- cell fixities are available even though the medium object changed.
 ------------------------------------------------------------------------
 
--- a `break l₀` of `decMed m` lands at `m′` with `phase` PRESERVED
+-- a `break l₀` of `decMed m` lands at `m′` with `phase` PRESERVED and with the
+-- `broken` bit of `l₀` FLIPPED (`link-break-chan`'s own `i ≡ l₀` pin, which used
+-- to be discarded, transports the positional update onto the KEY `l₀`)
 break-med-phase : (m : MedState) (l₀ : Link) {a : ⊤₀} {M : NetProc}
   → decMed m ─[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]─► M
   → Σ[ m′ ∈ MedState ] (M ≡ decMed m′) × (phase m′ ≡ phase m)
+      × (broken m′ ≡ SR.broken-upd (broken m) l₀)
 break-med-phase m l₀ step
     with ⦀Fin-ev-inv numLinks (λ i → decLink i (phase m i) (broken m i)) (SR.break-noBoth m) step
 ... | i , Mi , linkStep , Meq with SR.link-break-chan i (phase m i) (broken m i) linkStep
-...   | _ , MiSkip =
+...   | i≡l₀ , MiSkip =
         mkMed (phase m) (SR.broken-upd (broken m) i)
       , trans Meq
           (trans (cong (λ z → ⦀Fin numLinks
                      (finUpd (λ k → decLink k (phase m k) (broken m k)) i z)) MiSkip)
                  (SR.recon-decMed-brk m i))
       , refl
+      , cong (SR.broken-upd (broken m)) i≡l₀
 
 -- frame preservation across a pure-medium `broken`-flip: the nodes are shared
 -- (so every driver / client fixity is `refl` once `l` is concrete) and `phase`
@@ -329,12 +336,13 @@ break-invert : (r : RState) (l₀ : Link) {a : ⊤₀} {M : NetProc}
       (decMed (med (toSys r)) ─[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]─► decMed m′)
       × (phase m′ ≡ phase (med (toSys r)))
       × (M ≡ ((decMed m′ ∥⇘ ioES ⇙ absNodesOf (toSys r)) ∖ ioES))
+      × (broken m′ ≡ SR.broken-upd (broken (med (toSys r))) l₀)
 break-invert r l₀ step
     with reflect-top-ev (decMed (med (toSys r))) (absNodesOf (toSys r))
            (inj₂ (SR.absnodes-no-break (toSys r))) step
 ... | nodesEv N₁ ns _ = ⊥-elim (SR.absnodes-no-break (toSys r) (N₁ , ns))
 ... | medEv M₁ medStep refl with break-med-phase (med (toSys r)) l₀ medStep
-...   | m′ , refl , pheq = m′ , medStep , pheq , refl
+...   | m′ , refl , pheq , brkeq = m′ , medStep , pheq , refl , brkeq
 
 -- the visible-middle preservation for a `break l₀` event.
 --
@@ -351,7 +359,7 @@ evStep-break : (l : TwoLegs) (r : RState) (l₀ : Link) {a : ⊤₀} {M : NetPro
   → radec r ─[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]─► M
   → Σ[ r′ ∈ RState ] (M ≡ radec r′) × (PipeInv⁺ l (toSys r) → PipeInv⁺ l (toSys r′))
 evStep-break l r l₀ {a} step =
-  let (m′ , medStep , pheq , Meq) = break-invert r l₀ {a} step
+  let (m′ , medStep , pheq , Meq , _) = break-invert r l₀ {a} step
       s′ : SysState
       s′ = mkSys m′ (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
       wrun : rdec r ═[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]═► ⟦ s′ ⟧
@@ -479,7 +487,7 @@ evStepS-break : (l : TwoLegs) (r : RState) (l₀ : Link) {a : ⊤₀} {M : NetPr
       × ((PipeInv⁺ l (toSys r) × SrvCoupled l (toSys r))
          → (PipeInv⁺ l (toSys r′) × SrvCoupled l (toSys r′)))
 evStepS-break l r l₀ {a} step =
-  let (m′ , medStep , pheq , Meq) = break-invert r l₀ {a} step
+  let (m′ , medStep , pheq , Meq , _) = break-invert r l₀ {a} step
       s′ : SysState
       s′ = mkSys m′ (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
       wrun : rdec r ═[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]═► ⟦ s′ ⟧

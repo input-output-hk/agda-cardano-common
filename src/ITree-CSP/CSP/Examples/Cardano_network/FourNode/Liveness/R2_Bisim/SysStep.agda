@@ -4,8 +4,8 @@
 -- Praos Phase-2 R2 Task 4 — step characterizations for `sysBisim`
 -- (`Praos.SysStep`).
 --
--- R2 Task 5 assembles `sysBisim : systemBroken ≈DR abstractSystem` from the
--- pieces built here.  `systemBroken = ⟦ initial ⟧` (Praos.SysDecode) is the
+-- R2 Task 5 assembles `sysBisim : breakableSystem ≈DR abstractSystem` from the
+-- pieces built here.  `breakableSystem = ⟦ initial ⟧` (Praos.SysDecode) is the
 -- concrete side (fine per-peer positions, R2 Task 2); `abstractSystem`
 -- (Praos.AbstractSystem) is the τ-free side (the eight `tableSpec` peers of
 -- Praos.NodeSpecs).  Concrete and abstract SHARE the breakable medium
@@ -1497,7 +1497,7 @@ reflect-io-pin-CSin l cl sv pc ps B step =
 -- R2 TASK 4 ITEM 3 — `refl-ev` (the FORWARD VISIBLE step of the ≈DR bisim
 -- R = {(⟦ s ⟧, absDec s)}, i.e. the `.fwd .on-ev` field).  Given a concrete
 -- VISIBLE event `⟦ s ⟧ ─[ev a]─► M` (a ∈ {api*, break} — the only visible
--- events at `systemBroken`'s top; io is HIDDEN, handled by `refl-τ`), reflect
+-- events at `breakableSystem`'s top; io is HIDDEN, handled by `refl-τ`), reflect
 -- it to a target `s′ : SysState` with `M ≡ ⟦ s′ ⟧` AND an ABSTRACT WEAK VISIBLE
 -- run `absDec s ═[ ev a ]═► absDec s′` (the drivers + the break-medium are SHARED
 -- verbatim, and the abstract spec peers sync on api exactly as the concrete

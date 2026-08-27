@@ -997,7 +997,7 @@ lnServerSpec l d = tableSpec (record { isFin = lnSfin ; nxt = lnSnxt l d }) lnsI
 -- LF client positions
 data LFcPos : Set where
   lfcIdle : LFcPos                       -- loop head: five request api offers
-  lfcWblk : Point → LFcPos               -- wire-send MsgLFBlockRequest pt (→ blk)
+  lfcWblk : EBHash → LFcPos              -- wire-send MsgLFBlockRequest h (→ blk)
   lfcWtxs : Point × LFBitmap → LFcPos     -- wire-send MsgLFBlockTxsRequest (→ btx)
   lfcWvot : List Vote → LFcPos           -- wire-send MsgLFVotesRequest vs (→ vot)
   lfcWrng : ChainRange → LFcPos          -- wire-send MsgLFBlockRangeRequest r (→ rng)
@@ -1006,7 +1006,7 @@ data LFcPos : Set where
   lfcBtx : LFcPos                        -- await MsgLFBlockTxs
   lfcVot : LFcPos                        -- await MsgLFVoteDelivery
   lfcRng : LFcPos                        -- await MsgLFNext/Last… (streaming head)
-  lfcRblk : Block → LFcPos               -- api emit recvLFBlock b (→ idle)
+  lfcRblk : EB → LFcPos                  -- api emit recvLFBlock e (→ idle)
   lfcRbtx : List Tx → LFcPos             -- api emit recvLFBlockTxs ts (→ idle)
   lfcRvot : List VoteBlob → LFcPos       -- api emit recvLFVoteDelivery vs (→ idle)
   lfcRnextRng : Block × List Tx → LFcPos  -- api emit recvLFRangeBlock (→ rng, loop)
@@ -1132,7 +1132,7 @@ data LFsPos : Set where
   lfsVot : LFsPos                        -- deliver votes (api)
   lfsRng : LFsPos                        -- deliver a range item (api, streaming head)
   lfsDone : LFsPos                       -- the server-local done event (→ √)
-  lfsWblk : Block → LFsPos               -- wire-send MsgLFBlock b (→ idle)
+  lfsWblk : EB → LFsPos                  -- wire-send MsgLFBlock e (→ idle)
   lfsWtxs : List Tx → LFsPos             -- wire-send MsgLFBlockTxs ts (→ idle)
   lfsWvot : List VoteBlob → LFsPos       -- wire-send MsgLFVoteDelivery vs (→ idle)
   lfsWnext : Block × List Tx → LFsPos     -- wire-send MsgLFNext… (→ rng, loop)

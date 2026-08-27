@@ -10,7 +10,7 @@
 -- the EXISTING scripted node logic (`produce`/`consume` of
 -- `FourNode.FourNodeDiamond`), and proves
 --
---     systemOf (diamondLogic blkA) ≡ systemBroken blkA
+--     systemOf (diamondLogic blkA) ≡ breakableSystem blkA
 --
 -- by `refl` — i.e. the generic scaffolding reproduces the hand-written
 -- system ON THE NOSE, definitionally, with no bisimulation and no
@@ -24,7 +24,7 @@
 --     `⦀` chain of the corresponding hand-written `nodeA`…`nodeD`
 --     (`⦀` is not commutative up to `≡`);
 --   * the node indices 0…3 enumerate A, B, C, D in the order of
---     `systemBroken`'s `nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))`.
+--     `breakableSystem`'s `nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))`.
 ------------------------------------------------------------------------
 
 open import Data.Nat using (ℕ)
@@ -49,8 +49,8 @@ module CSP.Examples.Cardano_network.Parametric.DiamondInstance where
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; apiES; produce; consume
         ; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi)
 open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟; Link)
 open import CSP.Examples.Cardano_network.Data p using (Payload)
@@ -58,7 +58,7 @@ open import CSP.Examples.Cardano_network.Data p using (Payload)
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (_⦀_; _>>=_; _>>_; Skip)
 
--- the four nodes of the diamond as `Fin 4` indices, in `systemBroken`'s order
+-- the four nodes of the diamond as `Fin 4` indices, in `breakableSystem`'s order
 nA nB nC nD : Fin 4
 nA = fzero
 nB = fsuc fzero
@@ -133,7 +133,7 @@ diamondLogic _    (fsuc (fsuc (fsuc fzero))) = (consume linkBD hi >> Skip) ⦀ (
 
 -- THE GATE: the generic scaffolding, instantiated at the diamond topology with the
 -- existing scripted logic, IS the existing hand-written system, definitionally
-diamond-faithful : ∀ (blkA : Block₃) → systemOf (diamondLogic blkA) ≡ systemBroken blkA
+diamond-faithful : ∀ (blkA : Block₃) → systemOf (diamondLogic blkA) ≡ breakableSystem blkA
 diamond-faithful blkA = refl
 
 ------------------------------------------------------------------------

@@ -5,14 +5,14 @@
 --
 -- The assembly of the three genuine sub-decodes (Tasks 1–3) into the whole
 -- diamond decode `⟦_⟧ : SysState → NetProc` and the GENUINE
--- `dec-init : ⟦ initial ⟧ ≡ systemBroken` — R1's whole point.  In the R2 spike
+-- `dec-init : ⟦ initial ⟧ ≡ breakableSystem` — R1's whole point.  In the R2 spike
 -- (`Route2Spike`) this equality was a POSTULATED stand-in (`decNodes`/
 -- `decNodes-home` were abstract fields); here it is made real: `decMed` comes
 -- from `SysMedium`, the four node decodes from `SysNode`, and `dec-init` is a
 -- genuine `cong₂`-glue over the `(_ ∥⇘ ioES ⇙ _) ∖ ioES` skeleton fed by the
 -- five genuine home-equalities (`decMed-home` + the four `decNodeX-home`).
 --
--- `systemBroken` (FourNodeDiamondBroken.76) is
+-- `breakableSystem` (FourNodeDiamondBreakable.76) is
 --   (CopySpecBreakableA ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 -- and `⟦_⟧` rebuilds EXACTLY this shape, substituting each sub-decode at its
 -- state and MATCHING the node `⦀` association `nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))`.
@@ -41,8 +41,8 @@ module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode (blkA :
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; nodeA; nodeB; nodeC; nodeD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
@@ -60,7 +60,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         ; initNodeA; initNodeB; initNodeC; initNodeD
         ; decNodeA-home; decNodeB-home; decNodeC-home; decNodeD-home )
 
--- the whole-system process type (same alias as the spike / `systemBroken`)
+-- the whole-system process type (same alias as the spike / `breakableSystem`)
 NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
@@ -80,7 +80,7 @@ record SysState : Set where
     nD  : NodeStateD
 open SysState public
 
--- the whole-system decode, rebuilding `systemBroken`'s
+-- the whole-system decode, rebuilding `breakableSystem`'s
 -- `(medium ∥⇘ ioES ⇙ (nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES` shape from
 -- the medium sub-decode and the four node sub-decodes (same `⦀` association)
 ⟦_⟧ : SysState → NetProc
@@ -102,7 +102,7 @@ initial = mkSys initMed initNodeA initNodeB initNodeC initNodeD
 -- with the node side glued by a nested `cong₂ _⦀_` over the four node ⦀s.  Fed
 -- by the five genuine home-equalities; `cong₂`/`cong` never force the composite
 -- to WHNF, so the typecheck stays in seconds (no 2.5-min/20-GB WHNF wall).
-dec-init : ⟦ initial ⟧ ≡ systemBroken blkA
+dec-init : ⟦ initial ⟧ ≡ breakableSystem blkA
 dec-init =
   cong₂ (λ Md Nd → (Md ∥⇘ ioES ⇙ Nd) ∖ ioES)
     decMed-home

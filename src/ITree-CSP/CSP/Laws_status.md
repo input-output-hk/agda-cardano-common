@@ -361,6 +361,7 @@ The three fields (`Semantics/FailureSim.agda`):
 | `¬fsim-Pinf-Qh : ¬ (FSim Rt Qh Pinf)` — the FD hiding counterexample pair is provably **not** an `FSim`, so it cannot refute the unconditional `Hide-fsim` | ✅ `CSP/Laws/FSim/HideCounterexample.agda` — postulate-free |
 | `fsim-sil-factor` (a `sil`-headed spec's simulation factors through its unique τ-successor — the converse of `fsim-τ*-prepend`) + generic inversions `sil-no-ev`, `sil-τ*-split`, `sil-div-factor` (2026-08-04, added for the αpar congruence's `αdrain`; see §17 addendum) | ✅ `Semantics/FailureSim.agda` — postulate-free |
 | `Θ-fsim` (throw, `⟦A▷`) + `Θ-mono-⊑FD` — **two-sided, unconditional, `agda --safe`-clean** (2026-08-04; see §17 addendum for the mechanism and the sweep) | ✅ `CSP/Laws/FSim/ThrowCong.agda` — 0 local postulates |
+| `⊑F→⊑FD-df : P ⊑F Q → (∀ {s} → ¬ divergences Q s) → P ⊑FD Q` — glue: `⊑F` + div-free RHS ⇒ `⊑FD` (splits as `⊑F→⊑F⊥-df` + the vacuous `df→⊑D`; `failures⊥ Q`'s `inj₂` divergence disjunct is refuted, `⊑D` is `⊥-elim`).  Deliberately a NEW module, not an edit to `Semantics/FailuresDivergences.agda`, so that file's ~58 consumers stay untouched.  **Not itself an `FSim` result** — it is a second, `FSim`-independent route into `⊑FD`, kept in this table because §15 is where the tree records the routes into `⊑FD`; its divergence-free side condition is what §16's calculus supplies (see §16's *Measured payoff*) | ✅ `Semantics/FDFromF.agda` — proved, 0 postulates, fully constructive |
 | worked smoke test: `copy⊑FD-buff1 : COPY ⊑FD BUFFN1` via `FSimFromRel`, reusing `Buffers`' `BRel` / `fwdE` / `fwdT` / `ndivL` verbatim and adding one stability obligation; `orientation-check` pins the direction against `proj₂ copy-is-buff1` | ✅ `CSP/Examples/UCS/Ch6/BuffersFSim.agda` — postulate-free |
 
 **Side conditions — the interesting part, reported honestly:**
@@ -503,6 +504,13 @@ non-trivial — the **hide** and **loop** cases, both currently out of scope. Th
 why the follow-up commits pivoted to gathering STABILITY, which is the load-bearing
 notion in this tree.
 
+- **Where divergence-freedom DOES pay, added 2026-08-11:** `⊑F→⊑FD-df`
+  (`Semantics/FDFromF.agda`, row in §15's table) consumes exactly a divergence-free
+  right-hand side and turns a stable-failures refinement into `⊑FD` outright — an
+  `FSim`-independent route into `⊑FD`. Still a leaf (imported by nothing); its intended
+  consumer is the four-node liveness campaign, whose `LiveNoDivH` supplies exactly that
+  side condition by lexicographic descent
+  (`CSP/Examples/Cardano_network/FourNode/Liveness/CSP_Refinement/LiveNoDivH.agda`).
 - **Hide is not redone.** `MAcc A P → ¬ Diverges (P ∖ A)` already exists as
   `Hide-noDiv-from-MAcc` at `CSP/Laws/FD/HideDivergence.agda:78`.
 - **Sites.** `CSP/Examples/UCS/Ch6/AbpFT.agda` converted: the hand-rolled
@@ -1187,10 +1195,10 @@ single node does not have. The fix unblocks **6 of the module's 23 importers**; 
 
 `CSP/Examples/Cardano_network/FourNode/Liveness/CSP_Refinement/Spec` states, as a
 CSP refinement, the block-liveness property of the broken four-node diamond
-`systemBroken` (`FourNode/FourNodeDiamondBroken.lagda.md`):
+`breakableSystem` (`FourNode/FourNodeDiamondBreakable.lagda.md`):
 
 ```
-LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (systemBrokenOf b ∖ hidden b)
+LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf b ∖ hidden b)
 ```
 
 **Status: stated — deliberately NOT proved and NOT postulated.**
@@ -1219,7 +1227,7 @@ near-miss battery and two `EventSet.dec` probes, 9 delivery-menu, 6
 must-offer/may-event, 18 real-τ-map coverage over every flag-updating branch of
 `prodτ`/`idleτ`, 1 block-generic continuity) and is otherwise
 **postulate-free**; the statement quantifies over the block-generic
-`systemBrokenOf b` (not the `b1`-fixed shipped `systemBroken`), so `∀ b` is
+`breakableSystemOf b` (not the `b1`-fixed shipped `breakableSystem`), so `∀ b` is
 non-vacuous for every block in `Block₃`. Full truth analysis
 (divergence-freedom on both sides of the refinement, the produce-gating of the
 obligation, the must-offer/may-offer `Prod`-branch fix, the CHAOS `Done`

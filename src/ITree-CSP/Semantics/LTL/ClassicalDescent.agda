@@ -25,8 +25,8 @@
 -- layer descends constructively (recorded in the M0.5 report).
 --
 -- Generic (model-agnostic): parametric in E, I, R, and in the FOUR LTLᵗ
--- subformulas ψ₁ ψ₂ p q — no FourNode atom/link/`systemBroken` content, so M5
--- instantiates `descent-⊨` directly at (systemBroken, ¬ atom brkG1,
+-- subformulas ψ₁ ψ₂ p q — no FourNode atom/link/`breakableSystem` content, so M5
+-- instantiates `descent-⊨` directly at (breakableSystem, ¬ atom brkG1,
 -- ¬ atom brkG2, atom (producedA b), atom (arrivedD b)).
 ------------------------------------------------------------
 
@@ -111,7 +111,7 @@ descent {ψ₁ = ψ₁} {ψ₂ = ψ₂} {p = p} {q = q} {tr = tr} H pos n hp =
 -- §3  Corollary shaped for M5's exact seam.
 --
 -- Generic in the root `t` and the four subformulas; M5 instantiates at
--- (systemBroken, ¬ atom brkG1, ¬ atom brkG2, atom (producedA b),
+-- (breakableSystem, ¬ atom brkG1, ¬ atom brkG2, atom (producedA b),
 -- atom (arrivedD b)) — with `b` and `tr` bound outside — to obtain
 -- `BlockLiveness⁺` verbatim.
 ------------------------------------------------------------

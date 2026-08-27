@@ -97,6 +97,8 @@ instance
   decEq⊤ : DecEq ⊤
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
+import Data.Maybe as PMaybe
+
 p1 : Params
 p1 = record
   { Cookie = ⊤ ; Block = ⊤ ; Txid = ⊤ ; LSlot = ⊤
@@ -107,7 +109,10 @@ p1 = record
   ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
-  ; decTime = decEq⊤ ; decLength = decEq⊤ }
+  ; decTime = decEq⊤ ; decLength = decEq⊤
+  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
+  ; EB = ⊤ ; EBHash = ⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
+  ; ebHash = λ _ → tt ; announcedEB = λ _ → PMaybe.nothing }
 
 open import CSP.Examples.Cardano_network.Net p1
   using (Net; Link; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)

@@ -5,28 +5,30 @@
 -- (`Praos.BlockLivenessProof`).
 --
 -- Assembles the R4 transport seam that turns the abstract-system liveness
--- walk into the concrete `systemBroken` headline:
+-- walk into the concrete `breakableSystem` headline:
 --
 --   abstractLive  : ∀ b → abstractSystem ⊨ᵂ respondsAtoD b   (AbstractLive)
---   sysBisim      : systemBroken ≈DR abstractSystem          (SysBisim, R2)
+--   sysBisim      : breakableSystem ≈DR abstractSystem          (SysBisim, R2)
 --   realAbs       : Realisableᴿ abstractSystem               (RealAbs, mod tprog)
 --   ────────────────────────────────────────────────── ⊨-DRWB-invariantᴿ→
---   systemBroken ⊨ᵂ respondsAtoD b
+--   breakableSystem ⊨ᵂ respondsAtoD b
 --   ────────────────────────────────────────────────── ⊨ᵂ⇒⊨ (TraceBridge)
---   systemBroken ⊨ respondsAtoD b
+--   breakableSystem ⊨ respondsAtoD b
 --   ────────────────────────────────────────────────── descent-⊨ (ClassicalDescent)
 --   BlockLiveness⁺
 --
 -- `⊨-DRWB-invariantᴿ→` transports FROM `t₁ = abstractSystem` (whence
--- `Realisableᴿ abstractSystem` on the SOURCE side) TO `t₂ = systemBroken`, so
+-- `Realisableᴿ abstractSystem` on the SOURCE side) TO `t₂ = breakableSystem`, so
 -- the bisim argument is `drbisim-sym sysBisim : abstractSystem ≈DR
--- systemBroken`.  `respondsAtoD-BS` (the `BisimStable` certificate, reproduced
+-- breakableSystem`.  `respondsAtoD-BS` (the `BisimStable` certificate, reproduced
 -- below) is the third argument.
 --
 -- The result is `BlockLiveness⁺` GREEN with NO scaffold premise: `wprog`
 -- (SESSION-34, break-liveness walk), `pcone` (SESSION-33, `PipeLocate`) and
 -- `tprog` (`TProg`, the one sanctioned `dne`) are all discharged.
--- `arrivedD` is payload-agnostic on this branch (the sanctioned `a≡b`-drop).
+-- STALE-COMMENT FIX: `arrivedD` is NOT payload-agnostic on this branch — the
+-- `a ≡ b` conjunct was restored in SESSION-51 (`Spec.arrivedD`), and the
+-- payload-agnostic companion is the separate atom `arrivedD⁻`.
 -- 0 postulate/hole/meta; the ONE sanctioned `dne` lives upstream in
 -- `respondsᵂ-intro`/`descent-⊨`, none is added here.
 ------------------------------------------------------------------------
@@ -69,8 +71,8 @@ open import Semantics.LTL.ClassicalDescent
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( descent-⊨ )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2; confined; respondsAtoD; BlockLiveness⁺At )
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
@@ -164,8 +166,8 @@ respondsAtoD-BS b =
 -- `dne`.)
 ------------------------------------------------------------------------
 
--- systemBroken ⊨ᵂ respondsAtoD b — the ≈DR transport of the abstract walk
-broken-⊨ᵂ : (b : Block₃) → systemBroken blkA ⊨ᵂ respondsAtoD b
+-- breakableSystem ⊨ᵂ respondsAtoD b — the ≈DR transport of the abstract walk
+broken-⊨ᵂ : (b : Block₃) → breakableSystem blkA ⊨ᵂ respondsAtoD b
 broken-⊨ᵂ b =
   ⊨-DRWB-invariantᴿ→ (RA.realAbs tprog) (drbisim-sym sysBisim)
     (respondsAtoD-BS b) (AL.abstractLive b)

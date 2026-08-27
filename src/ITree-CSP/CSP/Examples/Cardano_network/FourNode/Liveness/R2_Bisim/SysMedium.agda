@@ -4,13 +4,13 @@
 -- Praos Phase-2 R1 — MEDIUM sub-decode (`Praos.SysMedium`).
 --
 -- The FIRST genuine piece of the whole-system decode `⟦_⟧ : SysState →
--- NetProc` whose `dec-init : ⟦ initial ⟧ ≡ systemBroken` is the LHS of the
--- R2 bisim `systemBroken ≈DR abstractSystem`.  `systemBroken` and
+-- NetProc` whose `dec-init : ⟦ initial ⟧ ≡ breakableSystem` is the LHS of the
+-- R2 bisim `breakableSystem ≈DR abstractSystem`.  `breakableSystem` and
 -- `abstractSystem` share the SAME medium `CopySpecBreakableA`, so the medium
 -- decode must track the medium's REAL position (not just be inert), or a
 -- medium-only step in the R2 bisim could not be matched by a `SysState` move.
 --
--- `systemBroken`'s medium is `CopySpecBreakableA = ⦀Fin numLinks
+-- `breakableSystem`'s medium is `CopySpecBreakableA = ⦀Fin numLinks
 -- breakableLinkA`, with `breakableLinkA l = linkMediumA l △ (break l ⟶₀
 -- Skip)`, `linkMediumA l = RenNet.renameMap (linkCopy l)`, and `linkCopy l =
 -- ⦀⋆ (map Copy (linkConfig l))`.  Each copy cell `Copy l d id = loop0
@@ -76,7 +76,7 @@ open Op using ( ⦀Fin; Skip; _△_; Prefix₀ )
 import CSP.Operators {E = Net Payload} (Net-≟ {Payload}) as OpN
 open OpN using ( ⦀⋆ )
 
--- the whole-system process type (same alias as the spike / `systemBroken`)
+-- the whole-system process type (same alias as the spike / `breakableSystem`)
 NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 

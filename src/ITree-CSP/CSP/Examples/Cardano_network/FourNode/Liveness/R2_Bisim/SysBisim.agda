@@ -3,8 +3,8 @@
 ------------------------------------------------------------------------
 -- Praos Phase-2 R2 Task 5 (FINAL assembly) — `sysBisim` (`Praos.SysBisim`).
 --
--- GOAL:  sysBisim : systemBroken ≈DR abstractSystem
---   (`systemBroken = ⟦ initial ⟧` from `Praos.SysDecode`; `abstractSystem` from
+-- GOAL:  sysBisim : breakableSystem ≈DR abstractSystem
+--   (`breakableSystem = ⟦ initial ⟧` from `Praos.SysDecode`; `abstractSystem` from
 --    `Praos.AbstractSystem`).  Assembled from the GENERIC (operand-polymorphic)
 --    reflection/step machinery of `Praos.SysStep`.
 --
@@ -84,11 +84,11 @@ import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as S
 NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
--- the R1 concrete decode + its home equality (`⟦ initial ⟧ ≡ systemBroken`)
+-- the R1 concrete decode + its home equality (`⟦ initial ⟧ ≡ breakableSystem`)
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧; initial; dec-init )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 -- the R2 abstract target + its home equality (`absDec initial ≡ abstractSystem`)
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
@@ -256,9 +256,9 @@ buildDRˢ (mkEqR refl) .div← d = d
 ------------------------------------------------------------------------
 
 -- given the whole-system bisim at `initial`, transport it to the endpoints via
--- `dec-init : ⟦ initial ⟧ ≡ systemBroken` and `absDec-init : absDec initial ≡
+-- `dec-init : ⟦ initial ⟧ ≡ breakableSystem` and `absDec-init : absDec initial ≡
 -- abstractSystem` — the final `sysBisim` assembly, modulo `bisim′ initial`
-syswire : ⟦ initial ⟧ ≈DR absDec initial → systemBroken blkA ≈DR abstractSystem
+syswire : ⟦ initial ⟧ ≈DR absDec initial → breakableSystem blkA ≈DR abstractSystem
 syswire b =
   subst (λ z → z ≈DR abstractSystem) dec-init
     (subst (λ z → ⟦ initial ⟧ ≈DR z) absDec-init b)
@@ -356,7 +356,7 @@ bisim′-init o = bisim′-from o rinit
 -- HEADLINE (modulo the oracle): `sysBisim = syswire (bisim′ rinit)` — the final
 -- `dec-init`/`absDec-init` rewrite applied to the walker at `rinit`.  Once D3
 -- populates the `StepOracle`, `sysBisim = sysBisim-from theOracle`.
-sysBisim-from : StepOracle → systemBroken blkA ≈DR abstractSystem
+sysBisim-from : StepOracle → breakableSystem blkA ≈DR abstractSystem
 sysBisim-from o = syswire (bisim′-init o)
 
 ------------------------------------------------------------------------
@@ -1249,7 +1249,7 @@ odiv→-impl r d = divChainF r d
 
 ------------------------------------------------------------------------
 -- R2 D3 (THE CLOSE) — assemble the eight-field `StepOracle` and derive the
--- headline `sysBisim : systemBroken ≈DR abstractSystem`.
+-- headline `sysBisim : breakableSystem ≈DR abstractSystem`.
 ------------------------------------------------------------------------
 
 -- the total step oracle: all eight per-class co-move fields
@@ -1263,6 +1263,6 @@ theOracle .osqrtB = osqrtB-impl
 theOracle .odiv→  = odiv→-impl
 theOracle .odiv←  = odiv←-impl
 
--- HEADLINE: `systemBroken ≈DR abstractSystem`
-sysBisim : systemBroken blkA ≈DR abstractSystem
+-- HEADLINE: `breakableSystem ≈DR abstractSystem`
+sysBisim : breakableSystem blkA ≈DR abstractSystem
 sysBisim = sysBisim-from theOracle

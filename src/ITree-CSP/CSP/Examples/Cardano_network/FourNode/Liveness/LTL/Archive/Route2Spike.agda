@@ -8,7 +8,7 @@
 --   * DISPOSABLE.  Imported by NOTHING; deleted after the findings are
 --     harvested into the report.  `--allow-unsolved-metas` / postulates are
 --     permitted HERE ONLY (per the spike design + plan).
---   * NEVER steps `systemBroken` or any whole-node composite (the documented
+--   * NEVER steps `breakableSystem` or any whole-node composite (the documented
 --     ≈2.5 min / ≈20 GB single-step WHNF wall — the point of Q1/Q2 is to show
 --     the decode/reflection approach AVOIDS that wall).  All probing is either
 --     (a) `≡`-glue over sub-decodes (`cong`/`cong₂` — never forces WHNF), or
@@ -19,7 +19,7 @@
 -- ==================== WHAT THIS MODULE SETTLES ======================
 --
 -- Q1 (§1): the whole-system decode `⟦_⟧ : SysState → NetProc` composes from
---     per-part sub-decodes and `dec-init : ⟦ initial ⟧ ≡ systemBroken` is a
+--     per-part sub-decodes and `dec-init : ⟦ initial ⟧ ≡ breakableSystem` is a
 --     `cong₂`-glue through the `∖ ioES` / `∥⇘ ioES ⇙` stack that DOES NOT
 --     force the composite to WHNF.  The medium sub-decode is built GENUINELY
 --     (`⦀Fin numLinks`, home-lemma `refl`); the per-node sub-decodes are the
@@ -65,8 +65,8 @@ open PTree
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; nodeA; nodeB; nodeC; nodeD
         ; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 open import CSP.Examples.Cardano_network.Params using (Params)
 open Params p using (numLinks)
 open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
@@ -152,7 +152,7 @@ open SysState
 initial : SysState
 initial = mkSys (λ _ → home) nodesInit
 
--- the whole-system decode, rebuilding `systemBroken`'s
+-- the whole-system decode, rebuilding `breakableSystem`'s
 -- `(medium ∥⇘ ioES ⇙ nodes) ∖ ioES` shape from the two sub-decodes.
 ⟦_⟧ : SysState → NetProc
 ⟦ s ⟧ = (decMed (med s) ∥⇘ ioES ⇙ decNodes (nodes s)) ∖ ioES
@@ -162,7 +162,7 @@ initial = mkSys (λ _ → home) nodesInit
 -- in seconds (no minutes/GB): `cong₂ f p q` produces `f _ _ ≡ f _ _` WITHOUT
 -- evaluating `f` — the `∥⇘ ioES ⇙` / `∖ ioES` composite is NEVER forced to
 -- WHNF.  This is the whole-system generalisation of PerLink.Decode.dec-init.
-dec-init : ⟦ initial ⟧ ≡ systemBroken blkA
+dec-init : ⟦ initial ⟧ ≡ breakableSystem blkA
 dec-init =
   cong₂ (λ Md Nd → (Md ∥⇘ ioES ⇙ Nd) ∖ ioES) decMed-home decNodes-home
 
@@ -245,11 +245,11 @@ reflect-hidden-io M N step with Hide-τ-elim ioES (M ∥⇘ ioES ⇙ N) step
 
 -- Applied at the REAL operands (still no stepping — `M`, `N` are supplied as
 -- the actual medium and nodes-bundle; the lemma is used, not evaluated).
-reflect-systemBroken-τ :
+reflect-breakableSystem-τ :
     ∀ {M″ : NetProc}
-  → systemBroken blkA ─[ τ ]─► M″
+  → breakableSystem blkA ─[ τ ]─► M″
   → ReflOut CopySpecBreakableA (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))) M″
-reflect-systemBroken-τ step =
+reflect-breakableSystem-τ step =
   reflect-hidden-io CopySpecBreakableA (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))) step
 
 -- RESIDUAL (documented, NOT a top-level obstruction).  In the `hidSync` case
@@ -279,17 +279,17 @@ reflect-systemBroken-τ step =
 --          FourNode LivenessSpike (2026-07-16) already discharged
 --          `Realisableᴿ` on the abstract side (`τfreeᴿ→Realisableᴿ`) and
 --          `BisimStable` for all atoms + `respondsAtoD`.
---   None of these mention `systemBroken`, nodes, links, or `⦀`; they are
---   instantiated at (systemBroken, abstractSystem, the four atoms) exactly as
+--   None of these mention `breakableSystem`, nodes, links, or `⦀`; they are
+--   instantiated at (breakableSystem, abstractSystem, the four atoms) exactly as
 --   route 1 would.  So route 2 feeds the SAME endgame:
---       systemBroken ≈DR abstractSystem      (the Q1/Q2 direct bisim)
+--       breakableSystem ≈DR abstractSystem      (the Q1/Q2 direct bisim)
 --     → abstract-system liveness walk         (M5 on the small abstract diamond)
 --     → ⊨-DRWB-invariantᴿ→ + M0 + M0.5        → BlockLiveness⁺  (fairness-free)
 --
 -- M1–M3 REGEN: NOT needed under route 2.  The node specs `nodeASpec…nodeDSpec`
 -- (Liveness.{NodeA,NodeBC,NodeD}) are already green and only DEFINE
 -- `abstractSystem` (Liveness.System.abstractSystem); route 2 relates
--- `systemBroken` to that SAME `abstractSystem` by ONE direct bisimulation,
+-- `breakableSystem` to that SAME `abstractSystem` by ONE direct bisimulation,
 -- never re-deriving the per-node `≈DR` via `cong-⦀`.  (Route 1 died precisely
 -- at assembling those per-node bisims through `cong-⦀`; see Liveness.System's
 -- header and the M4-blocker doc.)

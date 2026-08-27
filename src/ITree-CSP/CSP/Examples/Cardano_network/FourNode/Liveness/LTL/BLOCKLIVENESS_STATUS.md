@@ -35,7 +35,7 @@ axiom, no `dne` in the value chain).  Endpoint `EXIT=0`.
 
 ```agda
 BlockLiveness⁺At : Block₃ → Set _
-BlockLiveness⁺At blkA = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) (systemBroken blkA))
+BlockLiveness⁺At blkA = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) (breakableSystem blkA))
                       → (□ᵗ (¬ atom brkG1) tr ⊎ □ᵗ (¬ atom brkG2) tr)  -- breaks confined to one path group
                       → ∀ (n : ℕ) → ⟦ atom (producedA b) ⟧ (drop n tr) -- A hands out block b (apiBF sendBFBlock@hi on AB/AC, a≡b)
                       → ◇ᵗ (atom (arrivedD b)) (drop n tr)             -- THAT block arrives at D (apiBF recvBFBlock@hi on BD/CD, a≡b)
@@ -80,10 +80,10 @@ No `module _ (wprog : …)` — the premise module is GONE from `AbstractLive`,
 
 ```
 abstractLive             : abstractSystem ⊨ᵂ respondsAtoD b        -- R3 walk (AbstractLive → WalkEngineB, premise-free)
-sysBisim                 : systemBroken blkA ≈DR abstractSystem     -- R2 divergence-respecting bisim (SysBisim)
+sysBisim                 : breakableSystem blkA ≈DR abstractSystem     -- R2 divergence-respecting bisim (SysBisim)
 realAbs tprog            : Realisableᴿ abstractSystem               -- R3 (RealAbs, tprog from TProg via dne)
-  ── ⊨-DRWB-invariantᴿ→ ──►  systemBroken blkA ⊨ᵂ respondsAtoD b
-  ── ⊨ᵂ⇒⊨ (TraceBridge)  ──►  systemBroken blkA ⊨ respondsAtoD b
+  ── ⊨-DRWB-invariantᴿ→ ──►  breakableSystem blkA ⊨ᵂ respondsAtoD b
+  ── ⊨ᵂ⇒⊨ (TraceBridge)  ──►  breakableSystem blkA ⊨ respondsAtoD b
   ── descent-⊨ (ClassicalDescent) ──►  BlockLiveness⁺At blkA
   ── LTL.BlockLiveness (∀-closure) ──►  BlockLiveness⁺
 ```

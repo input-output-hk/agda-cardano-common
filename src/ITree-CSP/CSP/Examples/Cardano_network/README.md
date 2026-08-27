@@ -71,7 +71,7 @@ API events. (The renaming into `Net_Api` happens in `NetworkPar`.)
 |---|--:|---|
 | `FourNode/FourNodeDiamond.lagda.md` | 287 | The four-node diamond scenario (edges A–B, A–C, B–D, C–D over one shared medium), using the **uniform** `miniProtocols` bundle (all four protocols on every link). Adds per-node **application logic** (`produce`/`consume`) that drives the CS+BF peers via `apiES`, realising a Praos-style block flow **A → {B,C} → D**; exposes `system` (over `NetworkA`) and `System_CopySpec` (over `CopySpecA`). Also documents why an explicit has-trace to D is intractable. Literate. |
 | `FourNode/FourNodeDiamondCfg.lagda.md` | 302 | The same diamond scenario, but with a **non-uniform, `linkConfig`-driven** per-link setup (via `nodeBundle`): each link carries only ChainSync + BlockFetch in both directions — KeepAlive/TxSubmission/Leios are unconfigured, so no peers or medium cells are instantiated for them. Demonstrates the config-driven medium/`NetworkPar` machinery on a trimmed alphabet. Literate. |
-| `FourNode/FourNodeDiamondBroken.lagda.md` | 120 | The same four nodes as `FourNode/FourNodeDiamond`, but composed over the **breakable** medium `CopySpecBreakableA` instead of `CopySpec`, exposing `systemBroken`. Fault injection is demonstrated via the isolated-link witness `break-fires : breakableLinkA linkBD ─[ break linkBD ]─► Skip` (the `break` event fires as a visible LTS step and the link terminates, √). A full composed-system trace is documented as intractable for the same reason as in `FourNode/FourNodeDiamond`, so only the isolated-medium witness is given; the module's closing discussion reasons informally about the consequence (the B→D relay dies, while the A→C→D path stays healthy). Literate. |
+| `FourNode/FourNodeDiamondBreakable.lagda.md` | 120 | The same four nodes as `FourNode/FourNodeDiamond`, but composed over the **breakable** medium `CopySpecBreakableA` instead of `CopySpec`, exposing `breakableSystem`. Fault injection is demonstrated via the isolated-link witness `break-fires : breakableLinkA linkBD ─[ break linkBD ]─► Skip` (the `break` event fires as a visible LTS step and the link terminates, √). A full composed-system trace is documented as intractable for the same reason as in `FourNode/FourNodeDiamond`, so only the isolated-medium witness is given; the module's closing discussion reasons informally about the consequence (the B→D relay dies, while the A→C→D path stays healthy). Literate. |
 
 ## Verification — network (medium) properties
 
@@ -122,7 +122,7 @@ API events. (The renaming into `Net_Api` happens in `NetworkPar`.)
   `input`/`output` channels are permanently refused because the link has
   finished, not because it has stalled.
   `CopySpecBreakableA = ⦀Fin numLinks breakableLinkA` composes every link
-  independently-breakable. `FourNode/FourNodeDiamondBroken.lagda.md` demonstrates this
+  independently-breakable. `FourNode/FourNodeDiamondBreakable.lagda.md` demonstrates this
   on the four-node diamond (see the scenario table above); a full
   composed-system trace remains intractable to normalise (same reason as
   `FourNode/FourNodeDiamond`), so only an isolated-medium witness

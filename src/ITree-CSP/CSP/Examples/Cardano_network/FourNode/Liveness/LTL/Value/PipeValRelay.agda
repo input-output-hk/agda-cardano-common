@@ -32,6 +32,15 @@
 -- RULE: never apply a function to a `with`-abstracted variable inside the
 -- result type; equate the variable to a constructor form instead.
 --
+-- PHASE-2 TASK 3, SLICE C (leaf 8).  A SEVENTH component is appended at the end
+-- of the `Σ`: `(RelayPre x → ⊥) → (bb : Block₃) → RelayAt bb x → RelayAt bb x′`,
+-- the relay's recorded BLOCK fixity off the receive region.  Same discipline as
+-- slice D — the six existing components keep their positions and types, the eight
+-- clauses each gain one one-liner (`⊥-elim (nPre tt)` on the four pre-receive
+-- phases, the identity on the four others), and every consumer gains one binder.
+-- The RULE above bit again here: the natural `relayBlk x′ ≡ relayBlk x` phrasing
+-- reproduces the ICE verbatim, so leaf 8 rides the PREDICATE `RelayAt`.
+--
 -- No postulate/hole/meta.  `PipeEvRelay` stays READ-ONLY.
 ------------------------------------------------------------------------
 
@@ -39,6 +48,7 @@ open import Level using ( 0ℓ )
 open import Data.Unit.Polymorphic using ( ⊤; tt )
 open import Data.Empty using ( ⊥; ⊥-elim )
 open import Data.Product using ( Σ; Σ-syntax; _×_; _,_; proj₁; proj₂ )
+open import Data.Sum using ( _⊎_; inj₁; inj₂ )
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; cong; subst )
 
 open import Process_Trees using ( PTree; ExtI )
@@ -90,11 +100,51 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv 
 -- `cpStepKindL-of` with the label component's block tied to the SUCCESSOR's.
 ------------------------------------------------------------------------
 
+-- "the relay phase `x` records the block `bb`" — the PREDICATE form of
+-- `PipeValInv.relayBlk`.
+--
+-- WHY A PREDICATE AND NOT THE ACCESSOR (the module's own banked rule, paid for a
+-- SECOND time in slice C).  Stating leaf 8 as `relayBlk x′ ≡ relayBlk x` inside
+-- the returned `Σ` reproduces the header's Agda 2.8.0 `__IMPOSSIBLE__` at
+-- `Substitute.hs:139` VERBATIM (`conApp: constructor … consuming … projected by
+-- … relayBlk`).  `relayBlk`'s clauses return an argument unchanged, so Agda
+-- classifies it as PROJECTION-LIKE and tries to reduce it while substituting the
+-- concrete successor for the `with`-abstracted `x′`.  `RelayAt` returns an
+-- EQUATION, is therefore not projection-like, and substitutes cleanly — while
+-- `RelayValOK x′` (already in this `Σ`) always worked for the same reason.
+RelayAt : Block₃ → CPPh → Set
+RelayAt bb (consuming b _) = bb ≡ b
+RelayAt bb (producing b _) = bb ≡ b
+
+-- the accessor form of `RelayAt`, for consumers that hold `relayBlk x ≡ b`
+relayAt⇒eq : (bb : Block₃) (x : CPPh) → RelayAt bb x → relayBlk x ≡ bb
+relayAt⇒eq bb (consuming b _) refl = refl
+relayAt⇒eq bb (producing b _) refl = refl
+
+-- and back again
+eq⇒relayAt : (bb : Block₃) (x : CPPh) → relayBlk x ≡ bb → RelayAt bb x
+eq⇒relayAt bb (consuming b _) refl = refl
+eq⇒relayAt bb (producing b _) refl = refl
+
 cpStepKindL-of⁺ : (l₁ l₂ : Link) (x : CPPh)
     {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
   → decCP l₁ l₂ x ─[ ev (evl (evLabel X e a)) ]─► M
   → Σ[ x′ ∈ CPPh ] (M ≡ decCP l₁ l₂ x′) × RelayStepKind x x′
-      × (RelayPre x → RelayHas x′
+      -- STRICT IN-PLACE GENERALISATION (Phase-2 Task 3, slice D).  The label
+      -- component's PREMISE is widened from `RelayPre x × RelayHas x′` to that
+      -- DISJOINED with the source-phase pin `Σ[ b ] x ≡ consuming b cp3`;
+      -- conclusion and arity are unchanged, and the ORIGINAL is re-derived as
+      -- the instance `λ hPre hHas → new (inj₁ (hPre , hHas))`.
+      --
+      -- WHY.  The consumer that needs it (`LiveLegStep`'s hop `lpUpClient →
+      -- lpRelayIn`) holds the (C2) `cp3` pin at the SOURCE but cannot produce
+      -- `RelayHas x′`: `RelayStepKind` is phase-only, so an `rMove` out of `cp3`
+      -- is not refutable one layer up.  Here it IS — the eight clauses below
+      -- case on the source phase, and the `cp3` clause never used either premise
+      -- in the first place (it reads the `cons-c34-anchor`, `WalkDAnchor:201`),
+      -- so under the widening twelve of the sixteen premise uses become
+      -- constructor clashes and the real clause gets SHORTER.
+      × (((RelayPre x × RelayHas x′) ⊎ (Σ[ b ∈ Block₃ ] x ≡ consuming b cp3))
          → Σ[ b″ ∈ Block₃ ]
              (evLabel X e a ≡ evLabel Block₃ (apiBF l₁ hi recvBFBlock) b″)
            × (x′ ≡ consuming b″ cp4))
@@ -103,62 +153,81 @@ cpStepKindL-of⁺ : (l₁ l₂ : Link) (x : CPPh)
       -- so the value clause rides across; ON it (`RelayPre x`) the component is
       -- vacuous and the value comes from the co-firing BF client via `wUp`
       × ((RelayPre x → ⊥) → RelayValOK x → RelayValOK x′)
+      -- PHASE-2 TASK 3, SLICE C (leaf 8): a SEVENTH component, the same in-place
+      -- shape as slice D's widening.  OFF the receive region the relay's recorded
+      -- BLOCK ITSELF is fixed — strictly stronger than the value map above, and
+      -- already true clause by clause here (cp4/cp5 keep `b`, the `cp6 →
+      -- producing pp1` hop carries the SAME `b` onto the produce arm, and the
+      -- produce clauses never touch it), whereas one layer up `RelayStepKind` is
+      -- phase-only and has erased the block.  A pure ADDITION at the END of the
+      -- `Σ`: the six existing components keep their positions and their types, so
+      -- every consumer gains exactly one binder and no proof changes.  Stated with
+      -- the PREDICATE `RelayAt`, never the accessor — see its comment above.
+      × ((RelayPre x → ⊥) → (bb : Block₃) → RelayAt bb x → RelayAt bb x′)
 -- cp0/cp1/cp2: the successor is cp1/cp2/cp3, so `RelayHas` is `⊥`
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp0) step
   with bind-ev-inv (λ b′ → produce l₂ hi b′) (decCons l₁ hi b cp0) refl step
 ... | _ , sc , refl with consAdv-of l₁ hi b cp0 sc
-...   | b′ , _ , refl , c01 = consuming b′ cp1 , refl , consAdv→rk c01 , (λ _ hHas → ⊥-elim hHas)
+...   | b′ , _ , refl , c01 = consuming b′ cp1 , refl , consAdv→rk c01 , (λ { (inj₁ (_ , hHas)) → ⊥-elim hHas ; (inj₂ (_ , ())) })
                             , (λ sbb → ⊥-elim (decCons-sbb-⊥ l₁ hi b cp0 sc sbb))
                             , (λ _ _ → tt)
+                            , (λ nPre _ _ → ⊥-elim (nPre tt))
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp1) step
   with bind-ev-inv (λ b′ → produce l₂ hi b′) (decCons l₁ hi b cp1) refl step
 ... | _ , sc , refl with consAdv-of l₁ hi b cp1 sc
-...   | b′ , _ , refl , c12 = consuming b′ cp2 , refl , consAdv→rk c12 , (λ _ hHas → ⊥-elim hHas)
+...   | b′ , _ , refl , c12 = consuming b′ cp2 , refl , consAdv→rk c12 , (λ { (inj₁ (_ , hHas)) → ⊥-elim hHas ; (inj₂ (_ , ())) })
                             , (λ sbb → ⊥-elim (decCons-sbb-⊥ l₁ hi b cp1 sc sbb))
                             , (λ _ _ → tt)
+                            , (λ nPre _ _ → ⊥-elim (nPre tt))
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp2) step
   with bind-ev-inv (λ b′ → produce l₂ hi b′) (decCons l₁ hi b cp2) refl step
 ... | _ , sc , refl with consAdv-of l₁ hi b cp2 sc
-...   | b′ , _ , refl , c23 = consuming b′ cp3 , refl , consAdv→rk c23 , (λ _ hHas → ⊥-elim hHas)
+...   | b′ , _ , refl , c23 = consuming b′ cp3 , refl , consAdv→rk c23 , (λ { (inj₁ (_ , hHas)) → ⊥-elim hHas ; (inj₂ (_ , ())) })
                             , (λ sbb → ⊥-elim (decCons-sbb-⊥ l₁ hi b cp2 sc sbb))
                             , (λ _ _ → tt)
+                            , (λ nPre _ _ → ⊥-elim (nPre tt))
 -- cp3: THE REAL CLAUSE.  The anchor names the successor block AND the label's
 -- with the SAME `b″`, so the new component is `refl`.
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp3) step
   with bind-ev-inv (λ b′ → produce l₂ hi b′) (decCons l₁ hi b cp3) refl step
 ... | _ , sc , refl with cons-c34-anchor l₁ hi b sc
 ...   | b″ , lbl , refl = consuming b″ cp4 , refl , consAdv→rk c34
-                        , (λ _ _ → b″ , lbl , refl)
+                        , (λ _ → b″ , lbl , refl)
                         , (λ sbb → ⊥-elim (decCons-sbb-⊥ l₁ hi b cp3 sc sbb))
                         , (λ nPre _ → ⊥-elim (nPre tt))
+                        , (λ nPre _ _ → ⊥-elim (nPre tt))
 -- cp4/cp5: `RelayPre` is `⊥`
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp4) step
   with bind-ev-inv (λ b′ → produce l₂ hi b′) (decCons l₁ hi b cp4) refl step
 ... | _ , sc , refl = consuming b cp5
                     , cong (λ z → z >>= (λ b′ → produce l₂ hi b′)) (output-ev-inv sc)
-                    , consAdv→rk c45 , (λ hPre _ → ⊥-elim hPre)
+                    , consAdv→rk c45 , (λ { (inj₁ (hPre , _)) → ⊥-elim hPre ; (inj₂ (_ , ())) })
                     , (λ sbb → ⊥-elim (decCons-sbb-⊥ l₁ hi b cp4 sc sbb))
                     , (λ _ h → h)
+                    , (λ _ _ h → h)
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp5) step
   with bind-ev-inv (λ b′ → produce l₂ hi b′) (decCons l₁ hi b cp5) refl step
 ... | _ , sc , refl = consuming b cp6
                     , cong (λ z → z >>= (λ b′ → produce l₂ hi b′))
                            (proj₂ (proj₂ (⟶₀-ev-inv sc)))
-                    , consAdv→rk c56 , (λ hPre _ → ⊥-elim hPre)
+                    , consAdv→rk c56 , (λ { (inj₁ (hPre , _)) → ⊥-elim hPre ; (inj₂ (_ , ())) })
                     , (λ sbb → ⊥-elim (decCons-sbb-⊥ l₁ hi b cp5 sc sbb))
                     , (λ _ h → h)
+                    , (λ _ _ h → h)
 -- the composite `consuming cp6 → producing pp1` hop: `RelayPre` is `⊥`
 cpStepKindL-of⁺ l₁ l₂ (consuming b cp6) step
   with prodAdv-of l₂ hi b pp0 (step-fcong refl step)
 ... | _ , refl , a01 = producing b pp1 , refl
                      , rMove (λ ()) (λ _ → tt) (λ ()) (λ { (() , _) })
-                     , (λ hPre _ → ⊥-elim hPre)
+                     , (λ { (inj₁ (hPre , _)) → ⊥-elim hPre ; (inj₂ (_ , ())) })
                      , (λ sbb → ⊥-elim (pp0≢pp5 (decProd-sbb-pp5 l₂ hi b pp0 (step-fcong refl step) sbb)))
                      , (λ _ h → h)
+                     , (λ _ _ h → h)
 -- produce side: `RelayPre` is `⊥`
 cpStepKindL-of⁺ l₁ l₂ (producing b pp) step with prodAdv-of l₂ hi b pp step
-... | pp′ , refl , pa = producing b pp′ , refl , prodAdv→rk pa , (λ hPre _ → ⊥-elim hPre)
+... | pp′ , refl , pa = producing b pp′ , refl , prodAdv→rk pa , (λ { (inj₁ (hPre , _)) → ⊥-elim hPre ; (inj₂ (_ , ())) })
                       , (λ sbb → padv-pp5-fwd
                           (subst (λ q → ProdAdv q pp′)
                                  (decProd-sbb-pp5 l₂ hi b pp step sbb) pa))
                       , (λ _ h → h)
+                      , (λ _ _ h → h)

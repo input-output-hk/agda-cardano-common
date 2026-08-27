@@ -110,7 +110,7 @@ module Generic
 --
 -- This is a USABILITY check, not a new theorem — it exhibits exactly
 -- what a caller has to supply.  Note that the conclusion is stated
--- about the HAND-WRITTEN `systemBroken`, not about `systemOf
+-- about the HAND-WRITTEN `breakableSystem`, not about `systemOf
 -- (diamondLogic blkA)`: the two are definitionally equal by
 -- `Parametric.DiamondInstance.diamond-faithful` (`= refl`), so the
 -- generic lemma applies to the existing four-node development with no
@@ -119,8 +119,8 @@ module Generic
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using (p; Block₃; apiES)
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using (systemBroken)
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using (breakableSystem)
 open import CSP.Examples.Cardano_network.Parametric.DiamondInstance
   using (diamond; diamondLogic)
 open N p using (Net_Api; Net_Api-≟)
@@ -137,11 +137,11 @@ open import Semantics.FailuresDivergences
 -- the diamond instantiation of `systemN-mono`: FOUR node obligations (one per
 -- `Fin 4`), one medium obligation and one divergence-freedom obligation give the
 -- whole four-node network refinement.  The generic lemma is applied verbatim; the
--- conclusion mentions `systemBroken` only because the faithfulness gate is `refl`.
+-- conclusion mentions `breakableSystem` only because the faithfulness gate is `refl`.
 diamond-assembly : ∀ (blkA : Block₃) (mSpec : Proc) (nSpec : Fin 4 → Proc)
                  → mSpec ⊑FD CopySpecBreakableA
                  → (∀ n → nSpec n ⊑FD node n (diamondLogic blkA n))
-                 → (∀ {s} → ¬ divergences (systemBroken blkA) s)
-                 → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ 3 nSpec) ∖ ioES) ⊑FD systemBroken blkA
+                 → (∀ {s} → ¬ divergences (breakableSystem blkA) s)
+                 → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ 3 nSpec) ∖ ioES) ⊑FD breakableSystem blkA
 diamond-assembly blkA mSpec nSpec hM hN hdf =
   Generic.systemN-mono p diamond apiES mSpec nSpec (diamondLogic blkA) hM hN hdf

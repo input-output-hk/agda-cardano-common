@@ -1,12 +1,12 @@
 # Four-node diamond over breakable links — LTL liveness specification
 
 This module *states* (does not prove) the block-liveness property of the
-broken four-node diamond `systemBroken`
-(`FourNodeDiamondBroken.lagda.md`): **a block produced by NodeA eventually
+broken four-node diamond `breakableSystem`
+(`FourNodeDiamondBreakable.lagda.md`): **a block produced by NodeA eventually
 reaches NodeD, provided all `break` events are confined to at most one path
 group** — G1 = {AB, BD} or G2 = {AC, CD}. ("No link broken" is subsumed:
 breaks confined to one group ⟺ the other path stays whole.) Node A is no
-longer hardwired to the block `b1`: `systemBroken` now takes A's produced
+longer hardwired to the block `b1`: `breakableSystem` now takes A's produced
 block `blkA : Block₃` as an argument, and every statement below quantifies
 over it, so the property is asserted for *every* configuration of A. The
 statements keep the payload quantifier `b` **separate** from `blkA` —
@@ -60,8 +60,8 @@ supplies the system under specification:
 ```agda
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD; Block₃; b1; b2 )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 ```
 
 The alphabet: directions from `Base`; the `apiBF`/`break` channels, the
@@ -78,7 +78,7 @@ open import CSP.Examples.Cardano_network.Data p using ( Payload )
 
 `Op.Skip` fills the (never-forced) state slot of hand-built test frames;
 `evl`/`evLabel` from the LTS build visible-event observations; the LTL layer
-is instantiated at the same alphabet as `systemBroken` itself:
+is instantiated at the same alphabet as `breakableSystem` itself:
 
 ```agda
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -163,7 +163,7 @@ respondsAtoD b = confined ⇒ (G ((atom (producedA b)) ⇒ (F (atom (arrivedD b)
 ```agda
 -- THE SPECIFICATION (a Set: stated, deliberately unproved, NOT postulated); A may produce ANY block `blkA`
 BlockLiveness : Set _
-BlockLiveness = ∀ (blkA : Block₃) (b : Block₃) → systemBroken blkA ⊨ respondsAtoD b
+BlockLiveness = ∀ (blkA : Block₃) (b : Block₃) → breakableSystem blkA ⊨ respondsAtoD b
 ```
 
 ## Positive dual
@@ -178,7 +178,7 @@ proofs.
 ```agda
 -- positive dual of BlockLiveness for a FIXED produced block `blkA`: □ᵗ confinement hypothesis, ◇ᵗ response at every suffix
 BlockLiveness⁺At : Block₃ → Set _
-BlockLiveness⁺At blkA = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) (systemBroken blkA))
+BlockLiveness⁺At blkA = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) (breakableSystem blkA))
                       → (□ᵗ (¬ atom brkG1) tr ⊎ □ᵗ (¬ atom brkG2) tr)
                       → ∀ (n : ℕ) → ⟦ atom (producedA b) ⟧ (drop n tr)
                       → ◇ᵗ (atom (arrivedD b)) (drop n tr)
@@ -274,7 +274,7 @@ the class and cannot path-match once the disjunct is only known dynamically.
 -- fairness-qualified positive dual: each confinement disjunct is paired with
 -- weak fairness on that intact path's BF fetch driver (the honest M5 target)
 BlockLiveness⁺ᶠ : Set _
-BlockLiveness⁺ᶠ = ∀ (blkA : Block₃) (b : Block₃) (tr : Trace (⊤ {0ℓ}) (systemBroken blkA))
+BlockLiveness⁺ᶠ = ∀ (blkA : Block₃) (b : Block₃) (tr : Trace (⊤ {0ℓ}) (breakableSystem blkA))
                 → ( (□ᵗ (¬ atom brkG1) tr × Fair C-ABD tr)
                   ⊎ (□ᵗ (¬ atom brkG2) tr × Fair C-ACD tr) )
                 → ∀ (n : ℕ) → ⟦ atom (producedA b) ⟧ (drop n tr)
@@ -285,7 +285,7 @@ BlockLiveness⁺ᶠ = ∀ (blkA : Block₃) (b : Block₃) (tr : Trace (⊤ {0�
 
 The only proofs in this module. `Frame` values are plain data, so matching
 and near-miss frames are hand-built with `Op.Skip` in the (never-forced)
-state slot — we never construct a `Trace` of `systemBroken` or take an LTS
+state slot — we never construct a `Trace` of `breakableSystem` or take an LTS
 step of it (a single step of the composite costs ≈2.5 min / ≈20 GB, as
 documented in `FourNodeDiamond.lagda.md`).
 
@@ -411,7 +411,7 @@ _ = λ ()
 
 The fairness classes are `Event → Set` predicates (not `Frame` predicates),
 so they are probed on hand-built `Event`s. `mkEv` pairs a `Net_Api` event
-with a carrier value (never a real LTS step of `systemBroken`):
+with a carrier value (never a real LTS step of `breakableSystem`):
 
 ```agda
 -- a hand-built visible event (carrier value supplied, no state/step)
@@ -519,7 +519,7 @@ Summarised from the design doc
 1. **Quiescence risk.** Maximal traces may end in a `stuck` frame — the
    2026-07-07 done-quiescence deadlock finding for `System_CopySpec`-family
    systems. The theorem's content is exactly that no maximal trace of
-   `systemBroken` gets stuck or diverges *between* a `producedA b` frame and
+   `breakableSystem` gets stuck or diverges *between* a `producedA b` frame and
    its matching `arrivedD b` frame, under the confinement hypothesis.
 
 2. **Why the property is plausible.** Both A and D interleave (`⦀`) their two

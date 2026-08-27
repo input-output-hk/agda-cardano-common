@@ -26,7 +26,10 @@
 -- diamond, this topology has no pre-existing hand-written counterpart
 -- to match, so `endpointsOf`'s list order is entirely free (any order
 -- gives an equally legitimate system, `⦀` being commutative up to
--- strong bisimulation — `CSP/Laws/FD/ParallelComm.agda`).
+-- strong bisimulation — `CSP/Laws/FD/ParallelComm.agda`).  That absence
+-- is also why the api alphabet can come from the shared
+-- `Cardano_network.ApiAlphabet` rather than being re-derived here: no
+-- `refl` depends on which `EventSet` record `Parametric.Node` receives.
 --
 -- The `Params` are this module's own (they are NOT the diamond's), so
 -- nothing here depends on `FourNode.FourNodeDiamond`; that also checks
@@ -34,8 +37,6 @@
 ------------------------------------------------------------------------
 
 import Data.Unit as U
-open import Data.Unit.Polymorphic using (⊤; tt)
-open import Data.Empty using (⊥)
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.List using (List; _∷_; [])
@@ -52,9 +53,9 @@ open import Class.DecEq using (DecEq)
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 open import CSP.Examples.Cardano_network.Params using (Params)
 open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; mkTopology)
+open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
 
-module CSP.Examples.Cardano_network.Parametric.Instances where
+module CSP.Examples.Cardano_network.Parametric.StarInstance where
 
 ------------------------------------------------------------------------
 -- The scenario parameters (own, not the diamond's)
@@ -74,6 +75,8 @@ starCfg = (lo , N2N_KeepAlive)    ∷ (hi , N2N_KeepAlive)
         ∷ (lo , N2N_TxSubmission) ∷ (hi , N2N_TxSubmission) ∷ []
 
 -- concrete Params for the star: all data domains ⊤, FOUR links, uniform config
+import Data.Maybe as PMaybe
+
 starParams : Params
 starParams = record
   { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -83,56 +86,21 @@ starParams = record
   ; decLSlot = starDecEq⊤ ; decVoterId = starDecEq⊤ ; decLFBitmap = starDecEq⊤
   ; decVoteBlob = starDecEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
-  ; decTime = starDecEq⊤ ; decLength = starDecEq⊤ }
+  ; decTime = starDecEq⊤ ; decLength = starDecEq⊤
+  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
+  ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = starDecEq⊤ ; decEBHash = starDecEq⊤
+  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
 
-open import CSP.Examples.Cardano_network.Net starParams
-  using ( Link; Net_Api; Net_Api-≟
-        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break )
+open import CSP.Examples.Cardano_network.Net starParams using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data starParams using (Payload)
 open import CSP.Examples.Cardano_network.NetCommon starParams
   using (CopySpecBreakableA; ioES)
 
+-- the {| all api channels |} alphabet, shared with every other gate-free scenario
+open import CSP.Examples.Cardano_network.ApiAlphabet starParams using (apiES)
+
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open Op using (Skip; _⦀_; _∥⇘_⇙_; _∖_; ⦀Fin⁺; chanSet; EventSet)
-
-------------------------------------------------------------------------
--- The api synchronisation alphabet (this module's own `apiES`)
-------------------------------------------------------------------------
-
--- membership of the {| all api channels |} sync set (by channel, ignoring payload)
-starApiSet : AnyTypes (Net_Api Payload) → Set
-starApiSet (_ , apiCS _ _ _) = ⊤
-starApiSet (_ , apiBF _ _ _) = ⊤
-starApiSet (_ , apiKA _ _ _) = ⊤
-starApiSet (_ , apiTS _ _ _) = ⊤
-starApiSet (_ , apiLN _ _ _) = ⊤
-starApiSet (_ , apiLF _ _ _) = ⊤
-starApiSet (_ , done _ _ _)  = ⊤
-starApiSet _                 = ⊥
-
--- decidability of `starApiSet` membership
-starApiSet-dec : (at : AnyTypes (Net_Api Payload)) → Dec (starApiSet at)
-starApiSet-dec (_ , apiCS  _ _ _) = yes tt
-starApiSet-dec (_ , apiBF  _ _ _) = yes tt
-starApiSet-dec (_ , input  _ _ _) = no λ ()
-starApiSet-dec (_ , output _ _ _) = no λ ()
-starApiSet-dec (_ , sndmsg _ _ _) = no λ ()
-starApiSet-dec (_ , rcvmsg _ _ _) = no λ ()
-starApiSet-dec (_ , tx     _ _ _) = no λ ()
-starApiSet-dec (_ , sndack _ _ _) = no λ ()
-starApiSet-dec (_ , rcvack _ _ _) = no λ ()
-starApiSet-dec (_ , ack    _ _ _) = no λ ()
-starApiSet-dec (_ , done   _ _ _) = yes tt
-starApiSet-dec (_ , apiTS  _ _ _) = yes tt
-starApiSet-dec (_ , apiKA  _ _ _) = yes tt
-starApiSet-dec (_ , apiLN  _ _ _) = yes tt
-starApiSet-dec (_ , apiLF  _ _ _) = yes tt
-starApiSet-dec (_ , break  _)     = no λ ()
-
--- the {| all api channels |} event set for the star
-starApiES : EventSet
-starApiES = chanSet starApiSet starApiSet-dec
+open Op using (Skip; _⦀_; _∥⇘_⇙_; _∖_; ⦀Fin⁺)
 
 ------------------------------------------------------------------------
 -- The star graph
@@ -197,7 +165,7 @@ star = record
 -- The generic scaffolding at the star
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Parametric.Node starParams star starApiES
+open import CSP.Examples.Cardano_network.Parametric.Node starParams star apiES
   using (Proc; bundleAt; linkBundles; node; systemOf)
 
 -- the star network with trivial (`Skip`) logic at every node — a TYPECHECKING
@@ -238,134 +206,4 @@ star-assembly : (mSpec : Proc) (nSpec lg : Fin 5 → Proc)
               → (∀ n → nSpec n ⊑FD node n (lg n))
               → (∀ {s} → ¬ divergences (systemOf lg) s)
               → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ 4 nSpec) ∖ ioES) ⊑FD systemOf lg
-star-assembly = Asm.Generic.systemN-mono starParams star starApiES
-
-------------------------------------------------------------------------
--- A THREE-NODE LINE, built with `mkTopology` — the derivation test
---
--- The star above is hand-built: its `endpointsOf` is written out node
--- by node and its three endpoint laws are written out as terms (the
--- hub alone needing six pairwise `≢`s for `endpoints-unique`).  The
--- line below supplies ONLY `ends` plus the two hypotheses `mkTopology`
--- genuinely needs — no self-loops, no isolated nodes — and gets
--- `endpointsOf`, soundness, completeness and uniqueness derived.
---
--- A—B—C: two links, degrees 1, 2, 1.  The degree-2 middle node
--- exercises the non-empty-tail path through the derived list and the
--- two degree-1 ends exercise the empty-tail (`⦀⁺ P [] = P`) path.
---
--- There is deliberately NO `refl` gate here: the derived list's order
--- is `filter`'s order over the endpoint enumeration, which is exactly
--- the dependence that makes derivation and definitional gates
--- incompatible (see `Parametric.Topology`'s note on `mkTopology`).
---
--- Everything lives in a nested module because the line needs its own
--- `Params` (two links, not four) and hence its own instantiations of
--- `Net`/`Data`/`NetCommon`/`CSP.Operators`, whose names would other-
--- wise clash with the star's.
-------------------------------------------------------------------------
-
-module Line where
-
-  -- concrete Params for the line: as the star's, but TWO links
-  lineParams : Params
-  lineParams = record
-    { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
-    ; VoterId = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
-    ; numLinks = 2 ; linkConfig = λ _ → starCfg
-    ; decCookie = starDecEq⊤ ; decBlock = starDecEq⊤ ; decTxid = starDecEq⊤
-    ; decLSlot = starDecEq⊤ ; decVoterId = starDecEq⊤ ; decLFBitmap = starDecEq⊤
-    ; decVoteBlob = starDecEq⊤
-    ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
-    ; decTime = starDecEq⊤ ; decLength = starDecEq⊤ }
-
-  -- the line's `Net`/`Data`/`NetCommon`/`CSP.Operators` instantiations.  Every name
-  -- is brought in under an `L`-prefixed alias: the star's same-named notions are
-  -- already in scope at the enclosing module and an inner `open` does NOT shadow
-  -- them in Agda — it makes the bare name ambiguous.
-  import CSP.Examples.Cardano_network.Net lineParams as LNet
-  open LNet using () renaming (Link to LLink; Net_Api to LApi; Net_Api-≟ to LApi-≟)
-  open import CSP.Examples.Cardano_network.Data lineParams
-    using () renaming (Payload to LPayload)
-  open import CSP.Examples.Cardano_network.NetCommon lineParams
-    using () renaming (CopySpecBreakableA to LCopySpec; ioES to LioES)
-
-  import CSP.Operators {E = LApi LPayload} (LApi-≟ {LPayload}) as LOp
-  open LOp using () renaming ( Skip to LSkip; _∥⇘_⇙_ to _L∥⇘_⇙_; _∖_ to _L∖_
-                             ; ⦀Fin⁺ to L⦀Fin⁺; chanSet to LchanSet
-                             ; EventSet to LEventSet )
-
-  -- membership of the {| all api channels |} sync set (by channel, ignoring payload);
-  -- the same predicate as the star's, but over `lineParams`' `Net_Api`
-  lineApiSet : AnyTypes (LApi LPayload) → Set
-  lineApiSet (_ , LNet.apiCS _ _ _) = ⊤
-  lineApiSet (_ , LNet.apiBF _ _ _) = ⊤
-  lineApiSet (_ , LNet.apiKA _ _ _) = ⊤
-  lineApiSet (_ , LNet.apiTS _ _ _) = ⊤
-  lineApiSet (_ , LNet.apiLN _ _ _) = ⊤
-  lineApiSet (_ , LNet.apiLF _ _ _) = ⊤
-  lineApiSet (_ , LNet.done  _ _ _) = ⊤
-  lineApiSet _                      = ⊥
-
-  -- decidability of `lineApiSet` membership
-  lineApiSet-dec : (at : AnyTypes (LApi LPayload)) → Dec (lineApiSet at)
-  lineApiSet-dec (_ , LNet.apiCS  _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.apiBF  _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.input  _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.output _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.sndmsg _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.rcvmsg _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.tx     _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.sndack _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.rcvack _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.ack    _ _ _) = no λ ()
-  lineApiSet-dec (_ , LNet.done   _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.apiTS  _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.apiKA  _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.apiLN  _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.apiLF  _ _ _) = yes tt
-  lineApiSet-dec (_ , LNet.break  _)     = no λ ()
-
-  -- the {| all api channels |} event set for the line
-  lineApiES : LEventSet
-  lineApiES = LchanSet lineApiSet lineApiSet-dec
-
-  -- the (lo-end , hi-end) pair of each link: link 0 joins A—B, link 1 joins B—C,
-  -- with node 0 = A, node 1 = B (the degree-2 middle), node 2 = C
-  lineEnds : LLink → Fin 3 × Fin 3
-  lineEnds fzero    = fzero , fsuc fzero
-  lineEnds (fsuc _) = fsuc fzero , fsuc (fsuc fzero)
-
-  -- the three-node line as a `Topology`.  THIS IS THE WHOLE INSTANCE: `endpointsOf`,
-  -- `endpoints-sound`, `endpoints-complete` and `endpoints-unique` are all derived by
-  -- `mkTopology` from `lineEnds`; only irreflexivity and one incident endpoint per
-  -- node are supplied, and both are one-liners.
-  line : Topology lineParams
-  line = mkTopology 2 lineEnds
-           (λ { fzero → λ () ; (fsuc _) → λ () })
-           (λ { fzero            → (fzero      , lo) , refl
-              ; (fsuc fzero)     → (fzero      , hi) , refl
-              ; (fsuc (fsuc fzero)) → (fsuc fzero , hi) , refl })
-
-  open import CSP.Examples.Cardano_network.Parametric.Node lineParams line lineApiES
-    using () renaming (Proc to LProc; node to Lnode; systemOf to LsystemOf)
-
-  -- the line network with trivial (`Skip`) logic at every node — a TYPECHECKING
-  -- WITNESS that `systemOf` builds over a DERIVED `endpointsOf`
-  lineSystem : LProc
-  lineSystem = LsystemOf (λ _ → LSkip)
-
-  open import Semantics.FailuresDivergences
-    {E = LApi LPayload} {I = ExtI (LApi LPayload)}
-    using () renaming (_⊑FD_ to _L⊑FD_; divergences to Ldivergences)
-
-  -- `systemN-mono` instantiated at the line: THREE node obligations, one medium
-  -- obligation and one divergence-freedom obligation.  The premises are HYPOTHESES —
-  -- none is discharged here; this checks the generic lemma applies to a topology
-  -- whose endpoint structure was derived rather than written.
-  line-assembly : (mSpec : LProc) (nSpec lg : Fin 3 → LProc)
-                → mSpec L⊑FD LCopySpec
-                → (∀ n → nSpec n L⊑FD Lnode n (lg n))
-                → (∀ {s} → ¬ Ldivergences (LsystemOf lg) s)
-                → ((mSpec L∥⇘ LioES ⇙ L⦀Fin⁺ 2 nSpec) L∖ LioES) L⊑FD LsystemOf lg
-  line-assembly = Asm.Generic.systemN-mono lineParams line lineApiES
+star-assembly = Asm.Generic.systemN-mono starParams star apiES

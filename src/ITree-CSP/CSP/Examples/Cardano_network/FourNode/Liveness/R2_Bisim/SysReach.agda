@@ -4,7 +4,7 @@
 -- Praos Phase-2 R2 D1 (SCOPE-FIRST) — the REACHABLE-config foundation
 -- (`Praos.SysReach`).
 --
--- R2's headline `sysBisim : systemBroken ≈DR abstractSystem` needs a TOTAL
+-- R2's headline `sysBisim : breakableSystem ≈DR abstractSystem` needs a TOTAL
 -- per-leaf bisim dispatcher `mkDR`.  Indexed by the full `SysState` position
 -- product (`MedState × NodeStateA × … × NodeStateD`), which ranges over
 -- data-carrying peer positions (List Point / Header / Tip carriers) and the
@@ -74,15 +74,15 @@ NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 ------------------------------------------------------------------------
 
 -- R1 concrete decode `⟦_⟧`, its state `SysState`, `initial`, and the genuine
--- home equality `dec-init : ⟦ initial ⟧ ≡ systemBroken`
+-- home equality `dec-init : ⟦ initial ⟧ ≡ breakableSystem`
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; ⟦_⟧; initial; dec-init )
 -- R2 abstract decode `absDec` + its home equality `absDec initial ≡ abstractSystem`
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( absDec; absDec-init )
 -- the two bisimulation endpoints
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
 
@@ -175,8 +175,8 @@ rinit = mkR initial rInit
 rinit-toSys : toSys rinit ≡ initial
 rinit-toSys = refl
 
--- concrete endpoint: `rdec rinit ≡ systemBroken`, inherited from R1's `dec-init`
-rdec-init : rdec rinit ≡ systemBroken blkA
+-- concrete endpoint: `rdec rinit ≡ breakableSystem`, inherited from R1's `dec-init`
+rdec-init : rdec rinit ≡ breakableSystem blkA
 rdec-init = dec-init
 
 -- abstract endpoint: `radec rinit ≡ abstractSystem`, inherited from `absDec-init`

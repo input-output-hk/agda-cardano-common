@@ -7,7 +7,7 @@
 --     harvested into the real campaign.  `--allow-unsolved-metas` /
 --     postulates are permitted HERE ONLY (per the spike design doc
 --     docs/superpowers/specs/2026-07-15-fournode-liveness-spike-design.md).
---   * NEVER steps `systemBroken` or any whole-node composite (the
+--   * NEVER steps `breakableSystem` or any whole-node composite (the
 --     documented ≈2.5 min / ≈20 GB single-step wall) — all probing is on
 --     the generic layer, on `deadlock`, or on hand-built frames.
 --
@@ -15,14 +15,14 @@
 --
 --   Q1a (read, in report): the MODEL-WIDE `Realisable R`
 --     (Convergence.agda:38) quantifies `τprog : ∀ (s : PTree E I R) → …`
---     over EVERY tree of result type `R` — including `systemBroken` and
+--     over EVERY tree of result type `R` — including `breakableSystem` and
 --     all composites — so `⊨-DRWB-invariant→` (WBisimInvariant.agda:230)
 --     is undischargeable for architecture A.  The PER-TREE
 --     `Realisableᴿ t` (WBisimInvariantR.agda:39) restricts both fields to
 --     states REACHABLE from `t` (`t ↠ s`); its theorem
 --     `⊨-DRWB-invariantᴿ→` (WBisimInvariantR.agda:113) needs
 --     `Realisableᴿ t₁` on the SOURCE side of `t₁ ⊨ᵂ φ → t₂ ⊨ᵂ φ`.  For
---     architecture A we conclude `systemBroken ⊨ᵂ φ` (= t₂) from
+--     architecture A we conclude `breakableSystem ⊨ᵂ φ` (= t₂) from
 --     `abstract ⊨ᵂ φ` (= t₁), so the obligation is `Realisableᴿ abstract`
 --     — over the SMALL abstract system's reachable states only.  Gate opens.
 --
@@ -58,7 +58,7 @@ module CSP.Examples.Cardano_network.NetworkVerification.LivenessSpike where
 open PTree
 
 ------------------------------------------------------------------------
--- The concrete alphabet — the SAME one `systemBroken` and the four atoms
+-- The concrete alphabet — the SAME one `breakableSystem` and the four atoms
 -- run over, so §2's `BisimStable` proofs consume the REAL atoms.
 ------------------------------------------------------------------------
 
@@ -110,7 +110,7 @@ deadlock-stuck (sTau refl ())
 -- over the whole model.  This is EXACTLY the abstract-side gate: if the
 -- small abstract system's reachable fragment has no τ (or, more generally,
 -- a finite decidable τ structure), the record is discharged — the composite
--- `systemBroken` never enters the obligation.
+-- `breakableSystem` never enters the obligation.
 τfreeᴿ→Realisableᴿ :
     ∀ {ℓr} {R : Set ℓr} {t : PTree E I R}
   → (∀ {s s′ : PTree E I R} → t ↠ s → s ─[ τ ]─► s′ → ⊥)
@@ -214,7 +214,7 @@ respondsAtoD-BS b =
 ------------------------------------------------------------------------
 -- §3  The layer-bridge obligation (new finding — NOT in the Q1 lead).
 --
--- `⊨-DRWB-invariantᴿ→` concludes `systemBroken ⊨ᵂ φ` on the WTrace layer
+-- `⊨-DRWB-invariantᴿ→` concludes `breakableSystem ⊨ᵂ φ` on the WTrace layer
 -- (`Semantics.LTL.WTrace._⊨ᵂ_`), but `BlockLiveness`/`BlockLiveness⁺` are
 -- stated on the coinductive-`Trace` layer (`Semantics.LTL.Traces_Based._⊨_`
 -- / `◇ᵗ` / `□ᵗ`).  The two layers share the SAME `step` relation

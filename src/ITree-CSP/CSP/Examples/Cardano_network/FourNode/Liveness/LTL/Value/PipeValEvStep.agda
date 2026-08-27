@@ -342,13 +342,15 @@ legStepV l r s′ step (ldProd padv re ce cue cde ue de) lv
   , subst CellValOK  cde h6
   , subst CliValOK   de  h7
   , consValStepFix l (toSys r) s′ ce (lvCons lv) h8
-legStepV l r s′ step (ldRelay rk pe ce cue cde de upEvo wUp) lv
+legStepV l r s′ step (ldRelay rk pe ce cue cde de upEvo wUp _) lv
                      (h1 , h2 , h3 , h4 , h5 , h6 , h7 , h8) =
     upSrvValStep l r s′ step (lvUpSrv lv) h1
   , subst CellValOK cue h2
   , cliValEvo (upClient l (toSys r)) (upClient l s′) upEvo h3
   , relayValStep (relayOf l (toSys r)) (relayOf l s′) (upClient l (toSys r))
-                 rk (lvRelay lv) wUp h3 h4
+                 -- TASK-3 SLICE D: `wUp`'s premise is now the DISJUNCTION;
+                 -- `relayValStep` wants the original narrow form (`inj₁`)
+                 rk (lvRelay lv) (λ hPre hHas → wUp (inj₁ (hPre , hHas))) h3 h4
   , dnSrvValStep l r s′ step (lvDnSrv lv) h4 h5
   , subst CellValOK cde h6
   , subst CliValOK  de  h7
@@ -410,7 +412,7 @@ evStepV-break : (l : TwoLegs) (r : RState) (l₀ : Link) {a : ⊤₀} {M : NetPr
   → radec r ─[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]─► M
   → Σ[ r′ ∈ RState ] (M ≡ radec r′) × (PipeVal l (toSys r) → PipeVal l (toSys r′))
 evStepV-break l r l₀ {a} step =
-  let (m′ , medStep , pheq , Meq) = break-invert r l₀ {a} step
+  let (m′ , medStep , pheq , Meq , _) = break-invert r l₀ {a} step
       s′ : SysState
       s′ = mkSys m′ (nA (toSys r)) (nB (toSys r)) (nC (toSys r)) (nD (toSys r))
       wrun : rdec r ═[ ev (evl (evLabel ⊤₀ (break l₀) a)) ]═► ⟦ s′ ⟧

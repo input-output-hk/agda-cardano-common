@@ -5,12 +5,12 @@
 --
 -- F1 (`Semantics.LTL.Fairness`) shipped the visible-class weak-fairness
 -- notion on the coinductive `Trace` layer.  F2 ships the TRANSFER layer the
--- M5 endgame needs: a `Fair C` fact on a concrete `systemBroken` trace must
+-- M5 endgame needs: a `Fair C` fact on a concrete `breakableSystem` trace must
 -- become a `Fair`-fact on the abstract trace the ≈DR transport produces, so
 -- the abstract liveness walk can consume it.
 --
 -- Direction (verified against `⊨-DRWB-invariantᴿ→`, WBisimInvariantR):
--- that theorem takes a t₂-trace (t₂ = the concrete `systemBroken`), transports
+-- that theorem takes a t₂-trace (t₂ = the concrete `breakableSystem`), transports
 -- it BACKWARD to a corresponding t₁-trace (t₁ = the abstract spec, on which
 -- liveness is proved), producing `sim : WTraceSim (concrete) (abstract)`, runs
 -- the t₁-side satisfaction, then transports the result forward.  The `Fair C`

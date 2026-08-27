@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
 ------------------------------------------------------------------------
--- FourNode liveness campaign — M4: `systemBroken ≈DR abstractSystem`
+-- FourNode liveness campaign — M4: `breakableSystem ≈DR abstractSystem`
 -- (`Liveness.System`).  This module fixes the M4 TARGET `abstractSystem`
 -- (the four-node broken system with each node replaced by its M2/M3
 -- ≈DR-spec, medium kept verbatim) and records — in full — WHY the planned
@@ -97,7 +97,7 @@ open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeD
 module CSP.Examples.Cardano_network.NetworkVerification.Liveness.System where
 
 ------------------------------------------------------------------------
--- The M4 target: `systemBroken` with each node replaced by its ≈DR spec,
+-- The M4 target: `breakableSystem` with each node replaced by its ≈DR spec,
 -- the breakable medium and the `∥⇘ioES⇙ … ∖ ioES` skeleton kept verbatim.
 ------------------------------------------------------------------------
 
@@ -106,7 +106,7 @@ abstractSystem : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 abstractSystem =
   (CopySpecBreakableA ∥⇘ ioES ⇙ (nodeASpec ⦀ (nodeBSpec ⦀ (nodeCSpec ⦀ nodeDSpec)))) ∖ ioES
 
--- NOTE (M4 BLOCKED): `system≈DR : systemBroken ≈DR abstractSystem` is NOT
+-- NOTE (M4 BLOCKED): `system≈DR : breakableSystem ≈DR abstractSystem` is NOT
 -- provable via the planned congruence assembly — the inner node-`⦀`
 -- `cong-⦀` needs `Sep ∅ES` between diamond-adjacent nodes, which is FALSE
 -- (both nodes offer the same `input(sharedLink, dir, proto, ·)` event).

@@ -9,6 +9,11 @@
 -- bundle but binds the FIVE successor slots EXISTENTIALLY inside `bgEBwt`, and
 -- `absBundleG` has no slot injectivity, so a SECOND independent peel of the
 -- same step cannot be tied to the first (session-30 measured negative result).
+-- ((T5, review M-4) read "`absBundleG` has no slot injectivity" as the SLOT-level
+-- statement it is: it is about THIS decomposition, not about tables.  Coarse
+-- `tableSpec` position injectivity IS derivable — `LiveCSRow` §2/§3 proves it for both
+-- ChainSync tables — so the absolute phrasing the T3/T4 reversal refuted must not be
+-- read back into this sentence.)
 -- Hence the bundle inversion has to be RE-DERIVED carrying, in ONE result, the
 -- successor slots TOGETHER with the two BF evolutions.
 --
@@ -62,7 +67,7 @@ open import CSP.Examples.Cardano_network.Base using
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break )
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; store; env; break )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
@@ -160,6 +165,8 @@ BlkReadAt l d q (apiTS  _ _ _) _ = ⊥
 BlkReadAt l d q (apiKA  _ _ _) _ = ⊥
 BlkReadAt l d q (apiLN  _ _ _) _ = ⊥
 BlkReadAt l d q (apiLF  _ _ _) _ = ⊥
+BlkReadAt l d q (store  _ _ _) _ = ⊥
+BlkReadAt l d q (env    _ _ _) _ = ⊥
 BlkReadAt l d q (break  _)     _ = ⊥
 
 ------------------------------------------------------------------------

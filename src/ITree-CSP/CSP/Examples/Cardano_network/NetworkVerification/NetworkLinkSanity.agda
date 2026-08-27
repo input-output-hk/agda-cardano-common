@@ -30,6 +30,8 @@ instance
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
 -- two links: KeepAlive initiated lo on link 0, BlockFetch hi on link 1
+import Data.Maybe as PMaybe
+
 p2 : Params
 p2 = record
   { Cookie = ⊤ ; Block = ⊤ ; Txid = ⊤ ; LSlot = ⊤
@@ -40,7 +42,10 @@ p2 = record
                    ; (fsuc fzero) → (hi , N2N_BlockFetch) ∷ [] }
   ; decCookie = decEq⊤ ; decBlock = decEq⊤ ; decTxid = decEq⊤
   ; decLSlot = decEq⊤ ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤
-  ; decVoteBlob = decEq⊤ ; decTime = decEq⊤ ; decLength = decEq⊤ }
+  ; decVoteBlob = decEq⊤ ; decTime = decEq⊤ ; decLength = decEq⊤
+  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
+  ; EB = ⊤ ; EBHash = ⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
+  ; ebHash = λ _ → tt ; announcedEB = λ _ → PMaybe.nothing }
 
 open import CSP.Examples.Cardano_network.NetworkLink p2 ⊤ using (NetworkLink)
 open import CSP.Examples.Cardano_network.Network p2 ⊤ using (CopySpec)

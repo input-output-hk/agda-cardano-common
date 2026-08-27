@@ -143,7 +143,7 @@ drop-sem-bwd φ (suc n) (T.div dv)    h = drop-sem-bwd φ n (T.div dv) h
 -- Every Trace-world satisfaction follows from WTrace-world satisfaction:
 -- run the hypothesis on the embedded trace, then descend with `sem-fwd`.
 -- This is the bridge the M5 endgame applies right after
--- `⊨-DRWB-invariantᴿ→` lands `systemBroken ⊨ᵂ φ`.
+-- `⊨-DRWB-invariantᴿ→` lands `breakableSystem ⊨ᵂ φ`.
 ⊨ᵂ⇒⊨ : ∀ {ℓr ℓa} {R : Set ℓr} {t : PTree E I R} {φ : LTLᵗ ℓa R}
       → t W.⊨ᵂ φ → t T.⊨ φ
 ⊨ᵂ⇒⊨ {φ = φ} h tr = sem-fwd φ tr (h (Trace↪WTrace tr))

@@ -29,7 +29,7 @@ open import Relation.Binary.PropositionalEquality using (refl)
 open import Level using (0ℓ)
 open import Process_Trees using (PTree; ExtI)
 
-module CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken where
+module CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable where
 ```
 
 The healthy diamond supplies the shared `Params` `p`, the four nodes, and the
@@ -72,19 +72,19 @@ while `input`/`output` are still hidden.
 
 ```agda
 -- the four-node diamond over the breakable medium, A producing `blkA`; break events stay observable (∉ ioES)
-systemBroken : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-systemBroken blkA = (CopySpecBreakableA ∥⇘ ioES ⇙ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
+breakableSystem : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+breakableSystem blkA = (CopySpecBreakableA ∥⇘ ioES ⇙ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 ```
 
 The same diamond over the **concrete** per-link multiplexer `NetworkLinkBreakableA`
 instead of the abstract `CopySpecBreakableA`. This is sound because
 `NetworkLink ≈FD CopySpec` lifts through `⦀Fin numLinks`; only the medium operand
-changes, so the composition shape is identical to `systemBroken`.
+changes, so the composition shape is identical to `breakableSystem`.
 
 ```agda
--- the same diamond (A producing `blkA`) over the concrete NetworkLink mux (breakable); only the medium operand differs from systemBroken
-systemBrokenₗ : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
-systemBrokenₗ blkA = (NetworkLinkBreakableA ∥⇘ ioES ⇙ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
+-- the same diamond (A producing `blkA`) over the concrete NetworkLink mux (breakable); only the medium operand differs from breakableSystem
+breakableSystemₗ : Block₃ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
+breakableSystemₗ blkA = (NetworkLinkBreakableA ∥⇘ ioES ⇙ (nodeA blkA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 ```
 
 ## Isolated-medium break witness
@@ -112,7 +112,7 @@ break-fires = Skip , sVis {at = U.⊤ , break linkBD} {a = U.tt} refl refl
 
 ## Reading the witness — and a documented limitation
 
-A full behavioural trace of `systemBroken` — a healthy-vs-broken contrast over the
+A full behavioural trace of `breakableSystem` — a healthy-vs-broken contrast over the
 whole diamond — is **intractable** to normalise in Agda, for exactly the reason
 `FourNodeDiamond.lagda.md` documents: taking even a single `─[ l ]─►` step of the
 composed `∖ ioES` / `∥⇘` / `⦀` / breakable-medium term forces the entire
@@ -120,7 +120,7 @@ medium-plus-peers tree to weak-head normal form (≈2.5 min, ≈20 GB per step),
 meaningful trace is 150+ such steps. So only the *isolated-link* witness is given
 here; it runs on one link alone and is cheap.
 
-The intended reading of the witness is: `systemBroken blkA` can perform `break linkBD`
+The intended reading of the witness is: `breakableSystem blkA` can perform `break linkBD`
 (for any choice of A's produced block `blkA`).
 After it does, link BD's medium cell has terminated (`Skip`, √) — its mini-protocol
 channels (`input`/`output` for link BD) are permanently refused (a terminated cell

@@ -1,7 +1,7 @@
 # Four-node diamond block-liveness — CSP refinement specification
 
 This module *states* (does not prove) the block-liveness property of the broken
-four-node diamond `systemBroken` (`FourNodeDiamondBroken.lagda.md`) as a **CSP
+four-node diamond `breakableSystem` (`FourNodeDiamondBreakable.lagda.md`) as a **CSP
 failures–divergences refinement**, as a counterpart to the trace-LTL
 `BlockLiveness⁺` of the sibling route `../LTL/Spec.lagda.md`. The reading is: *if at
 least one complete path A→B→D or A→C→D stays whole, a block `b` produced by
@@ -45,8 +45,8 @@ supplies the system under specification:
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD; Block₃; b1; b2; DecEq-Block₃
         ; nodeA; nodeB; nodeC; nodeD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBroken
-  using ( systemBroken )
+open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+  using ( breakableSystem )
 open import CSP.Examples.Cardano_network.Base using ( lo; hi; DecEq-Dir )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; apiBF; apiKA; break
@@ -605,7 +605,7 @@ _ = refl
 
 ## The specification
 
-`systemBrokenOf b` is the broken four-node diamond with A producing block `b`.
+`breakableSystemOf b` is the broken four-node diamond with A producing block `b`.
 It is already `(… ∖ ioES)`, and `ioES` (input/output only) is disjoint from the
 api/break channels, so `∖ hidden b` hides the remaining internal api traffic and
 leaves exactly the kept alphabet visible. The initial state has both paths whole;
@@ -614,7 +614,7 @@ the Spec tracks breaks from the first event onward.
 Why `⊑FD` carries the liveness content: suppose a trace reaches `Prod` in a
 state where A has produced on some path's entry link and that path is still
 whole (`pᵢ ∧ gᵢ`), and the system is then stable, refusing that path's
-delivery. Then `(t , {recvBFBlock·b}) ∈ failures(systemBrokenOf b ∖ hidden b)`,
+delivery. Then `(t , {recvBFBlock·b}) ∈ failures(breakableSystemOf b ∖ hidden b)`,
 but `delivMenu` is present in every τ-branch of `Prod`, so `LSpec` cannot
 refuse that event — the failure is absent on the left and the refinement fails.
 Hence the refinement *holding* says the system never stably refuses delivery on
@@ -625,23 +625,23 @@ the system may as well.
 
 ```agda
 -- the broken four-node diamond with NodeA producing the block `b`
-systemBrokenOf : Block₃ → SpecProc
-systemBrokenOf b =
+breakableSystemOf : Block₃ → SpecProc
+breakableSystemOf b =
   (CopySpecBreakableA ∥⇘ ioES ⇙ (nodeAOf b ⦀ (nodeB ⦀ (nodeC ⦀ nodeD)))) ∖ ioES
 
 -- sanity: instantiating at b1 recovers the shipped system (nodeAOf = nodeA)
-_ : systemBrokenOf b1 ≡ systemBroken b1
+_ : breakableSystemOf b1 ≡ breakableSystem b1
 _ = refl
 
 -- THE SPECIFICATION (a Set: stated, deliberately unproved, NOT postulated)
 LivenessSpec : Set _
-LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (systemBrokenOf b ∖ hidden b)
+LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf b ∖ hidden b)
 ```
 
 ## Truth analysis (documentation for the future proof — no code)
 
 1. **The `⊑D` component is satisfiable: the hidden system is divergence-free.**
-   Hiding creates τ's, so this needed checking — but `systemBroken` cannot
+   Hiding creates τ's, so this needed checking — but `breakableSystem` cannot
    diverge under *any* hiding set, because every maximal run is **finite**
    (order 10² events). Three facts bound it: the node drivers are finite,
    non-looping sequential processes (`produce` = nine prefixes then `Skip`,
@@ -680,12 +680,12 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (systemBrokenOf b 
    / ≈20 GB per step for this four-node system).
 
    **Every block is an operative instance**, because the statement quantifies
-   over the block-generic `systemBrokenOf b`. The shipped `systemBroken` fixes
+   over the block-generic `breakableSystemOf b`. The shipped `breakableSystem` fixes
    A's block to `b1` (`produce` offers it with `!`, a single value), which would
    have made `∀ b` vacuous for `b2`/`b3` — the kept BF events would simply be
    unreachable. `nodeAOf` removes that limitation with no change of meaning for
-   any existing consumer (`nodeA = nodeAOf b1`, and `systemBrokenOf b1 ≡
-   systemBroken`). The finiteness bound above is independent of the block, so
+   any existing consumer (`nodeA = nodeAOf b1`, and `breakableSystemOf b1 ≡
+   breakableSystem`). The finiteness bound above is independent of the block, so
    divergence-freedom holds for every instance.
 
    **The Spec side is divergence-free by construction, not merely by luck.**
@@ -771,7 +771,7 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (systemBrokenOf b 
    the block in the first place, so the Spec would be unsatisfiable on a
    *failure*. Full rationale: Decision 11 of the design doc.
 
-4. **Quiescence — and why `Done` must be CHAOS.** `systemBroken` **never
+4. **Quiescence — and why `Done` must be CHAOS.** `breakableSystem` **never
    terminates: it deadlocks.** Once the finite drivers `Skip`, the api gate
    blocks every api event forever (`CSP/Operators.agda:580-604`), while the
    never-terminating KeepAlive/TxSubmission/Leios peers stop the nodes from
@@ -860,7 +860,7 @@ hide-algebra whatsoever — no `hide-combine`, no `∼`-bridge — just
 -- postulated — the `⊑F` analogue of `LivenessSpec`, keeping the whole must-offer
 -- content and dropping only `⊑FD`'s "no livelock before delivery" clause)
 LivenessSpecF : Set _
-LivenessSpecF = ∀ (b : Block₃) → LSpec b true true ⊑F (systemBrokenOf b ∖ hidden b)
+LivenessSpecF = ∀ (b : Block₃) → LSpec b true true ⊑F (breakableSystemOf b ∖ hidden b)
 ```
 
 ### The reduction theorem
@@ -869,7 +869,7 @@ The theorem below is generic in the five component specifications, so it commits
 to no particular abstraction of the medium or of the nodes: each is an arbitrary
 `SpecProc` accompanied by its own `⊑F` obligation. Given the five obligations,
 `⊑F`-monotonicity rebuilds them through the exact term structure of
-`systemBrokenOf b ∖ hidden b` — `⦀-mono-⊑F` three times, matching the
+`breakableSystemOf b ∖ hidden b` — `⦀-mono-⊑F` three times, matching the
 **right-nested** bracketing `ASpec ⦀ (BSpec ⦀ (CSpec ⦀ DSpec))`, then
 `∥-mono-⊑F` at the `ioES` interface, then `Hide-mono-⊑F` for `∖ ioES` and again
 for `∖ hidden b` — leaving one residual goal about the assembled *abstract*
@@ -888,7 +888,7 @@ liveness-F-from-components :
   → DSpec ⊑F nodeD
   → LSpec b true true
       ⊑F (((MSpec ∥⇘ ioES ⇙ (ASpec ⦀ (BSpec ⦀ (CSpec ⦀ DSpec)))) ∖ ioES) ∖ hidden b)
-  → LSpec b true true ⊑F (systemBrokenOf b ∖ hidden b)
+  → LSpec b true true ⊑F (breakableSystemOf b ∖ hidden b)
 liveness-F-from-components b MSpec ASpec BSpec CSpec DSpec hM hA hB hC hD res =
   ⊑F-trans res
     (Hide-mono-⊑F (hidden b)
@@ -959,10 +959,10 @@ delivery," which is the whole point of a liveness statement.
 
 The price is real, not a bookkeeping artefact: unlike `Hide-mono-⊑F`,
 `Hide-mono-⊑FD-df` carries a divergence-freedom side condition on the **implementation**
-side of each hide, and the double hide in `systemBrokenOf b ∖ hidden b` means the side
+side of each hide, and the double hide in `breakableSystemOf b ∖ hidden b` means the side
 condition is needed **twice**. The two obligations are not the same fact stated twice —
-hiding *creates* τ's, so divergence-freedom of `systemBrokenOf b` (after the `ioES` hide)
-does not hand you divergence-freedom of `systemBrokenOf b ∖ hidden b` (after the second,
+hiding *creates* τ's, so divergence-freedom of `breakableSystemOf b` (after the `ioES` hide)
+does not hand you divergence-freedom of `breakableSystemOf b ∖ hidden b` (after the second,
 `hidden b`, hide) for free — but they are the *same underlying fact* recurring at two
 hiding levels: both ultimately rest on the finite-run bound of item 1 of the truth
 analysis (the ≤ 60-rendezvous system-wide bound), applied once per hide. That bound is
@@ -979,8 +979,8 @@ two named, reusable hypotheses instead of one monolithic goal about the whole co
 -- `⦀-mono-⊑FD` ×3 (right-nested), `∥-mono-⊑FD`, then `Hide-mono-⊑FD-df` ×2 (for `ioES`,
 -- then `hidden b`), each discharged by its own divergence-freedom hypothesis on the
 -- IMPLEMENTATION side at that hiding level.  The inner hypothesis is stated as
--- `¬ divergences (systemBrokenOf b) s` rather than spelling out `Body ∖ ioES`, since
--- `systemBrokenOf b` unfolds definitionally to exactly that hide and typechecks directly
+-- `¬ divergences (breakableSystemOf b) s` rather than spelling out `Body ∖ ioES`, since
+-- `breakableSystemOf b` unfolds definitionally to exactly that hide and typechecks directly
 -- as the argument `Hide-mono-⊑FD-df ioES` demands.
 liveness-FD-from-components :
     ∀ (b : Block₃) (MSpec ASpec BSpec CSpec DSpec : SpecProc)
@@ -989,11 +989,11 @@ liveness-FD-from-components :
   → BSpec ⊑FD nodeB
   → CSpec ⊑FD nodeC
   → DSpec ⊑FD nodeD
-  → (∀ {s} → ¬ divergences (systemBrokenOf b) s)
-  → (∀ {s} → ¬ divergences (systemBrokenOf b ∖ hidden b) s)
+  → (∀ {s} → ¬ divergences (breakableSystemOf b) s)
+  → (∀ {s} → ¬ divergences (breakableSystemOf b ∖ hidden b) s)
   → LSpec b true true
       ⊑FD (((MSpec ∥⇘ ioES ⇙ (ASpec ⦀ (BSpec ⦀ (CSpec ⦀ DSpec)))) ∖ ioES) ∖ hidden b)
-  → LSpec b true true ⊑FD (systemBrokenOf b ∖ hidden b)
+  → LSpec b true true ⊑FD (breakableSystemOf b ∖ hidden b)
 liveness-FD-from-components b MSpec ASpec BSpec CSpec DSpec hM hA hB hC hD hDiv1 hDiv2 res =
   ⊑FD-trans res
     (Hide-mono-⊑FD-df (hidden b)
@@ -1020,8 +1020,8 @@ liveness-FD-corollary :
   → (∀ b → BSpec b ⊑FD nodeB)
   → (∀ b → CSpec b ⊑FD nodeC)
   → (∀ b → DSpec b ⊑FD nodeD)
-  → (∀ b {s} → ¬ divergences (systemBrokenOf b) s)
-  → (∀ b {s} → ¬ divergences (systemBrokenOf b ∖ hidden b) s)
+  → (∀ b {s} → ¬ divergences (breakableSystemOf b) s)
+  → (∀ b {s} → ¬ divergences (breakableSystemOf b ∖ hidden b) s)
   → (∀ b → LSpec b true true
              ⊑FD (((MSpec b ∥⇘ ioES ⇙ (ASpec b ⦀ (BSpec b ⦀ (CSpec b ⦀ DSpec b))))
                    ∖ ioES) ∖ hidden b))

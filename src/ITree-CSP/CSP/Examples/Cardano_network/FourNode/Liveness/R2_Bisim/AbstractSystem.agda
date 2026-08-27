@@ -4,8 +4,8 @@
 -- Praos Phase-2 R2 — `abstractSystem` target (`Praos.AbstractSystem`).
 --
 -- `abstractSystem` is the RHS of the R2 divergence-respecting bisimulation
---   `systemBroken ≈DR abstractSystem`
--- (`systemBroken` = `⟦ initial ⟧` from `Praos.SysDecode`, the R1 LHS).  It is
+--   `breakableSystem ≈DR abstractSystem`
+-- (`breakableSystem` = `⟦ initial ⟧` from `Praos.SysDecode`, the R1 LHS).  It is
 -- the four-node broken system with each node replaced by its τ-free ≈DR
 -- table-spec, the breakable medium and the io-gated skeleton kept verbatim:
 --
@@ -27,9 +27,9 @@
 --   inert and correctly ABSENT from the abstraction (no LN/LF factor added).
 --
 -- The `⦀`/`∥⇘ ioES ⇙`/`∖ ioES` skeleton MATCHES `Praos.SysDecode.⟦_⟧`
--- (SysDecode:85-90) and `systemBroken` exactly, including the node `⦀`
+-- (SysDecode:85-90) and `breakableSystem` exactly, including the node `⦀`
 -- association `nodeA ⦀ (nodeB ⦀ (nodeC ⦀ nodeD))` — so Task 5's dec-init
--- rewrite (`⟦ initial ⟧ ≡ systemBroken`) reconciles with this RHS shape.
+-- rewrite (`⟦ initial ⟧ ≡ breakableSystem`) reconciles with this RHS shape.
 --
 -- No postulates, holes, or `--allow-unsolved-metas`.
 ------------------------------------------------------------------------
@@ -46,7 +46,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using (p)
 open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data p using (Payload)
 
--- the breakable medium + the io sync set (shared verbatim with `systemBroken`)
+-- the breakable medium + the io sync set (shared verbatim with `breakableSystem`)
 open import CSP.Examples.Cardano_network.NetCommon p
   using ( CopySpecBreakableA; ioES )
 
@@ -60,12 +60,12 @@ open Op using ( _∥⇘_⇙_; _⦀_; _∖_ )
 
 
 -- the whole-system process type (same alias as `Praos.SysDecode.NetProc` and
--- `systemBroken`): abstractSystem inhabits this type — it is R2's bisim RHS
+-- `breakableSystem`): abstractSystem inhabits this type — it is R2's bisim RHS
 NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- R2's bisim RHS: the four τ-free node specs under the breakable medium and
--- the io-gated skeleton, matching `⟦_⟧`/`systemBroken`'s exact shape
+-- the io-gated skeleton, matching `⟦_⟧`/`breakableSystem`'s exact shape
 abstractSystem : NetProc
 abstractSystem =
   (CopySpecBreakableA

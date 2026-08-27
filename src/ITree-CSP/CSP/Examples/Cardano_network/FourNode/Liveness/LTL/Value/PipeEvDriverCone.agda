@@ -132,7 +132,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill
 -- SESSION-45: the value-carrying relay classifier — its label component names
 -- the SUCCESSOR's shape, so `wUp` can report the relayed block
 open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValRelay blkA using
-  ( cpStepKindL-of⁺ )
+  ( cpStepKindL-of⁺; RelayAt )
 
 -- the receive-coupling feeders (session-26 cone-witness extension)
 open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleRecv blkA using
@@ -221,6 +221,18 @@ data NodeDDrv (nd : SN.NodeStateD) {X : Set 0ℓ} (e : Net_Api Payload X) (a : X
           -- SESSION-51: PAST the receive the recorded block is FIXED
           → (ConsHeld (cph (SN.NodeStateD.cons-BD nd))
              → cblk (SN.NodeStateD.cons-BD nd′) ≡ cblk (SN.NodeStateD.cons-BD nd))
+          -- SESSION-56 (owner grant #5, (P8)): THE FIRING CONSUME-DRIVER STEP
+          -- ITSELF, at this leg's own source and successor slots.  The peel below
+          -- already holds it (`sDBD`) and threw it away.  It is the ONE witness a
+          -- consumer of this record cannot rebuild: from it `decConsD-ev-link`
+          -- gives the FIRED LINK (without which the co-leg's `ldFix` arm is
+          -- unrefutable) and a `recvBFBlock` table inversion gives the `≡ cp3`
+          -- GATE the SESSION-40 anchor above is conditioned on (without which
+          -- that anchor is dead).  Strictly additive: every existing field keeps
+          -- its meaning and position.
+          → (SN.decConsD linkBD (SN.NodeStateD.cons-BD nd)
+               ─[ ev (evl (evLabel X e a)) ]─►
+               SN.decConsD linkBD (SN.NodeStateD.cons-BD nd′))
           → NodeDDrv nd e a M
   ndDrvCD : (nd′ : SN.NodeStateD) → M ≡ absNodeD nd′
           → SN.decNodeD nd ═[ ev (evl (evLabel X e a)) ]═► SN.decNodeD nd′
@@ -241,6 +253,10 @@ data NodeDDrv (nd : SN.NodeStateD) {X : Set 0ℓ} (e : Net_Api Payload X) (a : X
           -- SESSION-51 (mirror)
           → (ConsHeld (cph (SN.NodeStateD.cons-CD nd))
              → cblk (SN.NodeStateD.cons-CD nd′) ≡ cblk (SN.NodeStateD.cons-CD nd))
+          -- SESSION-56 (owner grant #5, (P8)) — the mirror of the BD field
+          → (SN.decConsD linkCD (SN.NodeStateD.cons-CD nd)
+               ─[ ev (evl (evLabel X e a)) ]─►
+               SN.decConsD linkCD (SN.NodeStateD.cons-CD nd′))
           → NodeDDrv nd e a M
 
 -- firing link = linkBD (G1): cons-BD advances (genuine), cons-CD/bfC-CD literal
@@ -283,6 +299,8 @@ nodeD-api-BD-drv nd {X} {e} {a} apimem bStep sDBD ahl
                  (subst (λ z → absBundleG linkBD hi lo (SN.NodeStateD.csC-BD nd) (SN.NodeStateD.csS-BD nd) (SN.NodeStateD.bfC-BD nd) (SN.NodeStateD.bfS-BD nd) (SN.NodeStateD.inert-BD nd) ─[ ev (evl z) ]─► _)
                         (lblv (consAdv-recv-src cadv hPre hRecv)) sBBD))
             cfix
+            -- SESSION-56: the driver step, carried instead of dropped
+            sDBD
 
 -- firing link = linkCD (G2): cons-CD advances (genuine), cons-BD/bfC-BD literal
 nodeD-api-CD-drv : (nd : SN.NodeStateD) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {B₁ D₁CD : NetProc}
@@ -323,6 +341,8 @@ nodeD-api-CD-drv nd {X} {e} {a} apimem bStep sDCD ahl
                  (subst (λ z → absBundleG linkCD hi lo (SN.NodeStateD.csC-CD nd) (SN.NodeStateD.csS-CD nd) (SN.NodeStateD.bfC-CD nd) (SN.NodeStateD.bfS-CD nd) (SN.NodeStateD.inert-CD nd) ─[ ev (evl z) ]─► _)
                         (lblv (consAdv-recv-src cadv hPre hRecv)) sBCD))
             cfix
+            -- SESSION-56: the driver step, carried instead of dropped
+            sDCD
 
 -- node-D api inversion (mirror `PipeNodeFixApi.nodeD-ev-api-abs-cls`)
 nodeD-ev-api-drv : (nd : SN.NodeStateD) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
@@ -361,7 +381,12 @@ data NodeBDrv (nb : SN.NodeStateB) {X : Set 0ℓ} (e : Net_Api Payload X) (a : X
            ⊎ (BFcHasBlk (SN.NodeStateB.bfC-AB nb′) → ⊥))
         -- SESSION-45: PLUS the relayed block, named on both sides — the co-firing
         -- client held it and the successor phase records it
-        → (RelayPre (SN.NodeStateB.cp-B nb) → RelayHas (SN.NodeStateB.cp-B nb′)
+        -- TASK-3 SLICE D: the premise is the WIDENED one `PipeValRelay`'s
+        -- `cpStepKindL-of⁺` now takes (`RelayPre × RelayHas`, OR the source-phase
+        -- `cp3` pin); conclusion and arity unchanged, original re-derivable as
+        -- `λ hPre hHas → new (inj₁ (hPre , hHas))`
+        → (((RelayPre (SN.NodeStateB.cp-B nb) × RelayHas (SN.NodeStateB.cp-B nb′))
+            ⊎ (Σ[ b ∈ Block₃ ] SN.NodeStateB.cp-B nb ≡ SN.consuming b SN.cp3))
            → BFcHasBlk (SN.NodeStateB.bfC-AB nb)
              × (Σ[ bc ∈ Block₃ ] (SN.NodeStateB.bfC-AB nb ≡ SN.bcBlk1 bc)
                                 × (SN.NodeStateB.cp-B nb′ ≡ SN.consuming bc SN.cp4)))
@@ -374,6 +399,11 @@ data NodeBDrv (nb : SN.NodeStateB) {X : Set 0ℓ} (e : Net_Api Payload X) (a : X
            → RelayValOK (SN.NodeStateB.cp-B nb) → RelayValOK (SN.NodeStateB.cp-B nb′))
         -- … and the RAW BD-server witness (`dnSrv legBD`'s value side)
         → SrvValEvo linkBD (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.bfS-BD nb′) e a
+        -- TASK-3 SLICE C (leaf 8): the relay's recorded BLOCK is fixed off the
+        -- receive region — `cpStepKindL-of⁺`'s new seventh component, threaded
+        -- verbatim (appended LAST, so existing destructurings gain one binder)
+        → ((RelayPre (SN.NodeStateB.cp-B nb) → ⊥) → (bb : Block₃)
+           → RelayAt bb (SN.NodeStateB.cp-B nb) → RelayAt bb (SN.NodeStateB.cp-B nb′))
         → NodeBDrv nb e a M
 
 -- firing link = linkAB (consume leg, LEFT bundle)
@@ -387,7 +417,7 @@ nodeB-api-AB-drv : (nb : SN.NodeStateB) {X : Set 0ℓ} {e : Net_Api Payload X} {
   → NodeBDrv nb e a (B₁ ∥⇘ apiES ⇙ D₁)
 nodeB-api-AB-drv nb {X} {e} {a} apimem bStep dStep ahl
   with cpStepKindL-of⁺ linkAB linkBD (SN.NodeStateB.cp-B nb) dStep
-... | x′ , refl , rk , lblR , fwdR , rval
+... | x′ , refl , rk , lblR , fwdR , rval , blkR
     with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
            (absBundleG linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb))
            (absBundleG linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb)) bStep
@@ -404,21 +434,21 @@ nodeB-api-AB-drv nb {X} {e} {a} apimem bStep dStep ahl
                (ev→wev dStep))
             rk
             evo
-            (λ hPre hHas →
+            (λ w →
                bundle-recvBFBlock-forces-src linkAB hi lo (λ ())
                  (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb)
                  (subst (λ z → absBundleG linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb) ─[ ev (evl z) ]─► _)
-                        (proj₁ (proj₂ (lblR hPre hHas))) sBAB)
+                        (proj₁ (proj₂ (lblR w))) sBAB)
              -- SESSION-45: the same pinned step also names the client's block,
              -- and `cpStepKindL-of⁺` names the successor phase at that block
-             , proj₁ (lblR hPre hHas)
+             , proj₁ (lblR w)
              , bundle-recv-cliPos linkAB hi lo (λ ())
                  (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb)
                  (subst (λ z → absBundleG linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb) ─[ ev (evl z) ]─► _)
-                        (proj₁ (proj₂ (lblR hPre hHas))) sBAB)
-             , proj₂ (proj₂ (lblR hPre hHas)))
+                        (proj₁ (proj₂ (lblR w))) sBAB)
+             , proj₂ (proj₂ (lblR w)))
             (inj₁ refl)
-            rval (inj₁ refl)
+            rval (inj₁ refl) blkR
 
 -- firing link = linkBD (produce leg, RIGHT bundle)
 nodeB-api-BD-drv : (nb : SN.NodeStateB) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {B₁ D₁ : NetProc}
@@ -431,7 +461,7 @@ nodeB-api-BD-drv : (nb : SN.NodeStateB) {X : Set 0ℓ} {e : Net_Api Payload X} {
   → NodeBDrv nb e a (B₁ ∥⇘ apiES ⇙ D₁)
 nodeB-api-BD-drv nb {X} {e} {a} apimem bStep dStep ahl
   with cpStepKindL-of⁺ linkAB linkBD (SN.NodeStateB.cp-B nb) dStep
-... | x′ , refl , rk , lblR , fwdR , rval
+... | x′ , refl , rk , lblR , fwdR , rval , blkR
     with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
            (absBundleG linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb))
            (absBundleG linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb)) bStep
@@ -448,12 +478,12 @@ nodeB-api-BD-drv nb {X} {e} {a} apimem bStep dStep ahl
                (ev→wev dStep))
             rk
             (inj₁ refl)
-            (λ hPre hHas → ⊥-elim
+            (λ w → ⊥-elim
                (absBundleG-api-no linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb) ahlBF linkAB≢linkBD tt
                  (_ , subst (λ z → absBundleG linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb) ─[ ev (evl z) ]─► _)
-                        (proj₁ (proj₂ (lblR hPre hHas))) sBBD)))
+                        (proj₁ (proj₂ (lblR w))) sBBD)))
             (srvEvo⇒fwd (SN.NodeStateB.bfS-BD nb) bfs′ x′ fwdR srvEvo)
-            rval srvEvo
+            rval srvEvo blkR
 
 -- node-B api inversion
 nodeB-ev-api-drv : (nb : SN.NodeStateB) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
@@ -483,7 +513,9 @@ data NodeCDrv (nc : SN.NodeStateC) {X : Set 0ℓ} (e : Net_Api Payload X) (a : X
         → ((SN.NodeStateC.bfC-AC nc ≡ SN.NodeStateC.bfC-AC nc′)
            ⊎ (BFcHasBlk (SN.NodeStateC.bfC-AC nc′) → ⊥))
         -- SESSION-45 (mirror)
-        → (RelayPre (SN.NodeStateC.cp-C nc) → RelayHas (SN.NodeStateC.cp-C nc′)
+        -- TASK-3 SLICE D (mirror): the WIDENED premise
+        → (((RelayPre (SN.NodeStateC.cp-C nc) × RelayHas (SN.NodeStateC.cp-C nc′))
+            ⊎ (Σ[ b ∈ Block₃ ] SN.NodeStateC.cp-C nc ≡ SN.consuming b SN.cp3))
            → BFcHasBlk (SN.NodeStateC.bfC-AC nc)
              × (Σ[ bc ∈ Block₃ ] (SN.NodeStateC.bfC-AC nc ≡ SN.bcBlk1 bc)
                                 × (SN.NodeStateC.cp-C nc′ ≡ SN.consuming bc SN.cp4)))
@@ -495,6 +527,9 @@ data NodeCDrv (nc : SN.NodeStateC) {X : Set 0ℓ} (e : Net_Api Payload X) (a : X
         → ((RelayPre (SN.NodeStateC.cp-C nc) → ⊥)
            → RelayValOK (SN.NodeStateC.cp-C nc) → RelayValOK (SN.NodeStateC.cp-C nc′))
         → SrvValEvo linkCD (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.bfS-CD nc′) e a
+        -- TASK-3 SLICE C (leaf 8), mirror of node B
+        → ((RelayPre (SN.NodeStateC.cp-C nc) → ⊥) → (bb : Block₃)
+           → RelayAt bb (SN.NodeStateC.cp-C nc) → RelayAt bb (SN.NodeStateC.cp-C nc′))
         → NodeCDrv nc e a M
 
 -- firing link = linkAC (consume leg, LEFT bundle)
@@ -508,7 +543,7 @@ nodeC-api-AC-drv : (nc : SN.NodeStateC) {X : Set 0ℓ} {e : Net_Api Payload X} {
   → NodeCDrv nc e a (B₁ ∥⇘ apiES ⇙ D₁)
 nodeC-api-AC-drv nc {X} {e} {a} apimem bStep dStep ahl
   with cpStepKindL-of⁺ linkAC linkCD (SN.NodeStateC.cp-C nc) dStep
-... | x′ , refl , rk , lblR , fwdR , rval
+... | x′ , refl , rk , lblR , fwdR , rval , blkR
     with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
            (absBundleG linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc))
            (absBundleG linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc)) bStep
@@ -525,21 +560,21 @@ nodeC-api-AC-drv nc {X} {e} {a} apimem bStep dStep ahl
                (ev→wev dStep))
             rk
             evo
-            (λ hPre hHas →
+            (λ w →
                bundle-recvBFBlock-forces-src linkAC hi lo (λ ())
                  (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc)
                  (subst (λ z → absBundleG linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc) ─[ ev (evl z) ]─► _)
-                        (proj₁ (proj₂ (lblR hPre hHas))) sBAC)
+                        (proj₁ (proj₂ (lblR w))) sBAC)
              -- SESSION-45: the same pinned step also names the client's block,
              -- and `cpStepKindL-of⁺` names the successor phase at that block
-             , proj₁ (lblR hPre hHas)
+             , proj₁ (lblR w)
              , bundle-recv-cliPos linkAC hi lo (λ ())
                  (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc)
                  (subst (λ z → absBundleG linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc) ─[ ev (evl z) ]─► _)
-                        (proj₁ (proj₂ (lblR hPre hHas))) sBAC)
-             , proj₂ (proj₂ (lblR hPre hHas)))
+                        (proj₁ (proj₂ (lblR w))) sBAC)
+             , proj₂ (proj₂ (lblR w)))
             (inj₁ refl)
-            rval (inj₁ refl)
+            rval (inj₁ refl) blkR
 
 -- firing link = linkCD (produce leg, RIGHT bundle)
 nodeC-api-CD-drv : (nc : SN.NodeStateC) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {B₁ D₁ : NetProc}
@@ -552,7 +587,7 @@ nodeC-api-CD-drv : (nc : SN.NodeStateC) {X : Set 0ℓ} {e : Net_Api Payload X} {
   → NodeCDrv nc e a (B₁ ∥⇘ apiES ⇙ D₁)
 nodeC-api-CD-drv nc {X} {e} {a} apimem bStep dStep ahl
   with cpStepKindL-of⁺ linkAC linkCD (SN.NodeStateC.cp-C nc) dStep
-... | x′ , refl , rk , lblR , fwdR , rval
+... | x′ , refl , rk , lblR , fwdR , rval , blkR
     with PEA.Par-ev-elim ∅ESa (λ _ _ → tt)
            (absBundleG linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc))
            (absBundleG linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc)) bStep
@@ -569,12 +604,12 @@ nodeC-api-CD-drv nc {X} {e} {a} apimem bStep dStep ahl
                (ev→wev dStep))
             rk
             (inj₁ refl)
-            (λ hPre hHas → ⊥-elim
+            (λ w → ⊥-elim
                (absBundleG-api-no linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc) ahlBF linkAC≢linkCD tt
                  (_ , subst (λ z → absBundleG linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc) ─[ ev (evl z) ]─► _)
-                        (proj₁ (proj₂ (lblR hPre hHas))) sBCD)))
+                        (proj₁ (proj₂ (lblR w))) sBCD)))
             (srvEvo⇒fwd (SN.NodeStateC.bfS-CD nc) bfs′ x′ fwdR srvEvo)
-            rval srvEvo
+            rval srvEvo blkR
 
 -- node-C api inversion
 nodeC-ev-api-drv : (nc : SN.NodeStateC) {X : Set 0ℓ} {e : Net_Api Payload X} {a : X} {M : NetProc}
@@ -620,10 +655,18 @@ data LegDriverStep (l : TwoLegs) (s s′ : SysState) {X : Set 0ℓ}
           → ((upClient l s ≡ upClient l s′) ⊎ (BFcHasBlk (upClient l s′) → ⊥))
           -- SESSION-45: PLUS the relayed block, so `PipeVal` clause (3) can hand
           -- clause (4) its value
-          → (RelayPre (relayOf l s) → RelayHas (relayOf l s′)
+          -- TASK-3 SLICE D: the WIDENED premise (see `NodeBDrv`)
+          → (((RelayPre (relayOf l s) × RelayHas (relayOf l s′))
+              ⊎ (Σ[ b ∈ Block₃ ] relayOf l s ≡ SN.consuming b SN.cp3))
              → BFcHasBlk (upClient l s)
                × (Σ[ bc ∈ Block₃ ] (upClient l s ≡ SN.bcBlk1 bc)
                                   × (relayOf l s′ ≡ SN.consuming bc SN.cp4)))
+          -- TASK-3 SLICE C (leaf 8): PLUS the relay's recorded-BLOCK fixity off
+          -- the receive region.  `RelayStepKind` is phase-only and cannot carry
+          -- it, so it rides beside, exactly as `wUp` does; appended LAST so the
+          -- four existing destructurings gain one binder and nothing else.
+          → ((RelayPre (relayOf l s) → ⊥) → (bb : Block₃)
+             → RelayAt bb (relayOf l s) → RelayAt bb (relayOf l s′))
           → LegDriverStep l s s′ e a
   -- node D fired leg `l`'s consumer: genuine `ConsAdv` + the `cp3 → recvBFBlock`
   -- label witness, with prod / relay / both cells / upstream client fixed.  The
@@ -748,7 +791,7 @@ driverExpose s apimem nodesStep | PEA.evR _ sRest
         (absNodeC-no-when-B (nC s) apimem (absNodeB-fp (nB s) apimem sB))
         (absNodeD-no-when-B (nD s) apimem (absNodeB-fp (nB s) apimem sB)) (_ , sCD))
 ... | PEA.evL _ sB with nodeB-ev-api-drv (nB s) apimem sB
-...   | nbDrv nb′ Meq weakRunB rk upEvo wUp srvBD rvalB srvBDraw =
+...   | nbDrv nb′ Meq weakRunB rk upEvo wUp srvBD rvalB srvBDraw blkRB =
         mkSys (med s) (nA s) nb′ (nC s) (nD s) , refl ,
         cong (λ z → absNodeA (nA s) ⦀ (z ⦀ (absNodeC (nC s) ⦀ absNodeD (nD s)))) Meq ,
         ⦀-wev-R (SN.decNodeA (nA s)) (SN.decNodeB (nB s) ⦀ (SN.decNodeC (nC s) ⦀ SN.decNodeD (nD s)))
@@ -758,7 +801,7 @@ driverExpose s apimem nodesStep | PEA.evR _ sRest
                 (nodeC-no-when-B (nC s) apimem fpB) (nodeD-no-when-B (nD s) apimem fpB)))
              weakRunB)
         ,
-        ldRelay rk refl refl refl refl refl upEvo wUp ,
+        ldRelay rk refl refl refl refl refl upEvo wUp blkRB ,
         ldFix refl refl refl refl refl refl refl ,
         (inj₁ refl , srvBD) , (inj₁ refl , inj₁ refl) ,
         lvStep (inj₁ refl) srvBDraw   rvalB       (λ _ → refl) ,
@@ -769,7 +812,7 @@ driverExpose s apimem nodesStep | PEA.evR _ sRest | PEA.evR _ sCD
 ... | PEA.evSync () _ _
 ... | PEA.evBoth _ sC sD = ⊥-elim (absNodeD-no-when-C (nD s) apimem (absNodeC-fp (nC s) apimem sC) (_ , sD))
 ... | PEA.evL _ sC with nodeC-ev-api-drv (nC s) apimem sC
-...   | ncDrv nc′ Meq weakRunC rk upEvo wUp srvCD rvalC srvCDraw =
+...   | ncDrv nc′ Meq weakRunC rk upEvo wUp srvCD rvalC srvCDraw blkRC =
         mkSys (med s) (nA s) (nB s) nc′ (nD s) , refl ,
         cong (λ z → absNodeA (nA s) ⦀ (absNodeB (nB s) ⦀ (z ⦀ absNodeD (nD s)))) Meq ,
         ⦀-wev-R (SN.decNodeA (nA s)) (SN.decNodeB (nB s) ⦀ (SN.decNodeC (nC s) ⦀ SN.decNodeD (nD s)))
@@ -781,14 +824,14 @@ driverExpose s apimem nodesStep | PEA.evR _ sRest | PEA.evR _ sCD
                 weakRunC))
         ,
         ldFix refl refl refl refl refl refl refl ,
-        ldRelay rk refl refl refl refl refl upEvo wUp ,
+        ldRelay rk refl refl refl refl refl upEvo wUp blkRC ,
         (inj₁ refl , inj₁ refl) , (inj₁ refl , srvCD) ,
         lvStep (inj₁ refl) (inj₁ refl) (λ _ h → h) (λ _ → refl) ,
         lvStep (inj₁ refl) srvCDraw   rvalC       (λ _ → refl)
   where fpC = absNodeC-fp (nC s) apimem sC
 driverExpose s apimem nodesStep | PEA.evR _ sRest | PEA.evR _ sCD | PEA.evR _ sD
     with nodeD-ev-api-drv (nD s) apimem sD
-... | ndDrvBD nd′ Meq weakRunD cadv cCDeq bfcCDeq lblD dnEvo wDn cfixD =
+... | ndDrvBD nd′ Meq weakRunD cadv cCDeq bfcCDeq lblD dnEvo wDn cfixD drvD =
         mkSys (med s) (nA s) (nB s) (nC s) nd′ , refl ,
         cong (λ z → absNodeA (nA s) ⦀ (absNodeB (nB s) ⦀ (absNodeC (nC s) ⦀ z))) Meq ,
         wrunD ,
@@ -806,7 +849,7 @@ driverExpose s apimem nodesStep | PEA.evR _ sRest | PEA.evR _ sCD | PEA.evR _ sD
                  (⦀-wev-R (SN.decNodeC (nC s)) (SN.decNodeD (nD s))
                     (noOffer→viewV _ (nodeC-no-when-D (nC s) apimem fpD))
                     weakRunD))
-... | ndDrvCD nd′ Meq weakRunD cadv cBDeq bfcBDeq lblD dnEvo wDn cfixD =
+... | ndDrvCD nd′ Meq weakRunD cadv cBDeq bfcBDeq lblD dnEvo wDn cfixD drvD =
         mkSys (med s) (nA s) (nB s) (nC s) nd′ , refl ,
         cong (λ z → absNodeA (nA s) ⦀ (absNodeB (nB s) ⦀ (absNodeC (nC s) ⦀ z))) Meq ,
         wrunD ,

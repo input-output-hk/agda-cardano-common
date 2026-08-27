@@ -43,6 +43,7 @@ open import Data.Product using ( Σ; Σ-syntax; _×_; _,_; proj₁; proj₂ )
 open import Data.Sum using ( _⊎_; inj₁; inj₂ )
 open import Data.Maybe using ( just; nothing )
 open import Data.Maybe.Properties using ( just-injective )
+
 open import Data.Unit.Polymorphic using ( ⊤; tt )
 open import Relation.Nullary using ( yes; no )
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; trans; cong )
@@ -73,6 +74,9 @@ import CSP.Examples.Cardano_network.BlockFetch p as BF
 import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( NetProc; absBFc; coarsenBFc; decBFc-sil-step )
 import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+-- (grant #7) the BF client's next-state table, for the FIRED ROW the three
+-- inversions below now report (`Tbfc l d` IS `record { nxt = NS.bfCnxt l d ; … }`)
+import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open SN using ( BFcPos; decBFc; bcHead; bcReq1; bcDone1; bcBlk1; bcSil )
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( tableSpec-ev-inv; nothing-absurd )
@@ -84,6 +88,37 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blk
   using ( BFcHasBlk )
 open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( PlIsBlk )
+
+------------------------------------------------------------------------
+-- (GRANT #7)  *** THE FIRED COARSE ROW, REPORTED INSTEAD OF DISCARDED. ***
+--
+-- Same widening as grant #8 did for the api decodes, one channel over: every
+-- firing clause below already binds the row as `ceq` and then forgets it inside
+-- `mkMbfc`, and it is unrecoverable afterwards (abstract-position injectivity is
+-- FALSE — `SysStep.absBFc-sil-collapse`).  The three inversions therefore return
+-- it as a strict TRAILING component under `…-row`, and each original name is
+-- re-derived right after as a one-line projection, byte-identical in type.
+--
+-- The row is stated AT THE FIRED KEY with the two key equations beside it (the
+-- measured constraint recorded at `PipeBundleEvo`'s grant-#8 section: the clause
+-- proves it under `with l′ ≟ l`, so the table application must be stuck on that
+-- scrutinee).  It is the same shape `BfcIoSucc`'s block arm already uses.
+------------------------------------------------------------------------
+
+-- a BF CLIENT's fired coarse row on the wire WRITE (`sendBF`), at the fired key
+CliSendRow : (l : Link) (d : Dir) (l′ : Link) (d′ : Dir) (bfc bfc′ : BFcPos)
+             (a : Payload) → Set
+CliSendRow l d l′ d′ bfc bfc′ a =
+  (l′ ≡ l) × (d′ ≡ d)
+  × (NS.bfCnxt l d (coarsenBFc bfc) (Payload , ιBF (BF.sendBF l′ d′)) a
+       ≡ just (coarsenBFc bfc′))
+-- … and on the wire READ (`receiveBF`) — the delivery out of the cell
+CliReadRow : (l : Link) (d : Dir) (l′ : Link) (d′ : Dir) (bfc bfc′ : BFcPos)
+             (a : Payload) → Set
+CliReadRow l d l′ d′ bfc bfc′ a =
+  (l′ ≡ l) × (d′ ≡ d)
+  × (NS.bfCnxt l d (coarsenBFc bfc) (Payload , ιBF (BF.receiveBF l′ d′)) a
+       ≡ just (coarsenBFc bfc′))
 
 ------------------------------------------------------------------------
 -- (1) THE io CLIENT-SUCCESSOR CLASSIFICATION.  Unlike the api case, an io CAN
@@ -129,106 +164,107 @@ BfcIoSucc l d l′ d′ bfc′ a =
 
 -- a `receiveBF` fire out of a BF-client HEAD: named successor + firing step +
 -- abstract equality + the io block classification
-bfc-recv-hstep : (l : Link) (d : Dir) (st : BF.BFState)
+bfc-recv-hstep-row : (l : Link) (d : Dir) (st : BF.BFState)
     {l′ : Link} {d′ : Dir} {a : Payload} {M : NetProc}
   → absBFc l d (bcHead st) ─[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]─► M
   → Σ[ bfc′ ∈ BFcPos ]
       (decBFc l d (bcHead st)
          ─[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]─► decBFc l d bfc′)
       × (M ≡ absBFc l d bfc′) × BfcIoSucc l d l′ d′ bfc′ a
+      × CliReadRow l d l′ d′ (bcHead st) bfc′ a
 -- IDLE / DONE heads: no wire-read row
-bfc-recv-hstep l d BF.stIdle step
+bfc-recv-hstep-row l d BF.stIdle step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stDone step
+bfc-recv-hstep-row l d BF.stDone step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stDone)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 -- BUSY: StartBatch opens the stream, NoBlocks closes the batch; both ¬-block
-bfc-recv-hstep l d BF.stBusy {l′} {d′} {a = t0 , md , ln , blockFetch MsgStartBatch} step
+bfc-recv-hstep-row l d BF.stBusy {l′} {d′} {a = t0 , md , ln , blockFetch MsgStartBatch} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq with l′ ≟ l | d′ ≟ d
 ...   | yes refl | yes refl =
         bcSil BF.stStreaming , SIL6.RFBF.renameMap-ev-fwd (bfc-fire-start l d t0 md ln)
-      , mkMbfc l d (bcSil BF.stStreaming) Meq (just-injective (sym ceq)) , inj₁ (λ ())
+      , mkMbfc l d (bcSil BF.stStreaming) Meq (just-injective (sym ceq)) , inj₁ (λ ()) , (refl , refl , trans ceq (cong just (just-injective (sym ceq))))
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _     | _    = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {l′} {d′} {a = t0 , md , ln , blockFetch MsgNoBlocks} step
+bfc-recv-hstep-row l d BF.stBusy {l′} {d′} {a = t0 , md , ln , blockFetch MsgNoBlocks} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq with l′ ≟ l | d′ ≟ d
 ...   | yes refl | yes refl =
         bcSil BF.stIdle , SIL6.RFBF.renameMap-ev-fwd (bfc-fire-noblk l d t0 md ln)
-      , mkMbfc l d (bcSil BF.stIdle) Meq (just-injective (sym ceq)) , inj₁ (λ ())
+      , mkMbfc l d (bcSil BF.stIdle) Meq (just-injective (sym ceq)) , inj₁ (λ ()) , (refl , refl , trans ceq (cong just (just-injective (sym ceq))))
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _     | _    = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , blockFetch (MsgRequestRange r)} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , blockFetch (MsgRequestRange r)} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , blockFetch (MsgBlock b)} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , blockFetch (MsgBlock b)} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , blockFetch MsgBatchDone} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , blockFetch MsgBatchDone} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , blockFetch MsgClientDone} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , blockFetch MsgClientDone} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , keepAlive _} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , keepAlive _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , chainSync _} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , chainSync _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , txSubmission _} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , txSubmission _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , leiosNotify _} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stBusy {a = _ , _ , _ , leiosFetch _} step
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , leiosFetch _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 -- STREAMING: the block read (the ONE block-gaining io) and the batch close
-bfc-recv-hstep l d BF.stStreaming {l′} {d′} {a = t0 , md , ln , blockFetch (MsgBlock b)} step
+bfc-recv-hstep-row l d BF.stStreaming {l′} {d′} {a = t0 , md , ln , blockFetch (MsgBlock b)} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq with l′ ≟ l | d′ ≟ d
 ...   | yes refl | yes refl =
         bcBlk1 b , SIL6.RFBF.renameMap-ev-fwd (bfc-fire-blk l d b t0 md ln)
-      , mkMbfc l d (bcBlk1 b) Meq (just-injective (sym ceq)) , inj₂ (refl , refl , tt , refl)
+      , mkMbfc l d (bcBlk1 b) Meq (just-injective (sym ceq)) , inj₂ (refl , refl , tt , refl) , (refl , refl , trans ceq (cong just (just-injective (sym ceq))))
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _     | _    = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {l′} {d′} {a = t0 , md , ln , blockFetch MsgBatchDone} step
+bfc-recv-hstep-row l d BF.stStreaming {l′} {d′} {a = t0 , md , ln , blockFetch MsgBatchDone} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq with l′ ≟ l | d′ ≟ d
 ...   | yes refl | yes refl =
         bcSil BF.stIdle , SIL6.RFBF.renameMap-ev-fwd (bfc-fire-batch l d t0 md ln)
-      , mkMbfc l d (bcSil BF.stIdle) Meq (just-injective (sym ceq)) , inj₁ (λ ())
+      , mkMbfc l d (bcSil BF.stIdle) Meq (just-injective (sym ceq)) , inj₁ (λ ()) , (refl , refl , trans ceq (cong just (just-injective (sym ceq))))
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _     | _    = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , blockFetch (MsgRequestRange r)} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , blockFetch (MsgRequestRange r)} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , blockFetch MsgStartBatch} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , blockFetch MsgStartBatch} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , blockFetch MsgNoBlocks} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , blockFetch MsgNoBlocks} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , blockFetch MsgClientDone} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , blockFetch MsgClientDone} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , keepAlive _} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , keepAlive _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , chainSync _} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , chainSync _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , txSubmission _} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , txSubmission _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , leiosNotify _} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-bfc-recv-hstep l d BF.stStreaming {a = _ , _ , _ , leiosFetch _} step
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , leiosFetch _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 
@@ -263,18 +299,19 @@ bfc-send-hstep l d BF.stDone step
 ------------------------------------------------------------------------
 
 -- a BF client firing the wire WRITE io: successor is a `bcSil`, hence ¬-block
-decBFc-sendBF-succ : (l : Link) (d : Dir) (bfc : BFcPos)
+decBFc-sendBF-succ-row : (l : Link) (d : Dir) (bfc : BFcPos)
     {l′ : Link} {d′ : Dir} {a : Payload} {M : NetProc}
   → absBFc l d bfc ─[ ev (evl (evLabel Payload (ιBF (BF.sendBF l′ d′)) a)) ]─► M
   → Σ[ bfc′ ∈ BFcPos ]
       (decBFc l d bfc ═[ ev (evl (evLabel Payload (ιBF (BF.sendBF l′ d′)) a)) ]═► decBFc l d bfc′)
       × (M ≡ absBFc l d bfc′) × (BFcHasBlk bfc′ → ⊥)
-decBFc-sendBF-succ l d (bcHead st) step = ⊥-elim (bfc-send-hstep l d st step)
-decBFc-sendBF-succ l d (bcSil st)  step = ⊥-elim (bfc-send-hstep l d st step)
-decBFc-sendBF-succ l d (bcBlk1 b) step
+      × CliSendRow l d l′ d′ bfc bfc′ a
+decBFc-sendBF-succ-row l d (bcHead st) step = ⊥-elim (bfc-send-hstep l d st step)
+decBFc-sendBF-succ-row l d (bcSil st)  step = ⊥-elim (bfc-send-hstep l d st step)
+decBFc-sendBF-succ-row l d (bcBlk1 b) step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcBlk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decBFc-sendBF-succ l d (bcReq1 r) {l′} {d′} {a} step
+decBFc-sendBF-succ-row l d (bcReq1 r) {l′} {d′} {a} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcReq1 r)) step
 ... | q′ , ceq , Meq with l′ ≟ l | d′ ≟ d
 ...   | yes refl | yes refl
@@ -282,11 +319,11 @@ decBFc-sendBF-succ l d (bcReq1 r) {l′} {d′} {a} step
 ...     | yes refl =
           bcSil BF.stBusy
         , wev τ*-refl (SIL6.RFBF.renameMap-ev-fwd (bfc-fire-req1 l d r)) τ*-refl
-        , mkMbfc l d (bcSil BF.stBusy) Meq (just-injective (sym ceq)) , (λ ())
+        , mkMbfc l d (bcSil BF.stBusy) Meq (just-injective (sym ceq)) , (λ ()) , (refl , refl , trans ceq (cong just (just-injective (sym ceq))))
 ...     | no _ = ⊥-elim (nothing-absurd ceq)
-decBFc-sendBF-succ l d (bcReq1 r) step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decBFc-sendBF-succ l d (bcReq1 r) step | q′ , ceq , Meq | no _    | _    = ⊥-elim (nothing-absurd ceq)
-decBFc-sendBF-succ l d bcDone1 {l′} {d′} {a} step
+decBFc-sendBF-succ-row l d (bcReq1 r) step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
+decBFc-sendBF-succ-row l d (bcReq1 r) step | q′ , ceq , Meq | no _    | _    = ⊥-elim (nothing-absurd ceq)
+decBFc-sendBF-succ-row l d bcDone1 {l′} {d′} {a} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc bcDone1) step
 ... | q′ , ceq , Meq with l′ ≟ l | d′ ≟ d
 ...   | yes refl | yes refl
@@ -294,29 +331,71 @@ decBFc-sendBF-succ l d bcDone1 {l′} {d′} {a} step
 ...     | yes refl =
           bcSil BF.stDone
         , wev τ*-refl (SIL6.RFBF.renameMap-ev-fwd (bfc-fire-cdone1 l d)) τ*-refl
-        , mkMbfc l d (bcSil BF.stDone) Meq (just-injective (sym ceq)) , (λ ())
+        , mkMbfc l d (bcSil BF.stDone) Meq (just-injective (sym ceq)) , (λ ()) , (refl , refl , trans ceq (cong just (just-injective (sym ceq))))
 ...     | no _ = ⊥-elim (nothing-absurd ceq)
-decBFc-sendBF-succ l d bcDone1 step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decBFc-sendBF-succ l d bcDone1 step | q′ , ceq , Meq | no _    | _    = ⊥-elim (nothing-absurd ceq)
+decBFc-sendBF-succ-row l d bcDone1 step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
+decBFc-sendBF-succ-row l d bcDone1 step | q′ , ceq , Meq | no _    | _    = ⊥-elim (nothing-absurd ceq)
 
 -- a BF client firing the wire READ io: `bcBlk1 b` only when the payload IS a block
+decBFc-receiveBF-succ-row : (l : Link) (d : Dir) (bfc : BFcPos)
+    {l′ : Link} {d′ : Dir} {a : Payload} {M : NetProc}
+  → absBFc l d bfc ─[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]─► M
+  → Σ[ bfc′ ∈ BFcPos ]
+      (decBFc l d bfc ═[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]═► decBFc l d bfc′)
+      × (M ≡ absBFc l d bfc′) × BfcIoSucc l d l′ d′ bfc′ a
+      × CliReadRow l d l′ d′ bfc bfc′ a
+decBFc-receiveBF-succ-row l d (bcHead st) step with bfc-recv-hstep-row l d st step
+... | bfc′ , f , m , cls , row = bfc′ , wev τ*-refl f τ*-refl , m , cls , row
+-- (grant #7) the SIL position's row IS the HEAD's: `coarsenBFc (bcSil st)` and
+-- `coarsenBFc (bcHead st)` are the same coarse position (`absBFc-sil-collapse`)
+decBFc-receiveBF-succ-row l d (bcSil st) step with bfc-recv-hstep-row l d st step
+... | bfc′ , f , m , cls , row =
+      bfc′ , wev (τ*-step (decBFc-sil-step l d st) τ*-refl) f τ*-refl , m , cls , row
+decBFc-receiveBF-succ-row l d (bcReq1 r) step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcReq1 r)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decBFc-receiveBF-succ-row l d bcDone1 step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc bcDone1) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decBFc-receiveBF-succ-row l d (bcBlk1 b) step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcBlk1 b)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+
+------------------------------------------------------------------------
+-- (GRANT #7) THE THREE ORIGINAL INTERFACES, as projections of the row-carrying
+-- inversions above — byte-identical in type, so every consumer is untouched.
+------------------------------------------------------------------------
+
+-- the head-slice read inversion, without the row
+bfc-recv-hstep : (l : Link) (d : Dir) (st : BF.BFState)
+    {l′ : Link} {d′ : Dir} {a : Payload} {M : NetProc}
+  → absBFc l d (bcHead st) ─[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]─► M
+  → Σ[ bfc′ ∈ BFcPos ]
+      (decBFc l d (bcHead st)
+         ─[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]─► decBFc l d bfc′)
+      × (M ≡ absBFc l d bfc′) × BfcIoSucc l d l′ d′ bfc′ a
+bfc-recv-hstep l d st step =
+  let (bfc′ , f , m , cls , _) = bfc-recv-hstep-row l d st step
+  in  bfc′ , f , m , cls
+
+-- the whole-position WRITE decode, without the row
+decBFc-sendBF-succ : (l : Link) (d : Dir) (bfc : BFcPos)
+    {l′ : Link} {d′ : Dir} {a : Payload} {M : NetProc}
+  → absBFc l d bfc ─[ ev (evl (evLabel Payload (ιBF (BF.sendBF l′ d′)) a)) ]─► M
+  → Σ[ bfc′ ∈ BFcPos ]
+      (decBFc l d bfc ═[ ev (evl (evLabel Payload (ιBF (BF.sendBF l′ d′)) a)) ]═► decBFc l d bfc′)
+      × (M ≡ absBFc l d bfc′) × (BFcHasBlk bfc′ → ⊥)
+decBFc-sendBF-succ l d bfc step =
+  let (bfc′ , run , m , nb , _) = decBFc-sendBF-succ-row l d bfc step
+  in  bfc′ , run , m , nb
+
+-- the whole-position READ decode, without the row
 decBFc-receiveBF-succ : (l : Link) (d : Dir) (bfc : BFcPos)
     {l′ : Link} {d′ : Dir} {a : Payload} {M : NetProc}
   → absBFc l d bfc ─[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]─► M
   → Σ[ bfc′ ∈ BFcPos ]
       (decBFc l d bfc ═[ ev (evl (evLabel Payload (ιBF (BF.receiveBF l′ d′)) a)) ]═► decBFc l d bfc′)
       × (M ≡ absBFc l d bfc′) × BfcIoSucc l d l′ d′ bfc′ a
-decBFc-receiveBF-succ l d (bcHead st) step with bfc-recv-hstep l d st step
-... | bfc′ , f , m , cls = bfc′ , wev τ*-refl f τ*-refl , m , cls
-decBFc-receiveBF-succ l d (bcSil st) step with bfc-recv-hstep l d st step
-... | bfc′ , f , m , cls =
-      bfc′ , wev (τ*-step (decBFc-sil-step l d st) τ*-refl) f τ*-refl , m , cls
-decBFc-receiveBF-succ l d (bcReq1 r) step
-  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcReq1 r)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decBFc-receiveBF-succ l d bcDone1 step
-  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc bcDone1) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decBFc-receiveBF-succ l d (bcBlk1 b) step
-  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcBlk1 b)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decBFc-receiveBF-succ l d bfc step =
+  let (bfc′ , run , m , cls , _) = decBFc-receiveBF-succ-row l d bfc step
+  in  bfc′ , run , m , cls
