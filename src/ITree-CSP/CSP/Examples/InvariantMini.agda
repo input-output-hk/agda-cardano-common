@@ -31,7 +31,10 @@
 -- Part 3 replaces the producer's tail by a τ-loop: after `⟨a⟩` the implementation never
 --        becomes stable, so it has NO failures there and `Spec ⊑F Sys″` holds VACUOUSLY
 --        even though `b` never occurs.  Moral: a `⊑F` liveness statement carries content
---        only alongside divergence-freedom.
+--        only alongside divergence-freedom.  NOTE this vacuity survives the repair of
+--        `_⊑F_` into Roscoe's (traces, failures) PAIR: `Sys″`'s traces are a SUBSET of
+--        the spec's, so its trace obligation is discharged honestly (`invV-trace`) and
+--        it is the FAILURES component alone that goes vacuous.
 --
 -- Nothing here is postulated and nothing is left as a hole; the whole dependency
 -- closure used below (`Semantics.*` minus `DRImpliesFD`, `CSP.Operators`,
@@ -484,9 +487,31 @@ inv-fail         inv (⟹-τ  st rest) ref = inv-fail (inv-τ inv st) rest ref
 inv-fail         inv (⟹-ev st rest) ref with inv-ev inv st
 ... | _ , Vst , inv′ = fail-ev Vst (inv-fail inv′ rest ref)
 
--- PART 1, THE THEOREM: the hidden handoff refines away — `Spec ⊑F Sys`.
+-- the same induction with the refusal dropped: walk the run keeping the invariant and
+-- read off the matching spec TRACE.  This is the trace component `_⊑F_` demands.
+inv-trace : {W V W′ : Proc} {s : List (Event√ U)}
+          → Inv W V → W ⟹⟨ s ⟩ W′ → traces V s
+inv-trace {V = V} inv ⟹-refl         = V , ⟹-refl
+inv-trace         inv (⟹-τ  st rest) = inv-trace (inv-τ inv st) rest
+inv-trace         inv (⟹-ev st rest) with inv-ev inv st
+... | _ , Vst , inv′ with inv-trace inv′ rest
+...   | W , r = W , ⟹-ev Vst r
+
+-- PART 1, the TRACE half: every trace of `Sys` is a trace of `Spec`
+Spec⊑T-Sys : Spec ⊑T Sys
+Spec⊑T-Sys s (_ , reach) = inv-trace atProducer reach
+
+-- kept private: `_⊇F_` is the weaker half of `_⊑F_` and must not be reachable
+-- as ordinary API (see `Semantics.Failures`); this feeds `Spec⊑F-Sys` below.
+private
+  -- PART 1, the FAILURES half
+  Spec⊇F-Sys : Spec ⊇F Sys
+  Spec⊇F-Sys s X (_ , reach , ref) = inv-fail atProducer reach ref
+
+-- PART 1, THE THEOREM: the hidden handoff refines away — `Spec ⊑F Sys`, at Roscoe's
+-- stable-failures order (traces AND failures; both halves come from the one invariant).
 Spec⊑F-Sys : Spec ⊑F Sys
-Spec⊑F-Sys s X (_ , reach , ref) = inv-fail atProducer reach ref
+Spec⊑F-Sys = Spec⊑T-Sys , Spec⊇F-Sys
 
 -------------------------------------------------------------------------------------
 -- §4  PART 2 — the DEADLOCK variant: the producer offers `m′`, the consumer wants `m`,
@@ -606,9 +631,17 @@ Spec-no-bad-failure : ¬ failures Spec (evA ∷ []) Xb
 Spec-no-bad-failure (_ , reach , (_ , noff)) with spec-after-a reach
 ... | refl = noff evB tt (Skip , fireB)
 
--- (3) PART 2, THE REFUTATION: the mismatched implementation is NOT a `⊑F` refinement.
+-- kept private: `_⊇F_` is the weaker half of `_⊑F_` and must not be reachable
+-- as ordinary API (see `Semantics.Failures`); this feeds `Spec⋢F-SysD` below.
+private
+  -- (3) PART 2, THE REFUTATION: the mismatched implementation does not even contain the
+  -- spec's FAILURES — the sharp form, since `_⊇F_` is the weaker of the two orders.
+  Spec⊉F-SysD : ¬ (Spec ⊇F SysD)
+  Spec⊉F-SysD ref = Spec-no-bad-failure (ref (evA ∷ []) Xb SysD-bad-failure)
+
+-- …hence it is not a `⊑F` refinement either (`_⊑F_` is the stronger, paired order)
 Spec⋢F-SysD : ¬ (Spec ⊑F SysD)
-Spec⋢F-SysD ref = Spec-no-bad-failure (ref (evA ∷ []) Xb SysD-bad-failure)
+Spec⋢F-SysD ref = Spec⊉F-SysD (proj₂ ref)
 
 -------------------------------------------------------------------------------------
 -- §5  PART 3 — the VACUITY variant: the producer diverges instead of handing over.
@@ -766,8 +799,25 @@ invV-fail         inv (⟹-τ  st rest) ref = invV-fail (invV-τ inv st) rest re
 invV-fail         inv (⟹-ev st rest) ref with invV-ev inv st
 ... | _ , Vst , inv′ = fail-ev Vst (invV-fail inv′ rest ref)
 
--- PART 3, THE THEOREM: `Spec ⊑F SysV` holds — VACUOUSLY.  `SysV` never performs `b`
--- (see `SysV-no-failure-after-a` / `V₁-no-failures`), yet it refines `Spec` in the
--- stable-failures order, because a divergent state has no stable failure to violate.
+-- the trace half, as in Part 1: `SysV`'s only traces are `[]` and `⟨a⟩`, both of them
+-- traces of `Spec`.  Divergence costs nothing here — it removes failures, not traces.
+invV-trace : {W V W′ : Proc} {s : List (Event√ U)}
+           → InvV W V → W ⟹⟨ s ⟩ W′ → traces V s
+invV-trace {V = V} inv ⟹-refl         = V , ⟹-refl
+invV-trace         inv (⟹-τ  st rest) = invV-trace (invV-τ inv st) rest
+invV-trace         inv (⟹-ev st rest) with invV-ev inv st
+... | _ , Vst , inv′ with invV-trace inv′ rest
+...   | W , r = W , ⟹-ev Vst r
+
+-- PART 3, THE THEOREM: `Spec ⊑F SysV` holds — VACUOUSLY IN ITS FAILURES COMPONENT.
+-- `SysV` never performs `b` (see `SysV-no-failure-after-a` / `V₁-no-failures`), yet it
+-- refines `Spec` in the stable-failures order, because a divergent state has no stable
+-- failure to violate.  Note the trace component is NOT vacuous — it is discharged
+-- honestly by `invV-trace` — and it is exactly what stops the WORSE vacuity of
+-- `CSP.Examples.RefinementOrderCounterexamples` (`Stop ⊇F (a ⟶ div)`, where the
+-- implementation performs a trace the spec cannot).  The liveness hole survives the
+-- `_⊑F_` repair: `b` is offered by `Spec` and never by `SysV`, and no trace obligation
+-- notices, because `SysV`'s traces are a SUBSET of the spec's.
 Spec⊑F-SysV : Spec ⊑F SysV
-Spec⊑F-SysV s X (_ , reach , ref) = invV-fail atProducerV reach ref
+Spec⊑F-SysV = (λ s (_ , reach) → invV-trace atProducerV reach)
+            , (λ s X (_ , reach , ref) → invV-fail atProducerV reach ref)

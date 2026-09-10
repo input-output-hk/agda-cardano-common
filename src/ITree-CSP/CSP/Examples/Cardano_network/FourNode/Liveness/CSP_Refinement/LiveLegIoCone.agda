@@ -78,7 +78,7 @@ open import CSP.Examples.Cardano_network.Base using
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break )
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break ; store; env )
 open import CSP.Examples.Cardano_network.Data p
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
@@ -396,6 +396,8 @@ cssIoRow-fix k kd css {e = tx     _ _ _} nw = refl
 cssIoRow-fix k kd css {e = sndack _ _ _} nw = refl
 cssIoRow-fix k kd css {e = rcvack _ _ _} nw = refl
 cssIoRow-fix k kd css {e = ack    _ _ _} nw = refl
+cssIoRow-fix k kd css {e = store  _ _ _} nw = refl
+cssIoRow-fix k kd css {e = env    _ _ _} nw = refl
 cssIoRow-fix k kd css {e = break  _}     nw = refl
 
 -- … the CLIENT twin, `cscRefl`'s answer
@@ -427,6 +429,8 @@ cscIoRow-fix k kd csc {e = tx     _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = sndack _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = rcvack _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = ack    _ _ _} nb = refl
+cscIoRow-fix k kd csc {e = store  _ _ _} nb = refl
+cscIoRow-fix k kd csc {e = env    _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = break  _}     nb = refl
 
 -- the PAIRED client fact: the ⁺ (predecessor-directed) pair, the frozen
@@ -507,6 +511,8 @@ writeOwn-fix k kd bfs {e = tx     _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = sndack _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = rcvack _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = ack    _ _ _} nw = tt
+writeOwn-fix k kd bfs {e = store  _ _ _} nw = tt
+writeOwn-fix k kd bfs {e = env    _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = break  _}     nw = tt
 
 -- the PAIRED server fact: the three ⁺ arms, the frozen "never gains" one AND the
@@ -576,6 +582,8 @@ cRefl⁺ l d bfc {e = tx     _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = sndack _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = rcvack _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = ack    _ _ _} nb = inj₁ refl , tt
+cRefl⁺ l d bfc {e = store  _ _ _} nb = inj₁ refl , tt
+cRefl⁺ l d bfc {e = env    _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = break  _}     nb = inj₁ refl , tt
 
 ------------------------------------------------------------------------
@@ -1007,6 +1015,8 @@ bdP l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim 
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = sndack _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = rcvack _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = ack    _ _ _} iomem step = ⊥-elim iomem
+bdP l cl sv cl≢sv csc css bfc bfs ip {e = store  _ _ _} iomem step = ⊥-elim iomem
+bdP l cl sv cl≢sv csc css bfc bfs ip {e = env    _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = break  _}     iomem step = ⊥-elim iomem
 
 ------------------------------------------------------------------------

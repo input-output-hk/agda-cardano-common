@@ -12,7 +12,7 @@
 -- whereas the LHS P ▷ Q only ever offers init P (it must fire the timeout to access Q).
 -- ≈FD abstracts that away.  Write LHS = P ▷ Q, RHS = (P □ Q) ⊓ Q.
 --
---   ≈FD = ((LHS⊑F⊥RHS, LHS⊑D RHS) , (RHS⊑F⊥LHS, RHS⊑D LHS))   (X ⊑F⊥ Y = f⊥(Y) → f⊥(X)).
+--   ≈FD = ((LHS⊇F⊥RHS, LHS⊇D RHS) , (RHS⊇F⊥LHS, RHS⊇D LHS))   (X ⊇F⊥ Y = f⊥(Y) → f⊥(X)).
 --
 -- EASY (RHS recovers every LHS failure⊥/divergence): decompose a failure of P▷Q into a
 -- failure of P□Q (event-led / P-slide cases, via □-fail-τ-pre-L / □-ev-toL) or of Q (the
@@ -49,7 +49,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures; τ*-then)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; empty-div; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.WeakBisim {E = E} {I = ExtI E}
   using (_─[τ*]─►_; τ*-refl; τ*-step; τ*-trans)
@@ -126,37 +126,37 @@ private
 ▷→□Q-fail P Q (⟹-ev step rest) ref =
   inj₁ (_ , □-ev-toL P Q (▷-ev-elim P Q step) rest , ref)
 
--- ⊒F⊥ (component 3): RHS recovers every LHS stable failure⊥.
-char-⊒F⊥ : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
-         → ((P □ Q) ⊓ Q) ⊑F⊥ (P ▷ Q)
-char-⊒F⊥ P Q nt (inj₁ (W , reach , ref)) with ▷→□Q-fail P Q reach ref
+-- ⊆F⊥ (component 3): RHS recovers every LHS stable failure⊥.
+char-⊆F⊥ : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
+         → ((P □ Q) ⊓ Q) ⊇F⊥ (P ▷ Q)
+char-⊆F⊥ P Q nt (inj₁ (W , reach , ref)) with ▷→□Q-fail P Q reach ref
 ... | inj₁ fPQ = inj₁ (⊓-failures←l (P □ Q) Q fPQ)
 ... | inj₂ fQ  = inj₁ (⊓-failures←r (P □ Q) Q fQ)
-char-⊒F⊥ P Q nt (inj₂ d) with ▷-div-elim P Q d
+char-⊆F⊥ P Q nt (inj₂ d) with ▷-div-elim P Q d
 ... | inj₁ dP = inj₂ (⊓-div←l (P □ Q) Q (□-div-intro-L {P = P} {Q = Q} dP))
 ... | inj₂ dQ = inj₂ (⊓-div←r (P □ Q) Q dQ)
 
--- ⊒D (component 4): RHS recovers every LHS divergence.
-char-⊒D : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
-        → ((P □ Q) ⊓ Q) ⊑D (P ▷ Q)
-char-⊒D P Q nt d with ▷-div-elim P Q d
+-- ⊆D (component 4): RHS recovers every LHS divergence.
+char-⊆D : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
+        → ((P □ Q) ⊓ Q) ⊇D (P ▷ Q)
+char-⊆D P Q nt d with ▷-div-elim P Q d
 ... | inj₁ dP = ⊓-div←l (P □ Q) Q (□-div-intro-L {P = P} {Q = Q} dP)
 ... | inj₂ dQ = ⊓-div←r (P □ Q) Q dQ
 
 -------------------------------------------------------------------------------------
--- HARD ⊑D (component 2): LHS = P ▷ Q recovers every RHS = (P □ Q) ⊓ Q divergence.
+-- HARD ⊇D (component 2): LHS = P ▷ Q recovers every RHS = (P □ Q) ⊓ Q divergence.
 -------------------------------------------------------------------------------------
 
-char-⊑D : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
-        → (P ▷ Q) ⊑D ((P □ Q) ⊓ Q)
-char-⊑D P Q nt d with ⊓-div→ (P □ Q) Q d
+char-⊇D : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
+        → (P ▷ Q) ⊇D ((P □ Q) ⊓ Q)
+char-⊇D P Q nt d with ⊓-div→ (P □ Q) Q d
 ... | inj₂ dQ = ▷-div-intro-R P Q refl nt dQ
 ... | inj₁ dPQ with □-div-elim {P = P} {Q = Q} dPQ
 ...   | inj₁ dP = ▷-div-intro-L P Q dP
 ...   | inj₂ dQ = ▷-div-intro-R P Q refl nt dQ
 
 -------------------------------------------------------------------------------------
--- HARD ⊑F⊥ (component 1) — THE CRUX.  LHS = P ▷ Q recovers every RHS = (P□Q)⊓Q failure.
+-- HARD ⊇F⊥ (component 1) — THE CRUX.  LHS = P ▷ Q recovers every RHS = (P□Q)⊓Q failure.
 --
 -- The failures summand routes through the WORKER □→▷-fail.  Helpers first.
 -------------------------------------------------------------------------------------
@@ -407,15 +407,15 @@ route-Q P Q Qc nt qw qreach = ⟹-τ (▷-timeout P Q refl nt) (τ*-then qw qrea
   _ , τ*-then pref (⟹-ev (▷-ev-L {Q = Q} (▷-ev-elim Pc′ Qc step)) rest) , ref
 
 -------------------------------------------------------------------------------------
--- HARD ⊑F⊥ (component 1): LHS = P ▷ Q recovers every RHS = (P□Q)⊓Q stable failure⊥.
+-- HARD ⊇F⊥ (component 1): LHS = P ▷ Q recovers every RHS = (P□Q)⊓Q stable failure⊥.
 -- ⊓-failures⊥→ splits into the (P□Q)-summand or the Q-summand; (P□Q)'s failures route
 -- through the worker □→▷-fail (initial Pc=P, Qc=Q, both witnesses refl), its divergences
--- through ⊑D; Q's failures/divergences prepend the root timeout.
+-- through ⊇D; Q's failures/divergences prepend the root timeout.
 -------------------------------------------------------------------------------------
 
-char-⊑F⊥ : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
-         → (P ▷ Q) ⊑F⊥ ((P □ Q) ⊓ Q)
-char-⊑F⊥ P Q nt f with ⊓-failures⊥→ (P □ Q) Q f
+char-⊇F⊥ : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
+         → (P ▷ Q) ⊇F⊥ ((P □ Q) ⊓ Q)
+char-⊇F⊥ P Q nt f with ⊓-failures⊥→ (P □ Q) Q f
 ... | inj₂ (inj₁ (W , qreach , qref)) =
       inj₁ (_ , route-Q P Q Q nt τ*-refl qreach , qref)
 ... | inj₂ (inj₂ dQ) = inj₂ (▷-div-intro-R P Q refl nt dQ)
@@ -427,12 +427,12 @@ char-⊑F⊥ P Q nt f with ⊓-failures⊥→ (P □ Q) Q f
 
 -------------------------------------------------------------------------------------
 -- THE LAW (U13.26, ▷-failures characterisation).
---   ≈FD = ((P▷Q ⊑F⊥ RHS, P▷Q ⊑D RHS) , (RHS ⊑F⊥ P▷Q, RHS ⊑D P▷Q)).
+--   ≈FD = ((P▷Q ⊇F⊥ RHS, P▷Q ⊇D RHS) , (RHS ⊇F⊥ P▷Q, RHS ⊇D P▷Q)).
 -------------------------------------------------------------------------------------
 
 ▷-failures-char-FD : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄
                      (P Q : PTree E (ExtI E) R) → NonRet (PTree.force P)
                    → (P ▷ Q) ≈FD ((P □ Q) ⊓ Q)
 ▷-failures-char-FD P Q nt =
-  (char-⊑F⊥ P Q nt , char-⊑D P Q nt) ,
-  (char-⊒F⊥ P Q nt , char-⊒D P Q nt)
+  (char-⊇F⊥ P Q nt , char-⊇D P Q nt) ,
+  (char-⊆F⊥ P Q nt , char-⊆D P Q nt)

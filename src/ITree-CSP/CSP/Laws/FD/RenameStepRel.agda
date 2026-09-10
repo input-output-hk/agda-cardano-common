@@ -49,7 +49,7 @@ open import Semantics.Failures {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; failures)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (failures⊥; divergences; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_;
+  using (failures⊥; divergences; _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_;
          ≈FD-refl; ≈FD-sym; ≈FD-setoid)
 import Relation.Binary.Reasoning.Setoid as SetoidReasoning
 open import Semantics.StrongImpliesDR {E = E} {I = ExtI E} using (sbisim→drbisim)
@@ -135,31 +135,31 @@ module _ {ℓr} {R-set : Set ℓr} where
   prepend-ev⊥ va brA (inj₁ f) = inj₁ (fail-ev-prepend (pchoice-ev va brA) f)
   prepend-ev⊥ va brA (inj₂ d) = inj₂ (div-ev-prepend (pchoice-ev va brA) d)
 
-  -- one ⊑F⊥ direction: pchoice va ⊑F⊥ pchoice vb
-  pchoice-⊑F⊥-dir : (va vb : Menu) → (∀ at a → MaybeFD (va at a) (vb at a))
-                  → pchoice va ⊑F⊥ pchoice vb
-  pchoice-⊑F⊥-dir va vb pw (inj₁ f) with pchoice-failures→ vb f
+  -- one ⊇F⊥ direction: pchoice va ⊇F⊥ pchoice vb
+  pchoice-⊇F⊥-dir : (va vb : Menu) → (∀ at a → MaybeFD (va at a) (vb at a))
+                  → pchoice va ⊇F⊥ pchoice vb
+  pchoice-⊇F⊥-dir va vb pw (inj₁ f) with pchoice-failures→ vb f
   ... | inj₁ (refl , refB) =
           inj₁ (pchoice va , ⟹-refl , pchoice-refuses-cong va vb pw refB)
   ... | inj₂ (at , a , M₂ , t , brB , refl , fM₂)
           with cell-just→ vb va (λ x y → MaybeFD-sym (pw x y)) at a brB
   ...     | M₁ , brA , m21 =
-            -- m21 : M₂ ≈FD M₁ ; we need M₁ ⊑F⊥ M₂ = proj₁ (proj₂ m21)
+            -- m21 : M₂ ≈FD M₁ ; we need M₁ ⊇F⊥ M₂ = proj₁ (proj₂ m21)
             prepend-ev⊥ va brA (proj₁ (proj₂ m21) (inj₁ fM₂))
-  pchoice-⊑F⊥-dir va vb pw (inj₂ d) with pchoice-div→ vb d
+  pchoice-⊇F⊥-dir va vb pw (inj₂ d) with pchoice-div→ vb d
   ... | at , a , M₂ , t , brB , refl , dM₂
           with cell-just→ vb va (λ x y → MaybeFD-sym (pw x y)) at a brB
   ...     | M₁ , brA , m21 =
             prepend-ev⊥ va brA (proj₁ (proj₂ m21) (inj₂ dM₂))
 
-  -- one ⊑D direction: pchoice va ⊑D pchoice vb
-  pchoice-⊑D-dir : (va vb : Menu) → (∀ at a → MaybeFD (va at a) (vb at a))
-                 → pchoice va ⊑D pchoice vb
-  pchoice-⊑D-dir va vb pw d with pchoice-div→ vb d
+  -- one ⊇D direction: pchoice va ⊇D pchoice vb
+  pchoice-⊇D-dir : (va vb : Menu) → (∀ at a → MaybeFD (va at a) (vb at a))
+                 → pchoice va ⊇D pchoice vb
+  pchoice-⊇D-dir va vb pw d with pchoice-div→ vb d
   ... | at , a , M₂ , t , brB , refl , dM₂
           with cell-just→ vb va (λ x y → MaybeFD-sym (pw x y)) at a brB
   ...     | M₁ , brA , m21 =
-            -- m21 : M₂ ≈FD M₁ ; we need M₁ ⊑D M₂ = proj₂ (proj₂ m21)
+            -- m21 : M₂ ≈FD M₁ ; we need M₁ ⊇D M₂ = proj₂ (proj₂ m21)
             div-ev-prepend (pchoice-ev va brA) (proj₂ (proj₂ m21) dM₂)
 
   -- THE reusable congruence
@@ -167,9 +167,9 @@ module _ {ℓr} {R-set : Set ℓr} where
                   → (∀ at a → MaybeFD (v₁ at a) (v₂ at a))
                   → pchoice v₁ ≈FD pchoice v₂
   pchoice-cong-FD v₁ v₂ pw =
-      (pchoice-⊑F⊥-dir v₁ v₂ pw , pchoice-⊑D-dir v₁ v₂ pw)
-    , (pchoice-⊑F⊥-dir v₂ v₁ (λ at a → MaybeFD-sym (pw at a))
-      , pchoice-⊑D-dir v₂ v₁ (λ at a → MaybeFD-sym (pw at a)))
+      (pchoice-⊇F⊥-dir v₁ v₂ pw , pchoice-⊇D-dir v₁ v₂ pw)
+    , (pchoice-⊇F⊥-dir v₂ v₁ (λ at a → MaybeFD-sym (pw at a))
+      , pchoice-⊇D-dir v₂ v₁ (λ at a → MaybeFD-sym (pw at a)))
 
 -------------------------------------------------------------------------------------
 -- The fan-in offer as a binary-⊓ fold (the "spec" form), and its pointwise MaybeFD

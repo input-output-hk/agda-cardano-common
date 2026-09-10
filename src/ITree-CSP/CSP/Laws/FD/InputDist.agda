@@ -34,7 +34,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E} using (Offers; Re
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+  using (IsDivergence; divergences; failures⊥; _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import Semantics.DRImpliesFD     {E = E} {I = ExtI E} using (stable-no-τ)
 open import CSP.Laws.FD.FDLawsIChoiceAssoc E-≟
   using (⊓-failures⊥→; ⊓-failures⊥←l; ⊓-failures⊥←r; ⊓-div→; ⊓-div←l; ⊓-div←r)

@@ -8,7 +8,7 @@
 -- The CSP-refinement target (`CSP_Refinement.Spec.LivenessSpec`)
 --     ∀ b → LSpec b true true ⊑FD (breakableSystemOf b ∖ hidden b)
 -- is discharged through the τ-free abstraction `abstractSystem`
--- (`R2_Bisim.AbstractSystem`), and its `⊑D` half needs exactly one fact:
+-- (`R2_Bisim.AbstractSystem`), and its `⊇D` half needs exactly one fact:
 --
 --     ndivs : ∀ {s} → ¬ divergences (abstractSystem ∖ hidden blkA) s
 --

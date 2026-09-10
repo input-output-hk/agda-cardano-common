@@ -10,13 +10,15 @@
 -- the EXISTING scripted node logic (`produce`/`consume` of
 -- `FourNode.FourNodeDiamond`), and proves
 --
---     systemOf (diamondLogic blkA) ≡ breakableSystem blkA
+--     systemOfCopyUniform (diamondLogic blkA) ≡ breakableSystem  blkA
+--     systemOfUniform     (diamondLogic blkA) ≡ breakableSystemₗ blkA
 --
 -- by `refl` — i.e. the generic scaffolding reproduces the hand-written
 -- system ON THE NOSE, definitionally, with no bisimulation and no
--- proof obligation.  If this gate could not be closed the abstraction
--- would be wrong, so it is deliberately stated with `≡` and nothing
--- weaker.
+-- proof obligation, over BOTH media (the abstract copy medium and the
+-- concrete per-link multiplexer).  If these gates could not be closed
+-- the abstraction would be wrong, so they are deliberately stated with
+-- `≡` and nothing weaker.
 --
 -- Two orderings are load-bearing and are the first place to look if a
 -- later edit breaks the gate:
@@ -50,7 +52,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; apiES; produce; consume
         ; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
-  using ( breakableSystem )
+  using ( breakableSystem; breakableSystemₗ )
 open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi)
 open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟; Link)
 open import CSP.Examples.Cardano_network.Data p using (Payload)
@@ -121,7 +123,7 @@ diamond = record
   }
 
 open import CSP.Examples.Cardano_network.Parametric.Node p diamond apiES
-  using (Proc; bundleAt; linkBundles; node; systemOf)
+  using (Proc; node; systemOfUniform; systemOfCopyUniform)
 
 -- the existing scripted per-node application logic, indexed by node: A produces `blkA`
 -- on both its server directions, B and C relay, D consumes on both its client links
@@ -131,10 +133,19 @@ diamondLogic _    (fsuc fzero)               = consume linkAB hi >>= λ b → pr
 diamondLogic _    (fsuc (fsuc fzero))        = consume linkAC hi >>= λ b → produce linkCD hi b
 diamondLogic _    (fsuc (fsuc (fsuc fzero))) = (consume linkBD hi >> Skip) ⦀ (consume linkCD hi >> Skip)
 
--- THE GATE: the generic scaffolding, instantiated at the diamond topology with the
--- existing scripted logic, IS the existing hand-written system, definitionally
-diamond-faithful : ∀ (blkA : Block₃) → systemOf (diamondLogic blkA) ≡ breakableSystem blkA
+-- THE GATE: the generic scaffolding over the ABSTRACT copy medium and the UNIFORM
+-- node builder (`FourNode`'s hand-written nodes run `miniProtocols`), instantiated at
+-- the diamond topology with the existing scripted logic, IS the existing
+-- hand-written `breakableSystem`, definitionally
+diamond-faithful : ∀ (blkA : Block₃) → systemOfCopyUniform (diamondLogic blkA) ≡ breakableSystem blkA
 diamond-faithful blkA = refl
+
+-- THE SAME GATE OVER THE CONCRETE MEDIUM: `systemOfUniform` (over the per-link
+-- `NetworkLink` multiplexer) is the hand-written `breakableSystemₗ`.  The two systems
+-- differ only in the medium operand, so this `refl` costs exactly what the one above
+-- does — the scaffolding is faithful at either medium.
+diamond-faithfulₗ : ∀ (blkA : Block₃) → systemOfUniform (diamondLogic blkA) ≡ breakableSystemₗ blkA
+diamond-faithfulₗ blkA = refl
 
 ------------------------------------------------------------------------
 -- The existing liveness theorem, re-derived over the generic layer
@@ -156,7 +167,15 @@ LivenessAt P = ∀ (b : Block₃) (tr : Trace (⊤ {0ℓ}) P)
              → ◇ᵗ (atom (arrivedD b)) (drop n tr)
 
 -- the four-node block-liveness theorem, restated about the GENERIC system: the
--- scaffolding loses nothing, the transport being the gate itself
-blockLiveness-generic : ∀ (blkA : Block₃) → LivenessAt (systemOf (diamondLogic blkA))
+-- scaffolding loses nothing, the transport being the gate itself.
+--
+-- IT IS THE COPY INSTANTIATION, NOT THE CONCRETE ONE.  `BLP.blockLiveness⁺` is
+-- stated over `breakableSystem` (`Liveness/LTL/Spec`), which is built on
+-- `CopySpecBreakableA`, so `subst` along `diamond-faithful` can only land on
+-- `systemOfCopyUniform`.  Restating it over the concrete medium would need an LTL transport across
+-- the medium equivalence `NetworkLink ≈FD CopySpec`, and no such transport exists:
+-- `≈FD` relates failures/divergences, whereas `LivenessAt` quantifies over `Trace`s
+-- of one specific process.  Building that bridge is separate, unbuilt work.
+blockLiveness-generic : ∀ (blkA : Block₃) → LivenessAt (systemOfCopyUniform (diamondLogic blkA))
 blockLiveness-generic blkA =
   subst LivenessAt (sym (diamond-faithful blkA)) (BLP.blockLiveness⁺ blkA)

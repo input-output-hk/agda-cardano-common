@@ -35,7 +35,7 @@ open import Semantics.Failures {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-ref
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import CSP.Laws.Traces.TraceLaws E-≟ using (force-▷-ret)
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟ using (NonRet)
 open import CSP.Laws.Traces.TraceLawsExtChoiceMono E-≟ using (▷-timeout; ▷-τ-elim; ▷-ev-elim)
@@ -79,24 +79,24 @@ module _ {ℓr} {R : Set ℓr} where
   -- live regime: the timeout (P ▷ P) ─[τ]─► P fires.  Build the four refinements.
   ----------------------------------------------------------------------------------
 
-  -- INTRO (P ▷ P ⊑D P): every divergence of P lifts to P ▷ P via the timeout τ.
-  ▷-id-⊑D-intro : (P : PTree E (ExtI E) R) {nP : NodeKind E (ExtI E) R}
+  -- INTRO (P ▷ P ⊇D P): every divergence of P lifts to P ▷ P via the timeout τ.
+  ▷-id-⊇D-intro : (P : PTree E (ExtI E) R) {nP : NodeKind E (ExtI E) R}
                 → PTree.force P ≡ nP → NonRet nP
                 → ∀ {s} → divergences P s → divergences (P ▷ P) s
-  ▷-id-⊑D-intro P eqP nt d = div-τ-prepend (▷-timeout P P eqP nt) d
+  ▷-id-⊇D-intro P eqP nt d = div-τ-prepend (▷-timeout P P eqP nt) d
 
-  -- INTRO (P ▷ P ⊑F⊥ P): every failure⊥ of P lifts to P ▷ P via the timeout τ.
-  ▷-id-⊑F⊥-intro : (P : PTree E (ExtI E) R) {nP : NodeKind E (ExtI E) R}
+  -- INTRO (P ▷ P ⊇F⊥ P): every failure⊥ of P lifts to P ▷ P via the timeout τ.
+  ▷-id-⊇F⊥-intro : (P : PTree E (ExtI E) R) {nP : NodeKind E (ExtI E) R}
                  → PTree.force P ≡ nP → NonRet nP
                  → ∀ {s} {B : Event√ R → Set ℓr}
                  → failures⊥ P s B → failures⊥ (P ▷ P) s B
-  ▷-id-⊑F⊥-intro P eqP nt (inj₁ f) = inj₁ (fail-τ-prepend (▷-timeout P P eqP nt) f)
-  ▷-id-⊑F⊥-intro P eqP nt (inj₂ d) = inj₂ (▷-id-⊑D-intro P eqP nt d)
+  ▷-id-⊇F⊥-intro P eqP nt (inj₁ f) = inj₁ (fail-τ-prepend (▷-timeout P P eqP nt) f)
+  ▷-id-⊇F⊥-intro P eqP nt (inj₂ d) = inj₂ (▷-id-⊇D-intro P eqP nt d)
 
-  -- ELIM (P ⊑D P ▷ P): every divergence of P ▷ P is a divergence of P.
-  ▷-id-⊑D-elim : (P : PTree E (ExtI E) R)
+  -- ELIM (P ⊇D P ▷ P): every divergence of P ▷ P is a divergence of P.
+  ▷-id-⊇D-elim : (P : PTree E (ExtI E) R)
                → ∀ {s} → divergences (P ▷ P) s → divergences P s
-  ▷-id-⊑D-elim P d
+  ▷-id-⊇D-elim P d
     with ▷-reach-div P P (d .IsDivergence.reach) (d .IsDivergence.divwit)
   ... | inj₁ dP = subst (divergences P) (sym (d .IsDivergence.split)) (div-extension-closed dP)
   ... | inj₂ dP = subst (divergences P) (sym (d .IsDivergence.split)) (div-extension-closed dP)
@@ -118,21 +118,21 @@ module _ {ℓr} {R : Set ℓr} where
   ▷-fail-elim P Q (⟹-ev step rest) ref =
     inj₁ (fail-ev-prepend (▷-ev-elim P Q step) (_ , rest , ref))
 
-  -- ELIM (P ⊑F⊥ P ▷ P): every failure⊥ of P ▷ P is a failure⊥ of P.  Both operands are
+  -- ELIM (P ⊇F⊥ P ▷ P): every failure⊥ of P ▷ P is a failure⊥ of P.  Both operands are
   -- P, so either injection of ▷-fail-elim lands on failures P.
-  ▷-id-⊑F⊥-elim : (P : PTree E (ExtI E) R)
+  ▷-id-⊇F⊥-elim : (P : PTree E (ExtI E) R)
                 → ∀ {s} {B : Event√ R → Set ℓr}
                 → failures⊥ (P ▷ P) s B → failures⊥ P s B
-  ▷-id-⊑F⊥-elim P (inj₁ (W , reach , ref)) with ▷-fail-elim P P reach ref
+  ▷-id-⊇F⊥-elim P (inj₁ (W , reach , ref)) with ▷-fail-elim P P reach ref
   ... | inj₁ fP = inj₁ fP
   ... | inj₂ fP = inj₁ fP
-  ▷-id-⊑F⊥-elim P (inj₂ d) = inj₂ (▷-id-⊑D-elim P d)
+  ▷-id-⊇F⊥-elim P (inj₂ d) = inj₂ (▷-id-⊇D-elim P d)
 
   ▷-id-live-FD : (P : PTree E (ExtI E) R) {nP : NodeKind E (ExtI E) R}
                → PTree.force P ≡ nP → NonRet nP → (P ▷ P) ≈FD P
   ▷-id-live-FD P eqP nt =
-    ((▷-id-⊑F⊥-intro P eqP nt , ▷-id-⊑D-intro P eqP nt)) ,
-    ((▷-id-⊑F⊥-elim P , ▷-id-⊑D-elim P))
+    ((▷-id-⊇F⊥-intro P eqP nt , ▷-id-⊇D-intro P eqP nt)) ,
+    ((▷-id-⊇F⊥-elim P , ▷-id-⊇D-elim P))
 
   -- The law.
   ▷-id-FD : (P : PTree E (ExtI E) R) → (P ▷ P) ≈FD P

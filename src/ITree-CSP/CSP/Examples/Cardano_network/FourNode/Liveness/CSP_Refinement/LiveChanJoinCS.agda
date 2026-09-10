@@ -71,7 +71,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Link; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF
   ; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break
-  ; ApiCSTag; ApiCSCar )
+  ; ApiCSTag; ApiCSCar ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; Messages )
 open import CSP.Examples.Cardano_network.Base using
   ( Dir; hi; IDs; DecEq-Dir; DecEq-IDs
@@ -622,6 +622,8 @@ module HopArmCS
   chanCSH-api l s s′ (sndack l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanCSH-api l s s′ (rcvack l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanCSH-api l s s′ (ack    l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
+  chanCSH-api l s s′ (store l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
+  chanCSH-api l s s′ (env l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanCSH-api l s s′ (break  l₀)        v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
 
   -- *** THE FILL ARM at this hop. ***

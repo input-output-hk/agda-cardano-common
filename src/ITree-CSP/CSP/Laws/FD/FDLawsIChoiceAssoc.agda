@@ -33,7 +33,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+  using (IsDivergence; divergences; failures⊥; _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import CSP.Laws.Bisim.Laws     E-≟ using (⊓-stepL; ⊓-stepR; ⊓-τ-inv)
 
 private
@@ -156,33 +156,33 @@ private
 module _ (P Q S : PTree E (ExtI E) R) where
 
   -- failures⊥ refinement, both directions
-  assoc-⊑F⊥-RL : ((P ⊓ Q) ⊓ S) ⊑F⊥ (P ⊓ (Q ⊓ S))
-  assoc-⊑F⊥-RL f with ⊓-failures⊥→ P (Q ⊓ S) f
+  assoc-⊇F⊥-RL : ((P ⊓ Q) ⊓ S) ⊇F⊥ (P ⊓ (Q ⊓ S))
+  assoc-⊇F⊥-RL f with ⊓-failures⊥→ P (Q ⊓ S) f
   ... | inj₁ fP   = ⊓-failures⊥←l (P ⊓ Q) S (⊓-failures⊥←l P Q fP)
   ... | inj₂ fQS with ⊓-failures⊥→ Q S fQS
   ...   | inj₁ fQ = ⊓-failures⊥←l (P ⊓ Q) S (⊓-failures⊥←r P Q fQ)
   ...   | inj₂ fS = ⊓-failures⊥←r (P ⊓ Q) S fS
 
-  assoc-⊑F⊥-LR : (P ⊓ (Q ⊓ S)) ⊑F⊥ ((P ⊓ Q) ⊓ S)
-  assoc-⊑F⊥-LR f with ⊓-failures⊥→ (P ⊓ Q) S f
+  assoc-⊇F⊥-LR : (P ⊓ (Q ⊓ S)) ⊇F⊥ ((P ⊓ Q) ⊓ S)
+  assoc-⊇F⊥-LR f with ⊓-failures⊥→ (P ⊓ Q) S f
   ... | inj₂ fS   = ⊓-failures⊥←r P (Q ⊓ S) (⊓-failures⊥←r Q S fS)
   ... | inj₁ fPQ with ⊓-failures⊥→ P Q fPQ
   ...   | inj₁ fP = ⊓-failures⊥←l P (Q ⊓ S) fP
   ...   | inj₂ fQ = ⊓-failures⊥←r P (Q ⊓ S) (⊓-failures⊥←l Q S fQ)
 
-  assoc-⊑D-RL : ((P ⊓ Q) ⊓ S) ⊑D (P ⊓ (Q ⊓ S))
-  assoc-⊑D-RL d with ⊓-div→ P (Q ⊓ S) d
+  assoc-⊇D-RL : ((P ⊓ Q) ⊓ S) ⊇D (P ⊓ (Q ⊓ S))
+  assoc-⊇D-RL d with ⊓-div→ P (Q ⊓ S) d
   ... | inj₁ dP   = ⊓-div←l (P ⊓ Q) S (⊓-div←l P Q dP)
   ... | inj₂ dQS with ⊓-div→ Q S dQS
   ...   | inj₁ dQ = ⊓-div←l (P ⊓ Q) S (⊓-div←r P Q dQ)
   ...   | inj₂ dS = ⊓-div←r (P ⊓ Q) S dS
 
-  assoc-⊑D-LR : (P ⊓ (Q ⊓ S)) ⊑D ((P ⊓ Q) ⊓ S)
-  assoc-⊑D-LR d with ⊓-div→ (P ⊓ Q) S d
+  assoc-⊇D-LR : (P ⊓ (Q ⊓ S)) ⊇D ((P ⊓ Q) ⊓ S)
+  assoc-⊇D-LR d with ⊓-div→ (P ⊓ Q) S d
   ... | inj₂ dS   = ⊓-div←r P (Q ⊓ S) (⊓-div←r Q S dS)
   ... | inj₁ dPQ with ⊓-div→ P Q dPQ
   ...   | inj₁ dP = ⊓-div←l P (Q ⊓ S) dP
   ...   | inj₂ dQ = ⊓-div←r P (Q ⊓ S) (⊓-div←l Q S dQ)
 
   ⊓-assoc-FD : ((P ⊓ Q) ⊓ S) ≈FD (P ⊓ (Q ⊓ S))
-  ⊓-assoc-FD = (assoc-⊑F⊥-RL , assoc-⊑D-RL) , (assoc-⊑F⊥-LR , assoc-⊑D-LR)
+  ⊓-assoc-FD = (assoc-⊇F⊥-RL , assoc-⊇D-RL) , (assoc-⊇F⊥-LR , assoc-⊇D-LR)

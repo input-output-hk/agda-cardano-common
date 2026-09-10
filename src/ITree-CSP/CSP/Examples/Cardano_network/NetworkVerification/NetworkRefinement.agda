@@ -11,7 +11,7 @@
 -- channel `(KeepAlive, c0)` pipeline vs `Copy KeepAlive c0`.
 --
 -- MAIN RESULT (proved below, postulate-free / no holes):
---   `CopySpec⊑D-Network : CopySpec ⊑D Network`
+--   `CopySpec⊇D-Network : CopySpec ⊇D Network`
 -- — the divergence-refinement: `Network` has NO divergences along any trace,
 -- so the inclusion `divergences Network ⊆ divergences CopySpec` is vacuous.
 --
@@ -91,6 +91,8 @@ instance
   decEq⊤ : DecEq ⊤
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
+import Data.Maybe as PMaybe
+
 p1 : Params
 p1 = record
   { Cookie = ⊤ ; Block = ⊤ ; Txid = ⊤ ; LSlot = ⊤
@@ -101,7 +103,10 @@ p1 = record
   ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
-  ; decTime = decEq⊤ ; decLength = decEq⊤ }
+  ; decTime = decEq⊤ ; decLength = decEq⊤
+  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
+  ; EB = ⊤ ; EBHash = ⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
+  ; ebHash = λ _ → tt ; announcedEB = λ _ → PMaybe.nothing }
 
 open import CSP.Examples.Cardano_network.Net p1
   using (Net; Link; input; output; sndmsg; tx)
@@ -114,7 +119,7 @@ open import Semantics.DRBisim {E = Net ⊤} {I = ExtI (Net ⊤)}
 open import Semantics.Failures {E = Net ⊤} {I = ExtI (Net ⊤)}
   using (_⊑T_; traces; _⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces-respects-≈)
 open import Semantics.FailuresDivergences {E = Net ⊤} {I = ExtI (Net ⊤)}
-  using (_⊑D_; divergences; IsDivergence; _⊑F⊥_; _⊑FD_; _≈FD_)
+  using (_⊇D_; divergences; IsDivergence; _⊇F⊥_; _⊑FD_; _≈FD_)
 open import Semantics.DRImpliesFD {E = Net ⊤} {I = ExtI (Net ⊤)}
   using (drbisim→≈FD)
 open import Semantics.Expansion {E = Net ⊤} {I = ExtI (Net ⊤)}
@@ -779,9 +784,9 @@ Network-noτ step with Hide-τ-elim csTA' (TxSide ∥⇘ csTA' ⇙ RxSide) step
 ... | hτH _ mem parev _ = Top-noModA (maE mem parev)
 
 ------------------------------------------------------------------------
--- MILESTONE 2: `CopySpec ⊑D Network` via REACHABLE divergence-freedom.
+-- MILESTONE 2: `CopySpec ⊇D Network` via REACHABLE divergence-freedom.
 --
--- `CopySpec ⊑D Network = ∀{s} → divergences Network s → divergences CopySpec s`.
+-- `CopySpec ⊇D Network = ∀{s} → divergences Network s → divergences CopySpec s`.
 -- A `divergences Network s` carries a `witness W` with `Network ⟹⟨prefix⟩ W` and
 -- `Diverges W`.  We show NO weakly-reachable `W` diverges, so `divergences Network`
 -- is empty and the inclusion is vacuous.
@@ -2852,7 +2857,7 @@ sim-uVis (mkCS i t r o c s) ¬cs st
 ...   | inj₂ (inj₂ (_ , _ , _ , Lack , _)) | _ = ⊥-elim (¬cs (ackg→mem Lack))
 
 ------------------------------------------------------------------------
--- MILESTONE 2 RESULT: `CopySpec ⊑D Network`, postulate-free.
+-- MILESTONE 2 RESULT: `CopySpec ⊇D Network`, postulate-free.
 --
 -- We assemble the divergence refinement from the finite-state abstraction
 -- `NetModel`:
@@ -2903,14 +2908,14 @@ goodU-T0 = subst GoodU dec-cs0 (goodU-cs cs0)
 -- The divergence refinement.  `Network = T ∖ csTA'` definitionally, so the
 -- divergence witness's reach is a weak run out of `T ∖ csTA'`; `Reach-noDiv`
 -- says it cannot reach a divergent state, refuting `divwit`.
-CopySpec⊑D-Network : CopySpec ⊑D Network
-CopySpec⊑D-Network div =
+CopySpec⊇D-Network : CopySpec ⊇D Network
+CopySpec⊇D-Network div =
   ⊥-elim (Reach-noDiv goodU-T0 (IsDivergence.reach div) (IsDivergence.divwit div))
 
 ------------------------------------------------------------------------
--- MILESTONE 3 (reverse): `Network ⊑D CopySpec`.
+-- MILESTONE 3 (reverse): `Network ⊇D CopySpec`.
 --
--- `Network ⊑D CopySpec = ∀{s} → divergences CopySpec s → divergences Network s`.
+-- `Network ⊇D CopySpec = ∀{s} → divergences CopySpec s → divergences Network s`.
 -- `CopySpec` is divergence-free along EVERY trace, so `divergences CopySpec`
 -- is empty and the inclusion is vacuous.
 --
@@ -3234,7 +3239,7 @@ goodC-Cg .gcev {e = evl _} st  = ⊥-elim (Cg-noev st)
 
 ------------------------------------------------------------------------
 -- No weakly-reachable state of CopySpec diverges, hence `divergences
--- CopySpec` is empty and `Network ⊑D CopySpec` is vacuous.
+-- CopySpec` is empty and `Network ⊇D CopySpec` is vacuous.
 ------------------------------------------------------------------------
 
 copy-reach-noDiv : ∀ {s W} → CopySpec ⟹⟨ s ⟩ W → ¬ Diverges W
@@ -3246,12 +3251,12 @@ copy-reach-noDiv = go goodC-C0
   go g (⟹-ev st rest) = go (g .gcev st) rest
 
 -- THE REVERSE DIVERGENCE REFINEMENT.
---   `Network ⊑D CopySpec = ∀{s} → divergences CopySpec s → divergences
+--   `Network ⊇D CopySpec = ∀{s} → divergences CopySpec s → divergences
 --   Network s`.  `divergences CopySpec s` carries a weakly-reachable witness
 --   `W` with `Diverges W`; `copy-reach-noDiv` rules every such `W` out, so the
 --   inclusion is vacuous.
-Network⊑D-CopySpec : Network ⊑D CopySpec
-Network⊑D-CopySpec div =
+Network⊇D-CopySpec : Network ⊇D CopySpec
+Network⊇D-CopySpec div =
   ⊥-elim (copy-reach-noDiv (IsDivergence.reach div) (IsDivergence.divwit div))
 
 ------------------------------------------------------------------------
@@ -4391,7 +4396,7 @@ module _ (w : VisWit) where
 --                                which internally relies on the certified
 --                                postulate `¬-divergent→normal` from
 --                                Semantics.DRImpliesFD — APPROVED)
---       ⇒ failures-half both ways  (Network ⊑F⊥ CopySpec, CopySpec ⊑F⊥ Network)
+--       ⇒ failures-half both ways  (Network ⊇F⊥ CopySpec, CopySpec ⊇F⊥ Network)
 --     ⇒ Network ⟺T CopySpec      (trace equivalence; derived from the
 --                                weak-bisim shadow drbisim→wbisim WITHOUT
 --                                the postulate).
@@ -4423,13 +4428,13 @@ net⊑FD = proj₁ net≈FD
 spec⊑FD : CopySpec ⊑FD Network
 spec⊑FD = proj₂ net≈FD
 
---   The failures-half both ways.  `CopySpec ⊑F⊥ Network` is the standard
+--   The failures-half both ways.  `CopySpec ⊇F⊥ Network` is the standard
 --   refinement statement "the Network refines the CopySpec".
-net⊑F⊥ : Network ⊑F⊥ CopySpec
-net⊑F⊥ = proj₁ net⊑FD
+net⊇F⊥ : Network ⊇F⊥ CopySpec
+net⊇F⊥ = proj₁ net⊑FD
 
-spec⊑F⊥ : CopySpec ⊑F⊥ Network
-spec⊑F⊥ = proj₁ spec⊑FD
+spec⊇F⊥ : CopySpec ⊇F⊥ Network
+spec⊇F⊥ = proj₁ spec⊑FD
 
 -- 5.  TRACE equivalence (derivable from ≈DR via its weak-bisim shadow,
 --     WITHOUT the ¬-divergent→normal postulate).

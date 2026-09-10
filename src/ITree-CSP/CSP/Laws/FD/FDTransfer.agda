@@ -38,7 +38,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E}
 open import Semantics.DRBisim             {E = E} {I = ExtI E}
   using (Diverges; deadlock-no-τ; deadlock-converges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; failures⊥; divergences; IsDivergence)
+  using (_⊇F⊥_; _⊇D_; failures⊥; divergences; IsDivergence)
 open import Semantics.DRImpliesFD         {E = E} {I = ExtI E}
   using (¬-divergent→normal)
 open IsDivergence
@@ -198,15 +198,15 @@ div-√-truncate {P = P} {r = r} {s = s} d
 
 -- ⊑FD gives traces⊥-containment: a Q-run maps to a P-run on the same trace or a P-divergence.
 FD→trace⊥ : ∀ {ℓr} {R : Set ℓr} {P Q Q* : PTree E (ExtI E) R} {s : List (Event√ R)}
-          → P ⊑F⊥ Q → P ⊑D Q → Q ⟹⟨ s ⟩ Q*
+          → P ⊇F⊥ Q → P ⊇D Q → Q ⟹⟨ s ⟩ Q*
           → (Σ[ P* ∈ PTree E (ExtI E) R ] (P ⟹⟨ s ⟩ P*)) ⊎ divergences P s
 FD→trace⊥ {ℓr = ℓr} {R = R} {P} {Q} {Q*} {s} fF fD run with Diverges-LEM Q*
--- Q* diverges: `s` is a Q-divergence (prefix `s`, empty suffix); transfer via ⊑D.
+-- Q* diverges: `s` is a Q-divergence (prefix `s`, empty suffix); transfer via ⊇D.
 ... | inj₁ dvg =
       inj₂ (fD (record { prefix  = s ; suffix = []
                        ; split   = sym (++-identityʳ s)
                        ; witness = Q* ; reach = run ; divwit = dvg }))
--- Q* converges: reach a τ-normal-form Q′ (stable or a ret) and feed ⊑F⊥ a witness.
+-- Q* converges: reach a τ-normal-form Q′ (stable or a ret) and feed ⊇F⊥ a witness.
 ... | inj₂ ndvg with ¬-divergent→normal ndvg
 -- stable Q′: an empty ban failure on `s` transfers to a P-failure (P-run) or P-divergence.
 ...   | Q′ , τ*run , inj₁ st

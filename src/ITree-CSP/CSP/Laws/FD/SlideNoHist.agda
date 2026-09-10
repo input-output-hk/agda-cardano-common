@@ -45,7 +45,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import CSP.Laws.Traces.TraceLaws E-≟ using (▷-ev-L)
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟ using (NonRet)
 open import CSP.Laws.Traces.TraceLawsExtChoiceMono E-≟
@@ -82,7 +82,7 @@ pfx-ev-step {A = A} e P x = sVis {at = A , e} {a = x} refl (pfx-cont-just e P x)
 
 -------------------------------------------------------------------------------------
 -- RHS→LHS : map failures⊥ / divergences of  RHS = Prefix e PQ  into  S = (e⟶P) ▷ (e⟶Q).
--- Gives  S ⊑F⊥ RHS  and  S ⊑D RHS.
+-- Gives  S ⊇F⊥ RHS  and  S ⊇D RHS.
 -------------------------------------------------------------------------------------
 
 module _ {ℓr} {A : Set ℓ} {R : Set ℓr} (e : E A) (P Q : A → PTree E (ExtI E) R) where
@@ -94,7 +94,7 @@ module _ {ℓr} {A : Set ℓ} {R : Set ℓr} (e : E A) (P Q : A → PTree E (Ext
     S : PTree E (ExtI E) R
     S = (e ⟶ P) ▷ (e ⟶ Q)
 
-  -- failures⊥ RHS → failures⊥ S   (the F⊥ component of S ⊑F⊥ RHS)
+  -- failures⊥ RHS → failures⊥ S   (the F⊥ component of S ⊇F⊥ RHS)
   RHS→S-F⊥ : ∀ {s} {B : Event√ R → Set ℓr} → failures⊥ (Prefix e PQ) s B → failures⊥ S s B
   RHS→S-F⊥ {B = B} (inj₁ (W , reach , ref)) with pfx-failures→ e PQ (W , reach , ref)
   -- nil: RHS refuses X at []; route to (e⟶Q) via the timeout (same prefix-domain refusal)
@@ -121,7 +121,7 @@ module _ {ℓr} {A : Set ℓ} {R : Set ℓr} (e : E A) (P Q : A → PTree E (Ext
           inj₂ (div-τ-prepend (▷-timeout (e ⟶ P) (e ⟶ Q) refl tt0)
                   (div-ev-prepend (pfx-ev-step e Q x) dQx))
 
-  -- divergences RHS → divergences S   (the D component of S ⊑D RHS)
+  -- divergences RHS → divergences S   (the D component of S ⊇D RHS)
   RHS→S-D : ∀ {s} → divergences (Prefix e PQ) s → divergences S s
   RHS→S-D d with pfx-div→ e PQ d
   ... | (x , t , refl , dPQx) with ⊓-div→ (P x) (Q x) dPQx
@@ -131,7 +131,7 @@ module _ {ℓr} {A : Set ℓ} {R : Set ℓr} (e : E A) (P Q : A → PTree E (Ext
 
   -----------------------------------------------------------------------------------
   -- LHS→RHS : map failures / divergences of S into RHS = Prefix e PQ.
-  -- Gives  RHS ⊑F⊥ S  and  RHS ⊑D S.
+  -- Gives  RHS ⊇F⊥ S  and  RHS ⊇D S.
   -----------------------------------------------------------------------------------
 
   -- failures: recurse on S's big-step.  S is unstable ⇒ the ⟹-refl base is vacuous.
@@ -161,14 +161,14 @@ module _ {ℓr} {A : Set ℓ} {R : Set ℓr} (e : E A) (P Q : A → PTree E (Ext
                                                (div-extension-closed dpre))
   ...   | (x , t , refl , dQx) = pfx-div-cons e PQ x (⊓-div←r (P x) (Q x) dQx)
 
-  -- failures⊥ S → failures⊥ RHS   (the F⊥ component of RHS ⊑F⊥ S)
+  -- failures⊥ S → failures⊥ RHS   (the F⊥ component of RHS ⊇F⊥ S)
   S→RHS-F⊥ : ∀ {s} {B : Event√ R → Set ℓr} → failures⊥ S s B → failures⊥ (Prefix e PQ) s B
   S→RHS-F⊥ (inj₁ (W , reach , ref)) = inj₁ (S→RHS-fail reach ref)
   S→RHS-F⊥ (inj₂ d)                 = inj₂ (S→RHS-D d)
 
 -------------------------------------------------------------------------------------
--- THE LAW (U13.25, ▷-nohist, single-channel): pair the two ⊑F⊥ and two ⊑D refinements.
---   ≈FD = ((S⊑F⊥RHS, S⊑D RHS) , (RHS⊑F⊥S, RHS⊑D S)).
+-- THE LAW (U13.25, ▷-nohist, single-channel): pair the two ⊇F⊥ and two ⊇D refinements.
+--   ≈FD = ((S⊇F⊥RHS, S⊇D RHS) , (RHS⊇F⊥S, RHS⊇D S)).
 -------------------------------------------------------------------------------------
 
 nohist-FD : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ} (e : E A) (P Q : A → PTree E (ExtI E) R)

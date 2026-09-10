@@ -37,7 +37,7 @@ open import Semantics.LTS      {E = E} {I = ExtI E}
 open import Semantics.Failures {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers; deadlock-no-offer)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; failures⊥; _⊑F⊥_; _⊑D_; _≈FD_)
+  using (divergences; failures⊥; _⊇F⊥_; _⊇D_; _≈FD_)
 open import CSP.Laws.Traces.TraceLawsParallel E-≟ using (Mg)
 open import CSP.Laws.Traces.TraceLawsParallelTrace E-≟ using (ParInter; Par-trace-elim-eq)
 open import CSP.Laws.Traces.TraceLawsParallelInterAssoc E-≟
@@ -259,15 +259,15 @@ module _ (A : EventSet) (merge : Mg R R R)
     RHS : PTree E (ExtI E) R
     RHS = Par A merge P (Par A merge Q R₀)
 
-    af₁ : LHS ⊑F⊥ RHS
+    af₁ : LHS ⊇F⊥ RHS
     af₁ {B = X} (inj₁ f) = inj₁ (Par-assoc-fail-RL X (Par-failures-elim A merge f))
     af₁ (inj₂ d) = inj₂ (div-transfer-RL A merge ma P Q R₀ d)
-    ad₁ : LHS ⊑D RHS
+    ad₁ : LHS ⊇D RHS
     ad₁ d = div-transfer-RL A merge ma P Q R₀ d
-    af₂ : RHS ⊑F⊥ LHS
+    af₂ : RHS ⊇F⊥ LHS
     af₂ {B = X} (inj₁ f) = inj₁ (Par-assoc-fail-LR X (Par-failures-elim A merge f))
     af₂ (inj₂ d) = inj₂ (div-transfer-LR A merge ma P Q R₀ d)
-    ad₂ : RHS ⊑D LHS
+    ad₂ : RHS ⊇D LHS
     ad₂ d = div-transfer-LR A merge ma P Q R₀ d
 
   Par-assoc-FD : LHS ≈FD RHS

@@ -58,7 +58,7 @@ open import CSP.Examples.Cardano_network.Base using ( hi )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Link
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
-        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
+        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; store; env
         ; recvBFBlock; sendBFBlock; sendBFBatchDone; reqBFRange
         ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks )
   renaming ( done to netDone )
@@ -268,3 +268,13 @@ module _
     ⊥-elim (refute-weak r
       (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-ack (med (toSys r₁)))
                     (SR.absnodes-no-ack (toSys r₁)) st) wstep)
+
+  -- node-local store / env channels: offered by neither medium nor abstract nodes
+  deliver r pr (step {e = evl (evLabel _ (store l₀ d₀ m) a)} wstep _) _ =
+    ⊥-elim (refute-weak r
+      (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-store (med (toSys r₁)))
+                    (SR.absnodes-no-store (toSys r₁)) st) wstep)
+  deliver r pr (step {e = evl (evLabel _ (env l₀ d₀ m) a)} wstep _) _ =
+    ⊥-elim (refute-weak r
+      (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-env (med (toSys r₁)))
+                    (SR.absnodes-no-env (toSys r₁)) st) wstep)

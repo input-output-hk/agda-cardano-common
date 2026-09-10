@@ -32,8 +32,8 @@
 -- `CSP.Laws.FD.Congruences`'s "WHY HIDING IS THE CRUX" note for the full statement,
 -- including the strictly-stronger `cong-∖`/`hide-cong-FD` route and what the weaker
 -- orders do and do NOT give: `⊑T` is unconditionally hide-monotone (`Hide-mono-⊑ᵀ`), but
--- `⊑F⊥` is NOT — `Hide-mono-fail` is the unconditional stable-FAILURE transfer
--- (`failures` in, `failures⊥` out), not `⊑F⊥` monotonicity, and unconditional `⊑F⊥`
+-- `⊇F⊥` is NOT — `Hide-mono-fail` is the unconditional stable-FAILURE transfer
+-- (`failures` in, `failures⊥` out), not `⊇F⊥` monotonicity, and unconditional `⊇F⊥`
 -- monotonicity through hiding fails by the same divergence-chaos mechanism as `⊑FD`.
 -- This module demonstrates the FSim route.
 --

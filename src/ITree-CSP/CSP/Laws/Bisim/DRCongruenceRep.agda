@@ -17,6 +17,8 @@
 
 open import Level using (Level; Lift; lift; _⊔_) renaming (suc to lsuc)
 open import Data.Unit.Polymorphic using (⊤; tt)
+-- `NonRet` (TraceLawsExtChoice) lands in the NON-polymorphic `Data.Unit.⊤`
+open import Data.Unit using () renaming (tt to tt₀)
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.Fin.Properties using (suc-injective)
@@ -42,7 +44,13 @@ open PTree
 
 open import CSP.Operators E-≟
 open import Semantics.LTS {E = E} {I = ExtI E}
-open import CSP.Laws.Bisim.DRCongruence E-≟ using (Sep; cong-⦀)
+open import CSP.Laws.Bisim.DRCongruence E-≟ using (Sep; Sep△; cong-⦀)
+-- the interrupt `_△_` step-inversion layer + the `NonRet` node predicate, for the
+-- `OffersOnly-△` / `NoRet` / `sep△-from-OffersOnly` section at the end of this module
+open import CSP.Laws.Traces.TraceLawsExtChoice E-≟ using (NonRet)
+open import CSP.Laws.Traces.TraceLawsThrowInterrupt E-≟
+  using ( △τR; △τP; △τQ; △τQret; △τ⊓P; △τ⊓Q; △-τ-elim
+        ; △evR; △evP; △evQ; △evPQ; △-ev-elim )
 open import Semantics.WeakBisim {E = E} {I = ExtI E}
   using ( _─[τ*]─►_; τ*-refl; τ*-step; _═[_]═►_; wev; wτ; WSimF )
 open import Semantics.DRBisim {E = E} {I = ExtI E} using (_≈DR_; drbisim-refl; DRbisim)
@@ -158,6 +166,13 @@ OffersOnly-Ret .OffersOnly.step (sTau () _)
 -- Skip = Ret tt is confined to every alphabet.
 OffersOnly-Skip : OffersOnly α (Skip {ℓr})
 OffersOnly-Skip = OffersOnly-Ret
+
+-- An alphabet holding of EVERYTHING confines every process: the invariant is vacuous.
+-- Used to read a renamed process's confinement straight off the renaming's IMAGE
+-- (`CSP.Laws.Bisim.RenameOffers.OffersOnly-renameMap-image`) without any source-side work.
+OffersOnly-full : ∀ {P : PTree E (ExtI E) R} → (∀ at a → α at a) → OffersOnly α P
+OffersOnly-full h .OffersOnly.now  _ = h _ _
+OffersOnly-full h .OffersOnly.step _ = OffersOnly-full h
 
 -------------------------------------------------------------------------------------
 -- The `Sep` discharge — the heart of the module
@@ -656,3 +671,297 @@ cong-⦀⋆ (c ∷ cs) (hd ∷ᵖ tl) =
     go []       ()
     go (d ∷ ds) (inj₁ r) = d _ _ p r
     go (d ∷ ds) (inj₂ r) = go ds r
+
+-------------------------------------------------------------------------------------
+-- Closure of `OffersOnly` under the INTERRUPT `_△_`
+-------------------------------------------------------------------------------------
+
+-- forward declarations for the mutually-corecursive interrupt pair.
+-- `P △ Q` is α-confined when BOTH operands are: every visible offer of the composite is
+-- one operand's own offer (`△-ev-elim`), and every residual is again an interrupt, a bare
+-- operand, or the both-offer `⊓` node below.
+OffersOnly-△ : {P Q : PTree E (ExtI E) R}
+             → OffersOnly α P → OffersOnly α Q → OffersOnly α (P △ Q)
+-- the inline both-offer node `(P₁ △ Q) ⊓ Q₁` produced by `△-merge`: its visible menu is
+-- empty (`∅v`), its two τ-branches land in `P₁ △ Q` (tag0) and `Q₁` (tag1).
+OffersOnly-△-br2 : {P₁ Q Q₁ : PTree E (ExtI E) R}
+                 → OffersOnly α P₁ → OffersOnly α Q → OffersOnly α Q₁
+                 → OffersOnly α (ptree (react ∅v (△-br2 P₁ Q Q₁)))
+
+OffersOnly-△ {P = P} {Q = Q} ooP ooQ .OffersOnly.now st with △-ev-elim P Q st
+... | △evP  Pst   = OffersOnly.now ooP Pst
+... | △evQ  Qst   = OffersOnly.now ooQ Qst
+... | △evPQ Pst _ = OffersOnly.now ooP Pst
+OffersOnly-△ {P = P} {Q = Q} ooP ooQ .OffersOnly.step {l = τ} st with △-τ-elim P Q st
+... | △τP    Pst = OffersOnly-△ (OffersOnly.step ooP Pst) ooQ
+... | △τQ    Qst = OffersOnly-△ ooP (OffersOnly.step ooQ Qst)
+... | △τQret _   = ooQ
+... | △τ⊓P   _   = ooP
+... | △τ⊓Q   _   = ooQ
+OffersOnly-△ {P = P} {Q = Q} ooP ooQ .OffersOnly.step {l = ev e} st with △-ev-elim P Q st
+... | △evP  Pst     = OffersOnly-△ (OffersOnly.step ooP Pst) ooQ
+... | △evQ  Qst     = OffersOnly.step ooQ Qst
+... | △evPQ Pst Qst = OffersOnly-△-br2 (OffersOnly.step ooP Pst) ooQ (OffersOnly.step ooQ Qst)
+
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.now  (sVis refl ())
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step (sRet ())
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step (sSil ())
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step (sVis refl ())
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step
+  (sTau {i = _ , fin} {a = lift fzero} refl refl) = OffersOnly-△ ooP₁ ooQ
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step
+  (sTau {i = _ , fin} {a = lift (fsuc fzero)} refl refl) = ooQ₁
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step
+  (sTau {i = _ , fin} {a = lift (fsuc (fsuc _))} refl ())
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step (sTau {i = _ , base _}   refl ())
+OffersOnly-△-br2 ooP₁ ooQ ooQ₁ .OffersOnly.step (sTau {i = _ , pair _ _} refl ())
+
+-------------------------------------------------------------------------------------
+-- The "never terminates" invariant `NoRet`, and the `Sep△` discharge for `cong-△`
+-------------------------------------------------------------------------------------
+
+-- `NoRet P`: P never terminates — its own node is not a `ret`, and neither is that of
+-- any state reachable from it.  It is exactly what `Sep△`'s `liveL` field needs.
+record NoRet {ℓr} {R : Set ℓr} (P : PTree E (ExtI E) R) : Set (lsuc ℓ ⊔ ℓe ⊔ ℓr) where
+  coinductive
+  field
+    nowNR  : NonRet (PTree.force P)
+    stepNR : ∀ {l} {P′ : PTree E (ExtI E) R} → P ─[ l ]─► P′ → NoRet P′
+
+-- walk a `NoRet` witness along a τ*-run
+NoRet-τ* : {P P′ : PTree E (ExtI E) R} → P ─[τ*]─► P′ → NoRet P → NoRet P′
+NoRet-τ* τ*-refl         nr = nr
+NoRet-τ* (τ*-step st rs) nr = NoRet-τ* rs (NoRet.stepNR nr st)
+
+-- ≈DR transfers `NoRet` BACKWARD: a √ of P is weakly matched by a √ of Q, so if no state
+-- reachable from Q is a `ret`, none reachable from P is either.  (The `≈DR-OO` shape.)
+≈DR-NoRet : {P Q : PTree E (ExtI E) R} → P ≈DR Q → NoRet Q → NoRet P
+≈DR-NoRet {P = P} pq nrQ .NoRet.nowNR with PTree.force P in eqP
+... | sil _      = tt₀
+... | react _ _  = tt₀
+... | ret r      with WSimF.on-ev (DRbisim.fwd pq) (sRet eqP)
+...   | _ , wev q→q₁ (sRet eq₁) _ , _ =
+        subst NonRet eq₁ (NoRet.nowNR (NoRet-τ* q→q₁ nrQ))
+≈DR-NoRet pq nrQ .NoRet.stepNR {l = τ} st with WSimF.on-tau (DRbisim.fwd pq) st
+... | _ , wτ q→q′ , p′q′ = ≈DR-NoRet p′q′ (NoRet-τ* q→q′ nrQ)
+≈DR-NoRet pq nrQ .NoRet.stepNR {l = ev _} st with WSimF.on-ev (DRbisim.fwd pq) st
+... | _ , wev q→q₁ q₁ev q₂→q′ , p′q′ =
+      ≈DR-NoRet p′q′ (NoRet-τ* q₂→q′ (NoRet.stepNR (NoRet-τ* q→q₁ nrQ) q₁ev))
+
+-- THE `Sep△` DISCHARGE, mirroring `sep-from-OffersOnly`: disjoint confining alphabets
+-- refute the both-offer overlap (`now△`), and a `NoRet` on the LEFT operand supplies
+-- `liveL`; both invariants are closed under stepping, so the record corecurses.
+sep△-from-OffersOnly : {P Q : PTree E (ExtI E) R}
+                     → Disj α β → NoRet P
+                     → OffersOnly α P → OffersOnly β Q → Sep△ P Q
+sep△-from-OffersOnly dj nr ooP ooQ .Sep△.liveL = NoRet.nowNR nr
+sep△-from-OffersOnly dj nr ooP ooQ .Sep△.now△ Pst Qst =
+  dj _ _ (OffersOnly.now ooP Pst) (OffersOnly.now ooQ Qst)
+sep△-from-OffersOnly dj nr ooP ooQ .Sep△.stepL△ Pst =
+  sep△-from-OffersOnly dj (NoRet.stepNR nr Pst) (OffersOnly.step ooP Pst) ooQ
+sep△-from-OffersOnly dj nr ooP ooQ .Sep△.stepR△ Qst =
+  sep△-from-OffersOnly dj nr ooP (OffersOnly.step ooQ Qst)
+
+-------------------------------------------------------------------------------------
+-- `NoRet` closure: deadlock, parallel, interleaving
+-------------------------------------------------------------------------------------
+
+-- `deadlock` is a stuck `react` node, hence never a `ret`
+NoRet-deadlock : NoRet (deadlock {E = E} {I = ExtI E} {R = R})
+NoRet-deadlock .NoRet.nowNR = tt₀
+NoRet-deadlock .NoRet.stepNR (sRet ())
+NoRet-deadlock .NoRet.stepNR (sSil ())
+NoRet-deadlock .NoRet.stepNR (sVis refl ())
+NoRet-deadlock .NoRet.stepNR (sTau refl ())
+
+-- forward declarations for the mutually-corecursive Par / overlap-node pair.
+-- `Par A merge P Q` returns only when BOTH operands do, so a `NoRet` on the LEFT
+-- operand alone already forbids termination of the composite.
+NoRet-Par : ∀ {R : Set ℓs} {P : PTree E (ExtI E) R₁} {Q : PTree E (ExtI E) R₂}
+            (A : EventSet) (merge : Mg R₁ R₂ R)
+          → NoRet P → NoRet (Par A merge P Q)
+-- the inline both-offer overlap node `(P′∥Q) ⊓ (P∥Q′)`: a `react` node whose τ-branches
+-- land in `Par P′ Q` (tag0) and `Par P Q′` (tag1)
+NoRet-brBoth : ∀ {R : Set ℓs} {A : EventSet} {merge : Mg R₁ R₂ R}
+                 {P P′ : PTree E (ExtI E) R₁} {Q Q′ : PTree E (ExtI E) R₂}
+             → NoRet P → NoRet P′
+             → NoRet (ptree (react (λ _ _ → nothing) (par-brBoth A merge P Q P′ Q′)))
+
+NoRet-Par {P = P} {Q = Q} A merge nrP .NoRet.nowNR
+  with PTree.force (Par A merge P Q) in eqPQ
+... | sil _     = tt₀
+... | react _ _ = tt₀
+... | ret r     with Par-ev-elim A merge P Q (sRet eqPQ)
+...   | ev√ eqP _ = subst NonRet eqP (NoRet.nowNR nrP)
+NoRet-Par {P = P} {Q = Q} A merge nrP .NoRet.stepNR {l = τ} st
+  with Par-τ-elim A merge P Q st
+... | τL P′ Pst refl = NoRet-Par A merge (NoRet.stepNR nrP Pst)
+... | τR Q′ Qst refl = NoRet-Par A merge nrP
+NoRet-Par {P = P} {Q = Q} A merge nrP .NoRet.stepNR {l = ev e} st
+  with Par-ev-elim A merge P Q st
+... | evSync _ Pst _ = NoRet-Par A merge (NoRet.stepNR nrP Pst)
+... | evL    _ Pst   = NoRet-Par A merge (NoRet.stepNR nrP Pst)
+... | evR    _ Qst   = NoRet-Par A merge nrP
+... | evBoth _ Pst _ = NoRet-brBoth nrP (NoRet.stepNR nrP Pst)
+... | ev√    eqP _   = ⊥-elim (subst NonRet eqP (NoRet.nowNR nrP))
+
+NoRet-brBoth nrP nrP′ .NoRet.nowNR = tt₀
+NoRet-brBoth nrP nrP′ .NoRet.stepNR (sRet ())
+NoRet-brBoth nrP nrP′ .NoRet.stepNR (sSil ())
+NoRet-brBoth nrP nrP′ .NoRet.stepNR (sVis refl ())
+NoRet-brBoth {A = A} {merge = merge} nrP nrP′ .NoRet.stepNR
+  (sTau {i = _ , fin} {a = lift fzero} refl refl) = NoRet-Par A merge nrP′
+NoRet-brBoth {A = A} {merge = merge} nrP nrP′ .NoRet.stepNR
+  (sTau {i = _ , fin} {a = lift (fsuc fzero)} refl refl) = NoRet-Par A merge nrP
+NoRet-brBoth nrP nrP′ .NoRet.stepNR
+  (sTau {i = _ , fin} {a = lift (fsuc (fsuc _))} refl ())
+NoRet-brBoth nrP nrP′ .NoRet.stepNR (sTau {i = _ , base _}   refl ())
+NoRet-brBoth nrP nrP′ .NoRet.stepNR (sTau {i = _ , pair _ _} refl ())
+
+-- interleaving = parallel with the empty sync set (a direct `NoRet-Par` instance)
+NoRet-⦀ : {P Q : PTree E (ExtI E) (⊤ {ℓr})} → NoRet P → NoRet (P ⦀ Q)
+NoRet-⦀ nrP = NoRet-Par ∅ES (λ _ _ → tt) nrP
+
+-------------------------------------------------------------------------------------
+-- `NoRet` for the forever loops `iter` / `loop` / `loop0`
+-------------------------------------------------------------------------------------
+
+-- `NoInj₂ t`: the `A ⊎ R`-valued tree `t` only ever returns LEFT (`inj₁`) values, now and
+-- after any run.  It is what makes `iter … t` loop forever instead of finishing.
+record NoInj₂ {ℓr} {A : Set ℓ} {R : Set ℓr} (t : PTree E (ExtI E) (A ⊎ R))
+     : Set (lsuc ℓ ⊔ ℓe ⊔ ℓr) where
+  coinductive
+  field
+    nowNI  : ∀ {x} → PTree.force t ≡ ret x → Σ[ a ∈ A ] x ≡ inj₁ a
+    stepNI : ∀ {l} {t′ : PTree E (ExtI E) (A ⊎ R)} → t ─[ l ]─► t′ → NoInj₂ t′
+
+-- `deadlock` returns nothing at all, so vacuously nothing on the right
+NoInj₂-deadlock : ∀ {A : Set ℓ} → NoInj₂ {A = A} (deadlock {E = E} {I = ExtI E} {R = A ⊎ R})
+NoInj₂-deadlock .NoInj₂.nowNI ()
+NoInj₂-deadlock .NoInj₂.stepNI (sRet ())
+NoInj₂-deadlock .NoInj₂.stepNI (sSil ())
+NoInj₂-deadlock .NoInj₂.stepNI (sVis refl ())
+NoInj₂-deadlock .NoInj₂.stepNI (sTau refl ())
+
+-- `Ret (inj₁ a)` returns exactly one value, a left one
+NoInj₂-Ret : ∀ {A : Set ℓ} {a : A} → NoInj₂ {A = A} {R = R} (Ret (inj₁ a))
+NoInj₂-Ret {a = a} .NoInj₂.nowNI refl = a , refl
+NoInj₂-Ret .NoInj₂.stepNI (sRet _)  = NoInj₂-deadlock
+NoInj₂-Ret .NoInj₂.stepNI (sSil ())
+NoInj₂-Ret .NoInj₂.stepNI (sVis () _)
+NoInj₂-Ret .NoInj₂.stepNI (sTau () _)
+
+-- force-inversion: a `ret` node of `t >>= λ a → Ret (inj₁ a)` can only carry a LEFT
+-- value.  Cased on a NAMED node for `force t` (the `force-ren-ret-inv` idiom) rather than
+-- with `with`, which would abstract the stuck `force t` inside the hypothesis's own type.
+bind-inj₁-ret : ∀ {A : Set ℓ} (t : PTree E (ExtI E) A) {x : A ⊎ R}
+              → PTree.force (t >>= λ a → Ret (inj₁ a)) ≡ ret x → Σ[ a ∈ A ] x ≡ inj₁ a
+bind-inj₁-ret {A = A} t {x = x} eq = aux (PTree.force t) refl
+  where
+  aux : (nf : NodeKind E (ExtI E) A) → PTree.force t ≡ nf → Σ[ a ∈ A ] x ≡ inj₁ a
+  aux (ret a)      eqt = case trans (sym (fBind-ret (λ a′ → Ret (inj₁ a′)) t eqt)) eq of
+                           λ { refl → a , refl }
+  aux (sil c)      eqt = case trans (sym (fBind-sil (λ a′ → Ret (inj₁ a′)) t eqt)) eq of λ ()
+  aux (react v τc) eqt = case trans (sym (fBind-react (λ a′ → Ret (inj₁ a′)) t eqt)) eq of λ ()
+
+-- `t >>= λ a → Ret (inj₁ a)` returns only left values, WHATEVER `t` does — the loop
+-- re-entry shape of `loop`.  (Proof shape: `OffersOnly->>=`.)
+NoInj₂->>=inj₁ : ∀ {A : Set ℓ} (t : PTree E (ExtI E) A)
+               → NoInj₂ {A = A} {R = R} (t >>= λ a → Ret (inj₁ a))
+NoInj₂->>=inj₁ t .NoInj₂.nowNI eq = bind-inj₁-ret t eq
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st with PTree.force t in eqt
+... | ret a = NoInj₂.stepNI NoInj₂-Ret
+                (retarget (sym (fBind-ret (λ a → Ret (inj₁ a)) t eqt)) st)
+... | sil c with st
+...   | sSil eqf with sil-injective (trans (sym (fBind-sil (λ a → Ret (inj₁ a)) t eqt)) eqf)
+...     | refl = NoInj₂->>=inj₁ c
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | sil c | sRet eqf =
+  ⊥-elim (case trans (sym (fBind-sil (λ a → Ret (inj₁ a)) t eqt)) eqf of λ ())
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | sil c | sVis eqf _ =
+  ⊥-elim (case trans (sym (fBind-sil (λ a → Ret (inj₁ a)) t eqt)) eqf of λ ())
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | sil c | sTau eqf _ =
+  ⊥-elim (case trans (sym (fBind-sil (λ a → Ret (inj₁ a)) t eqt)) eqf of λ ())
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | react v τc with st
+...   | sVis {at = at} {a = a} eqf br
+        with bindV-elim (λ a → Ret (inj₁ a)) (react v τc)
+               (subst (λ g → g at a ≡ just _)
+                      (sym (proj₁ (react-injective
+                             (trans (sym (fBind-react (λ a → Ret (inj₁ a)) t eqt)) eqf))))
+                      br)
+...     | t′ , vv , refl = NoInj₂->>=inj₁ t′
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | react v τc | sTau {i = i} {a = a} eqf br
+  with bindT-elim (λ a → Ret (inj₁ a)) (react v τc)
+         (subst (λ g → g i a ≡ just _)
+                (sym (proj₂ (react-injective
+                       (trans (sym (fBind-react (λ a → Ret (inj₁ a)) t eqt)) eqf))))
+                br)
+...   | t′ , vv , refl = NoInj₂->>=inj₁ t′
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | react v τc | sRet eqf =
+  ⊥-elim (case trans (sym (fBind-react (λ a → Ret (inj₁ a)) t eqt)) eqf of λ ())
+NoInj₂->>=inj₁ t .NoInj₂.stepNI st | react v τc | sSil eqf =
+  ⊥-elim (case trans (sym (fBind-react (λ a → Ret (inj₁ a)) t eqt)) eqf of λ ())
+
+-- `iter-bind t k` never returns when neither the body `t` nor any re-entry `k a` ever
+-- returns a RIGHT value: the `ret (inj₂ r)` clause — iteration's only exit — is
+-- unreachable, so every node is a `sil`/`react`.  (Proof shape: `OffersOnly-iter-bind`.)
+NoRet-iter-bind : ∀ {A : Set ℓ} {t : PTree E (ExtI E) (A ⊎ R)}
+                    {k : A → PTree E (ExtI E) (A ⊎ R)}
+                → NoInj₂ t → (∀ a → NoInj₂ (k a)) → NoRet (iter-bind t k)
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.nowNR with PTree.force t in eqt
+... | ret (inj₁ a′) = tt₀
+... | ret (inj₂ r)  = ⊥-elim (case proj₂ (NoInj₂.nowNI ni eqt) of λ ())
+... | sil c         = tt₀
+... | react v τc    = tt₀
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st with PTree.force t in eqt
+... | ret (inj₁ a′) with st
+...   | sSil eqf with sil-injective (trans (sym (fIter-r1 k t eqt)) eqf)
+...     | refl   = NoRet-iter-bind (nik a′) nik
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | ret (inj₁ a′) | sRet eqf =
+  ⊥-elim (case trans (sym (fIter-r1 k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | ret (inj₁ a′) | sVis eqf _ =
+  ⊥-elim (case trans (sym (fIter-r1 k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | ret (inj₁ a′) | sTau eqf _ =
+  ⊥-elim (case trans (sym (fIter-r1 k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | ret (inj₂ r) =
+  ⊥-elim (case proj₂ (NoInj₂.nowNI ni eqt) of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | sil c with st
+...   | sSil eqf with sil-injective (trans (sym (fIter-sil k t eqt)) eqf)
+...     | refl   = NoRet-iter-bind (NoInj₂.stepNI ni (sSil eqt)) nik
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | sil c | sRet eqf =
+  ⊥-elim (case trans (sym (fIter-sil k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | sil c | sVis eqf _ =
+  ⊥-elim (case trans (sym (fIter-sil k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | sil c | sTau eqf _ =
+  ⊥-elim (case trans (sym (fIter-sil k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | react v τc with st
+...   | sVis {at = at} {a = a} eqf br
+        with iterV-elim k (react v τc)
+               (subst (λ g → g at a ≡ just _)
+                      (sym (proj₁ (react-injective (trans (sym (fIter-react k t eqt)) eqf))))
+                      br)
+...     | t′ , vv , refl = NoRet-iter-bind (NoInj₂.stepNI ni (sVis eqt vv)) nik
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | react v τc | sTau {i = i} {a = a} eqf br
+  with iterT-elim k (react v τc)
+         (subst (λ g → g i a ≡ just _)
+                (sym (proj₂ (react-injective (trans (sym (fIter-react k t eqt)) eqf))))
+                br)
+...   | t′ , vv , refl = NoRet-iter-bind (NoInj₂.stepNI ni (sTau eqt vv)) nik
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | react v τc | sRet eqf =
+  ⊥-elim (case trans (sym (fIter-react k t eqt)) eqf of λ ())
+NoRet-iter-bind {t = t} {k = k} ni nik .NoRet.stepNR st | react v τc | sSil eqf =
+  ⊥-elim (case trans (sym (fIter-react k t eqt)) eqf of λ ())
+
+-- `iter k a` = `iter-bind (k a) k`, so non-termination follows directly
+NoRet-iter : ∀ {A : Set ℓ} {k : A → PTree E (ExtI E) (A ⊎ R)} {a : A}
+           → (∀ a → NoInj₂ (k a)) → NoRet (iter k a)
+NoRet-iter {a = a} nik = NoRet-iter-bind (nik a) nik
+
+-- the stateful forever loop never terminates, for ANY body: `loop body a = iter step a`
+-- with `step a = body a >>= λ a′ → Ret (inj₁ a′)`, which only ever returns left values.
+NoRet-loop : ∀ {A : Set ℓ} {body : A → PTree E (ExtI E) A} {a : A}
+           → NoRet {R = R} (loop body a)
+NoRet-loop {body = body} = NoRet-iter (λ a → NoInj₂->>=inj₁ (body a))
+
+-- the non-stateful forever loop `loop0 body = loop (λ _ → body) tt`
+NoRet-loop0 : ∀ {body : PTree E (ExtI E) (⊤ {ℓ})} → NoRet {R = R} (loop0 body)
+NoRet-loop0 = NoRet-loop

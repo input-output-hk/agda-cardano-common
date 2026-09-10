@@ -38,7 +38,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; failures⊥; _⊑F⊥_; _⊑D_; _≈FD_; IsDivergence)
+  using (divergences; failures⊥; _⊇F⊥_; _⊇D_; _≈FD_; IsDivergence)
 open import CSP.Laws.FD.ExtChoiceFD E-≟
   using (□-failures-elim; □-div-elim; □-div-intro-L; □-div-intro-R;
          □-τ-toQ; □-τ-toP; mk-stable)
@@ -82,16 +82,16 @@ private
 ... | inj₁ dP = □-div-intro-R {P = Q} {Q = P} dP
 ... | inj₂ dQ = □-div-intro-L {P = Q} {Q = P} dQ
 
-□-comm-⊑F⊥ : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → (P □ Q) ⊑F⊥ (Q □ P)
-□-comm-⊑F⊥ P Q (inj₁ f) = inj₁ (□-comm-fail Q P f)
-□-comm-⊑F⊥ P Q (inj₂ d) = inj₂ (□-comm-div Q P d)
+□-comm-⊇F⊥ : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → (P □ Q) ⊇F⊥ (Q □ P)
+□-comm-⊇F⊥ P Q (inj₁ f) = inj₁ (□-comm-fail Q P f)
+□-comm-⊇F⊥ P Q (inj₂ d) = inj₂ (□-comm-div Q P d)
 
-□-comm-⊑D : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → (P □ Q) ⊑D (Q □ P)
-□-comm-⊑D P Q d = □-comm-div Q P d
+□-comm-⊇D : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → (P □ Q) ⊇D (Q □ P)
+□-comm-⊇D P Q d = □-comm-div Q P d
 
 □-comm-FD : ⦃ _ : DecEq R ⦄ (P Q : PTree E (ExtI E) R) → (P □ Q) ≈FD (Q □ P)
 □-comm-FD P Q =
-  (□-comm-⊑F⊥ P Q , □-comm-⊑D P Q) , (□-comm-⊑F⊥ Q P , □-comm-⊑D Q P)
+  (□-comm-⊇F⊥ P Q , □-comm-⊇D P Q) , (□-comm-⊇F⊥ Q P , □-comm-⊇D Q P)
 
 -------------------------------------------------------------------------------------
 -- STRONG-BISIMULATION commutativity:  (P □ Q) ∼ (Q □ P).
@@ -327,14 +327,14 @@ Stop-no-div d with IsDivergence.reach d
 ... | inj₁ dP    = dP
 ... | inj₂ dStop = ⊥-elim (Stop-no-div dStop)
 
-□-Stop-⊑F⊥ : ⦃ _ : DecEq R ⦄ (P : PTree E (ExtI E) R) → (P □ Stop) ⊑F⊥ P
-□-Stop-⊑F⊥ P (inj₁ f) = inj₁ (□-Stop-fail-intro P f)
-□-Stop-⊑F⊥ P (inj₂ d) = inj₂ (□-div-intro-L {P = P} {Q = Stop} d)
+□-Stop-⊇F⊥ : ⦃ _ : DecEq R ⦄ (P : PTree E (ExtI E) R) → (P □ Stop) ⊇F⊥ P
+□-Stop-⊇F⊥ P (inj₁ f) = inj₁ (□-Stop-fail-intro P f)
+□-Stop-⊇F⊥ P (inj₂ d) = inj₂ (□-div-intro-L {P = P} {Q = Stop} d)
 
-□-Stop-⊒F⊥ : ⦃ _ : DecEq R ⦄ (P : PTree E (ExtI E) R) → P ⊑F⊥ (P □ Stop)
-□-Stop-⊒F⊥ P (inj₁ f) = inj₁ (□-Stop-fail-elim P f)
-□-Stop-⊒F⊥ P (inj₂ d) = inj₂ (□-Stop-div-elim P d)
+□-Stop-⊆F⊥ : ⦃ _ : DecEq R ⦄ (P : PTree E (ExtI E) R) → P ⊇F⊥ (P □ Stop)
+□-Stop-⊆F⊥ P (inj₁ f) = inj₁ (□-Stop-fail-elim P f)
+□-Stop-⊆F⊥ P (inj₂ d) = inj₂ (□-Stop-div-elim P d)
 
 □-Stop-FD : ⦃ _ : DecEq R ⦄ (P : PTree E (ExtI E) R) → (P □ Stop) ≈FD P
 □-Stop-FD P =
-  (□-Stop-⊑F⊥ P , □-div-intro-L {P = P} {Q = Stop}) , (□-Stop-⊒F⊥ P , □-Stop-div-elim P)
+  (□-Stop-⊇F⊥ P , □-div-intro-L {P = P} {Q = Stop}) , (□-Stop-⊆F⊥ P , □-Stop-div-elim P)

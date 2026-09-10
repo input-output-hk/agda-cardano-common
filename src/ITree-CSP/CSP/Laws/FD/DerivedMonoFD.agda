@@ -72,7 +72,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E} using (Offers; Re
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; ⊑FD-trans; force-≡→⊑FD)
+  using (IsDivergence; divergences; failures⊥; _⊇F⊥_; _⊇D_; _⊑FD_; ⊑FD-trans; force-≡→⊑FD)
 open import Semantics.Stability           {E = E} {I = ExtI E} using (stable-no-τ)
 
 private
@@ -257,15 +257,15 @@ output-failures⊥-cons e v C (inj₂ dC) = inj₂ (output-div-cons e v C dC)
 -- the analogue of `⟶₀-mono-⊑FD` for the single-value offer map, unconditionally
 Output-mono-⊑FD : ⦃ _ : DecEq A ⦄ (e : E A) (v : A) {P Q : PTree E (ExtI E) R}
                 → P ⊑FD Q → (e ! v ⟶ P) ⊑FD (e ! v ⟶ Q)
-Output-mono-⊑FD e v {P} {Q} (Q⊑F⊥ , Q⊑D) = F⊥-part , D-part
+Output-mono-⊑FD e v {P} {Q} (Q⊇F⊥ , Q⊇D) = F⊥-part , D-part
   where
-    F⊥-part : (Output e v P) ⊑F⊥ (Output e v Q)
+    F⊥-part : (Output e v P) ⊇F⊥ (Output e v Q)
     F⊥-part fQ with output-failures⊥→ e v Q fQ
     ... | inj₁ (refl , ref)     =
             output-failures⊥-nil e v P (output-refuses e v Q P ref)
     ... | inj₂ (t , refl , fbQ) =
-            output-failures⊥-cons e v P (Q⊑F⊥ fbQ)
+            output-failures⊥-cons e v P (Q⊇F⊥ fbQ)
 
-    D-part : (Output e v P) ⊑D (Output e v Q)
+    D-part : (Output e v P) ⊇D (Output e v Q)
     D-part dQ with output-div→ e v Q dQ
-    ... | (t , refl , dQt) = output-div-cons e v P (Q⊑D dQt)
+    ... | (t , refl , dQt) = output-div-cons e v P (Q⊇D dQt)

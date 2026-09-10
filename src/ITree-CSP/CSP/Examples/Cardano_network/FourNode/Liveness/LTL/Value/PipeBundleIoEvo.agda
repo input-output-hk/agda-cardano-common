@@ -67,7 +67,7 @@ open import CSP.Examples.Cardano_network.Base using
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break )
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; store; env; break )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
@@ -165,6 +165,8 @@ BlkReadAt l d q (apiTS  _ _ _) _ = ⊥
 BlkReadAt l d q (apiKA  _ _ _) _ = ⊥
 BlkReadAt l d q (apiLN  _ _ _) _ = ⊥
 BlkReadAt l d q (apiLF  _ _ _) _ = ⊥
+BlkReadAt l d q (store  _ _ _) _ = ⊥
+BlkReadAt l d q (env    _ _ _) _ = ⊥
 BlkReadAt l d q (break  _)     _ = ⊥
 
 ------------------------------------------------------------------------

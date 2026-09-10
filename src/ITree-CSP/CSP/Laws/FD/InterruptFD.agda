@@ -38,7 +38,7 @@ open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_≈FD_; _⊑F⊥_; _⊑D_; _⊑FD_; IsDivergence; divergences; failures⊥; div-extension-closed)
+  using (_≈FD_; _⊇F⊥_; _⊇D_; _⊑FD_; IsDivergence; divergences; failures⊥; div-extension-closed)
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.Failures            {E = E} {I = ExtI E} using (failures)
 open import Semantics.StrongImpliesDR {E = E} {I = ExtI E} using (sbisim→drbisim)
@@ -114,14 +114,14 @@ root-div→all-div {P = P} {s = s} divP = record
   }
 
 -- (2) two root-divergent processes are FD-equivalent: each refusal/divergence claim
--- is discharged by the divergence summand of failures⊥ (and by all-div for ⊑D).
+-- is discharged by the divergence summand of failures⊥ (and by all-div for ⊇D).
 root-div→≈FD : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E (ExtI E) R}
              → Diverges P → Diverges Q → P ≈FD Q
 root-div→≈FD {P = P} {Q = Q} divP divQ =
-  ( ( (λ _ → inj₂ (root-div→all-div divP))     -- P ⊑F⊥ Q
-    , (λ _ → root-div→all-div divP) )           -- P ⊑D  Q
-  , ( (λ _ → inj₂ (root-div→all-div divQ))     -- Q ⊑F⊥ P
-    , (λ _ → root-div→all-div divQ) ) )         -- Q ⊑D  P
+  ( ( (λ _ → inj₂ (root-div→all-div divP))     -- P ⊇F⊥ Q
+    , (λ _ → root-div→all-div divP) )           -- P ⊇D  Q
+  , ( (λ _ → inj₂ (root-div→all-div divQ))     -- Q ⊇F⊥ P
+    , (λ _ → root-div→all-div divQ) ) )         -- Q ⊇D  P
 
 -------------------------------------------------------------------------------------
 -- (3) P's τ-step lifts through the interrupt: (P △ Q) ─[τ]→ (P′ △ Q).
@@ -306,9 +306,9 @@ mk-div-from {pre = pre} reach divw = record
 -- the ⊓-resolving τ (P₁⊓P₂)△Q ─τ→ Pᵢ△Q (= △-τ-lift-P (⊓-stepL/R)).
 -------------------------------------------------------------------------------------
 
-△-⊓L-dist-⊑D : (P₁ P₂ Q : PTree E (ExtI E) R)
-             → ((P₁ ⊓ P₂) △ Q) ⊑D ((P₁ △ Q) ⊓ (P₂ △ Q))
-△-⊓L-dist-⊑D P₁ P₂ Q d with ⊓-div→ (P₁ △ Q) (P₂ △ Q) d
+△-⊓L-dist-⊇D : (P₁ P₂ Q : PTree E (ExtI E) R)
+             → ((P₁ ⊓ P₂) △ Q) ⊇D ((P₁ △ Q) ⊓ (P₂ △ Q))
+△-⊓L-dist-⊇D P₁ P₂ Q d with ⊓-div→ (P₁ △ Q) (P₂ △ Q) d
 ... | inj₁ dP₁ = div-τ-prepend (△-τ-lift-P {Q = Q} (⊓-stepL P₁ P₂)) dP₁
 ... | inj₂ dP₂ = div-τ-prepend (△-τ-lift-P {Q = Q} (⊓-stepR P₁ P₂)) dP₂
 
@@ -500,9 +500,9 @@ div-τ-ev-prepend stepτ stepe d = record
 ... | inj₂ dP₂ = inj₂ (subst (divergences (P₂ △ Q)) (sym (d .IsDivergence.split))
                              (div-extension-closed dP₂))
 
-△-⊓L-dist-⊒D : (P₁ P₂ Q : PTree E (ExtI E) R)
-             → ((P₁ △ Q) ⊓ (P₂ △ Q)) ⊑D ((P₁ ⊓ P₂) △ Q)
-△-⊓L-dist-⊒D P₁ P₂ Q d with △-⊓L-div-elim P₁ P₂ Q d
+△-⊓L-dist-⊆D : (P₁ P₂ Q : PTree E (ExtI E) R)
+             → ((P₁ △ Q) ⊓ (P₂ △ Q)) ⊇D ((P₁ ⊓ P₂) △ Q)
+△-⊓L-dist-⊆D P₁ P₂ Q d with △-⊓L-div-elim P₁ P₂ Q d
 ... | inj₁ dP₁ = ⊓-div←l (P₁ △ Q) (P₂ △ Q) dP₁
 ... | inj₂ dP₂ = ⊓-div←r (P₁ △ Q) (P₂ △ Q) dP₂
 
@@ -694,31 +694,31 @@ failures⊥-τ-prepend step (inj₁ f) = inj₁ (fail-τ-prepend step f)
 failures⊥-τ-prepend step (inj₂ d) = inj₂ (div-τ-prepend step d)
 
 -- EASY (intro): a failures⊥ of (P₁△Q)⊓(P₂△Q) splits; prepend the ⊓-resolving τ.
-△-⊓L-dist-⊑F⊥ : (P₁ P₂ Q : PTree E (ExtI E) R)
-              → ((P₁ ⊓ P₂) △ Q) ⊑F⊥ ((P₁ △ Q) ⊓ (P₂ △ Q))
-△-⊓L-dist-⊑F⊥ P₁ P₂ Q f with ⊓-failures⊥→ (P₁ △ Q) (P₂ △ Q) f
+△-⊓L-dist-⊇F⊥ : (P₁ P₂ Q : PTree E (ExtI E) R)
+              → ((P₁ ⊓ P₂) △ Q) ⊇F⊥ ((P₁ △ Q) ⊓ (P₂ △ Q))
+△-⊓L-dist-⊇F⊥ P₁ P₂ Q f with ⊓-failures⊥→ (P₁ △ Q) (P₂ △ Q) f
 ... | inj₁ fP₁ = failures⊥-τ-prepend (△-τ-lift-P {Q = Q} (⊓-stepL P₁ P₂)) fP₁
 ... | inj₂ fP₂ = failures⊥-τ-prepend (△-τ-lift-P {Q = Q} (⊓-stepR P₁ P₂)) fP₂
 
 -- HARD (elim): a failures⊥ of (P₁⊓P₂)△Q routes through △-⊓L-fail-elim / △-⊓L-div-elim.
-△-⊓L-dist-⊒F⊥ : (P₁ P₂ Q : PTree E (ExtI E) R)
-              → ((P₁ △ Q) ⊓ (P₂ △ Q)) ⊑F⊥ ((P₁ ⊓ P₂) △ Q)
-△-⊓L-dist-⊒F⊥ P₁ P₂ Q (inj₁ (W , reach , ref)) with △-⊓L-fail-elim P₁ P₂ Q reach ref
+△-⊓L-dist-⊆F⊥ : (P₁ P₂ Q : PTree E (ExtI E) R)
+              → ((P₁ △ Q) ⊓ (P₂ △ Q)) ⊇F⊥ ((P₁ ⊓ P₂) △ Q)
+△-⊓L-dist-⊆F⊥ P₁ P₂ Q (inj₁ (W , reach , ref)) with △-⊓L-fail-elim P₁ P₂ Q reach ref
 ... | inj₁ fP₁ = ⊓-failures⊥←l (P₁ △ Q) (P₂ △ Q) (inj₁ fP₁)
 ... | inj₂ fP₂ = ⊓-failures⊥←r (P₁ △ Q) (P₂ △ Q) (inj₁ fP₂)
-△-⊓L-dist-⊒F⊥ P₁ P₂ Q (inj₂ d) with △-⊓L-div-elim P₁ P₂ Q d
+△-⊓L-dist-⊆F⊥ P₁ P₂ Q (inj₂ d) with △-⊓L-div-elim P₁ P₂ Q d
 ... | inj₁ dP₁ = ⊓-failures⊥←l (P₁ △ Q) (P₂ △ Q) (inj₂ dP₁)
 ... | inj₂ dP₂ = ⊓-failures⊥←r (P₁ △ Q) (P₂ △ Q) (inj₂ dP₂)
 
 -------------------------------------------------------------------------------------
--- (H) the law: pair the two ⊑F⊥ and the two ⊑D refinements.
+-- (H) the law: pair the two ⊇F⊥ and the two ⊇D refinements.
 -------------------------------------------------------------------------------------
 
 △-⊓L-dist-FD : (P₁ P₂ Q : PTree E (ExtI E) R)
              → ((P₁ ⊓ P₂) △ Q) ≈FD ((P₁ △ Q) ⊓ (P₂ △ Q))
 △-⊓L-dist-FD P₁ P₂ Q =
-  (△-⊓L-dist-⊑F⊥ P₁ P₂ Q , △-⊓L-dist-⊑D P₁ P₂ Q) ,
-  (△-⊓L-dist-⊒F⊥ P₁ P₂ Q , △-⊓L-dist-⊒D P₁ P₂ Q)
+  (△-⊓L-dist-⊇F⊥ P₁ P₂ Q , △-⊓L-dist-⊇D P₁ P₂ Q) ,
+  (△-⊓L-dist-⊆F⊥ P₁ P₂ Q , △-⊓L-dist-⊆D P₁ P₂ Q)
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -841,9 +841,9 @@ failures⊥-τ-prepend step (inj₂ d) = inj₂ (div-τ-prepend step d)
 ...   | inj₁ dP  = ⊓-to-△ P (Q₁ ⊓ Q₂) eqP (⊓-div←l P (Q₁ ⊓ Q₂) dP)
 ...   | inj₂ dQᵢ = ⊓-to-△ P (Q₁ ⊓ Q₂) eqP (⊓-div←r P (Q₁ ⊓ Q₂) (⊓-back dQᵢ))
 
-△-⊓R-dist-⊑D : (P Q₁ Q₂ : PTree E (ExtI E) R)
-             → (P △ (Q₁ ⊓ Q₂)) ⊑D ((P △ Q₁) ⊓ (P △ Q₂))
-△-⊓R-dist-⊑D P Q₁ Q₂ d with ⊓-div→ (P △ Q₁) (P △ Q₂) d
+△-⊓R-dist-⊇D : (P Q₁ Q₂ : PTree E (ExtI E) R)
+             → (P △ (Q₁ ⊓ Q₂)) ⊇D ((P △ Q₁) ⊓ (P △ Q₂))
+△-⊓R-dist-⊇D P Q₁ Q₂ d with ⊓-div→ (P △ Q₁) (P △ Q₂) d
 ... | inj₁ dQ₁ = △-Qi→Q⊓ P Q₁ Q₂ Q₁ (⊓-stepL Q₁ Q₂) (⊓-div←l Q₁ Q₂) dQ₁
 ... | inj₂ dQ₂ = △-Qi→Q⊓ P Q₁ Q₂ Q₂ (⊓-stepR Q₁ Q₂) (⊓-div←r Q₁ Q₂) dQ₂
 
@@ -914,9 +914,9 @@ failures⊥-τ-prepend step (inj₂ d) = inj₂ (div-τ-prepend step d)
 ... | inj₂ dQ₂ = inj₂ (subst (divergences (P △ Q₂)) (sym (d .IsDivergence.split))
                              (div-extension-closed dQ₂))
 
-△-⊓R-dist-⊒D : (P Q₁ Q₂ : PTree E (ExtI E) R)
-             → ((P △ Q₁) ⊓ (P △ Q₂)) ⊑D (P △ (Q₁ ⊓ Q₂))
-△-⊓R-dist-⊒D P Q₁ Q₂ d with △-⊓R-div-elim P Q₁ Q₂ d
+△-⊓R-dist-⊆D : (P Q₁ Q₂ : PTree E (ExtI E) R)
+             → ((P △ Q₁) ⊓ (P △ Q₂)) ⊇D (P △ (Q₁ ⊓ Q₂))
+△-⊓R-dist-⊆D P Q₁ Q₂ d with △-⊓R-div-elim P Q₁ Q₂ d
 ... | inj₁ dQ₁ = ⊓-div←l (P △ Q₁) (P △ Q₂) dQ₁
 ... | inj₂ dQ₂ = ⊓-div←r (P △ Q₁) (P △ Q₂) dQ₂
 
@@ -1068,31 +1068,31 @@ failures⊥-τ-prepend step (inj₂ d) = inj₂ (div-τ-prepend step d)
   inj₂ (△-Qi→Q⊓ P Q₁ Q₂ Qᵢ sQ ⊓-back-d d)
 
 -- EASY (intro): a failures⊥ of (P△Q₁)⊓(P△Q₂) splits; map each summand to P△(Q₁⊓Q₂).
-△-⊓R-dist-⊑F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R)
-              → (P △ (Q₁ ⊓ Q₂)) ⊑F⊥ ((P △ Q₁) ⊓ (P △ Q₂))
-△-⊓R-dist-⊑F⊥ P Q₁ Q₂ f with ⊓-failures⊥→ (P △ Q₁) (P △ Q₂) f
+△-⊓R-dist-⊇F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R)
+              → (P △ (Q₁ ⊓ Q₂)) ⊇F⊥ ((P △ Q₁) ⊓ (P △ Q₂))
+△-⊓R-dist-⊇F⊥ P Q₁ Q₂ f with ⊓-failures⊥→ (P △ Q₁) (P △ Q₂) f
 ... | inj₁ fQ₁ = △-Qi→Q⊓-f⊥ P Q₁ Q₂ Q₁ (⊓-stepL Q₁ Q₂) (⊓-failures←l Q₁ Q₂) (⊓-div←l Q₁ Q₂) fQ₁
 ... | inj₂ fQ₂ = △-Qi→Q⊓-f⊥ P Q₁ Q₂ Q₂ (⊓-stepR Q₁ Q₂) (⊓-failures←r Q₁ Q₂) (⊓-div←r Q₁ Q₂) fQ₂
 
 -- HARD (elim): a failures⊥ of P△(Q₁⊓Q₂) routes through △-⊓R-fail-elim / △-⊓R-div-elim.
-△-⊓R-dist-⊒F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R)
-              → ((P △ Q₁) ⊓ (P △ Q₂)) ⊑F⊥ (P △ (Q₁ ⊓ Q₂))
-△-⊓R-dist-⊒F⊥ P Q₁ Q₂ (inj₁ (W , reach , ref)) with △-⊓R-fail-elim P Q₁ Q₂ reach ref
+△-⊓R-dist-⊆F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R)
+              → ((P △ Q₁) ⊓ (P △ Q₂)) ⊇F⊥ (P △ (Q₁ ⊓ Q₂))
+△-⊓R-dist-⊆F⊥ P Q₁ Q₂ (inj₁ (W , reach , ref)) with △-⊓R-fail-elim P Q₁ Q₂ reach ref
 ... | inj₁ fQ₁ = ⊓-failures⊥←l (P △ Q₁) (P △ Q₂) (inj₁ fQ₁)
 ... | inj₂ fQ₂ = ⊓-failures⊥←r (P △ Q₁) (P △ Q₂) (inj₁ fQ₂)
-△-⊓R-dist-⊒F⊥ P Q₁ Q₂ (inj₂ d) with △-⊓R-div-elim P Q₁ Q₂ d
+△-⊓R-dist-⊆F⊥ P Q₁ Q₂ (inj₂ d) with △-⊓R-div-elim P Q₁ Q₂ d
 ... | inj₁ dQ₁ = ⊓-failures⊥←l (P △ Q₁) (P △ Q₂) (inj₂ dQ₁)
 ... | inj₂ dQ₂ = ⊓-failures⊥←r (P △ Q₁) (P △ Q₂) (inj₂ dQ₂)
 
 -------------------------------------------------------------------------------------
--- (M) the law: pair the two ⊑F⊥ and the two ⊑D refinements.
+-- (M) the law: pair the two ⊇F⊥ and the two ⊇D refinements.
 -------------------------------------------------------------------------------------
 
 △-⊓R-dist-FD : (P Q₁ Q₂ : PTree E (ExtI E) R)
              → (P △ (Q₁ ⊓ Q₂)) ≈FD ((P △ Q₁) ⊓ (P △ Q₂))
 △-⊓R-dist-FD P Q₁ Q₂ =
-  (△-⊓R-dist-⊑F⊥ P Q₁ Q₂ , △-⊓R-dist-⊑D P Q₁ Q₂) ,
-  (△-⊓R-dist-⊒F⊥ P Q₁ Q₂ , △-⊓R-dist-⊒D P Q₁ Q₂)
+  (△-⊓R-dist-⊇F⊥ P Q₁ Q₂ , △-⊓R-dist-⊇D P Q₁ Q₂) ,
+  (△-⊓R-dist-⊆F⊥ P Q₁ Q₂ , △-⊓R-dist-⊆D P Q₁ Q₂)
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -1395,7 +1395,7 @@ force-S-react e P P′ = force-▷-react {P = e ⟶ P} {Q = P′} refl
 τ*-Diverges (τ*-step sτ rest)    d .Diverges.rest = τ*-Diverges rest d
 
 -------------------------------------------------------------------------------------
--- Direction 1 — `⊑D` (EASY): LHS recovers every RHS divergence.
+-- Direction 1 — `⊇D` (EASY): LHS recovers every RHS divergence.
 -- Every RHS-step (a prefix event, or the timeout τ) is matched by an LHS-step to the
 -- SAME continuation, so a divergence record of RHS maps to one of LHS step-by-step.
 -- No recursion: once RHS takes any step the rest reaches a root-divergent W, giving a
@@ -1461,16 +1461,16 @@ slide-RHS-reach-div e P P′ Q (⟹-ev step rest) divW
 slide-RHS-reach-div e P P′ Q (⟹-ev step rest) divW | sRet eqf =
       ⊥-elim (case eqf of λ ())
 
-△-slide-dist-⊑D : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
+△-slide-dist-⊇D : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
                   (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-                → (((e ⟶ P) ▷ P′) △ Q) ⊑D ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q))
-△-slide-dist-⊑D e P P′ Q d =
+                → (((e ⟶ P) ▷ P′) △ Q) ⊇D ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q))
+△-slide-dist-⊇D e P P′ Q d =
   subst (divergences (((e ⟶ P) ▷ P′) △ Q)) (sym (d .IsDivergence.split))
     (div-extension-closed
       (slide-RHS-reach-div e P P′ Q (d .IsDivergence.reach) (d .IsDivergence.divwit)))
 
 -------------------------------------------------------------------------------------
--- Direction 2 — `⊒D` (HARD): RHS recovers every LHS divergence.
+-- Direction 2 — `⊆D` (HARD): RHS recovers every LHS divergence.
 --
 -- LHS = S △ Q can additionally weave Q (Q's τ-steps and interrupt events) on top of the
 -- shared offers; we must show those extra LHS behaviours are still RHS-divergences.  The
@@ -1626,10 +1626,10 @@ slide-RHS-timeout-prepend e P P′ Q d =
                    (△-τ*-prepend-Q P′ Q Qc q*
                      (△-Q-ev-prepend P′ Qc sQ dR))
 
-△-slide-dist-⊒D : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
+△-slide-dist-⊆D : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
                   (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-                → ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q)) ⊑D (((e ⟶ P) ▷ P′) △ Q)
-△-slide-dist-⊒D e P P′ Q d =
+                → ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q)) ⊇D (((e ⟶ P) ▷ P′) △ Q)
+△-slide-dist-⊆D e P P′ Q d =
   subst (divergences ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q))) (sym (d .IsDivergence.split))
     (div-extension-closed
       (△-slide-reach-div-go e P P′ Q Q τ*-refl
@@ -1848,35 +1848,35 @@ slide-RHS-fail→LHS e P P′ Q (⟹-ev step rest) ref
 slide-RHS-fail→LHS e P P′ Q (⟹-ev step rest) ref | sRet eqf = ⊥-elim (case eqf of λ ())
 
 -- EASY (LHS simulates RHS): a failures⊥ of RHS transfers to LHS.  The divergence summand
--- is △-slide-dist-⊑D; the failures summand replays via slide-RHS-fail→LHS (same W, same
+-- is △-slide-dist-⊇D; the failures summand replays via slide-RHS-fail→LHS (same W, same
 -- Refuses) — RHS being unstable discharges the empty-run base cleanly.
-△-slide-dist-⊑F⊥ : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
+△-slide-dist-⊇F⊥ : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
                    (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-                 → (((e ⟶ P) ▷ P′) △ Q) ⊑F⊥ ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q))
-△-slide-dist-⊑F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
+                 → (((e ⟶ P) ▷ P′) △ Q) ⊇F⊥ ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q))
+△-slide-dist-⊇F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (slide-RHS-fail→LHS e P P′ Q reach ref)
-△-slide-dist-⊑F⊥ e P P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊑D e P P′ Q d)
+△-slide-dist-⊇F⊥ e P P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊇D e P P′ Q d)
 
 -- HARD (RHS recovers LHS): a failures⊥ of LHS routes through △-slide-fail-elim (failures
--- summand — a DIRECT ≈FD, so the elim already targets RHS) / △-slide-dist-⊒D (divergence
+-- summand — a DIRECT ≈FD, so the elim already targets RHS) / △-slide-dist-⊆D (divergence
 -- summand).
-△-slide-dist-⊒F⊥ : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
+△-slide-dist-⊆F⊥ : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
                    (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-                 → ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q)) ⊑F⊥ (((e ⟶ P) ▷ P′) △ Q)
-△-slide-dist-⊒F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
+                 → ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q)) ⊇F⊥ (((e ⟶ P) ▷ P′) △ Q)
+△-slide-dist-⊆F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (△-slide-fail-elim e P P′ Q Q τ*-refl reach ref)
-△-slide-dist-⊒F⊥ e P P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊒D e P P′ Q d)
+△-slide-dist-⊆F⊥ e P P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊆D e P P′ Q d)
 
 -------------------------------------------------------------------------------------
--- Step 4 — the law: pair the two ⊑F⊥ and the two ⊑D refinements.
+-- Step 4 — the law: pair the two ⊇F⊥ and the two ⊇D refinements.
 -------------------------------------------------------------------------------------
 
 △-slide-dist-FD : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
                   (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
                 → (((e ⟶ P) ▷ P′) △ Q) ≈FD ((e ⟶ (λ x → P x △ Q)) ▷ (P′ △ Q))
 △-slide-dist-FD e P P′ Q =
-  (△-slide-dist-⊑F⊥ e P P′ Q , △-slide-dist-⊑D e P P′ Q) ,
-  (△-slide-dist-⊒F⊥ e P P′ Q , △-slide-dist-⊒D e P P′ Q)
+  (△-slide-dist-⊇F⊥ e P P′ Q , △-slide-dist-⊇D e P P′ Q) ,
+  (△-slide-dist-⊆F⊥ e P P′ Q , △-slide-dist-⊆D e P P′ Q)
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -1933,7 +1933,7 @@ slide-RHS-timeout-prepend-m :
 slide-RHS-timeout-prepend-m v P′ Q d =
   div-τ-prepend (▷-timeout (pchoice (△Q-menu v Q)) (P′ △ Q) refl tt0) d
 
--- Direction 1 — ⊑D : LHS recovers every RHS divergence.
+-- Direction 1 — ⊇D : LHS recovers every RHS divergence.
 slide-RHS-ev→LHS-div-m :
     ∀ {ℓr} {R : Set ℓr}
     (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
@@ -1974,16 +1974,16 @@ slide-RHS-reach-div-m v P′ Q (⟹-ev step rest) divW
         (subst (λ g → g at a ≡ just _) (sym (proj₁ (react-injective eqf))) brM)
         (mk-div-from rest divW)
 
-△-slide-dist-⊑D-m : ∀ {ℓr} {R : Set ℓr}
+△-slide-dist-⊇D-m : ∀ {ℓr} {R : Set ℓr}
                     (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
                     (P′ Q : PTree E (ExtI E) R)
-                  → (((pchoice v) ▷ P′) △ Q) ⊑D ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q))
-△-slide-dist-⊑D-m v P′ Q d =
+                  → (((pchoice v) ▷ P′) △ Q) ⊇D ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q))
+△-slide-dist-⊇D-m v P′ Q d =
   subst (divergences (((pchoice v) ▷ P′) △ Q)) (sym (d .IsDivergence.split))
     (div-extension-closed
       (slide-RHS-reach-div-m v P′ Q (d .IsDivergence.reach) (d .IsDivergence.divwit)))
 
--- Direction 2 — ⊒D : RHS recovers every LHS divergence (the woven-Q worker).
+-- Direction 2 — ⊆D : RHS recovers every LHS divergence (the woven-Q worker).
 △-slide-reach-div-go-m :
     ∀ {ℓr} {R : Set ℓr}
     (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
@@ -2035,11 +2035,11 @@ slide-RHS-reach-div-m v P′ Q (⟹-ev step rest) divW
                    (△-τ*-prepend-Q P′ Q Qc q*
                      (△-Q-ev-prepend P′ Qc sQ dR))
 
-△-slide-dist-⊒D-m : ∀ {ℓr} {R : Set ℓr}
+△-slide-dist-⊆D-m : ∀ {ℓr} {R : Set ℓr}
                     (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
                     (P′ Q : PTree E (ExtI E) R)
-                  → ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q)) ⊑D (((pchoice v) ▷ P′) △ Q)
-△-slide-dist-⊒D-m v P′ Q d =
+                  → ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q)) ⊇D (((pchoice v) ▷ P′) △ Q)
+△-slide-dist-⊆D-m v P′ Q d =
   subst (divergences ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q))) (sym (d .IsDivergence.split))
     (div-extension-closed
       (△-slide-reach-div-go-m v P′ Q Q τ*-refl
@@ -2143,21 +2143,21 @@ slide-RHS-fail→LHS-m v P′ Q (⟹-ev step rest) ref
             rest
         , ref
 
-△-slide-dist-⊑F⊥-m : ∀ {ℓr} {R : Set ℓr}
+△-slide-dist-⊇F⊥-m : ∀ {ℓr} {R : Set ℓr}
                      (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
                      (P′ Q : PTree E (ExtI E) R)
-                   → (((pchoice v) ▷ P′) △ Q) ⊑F⊥ ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q))
-△-slide-dist-⊑F⊥-m v P′ Q (inj₁ (W , reach , ref)) =
+                   → (((pchoice v) ▷ P′) △ Q) ⊇F⊥ ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q))
+△-slide-dist-⊇F⊥-m v P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (slide-RHS-fail→LHS-m v P′ Q reach ref)
-△-slide-dist-⊑F⊥-m v P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊑D-m v P′ Q d)
+△-slide-dist-⊇F⊥-m v P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊇D-m v P′ Q d)
 
-△-slide-dist-⊒F⊥-m : ∀ {ℓr} {R : Set ℓr}
+△-slide-dist-⊆F⊥-m : ∀ {ℓr} {R : Set ℓr}
                      (v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R)))
                      (P′ Q : PTree E (ExtI E) R)
-                   → ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q)) ⊑F⊥ (((pchoice v) ▷ P′) △ Q)
-△-slide-dist-⊒F⊥-m v P′ Q (inj₁ (W , reach , ref)) =
+                   → ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q)) ⊇F⊥ (((pchoice v) ▷ P′) △ Q)
+△-slide-dist-⊆F⊥-m v P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (△-slide-fail-elim-m v P′ Q Q τ*-refl reach ref)
-△-slide-dist-⊒F⊥-m v P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊒D-m v P′ Q d)
+△-slide-dist-⊆F⊥-m v P′ Q (inj₂ d) = inj₂ (△-slide-dist-⊆D-m v P′ Q d)
 
 -- ((pchoice v) ▷ P′) △ Q  ≈FD  (pchoice (△Q-menu v Q)) ▷ (P′ △ Q)      (menu Fig 13.6)
 △-slide-dist-menu-FD : ∀ {ℓr} {R : Set ℓr}
@@ -2165,5 +2165,5 @@ slide-RHS-fail→LHS-m v P′ Q (⟹-ev step rest) ref
                        (P′ Q : PTree E (ExtI E) R)
                      → (((pchoice v) ▷ P′) △ Q) ≈FD ((pchoice (△Q-menu v Q)) ▷ (P′ △ Q))
 △-slide-dist-menu-FD v P′ Q =
-  (△-slide-dist-⊑F⊥-m v P′ Q , △-slide-dist-⊑D-m v P′ Q) ,
-  (△-slide-dist-⊒F⊥-m v P′ Q , △-slide-dist-⊒D-m v P′ Q)
+  (△-slide-dist-⊇F⊥-m v P′ Q , △-slide-dist-⊇D-m v P′ Q) ,
+  (△-slide-dist-⊆F⊥-m v P′ Q , △-slide-dist-⊆D-m v P′ Q)

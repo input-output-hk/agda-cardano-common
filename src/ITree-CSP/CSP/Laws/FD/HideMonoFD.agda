@@ -4,7 +4,7 @@
 --
 -- We deliver TWO results:
 --   • `Hide-mono-fail`     : the UNCONDITIONAL stable-failure transfer
---                            `P ⊑F⊥ Q → failures (Q ∖ A) s X → failures⊥ (P ∖ A) s X`.
+--                            `P ⊇F⊥ Q → failures (Q ∖ A) s X → failures⊥ (P ∖ A) s X`.
 --   • `Hide-mono-⊑FD-df`   : the headline law `(P ∖ A) ⊑FD (Q ∖ A)`, under the SIDE
 --                            CONDITION that `Q ∖ A` is divergence-free.
 --
@@ -20,8 +20,8 @@
 -- Then `failures⊥ P ⊇ failures⊥ Q` (every `(hⁿ, X ∌ h)` failure of `Q` is matched by a
 -- branch `m > n`; `P` only ADDS failures) and `divergences P = divergences Q = ∅`, hence
 -- `P ⊑FD Q`.  But `P ∖ {h}` has NO infinite τ-path (each branch `hⁿ ; STOP` is finite;
--- infinite branching defeats König), so `(P ∖ {h}) ⊑D (Q ∖ {h})` FAILS — and via
--- divergence-chaos at `[]` even `(P′ ∖ {h}) ⊑F⊥ (Q ∖ {h})` fails for a `b`-offering variant
+-- infinite branching defeats König), so `(P ∖ {h}) ⊇D (Q ∖ {h})` FAILS — and via
+-- divergence-chaos at `[]` even `(P′ ∖ {h}) ⊇F⊥ (Q ∖ {h})` fails for a `b`-offering variant
 -- `P′`.  This is exactly the known unsoundness of the denotational N-model's hiding under
 -- unbounded nondeterminism (Roscoe).  `modA-transfer` (DRCongruence) cannot rescue it — it
 -- needs `≈DR`, not `⊑FD` — and NO dne-certified postulate can save a FALSE ∀-`E` statement.
@@ -63,14 +63,15 @@ open import CSP.Operators E-≟
 open EventSet
 open import Semantics.LTS      {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Offers; Refuses)
-open import Semantics.Failures {E = E} {I = ExtI E} using (failures; _⊑F_)
+open import Semantics.Failures {E = E} {I = ExtI E} using (failures; _⊑F_; _⊇F_)
 open import Semantics.DRImpliesFD {E = E} {I = ExtI E}
   using (stable-not-ret; stable-no-τ; nothing≢just)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed)
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed)
 open import CSP.Laws.Traces.TraceLawsHide E-≟
   using (HideTr; hnil; hkeep; hdrop; h√; heV; he√; Hide-ev-elim
-        ; Hide-keep; Hide-hidden; hide-hTau-tag0-eq; fHide-ret; fHide-sil; fHide-react)
+        ; Hide-keep; Hide-hidden; hide-hTau-tag0-eq; fHide-ret; fHide-sil; fHide-react
+        ; Hide-mono-⊑ᵀ)
 open import CSP.Laws.FD.HideFD E-≟
   using (Hide-failures-elim; Hide-failures-intro; Hide-div-intro; hide-Diverges-lift)
 
@@ -219,10 +220,10 @@ HideTr-split A (√ r ∷ []) h√ = (√ r ∷ []) , [] , refl , h√
 -------------------------------------------------------------------------------------
 
 -- `Hide-mono-fail`: a stable failure of `Q ∖ A` transfers (as a failure⊥) to `P ∖ A`.
--- A `Q ∖ A` failure de-hides to a `Q`-reach + refusal over `hideBan A X`; `P ⊑F⊥ Q`
+-- A `Q ∖ A` failure de-hides to a `Q`-reach + refusal over `hideBan A X`; `P ⊇F⊥ Q`
 -- matches it either with a `P`-failure (re-hidden) or a `P`-divergence (extension-closed
 -- through the split point of the de-hiding witness).
-Hide-mono-fail : (A : EventSet) {P Q : PTree E (ExtI E) R} → P ⊑F⊥ Q
+Hide-mono-fail : (A : EventSet) {P Q : PTree E (ExtI E) R} → P ⊇F⊥ Q
                → ∀ {s} {X : Event√ R → Set ℓr}
                → failures (Q ∖ A) s X → failures⊥ (P ∖ A) s X
 Hide-mono-fail A {P} {Q} f {s} {X} fl with Hide-failures-elim A Q fl
@@ -243,20 +244,30 @@ Hide-mono-fail A {P} {Q} f {s} {X} fl with Hide-failures-elim A Q fl
 -- (i′) the STABLE-FAILURES analogue, UNCONDITIONALLY (no divergence hypothesis at all)
 -------------------------------------------------------------------------------------
 
--- `Hide-mono-⊑F`: hiding is monotone for Roscoe's stable-failures refinement `⊑F`,
--- with NO divergence side condition.  This is the `⊑F`-only cousin of `Hide-mono-fail`
--- above: the FALSE unconditional `⊑FD` law (see the module header) is refuted by a
--- process whose hide diverges, but `_⊑F_` has no divergence disjunct to begin with —
--- `P ⊑F Q` only ever hands back a `Q`-failure re-matched as a `P`-failure, never a
--- `P`-divergence — so the `inj₂ dP` branch of `Hide-mono-fail` (and everything it drags
--- in: `HideTr-split`, `div-extension-closed`, `Hide-div-intro`, `hide-Diverges-lift`)
--- has no counterpart here and simply does not arise.  The proof is the `inj₁` branch of
--- `Hide-mono-fail` verbatim, with `f` now returning a bare failure instead of a `⊎`.
+-- `Hide-mono-⊇F`: hiding is monotone for bare failure containment, with NO divergence
+-- side condition.  This is the failures-only cousin of `Hide-mono-fail` above: the FALSE
+-- unconditional `⊑FD` law (see the module header) is refuted by a process whose hide
+-- diverges, but `_⊇F_` has no divergence disjunct to begin with — `P ⊇F Q` only ever
+-- hands back a `Q`-failure re-matched as a `P`-failure, never a `P`-divergence — so the
+-- `inj₂ dP` branch of `Hide-mono-fail` (and everything it drags in: `HideTr-split`,
+-- `div-extension-closed`, `Hide-div-intro`, `hide-Diverges-lift`) has no counterpart
+-- here and simply does not arise.  The proof is the `inj₁` branch of `Hide-mono-fail`
+-- verbatim, with `f` now returning a bare failure instead of a `⊎`.
+-- kept private: `_⊇F_` is the weaker half of `_⊑F_` and must not be reachable
+-- as ordinary API (see `Semantics.Failures`); this feeds `Hide-mono-⊑F` below.
+private
+  Hide-mono-⊇F : (A : EventSet) {P Q : PTree E (ExtI E) R} → P ⊇F Q → (P ∖ A) ⊇F (Q ∖ A)
+  Hide-mono-⊇F A {P} {Q} f s X fl with Hide-failures-elim A Q fl
+  ... | s′ , Q′ , run , h , ref
+        with f s′ (hideBan A X) (Q′ , run , hide-refuses-elim A Q′ ref)
+  ...   | P′ , runP , refP = Hide-failures-intro A P runP h (hide-refuses-intro A P′ refP)
+
+-- `Hide-mono-⊑F`: hiding is monotone for Roscoe's stable-failures refinement `⊑F`, with
+-- NO divergence side condition.  `_⊑F_` is the PAIR (traces, failures), so this pairs
+-- the failures half above with the already-built, equally unconditional trace half
+-- `Hide-mono-⊑ᵀ` (`CSP.Laws.Traces.TraceLawsHide`).
 Hide-mono-⊑F : (A : EventSet) {P Q : PTree E (ExtI E) R} → P ⊑F Q → (P ∖ A) ⊑F (Q ∖ A)
-Hide-mono-⊑F A {P} {Q} f s X fl with Hide-failures-elim A Q fl
-... | s′ , Q′ , run , h , ref
-      with f s′ (hideBan A X) (Q′ , run , hide-refuses-elim A Q′ ref)
-...   | P′ , runP , refP = Hide-failures-intro A P runP h (hide-refuses-intro A P′ refP)
+Hide-mono-⊑F A f = Hide-mono-⊑ᵀ A (proj₁ f) , Hide-mono-⊇F A (proj₂ f)
 
 -------------------------------------------------------------------------------------
 -- (ii) the headline law, under divergence-freedom of the refined side's hide
@@ -270,8 +281,8 @@ Hide-mono-⊑FD-df : (A : EventSet) {P Q : PTree E (ExtI E) R} → P ⊑FD Q
                  → (P ∖ A) ⊑FD (Q ∖ A)
 Hide-mono-⊑FD-df A {P} {Q} (fF , _) hdf = fF⊥ , fD
   where
-  fF⊥ : (P ∖ A) ⊑F⊥ (Q ∖ A)
+  fF⊥ : (P ∖ A) ⊇F⊥ (Q ∖ A)
   fF⊥ (inj₁ fl) = Hide-mono-fail A fF fl
   fF⊥ (inj₂ dv) = ⊥-elim (hdf dv)
-  fD : (P ∖ A) ⊑D (Q ∖ A)
+  fD : (P ∖ A) ⊇D (Q ∖ A)
   fD dv = ⊥-elim (hdf dv)

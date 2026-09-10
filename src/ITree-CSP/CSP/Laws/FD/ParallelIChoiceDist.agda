@@ -38,7 +38,7 @@ open import Semantics.LTS      {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Failures {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.DRBisim  {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; failures⊥; IsDivergence; div-extension-closed; _⊑F⊥_; _⊑D_; _≈FD_)
+  using (divergences; failures⊥; IsDivergence; div-extension-closed; _⊇F⊥_; _⊇D_; _≈FD_)
 open import CSP.Laws.Bisim.Laws E-≟ using (⊓-stepL; ⊓-stepR; ⊓-τ-inv)
 open import CSP.Laws.Traces.TraceLawsParallel E-≟ using (Mg; Par-τ-R)
 open import Semantics.DRImpliesFD {E = E} {I = ExtI E} using (stable-no-τ)
@@ -110,20 +110,20 @@ module _ (A : EventSet) (merge : Mg R₁ R₂ R)
         Par-div-intro A merge P (Q ⊓ R₀) rP (⊓-⟹-inr Q R₀ rR) inter dd
 
   -- divergences RHS → divergences LHS
-  dist-D₁ : LHS ⊑D RHS
+  dist-D₁ : LHS ⊇D RHS
   dist-D₁ d with ⊓-div→ PQ PR d
   ... | inj₁ dPQ = div-lift-l dPQ
   ... | inj₂ dPR = div-lift-r dPR
 
   -- failures⊥ RHS → failures⊥ LHS
-  dist-F⊥₁ : LHS ⊑F⊥ RHS
+  dist-F⊥₁ : LHS ⊇F⊥ RHS
   dist-F⊥₁ (inj₁ f) with ⊓-failures→ PQ PR f
   ... | inj₁ fPQ = inj₁ (fail-lift-l fPQ)
   ... | inj₂ fPR = inj₁ (fail-lift-r fPR)
   dist-F⊥₁ (inj₂ d) = inj₂ (dist-D₁ d)
 
   -- divergences LHS → divergences RHS
-  dist-D₂ : RHS ⊑D LHS
+  dist-D₂ : RHS ⊇D LHS
   dist-D₂ d =
     subst (divergences RHS) (sym (d .IsDivergence.split))
       (div-extension-closed {t = d .IsDivergence.suffix}
@@ -140,7 +140,7 @@ module _ (A : EventSet) (merge : Mg R₁ R₂ R)
       ...   | inj₂ dR = ⊓-div←r PQ PR (Par-div-intro A merge P R₀ rP ⟹-refl inter (inj₂ dR))
 
   -- failures⊥ LHS → failures⊥ RHS
-  dist-F⊥₂ : RHS ⊑F⊥ LHS
+  dist-F⊥₂ : RHS ⊇F⊥ LHS
   dist-F⊥₂ (inj₁ f) with Par-failures-elim A merge f
   ... | sP , sQR , P* , M* , rP , rQR , inter , stW , pr with ⊓-⟹-peel Q R₀ rQR
   ...   | inj₁ (refl , refl) =

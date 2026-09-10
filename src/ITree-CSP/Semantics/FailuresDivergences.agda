@@ -75,15 +75,24 @@ failures⊥ : ∀ {ℓr} {R : Set ℓr}
           → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
 failures⊥ P s B = failures P s B ⊎ divergences P s
 
-_⊑F⊥_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr)
-_⊑F⊥_ {ℓr = ℓr} {R = R} P Q =
+-- CONTAINMENT PRIMITIVES.  Direction follows the argument order: `P ⊇F⊥ Q` says P's
+-- divergence-strict failures CONTAIN Q's, and `P ⊇D Q` that P's divergences contain Q's.
+-- Neither is the refinement order of a model in its own right — they are the two halves
+-- `_⊑FD_` below is built from.  Same convention as `Semantics.Failures`'s `_⊇T_`/`_⊇F_`.
+_⊇F⊥_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr)
+_⊇F⊥_ {ℓr = ℓr} {R = R} P Q =
   ∀ {s} {B : Event√ R → Set ℓr} → failures⊥ Q s B → failures⊥ P s B
 
-_⊑D_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
-_⊑D_ P Q = ∀ {s} → divergences Q s → divergences P s
+_⊇D_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+_⊇D_ P Q = ∀ {s} → divergences Q s → divergences P s
 
+-- THE FAILURES-DIVERGENCES REFINEMENT — the 𝒩 model's own order, so it KEEPS its name
+-- (same policy as `_⊑T_`/`_⊑F_`).  Note what is ABSENT: unlike `_⊑F_` there is no `⊇T`
+-- conjunct, which is exactly why `⊑FD` does NOT imply `⊑T` (see
+-- `CSP.Examples.RefinementOrderCounterexamples`, confirmed against FDR in
+-- `docs/fdr/2026-09-08-refinement-orders.csp`).
 _⊑FD_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr)
-P ⊑FD Q = (P ⊑F⊥ Q) × (P ⊑D Q)
+P ⊑FD Q = (P ⊇F⊥ Q) × (P ⊇D Q)
 
 -- FD-equivalence: mutual refinement
 _≈FD_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr)
@@ -164,7 +173,7 @@ div-force-≡ eq d
 
 -- a divergence-strict failure is force-invariant (either disjunct)
 failures⊥-force-≡ : ∀ {ℓr} {R : Set ℓr} {p q : PTree E I R}
-                  → force p ≡ force q → p ⊑F⊥ q
+                  → force p ≡ force q → p ⊇F⊥ q
 failures⊥-force-≡ eq (inj₁ f) = inj₁ (failures-force-≡ eq f)
 failures⊥-force-≡ eq (inj₂ d) = inj₂ (div-force-≡ eq d)
 

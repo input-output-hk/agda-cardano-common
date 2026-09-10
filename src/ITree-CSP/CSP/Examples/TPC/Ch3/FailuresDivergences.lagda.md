@@ -35,8 +35,8 @@ DIV = AS \ {a}
 This module proves exactly those four facts:
 
 ```text
-Q3⊑F⊥Q2        : Q3 ⊑F⊥ Q2
-Q2⊑F⊥Q1        : Q2 ⊑F⊥ Q1
+Q3⊇F⊥Q2        : Q3 ⊇F⊥ Q2
+Q2⊇F⊥Q1        : Q2 ⊇F⊥ Q1
 DIV≈FDdiv      : DIV ≈FD div
 Q3⊓DIV≈FD-DIV  : (Q3 ⊓ DIV) ≈FD DIV
 ```
@@ -67,7 +67,7 @@ open import Data.Unit using (⊤; tt)
 import Data.Unit.Polymorphic as Poly
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.List using (List; []; _∷_)
-open import Data.Product using (Σ; Σ-syntax; _,_; _×_)
+open import Data.Product using (Σ; Σ-syntax; _,_; _×_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
@@ -155,9 +155,9 @@ DIV : FProc                         -- AS \ {a}
 DIV = AS ∖ hideA
 ```
 
-## §4. The failures refinements `Q3 ⊑F⊥ Q2 ⊑F⊥ Q1`
+## §4. The failures refinements `Q3 ⊇F⊥ Q2 ⊇F⊥ Q1`
 
-The FDR asserts `Q3 [F= Q2` and `Q2 [F= Q1`.  Here `_⊑F⊥_` is the
+The FDR asserts `Q3 [F= Q2` and `Q2 [F= Q1`.  Here `_⊇F⊥_` is the
 refinement of divergence-strict failures
 (`failures⊥ P s B = failures P s B ⊎ divergences P s`), so each proof has
 a failures part (rebuild the witness on the refining side) and a
@@ -169,9 +169,10 @@ open import Semantics.DRBisim   {E = FCh} {I = ExtI FCh} using (Diverges)
 open import Semantics.Failures  {E = FCh} {I = ExtI FCh}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = FCh} {I = ExtI FCh}
-  using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _≈FD_;
+  using (IsDivergence; divergences; failures⊥; _⊇F⊥_; _≈FD_;
          empty-div; div-extension-closed; ≈FD-refl; ≈FD-sym; ≈FD-trans)
-open import CSP.Laws.Traces.TraceLaws FCh-≟ using (Stop-no-τ; Stop-no-ev)
+open import CSP.Laws.Traces.TraceLaws FCh-≟
+  using (Stop-no-τ; Stop-no-ev; ⊓-mono-⊑ᵀ; ⟶₀-mono-⊑ᵀ)
 open import CSP.Laws.Traces.PrefixInversion FCh-≟ using (⟶₀-no-τ; ⟶₀-ev-inv)
 open import CSP.Laws.Traces.TraceLawsExtChoiceMono FCh-≟
   using (□τR; cP; cQ; sPQ; sQP; chP; chQ; □-τ-elim;
@@ -186,17 +187,17 @@ open import CSP.Laws.FD.FDLawsIChoiceAssoc FCh-≟
 
 ```agda
 -- assert Q3 [F= Q2   (holds)
-Q3⊑F⊥Q2 : Q3 ⊑F⊥ Q2
+Q3⊇F⊥Q2 : Q3 ⊇F⊥ Q2
 
 -- assert Q2 [F= Q1   (holds)
-Q2⊑F⊥Q1 : Q2 ⊑F⊥ Q1
+Q2⊇F⊥Q1 : Q2 ⊇F⊥ Q1
 ```
 
 ### §4.2 Prefix/Stop scaffolding
 
 Every behaviour of `e ⟶₀ Stop` is pinned down: it is stable, fires only
 `e` (landing on `Stop`), and never diverges.  So its `failures⊥` traces
-are exactly `[]` and `[e]` — the shape lemma that drives `Q3⊑F⊥Q2`.
+are exactly `[]` and `[e]` — the shape lemma that drives `Q3⊇F⊥Q2`.
 
 ```agda
 Stop-⟹-empty : {s : List (Event√ (Poly.⊤ {lzero}))} {W : FProc}
@@ -250,7 +251,7 @@ Q1-b : Q1 ─[ ev (evl (evLabel ⊤ b tt)) ]─► Stop
 Q1-b = sVis {at = ⊤ , b} {a = tt} refl refl
 ```
 
-### §4.4 `Q3 ⊑F⊥ Q2`
+### §4.4 `Q3 ⊇F⊥ Q2`
 
 Split the `Q2` behaviour into an operand (`⊓-failures⊥→`), read off its
 trace shape (§4.2), and rebuild inside `Q3 = Stop ⊓ Q1`:
@@ -263,12 +264,12 @@ trace shape (§4.2), and rebuild inside `Q3 = Stop ⊓ Q1`:
 Both rebuilds produce a *superset* refusal, so the given `B` is covered.
 
 ```agda
-Q3⊑F⊥Q2 f with ⊓-failures⊥→ aSTOP bSTOP f
+Q3⊇F⊥Q2 f with ⊓-failures⊥→ aSTOP bSTOP f
 ... | inj₁ fa with pfx-fail⊥-shape a fa
 ...   | inj₁ refl = ⊓-failures⊥←l Stop Q1 (inj₁ Stop-fail-nil)
 ...   | inj₂ refl =
         ⊓-failures⊥←r Stop Q1 (inj₁ (Stop , ⟹-ev Q1-a ⟹-refl , Stop-refuses))
-Q3⊑F⊥Q2 f | inj₂ fb with pfx-fail⊥-shape b fb
+Q3⊇F⊥Q2 f | inj₂ fb with pfx-fail⊥-shape b fb
 ...   | inj₁ refl = ⊓-failures⊥←l Stop Q1 (inj₁ Stop-fail-nil)
 ...   | inj₂ refl =
         ⊓-failures⊥←r Stop Q1 (inj₁ (Stop , ⟹-ev Q1-b ⟹-refl , Stop-refuses))
@@ -276,7 +277,7 @@ Q3⊑F⊥Q2 f | inj₂ fb with pfx-fail⊥-shape b fb
 
 ### §4.5 `Q1` never diverges
 
-For `Q2⊑F⊥Q1`'s divergence disjunct we refute any divergence reached from
+For `Q2⊇F⊥Q1`'s divergence disjunct we refute any divergence reached from
 `Q1` — constructively, by chasing the big-step through the `□`
 step-inversions.  A τ of `Q1` is impossible unless it commits/slides,
 and every such shape carries an operand τ, refuted by `⟶₀-no-τ`; a
@@ -313,7 +314,7 @@ Q1-reach-¬div (⟹-ev stp rest) d | evPQ Pev Qev
 ... | _ , refl , _ | _ , () , _
 ```
 
-### §4.6 `Q2 ⊑F⊥ Q1`
+### §4.6 `Q2 ⊇F⊥ Q1`
 
 A (stable) failure of the external choice is a failure of one operand
 (`□-failures-elim-top`, the constructive general `□` failures law), and
@@ -322,10 +323,10 @@ with the corresponding τ (`⊓-failures⊥←l/r`).  A divergence of `Q1` is
 refuted by §4.5.
 
 ```agda
-Q2⊑F⊥Q1 (inj₁ f) with □-failures-elim-top {P = aSTOP} {Q = bSTOP} f
+Q2⊇F⊥Q1 (inj₁ f) with □-failures-elim-top {P = aSTOP} {Q = bSTOP} f
 ... | inj₁ fa = ⊓-failures⊥←l aSTOP bSTOP (inj₁ fa)
 ... | inj₂ fb = ⊓-failures⊥←r aSTOP bSTOP (inj₁ fb)
-Q2⊑F⊥Q1 (inj₂ d) =
+Q2⊇F⊥Q1 (inj₂ d) =
   ⊥-elim (Q1-reach-¬div (d .IsDivergence.reach) (d .IsDivergence.divwit))
 ```
 
@@ -465,33 +466,39 @@ assert Q4 [FD= Q2   -- holds : the divergent Q4 is chaos after b (⊒ anything)
 
 **Which formal refinement renders `[F=`?**  FDR's `[F=` is the *stable
 failures* model — in this development `_⊑F_` (`Semantics.Failures`), *not*
-the divergence-strict `_⊑F⊥_` (`failures⊥ P s B = failures P s B ⊎
+the divergence-strict `_⊇F⊥_` (`failures⊥ P s B = failures P s B ⊎
 divergences P s`).  For the divergence-free `Q1`–`Q3` of §4 the two
 coincide, but on `Q4` they *differ*, and the F-pair **flips** under
-`_⊑F⊥_`: divergences are extension-closed, so `failures⊥ Q4 ⟨b,b⟩ B`
+`_⊇F⊥_`: divergences are extension-closed, so `failures⊥ Q4 ⟨b,b⟩ B`
 holds (via `Q4 ⟹⟨b⟩ DIV` and `Diverges DIV`) while `failures⊥ Q2 ⟨b,b⟩ B`
 is empty (`Q2` neither traces `⟨b,b⟩` nor diverges) — hence
-`¬ (Q2 ⊑F⊥ Q4)`; and conversely `Q4 ⊑F⊥ Q2` *holds*, because `Q4`'s
+`¬ (Q2 ⊇F⊥ Q4)`; and conversely `Q4 ⊇F⊥ Q2` *holds*, because `Q4`'s
 divergence-chaos after `b` absorbs `Q2`'s post-`b` `STOP` failures.
 This module therefore proves **six** facts — the book's quartet (with
-`_⊑F_` carrying the two `[F=` asserts) *and* the two flipped `⊑F⊥` facts
+`_⊑F_` carrying the two `[F=` asserts) *and* the two flipped `⊇F⊥` facts
 that exhibit the divergence-strictness of `failures⊥`:
 
 ```text
 Q2⊑FQ4    : Q2 ⊑F Q4          (assert 1, stable failures — holds)
+              = Q2⊑TQ4 , Q2⊇FQ4 — `_⊑F_` is the PAIR (traces, failures),
+              so assert 1 carries a trace obligation as well, discharged by
+              `Stop⊑T-DIV` through `⊓`/`⟶₀` monotonicity
 ¬Q4⊑FQ2   : ¬ (Q4 ⊑F Q2)      (assert 2 — fails)
+              via ¬Q4⊇FQ2, the sharp form: it is already the FAILURES half
+              that fails, so the trace half is not needed to refute it
 ¬Q2⊑FDQ4  : ¬ (Q2 ⊑FD Q4)     (assert 3 — fails)
 Q4⊑FDQ2   : Q4 ⊑FD Q2         (assert 4 — holds)
-¬Q2⊑F⊥Q4  : ¬ (Q2 ⊑F⊥ Q4)     (the F-pair flips divergence-strictly …)
-Q4⊑F⊥Q2   : Q4 ⊑F⊥ Q2         (… in both directions)
+¬Q2⊇F⊥Q4  : ¬ (Q2 ⊇F⊥ Q4)     (the F-pair flips divergence-strictly …)
+Q4⊇F⊥Q2   : Q4 ⊇F⊥ Q2         (… in both directions)
 ```
 
 ### §7.1 Imports and statements
 
 ```agda
-open import Semantics.Failures            {E = FCh} {I = ExtI FCh} using (_⊑F_)
+open import Semantics.Failures            {E = FCh} {I = ExtI FCh}
+  using (_⊑F_; _⊇F_; _⊑T_; ⊑T-refl; traces)
 open import Semantics.Refusals            {E = FCh} {I = ExtI FCh} using (Offers; Refuses)
-open import Semantics.FailuresDivergences {E = FCh} {I = ExtI FCh} using (_⊑D_; _⊑FD_)
+open import Semantics.FailuresDivergences {E = FCh} {I = ExtI FCh} using (_⊇D_; _⊑FD_)
 open import Semantics.DRImpliesFD         {E = FCh} {I = ExtI FCh} using (stable-no-τ)
 open import CSP.Laws.Traces.PrefixInversion FCh-≟
   using (loop-pfx-no-τ; loop-pfx-ev-inv; sil-no-ev; sil-τ-uniq)
@@ -504,12 +511,24 @@ open import CSP.Laws.FD.FDLawsIChoiceAssoc FCh-≟
 evB : Event√ (Poly.⊤ {lzero})
 evB = evl (evLabel ⊤ b tt)
 
+Q2⊑TQ4   : Q2 ⊑T Q4
+
+-- kept private: `_⊇F_` is the weaker half of `_⊑F_` and must not be reachable
+-- as ordinary API (see `Semantics.Failures`); this feeds `Q2⊑FQ4` below.
+private
+  Q2⊇FQ4  : Q2 ⊇F Q4
+
 Q2⊑FQ4   : Q2 ⊑F Q4
+
+-- kept private, same reason as `Q2⊇FQ4`; feeds `¬Q4⊑FQ2` below.
+private
+  ¬Q4⊇FQ2 : ¬ (Q4 ⊇F Q2)
+
 ¬Q4⊑FQ2  : ¬ (Q4 ⊑F Q2)
 ¬Q2⊑FDQ4 : ¬ (Q2 ⊑FD Q4)
 Q4⊑FDQ2  : Q4 ⊑FD Q2
-¬Q2⊑F⊥Q4 : ¬ (Q2 ⊑F⊥ Q4)
-Q4⊑F⊥Q2  : Q4 ⊑F⊥ Q2
+¬Q2⊇F⊥Q4 : ¬ (Q2 ⊇F⊥ Q4)
+Q4⊇F⊥Q2  : Q4 ⊇F⊥ Q2
 ```
 
 ### §7.2 `DIV` emits nothing and is never stable
@@ -573,6 +592,31 @@ DIV¹-reach-unstable ⟹-refl         st = stable-no-τ st DIV-back
 DIV¹-reach-unstable (⟹-τ stp rest) st with DIV¹-τ-next stp
 ... | refl = DIV-reach-unstable rest st
 DIV¹-reach-unstable (⟹-ev stp _)   _  = DIV¹-no-ev stp
+```
+
+The same cycle carries the *trace* fact `Q2 ⊑T Q4` needs: neither state of
+the cycle emits a visible event, so `DIV`'s only trace is the empty one.
+
+```agda
+DIV-reach-empty  : {s : List (Event√ (Poly.⊤ {lzero}))} {W : FProc}
+                 → DIV  ⟹⟨ s ⟩ W → s ≡ []
+DIV¹-reach-empty : {s : List (Event√ (Poly.⊤ {lzero}))} {W : FProc}
+                 → DIV¹ ⟹⟨ s ⟩ W → s ≡ []
+
+DIV-reach-empty ⟹-refl         = refl
+DIV-reach-empty (⟹-τ stp rest) with DIV-τ-next stp
+... | refl = DIV¹-reach-empty rest
+DIV-reach-empty (⟹-ev stp _)   = ⊥-elim (DIV-no-ev stp)
+
+DIV¹-reach-empty ⟹-refl         = refl
+DIV¹-reach-empty (⟹-τ stp rest) with DIV¹-τ-next stp
+... | refl = DIV-reach-empty rest
+DIV¹-reach-empty (⟹-ev stp _)   = ⊥-elim (DIV¹-no-ev stp)
+
+-- hence `Stop` (whose only trace is also `[]`) refines `DIV` on TRACES
+Stop⊑T-DIV : Stop ⊑T DIV
+Stop⊑T-DIV s (_ , run) with DIV-reach-empty run
+... | refl = Stop , ⟹-refl
 ```
 
 ### §7.3 Prefix scaffolding: refusal transfer and the `failures⊥` split
@@ -667,12 +711,22 @@ Q2-¬div d with ⊓-div→ aSTOP bSTOP d
 failure lives only at `[]` (§7.3), where its refusal transfers to
 `Q2`'s `bSTOP` branch (`b-refuses-swap`).
 
+`_⊑F_` is Roscoe's PAIR `(traces, failures)`, so `Q2 ⊑F Q4` needs the
+trace half too — and FDR's `assert Q2 [F= Q4` really does check it.  It
+is one line of monotonicity: `Q4` differs from `Q2` only in replacing the
+post-`b` `STOP` by `DIV`, and `Stop⊑T-DIV` (§7.2) says that refines on
+traces.
+
 ```agda
-Q2⊑FQ4 s X f with ⊓-failures→ aSTOP bDIV f
+Q2⊑TQ4 = ⊓-mono-⊑ᵀ (⊑T-refl aSTOP) (⟶₀-mono-⊑ᵀ b Stop⊑T-DIV)
+
+Q2⊇FQ4 s X f with ⊓-failures→ aSTOP bDIV f
 ... | inj₁ fa = ⊓-failures←l aSTOP bSTOP fa
 ... | inj₂ fb with bDIV-fail-shape fb
 ...   | refl , ref =
         ⊓-failures←r aSTOP bSTOP (bSTOP , ⟹-refl , b-refuses-swap DIV Stop ref)
+
+Q2⊑FQ4 = Q2⊑TQ4 , Q2⊇FQ4
 ```
 
 *Fails:* the distinguishing witness is the failure `(⟨b⟩ , Σ)` — after
@@ -689,12 +743,16 @@ Xall _ = ⊤
 Q2-fail-b : failures Q2 (evB ∷ []) Xall
 Q2-fail-b = Stop , ⊓-⟹-inr aSTOP bSTOP (⟹-ev bSTOP-b ⟹-refl) , Stop-refuses
 
-¬Q4⊑FQ2 h with ⊓-failures→ aSTOP bDIV (h (evB ∷ []) Xall Q2-fail-b)
+¬Q4⊇FQ2 h with ⊓-failures→ aSTOP bDIV (h (evB ∷ []) Xall Q2-fail-b)
 ... | inj₁ fa with pfx-fail⊥-split a (inj₁ fa)
 ...   | inj₁ (() , _)
 ...   | inj₂ ()
-¬Q4⊑FQ2 h | inj₂ fb with bDIV-fail-shape fb
+¬Q4⊇FQ2 h | inj₂ fb with bDIV-fail-shape fb
 ...   | () , _
+
+-- …hence not a `⊑F` refinement either: `_⊑F_` is the stronger, paired order, so the
+-- refutation of its failures half refutes it outright
+¬Q4⊑FQ2 h = ¬Q4⊇FQ2 (proj₂ h)
 ```
 
 ### §7.6 The FD pair: `Q2 ⊑FD Q4` fails, `Q4 ⊑FD Q2` holds
@@ -707,16 +765,16 @@ latter is empty.
 ¬Q2⊑FDQ4 (_ , hD) = Q2-¬div (hD Q4-div-b)
 ```
 
-*Holds:* the failures⊥ component is `Q4⊑F⊥Q2` below (§7.7); the
+*Holds:* the failures⊥ component is `Q4⊇F⊥Q2` below (§7.7); the
 divergence component is vacuous, `Q2` having no divergences.
 
 ```agda
-Q4⊑FDQ2 = Q4⊑F⊥Q2 , (λ d → ⊥-elim (Q2-¬div d))
+Q4⊑FDQ2 = Q4⊇F⊥Q2 , (λ d → ⊥-elim (Q2-¬div d))
 ```
 
 ### §7.7 The divergence-strict flip
 
-Under `failures⊥` the F-pair inverts.  *`Q4 ⊑F⊥ Q2` holds:* split a `Q2`
+Under `failures⊥` the F-pair inverts.  *`Q4 ⊇F⊥ Q2` holds:* split a `Q2`
 behaviour into an operand's (`⊓-failures⊥→`); the `aSTOP` side is shared;
 a `bSTOP` behaviour at `[]` transfers its refusal onto `bDIV` (same offer
 map), and at `⟨b⟩` is *absorbed by `Q4`'s divergence-chaos* — the
@@ -724,7 +782,7 @@ map), and at `⟨b⟩` is *absorbed by `Q4`'s divergence-chaos* — the
 Roscoe's "`⊥` refines to everything below it": `Q4` is chaos after `b`.
 
 ```agda
-Q4⊑F⊥Q2 f with ⊓-failures⊥→ aSTOP bSTOP f
+Q4⊇F⊥Q2 f with ⊓-failures⊥→ aSTOP bSTOP f
 ... | inj₁ fa = ⊓-failures⊥←l aSTOP bDIV fa
 ... | inj₂ fb with pfx-fail⊥-split b fb
 ...   | inj₁ (refl , ref) =
@@ -733,7 +791,7 @@ Q4⊑F⊥Q2 f with ⊓-failures⊥→ aSTOP bSTOP f
 ...   | inj₂ refl = ⊓-failures⊥←r aSTOP bDIV (inj₂ bDIV-div-b)
 ```
 
-*`Q2 ⊑F⊥ Q4` fails:* divergences are extension-closed, so
+*`Q2 ⊇F⊥ Q4` fails:* divergences are extension-closed, so
 `failures⊥ Q4 ⟨b,b⟩ B` holds for every `B` — but `⟨b,b⟩` is not even a
 *trace* of `Q2` (and `Q2` never diverges), so `failures⊥ Q2 ⟨b,b⟩ B` is
 empty.  This is the precise sense in which the divergence-strict
@@ -741,11 +799,11 @@ failures order already *sees* the divergence that the stable-failures
 order ignores.
 
 ```agda
-¬Q2⊑F⊥Q4 h with ⊓-failures⊥→ aSTOP bSTOP (h {B = Xall} (inj₂ Q4-div-bb))
+¬Q2⊇F⊥Q4 h with ⊓-failures⊥→ aSTOP bSTOP (h {B = Xall} (inj₂ Q4-div-bb))
 ... | inj₁ fa with pfx-fail⊥-split a fa
 ...   | inj₁ (() , _)
 ...   | inj₂ ()
-¬Q2⊑F⊥Q4 h | inj₂ fb with pfx-fail⊥-split b fb
+¬Q2⊇F⊥Q4 h | inj₂ fb with pfx-fail⊥-split b fb
 ...   | inj₁ (() , _)
 ...   | inj₂ ()
 ```

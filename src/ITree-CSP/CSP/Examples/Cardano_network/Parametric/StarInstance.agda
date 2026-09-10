@@ -75,6 +75,8 @@ starCfg = (lo , N2N_KeepAlive)    ∷ (hi , N2N_KeepAlive)
         ∷ (lo , N2N_TxSubmission) ∷ (hi , N2N_TxSubmission) ∷ []
 
 -- concrete Params for the star: all data domains ⊤, FOUR links, uniform config
+import Data.Maybe as PMaybe
+
 starParams : Params
 starParams = record
   { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
@@ -84,12 +86,15 @@ starParams = record
   ; decLSlot = starDecEq⊤ ; decVoterId = starDecEq⊤ ; decLFBitmap = starDecEq⊤
   ; decVoteBlob = starDecEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
-  ; decTime = starDecEq⊤ ; decLength = starDecEq⊤ }
+  ; decTime = starDecEq⊤ ; decLength = starDecEq⊤
+  -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
+  ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = starDecEq⊤ ; decEBHash = starDecEq⊤
+  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
 
 open import CSP.Examples.Cardano_network.Net starParams using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data starParams using (Payload)
 open import CSP.Examples.Cardano_network.NetCommon starParams
-  using (CopySpecBreakableA; ioES)
+  using (NetworkLinkBreakableA; ioES)
 
 -- the {| all api channels |} alphabet, shared with every other gate-free scenario
 open import CSP.Examples.Cardano_network.ApiAlphabet starParams using (apiES)
@@ -197,8 +202,8 @@ open import Semantics.FailuresDivergences
 -- whole star refinement.  The premises are HYPOTHESES — none is discharged here;
 -- this is a check that the generic lemma applies at a non-diamond topology.
 star-assembly : (mSpec : Proc) (nSpec lg : Fin 5 → Proc)
-              → mSpec ⊑FD CopySpecBreakableA
+              → mSpec ⊑FD NetworkLinkBreakableA
               → (∀ n → nSpec n ⊑FD node n (lg n))
               → (∀ {s} → ¬ divergences (systemOf lg) s)
               → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ 4 nSpec) ∖ ioES) ⊑FD systemOf lg
-star-assembly = Asm.Generic.systemN-mono starParams star apiES
+star-assembly = Asm.Generic.systemN-mono starParams star apiES NetworkLinkBreakableA

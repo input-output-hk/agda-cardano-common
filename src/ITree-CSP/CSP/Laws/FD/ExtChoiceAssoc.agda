@@ -4,7 +4,7 @@
 --
 --   □-assoc-FD : ((P □ Q) □ R₀) ≈FD (P □ (Q □ R₀))
 --
--- DIVERGENCE half (□-assoc-⊑D / ⊒D): pure routing through □-div-elim / □-div-intro-L/R.
+-- DIVERGENCE half (□-assoc-⊇D / ⊆D): pure routing through □-div-elim / □-div-intro-L/R.
 --
 -- FAILURES half — the transfer □-assoc-fail-RL / -LR is PURE ROUTING once the trace is
 -- split (the earlier "BLOCKED" note feared a nested √-slide / □-left-monotonicity bridge;
@@ -49,7 +49,7 @@ open import Semantics.LTS                 {E = E} {I = ExtI E}
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; _⊑D_; _⊑F⊥_; _≈FD_)
+  using (divergences; _⊇D_; _⊇F⊥_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟
   using (□-mt-tag0-eq; □-mt-tag1-eq; fL-A; fL-B; fL-C; fL-D; fL-E; fL-F; fL-G;
@@ -267,24 +267,24 @@ refuses-assoc-RL {P = P} {Q = Q} {R₀ = R₀} ref
       (⟹-ev (sRet eqQ) rest)
 
 -------------------------------------------------------------------------------------
--- □-assoc-⊒D : divergences ((P□Q)□R₀) ⊆ divergences (P□(Q□R₀))
+-- □-assoc-⊆D : divergences ((P□Q)□R₀) ⊆ divergences (P□(Q□R₀))
 -------------------------------------------------------------------------------------
 
-□-assoc-⊒D : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
-           → (P □ (Q □ R₀)) ⊑D ((P □ Q) □ R₀)
-□-assoc-⊒D P Q R₀ d with □-div-elim {P = P □ Q} {Q = R₀} d
+□-assoc-⊆D : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
+           → (P □ (Q □ R₀)) ⊇D ((P □ Q) □ R₀)
+□-assoc-⊆D P Q R₀ d with □-div-elim {P = P □ Q} {Q = R₀} d
 ... | inj₂ dR = □-div-intro-R {P = P} {Q = Q □ R₀} (□-div-intro-R {P = Q} {Q = R₀} dR)
 ... | inj₁ dPQ with □-div-elim {P = P} {Q = Q} dPQ
 ...   | inj₁ dP = □-div-intro-L {P = P} {Q = Q □ R₀} dP
 ...   | inj₂ dQ = □-div-intro-R {P = P} {Q = Q □ R₀} (□-div-intro-L {P = Q} {Q = R₀} dQ)
 
 -------------------------------------------------------------------------------------
--- □-assoc-⊑D : divergences (P□(Q□R₀)) ⊆ divergences ((P□Q)□R₀)
+-- □-assoc-⊇D : divergences (P□(Q□R₀)) ⊆ divergences ((P□Q)□R₀)
 -------------------------------------------------------------------------------------
 
-□-assoc-⊑D : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
-           → ((P □ Q) □ R₀) ⊑D (P □ (Q □ R₀))
-□-assoc-⊑D P Q R₀ d with □-div-elim {P = P} {Q = Q □ R₀} d
+□-assoc-⊇D : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
+           → ((P □ Q) □ R₀) ⊇D (P □ (Q □ R₀))
+□-assoc-⊇D P Q R₀ d with □-div-elim {P = P} {Q = Q □ R₀} d
 ... | inj₁ dP = □-div-intro-L {P = P □ Q} {Q = R₀} (□-div-intro-L {P = P} {Q = Q} dP)
 ... | inj₂ dQR with □-div-elim {P = Q} {Q = R₀} dQR
 ...   | inj₁ dQ = □-div-intro-L {P = P □ Q} {Q = R₀} (□-div-intro-R {P = P} {Q = Q} dQ)
@@ -685,20 +685,20 @@ fail-nil-NonRet Q f = fail-nil-NonRet-go Q (PTree.force Q) refl f
 -- ASSEMBLY: external-choice associativity in the failures-divergences model.
 --   □-assoc-FD : ((P □ Q) □ R₀) ≈FD (P □ (Q □ R₀))
 -- failures⊥ = failures ⊎ divergences; route each summand to its transfer (failures via
--- □-assoc-fail-RL/LR, divergences via the already-proven □-assoc-⊑D/⊒D).
+-- □-assoc-fail-RL/LR, divergences via the already-proven □-assoc-⊇D/⊆D).
 -------------------------------------------------------------------------------------
-□-assoc-⊑F⊥ : ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
-            → ((P □ Q) □ R₀) ⊑F⊥ (P □ (Q □ R₀))
-□-assoc-⊑F⊥ P Q R₀ (inj₁ f) = inj₁ (□-assoc-fail-RL P Q R₀ f)
-□-assoc-⊑F⊥ P Q R₀ (inj₂ d) = inj₂ (□-assoc-⊑D P Q R₀ d)
+□-assoc-⊇F⊥ : ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
+            → ((P □ Q) □ R₀) ⊇F⊥ (P □ (Q □ R₀))
+□-assoc-⊇F⊥ P Q R₀ (inj₁ f) = inj₁ (□-assoc-fail-RL P Q R₀ f)
+□-assoc-⊇F⊥ P Q R₀ (inj₂ d) = inj₂ (□-assoc-⊇D P Q R₀ d)
 
-□-assoc-⊒F⊥ : ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
-            → (P □ (Q □ R₀)) ⊑F⊥ ((P □ Q) □ R₀)
-□-assoc-⊒F⊥ P Q R₀ (inj₁ f) = inj₁ (□-assoc-fail-LR P Q R₀ f)
-□-assoc-⊒F⊥ P Q R₀ (inj₂ d) = inj₂ (□-assoc-⊒D P Q R₀ d)
+□-assoc-⊆F⊥ : ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
+            → (P □ (Q □ R₀)) ⊇F⊥ ((P □ Q) □ R₀)
+□-assoc-⊆F⊥ P Q R₀ (inj₁ f) = inj₁ (□-assoc-fail-LR P Q R₀ f)
+□-assoc-⊆F⊥ P Q R₀ (inj₂ d) = inj₂ (□-assoc-⊆D P Q R₀ d)
 
 □-assoc-FD : ⦃ _ : DecEq R ⦄ (P Q R₀ : PTree E (ExtI E) R)
            → ((P □ Q) □ R₀) ≈FD (P □ (Q □ R₀))
 □-assoc-FD P Q R₀ =
-  (□-assoc-⊑F⊥ P Q R₀ , □-assoc-⊑D P Q R₀) ,
-  (□-assoc-⊒F⊥ P Q R₀ , □-assoc-⊒D P Q R₀)
+  (□-assoc-⊇F⊥ P Q R₀ , □-assoc-⊇D P Q R₀) ,
+  (□-assoc-⊆F⊥ P Q R₀ , □-assoc-⊆D P Q R₀)

@@ -44,7 +44,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; empty-div; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.WeakBisim {E = E} {I = ExtI E}
   using (_─[τ*]─►_; τ*-refl; τ*-step; τ*-trans)
@@ -124,34 +124,34 @@ force-S-react e P P′ = force-▷-react {P = e ⟶ P} {Q = P′} refl
 --   LHS = ((e⟶P) ▷ P′) □ Q ,   RHS = (e⟶P) ▷ (P′ □ Q).
 -------------------------------------------------------------------------------------
 
--- ⊑D : LHS recovers every RHS divergence.
+-- ⊇D : LHS recovers every RHS divergence.
 -- ▷-div-elim splits a RHS-divergence into divergences(e⟶P) [impossible] ⊎
 -- divergences(P′□Q); the latter splits (□-div-elim) into P′ or Q.  P′ → ▷-div-intro-L
 -- into S, then □-div-intro-L into LHS; Q → □-div-intro-R into LHS.
-□-slide-⊑D : ⦃ _ : DecEq R ⦄
+□-slide-⊇D : ⦃ _ : DecEq R ⦄
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → (((e ⟶ P) ▷ P′) □ Q) ⊑D ((e ⟶ P) ▷ (P′ □ Q))
-□-slide-⊑D e P P′ Q d with ▷-div-elim (e ⟶ P) (P′ □ Q) d
+  → (((e ⟶ P) ▷ P′) □ Q) ⊇D ((e ⟶ P) ▷ (P′ □ Q))
+□-slide-⊇D e P P′ Q d with ▷-div-elim (e ⟶ P) (P′ □ Q) d
 ... | inj₁ dpre = □-div-intro-L {P = (e ⟶ P) ▷ P′} {Q = Q} (▷-div-intro-L (e ⟶ P) P′ dpre)
 ... | inj₂ dP′Q with □-div-elim {P = P′} {Q = Q} dP′Q
 ...   | inj₁ dP′ = □-div-intro-L {P = (e ⟶ P) ▷ P′} {Q = Q}
                      (▷-div-intro-R (e ⟶ P) P′ refl tt0 dP′)
 ...   | inj₂ dQ  = □-div-intro-R {P = (e ⟶ P) ▷ P′} {Q = Q} dQ
 
--- ⊒D : RHS recovers every LHS divergence.
+-- ⊆D : RHS recovers every LHS divergence.
 -- □-div-elim splits a LHS-divergence into divergences S ⊎ divergences Q.
 --   divergences S = divergences ((e⟶P)▷P′) splits (▷-div-elim) into (e⟶P) [→ RHS via
 --   ▷-div-intro-L] or P′ [→ P′□Q via □-div-intro-L, then RHS via ▷-div-intro-R].
 --   divergences Q → P′□Q via □-div-intro-R, then RHS via ▷-div-intro-R.
-□-slide-⊒D : ⦃ _ : DecEq R ⦄
+□-slide-⊆D : ⦃ _ : DecEq R ⦄
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → ((e ⟶ P) ▷ (P′ □ Q)) ⊑D (((e ⟶ P) ▷ P′) □ Q)
-□-slide-⊒D e P P′ Q d with □-div-elim {P = (e ⟶ P) ▷ P′} {Q = Q} d
+  → ((e ⟶ P) ▷ (P′ □ Q)) ⊇D (((e ⟶ P) ▷ P′) □ Q)
+□-slide-⊆D e P P′ Q d with □-div-elim {P = (e ⟶ P) ▷ P′} {Q = Q} d
 ... | inj₁ dS with ▷-div-elim (e ⟶ P) P′ dS
 ...   | inj₁ dpre = ▷-div-intro-L (e ⟶ P) (P′ □ Q) dpre
 ...   | inj₂ dP′  = ▷-div-intro-R (e ⟶ P) (P′ □ Q) refl tt0
                       (□-div-intro-L {P = P′} {Q = Q} dP′)
-□-slide-⊒D e P P′ Q d | inj₂ dQ =
+□-slide-⊆D e P P′ Q d | inj₂ dQ =
   ▷-div-intro-R (e ⟶ P) (P′ □ Q) refl tt0 (□-div-intro-R {P = P′} {Q = Q} dQ)
 
 -------------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ force-S-react e P P′ = force-▷-react {P = e ⟶ P} {Q = P′} refl
 --   LHS = ((e⟶P) ▷ P′) □ Q ,   RHS = (e⟶P) ▷ (P′ □ Q),   S = (e⟶P) ▷ P′.
 -------------------------------------------------------------------------------------
 
--- ⊑F⊥ (EASY: LHS recovers every RHS stable failure).  Worker recursing on RHS's big-step.
+-- ⊇F⊥ (EASY: LHS recovers every RHS stable failure).  Worker recursing on RHS's big-step.
 -- RHS's only steps are the timeout τ (→ P′□Q) and a prefix event x (→ P x).  The timeout
 -- is matched by S's own τ (S ─τ→ P′) lifted to S□Q (□-fail-τ-pre-L), and a prefix event
 -- is matched by S offering x (▷-ev-L) lifted to S□Q (□-ev-toL, discarding Q).  The
@@ -185,14 +185,14 @@ force-S-react e P P′ = force-▷-react {P = e ⟶ P} {Q = P′} refl
         , ref
 ... | sRet eqf = case eqf of λ ()
 
-□-slide-⊑F⊥ : ⦃ _ : DecEq R ⦄
+□-slide-⊇F⊥ : ⦃ _ : DecEq R ⦄
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → (((e ⟶ P) ▷ P′) □ Q) ⊑F⊥ ((e ⟶ P) ▷ (P′ □ Q))
-□-slide-⊑F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
+  → (((e ⟶ P) ▷ P′) □ Q) ⊇F⊥ ((e ⟶ P) ▷ (P′ □ Q))
+□-slide-⊇F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (□-slide-RHS-fail→LHS e P P′ Q reach ref)
-□-slide-⊑F⊥ e P P′ Q (inj₂ d) = inj₂ (□-slide-⊑D e P P′ Q d)
+□-slide-⊇F⊥ e P P′ Q (inj₂ d) = inj₂ (□-slide-⊇D e P P′ Q d)
 
--- HARD failures direction (⊒F⊥): RHS recovers every LHS stable failure.
+-- HARD failures direction (⊆F⊥): RHS recovers every LHS stable failure.
 --
 -- A worker recursing on the LHS big-step (S □ Qc) ⟹⟨s⟩ W, mirroring △-slide-fail-elim,
 -- carrying a witness  Q ─τ*→ Qc  so Qc-behaviours map back through the RHS's ORIGINAL Q
@@ -450,21 +450,21 @@ term-Qc-fail-□R P′ Qc eqQc reach ref with PTree.force P′ in eqP′
             (_ , □-ev-toR P′ Qc sQ (proj₁ (proj₂ fQc₁)) , proj₂ (proj₂ fQc₁)))
 
 -- HARD (RHS recovers LHS): a failures⊥ of LHS routes through □-slide-fail-elim (failures
--- summand — a DIRECT ≈FD, so the elim already targets RHS) / □-slide-⊒D (divergence summand).
-□-slide-⊒F⊥ : ⦃ _ : DecEq R ⦄
+-- summand — a DIRECT ≈FD, so the elim already targets RHS) / □-slide-⊆D (divergence summand).
+□-slide-⊆F⊥ : ⦃ _ : DecEq R ⦄
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → ((e ⟶ P) ▷ (P′ □ Q)) ⊑F⊥ (((e ⟶ P) ▷ P′) □ Q)
-□-slide-⊒F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
+  → ((e ⟶ P) ▷ (P′ □ Q)) ⊇F⊥ (((e ⟶ P) ▷ P′) □ Q)
+□-slide-⊆F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (□-slide-fail-elim e P P′ Q Q τ*-refl reach ref)
-□-slide-⊒F⊥ e P P′ Q (inj₂ d) = inj₂ (□-slide-⊒D e P P′ Q d)
+□-slide-⊆F⊥ e P P′ Q (inj₂ d) = inj₂ (□-slide-⊆D e P P′ Q d)
 
 -------------------------------------------------------------------------------------
--- THE LAW (U13.15, extc-slide): pair the two ⊑F⊥ and the two ⊑D refinements.
+-- THE LAW (U13.15, extc-slide): pair the two ⊇F⊥ and the two ⊇D refinements.
 -------------------------------------------------------------------------------------
 
 □-slide-FD : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ} ⦃ _ : DecEq R ⦄
              (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
            → (((e ⟶ P) ▷ P′) □ Q) ≈FD ((e ⟶ P) ▷ (P′ □ Q))
 □-slide-FD e P P′ Q =
-  (□-slide-⊑F⊥ e P P′ Q , □-slide-⊑D e P P′ Q) ,
-  (□-slide-⊒F⊥ e P P′ Q , □-slide-⊒D e P P′ Q)
+  (□-slide-⊇F⊥ e P P′ Q , □-slide-⊇D e P P′ Q) ,
+  (□-slide-⊆F⊥ e P P′ Q , □-slide-⊆D e P P′ Q)

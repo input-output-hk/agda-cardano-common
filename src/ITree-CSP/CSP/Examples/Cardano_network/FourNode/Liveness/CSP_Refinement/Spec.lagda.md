@@ -618,7 +618,7 @@ delivery. Then `(t , {recvBFBlock·b}) ∈ failures(breakableSystemOf b ∖ hidd
 but `delivMenu` is present in every τ-branch of `Prod`, so `LSpec` cannot
 refuse that event — the failure is absent on the left and the refinement fails.
 Hence the refinement *holding* says the system never stably refuses delivery on
-a path it was given the block on and that is still whole, and (by the `⊑D`
+a path it was given the block on and that is still whole, and (by the `⊇D`
 component) never livelocks before it. Where `pᵢ ∧ gᵢ` fails — both paths
 broken, or A never produced on that path — `LSpec` refuses delivery too, so
 the system may as well.
@@ -640,7 +640,7 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf
 
 ## Truth analysis (documentation for the future proof — no code)
 
-1. **The `⊑D` component is satisfiable: the hidden system is divergence-free.**
+1. **The `⊇D` component is satisfiable: the hidden system is divergence-free.**
    Hiding creates τ's, so this needed checking — but `breakableSystem` cannot
    diverge under *any* hiding set, because every maximal run is **finite**
    (order 10² events). Three facts bound it: the node drivers are finite,
@@ -654,7 +654,7 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf
    every `loop0` body is a `pchoice` — a stable node with no τ
    (`CSP/Operators.agda:188-191`) — so each iteration must first consume an
    `input` (`Network.agda:253-273`). There is no `div`, `⊓`, or `Run` in the
-   Cardano model. So the `⊑D` inclusion is *vacuously* satisfiable, which is
+   Cardano model. So the `⊇D` inclusion is *vacuously* satisfiable, which is
    the same shape every prior Cardano FD refinement relies on.
 
    **Proving it formally is a separate campaign.** The tool is
@@ -694,10 +694,10 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf
    branches and for every `prodτ`/`idleτ` branch) — so no τ-chain on the Spec
    side ever exceeds length 1, and `LSpec b true true` cannot diverge for any
    `b`, full stop, with no measure or well-founded argument needed. This is
-   what makes the statement's `⊑D` half a real check on the *implementation*
+   what makes the statement's `⊇D` half a real check on the *implementation*
    rather than something that could fail on the Spec's own account — it
    complements the finding above that the hidden implementation is
-   divergence-free too, so `⊑D` is non-vacuously satisfiable on **both** sides.
+   divergence-free too, so `⊇D` is non-vacuously satisfiable on **both** sides.
 
 2. **The delivery obligation is gated on the *produce* as well as on
    path-wholeness — the per-path produce bits.** *This is the amendment that
@@ -718,7 +718,7 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf
    *visible*, not τ — receive on BD; that state is **stable** and refuses the
    receive on CD, because C never received the block. So `(t , X) ∈ failures(…)`.
    On the **Spec** side, all eight branches of the old `Prod b true true` offered
-   the receive on CD, so `(t , X) ∉ failures(LSpec b true true)` and `⊑F⊥` failed
+   the receive on CD, so `(t , X) ∉ failures(LSpec b true true)` and `⊇F⊥` failed
    — for a reason with nothing to do with liveness. (Same class of defect as item
    3 below, one axis over: that one is the AB-then-BD axis, this is AB-then-CD.
    The may-deliver branch cannot help, since *adding* offers never creates a
@@ -826,10 +826,23 @@ LivenessSpec = ∀ (b : Block₃) → LSpec b true true ⊑FD (breakableSystemOf
 
 `LivenessSpec` above is stated at the failures–divergences order. Item 8 of the
 truth analysis notes that direct reasoning on the composite is intractable, and
-item 1 that the `⊑D` half needs a bespoke `MAcc` measure over a ~150-leaf
+item 1 that the `⊇D` half needs a bespoke `MAcc` measure over a ~150-leaf
 composite that nobody has built. Both obstacles are attached specifically to the
 **divergence** component. So we also state the **stable-failures** analogue and,
 for it, prove an honest compositional reduction.
+
+**Correction (2026-09-08) — `_⊑F_` changed under this section.**
+`Semantics.Failures._⊑F_` used to compare failure sets only. It is now Roscoe's
+stable-failures refinement, the pair `(P ⊑T Q) × (P ⊇F Q)`, because FDR's `[F=`
+checks traces too (`assert STOP [F= (a -> DIV)` fails there on a *trace*
+counterexample). Everything below still holds — `Hide-mono-⊑F`, `∥-mono-⊑F` and
+`⦀-mono-⊑F` are still unconditional, each now pairing its failures half with the
+equally unconditional `Hide-mono-⊑ᵀ`/`Par-mono-⊑ᵀ` — and `LivenessSpecF` is now
+*strictly stronger* than it was. Two claims below are affected and are corrected
+in place: `⊑F` does now imply trace inclusion, and the divergence-vacuity argued
+in "The failures–divergences reduction" now applies to the failures **half**
+`_⊇F_`, not to `_⊑F_` as a whole. The `⊑FD` reduction remains the one that adds
+"no livelock before delivery".
 
 `⊑F` retains the *entire* liveness content of the statement. The property is a
 **must-offer** — "D's receive of `b` is not stably refused when A produced on a
@@ -839,8 +852,8 @@ truth analysis: the refutations of the two earlier formulations (items 2 and 3)
 were both located in the failures component, and the argument in "Why `⊑FD`
 carries the liveness content" above uses only `failures`. What `⊑F` drops,
 relative to `⊑FD`, is one strictly weaker extra clause that `⊑FD` adds on top:
-*no livelock before delivery* (`⊑D`), plus the divergence-chaos closure of
-`⊑F⊥`. Nothing about delivery itself is weakened.
+*no livelock before delivery* (`⊇D`), plus the divergence-chaos closure of
+`⊇F⊥`. Nothing about delivery itself is weakened.
 
 Why the distinction is decisive rather than cosmetic. The unconditional law
 `P ⊑FD Q → (P ∖ A) ⊑FD (Q ∖ A)` is **FALSE** — refuted in the header of
@@ -923,7 +936,8 @@ liveness-F-corollary MSpec ASpec BSpec CSpec DSpec hM hA hB hC hD res b =
 ```
 
 **Structural limitation — read this before continuing the campaign.**
-Monotonicity is one-directional: `SPEC ⊑F IMPL` unfolds (`Semantics/Failures.agda:42-43`)
+Monotonicity is one-directional: the failures half of `SPEC ⊑F IMPL` unfolds
+(`Semantics/Failures.agda`, `_⊇F_`)
 to `failures IMPL ⊆ failures SPEC`, so a legal component spec may only be *more*
 nondeterministic than the component it abstracts — abstraction **adds**
 refusals. But the property being reduced is a must-offer, i.e. an assertion that
@@ -946,15 +960,18 @@ applies to the real composite, not to the abstract one).
 
 `⊑F` retains the must-offer content of the property, but it is nonetheless the
 **wrong** order to state the property at, and not merely a weaker one: a divergent
-implementation has no stable states, hence no failures at all, so `⊑F` is satisfied
-of it *vacuously*, with no delivery ever having to occur. This is not a hypothetical
+implementation has no stable states, hence no failures at all, so the *failures
+half* of `⊑F` is satisfied of it vacuously, with no delivery ever having to occur.
+(Since 2026-09-08 `⊑F` also carries a trace obligation, but that does not help
+here: a system that delivers nothing has *fewer* traces than the spec, so the
+trace half is discharged and the vacuity survives intact.) This is not a hypothetical
 worry — it is machine-checked in `CSP.Examples.InvariantMini`, whose `SysV`
 (`InvariantMini.agda:633-634`) diverges after its one kept event (`V₁-diverges`,
 `:703-706`) and, precisely because it therefore has no failures past that point
 (`SysV-no-failure-after-a`/`V₁-no-failures`, `:718-725`), satisfies its own liveness
 `Spec` vacuously: `Spec⊑F-SysV : Spec ⊑F SysV` (`:772-773`). So an `⊑F` refinement can
 hold for a system that never delivers anything — `⊑FD` is what rules that out, via its
-`⊑D` half, and is therefore the order that actually expresses "no livelock before
+`⊇D` half, and is therefore the order that actually expresses "no livelock before
 delivery," which is the whole point of a liveness statement.
 
 The price is real, not a bookkeeping artefact: unlike `Hide-mono-⊑F`,
@@ -967,7 +984,7 @@ does not hand you divergence-freedom of `breakableSystemOf b ∖ hidden b` (afte
 hiding levels: both ultimately rest on the finite-run bound of item 1 of the truth
 analysis (the ≤ 60-rendezvous system-wide bound), applied once per hide. That bound is
 still unbuilt as a formal `MAcc` measure, so both divergence obligations below are the
-campaign's remaining hard dependency, exactly as item 1 already flagged for `⊑D` in
+campaign's remaining hard dependency, exactly as item 1 already flagged for `⊇D` in
 general — the reduction below does not remove that dependency, it just isolates it into
 two named, reusable hypotheses instead of one monolithic goal about the whole composite.
 

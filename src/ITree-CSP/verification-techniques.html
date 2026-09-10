@@ -184,7 +184,7 @@
           <rect x="760" y="66" width="118" height="116" rx="9" fill="var(--ref-soft)" stroke="var(--ref)" stroke-width="1.6"/>
           <text x="819" y="86" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--ref)">refinements</text>
           <text x="819" y="106" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊑FD</text>
-          <text x="819" y="125" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊑F⊥ · ⊑D</text>
+          <text x="819" y="125" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊇F⊥ · ⊇D</text>
           <text x="819" y="144" text-anchor="middle" class="m" font-size="12" fill="var(--ref)">⊑F · ⊑T</text>
           <text x="819" y="168" text-anchor="middle" font-size="9" fill="var(--slate)">preorders</text>
 
@@ -252,9 +252,9 @@
         <div class="rows accent-ref">
           <div class="row"><span class="sym">⊑T</span><span class="desc">trace refinement</span><span class="path">Semantics/Failures.agda</span></div>
           <div class="row"><span class="sym">⊑F</span><span class="desc">stable-failures refinement</span><span class="path">Semantics/Failures.agda</span></div>
-          <div class="row"><span class="sym">⊑F⊥</span><span class="desc">divergence-strict failures refinement</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
-          <div class="row"><span class="sym">⊑D</span><span class="desc">divergence refinement</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
-          <div class="row"><span class="sym">⊑FD</span><span class="desc">failures-divergences refinement (⊑F⊥ × ⊑D)</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">⊇F⊥</span><span class="desc">divergence-strict failures refinement</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">⊇D</span><span class="desc">divergence refinement</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
+          <div class="row"><span class="sym">⊑FD</span><span class="desc">failures-divergences refinement (⊇F⊥ × ⊇D)</span><span class="path">Semantics/FailuresDivergences.agda</span></div>
           <div class="row"><span class="sym">Offers / Refuses</span><span class="desc">refusal sets underpinning the FD model</span><span class="path">Semantics/Refusals.agda</span></div>
         </div>
       </div>
@@ -342,7 +342,7 @@
         <p>Concrete mux equals the abstract copy medium in the FD model.
           <code>NetworkRefinement*.agda</code></p></div>
       <div class="exi"><h4>BlockFetch refinement</h4>
-        <p><code>BFabs-⊑D</code> and <code>cs≈DR</code> for hidden pipelined block streaming.
+        <p><code>BFabs-⊇D</code> and <code>cs≈DR</code> for hidden pipelined block streaming.
           <code>BlockFetchRefinement/</code></p></div>
       <div class="exi"><h4>Four-node diamond liveness</h4>
         <p><code>confined ⇒ G(producedA ⇒ F arrivedD)</code> in LTL.
@@ -363,5 +363,5 @@
     </div>
   </section>
 
-  <p class="foot">verification toolkit · equivalences ∼ ≈ ≈DR ⪰ ≈FD · refinements ⊑T ⊑F ⊑F⊥ ⊑D ⊑FD · deadlock · LTL · priority · all constructive except one certified dne</p>
+  <p class="foot">verification toolkit · equivalences ∼ ≈ ≈DR ⪰ ≈FD · refinements ⊑T ⊑F ⊇F⊥ ⊇D ⊑FD · deadlock · LTL · priority · all constructive except one certified dne</p>
 </div>

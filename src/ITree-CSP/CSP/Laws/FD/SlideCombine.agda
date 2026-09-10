@@ -44,7 +44,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import CSP.Laws.Traces.TraceLaws E-≟ using (▷-ev-L; ▷-τ-L)
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟
   using (NonRet; mergeVis-L-eq; mergeVis-R-eq; mergeVis-LQ-eq)
@@ -222,7 +222,7 @@ module _ {ℓr} {R : Set ℓr}
   -- final `subst (... ) (sym (d.split))` lands it back on `s`, exactly as SlideNoHist's
   -- S→RHS-D.  The worker `*-at` produces the result at `prefix ++ suffix`.
 
-  -- RHS → LHS : divergences RHS s → divergences LHS s        (LHS ⊑D RHS)
+  -- RHS → LHS : divergences RHS s → divergences LHS s        (LHS ⊇D RHS)
   RHS→LHS-D-at : ∀ {s} (d : divergences RHS s)
                → divergences LHS (d .IsDivergence.prefix ++ d .IsDivergence.suffix)
   RHS→LHS-D-at d with ▷-reach-div M T (d .IsDivergence.reach) (d .IsDivergence.divwit)
@@ -268,7 +268,7 @@ module _ {ℓr} {R : Set ℓr}
   S-div→RHS : ∀ {p} → divergences S p → divergences RHS p
   S-div→RHS dS = subst (divergences RHS) (sym (dS .IsDivergence.split)) (S-div→RHS-at dS)
 
-  -- LHS → RHS : divergences LHS s → divergences RHS s        (RHS ⊑D LHS)
+  -- LHS → RHS : divergences LHS s → divergences RHS s        (RHS ⊇D LHS)
   LHS→RHS-D-at : ∀ {s} (d : divergences LHS s)
                → divergences RHS (d .IsDivergence.prefix ++ d .IsDivergence.suffix)
   LHS→RHS-D-at d with ▷-reach-div S T (d .IsDivergence.reach) (d .IsDivergence.divwit)
@@ -322,7 +322,7 @@ module _ {ℓr} {R : Set ℓr}
   RHS-fail-route (⟹-ev step rest) ref with pchoice-ev-inv mv (▷-ev-elim M T step)
   ... | (at , a , refl , brM)    = route-RHS-ev brM (inj₁ (_ , rest , ref))
 
-  -- LHS ⊑F⊥ RHS
+  -- LHS ⊇F⊥ RHS
   RHS→LHS-F⊥ : ∀ {s} {B : Event√ R → Set ℓr} → failures⊥ RHS s B → failures⊥ LHS s B
   RHS→LHS-F⊥ (inj₁ (W , reach , ref)) = RHS-fail-route reach ref
   RHS→LHS-F⊥ (inj₂ d)                 = inj₂ (RHS→LHS-D d)
@@ -389,13 +389,13 @@ module _ {ℓr} {R : Set ℓr}
     with pchoice-ev-inv vP (▷-ev-elim PC PQc (▷-ev-elim S T step))
   ... | (at , a , refl , brP) = routeP brP (inj₁ (_ , rest , ref))
 
-  -- RHS ⊑F⊥ LHS
+  -- RHS ⊇F⊥ LHS
   LHS→RHS-F⊥ : ∀ {s} {B : Event√ R → Set ℓr} → failures⊥ LHS s B → failures⊥ RHS s B
   LHS→RHS-F⊥ (inj₁ (W , reach , ref)) = LHS-fail-route reach ref
   LHS→RHS-F⊥ (inj₂ d)                 = inj₂ (LHS→RHS-D d)
 
 -------------------------------------------------------------------------------------
--- THE LAW (U13.21, ▷-combine, MENU form): pair the two ⊑F⊥ and two ⊑D refinements.
+-- THE LAW (U13.21, ▷-combine, MENU form): pair the two ⊇F⊥ and two ⊇D refinements.
 -------------------------------------------------------------------------------------
 
 slide-combine-FD : ∀ {ℓr} {R : Set ℓr}

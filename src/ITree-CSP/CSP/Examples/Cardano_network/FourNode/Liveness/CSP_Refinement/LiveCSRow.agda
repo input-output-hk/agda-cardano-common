@@ -130,7 +130,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; ApiCSTag; ApiCSCar
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break; done
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; store; env
   -- (T5 / review M-4) `sendCSDone`, `sendCSFindIntersect`, `sendCSIntersectFound`
   -- and `sendCSRollBackward` were DEAD here (each occurred once, in this list) and
   -- are pruned; the tables reduce at those tags without the constructor being in
@@ -1149,6 +1149,8 @@ cscApiRow-fix k kd pos (tx     _ _ _) a = refl
 cscApiRow-fix k kd pos (sndack _ _ _) a = refl
 cscApiRow-fix k kd pos (rcvack _ _ _) a = refl
 cscApiRow-fix k kd pos (ack    _ _ _) a = refl
+cscApiRow-fix k kd pos (store _ _ _) a = refl
+cscApiRow-fix k kd pos (env _ _ _) a = refl
 cscApiRow-fix k kd pos (break  _)     a = refl
 
 -- … and a CS server that did not move
@@ -1174,6 +1176,8 @@ cssApiRow-fix k kd pos (tx     _ _ _) a = refl
 cssApiRow-fix k kd pos (sndack _ _ _) a = refl
 cssApiRow-fix k kd pos (rcvack _ _ _) a = refl
 cssApiRow-fix k kd pos (ack    _ _ _) a = refl
+cssApiRow-fix k kd pos (store _ _ _) a = refl
+cssApiRow-fix k kd pos (env _ _ _) a = refl
 cssApiRow-fix k kd pos (break  _)     a = refl
 
 -- an `apiCS`-label fired row IS the client's label-directed api fact (the key

@@ -11,11 +11,15 @@
 -- No postulates, no NON_TERMINATING.
 
 open import Level using (Level; Lift; lift; _⊔_) renaming (suc to lsuc)
+open import Data.Nat using (ℕ; zero; suc)
 open import Data.List using (List; []; _∷_)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
+open import Data.List.Relation.Binary.Pointwise using (Pointwise)
+  renaming ([] to []ᵖ; _∷_ to _∷ᵖ_)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Empty using (⊥; ⊥-elim)
-open import Data.Unit using (⊤; tt)
+open import Data.Unit.Polymorphic using (⊤; tt)
+open import Data.Unit using () renaming (⊤ to ⊤₀; tt to tt₀)
 open import Data.Product using (Σ; _,_; _×_; Σ-syntax; proj₁; proj₂)
 open import Function using (case_of_)
 open import Relation.Nullary using (Dec; ¬_; yes; no)
@@ -31,7 +35,7 @@ open import CSP.Operators               E-≟
 open EventSet
 open import Semantics.LTS                    {E = E} {I = ExtI E}
 open import Semantics.Failures               {E = E} {I = ExtI E}
-  using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces; _⊑T_)
+  using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces; _⊑T_; ⊑T-refl)
 open import CSP.Laws.Traces.TraceLawsParallel      E-≟
   using (Mg; fPar-er; fPar-re; fPar-nn; Par-τ-L; Par-τ-R; Par-sync)
 open import CSP.Laws.Traces.TraceLawsParallelElim  E-≟ using (fPar-rr)
@@ -147,14 +151,14 @@ Par-soloL-reach A merge P Q {X = X} {e = e} {a = a} {P₁ = P₁} ¬cs (sVis {v 
   with PTree.force Q in eqQ
 ... | ret r₂ = ⟹-ev (sVis (fPar-er A merge eqP eqQ)
                           (par-hVisL-eq A merge {vP = vP} Q {at = X , e} {a = a} ¬cs veqP)) cont
-... | sil Q' = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt tt)
+... | sil Q' = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt₀ tt₀)
                           (par-pVis-soloL-eq A merge (react vP τcP) (sil Q') P Q
                                              {at = X , e} {a = a} ¬cs veqP refl)) cont
 ... | react vQ τcQ with vQ (X , e) a in vqeq
-...   | nothing = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt tt)
+...   | nothing = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt₀ tt₀)
                             (par-pVis-soloL-eq A merge (react vP τcP) (react vQ τcQ) P Q
                                                {at = X , e} {a = a} ¬cs veqP vqeq)) cont
-...   | just Q₁ = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt tt)
+...   | just Q₁ = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt₀ tt₀)
                             (par-pVis-both-eq A merge (react vP τcP) (react vQ τcQ) P Q
                                               {at = X , e} {a = a} ¬cs veqP vqeq))
                         (⟹-τ (brBoth-commitL A merge P Q P₁ Q₁) cont)
@@ -171,14 +175,14 @@ Par-soloR-reach A merge P Q {X = X} {e = e} {a = a} {Q₁ = Q₁} ¬cs (sVis {v 
   with PTree.force P in eqP
 ... | ret r₁ = ⟹-ev (sVis (fPar-re A merge eqP eqQ)
                           (par-hVisR-eq A merge P {vQ = vQ} {at = X , e} {a = a} ¬cs veqQ)) cont
-... | sil P' = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt tt)
+... | sil P' = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt₀ tt₀)
                           (par-pVis-soloR-eq A merge (sil P') (react vQ τcQ) P Q
                                              {at = X , e} {a = a} ¬cs refl veqQ)) cont
 ... | react vP τcP with vP (X , e) a in vpeq
-...   | nothing = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt tt)
+...   | nothing = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt₀ tt₀)
                             (par-pVis-soloR-eq A merge (react vP τcP) (react vQ τcQ) P Q
                                                {at = X , e} {a = a} ¬cs vpeq veqQ)) cont
-...   | just P₁ = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt tt)
+...   | just P₁ = ⟹-ev (sVis (fPar-nn A merge eqP eqQ tt₀ tt₀)
                             (par-pVis-both-eq A merge (react vP τcP) (react vQ τcQ) P Q
                                               {at = X , e} {a = a} ¬cs vpeq veqQ))
                         (⟹-τ (brBoth-commitR A merge P Q P₁ Q₁) cont)
@@ -225,3 +229,52 @@ Par-mono-⊑ᵀ A merge {P₁ = P₁} {P₂ = P₂} {Q₁ = Q₁} {Q₂ = Q₂} 
 ... | sP , sQ , P₂' , Q₂' , rP₂ , rQ₂ , inter
   with p⊑ sP (P₂' , rP₂) | q⊑ sQ (Q₂' , rQ₂)
 ... | P₁' , rP₁ | Q₁' , rQ₁ = Par-trace-intro A merge P₁ Q₁ rP₁ rQ₁ inter
+
+-------------------------------------------------------------------------------------
+-- CSP parallel sugar and interleaving folds are ⊑ᵀ-monotone
+-------------------------------------------------------------------------------------
+
+-- CSP alphabetised parallel is ⊑T-monotone in both operands: `_∥⇘_⇙_` is `Par⊤`,
+-- so this is `Par-mono-⊑ᵀ` at the ⊤-merge
+∥-mono-⊑T : ∀ {ℓr} (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
+          → P₁ ⊑T P₂ → Q₁ ⊑T Q₂ → (P₁ ∥⇘ A ⇙ Q₁) ⊑T (P₂ ∥⇘ A ⇙ Q₂)
+∥-mono-⊑T A = Par-mono-⊑ᵀ A (λ _ _ → tt)
+
+-- interleaving is ⊑T-monotone in both operands: `_⦀_` is `Par ∅ES`
+⦀-mono-⊑ᵀ : ∀ {ℓr} {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
+          → P₁ ⊑T P₂ → Q₁ ⊑T Q₂ → (P₁ ⦀ Q₁) ⊑T (P₂ ⦀ Q₂)
+⦀-mono-⊑ᵀ = Par-mono-⊑ᵀ ∅ES (λ _ _ → tt)
+
+-- `⦀Fin` is ⊑T-monotone in its family, pointwise and unconditionally; the base case
+-- is `Skip`, which refines itself
+⦀Fin-mono-⊑ᵀ : ∀ {ℓr} {n : ℕ} {f g : Fin n → PTree E (ExtI E) (⊤ {ℓr})}
+             → (∀ i → f i ⊑T g i) → ⦀Fin n f ⊑T ⦀Fin n g
+⦀Fin-mono-⊑ᵀ {n = zero}  h = ⊑T-refl Skip
+⦀Fin-mono-⊑ᵀ {n = suc n} h = ⦀-mono-⊑ᵀ (h fzero) (⦀Fin-mono-⊑ᵀ (λ i → h (fsuc i)))
+
+-- `⦀Fin⁺` is ⊑T-monotone in its family; unlike `⦀Fin-mono-⊑ᵀ` the base case is the
+-- leaf itself (`⦀Fin⁺ zero f = f fzero`), not `Skip`
+⦀Fin⁺-mono-⊑ᵀ : ∀ {ℓr} {n : ℕ} {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+              → (∀ i → f i ⊑T g i) → ⦀Fin⁺ n f ⊑T ⦀Fin⁺ n g
+⦀Fin⁺-mono-⊑ᵀ {n = zero}  h = h fzero
+⦀Fin⁺-mono-⊑ᵀ {n = suc n} h = ⦀-mono-⊑ᵀ (h fzero) (⦀Fin⁺-mono-⊑ᵀ (λ i → h (fsuc i)))
+
+-- `⦀⋆` is ⊑T-monotone in its list of operands (base `⦀⋆ [] = Skip`)
+⦀⋆-mono-⊑ᵀ : ∀ {ℓr} {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+           → Pointwise _⊑T_ Ps Qs → ⦀⋆ Ps ⊑T ⦀⋆ Qs
+⦀⋆-mono-⊑ᵀ []ᵖ       = ⊑T-refl Skip
+⦀⋆-mono-⊑ᵀ (p ∷ᵖ ps) = ⦀-mono-⊑ᵀ p (⦀⋆-mono-⊑ᵀ ps)
+
+-- `∥⁺` is ⊑T-monotone in head + tail list (non-empty fold: `∥⁺ A P [] = P`)
+∥⁺-mono-⊑ᵀ : ∀ {ℓr} (A : EventSet) {P₁ P₂ : PTree E (ExtI E) (⊤ {ℓr})}
+               {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}
+           → P₁ ⊑T P₂ → Pointwise _⊑T_ Ps Qs → ∥⁺ A P₁ Ps ⊑T ∥⁺ A P₂ Qs
+∥⁺-mono-⊑ᵀ A hP []ᵖ       = hP
+∥⁺-mono-⊑ᵀ A hP (q ∷ᵖ qs) = ∥-mono-⊑T A hP (∥⁺-mono-⊑ᵀ A q qs)
+
+-- `∥Fin` is ⊑T-monotone in its `Fin (suc n)`-indexed family (non-empty fold)
+∥Fin-mono-⊑ᵀ : ∀ {ℓr} (A : EventSet) {n : ℕ} {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+             → (∀ i → f i ⊑T g i) → ∥Fin A n f ⊑T ∥Fin A n g
+∥Fin-mono-⊑ᵀ A {n = zero}  h = h fzero
+∥Fin-mono-⊑ᵀ A {n = suc n} h =
+  ∥-mono-⊑T A (h fzero) (∥Fin-mono-⊑ᵀ A (λ i → h (fsuc i)))

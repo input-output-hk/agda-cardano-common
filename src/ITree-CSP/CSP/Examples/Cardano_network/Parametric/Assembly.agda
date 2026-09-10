@@ -70,7 +70,7 @@ import CSP.Operators as O
 
 -- the assembly lemma, parametric in the network parameters, the topology and the
 -- api alphabet — the same three parameters `Parametric.Node` takes, so that `node`
--- and `systemOf` below are literally that module's
+-- and `systemOfWith` below are literally that module's
 module Generic
   (p : Params) (t : Topology p)
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
@@ -78,43 +78,95 @@ module Generic
   open N p using (Net_Api; Net_Api-≟)
   open D p using (Payload)
   open import CSP.Examples.Cardano_network.NetCommon p
-    using (CopySpecBreakableA; ioES)
+    using (ioES)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_∥⇘_⇙_; _∖_; ⦀Fin⁺)
   open Topology t using (Node; numNodes-1)
   open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
-    using (Proc; node; systemOf)
+    using (Proc; node; systemOfWith; systemOfWithNode)
 
   open import Semantics.FailuresDivergences
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (_⊑FD_; divergences)
+  open import Semantics.Failures
+    {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
+    using (_⊑F_; _⊑T_)
   open import CSP.Laws.FD.ParallelMonoFD (Net_Api-≟ {Payload})
-    using (∥-mono-⊑FD; ⦀Fin⁺-mono-⊑FD)
+    using (∥-mono-⊑FD; ⦀Fin⁺-mono-⊑FD; ∥-mono-⊑F; ⦀Fin⁺-mono-⊑F)
   open import CSP.Laws.FD.HideMonoFD (Net_Api-≟ {Payload})
-    using (Hide-mono-⊑FD-df)
+    using (Hide-mono-⊑FD-df; Hide-mono-⊑F)
+  open import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload})
+    using (Hide-mono-⊑ᵀ)
+  open import CSP.Laws.Traces.TraceLawsParallelMono (Net_Api-≟ {Payload})
+    using (∥-mono-⊑T; ⦀Fin⁺-mono-⊑ᵀ)
 
   -- THE ASSEMBLY LEMMA: a whole-network `⊑FD` goal reduces to one obligation per
-  -- node (`nSpec n ⊑FD node n (lg n)`) plus one for the medium, given
+  -- node (`nSpec n ⊑FD node n (lg n)`) plus one for the medium `med`, given
   -- divergence-freedom of the hidden implementation.  `⦀Fin⁺-mono-⊑FD` folds the
   -- nodes with no alphabet side condition, `∥-mono-⊑FD` joins the medium at `ioES`,
-  -- `Hide-mono-⊑FD-df` pushes the whole thing under `∖ ioES`.
-  systemN-mono : (mSpec : Proc) (nSpec lg : Node → Proc)
-               → mSpec ⊑FD CopySpecBreakableA
-               → (∀ n → nSpec n ⊑FD node n (lg n))
-               → (∀ {s} → ¬ divergences (systemOf lg) s)
-               → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ numNodes-1 nSpec) ∖ ioES) ⊑FD systemOf lg
-  systemN-mono mSpec nSpec lg hM hN hdf =
+  -- `Hide-mono-⊑FD-df` pushes the whole thing under `∖ ioES`.  The medium is an
+  -- explicit argument: none of those three steps inspects it, so the lemma holds at
+  -- the concrete multiplexer and at the abstract copy medium alike.
+  --
+  -- The NODE BUILDER is an explicit argument for the same reason the medium is:
+  -- none of the three monotonicity steps inspects it, so the lemma holds at the
+  -- config-driven `node` and at `nodeUniform` alike.
+  systemN-monoWith : (mk : Node → Proc → Proc) (med : Proc) (mSpec : Proc)
+                     (nSpec lg : Node → Proc)
+                   → mSpec ⊑FD med
+                   → (∀ n → nSpec n ⊑FD mk n (lg n))
+                   → (∀ {s} → ¬ divergences (systemOfWithNode mk med lg) s)
+                   → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ numNodes-1 nSpec) ∖ ioES)
+                       ⊑FD systemOfWithNode mk med lg
+  systemN-monoWith mk med mSpec nSpec lg hM hN hdf =
     Hide-mono-⊑FD-df ioES (∥-mono-⊑FD ioES hM (⦀Fin⁺-mono-⊑FD hN)) hdf
+
+  -- the assembly lemma at the DEFAULT (config-driven) node builder
+  systemN-mono : (med : Proc) (mSpec : Proc) (nSpec lg : Node → Proc)
+               → mSpec ⊑FD med
+               → (∀ n → nSpec n ⊑FD node n (lg n))
+               → (∀ {s} → ¬ divergences (systemOfWith med lg) s)
+               → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ numNodes-1 nSpec) ∖ ioES)
+                   ⊑FD systemOfWith med lg
+  systemN-mono = systemN-monoWith node
+
+  -- the ⊑F sibling of `systemN-mono`: reduces a whole-network ⊑F goal to ONE
+  -- obligation per node plus one for the medium, with NO divergence premise —
+  -- `Hide-mono-⊑F` is unconditional, unlike `Hide-mono-⊑FD`
+  systemN-mono-F : (med : Proc) (mSpec : Proc) (nSpec lg : Node → Proc)
+                 → mSpec ⊑F med
+                 → (∀ n → nSpec n ⊑F node n (lg n))
+                 → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ numNodes-1 nSpec) ∖ ioES)
+                     ⊑F systemOfWith med lg
+  systemN-mono-F med mSpec nSpec lg hM hN =
+    Hide-mono-⊑F ioES (∥-mono-⊑F ioES hM (⦀Fin⁺-mono-⊑F hN))
+
+  -- the ⊑T sibling of `systemN-mono-F`: reduces a whole-network TRACE-refinement goal
+  -- to one obligation per node plus one for the medium.  Every step is unconditional —
+  -- `Hide-mono-⊑ᵀ` needs no divergence-freedom premise, unlike `Hide-mono-⊑FD-df`, and
+  -- the fold needs no alphabet side condition.  This is the order a SAFETY property
+  -- belongs at: `⊑F` constrains only traces that reach a stable state, so it is
+  -- vacuous on a bad trace followed by divergence.
+  systemN-mono-T : (med : Proc) (mSpec : Proc) (nSpec lg : Node → Proc)
+                 → mSpec ⊑T med
+                 → (∀ n → nSpec n ⊑T node n (lg n))
+                 → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ numNodes-1 nSpec) ∖ ioES)
+                     ⊑T systemOfWith med lg
+  systemN-mono-T med mSpec nSpec lg hM hN =
+    Hide-mono-⊑ᵀ ioES (∥-mono-⊑T ioES hM (⦀Fin⁺-mono-⊑ᵀ hN))
 
 ------------------------------------------------------------------------
 -- Sanity check: the lemma instantiated at the four-node diamond
 --
 -- This is a USABILITY check, not a new theorem — it exhibits exactly
 -- what a caller has to supply.  Note that the conclusion is stated
--- about the HAND-WRITTEN `breakableSystem`, not about `systemOf
+-- about the HAND-WRITTEN `breakableSystem`, not about `systemOfCopy
 -- (diamondLogic blkA)`: the two are definitionally equal by
 -- `Parametric.DiamondInstance.diamond-faithful` (`= refl`), so the
 -- generic lemma applies to the existing four-node development with no
--- transport at all.
+-- transport at all.  The medium argument is therefore instantiated at
+-- `CopySpecBreakableA`: `breakableSystem` is the composition over the
+-- ABSTRACT copy medium, not over the concrete multiplexer that
+-- `Parametric.Node.systemOf` defaults to.
 ------------------------------------------------------------------------
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
@@ -129,7 +181,7 @@ open import CSP.Examples.Cardano_network.NetCommon p
   using (CopySpecBreakableA; ioES)
 open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_∥⇘_⇙_; _∖_; ⦀Fin⁺)
 open import CSP.Examples.Cardano_network.Parametric.Node p diamond apiES
-  using (Proc; node)
+  using (Proc; nodeUniform)
 open import Semantics.FailuresDivergences
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using (_⊑FD_; divergences)
@@ -140,8 +192,9 @@ open import Semantics.FailuresDivergences
 -- conclusion mentions `breakableSystem` only because the faithfulness gate is `refl`.
 diamond-assembly : ∀ (blkA : Block₃) (mSpec : Proc) (nSpec : Fin 4 → Proc)
                  → mSpec ⊑FD CopySpecBreakableA
-                 → (∀ n → nSpec n ⊑FD node n (diamondLogic blkA n))
+                 → (∀ n → nSpec n ⊑FD nodeUniform n (diamondLogic blkA n))
                  → (∀ {s} → ¬ divergences (breakableSystem blkA) s)
                  → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ 3 nSpec) ∖ ioES) ⊑FD breakableSystem blkA
 diamond-assembly blkA mSpec nSpec hM hN hdf =
-  Generic.systemN-mono p diamond apiES mSpec nSpec (diamondLogic blkA) hM hN hdf
+  Generic.systemN-monoWith p diamond apiES
+    nodeUniform CopySpecBreakableA mSpec nSpec (diamondLogic blkA) hM hN hdf

@@ -97,7 +97,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; break
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 
 open import CSP.Examples.Cardano_network.Base using ( Dir; hi; IDs; N2N_BlockFetch )
@@ -489,6 +489,10 @@ evStepJ l r {evLabel _ (rcvack l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-rcvack (med (toSys r))) (SR.absnodes-no-rcvack (toSys r)) step)
 evStepJ l r {evLabel _ (ack    l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-ack (med (toSys r))) (SR.absnodes-no-ack (toSys r)) step)
+evStepJ l r {evLabel _ (store l₀ d₀ id) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-store (med (toSys r))) (SR.absnodes-no-store (toSys r)) step)
+evStepJ l r {evLabel _ (env l₀ d₀ id) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-env (med (toSys r))) (SR.absnodes-no-env (toSys r)) step)
 
 ------------------------------------------------------------------------
 -- §6  THE HIDDEN io CLASS — the risk locus, and why it is transcribed.
@@ -1101,6 +1105,10 @@ module _ where
     ⊥-elim (oevB-refute r (SR.medium-no-rcvack (med (toSys r))) (SR.absnodes-no-rcvack (toSys r)) step)
   evStepB r {evLabel _ (ack    l₀ d₀ id) a} step =
     ⊥-elim (oevB-refute r (SR.medium-no-ack (med (toSys r))) (SR.absnodes-no-ack (toSys r)) step)
+  evStepB r {evLabel _ (store l₀ d₀ id) a} step =
+    ⊥-elim (oevB-refute r (SR.medium-no-store (med (toSys r))) (SR.absnodes-no-store (toSys r)) step)
+  evStepB r {evLabel _ (env l₀ d₀ id) a} step =
+    ⊥-elim (oevB-refute r (SR.medium-no-env (med (toSys r))) (SR.absnodes-no-env (toSys r)) step)
 
   -- THE io FILL class at the widened invariant.  §6's arm per leg for the three
   -- carried halves; the value half is *** a verbatim copy of

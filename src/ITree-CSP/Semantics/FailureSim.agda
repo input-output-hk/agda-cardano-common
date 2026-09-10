@@ -36,7 +36,7 @@ open import Semantics.Stability           {ℓ} {ℓe} {ℓi} {E} {I} using (sta
 open import Semantics.Refusals            {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Failures            {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.FailuresDivergences {ℓ} {ℓe} {ℓi} {E} {I}
-  using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_)
+  using (IsDivergence; divergences; failures⊥; _⊇F⊥_; _⊇D_; _⊑FD_)
 
 -------------------------------------------------------------------------------------
 -- The record.
@@ -60,7 +60,7 @@ record FSim {ℓr} (R : Set ℓr) (t₁ t₂ : PTree E I R)
              × isStable t₂′
              × (∀ (e : Event√ R) → Offers t₂′ e → Offers t₁ e) )
 
-    -- only the impl→spec divergence direction is needed; that is what ⊑D consumes
+    -- only the impl→spec divergence direction is needed; that is what ⊇D consumes
     div→ : Diverges t₁ → Diverges t₂
 open FSim public
 
@@ -147,8 +147,19 @@ fsim→wsim sim .WSim.fwd .WSimF.on-tau s with sim .FSim.fwd .WSimF.on-tau s
 fsim→⊑T : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊑T Q
 fsim→⊑T sim = wsim→⊑T (fsim→wsim sim)
 
+-- the same, for the `div→`-free record: only `fwd` is ever consulted
+fsimF→wsim : ∀ {ℓr} {R : Set ℓr} {t₁ t₂ : PTree E I R} → FSimF R t₁ t₂ → WSim R t₁ t₂
+fsimF→wsim sim .WSim.fwd .WSimF.on-ev  s with sim .FSimF.fwd .WSimF.on-ev  s
+... | _ , w , rel = _ , w , fsimF→wsim rel
+fsimF→wsim sim .WSim.fwd .WSimF.on-tau s with sim .FSimF.fwd .WSimF.on-tau s
+... | _ , w , rel = _ , w , fsimF→wsim rel
+
+-- …hence the trace half of a `⊑F` fact comes for free from an `FSimF`
+fsimF→⊑T : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSimF R Q P → P ⊑T Q
+fsimF→⊑T sim = wsim→⊑T (fsimF→wsim sim)
+
 -------------------------------------------------------------------------------------
--- The bridge to the FD model.  Unlike `drbisim→⊑F⊥` this uses no classical principle:
+-- The bridge to the FD model.  Unlike `drbisim→⊇F⊥` this uses no classical principle:
 -- no `¬-divergent→normal`, no `stable-≉-ret` case, no `dr-absorb-τ*`, no `⊥-elim`.
 -- The `ret` case simply cannot arise, because `stab` hands back a STABLE witness and
 -- a `ret` state is never stable.  (If a spec must terminate where the impl stalls,
@@ -156,8 +167,8 @@ fsim→⊑T sim = wsim→⊑T (fsim→wsim sim)
 -------------------------------------------------------------------------------------
 
 -- divergences are respected: replay the divergence prefix, then apply div→
-fsim→⊑D : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊑D Q
-fsim→⊑D sim d with fsim-trace-sim sim (d .IsDivergence.reach)
+fsim→⊇D : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊇D Q
+fsim→⊇D sim d with fsim-trace-sim sim (d .IsDivergence.reach)
 ... | Pw , p⟹ , simw = record
         { prefix  = d .IsDivergence.prefix
         ; suffix  = d .IsDivergence.suffix
@@ -167,34 +178,45 @@ fsim→⊑D sim d with fsim-trace-sim sim (d .IsDivergence.reach)
         ; divwit  = simw .FSim.div→ (d .IsDivergence.divwit)
         }
 
--- stable (divergence-FREE) failures are respected by an FSimF: replay the spec's
--- failing trace against the impl, settle the impl with `stab`, and compose the offer
--- inclusion with the spec's refusal.  No `div→` obligation is ever consulted here —
--- this is exactly `fsim→⊑F`'s ORIGINAL proof, now stated over the smaller record.
+-- kept private: `_⊇F_` is the weaker half of `_⊑F_` and must not be reachable
+-- as ordinary API (see `Semantics.Failures`); this feeds `fsimF→⊑F` and `fsim→⊇F⊥`
+-- below, both in this module.
+private
+  -- stable (divergence-FREE) failures are respected by an FSimF: replay the spec's
+  -- failing trace against the impl, settle the impl with `stab`, and compose the offer
+  -- inclusion with the spec's refusal.  No `div→` obligation is ever consulted here —
+  -- this is exactly `fsim→⊑F`'s ORIGINAL proof, now stated over the smaller record.
+  fsimF→⊇F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSimF R Q P → P ⊇F Q
+  fsimF→⊇F sim s X (Qw , q⟹ , stQw , norefuse)
+    with fsimF-trace-sim sim q⟹
+  ... | Pw , p⟹ , simw with simw .FSimF.stab stQw
+  ...   | Pw′ , pw→pw′ , stPw′ , incl =
+          Pw′ , ⟹-then-τ* p⟹ pw→pw′ , stPw′ , λ e Be off → norefuse e Be (incl e off)
+
+-- the FULL stable-failures refinement: the failures half is `fsimF→⊇F` above, the
+-- trace half is the simulation's FORWARD component (`fsimF→⊑T`).  No new proof — the
+-- data `_⊑F_` now demands was already in the record.
 fsimF→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSimF R Q P → P ⊑F Q
-fsimF→⊑F sim s X (Qw , q⟹ , stQw , norefuse)
-  with fsimF-trace-sim sim q⟹
-... | Pw , p⟹ , simw with simw .FSimF.stab stQw
-...   | Pw′ , pw→pw′ , stPw′ , incl =
-        Pw′ , ⟹-then-τ* p⟹ pw→pw′ , stPw′ , λ e Be off → norefuse e Be (incl e off)
+fsimF→⊑F sim = fsimF→⊑T sim , fsimF→⊇F sim
 
 -- stable (divergence-FREE) failures are respected: this is the `inj₁` branch of
--- `fsim→⊑F⊥` below, extracted so a caller with no divergence-strictness need (e.g. a
--- plain `⊑F` fact) does not have to go through the `⊎` wrapper of `⊑F⊥`.  Derived from
+-- `fsim→⊇F⊥` below, extracted so a caller with no divergence-strictness need (e.g. a
+-- plain `⊑F` fact) does not have to go through the `⊎` wrapper of `⊇F⊥`.  Derived from
 -- `fsimF→⊑F` by forgetting the (unused) `div→` field first — `fsim→⊑F` never touches
 -- `div→`, so this is a pure transcription, not a new proof.
 fsim→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊑F Q
 fsim→⊑F sim = fsimF→⊑F (fsim→fsimF sim)
 
--- divergence-strict failures are respected: the `inj₂` disjunct is `fsim→⊑D`, the
--- `inj₁` disjunct is exactly `fsim→⊑F` above
-fsim→⊑F⊥ : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊑F⊥ Q
-fsim→⊑F⊥ sim (inj₂ dQ) = inj₂ (fsim→⊑D sim dQ)
-fsim→⊑F⊥ sim (inj₁ f)  = inj₁ (fsim→⊑F sim _ _ f)
+-- divergence-strict failures are respected: the `inj₂` disjunct is `fsim→⊇D`, the
+-- `inj₁` disjunct is the FAILURES HALF of `fsim→⊑F` above (`⊇F⊥` compares failures
+-- only, so the trace half of `_⊑F_` has nothing to contribute here)
+fsim→⊇F⊥ : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊇F⊥ Q
+fsim→⊇F⊥ sim (inj₂ dQ) = inj₂ (fsim→⊇D sim dQ)
+fsim→⊇F⊥ sim (inj₁ f)  = inj₁ (fsimF→⊇F (fsim→fsimF sim) _ _ f)
 
 -- the headline theorem: a one-way failure simulation gives ⊑FD
 fsim→⊑FD : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → FSim R Q P → P ⊑FD Q
-fsim→⊑FD sim = fsim→⊑F⊥ sim , fsim→⊑D sim
+fsim→⊑FD sim = fsim→⊇F⊥ sim , fsim→⊇D sim
 
 -------------------------------------------------------------------------------------
 -- FSim is a preorder.  Reflexivity is immediate; transitivity needs FSim-specific

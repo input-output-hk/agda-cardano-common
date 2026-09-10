@@ -27,13 +27,13 @@
 -- (`Θ-run-lift` / `Θ-div-lift`): a prefix of an `A`-free trace is `A`-free.
 --
 -- Each half then transfers the decomposed pieces through the hypotheses:
---   ⊑D  half : `θNo` → `Θ-Diverges→` + the body's `⊑D` + `Θ-div-lift`;
---              `θFire` → the handler's `⊑D` prepended to a re-fired composite run
+--   ⊇D  half : `θNo` → `Θ-Diverges→` + the body's `⊇D` + `Θ-div-lift`;
+--              `θFire` → the handler's `⊇D` prepended to a re-fired composite run
 --              (`Θ-fire-transfer`, via `FD→trace⊥` on the body);
 --              `θDone` → vacuous (`deadlock` cannot diverge).
---   ⊑F⊥ half : `θNo` → offers/stability of `P ⟦ A ▷ ·` ARE the body's
+--   ⊇F⊥ half : `θNo` → offers/stability of `P ⟦ A ▷ ·` ARE the body's
 --              (`Θ-Refuses→`/`Θ-Refuses←`), so the composite refusal is a body refusal;
---              `θFire` → the handler's `⊑F⊥` prepended to the re-fired run;
+--              `θFire` → the handler's `⊇F⊥` prepended to the re-fired run;
 --              `θDone` → the body's √-extension trick (`term→√failure`).
 --
 -- POSTULATES: ZERO local.  INHERITED: exactly the two that sit behind
@@ -79,7 +79,7 @@ open import Semantics.DRBisim             {E = E} {I = ExtI E}
 open import Semantics.Stability           {E = E} {I = ExtI E}
   using (mk-stable; stable-not-ret; stable-not-sil; stable-no-τ; stable-react-τc)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed)
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed)
 open import CSP.Laws.Traces.TraceLawsThrowInterrupt E-≟
   using (force-Θ-ret; force-Θ-sil; force-Θ-react;
          Θ-τ-elim; Θ-ev-elim; ΘevR; Θthrow; Θpass; Θdone;
@@ -365,7 +365,7 @@ data ΘReach (A : EventSet) {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R)
 -- divergence is split by `snoc-split` — inside the `A`-free prefix it lifts, and at the
 -- firing event itself it still supplies the trace needed to re-fire
 Θ-fire-transfer : (A : EventSet) (P₁ P₂ Q₁ : PTree E (ExtI E) R)
-                → P₁ ⊑F⊥ P₂ → P₁ ⊑D P₂
+                → P₁ ⊇F⊥ P₂ → P₁ ⊇D P₂
                 → {u : List (Event√ R)} {at : AnyTypes E} {a : proj₁ at}
                   {P₂* P₂′ : PTree E (ExtI E) R}
                 → ΘFree A u → P₂ ⟹⟨ u ⟩ P₂*
@@ -395,21 +395,21 @@ data ΘReach (A : EventSet) {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R)
                (subst (λ z → P₁ ⟹⟨ z ⟩ (dv .witness)) peq (dv .reach)))
 
 -------------------------------------------------------------------------------------
--- Layer 6 : the ⊑D half.
+-- Layer 6 : the ⊇D half.
 -------------------------------------------------------------------------------------
 
 -- worker: decompose the target composite's divergence-reach and transfer each shape
 Θ-mono-div-reach : (A : EventSet) (P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R)
-                 → P₁ ⊑F⊥ P₂ → P₁ ⊑D P₂ → Q₁ ⊑D Q₂
+                 → P₁ ⊇F⊥ P₂ → P₁ ⊇D P₂ → Q₁ ⊇D Q₂
                  → {pre : List (Event√ R)} {W : PTree E (ExtI E) R}
                  → (P₂ ⟦ A ▷ Q₂) ⟹⟨ pre ⟩ W → Diverges W
                  → divergences (P₁ ⟦ A ▷ Q₁) pre
 Θ-mono-div-reach A P₁ P₂ Q₁ Q₂ fP dP dQ reach divW
   with Θ-reach-split P₂ Q₂ A reach
 -- never fired: the composite divergence is the BODY's (`Θ-Diverges→`), transferred by
--- the body's `⊑D` and lifted back through the throw
+-- the body's `⊇D` and lifted back through the throw
 ... | θNo f rP = Θ-div-lift Q₁ A f (dP (mk-full-div rP (Θ-Diverges→ divW)))
--- fired: the divergence is the HANDLER's, transferred by the handler's `⊑D` and
+-- fired: the divergence is the HANDLER's, transferred by the handler's `⊇D` and
 -- prepended to the refined composite's re-fired run (or the body diverges first)
 ... | θFire {u = u} {at = at} {a = a} {v = v} f rP st m rQ =
       case Θ-fire-transfer A P₁ P₂ Q₁ fP dP f rP st m of λ where
@@ -422,36 +422,36 @@ data ΘReach (A : EventSet) {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R)
 ... | θDone f rP eqret rd =
       ⊥-elim (deadlock-converges (subst Diverges (proj₂ (deadlock-run-inv rd)) divW))
 
--- HEADLINE (⊑D half): throw is ⊑D-monotone in body and handler
-Θ-mono-⊑D : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
-          → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ ⟦ A ▷ Q₁) ⊑D (P₂ ⟦ A ▷ Q₂)
-Θ-mono-⊑D A {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) d =
+-- HEADLINE (⊇D half): throw is ⊇D-monotone in body and handler
+Θ-mono-⊇D : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
+          → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ ⟦ A ▷ Q₁) ⊇D (P₂ ⟦ A ▷ Q₂)
+Θ-mono-⊇D A {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) d =
   subst (divergences (P₁ ⟦ A ▷ Q₁))
         (sym (d .split))
         (div-extension-closed
           (Θ-mono-div-reach A P₁ P₂ Q₁ Q₂ fP dP dQ (d .reach) (d .divwit)))
 
 -------------------------------------------------------------------------------------
--- Layer 7 : the ⊑F⊥ half.
+-- Layer 7 : the ⊇F⊥ half.
 -------------------------------------------------------------------------------------
 
 -- worker: decompose the target composite's failure-reach and transfer each shape
 Θ-mono-fail-reach : (A : EventSet) (P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R)
-                  → P₁ ⊑F⊥ P₂ → P₁ ⊑D P₂ → Q₁ ⊑F⊥ Q₂
+                  → P₁ ⊇F⊥ P₂ → P₁ ⊇D P₂ → Q₁ ⊇F⊥ Q₂
                   → {s : List (Event√ R)} {X : Event√ R → Set ℓr}
                     {W : PTree E (ExtI E) R}
                   → (P₂ ⟦ A ▷ Q₂) ⟹⟨ s ⟩ W → Refuses W X
                   → failures⊥ (P₁ ⟦ A ▷ Q₁) s X
 Θ-mono-fail-reach A P₁ P₂ Q₁ Q₂ fP dP fQ {X = X} reach ref
   with Θ-reach-split P₂ Q₂ A reach
--- never fired: the composite refusal IS the body's; transfer through the body's `⊑F⊥`
+-- never fired: the composite refusal IS the body's; transfer through the body's `⊇F⊥`
 -- and rebuild (or lift the returned divergence)
 ... | θNo {P* = P₂*} f rP =
       case fP {B = X} (inj₁ (P₂* , rP , Θ-Refuses→ P₂* Q₂ A ref)) of λ where
         (inj₁ (P₁* , rP₁ , ref₁)) →
           inj₁ ((P₁* ⟦ A ▷ Q₁) , Θ-run-lift Q₁ A f rP₁ , Θ-Refuses← P₁* Q₁ A ref₁)
         (inj₂ dv) → inj₂ (Θ-div-lift Q₁ A f dv)
--- fired: the refusal is the HANDLER's; transfer through the handler's `⊑F⊥` and prepend
+-- fired: the refusal is the HANDLER's; transfer through the handler's `⊇F⊥` and prepend
 -- the refined composite's re-fired run (or the body diverges first)
 ... | θFire {u = u} {at = at} {a = a} {v = v} f rP st m rQ =
       case Θ-fire-transfer A P₁ P₂ Q₁ fP dP f rP st m of λ where
@@ -465,7 +465,7 @@ data ΘReach (A : EventSet) {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R)
                         (++-assoc u (evl (evLabel (proj₁ at) (proj₂ at) a) ∷ []) v)
                         (div-prepend-run fire dQ₁))
         (inj₂ dv) → inj₂ (div-extension-closed dv)
--- the body terminated: √-extend the body run, push it through the body's `⊑F⊥`, and
+-- the body terminated: √-extend the body run, push it through the body's `⊇F⊥`, and
 -- re-tick the refined composite into `deadlock` (which refuses everything)
 ... | θDone {u = u} {r = r} f rP eqret rd with deadlock-run-inv rd
 ...   | refl , refl =
@@ -480,11 +480,11 @@ data ΘReach (A : EventSet) {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R)
           (inj₂ dv) →
             inj₂ (div-extension-closed (Θ-div-lift Q₁ A f (div-√-truncate dv)))
 
--- HEADLINE (⊑F⊥ half): throw is ⊑F⊥-monotone in body and handler
-Θ-mono-⊑F⊥ : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
-           → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ ⟦ A ▷ Q₁) ⊑F⊥ (P₂ ⟦ A ▷ Q₂)
-Θ-mono-⊑F⊥ A {P₁} {P₂} {Q₁} {Q₂} hP hQ (inj₂ d) = inj₂ (Θ-mono-⊑D A hP hQ d)
-Θ-mono-⊑F⊥ A {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) (inj₁ (W , reach , ref)) =
+-- HEADLINE (⊇F⊥ half): throw is ⊇F⊥-monotone in body and handler
+Θ-mono-⊇F⊥ : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
+           → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ ⟦ A ▷ Q₁) ⊇F⊥ (P₂ ⟦ A ▷ Q₂)
+Θ-mono-⊇F⊥ A {P₁} {P₂} {Q₁} {Q₂} hP hQ (inj₂ d) = inj₂ (Θ-mono-⊇D A hP hQ d)
+Θ-mono-⊇F⊥ A {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) (inj₁ (W , reach , ref)) =
   Θ-mono-fail-reach A P₁ P₂ Q₁ Q₂ fP dP fQ reach ref
 
 -------------------------------------------------------------------------------------
@@ -495,4 +495,4 @@ data ΘReach (A : EventSet) {ℓr} {R : Set ℓr} (P Q : PTree E (ExtI E) R)
 -- operands, unconditionally
 Θ-mono-⊑FD : (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
            → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ ⟦ A ▷ Q₁) ⊑FD (P₂ ⟦ A ▷ Q₂)
-Θ-mono-⊑FD A hP hQ = Θ-mono-⊑F⊥ A hP hQ , Θ-mono-⊑D A hP hQ
+Θ-mono-⊑FD A hP hQ = Θ-mono-⊇F⊥ A hP hQ , Θ-mono-⊇D A hP hQ

@@ -39,14 +39,14 @@ open import Semantics.Refusals            {ℓ} {ℓe} {ℓi} {E} {I}
 open import Semantics.Failures            {ℓ} {ℓe} {ℓi} {E} {I}
   hiding (⟹-then-τ*)
 open import Semantics.FailuresDivergences {ℓ} {ℓe} {ℓi} {E} {I}
-  using (IsDivergence; divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+  using (IsDivergence; divergences; failures⊥; _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 -- the one-way failure simulation this module's bridge theorems now factor through.
 -- Imported with an explicit `using` (and NOT re-exported) so that the record fields
 -- `fwd`/`stab`/`div→` of `FSim` do not leak into the 60 downstream modules that name this
 -- one (`grep -rl DRImpliesFD --include='*.agda' src/`, minus this file); 52 of those carry
 -- an actual `import Semantics.DRImpliesFD`, the rest only mention it in comments.
 open import Semantics.FailureSim          {ℓ} {ℓe} {ℓi} {E} {I}
-  using (FSim; fsim→⊑D; fsim→⊑F; fsim→⊑F⊥; fsim→⊑FD)
+  using (FSim; fsim→⊇D; fsim→⊑F; fsim→⊇F⊥; fsim→⊑FD)
 -- strong bisimulation's bridge into the DR layer, needed only for `bisim→⊑F` below
 open import Semantics.Bisim               {ℓ} {ℓe} {ℓi} {E} {I} using (_∼_)
 open import Semantics.StrongImpliesDR     {ℓ} {ℓe} {ℓi} {E} {I} using (sbisim→drbisim)
@@ -152,20 +152,20 @@ drbisim→fsim pq .FSim.stab st₁
 
 -------------------------------------------------------------------------------------
 -- The bridge, now a corollary of `Semantics.FailureSim`.  The `drbisim-sym` is forced
--- by the orientations: `drbisim→⊑D : DRbisim R P Q → P ⊑D Q` while
--- `fsim→⊑D : FSim R Q P → P ⊑D Q`, so the FSim needed has Q as its impl.
+-- by the orientations: `drbisim→⊇D : DRbisim R P Q → P ⊇D Q` while
+-- `fsim→⊇D : FSim R Q P → P ⊇D Q`, so the FSim needed has Q as its impl.
 -------------------------------------------------------------------------------------
 
 -- divergences are respected (constructive part of the bridge)
-drbisim→⊑D : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑D Q
-drbisim→⊑D pq = fsim→⊑D (drbisim→fsim (drbisim-sym pq))
+drbisim→⊇D : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊇D Q
+drbisim→⊇D pq = fsim→⊇D (drbisim→fsim (drbisim-sym pq))
 
 -- divergence-strict failures are respected (the postulate is inside `drbisim→fsim`)
-drbisim→⊑F⊥ : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑F⊥ Q
-drbisim→⊑F⊥ pq = fsim→⊑F⊥ (drbisim→fsim (drbisim-sym pq))
+drbisim→⊇F⊥ : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊇F⊥ Q
+drbisim→⊇F⊥ pq = fsim→⊇F⊥ (drbisim→fsim (drbisim-sym pq))
 
--- stable failures are respected (the divergence-free half of `drbisim→⊑F⊥`, useful on
--- its own when the target refinement is `⊑F` rather than `⊑F⊥`/`⊑FD`)
+-- stable failures are respected (the divergence-free half of `drbisim→⊇F⊥`, useful on
+-- its own when the target refinement is `⊑F` rather than `⊇F⊥`/`⊑FD`)
 drbisim→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → DRbisim R P Q → P ⊑F Q
 drbisim→⊑F pq = fsim→⊑F (drbisim→fsim (drbisim-sym pq))
 

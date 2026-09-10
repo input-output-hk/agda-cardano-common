@@ -18,7 +18,7 @@
 --
 -- ── THE TWO SIDE CONDITIONS, AND WHY EACH IS NECESSARY ─────────────────────────────
 --
--- (1) `BindDivSplit k₂` — the BIND KÖNIG STEP, needed for the `⊑D` half ONLY, and only
+-- (1) `BindDivSplit k₂` — the BIND KÖNIG STEP, needed for the `⊇D` half ONLY, and only
 --     for the GENERAL bind.  Decomposing a divergence of `P₂ >>= k₂` means deciding
 --     whether the infinite τ-chain stays inside the prefix `P₂` forever or crosses the
 --     silent handover into some `k₂ r`; that is not constructively decidable.  Note the
@@ -30,9 +30,9 @@
 --
 -- (2) A SHARED RESULT LEVEL, `R S : Set ℓr` (not `R : Set ℓr`, `S : Set ℓs`).  This is a
 --     LEVEL constraint, not a mathematical one, and it is forced by the SHAPE of
---     `_⊑F⊥_`: for `P : PTree E I R` with `R : Set ℓr` the ban set is pinned to
+--     `_⊇F⊥_`: for `P : PTree E I R` with `R : Set ℓr` the ban set is pinned to
 --     `Event√ R → Set ℓr`.  A failure of `P₂ >>= k₂` bans a set over `Event√ S`, and
---     transferring the still-in-prefix case through `P₁ ⊑F⊥ P₂` requires RETAGGING that
+--     transferring the still-in-prefix case through `P₁ ⊇F⊥ P₂` requires RETAGGING that
 --     ban set over `Event√ R` (`banP` below) — which needs its codomain level to be
 --     `ℓr`.  There is no way to move a `Set ℓs` to `Set ℓr` for unrelated levels
 --     (`Lift` only goes UP, to `Set (ℓs ⊔ ℓr)`).  Precedent:
@@ -85,7 +85,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; O
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; ⊑FD-refl; failures⊥; divergences; IsDivergence
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; ⊑FD-refl; failures⊥; divergences; IsDivergence
         ; div-extension-closed; empty-div; Refuses-force-≡)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import CSP.Laws.FD.BindFD E-≟
@@ -138,18 +138,18 @@ bind-Refuses-P← {S = S} P′ k {B} (st , noff) = Bind-stable-P P′ k st , h
   ... | l , refl , o = noff (evl l) Be o
 
 -------------------------------------------------------------------------------------
--- PART 1 : ⊑F⊥ transfers a TERMINATING reach  (the one classical ingredient).
+-- PART 1 : ⊇F⊥ transfers a TERMINATING reach  (the one classical ingredient).
 -------------------------------------------------------------------------------------
 
 -- If the impl `P₂` visibly reaches a `ret r` state on a `√`-free trace, then so does the
 -- spec `P₁` — or the spec already diverges there.  A `ret` state is NOT stable, so it is
 -- no failure of its own; termination is observed through the `√` TICK, which
 -- `term→√failure` turns into an (empty-ban) failure on `s ++ √ r ∷ []`.  Transfer that
--- through `⊑F⊥`, then either split the tick back off the spec's run
+-- through `⊇F⊥`, then either split the tick back off the spec's run
 -- (`√-run-split-gen`, same `r`) or truncate the spec's divergence (`div-√-truncate`).
 term-transfer : ∀ {ℓr} {R : Set ℓr} {P₁ P₂ : PTree E (ExtI E) R}
                 {vs : List Event} {P′ : PTree E (ExtI E) R} {r : R}
-              → P₁ ⊑F⊥ P₂ → P₂ ⟹⟨ map evl vs ⟩ P′ → force P′ ≡ ret r
+              → P₁ ⊇F⊥ P₂ → P₂ ⟹⟨ map evl vs ⟩ P′ → force P′ ≡ ret r
               → (Σ[ Pᵣ ∈ PTree E (ExtI E) R ]
                    ((P₁ ⟹⟨ map evl vs ⟩ Pᵣ) × (force Pᵣ ≡ ret r)))
               ⊎ divergences P₁ (map evl vs)
@@ -171,7 +171,7 @@ term-transfer {ℓr = ℓr} {R = R} {P₁ = P₁} {vs = vs} {r = r} fF reach eqr
 fail-handover : ∀ {ℓr} {R S : Set ℓr} (k₁ : R → PTree E (ExtI E) S)
                 {P₁ P₂ P′ : PTree E (ExtI E) R} {r : R}
                 {vs : List Event} {s₂ : List (Event√ S)} {B : Event√ S → Set ℓr}
-              → P₁ ⊑F⊥ P₂ → P₂ ⟹⟨ map evl vs ⟩ P′ → force P′ ≡ ret r
+              → P₁ ⊇F⊥ P₂ → P₂ ⟹⟨ map evl vs ⟩ P′ → force P′ ≡ ret r
               → failures⊥ (k₁ r) s₂ B
               → failures⊥ (P₁ >>= k₁) (map evl vs ++ s₂) B
 fail-handover k₁ {P₁ = P₁} fP reach eqr fk⊥ with term-transfer fP reach eqr
@@ -182,7 +182,7 @@ fail-handover k₁ {P₁ = P₁} fP reach eqr fk⊥ with term-transfer fP reach 
 div-handover : ∀ {ℓr} {R S : Set ℓr} (k₁ : R → PTree E (ExtI E) S)
                {P₁ P₂ P′ : PTree E (ExtI E) R} {r : R}
                {vs : List Event} {s₂ : List (Event√ S)}
-             → P₁ ⊑F⊥ P₂ → P₂ ⟹⟨ map evl vs ⟩ P′ → force P′ ≡ ret r
+             → P₁ ⊇F⊥ P₂ → P₂ ⟹⟨ map evl vs ⟩ P′ → force P′ ≡ ret r
              → divergences (k₁ r) s₂
              → divergences (P₁ >>= k₁) (map evl vs ++ s₂)
 div-handover k₁ {P₁ = P₁} fP reach eqr dkr with term-transfer fP reach eqr
@@ -190,7 +190,7 @@ div-handover k₁ {P₁ = P₁} fP reach eqr dkr with term-transfer fP reach eqr
 ... | inj₂ dv                  = div-extension-closed (bind-div-intro-P P₁ k₁ dv)
 
 -------------------------------------------------------------------------------------
--- PART 2 : the `⊑D` half.
+-- PART 2 : the `⊇D` half.
 -------------------------------------------------------------------------------------
 
 -- DIVERGENCE ELIM keeping the handover witness.  `CSP.Laws.FD.BindFD.bind-div-elim`
@@ -224,22 +224,22 @@ bind-div-elim⁺ P k d with bind-bigstep-inv P k (IsDivergence.reach d)
            , trans (IsDivergence.split d)
                    (++-assoc (map evl s₁) s₂ (IsDivergence.suffix d)))
 
--- `_>>=_` is ⊑D-monotone in prefix and continuation, given the bind König split for the
+-- `_>>=_` is ⊇D-monotone in prefix and continuation, given the bind König split for the
 -- refined continuation.  Handover divergences additionally need the FAILURE half of the
--- prefix refinement (`term-transfer` runs on `⊑F⊥`).
-bind-mono-⊑D : ∀ {ℓr} {R S : Set ℓr} (k₁ k₂ : R → PTree E (ExtI E) S)
+-- prefix refinement (`term-transfer` runs on `⊇F⊥`).
+bind-mono-⊇D : ∀ {ℓr} {R S : Set ℓr} (k₁ k₂ : R → PTree E (ExtI E) S)
                {P₁ P₂ : PTree E (ExtI E) R}
              → BindDivSplit k₂
-             → P₁ ⊑F⊥ P₂ → P₁ ⊑D P₂ → (∀ r → (k₁ r) ⊑D (k₂ r))
-             → (P₁ >>= k₁) ⊑D (P₂ >>= k₂)
-bind-mono-⊑D k₁ k₂ {P₁} {P₂} sp fP dP dk d with bind-div-elim⁺ P₂ k₂ d
+             → P₁ ⊇F⊥ P₂ → P₁ ⊇D P₂ → (∀ r → (k₁ r) ⊇D (k₂ r))
+             → (P₁ >>= k₁) ⊇D (P₂ >>= k₂)
+bind-mono-⊇D k₁ k₂ {P₁} {P₂} sp fP dP dk d with bind-div-elim⁺ P₂ k₂ d
 -- HANDOVER: the divergence sits in the continuation, past a terminating prefix reach.
 ... | inj₂ (r , s₁ , s₂ , _ , reachP , eqr , dkr , seq) =
       subst (divergences (P₁ >>= k₁)) (sym seq)
             (div-handover k₁ fP reachP eqr (dk r dkr))
 -- STILL IN THE PREFIX: decide with the König split where the infinite τ-chain lives.
 ... | inj₁ (vs , P′ , sx , reachP , dvB , seq) with sp P′ dvB
---   … inside the prefix: a prefix divergence, transferred by ⊑D and re-introduced.
+--   … inside the prefix: a prefix divergence, transferred by ⊇D and re-introduced.
 ...   | inj₁ dP′ =
         subst (divergences (P₁ >>= k₁)) (sym seq)
               (div-extension-closed (bind-div-intro-P P₁ k₁
@@ -255,7 +255,7 @@ bind-mono-⊑D k₁ k₂ {P₁} {P₂} sp fP dP dk d with bind-div-elim⁺ P₂ 
                      (dk r (empty-div dkr)))))
 
 -------------------------------------------------------------------------------------
--- PART 3 : the `⊑F⊥` half (the FAILURE input; the divergence input is PART 2).
+-- PART 3 : the `⊇F⊥` half (the FAILURE input; the divergence input is PART 2).
 -------------------------------------------------------------------------------------
 
 -- A stable failure of `P₂ >>= k₂` transfers to a failure⊥ of `P₁ >>= k₁`.  NO side
@@ -264,7 +264,7 @@ bind-mono-⊑D k₁ k₂ {P₁} {P₂} sp fP dP dk d with bind-div-elim⁺ P₂ 
 -- (the composite's refusal IS the continuation's, by the `ret` force-splice).
 bind-mono-failures : ∀ {ℓr} {R S : Set ℓr} (k₁ k₂ : R → PTree E (ExtI E) S)
                      {P₁ P₂ : PTree E (ExtI E) R}
-                   → P₁ ⊑F⊥ P₂ → (∀ r → (k₁ r) ⊑F⊥ (k₂ r))
+                   → P₁ ⊇F⊥ P₂ → (∀ r → (k₁ r) ⊇F⊥ (k₂ r))
                    → ∀ {s : List (Event√ S)} {B : Event√ S → Set ℓr}
                    → failures (P₂ >>= k₂) s B → failures⊥ (P₁ >>= k₁) s B
 bind-mono-failures k₁ k₂ {P₁} {P₂} fP fk (W , run , ref)
@@ -301,9 +301,9 @@ bind-mono-failures k₁ k₂ {P₁} {P₂} fP fk (W , run , ref)
              → (P₁ >>= k₁) ⊑FD (P₂ >>= k₂)
 >>=-mono-⊑FD k₁ k₂ {P₁} {P₂} sp (fP , dP) kk = F , D
   where
-  D : (P₁ >>= k₁) ⊑D (P₂ >>= k₂)
-  D = bind-mono-⊑D k₁ k₂ sp fP dP (λ r → proj₂ (kk r))
-  F : (P₁ >>= k₁) ⊑F⊥ (P₂ >>= k₂)
+  D : (P₁ >>= k₁) ⊇D (P₂ >>= k₂)
+  D = bind-mono-⊇D k₁ k₂ sp fP dP (λ r → proj₂ (kk r))
+  F : (P₁ >>= k₁) ⊇F⊥ (P₂ >>= k₂)
   F (inj₁ f) = bind-mono-failures k₁ k₂ fP (λ r → proj₁ (kk r)) f
   F (inj₂ d) = inj₂ (D d)
 

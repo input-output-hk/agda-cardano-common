@@ -3,9 +3,9 @@
 -- Failures-divergences idempotence of external choice:  P □ P ≈FD P.
 --
 -- Reuses the □ FD machinery from ExtChoiceFD:
---   • the ELIM direction (P ⊑F⊥ (P□P), P ⊑D (P□P)) is just □-failures⊥-elim / □-div-elim.
---   • the divergence INTRO ((P□P) ⊑D P) is □-div-intro-L.
---   • the failures INTRO ((P□P) ⊑F⊥ P) is the only real work: a failure of P lifts to a
+--   • the ELIM direction (P ⊇F⊥ (P□P), P ⊇D (P□P)) is just □-failures⊥-elim / □-div-elim.
+--   • the divergence INTRO ((P□P) ⊇D P) is □-div-intro-L.
+--   • the failures INTRO ((P□P) ⊇F⊥ P) is the only real work: a failure of P lifts to a
 --     failure of P□P.  Done by induction on the big-step P ⟹⟨s⟩ W with a LOCKSTEP τ-case:
 --     P─τ→P₁ advances BOTH copies (right via □-fail-τ-pre-R, left via □-fail-τ-pre-L), and
 --     the ⟹-refl base uses refuses-double (a stable P refuses ⇒ P□P refuses the same set).
@@ -36,7 +36,7 @@ open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; failures⊥; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+  using (divergences; failures⊥; _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
 -- generic stability facts (`stable-react` below is a thin alias for `stable→react`)
 import Semantics.Stability {E = E} {I = ExtI E} as S
@@ -170,23 +170,23 @@ idem-fail-intro P (⟹-τ {q = P₁} step rest) ref
 -- The four refinements and the law.
 -------------------------------------------------------------------------------------
 
--- ELIM (easy):  P ⊑F⊥ (P□P)
-idem-⊒F⊥ : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → P ⊑F⊥ (P □ P)
-idem-⊒F⊥ {P = P} f = [ (λ x → x) , (λ x → x) ]′ (□-failures⊥-elim {P = P} {Q = P} f)
+-- ELIM (easy):  P ⊇F⊥ (P□P)
+idem-⊆F⊥ : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → P ⊇F⊥ (P □ P)
+idem-⊆F⊥ {P = P} f = [ (λ x → x) , (λ x → x) ]′ (□-failures⊥-elim {P = P} {Q = P} f)
 
--- ELIM (easy):  P ⊑D (P□P)
-idem-⊒D : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → P ⊑D (P □ P)
-idem-⊒D {P = P} d = [ (λ x → x) , (λ x → x) ]′ (□-div-elim {P = P} {Q = P} d)
+-- ELIM (easy):  P ⊇D (P□P)
+idem-⊆D : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → P ⊇D (P □ P)
+idem-⊆D {P = P} d = [ (λ x → x) , (λ x → x) ]′ (□-div-elim {P = P} {Q = P} d)
 
--- INTRO div (easy):  (P□P) ⊑D P
-idem-⊑D : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → (P □ P) ⊑D P
-idem-⊑D {P = P} = □-div-intro-L {P = P} {Q = P}
+-- INTRO div (easy):  (P□P) ⊇D P
+idem-⊇D : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → (P □ P) ⊇D P
+idem-⊇D {P = P} = □-div-intro-L {P = P} {Q = P}
 
--- INTRO failures (the work):  (P□P) ⊑F⊥ P
-idem-⊑F⊥ : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → (P □ P) ⊑F⊥ P
-idem-⊑F⊥ {P = P} (inj₁ (W , reach , ref)) = inj₁ (idem-fail-intro P reach ref)
-idem-⊑F⊥ {P = P} (inj₂ d)                 = inj₂ (□-div-intro-L {P = P} {Q = P} d)
+-- INTRO failures (the work):  (P□P) ⊇F⊥ P
+idem-⊇F⊥ : ⦃ _ : DecEq R ⦄ {P : PTree E (ExtI E) R} → (P □ P) ⊇F⊥ P
+idem-⊇F⊥ {P = P} (inj₁ (W , reach , ref)) = inj₁ (idem-fail-intro P reach ref)
+idem-⊇F⊥ {P = P} (inj₂ d)                 = inj₂ (□-div-intro-L {P = P} {Q = P} d)
 
 -- THE LAW: external choice is idempotent (FD-equality)
 □-idem-FD : ⦃ _ : DecEq R ⦄ (P : PTree E (ExtI E) R) → (P □ P) ≈FD P
-□-idem-FD P = (idem-⊑F⊥ , idem-⊑D) , (idem-⊒F⊥ , idem-⊒D)
+□-idem-FD P = (idem-⊇F⊥ , idem-⊇D) , (idem-⊆F⊥ , idem-⊆D)

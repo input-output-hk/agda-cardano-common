@@ -19,22 +19,22 @@
 -- make `□-comm-fail` / `□-assoc-fail` work also make monotonicity work, once the two
 -- transfer arms are allowed to fall into the divergence summand.
 --
---   ⊑D  half : `□-div-elim` splits a target divergence onto ONE operand (`□`'s
+--   ⊇D  half : `□-div-elim` splits a target divergence onto ONE operand (`□`'s
 --              divergences are the UNION of the operands'); transfer it through that
---              operand's `⊑D` and re-inject with `□-div-intro-L` / `-R`.
+--              operand's `⊇D` and re-inject with `□-div-intro-L` / `-R`.
 --
---   ⊑F⊥ half : the trace decides the shape, exactly as in `□-comm-fail`.
+--   ⊇F⊥ half : the trace decides the shape, exactly as in `□-comm-fail`.
 --              • `s ≡ []`  — `□`'s nil-failures are the INTERSECTION of the operands'
 --                (a stable `P □ Q` refusing `X` needs BOTH operands to refuse `X`, since
 --                `mergeVis` offers whatever either offers).  So `□-fail-nil-→` projects
 --                the target refusal onto BOTH targets, each is transferred through its
---                own `⊑F⊥`, and `□-fail-nil-←` re-joins the two refined nil-failures.
+--                own `⊇F⊥`, and `□-fail-nil-←` re-joins the two refined nil-failures.
 --                If EITHER transfer returns a divergence instead, the whole composite
 --                diverges at `[]` (`□-div-intro-L`/`-R`) and we land in the `failures⊥`
 --                divergence summand.
 --              • `s ≡ e ∷ s′` — the leading event has already committed to one operand,
 --                so the intersection collapses to a union: `□-failures-elim` picks the
---                side, that side's `⊑F⊥` transfers the failure, and
+--                side, that side's `⊇F⊥` transfers the failure, and
 --                `□-fail-intro-cons-L`/`-R` lifts it back (leading τ's via
 --                `□-fail-τ-pre-L/R`, the event via `□-ev-toL/toR` — all internal to
 --                `ExtChoiceAssoc`).
@@ -76,7 +76,7 @@ open import CSP.Operators E-≟
 open import Semantics.LTS                 {E = E} {I = ExtI E} using (Event√)
 open import Semantics.Failures            {E = E} {I = ExtI E} using (failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; ⊑FD-refl)
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; ⊑FD-refl)
 open import CSP.Laws.FD.ExtChoiceFD E-≟
   using (□-failures-elim; □-div-elim; □-div-intro-L; □-div-intro-R)
 open import CSP.Laws.FD.ExtChoiceAssoc E-≟
@@ -91,12 +91,12 @@ private
 -- Layer 1 : the two halves.
 -------------------------------------------------------------------------------------
 
--- `□` is ⊑D-monotone in both operands: `□`'s divergences are the UNION of the operands',
+-- `□` is ⊇D-monotone in both operands: `□`'s divergences are the UNION of the operands',
 -- so a target divergence belongs to one target operand, transfers through that operand's
--- `⊑D`, and is re-injected into the source choice on the same side
-□-mono-⊑D : ⦃ _ : DecEq R ⦄ {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
-          → P₁ ⊑D P₂ → Q₁ ⊑D Q₂ → (P₁ □ Q₁) ⊑D (P₂ □ Q₂)
-□-mono-⊑D {P₁ = P₁} {P₂ = P₂} {Q₁ = Q₁} {Q₂ = Q₂} dP dQ d
+-- `⊇D`, and is re-injected into the source choice on the same side
+□-mono-⊇D : ⦃ _ : DecEq R ⦄ {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
+          → P₁ ⊇D P₂ → Q₁ ⊇D Q₂ → (P₁ □ Q₁) ⊇D (P₂ □ Q₂)
+□-mono-⊇D {P₁ = P₁} {P₂ = P₂} {Q₁ = Q₁} {Q₂ = Q₂} dP dQ d
   with □-div-elim {P = P₂} {Q = Q₂} d
 ... | inj₁ dP₂ = □-div-intro-L {P = P₁} {Q = Q₁} (dP dP₂)
 ... | inj₂ dQ₂ = □-div-intro-R {P = P₁} {Q = Q₁} (dQ dQ₂)
@@ -106,7 +106,7 @@ private
 -- has committed to one operand, so it is a UNION (pick the side, transfer, lift back).
 -- Either arm may return a divergence, which re-injects into the `failures⊥` summand.
 □-mono-fail : ⦃ _ : DecEq R ⦄ (P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R)
-            → P₁ ⊑F⊥ P₂ → Q₁ ⊑F⊥ Q₂
+            → P₁ ⊇F⊥ P₂ → Q₁ ⊇F⊥ Q₂
             → {s : List (Event√ R)} {X : Event√ R → Set ℓr}
             → failures (P₂ □ Q₂) s X → failures⊥ (P₁ □ Q₁) s X
 -- [] : the nil-failure conjunction
@@ -126,12 +126,12 @@ private
 ...   | inj₁ (WQ , rQ , refQ) = inj₁ (□-fail-intro-cons-R P₁ Q₁ rQ refQ)
 ...   | inj₂ dQ₁              = inj₂ (□-div-intro-R {P = P₁} {Q = Q₁} dQ₁)
 
--- `□` is ⊑F⊥-monotone in both operands (a target divergence routes through the ⊑D half)
-□-mono-⊑F⊥ : ⦃ _ : DecEq R ⦄ {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
-           → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ □ Q₁) ⊑F⊥ (P₂ □ Q₂)
-□-mono-⊑F⊥ {P₁ = P₁} {P₂ = P₂} {Q₁ = Q₁} {Q₂ = Q₂} (fP , dP) (fQ , dQ) (inj₁ f) =
+-- `□` is ⊇F⊥-monotone in both operands (a target divergence routes through the ⊇D half)
+□-mono-⊇F⊥ : ⦃ _ : DecEq R ⦄ {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
+           → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ □ Q₁) ⊇F⊥ (P₂ □ Q₂)
+□-mono-⊇F⊥ {P₁ = P₁} {P₂ = P₂} {Q₁ = Q₁} {Q₂ = Q₂} (fP , dP) (fQ , dQ) (inj₁ f) =
   □-mono-fail P₁ P₂ Q₁ Q₂ fP fQ f
-□-mono-⊑F⊥ hP hQ (inj₂ d) = inj₂ (□-mono-⊑D (proj₂ hP) (proj₂ hQ) d)
+□-mono-⊇F⊥ hP hQ (inj₂ d) = inj₂ (□-mono-⊇D (proj₂ hP) (proj₂ hQ) d)
 
 -------------------------------------------------------------------------------------
 -- Layer 2 : the headline.
@@ -141,7 +141,7 @@ private
 -- BOTH operands, unconditionally
 □-mono-⊑FD : ⦃ _ : DecEq R ⦄ {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) R}
            → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂ → (P₁ □ Q₁) ⊑FD (P₂ □ Q₂)
-□-mono-⊑FD hP hQ = □-mono-⊑F⊥ hP hQ , □-mono-⊑D (proj₂ hP) (proj₂ hQ)
+□-mono-⊑FD hP hQ = □-mono-⊇F⊥ hP hQ , □-mono-⊇D (proj₂ hP) (proj₂ hQ)
 
 -------------------------------------------------------------------------------------
 -- Layer 3 : the REPLICATED-CHOICE folds, FACT-SHAPED.

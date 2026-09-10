@@ -46,7 +46,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import CSP.Laws.FD.FDLawsIChoiceAssoc  E-≟
   using (⊓-failures⊥→; ⊓-failures⊥←l; ⊓-failures⊥←r; ⊓-div→; ⊓-div←l; ⊓-div←r)
 open import CSP.Laws.FD.ExtChoiceFD         E-≟
@@ -292,37 +292,37 @@ fanNode-⨅⁺-FD :
   → fanNode R preimg (t ∷ u ∷ rest)
     ≈FD ⨅⁺ (t ⟦ R ¿ preimg ⟧) (map (_⟦ R ¿ preimg ⟧) (u ∷ rest))
 fanNode-⨅⁺-FD {R = R} {preimg = preimg} t u rest =
-  (fan⊑F⊥⨅ , fan⊑D⨅) , (⨅⊑F⊥fan , ⨅⊑D⨅fan)
+  (fan⊇F⊥⨅ , fan⊇D⨅) , (⨅⊇F⊥fan , ⨅⊇D⨅fan)
   where
     P  = t ⟦ R ¿ preimg ⟧
     qs = map (_⟦ R ¿ preimg ⟧) (u ∷ rest)
 
-    -- fanNode ⊑F⊥ ⨅⁺ : a failure⊥ of ⨅⁺ is one of a member, hence of fanNode.
-    fan⊑F⊥⨅ : fanNode R preimg (t ∷ u ∷ rest) ⊑F⊥ ⨅⁺ P qs
-    fan⊑F⊥⨅ {s = s} {B = B} f with ⨅⁺-fail⊥-elim P qs f
+    -- fanNode ⊇F⊥ ⨅⁺ : a failure⊥ of ⨅⁺ is one of a member, hence of fanNode.
+    fan⊇F⊥⨅ : fanNode R preimg (t ∷ u ∷ rest) ⊇F⊥ ⨅⁺ P qs
+    fan⊇F⊥⨅ {s = s} {B = B} f with ⨅⁺-fail⊥-elim P qs f
     ... | inj₁ fP = fanNode-fail⊥-intro t (u ∷ rest)
                       (ren-⨅→Any {φ = λ W → failures⊥ W s B} (inj₁ fP))
     ... | inj₂ aQ = fanNode-fail⊥-intro t (u ∷ rest)
                       (ren-⨅→Any {φ = λ W → failures⊥ W s B} (inj₂ aQ))
 
-    -- fanNode ⊑D ⨅⁺
-    fan⊑D⨅ : fanNode R preimg (t ∷ u ∷ rest) ⊑D ⨅⁺ P qs
-    fan⊑D⨅ {s = s} d with ⨅⁺-div-elim P qs d
+    -- fanNode ⊇D ⨅⁺
+    fan⊇D⨅ : fanNode R preimg (t ∷ u ∷ rest) ⊇D ⨅⁺ P qs
+    fan⊇D⨅ {s = s} d with ⨅⁺-div-elim P qs d
     ... | inj₁ dP = fanNode-div-intro t (u ∷ rest)
                       (ren-⨅→Any {φ = λ W → divergences W s} (inj₁ dP))
     ... | inj₂ aQ = fanNode-div-intro t (u ∷ rest)
                       (ren-⨅→Any {φ = λ W → divergences W s} (inj₂ aQ))
 
-    -- ⨅⁺ ⊑F⊥ fanNode
-    ⨅⊑F⊥fan : ⨅⁺ P qs ⊑F⊥ fanNode R preimg (t ∷ u ∷ rest)
-    ⨅⊑F⊥fan {s = s} {B = B} f
+    -- ⨅⁺ ⊇F⊥ fanNode
+    ⨅⊇F⊥fan : ⨅⁺ P qs ⊇F⊥ fanNode R preimg (t ∷ u ∷ rest)
+    ⨅⊇F⊥fan {s = s} {B = B} f
       with ren-Any→⨅ {φ = λ W → failures⊥ W s B} (fanNode-fail⊥-elim t (u ∷ rest) f)
     ... | inj₁ fP = ⨅⁺-fail⊥-intro-here  P qs fP
     ... | inj₂ aQ = ⨅⁺-fail⊥-intro-there P qs aQ
 
-    -- ⨅⁺ ⊑D fanNode
-    ⨅⊑D⨅fan : ⨅⁺ P qs ⊑D fanNode R preimg (t ∷ u ∷ rest)
-    ⨅⊑D⨅fan {s = s} d
+    -- ⨅⁺ ⊇D fanNode
+    ⨅⊇D⨅fan : ⨅⁺ P qs ⊇D fanNode R preimg (t ∷ u ∷ rest)
+    ⨅⊇D⨅fan {s = s} d
       with ren-Any→⨅ {φ = λ W → divergences W s} (fanNode-div-elim t (u ∷ rest) d)
     ... | inj₁ dP = ⨅⁺-div-intro-here  P qs dP
     ... | inj₂ aQ = ⨅⁺-div-intro-there P qs aQ

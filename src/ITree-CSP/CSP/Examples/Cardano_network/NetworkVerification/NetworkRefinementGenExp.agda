@@ -74,7 +74,7 @@ open import Semantics.Expansion {E = Net Data} {I = ExtI (Net Data)}
 open import Semantics.Failures {E = Net Data} {I = ExtI (Net Data)}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; _⊑T_; traces; traces-respects-≈)
 open import Semantics.FailuresDivergences {E = Net Data} {I = ExtI (Net Data)}
-  using (_⊑D_; divergences; IsDivergence; _⊑F⊥_; _⊑FD_; _≈FD_)
+  using (_⊇D_; divergences; IsDivergence; _⊇F⊥_; _⊑FD_; _≈FD_)
 open import Semantics.DRImpliesFD {E = Net Data} {I = ExtI (Net Data)}
   using (drbisim→≈FD)
 
@@ -536,7 +536,7 @@ module _ (w : VisWit) where
 --                                `[FD=` BOTH ways; via drbisim→≈FD, which
 --                                internally relies on the certified postulate
 --                                `¬-divergent→normal` from Semantics.DRImpliesFD)
---       ⇒ failures-half both ways  (Network ⊑F⊥ CopySpec, CopySpec ⊑F⊥ Network)
+--       ⇒ failures-half both ways  (Network ⊇F⊥ CopySpec, CopySpec ⊇F⊥ Network)
 --     ⇒ Network ⟺T CopySpec      (trace equivalence; derived from the weak-bisim
 --                                shadow drbisim→wbisim WITHOUT the postulate).
 --
@@ -575,13 +575,13 @@ net⊑FD d = proj₁ (net≈FD d)
 spec⊑FD : Data → CopySpec ⊑FD Network
 spec⊑FD d = proj₂ (net≈FD d)
 
---   The failures-half both ways.  `CopySpec ⊑F⊥ Network` is the standard
+--   The failures-half both ways.  `CopySpec ⊇F⊥ Network` is the standard
 --   refinement statement "the Network refines the CopySpec".
-net⊑F⊥ : Data → Network ⊑F⊥ CopySpec
-net⊑F⊥ d = proj₁ (net⊑FD d)
+net⊇F⊥ : Data → Network ⊇F⊥ CopySpec
+net⊇F⊥ d = proj₁ (net⊑FD d)
 
-spec⊑F⊥ : Data → CopySpec ⊑F⊥ Network
-spec⊑F⊥ d = proj₁ (spec⊑FD d)
+spec⊇F⊥ : Data → CopySpec ⊇F⊥ Network
+spec⊇F⊥ d = proj₁ (spec⊑FD d)
 
 -- 5.  TRACE equivalence (derivable from ≈DR via its weak-bisim shadow,
 --     WITHOUT the ¬-divergent→normal postulate).

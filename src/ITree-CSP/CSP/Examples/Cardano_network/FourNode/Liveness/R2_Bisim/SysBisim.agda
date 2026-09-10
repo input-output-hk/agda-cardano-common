@@ -60,7 +60,7 @@ module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim (blkA : 
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
 open import Data.Unit using () renaming (⊤ to ⊤₀)
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 
@@ -562,6 +562,10 @@ oev-impl r {evLabel _ (rcvmsg l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-rcvmsg (med (toSys r))) (SR.nodes-no-rcvmsg (toSys r)) step)
 oev-impl r {evLabel _ (tx     l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-tx (med (toSys r))) (SR.nodes-no-tx (toSys r)) step)
+oev-impl r {evLabel _ (store  l₀ d₀ m) a} step =
+  ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-store (med (toSys r))) (SR.nodes-no-store (toSys r)) step)
+oev-impl r {evLabel _ (env    l₀ d₀ m) a} step =
+  ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-env (med (toSys r))) (SR.nodes-no-env (toSys r)) step)
 oev-impl r {evLabel _ (sndack l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-sndack (med (toSys r))) (SR.nodes-no-sndack (toSys r)) step)
 oev-impl r {evLabel _ (rcvack l₀ d₀ id) a} step =
@@ -945,6 +949,10 @@ oevB-impl r {evLabel _ (rcvmsg l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-rcvmsg (med (toSys r))) (SR.absnodes-no-rcvmsg (toSys r)) step)
 oevB-impl r {evLabel _ (tx     l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-tx (med (toSys r))) (SR.absnodes-no-tx (toSys r)) step)
+oevB-impl r {evLabel _ (store  l₀ d₀ m) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-store (med (toSys r))) (SR.absnodes-no-store (toSys r)) step)
+oevB-impl r {evLabel _ (env    l₀ d₀ m) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-env (med (toSys r))) (SR.absnodes-no-env (toSys r)) step)
 oevB-impl r {evLabel _ (sndack l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-sndack (med (toSys r))) (SR.absnodes-no-sndack (toSys r)) step)
 oevB-impl r {evLabel _ (rcvack l₀ d₀ id) a} step =

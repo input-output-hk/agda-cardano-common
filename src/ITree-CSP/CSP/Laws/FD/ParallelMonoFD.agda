@@ -16,16 +16,16 @@
 -- three-shape taxonomy.
 --
 -- Proof architecture (classical, via CSP.Laws.FD.FDTransfer's `FD→trace⊥` bridge):
---   • ⊑D half : decompose a target divergence with `Par-reach-div`, push the diverging
---     operand through its `⊑D` hypothesis and the other operand through `FD→trace⊥`;
+--   • ⊇D half : decompose a target divergence with `Par-reach-div`, push the diverging
+--     operand through its `⊇D` hypothesis and the other operand through `FD→trace⊥`;
 --     the resulting (shorter) operand prefixes are re-interleaved after TRUNCATING the
 --     `ParInter` witness (`ParInter-truncL/R/2`), then extended back to the full trace
 --     by `div-extension-closed`.
---   • ⊑F⊥ half : decompose a target stable failure with `Par-failures-elim`; classify
+--   • ⊇F⊥ half : decompose a target stable failure with `Par-failures-elim`; classify
 --     the stable composite's operands (`Par-stable-normal`: stable|stable, ret|stable,
 --     stable|ret — never ret|ret); CARVE the composite ban set X into per-operand ban
 --     sets at level ℓr via the `ParRef` routing (`routeL`/`routeR`); transfer each
---     operand through its `⊑F⊥` hypothesis (`op-transfer-stable` / `op-transfer-ret`,
+--     operand through its `⊇F⊥` hypothesis (`op-transfer-stable` / `op-transfer-ret`,
 --     the latter via the √-extension trick of FDTransfer); recombine with
 --     `Par-failures-intro` + `route-rebuild`, or fall into the divergence case.
 -- No new postulates; all classical strength is inherited from the FIXED interfaces
@@ -59,11 +59,11 @@ open import CSP.Operators E-≟
 open EventSet
 open import Semantics.LTS      {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Failures {E = E} {I = ExtI E}
-  using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures; _⊑F_; ⊑F-refl)
+  using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures; _⊑F_; _⊇F_; ⊑F-refl)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Offers; Refuses)
 open import Semantics.DRBisim  {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed;
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed;
          ⊑FD-refl)
 open import CSP.Laws.FD.FDTransfer E-≟
   using (FD→trace⊥; ⟹-split; term→√failure; √-run-split-gen; div-√-truncate)
@@ -79,12 +79,15 @@ open import CSP.Laws.Traces.TraceLawsParallel E-≟
   using (Mg; fPar-rs; fPar-sr; fPar-re; fPar-er; fPar-nn;
          par-hTauL-eq; par-hTauR-eq; par-pTau-tag0-eq; par-pTau-tag1-eq)
 open import CSP.Laws.Traces.TraceLawsParallelElim  E-≟ using (fPar-rr)
+-- the TRACE half of every Layer-10 `⊑F` law: `_⊑F_` is (traces, failures), and the
+-- trace component is already proved here, unconditionally
+open import CSP.Laws.Traces.TraceLawsParallelMono  E-≟ using (Par-mono-⊑ᵀ)
 open import CSP.Laws.Traces.TraceLawsParallelTrace E-≟
   using (ParInter; pnil; psync; psoloL; psoloR; p√)
 open IsDivergence
 
 -- NOTE: all carriers are pinned to ONE common level ℓr (R₁ R₂ R : Set ℓr), forced by
--- `_⊑F⊥_` pinning ban sets to `Set ℓr`; each signature quantifies the carriers
+-- `_⊇F⊥_` pinning ban sets to `Set ℓr`; each signature quantifies the carriers
 -- EXPLICITLY (generalizable variables would give R₁/R₂/R private level copies).
 private
   variable
@@ -457,11 +460,11 @@ ret-routeR-cover A X XP XQ pr {t = t} fe (√ x) b = ⊥-elim (lower b)
 -- stable failure (resp. a same-trace, same-value termination) or a divergence.
 -------------------------------------------------------------------------------------
 
--- transfer a stable residual: feed ⊑F⊥ the stable failure at the routed ban set
+-- transfer a stable residual: feed ⊇F⊥ the stable failure at the routed ban set
 op-transfer-stable : ∀ {ℓr} {R₁ : Set ℓr}
                      {P₁ P₂ P₂* : PTree E (ExtI E) R₁} {sP : List (Event√ R₁)}
                      {BP : Event√ R₁ → Set ℓr}
-                   → P₁ ⊑F⊥ P₂
+                   → P₁ ⊇F⊥ P₂
                    → P₂ ⟹⟨ sP ⟩ P₂* → isStable P₂*
                    → (∀ e → BP e → MaxRef P₂* e)
                    → failures P₁ sP BP ⊎ divergences P₁ sP
@@ -469,10 +472,10 @@ op-transfer-stable {P₂* = P₂*} {BP = BP} fF run st covers =
   fF {B = BP} (inj₁ (P₂* , run , (st , covers)))
 
 -- transfer a terminated residual: √-extend the run into an empty-ban failure, push it
--- through ⊑F⊥, then split the √ back off (or truncate the √ off the divergence)
+-- through ⊇F⊥, then split the √ back off (or truncate the √ off the divergence)
 op-transfer-ret : ∀ {ℓr} {R₁ : Set ℓr}
                   {P₁ P₂ P₂* : PTree E (ExtI E) R₁} {sP : List (Event√ R₁)} {r : R₁}
-                → P₁ ⊑F⊥ P₂
+                → P₁ ⊇F⊥ P₂
                 → P₂ ⟹⟨ sP ⟩ P₂* → PTree.force P₂* ≡ ret r
                 → (Σ[ P₁ᵣ ∈ PTree E (ExtI E) R₁ ]
                      ((P₁ ⟹⟨ sP ⟩ P₁ᵣ) × (PTree.force P₁ᵣ ≡ ret r)))
@@ -483,7 +486,7 @@ op-transfer-ret {ℓr = ℓr} {sP = sP} {r = r} fF run eqret
 ... | inj₂ dv√            = inj₂ (div-√-truncate dv√)
 
 -------------------------------------------------------------------------------------
--- Layer 5 : the ⊑D half.  Re-interleave transferred divergences/runs on the operand
+-- Layer 5 : the ⊇D half.  Re-interleave transferred divergences/runs on the operand
 -- prefixes into a composite divergence at a prefix of the original trace, then extend.
 -------------------------------------------------------------------------------------
 
@@ -597,14 +600,14 @@ Par-div-out-2 A merge P₁ Q₁ {s = s} inter dvP dvQ
   with Par-div-transfer-2 A merge P₁ Q₁ inter dvP dvQ
 ... | s₀ , s₁ , peq , d = div-extend (sym (++-identityʳ s)) peq d
 
--- HEADLINE (⊑D half): parallel composition is ⊑D-monotone under ⊑FD hypotheses
-Par-mono-⊑D : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
+-- HEADLINE (⊇D half): parallel composition is ⊇D-monotone under ⊑FD hypotheses
+Par-mono-⊇D : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
               {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
             → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂
-            → (Par A merge P₁ Q₁) ⊑D (Par A merge P₂ Q₂)
-Par-mono-⊑D A merge {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) {s} d
+            → (Par A merge P₁ Q₁) ⊇D (Par A merge P₂ Q₂)
+Par-mono-⊇D A merge {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) {s} d
   with Par-reach-div A merge P₂ Q₂ (d .reach) (d .divwit)
--- left target diverges: transfer it via ⊑D, transfer the right side via FD→trace⊥
+-- left target diverges: transfer it via ⊇D, transfer the right side via FD→trace⊥
 ... | sP , sQ , P₂* , Q₂* , rP , rQ , inter , inj₁ dvP₂ =
       case FD→trace⊥ fQ dQ rQ of λ where
         (inj₁ (Q₁* , rQ₁)) →
@@ -624,7 +627,7 @@ Par-mono-⊑D A merge {P₁} {P₂} {Q₁} {Q₂} (fP , dP) (fQ , dQ) {s} d
             (s₀ , s₁ , peq , dv) → div-extend (d .split) peq dv
 
 -------------------------------------------------------------------------------------
--- Layer 6 : the ⊑F⊥ half.  Decompose the target failure, classify the stable leaf,
+-- Layer 6 : the ⊇F⊥ half.  Decompose the target failure, classify the stable leaf,
 -- transfer each operand at its routed ban set, and recombine (or diverge).
 -------------------------------------------------------------------------------------
 
@@ -634,7 +637,7 @@ Par-mono-fail : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R
                 {s : List (Event√ R)} {X : Event√ R → Set ℓr}
                 {sP : List (Event√ R₁)} {sQ : List (Event√ R₂)}
                 {P₂* : PTree E (ExtI E) R₁} {Q₂* : PTree E (ExtI E) R₂}
-              → P₁ ⊑F⊥ P₂ → Q₁ ⊑F⊥ Q₂
+              → P₁ ⊇F⊥ P₂ → Q₁ ⊇F⊥ Q₂
               → P₂ ⟹⟨ sP ⟩ P₂* → Q₂ ⟹⟨ sQ ⟩ Q₂*
               → ParInter A merge sP sQ s
               → ParNormal P₂* Q₂*
@@ -679,13 +682,13 @@ Par-mono-fail A merge {P₁ = P₁} {Q₁ = Q₁} {X = X} {P₂* = P₂*} {Q₂*
 ... | inj₂ dvP | inj₁ (Q₁ᵣ , rQ₁ , feQ)  = inj₂ (Par-div-out-L A merge P₁ Q₁ inter dvP rQ₁)
 ... | inj₂ dvP | inj₂ dvQ                = inj₂ (Par-div-out-2 A merge P₁ Q₁ inter dvP dvQ)
 
--- HEADLINE (⊑F⊥ half): parallel composition is ⊑F⊥-monotone under ⊑FD hypotheses
-Par-mono-⊑F⊥ : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
+-- HEADLINE (⊇F⊥ half): parallel composition is ⊇F⊥-monotone under ⊑FD hypotheses
+Par-mono-⊇F⊥ : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
                {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
              → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂
-             → (Par A merge P₁ Q₁) ⊑F⊥ (Par A merge P₂ Q₂)
-Par-mono-⊑F⊥ A merge hP hQ {s} {X} (inj₂ d) = inj₂ (Par-mono-⊑D A merge hP hQ d)
-Par-mono-⊑F⊥ A merge {P₁} {P₂} {Q₁} {Q₂} hP hQ {s} {X} (inj₁ f)
+             → (Par A merge P₁ Q₁) ⊇F⊥ (Par A merge P₂ Q₂)
+Par-mono-⊇F⊥ A merge hP hQ {s} {X} (inj₂ d) = inj₂ (Par-mono-⊇D A merge hP hQ d)
+Par-mono-⊇F⊥ A merge {P₁} {P₂} {Q₁} {Q₂} hP hQ {s} {X} (inj₁ f)
   with Par-failures-elim A merge {P = P₂} {Q = Q₂} f
 ... | sP , sQ , P₂* , Q₂* , rP , rQ , inter , stPar , pr =
       Par-mono-fail A merge (proj₁ hP) (proj₁ hQ) rP rQ inter
@@ -700,7 +703,7 @@ Par-mono-⊑FD : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg 
                {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
              → P₁ ⊑FD P₂ → Q₁ ⊑FD Q₂
              → (Par A merge P₁ Q₁) ⊑FD (Par A merge P₂ Q₂)
-Par-mono-⊑FD A merge hP hQ = Par-mono-⊑F⊥ A merge hP hQ , Par-mono-⊑D A merge hP hQ
+Par-mono-⊑FD A merge hP hQ = Par-mono-⊇F⊥ A merge hP hQ , Par-mono-⊇D A merge hP hQ
 
 -- CSP interface parallel (⊤-merge) is ⊑FD-monotone
 ∥-mono-⊑FD : ∀ {ℓr} (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
@@ -798,16 +801,16 @@ Par-mono-⊑FD A merge hP hQ = Par-mono-⊑F⊥ A merge hP hQ , Par-mono-⊑D A 
 -- Why the divergence machinery disappears.  `_⊑F_` (`Semantics.Failures`:42) is
 --     P ⊑F Q  =  ∀ s X → failures Q s X → failures P s X ,
 -- a plain failures-to-failures map: neither its hypothesis nor its conclusion has a
--- `divergences` disjunct, unlike `_⊑F⊥_` whose conclusion is
+-- `divergences` disjunct, unlike `_⊇F⊥_` whose conclusion is
 -- `failures P s X ⊎ divergences P s`.  Consequently:
 --   • `op-transfer-stable`/`op-transfer-ret` (Layer 4) already fed only `inj₁`
---     (failures) arguments INTO their `⊑F⊥` hypotheses; it was purely their `⊎`-valued
+--     (failures) arguments INTO their `⊇F⊥` hypotheses; it was purely their `⊎`-valued
 --     RESULT that forced `Par-mono-fail` to branch 4 ways per normal form.  Their `⊑F`
 --     versions below return a bare failure (resp. a bare terminated run), so each of the
 --     three `ParNormal` cases collapses to its single `Par-failures-intro` recombination.
 --   • Nothing ever produces a composite divergence, so Layer 5 in its entirety
 --     (`Par-div-out-L/R/2`, `ParInter-truncL/R/2`, `div-extension-closed`,
---     `Par-div-intro`, `FD→trace⊥`) is dead weight here, and there is NO `Par-mono-⊑D`
+--     `Par-div-intro`, `FD→trace⊥`) is dead weight here, and there is NO `Par-mono-⊇D`
 --     counterpart to prove or to pair up with: `Par-mono-⊑F` IS the headline.
 -- The failures decomposition/classification core is reused VERBATIM: Layer 2's
 -- `Par-stable-normal`, Layer 3's `routeL`/`routeR` ban-set carving with
@@ -832,7 +835,7 @@ Par-mono-⊑FD A merge hP hQ = Par-mono-⊑F⊥ A merge hP hQ , Par-mono-⊑D A 
 op-transfer-stable-F : ∀ {ℓr} {R₁ : Set ℓr}
                        {P₁ P₂ P₂* : PTree E (ExtI E) R₁} {sP : List (Event√ R₁)}
                        {BP : Event√ R₁ → Set ℓr}
-                     → P₁ ⊑F P₂
+                     → P₁ ⊇F P₂
                      → P₂ ⟹⟨ sP ⟩ P₂* → isStable P₂*
                      → (∀ e → BP e → MaxRef P₂* e)
                      → failures P₁ sP BP
@@ -845,7 +848,7 @@ op-transfer-stable-F {P₂* = P₂*} {sP = sP} {BP = BP} fF run st covers =
 -- has no divergence disjunct, so `div-√-truncate` is not needed.
 op-transfer-ret-F : ∀ {ℓr} {R₁ : Set ℓr}
                     {P₁ P₂ P₂* : PTree E (ExtI E) R₁} {sP : List (Event√ R₁)} {r : R₁}
-                  → P₁ ⊑F P₂
+                  → P₁ ⊇F P₂
                   → P₂ ⟹⟨ sP ⟩ P₂* → PTree.force P₂* ≡ ret r
                   → Σ[ P₁ᵣ ∈ PTree E (ExtI E) R₁ ]
                       ((P₁ ⟹⟨ sP ⟩ P₁ᵣ) × (PTree.force P₁ᵣ ≡ ret r))
@@ -861,7 +864,7 @@ Par-mono-fail-F : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg
                   {s : List (Event√ R)} {X : Event√ R → Set ℓr}
                   {sP : List (Event√ R₁)} {sQ : List (Event√ R₂)}
                   {P₂* : PTree E (ExtI E) R₁} {Q₂* : PTree E (ExtI E) R₂}
-                → P₁ ⊑F P₂ → Q₁ ⊑F Q₂
+                → P₁ ⊇F P₂ → Q₁ ⊇F Q₂
                 → P₂ ⟹⟨ sP ⟩ P₂* → Q₂ ⟹⟨ sQ ⟩ Q₂*
                 → ParInter A merge sP sQ s
                 → ParNormal P₂* Q₂*
@@ -897,18 +900,33 @@ Par-mono-fail-F A merge {P₁ = P₁} {Q₁ = Q₁} {X = X} {P₂* = P₂*} {Q�
         (route-rebuild A X (MaxRef P₂*) (MaxRef Q₂*) pr
           (proj₂ refP) (ret-routeR-cover A X (MaxRef P₂*) (MaxRef Q₂*) pr feQ))
 
+-- kept private: `_⊇F_` is the weaker half of `_⊑F_` and must not be reachable
+-- as ordinary API (see `Semantics.Failures`); this feeds `Par-mono-⊑F` below.
+private
+  -- HEADLINE (failures half): parallel composition is ⊇F-monotone in BOTH operands,
+  -- unconditionally.  Decompose the target failure (`Par-failures-elim`), classify the
+  -- stable leaf (`Par-stable-normal`), transfer + recombine (`Par-mono-fail-F`).
+  Par-mono-⊇F : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
+                 {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
+               → P₁ ⊇F P₂ → Q₁ ⊇F Q₂
+               → (Par A merge P₁ Q₁) ⊇F (Par A merge P₂ Q₂)
+  Par-mono-⊇F A merge {P₁} {P₂} {Q₁} {Q₂} hP hQ s X f
+    with Par-failures-elim A merge {P = P₂} {Q = Q₂} f
+  ... | sP , sQ , P₂* , Q₂* , rP , rQ , inter , stPar , pr =
+        Par-mono-fail-F A merge hP hQ rP rQ inter
+                        (Par-stable-normal A merge P₂* Q₂* stPar) pr
+
 -- HEADLINE (stable failures): parallel composition is ⊑F-monotone in BOTH operands,
--- unconditionally.  Decompose the target failure (`Par-failures-elim`), classify the
--- stable leaf (`Par-stable-normal`), transfer + recombine (`Par-mono-fail-F`).
+-- unconditionally.  `_⊑F_` is Roscoe's PAIR (traces, failures), so this pairs the
+-- failures half above with its already-built trace twin `Par-mono-⊑ᵀ`
+-- (`CSP.Laws.Traces.TraceLawsParallelMono`); neither half needs a side condition.
 Par-mono-⊑F : ∀ {ℓr} {R₁ R₂ R : Set ℓr} (A : EventSet) (merge : Mg R₁ R₂ R)
               {P₁ P₂ : PTree E (ExtI E) R₁} {Q₁ Q₂ : PTree E (ExtI E) R₂}
             → P₁ ⊑F P₂ → Q₁ ⊑F Q₂
             → (Par A merge P₁ Q₁) ⊑F (Par A merge P₂ Q₂)
-Par-mono-⊑F A merge {P₁} {P₂} {Q₁} {Q₂} hP hQ s X f
-  with Par-failures-elim A merge {P = P₂} {Q = Q₂} f
-... | sP , sQ , P₂* , Q₂* , rP , rQ , inter , stPar , pr =
-      Par-mono-fail-F A merge hP hQ rP rQ inter
-                      (Par-stable-normal A merge P₂* Q₂* stPar) pr
+Par-mono-⊑F A merge hP hQ =
+    Par-mono-⊑ᵀ  A merge (proj₁ hP) (proj₁ hQ)
+  , Par-mono-⊇F A merge (proj₂ hP) (proj₂ hQ)
 
 -- CSP interface parallel (⊤-merge) is ⊑F-monotone
 ∥-mono-⊑F : ∀ {ℓr} (A : EventSet) {P₁ P₂ Q₁ Q₂ : PTree E (ExtI E) (⊤ {ℓr})}
@@ -925,6 +943,13 @@ Par-mono-⊑F A merge {P₁} {P₂} {Q₁} {Q₂} hP hQ s X f
              → (∀ i → f i ⊑F g i) → ⦀Fin n f ⊑F ⦀Fin n g
 ⦀Fin-mono-⊑F {n = zero}  h = ⊑F-refl Skip
 ⦀Fin-mono-⊑F {n = suc n} h = ⦀-mono-⊑F (h fzero) (⦀Fin-mono-⊑F (λ i → h (fsuc i)))
+
+-- `⦀Fin⁺` is ⊑F-monotone in its family, pointwise and unconditionally; unlike
+-- `⦀Fin-mono-⊑F` the base case is the leaf itself (`⦀Fin⁺ zero f = f fzero`), not `Skip`
+⦀Fin⁺-mono-⊑F : ∀ {ℓr} {n : ℕ} {f g : Fin (suc n) → PTree E (ExtI E) (⊤ {ℓr})}
+              → (∀ i → f i ⊑F g i) → ⦀Fin⁺ n f ⊑F ⦀Fin⁺ n g
+⦀Fin⁺-mono-⊑F {n = zero}  h = h fzero
+⦀Fin⁺-mono-⊑F {n = suc n} h = ⦀-mono-⊑F (h fzero) (⦀Fin⁺-mono-⊑F (λ i → h (fsuc i)))
 
 -- `⦀⋆` is ⊑F-monotone in its list of operands (base `⦀⋆ [] = Skip`)
 ⦀⋆-mono-⊑F : ∀ {ℓr} {Ps Qs : List (PTree E (ExtI E) (⊤ {ℓr}))}

@@ -32,7 +32,7 @@ open import CSP.Operators E-≟ using (_⊓_; _□_)
 open import Semantics.LTS      {E = E} {I = ExtI E} using (Event√)
 open import Semantics.Failures {E = E} {I = ExtI E} using (failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; failures⊥; _⊑F⊥_; _⊑D_; _≈FD_)
+  using (divergences; failures⊥; _⊇F⊥_; _⊇D_; _≈FD_)
 open import CSP.Laws.FD.FDLawsIChoiceAssoc E-≟
   using (⊓-failures→; ⊓-failures←l; ⊓-failures←r; ⊓-div→; ⊓-div←l; ⊓-div←r)
 open import CSP.Laws.FD.ExtChoiceFD E-≟
@@ -98,13 +98,13 @@ module _ ⦃ _ : DecEq R ⦄ (P Q S : PTree E (ExtI E) R) where
   ...   | inj₁ dP = ⊓-div←l P (Q □ S) dP
   ...   | inj₂ dS = ⊓-div←r P (Q □ S) (□-div-intro-R {P = Q} {Q = S} dS)
 
-  dist-⊑F⊥-← : (P ⊓ (Q □ S)) ⊑F⊥ ((P ⊓ Q) □ (P ⊓ S))
-  dist-⊑F⊥-← (inj₁ f) = inj₁ (dist-fail-← f)
-  dist-⊑F⊥-← (inj₂ d) = inj₂ (dist-div-← d)
+  dist-⊇F⊥-← : (P ⊓ (Q □ S)) ⊇F⊥ ((P ⊓ Q) □ (P ⊓ S))
+  dist-⊇F⊥-← (inj₁ f) = inj₁ (dist-fail-← f)
+  dist-⊇F⊥-← (inj₂ d) = inj₂ (dist-div-← d)
 
-  dist-⊑F⊥-→ : ((P ⊓ Q) □ (P ⊓ S)) ⊑F⊥ (P ⊓ (Q □ S))
-  dist-⊑F⊥-→ (inj₁ f) = inj₁ (dist-fail-→ f)
-  dist-⊑F⊥-→ (inj₂ d) = inj₂ (dist-div-→ d)
+  dist-⊇F⊥-→ : ((P ⊓ Q) □ (P ⊓ S)) ⊇F⊥ (P ⊓ (Q □ S))
+  dist-⊇F⊥-→ (inj₁ f) = inj₁ (dist-fail-→ f)
+  dist-⊇F⊥-→ (inj₂ d) = inj₂ (dist-div-→ d)
 
   ⊓-□-dist-FD : (P ⊓ (Q □ S)) ≈FD ((P ⊓ Q) □ (P ⊓ S))
-  ⊓-□-dist-FD = (dist-⊑F⊥-← , dist-div-←) , (dist-⊑F⊥-→ , dist-div-→)
+  ⊓-□-dist-FD = (dist-⊇F⊥-← , dist-div-←) , (dist-⊇F⊥-→ , dist-div-→)

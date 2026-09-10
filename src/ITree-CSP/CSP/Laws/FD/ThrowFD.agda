@@ -46,7 +46,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E} using (deadlock-n
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_≈FD_; _⊑D_; _⊑F⊥_; _⊑FD_; IsDivergence; divergences; div-extension-closed; failures⊥)
+  using (_≈FD_; _⊇D_; _⊇F⊥_; _⊑FD_; IsDivergence; divergences; div-extension-closed; failures⊥)
 open import Semantics.StrongImpliesDR {E = E} {I = ExtI E} using (sbisim→drbisim)
 open import Semantics.DRImpliesFD        {E = E} {I = ExtI E}
   using (drbisim→≈FD; stable-not-ret; stable-react-τc; mk-stable)
@@ -102,7 +102,7 @@ root-div→all-div {P = P} {s = s} divP = record
   }
 
 -- two root-divergent processes are FD-equivalent (both ⊥): every refusal/divergence
--- claim is discharged by the divergence summand of failures⊥ and by all-div for ⊑D.
+-- claim is discharged by the divergence summand of failures⊥ and by all-div for ⊇D.
 root-div→≈FD : {P Q : PTree E (ExtI E) R}
              → Diverges P → Diverges Q → P ≈FD Q
 root-div→≈FD {P = P} {Q = Q} divP divQ =
@@ -313,9 +313,9 @@ mk-div-from {pre = pre} reach divw = record
           (Θ-handler-mono-reach P Qᵢ Q₁ Q₂ A route
                                 (d .IsDivergence.reach) (d .IsDivergence.divwit)))
 
-Θ-⊓R-dist-⊑D : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
-             → (P ⟦ A ▷ (Q₁ ⊓ Q₂)) ⊑D ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂))
-Θ-⊓R-dist-⊑D P Q₁ Q₂ A d with ⊓-div→ (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) d
+Θ-⊓R-dist-⊇D : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
+             → (P ⟦ A ▷ (Q₁ ⊓ Q₂)) ⊇D ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂))
+Θ-⊓R-dist-⊇D P Q₁ Q₂ A d with ⊓-div→ (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) d
 ... | inj₁ dQ₁ = Θ-handler-mono P Q₁ Q₁ Q₂ A (⊓-div←l Q₁ Q₂) dQ₁
 ... | inj₂ dQ₂ = Θ-handler-mono P Q₂ Q₁ Q₂ A (⊓-div←r Q₁ Q₂) dQ₂
 
@@ -367,9 +367,9 @@ mk-div-from {pre = pre} reach divw = record
 ... | inj₂ dP₂ = inj₂ (subst (divergences (P ⟦ A ▷ Q₂)) (sym (d .IsDivergence.split))
                              (div-extension-closed dP₂))
 
-Θ-⊓R-dist-⊒D : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
-             → ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂)) ⊑D (P ⟦ A ▷ (Q₁ ⊓ Q₂))
-Θ-⊓R-dist-⊒D P Q₁ Q₂ A d with Θ-⊓R-div-elim P Q₁ Q₂ A d
+Θ-⊓R-dist-⊆D : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
+             → ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂)) ⊇D (P ⟦ A ▷ (Q₁ ⊓ Q₂))
+Θ-⊓R-dist-⊆D P Q₁ Q₂ A d with Θ-⊓R-div-elim P Q₁ Q₂ A d
 ... | inj₁ dP₁ = ⊓-div←l (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) dP₁
 ... | inj₂ dP₂ = ⊓-div←r (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) dP₂
 
@@ -601,31 +601,31 @@ fail-ev-prepend step (W , reach , ref) = W , ⟹-ev step reach , ref
 
 -- EASY (intro): a failures⊥ of (P⟦A▷Q₁)⊓(P⟦A▷Q₂) splits via ⊓-failures⊥→; map each
 -- summand to a failures⊥ of P⟦A▷(Q₁⊓Q₂) via Θ-handler-mono-f⊥.
-Θ-⊓R-dist-⊑F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
-              → (P ⟦ A ▷ (Q₁ ⊓ Q₂)) ⊑F⊥ ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂))
-Θ-⊓R-dist-⊑F⊥ P Q₁ Q₂ A f with ⊓-failures⊥→ (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) f
+Θ-⊓R-dist-⊇F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
+              → (P ⟦ A ▷ (Q₁ ⊓ Q₂)) ⊇F⊥ ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂))
+Θ-⊓R-dist-⊇F⊥ P Q₁ Q₂ A f with ⊓-failures⊥→ (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) f
 ... | inj₁ fQ₁ = Θ-handler-mono-f⊥ P Q₁ Q₁ Q₂ A (⊓-failures←l Q₁ Q₂) (⊓-div←l Q₁ Q₂) fQ₁
 ... | inj₂ fQ₂ = Θ-handler-mono-f⊥ P Q₂ Q₁ Q₂ A (⊓-failures←r Q₁ Q₂) (⊓-div←r Q₁ Q₂) fQ₂
 
 -- HARD (elim): a failures⊥ of P⟦A▷(Q₁⊓Q₂) routes through Θ-⊓R-fail-elim / Θ-⊓R-div-elim.
-Θ-⊓R-dist-⊒F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
-              → ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂)) ⊑F⊥ (P ⟦ A ▷ (Q₁ ⊓ Q₂))
-Θ-⊓R-dist-⊒F⊥ P Q₁ Q₂ A (inj₁ (W , reach , ref)) with Θ-⊓R-fail-elim P Q₁ Q₂ A reach ref
+Θ-⊓R-dist-⊆F⊥ : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
+              → ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂)) ⊇F⊥ (P ⟦ A ▷ (Q₁ ⊓ Q₂))
+Θ-⊓R-dist-⊆F⊥ P Q₁ Q₂ A (inj₁ (W , reach , ref)) with Θ-⊓R-fail-elim P Q₁ Q₂ A reach ref
 ... | inj₁ fP₁ = ⊓-failures⊥←l (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) (inj₁ fP₁)
 ... | inj₂ fP₂ = ⊓-failures⊥←r (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) (inj₁ fP₂)
-Θ-⊓R-dist-⊒F⊥ P Q₁ Q₂ A (inj₂ d) with Θ-⊓R-div-elim P Q₁ Q₂ A d
+Θ-⊓R-dist-⊆F⊥ P Q₁ Q₂ A (inj₂ d) with Θ-⊓R-div-elim P Q₁ Q₂ A d
 ... | inj₁ dP₁ = ⊓-failures⊥←l (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) (inj₂ dP₁)
 ... | inj₂ dP₂ = ⊓-failures⊥←r (P ⟦ A ▷ Q₁) (P ⟦ A ▷ Q₂) (inj₂ dP₂)
 
 -------------------------------------------------------------------------------------
--- (I) the law: pair the two ⊑F⊥ and the two ⊑D refinements.
+-- (I) the law: pair the two ⊇F⊥ and the two ⊇D refinements.
 -------------------------------------------------------------------------------------
 
 Θ-⊓R-dist-FD : (P Q₁ Q₂ : PTree E (ExtI E) R) (A : EventSet)
              → (P ⟦ A ▷ (Q₁ ⊓ Q₂)) ≈FD ((P ⟦ A ▷ Q₁) ⊓ (P ⟦ A ▷ Q₂))
 Θ-⊓R-dist-FD P Q₁ Q₂ A =
-  (Θ-⊓R-dist-⊑F⊥ P Q₁ Q₂ A , Θ-⊓R-dist-⊑D P Q₁ Q₂ A) ,
-  (Θ-⊓R-dist-⊒F⊥ P Q₁ Q₂ A , Θ-⊓R-dist-⊒D P Q₁ Q₂ A)
+  (Θ-⊓R-dist-⊇F⊥ P Q₁ Q₂ A , Θ-⊓R-dist-⊇D P Q₁ Q₂ A) ,
+  (Θ-⊓R-dist-⊆F⊥ P Q₁ Q₂ A , Θ-⊓R-dist-⊆D P Q₁ Q₂ A)
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------

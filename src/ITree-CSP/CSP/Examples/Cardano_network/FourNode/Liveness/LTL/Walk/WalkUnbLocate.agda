@@ -44,7 +44,7 @@ open import CSP.Examples.Cardano_network.Base using ( hi )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Link
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
-        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
+        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
   renaming ( done to netDone )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 
@@ -231,6 +231,16 @@ module _ (gs : GSide) (b : Block₃) where
       (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-ack (med (toSys r₁)))
                     (SR.absnodes-no-ack (toSys r₁)) st)
       (subst (λ z → z ═[ ev (evl (evLabel _ (ack l₀ d₀ id) a)) ]═► _) eq wstep))
+  unbAlong′ r eq unb (step {e = evl (evLabel _ (store l₀ d₀ id) a)} wstep tr) cf (suc m) pn =
+    ⊥-elim (refute-weak r
+      (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-store (med (toSys r₁)))
+                    (SR.absnodes-no-store (toSys r₁)) st)
+      (subst (λ z → z ═[ ev (evl (evLabel _ (store l₀ d₀ id) a)) ]═► _) eq wstep))
+  unbAlong′ r eq unb (step {e = evl (evLabel _ (env l₀ d₀ id) a)} wstep tr) cf (suc m) pn =
+    ⊥-elim (refute-weak r
+      (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-env (med (toSys r₁)))
+                    (SR.absnodes-no-env (toSys r₁)) st)
+      (subst (λ z → z ═[ ev (evl (evLabel _ (env l₀ d₀ id) a)) ]═► _) eq wstep))
 
   -- a `√`-step: the tail lives over `deadlock`, hence terminal ⇒ no `producedA`
   unbAlong′ r eq unb (step {e = √ x} wstep tr) cf (suc m) pn =

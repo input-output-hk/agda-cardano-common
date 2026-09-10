@@ -1,12 +1,12 @@
 {-# OPTIONS --guardedness #-}
 
 ------------------------------------------------------------------------
--- Task 2: divergence-freedom of the hidden BlockFetch processes ⇒ ⊑D.
+-- Task 2: divergence-freedom of the hidden BlockFetch processes ⇒ ⊇D.
 --
 -- The two hidden BlockFetch processes `clientServerBF ∖ msgBF` (impl) and
 -- `BFabstract ∖ msgBF` (spec) are divergence-free: every hidden message-τ
 -- is bracketed by an observable API event, so no infinite τ-run exists.
--- This yields the ⊑D half of `(BFabstract ∖ msgBF) ⊑FD (clientServerBF ∖ msgBF)`.
+-- This yields the ⊇D half of `(BFabstract ∖ msgBF) ⊑FD (clientServerBF ∖ msgBF)`.
 ------------------------------------------------------------------------
 
 open import CSP.Examples.Cardano_network.Params using (Params)
@@ -44,7 +44,7 @@ open import Semantics.DRBisim {E = BFAbsEv} {I = ExtI BFAbsEv}
 open import Semantics.Failures {E = BFAbsEv} {I = ExtI BFAbsEv}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 open import Semantics.FailuresDivergences {E = BFAbsEv} {I = ExtI BFAbsEv}
-  using (_⊑D_; divergences; IsDivergence)
+  using (_⊇D_; divergences; IsDivergence)
 
 -- the hide / parallel trace-law single-step inversions, at the abstract alphabet
 open import CSP.Laws.Traces.TraceLawsHide BFAbsEv-≟
@@ -3767,10 +3767,10 @@ impl-noDiv = go-reach good-impl-init
 
 -- THE REVERSE DIVERGENCE REFINEMENT: divergences of the IMPL are empty, so the
 -- inclusion `divergences (clientServerBF ∖ msgBF) ⊆ divergences (BFabstract ∖ msgBF)` is vacuous.
-BFabs-⊑D : (BFabstract AbsOps.∖ msgBF) ⊑D (clientServerBF AbsOps.∖ msgBF)
-BFabs-⊑D div = ⊥-elim (impl-noDiv (IsDivergence.reach div) (IsDivergence.divwit div))
+BFabs-⊇D : (BFabstract AbsOps.∖ msgBF) ⊇D (clientServerBF AbsOps.∖ msgBF)
+BFabs-⊇D div = ⊥-elim (impl-noDiv (IsDivergence.reach div) (IsDivergence.divwit div))
 
 -- THE PIPELINED REVERSE DIVERGENCE REFINEMENT: divergences of the IMPL are empty,
 -- so the inclusion into `divergences (BFabstractP ∖ msgBF)` is vacuous (same refuted impl antecedent).
-BFabsP-⊑D : (BFabstractP AbsOps.∖ msgBF) ⊑D (clientServerBF AbsOps.∖ msgBF)
-BFabsP-⊑D div = ⊥-elim (impl-noDiv (IsDivergence.reach div) (IsDivergence.divwit div))
+BFabsP-⊇D : (BFabstractP AbsOps.∖ msgBF) ⊇D (clientServerBF AbsOps.∖ msgBF)
+BFabsP-⊇D div = ⊥-elim (impl-noDiv (IsDivergence.reach div) (IsDivergence.divwit div))

@@ -132,7 +132,7 @@
 --     `⦀-mono-⊑FD` with `⊑FD-refl Skip` at the base, and `∥⁺`/`∥Fin` (Layer 9) are
 --     inductions over `∥-mono-⊑FD` whose bases are OPERAND hypotheses (`[|A|]` has no
 --     unit, so both are non-empty folds); their provenance is exactly this one.
---   ⊓-mono-⊑FD, ⊓-mono-⊑F⊥, ⊓-mono-⊑D, ⨅⁺-mono-⊑FD, ⨅Fin-mono-⊑FD
+--   ⊓-mono-⊑FD, ⊓-mono-⊇F⊥, ⊓-mono-⊇D, ⨅⁺-mono-⊑FD, ⨅Fin-mono-⊑FD
 --   (CSP.Laws.FD.IChoiceMonoFD, re-exported)
 --                            ← NONE.  Its whole proof is a union transfer over
 --                              `FDLawsIChoiceAssoc`'s constructive `⊓-failures⊥→`/`←l`/
@@ -160,10 +160,10 @@
 --                              covering every `k`, so the general `iter` law assumes
 --                              strictly less than the `loop0` specialisation above.
 --                              `loop`/`while` add only `bindκ-mono-⊑FD`'s inheritance
---                              (`Diverges-LEM`); the `⊑F⊥` half needs no classical
+--                              (`Diverges-LEM`); the `⊇F⊥` half needs no classical
 --                              ingredient of its own — the body-side reconstruction goes
 --                              through the `√` tick, which is structural.
---   renameInv-mono-⊑D / -⊑F⊥ / -⊑FD and the renameMap trio
+--   renameInv-mono-⊇D / -⊇F⊥ / -⊑FD and the renameMap trio
 --   (CSP.Laws.FD.RenameMonoFD, re-exported)
 --                            ← NONE.  Not "argued postulate-free" but STRUCTURALLY so:
 --                              `renameInv` relabels step-for-step, so `Diverges` transfers
@@ -259,8 +259,8 @@
 --                            ← NONE USED.  It is built FD-direct over `pchoice`'s own
 --                              decomposition; no postulate occurs as a term in it or in
 --                              its six local helpers (`cell-just-nothing`, `cell-just→`,
---                              `pchoice-refuses-cong`, `prepend-ev⊥`, `pchoice-⊑F⊥-dir`,
---                              `pchoice-⊑D-dir`).  Its HOME MODULE's closure does
+--                              `pchoice-refuses-cong`, `prepend-ev⊥`, `pchoice-⊇F⊥-dir`,
+--                              `pchoice-⊇D-dir`).  Its HOME MODULE's closure does
 --                              carry two postulate-bearing modules —
 --                              `Semantics.DRImpliesFD` (`¬-divergent→normal`, :66-67,
 --                              pulled in for the SIBLING `step-i-FD`'s `drbisim→≈FD`) and
@@ -377,34 +377,34 @@
 --         Hide-mono-⊑ᵀ : (A : EventSet) {P Q} → P ⊑T Q → (P ∖ A) ⊑T (Q ∖ A)
 --     (`CSP.Laws.Traces.TraceLawsHide`, :314-315).  No side condition.
 --
---   • `⊑F⊥` does NOT.  `Hide-mono-fail` (`CSP.Laws.FD.HideMonoFD`, :225-227, re-exported
---     below) is the unconditional STABLE-FAILURE TRANSFER, not `⊑F⊥` monotonicity:
---         Hide-mono-fail : (A : EventSet) {P Q} → P ⊑F⊥ Q
+--   • `⊇F⊥` does NOT.  `Hide-mono-fail` (`CSP.Laws.FD.HideMonoFD`, :225-227, re-exported
+--     below) is the unconditional STABLE-FAILURE TRANSFER, not `⊇F⊥` monotonicity:
+--         Hide-mono-fail : (A : EventSet) {P Q} → P ⊇F⊥ Q
 --                        → ∀ {s} {X} → failures (Q ∖ A) s X → failures⊥ (P ∖ A) s X
---     Its INPUT is `failures`, not `failures⊥`, so it is NOT `(P ∖ A) ⊑F⊥ (Q ∖ A)`: since
+--     Its INPUT is `failures`, not `failures⊥`, so it is NOT `(P ∖ A) ⊇F⊥ (Q ∖ A)`: since
 --     `failures⊥ P s B = failures P s B ⊎ divergences P s`
 --     (`Semantics/FailuresDivergences.agda:73`), it discharges only the `failures`
 --     disjunct of the hypothesis and says nothing about the `divergences` one.
---     Unconditional `⊑F⊥` monotonicity through hiding FAILS as well, by the same
+--     Unconditional `⊇F⊥` monotonicity through hiding FAILS as well, by the same
 --     divergence-chaos mechanism that kills `⊑FD` — stated in `HideMonoFD`'s own header
---     (:24): "via divergence-chaos at `[]` even `(P′ ∖ {h}) ⊑F⊥ (Q ∖ {h})` fails for a
+--     (:24): "via divergence-chaos at `[]` even `(P′ ∖ {h}) ⊇F⊥ (Q ∖ {h})` fails for a
 --     `b`-offering variant `P′`".  Corroborated by the proof of `Hide-mono-⊑FD-df`
 --     itself, which handles the `failures` input by `Hide-mono-fail` but refutes the
 --     `divergences` input from its SIDE CONDITION rather than by proof
 --     (`fF⊥ (inj₂ dv) = ⊥-elim (hdf dv)`, HideMonoFD.agda:256) — a line that would be
---     unnecessary if `⊑F⊥` were unconditionally monotone here.
+--     unnecessary if `⊇F⊥` were unconditionally monotone here.
 --
 -- SO WHICH COMPONENT BREAKS?  BOTH, and it is worth being precise about which
 -- counterexample hits which:
---   • `⊑D` — the CANONICAL pair (`Q = μX. h→X`, `P = ⊓ₙ hⁿ;STOP`) breaks exactly this:
+--   • `⊇D` — the CANONICAL pair (`Q = μX. h→X`, `P = ⊓ₙ hⁿ;STOP`) breaks exactly this:
 --     `Q ∖ {h}` diverges, `P ∖ {h}` has no infinite τ-path (infinite branching defeats
---     König), so `(P ∖ {h}) ⊑D (Q ∖ {h})` FAILS (HideMonoFD's header, :24).  This is the
+--     König), so `(P ∖ {h}) ⊇D (Q ∖ {h})` FAILS (HideMonoFD's header, :24).  This is the
 --     `⊑FD` failure, and `Hide-mono-⊑FD-df` refutes the obligation from its side condition
 --     in BOTH components (`fF⊥ (inj₂ dv)` at :256 and `fD dv` at :258).
---   • `⊑F⊥` — needs the `b`-offering VARIANT `P′` of the same pair, and breaks via
+--   • `⊇F⊥` — needs the `b`-offering VARIANT `P′` of the same pair, and breaks via
 --     divergence-chaos at `[]`, i.e. on `failures⊥`'s `divergences` disjunct.
 -- Both mechanisms are the same divergence-chaos phenomenon, which is why the failure takes
--- down `⊑F⊥` and `⊑FD` together, and why carrying a WITNESS (`FSim` or `DRbisim`) rather
+-- down `⊇F⊥` and `⊑FD` together, and why carrying a WITNESS (`FSim` or `DRbisim`) rather
 -- than a refinement FACT is what gets a composite through a hide.
 
 open import Level using (Level; _⊔_) renaming (suc to lsuc)
@@ -573,7 +573,7 @@ open import CSP.Laws.FD.ChoiceRefine E-≟ public using (⟶₀-mono-⊑FD)
 -- `⨅⁺-mono-⊑FD` / `⨅Fin-mono-⊑FD` are the replicated (NON-EMPTY: head+list resp.
 -- `Fin (suc n)`) folds of the same law — no side condition, no `⊑FD-refl` at the base.
 open import CSP.Laws.FD.IChoiceMonoFD E-≟ public
-  using (⊓-mono-⊑FD; ⊓-mono-⊑F⊥; ⊓-mono-⊑D; ⨅⁺-mono-⊑FD; ⨅Fin-mono-⊑FD)
+  using (⊓-mono-⊑FD; ⊓-mono-⊇F⊥; ⊓-mono-⊇D; ⨅⁺-mono-⊑FD; ⨅Fin-mono-⊑FD)
 -- FACT-SHAPED parallel precongruence + the replicated-interleaving folds.  The folds
 -- take the canonical `⦀Fin-mono-⊑FD` / `⦀⋆-mono-⊑FD` names (the retired `ParCongRep`
 -- wrappers held them before) and need NO `Disj`/`OffersOnly` side condition.
@@ -598,7 +598,7 @@ open import CSP.Laws.FD.IterateMonoFD E-≟ public using (loop0-mono-⊑FD)
 -- held them in `LoopMonoFD` are DELETED.  `>>=-mono-⊑FD` still needs a `BindDivSplit`,
 -- now on the REFINED continuation `k₂` (the one being decomposed); the other three
 -- discharge it.  All four pin a SHARED result level (`R S : Set ℓr`) — a ban set must be
--- retagged across the bind's carrier change, and `_⊑F⊥_` pins the ban level to the
+-- retagged across the bind's carrier change, and `_⊇F⊥_` pins the ban level to the
 -- carrier's (same reason `IterateMonoFD` pins `ℓr ≡ ℓ`).  Selective `using`: the module's
 -- retag / handover / elim machinery is proof scaffolding, not suite surface.
 -- `⨾⋆`/`⨾Fin` are the List-/Fin-indexed sequential folds; both are EMPTY-BASED
@@ -620,7 +620,7 @@ open import CSP.Laws.FD.BindMonoFD E-≟ public
 -- Selective `using`: the module's retag / reconstruction / spin-transfer machinery is
 -- proof scaffolding, not suite surface.
 open import CSP.Laws.FD.IterMonoFD E-≟ public
-  using (iter-mono-⊑FD; iter-mono-⊑F⊥; iter-mono-⊑D;
+  using (iter-mono-⊑FD; iter-mono-⊇F⊥; iter-mono-⊇D;
          loop-mono-⊑FD; while-mono-⊑FD; loopc-mono-⊑FD)
 -- FACT-SHAPED precongruence of RENAMING — the first monotonicity law renaming has had at
 -- ANY shape (previously: `renameInv-mono-⊑ᵀ` at `⊑T` and the unconditional `≈DR`
@@ -628,17 +628,17 @@ open import CSP.Laws.FD.IterMonoFD E-≟ public
 -- `renameMap-cong-FD` in Part 1 above).  Stated at the SAME alphabet, so — unlike Part 1's
 -- pair — it needs NO `ι`/`ι⁻¹`/`ι-linv` telescope and no `E-≟`; it follows
 -- `CSP.Laws.Traces.TraceLawsRename`, which instantiates `CSP.Rename` at `ι = id`.
--- The `⊑D` half is UNCONDITIONAL and CONSTRUCTIVE (rename's τ-space corresponds one-for-one,
+-- The `⊇D` half is UNCONDITIONAL and CONSTRUCTIVE (rename's τ-space corresponds one-for-one,
 -- so there is no König step at all — the cheapest divergence transfer in the repo).  The
--- `⊑F⊥` half takes `RenTight inv`: the ban set has to be pulled back along `inv`, and the
+-- `⊇F⊥` half takes `RenTight inv`: the ban set has to be pulled back along `inv`, and the
 -- honest pullback quantifies over target events, which lands ABOVE the carrier level
--- `_⊑F⊥_` pins its ban sets to.  `RenTight` (a forward section + no visible fan-out) makes
+-- `_⊇F⊥_` pins its ban sets to.  `RenTight` (a forward section + no visible fan-out) makes
 -- the pullback POINTWISE and hence level-`ℓr`; it is a LEVEL artefact, not a mathematical
 -- side condition, and it DISCHARGES for `renameMap` (`ι-vis-inv` is the identity inverse at
 -- the same alphabet), so `renameMap-mono-⊑FD` is unconditional.
 open import CSP.Laws.FD.RenameMonoFD {E = E} public
-  using (RenTight; renameInv-mono-⊑FD; renameInv-mono-⊑F⊥; renameInv-mono-⊑D;
-         renameMap-mono-⊑FD; renameMap-mono-⊑F⊥; renameMap-mono-⊑D)
+  using (RenTight; renameInv-mono-⊑FD; renameInv-mono-⊇F⊥; renameInv-mono-⊇D;
+         renameMap-mono-⊑FD; renameMap-mono-⊇F⊥; renameMap-mono-⊇D)
 open import CSP.Laws.FSim.IChoiceCong E-≟ public
 open import CSP.Laws.FSim.HideCong E-≟ public using (Hide-fsim)
 -- `ParCong`'s `Sep` is the TWO-CARRIER record documented above; re-exported renamed
@@ -683,7 +683,7 @@ open import CSP.Laws.FSim.ExtChoiceCong E-≟ public
 -- (`CSP.Laws.FD.ExtChoiceDivergence`) through `□-div-elim`/`□-div-intro-L/R`, which is
 -- unavoidable for any `□` law that touches divergences.
 open import CSP.Laws.FD.ExtChoiceMonoFD E-≟ public
-  using (□-mono-⊑FD; □-mono-⊑F⊥; □-mono-⊑D; □Fin-mono-⊑FD; □⋆-mono-⊑FD)
+  using (□-mono-⊑FD; □-mono-⊇F⊥; □-mono-⊇D; □Fin-mono-⊑FD; □⋆-mono-⊑FD)
 -- THE NEGATIVE RESULT, deliberately NOT re-exported wholesale.  `SlideCounterexample` is
 -- an alphabet-CONCRETE development (its own `Ev`, `Ev-≟`, `P₁`/`P₂`/`Q₁`/`Q₂`, `Rt`, …);
 -- dumping that into a suite index parameterised by `E-≟` would put a dozen
@@ -731,5 +731,5 @@ open import CSP.Laws.FSim.ThrowCong E-≟ public
 -- trace vocabulary travel too, since a caller stating its own throw-shaped
 -- decomposition needs them.
 open import CSP.Laws.FD.ThrowMonoFD E-≟ public
-  using (Θ-mono-⊑FD; Θ-mono-⊑F⊥; Θ-mono-⊑D; ΘReach; θNo; θFire; θDone;
+  using (Θ-mono-⊑FD; Θ-mono-⊇F⊥; Θ-mono-⊇D; ΘReach; θNo; θFire; θDone;
          Θ-reach-split; ΘFree; []ᶠ; _∷ᶠ_)

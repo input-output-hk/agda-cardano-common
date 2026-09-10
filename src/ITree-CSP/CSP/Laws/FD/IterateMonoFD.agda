@@ -24,7 +24,7 @@ open import Semantics.LTS                 {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces; failures; _⊑T_)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed; empty-div)
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; IsDivergence; div-extension-closed; empty-div)
 open import Semantics.Refusals            {E = E} {I = ExtI E} using (Refuses; Offers; deadlock-refuses)
 open import Semantics.DRBisim             {E = E} {I = ExtI E} using (Diverges; deadlock-converges)
 -- generic stability facts, kept qualified: the historic local names below differ from
@@ -416,7 +416,7 @@ iter-div-intro-P Q k {vs} d
 -- ============================================================================
 -- in-body-map : the per-iteration failure-map (Task 1, Step 2).
 -- A reached refusing state of `loopStep body′`-iteration is mapped, via
--- `body ⊑F⊥ body′`, to a failure⊥ of `loop0 body` at the SAME visible trace.
+-- `body ⊇F⊥ body′`, to a failure⊥ of `loop0 body` at the SAME visible trace.
 -- Works at the canonical level `ℓr ≡ ℓ` (the loop's carrier `R` is phantom).
 -- ============================================================================
 
@@ -440,7 +440,7 @@ loop0-wrap {R = R} body {vs} {B} (inj₂ d) =
                          (bind-div-intro-P body loop-k {vs} d))
 
 in-body-map : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′
+   → body ⊇F⊥ body′
    → ∀ {P′ vs} {B : Event√ R → Set ℓ}
    → (loopStep body′ tt) ⟹⟨ map evl vs ⟩ P′
    → Refuses (iter-bind P′ (loopStep body′)) B
@@ -475,7 +475,7 @@ in-body-map {R = R} body body′ f {P′} {vs} {B} run ref =
                       (proj₁ ref₁))
 
 -- ============================================================================
--- Task 2: loop0-mono-⊑F⊥  — THE SPIKE / DECISION GATE
+-- Task 2: loop0-mono-⊇F⊥  — THE SPIKE / DECISION GATE
 --
 -- Strategy (failures branch).  Decompose a failure⊥ of `loop0 body′` via
 -- `loop0-failures⊥-elim`.  The `in-body` arm is the per-iteration Task-1 helper
@@ -491,7 +491,7 @@ in-body-map {R = R} body body′ f {P′} {vs} {B} run ref =
 -- THE CRUX (reconstruction).  The body-side iteration is recovered POSTULATE-FREE:
 -- `bs`/`fe` witness that `body′` TERMINATES (reaches `ret tt`) on the visible
 -- trace `s₁`; a terminating run gives a √-failure `failures body′ (s₁ ++ √)`,
--- which `body ⊑F⊥ body′` (`f`) transfers to `body`; inverting the √-trace yields
+-- which `body ⊇F⊥ body′` (`f`) transfers to `body`; inverting the √-trace yields
 -- an actual `body`-run to a `ret tt` state on `s₁`, which we re-wrap into a
 -- body-side loop-back iteration.  No after-state choice / classical step is
 -- needed because the witness for the √-trace is constructive (deadlock refuses
@@ -674,7 +674,7 @@ body-terminates body {R = R} {s₁ = s₁} {Pᵣ} run fe =
 -- ── the √-trace witnesses and their inversion ────────────────────────────────
 -- A terminating run (`P` reaches a `ret x` state on `s₁`) gives a √-extended
 -- FAILURE for ANY ban set `B`: append the `√ x` tick to `deadlock`, which refuses
--- everything.  Used to feed `body ⊑F⊥ body′` a witness of body′'s termination.
+-- everything.  Used to feed `body ⊇F⊥ body′` a witness of body′'s termination.
 term→√failure : ∀ {ℓr} {R : Set ℓr} {P Pᵣ : PTree E (ExtI E) R} {x : R}
    {s₁ : List (Event√ R)} {B : Event√ R → Set ℓr}
    → P ⟹⟨ s₁ ⟩ Pᵣ → force Pᵣ ≡ ret x → failures P (s₁ ++ √ x ∷ []) B
@@ -920,7 +920,7 @@ div[]→Diverges d = go (d .prefix) (d .split) (d .reach) (d .divwit)
 -- diverges on a prefix of s₁ — already pushed to a `loop0 body` divergence on s₁
 -- (right).  Mirrors the in-loop reconstruction of `mono-fail`.
 recover-loopback : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′
+   → body ⊇F⊥ body′
    → ∀ {s₁ : List Event} {Pᵣ′ : PTree E (ExtI E) (⊤ {ℓ} ⊎ R)}
    → (loopStep body′ tt) ⟹⟨ map evl s₁ ⟩ Pᵣ′ → force Pᵣ′ ≡ ret (inj₁ tt)
    → (Σ[ Pᵣ ∈ PTree E (ExtI E) (⊤ {ℓ} ⊎ R) ]
@@ -951,13 +951,13 @@ recover-loopback {R = R} body body′ f {s₁} bs fe
 -- to a silent divergence of `loop0 body`, using the FD-refinement.  At each peel
 -- (`loop-Diverges→`) the chain is EITHER (a) a body′-internal divergence of this
 -- iteration — CONSTRUCTIVELY peeled (`bind-loopk-Diverges→`), transferred via
--- `body ⊑D body′`, and pushed up by `body-div→loop0-div` (a FINITE divergence record,
+-- `body ⊇D body′`, and pushed up by `body-div→loop0-div` (a FINITE divergence record,
 -- collapsed back to a `Diverges` — TERMINATES), OR (b) a silent loop-back with the
 -- residual `loop0 body′` still spinning — reconstruct `body`'s OWN silent loop-back
--- (`recover-loopback` at the empty visible trace, via `body ⊑F⊥ body′`), emit `loop0
+-- (`recover-loopback` at the empty visible trace, via `body ⊇F⊥ body′`), emit `loop0
 -- body`'s loop-back τ-chain (≥1 τ), and CORECURSE on the residual (GUARDED).
 loopD-transfer : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′ → body ⊑D body′
+   → body ⊇F⊥ body′ → body ⊇D body′
    → Diverges (loop0 {R = R} body′) → Diverges (loop0 body)
 
 -- Thin guarding indirection (mutual with `loopD-transfer`): a clean top-level
@@ -966,7 +966,7 @@ loopD-transfer : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
 -- through `loopD-transfer`'s own `with`-auxiliaries — which is what lets Agda's
 -- guardedness checker see the guarding `.step` of the caller.
 corecurse-now : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → (f : body ⊑F⊥ body′) (d : body ⊑D body′)
+   → (f : body ⊇F⊥ body′) (d : body ⊇D body′)
    → Diverges (loop0 {R = R} body′) → Diverges (loop0 body)
 corecurse-now body body′ f d dvLoop′ = loopD-transfer body body′ f d dvLoop′
 
@@ -995,7 +995,7 @@ loopback-head body bodyfe (⟹-τ step rest) =
 -- and CORECURSE via `loopD-transfer` directly under `.rest`.  EVERY clause emits a
 -- record `.step`, so the corecursion is never returned bare — guardedness holds.
 loopback-tail : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → (f : body ⊑F⊥ body′) (d : body ⊑D body′)
+   → (f : body ⊇F⊥ body′) (d : body ⊇D body′)
    → ∀ {Pᵣ : PTree E (ExtI E) (⊤ {ℓ} ⊎ R)}
    → force Pᵣ ≡ ret (inj₁ tt)
    → Diverges (loop0 {R = R} body′)
@@ -1058,30 +1058,30 @@ loopD-transfer {R = R} body body′ f d dv′ .Diverges.rest
 ...         | inj₂ (M , head , tail) = loopback-tail body body′ f d bodyfe dvLoop′ tail
 
 -- ============================================================================
--- loop0-mono-⊑D : the divergence-refinement half (Task 3).
+-- loop0-mono-⊇D : the divergence-refinement half (Task 3).
 --
 -- `divergences (loop0 body′) s` decomposes via `loop-trace<` to a `LoopSplit<`
 -- reaching a diverging state `Q`; recursion is well-founded on the run-step count
 -- `runLen` (the `in-loop` loop-back consumes ≥1 τ).  The `in-body` arm — the
 -- diverging state is `iter-bind P′ (loopStep body′)` — is the ONLY classical step:
 -- `loop-Diverges→` decides whether the divergence is body′-internal this iteration
--- (transfer via `body ⊑D body′`, the bind-into-loop-k peel being CONSTRUCTIVE) or
+-- (transfer via `body ⊇D body′`, the bind-into-loop-k peel being CONSTRUCTIVE) or
 -- the loop spins (body′ terminates and loops back; reconstruct the body-side
--- loop-back via `body ⊑F⊥ body′` and `loop0-spins-diverges`, exactly as
+-- loop-back via `body ⊇F⊥ body′` and `loop0-spins-diverges`, exactly as
 -- `mono-fail`'s in-loop).  The `in-loop` arm recurses on the shorter `s₂` run and
 -- prepends the reconstructed body-side iteration (`loop0-prepend-div`).
 -- ============================================================================
-loop0-mono-⊑D : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′ → body ⊑D body′ → (loop0 {R = R} body) ⊑D (loop0 body′)
+loop0-mono-⊇D : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
+   → body ⊇F⊥ body′ → body ⊇D body′ → (loop0 {R = R} body) ⊇D (loop0 body′)
 
 -- WORKER: by well-founded recursion on the run-step count of the divergence reach.
 mono-div : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′ → body ⊑D body′
+   → body ⊇F⊥ body′ → body ⊇D body′
    → ∀ {prefix} (Q : PTree E (ExtI E) R)
    → (run : loop0 body′ ⟹⟨ prefix ⟩ Q) → Acc _<_ (runLen run) → Diverges Q
    → divergences (loop0 body) prefix
 
-loop0-mono-⊑D {R = R} body body′ f d {s} dv =
+loop0-mono-⊇D {R = R} body body′ f d {s} dv =
   subst-div0 {body = body} (sym (dv .split))
     (div-extension-closed {t = dv .suffix}
       (mono-div body body′ f d (dv .witness) (dv .reach)
@@ -1145,13 +1145,13 @@ mono-div {R = R} body body′ f d {prefix} Q run (acc rs) dvQ
         div-extension-closed {t = s₂} dbody
 
 -- ============================================================================
--- loop0-mono-⊑F⊥ : THE SPIKE.  POSTULATE-FREE, HOLE-FREE (modulo the ⊑D hole).
+-- loop0-mono-⊇F⊥ : THE SPIKE.  POSTULATE-FREE, HOLE-FREE (modulo the ⊇D hole).
 -- ============================================================================
 
 -- WORKER on the FAILURE half (explicit run), by well-founded recursion on the
 -- run-step count `runLen run` (the loop-back consumes ≥1 τ each iteration).
 mono-fail : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′ → body ⊑D body′
+   → body ⊇F⊥ body′ → body ⊇D body′
    → ∀ {s} {B : Event√ R → Set ℓ} (Q : PTree E (ExtI E) R)
    → (run : loop0 body′ ⟹⟨ s ⟩ Q) → Acc _<_ (runLen run) → Refuses Q B
    → failures⊥ (loop0 body) s B
@@ -1165,7 +1165,7 @@ mono-fail {R = R} body body′ f d {s} {B} Q run (acc rs) ref
 ... | in-loop< {s₁ = s₁} {s₂ = s₂} {Pᵣ = Pᵣ} bs fe kr lt
       with body-terminates body′ bs fe                  -- body′ TERMINATES on s₁
 ...   | (Bᵣ′ , bodyrun′ , feB′)
-        -- feed body′'s √-termination failure through `body ⊑F⊥ body′` and case
+        -- feed body′'s √-termination failure through `body ⊇F⊥ body′` and case
         -- on whether `body` matches it by a failure (terminates) or a divergence.
         with f {map evl s₁ ++ √ tt ∷ []} {λ _ → Lift ℓ ⊥}
                  (inj₁ (term→√failure {x = tt} bodyrun′ feB′))
@@ -1194,17 +1194,17 @@ mono-fail {R = R} body body′ f d {s} {B} Q run (acc rs) ref
     subst-div : ∀ {t t′} → t ≡ t′ → divergences (loop0 body) t → divergences (loop0 body) t′
     subst-div refl x = x
 
-loop0-mono-⊑F⊥ : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
-   → body ⊑F⊥ body′ → body ⊑D body′ → (loop0 {R = R} body) ⊑F⊥ (loop0 body′)
-loop0-mono-⊑F⊥ {R = R} body body′ f d {s} {B} (inj₁ (Q , run , ref)) =
+loop0-mono-⊇F⊥ : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
+   → body ⊇F⊥ body′ → body ⊇D body′ → (loop0 {R = R} body) ⊇F⊥ (loop0 body′)
+loop0-mono-⊇F⊥ {R = R} body body′ f d {s} {B} (inj₁ (Q , run , ref)) =
   mono-fail body body′ f d Q run (<-wellFounded (runLen run)) ref
-loop0-mono-⊑F⊥ {R = R} body body′ f d {s} {B} (inj₂ dv) =
-  inj₂ (loop0-mono-⊑D body body′ f d dv)
+loop0-mono-⊇F⊥ {R = R} body body′ f d {s} {B} (inj₂ dv) =
+  inj₂ (loop0-mono-⊇D body body′ f d dv)
 
 -- ============================================================================
--- Task 4: loop0-mono-⊑FD — pair the two halves (`_⊑FD_ = (_⊑F⊥_) × (_⊑D_)`).
+-- Task 4: loop0-mono-⊑FD — pair the two halves (`_⊑FD_ = (_⊇F⊥_) × (_⊇D_)`).
 -- ============================================================================
 loop0-mono-⊑FD : ∀ {R : Set ℓ} (body body′ : PTree E (ExtI E) (⊤ {ℓ}))
    → body ⊑FD body′ → (loop0 {R = R} body) ⊑FD (loop0 body′)
 loop0-mono-⊑FD body body′ (f , d) =
-  loop0-mono-⊑F⊥ body body′ f d , loop0-mono-⊑D body body′ f d
+  loop0-mono-⊇F⊥ body body′ f d , loop0-mono-⊇D body body′ f d

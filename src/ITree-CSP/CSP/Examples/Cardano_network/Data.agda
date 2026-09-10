@@ -33,6 +33,7 @@ module CSP.Examples.Cardano_network.Data (p : Params) where
 
 open import Data.Nat using (ℕ)
 open import Data.List using (List; []; _∷_)
+open import Data.Maybe using (Maybe)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Data.Product using (_×_; _,_)
@@ -56,6 +57,10 @@ data ChainRange : Set where
 
 data Header : Set where
   header : Block → Header
+
+-- the EB hash announced by an RB header, if any (callers hold a Header, not a Block)
+announcedEBof : Header → Maybe EBHash
+announcedEBof (header b) = announcedEB b
 
 data Tip : Set where
   tip : Block → Tip
@@ -110,8 +115,9 @@ data MessageLeiosNotify : Set where
   MsgLNDone              : MessageLeiosNotify
 
 data MessageLeiosFetch : Set where
-  MsgLFBlockRequest             : Point → MessageLeiosFetch
-  MsgLFBlock                    : Block → MessageLeiosFetch
+  -- Leios fetches ENDORSER blocks: a request carries only the EB's hash
+  MsgLFBlockRequest             : EBHash → MessageLeiosFetch
+  MsgLFBlock                    : EB → MessageLeiosFetch
   MsgLFBlockTxsRequest          : Point → LFBitmap → MessageLeiosFetch
   MsgLFBlockTxs                 : List Tx → MessageLeiosFetch
   MsgLFVotesRequest             : List Vote → MessageLeiosFetch

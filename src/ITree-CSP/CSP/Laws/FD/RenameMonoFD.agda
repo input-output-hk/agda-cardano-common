@@ -6,10 +6,10 @@
 -- (`CSP.Laws.Traces.TraceLawsRename`) and the unconditional `≈DR` congruences
 -- `cong-renameInv`/`cong-renameMap` (`CSP.Laws.Bisim.DRCongruence`, section 4).
 --
---   renameInv-mono-⊑D  : P ⊑D  Q → (P ⟦ inv ⟧ⁱ) ⊑D  (Q ⟦ inv ⟧ⁱ)    UNCONDITIONAL
---   renameInv-mono-⊑F⊥ : RenTight inv → P ⊑F⊥ Q → …  ⊑F⊥ …           see side condition
+--   renameInv-mono-⊇D  : P ⊇D  Q → (P ⟦ inv ⟧ⁱ) ⊇D  (Q ⟦ inv ⟧ⁱ)    UNCONDITIONAL
+--   renameInv-mono-⊇F⊥ : RenTight inv → P ⊇F⊥ Q → …  ⊇F⊥ …           see side condition
 --   renameInv-mono-⊑FD : RenTight inv → P ⊑FD Q → …  ⊑FD …
---   renameMap-mono-⊑D / -⊑F⊥ / -⊑FD                                  UNCONDITIONAL
+--   renameMap-mono-⊇D / -⊇F⊥ / -⊑FD                                  UNCONDITIONAL
 --
 -- ── NOTE ON PARAMETERISATION (a correction worth recording) ────────────────────────
 --
@@ -20,9 +20,9 @@
 -- `E₁ = E₂ = E`, `ι = id`, `ι⁻¹ = just`, and takes no parameters at all — and this module
 -- follows it, reusing its `RenTr` / `ren-trace-elim` / single-step suite wholesale.  The
 -- cross-alphabet generalisation would need the telescope; it is not attempted here
--- because `_⊑F⊥_` would then pin TWO different ban levels (see below).
+-- because `_⊇F⊥_` would then pin TWO different ban levels (see below).
 --
--- ── THE `⊑D` HALF IS CONSTRUCTIVE.  VERIFIED, not assumed. ────────────────────────
+-- ── THE `⊇D` HALF IS CONSTRUCTIVE.  VERIFIED, not assumed. ────────────────────────
 --
 -- `renameInv` is a step-for-step STRUCTURAL relabelling: `ret r ↦ ret r`,
 -- `sil P′ ↦ sil (renamed P′)`, and a `react` node keeps its τ-branch map (merely
@@ -31,21 +31,21 @@
 -- corecursive projection — NO König step, NO `Diverges-LEM`, NO decision about where an
 -- infinite τ-chain lives, because there is only one place it can live.  This is exactly
 -- why rename is the cheap congruence and hiding/parallel/interrupt are the expensive ones.
--- ZERO postulates, local or inherited, reach the `⊑D` half.
+-- ZERO postulates, local or inherited, reach the `⊇D` half.
 --
--- ── THE `⊑F⊥` HALF NEEDS `RenTight`, AND THE REASON IS A LEVEL ARTEFACT ────────────
+-- ── THE `⊇F⊥` HALF NEEDS `RenTight`, AND THE REASON IS A LEVEL ARTEFACT ────────────
 --
 -- Transferring a still-reachable REFUSAL needs the target ban set PULLED BACK along
 -- `inv` to a source ban set.  The mathematically right pullback is
 --
 --     banFull B e  =  Σ[ b ∈ target event ] (inv b ≡ just e × B (evl b))
 --
--- and with it the law is unconditional.  But `_⊑F⊥_ {R = Rr}` pins its ban sets to
+-- and with it the law is unconditional.  But `_⊇F⊥_ {R = Rr}` pins its ban sets to
 -- `Event√ Rr → Set ℓr` — the CARRIER's level — while `banFull` lives at
 -- `lsuc ℓ ⊔ ℓe ⊔ ℓr`, because it quantifies over `AnyTypes E`.  `Lift` only raises
 -- levels, so `banFull` cannot be fed to the premise unless `ℓr ≥ lsuc ℓ ⊔ ℓe`, which no
 -- real carrier in this repo satisfies (they are `⊤ {ℓ}` and friends).  This is a
--- LEVEL artefact of how `_⊑F⊥_` is stated, NOT a failure of FD-monotonicity: renaming is
+-- LEVEL artefact of how `_⊇F⊥_` is stated, NOT a failure of FD-monotonicity: renaming is
 -- an FD congruence in Roscoe, and the `≈DR` congruence here is unconditional.
 --
 -- The WEAKEST repair that keeps the law usable at every level is to make the pullback
@@ -83,7 +83,7 @@ open import Semantics.Failures {E = E} {I = ExtI E}
 open import Semantics.Refusals {E = E} {I = ExtI E}
   using (Refuses; Offers; deadlock-refuses)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; IsDivergence
         ; div-extension-closed)
 open import Semantics.DRBisim  {E = E} {I = ExtI E} using (Diverges; deadlock-converges)
 open import Semantics.Stability {E = E} {I = ExtI E}
@@ -114,7 +114,7 @@ toEv : ConcEvent₁ → Event
 toEv (at , a) = evLabel (proj₁ at) (proj₂ at) a
 
 -------------------------------------------------------------------------------------
--- PART 0 : `Diverges` transfers both ways, CONSTRUCTIVELY (the `⊑D` half's engine).
+-- PART 0 : `Diverges` transfers both ways, CONSTRUCTIVELY (the `⊇D` half's engine).
 --
 -- Same shape as `CSP.Laws.Bisim.DRCongruence`'s `ren-Diverges→`/`←`, restated here at
 -- the same alphabet so this module needs neither that module's `ι` telescope nor `E-≟`.
@@ -145,7 +145,7 @@ ren-Diverges← {inv = inv} P d .Diverges.rest = ren-Diverges← _ (d .Diverges.
 -------------------------------------------------------------------------------------
 
 -- SPLIT a trace renaming along a source-side concatenation: the target trace splits at
--- the matching point.  (Needed because `⊑D` returns a divergence whose PREFIX is only a
+-- the matching point.  (Needed because `⊇D` returns a divergence whose PREFIX is only a
 -- prefix of the trace we handed it.)
 RenTr-split : ∀ {inv} (s₁ : List (Event√ Rr)) {s₂ t}
             → RenTr inv (s₁ ++ s₂) t
@@ -211,7 +211,7 @@ no-div-through-√ (_ ∷ es) s₁ (⟹-τ _ rest)         dv = no-div-through-�
 no-div-through-√ (_ ∷ es) s₁ (⟹-ev _ rest)        dv = no-div-through-√ es s₁ rest dv
 
 -------------------------------------------------------------------------------------
--- PART 2 : the `⊑D` half — UNCONDITIONAL.
+-- PART 2 : the `⊇D` half — UNCONDITIONAL.
 -------------------------------------------------------------------------------------
 
 -- ELIM a renamed divergence to a source one, remembering the trace renaming.
@@ -246,10 +246,10 @@ ren-div-intro {inv = inv} P {s} {t} rn d
 ...   | inj₂ (r , s₀ , s₁ , eqs) =
         ⊥-elim (no-div-through-√ s₀ s₁ (subst (P ⟹⟨_⟩ _) eqs (d .reach)) (d .divwit))
 
--- RENAMING IS ⊑D-MONOTONE, unconditionally and constructively.
-renameInv-mono-⊑D : ∀ {inv} {P Q : PTree E (ExtI E) Rr}
-                  → P ⊑D Q → (P ⟦ inv ⟧ⁱ) ⊑D (Q ⟦ inv ⟧ⁱ)
-renameInv-mono-⊑D {inv = inv} {P = P} {Q = Q} pq d
+-- RENAMING IS ⊇D-MONOTONE, unconditionally and constructively.
+renameInv-mono-⊇D : ∀ {inv} {P Q : PTree E (ExtI E) Rr}
+                  → P ⊇D Q → (P ⟦ inv ⟧ⁱ) ⊇D (Q ⟦ inv ⟧ⁱ)
+renameInv-mono-⊇D {inv = inv} {P = P} {Q = Q} pq d
   with ren-div-elim {inv = inv} Q d
 ... | s , t₁ , t₂ , refl , rn , dQ =
       div-extension-closed {t = t₂} (ren-div-intro P rn (pq dQ))
@@ -333,7 +333,7 @@ refuses-ren-intro {inv = inv} tg {W} {B} (stW , noff) = stR , go
             ... | ret _ = eq
 
 -------------------------------------------------------------------------------------
--- PART 5 : the `⊑F⊥` half, and the paired laws.
+-- PART 5 : the `⊇F⊥` half, and the paired laws.
 -------------------------------------------------------------------------------------
 
 -- INTRO a source FAILURE back through the rename, at the renamed trace.  Mirrors
@@ -355,12 +355,12 @@ ren-fail-intro {inv = inv} tg (⟹-ev (sRet eq) rest) (√ᵣ rn) ref
 ... | refl , refl with rn
 ...   | []ᵣ = deadlock , ⟹-ev (ren-√-fwd {inv = inv} eq) ⟹-refl , deadlock-refuses
 
--- RENAMING IS ⊑F⊥-MONOTONE for a tight `inv`: elim the impl-side failure⊥ to the source
+-- RENAMING IS ⊇F⊥-MONOTONE for a tight `inv`: elim the impl-side failure⊥ to the source
 -- (pulling the ban set back), transport it, re-intro at the SAME renamed trace.
-renameInv-mono-⊑F⊥ : ∀ {inv} (tg : RenTight inv) {P Q : PTree E (ExtI E) Rr}
-                   → P ⊑F⊥ Q → P ⊑D Q → (P ⟦ inv ⟧ⁱ) ⊑F⊥ (Q ⟦ inv ⟧ⁱ)
+renameInv-mono-⊇F⊥ : ∀ {inv} (tg : RenTight inv) {P Q : PTree E (ExtI E) Rr}
+                   → P ⊇F⊥ Q → P ⊇D Q → (P ⟦ inv ⟧ⁱ) ⊇F⊥ (Q ⟦ inv ⟧ⁱ)
 -- a genuine reached refusal of the renamed impl.
-renameInv-mono-⊑F⊥ {inv = inv} tg {P} {Q} f d {t} {B} (inj₁ (W , run , ref))
+renameInv-mono-⊇F⊥ {inv = inv} tg {P} {Q} f d {t} {B} (inj₁ (W , run , ref))
   with ren-run-elim {inv = inv} {Q = Q} run
 -- the refusing state IS the renamed source state: pull the ban set back pointwise.
 ... | s , Q′ , Qreach , rn , inj₁ refl
@@ -369,20 +369,20 @@ renameInv-mono-⊑F⊥ {inv = inv} tg {P} {Q} f d {t} {B} (inj₁ (W , run , ref
 ...     | inj₂ dP                    = inj₂ (ren-div-intro P rn dP)
 -- the run ticked and sits in `deadlock`, which refuses EVERYTHING on both sides — no
 -- pullback needed, `deadlock-refuses` supplies the source refusal outright.
-renameInv-mono-⊑F⊥ {inv = inv} tg {P} {Q} f d {t} {B} (inj₁ (W , run , ref))
+renameInv-mono-⊇F⊥ {inv = inv} tg {P} {Q} f d {t} {B} (inj₁ (W , run , ref))
     | s , Q′ , Qreach , rn , inj₂ (refl , refl)
       with f {s} {banSrc tg B} (inj₁ (Q′ , Qreach , deadlock-refuses))
 ...     | inj₁ (P′ , Preach , ref′) = inj₁ (ren-fail-intro tg Preach rn ref′)
 ...     | inj₂ dP                    = inj₂ (ren-div-intro P rn dP)
--- a divergence of the renamed impl: that is the `⊑D` half.
-renameInv-mono-⊑F⊥ {inv = inv} tg {P} {Q} f d (inj₂ dv) =
-  inj₂ (renameInv-mono-⊑D {inv = inv} d dv)
+-- a divergence of the renamed impl: that is the `⊇D` half.
+renameInv-mono-⊇F⊥ {inv = inv} tg {P} {Q} f d (inj₂ dv) =
+  inj₂ (renameInv-mono-⊇D {inv = inv} d dv)
 
 -- RENAMING IS A ⊑FD-PRECONGRUENCE for a tight `inv`.
 renameInv-mono-⊑FD : ∀ {inv} (tg : RenTight inv) {P Q : PTree E (ExtI E) Rr}
                    → P ⊑FD Q → (P ⟦ inv ⟧ⁱ) ⊑FD (Q ⟦ inv ⟧ⁱ)
 renameInv-mono-⊑FD {inv = inv} tg (f , d) =
-  renameInv-mono-⊑F⊥ tg f d , renameInv-mono-⊑D {inv = inv} d
+  renameInv-mono-⊇F⊥ tg f d , renameInv-mono-⊇D {inv = inv} d
 
 -------------------------------------------------------------------------------------
 -- PART 6 : `renameMap` — the side condition DISCHARGES.
@@ -399,14 +399,14 @@ renameInv-mono-⊑FD {inv = inv} tg (f , d) =
 ι-vis-inv-tight .fwd-inv ((A , e) , a)      = refl
 ι-vis-inv-tight .inv-fwd ((A , e) , a) ce′ eq = just-injective eq
 
--- `renameMap` is ⊑D-monotone (a `renameInv` instance).
-renameMap-mono-⊑D : {P Q : PTree E (ExtI E) Rr} → P ⊑D Q → renameMap P ⊑D renameMap Q
-renameMap-mono-⊑D = renameInv-mono-⊑D {inv = ι-vis-inv}
+-- `renameMap` is ⊇D-monotone (a `renameInv` instance).
+renameMap-mono-⊇D : {P Q : PTree E (ExtI E) Rr} → P ⊇D Q → renameMap P ⊇D renameMap Q
+renameMap-mono-⊇D = renameInv-mono-⊇D {inv = ι-vis-inv}
 
--- `renameMap` is ⊑F⊥-monotone, unconditionally.
-renameMap-mono-⊑F⊥ : {P Q : PTree E (ExtI E) Rr}
-                   → P ⊑F⊥ Q → P ⊑D Q → renameMap P ⊑F⊥ renameMap Q
-renameMap-mono-⊑F⊥ = renameInv-mono-⊑F⊥ ι-vis-inv-tight
+-- `renameMap` is ⊇F⊥-monotone, unconditionally.
+renameMap-mono-⊇F⊥ : {P Q : PTree E (ExtI E) Rr}
+                   → P ⊇F⊥ Q → P ⊇D Q → renameMap P ⊇F⊥ renameMap Q
+renameMap-mono-⊇F⊥ = renameInv-mono-⊇F⊥ ι-vis-inv-tight
 
 -- `renameMap` IS A ⊑FD-PRECONGRUENCE, unconditionally.
 renameMap-mono-⊑FD : {P Q : PTree E (ExtI E) Rr} → P ⊑FD Q → renameMap P ⊑FD renameMap Q

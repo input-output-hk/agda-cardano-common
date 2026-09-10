@@ -33,16 +33,16 @@
 --
 -- `A R : Set ℓ` (not `A : Set ℓ`, `R : Set ℓr`).  A LEVEL constraint, not a mathematical
 -- one, and the SAME one `CSP.Laws.FD.IterateMonoFD` already imposes for `loop0`: for
--- `P : PTree E I R` with `R : Set ℓr`, `_⊑F⊥_` pins the ban set to `Event√ R → Set ℓr`.
+-- `P : PTree E I R` with `R : Set ℓr`, `_⊇F⊥_` pins the ban set to `Event√ R → Set ℓr`.
 -- A failure of `iter k₂ a` bans a set over `Event√ R`; transferring the still-in-body case
--- through `k₁ a ⊑F⊥ k₂ a` needs that set RETAGGED over `Event√ (A ⊎ R)` (`banEvl`), whose
+-- through `k₁ a ⊇F⊥ k₂ a` needs that set RETAGGED over `Event√ (A ⊎ R)` (`banEvl`), whose
 -- level must be `ℓ` because `A : Set ℓ` is forced by `iter`'s own signature.  `Lift` only
 -- raises levels, so there is no way around it; the loop's `R` is phantom anyway (`iter`
 -- returns only through `inj₂`), and every FD refinement in this repo is at one level.
 --
 -- ── POSTULATES: NONE LOCAL.  Inherited, per lemma: ─────────────────────────────────
 --
---   * `iter-mono-⊑D` (hence every law here) inherits the ITERATE KÖNIG STEP
+--   * `iter-mono-⊇D` (hence every law here) inherits the ITERATE KÖNIG STEP
 --     `CSP.Laws.FSim.LoopCong.iter-div-split`, which is CLASSICAL: it is discharged from
 --     `Diverges-LEM` (`CSP.Laws.FD.FDTransfer`) plus `¬DivModA→MAcc`
 --     (`CSP.Laws.FD.HideDivergence`), both pre-existing and certified from the single
@@ -54,10 +54,10 @@
 --     `CSP.Laws.FD.IterateFD.loop-Diverges→`, a `loop0`-SPECIFIC postulate.  `iter-div-split`
 --     is a derived (postulate-free-in-itself) lemma covering every `k`, so nothing new is
 --     assumed here.
---   * `iter-mono-⊑F⊥` needs NO classical ingredient of its own: the body-side
+--   * `iter-mono-⊇F⊥` needs NO classical ingredient of its own: the body-side
 --     reconstruction is constructive (`recover-term`, via the `√` tick — a terminating run
---     yields a `√`-extended failure with the EMPTY ban set, which `⊑F⊥` transfers, and
---     `√`-run inversion is structural).  Its `⊑F⊥`-of-a-divergence arm calls `⊑D`, so the
+--     yields a `√`-extended failure with the EMPTY ban set, which `⊇F⊥` transfers, and
+--     `√`-run inversion is structural).  Its `⊇F⊥`-of-a-divergence arm calls `⊇D`, so the
 --     PAIRED law inherits the above.
 --   * `loop-mono-⊑FD` / `while-mono-⊑FD` add only `bindκ-mono-⊑FD`'s inheritance, which is
 --     `Diverges-LEM` again (its König split is discharged constructively by
@@ -93,7 +93,7 @@ open import Semantics.Refusals            {E = E} {I = ExtI E}
 open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (_⊑F⊥_; _⊑D_; _⊑FD_; failures⊥; divergences; IsDivergence
+  using (_⊇F⊥_; _⊇D_; _⊑FD_; failures⊥; divergences; IsDivergence
         ; div-extension-closed; empty-div; force-≡→⊑FD)
 open import Semantics.DRBisim             {E = E} {I = ExtI E}
   using (Diverges; deadlock-converges)
@@ -205,7 +205,7 @@ iter-wrap-fail k a {vs} (inj₂ dd) = inj₂ (iter-div-introᴬ (k a) k dd)
 --
 -- THE CRUX, and it is CONSTRUCTIVE.  `k₂ a` reaching a `ret x` state on the visible
 -- trace `s₁` gives a `√ x`-extended failure of `k₂ a` for ANY ban set — take the EMPTY
--- one — which `k₁ a ⊑F⊥ k₂ a` transfers.  Inverting the `√`-extended run (`√-run-split-gen`,
+-- one — which `k₁ a ⊇F⊥ k₂ a` transfers.  Inverting the `√`-extended run (`√-run-split-gen`,
 -- structural) yields a `k₁ a`-run to a `ret x` state on the SAME `s₁` and — crucially —
 -- with the SAME `x`, because the `√` event CARRIES the returned value.  That is what makes
 -- the loop-back states agree on the next loop state `a′`.  The `failures⊥` alternative is
@@ -214,7 +214,7 @@ iter-wrap-fail k a {vs} (inj₂ dd) = inj₂ (iter-div-introᴬ (k a) k dd)
 
 -- Recover the spec body's termination at the SAME value, or else a spec-side divergence.
 recover-term : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑F⊥ k₂ a)
+   → (∀ a → k₁ a ⊇F⊥ k₂ a)
    → ∀ {a : A} {x : A ⊎ R} {s₁ : List Event} {Pᵣ′ : PTree E (ExtI E) (A ⊎ R)}
    → k₂ a ⟹⟨ map evl s₁ ⟩ Pᵣ′ → force Pᵣ′ ≡ ret x
    → (Σ[ Pᵣ ∈ PTree E (ExtI E) (A ⊎ R) ]
@@ -230,10 +230,10 @@ recover-term k₁ k₂ f {a} {x} {s₁} run fe | inj₂ dd = inj₂ (div-√-tru
 -- PART 3 : the SILENT-SPIN TRANSFER (coinductive).
 --
 -- A bare `Diverges (iter k₂ a)` is a τ-only chain.  At each peel (`iter-div-split`) it is
--- EITHER (a) internal to the current iteration `k₂ a` — a FINITE transfer via `k₁ a ⊑D k₂ a`,
+-- EITHER (a) internal to the current iteration `k₂ a` — a FINITE transfer via `k₁ a ⊇D k₂ a`,
 -- pushed up by `iter-div-introᴬ` and collapsed back to a bare `Diverges` — OR (b) the
 -- iteration completes silently and `iter k₂ a′` still spins: reconstruct `k₁ a`'s own silent
--- loop-back (`recover-term` at the EMPTY visible trace, via `⊑F⊥`), emit the spec-side
+-- loop-back (`recover-term` at the EMPTY visible trace, via `⊇F⊥`), emit the spec-side
 -- τ-chain, and CORECURSE on the residual.
 --
 -- Productivity is bought exactly as in `IterateMonoFD.loopD-transfer`: the corecursive call
@@ -251,23 +251,23 @@ div[]→Diverges {P = P} dd = go (dd .prefix) (dd .split) (dd .reach) (dd .divwi
         go (_ ∷ _) () _     _
 
 -- Transfer a body-internal silent divergence of the current iteration to the iterate.
--- FINITE (no corecursion): one `⊑D` use, one lift, one collapse.
+-- FINITE (no corecursion): one `⊇D` use, one lift, one collapse.
 body-spin→iter-spin : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑D k₂ a) → ∀ (a : A) → Diverges (k₂ a) → Diverges (iter k₁ a)
+   → (∀ a → k₁ a ⊇D k₂ a) → ∀ (a : A) → Diverges (k₂ a) → Diverges (iter k₁ a)
 body-spin→iter-spin k₁ k₂ d a dv =
   div[]→Diverges (iter-div-introᴬ (k₁ a) k₁ {vs = []} (d a (empty-div dv)))
 
 -- Forward declarations (no old-style `mutual`): the coinductive transfer, its thin
 -- guarding indirection, and the prefix-tail walk.
 iterD-transfer : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑F⊥ k₂ a) → (∀ a → k₁ a ⊑D k₂ a)
+   → (∀ a → k₁ a ⊇F⊥ k₂ a) → (∀ a → k₁ a ⊇D k₂ a)
    → ∀ (a : A) → Diverges (iter k₂ a) → Diverges (iter k₁ a)
 
 -- Thin guarding indirection: a clean top-level function whose body IS the corecursion, so
 -- the corecursive cycle passes through a separate name rather than through
 -- `iterD-transfer`'s own `with`-auxiliaries.
 corecurse-nowᴬ : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (f : ∀ a → k₁ a ⊑F⊥ k₂ a) (d : ∀ a → k₁ a ⊑D k₂ a)
+   → (f : ∀ a → k₁ a ⊇F⊥ k₂ a) (d : ∀ a → k₁ a ⊇D k₂ a)
    → ∀ (a : A) → Diverges (iter k₂ a) → Diverges (iter k₁ a)
 corecurse-nowᴬ k₁ k₂ f d a dv = iterD-transfer k₁ k₂ f d a dv
 
@@ -288,7 +288,7 @@ loopback-headᴬ k₁          fe (⟹-τ step rest) = inj₂ (_ , step , rest)
 -- LOOP-BACK τ and CORECURSE directly under `.rest`.  EVERY clause emits a record, so the
 -- corecursion is never returned bare.
 loopback-tailᴬ : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (f : ∀ a → k₁ a ⊑F⊥ k₂ a) (d : ∀ a → k₁ a ⊑D k₂ a)
+   → (f : ∀ a → k₁ a ⊇F⊥ k₂ a) (d : ∀ a → k₁ a ⊇D k₂ a)
    → {Pᵣ : PTree E (ExtI E) (A ⊎ R)} {a′ : A} → force Pᵣ ≡ ret (inj₁ a′)
    → Diverges (iter k₂ a′)
    → {P : PTree E (ExtI E) R} → P ⟹⟨ [] ⟩ (iter-bind Pᵣ k₁) → Diverges P
@@ -342,16 +342,16 @@ iterD-transfer k₁ k₂ f d a dv .Diverges.rest
 -- residual run is SHORTER (the loop-back consumes ≥1 τ), which is what `Acc _<_` consumes.
 -------------------------------------------------------------------------------------
 
--- the ⊑D half's worker.
+-- the ⊇D half's worker.
 mono-div : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑F⊥ k₂ a) → (∀ a → k₁ a ⊑D k₂ a)
+   → (∀ a → k₁ a ⊇F⊥ k₂ a) → (∀ a → k₁ a ⊇D k₂ a)
    → ∀ (a : A) {s : List (Event√ R)} (Q : PTree E (ExtI E) R)
    → (run : iter k₂ a ⟹⟨ s ⟩ Q) → Acc _<_ (runLen run) → Diverges Q
    → divergences (iter k₁ a) s
 
--- the ⊑F⊥ half's worker.
+-- the ⊇F⊥ half's worker.
 mono-fail : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑F⊥ k₂ a) → (∀ a → k₁ a ⊑D k₂ a)
+   → (∀ a → k₁ a ⊇F⊥ k₂ a) → (∀ a → k₁ a ⊇D k₂ a)
    → ∀ (a : A) {s : List (Event√ R)} {B : Event√ R → Set ℓ} (Q : PTree E (ExtI E) R)
    → (run : iter k₂ a ⟹⟨ s ⟩ Q) → Acc _<_ (runLen run) → Refuses Q B
    → failures⊥ (iter k₁ a) s B
@@ -361,7 +361,7 @@ mono-div {A = A} {R = R} k₁ k₂ f d a Q run (acc rs) dvQ
 -- ── in-body : the divergence is inside the CURRENT iteration.  THE classical step.
 ... | in-bodyN {P′ = P′} {vs = vs} bs refl
       with iter-div-split k₂ P′ dvQ
--- (a) it stays in the body: transfer via `⊑D` and push up.
+-- (a) it stays in the body: transfer via `⊇D` and push up.
 ...     | inj₁ dP′ =
           iter-div-introᴬ (k₁ a) k₁
             (d a (record { prefix  = map evl vs ; suffix = []
@@ -393,7 +393,7 @@ mono-div {A = A} {R = R} k₁ k₂ f d a Q run (acc rs) dvQ
 
 mono-fail {A = A} {R = R} k₁ k₂ f d a {B = B} Q run (acc rs) ref
   with iter-bind-invN (k₂ a) k₂ run
--- ── in-body : an in-progress iteration refuses; map the refusal body-wise via `⊑F⊥`.
+-- ── in-body : an in-progress iteration refuses; map the refusal body-wise via `⊇F⊥`.
 ... | in-bodyN {P′ = P′} {vs = vs} bs refl =
       iter-wrap-fail k₁ a
         (f a (inj₁ (P′ , bs , refuses-iter-elimᴬ {k = k₂} {Q = P′} {B = B} ref)))
@@ -420,30 +420,30 @@ mono-fail {A = A} {R = R} k₁ k₂ f d a {B = B} Q run (acc rs) ref
 -- PART 5 : the laws.
 -------------------------------------------------------------------------------------
 
--- the DIVERGENCE half: `iter` is ⊑D-monotone in its step, pointwise.
-iter-mono-⊑D : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑F⊥ k₂ a) → (∀ a → k₁ a ⊑D k₂ a)
-   → ∀ (a : A) → iter k₁ a ⊑D iter k₂ a
-iter-mono-⊑D k₁ k₂ f d a {s} dv =
+-- the DIVERGENCE half: `iter` is ⊇D-monotone in its step, pointwise.
+iter-mono-⊇D : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
+   → (∀ a → k₁ a ⊇F⊥ k₂ a) → (∀ a → k₁ a ⊇D k₂ a)
+   → ∀ (a : A) → iter k₁ a ⊇D iter k₂ a
+iter-mono-⊇D k₁ k₂ f d a {s} dv =
   subst (divergences (iter k₁ a)) (sym (dv .split))
     (div-extension-closed {t = dv .suffix}
       (mono-div k₁ k₂ f d a (dv .witness) (dv .reach)
                 (<-wellFounded (runLen (dv .reach))) (dv .divwit)))
 
--- the STABLE-FAILURE half: `iter` is ⊑F⊥-monotone in its step, pointwise.
-iter-mono-⊑F⊥ : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
-   → (∀ a → k₁ a ⊑F⊥ k₂ a) → (∀ a → k₁ a ⊑D k₂ a)
-   → ∀ (a : A) → iter k₁ a ⊑F⊥ iter k₂ a
-iter-mono-⊑F⊥ k₁ k₂ f d a (inj₁ (Q , run , ref)) =
+-- the STABLE-FAILURE half: `iter` is ⊇F⊥-monotone in its step, pointwise.
+iter-mono-⊇F⊥ : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
+   → (∀ a → k₁ a ⊇F⊥ k₂ a) → (∀ a → k₁ a ⊇D k₂ a)
+   → ∀ (a : A) → iter k₁ a ⊇F⊥ iter k₂ a
+iter-mono-⊇F⊥ k₁ k₂ f d a (inj₁ (Q , run , ref)) =
   mono-fail k₁ k₂ f d a Q run (<-wellFounded (runLen run)) ref
-iter-mono-⊑F⊥ k₁ k₂ f d a (inj₂ dv) = inj₂ (iter-mono-⊑D k₁ k₂ f d a dv)
+iter-mono-⊇F⊥ k₁ k₂ f d a (inj₂ dv) = inj₂ (iter-mono-⊇D k₁ k₂ f d a dv)
 
 -- ITERATION IS A ⊑FD-PRECONGRUENCE in its step, pointwise in the loop state.
 iter-mono-⊑FD : ∀ {A R : Set ℓ} (k₁ k₂ : A → PTree E (ExtI E) (A ⊎ R))
    → (∀ a → k₁ a ⊑FD k₂ a) → ∀ (a : A) → iter k₁ a ⊑FD iter k₂ a
 iter-mono-⊑FD k₁ k₂ kk a =
-  iter-mono-⊑F⊥ k₁ k₂ (λ b → proj₁ (kk b)) (λ b → proj₂ (kk b)) a
-  , iter-mono-⊑D  k₁ k₂ (λ b → proj₁ (kk b)) (λ b → proj₂ (kk b)) a
+  iter-mono-⊇F⊥ k₁ k₂ (λ b → proj₁ (kk b)) (λ b → proj₂ (kk b)) a
+  , iter-mono-⊇D  k₁ k₂ (λ b → proj₁ (kk b)) (λ b → proj₂ (kk b)) a
 
 -- `loop`'s step, as a TOP-LEVEL name (`loop`'s own is `where`-bound).  Definitionally
 -- equal to it, so `loop body a` reduces to `iter (loopStepᴬ body) a` by `refl`.

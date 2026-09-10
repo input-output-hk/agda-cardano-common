@@ -33,6 +33,8 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
 open import CSP.Examples.Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF
+  -- the node-local channels (never performed by the four-node diamond)
+  ; store; env; StoreTag; StoreCar; EnvTag; EnvCar
   -- the producer/consumer api tags (the role discriminator's index values)
   ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
   ; sendCSRequestNext; recvCSRollforward; sendCSDone
@@ -2982,6 +2984,44 @@ medium-no-tx m =
   ⦀Fin-noOffer numLinks (λ l → decLink l (phase m l) (broken m l))
     (λ l → decLink-no-tx l (phase m l) (broken m l))
 
+
+-- one breakable link offers no `store` (copy cells fire only input/output)
+decLink-no-store : (l : Link) (ph : Dir → IDs → CopyPhase) (b : Bool)
+    {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (decLink l ph b) (store l₀ d₀ m₀) a
+decLink-no-store l ph true  (M , step) = ret-no-ev {P = decLink l ph true} refl step
+decLink-no-store l ph false (M , step) with fold-react l ph
+... | mkReactF V T feq with △-ev-elim (MedNO.force-renameMap-react
+        {P = ⦀⋆ (map (λ { (d , id) → decCopy l d id (ph d id) }) (linkConfig l))} feq)
+        refl refl step
+...   | P′ , leftStep , _ with MedNO.renameMap-ev-reflect-ι leftStep
+...     | e₁ , Q′ , () , _
+
+-- the medium offers no `store`
+medium-no-store : (m : MedState) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (decMed m) (store l₀ d₀ m₀) a
+medium-no-store m =
+  ⦀Fin-noOffer numLinks (λ l → decLink l (phase m l) (broken m l))
+    (λ l → decLink-no-store l (phase m l) (broken m l))
+
+-- one breakable link offers no `env` (copy cells fire only input/output)
+decLink-no-env : (l : Link) (ph : Dir → IDs → CopyPhase) (b : Bool)
+    {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (decLink l ph b) (env l₀ d₀ m₀) a
+decLink-no-env l ph true  (M , step) = ret-no-ev {P = decLink l ph true} refl step
+decLink-no-env l ph false (M , step) with fold-react l ph
+... | mkReactF V T feq with △-ev-elim (MedNO.force-renameMap-react
+        {P = ⦀⋆ (map (λ { (d , id) → decCopy l d id (ph d id) }) (linkConfig l))} feq)
+        refl refl step
+...   | P′ , leftStep , _ with MedNO.renameMap-ev-reflect-ι leftStep
+...     | e₁ , Q′ , () , _
+
+-- the medium offers no `env`
+medium-no-env : (m : MedState) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (decMed m) (env l₀ d₀ m₀) a
+medium-no-env m =
+  ⦀Fin-noOffer numLinks (λ l → decLink l (phase m l) (broken m l))
+    (λ l → decLink-no-env l (phase m l) (broken m l))
 -- one breakable link offers no `sndack` (copy cells fire only input/output)
 decLink-no-sndack : (l : Link) (ph : Dir → IDs → CopyPhase) (b : Bool)
     {l₀ : Link} {d₀ : Dir} {id₀ : IDs} {a : ⊤₀}
@@ -3300,6 +3340,172 @@ nodes-no-tx s =
     (SStep.⦀-noOffer _ _ (nodeB-no-tx (nB s))
       (SStep.⦀-noOffer _ _ (nodeC-no-tx (nC s)) (nodeD-no-tx (nD s))))
 
+
+-- bundle refuses `store` (every renamed peer's ι-preimage is nothing)
+bundleG-no-store : (l : Link) (cl sv : Dir)
+    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
+    {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (bundleG l cl sv csc css bfc bfs ip) (store l₀ d₀ m₀) a
+bundleG-no-store l cl sv csc css bfc bfs ip =
+  SStep.⦀-noOffer _ _ (decKAc-noOffer l cl (SN.kac ip) refl)
+   (SStep.⦀-noOffer _ _ (decKAs-noOffer l sv (SN.kas ip) refl)
+    (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSc-src l cl csc) refl)
+     (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSs-src l sv css) refl)
+      (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFc-src l cl bfc) refl)
+       (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFs-src l sv bfs) refl)
+        (SStep.⦀-noOffer _ _ (decTSc-noOffer l cl (SN.tsc ip) refl)
+         (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
+          (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
+           (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
+
+-- the three drivers refuse `store` (they fire only apiCS/apiBF/done)
+decProd-no-store : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
+    {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀} → ¬ IoOffers (decProd l d blk pp) (store l₀ d₀ m₀) a
+decProd-no-store l d blk pp (M , step) with decProd-apiCSBF l d blk pp step
+... | ()
+
+decCP-no-store : (l₁ l₂ : Link) (ph : SN.CPPh)
+    {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀} → ¬ IoOffers (decCP l₁ l₂ ph) (store l₀ d₀ m₀) a
+decCP-no-store l₁ l₂ ph (M , step) with decCP-apiCSBF l₁ l₂ ph step
+... | ()
+
+decConsD-no-store : (l : Link) (cph : SN.ConsDPh)
+    {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀} → ¬ IoOffers (decConsD l cph) (store l₀ d₀ m₀) a
+decConsD-no-store l cph (M , step) with decConsD-apiCSBF l cph step
+... | ()
+
+-- node-A refuses `store`
+nodeA-no-store : (na : SN.NodeStateA) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SN.decNodeA na) (store l₀ d₀ m₀) a
+nodeA-no-store na = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-store linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
+    (bundleG-no-store linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na)))
+  (SStep.⦀-noOffer _ _
+    (decProd-no-store linkAB hi blkA (SN.NodeStateA.prod-AB na))
+    (decProd-no-store linkAC hi blkA (SN.NodeStateA.prod-AC na)))
+
+-- node-B refuses `store`
+nodeB-no-store : (nb : SN.NodeStateB) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (decNodeB nb) (store l₀ d₀ m₀) a
+nodeB-no-store nb = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-store linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb))
+    (bundleG-no-store linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb)))
+  (decCP-no-store linkAB linkBD (SN.NodeStateB.cp-B nb))
+
+-- node-C refuses `store`
+nodeC-no-store : (nc : SN.NodeStateC) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (decNodeC nc) (store l₀ d₀ m₀) a
+nodeC-no-store nc = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-store linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc))
+    (bundleG-no-store linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc)))
+  (decCP-no-store linkAC linkCD (SN.NodeStateC.cp-C nc))
+
+-- node-D refuses `store`
+nodeD-no-store : (nd : SN.NodeStateD) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (decNodeD nd) (store l₀ d₀ m₀) a
+nodeD-no-store nd = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-store linkBD hi lo (SN.NodeStateD.csC-BD nd) (SN.NodeStateD.csS-BD nd) (SN.NodeStateD.bfC-BD nd) (SN.NodeStateD.bfS-BD nd) (SN.NodeStateD.inert-BD nd))
+    (bundleG-no-store linkCD hi lo (SN.NodeStateD.csC-CD nd) (SN.NodeStateD.csS-CD nd) (SN.NodeStateD.bfC-CD nd) (SN.NodeStateD.bfS-CD nd) (SN.NodeStateD.inert-CD nd)))
+  (SStep.⦀-noOffer _ _
+    (decConsD-no-store linkBD (SN.NodeStateD.cons-BD nd))
+    (decConsD-no-store linkCD (SN.NodeStateD.cons-CD nd)))
+
+-- the whole nodes interleave refuses `store`
+nodes-no-store : (s : SysState) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.nodesOf s) (store l₀ d₀ m₀) a
+nodes-no-store s =
+  SStep.⦀-noOffer _ _ (nodeA-no-store (nA s))
+    (SStep.⦀-noOffer _ _ (nodeB-no-store (nB s))
+      (SStep.⦀-noOffer _ _ (nodeC-no-store (nC s)) (nodeD-no-store (nD s))))
+
+-- bundle refuses `env` (every renamed peer's ι-preimage is nothing)
+bundleG-no-env : (l : Link) (cl sv : Dir)
+    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
+    {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (bundleG l cl sv csc css bfc bfs ip) (env l₀ d₀ m₀) a
+bundleG-no-env l cl sv csc css bfc bfs ip =
+  SStep.⦀-noOffer _ _ (decKAc-noOffer l cl (SN.kac ip) refl)
+   (SStep.⦀-noOffer _ _ (decKAs-noOffer l sv (SN.kas ip) refl)
+    (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSc-src l cl csc) refl)
+     (SStep.⦀-noOffer _ _ (SStep.CSNO.renameMap-noOffer-χ (decCSs-src l sv css) refl)
+      (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFc-src l cl bfc) refl)
+       (SStep.⦀-noOffer _ _ (SStep.BFNO.renameMap-noOffer-χ (decBFs-src l sv bfs) refl)
+        (SStep.⦀-noOffer _ _ (decTSc-noOffer l cl (SN.tsc ip) refl)
+         (SStep.⦀-noOffer _ _ (decTSs-noOffer l sv (SN.tss ip) refl)
+          (SStep.⦀-noOffer _ _ (decLNc-noOffer l cl (SN.lnc ip) refl)
+           (SStep.⦀-noOffer _ _ (decLNs-noOffer l sv (SN.lns ip) refl)
+            (SStep.⦀-noOffer _ _ (decLFc-noOffer l cl (SN.lfc ip) refl)
+                                 (decLFs-noOffer l sv (SN.lfs ip) refl)))))))))))
+
+-- the three drivers refuse `env` (they fire only apiCS/apiBF/done)
+decProd-no-env : (l : Link) (d : Dir) (blk : Block₃) (pp : ProdPh)
+    {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀} → ¬ IoOffers (decProd l d blk pp) (env l₀ d₀ m₀) a
+decProd-no-env l d blk pp (M , step) with decProd-apiCSBF l d blk pp step
+... | ()
+
+decCP-no-env : (l₁ l₂ : Link) (ph : SN.CPPh)
+    {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀} → ¬ IoOffers (decCP l₁ l₂ ph) (env l₀ d₀ m₀) a
+decCP-no-env l₁ l₂ ph (M , step) with decCP-apiCSBF l₁ l₂ ph step
+... | ()
+
+decConsD-no-env : (l : Link) (cph : SN.ConsDPh)
+    {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀} → ¬ IoOffers (decConsD l cph) (env l₀ d₀ m₀) a
+decConsD-no-env l cph (M , step) with decConsD-apiCSBF l cph step
+... | ()
+
+-- node-A refuses `env`
+nodeA-no-env : (na : SN.NodeStateA) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SN.decNodeA na) (env l₀ d₀ m₀) a
+nodeA-no-env na = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-env linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
+    (bundleG-no-env linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na)))
+  (SStep.⦀-noOffer _ _
+    (decProd-no-env linkAB hi blkA (SN.NodeStateA.prod-AB na))
+    (decProd-no-env linkAC hi blkA (SN.NodeStateA.prod-AC na)))
+
+-- node-B refuses `env`
+nodeB-no-env : (nb : SN.NodeStateB) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (decNodeB nb) (env l₀ d₀ m₀) a
+nodeB-no-env nb = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-env linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb))
+    (bundleG-no-env linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb)))
+  (decCP-no-env linkAB linkBD (SN.NodeStateB.cp-B nb))
+
+-- node-C refuses `env`
+nodeC-no-env : (nc : SN.NodeStateC) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (decNodeC nc) (env l₀ d₀ m₀) a
+nodeC-no-env nc = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-env linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc))
+    (bundleG-no-env linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc)))
+  (decCP-no-env linkAC linkCD (SN.NodeStateC.cp-C nc))
+
+-- node-D refuses `env`
+nodeD-no-env : (nd : SN.NodeStateD) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (decNodeD nd) (env l₀ d₀ m₀) a
+nodeD-no-env nd = SStep.∥⇘apiES⇙-noOffer _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (bundleG-no-env linkBD hi lo (SN.NodeStateD.csC-BD nd) (SN.NodeStateD.csS-BD nd) (SN.NodeStateD.bfC-BD nd) (SN.NodeStateD.bfS-BD nd) (SN.NodeStateD.inert-BD nd))
+    (bundleG-no-env linkCD hi lo (SN.NodeStateD.csC-CD nd) (SN.NodeStateD.csS-CD nd) (SN.NodeStateD.bfC-CD nd) (SN.NodeStateD.bfS-CD nd) (SN.NodeStateD.inert-CD nd)))
+  (SStep.⦀-noOffer _ _
+    (decConsD-no-env linkBD (SN.NodeStateD.cons-BD nd))
+    (decConsD-no-env linkCD (SN.NodeStateD.cons-CD nd)))
+
+-- the whole nodes interleave refuses `env`
+nodes-no-env : (s : SysState) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.nodesOf s) (env l₀ d₀ m₀) a
+nodes-no-env s =
+  SStep.⦀-noOffer _ _ (nodeA-no-env (nA s))
+    (SStep.⦀-noOffer _ _ (nodeB-no-env (nB s))
+      (SStep.⦀-noOffer _ _ (nodeC-no-env (nC s)) (nodeD-no-env (nD s))))
 -- bundle refuses `sndack` (every renamed peer's ι-preimage is nothing)
 bundleG-no-sndack : (l : Link) (cl sv : Dir)
     (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
@@ -4866,6 +5072,830 @@ absnodes-no-tx s =
   SStep.⦀-noOffer _ _ (absNodeA-no-tx (nA s))
     (SStep.⦀-noOffer _ _ (absNodeB-no-tx (nB s))
       (SStep.⦀-noOffer _ _ (absNodeC-no-tx (nC s)) (absNodeD-no-tx (nD s))))
+
+-- ======================== node-local channel: store ========================
+
+csCnxt-store : (l : Link) (d : Dir) (q : NS.CScPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.csCnxt l d q (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+csCnxt-store l d NS.ccIdle    = refl
+csCnxt-store l d NS.ccWreq    = refl
+csCnxt-store l d NS.ccAwait   = refl
+csCnxt-store l d (NS.ccWfi _) = refl
+csCnxt-store l d NS.ccInt     = refl
+csCnxt-store l d NS.ccWdone   = refl
+csCnxt-store l d NS.ccMust    = refl
+csCnxt-store l d (NS.ccArf _) = refl
+csCnxt-store l d (NS.ccArb _) = refl
+csCnxt-store l d (NS.ccAif _) = refl
+csCnxt-store l d (NS.ccAin _) = refl
+csCnxt-store l d NS.ccTerm    = refl
+
+-- csSnxt has no CS-server edge for a `break` event, at every abstract position
+csSnxt-store : (l : Link) (d : Dir) (q : NS.CSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.csSnxt l d q (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+csSnxt-store l d NS.csIdle     = refl
+csSnxt-store l d NS.csAreq     = refl
+csSnxt-store l d NS.csCanAwait = refl
+csSnxt-store l d (NS.csAfi _)  = refl
+csSnxt-store l d NS.csInt      = refl
+csSnxt-store l d NS.csDdone    = refl
+csSnxt-store l d NS.csMust     = refl
+csSnxt-store l d (NS.csWrf _)  = refl
+csSnxt-store l d (NS.csWrb _)  = refl
+csSnxt-store l d NS.csWar      = refl
+csSnxt-store l d (NS.csWif _)  = refl
+csSnxt-store l d (NS.csWin _)  = refl
+csSnxt-store l d NS.csTerm     = refl
+
+-- bfCnxt has no BF-client edge for a `break` event, at every abstract position
+bfCnxt-store : (l : Link) (d : Dir) (q : NS.BFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.bfCnxt l d q (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+bfCnxt-store l d NS.bcIdle     = refl
+bfCnxt-store l d (NS.bcWrr _)  = refl
+bfCnxt-store l d NS.bcBusy     = refl
+bfCnxt-store l d NS.bcWcd      = refl
+bfCnxt-store l d NS.bcStream   = refl
+bfCnxt-store l d (NS.bcAblk _) = refl
+bfCnxt-store l d NS.bcTerm     = refl
+
+-- bfSnxt has no BF-server edge for a `break` event, at every abstract position
+bfSnxt-store : (l : Link) (d : Dir) (q : NS.BFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.bfSnxt l d q (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+bfSnxt-store l d NS.bsIdle     = refl
+bfSnxt-store l d (NS.bsAreq _) = refl
+bfSnxt-store l d NS.bsBusy     = refl
+bfSnxt-store l d NS.bsDdone    = refl
+bfSnxt-store l d NS.bsWsb      = refl
+bfSnxt-store l d NS.bsStream   = refl
+bfSnxt-store l d NS.bsWnb      = refl
+bfSnxt-store l d (NS.bsWblk _) = refl
+bfSnxt-store l d NS.bsWbd      = refl
+bfSnxt-store l d NS.bsTerm     = refl
+
+-- abstract CS-client peer refuses `break` (terminal ⇒ ret; else no csCnxt edge)
+absCSc-no-store : (l : Link) (d : Dir) (q : SN.CScPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absCSc l d q) (store l₀ d₀ m₀) a
+absCSc-no-store l d q {l₀} {d₀} {m₀} {a} with NS.csCfin (SStep.coarsenCSc q) in fEq
+... | true  = viewV→noOffer (SStep.absCSc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.csCfin ; nxt = NS.csCnxt l d })
+                   (SStep.coarsenCSc q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absCSc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.csCfin ; nxt = NS.csCnxt l d })
+                   (SStep.coarsenCSc q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (csCnxt-store l d (SStep.coarsenCSc q) {l₀} {d₀} {m₀} {a}))
+
+-- abstract CS-server peer refuses `break`
+absCSs-no-store : (l : Link) (d : Dir) (q : SN.CSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absCSs l d q) (store l₀ d₀ m₀) a
+absCSs-no-store l d q {l₀} {d₀} {m₀} {a} with NS.csSfin (SStep.coarsenCSs q) in fEq
+... | true  = viewV→noOffer (SStep.absCSs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.csSfin ; nxt = NS.csSnxt l d })
+                   (SStep.coarsenCSs q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absCSs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.csSfin ; nxt = NS.csSnxt l d })
+                   (SStep.coarsenCSs q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (csSnxt-store l d (SStep.coarsenCSs q) {l₀} {d₀} {m₀} {a}))
+
+-- abstract BF-client peer refuses `break`
+absBFc-no-store : (l : Link) (d : Dir) (q : SN.BFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absBFc l d q) (store l₀ d₀ m₀) a
+absBFc-no-store l d q {l₀} {d₀} {m₀} {a} with NS.bfCfin (SStep.coarsenBFc q) in fEq
+... | true  = viewV→noOffer (SStep.absBFc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.bfCfin ; nxt = NS.bfCnxt l d })
+                   (SStep.coarsenBFc q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absBFc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.bfCfin ; nxt = NS.bfCnxt l d })
+                   (SStep.coarsenBFc q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (bfCnxt-store l d (SStep.coarsenBFc q) {l₀} {d₀} {m₀} {a}))
+
+-- abstract BF-server peer refuses `break`
+absBFs-no-store : (l : Link) (d : Dir) (q : SN.BFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absBFs l d q) (store l₀ d₀ m₀) a
+absBFs-no-store l d q {l₀} {d₀} {m₀} {a} with NS.bfSfin (SStep.coarsenBFs q) in fEq
+... | true  = viewV→noOffer (SStep.absBFs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.bfSfin ; nxt = NS.bfSnxt l d })
+                   (SStep.coarsenBFs q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absBFs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.bfSfin ; nxt = NS.bfSnxt l d })
+                   (SStep.coarsenBFs q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (bfSnxt-store l d (SStep.coarsenBFs q) {l₀} {d₀} {m₀} {a}))
+
+-- fixed KA-client spec refuses `break` (kcClient non-terminal, no kaCnxt edge)
+
+tsCnxt-store-c : (l : Link) (d : Dir) (q : SN.TScPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.tsCnxt l d (SStep.coarsenTSc q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+tsCnxt-store-c l d (SN.tcHead TS.stInit)             = refl
+tsCnxt-store-c l d (SN.tcHead TS.stIdle)             = refl
+tsCnxt-store-c l d (SN.tcHead TS.stTxIdsBlocking)    = refl
+tsCnxt-store-c l d (SN.tcHead TS.stTxIdsNonBlocking) = refl
+tsCnxt-store-c l d (SN.tcHead TS.stTxs)              = refl
+tsCnxt-store-c l d (SN.tcHead TS.stDone)             = refl
+tsCnxt-store-c l d (SN.tcReqIdsB1 a r)               = refl
+tsCnxt-store-c l d (SN.tcReqIdsNB1 a r)              = refl
+tsCnxt-store-c l d (SN.tcReqTxs1 ids)                = refl
+tsCnxt-store-c l d (SN.tcRepB1 ids)                  = refl
+tsCnxt-store-c l d (SN.tcDone1)                      = refl
+tsCnxt-store-c l d (SN.tcRepNB1 ids)                 = refl
+tsCnxt-store-c l d (SN.tcRepTxs1 txs)                = refl
+tsCnxt-store-c l d (SN.tcSil TS.stInit)              = refl
+tsCnxt-store-c l d (SN.tcSil TS.stIdle)              = refl
+tsCnxt-store-c l d (SN.tcSil TS.stTxIdsBlocking)     = refl
+tsCnxt-store-c l d (SN.tcSil TS.stTxIdsNonBlocking)  = refl
+tsCnxt-store-c l d (SN.tcSil TS.stTxs)               = refl
+tsCnxt-store-c l d (SN.tcSil TS.stDone)              = refl
+
+-- TS-server break next-table refl at the CONCRETE tracked positions
+tsSnxt-store-c : (l : Link) (d : Dir) (q : SN.TSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.tsSnxt l d (SStep.coarsenTSs q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+tsSnxt-store-c l d (SN.tsHead TS.stInit)             = refl
+tsSnxt-store-c l d (SN.tsHead TS.stIdle)             = refl
+tsSnxt-store-c l d (SN.tsHead TS.stTxIdsBlocking)    = refl
+tsSnxt-store-c l d (SN.tsHead TS.stTxIdsNonBlocking) = refl
+tsSnxt-store-c l d (SN.tsHead TS.stTxs)              = refl
+tsSnxt-store-c l d (SN.tsHead TS.stDone)             = refl
+tsSnxt-store-c l d SN.tsDone1                        = refl
+tsSnxt-store-c l d (SN.tsReqB1 ar)                   = refl
+tsSnxt-store-c l d (SN.tsReqNB1 ar)                  = refl
+tsSnxt-store-c l d (SN.tsReqTxs1 ids)                = refl
+tsSnxt-store-c l d (SN.tsSil TS.stInit)              = refl
+tsSnxt-store-c l d (SN.tsSil TS.stIdle)              = refl
+tsSnxt-store-c l d (SN.tsSil TS.stTxIdsBlocking)     = refl
+tsSnxt-store-c l d (SN.tsSil TS.stTxIdsNonBlocking)  = refl
+tsSnxt-store-c l d (SN.tsSil TS.stTxs)               = refl
+tsSnxt-store-c l d (SN.tsSil TS.stDone)              = refl
+
+-- abstract TS client refuses `break` at any tracked position (via concrete coarsen)
+absTSc-no-store : (l : Link) (d : Dir) (q : SN.TScPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absTSc l d q) (store l₀ d₀ m₀) a
+absTSc-no-store l d q {l₀} {d₀} {m₀} {a} with NS.tsCfin (SStep.coarsenTSc q) in fEq
+... | true  = viewV→noOffer (SStep.absTSc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.tsCfin ; nxt = NS.tsCnxt l d })
+                   (SStep.coarsenTSc q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absTSc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.tsCfin ; nxt = NS.tsCnxt l d })
+                   (SStep.coarsenTSc q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (tsCnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+absTSs-no-store : (l : Link) (d : Dir) (q : SN.TSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absTSs l d q) (store l₀ d₀ m₀) a
+absTSs-no-store l d q {l₀} {d₀} {m₀} {a} with NS.tsSfin (SStep.coarsenTSs q) in fEq
+... | true  = viewV→noOffer (SStep.absTSs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.tsSfin ; nxt = NS.tsSnxt l d })
+                   (SStep.coarsenTSs q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absTSs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.tsSfin ; nxt = NS.tsSnxt l d })
+                   (SStep.coarsenTSs q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (tsSnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+-- KA-client break next-table refl at the CONCRETE tracked positions (via coarsen)
+kaCnxt-store-c : (l : Link) (d : Dir) (q : SN.KAcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.kaCnxt l d (SStep.coarsenKAc q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+kaCnxt-store-c l d (SN.kcHead KA.stClient)     = refl
+kaCnxt-store-c l d (SN.kcHead (KA.stServer c)) = refl
+kaCnxt-store-c l d (SN.kcHead KA.stDone)       = refl
+kaCnxt-store-c l d (SN.kcErr1 cq cr ne)        = refl
+kaCnxt-store-c l d (SN.kcReq1 c)               = refl
+kaCnxt-store-c l d (SN.kcDone1)                = refl
+kaCnxt-store-c l d (SN.kcSil KA.stClient)      = refl
+kaCnxt-store-c l d (SN.kcSil (KA.stServer c))  = refl
+kaCnxt-store-c l d (SN.kcSil KA.stDone)        = refl
+kaCnxt-store-c l d SN.kcTermE1                 = refl
+
+-- KA-server break next-table refl at the CONCRETE tracked positions
+kaSnxt-store-c : (l : Link) (d : Dir) (q : SN.KAsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.kaSnxt l d (SStep.coarsenKAs q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+kaSnxt-store-c l d (SN.ksHead KA.stClient)     = refl
+kaSnxt-store-c l d (SN.ksHead (KA.stServer c)) = refl
+kaSnxt-store-c l d (SN.ksHead KA.stDone)       = refl
+kaSnxt-store-c l d (SN.ksRecv1 c)              = refl
+kaSnxt-store-c l d (SN.ksDdone1)               = refl
+kaSnxt-store-c l d (SN.ksSil KA.stClient)      = refl
+kaSnxt-store-c l d (SN.ksSil (KA.stServer c))  = refl
+kaSnxt-store-c l d (SN.ksSil KA.stDone)        = refl
+
+-- abstract KA client refuses `break` at any tracked position (via concrete coarsen)
+absKAc-no-store : (l : Link) (d : Dir) (q : SN.KAcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absKAc l d q) (store l₀ d₀ m₀) a
+absKAc-no-store l d q {l₀} {d₀} {m₀} {a} with NS.kaCfin (SStep.coarsenKAc q) in fEq
+... | true  = viewV→noOffer (SStep.absKAc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.kaCfin ; nxt = NS.kaCnxt l d })
+                   (SStep.coarsenKAc q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absKAc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.kaCfin ; nxt = NS.kaCnxt l d })
+                   (SStep.coarsenKAc q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (kaCnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+absKAs-no-store : (l : Link) (d : Dir) (q : SN.KAsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absKAs l d q) (store l₀ d₀ m₀) a
+absKAs-no-store l d q {l₀} {d₀} {m₀} {a} with NS.kaSfin (SStep.coarsenKAs q) in fEq
+... | true  = viewV→noOffer (SStep.absKAs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.kaSfin ; nxt = NS.kaSnxt l d })
+                   (SStep.coarsenKAs q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absKAs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.kaSfin ; nxt = NS.kaSnxt l d })
+                   (SStep.coarsenKAs q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (kaSnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+-- STEP 5 — abstract LN/LF `break` non-offers (concrete-position `break-c`
+-- table lemmas + lifted `absX-no-store`, mirroring the KA/TS pattern).
+lnCnxt-store-c : (l : Link) (d : Dir) (q : SN.LNcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.lnCnxt l d (SStep.coarsenLNc q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+lnCnxt-store-c l d (SN.lncHead LNp.stIdle) = refl
+lnCnxt-store-c l d (SN.lncHead LNp.stBusy) = refl
+lnCnxt-store-c l d (SN.lncHead LNp.stDone) = refl
+lnCnxt-store-c l d (SN.lncRann1 h) = refl
+lnCnxt-store-c l d (SN.lncRoff1 q) = refl
+lnCnxt-store-c l d (SN.lncRtxs1 q) = refl
+lnCnxt-store-c l d (SN.lncRvot1 vs) = refl
+lnCnxt-store-c l d (SN.lncReq1) = refl
+lnCnxt-store-c l d (SN.lncDone1) = refl
+lnCnxt-store-c l d (SN.lncSil LNp.stIdle) = refl
+lnCnxt-store-c l d (SN.lncSil LNp.stBusy) = refl
+lnCnxt-store-c l d (SN.lncSil LNp.stDone) = refl
+
+absLNc-no-store : (l : Link) (d : Dir) (q : SN.LNcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absLNc l d q) (store l₀ d₀ m₀) a
+absLNc-no-store l d q {l₀} {d₀} {m₀} {a} with NS.lnCfin (SStep.coarsenLNc q) in fEq
+... | true  = viewV→noOffer (SStep.absLNc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lnCfin ; nxt = NS.lnCnxt l d })
+                   (SStep.coarsenLNc q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLNc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lnCfin ; nxt = NS.lnCnxt l d })
+                   (SStep.coarsenLNc q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (lnCnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+lnSnxt-store-c : (l : Link) (d : Dir) (q : SN.LNsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.lnSnxt l d (SStep.coarsenLNs q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+lnSnxt-store-c l d (SN.lnsHead LNp.stIdle) = refl
+lnSnxt-store-c l d (SN.lnsHead LNp.stBusy) = refl
+lnSnxt-store-c l d (SN.lnsHead LNp.stDone) = refl
+lnSnxt-store-c l d (SN.lnsDone1)           = refl
+lnSnxt-store-c l d (SN.lnsWann1 h) = refl
+lnSnxt-store-c l d (SN.lnsWoff1 q) = refl
+lnSnxt-store-c l d (SN.lnsWtxs1 q) = refl
+lnSnxt-store-c l d (SN.lnsWvot1 vs) = refl
+lnSnxt-store-c l d (SN.lnsSil LNp.stIdle) = refl
+lnSnxt-store-c l d (SN.lnsSil LNp.stBusy) = refl
+lnSnxt-store-c l d (SN.lnsSil LNp.stDone) = refl
+
+absLNs-no-store : (l : Link) (d : Dir) (q : SN.LNsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absLNs l d q) (store l₀ d₀ m₀) a
+absLNs-no-store l d q {l₀} {d₀} {m₀} {a} with NS.lnSfin (SStep.coarsenLNs q) in fEq
+... | true  = viewV→noOffer (SStep.absLNs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lnSfin ; nxt = NS.lnSnxt l d })
+                   (SStep.coarsenLNs q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLNs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lnSfin ; nxt = NS.lnSnxt l d })
+                   (SStep.coarsenLNs q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (lnSnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+lfCnxt-store-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.lfCnxt l d (SStep.coarsenLFc q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+lfCnxt-store-c l d (SN.lfcHead LFp.stIdle) = refl
+lfCnxt-store-c l d (SN.lfcHead LFp.stBlock) = refl
+lfCnxt-store-c l d (SN.lfcHead LFp.stBlockTxs) = refl
+lfCnxt-store-c l d (SN.lfcHead LFp.stVotes) = refl
+lfCnxt-store-c l d (SN.lfcHead LFp.stBlockRange) = refl
+lfCnxt-store-c l d (SN.lfcHead LFp.stDone) = refl
+lfCnxt-store-c l d (SN.lfcRblk1 b) = refl
+lfCnxt-store-c l d (SN.lfcRbtx1 ts) = refl
+lfCnxt-store-c l d (SN.lfcRvot1 vs) = refl
+lfCnxt-store-c l d (SN.lfcRnext1 b ts) = refl
+lfCnxt-store-c l d (SN.lfcRlast1 b ts) = refl
+lfCnxt-store-c l d (SN.lfcWblk1 pt) = refl
+lfCnxt-store-c l d (SN.lfcWtxs1 pb) = refl
+lfCnxt-store-c l d (SN.lfcWvot1 vs) = refl
+lfCnxt-store-c l d (SN.lfcWrng1 r) = refl
+lfCnxt-store-c l d (SN.lfcDone1) = refl
+lfCnxt-store-c l d (SN.lfcSil LFp.stIdle) = refl
+lfCnxt-store-c l d (SN.lfcSil LFp.stBlock) = refl
+lfCnxt-store-c l d (SN.lfcSil LFp.stBlockTxs) = refl
+lfCnxt-store-c l d (SN.lfcSil LFp.stVotes) = refl
+lfCnxt-store-c l d (SN.lfcSil LFp.stBlockRange) = refl
+lfCnxt-store-c l d (SN.lfcSil LFp.stDone) = refl
+
+absLFc-no-store : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absLFc l d q) (store l₀ d₀ m₀) a
+absLFc-no-store l d q {l₀} {d₀} {m₀} {a} with NS.lfCfin (SStep.coarsenLFc q) in fEq
+... | true  = viewV→noOffer (SStep.absLFc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lfCfin ; nxt = NS.lfCnxt l d })
+                   (SStep.coarsenLFc q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLFc l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lfCfin ; nxt = NS.lfCnxt l d })
+                   (SStep.coarsenLFc q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (lfCnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+lfSnxt-store-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → NS.lfSnxt l d (SStep.coarsenLFs q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
+lfSnxt-store-c l d (SN.lfsHead LFp.stIdle) = refl
+lfSnxt-store-c l d (SN.lfsHead LFp.stBlock) = refl
+lfSnxt-store-c l d (SN.lfsHead LFp.stBlockTxs) = refl
+lfSnxt-store-c l d (SN.lfsHead LFp.stVotes) = refl
+lfSnxt-store-c l d (SN.lfsHead LFp.stBlockRange) = refl
+lfSnxt-store-c l d (SN.lfsHead LFp.stDone) = refl
+lfSnxt-store-c l d (SN.lfsDone1)           = refl
+lfSnxt-store-c l d (SN.lfsWblk1 b) = refl
+lfSnxt-store-c l d (SN.lfsWtxs1 ts) = refl
+lfSnxt-store-c l d (SN.lfsWvot1 vs) = refl
+lfSnxt-store-c l d (SN.lfsWnext1 bt) = refl
+lfSnxt-store-c l d (SN.lfsWlast1 bt) = refl
+lfSnxt-store-c l d (SN.lfsSil LFp.stIdle) = refl
+lfSnxt-store-c l d (SN.lfsSil LFp.stBlock) = refl
+lfSnxt-store-c l d (SN.lfsSil LFp.stBlockTxs) = refl
+lfSnxt-store-c l d (SN.lfsSil LFp.stVotes) = refl
+lfSnxt-store-c l d (SN.lfsSil LFp.stBlockRange) = refl
+lfSnxt-store-c l d (SN.lfsSil LFp.stDone) = refl
+
+absLFs-no-store : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absLFs l d q) (store l₀ d₀ m₀) a
+absLFs-no-store l d q {l₀} {d₀} {m₀} {a} with NS.lfSfin (SStep.coarsenLFs q) in fEq
+... | true  = viewV→noOffer (SStep.absLFs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lfSfin ; nxt = NS.lfSnxt l d })
+                   (SStep.coarsenLFs q) {e = store l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLFs l d q) {e = store l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lfSfin ; nxt = NS.lfSnxt l d })
+                   (SStep.coarsenLFs q) {e = store l₀ d₀ m₀} {a = a} fEq
+                   (lfSnxt-store-c l d q {l₀} {d₀} {m₀} {a}))
+
+
+absBundleG-no-store : (l : Link) (cl sv : Dir)
+    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
+    {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (absBundleG l cl sv csc css bfc bfs ip) (store l₀ d₀ m₀) a
+absBundleG-no-store l cl sv csc css bfc bfs ip =
+  SStep.⦀-noOffer _ _ (absKAc-no-store l cl (SN.kac ip))
+   (SStep.⦀-noOffer _ _ (absKAs-no-store l sv (SN.kas ip))
+    (SStep.⦀-noOffer _ _ (absCSc-no-store l cl csc)
+     (SStep.⦀-noOffer _ _ (absCSs-no-store l sv css)
+      (SStep.⦀-noOffer _ _ (absBFc-no-store l cl bfc)
+       (SStep.⦀-noOffer _ _ (absBFs-no-store l sv bfs)
+        (SStep.⦀-noOffer _ _ (absTSc-no-store l cl (SN.tsc ip))
+         (SStep.⦀-noOffer _ _ (absTSs-no-store l sv (SN.tss ip))
+          (SStep.⦀-noOffer _ _ (absLNc-no-store l cl (SN.lnc ip))
+           (SStep.⦀-noOffer _ _ (absLNs-no-store l sv (SN.lns ip))
+            (SStep.⦀-noOffer _ _ (absLFc-no-store l cl (SN.lfc ip))
+                                 (absLFs-no-store l sv (SN.lfs ip))))))))))))
+
+-- abstract node-A refuses `break` (two producer legs; drivers shared)
+absNodeA-no-store : (na : SN.NodeStateA) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (absNodeA na) (store l₀ d₀ m₀) a
+absNodeA-no-store na {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = StoreCar m₀} {e = store l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-store linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
+    (absBundleG-no-store linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na)))
+  (SStep.⦀-noOffer _ _
+    (decProd-no-store linkAB hi blkA (SN.NodeStateA.prod-AB na))
+    (decProd-no-store linkAC hi blkA (SN.NodeStateA.prod-AC na)))
+
+-- abstract node-B refuses `break` (consume-AB / produce-BD relay)
+absNodeB-no-store : (nb : SN.NodeStateB) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (absNodeB nb) (store l₀ d₀ m₀) a
+absNodeB-no-store nb {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = StoreCar m₀} {e = store l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-store linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb))
+    (absBundleG-no-store linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb)))
+  (decCP-no-store linkAB linkBD (SN.NodeStateB.cp-B nb))
+
+-- abstract node-C refuses `break` (consume-AC / produce-CD relay)
+absNodeC-no-store : (nc : SN.NodeStateC) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (absNodeC nc) (store l₀ d₀ m₀) a
+absNodeC-no-store nc {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = StoreCar m₀} {e = store l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-store linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc))
+    (absBundleG-no-store linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc)))
+  (decCP-no-store linkAC linkCD (SN.NodeStateC.cp-C nc))
+
+-- abstract node-D refuses `break` (two consumer legs)
+absNodeD-no-store : (nd : SN.NodeStateD) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (absNodeD nd) (store l₀ d₀ m₀) a
+absNodeD-no-store nd {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = StoreCar m₀} {e = store l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-store linkBD hi lo (SN.NodeStateD.csC-BD nd) (SN.NodeStateD.csS-BD nd) (SN.NodeStateD.bfC-BD nd) (SN.NodeStateD.bfS-BD nd) (SN.NodeStateD.inert-BD nd))
+    (absBundleG-no-store linkCD hi lo (SN.NodeStateD.csC-CD nd) (SN.NodeStateD.csS-CD nd) (SN.NodeStateD.bfC-CD nd) (SN.NodeStateD.bfS-CD nd) (SN.NodeStateD.inert-CD nd)))
+  (SStep.⦀-noOffer _ _
+    (decConsD-no-store linkBD (SN.NodeStateD.cons-BD nd))
+    (decConsD-no-store linkCD (SN.NodeStateD.cons-CD nd)))
+
+-- the whole abstract nodes interleave refuses `break` (the `top-store-comove`
+-- abstract operand of `lift-med-whole-ev`)
+absnodes-no-store : (s : SysState) {l₀ : Link} {d₀ : Dir} {m₀ : StoreTag} {a : StoreCar m₀}
+  → ¬ IoOffers (SStep.absNodesOf s) (store l₀ d₀ m₀) a
+absnodes-no-store s =
+  SStep.⦀-noOffer _ _ (absNodeA-no-store (nA s))
+    (SStep.⦀-noOffer _ _ (absNodeB-no-store (nB s))
+      (SStep.⦀-noOffer _ _ (absNodeC-no-store (nC s)) (absNodeD-no-store (nD s))))
+
+-- ======================== node-local channel: env ========================
+
+csCnxt-env : (l : Link) (d : Dir) (q : NS.CScPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.csCnxt l d q (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+csCnxt-env l d NS.ccIdle    = refl
+csCnxt-env l d NS.ccWreq    = refl
+csCnxt-env l d NS.ccAwait   = refl
+csCnxt-env l d (NS.ccWfi _) = refl
+csCnxt-env l d NS.ccInt     = refl
+csCnxt-env l d NS.ccWdone   = refl
+csCnxt-env l d NS.ccMust    = refl
+csCnxt-env l d (NS.ccArf _) = refl
+csCnxt-env l d (NS.ccArb _) = refl
+csCnxt-env l d (NS.ccAif _) = refl
+csCnxt-env l d (NS.ccAin _) = refl
+csCnxt-env l d NS.ccTerm    = refl
+
+-- csSnxt has no CS-server edge for a `break` event, at every abstract position
+csSnxt-env : (l : Link) (d : Dir) (q : NS.CSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.csSnxt l d q (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+csSnxt-env l d NS.csIdle     = refl
+csSnxt-env l d NS.csAreq     = refl
+csSnxt-env l d NS.csCanAwait = refl
+csSnxt-env l d (NS.csAfi _)  = refl
+csSnxt-env l d NS.csInt      = refl
+csSnxt-env l d NS.csDdone    = refl
+csSnxt-env l d NS.csMust     = refl
+csSnxt-env l d (NS.csWrf _)  = refl
+csSnxt-env l d (NS.csWrb _)  = refl
+csSnxt-env l d NS.csWar      = refl
+csSnxt-env l d (NS.csWif _)  = refl
+csSnxt-env l d (NS.csWin _)  = refl
+csSnxt-env l d NS.csTerm     = refl
+
+-- bfCnxt has no BF-client edge for a `break` event, at every abstract position
+bfCnxt-env : (l : Link) (d : Dir) (q : NS.BFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.bfCnxt l d q (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+bfCnxt-env l d NS.bcIdle     = refl
+bfCnxt-env l d (NS.bcWrr _)  = refl
+bfCnxt-env l d NS.bcBusy     = refl
+bfCnxt-env l d NS.bcWcd      = refl
+bfCnxt-env l d NS.bcStream   = refl
+bfCnxt-env l d (NS.bcAblk _) = refl
+bfCnxt-env l d NS.bcTerm     = refl
+
+-- bfSnxt has no BF-server edge for a `break` event, at every abstract position
+bfSnxt-env : (l : Link) (d : Dir) (q : NS.BFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.bfSnxt l d q (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+bfSnxt-env l d NS.bsIdle     = refl
+bfSnxt-env l d (NS.bsAreq _) = refl
+bfSnxt-env l d NS.bsBusy     = refl
+bfSnxt-env l d NS.bsDdone    = refl
+bfSnxt-env l d NS.bsWsb      = refl
+bfSnxt-env l d NS.bsStream   = refl
+bfSnxt-env l d NS.bsWnb      = refl
+bfSnxt-env l d (NS.bsWblk _) = refl
+bfSnxt-env l d NS.bsWbd      = refl
+bfSnxt-env l d NS.bsTerm     = refl
+
+-- abstract CS-client peer refuses `break` (terminal ⇒ ret; else no csCnxt edge)
+absCSc-no-env : (l : Link) (d : Dir) (q : SN.CScPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absCSc l d q) (env l₀ d₀ m₀) a
+absCSc-no-env l d q {l₀} {d₀} {m₀} {a} with NS.csCfin (SStep.coarsenCSc q) in fEq
+... | true  = viewV→noOffer (SStep.absCSc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.csCfin ; nxt = NS.csCnxt l d })
+                   (SStep.coarsenCSc q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absCSc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.csCfin ; nxt = NS.csCnxt l d })
+                   (SStep.coarsenCSc q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (csCnxt-env l d (SStep.coarsenCSc q) {l₀} {d₀} {m₀} {a}))
+
+-- abstract CS-server peer refuses `break`
+absCSs-no-env : (l : Link) (d : Dir) (q : SN.CSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absCSs l d q) (env l₀ d₀ m₀) a
+absCSs-no-env l d q {l₀} {d₀} {m₀} {a} with NS.csSfin (SStep.coarsenCSs q) in fEq
+... | true  = viewV→noOffer (SStep.absCSs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.csSfin ; nxt = NS.csSnxt l d })
+                   (SStep.coarsenCSs q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absCSs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.csSfin ; nxt = NS.csSnxt l d })
+                   (SStep.coarsenCSs q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (csSnxt-env l d (SStep.coarsenCSs q) {l₀} {d₀} {m₀} {a}))
+
+-- abstract BF-client peer refuses `break`
+absBFc-no-env : (l : Link) (d : Dir) (q : SN.BFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absBFc l d q) (env l₀ d₀ m₀) a
+absBFc-no-env l d q {l₀} {d₀} {m₀} {a} with NS.bfCfin (SStep.coarsenBFc q) in fEq
+... | true  = viewV→noOffer (SStep.absBFc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.bfCfin ; nxt = NS.bfCnxt l d })
+                   (SStep.coarsenBFc q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absBFc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.bfCfin ; nxt = NS.bfCnxt l d })
+                   (SStep.coarsenBFc q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (bfCnxt-env l d (SStep.coarsenBFc q) {l₀} {d₀} {m₀} {a}))
+
+-- abstract BF-server peer refuses `break`
+absBFs-no-env : (l : Link) (d : Dir) (q : SN.BFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absBFs l d q) (env l₀ d₀ m₀) a
+absBFs-no-env l d q {l₀} {d₀} {m₀} {a} with NS.bfSfin (SStep.coarsenBFs q) in fEq
+... | true  = viewV→noOffer (SStep.absBFs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.bfSfin ; nxt = NS.bfSnxt l d })
+                   (SStep.coarsenBFs q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absBFs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.bfSfin ; nxt = NS.bfSnxt l d })
+                   (SStep.coarsenBFs q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (bfSnxt-env l d (SStep.coarsenBFs q) {l₀} {d₀} {m₀} {a}))
+
+-- fixed KA-client spec refuses `break` (kcClient non-terminal, no kaCnxt edge)
+
+tsCnxt-env-c : (l : Link) (d : Dir) (q : SN.TScPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.tsCnxt l d (SStep.coarsenTSc q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+tsCnxt-env-c l d (SN.tcHead TS.stInit)             = refl
+tsCnxt-env-c l d (SN.tcHead TS.stIdle)             = refl
+tsCnxt-env-c l d (SN.tcHead TS.stTxIdsBlocking)    = refl
+tsCnxt-env-c l d (SN.tcHead TS.stTxIdsNonBlocking) = refl
+tsCnxt-env-c l d (SN.tcHead TS.stTxs)              = refl
+tsCnxt-env-c l d (SN.tcHead TS.stDone)             = refl
+tsCnxt-env-c l d (SN.tcReqIdsB1 a r)               = refl
+tsCnxt-env-c l d (SN.tcReqIdsNB1 a r)              = refl
+tsCnxt-env-c l d (SN.tcReqTxs1 ids)                = refl
+tsCnxt-env-c l d (SN.tcRepB1 ids)                  = refl
+tsCnxt-env-c l d (SN.tcDone1)                      = refl
+tsCnxt-env-c l d (SN.tcRepNB1 ids)                 = refl
+tsCnxt-env-c l d (SN.tcRepTxs1 txs)                = refl
+tsCnxt-env-c l d (SN.tcSil TS.stInit)              = refl
+tsCnxt-env-c l d (SN.tcSil TS.stIdle)              = refl
+tsCnxt-env-c l d (SN.tcSil TS.stTxIdsBlocking)     = refl
+tsCnxt-env-c l d (SN.tcSil TS.stTxIdsNonBlocking)  = refl
+tsCnxt-env-c l d (SN.tcSil TS.stTxs)               = refl
+tsCnxt-env-c l d (SN.tcSil TS.stDone)              = refl
+
+-- TS-server break next-table refl at the CONCRETE tracked positions
+tsSnxt-env-c : (l : Link) (d : Dir) (q : SN.TSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.tsSnxt l d (SStep.coarsenTSs q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+tsSnxt-env-c l d (SN.tsHead TS.stInit)             = refl
+tsSnxt-env-c l d (SN.tsHead TS.stIdle)             = refl
+tsSnxt-env-c l d (SN.tsHead TS.stTxIdsBlocking)    = refl
+tsSnxt-env-c l d (SN.tsHead TS.stTxIdsNonBlocking) = refl
+tsSnxt-env-c l d (SN.tsHead TS.stTxs)              = refl
+tsSnxt-env-c l d (SN.tsHead TS.stDone)             = refl
+tsSnxt-env-c l d SN.tsDone1                        = refl
+tsSnxt-env-c l d (SN.tsReqB1 ar)                   = refl
+tsSnxt-env-c l d (SN.tsReqNB1 ar)                  = refl
+tsSnxt-env-c l d (SN.tsReqTxs1 ids)                = refl
+tsSnxt-env-c l d (SN.tsSil TS.stInit)              = refl
+tsSnxt-env-c l d (SN.tsSil TS.stIdle)              = refl
+tsSnxt-env-c l d (SN.tsSil TS.stTxIdsBlocking)     = refl
+tsSnxt-env-c l d (SN.tsSil TS.stTxIdsNonBlocking)  = refl
+tsSnxt-env-c l d (SN.tsSil TS.stTxs)               = refl
+tsSnxt-env-c l d (SN.tsSil TS.stDone)              = refl
+
+-- abstract TS client refuses `break` at any tracked position (via concrete coarsen)
+absTSc-no-env : (l : Link) (d : Dir) (q : SN.TScPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absTSc l d q) (env l₀ d₀ m₀) a
+absTSc-no-env l d q {l₀} {d₀} {m₀} {a} with NS.tsCfin (SStep.coarsenTSc q) in fEq
+... | true  = viewV→noOffer (SStep.absTSc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.tsCfin ; nxt = NS.tsCnxt l d })
+                   (SStep.coarsenTSc q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absTSc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.tsCfin ; nxt = NS.tsCnxt l d })
+                   (SStep.coarsenTSc q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (tsCnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+absTSs-no-env : (l : Link) (d : Dir) (q : SN.TSsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absTSs l d q) (env l₀ d₀ m₀) a
+absTSs-no-env l d q {l₀} {d₀} {m₀} {a} with NS.tsSfin (SStep.coarsenTSs q) in fEq
+... | true  = viewV→noOffer (SStep.absTSs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.tsSfin ; nxt = NS.tsSnxt l d })
+                   (SStep.coarsenTSs q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absTSs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.tsSfin ; nxt = NS.tsSnxt l d })
+                   (SStep.coarsenTSs q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (tsSnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+-- KA-client break next-table refl at the CONCRETE tracked positions (via coarsen)
+kaCnxt-env-c : (l : Link) (d : Dir) (q : SN.KAcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.kaCnxt l d (SStep.coarsenKAc q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+kaCnxt-env-c l d (SN.kcHead KA.stClient)     = refl
+kaCnxt-env-c l d (SN.kcHead (KA.stServer c)) = refl
+kaCnxt-env-c l d (SN.kcHead KA.stDone)       = refl
+kaCnxt-env-c l d (SN.kcErr1 cq cr ne)        = refl
+kaCnxt-env-c l d (SN.kcReq1 c)               = refl
+kaCnxt-env-c l d (SN.kcDone1)                = refl
+kaCnxt-env-c l d (SN.kcSil KA.stClient)      = refl
+kaCnxt-env-c l d (SN.kcSil (KA.stServer c))  = refl
+kaCnxt-env-c l d (SN.kcSil KA.stDone)        = refl
+kaCnxt-env-c l d SN.kcTermE1                 = refl
+
+-- KA-server break next-table refl at the CONCRETE tracked positions
+kaSnxt-env-c : (l : Link) (d : Dir) (q : SN.KAsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.kaSnxt l d (SStep.coarsenKAs q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+kaSnxt-env-c l d (SN.ksHead KA.stClient)     = refl
+kaSnxt-env-c l d (SN.ksHead (KA.stServer c)) = refl
+kaSnxt-env-c l d (SN.ksHead KA.stDone)       = refl
+kaSnxt-env-c l d (SN.ksRecv1 c)              = refl
+kaSnxt-env-c l d (SN.ksDdone1)               = refl
+kaSnxt-env-c l d (SN.ksSil KA.stClient)      = refl
+kaSnxt-env-c l d (SN.ksSil (KA.stServer c))  = refl
+kaSnxt-env-c l d (SN.ksSil KA.stDone)        = refl
+
+-- abstract KA client refuses `break` at any tracked position (via concrete coarsen)
+absKAc-no-env : (l : Link) (d : Dir) (q : SN.KAcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absKAc l d q) (env l₀ d₀ m₀) a
+absKAc-no-env l d q {l₀} {d₀} {m₀} {a} with NS.kaCfin (SStep.coarsenKAc q) in fEq
+... | true  = viewV→noOffer (SStep.absKAc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.kaCfin ; nxt = NS.kaCnxt l d })
+                   (SStep.coarsenKAc q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absKAc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.kaCfin ; nxt = NS.kaCnxt l d })
+                   (SStep.coarsenKAc q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (kaCnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+absKAs-no-env : (l : Link) (d : Dir) (q : SN.KAsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absKAs l d q) (env l₀ d₀ m₀) a
+absKAs-no-env l d q {l₀} {d₀} {m₀} {a} with NS.kaSfin (SStep.coarsenKAs q) in fEq
+... | true  = viewV→noOffer (SStep.absKAs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.kaSfin ; nxt = NS.kaSnxt l d })
+                   (SStep.coarsenKAs q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absKAs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.kaSfin ; nxt = NS.kaSnxt l d })
+                   (SStep.coarsenKAs q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (kaSnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+-- STEP 5 — abstract LN/LF `break` non-offers (concrete-position `break-c`
+-- table lemmas + lifted `absX-no-env`, mirroring the KA/TS pattern).
+lnCnxt-env-c : (l : Link) (d : Dir) (q : SN.LNcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.lnCnxt l d (SStep.coarsenLNc q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+lnCnxt-env-c l d (SN.lncHead LNp.stIdle) = refl
+lnCnxt-env-c l d (SN.lncHead LNp.stBusy) = refl
+lnCnxt-env-c l d (SN.lncHead LNp.stDone) = refl
+lnCnxt-env-c l d (SN.lncRann1 h) = refl
+lnCnxt-env-c l d (SN.lncRoff1 q) = refl
+lnCnxt-env-c l d (SN.lncRtxs1 q) = refl
+lnCnxt-env-c l d (SN.lncRvot1 vs) = refl
+lnCnxt-env-c l d (SN.lncReq1) = refl
+lnCnxt-env-c l d (SN.lncDone1) = refl
+lnCnxt-env-c l d (SN.lncSil LNp.stIdle) = refl
+lnCnxt-env-c l d (SN.lncSil LNp.stBusy) = refl
+lnCnxt-env-c l d (SN.lncSil LNp.stDone) = refl
+
+absLNc-no-env : (l : Link) (d : Dir) (q : SN.LNcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absLNc l d q) (env l₀ d₀ m₀) a
+absLNc-no-env l d q {l₀} {d₀} {m₀} {a} with NS.lnCfin (SStep.coarsenLNc q) in fEq
+... | true  = viewV→noOffer (SStep.absLNc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lnCfin ; nxt = NS.lnCnxt l d })
+                   (SStep.coarsenLNc q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLNc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lnCfin ; nxt = NS.lnCnxt l d })
+                   (SStep.coarsenLNc q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (lnCnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+lnSnxt-env-c : (l : Link) (d : Dir) (q : SN.LNsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.lnSnxt l d (SStep.coarsenLNs q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+lnSnxt-env-c l d (SN.lnsHead LNp.stIdle) = refl
+lnSnxt-env-c l d (SN.lnsHead LNp.stBusy) = refl
+lnSnxt-env-c l d (SN.lnsHead LNp.stDone) = refl
+lnSnxt-env-c l d (SN.lnsDone1)           = refl
+lnSnxt-env-c l d (SN.lnsWann1 h) = refl
+lnSnxt-env-c l d (SN.lnsWoff1 q) = refl
+lnSnxt-env-c l d (SN.lnsWtxs1 q) = refl
+lnSnxt-env-c l d (SN.lnsWvot1 vs) = refl
+lnSnxt-env-c l d (SN.lnsSil LNp.stIdle) = refl
+lnSnxt-env-c l d (SN.lnsSil LNp.stBusy) = refl
+lnSnxt-env-c l d (SN.lnsSil LNp.stDone) = refl
+
+absLNs-no-env : (l : Link) (d : Dir) (q : SN.LNsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absLNs l d q) (env l₀ d₀ m₀) a
+absLNs-no-env l d q {l₀} {d₀} {m₀} {a} with NS.lnSfin (SStep.coarsenLNs q) in fEq
+... | true  = viewV→noOffer (SStep.absLNs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lnSfin ; nxt = NS.lnSnxt l d })
+                   (SStep.coarsenLNs q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLNs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lnSfin ; nxt = NS.lnSnxt l d })
+                   (SStep.coarsenLNs q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (lnSnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+lfCnxt-env-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.lfCnxt l d (SStep.coarsenLFc q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+lfCnxt-env-c l d (SN.lfcHead LFp.stIdle) = refl
+lfCnxt-env-c l d (SN.lfcHead LFp.stBlock) = refl
+lfCnxt-env-c l d (SN.lfcHead LFp.stBlockTxs) = refl
+lfCnxt-env-c l d (SN.lfcHead LFp.stVotes) = refl
+lfCnxt-env-c l d (SN.lfcHead LFp.stBlockRange) = refl
+lfCnxt-env-c l d (SN.lfcHead LFp.stDone) = refl
+lfCnxt-env-c l d (SN.lfcRblk1 b) = refl
+lfCnxt-env-c l d (SN.lfcRbtx1 ts) = refl
+lfCnxt-env-c l d (SN.lfcRvot1 vs) = refl
+lfCnxt-env-c l d (SN.lfcRnext1 b ts) = refl
+lfCnxt-env-c l d (SN.lfcRlast1 b ts) = refl
+lfCnxt-env-c l d (SN.lfcWblk1 pt) = refl
+lfCnxt-env-c l d (SN.lfcWtxs1 pb) = refl
+lfCnxt-env-c l d (SN.lfcWvot1 vs) = refl
+lfCnxt-env-c l d (SN.lfcWrng1 r) = refl
+lfCnxt-env-c l d (SN.lfcDone1) = refl
+lfCnxt-env-c l d (SN.lfcSil LFp.stIdle) = refl
+lfCnxt-env-c l d (SN.lfcSil LFp.stBlock) = refl
+lfCnxt-env-c l d (SN.lfcSil LFp.stBlockTxs) = refl
+lfCnxt-env-c l d (SN.lfcSil LFp.stVotes) = refl
+lfCnxt-env-c l d (SN.lfcSil LFp.stBlockRange) = refl
+lfCnxt-env-c l d (SN.lfcSil LFp.stDone) = refl
+
+absLFc-no-env : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absLFc l d q) (env l₀ d₀ m₀) a
+absLFc-no-env l d q {l₀} {d₀} {m₀} {a} with NS.lfCfin (SStep.coarsenLFc q) in fEq
+... | true  = viewV→noOffer (SStep.absLFc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lfCfin ; nxt = NS.lfCnxt l d })
+                   (SStep.coarsenLFc q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLFc l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lfCfin ; nxt = NS.lfCnxt l d })
+                   (SStep.coarsenLFc q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (lfCnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+lfSnxt-env-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → NS.lfSnxt l d (SStep.coarsenLFs q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
+lfSnxt-env-c l d (SN.lfsHead LFp.stIdle) = refl
+lfSnxt-env-c l d (SN.lfsHead LFp.stBlock) = refl
+lfSnxt-env-c l d (SN.lfsHead LFp.stBlockTxs) = refl
+lfSnxt-env-c l d (SN.lfsHead LFp.stVotes) = refl
+lfSnxt-env-c l d (SN.lfsHead LFp.stBlockRange) = refl
+lfSnxt-env-c l d (SN.lfsHead LFp.stDone) = refl
+lfSnxt-env-c l d (SN.lfsDone1)           = refl
+lfSnxt-env-c l d (SN.lfsWblk1 b) = refl
+lfSnxt-env-c l d (SN.lfsWtxs1 ts) = refl
+lfSnxt-env-c l d (SN.lfsWvot1 vs) = refl
+lfSnxt-env-c l d (SN.lfsWnext1 bt) = refl
+lfSnxt-env-c l d (SN.lfsWlast1 bt) = refl
+lfSnxt-env-c l d (SN.lfsSil LFp.stIdle) = refl
+lfSnxt-env-c l d (SN.lfsSil LFp.stBlock) = refl
+lfSnxt-env-c l d (SN.lfsSil LFp.stBlockTxs) = refl
+lfSnxt-env-c l d (SN.lfsSil LFp.stVotes) = refl
+lfSnxt-env-c l d (SN.lfsSil LFp.stBlockRange) = refl
+lfSnxt-env-c l d (SN.lfsSil LFp.stDone) = refl
+
+absLFs-no-env : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absLFs l d q) (env l₀ d₀ m₀) a
+absLFs-no-env l d q {l₀} {d₀} {m₀} {a} with NS.lfSfin (SStep.coarsenLFs q) in fEq
+... | true  = viewV→noOffer (SStep.absLFs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-fin (record { isFin = NS.lfSfin ; nxt = NS.lfSnxt l d })
+                   (SStep.coarsenLFs q) {e = env l₀ d₀ m₀} {a = a} fEq)
+... | false = viewV→noOffer (SStep.absLFs l d q) {e = env l₀ d₀ m₀} {a = a}
+                (tableSpec-viewV-noOffer (record { isFin = NS.lfSfin ; nxt = NS.lfSnxt l d })
+                   (SStep.coarsenLFs q) {e = env l₀ d₀ m₀} {a = a} fEq
+                   (lfSnxt-env-c l d q {l₀} {d₀} {m₀} {a}))
+
+
+absBundleG-no-env : (l : Link) (cl sv : Dir)
+    (csc : SN.CScPos) (css : SN.CSsPos) (bfc : SN.BFcPos) (bfs : SN.BFsPos) (ip : SN.InertPos)
+    {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (absBundleG l cl sv csc css bfc bfs ip) (env l₀ d₀ m₀) a
+absBundleG-no-env l cl sv csc css bfc bfs ip =
+  SStep.⦀-noOffer _ _ (absKAc-no-env l cl (SN.kac ip))
+   (SStep.⦀-noOffer _ _ (absKAs-no-env l sv (SN.kas ip))
+    (SStep.⦀-noOffer _ _ (absCSc-no-env l cl csc)
+     (SStep.⦀-noOffer _ _ (absCSs-no-env l sv css)
+      (SStep.⦀-noOffer _ _ (absBFc-no-env l cl bfc)
+       (SStep.⦀-noOffer _ _ (absBFs-no-env l sv bfs)
+        (SStep.⦀-noOffer _ _ (absTSc-no-env l cl (SN.tsc ip))
+         (SStep.⦀-noOffer _ _ (absTSs-no-env l sv (SN.tss ip))
+          (SStep.⦀-noOffer _ _ (absLNc-no-env l cl (SN.lnc ip))
+           (SStep.⦀-noOffer _ _ (absLNs-no-env l sv (SN.lns ip))
+            (SStep.⦀-noOffer _ _ (absLFc-no-env l cl (SN.lfc ip))
+                                 (absLFs-no-env l sv (SN.lfs ip))))))))))))
+
+-- abstract node-A refuses `break` (two producer legs; drivers shared)
+absNodeA-no-env : (na : SN.NodeStateA) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (absNodeA na) (env l₀ d₀ m₀) a
+absNodeA-no-env na {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = EnvCar m₀} {e = env l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-env linkAB lo hi (SN.NodeStateA.csC-AB na) (SN.NodeStateA.csS-AB na) (SN.NodeStateA.bfC-AB na) (SN.NodeStateA.bfS-AB na) (SN.NodeStateA.inert-AB na))
+    (absBundleG-no-env linkAC lo hi (SN.NodeStateA.csC-AC na) (SN.NodeStateA.csS-AC na) (SN.NodeStateA.bfC-AC na) (SN.NodeStateA.bfS-AC na) (SN.NodeStateA.inert-AC na)))
+  (SStep.⦀-noOffer _ _
+    (decProd-no-env linkAB hi blkA (SN.NodeStateA.prod-AB na))
+    (decProd-no-env linkAC hi blkA (SN.NodeStateA.prod-AC na)))
+
+-- abstract node-B refuses `break` (consume-AB / produce-BD relay)
+absNodeB-no-env : (nb : SN.NodeStateB) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (absNodeB nb) (env l₀ d₀ m₀) a
+absNodeB-no-env nb {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = EnvCar m₀} {e = env l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-env linkAB hi lo (SN.NodeStateB.csC-AB nb) (SN.NodeStateB.csS-AB nb) (SN.NodeStateB.bfC-AB nb) (SN.NodeStateB.bfS-AB nb) (SN.NodeStateB.inert-AB nb))
+    (absBundleG-no-env linkBD lo hi (SN.NodeStateB.csC-BD nb) (SN.NodeStateB.csS-BD nb) (SN.NodeStateB.bfC-BD nb) (SN.NodeStateB.bfS-BD nb) (SN.NodeStateB.inert-BD nb)))
+  (decCP-no-env linkAB linkBD (SN.NodeStateB.cp-B nb))
+
+-- abstract node-C refuses `break` (consume-AC / produce-CD relay)
+absNodeC-no-env : (nc : SN.NodeStateC) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (absNodeC nc) (env l₀ d₀ m₀) a
+absNodeC-no-env nc {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = EnvCar m₀} {e = env l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-env linkAC hi lo (SN.NodeStateC.csC-AC nc) (SN.NodeStateC.csS-AC nc) (SN.NodeStateC.bfC-AC nc) (SN.NodeStateC.bfS-AC nc) (SN.NodeStateC.inert-AC nc))
+    (absBundleG-no-env linkCD lo hi (SN.NodeStateC.csC-CD nc) (SN.NodeStateC.csS-CD nc) (SN.NodeStateC.bfC-CD nc) (SN.NodeStateC.bfS-CD nc) (SN.NodeStateC.inert-CD nc)))
+  (decCP-no-env linkAC linkCD (SN.NodeStateC.cp-C nc))
+
+-- abstract node-D refuses `break` (two consumer legs)
+absNodeD-no-env : (nd : SN.NodeStateD) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (absNodeD nd) (env l₀ d₀ m₀) a
+absNodeD-no-env nd {l₀} {d₀} {m₀} {a} = SStep.∥⇘apiES⇙-noOffer {X = EnvCar m₀} {e = env l₀ d₀ m₀} {a = a} _ _ (λ ())
+  (SStep.⦀-noOffer _ _
+    (absBundleG-no-env linkBD hi lo (SN.NodeStateD.csC-BD nd) (SN.NodeStateD.csS-BD nd) (SN.NodeStateD.bfC-BD nd) (SN.NodeStateD.bfS-BD nd) (SN.NodeStateD.inert-BD nd))
+    (absBundleG-no-env linkCD hi lo (SN.NodeStateD.csC-CD nd) (SN.NodeStateD.csS-CD nd) (SN.NodeStateD.bfC-CD nd) (SN.NodeStateD.bfS-CD nd) (SN.NodeStateD.inert-CD nd)))
+  (SStep.⦀-noOffer _ _
+    (decConsD-no-env linkBD (SN.NodeStateD.cons-BD nd))
+    (decConsD-no-env linkCD (SN.NodeStateD.cons-CD nd)))
+
+-- the whole abstract nodes interleave refuses `break` (the `top-env-comove`
+-- abstract operand of `lift-med-whole-ev`)
+absnodes-no-env : (s : SysState) {l₀ : Link} {d₀ : Dir} {m₀ : EnvTag} {a : EnvCar m₀}
+  → ¬ IoOffers (SStep.absNodesOf s) (env l₀ d₀ m₀) a
+absnodes-no-env s =
+  SStep.⦀-noOffer _ _ (absNodeA-no-env (nA s))
+    (SStep.⦀-noOffer _ _ (absNodeB-no-env (nB s))
+      (SStep.⦀-noOffer _ _ (absNodeC-no-env (nC s)) (absNodeD-no-env (nD s))))
 
 
 -- ======================== wire message: sndack ========================

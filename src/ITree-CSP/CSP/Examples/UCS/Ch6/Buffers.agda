@@ -122,7 +122,7 @@ BUFFN2 = BUFN 2 []
 --   are τ-free, so the two divergence obligations of `DRFromRel` are vacuous),
 --   then apply `drbisim→≈FD`.  This inherits the ONE certified classical
 --   postulate of the development, `¬-divergent→normal` (in
---   `Semantics.DRImpliesFD`, used inside `drbisim→⊑F⊥`), as the chapter 1-3 FD
+--   `Semantics.DRImpliesFD`, used inside `drbisim→⊇F⊥`), as the chapter 1-3 FD
 --   results do.  §B itself contains no postulate / NON_TERMINATING / mutual.
 
 open import Data.Empty using (⊥; ⊥-elim)
@@ -239,7 +239,7 @@ copy-is-buff1 = drbisim→≈FD buff1≈DR-copy
 --   BUFFN1 = BUFN 1 [] can hold only ONE item: after `left true` it is the FULL
 --   state BUFN 1 [true] (offers only right!true), so the second `left false` cannot
 --   fire — BUFFN1 has NO trace sₐ — and BUFFN1 never diverges (every reachable state
---   is `react … ∅t`, τ-free).  So `failures⊥ BUFFN1 sₐ B` is empty and the ⊑F⊥
+--   is `react … ∅t`, τ-free).  So `failures⊥ BUFFN1 sₐ B` is empty and the ⊇F⊥
 --   component of any `BUFFN1 ⊑FD BUFFN2` is refuted.  This is a DIRECT existential
 --   refutation: no FD bridge / DRbisim, POSTULATE-FREE.
 
@@ -248,7 +248,7 @@ open import Semantics.Failures            {E = BEv} {I = ExtI BEv}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.Refusals            {E = BEv} {I = ExtI BEv} using (Refuses; Offers)
 open import Semantics.FailuresDivergences {E = BEv} {I = ExtI BEv}
-  using (_⊑FD_; _⊑F⊥_; _⊑D_; failures⊥; divergences; IsDivergence)
+  using (_⊑FD_; _⊇F⊥_; _⊇D_; failures⊥; divergences; IsDivergence)
 
 -- The size-2 witness trace and the (⊥) refusal.
 sₐ : List (Event√ (⊤poly {lzero}))
@@ -321,7 +321,7 @@ div-absurd d =
   b1-noτ (reach→B1 at-empty (d .IsDivergence.reach))
          (d .IsDivergence.divwit .Diverges.step)
 
--- Feeding BUFFN2's stable size-2 failure to the ⊑F⊥ component demands the same of
+-- Feeding BUFFN2's stable size-2 failure to the ⊇F⊥ component demands the same of
 -- BUFFN1 — impossible on both disjuncts (no trace, no divergence).
 ¬buff1⊑buff2 : ¬ (BUFFN1 ⊑FD BUFFN2)
 ¬buff1⊑buff2 (h⊥ , _) with h⊥ f2
@@ -332,7 +332,7 @@ div-absurd d =
 -- §D. The buffer size hierarchy (universal):  BUFFN2 ⊑FD BUFFN1.
 --
 --   A SMALLER buffer refines a BIGGER one — every failure/divergence of BUFFN1 is
---   one of BUFFN2.  ⊑D is vacuous (BUFFN1 is divergence-free, §C).  For ⊑F⊥ we set
+--   one of BUFFN2.  ⊇D is vacuous (BUFFN1 is divergence-free, §C).  For ⊇F⊥ we set
 --   up a state correspondence between the two BUFFN1-reachable states and matching
 --   BUFFN2 states with IDENTICAL stable offers/refusals:
 --       BUFN 1 []       ↔ BUFN 2 []      (both offer `left` only)
@@ -434,15 +434,15 @@ bcorr-sim c (⟹-ev st rest) with bcorr-step c st
 ... | Q₁ , qtr , c₁ with bcorr-sim c₁ rest
 ...   | Q′ , qtr′ , c′ = Q′ , ⟹-++ qtr qtr′ , c′
 
--- The size hierarchy.  ⊑F⊥: every BUFFN1 failure maps to a BUFFN2 failure at the same
--- trace/refusal (divergence disjunct impossible).  ⊑D: vacuous (BUFFN1 has no div).
+-- The size hierarchy.  ⊇F⊥: every BUFFN1 failure maps to a BUFFN2 failure at the same
+-- trace/refusal (divergence disjunct impossible).  ⊇D: vacuous (BUFFN1 has no div).
 buff2⊑buff1 : BUFFN2 ⊑FD BUFFN1
 buff2⊑buff1 = f⊥ , fD
   where
-    f⊥ : BUFFN2 ⊑F⊥ BUFFN1
+    f⊥ : BUFFN2 ⊇F⊥ BUFFN1
     f⊥ (inj₁ (P′ , tr , ref)) with bcorr-sim bc-empty tr
     ... | Q′ , qtr , c′ = inj₁ (Q′ , qtr , bcorr-refuse c′ ref)
     f⊥ (inj₂ d) = ⊥-elim (buff1-nodiv d)
 
-    fD : BUFFN2 ⊑D BUFFN1
+    fD : BUFFN2 ⊇D BUFFN1
     fD d = ⊥-elim (buff1-nodiv d)

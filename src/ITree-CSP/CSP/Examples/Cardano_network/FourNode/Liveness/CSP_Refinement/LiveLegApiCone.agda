@@ -134,7 +134,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ; sendCSRollForward; sendCSRollBackward; sendCSIntersectFound
   ; sendCSIntersectNotFound; recvCSRollforward; recvCSRollback
   ; recvCSIntersectFound; recvCSIntersectNotFound
-  ; reqCSRequestNext; reqCSFindIntersect )
+  ; reqCSRequestNext; reqCSFindIntersect ; store; env )
 open import CSP.Examples.Cardano_network.Params using ( Params )
 open Params p using ( Block )
 -- (T1) `ChainRange` is `ApiBFCar reqBFRange` (`Net.agda:99`), the carrier §1c's
@@ -374,6 +374,8 @@ sbbAt⇒pin (tx     _ _ _) a ()
 sbbAt⇒pin (sndack _ _ _) a ()
 sbbAt⇒pin (rcvack _ _ _) a ()
 sbbAt⇒pin (ack    _ _ _) a ()
+sbbAt⇒pin (store _ _ _) a ()
+sbbAt⇒pin (env _ _ _) a ()
 sbbAt⇒pin (break  _)     a ()
 
 -- two `SbbAt`s at the same key name the SAME block (`just`/product injectivity)
@@ -438,6 +440,8 @@ rbbAt⇒pin (tx     _ _ _) a ()
 rbbAt⇒pin (sndack _ _ _) a ()
 rbbAt⇒pin (rcvack _ _ _) a ()
 rbbAt⇒pin (ack    _ _ _) a ()
+rbbAt⇒pin (store _ _ _) a ()
+rbbAt⇒pin (env _ _ _) a ()
 rbbAt⇒pin (break  _)     a ()
 
 -- two `RbbAt`s at the same key name the SAME block (`just`/product injectivity)
@@ -604,6 +608,8 @@ rbrAt⇒pin (tx     _ _ _) a ()
 rbrAt⇒pin (sndack _ _ _) a ()
 rbrAt⇒pin (rcvack _ _ _) a ()
 rbrAt⇒pin (ack    _ _ _) a ()
+rbrAt⇒pin (store _ _ _) a ()
+rbrAt⇒pin (env _ _ _) a ()
 rbrAt⇒pin (break  _)     a ()
 
 ------------------------------------------------------------------------
@@ -661,6 +667,8 @@ sbAt⇒ahl (tx     _ _ _) a ()
 sbAt⇒ahl (sndack _ _ _) a ()
 sbAt⇒ahl (rcvack _ _ _) a ()
 sbAt⇒ahl (ack    _ _ _) a ()
+sbAt⇒ahl (store _ _ _) a ()
+sbAt⇒ahl (env _ _ _) a ()
 sbAt⇒ahl (break  _)     a ()
 
 ------------------------------------------------------------------------
@@ -777,6 +785,8 @@ csrAt⇒acs (tx     _ _ _) a ()
 csrAt⇒acs (sndack _ _ _) a ()
 csrAt⇒acs (rcvack _ _ _) a ()
 csrAt⇒acs (ack    _ _ _) a ()
+csrAt⇒acs (store _ _ _) a ()
+csrAt⇒acs (env _ _ _) a ()
 csrAt⇒acs (break  _)     a ()
 
 ------------------------------------------------------------------------
@@ -836,6 +846,8 @@ csaAt⇒acs (tx     _ _ _) a ()
 csaAt⇒acs (sndack _ _ _) a ()
 csaAt⇒acs (rcvack _ _ _) a ()
 csaAt⇒acs (ack    _ _ _) a ()
+csaAt⇒acs (store _ _ _) a ()
+csaAt⇒acs (env _ _ _) a ()
 csaAt⇒acs (break  _)     a ()
 
 ------------------------------------------------------------------------
@@ -896,6 +908,8 @@ csfwAt⇒acs (tx     _ _ _) a ()
 csfwAt⇒acs (sndack _ _ _) a ()
 csfwAt⇒acs (rcvack _ _ _) a ()
 csfwAt⇒acs (ack    _ _ _) a ()
+csfwAt⇒acs (store _ _ _) a ()
+csfwAt⇒acs (env _ _ _) a ()
 csfwAt⇒acs (break  _)     a ()
 
 ------------------------------------------------------------------------
@@ -1016,6 +1030,8 @@ csfAt⇒ahl (tx     _ _ _) a ()
 csfAt⇒ahl (sndack _ _ _) a ()
 csfAt⇒ahl (rcvack _ _ _) a ()
 csfAt⇒ahl (ack    _ _ _) a ()
+csfAt⇒ahl (store _ _ _) a ()
+csfAt⇒ahl (env _ _ _) a ()
 csfAt⇒ahl (break  _)     a ()
 
 ------------------------------------------------------------------------
@@ -1078,6 +1094,8 @@ bfAt⇒cscFix k kd pos pos′ (tx     _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (sndack _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (rcvack _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (ack    _ _ _) a () _
+bfAt⇒cscFix k kd pos pos′ (store _ _ _) a () _
+bfAt⇒cscFix k kd pos pos′ (env _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (break  _)     a () _
 
 ------------------------------------------------------------------------
@@ -1189,6 +1207,8 @@ srvApiRow-fix k kd bfs (tx     _ _ _) a = refl
 srvApiRow-fix k kd bfs (sndack _ _ _) a = refl
 srvApiRow-fix k kd bfs (rcvack _ _ _) a = refl
 srvApiRow-fix k kd bfs (ack    _ _ _) a = refl
+srvApiRow-fix k kd bfs (store _ _ _) a = refl
+srvApiRow-fix k kd bfs (env _ _ _) a = refl
 srvApiRow-fix k kd bfs (break  _)     a = refl
 
 -- … the client twin
@@ -1209,6 +1229,8 @@ cliApiRow-fix k kd bfc (tx     _ _ _) a = refl
 cliApiRow-fix k kd bfc (sndack _ _ _) a = refl
 cliApiRow-fix k kd bfc (rcvack _ _ _) a = refl
 cliApiRow-fix k kd bfc (ack    _ _ _) a = refl
+cliApiRow-fix k kd bfc (store _ _ _) a = refl
+cliApiRow-fix k kd bfc (env _ _ _) a = refl
 cliApiRow-fix k kd bfc (break  _)     a = refl
 
 -- *** (T11h) THE DEGENERATION, AT THE SERVER. ***  At a ChainSync-family label the BF

@@ -194,7 +194,7 @@ LAbsE P = (Par⊤ Errors P CHAOSE) ∖ Errors
 --   `≈DR` built with `DRFromRel` (the two divergence obligations vacuous by
 --   τ-freeness), then `drbisim→⊑FD`.  This INHERITS the one certified classical
 --   postulate of the development, `¬-divergent→normal` (in `Semantics.DRImpliesFD`,
---   inside `drbisim→⊑F⊥`), exactly as the chapter 1–3 FD results and Buffers §B do.
+--   inside `drbisim→⊇F⊥`), exactly as the chapter 1–3 FD results and Buffers §B do.
 --   §B itself adds no postulate / NON_TERMINATING / TERMINATING / mutual / Sized.
 --
 --   The `lose`/`dup` impossibility is discharged operationally: on the composite side

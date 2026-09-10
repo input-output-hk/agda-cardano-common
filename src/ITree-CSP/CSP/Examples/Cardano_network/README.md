@@ -92,7 +92,7 @@ API events. (The renaming into `Net_Api` happens in `NetworkPar`.)
 
 | Module | Lines | Purpose |
 |---|--:|---|
-| `BlockFetchRefinement/BlockFetchAbsRefinement.agda` | 3776 | Divergence-freedom of the hidden BlockFetch processes ⇒ `⊑D` (abstract client/server vs abstract spec). |
+| `BlockFetchRefinement/BlockFetchAbsRefinement.agda` | 3776 | Divergence-freedom of the hidden BlockFetch processes ⇒ `⊇D` (abstract client/server vs abstract spec). |
 | `BlockFetchRefinement/BlockFetchAbsRefinementBisim.agda` | 3914 | `clientServerBF ∖ msgBF ≈DR BFabstractP ∖ msgBF`, directly as a divergence-respecting weak bisimulation. |
 | `BlockFetchRefinement/BlockFetchNetRefinement.agda` | 3612 | Divergence-freedom of the hidden BlockFetch **network** processes. |
 | `BlockFetchRefinement/BlockFetchNetRefinementNet.agda` | 930 | `net-noDiv`: the hidden network process's `Good` graph over reachable joint configs. |

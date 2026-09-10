@@ -2,11 +2,17 @@
 
 -- SPIKE: the (stable) failures model on the pure-react LTS.
 -- A failure is a (trace, refusal) pair: a τ-abstracting visible trace `s` reaching a
--- state that refuses the event set `X`.  Plus trace/failure refinement preorders.
+-- state that refuses the event set `X`.  Plus trace/failure refinement preorders:
+-- `_⊑T_` (traces), `_⊇F_` (failures only) and Roscoe's `_⊑F_`, which is the PAIR.
+--
+-- Both orders are built on a CONTAINMENT PRIMITIVE (`_⊇T_`, `_⊇F_`): the traces model
+-- `T`'s refinement is trace containment alone, the stable-failures model `𝓕`'s is
+-- trace containment AND failure containment. Naming both containments uniformly makes
+-- that model structure explicit instead of incidental.
 
 open import Level using (Level; _⊔_) renaming (suc to lsuc)
 open import Data.List using (List; []; _∷_)
-open import Data.Product using (Σ; _,_; _×_; Σ-syntax)
+open import Data.Product using (Σ; _,_; _×_; Σ-syntax; proj₁; proj₂)
 open import Data.Empty using (⊥-elim)
 open import Relation.Binary using (Preorder; IsPreorder)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; isEquivalence)
@@ -38,23 +44,69 @@ failures : ∀ {ℓr ℓx} {R : Set ℓr}
          → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr ⊔ ℓx)
 failures P s X = Σ[ P′ ∈ PTree E I _ ] (P ⟹⟨ s ⟩ P′ × Refuses P′ X)
 
--- refinement: P ⊑ Q  iff  Q's behaviours are among P's
+-- CONTAINMENT PRIMITIVE.  Direction follows the argument order: `P ⊇T Q` says P's
+-- traces CONTAIN Q's, which is what refinement in the traces model amounts to — the
+-- same convention as `_⊇F_` below (`⊇`, not `⊆`, because with P on the left it is
+-- P's set that contains Q's).
+_⊇T_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
+P ⊇T Q = ∀ s → traces Q s → traces P s
+
+-- refinement: P ⊑ Q  iff  Q's behaviours are among P's.  Refinement in the TRACES
+-- MODEL is exactly trace containment.  `_⊑T_` stays the name callers use for it (same
+-- policy as `_⊑F_` below); `_⊇T_` above is the primitive it is DEFINITIONALLY built
+-- from, so every existing `⊑ᵀ` lemma keeps typechecking with no edit.
 _⊑T_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ ℓr)
-P ⊑T Q = ∀ s → traces Q s → traces P s
+P ⊑T Q = P ⊇T Q
 
+-- FAILURE CONTAINMENT ALONE — the weaker HALF of `_⊑F_` below, and NOT a refinement
+-- order in Roscoe's sense.  A trace that never reaches a stable state carries no
+-- failure at all, so this obligation is VACUOUS exactly where the implementation
+-- diverges: `deadlock ⊇F (a ⟶ div)` holds even though `deadlock` has no ⟨a⟩ trace
+-- (machine-checked in `CSP.Examples.RefinementOrderCounterexamples`).  Kept because
+-- several results genuinely establish only this half, and because it is the right
+-- building block: `_⊑F_` is `_⊑T_` paired with it.
+--
+-- POLICY: `_⊇F_` is kept only (a) as a proof component that feeds a corresponding
+-- `_⊑F_` result within the same module, wrapped `private` at each such use, and (b) as
+-- the subject of the deliberate negative control in
+-- `CSP.Examples.RefinementOrderCounterexamples`, which is exactly what shows `_⊑F_`
+-- must carry a trace component at all. Ordinary callers should always state and consume
+-- refinement at `_⊑F_`, never at bare `_⊇F_`.
+_⊇F_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr)
+_⊇F_ {ℓr = ℓr} {R = R} P Q = ∀ s (X : Event√ R → Set ℓr) → failures Q s X → failures P s X
+
+-- ROSCOE'S STABLE-FAILURES REFINEMENT.  The 𝓕 model represents a process as the PAIR
+-- (traces P , failures P), so refinement is trace containment AND failure containment.
+-- Comparing failures alone (`_⊇F_` above) is STRICTLY WEAKER: it would make `Stop`
+-- refine `a ⟶ div`, which FDR 4.2.7 rejects with a TRACE counterexample
+-- ("Error Event: a"; `docs/fdr/2026-09-08-refinement-orders.csp`).
 _⊑F_ : ∀ {ℓr} {R : Set ℓr} → PTree E I R → PTree E I R → Set (lsuc ℓ ⊔ ℓe ⊔ ℓi ⊔ lsuc ℓr)
-_⊑F_ {ℓr = ℓr} {R = R} P Q = ∀ s (X : Event√ R → Set ℓr) → failures Q s X → failures P s X
+P ⊑F Q = (P ⊇T Q) × (P ⊇F Q)
 
--- both refinements are preorders
+-- the trace component of a stable-failures refinement (formerly a REFUTED implication;
+-- under the corrected `_⊑F_` it is a projection)
+⊑F→⊑T : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → P ⊑F Q → P ⊑T Q
+⊑F→⊑T = proj₁
+
+-- …and its failure component
+⊑F→⊇F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R} → P ⊑F Q → P ⊇F Q
+⊑F→⊇F = proj₂
+
+-- all three refinements are preorders
 ⊑T-refl  : ∀ {ℓr} {R : Set ℓr} (P : PTree E I R) → P ⊑T P
 ⊑T-refl P s t = t
 ⊑T-trans : ∀ {ℓr} {R : Set ℓr} {P Q S : PTree E I R} → P ⊑T Q → Q ⊑T S → P ⊑T S
 ⊑T-trans pq qs s t = pq s (qs s t)
 
+⊇F-refl  : ∀ {ℓr} {R : Set ℓr} (P : PTree E I R) → P ⊇F P
+⊇F-refl P s X f = f
+⊇F-trans : ∀ {ℓr} {R : Set ℓr} {P Q S : PTree E I R} → P ⊇F Q → Q ⊇F S → P ⊇F S
+⊇F-trans pq qs s X f = pq s X (qs s X f)
+
 ⊑F-refl  : ∀ {ℓr} {R : Set ℓr} (P : PTree E I R) → P ⊑F P
-⊑F-refl P s X f = f
+⊑F-refl P = ⊑T-refl P , ⊇F-refl P
 ⊑F-trans : ∀ {ℓr} {R : Set ℓr} {P Q S : PTree E I R} → P ⊑F Q → Q ⊑F S → P ⊑F S
-⊑F-trans pq qs s X f = pq s X (qs s X f)
+⊑F-trans (pqT , pqF) (qsT , qsF) = ⊑T-trans pqT qsT , ⊇F-trans pqF qsF
 
 -------------------------------------------------------------------------------------
 -- FORCE-EQUAL TREES ARE ⊑F-INTERCHANGEABLE.
@@ -97,13 +149,28 @@ private
   failures-force-≡ eq (w , ⟹-τ  step rest , ref) = w , ⟹-τ  (step-force-≡ eq step) rest , ref
   failures-force-≡ eq (w , ⟹-ev step rest , ref) = w , ⟹-ev (step-force-≡ eq step) rest , ref
 
+  -- …and so does a TRACE: same transport, with no refusal to carry along
+  traces-force-≡ : ∀ {ℓr} {R : Set ℓr} {p q : PTree E I R} {s : List (Event√ R)}
+                 → PTree.force p ≡ PTree.force q → traces q s → traces p s
+  traces-force-≡ {p = p} eq (_ , ⟹-refl)        = p , ⟹-refl
+  traces-force-≡ eq (w , ⟹-τ  step rest)        = w , ⟹-τ  (step-force-≡ eq step) rest
+  traces-force-≡ eq (w , ⟹-ev step rest)        = w , ⟹-ev (step-force-≡ eq step) rest
+
 -- ONE-DIRECTIONAL bridge: if a defined process and an explicitly-unfolded FSM agree on
 -- their `force`, the FSM's failures are among the process's — the exact fact a
 -- calibrated leaf spec needs to relate a `_>>=_`/`iter`-built process to its hand-drawn
 -- unfolding without building a full `FSim`/`Bisim`
+force-≡→⊑T : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R}
+           → PTree.force P ≡ PTree.force Q → P ⊑T Q
+force-≡→⊑T eq s t = traces-force-≡ eq t
+
+force-≡→⊇F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R}
+            → PTree.force P ≡ PTree.force Q → P ⊇F Q
+force-≡→⊇F eq s X f = failures-force-≡ eq f
+
 force-≡→⊑F : ∀ {ℓr} {R : Set ℓr} {P Q : PTree E I R}
            → PTree.force P ≡ PTree.force Q → P ⊑F Q
-force-≡→⊑F eq s X f = failures-force-≡ eq f
+force-≡→⊑F eq = force-≡→⊑T eq , force-≡→⊇F eq
 
 -- TWO-DIRECTIONAL version: force-equality gives failure-refinement both ways, since the
 -- equality itself is symmetric

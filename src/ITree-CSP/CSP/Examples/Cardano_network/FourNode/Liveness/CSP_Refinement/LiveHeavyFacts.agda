@@ -90,7 +90,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
-        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
+        ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
   renaming ( done to netDone )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 
@@ -227,6 +227,12 @@ hidEv-μ r {e = rcvack l₀ d₀ id} _ step =
 hidEv-μ r {e = ack l₀ d₀ id} _ step =
   ⊥-elim (oevB-refute r (SR.medium-no-ack (med (toSys r)))
             (SR.absnodes-no-ack (toSys r)) step)
+hidEv-μ r {e = store l₀ d₀ id} _ step =
+  ⊥-elim (oevB-refute r (SR.medium-no-store (med (toSys r)))
+            (SR.absnodes-no-store (toSys r)) step)
+hidEv-μ r {e = env l₀ d₀ id} _ step =
+  ⊥-elim (oevB-refute r (SR.medium-no-env (med (toSys r)))
+            (SR.absnodes-no-env (toSys r)) step)
 
 ------------------------------------------------------------------------
 -- §3  THE INSTANTIATION — `Descent` at the six discharges, re-exported whole.

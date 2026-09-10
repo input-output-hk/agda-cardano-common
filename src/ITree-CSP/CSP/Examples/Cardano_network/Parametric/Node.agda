@@ -11,8 +11,16 @@
 -- whole network interleaves all nodes against the medium on `ioES`
 -- with the io events hidden.
 --
+-- The bundle builder is a PARAMETER (`bundleAtWith`/`nodeWith`/
+-- `systemOfWithNode`), with two instantiations, exactly as the medium is:
+-- `node`/`systemOf` use the CONFIG-DRIVEN `nodeBundle`, so a node's peers
+-- and the medium's cells are read off the same `Params.linkConfig`;
+-- `nodeUniform`/`systemOfUniform`/`systemOfCopyUniform` use the uniform
+-- `miniProtocols`, which is what `FourNode`'s hand-written nodes run and
+-- hence the only instantiation keeping `diamond-faithful` definitional.
+--
 -- The role convention — the ONE thing that must be right — is
--- `miniProtocols l d (opposite d)`: the node sitting at direction `d`
+-- `mk l d (opposite d)`: the node sitting at direction `d`
 -- of link `l` runs the CLIENT peers on its own direction `d` and the
 -- SERVER peers on the opposite one.  This is exactly the convention of
 -- the existing `nodeA`…`nodeD` (e.g. A is the `lo` endpoint of both AB
@@ -46,8 +54,8 @@ module CSP.Examples.Cardano_network.Parametric.Node
 open import CSP.Examples.Cardano_network.Base using (Dir)
 open N p using (Link; Net_Api; Net_Api-≟)
 open D p using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon p using (CopySpecBreakableA; ioES)
-open import CSP.Examples.Cardano_network.NetworkPar p using (miniProtocols)
+open import CSP.Examples.Cardano_network.NetCommon p using (CopySpecBreakableA; NetworkLinkBreakableA; ioES)
+open import CSP.Examples.Cardano_network.NetworkPar p using (miniProtocols; nodeBundle)
 open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_⦀_; _∥⇘_⇙_; _∖_; ⦀⁺; ⦀Fin⁺)
 open Topology t using (Node; numNodes-1; endpointsOf)
 
@@ -55,21 +63,80 @@ open Topology t using (Node; numNodes-1; endpointsOf)
 Proc : Set₁
 Proc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
--- the mini-protocol bundle of ONE incident endpoint `(l , d)`: client peers on the
--- node's own direction `d`, server peers on the opposite direction
+-- the peer bundle of ONE incident endpoint `(l , d)` for an ARBITRARY bundle
+-- builder `mk`: client peers on the node's own direction `d`, server peers on the
+-- opposite direction
+bundleAtWith : (Link → Dir → Dir → Proc) → Link × Dir → Proc
+bundleAtWith mk ld = mk (proj₁ ld) (proj₂ ld) (opposite (proj₂ ld))
+
+-- the bundles of every link incident to `n` under `mk`, interleaved in
+-- `endpointsOf`'s order (`⦀` is not commutative up to `≡`, so that order is part
+-- of the interface)
+linkBundlesWith : (Link → Dir → Dir → Proc) → Node → Proc
+linkBundlesWith mk n =
+  ⦀⁺ (bundleAtWith mk (proj₁ (endpointsOf n))) (map (bundleAtWith mk) (proj₂ (endpointsOf n)))
+
+-- a node over an arbitrary bundle builder: its link bundles synchronised with its
+-- application logic on the api alphabet
+nodeWith : (Link → Dir → Dir → Proc) → Node → Proc → Proc
+nodeWith mk n lg = linkBundlesWith mk n ∥⇘ apiES ⇙ lg
+
+-- THE DEFAULT endpoint bundle: the CONFIG-DRIVEN one, so a node's peers and the
+-- medium's cells are read off the SAME `Params.linkConfig` and cannot disagree
 bundleAt : Link × Dir → Proc
-bundleAt ld = miniProtocols (proj₁ ld) (proj₂ ld) (opposite (proj₂ ld))
+bundleAt = bundleAtWith nodeBundle
 
--- the bundles of every link incident to `n`, interleaved in `endpointsOf`'s order
--- (`⦀` is not commutative up to `≡`, so that order is part of the interface)
+-- the default node's link bundles (config-driven)
 linkBundles : Node → Proc
-linkBundles n = ⦀⁺ (bundleAt (proj₁ (endpointsOf n))) (map bundleAt (proj₂ (endpointsOf n)))
+linkBundles = linkBundlesWith nodeBundle
 
--- a node: its link bundles synchronised with its application logic on the api alphabet
+-- THE DEFAULT NODE: config-driven peers.  A `linkConfig`/peer mismatch is what made
+-- every Leios announcement unreachable before `5c16c3ff`; this instantiation makes
+-- such a mismatch unstatable.  `CSP.Examples.Cardano_network.BundleBridge` relates
+-- the two builders by a theorem — `nodeBundle∼miniProtocols-lo` at `∼` and
+-- `nodeBundle≈FDminiProtocols` at `≈FD`, under a `FullConfig` hypothesis — so the
+-- switch of default is not a change of semantics on a fully-configured link.
 node : Node → Proc → Proc
-node n lg = linkBundles n ∥⇘ apiES ⇙ lg
+node = nodeWith nodeBundle
 
--- the whole network: all nodes interleaved, synchronised with the (breakable copy)
--- medium on `ioES`, io hidden; `break` events stay observable (∉ ioES)
+-- the UNIFORM node: every mini-protocol regardless of `linkConfig`.  Retained
+-- because `FourNode.FourNodeDiamond`'s hand-written nodes are built from
+-- `miniProtocols`, so only this instantiation keeps `diamond-faithful`
+-- definitional and hence `blockLiveness-generic` transportable by `subst`.
+nodeUniform : Node → Proc → Proc
+nodeUniform = nodeWith miniProtocols
+
+-- the whole network over an ARBITRARY medium `med` and an ARBITRARY node builder
+-- `mk`: all nodes interleaved, synchronised with `med` on `ioES`, io hidden;
+-- `break` events stay observable (∉ ioES)
+systemOfWithNode : (Node → Proc → Proc) → Proc → (Node → Proc) → Proc
+systemOfWithNode mk med lg = (med ∥⇘ ioES ⇙ (⦀Fin⁺ numNodes-1 (λ n → mk n (lg n)))) ∖ ioES
+
+-- the network over an arbitrary medium, with the DEFAULT (config-driven) nodes.
+-- The medium is an explicit argument because the campaign needs the SAME
+-- composition over two different ones — see the two instantiations below.
+systemOfWith : Proc → (Node → Proc) → Proc
+systemOfWith = systemOfWithNode node
+
+-- THE DEFAULT NETWORK: over the CONCRETE per-link multiplexer, every link's
+-- `NetworkLink` cell independently breakable.  This is the primary object of the
+-- development — the abstract copy medium below is the specification side of it.
 systemOf : (Node → Proc) → Proc
-systemOf lg = (CopySpecBreakableA ∥⇘ ioES ⇙ (⦀Fin⁺ numNodes-1 (λ n → node n (lg n)))) ∖ ioES
+systemOf = systemOfWith NetworkLinkBreakableA
+
+-- the same network over the ABSTRACT breakable copy medium.  It is what the
+-- hand-written `FourNode` systems (and hence the banked liveness theorems) are
+-- built over; `NetworkVerification.NetworkLinkEquiv.netLink≈FD` (`NetworkLink ≈FD
+-- CopySpec`) is the equivalence relating the two media.
+systemOfCopy : (Node → Proc) → Proc
+systemOfCopy = systemOfWith CopySpecBreakableA
+
+-- the concrete-medium network over UNIFORM nodes: the only instantiation that is
+-- definitionally the hand-written `FourNode` system (`DiamondInstance.diamond-faithfulₗ`)
+systemOfUniform : (Node → Proc) → Proc
+systemOfUniform = systemOfWithNode nodeUniform NetworkLinkBreakableA
+
+-- the copy-medium network over UNIFORM nodes: what `DiamondInstance.diamond-faithful`
+-- and hence `blockLiveness-generic` are stated over
+systemOfCopyUniform : (Node → Proc) → Proc
+systemOfCopyUniform = systemOfWithNode nodeUniform CopySpecBreakableA

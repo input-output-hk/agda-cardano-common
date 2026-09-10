@@ -253,7 +253,7 @@ VM_body_impl-no-div d =
 The refusal predicate asks the process to refuse the `tea` event.
 
 ```agda
--- `failures⊥`/`_⊑F⊥_` quantify the refusal set `B` at the return-type level
+-- `failures⊥`/`_⊇F⊥_` quantify the refusal set `B` at the return-type level
 -- `ℓr`, which is `lzero` here (R = ⊤ {lzero}), so the codomain lives in `Set`.
 RefusesTea : Event√ (⊤ {lzero}) → Set lzero
 RefusesTea (evl (evLabel A tea a)) = ⊤ {lzero}

@@ -38,7 +38,7 @@ open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.Failures  {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (failures⊥; divergences; IsDivergence; _≈FD_; _⊑F⊥_; _⊑D_; _⊑FD_)
+  using (failures⊥; divergences; IsDivergence; _≈FD_; _⊇F⊥_; _⊇D_; _⊑FD_)
 open import Semantics.DRBisim {E = E} {I = ExtI E} using (Diverges)
 open import Semantics.DRImpliesFD {E = E} {I = ExtI E} using (stable-no-τ)
 

@@ -268,7 +268,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks
   ; sendBFBatchDone; reqBFRange
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using ( Dir; hi; lo; IDs; DecEq-Dir )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
@@ -1582,6 +1582,8 @@ module Sim
   fwdT-io r j {e = sndack _ _ _} ()
   fwdT-io r j {e = rcvack _ _ _} ()
   fwdT-io r j {e = ack    _ _ _} ()
+  fwdT-io r j {e = store  _ _ _} ()
+  fwdT-io r j {e = env    _ _ _} ()
   fwdT-io r j {e = done   _ _ _} ()
   fwdT-io r j {e = apiCS  _ _ _} ()
   fwdT-io r j {e = apiBF  _ _ _} ()
@@ -1672,6 +1674,12 @@ module Sim
   fwdT-vis r j {e = ack l₀ d₀ id} hid step =
     ⊥-elim (oevB-refute r (SR.medium-no-ack (med (toSys r)))
              (SR.absnodes-no-ack (toSys r)) step)
+  fwdT-vis r j {e = store l₀ d₀ id} hid step =
+    ⊥-elim (oevB-refute r (SR.medium-no-store (med (toSys r)))
+             (SR.absnodes-no-store (toSys r)) step)
+  fwdT-vis r j {e = env l₀ d₀ id} hid step =
+    ⊥-elim (oevB-refute r (SR.medium-no-env (med (toSys r)))
+             (SR.absnodes-no-env (toSys r)) step)
 
   -- *** THE τ OBLIGATION. ***  Both `Rel` decode equations are matched to `refl`
   -- (which is what instantiates `P`/`Q` to the decode terms), the outer hide is
@@ -1890,6 +1898,8 @@ module Sim
   fwdE-kept r j {e = sndack _ _ _} ()
   fwdE-kept r j {e = rcvack _ _ _} ()
   fwdE-kept r j {e = ack    _ _ _} ()
+  fwdE-kept r j {e = store  _ _ _} ()
+  fwdE-kept r j {e = env    _ _ _} ()
 
   -- *** THE VISIBLE OBLIGATION. ***  The `√` class is where (P5) `noRetA`
   -- finally BITES: `sqrt-⊥` (§4) is the only consumer of it, and this is the

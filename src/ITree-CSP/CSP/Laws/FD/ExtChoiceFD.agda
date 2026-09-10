@@ -38,7 +38,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; empty-div; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses; Offers)
 -- generic stability facts, kept qualified: the local names below re-expose them in
 -- the historic argument order.
@@ -718,14 +718,14 @@ term-fail-▷ A Q eqA (⟹-ev step rest) ref = _ , ⟹-ev (▷-ev-L step) rest ,
            → ((P □ Q) ⊓ (P □ S)) ⊑FD (P □ (Q ⊓ S))
 □-⊓-dist-⊒ P Q S = f⊥ , fd
   where
-    f⊥ : ((P □ Q) ⊓ (P □ S)) ⊑F⊥ (P □ (Q ⊓ S))
+    f⊥ : ((P □ Q) ⊓ (P □ S)) ⊇F⊥ (P □ (Q ⊓ S))
     f⊥ (inj₁ (W , reach , ref)) with □-⊓-fail-elim P Q S reach ref
     ... | inj₁ fPQ = ⊓-failures⊥←l (P □ Q) (P □ S) (inj₁ fPQ)
     ... | inj₂ fPS = ⊓-failures⊥←r (P □ Q) (P □ S) (inj₁ fPS)
     f⊥ (inj₂ d) with □-⊓-div-elim d
     ... | inj₁ dPQ = ⊓-failures⊥←l (P □ Q) (P □ S) (inj₂ dPQ)
     ... | inj₂ dPS = ⊓-failures⊥←r (P □ Q) (P □ S) (inj₂ dPS)
-    fd : ((P □ Q) ⊓ (P □ S)) ⊑D (P □ (Q ⊓ S))
+    fd : ((P □ Q) ⊓ (P □ S)) ⊇D (P □ (Q ⊓ S))
     fd d with □-⊓-div-elim d
     ... | inj₁ dPQ = ⊓-div←l (P □ Q) (P □ S) dPQ
     ... | inj₂ dPS = ⊓-div←r (P □ Q) (P □ S) dPS
@@ -864,13 +864,13 @@ term-fail-▷ A Q eqA (⟹-ev step rest) ref = _ , ⟹-ev (▷-ev-L step) rest ,
            → (P □ (Q ⊓ S)) ⊑FD ((P □ Q) ⊓ (P □ S))
 □-⊓-dist-⊑ P Q S = f⊥ , fd
   where
-    f⊥ : (P □ (Q ⊓ S)) ⊑F⊥ ((P □ Q) ⊓ (P □ S))
+    f⊥ : (P □ (Q ⊓ S)) ⊇F⊥ ((P □ Q) ⊓ (P □ S))
     f⊥ fb with ⊓-failures⊥→ (P □ Q) (P □ S) fb
     ... | inj₁ (inj₁ (W , reach , ref)) = inj₁ (□-⊓-fail-intro-L P Q S reach ref)
     ... | inj₁ (inj₂ dPQ)               = inj₂ (□-⊓-div-intro-L dPQ)
     ... | inj₂ (inj₁ (W , reach , ref)) = inj₁ (□-⊓-fail-intro-R P Q S reach ref)
     ... | inj₂ (inj₂ dPS)               = inj₂ (□-⊓-div-intro-R dPS)
-    fd : (P □ (Q ⊓ S)) ⊑D ((P □ Q) ⊓ (P □ S))
+    fd : (P □ (Q ⊓ S)) ⊇D ((P □ Q) ⊓ (P □ S))
     fd db with ⊓-div→ (P □ Q) (P □ S) db
     ... | inj₁ dPQ = □-⊓-div-intro-L dPQ
     ... | inj₂ dPS = □-⊓-div-intro-R dPS

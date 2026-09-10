@@ -10,7 +10,7 @@
 -- CSP.Laws.ClassicalFromLEM (which nothing imports, so no axiom leaks here).
 --
 -- It is the foundation for the external-choice FD/divergence laws (□-idem, □-assoc,
--- □-over-⊓, □-monotonicity-⊑D, …); deciding which operand carries an infinite τ-livelock
+-- □-over-⊓, □-monotonicity-⊇D, …); deciding which operand carries an infinite τ-livelock
 -- is the classical infinite-pigeonhole step (see docs/notes/fd-classical-postulates.md).
 
 open import Data.Sum using (_⊎_)

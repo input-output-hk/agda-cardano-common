@@ -44,7 +44,7 @@ open import Semantics.LTS       {E = E} {I = ExtI E} hiding (Diverges)
 open import Semantics.Refusals  {E = E} {I = ExtI E} using (Refuses; Offers)
 open import Semantics.Failures  {E = E} {I = ExtI E} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; failures)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
-  using (divergences; failures⊥; IsDivergence; div-extension-closed; empty-div; _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+  using (divergences; failures⊥; IsDivergence; div-extension-closed; empty-div; _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import Semantics.DRBisim   {E = E} {I = ExtI E} using (Diverges)
 open import CSP.Laws.FD.FDLawsIChoiceAssoc E-≟
   using (⊓-failures→; ⊓-failures←l; ⊓-failures←r; ⊓-div→; ⊓-div←l; ⊓-div←r)
@@ -366,7 +366,7 @@ module _ (P Q R₀ : PTree E (ExtI E) S) where
     RHS = (P >> Q) ⊓ (P >> R₀)
 
   -- failures⊥ RHS → failures⊥ LHS
-  dist-F⊥₁ : LHS ⊑F⊥ RHS
+  dist-F⊥₁ : LHS ⊇F⊥ RHS
   dist-F⊥₁ (inj₁ f) with ⊓-failures→ (P >> Q) (P >> R₀) f
   ... | inj₁ fPQ with >>-fail→ P Q fPQ
   ...   | inj₁ (sp , P′ , seq , reachp , stP′ , allY) =
@@ -392,7 +392,7 @@ module _ (P Q R₀ : PTree E (ExtI E) S) where
               subst (divergences LHS) (sym seq) (>>-div-introX P (Q ⊓ R₀) P′ reachp fP′ (⊓-div←r Q R₀ dR))
 
   -- divergences RHS → divergences LHS
-  dist-D₁ : LHS ⊑D RHS
+  dist-D₁ : LHS ⊇D RHS
   dist-D₁ dv with ⊓-div→ (P >> Q) (P >> R₀) dv
   ... | inj₁ dPQ with >>-div→ P Q dPQ
   ...   | inj₁ allY = allY (Q ⊓ R₀)
@@ -404,7 +404,7 @@ module _ (P Q R₀ : PTree E (ExtI E) S) where
           subst (divergences LHS) (sym seq) (>>-div-introX P (Q ⊓ R₀) P′ reachp fP′ (⊓-div←r Q R₀ dR))
 
   -- failures⊥ LHS → failures⊥ RHS
-  dist-F⊥₂ : RHS ⊑F⊥ LHS
+  dist-F⊥₂ : RHS ⊇F⊥ LHS
   dist-F⊥₂ (inj₁ f) with >>-fail→ P (Q ⊓ R₀) f
   ... | inj₁ (sp , P′ , seq , reachp , stP′ , allY) =
         inj₁ (⊓-failures←l (P >> Q) (P >> R₀)
@@ -426,7 +426,7 @@ module _ (P Q R₀ : PTree E (ExtI E) S) where
                          (subst (divergences (P >> R₀)) (sym seq) (>>-div-introX P R₀ P′ reachp fP′ dR))
 
   -- divergences LHS → divergences RHS
-  dist-D₂ : RHS ⊑D LHS
+  dist-D₂ : RHS ⊇D LHS
   dist-D₂ dv with >>-div→ P (Q ⊓ R₀) dv
   ... | inj₁ allY = ⊓-div←l (P >> Q) (P >> R₀) (allY Q)
   ... | inj₂ (sp , sx , P′ , r , seq , reachp , fP′ , dQR) with ⊓-div→ Q R₀ dQR

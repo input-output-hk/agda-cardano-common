@@ -40,7 +40,7 @@ open import Semantics.Failures            {E = E} {I = ExtI E}
 open import Semantics.Refusals {E = E} {I = ExtI E} using (Refuses)
 open import Semantics.FailuresDivergences {E = E} {I = ExtI E}
   using (IsDivergence; divergences; div-extension-closed; empty-div; failures⊥;
-         _⊑F⊥_; _⊑D_; _⊑FD_; _≈FD_)
+         _⊇F⊥_; _⊇D_; _⊑FD_; _≈FD_)
 open import CSP.Laws.Traces.TraceLaws E-≟ using (▷-ev-L)
 open import CSP.Laws.Traces.TraceLawsExtChoice E-≟ using (NonRet)
 open import CSP.Laws.Traces.TraceLawsExtChoiceMono E-≟
@@ -129,24 +129,24 @@ S→RHS-div e P P′ Q d with ▷-div-elim (e ⟶ P) P′ d
 -- Divergence directions.   LHS = S ⊓ Q,  RHS = (e ⟶ P) ▷ (P′ ⊓ Q).
 -------------------------------------------------------------------------------------
 
--- RHS ⊑D LHS : RHS recovers every LHS divergence (map div(S ⊓ Q) → div(RHS)).
+-- RHS ⊇D LHS : RHS recovers every LHS divergence (map div(S ⊓ Q) → div(RHS)).
 -- ⊓-div→ splits div(S ⊓ Q) into div S (→ S→RHS-div) or div Q (→ RHS timeout, then ⊓-stepR).
-▷-⊓-ext-⊒D :
+▷-⊓-ext-⊆D :
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → ((e ⟶ P) ▷ (P′ ⊓ Q)) ⊑D (((e ⟶ P) ▷ P′) ⊓ Q)
-▷-⊓-ext-⊒D e P P′ Q d with ⊓-div→ ((e ⟶ P) ▷ P′) Q d
+  → ((e ⟶ P) ▷ (P′ ⊓ Q)) ⊇D (((e ⟶ P) ▷ P′) ⊓ Q)
+▷-⊓-ext-⊆D e P P′ Q d with ⊓-div→ ((e ⟶ P) ▷ P′) Q d
 ... | inj₁ dS = S→RHS-div e P P′ Q dS
 ... | inj₂ dQ =
       div-τ-prepend (▷-timeout (e ⟶ P) (P′ ⊓ Q) refl tt0)
         (div-τ-prepend (⊓-stepR P′ Q) dQ)
 
--- LHS ⊑D RHS : LHS recovers every RHS divergence (map div(RHS) → div(S ⊓ Q)).
+-- LHS ⊇D RHS : LHS recovers every RHS divergence (map div(RHS) → div(S ⊓ Q)).
 -- ▷-div-elim splits div(RHS) into div(e ⟶ P) [→ S via ▷-div-intro-L, then ⊓-div←l] or
 -- div(P′ ⊓ Q) [⊓-div→: div P′ → S via timeout intro, then ⊓-div←l; div Q → ⊓-div←r].
-▷-⊓-ext-⊑D :
+▷-⊓-ext-⊇D :
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → (((e ⟶ P) ▷ P′) ⊓ Q) ⊑D ((e ⟶ P) ▷ (P′ ⊓ Q))
-▷-⊓-ext-⊑D e P P′ Q d with ▷-div-elim (e ⟶ P) (P′ ⊓ Q) d
+  → (((e ⟶ P) ▷ P′) ⊓ Q) ⊇D ((e ⟶ P) ▷ (P′ ⊓ Q))
+▷-⊓-ext-⊇D e P P′ Q d with ▷-div-elim (e ⟶ P) (P′ ⊓ Q) d
 ... | inj₁ dpre =
       ⊓-div←l ((e ⟶ P) ▷ P′) Q (▷-div-intro-L (e ⟶ P) P′ dpre)
 ... | inj₂ dP′Q with ⊓-div→ P′ Q dP′Q
@@ -158,13 +158,13 @@ S→RHS-div e P P′ Q d with ▷-div-elim (e ⟶ P) P′ d
 -- Failures directions.
 -------------------------------------------------------------------------------------
 
--- RHS ⊑F⊥ LHS : RHS recovers every LHS stable failure⊥ (map failures⊥(S ⊓ Q) → RHS).
+-- RHS ⊇F⊥ LHS : RHS recovers every LHS stable failure⊥ (map failures⊥(S ⊓ Q) → RHS).
 -- ⊓-failures⊥→ splits into the S-summand (→ S→RHS-fail / S→RHS-div) or the Q-summand
 -- (→ RHS reaches Q in two τ's: timeout to P′ ⊓ Q, then ⊓-stepR).
-▷-⊓-ext-⊒F⊥ :
+▷-⊓-ext-⊆F⊥ :
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → ((e ⟶ P) ▷ (P′ ⊓ Q)) ⊑F⊥ (((e ⟶ P) ▷ P′) ⊓ Q)
-▷-⊓-ext-⊒F⊥ e P P′ Q f with ⊓-failures⊥→ ((e ⟶ P) ▷ P′) Q f
+  → ((e ⟶ P) ▷ (P′ ⊓ Q)) ⊇F⊥ (((e ⟶ P) ▷ P′) ⊓ Q)
+▷-⊓-ext-⊆F⊥ e P P′ Q f with ⊓-failures⊥→ ((e ⟶ P) ▷ P′) Q f
 ... | inj₁ (inj₁ (W , reach , ref)) = inj₁ (S→RHS-fail e P P′ Q reach ref)
 ... | inj₁ (inj₂ dS)                = inj₂ (S→RHS-div e P P′ Q dS)
 ... | inj₂ (inj₁ fQ) =
@@ -174,7 +174,7 @@ S→RHS-div e P P′ Q d with ▷-div-elim (e ⟶ P) P′ d
       inj₂ (div-τ-prepend (▷-timeout (e ⟶ P) (P′ ⊓ Q) refl tt0)
              (div-τ-prepend (⊓-stepR P′ Q) dQ))
 
--- LHS ⊑F⊥ RHS : LHS recovers every RHS stable failure (map failures(RHS) → S ⊓ Q).
+-- LHS ⊇F⊥ RHS : LHS recovers every RHS stable failure (map failures(RHS) → S ⊓ Q).
 -- Recurse on RHS's big-step: the timeout τ (→ P′ ⊓ Q, then ⊓-failures→ splits into P′
 -- [→ S via S's own timeout, then ⊓-failures←l] or Q [→ ⊓-failures←r]); the prefix event
 -- (→ S offers it via ▷-ev-L, then ⊓-failures←l).  The ⟹-refl base is vacuous (RHS unstable).
@@ -196,24 +196,24 @@ RHS→LHS-fail e P P′ Q (⟹-ev step rest) ref =
   ⊓-failures←l ((e ⟶ P) ▷ P′) Q
     (fail-ev-prepend (▷-ev-L {Q = P′} (▷-ev-elim (e ⟶ P) (P′ ⊓ Q) step)) (_ , rest , ref))
 
-▷-⊓-ext-⊑F⊥ :
+▷-⊓-ext-⊇F⊥ :
     (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
-  → (((e ⟶ P) ▷ P′) ⊓ Q) ⊑F⊥ ((e ⟶ P) ▷ (P′ ⊓ Q))
-▷-⊓-ext-⊑F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
+  → (((e ⟶ P) ▷ P′) ⊓ Q) ⊇F⊥ ((e ⟶ P) ▷ (P′ ⊓ Q))
+▷-⊓-ext-⊇F⊥ e P P′ Q (inj₁ (W , reach , ref)) =
   inj₁ (RHS→LHS-fail e P P′ Q reach ref)
-▷-⊓-ext-⊑F⊥ e P P′ Q (inj₂ d) = inj₂ (▷-⊓-ext-⊑D e P P′ Q d)
+▷-⊓-ext-⊇F⊥ e P P′ Q (inj₂ d) = inj₂ (▷-⊓-ext-⊇D e P P′ Q d)
 
--- assemble the ⊒F⊥ similarly (the divergence summand routes through ⊒D, but ⊒F⊥ is
+-- assemble the ⊆F⊥ similarly (the divergence summand routes through ⊆D, but ⊆F⊥ is
 -- already total over both summands above; this wrapper keeps the four-component shape).
 
 -------------------------------------------------------------------------------------
--- THE LAW (U13.22, ▷-⊓-ext): pair the two ⊑F⊥ and the two ⊑D refinements.
---   ≈FD = ((LHS⊑F⊥RHS, LHS⊑D RHS) , (RHS⊑F⊥LHS, RHS⊑D LHS)).
+-- THE LAW (U13.22, ▷-⊓-ext): pair the two ⊇F⊥ and the two ⊇D refinements.
+--   ≈FD = ((LHS⊇F⊥RHS, LHS⊇D RHS) , (RHS⊇F⊥LHS, RHS⊇D LHS)).
 -------------------------------------------------------------------------------------
 
 ▷-⊓-ext-FD : ∀ {ℓr} {R : Set ℓr} {A : Set ℓ}
              (e : E A) (P : A → PTree E (ExtI E) R) (P′ Q : PTree E (ExtI E) R)
            → (((e ⟶ P) ▷ P′) ⊓ Q) ≈FD ((e ⟶ P) ▷ (P′ ⊓ Q))
 ▷-⊓-ext-FD e P P′ Q =
-  (▷-⊓-ext-⊑F⊥ e P P′ Q , ▷-⊓-ext-⊑D e P P′ Q) ,
-  (▷-⊓-ext-⊒F⊥ e P P′ Q , ▷-⊓-ext-⊒D e P P′ Q)
+  (▷-⊓-ext-⊇F⊥ e P P′ Q , ▷-⊓-ext-⊇D e P P′ Q) ,
+  (▷-⊓-ext-⊆F⊥ e P P′ Q , ▷-⊓-ext-⊆D e P P′ Q)
