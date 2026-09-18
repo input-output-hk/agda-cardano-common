@@ -73,7 +73,7 @@ module Generic
     using ( ιNet; ιNet⁻¹; ιNet-linv
           ; linkMediumA; breakableLinkA; CopySpecBreakableA )
   import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload} ιNet ιNet⁻¹ ιNet-linv as RenNet
-  open AS.Generic p t apiES using (Minted)
+  open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES using (WellAnnounced)
   open BP.Generic p t apiES
   open BPC.Generic p t apiES using (medG; cpG; CarriesCp; wf-linkCopy)
@@ -85,7 +85,7 @@ module Generic
   -- the two carriers the transport relates: the state-agnostic source one of
   -- `BlockProvenanceCopy` and this module's target one — the SAME arguments both give
   module RNet = BP.Rename (Net-≟ {Payload}) (Net_Api-≟ {Payload}) ιNet ιNet⁻¹ ιNet-linv
-                          Minted Block CarriesCp Carries WellAnnounced
+                          Forged Block CarriesCp Carries WellAnnounced
                           next _⊆_ ⊆-refl ⊆-trans next-⊇
 
   -- `ιNet⁻¹` answers `just e₁` only on `ιNet e₁`: one clause per `Net_Api` shape

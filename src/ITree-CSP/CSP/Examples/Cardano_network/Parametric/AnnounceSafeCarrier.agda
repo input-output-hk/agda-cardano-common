@@ -9,9 +9,9 @@
 -- phrasing is an INDUCTION over an accumulated run, and discharging it
 -- needs a strengthened hypothesis carried along that run.  This module
 -- supplies the carrier for it: `Safe ms M` is `Reach` turned inside out
--- — coinductive, indexed by the CURRENT state and the CURRENT minted
+-- — coinductive, indexed by the CURRENT state and the CURRENT forged
 -- set rather than by an accumulated history — so its four step fields
--- (`onτ`/`onMint`/`onOther`, plus the `gate` `Reach` had to state
+-- (`onτ`/`onForge`/`onOther`, plus the `gate` `Reach` had to state
 -- separately) sit ONE-TO-ONE against `Reach`'s four constructors.
 --
 -- WHY A PREDICATE ON PROCESSES AND NOT A STATE FAMILY.  A design spike
@@ -72,7 +72,7 @@ module Generic
 
   open Params p using (Block; EB; EBHash; ebHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; envMint; apiLN; store; break
+    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF
           ; sendLNBlockAnnouncement; sendLNRequestNext; sendLNDone
@@ -88,10 +88,10 @@ module Generic
     using (Proc; systemOfWith)
   open NL.Generic p t apiES using (nodeLogic)
   open AS.Generic p t apiES
-    using (Minted; announceOK; announceOffer; AnnounceSpecT; AnnounceSafeTWith)
+    using (Forged; announceOK; announceOffer; AnnounceSpecT; AnnounceSafeTWith)
   open AI.Generic p t apiES
     using (WellAnnounced; wellAnnounced-mono; wellAnnounced→announceOK
-          ; mintedAfter; NotMint; Gated)
+          ; forgedAfter; NotForge; Gated)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; Event√; ev; τ; evl; √; evLabel; _─[_]─►_; sRet; sVis; sSil)
@@ -119,21 +119,21 @@ module Generic
 
   -- SAFETY AS A COINDUCTIVE PREDICATE ON PROCESSES.  `Safe ms M` says: `M` may
   -- announce only blocks well-announced against `ms`, and every state `M` steps to
-  -- is safe against the minted set that step leaves behind.
-  record Safe (ms : Minted) (M : Proc) : Set₁ where
+  -- is safe against the forged set that step leaves behind.
+  record Safe (ms : Forged) (M : Proc) : Set₁ where
     coinductive
     field
-      -- here and now: `M` announces nothing unminted (`Reach`'s conclusion, made a
+      -- here and now: `M` announces nothing unforged (`Reach`'s conclusion, made a
       -- field so the predicate is self-contained)
       gate    : Gated ms M
       -- τ — including the resolution of a `par-brBoth` collision — keeps `ms`
       onτ     : ∀ {M′} → M ─[ τ ]─► M′ → Safe ms M′
-      -- a mint on any link and direction grows `ms` exactly as the spec's state grows
-      onMint  : ∀ {l d M′} {mb : Maybe EB × Block}
-              → M ─[ ev (evl (evLabel _ (env l d envMint) mb)) ]─► M′
-              → Safe (mintedAfter mb ms) M′
+      -- a forge on any link and direction grows `ms` exactly as the spec's state grows
+      onForge  : ∀ {l d M′} {mb : Maybe EB × Block}
+              → M ─[ ev (evl (evLabel _ (env l d envForge) mb)) ]─► M′
+              → Safe (forgedAfter mb ms) M′
       -- every other visible label leaves `ms` alone
-      onOther : ∀ {M′} {a : Label (⊤ {0ℓ})} → NotMint a → M ─[ a ]─► M′ → Safe ms M′
+      onOther : ∀ {M′} {a : Label (⊤ {0ℓ})} → NotForge a → M ─[ a ]─► M′ → Safe ms M′
       -- `M` never TICKS.  `AnnounceSpecT` is a `loop`, so it forces to a `react` node
       -- and has no `√` step to match one with; `AnnounceSafeTWith` is literally FALSE
       -- for a terminating implementation, so this obligation is not an artefact of
@@ -142,34 +142,34 @@ module Generic
       noTick  : ∀ {x : ⊤ {0ℓ}} {M′} → M ─[ ev (√ x) ]─► M′ → ⊥
   open Safe
 
-  -- `onOther` with the STEP first, so the label is already solved — and `NotMint`'s
+  -- `onOther` with the STEP first, so the label is already solved — and `NotForge`'s
   -- reduct therefore already known — when the trivial witness is elaborated
   onOther′ : ∀ {ms M M′} {a : Label (⊤ {0ℓ})}
-           → Safe ms M → M ─[ a ]─► M′ → NotMint a → Safe ms M′
+           → Safe ms M → M ─[ a ]─► M′ → NotForge a → Safe ms M′
   onOther′ s st nm = onOther s nm st
 
   ------------------------------------------------------------------------
   -- Monotonicity
   ------------------------------------------------------------------------
 
-  -- growing the minted set on both sides of a `∷` keeps the inclusion
+  -- growing the forged set on both sides of a `∷` keeps the inclusion
   ∷-mono : ∀ {h : EBHash} {ms ms′} → ms ⊆ ms′ → (h ∷ ms) ⊆ (h ∷ ms′)
   ∷-mono sub (here eq) = here eq
   ∷-mono sub (there q) = there (sub q)
 
-  -- a mint extends both minted sets by the same hash, so it preserves the inclusion
-  mintedAfter-mono : ∀ (mb : Maybe EB × Block) {ms ms′}
-                   → ms ⊆ ms′ → mintedAfter mb ms ⊆ mintedAfter mb ms′
-  mintedAfter-mono (just _  , _) sub = ∷-mono sub
-  mintedAfter-mono (nothing , _) sub = sub
+  -- a forge extends both forged sets by the same hash, so it preserves the inclusion
+  forgedAfter-mono : ∀ (mb : Maybe EB × Block) {ms ms′}
+                   → ms ⊆ ms′ → forgedAfter mb ms ⊆ forgedAfter mb ms′
+  forgedAfter-mono (just _  , _) sub = ∷-mono sub
+  forgedAfter-mono (nothing , _) sub = sub
 
-  -- THE MONOTONICITY OF THE CARRIER: minting only ever ADDS permissions, so a state
-  -- safe against a smaller minted set is safe against a larger one.  Corecursive
+  -- THE MONOTONICITY OF THE CARRIER: forging only ever ADDS permissions, so a state
+  -- safe against a smaller forged set is safe against a larger one.  Corecursive
   -- through every step field, guarded by copatterns.
   safe-mono : ∀ {ms ms′ M} → ms ⊆ ms′ → Safe ms M → Safe ms′ M
   safe-mono sub s .gate st           = wellAnnounced-mono sub (gate s st)
   safe-mono sub s .onτ st            = safe-mono sub (onτ s st)
-  safe-mono sub s .onMint {mb = mb} st = safe-mono (mintedAfter-mono mb sub) (onMint s st)
+  safe-mono sub s .onForge {mb = mb} st = safe-mono (forgedAfter-mono mb sub) (onForge s st)
   safe-mono sub s .onOther nm st     = safe-mono sub (onOther s nm st)
   safe-mono sub s .noTick st         = noTick s st
 
@@ -182,18 +182,18 @@ module Generic
   -- copattern-guarded corecursion — no state family, no reachability induction.
   ------------------------------------------------------------------------
 
-  -- minting only ever ADDS to the minted set, so the pre-mint set is contained in the
-  -- post-mint one.  This is what lets the operand that did NOT mint catch up.
-  mintedAfter-⊇ : ∀ (mb : Maybe EB × Block) {ms} → ms ⊆ mintedAfter mb ms
-  mintedAfter-⊇ (just _  , _) q = there q
-  mintedAfter-⊇ (nothing , _) q = q
+  -- forging only ever ADDS to the forged set, so the pre-forge set is contained in the
+  -- post-forge one.  This is what lets the operand that did NOT forge catch up.
+  forgedAfter-⊇ : ∀ (mb : Maybe EB × Block) {ms} → ms ⊆ forgedAfter mb ms
+  forgedAfter-⊇ (just _  , _) q = there q
+  forgedAfter-⊇ (nothing , _) q = q
 
   -- THE PARALLEL CONGRUENCE, and its collision companion, mutually corecursive.
   --
   -- `safe-both` covers the `par-brBoth` COLLISION node `Par`'s `par-pVis` builds when
   -- both operands offer the same event outside the synchronisation set.  That node
   -- offers NO visible event at all (its offer map is constantly `nothing`), so `gate`,
-  -- `onMint`, the visible half of `onOther` and `noTick` are all discharged outright by
+  -- `onForge`, the visible half of `onOther` and `noTick` are all discharged outright by
   -- `brBoth-no-ev`; its only moves are the two internal-choice τ's committing to
   -- `Par P′ Q` or `Par P Q′`, and those go straight back into `safe-Par`.  This is the
   -- case a config-indexed state family cannot state, and it costs six lines here.
@@ -213,16 +213,16 @@ module Generic
   safe-Par A {P = P} {Q = Q} sP sQ .onτ st with Par-τ-elim A (λ _ _ → tt) P Q st
   ... | τL P′ stP refl   = safe-Par A (onτ sP stP) sQ
   ... | τR Q′ stQ refl   = safe-Par A sP (onτ sQ stQ)
-  -- a mint: whichever operand(s) performed it move to the grown set, and the operand
+  -- a forge: whichever operand(s) performed it move to the grown set, and the operand
   -- that did not is carried across by `safe-mono`
-  safe-Par A {P = P} {Q = Q} sP sQ .onMint {mb = mb} st
+  safe-Par A {P = P} {Q = Q} sP sQ .onForge {mb = mb} st
     with Par-ev-elim A (λ _ _ → tt) P Q st
-  ... | evSync _ stP stQ = safe-Par A (onMint sP stP) (onMint sQ stQ)
-  ... | evL    _ stP     = safe-Par A (onMint sP stP) (safe-mono (mintedAfter-⊇ mb) sQ)
-  ... | evR    _ stQ     = safe-Par A (safe-mono (mintedAfter-⊇ mb) sP) (onMint sQ stQ)
-  ... | evBoth _ stP stQ = safe-both A (safe-mono (mintedAfter-⊇ mb) sP)
-                                       (safe-mono (mintedAfter-⊇ mb) sQ)
-                                       (onMint sP stP) (onMint sQ stQ)
+  ... | evSync _ stP stQ = safe-Par A (onForge sP stP) (onForge sQ stQ)
+  ... | evL    _ stP     = safe-Par A (onForge sP stP) (safe-mono (forgedAfter-⊇ mb) sQ)
+  ... | evR    _ stQ     = safe-Par A (safe-mono (forgedAfter-⊇ mb) sP) (onForge sQ stQ)
+  ... | evBoth _ stP stQ = safe-both A (safe-mono (forgedAfter-⊇ mb) sP)
+                                       (safe-mono (forgedAfter-⊇ mb) sQ)
+                                       (onForge sP stP) (onForge sQ stQ)
   -- every other label: τ as above, a visible event by the same four-way inversion,
   -- and a `√` is impossible because a joint tick needs BOTH operands at `ret`
   safe-Par A {P = P} {Q = Q} sP sQ .onOther {a = τ} nm st
@@ -248,7 +248,7 @@ module Generic
     with brBoth-τ-elim A (λ _ _ → tt) P Q P′ Q′ st
   ... | inj₁ refl = safe-Par A sP′ sQ
   ... | inj₂ refl = safe-Par A sP sQ′
-  safe-both A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} sP sQ sP′ sQ′ .onMint st =
+  safe-both A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} sP sQ sP′ sQ′ .onForge st =
     ⊥-elim (brBoth-no-ev A (λ _ _ → tt) P Q P′ Q′ st)
   safe-both A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} sP sQ sP′ sQ′ .onOther {a = τ} nm st
     with brBoth-τ-elim A (λ _ _ → tt) P Q P′ Q′ st
@@ -272,26 +272,26 @@ module Generic
   safe-⦀Fin⁺ (suc n) {f = f} h =
     safe-⦀ (h fzero) (safe-⦀Fin⁺ n {f = λ i → f (fsuc i)} (λ i → h (fsuc i)))
 
-  -- THE SIDE CONDITION OF HIDING: no hidden event is a mint.  A hidden mint would let
-  -- the implementation grow its minted set SILENTLY while the spec's state stands
+  -- THE SIDE CONDITION OF HIDING: no hidden event is a forge.  A hidden forge would let
+  -- the implementation grow its forged set SILENTLY while the spec's state stands
   -- still, and `Safe` would then be false — `safe-mono` runs the wrong way to repair
   -- it.  The announce event needs no condition: hiding it merely removes announcements.
   HideOK : EventSet → Set₁
   HideOK A = ∀ {B} {e : Net_Api Payload B} {x : B}
-           → EventSet.mem A (B , e) x → NotMint (ev (evl (evLabel B e x)))
+           → EventSet.mem A (B , e) x → NotForge (ev (evl (evLabel B e x)))
 
   -- THE HIDING CONGRUENCE.  A visible step of `P ∖ A` is the same visible step of `P`
-  -- (so `gate`, `onMint` and the visible half of `onOther` transfer verbatim, and a
+  -- (so `gate`, `onForge` and the visible half of `onOther` transfer verbatim, and a
   -- `√` passes straight through to `noTick`); a τ of `P ∖ A` is either a τ of `P` or a
-  -- hidden visible event of `P`, and `HideOK` says the latter is never a mint.
+  -- hidden visible event of `P`, and `HideOK` says the latter is never a forge.
   safe-Hide : ∀ {ms} (A : EventSet) → HideOK A → ∀ {P} → Safe ms P → Safe ms (P ∖ A)
   safe-Hide A ok {P = P} s .gate st with Hide-ev-elim A P st
   ... | heV P′ _ stP      = gate s stP
   safe-Hide A ok {P = P} s .onτ st with Hide-τ-elim A P st
   ... | hτP P′ stP refl   = safe-Hide A ok (onτ s stP)
   ... | hτH P′ c stP refl = safe-Hide A ok (onOther′ s stP (ok c))
-  safe-Hide A ok {P = P} s .onMint st with Hide-ev-elim A P st
-  ... | heV P′ _ stP      = safe-Hide A ok (onMint s stP)
+  safe-Hide A ok {P = P} s .onForge st with Hide-ev-elim A P st
+  ... | heV P′ _ stP      = safe-Hide A ok (onForge s stP)
   safe-Hide A ok {P = P} s .onOther {a = τ} nm st with Hide-τ-elim A P st
   ... | hτP P′ stP refl   = safe-Hide A ok (onτ s stP)
   ... | hτH P′ c stP refl = safe-Hide A ok (onOther′ s stP (ok c))
@@ -316,23 +316,23 @@ module Generic
     Tree X = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) X
 
     -- `loop`'s state-threading continuation: hand the new state back to `iter`
-    κ : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+    κ : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
     κ ms = Ret (inj₁ ms)
 
     -- the `iter` step `loop` builds from `AnnounceSpecT`'s body
-    StepT : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+    StepT : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
     StepT ms = pchoice (announceOffer ms) >>= κ
 
     -- the `sil` back-edge `loop` emits after a visible event
-    ST : Minted → Proc
+    ST : Forged → Proc
     ST ms = iter-bind (Ret ms >>= κ) StepT
 
-  -- THE SPEC AT A MINTED SET: `AnnounceSpecT`'s state after a run whose mints
+  -- THE SPEC AT A FORGED SET: `AnnounceSpecT`'s state after a run whose forges
   -- produced `ms`.  This is what `Safe ms` is a simulation hypothesis for.
-  AnnounceSpecAt : Minted → Proc
+  AnnounceSpecAt : Forged → Proc
   AnnounceSpecAt ms = iter StepT ms
 
-  -- …and at the empty minted set it IS the shipped spec, definitionally
+  -- …and at the empty forged set it IS the shipped spec, definitionally
   specAt-init : AnnounceSpecAt [] ≡ AnnounceSpecT
   specAt-init = refl
 
@@ -365,14 +365,14 @@ module Generic
 
   -- EVERY visible step the implementation can make is offered by the spec's menu,
   -- and the successor is safe against the state the menu moves to.  The announce
-  -- channel is the only clause with content — it spends `gate` — and the mint
+  -- channel is the only clause with content — it spends `gate` — and the forge
   -- channel is the only one that changes the state; the remaining twenty-four
   -- clauses are the free channels, enumerated because `announceOffer`'s catch-all
   -- does not reduce until the constructor is known.
   menuStep : ∀ {ms M M′} → Safe ms M
            → (at : AnyTypes (Net_Api Payload)) (a : proj₁ at)
            → M ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► M′
-           → Σ[ ms′ ∈ Minted ] (announceOffer ms at a ≡ just (Ret ms′) × Safe ms′ M′)
+           → Σ[ ms′ ∈ Forged ] (announceOffer ms at a ≡ just (Ret ms′) × Safe ms′ M′)
   menuStep {ms} s (_ , input  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , output _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , sndmsg _ _ _) a st = ms , refl , onOther′ s st tt
@@ -389,11 +389,11 @@ module Generic
   menuStep {ms} s (_ , apiLF  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , store  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , break  _)     a st = ms , refl , onOther′ s st tt
-  -- the mint channel: the spec's state and `mintedAfter` grow by the same hash
-  menuStep {ms} s (_ , env _ _ envMint) (just e  , b) st =
-    mintedAfter (just e , b) ms , refl , onMint s st
-  menuStep {ms} s (_ , env _ _ envMint) (nothing , b) st =
-    mintedAfter (nothing , b) ms , refl , onMint s st
+  -- the forge channel: the spec's state and `forgedAfter` grow by the same hash
+  menuStep {ms} s (_ , env _ _ envForge) (just e  , b) st =
+    forgedAfter (just e , b) ms , refl , onForge s st
+  menuStep {ms} s (_ , env _ _ envForge) (nothing , b) st =
+    forgedAfter (nothing , b) ms , refl , onForge s st
   -- THE LOAD-BEARING CLAUSE: `gate` says the announced block is well-announced, and
   -- `wellAnnounced→announceOK` turns that into the boolean the spec's gate tests
   menuStep {ms} s (_ , apiLN l d sendLNBlockAnnouncement) (header b) st =
@@ -415,9 +415,9 @@ module Generic
 
   private
     -- the step-matching relation `WSimFromRel` runs on: an implementation state is
-    -- related to the spec state at the minted set it is safe against
+    -- related to the spec state at the forged set it is safe against
     SafeR : Proc → Proc → Set₁
-    SafeR M Q = Σ[ ms ∈ Minted ] (Safe ms M × (Q ≡ AnnounceSpecAt ms))
+    SafeR M Q = Σ[ ms ∈ Forged ] (Safe ms M × (Q ≡ AnnounceSpecAt ms))
 
     -- a visible step is matched by the menu, then the loop-back τ
     safeE : ∀ {P Q} {l : Event√ (⊤ {0ℓ})} {P′} → SafeR P Q → P ─[ ev l ]─► P′
@@ -437,7 +437,7 @@ module Generic
 
     open WSimFromRel SafeR safeE safeT using (rel→wsim)
 
-  -- A SAFE STATE IS SIMULATED BY THE SPEC AT ITS MINTED SET.  This is the whole
+  -- A SAFE STATE IS SIMULATED BY THE SPEC AT ITS FORGED SET.  This is the whole
   -- content of the carrier: `Safe` was chosen to be exactly the relation
   -- `WSimFromRel` needs, so the coinduction principle discharges it outright.
   safe→wsim : ∀ {ms M} → Safe ms M → WSim (⊤ {0ℓ}) M (AnnounceSpecAt ms)

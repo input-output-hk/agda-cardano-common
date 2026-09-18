@@ -58,7 +58,7 @@ module Generic
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
   open N p
-    using ( Net_Api; Net_Api-≟; env; envMint; apiLN; store; break
+    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF )
   open D p using (Payload)
@@ -73,8 +73,8 @@ module Generic
     using (Par-τ-elim; τL; τR; Par-ev-elim; evSync; evL; evR; evBoth; ev√)
   open import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload})
     using (Hide-τ-elim; hτP; hτH; Hide-ev-elim; heV; he√; fHide-ret-inv)
-  open AS.Generic p t apiES using (Minted)
-  open AI.Generic p t apiES using (NotMint)
+  open AS.Generic p t apiES using (Forged)
+  open AI.Generic p t apiES using (NotForge)
   open ASC.Generic p t apiES using (Safe)
   open Safe
   open ASL.Generic p t apiES using (noRet→noTick)
@@ -90,54 +90,54 @@ module Generic
   Covers G = ∀ {X} {e : Net_Api Payload X} {a : X} {b}
            → Carries (X , e) a b → G (X , e) a
 
-  -- a label that is not a mint leaves the minted set alone: `mintOf` answers `[]` on
-  -- every shape but `env … envMint (just _ , _)`, and that shape is what `NotMint`
-  -- refutes.  One clause per `Net_Api` constructor, because `mintOf`'s catch-all does
+  -- a label that is not a forge leaves the forged set alone: `forgeOf` answers `[]` on
+  -- every shape but `env … envForge (just _ , _)`, and that shape is what `NotForge`
+  -- refutes.  One clause per `Net_Api` constructor, because `forgeOf`'s catch-all does
   -- not reduce until the constructor is known (as `hideKeep-ioES`).
-  next-notMint : ∀ (a : Label (⊤ {0ℓ})) ms → NotMint a → next a ms ≡ ms
-  next-notMint τ                                     _ _ = refl
-  next-notMint (ev (√ _))                            _ _ = refl
-  next-notMint (ev (evl (evLabel _ (input  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (output _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (sndmsg _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (rcvmsg _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (tx     _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (sndack _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (rcvack _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (ack    _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (done   _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (apiCS  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (apiBF  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (apiTS  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (apiKA  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (apiLN  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (apiLF  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (store  _ _ _) _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (break  _)     _))) _ _ = refl
-  next-notMint (ev (evl (evLabel _ (env _ _ envMint) (just _  , _)))) _ ()
-  next-notMint (ev (evl (evLabel _ (env _ _ envMint) (nothing , _)))) _ _ = refl
+  next-notForge : ∀ (a : Label (⊤ {0ℓ})) ms → NotForge a → next a ms ≡ ms
+  next-notForge τ                                     _ _ = refl
+  next-notForge (ev (√ _))                            _ _ = refl
+  next-notForge (ev (evl (evLabel _ (input  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (output _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (sndmsg _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (rcvmsg _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (tx     _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (sndack _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (rcvack _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (ack    _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (done   _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiCS  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiBF  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiTS  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiKA  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiLN  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiLF  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (store  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (break  _)     _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (env _ _ envForge) (just _  , _)))) _ ()
+  next-notForge (ev (evl (evLabel _ (env _ _ envForge) (nothing , _)))) _ _ = refl
 
   ------------------------------------------------------------------------
   -- The bridge
   ------------------------------------------------------------------------
 
   -- THE BRIDGE.  `gate` is the guarantee at the announce channel; each step spends
-  -- `M`'s own guarantee as the step's `OK` (τ and `√` carry nothing, a mint is exempt
-  -- by `blockOK-mint`, a visible label is covered by `Covers`), and the state `Wf`
-  -- lands in is rewritten to the one `Safe` demands — `next-mint` on a mint,
-  -- `next-notMint` otherwise.  `noTick` and its `√` case are `NoRet`'s.
+  -- `M`'s own guarantee as the step's `OK` (τ and `√` carry nothing, a forge is exempt
+  -- by `blockOK-forge`, a visible label is covered by `Covers`), and the state `Wf`
+  -- lands in is rewritten to the one `Safe` demands — `next-forge` on a forge,
+  -- `next-notForge` otherwise.  `noTick` and its `√` case are `NoRet`'s.
   wf→safe : ∀ {G ms M} → Covers G → NoRet M → Wf G ms M → Safe ms M
   wf→safe cov nr w .gate st = nowW w ⊆-refl (cov c-ann) st c-ann
   wf→safe cov nr w .onτ st  = wf→safe cov (NoRet.stepNR nr st) (stepW w ⊆-refl st tt)
-  wf→safe {G} {ms} cov nr w .onMint {M′ = M′} {mb = mb} st =
+  wf→safe {G} {ms} cov nr w .onForge {M′ = M′} {mb = mb} st =
     wf→safe cov (NoRet.stepNR nr st)
-      (subst (λ s → Wf G s M′) (next-mint mb ms) (stepW w ⊆-refl st blockOK-mint))
+      (subst (λ s → Wf G s M′) (next-forge mb ms) (stepW w ⊆-refl st blockOK-forge))
   wf→safe cov nr w .onOther {a = τ} nm st =
     wf→safe cov (NoRet.stepNR nr st) (stepW w ⊆-refl st tt)
   wf→safe cov nr w .onOther {a = ev (√ _)} nm st = ⊥-elim (noRet→noTick nr st)
   wf→safe {G} {ms} cov nr w .onOther {M′} {a = a@(ev (evl (evLabel _ _ _)))} nm st =
     wf→safe cov (NoRet.stepNR nr st)
-      (subst (λ s → Wf G s M′) (next-notMint a ms nm)
+      (subst (λ s → Wf G s M′) (next-notForge a ms nm)
              (stepW w ⊆-refl st (λ c → nowW w ⊆-refl (cov c) st c)))
   wf→safe cov nr w .noTick st = noRet→noTick nr st
 

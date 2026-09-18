@@ -69,7 +69,7 @@ module Generic
 
   open Params p using (Block; EB; EBHash; ebHash; announcedEB; decEBHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; envMint; apiLN; sendLNBlockAnnouncement )
+    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; sendLNBlockAnnouncement )
   open D p using (Payload; Header; header)
   open Topology t using (Node)
   open import CSP.Examples.Cardano_network.NetCommon p using (NetworkLinkBreakableA)
@@ -84,7 +84,7 @@ module Generic
     using (Proc; systemOfWith)
   open NL.Generic p t apiES using (nodeLogic)
   open AS.Generic p t apiES
-    using (Minted; mintedIn; announceOK; AnnounceSpecT; AnnounceSafeTWith)
+    using (Forged; forgedIn; announceOK; AnnounceSpecT; AnnounceSafeTWith)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; ev; τ; evl; evLabel; _─[_]─►_)
@@ -96,14 +96,14 @@ module Generic
   -- The payload predicate
   ------------------------------------------------------------------------
 
-  -- a block is well-announced against the minted set if it announces no EB, or
-  -- announces one that has been minted
-  WellAnnounced : Minted → Block → Set
+  -- a block is well-announced against the forged set if it announces no EB, or
+  -- announces one that has been forged
+  WellAnnounced : Forged → Block → Set
   WellAnnounced ms b = announcedEB b ≡ nothing
                      ⊎ Σ[ eh ∈ EBHash ] (announcedEB b ≡ just eh × eh ∈ ms)
 
-  -- the minted set only grows, and well-announcedness is monotone in it — this is
-  -- what makes the mint step preserve the invariant for every OTHER block
+  -- the forged set only grows, and well-announcedness is monotone in it — this is
+  -- what makes the forge step preserve the invariant for every OTHER block
   wellAnnounced-mono : ∀ {ms ms′ b} → ms ⊆ ms′ → WellAnnounced ms b → WellAnnounced ms′ b
   wellAnnounced-mono sub (inj₁ eq)              = inj₁ eq
   wellAnnounced-mono sub (inj₂ (eh , eq , mem)) = inj₂ (eh , eq , sub mem)
@@ -119,15 +119,15 @@ module Generic
   ------------------------------------------------------------------------
 
   -- propositional membership implies the spec gate's boolean membership test
-  ∈→mintedIn : ∀ {eh ms} → eh ∈ ms → mintedIn eh ms ≡ true
-  ∈→mintedIn {eh} mem =
+  ∈→forgedIn : ∀ {eh ms} → eh ∈ ms → forgedIn eh ms ≡ true
+  ∈→forgedIn {eh} mem =
     Equivalence.to T-≡
       (any⁺ (λ x → ⌊ x ≟ eh ⌋)
             (Any.map (λ {x} e → fromWitness {a? = x ≟ eh} (sym e)) mem))
 
   -- … and conversely, so nothing is lost by phrasing the invariant propositionally
-  mintedIn→∈ : ∀ {eh} ms → mintedIn eh ms ≡ true → eh ∈ ms
-  mintedIn→∈ {eh} ms ok =
+  forgedIn→∈ : ∀ {eh} ms → forgedIn eh ms ≡ true → eh ∈ ms
+  forgedIn→∈ {eh} ms ok =
     Any.map (λ {x} w → sym (toWitness {a? = x ≟ eh} w))
             (any⁻ (λ x → ⌊ x ≟ eh ⌋) ms (Equivalence.from T-≡ ok))
 
@@ -135,7 +135,7 @@ module Generic
   -- so `announceOffer` offers it rather than refusing it
   wellAnnounced→announceOK : ∀ {ms b} → WellAnnounced ms b → announceOK ms (header b) ≡ true
   wellAnnounced→announceOK (inj₁ eq)              rewrite eq = refl
-  wellAnnounced→announceOK (inj₂ (eh , eq , mem)) rewrite eq = ∈→mintedIn mem
+  wellAnnounced→announceOK (inj₂ (eh , eq , mem)) rewrite eq = ∈→forgedIn mem
 
   -- the converse: the gate is exactly `WellAnnounced`, not merely implied by it.  It
   -- costs two lines, and it is what tells the successor campaign that strengthening
@@ -143,7 +143,7 @@ module Generic
   announceOK→wellAnnounced : ∀ ms b → announceOK ms (header b) ≡ true → WellAnnounced ms b
   announceOK→wellAnnounced ms b ok with announcedEB b
   ... | nothing = inj₁ refl
-  ... | just eh = inj₂ (eh , refl , mintedIn→∈ ms ok)
+  ... | just eh = inj₂ (eh , refl , forgedIn→∈ ms ok)
 
   ------------------------------------------------------------------------
   -- The medium side condition
@@ -153,9 +153,9 @@ module Generic
   -- nor hidden by `∖ ioES`: `Par-ev-elim` admits the `evL` case, in which the
   -- MEDIUM alone performs the announcement.  Without a hypothesis excluding that,
   -- `PreservationWith`/`AnnounceWSimGoalWith` are refuted outright by a medium
-  -- that announces a never-minted block, and every later task would be trying to
+  -- that announces a never-forged block, and every later task would be trying to
   -- discharge a false statement.  The same `evL` case is what would otherwise let
-  -- the medium perform `env … envMint` and `store … stPut` solo, so the condition
+  -- the medium perform `env … envForge` and `store … stPut` solo, so the condition
   -- is stated as full LINK-ALPHABET confinement rather than as "never announces":
   -- one hypothesis kills the whole medium-solo branch of `Par-ev-elim`, and it is
   -- exactly the `OffersOnly` invariant the repo already proves for both shipped
@@ -169,7 +169,7 @@ module Generic
   -- THE SIDE CONDITION: every event `med` can ever offer — now or after any run,
   -- `OffersOnly` being closed under all steps — belongs to a link.  A confined
   -- medium therefore performs no node-local event at all, in particular no
-  -- announcement, no mint and no store write.
+  -- announcement, no forge and no store write.
   MediumConfined : Proc → Set₁
   MediumConfined med = OffersOnly linkEvents med
 
@@ -198,21 +198,21 @@ module Generic
   -- The reachable-state family
   ------------------------------------------------------------------------
 
-  -- the minted set after an `env … envMint` event carrying `(me , b)` — exactly the
-  -- state update `AnnounceSafe.announceOffer` performs on its two mint clauses
-  mintedAfter : Maybe EB × Block → Minted → Minted
-  mintedAfter (just e  , _) ms = ebHash e ∷ ms
-  mintedAfter (nothing , _) ms = ms
+  -- the forged set after an `env … envForge` event carrying `(me , b)` — exactly the
+  -- state update `AnnounceSafe.announceOffer` performs on its two forge clauses
+  forgedAfter : Maybe EB × Block → Forged → Forged
+  forgedAfter (just e  , _) ms = ebHash e ∷ ms
+  forgedAfter (nothing , _) ms = ms
 
-  -- is this label something OTHER than a mint?  `Reach` must not let a mint slip
-  -- through its state-preserving step, or the minted set it carries would be too
+  -- is this label something OTHER than a forge?  `Reach` must not let a forge slip
+  -- through its state-preserving step, or the forged set it carries would be too
   -- small and the announcement gate below would simply be false.
-  NotMint : Label (⊤ {0ℓ}) → Set
-  NotMint (ev (evl (evLabel _ (env _ _ envMint) _))) = ⊥
-  NotMint _                                          = ⊤ {0ℓ}
+  NotForge : Label (⊤ {0ℓ}) → Set
+  NotForge (ev (evl (evLabel _ (env _ _ envForge) _))) = ⊥
+  NotForge _                                          = ⊤ {0ℓ}
 
   -- THE STATE FAMILY: `Reach med ms M` says the composite over medium `med` can reach
-  -- `M` along a run whose mints produced exactly `ms`.
+  -- `M` along a run whose forges produced exactly `ms`.
   --
   -- COLLISION-CLOSED BY CONSTRUCTION.  `⦀Fin⁺`'s reachable set is NOT `{⦀Fin⁺ n g}`:
   -- when two components both offer the same event, `Par`'s `par-pVis` builds a
@@ -225,35 +225,35 @@ module Generic
   -- `reach-τ` covers the step that resolves it.  This is the honest price of the
   -- refutation — the family is bigger and less informative than a positional one, and
   -- an induction over it gets no structural decomposition for free.
-  data Reach (med : Proc) : Minted → Proc → Set₁ where
-    -- the initial composite, no mint yet performed
+  data Reach (med : Proc) : Forged → Proc → Set₁ where
+    -- the initial composite, no forge yet performed
     reach-init  : Reach med [] (systemOfWith med (λ n → nodeLogic n []))
-    -- τ (including the resolution of a `par-brBoth` collision) leaves the minted set
+    -- τ (including the resolution of a `par-brBoth` collision) leaves the forged set
     reach-τ     : ∀ {ms M M′} → Reach med ms M → M ─[ τ ]─► M′ → Reach med ms M′
-    -- a mint on ANY link and direction grows the minted set; `env` survives `∖ ioES`
-    reach-mint  : ∀ {ms M M′ l d} {mb : Maybe EB × Block}
+    -- a forge on ANY link and direction grows the forged set; `env` survives `∖ ioES`
+    reach-forge  : ∀ {ms M M′ l d} {mb : Maybe EB × Block}
                 → Reach med ms M
-                → M ─[ ev (evl (evLabel _ (env l d envMint) mb)) ]─► M′
-                → Reach med (mintedAfter mb ms) M′
+                → M ─[ ev (evl (evLabel _ (env l d envForge) mb)) ]─► M′
+                → Reach med (forgedAfter mb ms) M′
     -- every other label — visible api/store/break events and `√` alike — leaves it
     reach-other : ∀ {ms M M′} {a : Label (⊤ {0ℓ})}
-                → Reach med ms M → NotMint a → M ─[ a ]─► M′ → Reach med ms M′
+                → Reach med ms M → NotForge a → M ─[ a ]─► M′ → Reach med ms M′
 
   ------------------------------------------------------------------------
   -- The residual obligations
   ------------------------------------------------------------------------
 
   -- the invariant ONE state must carry: every announcement it can make next is of a
-  -- block well-announced against the minted set it was reached with.  `Header` has
+  -- block well-announced against the forged set it was reached with.  `Header` has
   -- the single constructor `header`, so quantifying over `header b` loses nothing.
-  Gated : Minted → Proc → Set₁
+  Gated : Forged → Proc → Set₁
   Gated ms M = ∀ {l d b M′}
              → M ─[ ev (evl (evLabel _ (apiLN l d sendLNBlockAnnouncement) (header b))) ]─► M′
              → WellAnnounced ms b
 
   -- THE RESIDUAL OBLIGATION.  For the composite to simulate `AnnounceSpecT`, every
   -- reachable state must be `Gated`: it may only announce a block whose announced EB
-  -- has already been minted somewhere in the network.
+  -- has already been forged somewhere in the network.
   --
   -- The strengthened induction hypothesis this needs (and which cannot be written
   -- here, because the repo has no decomposition of a composite state into its
@@ -268,10 +268,10 @@ module Generic
   --
   -- The load-bearing case is `NodeLogic.storeStep`'s `store … stPut`: `putEv` is
   -- UNGUARDED, so nothing node-local justifies it — the deposited block was received
-  -- over BlockFetch, hence was in flight, hence is already well-announced.  The mint
-  -- guard of `acceptMint` alone does NOT make a store well-announced.
+  -- over BlockFetch, hence was in flight, hence is already well-announced.  The forge
+  -- guard of `acceptForge` alone does NOT make a store well-announced.
   --
-  -- `wellAnnounced-mono` is what makes `reach-mint` cheap: minting only extends `ms`,
+  -- `wellAnnounced-mono` is what makes `reach-forge` cheap: forging only extends `ms`,
   -- so every block already covered stays covered.
   PreservationWith : Proc → Set₁
   PreservationWith med = MediumConfined med → ∀ {ms M} → Reach med ms M → Gated ms M

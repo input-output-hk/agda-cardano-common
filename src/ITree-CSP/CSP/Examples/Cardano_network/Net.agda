@@ -200,7 +200,7 @@ ApiLFCar recvLFRangeBlock             = Block × List Tx
 
 ------------------------------------------------------------------------
 -- The two NODE-LOCAL channel families (not mini-protocol apis, not wire
--- channels): a node's block STORE and the ENVIRONMENT that mints blocks.
+-- channels): a node's block STORE and the ENVIRONMENT that forges blocks.
 -- They are their own `Net_Api` constructors rather than a reuse of the
 -- mux-internal `tx` channel, which `Network` hides.
 ------------------------------------------------------------------------
@@ -214,11 +214,11 @@ StoreCar stPut = Block
 StoreCar stGet = Block
 
 -- the environment's channels into a node
-data EnvTag : Set where envMint : EnvTag
+data EnvTag : Set where envForge : EnvTag
 
--- a mint delivers an optional EB minted together with its announcing RB
+-- a forge delivers an optional EB forged together with its announcing RB
 EnvCar : EnvTag → Set
-EnvCar envMint = Maybe EB × Block
+EnvCar envForge = Maybe EB × Block
 
 ------------------------------------------------------------------------
 -- DecEq instances for the six finite api tag enums (payload-free) and
@@ -907,7 +907,7 @@ instance
   DecEq-EnvTag ._≟_ = go
     where
     go : (x y : EnvTag) → Dec (x ≡ y)
-    go envMint envMint = yes refl
+    go envForge envForge = yes refl
 
 
 ------------------------------------------------------------------------
@@ -1083,7 +1083,7 @@ data Net_Api (Data : Set) : Set → Set where
   apiLF : (l : Link) (d : Dir) (m : ApiLFTag) → Net_Api Data (ApiLFCar m)
   -- node-local: a node's block store, named by the node's head endpoint (l , d)
   store : (l : Link) (d : Dir) (m : StoreTag) → Net_Api Data (StoreCar m)
-  -- node-local: the environment minting into the node at endpoint (l , d)
+  -- node-local: the environment forging into the node at endpoint (l , d)
   env   : (l : Link) (d : Dir) (m : EnvTag)   → Net_Api Data (EnvCar m)
   -- fault injection: sever the whole (duplex) TCP link l (interrupt trigger)
   break : (l : Link) → Net_Api Data ⊤

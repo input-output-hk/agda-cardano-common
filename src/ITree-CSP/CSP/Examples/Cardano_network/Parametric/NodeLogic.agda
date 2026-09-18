@@ -14,7 +14,7 @@
 -- SHAPE
 --
 --   nodeLogic n held
---     = (mint n ⦀ ⦀⁺ (endpointThreads n e₀) (map (endpointThreads n) es))
+--     = (forge n ⦀ ⦀⁺ (endpointThreads n e₀) (map (endpointThreads n) es))
 --         ∥⇘ storeES ⇙ blockStore n held
 --
 -- with `endpointThreads n (l , d) = clientLoop n (l , d) ⦀ (serverLoop n
@@ -54,13 +54,13 @@
 -- loop body below therefore performs at least one visible event per
 -- pass — see the per-thread comments, and the summary table:
 --
---   mint         : `env home(n) envMint`                    (the mint channel)
+--   forge         : `env home(n) envForge`                    (the forge channel)
 --   clientLoop   : `apiCS l d sendCSRequestNext`             (+ 3 more api events)
 --   serverLoop   : `apiCS l d' reqCSRequestNext`             (+ 5 more api events)
 --   lnClientLoop : `apiLN l d sendLNRequestNext`             (+ 1 more api event)
 --   lnServerLoop : `store home(n) stGet`, then
 --                  `apiLN l d' sendLNBlockAnnouncement`      (both visible)
---   store        : one of mint / put / get                   (every branch is a prefix)
+--   store        : one of forge / put / get                   (every branch is a prefix)
 --
 -- (`d` = the endpoint's own direction, `d'` = `opposite d`; see the
 -- direction note above.)
@@ -72,7 +72,7 @@
 --
 -- THE STORE CHANNELS.  A node's store rendezvous has its OWN `Net_Api`
 -- channels, `store l d stPut` / `store l d stGet`, and the environment's
--- mint has `env l d envMint`.  An earlier draft rode all three on `tx`
+-- forge has `env l d envForge`.  An earlier draft rode all three on `tx`
 -- with three different `IDs` tags; that was a latent bug, because `tx` is
 -- the mux's INTERNAL channel — `Network.agda:17` hides it
 -- (`(TxSide [|{| tx, ack |}|] RxSide) \ {| tx, ack |}`), so the reuse only
@@ -119,7 +119,7 @@ module Generic
     using ( Link; Net_Api; Net_Api-≟
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break
-          ; stPut; stGet; envMint
+          ; stPut; stGet; envForge
           ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
           ; sendCSRequestNext; recvCSRollforward
           ; reqBFRange; sendBFStartBatch; sendBFBlock; sendBFBatchDone
@@ -164,10 +164,10 @@ module Generic
   homeOf : Node → Link × Dir
   homeOf n = proj₁ (endpointsOf n)
 
-  -- the MINT channel of `n`: the environment injects a fresh RB (and, one day, the
+  -- the FORGE channel of `n`: the environment injects a fresh RB (and, one day, the
   -- EB it announces) into `n`'s store
-  mintEv : Node → Net_Api Payload (Maybe EB × Block)
-  mintEv n = env (proj₁ (homeOf n)) (proj₂ (homeOf n)) envMint
+  forgeEv : Node → Net_Api Payload (Maybe EB × Block)
+  forgeEv n = env (proj₁ (homeOf n)) (proj₂ (homeOf n)) envForge
 
   -- the PUT channel of `n`: a client thread deposits a block it has just fetched
   -- (this event IS the observable "block `b` arrived at node `n`")
@@ -224,27 +224,27 @@ module Generic
   offerHeld n held []       = Stop
   offerHeld n held (b ∷ bs) = (getEv n ! b ⟶ Ret held) □ offerHeld n held bs
 
-  -- a mint is accepted only when the RB's announcement matches the minted EB, i.e.
-  -- `announcedEB b ≡ (ebHash <$> me)`.  An ill-formed mint still FIRES the event (so
+  -- a forge is accepted only when the RB's announcement matches the forged EB, i.e.
+  -- `announcedEB b ≡ (ebHash <$> me)`.  An ill-formed forge still FIRES the event (so
   -- the loop keeps its visible event per pass) but leaves the store unchanged.  This
-  -- guard constrains only the mint clause of `storeStep`: `putEv` there accepts any
-  -- client-deposited block with NO announcement check, so the mint guard alone does
+  -- guard constrains only the forge clause of `storeStep`: `putEv` there accepts any
+  -- client-deposited block with NO announcement check, so the forge guard alone does
   -- not make the store well-announced (see `AnnounceSafe.agda`'s header for why the
   -- property holds anyway).  Module-level rather than `where`-bound so that
   -- `Parametric.BlockProvenanceNode` can state the seed fact about it — the guard IS
-  -- `WellAnnounced (mintedAfter mb ms) b`.
-  acceptMint : Maybe EB × Block → Held → Held
-  acceptMint (me , b) hs with announcedEB b ≟ Data.Maybe.map ebHash me
+  -- `WellAnnounced (forgedAfter mb ms) b`.
+  acceptForge : Maybe EB × Block → Held → Held
+  acceptForge (me , b) hs with announcedEB b ≟ Data.Maybe.map ebHash me
   ... | yes _ = b ∷ hs
   ... | no  _ = hs
 
-  -- one store step: accept a mint only when its RB's announcement matches the minted
+  -- one store step: accept a forge only when its RB's announcement matches the forged
   -- EB (else the event still fires but the store is left unchanged — see
-  -- `acceptMint`), accept a deposit, or hand over any held block.  Every branch is a
+  -- `acceptForge`), accept a deposit, or hand over any held block.  Every branch is a
   -- visible prefix, so the store's loop can never τ-cycle.
   storeStep : Node → Held → StoreProc
   storeStep n held =
-      (mintEv n ⟶ (λ mb → Ret (acceptMint mb held)))
+      (forgeEv n ⟶ (λ mb → Ret (acceptForge mb held)))
     □ ((putEv n ⟶ (λ b → Ret (b ∷ held)))
     □  offerHeld n held held)
 
@@ -257,10 +257,10 @@ module Generic
   -- The threads
   ------------------------------------------------------------------------
 
-  -- the mint thread: the origin of every block in the network.  VISIBLE EVENT PER
-  -- PASS: `env home(n) envMint` (the mint channel).
-  mint : Node → Proc
-  mint n = loop0 (mintEv n ⟶₀ Skip)
+  -- the forge thread: the origin of every block in the network.  VISIBLE EVENT PER
+  -- PASS: `env home(n) envForge` (the forge channel).
+  forge : Node → Proc
+  forge n = loop0 (forgeEv n ⟶₀ Skip)
 
   -- the RollForward continuation of a client round: request the announced block's
   -- range, receive the block and deposit it in the store.  VISIBLE EVENTS:
@@ -320,7 +320,7 @@ module Generic
   serverLoop n ld = loop0 (serverBody n (proj₁ ld) (opposite (proj₂ ld)))
 
   -- LN server (at SERVER-PEER direction `d`, i.e. `opposite` the endpoint's own):
-  -- take a held RB and announce its header.  `storeStep`'s mint guard does
+  -- take a held RB and announce its header.  `storeStep`'s forge guard does
   -- NOT by itself make every held RB well-announced: `putEv` is unguarded, so a
   -- client-deposited block can enter the store with no announcement check.  Safety
   -- still holds, but for a network-wide reason — see `AnnounceSafe.agda`'s header.
@@ -363,12 +363,12 @@ module Generic
     ⦀⁺ (endpointThreads n (proj₁ (endpointsOf n)))
        (map (endpointThreads n) (proj₂ (endpointsOf n)))
 
-  -- THE RELAY NODE LOGIC: the mint thread and every endpoint's client/server/announcer
+  -- THE RELAY NODE LOGIC: the forge thread and every endpoint's client/server/announcer
   -- triple, all interleaved, synchronised with the node's block store on `storeES`.  Passed
   -- as `Parametric.Node`'s `lg` argument it turns the scaffolding into a real
   -- N-node network; `systemOf (λ n → nodeLogic n [])` is that network.
   nodeLogic : Node → Held → Proc
-  nodeLogic n held = (mint n ⦀ allThreads n) ∥⇘ storeES ⇙ blockStore n held
+  nodeLogic n held = (forge n ⦀ allThreads n) ∥⇘ storeES ⇙ blockStore n held
 
   ------------------------------------------------------------------------
   -- DRAFT node specification — NOT proved, stated to size the next milestone
@@ -412,13 +412,13 @@ module Generic
   -- bundles may be pushed inside the thread interleaving.  It is the standard CSP
   -- parallel/interleave interchange and its side conditions all hold here (distinct
   -- endpoints' bundle alphabets are disjoint; each thread triple's api events are
-  -- confined to its own endpoint; `mint` performs no `apiES` event; `storeES` is
+  -- confined to its own endpoint; `forge` performs no `apiES` event; `storeES` is
   -- disjoint from `apiES`) — but NO law of this shape exists anywhere in the repo,
   -- and it is not derivable from `ParallelMonoFD`'s monotonicity lemmas alone.
   -- Sizing it is the first thing Milestone 4 should do.
   InterchangeGoal : Set₁
   InterchangeGoal = ∀ n held →
-      ((mint n ⦀ (⦀⁺ (endpointImpl n (proj₁ (endpointsOf n)))
+      ((forge n ⦀ (⦀⁺ (endpointImpl n (proj₁ (endpointsOf n)))
                      (map (endpointImpl n) (proj₂ (endpointsOf n)))))
          ∥⇘ storeES ⇙ blockStore n held)
     ⊑FD node n (nodeLogic n held)

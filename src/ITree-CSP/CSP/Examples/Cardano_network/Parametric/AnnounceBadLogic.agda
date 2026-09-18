@@ -6,7 +6,7 @@
 --
 -- WHY THIS MODULE EXISTS.  `Parametric.AnnounceSafeConcrete.announceSafeT`
 -- proves that the N-node relay network never announces an EB hash that
--- no mint produced.  A safety theorem whose guarded event can never
+-- no forge produced.  A safety theorem whose guarded event can never
 -- occur is worthless, and this campaign has already shipped that failure
 -- mode twice (a RUN-shaped spec that imposed an offer obligation instead
 -- of a safety constraint; server threads driving the wrong direction over
@@ -16,13 +16,13 @@
 -- answer the other half: is the SAFETY GUARD load-bearing?
 --
 -- WHAT IS BROKEN, AND ONLY THAT.  Exactly one definition changes.
--- `NodeLogic.acceptMint` accepts a mint `(me , b)` only when
+-- `NodeLogic.acceptForge` accepts a forge `(me , b)` only when
 -- `announcedEB b ≡ (ebHash <$> me)` — the guard Task 5 identified as the
--- seed of the announcement invariant.  `acceptMintBad` DROPS that guard
--- and accepts every mint.  `storeStepBad`/`blockStoreBad`/`nodeLogicBad`
+-- seed of the announcement invariant.  `acceptForgeBad` DROPS that guard
+-- and accepts every forge.  `storeStepBad`/`blockStoreBad`/`nodeLogicBad`
 -- are otherwise character-for-character the originals, and reuse
--- `NodeLogic.Generic`'s own `mintEv`/`putEv`/`offerHeld`/`storeES`/
--- `mint`/`allThreads`, so nothing else can differ by accident.
+-- `NodeLogic.Generic`'s own `forgeEv`/`putEv`/`offerHeld`/`storeES`/
+-- `forge`/`allThreads`, so nothing else can differ by accident.
 --
 -- `Parametric.NodeLogic` itself is NOT modified: the real logic and the
 -- broken one coexist, which is what lets the two be compared.
@@ -62,20 +62,20 @@ module Generic
     using (_∥⇘_⇙_; _⦀_; _□_; Ret; Prefix; loop)
   open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
-    using (Held; StoreProc; mintEv; putEv; offerHeld; storeES; mint; allThreads)
+    using (Held; StoreProc; forgeEv; putEv; offerHeld; storeES; forge; allThreads)
 
-  -- THE BREAK.  `NodeLogic.acceptMint` keeps a minted RB only when its announcement
-  -- matches the minted EB (`announcedEB b ≡ (ebHash <$> me)`); this version keeps
-  -- EVERY minted RB, so a block announcing an EB that no mint produced can enter the
+  -- THE BREAK.  `NodeLogic.acceptForge` keeps a forged RB only when its announcement
+  -- matches the forged EB (`announcedEB b ≡ (ebHash <$> me)`); this version keeps
+  -- EVERY forged RB, so a block announcing an EB that no forge produced can enter the
   -- store.  This is the single deliberate defect of the negative control.
-  acceptMintBad : Maybe EB × Block → Held → Held
-  acceptMintBad (_ , b) hs = b ∷ hs
+  acceptForgeBad : Maybe EB × Block → Held → Held
+  acceptForgeBad (_ , b) hs = b ∷ hs
 
   -- one store step of the broken store: identical to `NodeLogic.storeStep` except
-  -- that the mint clause calls `acceptMintBad`
+  -- that the forge clause calls `acceptForgeBad`
   storeStepBad : Node → Held → StoreProc
   storeStepBad n held =
-      (mintEv n ⟶ (λ mb → Ret (acceptMintBad mb held)))
+      (forgeEv n ⟶ (λ mb → Ret (acceptForgeBad mb held)))
     □ ((putEv n ⟶ (λ b → Ret (b ∷ held)))
     □  offerHeld n held held)
 
@@ -84,7 +84,7 @@ module Generic
   blockStoreBad n held = loop (storeStepBad n) held
 
   -- THE BROKEN RELAY NODE LOGIC: `NodeLogic.nodeLogic` with the broken store in place
-  -- of the real one.  Every thread — mint, client, server, LN client, LN announcer —
+  -- of the real one.  Every thread — forge, client, server, LN client, LN announcer —
   -- is `NodeLogic.Generic`'s own, unchanged.
   nodeLogicBad : Node → Held → Proc
-  nodeLogicBad n held = (mint n ⦀ allThreads n) ∥⇘ storeES ⇙ blockStoreBad n held
+  nodeLogicBad n held = (forge n ⦀ allThreads n) ∥⇘ storeES ⇙ blockStoreBad n held

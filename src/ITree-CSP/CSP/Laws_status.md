@@ -193,8 +193,14 @@ single-E renaming `_⟦inv⟧ⁱ` (`renameInv`, clean non-weak inversions `ren-�
 | T3.16 / T3.17 | combine `P⟦R⟧⟦S⟧ = P⟦S∘R⟧` | ✅ `RenameCombine.rename-combine-FD` — `(P⟦inv₁⟧ⁱ)⟦inv₂⟧ⁱ ≈FD P⟦invComp inv₁ inv₂⟧ⁱ`, `invComp inv₁ inv₂ = inv₂ >>= inv₁` (Kleisli, outer-first). Coinductive mutual STRONG bisim `∼`/`∼R` (step-inversion: invert both rename layers via `ren-*-inv`, rebuild via `ren-*-fwd` with the composed witness `invComp-just`/`invComp-split`); recurses on `P`. No `DecEq` (no merge case). No postulates |
 | U13.6 | rename-slide `((?x:A→P)▷Q)⟦R⟧ = (?y:R(A)→⨅{…})▷(Q⟦R⟧)` | ✅ `RenameSlide.rename-slide-FD` — `((pchoice v)▷Q)⟦inv⟧ⁱ ≈FD ((pchoice v)⟦inv⟧ⁱ)▷(Q⟦inv⟧ⁱ)`, injective `_⟦inv⟧ⁱ` (the `⨅` collapses; `R(A)`=renamed prefix). **NON-recursive STRONG bisim** (renaming relabels events, never hides ⇒ no fusion, unlike hide-slide; prefix τ-free ⇒ no coinduction): step-matched via `ren-*-inv`/`ren-*-fwd` + `▷-ev-L`/`▷-timeout`/`▷-{τ,ev}-elim`, `sbisim-refl` conts; impossible prefix-τ / `√`-from-ret discharged by `pchoice-no-τ`/`ren-pchoice-no-τ`. No postulates |
 
-**Note:** laws are for the injective `_⟦inv⟧ⁱ`; the relational/fan-in generalisation (weak
-steps via `TraceLawsRenameGen`) is future work (single-case-first, cf. single-channel→menu).
+**Note (corrected 2026-09-05):** the table above is for the injective `_⟦inv⟧ⁱ`.  The
+blanket claim this note used to carry — that the relational/fan-in generalisation is
+future work — is FALSE: `RenameRel` (zero, dist-⊓), `RenameFanIn` (`fanNode ≈FD ⨅⁺`),
+`RenameStepRel` (rename-step) and `RenameSlideRel` (rename-slide) all state their law
+for the general `_⟦ R ¿ preimg ⟧`, and `TraceLawsRenameGen` carries intro/elim/mono at
+`⊑T`; see the §7 row of the summary table.  What is still open at the relational shape
+is dist-□, combine, and **monotonicity at any FD strength** — see the 2026-09-05 gap
+note in §17.
 
 ## §8 — Piping `≫` / enslavement  ❌
 
@@ -813,9 +819,24 @@ by the combined `Examples/TPC/Ch1`). Source: `fdr-examples/ucs/chapter02/ucs2.cs
 
 Synchronisation-and-deadlock examples from UCS ch3 (`ucs3.csp`), at the trace +
 deadlock level — fully constructive, inheriting NO postulate (unlike the FD
-chapters). Excluded: ncopy (buffer chain, covered by TPC), phils (in
-Examples/DiningPhilosophers), robots (infinite-state, no asserts).
+chapters). `phils.csp` is covered by the WITNESS module `Ch3/Phils.agda` (below),
+which re-states results proved in `Examples/DiningPhilosophers/` — see the
+dining-philosophers section further down for what that development does and does
+not deliver.
 
+- `NCopyChain` — `ncopy.csp`: the UNHIDDEN chain of two `COPY` cells over
+  `c.0/c.1/c.2`, alphabetised-parallel on `AC(r) = {|c.r,c.r+1|}`, reduced
+  N = 2, T = Bool. The whole model (event type, cells, alphabets, the unhidden
+  `CC`, the buffer `Buf`, and the `Chain`/`Reach`/`inv0`/`inv1` inversions) is
+  IMPORTED from `CSP.Examples.UCS.Ch5.NCopy`; new here is the chapter's
+  RELAXED specification `Spec₃ = B(N,<>) ||| RUN({|c.1|})` — instead of hiding
+  the internal channel (ch5's route) the spec is made indifferent to it via an
+  interleaved `RUN`, a strictly weaker obligation. Both source asserts proved:
+  `chain-safe : Spec₃ ⊑T CC` (`assert Spec [T= CC`, by weak simulation — the
+  visible c.1 handoff is absorbed by `RUN` with the buffer standing still) and
+  `chain-df : DeadlockFree CC` (`assert CC :[deadlock free]`, via
+  `progress⇒deadlockFree` over the four reachable configs; unhidden the chain
+  is τ-FREE, so `Progress` is immediate). Postulate-free.
 - `SyncIdentity` — `AS =T (a→REPEAT)[|Events|]REPEAT` (full synchronisation
   collapses the loop to infinite a's); both `[T=` directions proved by weak
   simulation (`as⊑aRR`, `aRR⊑as`). Events reduced to {a,b,c}.
@@ -841,8 +862,63 @@ Examples/DiningPhilosophers), robots (infinite-state, no asserts).
   `NEvs(10) [T= sys` is FALSE — proved as `nevs-fails : ¬ (NEvs 10 ⊑T sys)`
   (after item 2 depletes, outofstock.2 synchronises forever ⇒ unbounded traces),
   matching the source assert's failure. No postulate/NON_TERMINATING/mutual.
+- `Robots` (`robots.csp`, the ch3 final sections) — **MODEL-ONLY**: the source
+  carries no FDR `assert` at all and says of itself that it "cannot be run on
+  FDR"; `ROBOT` is infinite-state by design. Coordinates are `ℤ` (no `Fin`
+  grid), so `ROBOT n m` really has one state per point of ℤ×ℤ and all four
+  directions fire from every one of them (`robot-north` … `robot-west`, stated
+  for arbitrary `n m : ℤ`) — a case the coinductive model handles and FDR
+  cannot. The subject is **parallel composition as conjunction**: `AddCond` is
+  the interface parallel `_∥⇘_⇙_` and `ListConds` a real fold over a list of
+  (process, alphabet) pairs. Checks pair each removal with its free
+  counterpart: the free robot leaves the table (`robot-leaves-top`/`-bottom`/
+  `-left`) where `RobotOnTable` refuses the same move
+  (`onTable-refuses-north` after N norths, `-south` at row 0, `-west` at column
+  0) — the two `CT` counters on an axis assert row ≥ 0 and row ≤ N
+  respectively. Non-vacuity: `onTable-walk-report` walks to (1,2) inside the
+  table and reports `position.(1,2)`. Blocks: `withBlockSet-refuses-north`
+  (into (1,1) ∈ S) and `withBlocks-refuses-east` (into (2,1)), each against the
+  same move offered without that conjunct. The source's own **filter
+  discrepancy** is ported as written and pinned by `blockSquares-is`/`S-is`
+  (`Blocks` blocks r%3==2,s%3==1; `S` blocks r%2==1,s%2==1) — so
+  `RobotWithBlocks` and `RobotWithBlockSet` are different processes and no
+  equivalence is claimed. No postulate/NON_TERMINATING/mutual/hole.
+- `Phils` (`phils.csp`) — **WITNESS MODULE, NOT A PORT**: 147 lines, nothing is
+  modelled in it; both results are IMPORTED from `Examples/DiningPhilosophers/`
+  (which predates this campaign's conventions), and the file exists to give
+  `phils.csp` an entry point in the UCS tree and to record honestly how much of
+  the script is covered. **2 of the script's 5 asserts**, and only at **N = 2**,
+  not Roscoe's N = 5, and NOT parametric in N:
+  `phils-assert2-refuted : ¬ DeadlockFree SYSTEMs` (`Phils.agda:129`, assert 2 at
+  `phils.csp:72` — `hasDeadlock⇒¬deadlockFree dp-csp-deadlock-reachable`) and
+  `phils-assert5 : DeadlockFree ASSYSTEMs` (`:146`, assert 5 at `phils.csp:115`
+  — `= deadlock-free-asym`). **Asserts 1 and 2 of the script are deliberately
+  FALSE** (the classic symmetric deadlock is the point of the example), so
+  assert 2 is stated as a NEGATION; they are not unproved obligations.
+  Because the imported model's event type has ONLY `picks`/`putsdown`
+  (`thinks`/`sits`/`eats`/`getsup` are absent), the two theorems are the STRIPPED
+  variants `SYSTEMs`/`ASSYSTEMs` — the imported names `SYSTEMsym`/`SYSTEMasym`
+  are the stripped processes despite the unsuffixed names, and the aliasing is
+  explicit at each theorem. The model's parallel SHAPE is also flattened (one flat
+  `∥ₐ⁺` fold over all 2N components, not the script's philosopher/fork bracketing;
+  no equivalence between bracketings is proved). **Asserts 1 and 4 are REFUSED,
+  not missing**: adding the four cosmetic channels takes each philosopher from 5
+  positions to 9 (`PPos`, `DiningPhilosophersCSP_DeadlockFree.agda:502`), so the
+  `progress` enumeration grows from its current EXACTLY 400 clauses
+  (`SCfg = PPos × FPos × PPos × FPos` = 5×4×5×4, `:529`) to roughly 1300 (9×4×9×4)
+  for ZERO behavioural content — the extra channels are unsynchronised singletons
+  that can never block, and Roscoe himself recommends running the stripped
+  version. **Assert 3 (the butler) is DEFERRED and GATED** on three things, none
+  of which exists: (a) no `BUTLER` process anywhere in this repository, and its
+  guarded choice over a seat count needs precisely the `sits`/`getsup` channels
+  the model lacks (stripping is NOT sound for the butler); (b) N ≥ 3 — at N = 2
+  the bound `j < N-1` admits only ONE seated philosopher, so `BSYSTEM` serialises
+  the ring and is not the solution being demonstrated; (c) a PARAMETRIC progress
+  argument, which `DiningPhilosophersCSP_DeadlockFreeN.agda` has NOT closed.
+  Nothing about assert 3 is attempted or approximated. Postulate-free (the
+  imported results are).
 
-_Last updated 2026-07-06._
+_Last updated 2026-09-03._
 
 ---
 
@@ -1023,9 +1099,18 @@ refinement. Other ch4 subsystems (ABP/SWP protocols, sudoku) are separate specs.
 
 ## UCS chapter-5 examples — hiding / renaming / link parallel (`Examples/UCS/Ch5/`)
 
-First UCS-ch5 subsystem: the `ncopyh.csp` hidden-chain COPY-buffer refinement,
-trace level, postulate-free. Later ch5 sub-specs (renaming, apples/link
-parallel) are separate specs.
+**All six of `chapter05/`'s scripts are ported** — `ncopyh` (`NCopy`), `renaming`
+(`Renaming`), `apples` (`Apples`), `ncopyl` (`NCopyL`), `mergesort` (`MergeSort`),
+`sudoku2` (`Sudoku2`). Every in-scope assert of the six is discharged except
+`renaming.csp`'s two `[FD=` ones, which stay deferred (see that entry).
+
+**Link parallel `P [a<->b] Q` is NOT an operator of this development.** It is
+derived per example as rename-parallel-hide (relabel the linked channels onto
+shared ones, alphabetised-parallel on them, hide them): once in `NCopyL` (ONE
+pair, the local `_[l↔r]_`) and once in `MergeSort` (TWO simultaneous pairs,
+`_[up↔]_` / `_[dn↔]_`). Contrary to the textbook derivation, only ONE operand per
+link needs renaming when the other already owns distinct link channels — both
+modules exploit that, and neither touches a shared module to do it.
 
 - `NCopy` — `ncopyh.csp`: a chain of two `COPY` cells over channels `c.0/c.1/c.2`
   (`Bool`), alphabetised-parallel synchronising on the shared `c.1` which is
@@ -1035,9 +1120,18 @@ parallel) are separate specs.
   buffer trace), each via `wsim→⊑T` + `WSimFromRel` over a shared buffer-contents
   relation (4 reachable cell-pair configs; the hidden `c.1` handoff is a τ that
   preserves contents). Reuses the ch4 `TBuff` weak-simulation technique, run in
-  BOTH directions. Postulate-free. Reduced `N = 2`, `T = Bool`; the `[FD=`
-  refinements (ch6) and the `ncopyl` link-parallel variant are deferred. First of
-  the UCS-ch5 sub-specs (ncopy / renaming / apples).
+  BOTH directions. Reduced `N = 2`, `T = Bool`. **§D (added 2026-09-03) closes the
+  file's other two asserts** — Roscoe's chapter-6 pair, the ones he marks "also
+  true in stronger models": `ncopy-safe-FD : Spec ⊑FD CCH` (`NCopy.agda:730`),
+  `ncopy-live-FD : CCH ⊑FD Spec` (`:734`), bundled as `ncopy-≈FD : Spec ≈FD CCH`
+  (`:738`). Route: the chain's single τ lands in a stable state (§D.3
+  divergence-freedom) and every stable state offers exactly the buffer's events
+  (§D.4), so §B's and §C's relations extend to two `FSim`s and `fsim→⊑FD` finishes.
+  **All four theorems POSTULATE-FREE** — §D rides only `Semantics.FailureSim` /
+  `Semantics.BisimFromRel`, NOT `Semantics.DRImpliesFD` and NOT the
+  `CSP.Laws.FD.FDTransfer` seams. So all four of `ncopyh.csp`'s asserts are
+  discharged. The `ncopyl` link-parallel variant is the sibling `NCopyL`, which
+  transports all four onto its own chain.
 
 - `Renaming` — `renaming.csp`: (§A) the INJECTIVE renaming of `COPY` is a pure
   relabelling — `RenCOPY = renameInv COPY inv` (left↦aa, right↦bb) with
@@ -1049,33 +1143,164 @@ parallel) are separate specs.
   witness) and `split-det : Deterministic SPLIT` PROVED IN FULL (SPLIT is τ-free
   with functional offers, so its reached state is unique and cannot refuse an
   offered event — proved via a reached-state determinacy lemma). Postulate-free,
-  `T = Bool`. DEFERRED non-goals: the non-injective `RenSPLIT =T SPLIT'` (general
-  fan-in rename trace laws unbuilt) and the `[FD=` asserts (ch6). Second of the
-  UCS-ch5 sub-specs (ncopy done; apples remains).
+  `T = Bool`. DEFERRED non-goals: the non-injective `RenSPLIT =T SPLIT'` and the
+  `[FD=` asserts (ch6) — both still deferred as of 2026-09-03, and the only
+  `chapter05/` obligations that remain.
+  **REASON RETRACTED (recorded 2026-09-06):** the `RenSPLIT =T SPLIT'` deferral was
+  written here as "general fan-in rename trace laws unbuilt" (`c4b204d`, 2026-07-09).
+  That reason was FALSE WHEN WRITTEN: the general relational rename trace laws —
+  `ren-trace-introG`, `ren-trace-elimG` and `renameG-mono-⊑ᵀ`
+  (`CSP/Laws/Traces/TraceLawsRenameGen.agda:371`) — landed a month earlier, on
+  2026-06-10 (`ac0c373`, `be3ff6a`). So this item has **no recorded valid reason** for
+  its deferral and is worth re-examining. Only the reason is retracted: whether those
+  laws are the right ones for this particular goal is UNTESTED, and nothing here says
+  the item is now easy, cheap or achievable. The `[FD=` (ch6) deferral is untouched.
 
 - `Apples` — `apples.csp`: many-way, CONTEXT-DEPENDENT renaming (`apple` renamed to
   BOTH `braeburn` and `cox`, a regulator `Reg` picking which by whether `adam`/`eve`
   happened last; `braeburn` before `eve`, `cox` after). `RelP` modelled DIRECTLY as
   its regulated observable behaviour (phased `braeburn`+`adam` → `eve` → `cox`) —
   trace-faithful to `P[[apple<-cox/braeburn]] [|…|] Reg`, the literal fan-out-rename
-  + parallel deferred (general relational rename trace laws unbuilt). The `Before(A,B)`
+  + parallel deferred. The `Before(A,B)`
   ordering contrast, postulate-free: `apples-holds : Before({braeburn},{cox}) ⊑T RelP`
   (HOLDS — all `braeburn` precede all `cox`, via `wsim→⊑T` + `WSimFromRel` over a
   4-class relation) and `apples-fails : ¬ (Before({cox},{braeburn}) ⊑T RelP)` (FAILS —
   the `RelP` trace `[braeburn,adam,eve,cox]` has `cox` after `braeburn`, refuted by a
-  `BeforeCB` trace-inversion). All events valueless; `apple` renamed away. Completes
-  the UCS-ch5 group (ncopy / renaming / apples).
+  `BeforeCB` trace-inversion). All events valueless; `apple` renamed away.
+  **REASON RETRACTED (recorded 2026-09-06):** the fan-out-rename + parallel deferral was
+  written here as "general relational rename trace laws unbuilt" (`affff6f`, 2026-07-09).
+  That reason was FALSE WHEN WRITTEN: the general relational rename trace laws —
+  `ren-trace-introG`, `ren-trace-elimG` and `renameG-mono-⊑ᵀ`
+  (`CSP/Laws/Traces/TraceLawsRenameGen.agda:371`) — landed a month earlier, on
+  2026-06-10 (`ac0c373`, `be3ff6a`). So this item has **no recorded valid reason** for
+  its deferral and is worth re-examining. Only the reason is retracted: whether those
+  laws are the right ones for this particular goal is UNTESTED, and nothing here says
+  the item is now easy, cheap or achievable.
+
+- `NCopyL` — `ncopyl.csp`: the SAME two-cell chain built with LINK PARALLEL instead
+  of indexed channels. ncopyh has two differently indexed cells; ncopyl has ONE
+  unindexed `COPY` over `left`/`right` and lets the link parallel do the channel
+  matching AND the hiding — so both operands of the chain are literally the same
+  process (`ccl-same-cell : CCL ≡ ((COPY ⟦ AC0 ∥ AC1 ⟧ renameInv COPY shift) ∖ Hset)`,
+  `NCopyL.agda:196`, by `refl`). **ALL FOUR of the script's asserts proved**: the two
+  trace ones `ncopyl-safe : Spec ⊑T CCL` (`:424`) / `ncopyl-live : CCL ⊑T Spec`
+  (`:428`), and Roscoe's two chapter-6 `[FD=` ones `ncopyl-safe-FD : Spec ⊑FD CCL`
+  (`:441`) / `ncopyl-live-FD : CCL ⊑FD Spec` (`:445`), bundled as
+  `ncopyl-≈FD : Spec ≈FD CCL` (`:449`). Construction: rather than invent a fresh link
+  channel and rename BOTH operands, the link IS the downstream operand's own `right`
+  (c.1) and the upstream operand's alphabet is shifted up one channel (`shift`,
+  `:175`) — so the UPSTREAM operand needs no rename at all, and the composite is the
+  image of Roscoe's system under an INJECTIVE relabelling of its external interface
+  (c.0/c.2), hence the asserts hold iff his do. Proof shape: one relation `RA`, two
+  `FSimFromRel` instantiations (§B), transported through the alphabetised parallel and
+  the hide by `αpar-fsim-df` and `Hide-fsim` (§C), then composed with the sibling
+  `NCopy`'s four theorems — the FD pair costs two lines on top of the trace pair.
+  **CLASSICAL FOOTPRINT — the one ch5 module that is NOT postulate-free by closure:**
+  every result here, trace and FD alike, rides the same transport step through the
+  FSim congruences, whose modules carry the repo's sanctioned LEM-derivable seams
+  (`CSP.Laws.FD.FDTransfer.Diverges-LEM` via `FSim.HideCong`, plus the divergence
+  machinery behind `FSim.AlphaParCong`). The FD asserts add NO NEW seam — they have
+  exactly the footprint the `[T=` ones already had. Contrast `Ch5/NCopy` and
+  `Ch3/NCopyChain`, which are postulate-free. The module itself has no `postulate`,
+  no `NON_TERMINATING`, no sized types, no holes.
+
+- `MergeSort` — `mergesort.csp`: the recursive, dynamically-GROWING merge-sort
+  network. **MODEL-ONLY, and the source says why**: its first line reads "This is an
+  infinite state process that will not run on FDR, but it will on ProBE", and the
+  file contains NO FDR `assert` at all — Roscoe gives no specification for this
+  network at this point in the book, so there is nothing to refine against. What is
+  certified is that the processes are well-defined (productive) trees, plus
+  transition-sanity runs. All six channels and all thirteen controller states are
+  present, unreduced; `T` is reduced to a TWO-element sorted type `Val` (both
+  outcomes of `x < y` are reached) and the end marker is a real constructor
+  (`Val′ = dat Val | end`, the source's own suggestion) rather than the script's
+  `-1`. **THE TRUNCATION CAVEAT:** `M1`'s continuation mentions `M` twice UNDER the
+  two link parallels, so the recursion runs through CSP operators and
+  `--guardedness` rejects it (three further formulations measured here, extending
+  the eleven of ch7). The fix makes the sprouted sub-process a PARAMETER: `Mc S`
+  (`:366`) is Roscoe's `M` with `S` supplied as the process each sprouted half-list
+  is fed to, and `Msort n` (`:399`) ties the knot by ORDINARY STRUCTURAL recursion
+  outside the corecursive clique — `Msort (suc n) = Mc (Msort n)`,
+  `Msort zero = Mc Stop`. So **`Msort n` is a depth-`n` TRUNCATION of an infinite
+  sprouting process**: it agrees with Roscoe's `M` on every behaviour of recursion
+  depth ≤ n and can otherwise only REFUSE (the deepest child is `Stop`) — never
+  mis-sort. The truncation is MITIGATED by every check being stated for `Mc S` /
+  `Mc (Mc S)` with `S` UNIVERSALLY QUANTIFIED, so each holds at EVERY budget
+  `Msort (suc n)` at once and none relies on the truncation. Checks: the two
+  fourteen-step whole-network sorts `sortA` (`:644`, input ⟨v1,v0⟩ ⇒ output ⟨v0,v1⟩,
+  taking `O2`'s guard-4 ELSE branch) and `sortB` (`:732`, input ⟨v0,v1⟩ ⇒ ⟨v0,v1⟩,
+  the THEN branch) — six visible events and eight hidden link handshakes each, so
+  between them all four `O2` guards and both outcomes of `x < y` are reached by
+  whole-network runs; `sort-budget-1` (`:745`) instantiates `sortA` at the closed
+  `Msort 1`; `distrib-alt` (`:757`) shows the distributor really alternates
+  up/down; `o2-lt`/`o2-ge`/`o2-up-only`/`o2-dn-only`/`o2-both-end` (`:772`–`:787`)
+  pin the controller-local guard outcomes. No postulate, no `NON_TERMINATING`, no
+  sized types, no holes.
+
+- `Sudoku2` — `sudoku2.csp`: SUDOKU BY RENAMING, reduced to the 4×4 shidoku board
+  `Ch4/Sudoku` uses. The chapter-5 lesson is the script's own announcement, "we
+  define generic square processes using events that can later be renamed": ONE
+  generic square process over the private `selhere`/`seladj` is renamed per
+  co-ordinate onto the global `select.p.v` (`Cell pz (i , j) = renameInv (genCell
+  (pz i j)) (cellInv (i , j))`, `Sudoku2.agda:210`). The rename is non-injective
+  (fan-OUT: one `seladj.v` becomes `select.q.v` at every neighbour q) but functional
+  per TARGET, so `renameInv` applies and NO fan-in τ appears. The script's own point
+  of comparison, the DIRECT per-square family, is ported too (`dirCell`, `:221`;
+  `Cell′`, `:245`) — so **both of the script's assertions are stated on BOTH the
+  renamed and the direct network**. Unlike `Ch4/Sudoku`'s single fused `Board`
+  process, this is the real 16-component alphabetised-parallel network of the
+  script. The 2 asserts (`sudoku2.csp:258-259`, `STOP [T= RegSys\{|select|}` and the
+  `RegSys'` form) are proved on two deliberately chosen boards, both truth values
+  re-derived: on `goodP` (15 givens, one blank at (3,3) with unique completion 0)
+  ⟨done⟩ IS a trace, so BOTH assertions are FALSE — `stop⋢hidden : ¬ (Stop ⊑T
+  SysGood)` (`:412`, renamed) and `stop⋢hidden′ : ¬ (Stop ⊑T SysGood′)` (`:416`,
+  direct), the solver-by-counterexample idiom; on `badP` (blank blocked for all four
+  symbols) the network cannot move at all, so the assertion HOLDS —
+  `stop⊑hidden-bad : Stop ⊑T SysBad` (`:618`), with `bad-deadlocks : HasDeadlock
+  SysBad` (`:623`) reading the same fact as Ch4's `sudoku-deadlocks`. §D non-vacuity:
+  `order-goodP`/`order-badP` pin `order` to scanorder ⟨(3,3)⟩, `good-done-blocked`
+  (`:639`) shows `done` is NOT available before the last square is filled (so §B's
+  ⟨done⟩ genuinely needed the hidden selection), and `good-sel-1`/`-2`/`-3` show the
+  completion at (3,3) is unique. **SCOPED OMISSION (deliberate, not a gap):**
+  `sudoku2.csp:261-300`'s `count`/`greatest`/`inc`/`orderl`/`rank`/`statorder`
+  heuristics are NOT ported — they exist purely to shrink FDR's search and have NO
+  CSP-semantic content (nothing in the algebra depends on the order squares are
+  filled, and the script itself offers `order` as a free choice); `Reg` IS part of
+  the model the assertions are about and IS ported, at the script's default
+  `order = scanorder`. No postulate, no hole, no pragma beyond `--guardedness`;
+  corecursion never crosses a CSP operator.
 
 ## UCS chapter-6 examples — failures & divergences (`Examples/UCS/Ch6/`)
 
-- `faildiv` (UCS §6.1, `faildiv.csp`) — **already covered** by
-  `CSP.Examples.TPC.Ch3.FailuresDivergences` (TPC §3.3 `section3-3.csp` uses the
-  identical `Q1`–`Q4`/`DIV` processes UCS §6.1 reuses). That module proves,
-  postulate-free, the F-refinement chain `Q3 ⊇F⊥ Q2 ⊇F⊥ Q1`, `DIV ≈FD div`, the
-  ⊓-strictness `Q3 ⊓ DIV ≈FD DIV`, and the full F-vs-FD reversal quartet on `Q4`
-  (`Q2 ⊑F Q4`, `¬(Q4 ⊑F Q2)`, `¬(Q2 ⊑FD Q4)`, `Q4 ⊑FD Q2`) plus the `⊇F⊥` flip.
-  No separate `UCS/Ch6/FailDiv.agda` (pointer, not a re-port — cf.
-  phils→DiningPhilosophers).
+**UCS ch6 is CLOSED**: all four of `chapter06/`'s scripts are ported — `faildiv`
+(`FailDiv`), `buffers` (`Buffers`, plus the `BuffersFSim` smoke test of §15),
+`abp-ft` (`AbpFT`), `commsec` (`CommSec`).
+
+- `FailDiv` (UCS §6.1, `faildiv.csp`) — the Q-family half, ported IN ITS OWN RIGHT
+  as of 2026-09-03. (It was previously recorded here as "already covered, no
+  separate module" by `CSP.Examples.TPC.Ch3.FailuresDivergences`, since TPC §3.3
+  `section3-3.csp` reuses the identical `Q1`–`Q4`/`DIV` processes; that pointer is
+  superseded — `Ch6/FailDiv.agda` now exists, 616 lines, and the TPC module remains
+  independently valid.) `Q1 = a→STOP □ b→STOP` is the REAL external choice (both
+  operands stable pure-visible `react`s, so stability comes from `stable-□-join`,
+  not from matching the pointwise-`nothing` τ-map); `DIV` is a hidden-τ livelock
+  (`AS = a→AS` hidden on {a}). **8 statements, all discharged, POSTULATE-FREE and
+  BRIDGE-FREE** — direct `failures`/`failures⊥`/`divergences` reasoning, no
+  `Semantics.DRImpliesFD`: the choice ladder `q3-refines-q2 : Q3 ⊑F Q2`
+  (`FailDiv.agda:480`) and `q2-refines-q1 : Q2 ⊑F Q1` (`:498`); divergence
+  strictness in BOTH directions, `q3div-refines-div : Q3⊓DIV ⊑FD DIV` (`:524`) and
+  `div-refines-q3div : DIV ⊑FD Q3⊓DIV` (`:540`), i.e. `Q3|~|DIV =FD DIV`; and the
+  **F-vs-FD REVERSAL on `Q4`, the payload of the example** — `q2-refines-q4 : Q2 ⊑F
+  Q4` TRUE (`:552`) with `q4-not-refines-q2 : ¬ (Q4 ⊑F Q2)` (`:578`), against
+  `q4-refines-q2-fd : Q4 ⊑FD Q2` TRUE (`:598`) with `q2-not-refines-q4-fd : ¬ (Q2
+  ⊑FD Q4)` (`:615`). The two orders point OPPOSITE ways because after ⟨b⟩ `Q4` sits
+  inside `DIV`, which is never stable and so refuses nothing (fewer failures than
+  `Q2`), while the FD model sees that same divergence and makes `Q4` the bottom
+  process there. Supporting witnesses are explicit: `q2-fail-b` (`:567`),
+  `q4-nofail-b` (`:571`), `q4-div-b` (`:591`), and `q2-noDivs` (`:432`, `Q2` never
+  diverges). DEFERRED non-goal: the P1–P4 determinism half of `faildiv.csp`
+  (channels c, d and the `[deterministic]` assertions) — that contrast is already
+  carried by `Ch5/Renaming`; only channels a and b are declared here.
 - `Buffers` (UCS ch6, `buffers.csp`) — the FD buffer hierarchy, reduced `T = Bool`,
   `N ∈ {1,2}`. Most-nondeterministic bounded buffer `BUFN : ℕ → List Bool → BProc`
   (the `right!head □ (#s<N & STOP ⊓ left?x)` nondeterminism as a FUSED sliding node:
@@ -1090,8 +1315,7 @@ parallel) are separate specs.
   branch; direct trace-simulation). Both `¬buff1⊑buff2` and `buff2⊑buff1` are
   direct `failures⊥`/`divergences` reasoning, postulate-free and bridge-free (no
   `drbisim`/FD bridge). Deferred non-goals: `WBUFF` (weak buffer + `DIV`), chaining
-  (link-parallel), `N>2`. First genuinely-new ch6 sub-spec (faildiv covered by
-  TPC/Ch3/FailuresDivergences).
+  (link-parallel), `N>2`.
 - `AbpFT` (UCS ch6 §6.5, `abp-ft.csp`) — fault tolerance via LAZY ABSTRACTION,
   single-channel level, `T = Bool`. Controlled-error channel `CE` (may `lose` an
   input / `dup`licate an output, 4 states `CE`/`CEmid`/`CE'`/`CEdup`), reliable
@@ -1106,8 +1330,7 @@ parallel) are separate specs.
   `LAbsE CE` step/τ characterisation lemmas landed, postulate-free/hole-free).
   DEFERRED non-goals: the full `SYSTEME`/`SYSTEMA` refinements (`COPY [F=
   SYSTEMA`, `NoError [F= SYSTEMA` — the plain-ABP 594-state closure wall +
-  abstraction); `normal` compression; larger `DATA`/`TAG`. Second ch6 sub-spec
-  (buffers done).
+  abstraction); `normal` compression; larger `DATA`/`TAG`.
 - `CommSec` (UCS ch6 §6.5, `commsec.csp`) — INFORMATION-FLOW SECURITY via
   noninterference (security = determinism of the High-abstracted system), `data =
   Bool`, Low channel `lois→leah` observed, High abstracted. Each system's
@@ -1123,7 +1346,7 @@ parallel) are separate specs.
   bridge). Reuses the `renaming` determinism contrast (`SPLIT'`/`SPLIT`). DEFERRED
   non-goals: the literal `LAbs(H)(System1–4)` composites (`∥`+`∖{in,out}`+`CHAOS`);
   Systems 3 & 4; the `BN` buffer refinements + High-view checks; the `[FD]`
-  determinism variants. Third and last ch6 sub-spec.
+  determinism variants. Last of the four ch6 sub-specs.
 
 ## UCS chapter-7 examples — termination & sequential composition (`Examples/UCS/Ch7/`)
 
@@ -1153,10 +1376,155 @@ parallel) are separate specs.
   `pos-down`). G1–G3 route through the certified `drbisim→≈FD`, inheriting the
   certified `¬-divergent→normal` (no new postulate); G4 postulate-free. All
   modules hole-free, no `NON_TERMINATING`/`mutual`/Sized. Deferred non-goals:
-  `BN(N)` for N>2, `T` beyond `Bool`, any FD claim about `ZERO`/`POS`,
-  `section7-2.csp` (interrupt/throw — separate track). First UCS-ch7 sub-spec.
+  `BN(N)` for N>2, `T` beyond `Bool`, any FD claim about `ZERO`/`POS`.
+  (`section7-2.csp` was recorded here as a deferred separate track; it landed
+  2026-09-03 as the two modules below.)
 
-_Last updated 2026-07-09._
+- `Resettable` + `Throw` (UCS ch7 §7.2, `section7-2.csp`) — INTERRUPT `/\` and
+  THROW `[|A|>`, split at the source file's `--&&&&…` separator: `Resettable`
+  (1093 lines) takes the interrupt half, `Throw` (1086 lines) the throw half.
+  **7 asserts between them, all discharged, each stated on a term with the REAL
+  operator at its head.**
+  - `Resettable` (5 asserts). Model: `Q = a→b→c→Q`, `Hr = lightning ⟶₀ RQ`,
+    `L1 = Q △ Hr` (= `resettable(Q)`), `L2 = L1 △ Hr`. `qi-nondet : ¬ Deterministic
+    QI` for `QI = Q △ (b→STOP)` (`Resettable.agda:319`, FALSE assert — `b` is offered
+    by BOTH operands after ⟨a⟩, so `△-merge`'s both-offer rule fires and after ⟨a,b⟩
+    the process may be `STOP`, which stably refuses `c` although ⟨a,b,c⟩ is a trace);
+    `L1-refines-RQ : L1 ⊑FD RQ` (`:594`) with its converse `RQ-refines-L1` (`:598`);
+    `L1-det : Deterministic L1` (`:700`, TRUE — `lightning` is disjoint from Q's
+    alphabet, so the both-offer rule never fires); and FD-IDEMPOTENCE of
+    `resettable`, `L1-refines-L2 : L1 ⊑FD L2` (`:1088`) and `L2-refines-L1 : L2 ⊑FD
+    L1` (`:1092`), both from `L1≈L2 : L1 ≈DR L2` (`:1084`). Classical footprint: the
+    two determinism asserts are postulate-free (trace/failures only); the three
+    `⊑FD` ones go through `Semantics.DRImpliesFD`'s `drbisim→⊑FD`, hence the single
+    sanctioned `¬-divergent→normal` — no NEW postulate.
+  - `Throw` (2 asserts), postulate-free. `rt-divergence-free : DivergenceFree (R ⟦ Bs
+    ▷ RTX)` (`Throw.agda:532`) for `R = a→R □ b→DIV` — `b` is CAUGHT by the throw, so
+    `DIV` is unreachable; the mathematical content is the schematic
+    `throw-divFree : DivergenceFree X → DivergenceFree (R ⟦ Bs ▷ X)` (`:442`), and
+    `rtn-divergence-free` (`:537`) additionally covers every finite unfolding.
+    `revivable-deadlock-free : DeadlockFree (Divide ⟦ Es ▷ (revive ⟶₀ V dD))`
+    (`:1080`) — `error→STOP` cannot deadlock the reviving divider, since the throw
+    catches `error` before `STOP` is entered; schematic form `revivable-progress` /
+    `revivable-deadlockFree` (`:677`, `:689`), finite approximations
+    `rvn-deadlock-free` (`:738`), non-vacuity `divide-has-deadlock : HasDeadlock
+    Divide` (`:559` — the UNPROTECTED divider really does get stuck).
+  - **CAVEAT — THESE FIXED POINTS ARE CERTIFIED SOLUTIONS, NOT CONSTRUCTED ONES, AND
+    UNIQUENESS IS NOT PROVED.** Corecursion through a CSP operator is rejected by
+    `--guardedness` in EVERY formulation: **11 were measured** across the two modules
+    (2 in `Resettable`'s header, 9 in `Throw`'s), each typechecked and each refused
+    with `[TerminationIssue]`. Guardedness accepts a corecursive occurrence only as a
+    DIRECT argument of a constructor and does not see through an argument position of
+    a DEFINED function — and `_△_`/`_⟦_▷_` are defined functions, so re-establishing
+    a constructor inside the handler slot does not help either. Neither
+    `NON_TERMINATING`/`TERMINATING`, nor sized types, nor a postulate, nor inlining
+    the operator away is used (all four excluded); a generic `fix` would accept
+    `fix (λ X → X)`, so the obstruction is real. **So `resettable`/`RT`/`revivable`
+    are NOT constructed fixed points.** Each is an explicit process (raw `react`
+    copatterns, containing no operator under test) plus a MACHINE-CHECKED PROOF that
+    it SOLVES Roscoe's defining equation: `fix-L1 : RQ ≈DR L1` (`Resettable.agda:574`)
+    and `fix-L2 : RQ ≈DR L2` (`:1068`) at `≈DR`; `rtx-fixpoint : RTX ∼ (R ⟦ Bs ▷ RTX)`
+    (`Throw.agda:499`), `V-fixpoint : V dD ∼ (Divide ⟦ Es ▷ (revive ⟶₀ V dD))`
+    (`:1068`) and `Vh-fixpoint : Vh ∼ (revive ⟶₀ V dD)` (`:1073`) at STRONG `∼`.
+    **UNIQUENESS of the solution — the CSP metatheorem that Roscoe's constructive
+    recursions have a unique fixed point — is argued in PROSE in both headers and is
+    NOT formalised.** `fix-L2` is proved independently of `fix-L1`, so no question is
+    begged there. Inlining is never a substitute for the operator under test: it only
+    supplies the fixed point `--guardedness` refuses to build, and the equation it
+    must satisfy is discharged, not assumed.
+
+**UCS ch7 is CLOSED**: both of `chapter07/`'s scripts are ported — `section7-1.csp`
+(`Termination`/`SeqBuffers`/`Counter`) and `section7-2.csp` (`Resettable`/`Throw`).
+
+_Last updated 2026-09-03._
+
+---
+
+## UCS chapter-8 examples — Lazić's determinism check (`Examples/UCS/Ch8/`)
+
+**UCS ch8 is CLOSED with ONE file.** `chapter08/`'s other nine scripts are FDR
+compression material: every assertion in them has the shape `Spec [FD= compress(Impl)`
+for `compress ∈ {sbisim, diamond, normal, chase, explicate}`, and those are
+semantics-preserving state-space reductions — `Spec [FD= compress(Impl)` is literally
+the same theorem as `Spec [FD= Impl`, so they carry no proof obligation here
+(`compression09.csp` has no assertions at all). `lazic.csp` is the exception: it is a
+statement about the FAILURES MODEL, not about the tool.
+
+- `Lazic` (UCS ch8, `lazic.csp`) — RANKO LAZIĆ'S DETERMINISM ALGORITHM, which reduces
+  "is P deterministic?" to the stable-failures refinement `LHS [F= RHS(P)`, where
+  `RHS(P)` runs two copies of P against each other through a `clunk`-synchronised
+  harness and a `Repeat` that forces every visible event to happen twice. All three of
+  Roscoe's assertions proved, at their FDR truth values: `lazic-D : LHS ⊑F RHS D`
+  (TRUE), `lazic-ND : ¬ (LHS ⊑F RHS ND)` and `lazic-ND2 : ¬ (LHS ⊑F RHS ND2)` (both
+  FALSE). The two negatives are explicit mid-pair deadlock witnesses — a failure
+  `(⟨a,a,b⟩,{b})` for ND and `(⟨a⟩,{a})` for ND2 — that `LHS` cannot have, since after
+  an odd-length trace `LHS` sits in `LHSw x` and must still offer `x`. The positive is
+  a WEAK SIMULATION with refusal transfer (`SimR`, three obligations `sim-ev`/`sim-τ`/
+  `sim-ref`) over the 26 reachable harness states; determinism of D is what makes the
+  mid-pair states `M1`/`M2` offer exactly the pending event.
+  **The payload is the CALIBRATION** (`cal-D`/`cal-ND`/`cal-ND2`): each Lazić verdict is
+  paired with the DIRECT verdict from `Semantics.Determinism` (`D-det`,
+  `ND-nondet`, `ND2-nondet`), and the two agree on all three subjects. Without that the
+  three refinement checks would be three isolated facts.
+  NOT attempted: the general metatheorem `∀ P → Deterministic P ↔ LHS ⊑F RHS(P)`
+  (Lazić's theorem proper; Roscoe's file asserts only the three instances).
+  1478 lines, postulate-free — the whole 18-module local dependency closure carries no
+  `postulate`, no NON_TERMINATING/TERMINATING and no sized types.
+
+_Last updated 2026-09-04._
+
+---
+
+## Dining philosophers (`Examples/DiningPhilosophers/`)
+
+The repo's oldest example, predating the UCS-campaign conventions and living
+OUTSIDE the UCS tree. It is what UCS ch3's `Phils.agda` witness module cites for
+`phils.csp`; the ch3 entry above records the assert-by-assert coverage, and this
+section records the state of the development itself.
+
+| Module | Lines | Headline results | Status |
+|---|---|---|---|
+| `DiningPhilosophersCSP.lagda.md` | 830 | `dp-csp-deadlock-reachable : HasDeadlock SYSTEMsym` (`:808`, inside `module DeadlockReachable`) — the symmetric ring wedges | ✅ |
+| `DiningPhilosophersCSP_DeadlockFree.agda` | 1565 | `deadlock-free-asym : DeadlockFree SYSTEMasym` (`:1563`) — the asymmetric ring does not, via `progress` over 400 configs | ✅ at n = 2 only |
+| `DiningPhilosophersCSP_DeadlockFreeN.agda` | 1603 | **NONE** — no `DeadlockFree` and no `HasDeadlock` theorem in the file at all | 🟡 green, but the parametric argument is NOT closed |
+| `DiningPhilosophersCSP_SystemP.lagda.md` | 154 | scaffold only (event type, `DecEq`, plain `Parallel` instances, ring arithmetic) — an independent `SYSTEM'`-style model | 🟡 scaffold |
+| `DiningPhilosophersRelational.lagda.md` | 1258 | RELATIONAL: `philosophers-deadlock : Reachable allOne × Stuck allOne` (`:1218`), `philosophers-deadlock-free : Reachable c → Enabled c` (`:1224`), `eat-reachable` (`:835`); LIFTED to trees: `proc-allOne-IsStuck` (`:1240`), `proc-init-DeadlockFree-asym` (`:1256`) | ✅ **was RED until 2026-09-03** |
+
+Reading that table honestly:
+
+- **Coverage of `phils.csp` is 2 of 5 asserts, at N = 2, non-parametric** — assert 2
+  (refuted: the symmetric deadlock, which is the point of the example) and assert 5
+  (proved). See the `Phils` entry in the ch3 section for why asserts 1 and 4 are
+  refused and why assert 3 is gated.
+- **There is NO `BUTLER` process anywhere in this repository.** Assert 3 cannot be
+  stated, let alone proved.
+- `DiningPhilosophersCSP_DeadlockFreeN.agda` typechecks — 1603 green lines of
+  general-`n` per-component reach-closure machinery — but proves **no**
+  deadlock-freedom or deadlock theorem; the parametric `progress` argument is the
+  missing piece, and it is what gates both a general-N result and `phils.csp`'s
+  butler. Its own header (line 3) still reads "WORK IN PROGRESS (uncommitted)",
+  which is **stale as to commit status** (three commits touch the file and the tree
+  is clean) though still accurate as to the mathematics.
+- **`DiningPhilosophersRelational.lagda.md` was RED (exit 42) until 2026-09-03.**
+  `proc-deadlock-free` (`:1126`) fed `DeadlockFree`'s big-step argument — stated over
+  the √-free reachability `⟹∖√` — straight into `reach-transport`, which consumes the
+  general `⟹`; the repair inserts the `embed∖√` coercion at `:1128`, exactly as
+  `DiningPhilosophersCSP_DeadlockFree` already does for `deadlock-free-asym`. It was
+  fallout from the √-free `DeadlockFree` redefinition, and went unnoticed because
+  **nothing imports this module** — a reminder that import-by-nobody leaves rot
+  silently.
+- **`Relational` is NOT a model of `phils.csp`, and not the same process as the CSP
+  network.** Its `proc` is a HAND-GENERATED monolithic tree over a relational
+  `Config = Fin n → Local` (bridged to the tree semantics by a react-guarded
+  generator), not the alphabetised-parallel CSP composition; and its asymmetry is the
+  RESOURCE-ORDERED strategy (every philosopher takes its lower-numbered fork first),
+  NOT Roscoe's flip-philosopher-0. It is an abstraction of the PROBLEM. `Phils.agda`
+  lists it only so nobody goes looking for it as a port, and does not use it.
+
+_Last updated 2026-09-03._
+
+---
+
 ## Cardano network example — link-indexed network vs. `CopySpec` (`Examples/Cardano_network/`)
 
 `NetworkLink` (`NetworkLink.agda`) re-renders the monolithic `Network` mux
@@ -1339,8 +1707,8 @@ a premise-shape marker, and renaming it would be wrong.
 | Non-empty replicated interleaving `⦀⁺` / `⦀Fin⁺` (no trailing `Skip`, unlike `⦀⋆`/`⦀Fin` — `CSP/Operators.agda:646,653`) | ❌ | ✅ `OffersOnly-⦀Fin⁺` (alphabet-confinement of the non-empty fold) + `cong-⦀Fin⁺` — `Bisim/DRCongruenceRep.agda:546,571` (disjoint-alphabet `Sep` discharged from `OffersOnly` alone, same shape as `cong-⦀Fin`).  ⚠️ **`cong-⦀Fin⁺` is currently UNUSED** — a sunk cost of a mid-campaign route change (2026-08-12): the N-node assembly was first aimed at `≈DR`, which needs this congruence's pairwise per-node alphabet disjointness, but that disjointness was REFUTED for nodes (they share link alphabets with their neighbours), so the campaign re-routed to assemble at `⊑FD` instead | ❌ | ✅ **`⦀Fin⁺-mono-⊑FD` / `⦀⁺-mono-⊑FD` — `FD/ParallelMonoFD.agda:748,755`, FACT-SHAPED and needing NO `Disj`/`OffersOnly`** (inductions over the unconditional `⦀-mono-⊑FD` — this fold, unlike the `≈DR`/`FSim` fold above, carries **no side condition at all**).  ⚠️ NON-EMPTY like `∥⁺`/`∥Fin` and NOT like `⦀Fin`/`⦀⋆`: `⦀⁺ P [] = P`, `⦀Fin⁺ zero f = f fzero`, so the base case hands back an OPERAND, not `⊑FD-refl Skip` |
 | Replicated interface parallel `∥⁺` / `∥Fin` | ❌ | ❌ | ❌ | ✅ **`∥⁺-mono-⊑FD` / `∥Fin-mono-⊑FD` — `FD/ParallelMonoFD` (Layer 9), FACT-SHAPED, NO side condition** (inductions over the unconditional `∥-mono-⊑FD`; each carries the one shared synchronisation `EventSet` as an explicit first argument).  ⚠️ Both are **NON-EMPTY** like `⨅⁺`/`⨅Fin` and unlike the `⦀` folds, because interface parallel has no unit: `∥⁺ A P [] = P`, `∥Fin A zero f = f fzero`.  ✅ **Stable-failures twins `∥⁺-mono-⊑F` / `∥Fin-mono-⊑F` — `FD/ParallelMonoFD` (Layer 10), same shape, same non-emptiness, over the unconditional `∥-mono-⊑F`** |
 | Hiding `∖` | ✅ `hide-cong-FD` — `FD/Congruences`, **unconditional** | ✅ `cong-∖` — `Bisim/DRCongruence`, **unconditional** | ✅ `Hide-fsim` — `FSim/HideCong`, **unconditional** | ✖ unconditional `Hide-mono-⊑FD` is **FALSE** (`FD/HideMonoFD`); only `Hide-mono-⊑FD-df`, conditional on divergence-freedom of the **REFINED / RIGHT (implementation) operand's hide `Q∖A`** — `∀ {s} → ¬ divergences (Q∖A) s`, NOT of the spec's hide `P∖A` (`HideMonoFD.agda:243` calls it "the refined side's hide"; signature at :268-270) — and the unconditional failures-only half `Hide-mono-fail`.  ✅ **BUT at STABLE FAILURES the law IS unconditional: `Hide-mono-⊑F` — `FD/HideMonoFD`:255 (2026-08-04), `P ⊑F Q ⇒ (P∖A) ⊑F (Q∖A)`, NO side condition**, because `_⊑F_` has no `divergences` disjunct for hiding's τ-introduction to break; pairs with `Par-mono-⊑F` (Layer 10 of `FD/ParallelMonoFD`) to give a hide-crossing compositional route at refusal strength |
-| Renaming `⟦R⟧` / `renameMap` | ✅ `rename-cong-FD` / `renameMap-cong-FD` — `FD/Congruences`, **unconditional** | ✅ `cong-renameInv` / `cong-renameMap` — `Bisim/DRCongruence`, **unconditional** | ❌ (no `rename-fsim` built) | ✅ **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/RenameMonoFD` (2026-08-04) — renaming's FIRST monotonicity law at any shape.  ✅ `renameInv-mono-⊇D` **UNCONDITIONAL and CONSTRUCTIVE** — `renameInv` relabels step-for-step, so `ren-τ-fwd`/`ren-τ-inv` are mutually inverse on steps and `Diverges (P⟦inv⟧ⁱ) ↔ Diverges P` is a plain corecursive projection: **no König step anywhere, zero postulates local or inherited** (the cheapest divergence transfer in the repo, and the reason rename is the cheap congruence).  ⚠️ `renameInv-mono-⊇F⊥` / `renameInv-mono-⊑FD` take `RenTight inv` (a forward section `fwd` with `inv (fwd ce) ≡ just ce`, plus `inv ce ≡ just ce′ → ce ≡ fwd ce′`, i.e. no visible fan-OUT).  That is a **LEVEL artefact, not mathematics**: transferring a reached refusal needs the target ban set pulled back along `inv`, and the honest pullback `Σ[b] (inv b ≡ just e × B (evl b))` lives at `lsuc ℓ ⊔ ℓe ⊔ ℓr` because it quantifies over `AnyTypes E`, whereas `_⊇F⊥_ {R = Rr}` pins ban sets to `Set ℓr`; `RenTight` makes the pullback POINTWISE (`banSrc B e = B (fwd e)`) and hence level-`ℓr`.  Same family of obstruction as `BindMonoFD`'s shared result level and `IterateMonoFD`'s `ℓr ≡ ℓ`.  ✅ It **DISCHARGES for `renameMap`** (`ι-vis-inv-tight`: at the same alphabet `ι = id`/`ι⁻¹ = just` makes `ι-vis-inv` the identity inverse), so `renameMap-mono-⊇D` / `-⊇F⊥` / `-⊑FD` are all UNCONDITIONAL.  ⚠️ Stated at the SAME alphabet, following the `⊑T` precedent `TraceLawsRename.renameInv-mono-⊑ᵀ` — so, unlike the `≈DR`/`≈FD` rename congruences, it needs NO `ι`/`ι⁻¹`/`ι-linv` telescope and no `E-≟`.  Scope: the GENERAL relational `_⟦R¿preimg⟧` (with fan-in) is NOT covered, same scope limit as `cong-renameInv` |
-| Bind `>>=` / `>>` | ❌ (not built directly at `≈FD`/`≈DR`) | ❌ | ⚠️ `Bind-fsim` (needs `BindDivSplit`) / `bindNoτ-fsim` / `bindκ-fsim` (both unconditional) / `>>-fsim` (unconditional, bakes in `>>-split`) — `FSim/BindCong` | ✅ **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/BindMonoFD` (2026-08-04): ⚠️ `>>=-mono-⊑FD` (needs `BindDivSplit k₂` — the König split, on the REFINED continuation, for the `⊇D` half ONLY) · ✅ `bindNoτ-mono-⊑FD` / `bindκ-mono-⊑FD` / **`>>-mono-⊑FD`** all UNCONDITIONAL (split discharged by `bind-noτ-split` / `pure→NoTauRoot` / `>>-split`).  All four pin a SHARED result level `R S : Set ℓr` — a LEVEL constraint, not a mathematical one: `_⊇F⊥_` ties a carrier's ban set to `Event√ R → Set ℓr`, and transferring a still-in-prefix failure needs the composite's `Event√ S` ban set RETAGGED over `Event√ R` (`banP`); `Lift` only raises levels.  Same reason `IterateMonoFD` pins `ℓr ≡ ℓ`, but weaker (any shared level).  These four SUPERSEDE and REPLACE the retired `FD/LoopMonoFD` cash-outs, and unlike them they are NOT leaf-level — a `⊑FD` fact from anywhere composes.  `bindκ-mono-⊑FD` is also what carries `loop`/`while` in `FD/IterMonoFD` (their `iter` steps are pure-continuation binds) |
+| Renaming `⟦R⟧` / `renameMap` | ✅ `rename-cong-FD` / `renameMap-cong-FD` — `FD/Congruences`, **unconditional** | ✅ `cong-renameInv` / `cong-renameMap` — `Bisim/DRCongruence`, **unconditional** | ❌ (no `rename-fsim` built) | ✅ **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/RenameMonoFD` (2026-08-04) — renaming's FIRST monotonicity law at any shape.  ✅ `renameInv-mono-⊑D` **UNCONDITIONAL and CONSTRUCTIVE** — `renameInv` relabels step-for-step, so `ren-τ-fwd`/`ren-τ-inv` are mutually inverse on steps and `Diverges (P⟦inv⟧ⁱ) ↔ Diverges P` is a plain corecursive projection: **no König step anywhere, zero postulates local or inherited** (the cheapest divergence transfer in the repo, and the reason rename is the cheap congruence).  ⚠️ `renameInv-mono-⊑F⊥` / `renameInv-mono-⊑FD` take `RenTight inv` (a forward section `fwd` with `inv (fwd ce) ≡ just ce`, plus `inv ce ≡ just ce′ → ce ≡ fwd ce′`, i.e. no visible fan-OUT).  That is a **LEVEL artefact, not mathematics**: transferring a reached refusal needs the target ban set pulled back along `inv`, and the honest pullback `Σ[b] (inv b ≡ just e × B (evl b))` lives at `lsuc ℓ ⊔ ℓe ⊔ ℓr` because it quantifies over `AnyTypes E`, whereas `_⊑F⊥_ {R = Rr}` pins ban sets to `Set ℓr`; `RenTight` makes the pullback POINTWISE (`banSrc B e = B (fwd e)`) and hence level-`ℓr`.  Same family of obstruction as `BindMonoFD`'s shared result level and `IterateMonoFD`'s `ℓr ≡ ℓ`.  ✅ It **DISCHARGES for `renameMap`** (`ι-vis-inv-tight`: at the same alphabet `ι = id`/`ι⁻¹ = just` makes `ι-vis-inv` the identity inverse), so `renameMap-mono-⊑D` / `-⊑F⊥` / `-⊑FD` are all UNCONDITIONAL.  ⚠️ Stated at the SAME alphabet, following the `⊑T` precedent `TraceLawsRename.renameInv-mono-⊑ᵀ` — so, unlike the `≈DR`/`≈FD` rename congruences, it needs NO `ι`/`ι⁻¹`/`ι-linv` telescope and no `E-≟`.  Scope: the GENERAL relational `_⟦R¿preimg⟧` (with fan-in) is NOT covered, same scope limit as `cong-renameInv`.  ⚠️ See the **2026-09-05 GAP note** among §17's addenda below for what that scope limit costs — no fan-in monotonicity at ANY FD strength, `RenTight` REFUTED by fan-out (worked counterexample `Ch9/Angel.agda`'s `erInv`) — and for the doubt over reading the “level artefact” framing across to fan-in |
+| Bind `>>=` / `>>` | ❌ (not built directly at `≈FD`/`≈DR`) | ❌ | ⚠️ `Bind-fsim` (needs `BindDivSplit`) / `bindNoτ-fsim` / `bindκ-fsim` (both unconditional) / `>>-fsim` (unconditional, bakes in `>>-split`) — `FSim/BindCong` | ✅ **FACT-SHAPED** (`⊑FD → ⊑FD`), `FD/BindMonoFD` (2026-08-04): ⚠️ `>>=-mono-⊑FD` (needs `BindDivSplit k₂` — the König split, on the REFINED continuation, for the `⊑D` half ONLY) · ✅ `bindNoτ-mono-⊑FD` / `bindκ-mono-⊑FD` / **`>>-mono-⊑FD`** all UNCONDITIONAL (split discharged by `bind-noτ-split` / `pure→NoTauRoot` / `>>-split`).  All four pin a SHARED result level `R S : Set ℓr` — a LEVEL constraint, not a mathematical one: `_⊑F⊥_` ties a carrier's ban set to `Event√ R → Set ℓr`, and transferring a still-in-prefix failure needs the composite's `Event√ S` ban set RETAGGED over `Event√ R` (`banP`); `Lift` only raises levels.  Same reason `IterateMonoFD` pins `ℓr ≡ ℓ`, but weaker (any shared level).  These four SUPERSEDE and REPLACE the retired `FD/LoopMonoFD` cash-outs, and unlike them they are NOT leaf-level — a `⊑FD` fact from anywhere composes.  `bindκ-mono-⊑FD` is also what carries `loop`/`while` in `FD/IterMonoFD` (their `iter` steps are pure-continuation binds) |
 | Replicated sequential `⨾⋆` / `⨾Fin` | ❌ | ❌ | ❌ | ✅ **`⨾⋆-mono-⊑FD` / `⨾Fin-mono-⊑FD` — `FD/BindMonoFD`, FACT-SHAPED, unconditional** (inductions over `>>-mono-⊑FD`).  ⚠️ BOTH FOLDS ARE **EMPTY-BASED** — `⨾⋆ [] = Skip` and `⨾Fin zero f = Skip`, `Skip` being the unit of `;` (`Operators`:358-364) — so the base case is `⊑FD-refl Skip`, exactly like `⦀Fin`/`⦀⋆`/`□Fin`/`□⋆` and NOT like `⨅⁺`/`⨅Fin`/`∥⁺`/`∥Fin`, whose base hands back an operand.  Both fold with `_>>_`, never the general `_>>=_`, so no side condition is threaded through the fold |
 | Iterate / loop family (`iter`/`loop`/`loop0`/`loopc`/`while`) | ❌ (not built directly at `≈FD`/`≈DR`) | ❌ | ✅ `Iter-bind-fsim` + 5 corollaries — `FSim/LoopCong`, all **unconditional** (`iter-div-split` discharges the König step generically) | ✅ **FACT-SHAPED throughout** (`⊑FD → ⊑FD`), `FD/IterMonoFD` (2026-08-04): `iter-mono-⊑FD` / `loop-mono-⊑FD` / `while-mono-⊑FD` / `loopc-mono-⊑FD`, plus the pre-existing `loop0-mono-⊑FD` (`FD/IterateMonoFD`, §12).  These four SUPERSEDE and REPLACE the shape-3 cash-outs of the same names in `FD/LoopMonoFD`, whose deletion emptied and therefore DELETED that module.  **DEFINITIONAL RELATIONSHIPS (all `refl`, `Operators`:1017-1063), and they are what make this cheap:** `loop body a = iter (body a >>= Ret ∘ inj₁) a` and `while c body a = iter (body a >>= Ret ∘ tag c) a`, so `loop`/`while` fall out of the general `iter` law composed with the UNCONDITIONAL `bindκ-mono-⊑FD` (the step's continuation is pure); and `loopc body = loop (λ _ → body) tt = loop0 body` **TEXTUALLY**, not merely up to equivalence, so `loopc-mono-⊑FD` IS `loop0-mono-⊑FD` — `loopc` follows from `loop0`, not only from `loop`.  `iter-mono-⊇F⊥`/`-⊇D` generalise `IterateMonoFD`'s `loop0` proof from a `PTree ⊤` body to a state-indexed step: the `Acc _<_`-on-`runLen` recursion carries over UNCHANGED (`IterSplitN`/`iter-bind-invN` were already `iter`-generic), the loop state threads through as a pointwise premise, the loop-back states are forced to agree on the next state `a′` by the `√` tick CARRYING the returned value, and the `in-done` arm — vacuous for `loop0` — is new and constructive.  Side condition: `A R : Set ℓ`, the same ban-set level pin `IterateMonoFD` imposes.  ⚠️ Inheritance is STRICTLY WEAKER than the `loop0` specialisation's: the general laws use `FSim/LoopCong.iter-div-split` (a DERIVED lemma over `Diverges-LEM` + `¬DivModA→MAcc`) and **not** the `loop0`-specific postulate `IterateFD.loop-Diverges→` that `loop0-mono-⊑FD` leans on; the `⊇F⊥` half needs no classical ingredient of its own |
 | Guard `＆` (`b ＆ P = guard b >> P`) | ❌ | ❌ | ❌ | ✅ **`＆-mono-⊑FD` — `FD/DerivedMonoFD`, FACT-SHAPED, unconditional, `--safe`-clean**.  Not quite free: `PTree` is a COINDUCTIVE record, so there is no η and `Skip >> P` is a *different tree* from `P` with the same `force`.  The law goes through `force-≡→⊑FD` (force-equal trees are ⊑FD-interchangeable — the FD analogue of `Traces/TraceLawsGuard.force-≡→traces-⊆`, which proves the same law at `⊑T` as `＆-mono-⊑ᵀ`, and of `FD/SeqLaws.sbisim-force-eq` at `∼`).  That bridge was HOISTED 2026-08-04 out of `DerivedMonoFD` into `Semantics/FailuresDivergences` (beside `⊑FD-refl`/`⊑FD-trans`), where it is proved DIRECTLY over the LTS from a new generic `step-force-≡` — the statement is "every LTS rule reads its source only through `force`", generic in `E`/`I` and CSP-free; `DerivedMonoFD`'s `CSP.Laws.FD.BindFD` dependency went away with it.  The `false` branch is force-equal on both sides at once: `Stop >> P` deadlocks independently of `P` |
@@ -1369,6 +1737,53 @@ a premise-shape marker, and renaming it would be wrong.
 * Both are stated with a level restriction of the same family as `BindMonoFD`'s shared
   result level: `A R : Set ℓ` for the loop laws, `RenTight` for rename's failure half.
   Neither is a mathematical weakening.
+
+**GAP (recorded 2026-09-05): renaming has NO monotonicity law that covers FAN-IN at any
+FD strength, and `RenTight` is REFUTED by fan-out.**  Rediscovered the expensive way while
+working `CSP/Examples/UCS/Ch9/Angel.agda`; recorded here so it is found rather than
+re-derived.  Three facts, each verified by search over the tree, not assumed:
+
+* **The general relational operator has no monotonicity law.**  `FD/RenameMonoFD` provides
+  monotonicity for `renameInv` and `renameMap` ONLY.  The general relational rename
+  `_⟦_¿_⟧` (`CSP/Rename.agda:91`) — the operator any FAN-IN renaming must use — has no
+  `-mono-⊑D` / `-mono-⊑F⊥` / `-mono-⊑FD` in that module or anywhere else in the repo.  It
+  DOES have trace monotonicity: `renameG-mono-⊑ᵀ`
+  (`CSP/Laws/Traces/TraceLawsRenameGen.agda:371`).  The gap is at FD strength, not at `⊑T`.
+* **The gap is in the LAWS, not in the operator.**  `_⟦_¿_⟧` supports fan-in fully.
+  `renameInv P inv = P ⟦ invRel inv ¿ invPreimg inv ⟧` (`CSP/Rename.agda:184`) IS the
+  general operator, with the preimage list `invPreimg` (`CSP/Rename.agda:172-177`)
+  restricted to at most one element per target; and `rnFan` (`CSP/Rename.agda:149-151`)
+  already gives a ≥2-element preimage list the correct internal-choice semantics — a
+  `react` node offering nothing visibly whose τ-branches (`rnBranch`) are the renamed
+  sources, i.e. the `⨅` the fan-in bridge `RenameFanIn.fanNode ≈FD ⨅⁺` names.  Nothing is
+  missing from the semantics; what is missing is a proof about it.
+* **`RenTight` is refuted by visible fan-OUT.**  `renameInv`'s failure half
+  (`renameInv-mono-⊑F⊥` / `-⊑FD`, `RenameMonoFD.agda:360,382`) takes `RenTight inv`
+  (`RenameMonoFD.agda:284`), a partial-bijection record: a forward section `fwd` with
+  `fwd-inv` and `inv-fwd`.  Any `inv` sending two target events to one source event refutes
+  it — `inv-fwd` forces both targets to equal `fwd` of that one source, hence to equal each
+  other.  Worked counterexample already in the tree: `CSP/Examples/UCS/Ch9/Angel.agda`'s
+  `erInv` (`:205-214`) maps both `ev.x.i.V` and `ev.x.i.H` to `just (sig x)`, the `Status`
+  component being a wildcard in the two live clauses (`:206`, `:209`), so `ER`
+  (`Angel.agda:284-285`) provably fails `RenTight`.  `renameInv-mono-⊑D` is unaffected — it
+  is unconditional.
+
+**Consequence, stated plainly: a compositional `⊑FD` route through a term containing a
+fan-out `renameInv`, or any use of `_⟦_¿_⟧`, is NOT available today.**  That is what closed
+the compositional route for `Ch9/Angel.agda`'s third assert (`ABC [FD= bangelic(bangelic(A,B),C)`,
+`Angel.agda:33`); that file's header instead prices the direct reachable-state route.
+
+**Open question, deliberately NOT adjudicated here.**  `FD/RenameMonoFD`'s own header
+(`:36-62`) argues that `RenTight` is "a LEVEL artefact of how `_⊑F⊥_` is stated, NOT a
+failure of FD-monotonicity": the honest ban-set pullback `Σ[b] (inv b ≡ just e × B (evl b))`
+quantifies over `AnyTypes E` and so outranks the carrier level to which `_⊑F⊥_` pins its ban
+sets, and `RenTight` is what makes the pullback pointwise.  That is recorded here AS THE
+MODULE'S CLAIM, and it is a claim about `renameInv`, i.e. about fan-OUT.  Whether the same
+framing survives contact with genuine FAN-IN is open and doubted: under fan-in a single
+target offer is backed by SEVERAL source offers, so a target refusal does not pull back
+pointwise at all, and the obstruction there may be mathematical rather than a matter of
+universe levels.  Nobody has attempted it.  Do NOT read the "level artefact" framing as a
+difficulty or cost estimate for the missing relational law.
 
 **Addendum: FACT-SHAPED `⊑FD` precongruences for `□` and throw (2026-08-04, later).**
 `□-mono-⊑FD` (+ the folds `□Fin-mono-⊑FD`/`□⋆-mono-⊑FD`) now live in

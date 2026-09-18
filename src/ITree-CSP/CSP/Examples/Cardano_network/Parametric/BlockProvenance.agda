@@ -18,15 +18,15 @@
 -- emit is well-announced, PROVIDED every block I was handed was" — and
 -- closed around the loop.
 --
--- WHY NO WELL-FOUNDED MEASURE.  The spec's minted set `ms` is GLOBAL, so
+-- WHY NO WELL-FOUNDED MEASURE.  The spec's forged set `ms` is GLOBAL, so
 -- the rely of one component and the guarantee of the component that pins
 -- the value are the SAME predicate `WellAnnounced ms` at the SAME index.
 -- Assume-guarantee for a safety property then collapses to a plain
 -- step-preserved invariant: the parallel congruence discharges the rely of
 -- one operand with the guarantee of the other AT THE SAME STEP, and guarded
 -- coinduction over the LTS is the whole induction.  The only SOURCE of
--- blocks — the store's mint clause — is already guarded by exactly
--- `WellAnnounced (mintedAfter mb ms) b` (`NodeLogic.acceptMint`), so the
+-- blocks — the store's forge clause — is already guarded by exactly
+-- `WellAnnounced (forgedAfter mb ms) b` (`NodeLogic.acceptForge`), so the
 -- seed is free.
 --
 -- THE CARRIER IS GENERIC.  `Carrier` below is parametric in the alphabet,
@@ -53,11 +53,11 @@
 --     relies, and a rely is always a synchronised input".
 --
 --   * `Wf` is CLOSED UPWARD IN THE STATE BY DEFINITION: both fields
---     quantify over every `s′ ≥ s`.  Monotonicity in the minted set is
+--     quantify over every `s′ ≥ s`.  Monotonicity in the forged set is
 --     FALSE for a naive rely-guarantee predicate (a process that checks its
 --     input against a hard-coded `ms` is well-formed at `ms` and at no
 --     superset), yet the parallel congruence needs it for the operand that
---     did NOT take part in a mint.  Building the closure into the record
+--     did NOT take part in a forge.  Building the closure into the record
 --     makes `wf-mono` a two-line projection and costs the relay leaves
 --     nothing — their registers are `WellAnnounced` at every superset by
 --     `wellAnnounced-mono`.
@@ -94,10 +94,10 @@ import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
 ------------------------------------------------------------------------
 
 -- the carrier, parametric in the alphabet `E`, the global state `S` (the spec's
--- minted set), the payload type `B` (blocks), the relation `Carries at a b` — "the
+-- forged set), the payload type `B` (blocks), the relation `Carries at a b` — "the
 -- visible event `a` on channel `at` carries the value `b`" — the per-state payload
--- predicate `WA` (well-announced), the state update `next` a label performs (a mint
--- grows the minted set; everything else keeps it), and the growth order `_≤_`
+-- predicate `WA` (well-announced), the state update `next` a label performs (a forge
+-- grows the forged set; everything else keeps it), and the growth order `_≤_`
 module Carrier {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y))
   (S B : Set)
   (Carries : (at : AnyTypes E) → proj₁ at → B → Set)
@@ -436,7 +436,7 @@ module Carrier {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E)
 -- instances of `Carrier` are involved, so this cannot live inside it — the
 -- same reason `CSP.Laws.Bisim.RenameOffers` sits beside `DRCongruenceRep`.
 -- The SOURCE carrier is state-agnostic (`next₁ = λ _ s → s`): a renamed
--- component never mints, and that is what keeps the transport premise-light.
+-- component never forges, and that is what keeps the transport premise-light.
 ------------------------------------------------------------------------
 
 module Rename {ℓ ℓe₁ ℓe₂} {E₁ : Set ℓ → Set ℓe₁} {E₂ : Set ℓ → Set ℓe₂}
@@ -515,14 +515,14 @@ module Rename {ℓ ℓe₁ ℓe₂} {E₁ : Set ℓ → Set ℓe₁} {E₂ : Set
 
 -- the instance, parametric in the network parameters, the topology and the api
 -- alphabet — the same three parameters every other `Parametric.Announce*` module
--- takes, so `Minted`, `WellAnnounced`, `mintedAfter` and `Gated` are literally theirs
+-- takes, so `Forged`, `WellAnnounced`, `forgedAfter` and `Gated` are literally theirs
 module Generic
   (p : Params) (t : Topology p)
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
   open Params p using (Block; EB; EBHash; ebHash; Time; Length)
   open N p
-    using ( Link; Net_Api; Net_Api-≟; env; envMint; apiLN; store; break
+    using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF
           ; stGet; stPut; sendBFBlock; recvBFBlock; sendLNBlockAnnouncement )
@@ -532,8 +532,8 @@ module Generic
   open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; ev; τ; evl; √; evLabel; _─[_]─►_)
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload}) using (Alpha)
-  open AS.Generic p t apiES using (Minted)
-  open AI.Generic p t apiES using (WellAnnounced; mintedAfter; Gated)
+  open AS.Generic p t apiES using (Forged)
+  open AI.Generic p t apiES using (WellAnnounced; forgedAfter; Gated)
   open import Data.List using (List; []; _∷_; _++_)
   open import Data.List.Membership.Propositional.Properties using (∈-++⁺ʳ)
   open import Data.List.Relation.Binary.Subset.Propositional.Properties
@@ -546,9 +546,9 @@ module Generic
   -- THE PROVENANCE CHANNELS: the seven event shapes on which a `Block` travels from
   -- the store to an announcement — the store's two ends, the BlockFetch api in both
   -- directions, the BlockFetch wire in both directions, and the announcement itself.
-  -- `env … envMint` is deliberately ABSENT: neither the mint thread nor the store pins
-  -- that value, and `acceptMint`'s guard restores the invariant one step later; a
-  -- constructor here would make every leaf fact about the mint FALSE.
+  -- `env … envForge` is deliberately ABSENT: neither the forge thread nor the store pins
+  -- that value, and `acceptForge`'s guard restores the invariant one step later; a
+  -- constructor here would make every leaf fact about the forge FALSE.
   data Carries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Block → Set where
     c-stGet  : ∀ {l d b}    → Carries (_ , store l d stGet) b b
     c-stPut  : ∀ {l d b}    → Carries (_ , store l d stPut) b b
@@ -564,41 +564,41 @@ module Generic
   -- The state update
   ------------------------------------------------------------------------
 
-  -- the EB hashes a label mints: one for a mint announcing an EB, none otherwise
-  mintOf : Label (⊤ {0ℓ}) → Minted
-  mintOf (ev (evl (evLabel _ (env _ _ envMint) (just e , _)))) = ebHash e ∷ []
-  mintOf _                                                      = []
+  -- the EB hashes a label forges: one for a forge announcing an EB, none otherwise
+  forgeOf : Label (⊤ {0ℓ}) → Forged
+  forgeOf (ev (evl (evLabel _ (env _ _ envForge) (just e , _)))) = ebHash e ∷ []
+  forgeOf _                                                      = []
 
-  -- the minted set after a label: what it mints, prepended.  On a mint this IS
-  -- `mintedAfter` (definitionally, `++` computing on the one-element list), and on
-  -- every other label it is the identity — phrased through `mintOf` so that growth
+  -- the forged set after a label: what it forges, prepended.  On a forge this IS
+  -- `forgedAfter` (definitionally, `++` computing on the one-element list), and on
+  -- every other label it is the identity — phrased through `forgeOf` so that growth
   -- (`next-⊇`) is one stdlib lemma rather than a case split over the alphabet.
-  next : Label (⊤ {0ℓ}) → Minted → Minted
-  next a ms = mintOf a ++ ms
+  next : Label (⊤ {0ℓ}) → Forged → Forged
+  next a ms = forgeOf a ++ ms
 
-  -- `next` agrees with the spec's own state update on a mint
-  next-mint : ∀ {l d} (mb : Maybe EB × Block) ms
-            → next (ev (evl (evLabel _ (env l d envMint) mb))) ms ≡ mintedAfter mb ms
-  next-mint (just _  , _) ms = refl
-  next-mint (nothing , _) ms = refl
+  -- `next` agrees with the spec's own state update on a forge
+  next-forge : ∀ {l d} (mb : Maybe EB × Block) ms
+            → next (ev (evl (evLabel _ (env l d envForge) mb))) ms ≡ forgedAfter mb ms
+  next-forge (just _  , _) ms = refl
+  next-forge (nothing , _) ms = refl
 
-  -- the minted set only grows
+  -- the forged set only grows
   next-⊇ : ∀ a ms → ms ⊆ next a ms
-  next-⊇ a ms = ∈-++⁺ʳ (mintOf a)
+  next-⊇ a ms = ∈-++⁺ʳ (forgeOf a)
 
   ------------------------------------------------------------------------
   -- The carrier, instantiated
   ------------------------------------------------------------------------
 
-  open Carrier (Net_Api-≟ {Payload}) Minted Block Carries WellAnnounced
+  open Carrier (Net_Api-≟ {Payload}) Forged Block Carries WellAnnounced
                next _⊆_ ⊆-trans next-⊇ public
 
   -- `BlockOK ms a`: if the label `a` carries a block on a provenance channel, that
   -- block is well-announced against `ms` — the instance of the generic `OK`
-  BlockOK : Minted → Label (⊤ {0ℓ}) → Set
+  BlockOK : Forged → Label (⊤ {0ℓ}) → Set
   BlockOK = OK
 
-  -- monotone in the minted set
+  -- monotone in the forged set
   blockOK-mono : ∀ {ms ms′} a → ms ⊆ ms′ → BlockOK ms a → BlockOK ms′ a
   blockOK-mono (ev (evl _)) sub ok c = AI.Generic.wellAnnounced-mono p t apiES sub (ok c)
   blockOK-mono (ev (√ _))   sub ok   = tt
@@ -618,8 +618,8 @@ module Generic
   wf→gate : ∀ {G ms M} → AnnIn G → Wf G ms M → Gated ms M
   wf→gate ann w st = nowW w ⊆-refl (ann _) st c-ann
 
-  -- the system's own hiding keeps the minted set: `∖ ioES` hides only `input`/
-  -- `output`, and a mint rides `env`.  One clause per `Net_Api` constructor, because
+  -- the system's own hiding keeps the forged set: `∖ ioES` hides only `input`/
+  -- `output`, and a forge rides `env`.  One clause per `Net_Api` constructor, because
   -- `ioSet` does not reduce until the constructor is known (as `HideOK-ioES`).
   hideKeep-ioES : HideKeep ioES
   hideKeep-ioES {e = input  _ _ _} _ _  = λ q → q
@@ -645,14 +645,14 @@ module Generic
   -- Sanity: the exemptions really are exemptions
   ------------------------------------------------------------------------
 
-  -- a mint carries no constrained block — the load-bearing exemption, as a refutation
-  mint-free : ∀ {l d} {mb : Maybe EB × Block} {b} → Carries (_ , env l d envMint) mb b → ⊥
-  mint-free ()
+  -- a forge carries no constrained block — the load-bearing exemption, as a refutation
+  forge-free : ∀ {l d} {mb : Maybe EB × Block} {b} → Carries (_ , env l d envForge) mb b → ⊥
+  forge-free ()
 
-  -- …so a mint label is `BlockOK` against ANY minted set
-  blockOK-mint : ∀ {ms l d} {mb : Maybe EB × Block}
-               → BlockOK ms (ev (evl (evLabel _ (env l d envMint) mb)))
-  blockOK-mint ()
+  -- …so a forge label is `BlockOK` against ANY forged set
+  blockOK-forge : ∀ {ms l d} {mb : Maybe EB × Block}
+               → BlockOK ms (ev (evl (evLabel _ (env l d envForge) mb)))
+  blockOK-forge ()
 
   -- a non-provenance channel is `BlockOK` outright: the shape every vacuous leaf uses
   blockOK-apiCS : ∀ {ms l d m} {x} → BlockOK ms (ev (evl (evLabel _ (apiCS l d m) x)))

@@ -9,14 +9,14 @@
 -- node-local ones, and the whole argument turns on ONE fact about the
 -- source of every block in the network:
 --
---   THE SEED.  `NodeLogic.acceptMint` admits a mint `(me , b)` iff
+--   THE SEED.  `NodeLogic.acceptForge` admits a forge `(me , b)` iff
 --   `announcedEB b ≡ map ebHash me`, and that guard IS
---   `WellAnnounced (mintedAfter (me , b) ms) b`: `me = nothing` gives the
+--   `WellAnnounced (forgedAfter (me , b) ms) b`: `me = nothing` gives the
 --   left injection outright, `me = just e` gives `ebHash e`, which
---   `mintedAfter` has just prepended (`mint-seed` below).  So the store's
---   mint clause — the only place a block enters the network from
+--   `forgedAfter` has just prepended (`forge-seed` below).  So the store's
+--   forge clause — the only place a block enters the network from
 --   outside — re-establishes the invariant one step after the unpinned
---   `env … envMint` event, which is why that event is exempt from
+--   `env … envForge` event, which is why that event is exempt from
 --   `Carries`.  The `stPut` clause is unguarded and RELIES on the
 --   deposited block instead: that is the assume-guarantee split, and
 --   `Wf`'s `stepW` hands the rely over (`storeBody`).
@@ -25,7 +25,7 @@
 -- `apiBF recvBFBlock` (rely) to `store stPut` (guarantee) across three
 -- prefixes, `serverLoop` from `store stGet` (rely) to `apiBF sendBFBlock`
 -- (guarantee) across six, `lnServerLoop` from `store stGet` (rely) to the
--- announcement (guarantee) across two; `mint` and `lnClientLoop` touch no
+-- announcement (guarantee) across two; `forge` and `lnClientLoop` touch no
 -- block-carrying channel and are vacuous.  In every case the block lives
 -- in a lambda-bound register that outlives no prefix, so the guarantee is
 -- `wellAnnounced-mono` of the rely along the states the prefixes visit.
@@ -98,10 +98,10 @@ module Generic
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
   -- the SAME opens as `NodeLogic`, so the `_≟_` and `_□_` instances elaborate to the
-  -- terms `acceptMint`/`storeStep` were built with
+  -- terms `acceptForge`/`storeStep` were built with
   open Params p using (Block; EB; EBHash; time₀; length₀; decBlock; ebHash; announcedEB)
   open N p
-    using ( Link; Net_Api; Net_Api-≟; env; envMint; apiLN; store; apiCS; apiBF
+    using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; apiCS; apiBF
           ; stGet; stPut
           ; sendBFRequestRange; reqBFRange; sendBFStartBatch; sendBFBlock
           ; sendBFBatchDone; recvBFBlock
@@ -116,16 +116,16 @@ module Generic
     using (_⦀_; ⦀⁺; Prefix; Output; Ret; _□_)
   open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
-    using ( Held; StoreProc; homeOf; mintEv; putEv; getEv; offerHeld; acceptMint
-          ; storeStep; blockStore; mint; clientBody-k; clientLoop; serverBody-k
+    using ( Held; StoreProc; homeOf; forgeEv; putEv; getEv; offerHeld; acceptForge
+          ; storeStep; blockStore; forge; clientBody-k; clientLoop; serverBody-k
           ; serverLoop; lnServerLoop; lnClientLoop; endpointThreads; allThreads )
   open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; ev; τ; evl; evLabel)
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload}) using (Alpha)
-  open AS.Generic p t apiES using (Minted)
-  open AI.Generic p t apiES using (WellAnnounced; wellAnnounced-mono; mintedAfter)
+  open AS.Generic p t apiES using (Forged)
+  open AI.Generic p t apiES using (WellAnnounced; wellAnnounced-mono; forgedAfter)
   open BP.Generic p t apiES
-  open BPW.Body (Net_Api-≟ {Payload}) Minted Block Carries WellAnnounced
+  open BPW.Body (Net_Api-≟ {Payload}) Forged Block Carries WellAnnounced
             next _⊆_ ⊆-refl ⊆-trans next-⊇
 
   -- product `DecEq` for the `sendCSRollForward` carrier (`Header × Tip`) — the same
@@ -189,29 +189,29 @@ module Generic
   ------------------------------------------------------------------------
 
   -- THE STORE'S INVARIANT: every held block is well-announced
-  StoreInv : Minted → Held → Set
+  StoreInv : Forged → Held → Set
   StoreInv ms held = All (WellAnnounced ms) held
 
-  -- monotone in the minted set, blockwise
+  -- monotone in the forged set, blockwise
   storeInv-mono : ∀ {ms ms′ held} → ms ⊆ ms′ → StoreInv ms held → StoreInv ms′ held
   storeInv-mono sub = All.map (wellAnnounced-mono sub)
 
-  -- THE SEED.  `acceptMint`'s guard, `announcedEB b ≡ map ebHash me`, is exactly
-  -- well-announcedness of `b` against the minted set the mint grows to.
-  mint-seed : ∀ {ms} me b → announcedEB b ≡ Data.Maybe.map ebHash me
-            → WellAnnounced (mintedAfter (me , b) ms) b
-  mint-seed nothing  b eq = inj₁ eq
-  mint-seed (just e) b eq = inj₂ (ebHash e , eq , here refl)
+  -- THE SEED.  `acceptForge`'s guard, `announcedEB b ≡ map ebHash me`, is exactly
+  -- well-announcedness of `b` against the forged set the forge grows to.
+  forge-seed : ∀ {ms} me b → announcedEB b ≡ Data.Maybe.map ebHash me
+            → WellAnnounced (forgedAfter (me , b) ms) b
+  forge-seed nothing  b eq = inj₁ eq
+  forge-seed (just e) b eq = inj₂ (ebHash e , eq , here refl)
 
-  -- …so the store `acceptMint` leaves is well-announced at every superset of the grown
-  -- set: the accepted block by the seed, the rest by monotonicity, a rejected mint by
-  -- monotonicity alone.  The `with` mirrors `acceptMint`'s own.
-  acceptMint-wa : ∀ n {ms held} me b → StoreInv ms held
-                → ∀ {ms′} → next (lbl (mintEv n) (me , b)) ms ⊆ ms′
-                → StoreInv ms′ (acceptMint (me , b) held)
-  acceptMint-wa n {ms} me b inv le with announcedEB b ≟ Data.Maybe.map ebHash me
-  ... | yes eq = wellAnnounced-mono (subst (λ xs → xs ⊆ _) (next-mint (me , b) ms) le)
-                                    (mint-seed me b eq)
+  -- …so the store `acceptForge` leaves is well-announced at every superset of the grown
+  -- set: the accepted block by the seed, the rest by monotonicity, a rejected forge by
+  -- monotonicity alone.  The `with` mirrors `acceptForge`'s own.
+  acceptForge-wa : ∀ n {ms held} me b → StoreInv ms held
+                → ∀ {ms′} → next (lbl (forgeEv n) (me , b)) ms ⊆ ms′
+                → StoreInv ms′ (acceptForge (me , b) held)
+  acceptForge-wa n {ms} me b inv le with announcedEB b ≟ Data.Maybe.map ebHash me
+  ... | yes eq = wellAnnounced-mono (subst (λ xs → xs ⊆ _) (next-forge (me , b) ms) le)
+                                    (forge-seed me b eq)
                  All.∷ storeInv-mono (⊆-trans (next-⊇ _ ms) le) inv
   ... | no  _  = storeInv-mono (⊆-trans (next-⊇ _ ms) le) inv
 
@@ -232,17 +232,17 @@ module Generic
                   (λ le _ → wfR-Ret (λ le′ → storeInv-mono (⊆-trans le le′) inv)))
       (offerHeld-wf n inv bs wbs)
 
-  -- ONE STORE STEP.  Three clauses: the mint — value unpinned, `BlockOK` vacuous
-  -- (`blockOK-mint`), the invariant restored by the seed; the deposit — THE RELY,
+  -- ONE STORE STEP.  Three clauses: the forge — value unpinned, `BlockOK` vacuous
+  -- (`blockOK-forge`), the invariant restored by the seed; the deposit — THE RELY,
   -- `BlockOK ms (put ! b)` is `WellAnnounced ms b`, handed over by `stepR`, so the
   -- unguarded `b ∷ held` is fine; and the offers — the guarantee above.
   storeBody : ∀ n {ms held} → StoreInv ms held → WfR storeG ms StoreInv (storeStep n held)
   storeBody n {held = held} inv =
-    wfR-□ (mintEv n ⟶ (λ mb → Ret (acceptMint mb held)))
+    wfR-□ (forgeEv n ⟶ (λ mb → Ret (acceptForge mb held)))
           ((putEv n ⟶ (λ b → Ret (b ∷ held))) □ offerHeld n held held)
       (stable-node refl) (stable-□ (stable-node refl) (stable-offerHeld n held held))
-      (wfR-Prefix (λ _ _ _ → blockOK-mint)
-                  (λ le mb _ → wfR-Ret (acceptMint-wa n (proj₁ mb) (proj₂ mb) (storeInv-mono le inv))))
+      (wfR-Prefix (λ _ _ _ → blockOK-forge)
+                  (λ le mb _ → wfR-Ret (acceptForge-wa n (proj₁ mb) (proj₂ mb) (storeInv-mono le inv))))
       (wfR-□ (putEv n ⟶ (λ b → Ret (b ∷ held))) (offerHeld n held held)
         (stable-node refl) (stable-offerHeld n held held)
         (wfR-Prefix (λ _ _ g → ⊥-elim g)
@@ -258,9 +258,9 @@ module Generic
   -- The threads
   ------------------------------------------------------------------------
 
-  -- the mint thread: `env … envMint` carries no constrained block
-  wf-mint : ∀ {ms} n → Wf threadsG ms (mint n)
-  wf-mint n = wf-loop0 (wfR-Prefix (λ _ _ _ → blockOK-mint) (λ _ _ _ → wfR-Ret (λ _ → tt)))
+  -- the forge thread: `env … envForge` carries no constrained block
+  wf-forge : ∀ {ms} n → Wf threadsG ms (forge n)
+  wf-forge n = wf-loop0 (wfR-Prefix (λ _ _ _ → blockOK-forge) (λ _ _ _ → wfR-Ret (λ _ → tt)))
 
   -- the LN client thread: neither api event carries a block
   wf-lnClientLoop : ∀ {ms} (ld : Link × Dir) → Wf threadsG ms (lnClientLoop ld)
@@ -322,10 +322,10 @@ module Generic
   wf-allThreads n =
     wf-⦀⁺ (endpointThreads n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n)) (wf-endpointThreads n)
 
-  -- the mint thread and every endpoint's threads: the store's whole partner in
+  -- the forge thread and every endpoint's threads: the store's whole partner in
   -- `nodeLogic`, on `threadsG`
-  wf-threads : ∀ {ms} n → Wf threadsG ms (mint n ⦀ allThreads n)
-  wf-threads n = wf-⦀ (wf-mint n) (wf-allThreads n)
+  wf-threads : ∀ {ms} n → Wf threadsG ms (forge n ⦀ allThreads n)
+  wf-threads n = wf-⦀ (wf-forge n) (wf-allThreads n)
 
   ------------------------------------------------------------------------
   -- Non-vacuity: the announce channel is in the threads' alphabet

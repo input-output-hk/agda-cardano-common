@@ -120,7 +120,7 @@ held₀ : Held
 held₀ = blk ∷ []
 
 -- THE PROCESS UNDER TEST: node 0's whole link bundle synchronised on `apiES` with
--- its whole relay logic (mint, the four endpoint threads, the block store)
+-- its whole relay logic (forge, the four endpoint threads, the block store)
 relayNode : Proc
 relayNode = node nA (nodeLogic nA held₀)
 

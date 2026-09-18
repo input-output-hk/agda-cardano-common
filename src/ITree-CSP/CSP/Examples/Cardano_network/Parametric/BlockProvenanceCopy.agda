@@ -76,7 +76,7 @@ module Generic
   open O {E = Net Payload} (Net-≟ {Payload}) using (pchoice)
   open import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)}
     using (sRet; sSil; sVis; sTau)
-  open AS.Generic p t apiES using (Minted)
+  open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES using (WellAnnounced; wellAnnounced-mono)
   open BP.Generic p t apiES using (Carries; c-input; c-output)
 
@@ -98,12 +98,12 @@ module Generic
   CarriesCp : (at : AnyTypes (Net Payload)) → proj₁ at → Block → Set
   CarriesCp (A , e) a b = Carries (A , ιNet e) a b
 
-  -- the source carrier, STATE-AGNOSTIC (`next = λ _ s → s`): the medium never mints.
+  -- the source carrier, STATE-AGNOSTIC (`next = λ _ s → s`): the medium never forges.
   -- These are exactly the arguments `BlockProvenance.Rename` gives its `C1`.
-  open BP.Carrier (Net-≟ {Payload}) Minted Block CarriesCp WellAnnounced
+  open BP.Carrier (Net-≟ {Payload}) Forged Block CarriesCp WellAnnounced
                   (λ _ s → s) _⊆_ ⊆-trans (λ _ _ → ⊆-refl)
     using (Wf; wf-⦀⋆)
-  open BPW.Body (Net-≟ {Payload}) Minted Block CarriesCp WellAnnounced
+  open BPW.Body (Net-≟ {Payload}) Forged Block CarriesCp WellAnnounced
                 (λ _ s → s) _⊆_ ⊆-refl ⊆-trans (λ _ _ → ⊆-refl)
 
   ------------------------------------------------------------------------

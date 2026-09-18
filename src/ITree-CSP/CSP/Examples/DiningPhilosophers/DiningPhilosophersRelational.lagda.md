@@ -888,7 +888,7 @@ the obvious three-constructor decision.
   data DP : Set → Set where act : Phil → Kind → DP (⊤ {lzero})
 
   open import Semantics.LTS {E = DP} {I = ExtI DP}
-  open import Semantics.Deadlock {E = DP} {I = ExtI DP} using (IsStuck; DeadlockFree)
+  open import Semantics.Deadlock {E = DP} {I = ExtI DP} using (IsStuck; DeadlockFree; embed∖√)
   open import Semantics.Failures {E = DP} {I = ExtI DP} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 
   Kind-≟ : (k k' : Kind) → Dec (k ≡ k')
@@ -1115,7 +1115,9 @@ with `c ⟶ c'`, hence `c'` reachable via `step`) and recurses.
 ```
 
 `proc-deadlock-free`: from a reachable `c`, the tree `proc c` is deadlock-free.  Given a
-big-step to `t′` and a putative `IsStuck t′`, `reach-transport` exhibits `t′` as `proc c'`
+√-free big-step to `t′` (`DeadlockFree` quantifies over `⟹∖√`, so `embed∖√` coerces it
+to the general `⟹` that `reach-transport` consumes) and a putative `IsStuck t′`,
+`reach-transport` exhibits `t′` as `proc c'`
 with `c'` reachable; `no-deadlock` (the §8 result, under the `asym-order` hypothesis) makes
 `c'` enabled — and `proc-step` lifts that enabled action to a real LTS move out of `t′`,
 contradicting stuckness.
@@ -1123,7 +1125,7 @@ contradicting stuckness.
 ```agda
   proc-deadlock-free : (asym-order : ∀ i → first i Fin.< second i)
                      → ∀ {c} → Reachable c → DeadlockFree (proc c)
-  proc-deadlock-free asym r bs stk with reach-transport r bs
+  proc-deadlock-free asym r bs stk with reach-transport r (embed∖√ bs)
   ... | c′ , refl , r′ with no-deadlock asym r′
   ...   | (i , k) , c″ , tr = stk (proc-step tr)
 ```

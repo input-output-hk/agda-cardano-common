@@ -2,12 +2,12 @@
 
 ------------------------------------------------------------------------
 -- Cardano network example — THE NEGATIVE CONTROL for announcement
--- safety: the mint guard is LOAD-BEARING.
+-- safety: the forge guard is LOAD-BEARING.
 --
 -- WHY THIS MODULE EXISTS.  `Parametric.AnnounceSafeConcrete.announceSafeT`
 -- proves `AnnounceSpecT ⊑T systemOf (λ n → nodeLogic n [])` for every
 -- `Params` and every topology: the network never announces an EB hash
--- that no mint produced.  Two things could make such a theorem worthless,
+-- that no forge produced.  Two things could make such a theorem worthless,
 -- and BOTH have already happened once in this campaign:
 --
 --   (a) the specification forbids nothing — pinned shut by
@@ -18,9 +18,9 @@
 --       (`announce-fires`).
 --
 -- This module closes a third gap: is the guard the implementation relies
--- on actually DOING anything?  `NodeLogic.acceptMint` keeps a minted RB
+-- on actually DOING anything?  `NodeLogic.acceptForge` keeps a forged RB
 -- only when `announcedEB b ≡ (ebHash <$> me)`.  Delete that one guard
--- (`AnnounceBadLogic.acceptMintBad`, changing NOTHING else) and the
+-- (`AnnounceBadLogic.acceptForgeBad`, changing NOTHING else) and the
 -- property FAILS — machine-checked below.  So the theorem is not true
 -- for incidental reasons: it is true because of that guard.
 --
@@ -42,11 +42,11 @@
 -- WHAT THE REFUTATION SPENDS.  Two independent halves:
 --
 --   * the IMPLEMENTATION half — `AnnounceBadTrace.bad-announce-fires`:
---     the broken node has the trace ⟨ill-announced mint, LN request, get,
+--     the broken node has the trace ⟨ill-announced forge, LN request, get,
 --     announce⟩;
---   * the SPECIFICATION half — `noMint` below: that same trace is NOT a
---     trace of `AnnounceSpecT`, because the mint carries `nothing` as its
---     EB and so leaves the minted set empty, while the announcement
+--   * the SPECIFICATION half — `noForge` below: that same trace is NOT a
+--     trace of `AnnounceSpecT`, because the forge carries `nothing` as its
+--     EB and so leaves the forged set empty, while the announcement
 --     announces the EB hash `true`.
 --
 -- The specification half is `AnnounceContent.badTraceRefused` stretched
@@ -78,9 +78,9 @@ open import CSP.Examples.Cardano_network.Parametric.Node leiosParams leiosLine a
   using (Proc)
 import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
 open AS.Generic leiosParams leiosLine apiES
-  using (AnnounceSpecT; Minted; announceOffer)
+  using (AnnounceSpecT; Forged; announceOffer)
 open import CSP.Examples.Cardano_network.Parametric.AnnounceBadTrace
-  using (badNode; evMint; evReq; evGet; evAnn; bad-announce-fires)
+  using (badNode; evForge; evReq; evGet; evAnn; bad-announce-fires)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Ret; pchoice; iter; iter-bind; _>>=_)
@@ -103,25 +103,25 @@ open import Semantics.Failures
 Tree : Set → Set₁
 Tree X = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) X
 
--- `loop`'s state-threading continuation: hand the new minted set back to `iter`
-κ : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+-- `loop`'s state-threading continuation: hand the new forged set back to `iter`
+κ : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
 κ ms = Ret (inj₁ ms)
 
 -- the `iter` step `AnnounceSpecT`'s `loop` is built from
-StepT : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+StepT : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
 StepT ms = pchoice (announceOffer ms) >>= κ
 
--- the spec's MENU state at minted set `ms`: a pure-visible `react` whose τ-part is
+-- the spec's MENU state at forged set `ms`: a pure-visible `react` whose τ-part is
 -- `∅t`, so it has no silent move at all
-AT : Minted → Proc
+AT : Forged → Proc
 AT ms = iter StepT ms
 
--- the spec's LOOP-BACK state, reached by any visible event that left the minted set
+-- the spec's LOOP-BACK state, reached by any visible event that left the forged set
 -- `ms`: a `sil` node whose only move is the τ back to `AT ms`
-ST : Minted → Proc
+ST : Forged → Proc
 ST ms = iter-bind (Ret ms >>= κ) StepT
 
--- the spec IS the menu at the empty minted set (a computation, as in `AnnounceSafe`)
+-- the spec IS the menu at the empty forged set (a computation, as in `AnnounceSafe`)
 specT≡AT : AnnounceSpecT ≡ AT []
 specT≡AT = refl
 
@@ -137,7 +137,7 @@ backEdge (⟹-τ (sTau eq _) _)    = case eq of λ ()
 backEdge (⟹-ev (sRet eq) _)     = case eq of λ ()
 backEdge (⟹-ev (sVis eq _) _)   = case eq of λ ()
 
--- THE GATE.  With nothing minted, the announcement of `header (just true)` is not
+-- THE GATE.  With nothing forged, the announcement of `header (just true)` is not
 -- offered: `announceOK [] (header (just true))` computes to `false`, so the offer map
 -- is definitionally `nothing`.  The menu has no τ either, hence three clauses.
 noAnn : ∀ {q} → ¬ (AT [] ⟹⟨ evAnn ∷ [] ⟩ q)
@@ -145,27 +145,27 @@ noAnn (⟹-τ (sSil eq) _) = case eq of λ ()
 noAnn (⟹-τ (sTau refl ()) _)
 noAnn (⟹-ev (sVis refl ()) _)
 
--- the `get` event is on no gated channel, so the spec offers it freely and the minted
+-- the `get` event is on no gated channel, so the spec offers it freely and the forged
 -- set is unchanged — which leaves the announcement still refused
 noGet : ∀ {q} → ¬ (AT [] ⟹⟨ evGet ∷ evAnn ∷ [] ⟩ q)
 noGet (⟹-τ (sSil eq) _) = case eq of λ ()
 noGet (⟹-τ (sTau refl ()) _)
 noGet (⟹-ev (sVis refl refl) rest) = noAnn (proj₂ (backEdge {ms = []} rest))
 
--- likewise the LeiosNotify request off the wire: free, and the minted set is unchanged
+-- likewise the LeiosNotify request off the wire: free, and the forged set is unchanged
 noReq : ∀ {q} → ¬ (AT [] ⟹⟨ evReq ∷ evGet ∷ evAnn ∷ [] ⟩ q)
 noReq (⟹-τ (sSil eq) _) = case eq of λ ()
 noReq (⟹-τ (sTau refl ()) _)
 noReq (⟹-ev (sVis refl refl) rest) = noGet (proj₂ (backEdge {ms = []} rest))
 
--- THE WHOLE BAD TRACE IS REFUSED.  The mint IS on the gated channel, but it carries
--- `nothing` as its EB — `announceOffer ms (_ , env _ _ envMint) (nothing , _) =
--- just (Ret ms)` — so it grows the minted set by NOTHING and the announcement three
+-- THE WHOLE BAD TRACE IS REFUSED.  The forge IS on the gated channel, but it carries
+-- `nothing` as its EB — `announceOffer ms (_ , env _ _ envForge) (nothing , _) =
+-- just (Ret ms)` — so it grows the forged set by NOTHING and the announcement three
 -- events later is still refused.
-noMint : ∀ {q} → ¬ (AT [] ⟹⟨ evMint ∷ evReq ∷ evGet ∷ evAnn ∷ [] ⟩ q)
-noMint (⟹-τ (sSil eq) _) = case eq of λ ()
-noMint (⟹-τ (sTau refl ()) _)
-noMint (⟹-ev (sVis refl refl) rest) = noReq (proj₂ (backEdge {ms = []} rest))
+noForge : ∀ {q} → ¬ (AT [] ⟹⟨ evForge ∷ evReq ∷ evGet ∷ evAnn ∷ [] ⟩ q)
+noForge (⟹-τ (sSil eq) _) = case eq of λ ()
+noForge (⟹-τ (sTau refl ()) _)
+noForge (⟹-ev (sVis refl refl) rest) = noReq (proj₂ (backEdge {ms = []} rest))
 
 ------------------------------------------------------------------------
 -- THE NEGATIVE CONTROL
@@ -177,13 +177,13 @@ noMint (⟹-ev (sVis refl refl) rest) = noReq (proj₂ (backEdge {ms = []} rest)
 AnnounceSafeT-node-Bad : Set₁
 AnnounceSafeT-node-Bad = AnnounceSpecT ⊑T badNode
 
--- THE REFUTATION: deleting `NodeLogic.acceptMint`'s announcement guard BREAKS
+-- THE REFUTATION: deleting `NodeLogic.acceptForge`'s announcement guard BREAKS
 -- announcement safety.  The broken node has a trace the specification forbids, so the
 -- trace refinement cannot hold.  Together with `AnnounceSafeConcrete.announceSafeT`
 -- (which does hold, for the unbroken logic, at every `Params` and topology) this shows
--- the shipped theorem is not vacuous and the mint guard is load-bearing.
+-- the shipped theorem is not vacuous and the forge guard is load-bearing.
 --
 -- LEVEL: node, not system — see the module header.  This does NOT by itself refute
 -- `AnnounceSafe.AnnounceSafeTWith med` for the broken logic.
 announceSafeT-node-FAILS : ¬ AnnounceSafeT-node-Bad
-announceSafeT-node-FAILS h = noMint (proj₂ (h _ bad-announce-fires))
+announceSafeT-node-FAILS h = noForge (proj₂ (h _ bad-announce-fires))

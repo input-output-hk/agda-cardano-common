@@ -18,7 +18,7 @@
 -- invariant with closure lemmas for `Prefix`/`Output`/`loop0`, and
 -- `NoRet` beside it is a step-closed "never returns" invariant with
 -- `NoRet-loop0` PREMISE-FREE.  `quiet→Safe` below turns that pair into a
--- `Safe` fact against ANY minted set, and each thread then costs one
+-- `Safe` fact against ANY forged set, and each thread then costs one
 -- line of loop-unrolling.
 --
 -- TWO LEAVES ARE NOT `Safe`, AND CANNOT BE MADE SO.  The task sketch
@@ -30,7 +30,7 @@
 --     (`LeiosNotify.agda:215`) — that api event is precisely the
 --     rendezvous by which `lnServerLoop` hands the peer the block it
 --     took from the store.  A peer bundle in isolation therefore
---     announces unminted blocks, so it is not `Gated` against any `ms`.
+--     announces unforged blocks, so it is not `Gated` against any `ms`.
 --
 --   * `noTick`.  `NetCommon.breakableNetLinkA l = netLinkMediumA l △
 --     (break l ⟶₀ Skip)` becomes `Skip` once its `break` fires, and
@@ -92,7 +92,7 @@ module Generic
 
   open Params p using (Block; EB; EBHash; decBlock)
   open N p
-    using ( Link; Net_Api; Net_Api-≟; env; envMint; apiLN; store; break
+    using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF
           ; sendLNBlockAnnouncement )
@@ -115,11 +115,11 @@ module Generic
     using (EventSet; par-brBoth; _∥⇘_⇙_; loop0)
   open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
-    using (mint; clientLoop; serverLoop; lnClientLoop; clientBody-k; serverBody-k)
-  open AS.Generic p t apiES using (Minted)
+    using (forge; clientLoop; serverLoop; lnClientLoop; clientBody-k; serverBody-k)
+  open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES
-    using (NotMint; Gated; linkEvents; MediumConfined; confined-NetworkLinkBreakableA)
-  open ASC.Generic p t apiES using (Safe; HideOK; safe-mono; mintedAfter-⊇; onOther′)
+    using (NotForge; Gated; linkEvents; MediumConfined; confined-NetworkLinkBreakableA)
+  open ASC.Generic p t apiES using (Safe; HideOK; safe-mono; forgedAfter-⊇; onOther′)
   open Safe
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -160,15 +160,15 @@ module Generic
   noRet→noTick nr (sRet eq) = subst NonRet eq (NoRet.nowNR nr)
 
   -- THE LEVER OF THIS MODULE: a process that never announces and never returns is
-  -- `Safe` against ANY minted set.  `gate` is refuted by the confining alphabet,
+  -- `Safe` against ANY forged set.  `gate` is refuted by the confining alphabet,
   -- `noTick` by non-termination, and the three step fields all corecurse on the two
   -- invariants' own step-closure — so a leaf costs exactly one `OffersOnly` and one
   -- `NoRet` witness, both of which the repo's closure lemmas already build.
-  quiet→Safe : ∀ {α : Alpha} {ms : Minted} {M : Proc}
+  quiet→Safe : ∀ {α : Alpha} {ms : Forged} {M : Proc}
              → NoAnn α → OffersOnly α M → NoRet M → Safe ms M
   quiet→Safe na oo nr .gate st       = ⊥-elim (na _ (OffersOnly.now oo st))
   quiet→Safe na oo nr .onτ st        = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
-  quiet→Safe na oo nr .onMint st     = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
+  quiet→Safe na oo nr .onForge st     = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
   quiet→Safe na oo nr .onOther nm st = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
   quiet→Safe na oo nr .noTick st     = noRet→noTick nr st
 
@@ -177,7 +177,7 @@ module Generic
   -- datatype, so leaving it to unification poses a higher-order problem and strands
   -- the alphabet as an unsolved meta.  The `NoAnn notAnn` witness is `λ _ x → x`,
   -- `notAnn`'s announcement clause being `⊥` outright.
-  quietLoop→Safe : ∀ {ms : Minted} {body : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})}
+  quietLoop→Safe : ∀ {ms : Forged} {body : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})}
                  → OffersOnly notAnn body → Safe ms (loop0 body)
   quietLoop→Safe oob = quiet→Safe {α = notAnn} (λ _ x → x) (OffersOnly-loop0 oob) NoRet-loop0
 
@@ -189,9 +189,9 @@ module Generic
   -- reduction and the whole discharge is `OffersOnly-Prefix`/`-Output` plumbing.
   ------------------------------------------------------------------------
 
-  -- the mint thread offers only `env … envMint`
-  safe-mint : ∀ {ms} (n : Node) → Safe ms (mint n)
-  safe-mint n = quietLoop→Safe (OffersOnly-Prefix₀ (λ _ → tt) OffersOnly-Skip)
+  -- the forge thread offers only `env … envForge`
+  safe-forge : ∀ {ms} (n : Node) → Safe ms (forge n)
+  safe-forge n = quietLoop→Safe (OffersOnly-Prefix₀ (λ _ → tt) OffersOnly-Skip)
 
   -- the client thread offers only `apiCS`, `apiBF` and the store's `stPut`
   safe-clientLoop : ∀ {ms} (n : Node) (ld : Link × Dir) → Safe ms (clientLoop n ld)
@@ -228,8 +228,8 @@ module Generic
   -- The hiding side condition
   ------------------------------------------------------------------------
 
-  -- STEP DISCHARGED: `∖ ioES` hides only `input`/`output`, and a mint rides `env`, so
-  -- no hidden event is a mint and `safe-Hide` applies to the system's own hiding.
+  -- STEP DISCHARGED: `∖ ioES` hides only `input`/`output`, and a forge rides `env`, so
+  -- no hidden event is a forge and `safe-Hide` applies to the system's own hiding.
   -- One clause per `Net_Api` constructor, because `ioSet` does not reduce until the
   -- constructor is known; the sixteen non-io channels are refuted by their `ioSet`
   -- membership being `⊥`.
@@ -317,15 +317,15 @@ module Generic
   safe-ParE A {P = P} {Q = Q} e s .onτ st with Par-τ-elim A (λ _ _ → tt) P Q st
   ... | τL P′ stP refl    = safe-ParE A (stepE e stP) s
   ... | τR Q′ stQ refl    = safe-ParE A e (onτ s stQ)
-  -- a mint: the right operand moves to the grown set if it took part, and is carried
-  -- across by `safe-mono` if the left operand minted alone
-  safe-ParE A {P = P} {Q = Q} e s .onMint {mb = mb} st
+  -- a forge: the right operand moves to the grown set if it took part, and is carried
+  -- across by `safe-mono` if the left operand forged alone
+  safe-ParE A {P = P} {Q = Q} e s .onForge {mb = mb} st
     with Par-ev-elim A (λ _ _ → tt) P Q st
-  ... | evSync _ stP stQ  = safe-ParE A (stepE e stP) (onMint s stQ)
-  ... | evL    _ stP      = safe-ParE A (stepE e stP) (safe-mono (mintedAfter-⊇ mb) s)
-  ... | evR    _ stQ      = safe-ParE A e (onMint s stQ)
+  ... | evSync _ stP stQ  = safe-ParE A (stepE e stP) (onForge s stQ)
+  ... | evL    _ stP      = safe-ParE A (stepE e stP) (safe-mono (forgedAfter-⊇ mb) s)
+  ... | evR    _ stQ      = safe-ParE A e (onForge s stQ)
   ... | evBoth _ stP stQ  = safe-bothE A e (stepE e stP)
-                                         (safe-mono (mintedAfter-⊇ mb) s) (onMint s stQ)
+                                         (safe-mono (forgedAfter-⊇ mb) s) (onForge s stQ)
   -- every other label, by the same inversions; a `√` needs BOTH operands at `ret`, so
   -- the right operand's `noTick` alone refutes it
   safe-ParE A {P = P} {Q = Q} e s .onOther {a = τ} nm st
@@ -352,7 +352,7 @@ module Generic
     with brBoth-τ-elim A (λ _ _ → tt) P Q P′ Q′ st
   ... | inj₁ refl = safe-ParE A eP′ sQ
   ... | inj₂ refl = safe-ParE A eP sQ′
-  safe-bothE A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} eP eP′ sQ sQ′ .onMint st =
+  safe-bothE A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} eP eP′ sQ sQ′ .onForge st =
     ⊥-elim (brBoth-no-ev A (λ _ _ → tt) P Q P′ Q′ st)
   safe-bothE A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} eP eP′ sQ sQ′ .onOther {a = τ} nm st
     with brBoth-τ-elim A (λ _ _ → tt) P Q P′ Q′ st

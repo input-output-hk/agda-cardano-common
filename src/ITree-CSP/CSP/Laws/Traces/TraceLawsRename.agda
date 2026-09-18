@@ -4,7 +4,8 @@
 -- `invPreimg` is a singleton ⇒ no fan-in ⇒ each visible step of `renameInv P inv`
 -- comes from exactly one visible step of P, relabelled by `inv`.  We prove the
 -- trace characterisation (intro/elim against a renaming relation on traces) and
--- trace monotonicity.  (The general relational `_⟦R¿preimg⟧` with fan-in is future.)
+-- trace monotonicity.  (The general relational `_⟦ R ¿ preimg ⟧`, fan-in included, is
+-- covered by `CSP.Laws.Traces.TraceLawsRenameGen`.)
 
 open import Level using (Level; _⊔_) renaming (suc to lsuc)
 open import Data.Maybe using (Maybe; just; nothing)

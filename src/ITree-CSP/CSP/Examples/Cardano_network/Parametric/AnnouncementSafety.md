@@ -19,7 +19,7 @@ What the theorem rests on, in decreasing order of how much a reader should care.
 **Every node runs `nodeLogic`. There is no Byzantine or compromised node.**
 
 This is not a technicality; it is the substance of what is and is not claimed.
-The theorem says *a network of honest relays never announces an unminted
+The theorem says *a network of honest relays never announces an unforged
 block*. It does **not** say a node is safe against a dishonest peer, and that
 is not an oversight in the proof — it is false. `storeStep`'s `putEv` clause is
 unguarded, so a node handed an arbitrary block over the wire will store it and
@@ -54,11 +54,11 @@ the theorem means:
 - **Every node starts with an empty store** — the theorem is about
   `nodeLogic n []`. A network whose nodes are pre-loaded with blocks is *not*
   covered, and the distinction bites: `RelayLive` runs from a non-empty initial
-  store whose block is ill-announced at the empty minted set, so that
+  store whose block is ill-announced at the empty forged set, so that
   configuration does not satisfy the store invariant and cannot be reused for a
   positive result.
-- **Minting is an environment event.** Hashes enter the minted set only through
-  `env _ _ envMint`. The environment may mint anything at all, including
+- **Forging is an environment event.** Hashes enter the forged set only through
+  `env _ _ envForge`. The environment may forge anything at all, including
   ill-announced blocks; those are *refused by the guard*, not prevented from
   being offered.
 - **The medium is the concrete per-link multiplexer** carrying the configured
@@ -88,13 +88,13 @@ endpoint under `--safe` and read off what fails.
 ## 1. The property
 
 A node may only announce, over LeiosNotify, a ranking block whose announced
-endorser-block hash was actually produced by a mint. Nothing may announce a
-block it invented, or one that arrived carrying a hash no mint ever created.
+endorser-block hash was actually produced by a forge. Nothing may announce a
+block it invented, or one that arrived carrying a hash no forge ever created.
 
 The specification is `AnnounceSafe.Generic.AnnounceSpecT`: a loop over the set
-of hashes minted so far, whose offer map gates
+of hashes forged so far, whose offer map gates
 `apiLN _ _ sendLNBlockAnnouncement` on membership in that set and passes every
-other event through freely. Mints (`env _ _ envMint`) grow the set. It is a
+other event through freely. Forges (`env _ _ envForge`) grow the set. It is a
 *safety* specification — it constrains which announcements are possible, and
 imposes no obligation to offer anything.
 
@@ -143,8 +143,8 @@ holds for a *network-wide* reason: every sender is itself well-behaved. The
 proof is therefore assume-guarantee, and the four layers are:
 
 **(a) A coinductive, shape-agnostic carrier.** `AnnounceSafeCarrier.Safe` is a
-five-field coinductive record (`gate`, `onτ`, `onMint`, `onOther`, `noTick`)
-indexed by the minted set. It is *shape-agnostic* by necessity: a
+five-field coinductive record (`gate`, `onτ`, `onForge`, `onOther`, `noTick`)
+indexed by the forged set. It is *shape-agnostic* by necessity: a
 configuration-indexed family of states was tried and **refuted** — the
 `sys-step` property is false for `⦀Fin⁺`. `safe→wsim` builds a weak simulation
 from it and `wsim→⊑T` spends that as the refinement, so `Safe [] system` *is*
@@ -154,11 +154,11 @@ the theorem.
 rely as an **argument** to its `stepW` field rather than as a global
 hypothesis — which is what keeps it non-vacuous. Each component is `Wf` on its
 own guarantee alphabet, with the events it cannot control left as its rely. The
-circularity collapses without any well-founded measure, because `Minted` is the
+circularity collapses without any well-founded measure, because `Forged` is the
 *global* specification state, not a per-node one.
 
-**(c) The seed.** `acceptMint`'s guard turns out to be *exactly*
-`WellAnnounced (mintedAfter mb ms) b`. That single guard is what makes the
+**(c) The seed.** `acceptForge`'s guard turns out to be *exactly*
+`WellAnnounced (forgedAfter mb ms) b`. That single guard is what makes the
 store's contents well-announced, and §6 below shows it is load-bearing.
 
 **(d) Composition, then transport.** The alphabets union to cover everything,
@@ -176,7 +176,7 @@ from the copy medium to the concrete multiplexer along
 | File | Lines | Role |
 |---|---:|---|
 | `AnnounceSafe.agda` | 509 | states the property at `⊑T`; `AnnounceSpecT`, `AnnounceSafeT`, `AnnounceSafeTWith`, and the reduction to per-node obligations |
-| `AnnounceInvariant.agda` | 318 | the residual obligations stated as types — `WellAnnounced`, `mintedAfter`, `Reach`, `Gated`, `MediumConfined` |
+| `AnnounceInvariant.agda` | 318 | the residual obligations stated as types — `WellAnnounced`, `forgedAfter`, `Reach`, `Gated`, `MediumConfined` |
 | `AnnounceSafeCarrier.agda` | 453 | the coinductive `Safe` carrier, its monotonicity, the composition lemmas (`safe-Par`, `safe-⦀`, `safe-⦀Fin⁺`, `safe-Hide`), and `safe→wsim` / `safe→announceSafeT` |
 | `AnnounceSafeLeaves.agda` | 380 | the announcement-free thread leaves (`quiet→Safe`), `Env`, and the one-sided congruence `safe-ParE` |
 | `AnnounceSafeCopy.agda` | 255 | the assembly: the whole N-node network over the copy medium, `AnnounceSafeTWith CopySpecBreakableA`; also `wf-node` |
@@ -202,7 +202,7 @@ from the copy medium to the concrete multiplexer along
 |---|---:|---|
 | `AnnounceContent.agda` | 146 | the spec forbids something — `badTraceRefused`, `goodTraceAllowed` |
 | `RelayLive.agda` | 272 | the announcement is reachable — `announce-fires` (node level) |
-| `AnnounceBadLogic.agda` | 90 | the deliberate break: `acceptMintBad`, one guard deleted |
+| `AnnounceBadLogic.agda` | 90 | the deliberate break: `acceptForgeBad`, one guard deleted |
 | `AnnounceBadTrace.agda` | 246 | the bad trace of the broken node |
 | `AnnounceSafeNegative.agda` | 189 | the refutation — `announceSafeT-node-FAILS` |
 | `AnnounceControlNode.agda` | 191 | the level-matched control at `Wf` — `wf-goodNode`, `gated-goodNode`, `¬wf-badNode` |
@@ -247,7 +247,7 @@ machine-checked artefacts now close it:
 | the announcement is unreachable | `RelayLive.announce-fires` |
 | the guard does no work | `AnnounceSafeNegative` and `AnnounceControlNode` |
 
-The third deletes exactly one guard — `acceptMintBad (_ , b) hs = b ∷ hs` — and
+The third deletes exactly one guard — `acceptForgeBad (_ , b) hs = b ∷ hs` — and
 proves the property **fails**:
 
 ```agda
@@ -281,7 +281,7 @@ hypothesis.
 
 Reaching a genuine `⊑T` headline would mean moving the rely *into* the
 specification — a wire-delivered block granting announcement permission the way
-a mint does. That was scoped at 600–900 lines across two or three modules, and
+a forge does. That was scoped at 600–900 lines across two or three modules, and
 rejected on more than cost: it forks the specification, so the node-level and
 system-level theorems would then be about *different* specs, reintroducing
 exactly the level mismatch the exercise set out to remove.
@@ -294,7 +294,7 @@ exactly the level mismatch the exercise set out to remove.
   `input`/`tx`/`ack`/`output` cells; there is no precedent for it in the
   repository, and `RelayLive` declined the analogous positive version for the
   same reason.
-- **`gated-goodNode` at a general minted set.** It is stated at `ms = []`;
+- **`gated-goodNode` at a general forged set.** It is stated at `ms = []`;
   `wf-node` is `∀ {ms}`, so a general version is available if wanted.
 - **Liveness.** Nothing here says an announcement ever *must* happen.
   `RelayLive` witnesses one reachable announcement; that is all.

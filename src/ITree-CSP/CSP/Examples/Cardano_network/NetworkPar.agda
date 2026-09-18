@@ -12,8 +12,9 @@
 -- through `ι⁻¹`); only `input`/`output` (plus each peer-local `apiXX`/`done`)
 -- are observable after composition.
 --
--- Sections: KeepAlive, BlockFetch, ChainSync.  (Formerly the separate
--- modules KeepAliveNetworkPar / BlockFetchNetworkPar / ChainSyncNetworkPar.)
+-- Sections: KeepAlive, BlockFetch, ChainSync, TxSubmission2, LeiosNotify,
+-- LeiosFetch.  (Formerly the separate modules KeepAliveNetworkPar /
+-- BlockFetchNetworkPar / ChainSyncNetworkPar.)
 ------------------------------------------------------------------------
 
 open import CSP.Examples.Cardano_network.Params using (Params)
@@ -97,9 +98,10 @@ KAclientA : Link → Dir → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (�
 KAclientA l d = RenKA.renameMap (KAclientStClient l d)
 
 -- The KeepAlive *server* peer renamed into the shared `Net_Api` alphabet,
--- via the same `ιKA` injection, on link `l`, direction `d`.  The `Cookie`
--- is the server's nominal request cookie (unused — the real one is bound
--- from the wire — but retained for call-site symmetry).
+-- via the same `ιKA` injection, on link `l`, direction `d`.  `KAserverA`
+-- takes no `Cookie`: the server binds its request cookie from the wire
+-- (carried in the `stServer Cookie` state of `KAserverStClient`), not from
+-- a call-site argument.
 KAserverA : Link → Dir → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 KAserverA l d = RenKA.renameMap (KAserverStClient l d)
 
@@ -394,10 +396,11 @@ clientServerNetWithLF lc dc ls ds = clientServerNet (LFclientA lc dc) (LFserverA
 -- Config-driven peer bundle: a node's set of running peers on a link `l`
 -- is read off `linkConfig l : List (Dir × IDs)`.  A node plays CLIENT on
 -- direction `cl` and SERVER on direction `sv` (its two roles across the
--- link's instances); the Leios ids have no peer implementation yet.
+-- link's instances); `clientPeer`/`serverPeer` dispatch is total on `IDs`
+-- (the Leios ids map to `LNclientA`/`LFclientA` and `LNserverA`/`LFserverA`).
 ------------------------------------------------------------------------
 
--- the client peer for one instance `(l, d, id)`; Leios ids have no peer ⇒ Skip
+-- the client peer for one instance `(l, d, id)`; total on `IDs`
 clientPeer : Link → Dir → IDs → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 clientPeer l d N2N_KeepAlive    = KAclientA l d
 clientPeer l d N2N_ChainSync    = CSclientA l d
@@ -406,7 +409,7 @@ clientPeer l d N2N_TxSubmission = TSclientA l d
 clientPeer l d N2N_LeiosNotify  = LNclientA l d
 clientPeer l d N2N_LeiosFetch   = LFclientA l d
 
--- the server peer for one instance `(l, d, id)`; Leios ids have no peer ⇒ Skip
+-- the server peer for one instance `(l, d, id)`; total on `IDs`
 serverPeer : Link → Dir → IDs → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 serverPeer l d N2N_KeepAlive    = KAserverA l d
 serverPeer l d N2N_ChainSync    = CSserverA l d

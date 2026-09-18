@@ -86,7 +86,7 @@ module Generic
   open O {E = BFEv} BFEv-≟ using (iter)
   open import Semantics.LTS {E = BFEv} {I = ExtI BFEv}
     using (sRet; sSil; sVis; sTau)
-  open AS.Generic p t apiES using (Minted)
+  open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES using (WellAnnounced; wellAnnounced-mono)
   open BP.Generic p t apiES using (Carries; c-sendBF; c-recvBF; c-input; c-output)
 
@@ -109,16 +109,16 @@ module Generic
   CarriesBF : (at : AnyTypes BFEv) → proj₁ at → Block → Set
   CarriesBF (A , e) a b = Carries (A , ιBF e) a b
 
-  -- the source carrier, STATE-AGNOSTIC (`next = λ _ s → s`): a peer never mints.
+  -- the source carrier, STATE-AGNOSTIC (`next = λ _ s → s`): a peer never forges.
   -- These are exactly the arguments `BlockProvenance.Rename` gives its `C1`.
-  open BP.Carrier BFEv-≟ Minted Block CarriesBF WellAnnounced
+  open BP.Carrier BFEv-≟ Forged Block CarriesBF WellAnnounced
                   (λ _ s → s) _⊆_ ⊆-trans (λ _ _ → ⊆-refl)
     using (Wf)
-  open BPW.Body BFEv-≟ Minted Block CarriesBF WellAnnounced
+  open BPW.Body BFEv-≟ Forged Block CarriesBF WellAnnounced
                 (λ _ s → s) _⊆_ ⊆-refl ⊆-trans (λ _ _ → ⊆-refl)
 
   -- the loop invariant of an `iter`ed peer: none (the block never outlives a step)
-  Inv⊤ : Minted → BFState ⊎ Rr → Set
+  Inv⊤ : Forged → BFState ⊎ Rr → Set
   Inv⊤ = InvSum (λ _ _ → Poly.⊤)
 
   -- a peer `iter`s its step function from `stIdle`; `iter k q = iter-bind (k q) k`

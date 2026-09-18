@@ -16,16 +16,16 @@
 -- than by prose.  The two directions are:
 --
 --   * `badTraceRefused`  — the spec genuinely FORBIDS something: a
---     one-event trace announcing an EB hash that no mint produced is
+--     one-event trace announcing an EB hash that no forge produced is
 --     NOT a trace of `AnnounceSpecT`.  Without this, the spec could be
 --     `Chaos` and nothing would notice.
 --   * `goodTraceAllowed` — the spec is not merely `Stop` in disguise:
---     the very same announcement IS permitted once the matching mint
+--     the very same announcement IS permitted once the matching forge
 --     has happened.  Without this, the gate could be vacuously closed
 --     and every implementation would trivially fail to refine it.
 --
 -- Together they show the announcement gate is neither open nor shut but
--- actually keyed to the minted set, which is the whole content of the
+-- actually keyed to the forged set, which is the whole content of the
 -- property.
 --
 -- Note the target is `AnnounceSpecT` (trace refinement), NOT the older
@@ -62,7 +62,7 @@ open import Process_Trees using (ExtI)
 open import CSP.Examples.Cardano_network.Parametric.LeiosInstance
   using (leiosParams; leiosLine)
 open import CSP.Examples.Cardano_network.Net leiosParams
-  using (Net_Api; env; apiLN; envMint; sendLNBlockAnnouncement)
+  using (Net_Api; env; apiLN; envForge; sendLNBlockAnnouncement)
 open import CSP.Examples.Cardano_network.Data leiosParams
   using (Payload; Header; header)
 open import CSP.Examples.Cardano_network.Base using (lo)
@@ -80,7 +80,7 @@ open import Semantics.Failures
 
 ------------------------------------------------------------------------
 -- The two events: an RB header `h` announcing the EB hash `true`, and a
--- mint of that same EB.  Both live on link 0, direction `lo` — the
+-- forge of that same EB.  Both live on link 0, direction `lo` — the
 -- choice of link/direction is arbitrary, `AnnounceSpecT` treats every
 -- link and direction alike.
 ------------------------------------------------------------------------
@@ -93,27 +93,27 @@ h = header (just true)
 evAnnounce : Event√ (⊤ {0ℓ})
 evAnnounce = evl (evLabel Header (apiLN fzero lo sendLNBlockAnnouncement) h)
 
--- the mint event: `env 0 lo envMint ! (just true , nothing)`, minting the EB
+-- the forge event: `env 0 lo envForge ! (just true , nothing)`, forging the EB
 -- whose hash is `true`
-evMint : Event√ (⊤ {0ℓ})
-evMint = evl (evLabel (_ × _) (env fzero lo envMint) (just true , nothing))
+evForge : Event√ (⊤ {0ℓ})
+evForge = evl (evLabel (_ × _) (env fzero lo envForge) (just true , nothing))
 
 ------------------------------------------------------------------------
 -- RESULT (1): the spec FORBIDS the bad announcement.  With nothing
--- minted beforehand, `⟨evAnnounce⟩` is not a trace of `AnnounceSpecT`.
+-- forged beforehand, `⟨evAnnounce⟩` is not a trace of `AnnounceSpecT`.
 --
 -- `AnnounceSpecT`'s initial state is a pure-visible `react` node: its
 -- τ-map is `∅t` (no `⊓` here, unlike `AnnounceSpec`), so there is no
 -- silent move to take at all, and the single visible step is refused
 -- because `announceOK [] h` computes to `false` — nothing has been
--- minted, so the announce channel is closed.  Three clauses suffice:
+-- forged, so the announce channel is closed.  Three clauses suffice:
 -- the visible dead end, the `sil` shape (the node is a `react`, so the
 -- forcing equation is absurd), and the `sTau` shape (`∅t` offers
 -- nothing at any index).
 ------------------------------------------------------------------------
 
 badTraceRefused : ¬ traces AnnounceSpecT (evAnnounce ∷ [])
--- the announce channel is GATED and nothing is minted, so the event is not offered
+-- the announce channel is GATED and nothing is forged, so the event is not offered
 badTraceRefused (_ , ⟹-ev (sVis refl ()) _)
 -- the initial state forces to a `react`, never to a `sil`
 badTraceRefused (_ , ⟹-τ (sSil eq) _) = case eq of λ ()
@@ -122,15 +122,15 @@ badTraceRefused (_ , ⟹-τ (sTau refl ()) _)
 
 ------------------------------------------------------------------------
 -- RESULT (2): the spec PERMITS the corresponding good trace.
--- `⟨evMint, evAnnounce⟩` IS a trace of `AnnounceSpecT` — mint the EB
+-- `⟨evForge, evAnnounce⟩` IS a trace of `AnnounceSpecT` — forge the EB
 -- hashing to `true`, then announce it.  The only silent step is the
 -- `loop`-back `sil` that `iter-bind` emits between the two visible
 -- events; there is no internal-choice τ to resolve.
 ------------------------------------------------------------------------
 
-goodTraceAllowed : traces AnnounceSpecT (evMint ∷ evAnnounce ∷ [])
+goodTraceAllowed : traces AnnounceSpecT (evForge ∷ evAnnounce ∷ [])
 goodTraceAllowed =
-  _ , ⟹-ev (sVis {at = _ , env fzero lo envMint} {a = just true , nothing} refl refl)
+  _ , ⟹-ev (sVis {at = _ , env fzero lo envForge} {a = just true , nothing} refl refl)
       ( ⟹-τ (sSil refl)
       ( ⟹-ev (sVis {at = _ , apiLN fzero lo sendLNBlockAnnouncement} {a = h} refl refl)
         ⟹-refl))
@@ -142,5 +142,5 @@ goodTraceAllowed =
 -- gate none of its content.
 ------------------------------------------------------------------------
 
-goodTraceAllowedF : traces AnnounceSpec (evMint ∷ evAnnounce ∷ [])
+goodTraceAllowedF : traces AnnounceSpec (evForge ∷ evAnnounce ∷ [])
 goodTraceAllowedF = announceSpecT-traces⊆ _ goodTraceAllowed

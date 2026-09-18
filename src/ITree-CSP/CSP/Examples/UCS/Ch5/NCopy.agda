@@ -5,7 +5,23 @@
 -- T = Bool.  Two cells COPY(0),COPY(1) over channels c.0,c.1,c.2; the alphabetised
 -- parallel synchronises on the shared internal c.1, which is HIDDEN; the result is
 -- a 2-place buffer:  assert Spec [T= CCH  and  CCH [T= Spec  (i.e. Spec =T CCH).
--- (The [FD= asserts are for Chapter 6; the ncopyl link-parallel variant is deferred.)
+--
+-- ALL FOUR of the source file's asserts are proved here.  §B/§C give the two trace
+-- refinements; §D gives Roscoe's two chapter-6 ones — the pair he marks "also true in
+-- stronger models" —  assert Spec [FD= CCH  and  assert CCH [FD= Spec, i.e.
+-- `Spec ≈FD CCH` (`ncopy-safe-FD` / `ncopy-live-FD` / `ncopy-≈FD`).  Their truth
+-- values were re-derived, not taken on trust: `Semantics.FailuresDivergences` fixes
+-- the direction convention `P ⊑FD Q` = spec on the LEFT (FDR's `Spec [FD= Impl`), the
+-- chain is divergence-free (§D.3), and at every stable state it offers exactly the
+-- buffer's events (§D.4) — so both refinements hold, as Roscoe says.
+--
+-- CLASSICAL FOOTPRINT: none.  All four theorems are postulate-free; §D rides only the
+-- postulate-free `Semantics.FailureSim` / `Semantics.BisimFromRel` (see §D's note),
+-- NOT the `CSP.Laws.FD.FDTransfer` seams.  The module has no `postulate`, no
+-- `NON_TERMINATING`/`TERMINATING`, no sized types and no holes.
+--
+-- The ncopyl link-parallel variant lives in the sibling `CSP.Examples.UCS.Ch5.NCopyL`,
+-- which transports all four of these asserts onto its own chain.
 
 module CSP.Examples.UCS.Ch5.NCopy where
 
@@ -525,3 +541,199 @@ ncopy-live = wsim→⊑T (M₂.rel→wsim rr-e)
 -- Combined:  Spec =T CCH  (both refinements).
 ncopy-≡T : (Spec ⊑T CCH) × (CCH ⊑T Spec)
 ncopy-≡T = ncopy-safe , ncopy-live
+
+------------------------------------------------------------------------------------
+-- §D. ncopy FD:  Spec ≈FD CCH  — Roscoe's two "also true in stronger models" asserts
+--                                (`assert Spec [FD= CCH` / `assert CCH [FD= Spec`).
+--
+-- Route: `Semantics.FailureSim`'s ONE-WAY failure simulation, `fsim→⊑FD : FSim R Q P
+-- → P ⊑FD Q`.  `FSim` is exactly a `WSim` (§B/§C's `fwdE`/`fwdT` and `fwdE₂`/`fwdT₂`
+-- discharge that half UNCHANGED) plus two pieces of failure data:
+--   `stab` — whenever the implementation is stable the specification can τ-settle into
+--            a stable state offering NO MORE than the implementation;
+--   `div→` — the implementation cannot diverge.
+-- So the whole of §D is those two obligations for the two relations of §B and §C.
+--
+-- The chain is divergence-free because its ONLY τ is the hidden c.1 handoff, which
+-- leads from `l x` to the STABLE `r x` (`chain-τ-inv`): no τ can ever be iterated.
+-- `chain-τ-inv` also supplies the no-τ refutations for the other three configs, hence
+-- their stability, hence `stab` in both directions (offers are transported by §B's
+-- `fwdE` and §C's `fwdE₂`, whose τ*-padding collapses against a stable endpoint).
+--
+-- CLASSICAL FOOTPRINT: none.  `Semantics.FailureSim` and `Semantics.BisimFromRel` are
+-- postulate-free by construction (neither imports `Semantics.DRImpliesFD`, the home of
+-- `¬-divergent→normal`), and nothing here goes through `CSP.Laws.FD.FDTransfer`.  This
+-- module remains postulate-free, as do all four of its theorems.
+------------------------------------------------------------------------------------
+
+open import Semantics.Stability {E = NEv} {I = ExtI NEv}
+  using (stable-no-τ; stable→¬div; stable→τ*-refl; react-no-τ→stable)
+open import Semantics.Refusals  {E = NEv} {I = ExtI NEv} using (Offers)
+open import Semantics.FailureSim {E = NEv} {I = ExtI NEv} using (FSim; fsim→⊑FD)
+open import Semantics.FailuresDivergences {E = NEv} {I = ExtI NEv} using (_⊑FD_; _≈FD_)
+
+-- §D.1 τ-inversion for the chain.  `Handoff s0 s1 t` records "the pair (s0,s1) can
+-- perform a τ, and its target is t"; it is inhabited ONLY at the `l`-shape (cell 0
+-- holding, cell 1 ready), so at the three other reachable shapes the family is empty
+-- and `chain-τ-inv` doubles as a no-τ refutation.
+data Handoff : St0 → St1 → CC2Proc → Set₁ where
+  hoff : ∀ x → Handoff (hld0 x) rdy1 (Chain rdy0 (hld1 x) ∖ Hset)
+
+-- the only τ of a reachable config is `l x`'s hidden c.1 handoff (→ `r x`).  Same
+-- case analysis as §B.7's `fwdT`, with the `Buf` side dropped.
+chain-τ-inv : ∀ {s0 s1 cs} → Reach s0 s1 cs → ∀ {t}
+            → (Chain s0 s1 ∖ Hset) ─[ τ ]─► t → Handoff s0 s1 t
+chain-τ-inv {s0} {s1} rc stp with Hide-τ-elim Hset (Chain s0 s1) stp
+-- the composite's own τ: both cells are stable, so impossible.
+... | hτP P′ pτ refl with αpar-τ-step-inv pτ
+...   | inj₁ (_ , t0τ , _) = ⊥-elim (noτ0 s0 t0τ)
+...   | inj₂ (_ , t1τ , _) = ⊥-elim (noτ1 s1 t1τ)
+-- HIDDEN SOLO-LEFT : c.0 is kept (csat absurd); c.1!x is in AC1 (¬pB absurd).
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl with ev-inv pstp
+...   | v , τc , feq , br with αpar-vis-step-inv feq br
+...     | vSoloL pA ¬pB p0s with rc
+...       | reach-e with inv0 rdy0 p0s
+...         | t0-in x = case csat of λ ()
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloL pA ¬pB p0s | reach-l x
+      with inv0 (hld0 x) p0s
+...         | t0-out x = ⊥-elim (¬pB tt)
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloL pA ¬pB p0s | reach-r y
+      with inv0 rdy0 p0s
+...         | t0-in x = case csat of λ ()
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloL pA ¬pB p0s | reach-f x y
+      with inv0 (hld0 x) p0s
+...         | t0-out x = ⊥-elim (¬pB tt)
+-- HIDDEN SOLO-RIGHT : c.2 is kept (csat absurd); c.1?y is in AC0 (¬pA absurd).
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloR ¬pA pB p1s with rc
+...       | reach-e with inv1 rdy1 p1s
+...         | t1-in y = ⊥-elim (¬pA tt)
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloR ¬pA pB p1s | reach-l x
+      with inv1 rdy1 p1s
+...         | t1-in y = ⊥-elim (¬pA tt)
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloR ¬pA pB p1s | reach-r y
+      with inv1 (hld1 y) p1s
+...         | t1-out y = case csat of λ ()
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSoloR ¬pA pB p1s | reach-f x y
+      with inv1 (hld1 y) p1s
+...         | t1-out y = case csat of λ ()
+-- HIDDEN SYNC : the real c.1 handoff (l x → r x); no other config can sync on c.1.
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSync pA pB p0s p1s with rc
+...       | reach-e with inv0 rdy0 p0s
+...         | t0-in x = case pB of λ ()
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSync pA pB p0s p1s | reach-l x
+      with inv0 (hld0 x) p0s | inv1 rdy1 p1s
+...         | t0-out x | t1-in y = hoff x
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSync pA pB p0s p1s | reach-r y
+      with inv0 rdy0 p0s
+...         | t0-in x = case pB of λ ()
+chain-τ-inv {s0} {s1} rc stp | hτH P′ csat pstp refl | v , τc , feq , br | vSync pA pB p0s p1s | reach-f x y
+      with inv0 (hld0 x) p0s | inv1 (hld1 y) p1s
+...         | t0-out x | ()
+
+-- §D.2 stability of the three τ-free configs (`react`-forced and, by §D.1, with no
+-- τ-step at all).  `l x` is deliberately absent — it IS unstable (`handoff`).
+stable-e : isStable (⟦ e ⟧)
+stable-e = react-no-τ→stable refl (λ stp → case chain-τ-inv reach-e stp of λ ())
+
+stable-r : ∀ y → isStable (⟦ r y ⟧)
+stable-r y = react-no-τ→stable refl (λ stp → case chain-τ-inv (reach-r y) stp of λ ())
+
+stable-f : ∀ x y → isStable (⟦ f x y ⟧)
+stable-f x y = react-no-τ→stable refl (λ stp → case chain-τ-inv (reach-f x y) stp of λ ())
+
+-- … and of every buffer state (its τ-map is `∅t`, i.e. everywhere `nothing`)
+stable-buf : ∀ cs → isStable (Buf cs)
+stable-buf []              _ _ = refl
+stable-buf (x₀ ∷ [])       _ _ = refl
+stable-buf (x₀ ∷ x₁ ∷ _)   _ _ = refl
+
+-- §D.3 the chain never diverges: its single τ lands in a stable state.
+
+-- a τ out of `l x` lands in the STABLE `r x`, so `l x` cannot start a divergence.
+-- (The target is taken as an explicit argument: `Diverges` is coinductive, so its
+-- `.next` projection is not a pattern variable and the `Handoff` split gets stuck.)
+handoff-nodiv : ∀ x t → (Chain (hld0 x) rdy1 ∖ Hset) ─[ τ ]─► t → Diverges t → ⊥
+handoff-nodiv x t stp dv with chain-τ-inv (reach-l x) stp
+... | hoff _ = stable→¬div (stable-r x) dv
+
+chain-nodiv : ∀ {s0 s1 cs} → Reach s0 s1 cs → Diverges (Chain s0 s1 ∖ Hset) → ⊥
+chain-nodiv reach-e       d = stable→¬div stable-e d
+chain-nodiv (reach-r y)   d = stable→¬div (stable-r y) d
+chain-nodiv (reach-f x y) d = stable→¬div (stable-f x y) d
+chain-nodiv (reach-l x)   d = handoff-nodiv x _ (d .Diverges.step) (d .Diverges.rest)
+
+-- §D.4 offer transport.  A weak match whose ENDPOINT is stable has empty τ*-padding
+-- (`stable→τ*-refl`), so §B's `fwdE` and §C's `fwdE₂` — which match a step at the
+-- SAME visible label — collapse to single steps and become offer inclusions.
+
+-- chain offers ⊆ buffer offers (the buffer being stable)
+off-fwd : ∀ {p q} → RR p q → isStable q
+        → ∀ (a : Event√ (⊤poly {lzero} × ⊤poly {lzero})) → Offers p a → Offers q a
+off-fwd rel st a (_ , s) with fwdE rel s
+... | _ , wev pre stp _ , _ = _ , subst (λ z → z ─[ ev a ]─► _) (stable→τ*-refl st pre) stp
+
+-- buffer offers ⊆ chain offers (the chain config being stable)
+off-bwd : ∀ {p q} → RR₂ p q → isStable q
+        → ∀ (a : Event√ (⊤poly {lzero} × ⊤poly {lzero})) → Offers p a → Offers q a
+off-bwd rel st a (_ , s) with fwdE₂ rel s
+... | _ , wev pre stp _ , _ = _ , subst (λ z → z ─[ ev a ]─► _) (stable→τ*-refl st pre) stp
+
+-- §D.5 the failure data for §B's relation (implementation = CCH, spec = Buf).
+-- Whenever the chain is stable it is one of `e`/`r`/`f`; the buffer needs no settling
+-- and offers only what that config offers.  `l x` is refuted by `handoff`.
+stabRR : ∀ {p q} → RR p q → isStable p
+       → Σ[ q′ ∈ CC2Proc ] ((q ─[τ*]─► q′) × isStable q′
+           × (∀ (a : Event√ (⊤poly {lzero} × ⊤poly {lzero})) → Offers q′ a → Offers p a))
+stabRR (rr s0 s1 cs rc) st with rc
+... | reach-e     = _ , τ*-refl , stable-buf [] , off-bwd rr-e stable-e
+... | reach-r y   = _ , τ*-refl , stable-buf (y ∷ []) , off-bwd (rr-r y) (stable-r y)
+... | reach-f x y = _ , τ*-refl , stable-buf (y ∷ x ∷ []) , off-bwd (rr-f y x) (stable-f x y)
+... | reach-l x   = ⊥-elim (stable-no-τ st (handoff x))
+
+-- the implementation (the chain) cannot diverge
+ndivRR : ∀ {p q} → RR p q → Diverges p → ⊥
+ndivRR (rr s0 s1 cs rc) d = chain-nodiv rc d
+
+-- §D.6 the failure data for §C's relation (implementation = Buf, spec = CCH).  The
+-- buffer is always stable, every chosen chain representative is stable (§C picks
+-- `l`-free reps), and the offers transport by `off-fwd`.
+stabRR₂ : ∀ {p q} → RR₂ p q → isStable p
+        → Σ[ q′ ∈ CC2Proc ] ((q ─[τ*]─► q′) × isStable q′
+            × (∀ (a : Event√ (⊤poly {lzero} × ⊤poly {lzero})) → Offers q′ a → Offers p a))
+stabRR₂ rr-e       _ = _ , τ*-refl , stable-e
+                         , off-fwd (rr rdy0 rdy1 [] reach-e) (stable-buf [])
+stabRR₂ (rr-r x)   _ = _ , τ*-refl , stable-r x
+                         , off-fwd (rr rdy0 (hld1 x) (x ∷ []) (reach-r x)) (stable-buf (x ∷ []))
+stabRR₂ (rr-f x y) _ = _ , τ*-refl , stable-f y x
+                         , off-fwd (rr (hld0 y) (hld1 x) (x ∷ y ∷ []) (reach-f y x))
+                             (stable-buf (x ∷ y ∷ []))
+
+-- the implementation (the buffer) cannot diverge
+ndivRR₂ : ∀ {p q} → RR₂ p q → Diverges p → ⊥
+ndivRR₂ rr-e       d = stable→¬div (stable-buf []) d
+ndivRR₂ (rr-r x)   d = stable→¬div (stable-buf (x ∷ [])) d
+ndivRR₂ (rr-f x y) d = stable→¬div (stable-buf (x ∷ y ∷ [])) d
+
+-- §D.7 the two failure simulations and the two asserts.
+module MF  = FSimFromRel RR  fwdE  fwdT  stabRR  ndivRR
+module MF₂ = FSimFromRel RR₂ fwdE₂ fwdT₂ stabRR₂ ndivRR₂
+
+-- the specification failure-simulates the chain …
+fsim-spec : FSim (⊤poly {lzero} × ⊤poly {lzero}) CCH Spec
+fsim-spec = MF.rel→fsim (rr rdy0 rdy1 [] reach-e)
+
+-- … and the chain failure-simulates the specification
+fsim-cch : FSim (⊤poly {lzero} × ⊤poly {lzero}) Spec CCH
+fsim-cch = MF₂.rel→fsim rr-e
+
+-- assert  Spec [FD= CCH   (chapter 6): the chain is a 2-place buffer in the FD model.
+ncopy-safe-FD : Spec ⊑FD CCH
+ncopy-safe-FD = fsim→⊑FD fsim-spec
+
+-- assert  CCH [FD= Spec   (chapter 6): and every buffer failure/divergence is the chain's.
+ncopy-live-FD : CCH ⊑FD Spec
+ncopy-live-FD = fsim→⊑FD fsim-cch
+
+-- Combined:  Spec ≈FD CCH  (FD-equivalence, hence also =F and =D).
+ncopy-≈FD : Spec ≈FD CCH
+ncopy-≈FD = ncopy-safe-FD , ncopy-live-FD

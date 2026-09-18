@@ -3,27 +3,27 @@
 ------------------------------------------------------------------------
 -- Cardano network example — THE BAD TRACE: a machine-checked run of the
 -- DELIBERATELY BROKEN relay logic (`Parametric.AnnounceBadLogic`) that
--- announces an EB hash no mint ever produced.
+-- announces an EB hash no forge ever produced.
 --
 -- WHAT THIS MODULE PROVIDES.  One theorem, `bad-announce-fires`: the
 -- four-event trace
 --
---   ⟨ env 0 lo envMint ! (nothing , just true)
+--   ⟨ env 0 lo envForge ! (nothing , just true)
 --   , output 0 hi N2N_LeiosNotify ! MsgLNRequestNext
 --   , store 0 lo stGet ! (just true)
 --   , apiLN 0 hi sendLNBlockAnnouncement ! header (just true) ⟩
 --
 -- is a trace of node 0 of the concrete Leios line running `nodeLogicBad`
--- from an EMPTY store.  The mint carries `nothing` as its EB, so it adds
--- NOTHING to the minted set, yet the announced RB `just true` announces
+-- from an EMPTY store.  The forge carries `nothing` as its EB, so it adds
+-- NOTHING to the forged set, yet the announced RB `just true` announces
 -- the EB hash `true`.  `Parametric.AnnounceSafeNegative` turns that into
 -- the refutation; this module only exhibits the run.
 --
--- WHY THE MINT IS THE FIRST EVENT.  `nodeLogicBad n []` starts with an
+-- WHY THE FORGE IS THE FIRST EVENT.  `nodeLogicBad n []` starts with an
 -- empty store, so `offerHeld` is `Stop` and no `getEv` is available.  The
--- mint is what puts the ill-announced block in: the real
--- `NodeLogic.acceptMint` would DISCARD it (`announcedEB (just true) =
--- just true` but `ebHash <$> nothing = nothing`), and `acceptMintBad`
+-- forge is what puts the ill-announced block in: the real
+-- `NodeLogic.acceptForge` would DISCARD it (`announcedEB (just true) =
+-- just true` but `ebHash <$> nothing = nothing`), and `acceptForgeBad`
 -- keeps it.  That single difference is the whole negative control.
 --
 -- WHICH LEVEL.  The run is over ONE NODE — `node nA (nodeLogicBad nA [])`
@@ -37,7 +37,7 @@
 -- transition INTRO lemmas of `CSP.Laws.Traces.TraceLawsParallel`, exactly
 -- as in `Parametric.RelayLive`; the last four are that module's four
 -- steps, which go through unchanged because `nodeLogicBad` differs from
--- `nodeLogic` only inside the mint clause of the store.
+-- `nodeLogic` only inside the forge clause of the store.
 ------------------------------------------------------------------------
 
 module CSP.Examples.Cardano_network.Parametric.AnnounceBadTrace where
@@ -61,7 +61,7 @@ open import CSP.Examples.Cardano_network.Base
   using (lo; hi; N2N_LeiosNotify; FromInitiator)
 open import CSP.Examples.Cardano_network.Net leiosParams
   using ( Net_Api; Net_Api-≟; output; store; env; apiLN
-        ; stGet; envMint; sendLNBlockAnnouncement )
+        ; stGet; envForge; sendLNBlockAnnouncement )
 open import CSP.Examples.Cardano_network.Data leiosParams
   using (Payload; Header; header; leiosNotify; MsgLNRequestNext)
 open import CSP.Examples.Cardano_network.ApiAlphabet leiosParams using (apiES)
@@ -102,12 +102,12 @@ badNode = node nA (nodeLogicBad nA [])
 -- The four visible events of the bad trace
 ------------------------------------------------------------------------
 
--- event 1: THE ILL-ANNOUNCED MINT.  Its EB component is `nothing`, so it mints NO EB
--- at all and the specification's minted set stays empty; its RB component is `blk`,
--- which announces the EB hash `true`.  `NodeLogic.acceptMint` would drop the block;
--- `AnnounceBadLogic.acceptMintBad` stores it.
-evMint : Event√ (Poly.⊤ {0ℓ})
-evMint = evl (evLabel (Maybe EB × Block) (env fzero lo envMint) (nothing , blk))
+-- event 1: THE ILL-ANNOUNCED FORGE.  Its EB component is `nothing`, so it forges NO EB
+-- at all and the specification's forged set stays empty; its RB component is `blk`,
+-- which announces the EB hash `true`.  `NodeLogic.acceptForge` would drop the block;
+-- `AnnounceBadLogic.acceptForgeBad` stores it.
+evForge : Event√ (Poly.⊤ {0ℓ})
+evForge = evl (evLabel (Maybe EB × Block) (env fzero lo envForge) (nothing , blk))
 
 -- the LeiosNotify request as it arrives off the wire at direction `hi`: the only thing
 -- that moves an LN server peer out of `stIdle` (cf. `RelayLive.reqMsg`)
@@ -122,7 +122,7 @@ evReq = evl (evLabel Payload (output fzero hi N2N_LeiosNotify) reqMsg)
 evGet : Event√ (Poly.⊤ {0ℓ})
 evGet = evl (evLabel Block (store fzero lo stGet) blk)
 
--- event 4: THE UNSAFE ANNOUNCEMENT — an EB hash that no mint produced
+-- event 4: THE UNSAFE ANNOUNCEMENT — an EB hash that no forge produced
 evAnn : Event√ (Poly.⊤ {0ℓ})
 evAnn = evl (evLabel Header (apiLN fzero hi sendLNBlockAnnouncement) (header blk))
 
@@ -133,11 +133,11 @@ evAnn = evl (evLabel Header (apiLN fzero hi sendLNBlockAnnouncement) (header blk
 -- `proj₁` of it and the next step's source.
 ------------------------------------------------------------------------
 
--- STEP 1.  THE ILL-ANNOUNCED MINT.  `env ∉ apiES`, so the bundle stays put
--- (`Par-soloR`); inside the logic the event IS in `storeES`, so the mint thread (left
--- of the `⦀`) and the broken block store synchronise on it, and `acceptMintBad`
+-- STEP 1.  THE ILL-ANNOUNCED FORGE.  `env ∉ apiES`, so the bundle stays put
+-- (`Par-soloR`); inside the logic the event IS in `storeES`, so the forge thread (left
+-- of the `⦀`) and the broken block store synchronise on it, and `acceptForgeBad`
 -- accepts `blk` into the store with no announcement check.
-step₁ : Σ[ P₁ ∈ Proc ] (badNode ─[ ev evMint ]─► P₁)
+step₁ : Σ[ P₁ ∈ Proc ] (badNode ─[ ev evForge ]─► P₁)
 step₁ = _ ,
   Par-soloR _ _ _ _ (λ ())
     (Par-sync _ _ _ _ _
@@ -145,7 +145,7 @@ step₁ = _ ,
       (sVis refl refl))
     refl
 
--- STEP 2.  The store's loop-back: having accepted the mint it returns the new `Held`
+-- STEP 2.  The store's loop-back: having accepted the forge it returns the new `Held`
 -- to `iter`, whose `sil` guard is one τ.  Without it the store is not back at its menu
 -- and cannot offer the block.
 step₂ : Σ[ P₂ ∈ Proc ] (proj₁ step₁ ─[ τ ]─► P₂)
@@ -230,13 +230,13 @@ step₆ = _ ,
 -- THE BAD TRACE
 ------------------------------------------------------------------------
 
--- THE BROKEN NODE ANNOUNCES AN UNMINTED EB HASH.  Node 0 of the concrete Leios line,
--- running `nodeLogicBad` from an empty store, has a trace whose only mint carries NO
+-- THE BROKEN NODE ANNOUNCES AN UNFORGED EB HASH.  Node 0 of the concrete Leios line,
+-- running `nodeLogicBad` from an empty store, has a trace whose only forge carries NO
 -- EB and whose last event announces the EB hash `true`.
 --
 -- LEVEL 2 of the acceptance ladder, not level 1: over `node n (nodeLogicBad n [])`,
 -- not over `systemOf`.  See the module header.
-bad-announce-fires : traces badNode (evMint ∷ evReq ∷ evGet ∷ evAnn ∷ [])
+bad-announce-fires : traces badNode (evForge ∷ evReq ∷ evGet ∷ evAnn ∷ [])
 bad-announce-fires =
   _ , ⟹-ev (proj₂ step₁)
       (⟹-τ (proj₂ step₂)

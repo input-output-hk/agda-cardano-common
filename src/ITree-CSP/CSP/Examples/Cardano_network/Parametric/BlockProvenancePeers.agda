@@ -90,7 +90,7 @@ module Generic
           ; ιTS; ιTS⁻¹; ιTS-linv; ιLN; ιLN⁻¹; ιLN-linv; ιLF; ιLF⁻¹; ιLF-linv
           ; BFclientA; BFserverA; clientPeer; serverPeer; nodeBundle )
   import CSP.Rename {E₁ = BFEv} {E₂ = Net_Api Payload} ιBF ιBF⁻¹ ιBF-linv as RenBF
-  open AS.Generic p t apiES using (Minted)
+  open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES using (WellAnnounced)
   open BP.Generic p t apiES
   open BPBF.Generic p t apiES using (peersG; bfG; CarriesBF; wf-BFclient; wf-BFserver)
@@ -102,7 +102,7 @@ module Generic
   -- the two carriers the transport relates: the state-agnostic source one of
   -- `BlockProvenanceBF` and this module's target one — the SAME arguments both give
   module RBF = BP.Rename BFEv-≟ (Net_Api-≟ {Payload}) ιBF ιBF⁻¹ ιBF-linv
-                         Minted Block CarriesBF Carries WellAnnounced
+                         Forged Block CarriesBF Carries WellAnnounced
                          next _⊆_ ⊆-refl ⊆-trans next-⊇
 
   -- `ιBF⁻¹` answers `just e₁` only on `ιBF e₁`: one clause per `Net_Api` shape, the

@@ -7,7 +7,7 @@
 -- The KeepAlive peers are written over their own small event type
 -- `KAEv`, then (at the composition step, out of scope here) renamed into
 -- the shared network alphabet `Net`.  This module ships the two peers
--- (`clientStClient` / `serverStClient`) plus the network-fragment
+-- (`KAclientStClient` / `KAserverStClient`) plus the network-fragment
 -- injection stub `ιKANet`.
 --
 -- It mirrors the reference state machines
@@ -225,9 +225,8 @@ KAclientStClient l d = iter (clientStep l d) stClient
 -- `stClient` mirrors KeepAliveServerPeer_StClient (receive a request —
 -- binding `cookieReq` from the wire — or a done); `stServer cookieReq`
 -- mirrors KeepAliveServerPeer_StServer (send the echoed response).
--- The `cookie` argument of `serverStClient` is retained for call-site
--- symmetry with the client; the server binds the real cookie from the
--- wire, so it is otherwise unused.
+-- `serverStep`/`KAserverStClient` take no cookie argument: the cookie is
+-- bound from the wire and carried in the `stServer Cookie` state instead.
 ------------------------------------------------------------------------
 
 serverStep : Link → Dir → KAState → PTree KAEv (ExtI KAEv) (KAState ⊎ Rr)

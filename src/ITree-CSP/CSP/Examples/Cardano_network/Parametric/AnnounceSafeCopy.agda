@@ -22,7 +22,7 @@
 -- At the top the union `sysG = medG ∪α (peersG ∪α logicG)` CONTAINS EVERY
 -- BLOCK-CARRYING LABEL — no rely is left — which is `Covers sysG`, the
 -- one side condition of `BlockProvenanceSafe.wf→safe`.  `noTick` is
--- `NoRet` of the composite, inherited from the head node's mint thread.
+-- `NoRet` of the composite, inherited from the head node's forge thread.
 --
 -- `apiES` is a module parameter, so the two facts about it the `Sep`
 -- needs — it synchronises the announcement and both BlockFetch block
@@ -180,11 +180,11 @@ module Generic
     go x (y ∷ ys) = wf-⦀ (wf-bundleAt x) (go y ys)
 
   ------------------------------------------------------------------------
-  -- `noTick`: the system never terminates, because its head node's mint thread is a
+  -- `noTick`: the system never terminates, because its head node's forge thread is a
   -- forever loop and every operator on the way up terminates only if that operand does
   ------------------------------------------------------------------------
 
-  -- the node logic: the threads sit LEFT of `∥⇘ storeES ⇙`, the mint thread heads them
+  -- the node logic: the threads sit LEFT of `∥⇘ storeES ⇙`, the forge thread heads them
   noRet-nodeLogic : ∀ n held → NoRet (nodeLogic n held)
   noRet-nodeLogic n held = NoRet-Par storeES (λ _ _ → tt) (NoRet-⦀ NoRet-loop0)
 
@@ -218,7 +218,7 @@ module Generic
     wf-node : ∀ {ms} n → Wf (peersG ∪α logicG) ms (node n (nodeLogic n []))
     wf-node n = wf-Par apiES sep-api (wf-linkBundles n) (wf-nodeLogic n All.[])
 
-    -- THE WHOLE NETWORK over the copy medium, at every minted set
+    -- THE WHOLE NETWORK over the copy medium, at every forged set
     wf-systemOfCopy : ∀ {ms} → Wf sysG ms (systemOfCopy (λ n → nodeLogic n []))
     wf-systemOfCopy =
       wf-Hide ioES hideCov-sysG hideKeep-ioES

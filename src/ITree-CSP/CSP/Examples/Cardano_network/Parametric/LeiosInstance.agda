@@ -15,7 +15,7 @@
 -- `announceOK` always returns `true`, because no header ever announces
 -- an EB — and `AnnounceSafe.Generic` is instantiated NOWHERE in the repo.
 -- This file supplies the missing composition: its own `Params` (`leiosParams`)
--- with `EB = EBHash = Bool` (two distinguishable EBs/hashes, so `mintedIn`
+-- with `EB = EBHash = Bool` (two distinguishable EBs/hashes, so `forgedIn`
 -- is non-degenerate) and `Block = Maybe Bool` (an RB either announces no
 -- EB or one of the two hashes, so BOTH branches of `announceOK` are
 -- reachable), plus the concrete `AnnounceSafe` statement and its concrete
@@ -159,7 +159,7 @@ open import Semantics.Failures
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using (_⊑F_)
 
 -- announcement safety of the concrete three-node Leios line: no `apiLN …
--- sendLNBlockAnnouncement` may announce an EB hash that no `env … envMint` minted.
+-- sendLNBlockAnnouncement` may announce an EB hash that no `env … envForge` forged.
 -- The property is non-vacuous here (unlike at `LineInstance.lineParams`, where
 -- `announcedEB` is always `nothing`) because `leiosParams.announcedEB` genuinely
 -- announces both hashes.

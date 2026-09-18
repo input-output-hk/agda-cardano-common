@@ -10,23 +10,23 @@
 -- proves the good logic safe at SYSTEM level, while
 -- `Parametric.AnnounceSafeNegative.announceSafeT-node-FAILS` refutes the
 -- property for the broken logic (`AnnounceBadLogic.nodeLogicBad`, the
--- shipped logic with the mint guard deleted and nothing else changed) only
+-- shipped logic with the forge guard deleted and nothing else changed) only
 -- at NODE level.  A sceptic can therefore ask whether it is COMPOSITION,
--- rather than the mint guard, that makes the good side safe: the two
+-- rather than the forge guard, that makes the good side safe: the two
 -- statements never meet.
 --
 -- This module makes them meet.  Both halves below are stated at node
 -- level, about the same shape of process — one node of the concrete Leios
 -- line with its store initially empty — under the same predicate `Wf`, at
 -- the same guarantee alphabet `peersG ∪α logicG`, and at the same initial
--- minted set `[]`.  The only difference between the two sides is which
+-- forged set `[]`.  The only difference between the two sides is which
 -- relay logic the node runs.  That symmetry is the whole point: nothing
 -- about the composition changes between the positive and the negative
--- half, so the mint guard is the only thing left that can explain the
+-- half, so the forge guard is the only thing left that can explain the
 -- difference.
 --
 -- WHAT `Wf` MEANS.  `BlockProvenance.Wf G ms M` is the assume-guarantee
--- carrier: at every minted set `ms′ ⊇ ms`, `M` GUARANTEES that every
+-- carrier: at every forged set `ms′ ⊇ ms`, `M` GUARANTEES that every
 -- label of the alphabet `G` it can perform carries only well-announced
 -- blocks, and — GIVEN that the label it just performed was itself
 -- well-announced (the rely, which appears as the `OK s′ a` ARGUMENT of
@@ -97,7 +97,7 @@ import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCopy as ASCp
 open NL.Generic leiosParams leiosLine apiES using (nodeLogic)
 open AI.Generic leiosParams leiosLine apiES using (WellAnnounced; Gated)
 open BP.Generic leiosParams leiosLine apiES
-  using (Wf; nowW; stepW; _∪α_; AnnIn; wf→gate; blockOK-mint; c-stGet)
+  using (Wf; nowW; stepW; _∪α_; AnnIn; wf→gate; blockOK-forge; c-stGet)
 open BPBF.Generic leiosParams leiosLine apiES using (peersG)
 open ASCp.Generic leiosParams leiosLine apiES using (logicG)
 open ASCp.Generic.Assembly leiosParams leiosLine apiES
@@ -136,7 +136,7 @@ annIn-nodeG _ = inj₂ (inj₁ tt , tt)
 
 -- THE SYMMETRY, MACHINE-CHECKED.  `AnnounceSafeCopy.Assembly.wf-node` really does
 -- land at the very type the negative half below negates — same predicate, same
--- alphabet `nodeG`, same initial minted set `[]` — with only the relay logic differing.
+-- alphabet `nodeG`, same initial forged set `[]` — with only the relay logic differing.
 -- Stated separately (rather than left implicit in `gated-goodNode`) so that a reader
 -- can compare the two signatures line for line.
 wf-goodNode : ∀ n → Wf nodeG [] (node n (nodeLogic n []))
@@ -144,7 +144,7 @@ wf-goodNode n = wf-node n
 
 -- THE POSITIVE HALF, SPENT.  Every node of the Leios line running the SHIPPED relay
 -- logic from an empty store is gated: whatever it announces next announces an EB hash
--- already in the (here empty) minted set.  Premise-free — `wf-node`'s two `Assembly`
+-- already in the (here empty) forged set.  Premise-free — `wf-node`'s two `Assembly`
 -- premises are discharged above for the shipped api alphabet.
 gated-goodNode : ∀ n → Gated [] (node n (nodeLogic n []))
 gated-goodNode n = wf→gate (λ {l} {d} → annIn-nodeG {l} {d}) (wf-node n)
@@ -153,15 +153,15 @@ gated-goodNode n = wf→gate (λ {l} {d} → annIn-nodeG {l} {d}) (wf-node n)
 -- THE NEGATIVE HALF — the broken node fails the SAME predicate
 ------------------------------------------------------------------------
 
--- the ill-announced block is not well-announced against the EMPTY minted set: it
+-- the ill-announced block is not well-announced against the EMPTY forged set: it
 -- announces the EB hash `true` (`announcedEB = λ b → b`, `blk = just true`), and
--- nothing at all has been minted.
+-- nothing at all has been forged.
 ¬wellAnnounced-blk : ¬ WellAnnounced [] blk
 ¬wellAnnounced-blk (inj₁ ())
 ¬wellAnnounced-blk (inj₂ (_ , _ , ()))
 
 -- the `stGet` that takes the ill-announced block back out of the broken store,
--- available already after the mint and its loop-back τ — `AnnounceBadTrace.step₅`'s
+-- available already after the forge and its loop-back τ — `AnnounceBadTrace.step₅`'s
 -- proof term re-sourced at `proj₁ step₂`, the LN peer's two steps being irrelevant to
 -- it.  `store ∉ apiES`, so the peer bundle stays put while the announce thread and
 -- the broken block store synchronise inside the logic.
@@ -178,14 +178,14 @@ badGet = _ ,
     refl
 
 -- THE NEGATIVE HALF.  The BROKEN node — the same node, at the same alphabet, from the
--- same empty store and the same empty minted set — is NOT `Wf`.  Walk `stepW` over the
--- ill-announced mint (whose own label is `blockOK-mint`, and which mints no EB, so the
--- minted set stays `[]`) and over the store's loop-back τ; at the state so reached the
+-- same empty store and the same empty forged set — is NOT `Wf`.  Walk `stepW` over the
+-- ill-announced forge (whose own label is `blockOK-forge`, and which forges no EB, so the
+-- forged set stays `[]`) and over the store's loop-back τ; at the state so reached the
 -- broken store OFFERS the ill-announced block on `stGet`, which is one of the node's
 -- own guarantee channels, so `nowW` demands it be well-announced against `[]`.  It is
 -- not.
 ¬wf-badNode : ¬ Wf nodeG [] badNode
 ¬wf-badNode w =
   ¬wellAnnounced-blk
-    (nowW (stepW (stepW w ⊆-refl (proj₂ step₁) blockOK-mint) ⊆-refl (proj₂ step₂) tt)
+    (nowW (stepW (stepW w ⊆-refl (proj₂ step₁) blockOK-forge) ⊆-refl (proj₂ step₂) tt)
           ⊆-refl (inj₂ (inj₂ tt , tt)) (proj₂ badGet) c-stGet)

@@ -5,21 +5,21 @@
 -- and reduced to per-node obligations.
 --
 -- THE PROPERTY.  A node may only announce (over LeiosNotify) a ranking
--- block whose announced EB hash was actually minted: performing
+-- block whose announced EB hash was actually forged: performing
 -- `apiLN l d sendLNBlockAnnouncement ! h` with `announcedEBof h ≡ just
--- eh` requires an earlier `env l′ d′ envMint ! (just e , b)` with
+-- eh` requires an earlier `env l′ d′ envForge ! (just e , b)` with
 -- `ebHash e ≡ eh`.  An RB announcing no EB (`announcedEBof h ≡
 -- nothing`) is unconstrained.
 --
--- WHY IT IS TRUE.  NOT because a node's own mint guard makes its store
+-- WHY IT IS TRUE.  NOT because a node's own forge guard makes its store
 -- well-announced — it does not: `NodeLogic.storeStep`'s `putEv` clause
 -- deposits a client-received block into the store with NO announcement
--- check, only `acceptMint` is guarded.  What actually holds is a
--- NETWORK-WIDE fact: `AnnounceSpec`'s `Minted` state is global —
--- `announceOffer` matches `env _ _ envMint` on every link and
+-- check, only `acceptForge` is guarded.  What actually holds is a
+-- NETWORK-WIDE fact: `AnnounceSpec`'s `Forged` state is global —
+-- `announceOffer` matches `env _ _ envForge` on every link and
 -- direction, and `env` survives `∖ ioES` (`NetCommon.agda:122`) — so a
 -- block that entered a store via `putEv` still has its provenance
--- chained, through the medium, back to SOME node's guarded mint, just
+-- chained, through the medium, back to SOME node's guarded forge, just
 -- not necessarily this node's.  `lnServerLoop` announces only held RBs
 -- (it reads one via `getEv n`).  Discharging that network-wide argument
 -- is the per-node obligation this module leaves OPEN — it is the `hN`
@@ -29,7 +29,7 @@
 -- `announceSafe-from-nodes` below): because the true reason is
 -- network-wide, `nSpec n` CANNOT be a node-local "well-announced store"
 -- invariant.  Taken in isolation, `node n (nodeLogic n [])` can `put !
--- b` for a `b` announcing a never-minted hash, then `get ! b`, then
+-- b` for a `b` announcing a never-forged hash, then `get ! b`, then
 -- announce it — a node-local gate makes `hN` unprovable, while a gate
 -- loose enough to admit put-deposited blocks pushes the work into the
 -- `res` residual instead.  That tension is what any successor plan
@@ -83,10 +83,10 @@
 -- machine-checked negative control pinning `AnnounceSpecT`'s content.
 --
 -- THE SPEC SHAPE, AND WHY IT IS CHAOS- AND NOT RUN-SHAPED.  `AnnounceSpec`
--- is a stateful `loop` over the set of EB hashes minted so far, whose body
+-- is a stateful `loop` over the set of EB hashes forged so far, whose body
 -- is `pchoice … ⊓ Stop`.  The `pchoice` is a pure-visible `react` node
 -- offering EVERY event of EVERY channel, with exactly two channels treated
--- specially (mint grows the state, announce is gated by it).  It is
+-- specially (forge grows the state, announce is gated by it).  It is
 -- deliberately NOT a `□` of prefixes like `NodeLogic.blockStore`: a `□` can
 -- only offer the finitely many channels it names, whereas a spec above the
 -- whole network must permit every other event of the (open-ended,
@@ -100,7 +100,7 @@
 -- refuses almost nothing, and `⊑F` (which requires
 -- `failures Q s X → failures P s X`) would force the IMPLEMENTATION to
 -- offer, in every stable reachable state, every event on every link — which
--- it cannot: `NodeLogic.mint` offers `env` on ONE link only, and the six
+-- it cannot: `NodeLogic.forge` offers `env` on ONE link only, and the six
 -- un-driven Leios carriers are never offered at all.  That reading is FALSE
 -- where a stable state is reachable and vacuous otherwise.  A SAFETY
 -- property in the failures model must be able to refuse ARBITRARY sets, so
@@ -155,7 +155,7 @@ module Generic
 
   open Params p using (EB; EBHash; ebHash; decEBHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; apiLN; envMint; sendLNBlockAnnouncement
+    using ( Net_Api; Net_Api-≟; env; apiLN; envForge; sendLNBlockAnnouncement
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF; store; break
           ; sendLNRequestNext; sendLNDone; sendLNBlockOffer; sendLNBlockTxsOffer
@@ -190,35 +190,35 @@ module Generic
   -- The specification
   ------------------------------------------------------------------------
 
-  -- the spec's state: the EB hashes the environment has minted so far.  Hashes are
+  -- the spec's state: the EB hashes the environment has forged so far.  Hashes are
   -- never removed — the permission an announcement needs, once granted, is permanent.
-  Minted : Set
-  Minted = List EBHash
+  Forged : Set
+  Forged = List EBHash
 
-  -- has this EB hash been minted?
-  mintedIn : EBHash → Minted → Bool
-  mintedIn eh ms = any (λ x → ⌊ x ≟ eh ⌋) ms
+  -- has this EB hash been forged?
+  forgedIn : EBHash → Forged → Bool
+  forgedIn eh ms = any (λ x → ⌊ x ≟ eh ⌋) ms
 
-  -- may header `h` be announced against the minted set `ms`?  An RB announcing no EB
-  -- is unconstrained; one announcing `eh` needs `eh` minted.
-  announceOK : Minted → Header → Bool
+  -- may header `h` be announced against the forged set `ms`?  An RB announcing no EB
+  -- is unconstrained; one announcing `eh` needs `eh` forged.
+  announceOK : Forged → Header → Bool
   announceOK ms h with announcedEBof h
   ... | nothing = true
-  ... | just eh = mintedIn eh ms
+  ... | just eh = forgedIn eh ms
 
-  -- the spec's offer map: mint grows the state, a gated announce keeps it, every
+  -- the spec's offer map: forge grows the state, a gated announce keeps it, every
   -- other event of every other channel is offered freely and leaves the state alone
-  announceOffer : Minted → (at : AnyTypes (Net_Api Payload))
+  announceOffer : Forged → (at : AnyTypes (Net_Api Payload))
                 → ContinueType at
-                    (Maybe (PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Minted))
-  announceOffer ms (_ , env _ _ envMint) (just e  , _) = just (Ret (ebHash e ∷ ms))
-  announceOffer ms (_ , env _ _ envMint) (nothing , _) = just (Ret ms)
+                    (Maybe (PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Forged))
+  announceOffer ms (_ , env _ _ envForge) (just e  , _) = just (Ret (ebHash e ∷ ms))
+  announceOffer ms (_ , env _ _ envForge) (nothing , _) = just (Ret ms)
   announceOffer ms (_ , apiLN _ _ sendLNBlockAnnouncement) h =
     if announceOK ms h then just (Ret ms) else nothing
   announceOffer ms _ _ = just (Ret ms)
 
   -- ANNOUNCEMENT SAFETY AS A PROCESS: every TRACE is permitted except one announcing
-  -- an EB hash no mint produced.  Started from the empty minted set.  The `⊓ Stop`
+  -- an EB hash no forge produced.  Started from the empty forged set.  The `⊓ Stop`
   -- makes it Chaos-shaped rather than RUN-shaped, so it imposes no offer obligation
   -- on the implementation — see the header.
   AnnounceSpec : Proc
@@ -233,7 +233,7 @@ module Generic
   -- statement it was.  It is retained because it is already referenced and
   -- because it is stated over the Chaos-shaped `AnnounceSpec`; the historic
   -- warning that followed applies to the FAILURES HALF `_⊇F_` only: `⊇F`
-  -- compares STABLE failures only, so an implementation that announces an unminted
+  -- compares STABLE failures only, so an implementation that announces an unforged
   -- hash and then diverges satisfies this VACUOUSLY.  The `⊑T` family below closes
   -- that hole, and `Parametric.AnnounceContent` machine-checks that it has content.
   --
@@ -249,14 +249,14 @@ module Generic
   AnnounceSafe = AnnounceSafeWith NetworkLinkBreakableA
 
   -- ANNOUNCEMENT SAFETY AS A PROCESS, at TRACE refinement: every trace is permitted
-  -- except one announcing an EB hash no mint produced.  No `⊓ Stop` here — `⊑T`
+  -- except one announcing an EB hash no forge produced.  No `⊓ Stop` here — `⊑T`
   -- ignores refusals entirely, so the Chaos-shaping the `⊑F` statement needs is inert.
   AnnounceSpecT : Proc
   AnnounceSpecT = loop (λ ms → pchoice (announceOffer ms)) []
 
   -- announcement safety over an arbitrary medium, at `⊑T` — the order safety actually
   -- belongs in: unlike `AnnounceSafeWith`, a run with no stable residual (a divergent
-  -- implementation that first announces an unminted hash) cannot satisfy this vacuously.
+  -- implementation that first announces an unforged hash) cannot satisfy this vacuously.
   AnnounceSafeTWith : Proc → Set₁
   AnnounceSafeTWith med = AnnounceSpecT ⊑T systemOfWith med (λ n → nodeLogic n [])
 
@@ -314,38 +314,38 @@ module Generic
     Tree X = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) X
 
     -- `loop`'s state-threading continuation: hand the new state back to `iter`
-    κ : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+    κ : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
     κ ms = Ret (inj₁ ms)
 
     -- the `iter` step `loop` builds from `AnnounceSpec`'s body …
-    Step : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+    Step : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
     Step ms = (pchoice (announceOffer ms) ⊓ Stop) >>= κ
 
     -- … and the one it builds from `AnnounceSpecT`'s (no `⊓ Stop`)
-    StepT : Minted → Tree (Minted ⊎ ⊤ {0ℓ})
+    StepT : Forged → Tree (Forged ⊎ ⊤ {0ℓ})
     StepT ms = pchoice (announceOffer ms) >>= κ
 
     -- `AnnounceSpec`'s state before the internal choice …
-    A : Minted → Proc
+    A : Forged → Proc
     A ms = iter Step ms
     -- … the visible menu the `⊓` may pick …
-    L : Minted → Proc
+    L : Forged → Proc
     L ms = iter-bind (StepT ms) Step
     -- … the `Stop` it may pick instead …
     Dead : Proc
     Dead = iter-bind (Stop >>= κ) Step
     -- … and the `sil` back-edge `loop` emits after a visible event
-    S : Minted → Proc
+    S : Forged → Proc
     S ms = iter-bind (Ret ms >>= κ) Step
 
     -- `AnnounceSpecT`'s two states: the menu itself (no `⊓` to resolve) and
     -- the same back-edge
-    AT : Minted → Proc
+    AT : Forged → Proc
     AT ms = iter StepT ms
-    ST : Minted → Proc
+    ST : Forged → Proc
     ST ms = iter-bind (Ret ms >>= κ) StepT
 
-    -- the two specs ARE those states at the empty minted set
+    -- the two specs ARE those states at the empty forged set
     spec≡A : AnnounceSpec ≡ A []
     spec≡A = refl
     specT≡AT : AnnounceSpecT ≡ AT []
@@ -377,16 +377,16 @@ module Generic
 
     -- the announce channel's gate: whichever way it decides, an offer it makes
     -- is a `Ret` (the loop-back), never anything else
-    gate-Ret : (b : Bool) (ms : Minted) {t : Tree Minted}
+    gate-Ret : (b : Bool) (ms : Forged) {t : Tree Forged}
              → (if b then just (Ret ms) else nothing) ≡ just t
-             → Σ[ ms′ ∈ Minted ] t ≡ Ret ms′
+             → Σ[ ms′ ∈ Forged ] t ≡ Ret ms′
     gate-Ret true  ms refl = ms , refl
     gate-Ret false ms ()
 
     -- EVERY offer of the shared menu is a `Ret`: the spec's state changes only
     -- through `loop`, so a visible step always lands on the loop-back edge
-    menu-Ret : ∀ ms (at : AnyTypes (Net_Api Payload)) (a : proj₁ at) {t : Tree Minted}
-             → announceOffer ms at a ≡ just t → Σ[ ms′ ∈ Minted ] t ≡ Ret ms′
+    menu-Ret : ∀ ms (at : AnyTypes (Net_Api Payload)) (a : proj₁ at) {t : Tree Forged}
+             → announceOffer ms at a ≡ just t → Σ[ ms′ ∈ Forged ] t ≡ Ret ms′
     menu-Ret ms (_ , input  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , output _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , sndmsg _ _ _) _ refl = ms , refl
@@ -403,9 +403,9 @@ module Generic
     menu-Ret ms (_ , apiLF  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , store  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , break  _)     _ refl = ms , refl
-    -- the mint channel grows the minted set …
-    menu-Ret ms (_ , env _ _ envMint) (just e  , _) refl = (ebHash e ∷ ms) , refl
-    menu-Ret ms (_ , env _ _ envMint) (nothing , _) refl = ms , refl
+    -- the forge channel grows the forged set …
+    menu-Ret ms (_ , env _ _ envForge) (just e  , _) refl = (ebHash e ∷ ms) , refl
+    menu-Ret ms (_ , env _ _ envForge) (nothing , _) refl = ms , refl
     -- … and the announce channel is the gated one; the rest of LeiosNotify is free
     menu-Ret ms (_ , apiLN _ _ sendLNBlockAnnouncement) h eq = gate-Ret (announceOK ms h) ms eq
     menu-Ret ms (_ , apiLN _ _ sendLNRequestNext)       _ refl = ms , refl
@@ -420,17 +420,17 @@ module Generic
 
     -- the menu node itself, and the node it becomes under `loop`'s state threading —
     -- named so the `iterV`/`bindV` peeling lemmas below can be pointed at them
-    Nmenu : Minted → NodeKind (Net_Api Payload) (ExtI (Net_Api Payload)) Minted
+    Nmenu : Forged → NodeKind (Net_Api Payload) (ExtI (Net_Api Payload)) Forged
     Nmenu ms = react (announceOffer ms) ∅t
-    Xmenu : Minted → NodeKind (Net_Api Payload) (ExtI (Net_Api Payload)) (Minted ⊎ ⊤ {0ℓ})
+    Xmenu : Forged → NodeKind (Net_Api Payload) (ExtI (Net_Api Payload)) (Forged ⊎ ⊤ {0ℓ})
     Xmenu ms = react (bindV κ (Nmenu ms)) (bindT κ (Nmenu ms))
 
     -- BOTH specs run the SAME menu (they differ only in the `⊓ Stop` above it), so a
     -- visible step of the one built with `k` lands on the loop-back edge, and the very
     -- same event steps the one built with `k′` to the corresponding edge
-    menu-step : ∀ {ms} (k k′ : Minted → Tree (Minted ⊎ ⊤ {0ℓ})) {e q}
+    menu-step : ∀ {ms} (k k′ : Forged → Tree (Forged ⊎ ⊤ {0ℓ})) {e q}
               → iter-bind (StepT ms) k ─[ ev e ]─► q
-              → Σ[ ms′ ∈ Minted ]
+              → Σ[ ms′ ∈ Forged ]
                   ((q ≡ iter-bind (Ret ms′ >>= κ) k)
                    × (iter-bind (StepT ms) k′ ─[ ev e ]─► iter-bind (Ret ms′ >>= κ) k′))
     menu-step k k′ (sRet eq) = case eq of λ ()
