@@ -123,7 +123,7 @@ open import CSP.Examples.Cardano_network.Base using
   ; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break
   ; ApiBFTag; ApiBFCar
   ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks
@@ -365,6 +365,7 @@ sbbAt⇒pin (apiKA  _ _ _) a ()
 sbbAt⇒pin (apiTS  _ _ _) a ()
 sbbAt⇒pin (apiLN  _ _ _) a ()
 sbbAt⇒pin (apiLF  _ _ _) a ()
+sbbAt⇒pin (apiLP  _ _ _) a ()
 sbbAt⇒pin (done   _ _ _) a ()
 sbbAt⇒pin (input  _ _ _) a ()
 sbbAt⇒pin (output _ _ _) a ()
@@ -431,6 +432,7 @@ rbbAt⇒pin (apiKA  _ _ _) a ()
 rbbAt⇒pin (apiTS  _ _ _) a ()
 rbbAt⇒pin (apiLN  _ _ _) a ()
 rbbAt⇒pin (apiLF  _ _ _) a ()
+rbbAt⇒pin (apiLP  _ _ _) a ()
 rbbAt⇒pin (done   _ _ _) a ()
 rbbAt⇒pin (input  _ _ _) a ()
 rbbAt⇒pin (output _ _ _) a ()
@@ -599,6 +601,7 @@ rbrAt⇒pin (apiKA  _ _ _) a ()
 rbrAt⇒pin (apiTS  _ _ _) a ()
 rbrAt⇒pin (apiLN  _ _ _) a ()
 rbrAt⇒pin (apiLF  _ _ _) a ()
+rbrAt⇒pin (apiLP  _ _ _) a ()
 rbrAt⇒pin (done   _ _ _) a ()
 rbrAt⇒pin (input  _ _ _) a ()
 rbrAt⇒pin (output _ _ _) a ()
@@ -658,6 +661,7 @@ sbAt⇒ahl (apiKA  _ _ _) a ()
 sbAt⇒ahl (apiTS  _ _ _) a ()
 sbAt⇒ahl (apiLN  _ _ _) a ()
 sbAt⇒ahl (apiLF  _ _ _) a ()
+sbAt⇒ahl (apiLP  _ _ _) a ()
 sbAt⇒ahl (done   _ _ _) a ()
 sbAt⇒ahl (input  _ _ _) a ()
 sbAt⇒ahl (output _ _ _) a ()
@@ -776,6 +780,7 @@ csrAt⇒acs (apiKA  _ _ _) a ()
 csrAt⇒acs (apiTS  _ _ _) a ()
 csrAt⇒acs (apiLN  _ _ _) a ()
 csrAt⇒acs (apiLF  _ _ _) a ()
+csrAt⇒acs (apiLP  _ _ _) a ()
 csrAt⇒acs (done   _ _ _) a ()
 csrAt⇒acs (input  _ _ _) a ()
 csrAt⇒acs (output _ _ _) a ()
@@ -837,6 +842,7 @@ csaAt⇒acs (apiKA  _ _ _) a ()
 csaAt⇒acs (apiTS  _ _ _) a ()
 csaAt⇒acs (apiLN  _ _ _) a ()
 csaAt⇒acs (apiLF  _ _ _) a ()
+csaAt⇒acs (apiLP  _ _ _) a ()
 csaAt⇒acs (done   _ _ _) a ()
 csaAt⇒acs (input  _ _ _) a ()
 csaAt⇒acs (output _ _ _) a ()
@@ -899,6 +905,7 @@ csfwAt⇒acs (apiKA  _ _ _) a ()
 csfwAt⇒acs (apiTS  _ _ _) a ()
 csfwAt⇒acs (apiLN  _ _ _) a ()
 csfwAt⇒acs (apiLF  _ _ _) a ()
+csfwAt⇒acs (apiLP  _ _ _) a ()
 csfwAt⇒acs (done   _ _ _) a ()
 csfwAt⇒acs (input  _ _ _) a ()
 csfwAt⇒acs (output _ _ _) a ()
@@ -1021,6 +1028,7 @@ csfAt⇒ahl (apiKA  _ _ _) a ()
 csfAt⇒ahl (apiTS  _ _ _) a ()
 csfAt⇒ahl (apiLN  _ _ _) a ()
 csfAt⇒ahl (apiLF  _ _ _) a ()
+csfAt⇒ahl (apiLP  _ _ _) a ()
 csfAt⇒ahl (done   _ _ _) a ()
 csfAt⇒ahl (input  _ _ _) a ()
 csfAt⇒ahl (output _ _ _) a ()
@@ -1085,6 +1093,7 @@ bfAt⇒cscFix k kd pos pos′ (apiKA  _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (apiTS  _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (apiLN  _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (apiLF  _ _ _) a () _
+bfAt⇒cscFix k kd pos pos′ (apiLP  _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (done   _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (input  _ _ _) a () _
 bfAt⇒cscFix k kd pos pos′ (output _ _ _) a () _
@@ -1201,6 +1210,7 @@ srvApiRow-fix k kd bfs (apiKA _ _ _) a = refl
 srvApiRow-fix k kd bfs (apiTS _ _ _) a = refl
 srvApiRow-fix k kd bfs (apiLN _ _ _) a = refl
 srvApiRow-fix k kd bfs (apiLF _ _ _) a = refl
+srvApiRow-fix k kd bfs (apiLP _ _ _) a = refl
 srvApiRow-fix k kd bfs (sndmsg _ _ _) a = refl
 srvApiRow-fix k kd bfs (rcvmsg _ _ _) a = refl
 srvApiRow-fix k kd bfs (tx     _ _ _) a = refl
@@ -1223,6 +1233,7 @@ cliApiRow-fix k kd bfc (apiKA _ _ _) a = refl
 cliApiRow-fix k kd bfc (apiTS _ _ _) a = refl
 cliApiRow-fix k kd bfc (apiLN _ _ _) a = refl
 cliApiRow-fix k kd bfc (apiLF _ _ _) a = refl
+cliApiRow-fix k kd bfc (apiLP _ _ _) a = refl
 cliApiRow-fix k kd bfc (sndmsg _ _ _) a = refl
 cliApiRow-fix k kd bfc (rcvmsg _ _ _) a = refl
 cliApiRow-fix k kd bfc (tx     _ _ _) a = refl
@@ -2564,6 +2575,8 @@ absBundleG-api-evo⁺ l cl sv cl≢sv csc css bfc bfs ip {e = apiLF l′ d′ m}
   with absBundleLF-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = LF.apiLFev l′ d′ m} step
 ... | blfcEB lfc′ eq run = csc , css , bfc , bfs , record ip { lfc = lfc′ } , eq , run , inj₁ refl , inj₁ (refl , λ ()) , (λ _ h → h) , refl , refl , (λ r rbr → ⊥-elim (nothing-absurd rbr)) , (λ sb bsy → ⊥-elim (nothing-absurd sb)) , refl , refl , (λ p → ⊥-elim (nothing-absurd p)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ bd → ⊥-elim (nothing-absurd bd)) , (λ b rb _ → ⊥-elim (nothing-absurd rb)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ r rb → ⊥-elim (nothing-absurd rb))
 ... | blfsEB lfs′ eq run = csc , css , bfc , bfs , record ip { lfs = lfs′ } , eq , run , inj₁ refl , inj₁ (refl , λ ()) , (λ _ h → h) , refl , refl , (λ r rbr → ⊥-elim (nothing-absurd rbr)) , (λ sb bsy → ⊥-elim (nothing-absurd sb)) , refl , refl , (λ p → ⊥-elim (nothing-absurd p)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ bd → ⊥-elim (nothing-absurd bd)) , (λ b rb _ → ⊥-elim (nothing-absurd rb)) , (λ p → ⊥-elim (nothing-absurd p)) , (λ r rb → ⊥-elim (nothing-absurd rb))
+-- the prototype api family: this scenario has no prototype peer, so the step is impossible
+absBundleG-api-evo⁺ l cl sv cl≢sv csc css bfc bfs ip {e = apiLP l′ d′ m} apimem step = ⊥-elim (SIL6.absBundleG-no-apiLP l cl sv csc css bfc bfs ip (_ , step))
 absBundleG-api-evo⁺ l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_ChainSync} apimem step
   with absBundleCS-ev-prod⁺ l cl sv cl≢sv csc css bfc bfs ip {e₁ = CS.doneCS l′ d′} step
 -- (T4) the `doneCS` channel: a CS CLIENT has no `done` row at all, so the client

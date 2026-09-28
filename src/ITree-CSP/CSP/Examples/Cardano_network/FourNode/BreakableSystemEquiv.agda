@@ -152,6 +152,7 @@ hKA (_ , apiTS  _ _ _) b _ _ _ = tt₀
 hKA (_ , apiKA  _ _ _) b _ _ _ = tt₀
 hKA (_ , apiLN  _ _ _) b _ _ _ = tt₀
 hKA (_ , apiLF  _ _ _) b _ _ _ = tt₀
+hKA (_ , apiLP  _ _ _) b _ _ _ = tt₀
 hKA (_ , store  _ _ _) b _ _ _ = tt₀
 hKA (_ , env    _ _ _) b _ _ _ = tt₀
 
@@ -173,6 +174,7 @@ hBF (_ , apiTS  _ _ _) b _ _ _ = tt₀
 hBF (_ , apiKA  _ _ _) b _ _ _ = tt₀
 hBF (_ , apiLN  _ _ _) b _ _ _ = tt₀
 hBF (_ , apiLF  _ _ _) b _ _ _ = tt₀
+hBF (_ , apiLP  _ _ _) b _ _ _ = tt₀
 hBF (_ , store  _ _ _) b _ _ _ = tt₀
 hBF (_ , env    _ _ _) b _ _ _ = tt₀
 
@@ -194,6 +196,7 @@ hCS (_ , apiTS  _ _ _) b _ _ _ = tt₀
 hCS (_ , apiKA  _ _ _) b _ _ _ = tt₀
 hCS (_ , apiLN  _ _ _) b _ _ _ = tt₀
 hCS (_ , apiLF  _ _ _) b _ _ _ = tt₀
+hCS (_ , apiLP  _ _ _) b _ _ _ = tt₀
 hCS (_ , store  _ _ _) b _ _ _ = tt₀
 hCS (_ , env    _ _ _) b _ _ _ = tt₀
 
@@ -215,6 +218,7 @@ hTS (_ , apiTS  _ _ _) b _ _ _ = tt₀
 hTS (_ , apiKA  _ _ _) b _ _ _ = tt₀
 hTS (_ , apiLN  _ _ _) b _ _ _ = tt₀
 hTS (_ , apiLF  _ _ _) b _ _ _ = tt₀
+hTS (_ , apiLP  _ _ _) b _ _ _ = tt₀
 hTS (_ , store  _ _ _) b _ _ _ = tt₀
 hTS (_ , env    _ _ _) b _ _ _ = tt₀
 
@@ -236,6 +240,7 @@ hLN (_ , apiTS  _ _ _) b _ _ _ = tt₀
 hLN (_ , apiKA  _ _ _) b _ _ _ = tt₀
 hLN (_ , apiLN  _ _ _) b _ _ _ = tt₀
 hLN (_ , apiLF  _ _ _) b _ _ _ = tt₀
+hLN (_ , apiLP  _ _ _) b _ _ _ = tt₀
 hLN (_ , store  _ _ _) b _ _ _ = tt₀
 hLN (_ , env    _ _ _) b _ _ _ = tt₀
 
@@ -257,6 +262,7 @@ hLF (_ , apiTS  _ _ _) b _ _ _ = tt₀
 hLF (_ , apiKA  _ _ _) b _ _ _ = tt₀
 hLF (_ , apiLN  _ _ _) b _ _ _ = tt₀
 hLF (_ , apiLF  _ _ _) b _ _ _ = tt₀
+hLF (_ , apiLP  _ _ _) b _ _ _ = tt₀
 hLF (_ , store  _ _ _) b _ _ _ = tt₀
 hLF (_ , env    _ _ _) b _ _ _ = tt₀
 
@@ -405,6 +411,7 @@ sepDisj {_ , apiTS  _ _ _} nm (i , k , ()) _
 sepDisj {_ , apiKA  _ _ _} nm (i , k , ()) _
 sepDisj {_ , apiLN  _ _ _} nm (i , k , ()) _
 sepDisj {_ , apiLF  _ _ _} nm (i , k , ()) _
+sepDisj {_ , apiLP  _ _ _} nm (i , k , ()) _
 sepDisj {_ , store  _ _ _} nm (i , k , ()) _
 sepDisj {_ , env    _ _ _} nm (i , k , ()) _
 

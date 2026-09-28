@@ -76,7 +76,7 @@ open import Data.Sum using ( inj₁; inj₂; _⊎_ )
 open import CSP.Examples.Cardano_network.Base using
   ( Dir; lo; hi; N2N_ChainSync; N2N_BlockFetch; N2N_KeepAlive; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
 open import CSP.Examples.Cardano_network.Net p using
-  ( Link; input; output; done; break; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF
+  ( Link; input; output; done; break; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 import CSP.Examples.Cardano_network.ChainSync p as CS
@@ -982,6 +982,7 @@ absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iome
 absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod-wt l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem

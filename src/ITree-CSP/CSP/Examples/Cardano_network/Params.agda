@@ -30,7 +30,10 @@ open import CSP.Examples.Cardano_network.Base using (IDs; Dir)
 
 record Params : Set₁ where
   field
-    Cookie Block Txid LSlot VoterId LFBitmap VoteBlob : Set
+    ------------------------------------------------------------------
+    -- Praos domains
+    ------------------------------------------------------------------
+    Cookie Block LSlot VoterId VoteBlob : Set
     Time Length : Set
     time₀   : Time
     length₀ : Length
@@ -39,20 +42,61 @@ record Params : Set₁ where
     -- per-link active mini-protocol instances: which (direction, protocol)
     -- pairs actually run on each link (unlisted ⇒ that instance is absent)
     linkConfig : Fin numLinks → List (Dir × IDs)
+
+    ------------------------------------------------------------------
+    -- THE THREE HASH-IDENTIFIED OBJECTS.  Every object the protocols move is
+    -- modelled the same way: an opaque domain, an opaque identity type, and an
+    -- injective-BY-INTENT hash projection (no theorem below needs injectivity).
+    -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+    ------------------------------------------------------------------
+    -- the hash of a RANKING block's HEADER — the identity of an RB, and what a vote names
+    RbHash : Set
+    rbHash : Block → RbHash
+    -- an endorser block (it travels on the wire) and its identity
+    EB EBHash : Set
+    ebHash : EB → EBHash
+    -- a transaction and its identity.  `Tx` is OPAQUE: the old wrapper
+    -- `Data.Tx = txData Txid` made a transaction identical to its id, so a fetched
+    -- body was a semantic no-op.  `Txid` is gone; `TxHash` is the identifier.
+    Tx TxHash : Set
+    txHash : Tx → TxHash
+
+    ------------------------------------------------------------------
+    -- header attributes and sizes
+    ------------------------------------------------------------------
+    -- the slot a ranking block was forged in (an attribute, never a key: slot battles
+    -- mean a slot identifies neither an RB nor an EB uniquely).  MOVED IN from
+    -- `LeiosParams`: `Data.agda`/`Net.agda` see only `Params`.
+    slotOf : Block → LSlot
+    -- the EB hash announced by a ranking block, if it announces one
+    announcedEB : Block → Maybe EBHash
+    -- a byte size on the wire (the prototype's `Word32`): the EB size on `MsgLeiosBlockOffer`
+    -- and the size column of every tx table.  Opaque, like every other domain.
+    Size : Set
+    -- the size of a transaction
+    txSize : Tx → Size
+
+    ------------------------------------------------------------------
+    -- decidable equality
+    ------------------------------------------------------------------
     ⦃ decCookie ⦄   : DecEq Cookie
     ⦃ decBlock ⦄    : DecEq Block
-    ⦃ decTxid ⦄     : DecEq Txid
     ⦃ decLSlot ⦄    : DecEq LSlot
     ⦃ decVoterId ⦄  : DecEq VoterId
-    ⦃ decLFBitmap ⦄ : DecEq LFBitmap
     ⦃ decVoteBlob ⦄ : DecEq VoteBlob
     ⦃ decTime ⦄     : DecEq Time
     ⦃ decLength ⦄   : DecEq Length
-    -- Leios: an endorser block and its hash (opaque, like the Praos domains)
-    EB EBHash : Set
-    ⦃ decEB ⦄     : DecEq EB
-    ⦃ decEBHash ⦄ : DecEq EBHash
-    -- the hash of an endorser block
-    ebHash : EB → EBHash
-    -- the EB hash announced by a ranking block, if it announces one
-    announcedEB : Block → Maybe EBHash
+    ⦃ decEB ⦄       : DecEq EB
+    ⦃ decEBHash ⦄   : DecEq EBHash
+    ⦃ decRbHash ⦄   : DecEq RbHash
+    ⦃ decTx ⦄       : DecEq Tx
+    ⦃ decTxHash ⦄   : DecEq TxHash
+    ⦃ decSize ⦄     : DecEq Size
+
+  -- BACK-COMPATIBILITY ALIAS, for the OLD estate only (TxSubmission's `R2_Bisim` and
+  -- `PipePair*` modules name `Txid` in their `open Params p using (…)` lists).  New code
+  -- writes `TxHash`.  `Txid` REDUCES to `TxHash`, so the `decTxHash` instance field still
+  -- answers every `DecEq Txid` search in a module that opens `Params` unqualified.
+  -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+  Txid : Set
+  Txid = TxHash

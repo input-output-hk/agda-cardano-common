@@ -11,14 +11,17 @@
 -- Productive via `iter` (no NON_TERMINATING).
 --
 -- Protocol (old single-protocol LeiosFetch, ID 19): from `stIdle` the
--- consumer requests an EB (`MsgLFBlockRequest` → `stBlock`), selective txs
--- (`MsgLFBlockTxsRequest` → `stBlockTxs`), votes (`MsgLFVotesRequest` →
+-- consumer requests an EB (`MsgLFBlockRequest` → `stBlock`),
+-- votes (`MsgLFVotesRequest` →
 -- `stVotes`), or a block range (`MsgLFBlockRangeRequest` → `stBlockRange`),
 -- or terminates (`MsgLFDone` → `stDone`).  The producer delivers in the
 -- matching busy state, returning to `stIdle`.  The block-range case streams:
 -- the producer may send several `MsgLFNextBlockAndTxsInRange` (staying in
 -- `stBlockRange`) before a final `MsgLFLastBlockAndTxsInRange` returns to
 -- `stIdle`.
+-- The tx-closure branch (`MsgLFBlockTxsRequest`/`MsgLFBlockTxs`, `stBlockTxs`) is
+-- GONE: the prototype protocol owns tx closure now.
+-- see ADR 2026-09-21 (leios-tx-closure-and-object-identities) §6
 ------------------------------------------------------------------------
 
 open import CSP.Examples.Cardano_network.Params using (Params)
@@ -127,7 +130,6 @@ open LFOps LFEv-≟
 data LFState : Set where
   stIdle       : LFState   -- consumer requests / producer awaits a request
   stBlock      : LFState   -- EB delivery outstanding
-  stBlockTxs   : LFState   -- tx delivery outstanding
   stVotes      : LFState   -- vote delivery outstanding
   stBlockRange : LFState   -- block-range streaming (self-loop until Last)
   stDone       : LFState   -- terminal (√)
@@ -140,38 +142,27 @@ instance
     go : (x y : LFState) → Dec (x ≡ y)
     go stIdle       stIdle       = yes refl
     go stBlock      stBlock      = yes refl
-    go stBlockTxs   stBlockTxs   = yes refl
     go stVotes      stVotes      = yes refl
     go stBlockRange stBlockRange = yes refl
     go stDone       stDone       = yes refl
     go stIdle       stBlock      = no λ ()
-    go stIdle       stBlockTxs   = no λ ()
     go stIdle       stVotes      = no λ ()
     go stIdle       stBlockRange = no λ ()
     go stIdle       stDone       = no λ ()
     go stBlock      stIdle       = no λ ()
-    go stBlock      stBlockTxs   = no λ ()
     go stBlock      stVotes      = no λ ()
     go stBlock      stBlockRange = no λ ()
     go stBlock      stDone       = no λ ()
-    go stBlockTxs   stIdle       = no λ ()
-    go stBlockTxs   stBlock      = no λ ()
-    go stBlockTxs   stVotes      = no λ ()
-    go stBlockTxs   stBlockRange = no λ ()
-    go stBlockTxs   stDone       = no λ ()
     go stVotes      stIdle       = no λ ()
     go stVotes      stBlock      = no λ ()
-    go stVotes      stBlockTxs   = no λ ()
     go stVotes      stBlockRange = no λ ()
     go stVotes      stDone       = no λ ()
     go stBlockRange stIdle       = no λ ()
     go stBlockRange stBlock      = no λ ()
-    go stBlockRange stBlockTxs   = no λ ()
     go stBlockRange stVotes      = no λ ()
     go stBlockRange stDone       = no λ ()
     go stDone       stIdle       = no λ ()
     go stDone       stBlock      = no λ ()
-    go stDone       stBlockTxs   = no λ ()
     go stDone       stVotes      = no λ ()
     go stDone       stBlockRange = no λ ()
 
@@ -189,11 +180,6 @@ clientStep l d stIdle = pchoice v
   ... | yes refl | yes refl = just
         (sendLF l d ! (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRequest pt)) ⟶
            Ret (inj₁ stBlock))
-  ... | _        | _        = nothing
-  v (_ , apiLFev l′ d′ sendLFBlockTxsRequest) (pt , bm) with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just
-        (sendLF l d ! (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ⟶
-           Ret (inj₁ stBlockTxs))
   ... | _        | _        = nothing
   v (_ , apiLFev l′ d′ sendLFVotesRequest) vs with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
@@ -220,17 +206,6 @@ clientStep l d stBlock = pchoice v
     → ContinueType at (Maybe (PTree LFEv (ExtI LFEv) (LFState ⊎ Rr)))
   v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFBlock b)) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just (apiLFev l d recvLFBlock ! b ⟶ Ret (inj₁ stIdle))
-  ... | _        | _        = nothing
-  v (_ , receiveLF _ _) _ = nothing
-  v (_ , sendLF _ _)    _ = nothing
-  v (_ , apiLFev _ _ _) _ = nothing
-  v (_ , doneLF _ _)    _ = nothing
-clientStep l d stBlockTxs = pchoice v
-  where
-  v : (at : AnyTypes LFEv)
-    → ContinueType at (Maybe (PTree LFEv (ExtI LFEv) (LFState ⊎ Rr)))
-  v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFBlockTxs ts)) with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just (Output ⦃ DecEqI.DecEq-List ⦄ (apiLFev l d recvLFBlockTxs) ts (Ret (inj₁ stIdle)))
   ... | _        | _        = nothing
   v (_ , receiveLF _ _) _ = nothing
   v (_ , sendLF _ _)    _ = nothing
@@ -281,9 +256,6 @@ serverStep l d stIdle = pchoice v
   v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFBlockRequest pt)) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just (Ret (inj₁ stBlock))
   ... | _        | _        = nothing
-  v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFBlockTxsRequest pt bm)) with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just (Ret (inj₁ stBlockTxs))
-  ... | _        | _        = nothing
   v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFVotesRequest vs)) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just (Ret (inj₁ stVotes))
   ... | _        | _        = nothing
@@ -304,19 +276,6 @@ serverStep l d stBlock = pchoice v
   v (_ , apiLFev l′ d′ sendLFBlock) b with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendLF l d ! (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlock b)) ⟶
-           Ret (inj₁ stIdle))
-  ... | _        | _        = nothing
-  v (_ , apiLFev _ _ _) _ = nothing
-  v (_ , sendLF _ _)    _ = nothing
-  v (_ , receiveLF _ _) _ = nothing
-  v (_ , doneLF _ _)    _ = nothing
-serverStep l d stBlockTxs = pchoice v
-  where
-  v : (at : AnyTypes LFEv)
-    → ContinueType at (Maybe (PTree LFEv (ExtI LFEv) (LFState ⊎ Rr)))
-  v (_ , apiLFev l′ d′ sendLFBlockTxs) ts with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just
-        (sendLF l d ! (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ⟶
            Ret (inj₁ stIdle))
   ... | _        | _        = nothing
   v (_ , apiLFev _ _ _) _ = nothing
@@ -360,6 +319,54 @@ serverStep _ _ stDone = Ret (inj₂ _)
 -- the producer peer: loop the step from the idle state
 LFserverStClient : Link → Dir → PTree LFEv (ExtI LFEv) Rr
 LFserverStClient l d = iter (serverStep l d) stIdle
+
+------------------------------------------------------------------------
+-- Step 6b: the REQUEST-REPORTING producer, for the Linear-Leios node
+-- logic.  `serverStep` above answers a block/votes request without
+-- telling the application WHICH block or votes were asked for, so a node
+-- logic composed with it cannot serve exactly what was requested.
+-- `serverStepR` interposes one `apiLF` report — `reqLFBlockRequest ! h`
+-- and `reqLFVotesRequest ! vs` — between the wire receive and the busy
+-- state, exactly as BlockFetch's `reqBFRange` and ChainSync's
+-- `reqCSFindIntersect` already do for their producers.
+--
+-- It is a SEPARATE peer, not an edit of `serverStep`: `serverStep` is the
+-- left-hand side of the hand-written strong bisimulations in
+-- `FourNode/Liveness/R2_Bisim/NodeSpecs.agda` (`lfSnxt` goes straight
+-- from the wire receive to `lfsBlk`), which an extra visible event would
+-- falsify.  Only the two request states differ; every other state is
+-- literally `serverStep`'s.
+------------------------------------------------------------------------
+
+-- one request-reporting producer step: `stIdle` reports the request it received,
+-- every other state behaves exactly as `serverStep`
+serverStepR : Link → Dir → LFState → PTree LFEv (ExtI LFEv) (LFState ⊎ Rr)
+serverStepR l d stIdle = pchoice v
+  where
+  v : (at : AnyTypes LFEv)
+    → ContinueType at (Maybe (PTree LFEv (ExtI LFEv) (LFState ⊎ Rr)))
+  v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFBlockRequest pt)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (apiLFev l d reqLFBlockRequest ! pt ⟶ Ret (inj₁ stBlock))
+  ... | _        | _        = nothing
+  v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFVotesRequest vs)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (Output ⦃ DecEqI.DecEq-List ⦄ (apiLFev l d reqLFVotesRequest) vs (Ret (inj₁ stVotes)))
+  ... | _        | _        = nothing
+  v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch (MsgLFBlockRangeRequest r)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stBlockRange))
+  ... | _        | _        = nothing
+  v (_ , receiveLF l′ d′) (_ , _ , _ , leiosFetch MsgLFDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (doneLF l d ⟶₀ Ret (inj₁ stDone))
+  ... | _        | _        = nothing
+  v (_ , receiveLF _ _) _ = nothing
+  v (_ , sendLF _ _)    _ = nothing
+  v (_ , apiLFev _ _ _) _ = nothing
+  v (_ , doneLF _ _)    _ = nothing
+serverStepR l d st = serverStep l d st
+
+-- the request-reporting producer peer: loop the reporting step from the idle state
+LFserverStClientR : Link → Dir → PTree LFEv (ExtI LFEv) Rr
+LFserverStClientR l d = iter (serverStepR l d) stIdle
 
 ------------------------------------------------------------------------
 -- Step 7: network-fragment injection into `Net` (documentation stub).

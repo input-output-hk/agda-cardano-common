@@ -20,6 +20,7 @@
 ------------------------------------------------------------------------
 
 open import Data.Nat using (ℕ)
+import Data.Nat as Nat
 open import Data.Fin using (Fin)
 open import Data.Unit using (⊤)
 open import Data.Maybe using (Maybe)
@@ -136,16 +137,21 @@ data ApiTSTag : Set where
   sendTSReplyTxIds sendTSReplyTxs sendTSDone sendTSRequestTxIdsBlocking
     sendTSRequestTxIdsPipelined sendTSRequestTxsPipelined recvTSRequestTxIds
     recvTSRequestTxs : ApiTSTag
+  -- the REQUESTER peer reports the reply it received off the wire, so the application
+  -- can act on it (mirrors BlockFetch's `reqBFRange`)
+  recvTSReplyTxIds recvTSReplyTxs : ApiTSTag
 
 ApiTSCar : ApiTSTag → Set
-ApiTSCar sendTSReplyTxIds            = List Txid
+ApiTSCar sendTSReplyTxIds            = List TxHash
 ApiTSCar sendTSReplyTxs              = List Tx
 ApiTSCar sendTSDone                  = ⊤
 ApiTSCar sendTSRequestTxIdsBlocking  = ℕ × ℕ
 ApiTSCar sendTSRequestTxIdsPipelined = ℕ × ℕ
-ApiTSCar sendTSRequestTxsPipelined   = List Txid
+ApiTSCar sendTSRequestTxsPipelined   = List TxHash
 ApiTSCar recvTSRequestTxIds          = BlockingStyle × ℕ × ℕ
-ApiTSCar recvTSRequestTxs            = List Txid
+ApiTSCar recvTSRequestTxs            = List TxHash
+ApiTSCar recvTSReplyTxIds            = List TxHash
+ApiTSCar recvTSReplyTxs              = List Tx
 
 -- LeiosNotify: SendLNMsgRequestNext / SendLNMsgDone /
 --   SendLNMsgBlockAnnouncement.Header / SendLNMsgBlockOffer.Point /
@@ -169,34 +175,77 @@ ApiLNCar recvLNBlockOffer        = Point
 ApiLNCar recvLNBlockTxsOffer     = Point
 ApiLNCar recvLNVotesOffer        = List Vote
 
--- LeiosFetch: SendLFMsgBlockRequest.Point / SendLFMsgBlockTxsRequest.Point.LFBitmap /
+-- LeiosFetch: SendLFMsgBlockRequest.Point /
 --   SendLFMsgVotesRequest.[Vote] / SendLFMsgBlockRangeRequest.ChainRange /
---   SendLFMsgDone / SendLFMsgBlock.Block / SendLFMsgBlockTxs.[Tx] /
+--   SendLFMsgDone / SendLFMsgBlock.Block /
 --   SendLFMsgVoteDelivery.[VoteBlob] / SendLFMsgNextBlockAndTxsInRange.Block.[Tx] /
 --   SendLFMsgLastBlockAndTxsInRange.Block.[Tx] / ReceiveLFBlockHandler.Block /
---   ReceiveLFBlockTxsHandler.[Tx] / ReceiveLFVoteDeliveryHandler.[VoteBlob] /
+--   ReceiveLFVoteDeliveryHandler.[VoteBlob] /
 --   ReceiveLFRangeBlockHandler.Block.[Tx]
+-- The tx-closure branch of the July-2026 CIP draft is GONE from this (old) protocol: the
+-- prototype's closure lives in `ApiLPTag`'s `lfp…BlockTxs…` family.
+-- see ADR 2026-09-21 (leios-tx-closure-and-object-identities) §6
 data ApiLFTag : Set where
-  sendLFBlockRequest sendLFBlockTxsRequest sendLFVotesRequest
-    sendLFBlockRangeRequest sendLFDone sendLFBlock sendLFBlockTxs
+  sendLFBlockRequest sendLFVotesRequest
+    sendLFBlockRangeRequest sendLFDone sendLFBlock
     sendLFVoteDelivery sendLFNextBlockAndTxsInRange sendLFLastBlockAndTxsInRange
-    recvLFBlock recvLFBlockTxs recvLFVoteDelivery recvLFRangeBlock : ApiLFTag
+    recvLFBlock recvLFVoteDelivery recvLFRangeBlock : ApiLFTag
+  -- the PRODUCER peer reports the request it received off the wire, so the application
+  -- can serve exactly what was asked for (mirrors BlockFetch's `reqBFRange`)
+  reqLFBlockRequest reqLFVotesRequest : ApiLFTag
 
 ApiLFCar : ApiLFTag → Set
 ApiLFCar sendLFBlockRequest           = EBHash
-ApiLFCar sendLFBlockTxsRequest        = Point × LFBitmap
 ApiLFCar sendLFVotesRequest           = List Vote
 ApiLFCar sendLFBlockRangeRequest      = ChainRange
 ApiLFCar sendLFDone                   = ⊤
 ApiLFCar sendLFBlock                  = EB
-ApiLFCar sendLFBlockTxs               = List Tx
 ApiLFCar sendLFVoteDelivery           = List VoteBlob
 ApiLFCar sendLFNextBlockAndTxsInRange = Block × List Tx
 ApiLFCar sendLFLastBlockAndTxsInRange = Block × List Tx
 ApiLFCar recvLFBlock                  = EB
-ApiLFCar recvLFBlockTxs               = List Tx
 ApiLFCar recvLFVoteDelivery           = List VoteBlob
 ApiLFCar recvLFRangeBlock             = Block × List Tx
+ApiLFCar reqLFBlockRequest            = EBHash
+ApiLFCar reqLFVotesRequest            = List Vote
+
+-- the api tags of the leios-prototype peers — BOTH protocols in ONE family, because every
+-- exhaustive `Net_Api` dispatch in the live closure costs one wildcard arm per CONSTRUCTOR
+-- (110 measured), and two constructors would cost 220 for no modelling gain.  Layout mirrors
+-- `ApiLNTag`/`ApiLFTag`: the consumer's `…Send…`, the consumer's `…Recv…`, and — for Fetch —
+-- the producer's `…Req…` reports of the request it received off the wire.
+-- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+data ApiLPTag : Set where
+  lnpSendRequestNext lnpSendDone
+    lnpSendBlockAnnouncement lnpSendBlockOffer lnpSendBlockTxsOffer lnpSendVotes
+    lnpRecvBlockAnnouncement lnpRecvBlockOffer lnpRecvBlockTxsOffer lnpRecvVotes
+    lfpSendBlockRequest lfpSendBlockTxsRequest lfpSendDone
+    lfpSendBlock lfpSendBlockTxs lfpRecvBlock lfpRecvBlockTxs
+    lfpReqBlockRequest lfpReqBlockTxsRequest : ApiLPTag
+
+-- what each prototype api channel hands over
+-- LeiosNotify has three type parameters: point, announcement, vote, seen from LeiosDemoOnlyTestNotify.hs
+-- They are instantiated to LeiosPoint, (Header blk), LeiosVote in NodeToNode.hs
+ApiLPCar : ApiLPTag → Set
+ApiLPCar lnpSendRequestNext       = ⊤
+ApiLPCar lnpSendDone              = ⊤
+ApiLPCar lnpSendBlockAnnouncement = Header
+ApiLPCar lnpSendBlockOffer        = (EBHash × LSlot) × Size
+ApiLPCar lnpSendBlockTxsOffer     = EBHash × LSlot
+ApiLPCar lnpSendVotes             = List VoteBlob
+ApiLPCar lnpRecvBlockAnnouncement = Header
+ApiLPCar lnpRecvBlockOffer        = (EBHash × LSlot) × Size
+ApiLPCar lnpRecvBlockTxsOffer     = EBHash × LSlot
+ApiLPCar lnpRecvVotes             = List VoteBlob
+ApiLPCar lfpSendBlockRequest      = EBHash × LSlot
+ApiLPCar lfpSendBlockTxsRequest   = (EBHash × LSlot) × TxBitmap
+ApiLPCar lfpSendDone              = ⊤
+ApiLPCar lfpSendBlock             = EB
+ApiLPCar lfpSendBlockTxs          = (EBHash × LSlot) × List (ℕ × Tx)
+ApiLPCar lfpRecvBlock             = EB
+ApiLPCar lfpRecvBlockTxs          = (EBHash × LSlot) × List (ℕ × Tx)
+ApiLPCar lfpReqBlockRequest       = EBHash × LSlot
+ApiLPCar lfpReqBlockTxsRequest    = (EBHash × LSlot) × TxBitmap
 
 ------------------------------------------------------------------------
 -- The two NODE-LOCAL channel families (not mini-protocol apis, not wire
@@ -205,20 +254,50 @@ ApiLFCar recvLFRangeBlock             = Block × List Tx
 -- mux-internal `tx` channel, which `Network` hides.
 ------------------------------------------------------------------------
 
--- the two directions of a node's block store rendezvous
-data StoreTag : Set where stPut stGet : StoreTag
+-- the node-local store channels: the two original directions, plus the read-pointer
+-- reads and the four Leios stores of the Linear-Leios node logic (design law L)
+data StoreTag : Set where
+  stPut stGet : StoreTag
+  stGetAt     : ℕ → StoreTag        -- the k-th OLDEST held ranking block
+  stPutEB     : StoreTag            -- deposit an (EB hash , announcing slot) entry
+  stGetEBAt   : ℕ → StoreTag        -- the k-th OLDEST such entry
+  stPutBody   : StoreTag            -- deposit an endorser-block body
+  stGetBody   : EBHash → StoreTag   -- the body with that hash, offered iff held
+  stPutTx     : StoreTag            -- deposit a transaction in the mempool
+  stGetTxAt   : ℕ → StoreTag        -- the k-th OLDEST mempool transaction
+  stPutVote   : StoreTag            -- deposit a vote blob
+  stGetVoteAt : ℕ → StoreTag        -- the k-th OLDEST vote blob
+  stCert      : StoreTag            -- the node-local certificate event for a ranking block
+  stGetTx     : TxHash → StoreTag   -- the mempool transaction with that hash, offered iff held
+  stHasCert   : RbHash → StoreTag   -- offered iff that RB is already certified here
 
--- both store directions hand over one block
+-- what each store channel hands over
 StoreCar : StoreTag → Set
-StoreCar stPut = Block
-StoreCar stGet = Block
+StoreCar stPut           = Block
+StoreCar stGet           = Block
+StoreCar (stGetAt _)     = Block
+StoreCar stPutEB         = EBHash × LSlot
+StoreCar (stGetEBAt _)   = EBHash × LSlot
+StoreCar stPutBody       = EB
+StoreCar (stGetBody _)   = EB
+StoreCar stPutTx         = Tx
+StoreCar (stGetTxAt _)   = Tx
+StoreCar stPutVote       = VoteBlob
+StoreCar (stGetVoteAt _) = VoteBlob
+StoreCar stCert          = RbHash    -- CHANGED from EBHash: a vote names the RB it certifies
+StoreCar (stGetTx _)     = Tx
+StoreCar (stHasCert _)   = ⊤
 
--- the environment's channels into a node
-data EnvTag : Set where envForge : EnvTag
+-- the environment's channels into a node: the block forge, a transaction submission, and the
+-- forge of a CERTIFICATE-carrying ranking block (whose body certifies some earlier RB)
+data EnvTag : Set where envForge envSubmit envForgeCert : EnvTag
 
--- a forge delivers an optional EB forged together with its announcing RB
+-- a forge delivers an optional EB forged together with its announcing RB; a submission
+-- delivers one transaction; a certificate forge delivers the certificate-carrying RB
 EnvCar : EnvTag → Set
-EnvCar envForge = Maybe EB × Block
+EnvCar envForge     = Maybe EB × Block
+EnvCar envSubmit    = Tx
+EnvCar envForgeCert = Block
 
 ------------------------------------------------------------------------
 -- DecEq instances for the six finite api tag enums (payload-free) and
@@ -585,6 +664,42 @@ instance
     go recvTSRequestTxs sendTSRequestTxIdsPipelined = no λ ()
     go recvTSRequestTxs sendTSRequestTxsPipelined = no λ ()
     go recvTSRequestTxs recvTSRequestTxIds = no λ ()
+    go recvTSReplyTxIds recvTSReplyTxIds = yes refl
+    go recvTSReplyTxs   recvTSReplyTxs   = yes refl
+    go sendTSReplyTxIds recvTSReplyTxIds = no λ ()
+    go sendTSReplyTxIds recvTSReplyTxs = no λ ()
+    go sendTSReplyTxs recvTSReplyTxIds = no λ ()
+    go sendTSReplyTxs recvTSReplyTxs = no λ ()
+    go sendTSDone recvTSReplyTxIds = no λ ()
+    go sendTSDone recvTSReplyTxs = no λ ()
+    go sendTSRequestTxIdsBlocking recvTSReplyTxIds = no λ ()
+    go sendTSRequestTxIdsBlocking recvTSReplyTxs = no λ ()
+    go sendTSRequestTxIdsPipelined recvTSReplyTxIds = no λ ()
+    go sendTSRequestTxIdsPipelined recvTSReplyTxs = no λ ()
+    go sendTSRequestTxsPipelined recvTSReplyTxIds = no λ ()
+    go sendTSRequestTxsPipelined recvTSReplyTxs = no λ ()
+    go recvTSRequestTxIds recvTSReplyTxIds = no λ ()
+    go recvTSRequestTxIds recvTSReplyTxs = no λ ()
+    go recvTSRequestTxs recvTSReplyTxIds = no λ ()
+    go recvTSRequestTxs recvTSReplyTxs = no λ ()
+    go recvTSReplyTxIds sendTSReplyTxIds = no λ ()
+    go recvTSReplyTxIds sendTSReplyTxs = no λ ()
+    go recvTSReplyTxIds sendTSDone = no λ ()
+    go recvTSReplyTxIds sendTSRequestTxIdsBlocking = no λ ()
+    go recvTSReplyTxIds sendTSRequestTxIdsPipelined = no λ ()
+    go recvTSReplyTxIds sendTSRequestTxsPipelined = no λ ()
+    go recvTSReplyTxIds recvTSRequestTxIds = no λ ()
+    go recvTSReplyTxIds recvTSRequestTxs = no λ ()
+    go recvTSReplyTxIds recvTSReplyTxs = no λ ()
+    go recvTSReplyTxs sendTSReplyTxIds = no λ ()
+    go recvTSReplyTxs sendTSReplyTxs = no λ ()
+    go recvTSReplyTxs sendTSDone = no λ ()
+    go recvTSReplyTxs sendTSRequestTxIdsBlocking = no λ ()
+    go recvTSReplyTxs sendTSRequestTxIdsPipelined = no λ ()
+    go recvTSReplyTxs sendTSRequestTxsPipelined = no λ ()
+    go recvTSReplyTxs recvTSRequestTxIds = no λ ()
+    go recvTSReplyTxs recvTSRequestTxs = no λ ()
+    go recvTSReplyTxs recvTSReplyTxIds = no λ ()
 
   DecEq-ApiLNTag : DecEq ApiLNTag
   DecEq-ApiLNTag ._≟_ = go
@@ -696,218 +811,773 @@ instance
     where
     go : (x y : ApiLFTag) → Dec (x ≡ y)
     go sendLFBlockRequest sendLFBlockRequest = yes refl
-    go sendLFBlockTxsRequest sendLFBlockTxsRequest = yes refl
     go sendLFVotesRequest sendLFVotesRequest = yes refl
     go sendLFBlockRangeRequest sendLFBlockRangeRequest = yes refl
     go sendLFDone sendLFDone = yes refl
     go sendLFBlock sendLFBlock = yes refl
-    go sendLFBlockTxs sendLFBlockTxs = yes refl
     go sendLFVoteDelivery sendLFVoteDelivery = yes refl
     go sendLFNextBlockAndTxsInRange sendLFNextBlockAndTxsInRange = yes refl
     go sendLFLastBlockAndTxsInRange sendLFLastBlockAndTxsInRange = yes refl
     go recvLFBlock recvLFBlock = yes refl
-    go recvLFBlockTxs recvLFBlockTxs = yes refl
     go recvLFVoteDelivery recvLFVoteDelivery = yes refl
     go recvLFRangeBlock recvLFRangeBlock = yes refl
-    go sendLFBlockRequest sendLFBlockTxsRequest = no λ ()
     go sendLFBlockRequest sendLFVotesRequest = no λ ()
     go sendLFBlockRequest sendLFBlockRangeRequest = no λ ()
     go sendLFBlockRequest sendLFDone = no λ ()
     go sendLFBlockRequest sendLFBlock = no λ ()
-    go sendLFBlockRequest sendLFBlockTxs = no λ ()
     go sendLFBlockRequest sendLFVoteDelivery = no λ ()
     go sendLFBlockRequest sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFBlockRequest sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFBlockRequest recvLFBlock = no λ ()
-    go sendLFBlockRequest recvLFBlockTxs = no λ ()
     go sendLFBlockRequest recvLFVoteDelivery = no λ ()
     go sendLFBlockRequest recvLFRangeBlock = no λ ()
-    go sendLFBlockTxsRequest sendLFBlockRequest = no λ ()
-    go sendLFBlockTxsRequest sendLFVotesRequest = no λ ()
-    go sendLFBlockTxsRequest sendLFBlockRangeRequest = no λ ()
-    go sendLFBlockTxsRequest sendLFDone = no λ ()
-    go sendLFBlockTxsRequest sendLFBlock = no λ ()
-    go sendLFBlockTxsRequest sendLFBlockTxs = no λ ()
-    go sendLFBlockTxsRequest sendLFVoteDelivery = no λ ()
-    go sendLFBlockTxsRequest sendLFNextBlockAndTxsInRange = no λ ()
-    go sendLFBlockTxsRequest sendLFLastBlockAndTxsInRange = no λ ()
-    go sendLFBlockTxsRequest recvLFBlock = no λ ()
-    go sendLFBlockTxsRequest recvLFBlockTxs = no λ ()
-    go sendLFBlockTxsRequest recvLFVoteDelivery = no λ ()
-    go sendLFBlockTxsRequest recvLFRangeBlock = no λ ()
     go sendLFVotesRequest sendLFBlockRequest = no λ ()
-    go sendLFVotesRequest sendLFBlockTxsRequest = no λ ()
     go sendLFVotesRequest sendLFBlockRangeRequest = no λ ()
     go sendLFVotesRequest sendLFDone = no λ ()
     go sendLFVotesRequest sendLFBlock = no λ ()
-    go sendLFVotesRequest sendLFBlockTxs = no λ ()
     go sendLFVotesRequest sendLFVoteDelivery = no λ ()
     go sendLFVotesRequest sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFVotesRequest sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFVotesRequest recvLFBlock = no λ ()
-    go sendLFVotesRequest recvLFBlockTxs = no λ ()
     go sendLFVotesRequest recvLFVoteDelivery = no λ ()
     go sendLFVotesRequest recvLFRangeBlock = no λ ()
     go sendLFBlockRangeRequest sendLFBlockRequest = no λ ()
-    go sendLFBlockRangeRequest sendLFBlockTxsRequest = no λ ()
     go sendLFBlockRangeRequest sendLFVotesRequest = no λ ()
     go sendLFBlockRangeRequest sendLFDone = no λ ()
     go sendLFBlockRangeRequest sendLFBlock = no λ ()
-    go sendLFBlockRangeRequest sendLFBlockTxs = no λ ()
     go sendLFBlockRangeRequest sendLFVoteDelivery = no λ ()
     go sendLFBlockRangeRequest sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFBlockRangeRequest sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFBlockRangeRequest recvLFBlock = no λ ()
-    go sendLFBlockRangeRequest recvLFBlockTxs = no λ ()
     go sendLFBlockRangeRequest recvLFVoteDelivery = no λ ()
     go sendLFBlockRangeRequest recvLFRangeBlock = no λ ()
     go sendLFDone sendLFBlockRequest = no λ ()
-    go sendLFDone sendLFBlockTxsRequest = no λ ()
     go sendLFDone sendLFVotesRequest = no λ ()
     go sendLFDone sendLFBlockRangeRequest = no λ ()
     go sendLFDone sendLFBlock = no λ ()
-    go sendLFDone sendLFBlockTxs = no λ ()
     go sendLFDone sendLFVoteDelivery = no λ ()
     go sendLFDone sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFDone sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFDone recvLFBlock = no λ ()
-    go sendLFDone recvLFBlockTxs = no λ ()
     go sendLFDone recvLFVoteDelivery = no λ ()
     go sendLFDone recvLFRangeBlock = no λ ()
     go sendLFBlock sendLFBlockRequest = no λ ()
-    go sendLFBlock sendLFBlockTxsRequest = no λ ()
     go sendLFBlock sendLFVotesRequest = no λ ()
     go sendLFBlock sendLFBlockRangeRequest = no λ ()
     go sendLFBlock sendLFDone = no λ ()
-    go sendLFBlock sendLFBlockTxs = no λ ()
     go sendLFBlock sendLFVoteDelivery = no λ ()
     go sendLFBlock sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFBlock sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFBlock recvLFBlock = no λ ()
-    go sendLFBlock recvLFBlockTxs = no λ ()
     go sendLFBlock recvLFVoteDelivery = no λ ()
     go sendLFBlock recvLFRangeBlock = no λ ()
-    go sendLFBlockTxs sendLFBlockRequest = no λ ()
-    go sendLFBlockTxs sendLFBlockTxsRequest = no λ ()
-    go sendLFBlockTxs sendLFVotesRequest = no λ ()
-    go sendLFBlockTxs sendLFBlockRangeRequest = no λ ()
-    go sendLFBlockTxs sendLFDone = no λ ()
-    go sendLFBlockTxs sendLFBlock = no λ ()
-    go sendLFBlockTxs sendLFVoteDelivery = no λ ()
-    go sendLFBlockTxs sendLFNextBlockAndTxsInRange = no λ ()
-    go sendLFBlockTxs sendLFLastBlockAndTxsInRange = no λ ()
-    go sendLFBlockTxs recvLFBlock = no λ ()
-    go sendLFBlockTxs recvLFBlockTxs = no λ ()
-    go sendLFBlockTxs recvLFVoteDelivery = no λ ()
-    go sendLFBlockTxs recvLFRangeBlock = no λ ()
     go sendLFVoteDelivery sendLFBlockRequest = no λ ()
-    go sendLFVoteDelivery sendLFBlockTxsRequest = no λ ()
     go sendLFVoteDelivery sendLFVotesRequest = no λ ()
     go sendLFVoteDelivery sendLFBlockRangeRequest = no λ ()
     go sendLFVoteDelivery sendLFDone = no λ ()
     go sendLFVoteDelivery sendLFBlock = no λ ()
-    go sendLFVoteDelivery sendLFBlockTxs = no λ ()
     go sendLFVoteDelivery sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFVoteDelivery sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFVoteDelivery recvLFBlock = no λ ()
-    go sendLFVoteDelivery recvLFBlockTxs = no λ ()
     go sendLFVoteDelivery recvLFVoteDelivery = no λ ()
     go sendLFVoteDelivery recvLFRangeBlock = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFBlockRequest = no λ ()
-    go sendLFNextBlockAndTxsInRange sendLFBlockTxsRequest = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFVotesRequest = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFBlockRangeRequest = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFDone = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFBlock = no λ ()
-    go sendLFNextBlockAndTxsInRange sendLFBlockTxs = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFVoteDelivery = no λ ()
     go sendLFNextBlockAndTxsInRange sendLFLastBlockAndTxsInRange = no λ ()
     go sendLFNextBlockAndTxsInRange recvLFBlock = no λ ()
-    go sendLFNextBlockAndTxsInRange recvLFBlockTxs = no λ ()
     go sendLFNextBlockAndTxsInRange recvLFVoteDelivery = no λ ()
     go sendLFNextBlockAndTxsInRange recvLFRangeBlock = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFBlockRequest = no λ ()
-    go sendLFLastBlockAndTxsInRange sendLFBlockTxsRequest = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFVotesRequest = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFBlockRangeRequest = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFDone = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFBlock = no λ ()
-    go sendLFLastBlockAndTxsInRange sendLFBlockTxs = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFVoteDelivery = no λ ()
     go sendLFLastBlockAndTxsInRange sendLFNextBlockAndTxsInRange = no λ ()
     go sendLFLastBlockAndTxsInRange recvLFBlock = no λ ()
-    go sendLFLastBlockAndTxsInRange recvLFBlockTxs = no λ ()
     go sendLFLastBlockAndTxsInRange recvLFVoteDelivery = no λ ()
     go sendLFLastBlockAndTxsInRange recvLFRangeBlock = no λ ()
     go recvLFBlock sendLFBlockRequest = no λ ()
-    go recvLFBlock sendLFBlockTxsRequest = no λ ()
     go recvLFBlock sendLFVotesRequest = no λ ()
     go recvLFBlock sendLFBlockRangeRequest = no λ ()
     go recvLFBlock sendLFDone = no λ ()
     go recvLFBlock sendLFBlock = no λ ()
-    go recvLFBlock sendLFBlockTxs = no λ ()
     go recvLFBlock sendLFVoteDelivery = no λ ()
     go recvLFBlock sendLFNextBlockAndTxsInRange = no λ ()
     go recvLFBlock sendLFLastBlockAndTxsInRange = no λ ()
-    go recvLFBlock recvLFBlockTxs = no λ ()
     go recvLFBlock recvLFVoteDelivery = no λ ()
     go recvLFBlock recvLFRangeBlock = no λ ()
-    go recvLFBlockTxs sendLFBlockRequest = no λ ()
-    go recvLFBlockTxs sendLFBlockTxsRequest = no λ ()
-    go recvLFBlockTxs sendLFVotesRequest = no λ ()
-    go recvLFBlockTxs sendLFBlockRangeRequest = no λ ()
-    go recvLFBlockTxs sendLFDone = no λ ()
-    go recvLFBlockTxs sendLFBlock = no λ ()
-    go recvLFBlockTxs sendLFBlockTxs = no λ ()
-    go recvLFBlockTxs sendLFVoteDelivery = no λ ()
-    go recvLFBlockTxs sendLFNextBlockAndTxsInRange = no λ ()
-    go recvLFBlockTxs sendLFLastBlockAndTxsInRange = no λ ()
-    go recvLFBlockTxs recvLFBlock = no λ ()
-    go recvLFBlockTxs recvLFVoteDelivery = no λ ()
-    go recvLFBlockTxs recvLFRangeBlock = no λ ()
     go recvLFVoteDelivery sendLFBlockRequest = no λ ()
-    go recvLFVoteDelivery sendLFBlockTxsRequest = no λ ()
     go recvLFVoteDelivery sendLFVotesRequest = no λ ()
     go recvLFVoteDelivery sendLFBlockRangeRequest = no λ ()
     go recvLFVoteDelivery sendLFDone = no λ ()
     go recvLFVoteDelivery sendLFBlock = no λ ()
-    go recvLFVoteDelivery sendLFBlockTxs = no λ ()
     go recvLFVoteDelivery sendLFVoteDelivery = no λ ()
     go recvLFVoteDelivery sendLFNextBlockAndTxsInRange = no λ ()
     go recvLFVoteDelivery sendLFLastBlockAndTxsInRange = no λ ()
     go recvLFVoteDelivery recvLFBlock = no λ ()
-    go recvLFVoteDelivery recvLFBlockTxs = no λ ()
     go recvLFVoteDelivery recvLFRangeBlock = no λ ()
     go recvLFRangeBlock sendLFBlockRequest = no λ ()
-    go recvLFRangeBlock sendLFBlockTxsRequest = no λ ()
     go recvLFRangeBlock sendLFVotesRequest = no λ ()
     go recvLFRangeBlock sendLFBlockRangeRequest = no λ ()
     go recvLFRangeBlock sendLFDone = no λ ()
     go recvLFRangeBlock sendLFBlock = no λ ()
-    go recvLFRangeBlock sendLFBlockTxs = no λ ()
     go recvLFRangeBlock sendLFVoteDelivery = no λ ()
     go recvLFRangeBlock sendLFNextBlockAndTxsInRange = no λ ()
     go recvLFRangeBlock sendLFLastBlockAndTxsInRange = no λ ()
     go recvLFRangeBlock recvLFBlock = no λ ()
-    go recvLFRangeBlock recvLFBlockTxs = no λ ()
     go recvLFRangeBlock recvLFVoteDelivery = no λ ()
+    go reqLFBlockRequest reqLFBlockRequest = yes refl
+    go reqLFVotesRequest reqLFVotesRequest = yes refl
+    go sendLFBlockRequest reqLFBlockRequest = no λ ()
+    go sendLFBlockRequest reqLFVotesRequest = no λ ()
+    go sendLFVotesRequest reqLFBlockRequest = no λ ()
+    go sendLFVotesRequest reqLFVotesRequest = no λ ()
+    go sendLFBlockRangeRequest reqLFBlockRequest = no λ ()
+    go sendLFBlockRangeRequest reqLFVotesRequest = no λ ()
+    go sendLFDone reqLFBlockRequest = no λ ()
+    go sendLFDone reqLFVotesRequest = no λ ()
+    go sendLFBlock reqLFBlockRequest = no λ ()
+    go sendLFBlock reqLFVotesRequest = no λ ()
+    go sendLFVoteDelivery reqLFBlockRequest = no λ ()
+    go sendLFVoteDelivery reqLFVotesRequest = no λ ()
+    go sendLFNextBlockAndTxsInRange reqLFBlockRequest = no λ ()
+    go sendLFNextBlockAndTxsInRange reqLFVotesRequest = no λ ()
+    go sendLFLastBlockAndTxsInRange reqLFBlockRequest = no λ ()
+    go sendLFLastBlockAndTxsInRange reqLFVotesRequest = no λ ()
+    go recvLFBlock reqLFBlockRequest = no λ ()
+    go recvLFBlock reqLFVotesRequest = no λ ()
+    go recvLFVoteDelivery reqLFBlockRequest = no λ ()
+    go recvLFVoteDelivery reqLFVotesRequest = no λ ()
+    go recvLFRangeBlock reqLFBlockRequest = no λ ()
+    go recvLFRangeBlock reqLFVotesRequest = no λ ()
+    go reqLFBlockRequest sendLFBlockRequest = no λ ()
+    go reqLFBlockRequest sendLFVotesRequest = no λ ()
+    go reqLFBlockRequest sendLFBlockRangeRequest = no λ ()
+    go reqLFBlockRequest sendLFDone = no λ ()
+    go reqLFBlockRequest sendLFBlock = no λ ()
+    go reqLFBlockRequest sendLFVoteDelivery = no λ ()
+    go reqLFBlockRequest sendLFNextBlockAndTxsInRange = no λ ()
+    go reqLFBlockRequest sendLFLastBlockAndTxsInRange = no λ ()
+    go reqLFBlockRequest recvLFBlock = no λ ()
+    go reqLFBlockRequest recvLFVoteDelivery = no λ ()
+    go reqLFBlockRequest recvLFRangeBlock = no λ ()
+    go reqLFBlockRequest reqLFVotesRequest = no λ ()
+    go reqLFVotesRequest sendLFBlockRequest = no λ ()
+    go reqLFVotesRequest sendLFVotesRequest = no λ ()
+    go reqLFVotesRequest sendLFBlockRangeRequest = no λ ()
+    go reqLFVotesRequest sendLFDone = no λ ()
+    go reqLFVotesRequest sendLFBlock = no λ ()
+    go reqLFVotesRequest sendLFVoteDelivery = no λ ()
+    go reqLFVotesRequest sendLFNextBlockAndTxsInRange = no λ ()
+    go reqLFVotesRequest sendLFLastBlockAndTxsInRange = no λ ()
+    go reqLFVotesRequest recvLFBlock = no λ ()
+    go reqLFVotesRequest recvLFVoteDelivery = no λ ()
+    go reqLFVotesRequest recvLFRangeBlock = no λ ()
+    go reqLFVotesRequest reqLFBlockRequest = no λ ()
 
-  -- the store's two directions are distinguishable
+  -- the nineteen prototype api channels are distinguishable
+  DecEq-ApiLPTag : DecEq ApiLPTag
+  DecEq-ApiLPTag ._≟_ = go
+    where
+    go : (x y : ApiLPTag) → Dec (x ≡ y)
+    go lnpSendRequestNext lnpSendRequestNext = yes refl
+    go lnpSendDone lnpSendDone = yes refl
+    go lnpSendBlockAnnouncement lnpSendBlockAnnouncement = yes refl
+    go lnpSendBlockOffer lnpSendBlockOffer = yes refl
+    go lnpSendBlockTxsOffer lnpSendBlockTxsOffer = yes refl
+    go lnpSendVotes lnpSendVotes = yes refl
+    go lnpRecvBlockAnnouncement lnpRecvBlockAnnouncement = yes refl
+    go lnpRecvBlockOffer lnpRecvBlockOffer = yes refl
+    go lnpRecvBlockTxsOffer lnpRecvBlockTxsOffer = yes refl
+    go lnpRecvVotes lnpRecvVotes = yes refl
+    go lfpSendBlockRequest lfpSendBlockRequest = yes refl
+    go lfpSendBlockTxsRequest lfpSendBlockTxsRequest = yes refl
+    go lfpSendDone lfpSendDone = yes refl
+    go lfpSendBlock lfpSendBlock = yes refl
+    go lfpSendBlockTxs lfpSendBlockTxs = yes refl
+    go lfpRecvBlock lfpRecvBlock = yes refl
+    go lfpRecvBlockTxs lfpRecvBlockTxs = yes refl
+    go lfpReqBlockRequest lfpReqBlockRequest = yes refl
+    go lfpReqBlockTxsRequest lfpReqBlockTxsRequest = yes refl
+    go lnpSendRequestNext lnpSendDone = no λ ()
+    go lnpSendRequestNext lnpSendBlockAnnouncement = no λ ()
+    go lnpSendRequestNext lnpSendBlockOffer = no λ ()
+    go lnpSendRequestNext lnpSendBlockTxsOffer = no λ ()
+    go lnpSendRequestNext lnpSendVotes = no λ ()
+    go lnpSendRequestNext lnpRecvBlockAnnouncement = no λ ()
+    go lnpSendRequestNext lnpRecvBlockOffer = no λ ()
+    go lnpSendRequestNext lnpRecvBlockTxsOffer = no λ ()
+    go lnpSendRequestNext lnpRecvVotes = no λ ()
+    go lnpSendRequestNext lfpSendBlockRequest = no λ ()
+    go lnpSendRequestNext lfpSendBlockTxsRequest = no λ ()
+    go lnpSendRequestNext lfpSendDone = no λ ()
+    go lnpSendRequestNext lfpSendBlock = no λ ()
+    go lnpSendRequestNext lfpSendBlockTxs = no λ ()
+    go lnpSendRequestNext lfpRecvBlock = no λ ()
+    go lnpSendRequestNext lfpRecvBlockTxs = no λ ()
+    go lnpSendRequestNext lfpReqBlockRequest = no λ ()
+    go lnpSendRequestNext lfpReqBlockTxsRequest = no λ ()
+    go lnpSendDone lnpSendRequestNext = no λ ()
+    go lnpSendDone lnpSendBlockAnnouncement = no λ ()
+    go lnpSendDone lnpSendBlockOffer = no λ ()
+    go lnpSendDone lnpSendBlockTxsOffer = no λ ()
+    go lnpSendDone lnpSendVotes = no λ ()
+    go lnpSendDone lnpRecvBlockAnnouncement = no λ ()
+    go lnpSendDone lnpRecvBlockOffer = no λ ()
+    go lnpSendDone lnpRecvBlockTxsOffer = no λ ()
+    go lnpSendDone lnpRecvVotes = no λ ()
+    go lnpSendDone lfpSendBlockRequest = no λ ()
+    go lnpSendDone lfpSendBlockTxsRequest = no λ ()
+    go lnpSendDone lfpSendDone = no λ ()
+    go lnpSendDone lfpSendBlock = no λ ()
+    go lnpSendDone lfpSendBlockTxs = no λ ()
+    go lnpSendDone lfpRecvBlock = no λ ()
+    go lnpSendDone lfpRecvBlockTxs = no λ ()
+    go lnpSendDone lfpReqBlockRequest = no λ ()
+    go lnpSendDone lfpReqBlockTxsRequest = no λ ()
+    go lnpSendBlockAnnouncement lnpSendRequestNext = no λ ()
+    go lnpSendBlockAnnouncement lnpSendDone = no λ ()
+    go lnpSendBlockAnnouncement lnpSendBlockOffer = no λ ()
+    go lnpSendBlockAnnouncement lnpSendBlockTxsOffer = no λ ()
+    go lnpSendBlockAnnouncement lnpSendVotes = no λ ()
+    go lnpSendBlockAnnouncement lnpRecvBlockAnnouncement = no λ ()
+    go lnpSendBlockAnnouncement lnpRecvBlockOffer = no λ ()
+    go lnpSendBlockAnnouncement lnpRecvBlockTxsOffer = no λ ()
+    go lnpSendBlockAnnouncement lnpRecvVotes = no λ ()
+    go lnpSendBlockAnnouncement lfpSendBlockRequest = no λ ()
+    go lnpSendBlockAnnouncement lfpSendBlockTxsRequest = no λ ()
+    go lnpSendBlockAnnouncement lfpSendDone = no λ ()
+    go lnpSendBlockAnnouncement lfpSendBlock = no λ ()
+    go lnpSendBlockAnnouncement lfpSendBlockTxs = no λ ()
+    go lnpSendBlockAnnouncement lfpRecvBlock = no λ ()
+    go lnpSendBlockAnnouncement lfpRecvBlockTxs = no λ ()
+    go lnpSendBlockAnnouncement lfpReqBlockRequest = no λ ()
+    go lnpSendBlockAnnouncement lfpReqBlockTxsRequest = no λ ()
+    go lnpSendBlockOffer lnpSendRequestNext = no λ ()
+    go lnpSendBlockOffer lnpSendDone = no λ ()
+    go lnpSendBlockOffer lnpSendBlockAnnouncement = no λ ()
+    go lnpSendBlockOffer lnpSendBlockTxsOffer = no λ ()
+    go lnpSendBlockOffer lnpSendVotes = no λ ()
+    go lnpSendBlockOffer lnpRecvBlockAnnouncement = no λ ()
+    go lnpSendBlockOffer lnpRecvBlockOffer = no λ ()
+    go lnpSendBlockOffer lnpRecvBlockTxsOffer = no λ ()
+    go lnpSendBlockOffer lnpRecvVotes = no λ ()
+    go lnpSendBlockOffer lfpSendBlockRequest = no λ ()
+    go lnpSendBlockOffer lfpSendBlockTxsRequest = no λ ()
+    go lnpSendBlockOffer lfpSendDone = no λ ()
+    go lnpSendBlockOffer lfpSendBlock = no λ ()
+    go lnpSendBlockOffer lfpSendBlockTxs = no λ ()
+    go lnpSendBlockOffer lfpRecvBlock = no λ ()
+    go lnpSendBlockOffer lfpRecvBlockTxs = no λ ()
+    go lnpSendBlockOffer lfpReqBlockRequest = no λ ()
+    go lnpSendBlockOffer lfpReqBlockTxsRequest = no λ ()
+    go lnpSendBlockTxsOffer lnpSendRequestNext = no λ ()
+    go lnpSendBlockTxsOffer lnpSendDone = no λ ()
+    go lnpSendBlockTxsOffer lnpSendBlockAnnouncement = no λ ()
+    go lnpSendBlockTxsOffer lnpSendBlockOffer = no λ ()
+    go lnpSendBlockTxsOffer lnpSendVotes = no λ ()
+    go lnpSendBlockTxsOffer lnpRecvBlockAnnouncement = no λ ()
+    go lnpSendBlockTxsOffer lnpRecvBlockOffer = no λ ()
+    go lnpSendBlockTxsOffer lnpRecvBlockTxsOffer = no λ ()
+    go lnpSendBlockTxsOffer lnpRecvVotes = no λ ()
+    go lnpSendBlockTxsOffer lfpSendBlockRequest = no λ ()
+    go lnpSendBlockTxsOffer lfpSendBlockTxsRequest = no λ ()
+    go lnpSendBlockTxsOffer lfpSendDone = no λ ()
+    go lnpSendBlockTxsOffer lfpSendBlock = no λ ()
+    go lnpSendBlockTxsOffer lfpSendBlockTxs = no λ ()
+    go lnpSendBlockTxsOffer lfpRecvBlock = no λ ()
+    go lnpSendBlockTxsOffer lfpRecvBlockTxs = no λ ()
+    go lnpSendBlockTxsOffer lfpReqBlockRequest = no λ ()
+    go lnpSendBlockTxsOffer lfpReqBlockTxsRequest = no λ ()
+    go lnpSendVotes lnpSendRequestNext = no λ ()
+    go lnpSendVotes lnpSendDone = no λ ()
+    go lnpSendVotes lnpSendBlockAnnouncement = no λ ()
+    go lnpSendVotes lnpSendBlockOffer = no λ ()
+    go lnpSendVotes lnpSendBlockTxsOffer = no λ ()
+    go lnpSendVotes lnpRecvBlockAnnouncement = no λ ()
+    go lnpSendVotes lnpRecvBlockOffer = no λ ()
+    go lnpSendVotes lnpRecvBlockTxsOffer = no λ ()
+    go lnpSendVotes lnpRecvVotes = no λ ()
+    go lnpSendVotes lfpSendBlockRequest = no λ ()
+    go lnpSendVotes lfpSendBlockTxsRequest = no λ ()
+    go lnpSendVotes lfpSendDone = no λ ()
+    go lnpSendVotes lfpSendBlock = no λ ()
+    go lnpSendVotes lfpSendBlockTxs = no λ ()
+    go lnpSendVotes lfpRecvBlock = no λ ()
+    go lnpSendVotes lfpRecvBlockTxs = no λ ()
+    go lnpSendVotes lfpReqBlockRequest = no λ ()
+    go lnpSendVotes lfpReqBlockTxsRequest = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendRequestNext = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendDone = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendBlockAnnouncement = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendBlockOffer = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendBlockTxsOffer = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendVotes = no λ ()
+    go lnpRecvBlockAnnouncement lnpRecvBlockOffer = no λ ()
+    go lnpRecvBlockAnnouncement lnpRecvBlockTxsOffer = no λ ()
+    go lnpRecvBlockAnnouncement lnpRecvVotes = no λ ()
+    go lnpRecvBlockAnnouncement lfpSendBlockRequest = no λ ()
+    go lnpRecvBlockAnnouncement lfpSendBlockTxsRequest = no λ ()
+    go lnpRecvBlockAnnouncement lfpSendDone = no λ ()
+    go lnpRecvBlockAnnouncement lfpSendBlock = no λ ()
+    go lnpRecvBlockAnnouncement lfpSendBlockTxs = no λ ()
+    go lnpRecvBlockAnnouncement lfpRecvBlock = no λ ()
+    go lnpRecvBlockAnnouncement lfpRecvBlockTxs = no λ ()
+    go lnpRecvBlockAnnouncement lfpReqBlockRequest = no λ ()
+    go lnpRecvBlockAnnouncement lfpReqBlockTxsRequest = no λ ()
+    go lnpRecvBlockOffer lnpSendRequestNext = no λ ()
+    go lnpRecvBlockOffer lnpSendDone = no λ ()
+    go lnpRecvBlockOffer lnpSendBlockAnnouncement = no λ ()
+    go lnpRecvBlockOffer lnpSendBlockOffer = no λ ()
+    go lnpRecvBlockOffer lnpSendBlockTxsOffer = no λ ()
+    go lnpRecvBlockOffer lnpSendVotes = no λ ()
+    go lnpRecvBlockOffer lnpRecvBlockAnnouncement = no λ ()
+    go lnpRecvBlockOffer lnpRecvBlockTxsOffer = no λ ()
+    go lnpRecvBlockOffer lnpRecvVotes = no λ ()
+    go lnpRecvBlockOffer lfpSendBlockRequest = no λ ()
+    go lnpRecvBlockOffer lfpSendBlockTxsRequest = no λ ()
+    go lnpRecvBlockOffer lfpSendDone = no λ ()
+    go lnpRecvBlockOffer lfpSendBlock = no λ ()
+    go lnpRecvBlockOffer lfpSendBlockTxs = no λ ()
+    go lnpRecvBlockOffer lfpRecvBlock = no λ ()
+    go lnpRecvBlockOffer lfpRecvBlockTxs = no λ ()
+    go lnpRecvBlockOffer lfpReqBlockRequest = no λ ()
+    go lnpRecvBlockOffer lfpReqBlockTxsRequest = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendRequestNext = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendDone = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendBlockAnnouncement = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendBlockOffer = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendBlockTxsOffer = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendVotes = no λ ()
+    go lnpRecvBlockTxsOffer lnpRecvBlockAnnouncement = no λ ()
+    go lnpRecvBlockTxsOffer lnpRecvBlockOffer = no λ ()
+    go lnpRecvBlockTxsOffer lnpRecvVotes = no λ ()
+    go lnpRecvBlockTxsOffer lfpSendBlockRequest = no λ ()
+    go lnpRecvBlockTxsOffer lfpSendBlockTxsRequest = no λ ()
+    go lnpRecvBlockTxsOffer lfpSendDone = no λ ()
+    go lnpRecvBlockTxsOffer lfpSendBlock = no λ ()
+    go lnpRecvBlockTxsOffer lfpSendBlockTxs = no λ ()
+    go lnpRecvBlockTxsOffer lfpRecvBlock = no λ ()
+    go lnpRecvBlockTxsOffer lfpRecvBlockTxs = no λ ()
+    go lnpRecvBlockTxsOffer lfpReqBlockRequest = no λ ()
+    go lnpRecvBlockTxsOffer lfpReqBlockTxsRequest = no λ ()
+    go lnpRecvVotes lnpSendRequestNext = no λ ()
+    go lnpRecvVotes lnpSendDone = no λ ()
+    go lnpRecvVotes lnpSendBlockAnnouncement = no λ ()
+    go lnpRecvVotes lnpSendBlockOffer = no λ ()
+    go lnpRecvVotes lnpSendBlockTxsOffer = no λ ()
+    go lnpRecvVotes lnpSendVotes = no λ ()
+    go lnpRecvVotes lnpRecvBlockAnnouncement = no λ ()
+    go lnpRecvVotes lnpRecvBlockOffer = no λ ()
+    go lnpRecvVotes lnpRecvBlockTxsOffer = no λ ()
+    go lnpRecvVotes lfpSendBlockRequest = no λ ()
+    go lnpRecvVotes lfpSendBlockTxsRequest = no λ ()
+    go lnpRecvVotes lfpSendDone = no λ ()
+    go lnpRecvVotes lfpSendBlock = no λ ()
+    go lnpRecvVotes lfpSendBlockTxs = no λ ()
+    go lnpRecvVotes lfpRecvBlock = no λ ()
+    go lnpRecvVotes lfpRecvBlockTxs = no λ ()
+    go lnpRecvVotes lfpReqBlockRequest = no λ ()
+    go lnpRecvVotes lfpReqBlockTxsRequest = no λ ()
+    go lfpSendBlockRequest lnpSendRequestNext = no λ ()
+    go lfpSendBlockRequest lnpSendDone = no λ ()
+    go lfpSendBlockRequest lnpSendBlockAnnouncement = no λ ()
+    go lfpSendBlockRequest lnpSendBlockOffer = no λ ()
+    go lfpSendBlockRequest lnpSendBlockTxsOffer = no λ ()
+    go lfpSendBlockRequest lnpSendVotes = no λ ()
+    go lfpSendBlockRequest lnpRecvBlockAnnouncement = no λ ()
+    go lfpSendBlockRequest lnpRecvBlockOffer = no λ ()
+    go lfpSendBlockRequest lnpRecvBlockTxsOffer = no λ ()
+    go lfpSendBlockRequest lnpRecvVotes = no λ ()
+    go lfpSendBlockRequest lfpSendBlockTxsRequest = no λ ()
+    go lfpSendBlockRequest lfpSendDone = no λ ()
+    go lfpSendBlockRequest lfpSendBlock = no λ ()
+    go lfpSendBlockRequest lfpSendBlockTxs = no λ ()
+    go lfpSendBlockRequest lfpRecvBlock = no λ ()
+    go lfpSendBlockRequest lfpRecvBlockTxs = no λ ()
+    go lfpSendBlockRequest lfpReqBlockRequest = no λ ()
+    go lfpSendBlockRequest lfpReqBlockTxsRequest = no λ ()
+    go lfpSendBlockTxsRequest lnpSendRequestNext = no λ ()
+    go lfpSendBlockTxsRequest lnpSendDone = no λ ()
+    go lfpSendBlockTxsRequest lnpSendBlockAnnouncement = no λ ()
+    go lfpSendBlockTxsRequest lnpSendBlockOffer = no λ ()
+    go lfpSendBlockTxsRequest lnpSendBlockTxsOffer = no λ ()
+    go lfpSendBlockTxsRequest lnpSendVotes = no λ ()
+    go lfpSendBlockTxsRequest lnpRecvBlockAnnouncement = no λ ()
+    go lfpSendBlockTxsRequest lnpRecvBlockOffer = no λ ()
+    go lfpSendBlockTxsRequest lnpRecvBlockTxsOffer = no λ ()
+    go lfpSendBlockTxsRequest lnpRecvVotes = no λ ()
+    go lfpSendBlockTxsRequest lfpSendBlockRequest = no λ ()
+    go lfpSendBlockTxsRequest lfpSendDone = no λ ()
+    go lfpSendBlockTxsRequest lfpSendBlock = no λ ()
+    go lfpSendBlockTxsRequest lfpSendBlockTxs = no λ ()
+    go lfpSendBlockTxsRequest lfpRecvBlock = no λ ()
+    go lfpSendBlockTxsRequest lfpRecvBlockTxs = no λ ()
+    go lfpSendBlockTxsRequest lfpReqBlockRequest = no λ ()
+    go lfpSendBlockTxsRequest lfpReqBlockTxsRequest = no λ ()
+    go lfpSendDone lnpSendRequestNext = no λ ()
+    go lfpSendDone lnpSendDone = no λ ()
+    go lfpSendDone lnpSendBlockAnnouncement = no λ ()
+    go lfpSendDone lnpSendBlockOffer = no λ ()
+    go lfpSendDone lnpSendBlockTxsOffer = no λ ()
+    go lfpSendDone lnpSendVotes = no λ ()
+    go lfpSendDone lnpRecvBlockAnnouncement = no λ ()
+    go lfpSendDone lnpRecvBlockOffer = no λ ()
+    go lfpSendDone lnpRecvBlockTxsOffer = no λ ()
+    go lfpSendDone lnpRecvVotes = no λ ()
+    go lfpSendDone lfpSendBlockRequest = no λ ()
+    go lfpSendDone lfpSendBlockTxsRequest = no λ ()
+    go lfpSendDone lfpSendBlock = no λ ()
+    go lfpSendDone lfpSendBlockTxs = no λ ()
+    go lfpSendDone lfpRecvBlock = no λ ()
+    go lfpSendDone lfpRecvBlockTxs = no λ ()
+    go lfpSendDone lfpReqBlockRequest = no λ ()
+    go lfpSendDone lfpReqBlockTxsRequest = no λ ()
+    go lfpSendBlock lnpSendRequestNext = no λ ()
+    go lfpSendBlock lnpSendDone = no λ ()
+    go lfpSendBlock lnpSendBlockAnnouncement = no λ ()
+    go lfpSendBlock lnpSendBlockOffer = no λ ()
+    go lfpSendBlock lnpSendBlockTxsOffer = no λ ()
+    go lfpSendBlock lnpSendVotes = no λ ()
+    go lfpSendBlock lnpRecvBlockAnnouncement = no λ ()
+    go lfpSendBlock lnpRecvBlockOffer = no λ ()
+    go lfpSendBlock lnpRecvBlockTxsOffer = no λ ()
+    go lfpSendBlock lnpRecvVotes = no λ ()
+    go lfpSendBlock lfpSendBlockRequest = no λ ()
+    go lfpSendBlock lfpSendBlockTxsRequest = no λ ()
+    go lfpSendBlock lfpSendDone = no λ ()
+    go lfpSendBlock lfpSendBlockTxs = no λ ()
+    go lfpSendBlock lfpRecvBlock = no λ ()
+    go lfpSendBlock lfpRecvBlockTxs = no λ ()
+    go lfpSendBlock lfpReqBlockRequest = no λ ()
+    go lfpSendBlock lfpReqBlockTxsRequest = no λ ()
+    go lfpSendBlockTxs lnpSendRequestNext = no λ ()
+    go lfpSendBlockTxs lnpSendDone = no λ ()
+    go lfpSendBlockTxs lnpSendBlockAnnouncement = no λ ()
+    go lfpSendBlockTxs lnpSendBlockOffer = no λ ()
+    go lfpSendBlockTxs lnpSendBlockTxsOffer = no λ ()
+    go lfpSendBlockTxs lnpSendVotes = no λ ()
+    go lfpSendBlockTxs lnpRecvBlockAnnouncement = no λ ()
+    go lfpSendBlockTxs lnpRecvBlockOffer = no λ ()
+    go lfpSendBlockTxs lnpRecvBlockTxsOffer = no λ ()
+    go lfpSendBlockTxs lnpRecvVotes = no λ ()
+    go lfpSendBlockTxs lfpSendBlockRequest = no λ ()
+    go lfpSendBlockTxs lfpSendBlockTxsRequest = no λ ()
+    go lfpSendBlockTxs lfpSendDone = no λ ()
+    go lfpSendBlockTxs lfpSendBlock = no λ ()
+    go lfpSendBlockTxs lfpRecvBlock = no λ ()
+    go lfpSendBlockTxs lfpRecvBlockTxs = no λ ()
+    go lfpSendBlockTxs lfpReqBlockRequest = no λ ()
+    go lfpSendBlockTxs lfpReqBlockTxsRequest = no λ ()
+    go lfpRecvBlock lnpSendRequestNext = no λ ()
+    go lfpRecvBlock lnpSendDone = no λ ()
+    go lfpRecvBlock lnpSendBlockAnnouncement = no λ ()
+    go lfpRecvBlock lnpSendBlockOffer = no λ ()
+    go lfpRecvBlock lnpSendBlockTxsOffer = no λ ()
+    go lfpRecvBlock lnpSendVotes = no λ ()
+    go lfpRecvBlock lnpRecvBlockAnnouncement = no λ ()
+    go lfpRecvBlock lnpRecvBlockOffer = no λ ()
+    go lfpRecvBlock lnpRecvBlockTxsOffer = no λ ()
+    go lfpRecvBlock lnpRecvVotes = no λ ()
+    go lfpRecvBlock lfpSendBlockRequest = no λ ()
+    go lfpRecvBlock lfpSendBlockTxsRequest = no λ ()
+    go lfpRecvBlock lfpSendDone = no λ ()
+    go lfpRecvBlock lfpSendBlock = no λ ()
+    go lfpRecvBlock lfpSendBlockTxs = no λ ()
+    go lfpRecvBlock lfpRecvBlockTxs = no λ ()
+    go lfpRecvBlock lfpReqBlockRequest = no λ ()
+    go lfpRecvBlock lfpReqBlockTxsRequest = no λ ()
+    go lfpRecvBlockTxs lnpSendRequestNext = no λ ()
+    go lfpRecvBlockTxs lnpSendDone = no λ ()
+    go lfpRecvBlockTxs lnpSendBlockAnnouncement = no λ ()
+    go lfpRecvBlockTxs lnpSendBlockOffer = no λ ()
+    go lfpRecvBlockTxs lnpSendBlockTxsOffer = no λ ()
+    go lfpRecvBlockTxs lnpSendVotes = no λ ()
+    go lfpRecvBlockTxs lnpRecvBlockAnnouncement = no λ ()
+    go lfpRecvBlockTxs lnpRecvBlockOffer = no λ ()
+    go lfpRecvBlockTxs lnpRecvBlockTxsOffer = no λ ()
+    go lfpRecvBlockTxs lnpRecvVotes = no λ ()
+    go lfpRecvBlockTxs lfpSendBlockRequest = no λ ()
+    go lfpRecvBlockTxs lfpSendBlockTxsRequest = no λ ()
+    go lfpRecvBlockTxs lfpSendDone = no λ ()
+    go lfpRecvBlockTxs lfpSendBlock = no λ ()
+    go lfpRecvBlockTxs lfpSendBlockTxs = no λ ()
+    go lfpRecvBlockTxs lfpRecvBlock = no λ ()
+    go lfpRecvBlockTxs lfpReqBlockRequest = no λ ()
+    go lfpRecvBlockTxs lfpReqBlockTxsRequest = no λ ()
+    go lfpReqBlockRequest lnpSendRequestNext = no λ ()
+    go lfpReqBlockRequest lnpSendDone = no λ ()
+    go lfpReqBlockRequest lnpSendBlockAnnouncement = no λ ()
+    go lfpReqBlockRequest lnpSendBlockOffer = no λ ()
+    go lfpReqBlockRequest lnpSendBlockTxsOffer = no λ ()
+    go lfpReqBlockRequest lnpSendVotes = no λ ()
+    go lfpReqBlockRequest lnpRecvBlockAnnouncement = no λ ()
+    go lfpReqBlockRequest lnpRecvBlockOffer = no λ ()
+    go lfpReqBlockRequest lnpRecvBlockTxsOffer = no λ ()
+    go lfpReqBlockRequest lnpRecvVotes = no λ ()
+    go lfpReqBlockRequest lfpSendBlockRequest = no λ ()
+    go lfpReqBlockRequest lfpSendBlockTxsRequest = no λ ()
+    go lfpReqBlockRequest lfpSendDone = no λ ()
+    go lfpReqBlockRequest lfpSendBlock = no λ ()
+    go lfpReqBlockRequest lfpSendBlockTxs = no λ ()
+    go lfpReqBlockRequest lfpRecvBlock = no λ ()
+    go lfpReqBlockRequest lfpRecvBlockTxs = no λ ()
+    go lfpReqBlockRequest lfpReqBlockTxsRequest = no λ ()
+    go lfpReqBlockTxsRequest lnpSendRequestNext = no λ ()
+    go lfpReqBlockTxsRequest lnpSendDone = no λ ()
+    go lfpReqBlockTxsRequest lnpSendBlockAnnouncement = no λ ()
+    go lfpReqBlockTxsRequest lnpSendBlockOffer = no λ ()
+    go lfpReqBlockTxsRequest lnpSendBlockTxsOffer = no λ ()
+    go lfpReqBlockTxsRequest lnpSendVotes = no λ ()
+    go lfpReqBlockTxsRequest lnpRecvBlockAnnouncement = no λ ()
+    go lfpReqBlockTxsRequest lnpRecvBlockOffer = no λ ()
+    go lfpReqBlockTxsRequest lnpRecvBlockTxsOffer = no λ ()
+    go lfpReqBlockTxsRequest lnpRecvVotes = no λ ()
+    go lfpReqBlockTxsRequest lfpSendBlockRequest = no λ ()
+    go lfpReqBlockTxsRequest lfpSendBlockTxsRequest = no λ ()
+    go lfpReqBlockTxsRequest lfpSendDone = no λ ()
+    go lfpReqBlockTxsRequest lfpSendBlock = no λ ()
+    go lfpReqBlockTxsRequest lfpSendBlockTxs = no λ ()
+    go lfpReqBlockTxsRequest lfpRecvBlock = no λ ()
+    go lfpReqBlockTxsRequest lfpRecvBlockTxs = no λ ()
+    go lfpReqBlockTxsRequest lfpReqBlockRequest = no λ ()
+
+  -- the twelve store channels are distinguishable; the four indexed families compare
+  -- their index, `stGetBody` its hash
   DecEq-StoreTag : DecEq StoreTag
   DecEq-StoreTag ._≟_ = go
     where
     go : (x y : StoreTag) → Dec (x ≡ y)
     go stPut stPut = yes refl
     go stGet stGet = yes refl
+    go (stGetAt j) (stGetAt k) with j Nat.≟ k
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go stPutEB stPutEB = yes refl
+    go (stGetEBAt j) (stGetEBAt k) with j Nat.≟ k
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go stPutBody stPutBody = yes refl
+    go (stGetBody h) (stGetBody h′) with h ≟ h′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go stPutTx stPutTx = yes refl
+    go (stGetTxAt j) (stGetTxAt k) with j Nat.≟ k
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go stPutVote stPutVote = yes refl
+    go (stGetVoteAt j) (stGetVoteAt k) with j Nat.≟ k
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go stCert stCert = yes refl
+    go (stGetTx h) (stGetTx h′) with h ≟ h′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go (stHasCert r) (stHasCert r′) with r ≟ r′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
     go stPut stGet = no λ ()
+    go stPut (stGetAt _) = no λ ()
+    go stPut stPutEB = no λ ()
+    go stPut (stGetEBAt _) = no λ ()
+    go stPut stPutBody = no λ ()
+    go stPut (stGetBody _) = no λ ()
+    go stPut stPutTx = no λ ()
+    go stPut (stGetTxAt _) = no λ ()
+    go stPut stPutVote = no λ ()
+    go stPut (stGetVoteAt _) = no λ ()
+    go stPut stCert = no λ ()
     go stGet stPut = no λ ()
+    go stGet (stGetAt _) = no λ ()
+    go stGet stPutEB = no λ ()
+    go stGet (stGetEBAt _) = no λ ()
+    go stGet stPutBody = no λ ()
+    go stGet (stGetBody _) = no λ ()
+    go stGet stPutTx = no λ ()
+    go stGet (stGetTxAt _) = no λ ()
+    go stGet stPutVote = no λ ()
+    go stGet (stGetVoteAt _) = no λ ()
+    go stGet stCert = no λ ()
+    go (stGetAt _) stPut = no λ ()
+    go (stGetAt _) stGet = no λ ()
+    go (stGetAt _) stPutEB = no λ ()
+    go (stGetAt _) (stGetEBAt _) = no λ ()
+    go (stGetAt _) stPutBody = no λ ()
+    go (stGetAt _) (stGetBody _) = no λ ()
+    go (stGetAt _) stPutTx = no λ ()
+    go (stGetAt _) (stGetTxAt _) = no λ ()
+    go (stGetAt _) stPutVote = no λ ()
+    go (stGetAt _) (stGetVoteAt _) = no λ ()
+    go (stGetAt _) stCert = no λ ()
+    go stPutEB stPut = no λ ()
+    go stPutEB stGet = no λ ()
+    go stPutEB (stGetAt _) = no λ ()
+    go stPutEB (stGetEBAt _) = no λ ()
+    go stPutEB stPutBody = no λ ()
+    go stPutEB (stGetBody _) = no λ ()
+    go stPutEB stPutTx = no λ ()
+    go stPutEB (stGetTxAt _) = no λ ()
+    go stPutEB stPutVote = no λ ()
+    go stPutEB (stGetVoteAt _) = no λ ()
+    go stPutEB stCert = no λ ()
+    go (stGetEBAt _) stPut = no λ ()
+    go (stGetEBAt _) stGet = no λ ()
+    go (stGetEBAt _) (stGetAt _) = no λ ()
+    go (stGetEBAt _) stPutEB = no λ ()
+    go (stGetEBAt _) stPutBody = no λ ()
+    go (stGetEBAt _) (stGetBody _) = no λ ()
+    go (stGetEBAt _) stPutTx = no λ ()
+    go (stGetEBAt _) (stGetTxAt _) = no λ ()
+    go (stGetEBAt _) stPutVote = no λ ()
+    go (stGetEBAt _) (stGetVoteAt _) = no λ ()
+    go (stGetEBAt _) stCert = no λ ()
+    go stPutBody stPut = no λ ()
+    go stPutBody stGet = no λ ()
+    go stPutBody (stGetAt _) = no λ ()
+    go stPutBody stPutEB = no λ ()
+    go stPutBody (stGetEBAt _) = no λ ()
+    go stPutBody (stGetBody _) = no λ ()
+    go stPutBody stPutTx = no λ ()
+    go stPutBody (stGetTxAt _) = no λ ()
+    go stPutBody stPutVote = no λ ()
+    go stPutBody (stGetVoteAt _) = no λ ()
+    go stPutBody stCert = no λ ()
+    go (stGetBody _) stPut = no λ ()
+    go (stGetBody _) stGet = no λ ()
+    go (stGetBody _) (stGetAt _) = no λ ()
+    go (stGetBody _) stPutEB = no λ ()
+    go (stGetBody _) (stGetEBAt _) = no λ ()
+    go (stGetBody _) stPutBody = no λ ()
+    go (stGetBody _) stPutTx = no λ ()
+    go (stGetBody _) (stGetTxAt _) = no λ ()
+    go (stGetBody _) stPutVote = no λ ()
+    go (stGetBody _) (stGetVoteAt _) = no λ ()
+    go (stGetBody _) stCert = no λ ()
+    go stPutTx stPut = no λ ()
+    go stPutTx stGet = no λ ()
+    go stPutTx (stGetAt _) = no λ ()
+    go stPutTx stPutEB = no λ ()
+    go stPutTx (stGetEBAt _) = no λ ()
+    go stPutTx stPutBody = no λ ()
+    go stPutTx (stGetBody _) = no λ ()
+    go stPutTx (stGetTxAt _) = no λ ()
+    go stPutTx stPutVote = no λ ()
+    go stPutTx (stGetVoteAt _) = no λ ()
+    go stPutTx stCert = no λ ()
+    go (stGetTxAt _) stPut = no λ ()
+    go (stGetTxAt _) stGet = no λ ()
+    go (stGetTxAt _) (stGetAt _) = no λ ()
+    go (stGetTxAt _) stPutEB = no λ ()
+    go (stGetTxAt _) (stGetEBAt _) = no λ ()
+    go (stGetTxAt _) stPutBody = no λ ()
+    go (stGetTxAt _) (stGetBody _) = no λ ()
+    go (stGetTxAt _) stPutTx = no λ ()
+    go (stGetTxAt _) stPutVote = no λ ()
+    go (stGetTxAt _) (stGetVoteAt _) = no λ ()
+    go (stGetTxAt _) stCert = no λ ()
+    go stPutVote stPut = no λ ()
+    go stPutVote stGet = no λ ()
+    go stPutVote (stGetAt _) = no λ ()
+    go stPutVote stPutEB = no λ ()
+    go stPutVote (stGetEBAt _) = no λ ()
+    go stPutVote stPutBody = no λ ()
+    go stPutVote (stGetBody _) = no λ ()
+    go stPutVote stPutTx = no λ ()
+    go stPutVote (stGetTxAt _) = no λ ()
+    go stPutVote (stGetVoteAt _) = no λ ()
+    go stPutVote stCert = no λ ()
+    go (stGetVoteAt _) stPut = no λ ()
+    go (stGetVoteAt _) stGet = no λ ()
+    go (stGetVoteAt _) (stGetAt _) = no λ ()
+    go (stGetVoteAt _) stPutEB = no λ ()
+    go (stGetVoteAt _) (stGetEBAt _) = no λ ()
+    go (stGetVoteAt _) stPutBody = no λ ()
+    go (stGetVoteAt _) (stGetBody _) = no λ ()
+    go (stGetVoteAt _) stPutTx = no λ ()
+    go (stGetVoteAt _) (stGetTxAt _) = no λ ()
+    go (stGetVoteAt _) stPutVote = no λ ()
+    go (stGetVoteAt _) stCert = no λ ()
+    go stCert stPut = no λ ()
+    go stCert stGet = no λ ()
+    go stCert (stGetAt _) = no λ ()
+    go stCert stPutEB = no λ ()
+    go stCert (stGetEBAt _) = no λ ()
+    go stCert stPutBody = no λ ()
+    go stCert (stGetBody _) = no λ ()
+    go stCert stPutTx = no λ ()
+    go stCert (stGetTxAt _) = no λ ()
+    go stCert stPutVote = no λ ()
+    go stCert (stGetVoteAt _) = no λ ()
+    go stPut (stGetTx _) = no λ ()
+    go stPut (stHasCert _) = no λ ()
+    go stGet (stGetTx _) = no λ ()
+    go stGet (stHasCert _) = no λ ()
+    go (stGetAt _) (stGetTx _) = no λ ()
+    go (stGetAt _) (stHasCert _) = no λ ()
+    go stPutEB (stGetTx _) = no λ ()
+    go stPutEB (stHasCert _) = no λ ()
+    go (stGetEBAt _) (stGetTx _) = no λ ()
+    go (stGetEBAt _) (stHasCert _) = no λ ()
+    go stPutBody (stGetTx _) = no λ ()
+    go stPutBody (stHasCert _) = no λ ()
+    go (stGetBody _) (stGetTx _) = no λ ()
+    go (stGetBody _) (stHasCert _) = no λ ()
+    go stPutTx (stGetTx _) = no λ ()
+    go stPutTx (stHasCert _) = no λ ()
+    go (stGetTxAt _) (stGetTx _) = no λ ()
+    go (stGetTxAt _) (stHasCert _) = no λ ()
+    go (stGetTx _) stPut = no λ ()
+    go (stGetTx _) stGet = no λ ()
+    go (stGetTx _) (stGetAt _) = no λ ()
+    go (stGetTx _) stPutEB = no λ ()
+    go (stGetTx _) (stGetEBAt _) = no λ ()
+    go (stGetTx _) stPutBody = no λ ()
+    go (stGetTx _) (stGetBody _) = no λ ()
+    go (stGetTx _) stPutTx = no λ ()
+    go (stGetTx _) (stGetTxAt _) = no λ ()
+    go (stGetTx _) stPutVote = no λ ()
+    go (stGetTx _) (stGetVoteAt _) = no λ ()
+    go (stGetTx _) stCert = no λ ()
+    go (stGetTx _) (stHasCert _) = no λ ()
+    go stPutVote (stGetTx _) = no λ ()
+    go stPutVote (stHasCert _) = no λ ()
+    go (stGetVoteAt _) (stGetTx _) = no λ ()
+    go (stGetVoteAt _) (stHasCert _) = no λ ()
+    go stCert (stGetTx _) = no λ ()
+    go stCert (stHasCert _) = no λ ()
+    go (stHasCert _) stPut = no λ ()
+    go (stHasCert _) stGet = no λ ()
+    go (stHasCert _) (stGetAt _) = no λ ()
+    go (stHasCert _) stPutEB = no λ ()
+    go (stHasCert _) (stGetEBAt _) = no λ ()
+    go (stHasCert _) stPutBody = no λ ()
+    go (stHasCert _) (stGetBody _) = no λ ()
+    go (stHasCert _) stPutTx = no λ ()
+    go (stHasCert _) (stGetTxAt _) = no λ ()
+    go (stHasCert _) (stGetTx _) = no λ ()
+    go (stHasCert _) stPutVote = no λ ()
+    go (stHasCert _) (stGetVoteAt _) = no λ ()
+    go (stHasCert _) stCert = no λ ()
 
-  -- the environment currently has a single channel, so equality is trivial
+  -- the two environment channels are distinguishable
   DecEq-EnvTag : DecEq EnvTag
   DecEq-EnvTag ._≟_ = go
     where
     go : (x y : EnvTag) → Dec (x ≡ y)
-    go envForge envForge = yes refl
+    go envForge  envForge  = yes refl
+    go envSubmit envSubmit = yes refl
+    go envForgeCert envForgeCert = yes refl
+    go envForge  envSubmit = no λ ()
+    go envSubmit envForge  = no λ ()
+    go envForge envForgeCert = no λ ()
+    go envSubmit envForgeCert = no λ ()
+    go envForgeCert envForge = no λ ()
+    go envForgeCert envSubmit = no λ ()
 
 
 ------------------------------------------------------------------------
@@ -1081,6 +1751,8 @@ data Net_Api (Data : Set) : Set → Set where
   apiKA : (l : Link) (d : Dir) (m : ApiKATag) → Net_Api Data (ApiKACar m)
   apiLN : (l : Link) (d : Dir) (m : ApiLNTag) → Net_Api Data (ApiLNCar m)
   apiLF : (l : Link) (d : Dir) (m : ApiLFTag) → Net_Api Data (ApiLFCar m)
+  -- the leios-prototype peers' api channel (both prototype mini-protocols)
+  apiLP : (l : Link) (d : Dir) (m : ApiLPTag) → Net_Api Data (ApiLPCar m)
   -- node-local: a node's block store, named by the node's head endpoint (l , d)
   store : (l : Link) (d : Dir) (m : StoreTag) → Net_Api Data (StoreCar m)
   -- node-local: the environment forging into the node at endpoint (l , d)
@@ -1173,6 +1845,11 @@ Net_Api-≟ {Data} = go
   ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
   ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
   go (_ , apiLF l₁ d₁ m₁) (_ , apiLF l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
+  ... | yes refl | yes refl | yes refl = yes refl
+  ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
+  ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
+  ... | _        | _        | no ¬m    = no λ { refl → ¬m refl }
+  go (_ , apiLP l₁ d₁ m₁) (_ , apiLP l₂ d₂ m₂) with l₁ ≟ l₂ | d₁ ≟ d₂ | m₁ ≟ m₂
   ... | yes refl | yes refl | yes refl = yes refl
   ... | no ¬l    | _        | _        = no λ { refl → ¬l refl }
   ... | _        | no ¬d    | _        = no λ { refl → ¬d refl }
@@ -1500,3 +2177,40 @@ Net_Api-≟ {Data} = go
   go (_ , apiLF _ _ _) (_ , env _ _ _) = no λ ()
   go (_ , env _ _ _) (_ , break _) = no λ ()
   go (_ , break _) (_ , env _ _ _) = no λ ()
+  -- off-diagonal: the prototype api channel against every other constructor (both orders)
+  go (_ , input _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , output _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , sndmsg _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , rcvmsg _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , tx _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , sndack _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , rcvack _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , ack _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , done _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiCS _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiBF _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiTS _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiKA _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiLN _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiLF _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , input _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , output _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , sndmsg _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , rcvmsg _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , tx _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , sndack _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , rcvack _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , ack _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , done _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , apiCS _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , apiBF _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , apiTS _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , apiKA _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , apiLN _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , apiLF _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , store _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , env _ _ _) = no λ ()
+  go (_ , apiLP _ _ _) (_ , break _) = no λ ()
+  go (_ , store _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , env _ _ _) (_ , apiLP _ _ _) = no λ ()
+  go (_ , break _) (_ , apiLP _ _ _) = no λ ()

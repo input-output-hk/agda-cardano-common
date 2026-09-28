@@ -97,11 +97,11 @@ import Data.Maybe as PMaybe
 
 p : Params
 p = record
-  { Cookie = U.⊤ ; Block = Block₃ ; Txid = U.⊤ ; LSlot = U.⊤
-  ; VoterId = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
+  { Cookie = U.⊤ ; Block = Block₃ ; LSlot = U.⊤
+  ; VoterId = U.⊤ ; VoteBlob = U.⊤
   ; numLinks = 4 ; linkConfig = λ _ → uniformCfg
-  ; decCookie = decEq⊤ ; decBlock = DecEq-Block₃ ; decTxid = decEq⊤
-  ; decLSlot = decEq⊤ ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤
+  ; decCookie = decEq⊤ ; decBlock = DecEq-Block₃
+  ; decLSlot = decEq⊤ ; decVoterId = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
   ; decTime = decEq⊤ ; decLength = decEq⊤
@@ -111,14 +111,20 @@ p = record
   -- keeps those carriers exactly as wide as they were before the retarget.
   ; EB = Block₃ ; EBHash = Block₃
   ; decEB = DecEq-Block₃ ; decEBHash = DecEq-Block₃
-  ; ebHash = λ b → b ; announcedEB = λ _ → PMaybe.nothing }
+  ; ebHash = λ b → b ; announcedEB = λ _ → PMaybe.nothing
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = Block₃ ; decRbHash = DecEq-Block₃ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = U.⊤ ; decTxHash = decEq⊤ ; txHash = λ _ → U.tt
+  ; Size = U.⊤ ; decSize = decEq⊤ ; txSize = λ _ → U.tt
+  ; slotOf = λ _ → U.tt }
 ```
 
 ```agda
 open import CSP.Examples.Cardano_network.Net p
   using ( Link; Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
         ; reqCSRequestNext; sendCSRollForward; sendCSAwaitReply; sendCSRequestNext
         ; recvCSRollforward; sendCSDone
         ; reqBFRange; sendBFStartBatch; sendBFBlock; sendBFBatchDone
@@ -168,6 +174,7 @@ apiSet (_ , apiKA _ _ _) = ⊤
 apiSet (_ , apiTS _ _ _) = ⊤
 apiSet (_ , apiLN _ _ _) = ⊤
 apiSet (_ , apiLF _ _ _) = ⊤
+apiSet (_ , apiLP _ _ _) = ⊤
 apiSet (_ , done _ _ _)  = ⊤   -- `done` is now api-synced (driven teardown), not node-local
 apiSet _                 = ⊥
 
@@ -188,6 +195,7 @@ apiSet-dec (_ , apiTS  _ _ _) = yes tt
 apiSet-dec (_ , apiKA  _ _ _) = yes tt
 apiSet-dec (_ , apiLN  _ _ _) = yes tt
 apiSet-dec (_ , apiLF  _ _ _) = yes tt
+apiSet-dec (_ , apiLP  _ _ _) = yes tt
 -- node-local, NOT peer apis: link bundles must not synchronise on them
 apiSet-dec (_ , store  _ _ _) = no λ ()
 apiSet-dec (_ , env    _ _ _) = no λ ()

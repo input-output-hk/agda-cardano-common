@@ -58,9 +58,9 @@ module Generic
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
   open N p
-    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
+    using ( Net_Api; Net_Api-≟; env; envForge; envSubmit; envForgeCert; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLF )
+          ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP )
   open D p using (Payload)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; par-brBoth; _∥⇘_⇙_; _∖_; _⦀_; ⦀Fin⁺)
@@ -112,10 +112,15 @@ module Generic
   next-notForge (ev (evl (evLabel _ (apiKA  _ _ _) _))) _ _ = refl
   next-notForge (ev (evl (evLabel _ (apiLN  _ _ _) _))) _ _ = refl
   next-notForge (ev (evl (evLabel _ (apiLF  _ _ _) _))) _ _ = refl
+  next-notForge (ev (evl (evLabel _ (apiLP  _ _ _) _))) _ _ = refl
   next-notForge (ev (evl (evLabel _ (store  _ _ _) _))) _ _ = refl
   next-notForge (ev (evl (evLabel _ (break  _)     _))) _ _ = refl
   next-notForge (ev (evl (evLabel _ (env _ _ envForge) (just _  , _)))) _ ()
   next-notForge (ev (evl (evLabel _ (env _ _ envForge) (nothing , _)))) _ _ = refl
+  -- a transaction submission is not a forge, so the forged set is unchanged
+  next-notForge (ev (evl (evLabel _ (env _ _ envSubmit) _))) _ _ = refl
+  -- a certificate-carrying forge is not an EB forge, so the forged set is unchanged
+  next-notForge (ev (evl (evLabel _ (env _ _ envForgeCert) _))) _ _ = refl
 
   ------------------------------------------------------------------------
   -- The bridge

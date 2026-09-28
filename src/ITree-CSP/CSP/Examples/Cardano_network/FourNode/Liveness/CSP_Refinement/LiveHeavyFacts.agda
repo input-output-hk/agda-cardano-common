@@ -89,7 +89,7 @@ open import Process_Trees using ( ExtI )
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
   renaming ( done to netDone )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
@@ -202,6 +202,9 @@ hidEv-μ r {e = apiLN l₀ d₀ m} _ step =
             (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 hidEv-μ r {e = apiLF l₀ d₀ m} _ step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLF (med (toSys r)))
+            (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
+hidEv-μ r {e = apiLP l₀ d₀ m} _ step =
+  ⊥-elim (oevB-refute r (SR.medium-no-apiLP (med (toSys r)))
             (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 
 -- the io classes: `∖ ioES` makes them invisible at the top

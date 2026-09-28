@@ -372,3 +372,85 @@ _test-soloR : (A : EventSet) (merge : Mg R₁ R₂ R)
             → viewV (PTree.force P) (X , e) a ≡ nothing
             → (Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─► (Par A merge P Q')
 _test-soloR A merge P Q Q' ¬cs st np = Par-soloR A merge P Q ¬cs st np
+
+-------------------------------------------------------------------------------------
+-- BOTH-OFFER (collision) visible intro.  `Par-soloL/R` demand the other operand's
+-- NON-offer; when both operands offer the same event OUTSIDE `A`, `par-pVis` neither
+-- refuses nor picks a side — it fires the event into an inline internal choice (the
+-- `par-brBoth` node), whose two τ-branches are the two interleavings.  These three
+-- lemmas are the INTRODUCTION rule for that shape, so a hand-written trace over a
+-- composite whose operands share an offer no longer has to drop the other operands.
+-------------------------------------------------------------------------------------
+
+-- the node a both-offer non-sync event fires into: no visible offers, two τ-branches
+-- (tag 0 = P advanced, tag 1 = Q advanced)
+par-brNode : (A : EventSet) (merge : Mg R₁ R₂ R)
+             (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+             (P' : PTree E (ExtI E) R₁) (Q' : PTree E (ExtI E) R₂)
+           → PTree E (ExtI E) R
+par-brNode A merge P Q P' Q' =
+  ptree (react (λ _ _ → nothing) (par-brBoth A merge P Q P' Q'))
+
+-- branch equation: both operands offer `a ∉ A` ⇒ `par-pVis` yields the collision node
+par-pVis-brBoth-eq : (A : EventSet) (merge : Mg R₁ R₂ R)
+                       (nP : NodeKind E (ExtI E) R₁) (nQ : NodeKind E (ExtI E) R₂)
+                       (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+                       {at : AnyTypes E} {a : proj₁ at}
+                       {P' : PTree E (ExtI E) R₁} {Q' : PTree E (ExtI E) R₂}
+                   → ¬ A .mem at a → viewV nP at a ≡ just P' → viewV nQ at a ≡ just Q'
+                   → par-pVis A merge nP nQ P Q at a
+                     ≡ just (par-brNode A merge P Q P' Q')
+par-pVis-brBoth-eq A merge nP nQ P Q {at = at} {a = a} ¬cs veP veQ
+  with A .dec at a | viewV nP at a | viewV nQ at a
+... | yes cs | _       | _       = ⊥-elim (¬cs cs)
+... | no  _  | just _  | just _  = case veP of λ { refl → case veQ of λ { refl → refl } }
+... | no  _  | just _  | nothing = case veQ of λ ()
+... | no  _  | nothing | _       = case veP of λ ()
+
+-- INTRO: an event outside `A` that BOTH operands offer fires in the composite too
+Par-brBoth : (A : EventSet) (merge : Mg R₁ R₂ R)
+             (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+             {X : Set ℓ} {e : E X} {a : X}
+             {P' : PTree E (ExtI E) R₁} {Q' : PTree E (ExtI E) R₂}
+           → ¬ A .mem (X , e) a
+           → P ─[ ev (evl (evLabel X e a)) ]─► P'
+           → Q ─[ ev (evl (evLabel X e a)) ]─► Q'
+           → (Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─►
+             par-brNode A merge P Q P' Q'
+Par-brBoth A merge P Q ¬cs (sVis {v = vP} {τc = τcP} eqP brP)
+                           (sVis {v = vQ} {τc = τcQ} eqQ brQ) =
+  sVis (fPar-nn A merge eqP eqQ tt tt)
+       (par-pVis-brBoth-eq A merge (react vP τcP) (react vQ τcQ) P Q ¬cs brP brQ)
+
+-- LEFT resolution of the collision: one τ to (P′ ∥ Q)
+par-brNode-τL : (A : EventSet) (merge : Mg R₁ R₂ R)
+                (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+                (P' : PTree E (ExtI E) R₁) (Q' : PTree E (ExtI E) R₂)
+              → par-brNode A merge P Q P' Q' ─[ τ ]─► Par A merge P' Q
+par-brNode-τL A merge P Q P' Q' =
+  sTau {i = Lift ℓ (Fin 2) , fin} {a = lift fzero} refl refl
+
+-- RIGHT resolution of the collision: one τ to (P ∥ Q′)
+par-brNode-τR : (A : EventSet) (merge : Mg R₁ R₂ R)
+                (P : PTree E (ExtI E) R₁) (Q : PTree E (ExtI E) R₂)
+                (P' : PTree E (ExtI E) R₁) (Q' : PTree E (ExtI E) R₂)
+              → par-brNode A merge P Q P' Q' ─[ τ ]─► Par A merge P Q'
+par-brNode-τR A merge P Q P' Q' =
+  sTau {i = Lift ℓ (Fin 2) , fin} {a = lift (fsuc fzero)} refl refl
+
+-- VALIDATION: the intro's target is exactly the node the two τ lemmas step from,
+-- so an event both operands offer really does reach BOTH interleavings.
+_test-brBoth : (A : EventSet) (merge : Mg R₁ R₂ R)
+               (P P' : PTree E (ExtI E) R₁) (Q Q' : PTree E (ExtI E) R₂)
+               {X : Set ℓ} {e : E X} {a : X}
+             → ¬ A .mem (X , e) a
+             → P ─[ ev (evl (evLabel X e a)) ]─► P'
+             → Q ─[ ev (evl (evLabel X e a)) ]─► Q'
+             → Σ[ Z ∈ PTree E (ExtI E) R ]
+                 ( ((Par A merge P Q) ─[ ev (evl (evLabel X e a)) ]─► Z)
+                 × (Z ─[ τ ]─► Par A merge P' Q)
+                 × (Z ─[ τ ]─► Par A merge P Q') )
+_test-brBoth A merge P P' Q Q' ¬cs sP sQ =
+  _ , Par-brBoth A merge P Q ¬cs sP sQ
+    , par-brNode-τL A merge P Q P' Q'
+    , par-brNode-τR A merge P Q P' Q'

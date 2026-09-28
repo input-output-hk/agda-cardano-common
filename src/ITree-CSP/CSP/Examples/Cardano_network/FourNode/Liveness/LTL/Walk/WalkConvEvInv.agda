@@ -56,7 +56,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Net; Net-≟; Link; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-        ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF )
+        ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv; ioES )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -216,6 +216,7 @@ decLink-ev-inv-wt l ph false {e = apiTS  l₀ d₀ m}   iomem step = ⊥-elim io
 decLink-ev-inv-wt l ph false {e = apiKA  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv-wt l ph false {e = apiLN  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv-wt l ph false {e = apiLF  l₀ d₀ m}   iomem step = ⊥-elim iomem
+decLink-ev-inv-wt l ph false {e = apiLP  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv-wt l ph false {e = break  l₀}        iomem step = ⊥-elim iomem
 
 ------------------------------------------------------------------------

@@ -64,7 +64,7 @@ module Generic
   open N p
     using ( Net; Net-≟; Link; Net_Api; Net_Api-≟
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break )
+          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break )
   open D p using (Payload)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (Prefix₀; Skip)
   open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -106,6 +106,7 @@ module Generic
   ιNet⁻¹-sound (apiKA  _ _ _) _ ()
   ιNet⁻¹-sound (apiLN  _ _ _) _ ()
   ιNet⁻¹-sound (apiLF  _ _ _) _ ()
+  ιNet⁻¹-sound (apiLP  _ _ _) _ ()
   ιNet⁻¹-sound (store  _ _ _) _ ()
   ιNet⁻¹-sound (env    _ _ _) _ ()
   ιNet⁻¹-sound (break  _)     _ ()

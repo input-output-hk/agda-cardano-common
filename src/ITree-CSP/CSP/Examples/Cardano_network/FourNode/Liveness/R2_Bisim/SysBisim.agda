@@ -134,7 +134,7 @@ import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTau
 import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
 -- the io / event alphabet constructors (for the `oev` label dispatch)
 open import CSP.Examples.Cardano_network.Net p
-  using ( apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; Link
+  using ( apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; Link
         ; break; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 
 -- the LTS + weak-bisim vocabulary
@@ -556,6 +556,8 @@ oev-impl r {evLabel _ (apiLN l₀ d₀ m) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiLN (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
 oev-impl r {evLabel _ (apiLF l₀ d₀ m) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiLF (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
+oev-impl r {evLabel _ (apiLP l₀ d₀ m) a} step =
+  ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-apiLP (med (toSys r))) (SR.nodes-no-nonCSBF (toSys r) tt (λ ())) step)
 oev-impl r {evLabel _ (sndmsg l₀ d₀ id) a} step =
   ⊥-elim (SR.oev-refute (toSys r) (SR.medium-no-sndmsg (med (toSys r))) (SR.nodes-no-sndmsg (toSys r)) step)
 oev-impl r {evLabel _ (rcvmsg l₀ d₀ id) a} step =
@@ -923,7 +925,7 @@ oevB-refute r mno nno step
 -- the `oevB` field (backward visible NON-√ class): dispatch an abstract visible
 -- `evl` top step of `radec r = absDec (toSys r)` by its label.  api (apiCS/apiBF/
 -- done) → `oevB-api`; `break` → `oevB-break`; io (input/output ∈ ioES) is HIDDEN
--- (`oevB-no-io`); the inert api events (apiKA/apiTS/apiLN/apiLF) and the wire
+-- (`oevB-no-io`); the inert api events (apiKA/apiTS/apiLN/apiLF/apiLP) and the wire
 -- messages (sndmsg/…/ack) are IMPOSSIBLE — refuted at medium (`SR.medium-no-X`)
 -- and abstract nodes (`SR.absnodes-no-nonCSBF` / `SR.absnodes-no-<msg>`).  The
 -- byte-mirror of `oev-impl`; the √ class lives in `osqrtB` (separate field).
@@ -943,6 +945,8 @@ oevB-impl r {evLabel _ (apiLN l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLN (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 oevB-impl r {evLabel _ (apiLF l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLF (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
+oevB-impl r {evLabel _ (apiLP l₀ d₀ m) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-apiLP (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 oevB-impl r {evLabel _ (sndmsg l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-sndmsg (med (toSys r))) (SR.absnodes-no-sndmsg (toSys r)) step)
 oevB-impl r {evLabel _ (rcvmsg l₀ d₀ id) a} step =

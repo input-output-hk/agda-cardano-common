@@ -111,3 +111,25 @@ instance
   DecEq-Dir ._≟_ hi hi = yes refl
   DecEq-Dir ._≟_ lo hi = no λ ()
   DecEq-Dir ._≟_ hi lo = no λ ()
+
+------------------------------------------------------------------------
+-- A one-point OPAQUE transaction domain, for the scenarios that do not
+-- model transactions.
+------------------------------------------------------------------------
+
+-- Deliberately NOT `⊤`.  With `Params.Tx = ⊤` the instance search for `DecEq Tx`
+-- has a dozen definitionally equal candidates (every `DecEq ⊤` field of that
+-- scenario's `Params`) and picks the FIRST IN SCOPE ORDER, so two modules pick
+-- different terms and a `with`-abstraction across them stops matching (measured:
+-- `SysOracle_PeerEvIo.ceqLF-c-rnext` against `NodeSpecs.lfCnxt`).  A dedicated
+-- datatype keeps the candidate unique, exactly as the old `Data.Tx` wrapper did.
+data OneTx : Set where
+  oneTx : OneTx
+
+-- decidable equality on the one-point transaction domain.  NOT declared `instance`:
+-- the only `DecEq OneTx` in instance scope must be the scenario's `Params.decTx` field.
+decOneTx : DecEq OneTx
+decOneTx = record { _≟_ = go }
+  where
+  go : (x y : OneTx) → Dec (x ≡ y)
+  go oneTx oneTx = yes refl

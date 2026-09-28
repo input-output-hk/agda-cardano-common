@@ -75,7 +75,7 @@ module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoi
 
 open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
 open import CSP.Examples.Cardano_network.Net p using
-  ( Net_Api; Net_Api-≟; Link; break; apiBF; apiCS; apiKA; apiTS; apiLN; apiLF
+  ( Net_Api; Net_Api-≟; Link; break; apiBF; apiCS; apiKA; apiTS; apiLN; apiLF; apiLP
   ; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
   ; ApiBFTag; ApiBFCar ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
@@ -724,6 +724,7 @@ module HopArm
   chanH-api l s s′ (apiTS l₀ d₀ m)   v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanH-api l s s′ (apiLN l₀ d₀ m)   v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanH-api l s s′ (apiLF l₀ d₀ m)   v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
+  chanH-api l s s′ (apiLP l₀ d₀ m)   v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanH-api l s s′ (input  l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanH-api l s s′ (output l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv
   chanH-api l s s′ (sndmsg l₀ d₀ id₀) v medEq seq ceq iv = api-frame l s s′ medEq seq ceq iv

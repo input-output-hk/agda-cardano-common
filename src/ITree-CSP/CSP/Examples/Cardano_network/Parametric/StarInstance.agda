@@ -79,17 +79,23 @@ import Data.Maybe as PMaybe
 
 starParams : Params
 starParams = record
-  { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
-  ; VoterId = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
+  { Cookie = U.⊤ ; Block = U.⊤ ; LSlot = U.⊤
+  ; VoterId = U.⊤ ; VoteBlob = U.⊤
   ; numLinks = 4 ; linkConfig = λ _ → starCfg
-  ; decCookie = starDecEq⊤ ; decBlock = starDecEq⊤ ; decTxid = starDecEq⊤
-  ; decLSlot = starDecEq⊤ ; decVoterId = starDecEq⊤ ; decLFBitmap = starDecEq⊤
+  ; decCookie = starDecEq⊤ ; decBlock = starDecEq⊤
+  ; decLSlot = starDecEq⊤ ; decVoterId = starDecEq⊤
   ; decVoteBlob = starDecEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
   ; decTime = starDecEq⊤ ; decLength = starDecEq⊤
   -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
   ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = starDecEq⊤ ; decEBHash = starDecEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = U.⊤ ; decRbHash = starDecEq⊤ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = U.⊤ ; decTxHash = starDecEq⊤ ; txHash = λ _ → U.tt
+  ; Size = U.⊤ ; decSize = starDecEq⊤ ; txSize = λ _ → U.tt
+  ; slotOf = λ _ → U.tt }
 
 open import CSP.Examples.Cardano_network.Net starParams using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data starParams using (Payload)

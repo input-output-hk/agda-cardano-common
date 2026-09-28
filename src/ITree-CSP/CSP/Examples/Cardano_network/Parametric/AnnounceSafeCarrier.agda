@@ -72,9 +72,9 @@ module Generic
 
   open Params p using (Block; EB; EBHash; ebHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
+    using ( Net_Api; Net_Api-≟; env; envForge; envSubmit; envForgeCert; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLF
+          ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
           ; sendLNBlockAnnouncement; sendLNRequestNext; sendLNDone
           ; sendLNBlockOffer; sendLNBlockTxsOffer; sendLNVotesOffer
           ; recvLNBlockAnnouncement; recvLNBlockOffer
@@ -387,6 +387,7 @@ module Generic
   menuStep {ms} s (_ , apiTS  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiKA  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLF  _ _ _) a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , store  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , break  _)     a st = ms , refl , onOther′ s st tt
   -- the forge channel: the spec's state and `forgedAfter` grow by the same hash
@@ -394,6 +395,10 @@ module Generic
     forgedAfter (just e , b) ms , refl , onForge s st
   menuStep {ms} s (_ , env _ _ envForge) (nothing , b) st =
     forgedAfter (nothing , b) ms , refl , onForge s st
+  -- a transaction submission is not a forge: the spec's forged set stands still
+  menuStep {ms} s (_ , env _ _ envSubmit) a st = ms , refl , onOther′ s st tt
+  -- a certificate-carrying forge is not an EB forge: the spec's forged set stands still
+  menuStep {ms} s (_ , env _ _ envForgeCert) a st = ms , refl , onOther′ s st tt
   -- THE LOAD-BEARING CLAUSE: `gate` says the announced block is well-announced, and
   -- `wellAnnounced→announceOK` turns that into the boolean the spec's gate tests
   menuStep {ms} s (_ , apiLN l d sendLNBlockAnnouncement) (header b) st =

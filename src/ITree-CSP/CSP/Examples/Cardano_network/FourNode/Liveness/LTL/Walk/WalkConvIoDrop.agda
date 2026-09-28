@@ -38,7 +38,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
 open import CSP.Examples.Cardano_network.Data p using
   ( Payload; Header; Tip; Point
-  ; chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch
+  ; chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgCSRollForward; MsgCSRollBackward; MsgCSAwaitReply
   ; MsgCSIntersectFound; MsgCSIntersectNotFound
   ; MsgCSRequestNext; MsgCSFindIntersect; MsgCSDone
@@ -47,8 +47,8 @@ open import CSP.Examples.Cardano_network.Data p using
   ; MsgKeepAlive; MsgKeepAliveResponse; MsgKADone
   ; MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone
   ; MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone
-  ; MsgLFBlockRequest; MsgLFBlockTxsRequest; MsgLFVotesRequest; MsgLFBlockRangeRequest; MsgLFDone
-  ; MsgLFBlock; MsgLFBlockTxs; MsgLFVoteDelivery; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange
+  ; MsgLFBlockRequest; MsgLFVotesRequest; MsgLFBlockRangeRequest; MsgLFDone
+  ; MsgLFBlock; MsgLFVoteDelivery; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange
   ; DecEq-Payload; DecEq-Header; DecEq-Tip; DecEq-Point; DecEq-Tx )
 open import CSP.Examples.Cardano_network.Base using
   ( Dir; lo; hi; FromInitiator; FromResponder; BlockingStyle; Blocking; NonBlocking )
@@ -85,9 +85,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   ; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil; decTSs
   ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; decLNc
   ; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil; decLNs
-  ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1
-  ; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; decLFc
-  ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil; decLFs )
+  ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1
+  ; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; decLFc
+  ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil; decLFs )
 open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( NetProc; absCSc; coarsenCSc; decCSc-sil-step
   ; absCSs; coarsenCSs; decCSs-sil-step
@@ -138,11 +138,11 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 b
   ; lns-fire-wann1; lns-fire-woff1; lns-fire-wtxs1; lns-fire-wvot1
   ; module RFLF
   ; Tlfc; mkMlfc; decLFc-sil-step
-  ; lfc-fire-rblk; lfc-fire-rbtx; lfc-fire-rvot; lfc-fire-rnext; lfc-fire-rlast
-  ; lfc-fire-wblk1; lfc-fire-wtxs1; lfc-fire-wvot1; lfc-fire-wrng1; lfc-fire-wdone1
+  ; lfc-fire-rblk; lfc-fire-rvot; lfc-fire-rnext; lfc-fire-rlast
+  ; lfc-fire-wblk1; lfc-fire-wvot1; lfc-fire-wrng1; lfc-fire-wdone1
   ; Tlfs; mkMlfs; decLFs-sil-step
-  ; lfs-fire-ireq-blk; lfs-fire-ireq-txs; lfs-fire-ireq-vot; lfs-fire-ireq-rng; lfs-fire-idone
-  ; lfs-fire-wblk1; lfs-fire-wtxs1; lfs-fire-wvot1; lfs-fire-wnext1; lfs-fire-wlast1 )
+  ; lfs-fire-ireq-blk; lfs-fire-ireq-vot; lfs-fire-ireq-rng; lfs-fire-idone
+  ; lfs-fire-wblk1; lfs-fire-wvot1; lfs-fire-wnext1; lfs-fire-wlast1 )
 
 -- the per-peer wire-event budgets
 open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA using
@@ -222,7 +222,13 @@ csc-hstep-io-drop l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ ,
 csc-hstep-io-drop l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep-io-drop l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep-io-drop l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep-io-drop l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep-io-drop l d CS.stCanAwait {e₁ = CS.sendCS l' d'} iomem step
@@ -272,7 +278,13 @@ csc-hstep-io-drop l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ 
 csc-hstep-io-drop l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep-io-drop l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep-io-drop l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep-io-drop l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep-io-drop l d CS.stMustReply {e₁ = CS.sendCS l' d'} iomem step
@@ -322,7 +334,13 @@ csc-hstep-io-drop l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ 
 csc-hstep-io-drop l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep-io-drop l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep-io-drop l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep-io-drop l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep-io-drop l d CS.stIntersect {e₁ = CS.sendCS l' d'} iomem step
@@ -486,7 +504,13 @@ css-hstep-io-drop l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txS
 css-hstep-io-drop l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+css-hstep-io-drop l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 css-hstep-io-drop l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+css-hstep-io-drop l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 css-hstep-io-drop l d CS.stIdle {e₁ = CS.sendCS l' d'} iomem step
@@ -684,7 +708,13 @@ bfc-hstep-io-drop l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txS
 bfc-hstep-io-drop l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep-io-drop l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep-io-drop l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep-io-drop l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep-io-drop l d BF.stBusy {e₁ = BF.sendBF l' d'} iomem step
@@ -728,7 +758,13 @@ bfc-hstep-io-drop l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ 
 bfc-hstep-io-drop l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep-io-drop l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep-io-drop l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep-io-drop l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep-io-drop l d BF.stStreaming {e₁ = BF.sendBF l' d'} iomem step
@@ -849,7 +885,13 @@ bfs-hstep-io-drop l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txS
 bfs-hstep-io-drop l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify _} iomem step
   with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfs-hstep-io-drop l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP _} iomem step
+  with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfs-hstep-io-drop l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch _} iomem step
+  with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfs-hstep-io-drop l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP _} iomem step
   with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfs-hstep-io-drop l d BF.stIdle {e₁ = BF.sendBF l' d'} iomem step
@@ -1010,7 +1052,13 @@ kac-hstep-io-drop l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , 
 kac-hstep-io-drop l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kac-hstep-io-drop l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kac-hstep-io-drop l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kac-hstep-io-drop l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kac-hstep-io-drop l d (KA.stServer cq) {e₁ = KA.sendKA l' d'} iomem step
@@ -1124,7 +1172,13 @@ kas-hstep-io-drop l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , t
 kas-hstep-io-drop l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kas-hstep-io-drop l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kas-hstep-io-drop l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kas-hstep-io-drop l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kas-hstep-io-drop l d KA.stClient {e₁ = KA.sendKA l' d'} iomem step
@@ -1257,7 +1311,13 @@ tc-hstep-io-drop l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keep
 tc-hstep-io-drop l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep-io-drop l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep-io-drop l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep-io-drop l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep-io-drop l d TS.stIdle {e₁ = TS.sendTS l' d'} iomem step
@@ -1431,7 +1491,13 @@ ts-hstep-io-drop l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keep
 ts-hstep-io-drop l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stInit {e₁ = TS.sendTS l' d'} iomem step
@@ -1483,7 +1549,13 @@ ts-hstep-io-drop l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ ,
 ts-hstep-io-drop l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stTxIdsBlocking {e₁ = TS.sendTS l' d'} iomem step
@@ -1524,7 +1596,13 @@ ts-hstep-io-drop l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , 
 ts-hstep-io-drop l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stTxIdsNonBlocking {e₁ = TS.sendTS l' d'} iomem step
@@ -1565,7 +1643,13 @@ ts-hstep-io-drop l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepA
 ts-hstep-io-drop l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep-io-drop l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep-io-drop l d TS.stTxs {e₁ = TS.sendTS l' d'} iomem step
@@ -1716,6 +1800,12 @@ lnc-hstep-io-drop l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , kee
 lnc-hstep-io-drop l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
   with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lnc-hstep-io-drop l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
+  with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lnc-hstep-io-drop l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lnc-hstep-io-drop l d LN.stBusy {e₁ = LN.sendLN l' d'} iomem step
   with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -1855,6 +1945,12 @@ lns-hstep-io-drop l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , kee
 lns-hstep-io-drop l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x} iomem step
   with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lns-hstep-io-drop l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
+  with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lns-hstep-io-drop l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lns-hstep-io-drop l d LN.stIdle {e₁ = LN.sendLN l' d'} iomem step
   with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -1970,9 +2066,6 @@ lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln ,
 lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -1980,9 +2073,6 @@ lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , le
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFDone)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} iomem step
@@ -2009,59 +2099,14 @@ lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , ke
 lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.sendLF l' d'} iomem step
+lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl = lfcRbtx1 ts , RFLF.renameMap-ev-fwd (lfc-fire-rbtx l d ts t0 md ln) , mkMlfc l d (lfcRbtx1 ts) Meq (just-injective (sym ceq)) , s≤s z≤n
-...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
+lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFDone)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , chainSync x} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , blockFetch x} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.sendLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
+lfc-hstep-io-drop l d LF.stBlock {e₁ = LF.sendLF l' d'} iomem step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFVoteDelivery vs)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
@@ -2070,9 +2115,6 @@ lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln ,
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} iomem step
@@ -2085,9 +2127,6 @@ lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , le
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} iomem step
@@ -2111,6 +2150,12 @@ lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , ke
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stVotes {e₁ = LF.sendLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -2129,9 +2174,6 @@ lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = t0 , md ,
 lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -2142,9 +2184,6 @@ lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} iomem step
@@ -2163,6 +2202,12 @@ lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep-io-drop l d LF.stBlockRange {e₁ = LF.sendLF l' d'} iomem step
@@ -2200,12 +2245,6 @@ decLFc-ev-io-drop l d (lfcRblk1 b) {e₁ = LF.sendLF l' d'} iomem step
 decLFc-ev-io-drop l d (lfcRblk1 b) {e₁ = LF.receiveLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-io-drop l d (lfcRbtx1 ts) {e₁ = LF.sendLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-io-drop l d (lfcRbtx1 ts) {e₁ = LF.receiveLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-io-drop l d (lfcRvot1 vs) {e₁ = LF.sendLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -2234,17 +2273,6 @@ decLFc-ev-io-drop l d (lfcWblk1 pt) {e₁ = LF.sendLF l' d'} iomem step | q′ ,
 decLFc-ev-io-drop l d (lfcWblk1 pt) {e₁ = LF.sendLF l' d'} iomem step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-io-drop l d (lfcWblk1 pt) {e₁ = LF.receiveLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWblk1 pt)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-io-drop l d (lfcWtxs1 (pt , bm)) {e₁ = LF.sendLF l' d'} {a} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWtxs1 (pt , bm))) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl with a ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm))
-...     | yes refl = lfcSil LF.stBlockTxs , wev τ*-refl (RFLF.renameMap-ev-fwd (lfc-fire-wtxs1 l d pt bm)) τ*-refl , mkMlfc l d (lfcSil LF.stBlockTxs) Meq (just-injective (sym ceq)) , s≤s (s≤s z≤n)
-...     | no _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-io-drop l d (lfcWtxs1 (pt , bm)) {e₁ = LF.sendLF l' d'} iomem step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-io-drop l d (lfcWtxs1 (pt , bm)) {e₁ = LF.sendLF l' d'} iomem step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-io-drop l d (lfcWtxs1 (pt , bm)) {e₁ = LF.receiveLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWtxs1 (pt , bm))) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-io-drop l d (lfcWvot1 vs) {e₁ = LF.sendLF l' d'} {a} iomem step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWvot1 vs)) step
@@ -2301,12 +2329,6 @@ lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , 
 ...   | yes refl | yes refl = lfsSil LF.stBlock , RFLF.renameMap-ev-fwd (lfs-fire-ireq-blk l d pt t0 md ln) , mkMlfs l d (lfsSil LF.stBlock) Meq (just-injective (sym ceq)) , s≤s z≤n
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
-lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)} iomem step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl = lfsSil LF.stBlockTxs , RFLF.renameMap-ev-fwd (lfs-fire-ireq-txs l d pt bm t0 md ln) , mkMlfs l d (lfsSil LF.stBlockTxs) Meq (just-injective (sym ceq)) , s≤s z≤n
-...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFVotesRequest vs)} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
@@ -2326,9 +2348,6 @@ lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , 
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} iomem step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} iomem step
@@ -2355,6 +2374,12 @@ lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , kee
 lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} iomem step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} iomem step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep-io-drop l d LF.stIdle {e₁ = LF.sendLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -2363,12 +2388,6 @@ lfs-hstep-io-drop l d LF.stBlock {e₁ = LF.sendLF l' d'} iomem step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep-io-drop l d LF.stBlock {e₁ = LF.receiveLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.sendLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep-io-drop l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep-io-drop l d LF.stVotes {e₁ = LF.sendLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
@@ -2418,17 +2437,6 @@ decLFs-ev-io-drop l d (lfsWblk1 b) {e₁ = LF.sendLF l' d'} iomem step | q′ , 
 decLFs-ev-io-drop l d (lfsWblk1 b) {e₁ = LF.sendLF l' d'} iomem step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
 decLFs-ev-io-drop l d (lfsWblk1 b) {e₁ = LF.receiveLF l' d'} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWblk1 b)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-io-drop l d (lfsWtxs1 ts) {e₁ = LF.sendLF l' d'} {a} iomem step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWtxs1 ts)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl with a ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts))
-...     | yes refl = lfsSil LF.stIdle , wev τ*-refl (RFLF.renameMap-ev-fwd (lfs-fire-wtxs1 l d ts)) τ*-refl , mkMlfs l d (lfsSil LF.stIdle) Meq (just-injective (sym ceq)) , s≤s (s≤s z≤n)
-...     | no _ = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-io-drop l d (lfsWtxs1 ts) {e₁ = LF.sendLF l' d'} iomem step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-io-drop l d (lfsWtxs1 ts) {e₁ = LF.sendLF l' d'} iomem step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-io-drop l d (lfsWtxs1 ts) {e₁ = LF.receiveLF l' d'} iomem step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWtxs1 ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFs-ev-io-drop l d (lfsWvot1 vs) {e₁ = LF.sendLF l' d'} {a} iomem step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWvot1 vs)) step

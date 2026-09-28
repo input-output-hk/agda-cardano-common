@@ -96,11 +96,11 @@ open import CSP.Examples.Cardano_network.Net p using
   ; reqCSRequestNext; reqCSFindIntersect )
 -- extra Payload body constructors (the non-ChainSync wire payloads)
 open import CSP.Examples.Cardano_network.Data p using
-  ( keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch
+  ( keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone
   ; MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone
-  ; MsgLFBlockRequest; MsgLFBlockTxsRequest; MsgLFVotesRequest; MsgLFBlockRangeRequest; MsgLFDone
-  ; MsgLFBlock; MsgLFBlockTxs; MsgLFVoteDelivery; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange
+  ; MsgLFBlockRequest; MsgLFVotesRequest; MsgLFBlockRangeRequest; MsgLFDone
+  ; MsgLFBlock; MsgLFVoteDelivery; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange
   ; DecEq-Tx )
 
 ------------------------------------------------------------------------
@@ -155,7 +155,7 @@ open import CSP.Examples.Cardano_network.NetworkPar p using
 open import CSP.Examples.Cardano_network.Net p using
   ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
-  ; recvTSRequestTxIds; recvTSRequestTxs )
+  ; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs )
 open import CSP.Examples.Cardano_network.Base using
   ( BlockingStyle; Blocking; NonBlocking )
 open import Data.Nat using ( ℕ )
@@ -192,23 +192,26 @@ import Semantics.LTS {E = LN.LNEv} {I = ExtI LN.LNEv} as LNL
 
 ------------------------------------------------------------------------
 -- INERT PEER: LeiosFetch (LF) client + server — alphabet + model imports.
--- LAST inert peer; hardest: 6 states, 11 client + 8 server positions,
--- value carriers Block / List Tx / List VoteBlob / Block×List Tx / Point /
--- Point×LFBitmap / ChainRange / List Vote.  LF has NO named List instance —
+-- LAST inert peer; hardest: 5 `LF.LFState`s (stIdle/stBlock/stVotes/stBlockRange/
+-- stDone), 10 client + 7 server positions, value carriers EB / EBHash /
+-- List VoteBlob / List Vote / Block + List Tx / Block × List Tx / ChainRange.
+-- (Counts and carriers re-measured against `SysNode`'s `LFcPos`/`LFsPos` and
+-- `LeiosFetch.LFState`; the old "6 states, 11+8 … Point / Point×TxBitmap" named a
+-- shape LF no longer has.)  LF has NO named List instance —
 -- the api-emit mid List gates use `DecEqI.DecEq-List` directly.
 ------------------------------------------------------------------------
 import CSP.Examples.Cardano_network.LeiosFetch p as LF
 open import CSP.Examples.Cardano_network.NetworkPar p using
   ( ιLF; ιLF⁻¹; ιLF-linv )
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+  ( sendLFBlockRequest; sendLFVotesRequest
+  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
-  ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
+  ; recvLFBlock; recvLFVoteDelivery; recvLFRangeBlock; reqLFBlockRequest; reqLFVotesRequest )
 open MSysNode using
-  ( LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1
-  ; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
-  ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+  ( LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1
+  ; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
+  ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
   ; decLFc-src; decLFs-src; decLFc; decLFs; vis-ofF )
 open MSysStep using
   ( absLFc; absLFs; coarsenLFc; coarsenLFs )
@@ -881,7 +884,13 @@ csc-hstep l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubmi
 csc-hstep l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep l d CS.stCanAwait {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stCanAwait)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep l d CS.stCanAwait {e₁ = CS.sendCS l' d'} step
@@ -937,7 +946,13 @@ csc-hstep l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubm
 csc-hstep l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep l d CS.stMustReply {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stMustReply)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep l d CS.stMustReply {e₁ = CS.sendCS l' d'} step
@@ -993,7 +1008,13 @@ csc-hstep l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubm
 csc-hstep l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+csc-hstep l d CS.stIntersect {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tcsc l d) (coarsenCSc (csHead CS.stIntersect)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 csc-hstep l d CS.stIntersect {e₁ = CS.sendCS l' d'} step
@@ -1866,7 +1887,13 @@ css-hstep l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubmissio
 css-hstep l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+css-hstep l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 css-hstep l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+css-hstep l d CS.stIdle {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tcss l d) (coarsenCSs (ssHead CS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 css-hstep l d CS.stIdle {e₁ = CS.sendCS l' d'} step
@@ -2610,7 +2637,13 @@ bfc-hstep l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txSubmissio
 bfc-hstep l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep l d BF.stBusy {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep l d BF.stBusy {e₁ = BF.sendBF l' d'} step
@@ -2660,7 +2693,13 @@ bfc-hstep l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txSubm
 bfc-hstep l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-hstep l d BF.stStreaming {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-hstep l d BF.stStreaming {e₁ = BF.sendBF l' d'} step
@@ -3160,7 +3199,13 @@ bfs-hstep l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txSubmissio
 bfs-hstep l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfs-hstep l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfs-hstep l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfs-hstep l d BF.stIdle {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfs-hstep l d BF.stIdle {e₁ = BF.sendBF l' d'} step
@@ -3787,7 +3832,13 @@ kac-hstep l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSu
 kac-hstep l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kac-hstep l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kac-hstep l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kac-hstep l d (KA.stServer cq) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Tkac l d) (coarsenKAc (kcHead (KA.stServer cq))) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kac-hstep l d (KA.stServer cq) {e₁ = KA.sendKA l' d'} step
@@ -3902,7 +3953,13 @@ kas-hstep l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmiss
 kas-hstep l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kas-hstep l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kas-hstep l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+kas-hstep l d KA.stClient {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Tkas l d) (coarsenKAs (ksHead KA.stClient)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 kas-hstep l d KA.stClient {e₁ = KA.sendKA l' d'} step
@@ -4213,42 +4270,42 @@ tc-fire-art1 (zero) lo ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (zero) lo (tcReqTxs1 ids)))
           (_ , TS.apiTSev (zero) lo recvTSRequestTxs) ids ≡ just (decTSc-src (zero) lo (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (zero) hi ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (zero) hi (tcReqTxs1 ids)))
           (_ , TS.apiTSev (zero) hi recvTSRequestTxs) ids ≡ just (decTSc-src (zero) hi (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (suc zero) lo ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (suc zero) lo (tcReqTxs1 ids)))
           (_ , TS.apiTSev (suc zero) lo recvTSRequestTxs) ids ≡ just (decTSc-src (suc zero) lo (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (suc zero) hi ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (suc zero) hi (tcReqTxs1 ids)))
           (_ , TS.apiTSev (suc zero) hi recvTSRequestTxs) ids ≡ just (decTSc-src (suc zero) hi (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (suc (suc zero)) lo ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (suc (suc zero)) lo (tcReqTxs1 ids)))
           (_ , TS.apiTSev (suc (suc zero)) lo recvTSRequestTxs) ids ≡ just (decTSc-src (suc (suc zero)) lo (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (suc (suc zero)) hi ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (suc (suc zero)) hi (tcReqTxs1 ids)))
           (_ , TS.apiTSev (suc (suc zero)) hi recvTSRequestTxs) ids ≡ just (decTSc-src (suc (suc zero)) hi (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (suc (suc (suc zero))) lo ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (suc (suc (suc zero))) lo (tcReqTxs1 ids)))
           (_ , TS.apiTSev (suc (suc (suc zero))) lo recvTSRequestTxs) ids ≡ just (decTSc-src (suc (suc (suc zero))) lo (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 tc-fire-art1 (suc (suc (suc zero))) hi ids = TSL.sVis refl o
   where
     o : vis-ofT (PTree.force (decTSc-src (suc (suc (suc zero))) hi (tcReqTxs1 ids)))
           (_ , TS.apiTSev (suc (suc (suc zero))) hi recvTSRequestTxs) ids ≡ just (decTSc-src (suc (suc (suc zero))) hi (tcSil TS.stTxs))
-    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxid ⦄ ids = refl
+    o rewrite ≟-yes-refl ⦃ TS.DecEq-ListTxHash ⦄ ids = refl
 
 -- CLIENT wire-send mids — Fin-enum + Payload gate
 tc-fire-wri1B : (l : Link) (d : Dir) (ids : _)
@@ -4760,7 +4817,13 @@ tc-hstep l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}
 tc-hstep l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep l d TS.stIdle {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stIdle {e₁ = TS.sendTS l' d'} step
@@ -4785,6 +4848,13 @@ tc-hstep l d TS.stTxIdsBlocking {e₁ = TS.apiTSev l' d' sendTSDone} step
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stTxIdsBlocking {e₁ = TS.apiTSev l' d' sendTSReplyTxs} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxIdsBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tc-hstep l d TS.stTxIdsBlocking {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxIdsBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep l d TS.stTxIdsBlocking {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxIdsBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stTxIdsBlocking {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking} step
@@ -4818,6 +4888,13 @@ tc-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} {a
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.apiTSev l' d' sendTSReplyTxs} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxIdsNonBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tc-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxIdsNonBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxIdsNonBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.apiTSev l' d' sendTSDone} step
@@ -4854,6 +4931,13 @@ tc-hstep l d TS.stTxs {e₁ = TS.apiTSev l' d' sendTSReplyTxs} {a} step
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stTxs {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tc-hstep l d TS.stTxs {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+tc-hstep l d TS.stTxs {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcHead TS.stTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 tc-hstep l d TS.stTxs {e₁ = TS.apiTSev l' d' sendTSDone} step
@@ -4907,6 +4991,13 @@ decTSc-ev-prod-abs l d (tcReqIdsB1 aa rr) {e₁ = TS.apiTSev l' d' recvTSRequest
 decTSc-ev-prod-abs l d (tcReqIdsB1 aa rr) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsB1 aa rr)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-ev-prod-abs l d (tcReqIdsB1 aa rr) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsB1 aa rr)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decTSc-ev-prod-abs l d (tcReqIdsB1 aa rr) {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsB1 aa rr)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decTSc-ev-prod-abs l d (tcReqIdsB1 aa rr) {e₁ = TS.apiTSev l' d' sendTSReplyTxs} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsB1 aa rr)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -4945,6 +5036,13 @@ decTSc-ev-prod-abs l d (tcReqIdsNB1 aa rr) {e₁ = TS.apiTSev l' d' recvTSReques
 decTSc-ev-prod-abs l d (tcReqIdsNB1 aa rr) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsNB1 aa rr)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-ev-prod-abs l d (tcReqIdsNB1 aa rr) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsNB1 aa rr)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decTSc-ev-prod-abs l d (tcReqIdsNB1 aa rr) {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsNB1 aa rr)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decTSc-ev-prod-abs l d (tcReqIdsNB1 aa rr) {e₁ = TS.apiTSev l' d' sendTSReplyTxs} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqIdsNB1 aa rr)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -4975,12 +5073,19 @@ decTSc-ev-prod-abs l d (tcReqIdsNB1 aa rr) {e₁ = TS.doneTS l' d'} step
 decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' recvTSRequestTxs} {a} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqTxs1 ids)) step
 ... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl with _≟_ ⦃ TS.DecEq-ListTxid ⦄ a ids
+...   | yes refl | yes refl with _≟_ ⦃ TS.DecEq-ListTxHash ⦄ a ids
 ...     | yes refl = tcSil TS.stTxs , wev τ*-refl (RFTS.renameMap-ev-fwd (tc-fire-art1 l d ids)) τ*-refl , mkMtsc l d (tcSil TS.stTxs) Meq (just-injective (sym ceq))
 ...     | no _ = ⊥-elim (nothing-absurd ceq)
 decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' recvTSRequestTxs} step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' recvTSRequestTxs} step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
 decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqTxs1 ids)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqTxs1 ids)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
   with tableSpec-ev-inv (Ttsc l d) (coarsenTSc (tcReqTxs1 ids)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decTSc-ev-prod-abs l d (tcReqTxs1 ids) {e₁ = TS.apiTSev l' d' sendTSReplyTxs} step
@@ -5126,7 +5231,13 @@ ts-hstep l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}
 ts-hstep l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stInit {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stInit)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stInit {e₁ = TS.sendTS l' d'} step
@@ -5157,6 +5268,13 @@ ts-hstep l d TS.stIdle {e₁ = TS.apiTSev l' d' sendTSRequestTxsPipelined} {a} s
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stIdle {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new TS request/reply-reporting tags are not offered here either
+ts-hstep l d TS.stIdle {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stIdle {e₁ = TS.apiTSev l' d' recvTSReplyTxs} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stIdle {e₁ = TS.apiTSev l' d' sendTSReplyTxs} step
@@ -5216,7 +5334,13 @@ ts-hstep l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , kee
 ts-hstep l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stTxIdsBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stTxIdsBlocking {e₁ = TS.sendTS l' d'} step
@@ -5261,7 +5385,13 @@ ts-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , 
 ts-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxIdsNonBlocking)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stTxIdsNonBlocking {e₁ = TS.sendTS l' d'} step
@@ -5306,7 +5436,13 @@ ts-hstep l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x} 
 ts-hstep l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x} step
+  with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+ts-hstep l d TS.stTxs {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Ttss l d) (coarsenTSs (tsHead TS.stTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 ts-hstep l d TS.stTxs {e₁ = TS.sendTS l' d'} step
@@ -6122,6 +6258,12 @@ lnc-hstep l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , keepAlive x
 lnc-hstep l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x} step
   with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lnc-hstep l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x} step
+  with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lnc-hstep l d LN.stBusy {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lnc-hstep l d LN.stBusy {e₁ = LN.sendLN l' d'} step
   with tableSpec-ev-inv (Tlnc l d) (coarsenLNc (lncHead LN.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -6408,6 +6550,12 @@ lns-hstep l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , keepAlive x
 lns-hstep l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x} step
   with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lns-hstep l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x} step
+  with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lns-hstep l d LN.stIdle {e₁ = LN.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lns-hstep l d LN.stIdle {e₁ = LN.sendLN l' d'} step
   with tableSpec-ev-inv (Tlns l d) (coarsenLNs (lnsHead LN.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -6587,15 +6735,6 @@ lfc-fire-blkreq l d pt = LFL.sVis refl o
     o : vis-ofF (PTree.force (decLFc-src l d (lfcHead LF.stIdle)))
           (_ , LF.apiLFev l d sendLFBlockRequest) pt ≡ just (decLFc-src l d (lfcWblk1 pt))
     o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-lfc-fire-txsreq : (l : Link) (d : Dir) (pb : _)
-  → decLFc-src l d (lfcHead LF.stIdle)
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.apiLFev l d sendLFBlockTxsRequest) pb)) ]─►
-    decLFc-src l d (lfcWtxs1 pb)
-lfc-fire-txsreq l d pb = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src l d (lfcHead LF.stIdle)))
-          (_ , LF.apiLFev l d sendLFBlockTxsRequest) pb ≡ just (decLFc-src l d (lfcWtxs1 pb))
-    o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 lfc-fire-votreq : (l : Link) (d : Dir) (vs : _)
   → decLFc-src l d (lfcHead LF.stIdle)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.apiLFev l d sendLFVotesRequest) vs)) ]─►
@@ -6624,7 +6763,6 @@ lfc-fire-cdone l d = LFL.sVis refl o
           (_ , LF.apiLFev l d sendLFDone) U.tt ≡ just (decLFc-src l d (lfcDone1))
     o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 
--- CLIENT head receives (stBlock/stBlockTxs/stVotes/stBlockRange) — l,d gated
 lfc-fire-rblk : (l : Link) (d : Dir) (b : _) (t0 : _) (md : _) (ln : _)
   → decLFc-src l d (lfcHead LF.stBlock)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlock b)))) ]─►
@@ -6633,15 +6771,6 @@ lfc-fire-rblk l d b t0 md ln = LFL.sVis refl o
   where
     o : vis-ofF (PTree.force (decLFc-src l d (lfcHead LF.stBlock)))
           (_ , LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlock b)) ≡ just (decLFc-src l d (lfcRblk1 b))
-    o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-lfc-fire-rbtx : (l : Link) (d : Dir) (ts : _) (t0 : _) (md : _) (ln : _)
-  → decLFc-src l d (lfcHead LF.stBlockTxs)
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)))) ]─►
-    decLFc-src l d (lfcRbtx1 ts)
-lfc-fire-rbtx l d ts t0 md ln = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src l d (lfcHead LF.stBlockTxs)))
-          (_ , LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFc-src l d (lfcRbtx1 ts))
     o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 lfc-fire-rvot : (l : Link) (d : Dir) (vs : _) (t0 : _) (md : _) (ln : _)
   → decLFc-src l d (lfcHead LF.stVotes)
@@ -6716,50 +6845,6 @@ lfc-fire-rblk1 (suc (suc (suc zero))) hi b = LFL.sVis refl o
     o : vis-ofF (PTree.force (decLFc-src (suc (suc (suc zero))) hi (lfcRblk1 b)))
           (_ , LF.apiLFev (suc (suc (suc zero))) hi recvLFBlock) b ≡ just (decLFc-src (suc (suc (suc zero))) hi (lfcSil LF.stIdle))
     o rewrite ≟-yes-refl ⦃ decBlock ⦄ b = refl
-lfc-fire-rbtx1 : (l : Link) (d : Dir) (ts : _)
-  → decLFc-src l d (lfcRbtx1 ts)
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.apiLFev l d recvLFBlockTxs) ts)) ]─►
-    decLFc-src l d (lfcSil LF.stIdle)
-lfc-fire-rbtx1 (zero) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (zero) lo (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (zero) lo recvLFBlockTxs) ts ≡ just (decLFc-src (zero) lo (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (zero) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (zero) hi (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (zero) hi recvLFBlockTxs) ts ≡ just (decLFc-src (zero) hi (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (suc zero) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc zero) lo (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (suc zero) lo recvLFBlockTxs) ts ≡ just (decLFc-src (suc zero) lo (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (suc zero) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc zero) hi (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (suc zero) hi recvLFBlockTxs) ts ≡ just (decLFc-src (suc zero) hi (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (suc (suc zero)) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc zero)) lo (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (suc (suc zero)) lo recvLFBlockTxs) ts ≡ just (decLFc-src (suc (suc zero)) lo (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (suc (suc zero)) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc zero)) hi (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (suc (suc zero)) hi recvLFBlockTxs) ts ≡ just (decLFc-src (suc (suc zero)) hi (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (suc (suc (suc zero))) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc (suc zero))) lo (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (suc (suc (suc zero))) lo recvLFBlockTxs) ts ≡ just (decLFc-src (suc (suc (suc zero))) lo (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
-lfc-fire-rbtx1 (suc (suc (suc zero))) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc (suc zero))) hi (lfcRbtx1 ts)))
-          (_ , LF.apiLFev (suc (suc (suc zero))) hi recvLFBlockTxs) ts ≡ just (decLFc-src (suc (suc (suc zero))) hi (lfcSil LF.stIdle))
-    o rewrite ≟-yes-refl ⦃ DecEqI.DecEq-List ⦄ ts = refl
 lfc-fire-rvot1 : (l : Link) (d : Dir) (vs : _)
   → decLFc-src l d (lfcRvot1 vs)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.apiLFev l d recvLFVoteDelivery) vs)) ]─►
@@ -6938,50 +7023,6 @@ lfc-fire-wblk1 (suc (suc (suc zero))) hi pt = LFL.sVis refl o
     o : vis-ofF (PTree.force (decLFc-src (suc (suc (suc zero))) hi (lfcWblk1 pt)))
           (_ , LF.sendLF (suc (suc (suc zero))) hi) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRequest pt)) ≡ just (decLFc-src (suc (suc (suc zero))) hi (lfcSil LF.stBlock))
     o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRequest pt)) = refl
-lfc-fire-wtxs1 : (l : Link) (d : Dir) (pt : _) (bm : _)
-  → decLFc-src l d (lfcWtxs1 (pt , bm))
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.sendLF l d) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)))) ]─►
-    decLFc-src l d (lfcSil LF.stBlockTxs)
-lfc-fire-wtxs1 (zero) lo pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (zero) lo (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (zero) lo) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (zero) lo (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (zero) hi pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (zero) hi (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (zero) hi) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (zero) hi (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (suc zero) lo pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc zero) lo (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (suc zero) lo) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (suc zero) lo (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (suc zero) hi pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc zero) hi (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (suc zero) hi) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (suc zero) hi (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (suc (suc zero)) lo pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc zero)) lo (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (suc (suc zero)) lo) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (suc (suc zero)) lo (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (suc (suc zero)) hi pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc zero)) hi (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (suc (suc zero)) hi) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (suc (suc zero)) hi (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (suc (suc (suc zero))) lo pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc (suc zero))) lo (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (suc (suc (suc zero))) lo) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (suc (suc (suc zero))) lo (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
-lfc-fire-wtxs1 (suc (suc (suc zero))) hi pt bm = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFc-src (suc (suc (suc zero))) hi (lfcWtxs1 (pt , bm))))
-          (_ , LF.sendLF (suc (suc (suc zero))) hi) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFc-src (suc (suc (suc zero))) hi (lfcSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
 lfc-fire-wvot1 : (l : Link) (d : Dir) (vs : _)
   → decLFc-src l d (lfcWvot1 vs)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.sendLF l d) (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVotesRequest vs)))) ]─►
@@ -7125,15 +7166,6 @@ lfs-fire-ireq-blk l d pt t0 md ln = LFL.sVis refl o
     o : vis-ofF (PTree.force (decLFs-src l d (lfsHead LF.stIdle)))
           (_ , LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlockRequest pt)) ≡ just (decLFs-src l d (lfsSil LF.stBlock))
     o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-lfs-fire-ireq-txs : (l : Link) (d : Dir) (pt : _) (bm : _) (t0 : _) (md : _) (ln : _)
-  → decLFs-src l d (lfsHead LF.stIdle)
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)))) ]─►
-    decLFs-src l d (lfsSil LF.stBlockTxs)
-lfs-fire-ireq-txs l d pt bm t0 md ln = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src l d (lfsHead LF.stIdle)))
-          (_ , LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just (decLFs-src l d (lfsSil LF.stBlockTxs))
-    o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 lfs-fire-ireq-vot : (l : Link) (d : Dir) (vs : _) (t0 : _) (md : _) (ln : _)
   → decLFs-src l d (lfsHead LF.stIdle)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.receiveLF l d) (t0 , md , ln , leiosFetch (MsgLFVotesRequest vs)))) ]─►
@@ -7162,7 +7194,6 @@ lfs-fire-idone l d t0 md ln = LFL.sVis refl o
           (_ , LF.receiveLF l d) (t0 , md , ln , leiosFetch MsgLFDone) ≡ just (decLFs-src l d (lfsDone1))
     o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 
--- SERVER head api-sends (stBlock/stBlockTxs/stVotes/stBlockRange) — l,d gated, value carried
 lfs-fire-sblk : (l : Link) (d : Dir) (a : _)
   → decLFs-src l d (lfsHead LF.stBlock)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.apiLFev l d sendLFBlock) a)) ]─►
@@ -7171,15 +7202,6 @@ lfs-fire-sblk l d a = LFL.sVis refl o
   where
     o : vis-ofF (PTree.force (decLFs-src l d (lfsHead LF.stBlock)))
           (_ , LF.apiLFev l d sendLFBlock) a ≡ just (decLFs-src l d (lfsWblk1 a))
-    o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-lfs-fire-stxs : (l : Link) (d : Dir) (a : _)
-  → decLFs-src l d (lfsHead LF.stBlockTxs)
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.apiLFev l d sendLFBlockTxs) a)) ]─►
-    decLFs-src l d (lfsWtxs1 a)
-lfs-fire-stxs l d a = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src l d (lfsHead LF.stBlockTxs)))
-          (_ , LF.apiLFev l d sendLFBlockTxs) a ≡ just (decLFs-src l d (lfsWtxs1 a))
     o rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 lfs-fire-svot : (l : Link) (d : Dir) (a : _)
   → decLFs-src l d (lfsHead LF.stVotes)
@@ -7300,50 +7322,6 @@ lfs-fire-wblk1 (suc (suc (suc zero))) hi b = LFL.sVis refl o
     o : vis-ofF (PTree.force (decLFs-src (suc (suc (suc zero))) hi (lfsWblk1 b)))
           (_ , LF.sendLF (suc (suc (suc zero))) hi) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlock b)) ≡ just (decLFs-src (suc (suc (suc zero))) hi (lfsSil LF.stIdle))
     o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlock b)) = refl
-lfs-fire-wtxs1 : (l : Link) (d : Dir) (ts : _)
-  → decLFs-src l d (lfsWtxs1 ts)
-      LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.sendLF l d) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)))) ]─►
-    decLFs-src l d (lfsSil LF.stIdle)
-lfs-fire-wtxs1 (zero) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (zero) lo (lfsWtxs1 ts)))
-          (_ , LF.sendLF (zero) lo) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (zero) lo (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (zero) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (zero) hi (lfsWtxs1 ts)))
-          (_ , LF.sendLF (zero) hi) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (zero) hi (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (suc zero) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (suc zero) lo (lfsWtxs1 ts)))
-          (_ , LF.sendLF (suc zero) lo) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (suc zero) lo (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (suc zero) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (suc zero) hi (lfsWtxs1 ts)))
-          (_ , LF.sendLF (suc zero) hi) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (suc zero) hi (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (suc (suc zero)) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (suc (suc zero)) lo (lfsWtxs1 ts)))
-          (_ , LF.sendLF (suc (suc zero)) lo) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (suc (suc zero)) lo (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (suc (suc zero)) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (suc (suc zero)) hi (lfsWtxs1 ts)))
-          (_ , LF.sendLF (suc (suc zero)) hi) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (suc (suc zero)) hi (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (suc (suc (suc zero))) lo ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (suc (suc (suc zero))) lo (lfsWtxs1 ts)))
-          (_ , LF.sendLF (suc (suc (suc zero))) lo) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (suc (suc (suc zero))) lo (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
-lfs-fire-wtxs1 (suc (suc (suc zero))) hi ts = LFL.sVis refl o
-  where
-    o : vis-ofF (PTree.force (decLFs-src (suc (suc (suc zero))) hi (lfsWtxs1 ts)))
-          (_ , LF.sendLF (suc (suc (suc zero))) hi) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just (decLFs-src (suc (suc (suc zero))) hi (lfsSil LF.stIdle))
-    o rewrite ≟-yes-refl {A = Payload} (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
 lfs-fire-wvot1 : (l : Link) (d : Dir) (vs : _)
   → decLFs-src l d (lfsWvot1 vs)
       LFL.─[ LFL.ev (LFL.evl (LFL.evLabel _ (LF.sendLF l d) (time₀ , FromResponder , length₀ , leiosFetch (MsgLFVoteDelivery vs)))) ]─►
@@ -7497,12 +7475,6 @@ lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFBlockRequest} {a} step
 ...   | yes refl | yes refl = lfcWblk1 a , RFLF.renameMap-ev-fwd (lfc-fire-blkreq l d a) , mkMlfc l d (lfcWblk1 a) Meq (just-injective (sym ceq))
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} {a} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl = lfcWtxs1 a , RFLF.renameMap-ev-fwd (lfc-fire-txsreq l d a) , mkMlfc l d (lfcWtxs1 a) Meq (just-injective (sym ceq))
-...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFVotesRequest} {a} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
 ... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
@@ -7524,7 +7496,11 @@ lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFDone} step
 lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
+-- the two new LF request/reply-reporting tags are not offered here either
+lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
@@ -7537,9 +7513,6 @@ lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRange} s
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stIdle {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -7564,12 +7537,6 @@ lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFe
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} step
@@ -7605,6 +7572,12 @@ lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , keepAlive 
 lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlock {e₁ = LF.sendLF l' d'} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -7613,63 +7586,6 @@ lfc-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' m} step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlock {e₁ = LF.doneLF l' d'} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl = lfcRbtx1 ts , RFLF.renameMap-ev-fwd (lfc-fire-rbtx l d ts t0 md ln) , mkMlfc l d (lfcRbtx1 ts) Meq (just-injective (sym ceq))
-...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch MsgLFDone} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , chainSync x} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , blockFetch x} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.sendLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' m} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockTxs {e₁ = LF.doneLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockTxs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFVoteDelivery vs)} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
@@ -7681,12 +7597,6 @@ lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} step
@@ -7719,6 +7629,12 @@ lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , keepAlive 
 lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stVotes {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stVotes {e₁ = LF.sendLF l' d'} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -7746,12 +7662,6 @@ lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leios
 lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -7777,6 +7687,12 @@ lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , keepA
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfc-hstep l d LF.stBlockRange {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfc-hstep l d LF.stBlockRange {e₁ = LF.sendLF l' d'} step
@@ -7812,7 +7728,11 @@ decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' recvLFBlock} step |
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -7827,9 +7747,6 @@ decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFDone} step
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -7837,9 +7754,6 @@ decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFNextBlockAndT
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRange} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -7857,62 +7771,7 @@ decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.receiveLF l' d'} step
 decLFc-ev-prod-abs l d (lfcRblk1 b) {e₁ = LF.doneLF l' d'} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRblk1 b)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} {a} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl with _≟_ ⦃ DecEqI.DecEq-List ⦄ a ts
-...     | yes refl = lfcSil LF.stIdle , wev τ*-refl (RFLF.renameMap-ev-fwd (lfc-fire-rbtx1 l d ts)) τ*-refl , mkMlfc l d (lfcSil LF.stIdle) Meq (just-injective (sym ceq))
-...     | no _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFBlockRangeRequest} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFDone} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFNextBlockAndTxsInRange} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRange} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.apiLFev l' d' recvLFRangeBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.sendLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.receiveLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRbtx1 ts) {e₁ = LF.doneLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRbtx1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new LF request/reply-reporting tags are not offered here either
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} {a} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
@@ -7924,7 +7783,11 @@ decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' recvLFVoteDelivery
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -7939,9 +7802,6 @@ decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFDone} step
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -7952,9 +7812,6 @@ decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' sendLFLastBlockAnd
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRvot1 vs)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRvot1 vs) {e₁ = LF.apiLFev l' d' recvLFRangeBlock} step
@@ -7980,7 +7837,11 @@ decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' recvLFRangeBloc
 decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -7995,9 +7856,6 @@ decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFDone} ste
 decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -8008,9 +7866,6 @@ decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' sendLFLastBlock
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRnext1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRnext1 b ts) {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -8036,7 +7891,11 @@ decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' recvLFRangeBloc
 decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -8051,9 +7910,6 @@ decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFDone} ste
 decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -8064,9 +7920,6 @@ decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' sendLFLastBlock
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcRlast1 b ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcRlast1 b ts) {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -8097,23 +7950,6 @@ decLFc-ev-prod-abs l d (lfcWblk1 pt) {e₁ = LF.apiLFev l' d' m} step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcWblk1 pt) {e₁ = LF.doneLF l' d'} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWblk1 pt)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcWtxs1 (pt , bm)) {e₁ = LF.sendLF l' d'} {a} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWtxs1 (pt , bm))) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl with a ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm))
-...     | yes refl = lfcSil LF.stBlockTxs , wev τ*-refl (RFLF.renameMap-ev-fwd (lfc-fire-wtxs1 l d pt bm)) τ*-refl , mkMlfc l d (lfcSil LF.stBlockTxs) Meq (just-injective (sym ceq))
-...     | no _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcWtxs1 (pt , bm)) {e₁ = LF.sendLF l' d'} step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcWtxs1 (pt , bm)) {e₁ = LF.sendLF l' d'} step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcWtxs1 (pt , bm)) {e₁ = LF.receiveLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWtxs1 (pt , bm))) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcWtxs1 (pt , bm)) {e₁ = LF.apiLFev l' d' m} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWtxs1 (pt , bm))) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFc-ev-prod-abs l d (lfcWtxs1 (pt , bm)) {e₁ = LF.doneLF l' d'} step
-  with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWtxs1 (pt , bm))) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFc-ev-prod-abs l d (lfcWvot1 vs) {e₁ = LF.sendLF l' d'} {a} step
   with tableSpec-ev-inv (Tlfc l d) (coarsenLFc (lfcWvot1 vs)) step
@@ -8187,12 +8023,6 @@ lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFet
 ...   | yes refl | yes refl = lfsSil LF.stBlock , RFLF.renameMap-ev-fwd (lfs-fire-ireq-blk l d pt t0 md ln) , mkMlfs l d (lfsSil LF.stBlock) Meq (just-injective (sym ceq))
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl = lfsSil LF.stBlockTxs , RFLF.renameMap-ev-fwd (lfs-fire-ireq-txs l d pt bm t0 md ln) , mkMlfs l d (lfsSil LF.stBlockTxs) Meq (just-injective (sym ceq))
-...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFVotesRequest vs)} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
@@ -8212,9 +8042,6 @@ lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = t0 , md , ln , leiosFet
 ...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
 ...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} step
@@ -8241,6 +8068,12 @@ lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , keepAlive x
 lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep l d LF.stIdle {e₁ = LF.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stIdle {e₁ = LF.sendLF l' d'} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -8259,7 +8092,11 @@ lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFBlock} {a} step
 lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -8269,9 +8106,6 @@ lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFBlockRangeRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFDone} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
@@ -8284,9 +8118,6 @@ lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRange} 
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlock {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -8304,60 +8135,7 @@ lfs-hstep l d LF.stBlock {e₁ = LF.receiveLF l' d'} step
 lfs-hstep l d LF.stBlock {e₁ = LF.doneLF l' d'} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlock)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFBlockTxs} {a} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl = lfsWtxs1 a , RFLF.renameMap-ev-fwd (lfs-fire-stxs l d a) , mkMlfs l d (lfsWtxs1 a) Meq (just-injective (sym ceq))
-...   | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-...   | no _ | _ = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFBlockRangeRequest} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFDone} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFBlock} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFNextBlockAndTxsInRange} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRange} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.apiLFev l' d' recvLFRangeBlock} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.sendLF l' d'} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.receiveLF l' d'} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockTxs {e₁ = LF.doneLF l' d'} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockTxs)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+-- the two new LF request/reply-reporting tags are not offered here either
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} {a} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
@@ -8367,7 +8145,11 @@ lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} {a} step
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -8382,9 +8164,6 @@ lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFDone} step
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFNextBlockAndTxsInRange} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
@@ -8392,9 +8171,6 @@ lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRange} 
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stVotes)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stVotes {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -8427,7 +8203,11 @@ lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFLastBlockAndTxsInRa
 lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFBlockRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFBlockTxsRequest} step
+-- the two new LF request/reply-reporting tags are not offered here either
+lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' reqLFBlockRequest} step
+  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' reqLFVotesRequest} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFVotesRequest} step
@@ -8442,16 +8222,10 @@ lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFDone} step
 lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFBlock} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFBlockTxs} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' sendLFVoteDelivery} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' recvLFBlock} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' recvLFBlockTxs} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsHead LF.stBlockRange)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 lfs-hstep l d LF.stBlockRange {e₁ = LF.apiLFev l' d' recvLFVoteDelivery} step
@@ -8513,23 +8287,6 @@ decLFs-ev-prod-abs l d (lfsWblk1 b) {e₁ = LF.apiLFev l' d' m} step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFs-ev-prod-abs l d (lfsWblk1 b) {e₁ = LF.doneLF l' d'} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWblk1 b)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-prod-abs l d (lfsWtxs1 ts) {e₁ = LF.sendLF l' d'} {a} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWtxs1 ts)) step
-... | q′ , ceq , Meq with l' ≟ l | d' ≟ d
-...   | yes refl | yes refl with a ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts))
-...     | yes refl = lfsSil LF.stIdle , wev τ*-refl (RFLF.renameMap-ev-fwd (lfs-fire-wtxs1 l d ts)) τ*-refl , mkMlfs l d (lfsSil LF.stIdle) Meq (just-injective (sym ceq))
-...     | no _ = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-prod-abs l d (lfsWtxs1 ts) {e₁ = LF.sendLF l' d'} step | q′ , ceq , Meq | yes refl | no _ = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-prod-abs l d (lfsWtxs1 ts) {e₁ = LF.sendLF l' d'} step | q′ , ceq , Meq | no _ | _ = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-prod-abs l d (lfsWtxs1 ts) {e₁ = LF.receiveLF l' d'} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWtxs1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-prod-abs l d (lfsWtxs1 ts) {e₁ = LF.apiLFev l' d' m} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWtxs1 ts)) step
-... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
-decLFs-ev-prod-abs l d (lfsWtxs1 ts) {e₁ = LF.doneLF l' d'} step
-  with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWtxs1 ts)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 decLFs-ev-prod-abs l d (lfsWvot1 vs) {e₁ = LF.sendLF l' d'} {a} step
   with tableSpec-ev-inv (Tlfs l d) (coarsenLFs (lfsWvot1 vs)) step

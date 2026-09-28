@@ -81,7 +81,7 @@ open import Data.Sum using ( inj₁; inj₂; _⊎_ )
 open import CSP.Examples.Cardano_network.Base using
   ( Dir; lo; hi; N2N_ChainSync; N2N_BlockFetch; N2N_KeepAlive; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
 open import CSP.Examples.Cardano_network.Net p using
-  ( Link; input; output; done; break; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF
+  ( Link; input; output; done; break; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
 import CSP.Examples.Cardano_network.ChainSync p as CS
@@ -151,7 +151,11 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_Ro
   ; decLNc-noOffer; decLNs-noOffer; ιKA⁻¹∘ιLF; ιTS⁻¹∘ιLF; ιLN⁻¹∘ιLF
   ; absKAc-noLF; absKAs-noLF; absCSc-noLF; absCSs-noLF; absBFc-noLF; absBFs-noLF
   ; absTSc-noLF; absTSs-noLF; absLNc-noLF; absLNs-noLF
-  ; absLFs-dir-noBoth; absLFc-dir-noBoth )
+  ; absLFs-dir-noBoth; absLFc-dir-noBoth
+  -- the leios-prototype api channel: per-peer non-offers (ROUTE 1)
+  ; absKAc-no-apiLP; absKAs-no-apiLP; absCSc-no-apiLP; absCSs-no-apiLP
+  ; absBFc-no-apiLP; absBFs-no-apiLP; absTSc-no-apiLP; absTSs-no-apiLP
+  ; absLNc-no-apiLP; absLNs-no-apiLP; absLFc-no-apiLP; absLFs-no-apiLP )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 open Op using () renaming ( ∅ES to ∅ESa )
 
@@ -1306,6 +1310,7 @@ absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iomem s
 absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-prod l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem
@@ -1353,6 +1358,7 @@ bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} _ _ ()
 bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} _ _ ()
 bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} _ _ ()
 bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} _ _ ()
+bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} _ _ ()
 bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} _ _ ()
 bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} _ _ ()
 bundleG-io-no l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} _ _ ()
@@ -1388,12 +1394,38 @@ absBundleG-api-prod : (l : Link) (cl sv : Dir) → cl ≢ sv
   → apiES .mem (X , e) a
   → absBundleG l cl sv csc css bfc bfs ip ─[ ev (evl (evLabel X e a)) ]─► Bd′
   → BundleGEvR-abs l cl sv csc css bfc bfs ip e a Bd′
+-- THE 12-PEER FOLD: the abstract bundle offers no leios-prototype api event.
+-- `apiLP` IS in the diamond's `apiES`, so `absBundleG-api-prod`'s missing case cannot be
+-- discharged from api-membership the way `input`/`output`/`sndmsg`/… are, and there is no
+-- prototype peer to forward it to — the diamond runs the six Praos/Leios mini-protocols
+-- only.  Folded from the twelve per-peer table non-offers exactly as
+-- `absBundleG-LF-link-noIoOffer` folds the `absXX-noLF` family.
+absBundleG-no-apiLP : (l : Link) (cl sv : Dir)
+    (qcc : CScPos) (qcs : CSsPos) (qbc : BFcPos) (qbs : BFsPos) (ip : InertPos)
+    {l₀ : Link} {d₀ : Dir} {m₀ : _} {a : _}
+  → ¬ IoOffers (absBundleG l cl sv qcc qcs qbc qbs ip) (apiLP l₀ d₀ m₀) a
+absBundleG-no-apiLP l cl sv qcc qcs qbc qbs ip =
+  SStep.⦀-noOffer (absKAc l cl (kac ip)) _ (absKAc-no-apiLP l cl (kac ip))
+   (SStep.⦀-noOffer (absKAs l sv (kas ip)) _ (absKAs-no-apiLP l sv (kas ip))
+    (SStep.⦀-noOffer (absCSc l cl qcc) _ (absCSc-no-apiLP l cl qcc)
+     (SStep.⦀-noOffer (absCSs l sv qcs) _ (absCSs-no-apiLP l sv qcs)
+      (SStep.⦀-noOffer (absBFc l cl qbc) _ (absBFc-no-apiLP l cl qbc)
+       (SStep.⦀-noOffer (absBFs l sv qbs) _ (absBFs-no-apiLP l sv qbs)
+        (SStep.⦀-noOffer (absTSc l cl (tsc ip)) _ (absTSc-no-apiLP l cl (tsc ip))
+         (SStep.⦀-noOffer (absTSs l sv (tss ip)) _ (absTSs-no-apiLP l sv (tss ip))
+          (SStep.⦀-noOffer (absLNc l cl (lnc ip)) _ (absLNc-no-apiLP l cl (lnc ip))
+           (SStep.⦀-noOffer (absLNs l sv (lns ip)) _ (absLNs-no-apiLP l sv (lns ip))
+            (SStep.⦀-noOffer (absLFc l cl (lfc ip)) (absLFs l sv (lfs ip))
+              (absLFc-no-apiLP l cl (lfc ip)) (absLFs-no-apiLP l sv (lfs ip))))))))))))
+
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiCS l′ d′ m} apimem step = csEvR→g (absBundleCS-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = CS.apiCSev l′ d′ m} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiBF l′ d′ m} apimem step = bfEvR→g (absBundleBF-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = BF.apiBFev l′ d′ m} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiKA l′ d′ m} apimem step = kaEvR→g (absBundleKA-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = KA.apiKAev l′ d′ m} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiTS l′ d′ m} apimem step = tsEvR→g (absBundleTS-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = TS.apiTSev l′ d′ m} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiLN l′ d′ m} apimem step = lnEvR→g (absBundleLN-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = LN.apiLNev l′ d′ m} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiLF l′ d′ m} apimem step = lfEvR→g (absBundleLF-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = LF.apiLFev l′ d′ m} step)
+-- the prototype api family: this scenario has no prototype peer, so the step is impossible
+absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = apiLP l′ d′ m} apimem step = ⊥-elim (absBundleG-no-apiLP l cl sv csc css bfc bfs ip (_ , step))
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_ChainSync}    apimem step = csEvR→g (absBundleCS-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = CS.doneCS l′ d′} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_BlockFetch}   apimem step = bfEvR→g (absBundleBF-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = BF.doneBF l′ d′} step)
 absBundleG-api-prod l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_KeepAlive}    apimem step = kaEvR→g (absBundleKA-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = KA.doneKA l′ d′} step)

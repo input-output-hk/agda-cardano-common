@@ -25,6 +25,10 @@ still the branch this document was written against and still the reference point
 DIFFERENT branch, **`semantics/failure-sim`**; the branch name above has deliberately
 NOT been rewritten.
 
+**Branch note (2026-09-22):** the "Leios prototype" section below records work landed on
+a third branch, **`examples/leios_prototype_protocols`**. It is an EXAMPLE estate, not a
+law section: it adds no algebraic law and changes no §1–§17 row.
+
 _Last updated: 2026-08-04._
 
 ---
@@ -1612,6 +1616,267 @@ analysis" section; design rationale is
 
 ---
 
+## Leios prototype (branch `examples/leios_prototype_protocols`, 2026-09-22)
+
+A port of the two Leios mini-protocols as implemented on the `leios-prototype` branch of
+`ouroboros-consensus`, a Linear-Leios node logic over them, and **five node-level safety
+theorems, each with a negative control**. Modules under
+`Examples/Cardano_network/Parametric/Leios/`. Plan
+`docs/superpowers/plans/2026-09-21-leios-prototype-protocols.md`; design spec
+`docs/superpowers/specs/2026-09-21-leios-prototype-protocols-design.md`; ADR
+`docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`.
+
+**Coexistence (the verbatim module header of `LeiosNotifyP`/`LeiosFetchP`/`PeersP`):**
+
+> This module models the Leios mini-protocol as implemented on the `leios-prototype`
+> branch of ouroboros-consensus (`LeiosDemoOnlyTest{Notify,Fetch}.hs`, protocol numbers
+> 18/19), which adapts the CIP-164 draft of July 2026. Messages, payload types, state
+> machine and agency follow the prototype exactly, with two payload abstractions recorded
+> in the ADR `docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`
+> (`TxBitmap` is a concrete offset set; `MsgLeiosBlockTxs` is an offset-indexed map without
+> a bitmap echo); pipelining and credits, vote weights, deadlines, equivocation and
+> freshness are abstracted (peers are depth-1 alternating machines; the oracles
+> `certifies`, `ebSize`, `ebTxs` stand in for validation). The older CIP-draft model
+> (`LeiosNotify.agda`/`LeiosFetch.agda`, `apiLN`/`apiLF`) stays beside this one: both ride
+> the same protocol ids and wire channels, and a node runs one or the other by the bundle
+> builder passed to `Node.nodeWith` (`nodeBundle` / `nodeBundleR` versus `nodeBundleP`).
+> Theorems about the old peers (`announceSafeT`, `bfOverLf`, the four-node liveness estate)
+> are untouched by this module.
+
+None of these is a network-wide (`systemOfWith`) statement, and none of them re-establishes
+`AnnounceSafeConcrete.announceSafeT`, which remains a theorem about the old relay logic and
+the old peers.
+
+That "untouched" applies to the `announceSafeT` / `bfOverLf` / four-node-liveness families
+and is verified there — **but it is not true of everything on the branch.** `voteSound`
+(S2) and `certSound`/`certSoundL` (S3) predate this branch and were themselves
+**re-pointed from `nodeBundleR` to `nodeBundleP`** (`VoteSound:260`, `CertSound:201`,
+`LeiosInstanceL:135`), **with changed specifications**: S2's key type was rebuilt
+(a three-sorted `VoteKey` replaced `voteKey : EBHash × Bool`) and S3's oracle was re-keyed
+(`certifies : List VoteBlob → RbHash → Bool` replaced `… → EBHash → Bool`). Commit
+`7ed02265` then left `nodeBundleR` carrying **zero `Wf` facts** and one consumer,
+`PeersRSanity`. A write-up may say the OLD-PEER THEOREMS are untouched; it may not say the
+branch is purely additive.
+
+**There is no S0 on this branch.** Announcement safety for `nodeLogicL` is a network-wide
+statement (at node level it is either false or vacuous) and is deferred to the network-wide
+lift as its own plan; nothing here may be quoted as announcement safety for the Leios node
+logic.
+
+The old `LeiosFetch` (`LeiosFetch.agda`, `apiLF`) no longer carries a tx-closure branch:
+`MsgLFBlockTxsRequest`, `MsgLFBlockTxs` and the state `stBlockTxs` were removed on this
+branch (ADR §6). The hand-written `R2_Bisim` bisimulations lost the corresponding rows;
+their theorem statements are unchanged. It still carries the RANGE messages with
+`List Tx` payloads, so the old LeiosFetch is **not** tx-free — only its SELECTIVE
+tx-closure branch is gone.
+
+### The results
+
+`nodeP = nodeWith nodeBundleP` throughout — the prototype peer bundle, the same builder
+`LeiosInstanceL.leiosSystemL` composes the system from. For a POSITIVE row, "node" level
+means `Spec ⊑T nodeP n (nodeLogicL n st₀)`: one node's whole logic — every thread and all
+five stores — inside its own peer bundle, from empty stores. (The bundle folds over
+`linkConfig l`, so its size is instance-specific: twelve peers at `leiosLParams`, and the
+positives are ∀-`Params`.) **No result here is
+about a network.** `voteSound`, `certSound`, `blobSound`, `bodySound` and `certRbSound`
+are each ∀-`Params`, ∀-`LeiosParams`, ∀-topology, ∀-`apiES`, ∀-`voterOf`, ∀-node;
+`certSoundL` is the one positive stated at a concrete instance.
+
+**For a `*-FAILS` row the level column names the composite the refutation is over.**
+Since R2 (the `par-brBoth` INTRODUCTION lemma, `CSP/Laws/Traces/TraceLawsParallel.agda`)
+**four of the five are over `nodeLogicL`'s OWN composite** — the full six node-level
+threads, every endpoint's ten and the five stores under `∥⇘ storeES ⇙`, inside
+`nodeP nA (…)` — differing from the positive in exactly one thread (or, for S3, one
+store) and, for S2/S2′/S3, one initial state. **S1 alone is still REDUCED**; see
+limitation 4 for why (its reason is `apiES`-structural and the lemma does not help).
+`certRbSound-node-FAILS` (S4) is at `st₀`, the positive's own state, so its A/B differs
+in ONE thread and nothing else.
+
+| fact | level | premises | module |
+|---|---|---|---|
+| `chatter-diverges` | pair (not `systemOf`) | none | `Leios/Negative/Chatter` |
+| `wedge-reachable` / `wedge-stuck` | pair + one step | none | `Leios/Negative/FetchWedge` |
+| `voteSound` (S2 — a vote blob is deposited only for a held RB whose announced EB body this node also holds, or one delivered on the wire) | node, `⊑T`, ∀ Params | **none** | `Leios/VoteSound` |
+| `voteSound-node-FAILS` | node, `⊑T nodeP nA (…)` over **`nodeLogicL`'s OWN composite** (all 16 threads + 5 stores + bundle; `voterBad` in the voter slot), seeded stores, concrete `leiosLParams` line | none | `Leios/VoteSoundBad` |
+| `certSound` (S3 — `stCert r` fires only when the oracle certifies `r` against blobs actually deposited here) | node, `⊑T`, ∀ Params | `CertifiesMono` | `Leios/CertSound` |
+| `certSoundL` (S3 at the shipped oracle) | node, concrete line instance | **none** (`certMonoL` discharges `CertifiesMono`) | `Leios/CertSound` |
+| `certSound-node-FAILS` | node, `⊑T nodeP nA (…)` over **`nodeLogicL`'s OWN composite** (all 16 threads + bundle; `voteStoreBad` as the FIFTH STORE), seeded stores, concrete line + the two-voter oracle `certifies₂` | none | `Leios/CertSoundBad` |
+| `blobSound` (S2′ — a blob attributed to ANOTHER node's voter is deposited only if an `lnpRecvVotes` delivery carried that exact blob) | node, `⊑T`, ∀ Params | `nodeOf`, `nodeOf-voterOf` | `Leios/BlobOrigin` |
+| `blobSound-node-FAILS` | node, `⊑T nodeP nA (…)` over **`nodeLogicL`'s OWN composite** (all 16 threads + 5 stores + bundle; `voterBlobBad` in the voter slot), seeded stores, concrete line instance | none | `Leios/BlobOriginBad` |
+| `bodySound` (S1 — an EB body is deposited only if forged here or hash-matching a point this node requested) | node, `⊑T`, ∀ Params | **none** | `Leios/BodyOrigin` |
+| `bodySound-node-FAILS` | **one thread + the five stores** (bundle and the other 15 threads dropped), from `st₀`, concrete line instance | none | `Leios/BodyOriginBad` |
+| `certRbSound` (S4 — a certificate-carrying RB is deposited only after a local `stHasCert` for the RB its `rbCert` names, or off the wire) | node, `⊑T`, ∀ Params | **none** | `Leios/CertRbOrigin` |
+| `certRbSound-node-FAILS` | node, `⊑T nodeP nA (…)` over **`nodeLogicL`'s OWN composite** (all 16 threads + 5 stores + bundle; `forgeCertBad` in the forge-cert slot), **from `st₀`**, concrete line + the non-trivial `rbCert` of `leiosLP₃` | none | `Leios/CertRbOriginBad` |
+| `lfpP-reports-request` | typechecking probe, `refl` | none | `Leios/PeersPSanity` |
+
+Zero postulates, zero holes, no `NON_TERMINATING` in any of the new modules. All five
+positives go through the same route: `BlockProvenance.Carrier` + `BlockProvenanceWfR.Body`,
+the shared leaves of `Leios/OriginLeaves`, and `wf→osafe`/`osafe→⊑T` into
+`Leios/OriginSafe`.
+
+**What is NOT verified, and was not verified at base either.** The `apiLP` coverage pass of
+Task 1 added **2,238 lines across 18 modules that no typechecker has seen**:
+`NetworkVerification/Liveness/` `PipePair`, `PipePairPeers2`–`6`, `PipePairPeersKB`,
+`PipePairPeersKB2`, `PipePairFlipKAc`, `PipePairFlipKAs`, `PipePairFlipCSc`,
+`PipePairFlipCSs`, `PipePairFlipBFc`, `PipePairFlipBFs`, `PipePairFlipBFsFSim`,
+`PipePairFlipTSc`, `PipePairFlipTSs` and `NodeDOffers`. That chain was **already RED at
+base `c52025c8`** (a KeepAlive `Prefix`/`Ret` mismatch, surfacing at
+`PipePairPeers2.agda:881`) and is still red at HEAD, so its new arms are **unverified
+best-effort**: they are one wildcard arm per exhaustive `Net_Api` dispatch site, copied
+from an `apiLF` sibling, and they will meet a typechecker for the first time if and when
+the chain is repaired. Run `stolen_head_scan.py` as a delta over those 18 files before
+that first rebuild — Task 1 hit the stolen-head defect twice in exactly this kind of
+mechanical pass. Two further pre-existing REDs in files this branch touched are likewise
+unrepaired and predate it: `Parametric/Spike/HideDiverge.agda` carries **three `?` holes**
+(byte-identical at base, documented in-file as a deliberate spike — a standing violation
+of the repo no-holes rule: repair or retire), and `Parametric/EvBothProbe.agda` is red on a
+stale `numConns` literal. None of the three is in any endpoint's closure.
+
+### The limitations — read these before quoting anything above
+
+1. **No liveness, anywhere.** Every one of S1–S4 is purely safety-shaped: **no module
+   exhibits a good node actually reaching the gated event.** Three liveness ceilings are
+   recorded in `NodeLogicL`'s own comments and are reachable in the good logic:
+   `forgeCert`'s `stHasCert` rendezvous blocks a pass forever when the RB is never
+   certified; `serveTxs`'s `getTxEv` blocks when the node holds an EB body but not a
+   transaction of its closure, and because `ebServeLoop` and `ebTxsServeLoop` drive the
+   SAME LeiosFetchP producer this also stops EB-BODY serving on that endpoint;
+   `fetchTxs`'s leading `getBodyEv` blocks the SINGLE Notify client thread, killing
+   announcements, offers and votes on that endpoint. None of this is deadlock-freedom and
+   none of it may be quoted as such.
+2. **Node level only.** No result is a `systemOfWith` statement. A network-wide lift is
+   not a corollary: each discipline is ENDPOINT-AGNOSTIC in its mints (it mints at every
+   `(l , d)`), which is sound at node level only because inside `nodeP n (nodeLogicL n st₀)`
+   the only `store`/`env` channels are the `homeOf n` ones and no bundle peer offers a
+   `store` channel at all. **Lifted naively, node X's mint would licence node Y's deposit.**
+   The prescribed fix is in each module's header: index the key by `(l , d)` and gate a
+   deposit at `(l , d)` on keys carrying that same `(l , d)`. S3's lift is strictly harder
+   than S2's, because its gate sits on the STORE side of the `⦀`.
+3. **`certRbSound`'s (S4) forge route WAS unreachable in the shipped composite. BOTH
+   REASONS ARE NOW CLOSED (follow-up round R1, 2026-09-23); this entry records what was
+   wrong, what was done, and what is still not claimed.**
+
+   *The defect, as found in Task 10 and confirmed three times.* `forgeCert`'s first event
+   `env home(n) envForgeCert` is inside `storeES` (every `env` channel is —
+   `NodeLogic.storeSet`), no store of `nodeLogicL` offered it (`storeStepL` offered
+   `envForge` only), and under `∥⇘ storeES ⇙` a synchronised event fires only when both
+   operands offer it. So the whole `forgeCert` thread was blocked at its first event, as
+   was `submit`, whose `envSubmit` had no store partner either — and the node therefore
+   had NO ENVIRONMENT ROUTE INTO ITS MEMPOOL at all.
+
+   *The repair.* `storeStepL` gained a pure-rendezvous `envForgeCert` arm and `memStep` a
+   pure-rendezvous `envSubmit` arm. Both leave their store state UNCHANGED, so the design
+   is intact: `acceptForgeL` still rejects cert-carrying RBs on the `envForge` route and a
+   cert-RB still enters `held` only through `forgeCert`'s own `putEv`, after the
+   `stHasCert r` rendezvous. `Leios/NodeLogicLSanity` exhibits each thread's first event
+   as an LTS derivation **inside the full `nodeLogicL nA st₀`** — threads, all five stores
+   and the `∥⇘ storeES ⇙` rendezvous — so the "blocked" half is no longer an argument from
+   reading menus but a refuted one. The same module pins that the SECOND event of the
+   forge route, the `stHasCert r` RENDEZVOUS, is still withheld: `uncertified-blocks`
+   (the isolated `voteStore` offers no `stHasCert (just true)` from `st₀`) and
+   `certified-offers` (it does once that RB is in its `certs` list). **These two are
+   PROCESS facts about the vote store, not facts about the SPEC gate `certRbGate`** —
+   they say the implementation will not take the deposit step, not that the
+   specification would refuse it. The spec gate is probed separately, at the shipped
+   instance, by `gate-uncertified-at-leiosLP`/`gate-certified-at-leiosLP` below.
+
+   *The second, independent reason, also closed.* `LeiosInstanceL` used to set
+   `rbCert = λ _ → nothing`, so `vouchedRb` and `certRbGate` were identically `true` on the
+   shipped line and S4 permitted every trace there whatever the composite did. `leiosLP`
+   now carries the same non-trivial `rbCert` the control's `leiosLP₃` uses (the block
+   `just false` certifies the RB `just true`). That the SPEC GATE is consequently a real
+   test AT THE SHIPPED INSTANCE is machine-checked and not inferred across instances:
+   `Leios/NodeLogicLSanity.gate-uncertified-at-leiosLP` is
+   `certRbGate [] (Block , store fzero lo stPut) (just false) ≡ false` **at `leiosLP`**,
+   and `gate-certified-at-leiosLP` is the same deposit `≡ true` once `just true` is
+   minted. (`CertRbOriginBad.gate-uncertified`/`gate-certified` are the same pair at
+   `leiosLP₃`, and do NOT by themselves say anything about `leiosLP`.)
+
+   *What is still NOT claimed.* All five results remain purely safety-shaped: no module
+   exhibits a good node completing a forge — the probes reach the FIRST event of the
+   route, not the deposit, and the deposit is exactly what the `stHasCert` rendezvous
+   withholds until a certification has happened. **No exhibited trace anywhere on this
+   branch has the gate refusing anything**: the forge deposit is reachable-in-principle
+   and never exhibited. And the wire clause remains deliberately ungated AND
+   SELF-LICENSING — `certRbMints (_ , apiBF _ _ recvBFBlock) b = maybe′ (λ r → r ∷ []) []
+   (rbCert b)` (`CertRbOrigin.agda:257`), so the only cert-RB depositor this branch ever
+   exhibits inside `nodeLogicL` is still the BlockFetch `clientLoop`, whose deposit is
+   licensed by its own immediately-preceding `recvBFBlock`. S4 remains a NODE-level `⊑T`
+   fact (see limitation 2), and the statements of all five theorems and all five controls
+   are byte-identical to what they were before the repair.
+
+   **THE S4 WRITE-UP RULE, AS IT NOW STANDS.** The old rules "S4 is vacuous at the
+   shipped instance" and "never write that S4 constrains the shipped Leios line" are
+   WITHDRAWN — both were true only of the pre-repair model and the constant `rbCert`.
+   They are replaced by exactly these two sentences, which are what this branch may and
+   may not be quoted on:
+
+   > **Quotable: "S4 has content at the shipped instance."**
+   >
+   > **NOT quotable: "S4 was shown to constrain a demonstrated behaviour of the shipped
+   > Leios line."**
+
+   `CertRbOriginBad`'s composite is still the reduced one: R1 froze every statement, so
+   the control was not restated even though its original reason for dropping the stores
+   is gone.
+4. **Since R2, only S1 uses a reduced composite.** Node 0 of `leiosLLine` has degree 1,
+   so its full logic is **sixteen** threads — 6 node-level plus ONE endpoint's 10 — and
+   four of the five controls now run over exactly that, synchronised with the five
+   stores and wrapped in the peer bundle, i.e. over the composite the POSITIVE is
+   stated over.
+   * **S2, S2′ and S3** were reduced because `ebIndex`, the voter, `lnServerLoopL` and
+     `bodyOfferLoop` all offer `stGetAt 0`, and the repo had `par-brBoth` ELIMINATIONS
+     but no INTRODUCTION. R2 built the introduction —
+     `TraceLawsParallel.Par-brBoth` + `par-brNode-τL/R` — so the reduction is GONE.
+     Their traces pay one extra τ per collision on the path (two, here), because
+     `par-pVis` fires a both-offer non-sync event into an inline internal choice rather
+     than picking a side.
+   * **S4** was reduced because, before R1, no store offered `envForgeCert` and the
+     forge thread was blocked at its first event. R1 added the arm and R2 restated the
+     control; the restatement is STRICTLY STRONGER — it survives both the store
+     rendezvous (the block store's `putEv` arm is deliberately ungated) and the peer
+     bundle, it needs NO `par-brBoth` (nothing collides on either of its two events),
+     and it is at `st₀`. What used to be "the load-bearing half (`wf-threads`)" is now
+     literally `CertRbSpecT ⊑T nodeP nA (…)`.
+   * **S1 IS STILL REDUCED**: it keeps the five stores and drops **both** the peer
+     bundle and **fifteen** threads — `nodeLogicLBodyBad` is ONE thread against the five
+     stores. Reason: its defect is on the WIRE branch and every `apiLP` channel is
+     inside `apiES`, so the composite must drop the bundle. That is `apiES`-structural;
+     the `par-brBoth` lemma does not help it, and `bodySound-logic-good` remains a
+     genuine compensator at the identical reduced composite.
+   **What the five `-good` compensators are now.** `certRbSound-threads-good` is
+   RETIRED and replaced by `certRbSound-node-good`, which is `certRbSound nA` itself —
+   the positive theorem, not a separate assembly. `voteSound-node-good`,
+   `blobSound-node-good` and `certSound-node-good` are NARROWED: each is now the
+   positive's own assembly applied to the UNMODIFIED `nodeLogicL nA stSeeded`, so they
+   compensate the SEED and nothing else — there is no pruning left to compensate.
+   `bodySound-logic-good` is KEPT unchanged, for S1's still-reduced composite.
+   The S2/S2′/S3 controls still run from a SEEDED store state (`stSeeded`, one held RB
+   and, for two of them, one EB body) whereas every positive is at `st₀`; each bad/good
+   pair is at the same seed, so the A/B is internally consistent, but "from empty
+   stores" is a claim about the POSITIVES only. S1's and S4's controls need no seeding.
+   **The standing rule "never pair a positive with its refutation" is NARROWED, not
+   dropped**: the COMPOSITE caveat is retired for S2/S2′/S3/S4, but every refutation is
+   still at a CONCRETE parameter line, at node 0, at NODE level, and three of them from
+   a seeded state — so never pair an ∀-quantified positive with its concrete refutation
+   in one sentence, and never read a system-level break out of any of them.
+5. **None of S1–S4 is a validity statement.** The prototype's votes carry no verdict at
+   all, so S3 says nothing about whether a certificate is deserved; S1 says a body was
+   forged or requested here, not that requesting it was right, and its guard is a hash
+   test with `ebHash` nowhere assumed injective; S2′ does NOT show the claimed voter
+   really cast the blob, and leaves blobs the node attributes to itself entirely free;
+   S4's wire clause mints a HASH, so one delivery licenses the deposit of every block
+   carrying that same certificate hash.
+6. **Recorded modelling costs.** `ebStore` is dead weight — filled by `ebIndex`, read by
+   nobody (the voter walks `held`), yet still an operand of `storeES` in every proof.
+   `putChecked`/`serveTxs` SKIP bad or out-of-range offsets, so "every requested offset is
+   answered" is FALSE; the true statement is "every entry in the reply is real".
+   `allOffsets` is the only bitmap anyone builds, so the wire's selectivity is never
+   exercised by the good logic. At `leiosLParams`, `LSlot = Size = ⊤`, so slot-keyed
+   addressing is nominal only.
+
+---
+
 ## §17 — FD/DR/FSim congruence & monotonicity: consolidated coverage (2026-08-03 campaign)
 
 Eight tasks (`docs/superpowers/plans/2026-08-03-fd-congruence-campaign.md`) extended the
@@ -2541,4 +2806,4 @@ refinement from it — have no "done" annotation in that file and genuinely rema
    Derivation 9). The **loop** case needs the `Guarded B → τ-Acc B → τ-Acc (loop0 B)`
    hypothesis of §16 finding 3 first.
 
-_Last updated 2026-08-04._
+_Last updated 2026-09-22._

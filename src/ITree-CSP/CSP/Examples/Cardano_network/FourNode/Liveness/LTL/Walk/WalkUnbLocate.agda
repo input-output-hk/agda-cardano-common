@@ -43,7 +43,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Base using ( hi )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Link
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
   renaming ( done to netDone )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
@@ -191,6 +191,11 @@ module _ (gs : GSide) (b : Block₃) where
       (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-apiLF (med (toSys r₁)))
                     (SR.absnodes-no-nonCSBF (toSys r₁) tt (λ ())) st)
       (subst (λ z → z ═[ ev (evl (evLabel _ (apiLF l₀ d₀ m₀) a)) ]═► _) eq wstep))
+  unbAlong′ r eq unb (step {e = evl (evLabel _ (apiLP l₀ d₀ m₀) a)} wstep tr) cf (suc m) pn =
+    ⊥-elim (refute-weak r
+      (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-apiLP (med (toSys r₁)))
+                    (SR.absnodes-no-nonCSBF (toSys r₁) tt (λ ())) st)
+      (subst (λ z → z ═[ ev (evl (evLabel _ (apiLP l₀ d₀ m₀) a)) ]═► _) eq wstep))
 
   -- hidden io events: `∖ ioES` makes them invisible
   unbAlong′ r eq unb (step {e = evl (evLabel _ (input l₀ d₀ id) a)} wstep tr) cf (suc m) pn =

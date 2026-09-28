@@ -107,8 +107,10 @@ instance
   -- instances are not re-exported through Data's using-import).
   DecEq-ℕ' : DecEq ℕ
   DecEq-ℕ' = DecEqI.DecEq-ℕ
-  DecEq-ListTxid : DecEq (List Txid)
-  DecEq-ListTxid = DecEqI.DecEq-List
+  -- the transaction-IDENTIFIER list carried by `ReplyTxIds`/`RequestTxs`; a transaction is
+  -- now an opaque object and `txHash` is its identifier (`Txid` is gone)
+  DecEq-ListTxHash : DecEq (List TxHash)
+  DecEq-ListTxHash = DecEqI.DecEq-List
   DecEq-ℕ×ℕ : DecEq (ℕ × ℕ)
   DecEq-ℕ×ℕ = DecEqI.DecEq-×
   DecEq-BS×ℕ×ℕ : DecEq (BlockingStyle × ℕ × ℕ)
@@ -194,7 +196,7 @@ clientStep l d stIdle = pchoice v
   ... | yes refl | yes refl = just (Output ⦃ DecEq-BS×ℕ×ℕ ⦄ (apiTSev l d recvTSRequestTxIds) (NonBlocking , a , r) (Ret (inj₁ stTxIdsNonBlocking)))
   ... | _        | _        = nothing
   v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSRequestTxs txids)) with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just (Output ⦃ DecEq-ListTxid ⦄ (apiTSev l d recvTSRequestTxs) txids (Ret (inj₁ stTxs)))
+  ... | yes refl | yes refl = just (Output ⦃ DecEq-ListTxHash ⦄ (apiTSev l d recvTSRequestTxs) txids (Ret (inj₁ stTxs)))
   ... | _        | _        = nothing
   v (_ , receiveTS _ _) _ = nothing
   v (_ , sendTS _ _)    _ = nothing
@@ -333,6 +335,70 @@ serverStep _ _ stDone = Ret (inj₂ _)
 -- the requester peer: loop the step from the init state
 TSserverStClient : Link → Dir → PTree TSEv (ExtI TSEv) Rr
 TSserverStClient l d = iter (serverStep l d) stInit
+
+------------------------------------------------------------------------
+-- The REPLY-REPORTING requester, for the Linear-Leios node logic.
+-- `serverStep` above swallows the submitter's reply without telling the
+-- application which txids / transactions arrived, so a node logic
+-- composed with it cannot put them in its mempool.  `serverStepR`
+-- interposes one `apiTS` report — `recvTSReplyTxIds ! txids` and
+-- `recvTSReplyTxs ! txs` — between the wire receive and the return to
+-- `stIdle`.
+--
+-- It is a SEPARATE peer, not an edit of `serverStep`: `serverStep` is the
+-- left-hand side of the hand-written strong bisimulations in
+-- `FourNode/Liveness/R2_Bisim/NodeSpecs.agda` (`tsSnxt` goes straight from
+-- the wire receive back to `tsIdle`), which an extra visible event would
+-- falsify.  Only the three reply states differ.
+------------------------------------------------------------------------
+
+-- one reply-reporting requester step: the three reply states report what arrived,
+-- every other state behaves exactly as `serverStep`
+serverStepR : Link → Dir → TSState → PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)
+serverStepR l d stTxIdsBlocking = pchoice v
+  where
+  v : (at : AnyTypes TSEv)
+    → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxIds txids)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (Output ⦃ DecEqI.DecEq-List ⦄ (apiTSev l d recvTSReplyTxIds) txids (Ret (inj₁ stIdle)))
+  ... | _        | _        = nothing
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission MsgTSDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (doneTS l d ⟶₀ Ret (inj₁ stDone))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStepR l d stTxIdsNonBlocking = pchoice v
+  where
+  v : (at : AnyTypes TSEv)
+    → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxIds txids)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (Output ⦃ DecEqI.DecEq-List ⦄ (apiTSev l d recvTSReplyTxIds) txids (Ret (inj₁ stIdle)))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStepR l d stTxs = pchoice v
+  where
+  v : (at : AnyTypes TSEv)
+    → ContinueType at (Maybe (PTree TSEv (ExtI TSEv) (TSState ⊎ Rr)))
+  v (_ , receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxs txs)) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (Output ⦃ DecEqI.DecEq-List ⦄ (apiTSev l d recvTSReplyTxs) txs (Ret (inj₁ stIdle)))
+  ... | _        | _        = nothing
+  v (_ , receiveTS _ _) _ = nothing
+  v (_ , sendTS _ _)    _ = nothing
+  v (_ , apiTSev _ _ _) _ = nothing
+  v (_ , doneTS _ _)    _ = nothing
+serverStepR l d st = serverStep l d st
+
+-- the reply-reporting requester peer: loop the reporting step from the init state
+TSserverStClientR : Link → Dir → PTree TSEv (ExtI TSEv) Rr
+TSserverStClientR l d = iter (serverStepR l d) stInit
 
 ------------------------------------------------------------------------
 -- Step 7: network-fragment injection into `Net` (documentation stub).

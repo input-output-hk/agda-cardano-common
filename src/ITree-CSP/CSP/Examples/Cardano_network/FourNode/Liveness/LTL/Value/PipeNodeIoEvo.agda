@@ -115,7 +115,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using
@@ -345,6 +345,7 @@ noCliRead-role k cl sv cl≢sv {e = apiKA  _ _ _} iomem role = tt
 noCliRead-role k cl sv cl≢sv {e = apiTS  _ _ _} iomem role = tt
 noCliRead-role k cl sv cl≢sv {e = apiLN  _ _ _} iomem role = tt
 noCliRead-role k cl sv cl≢sv {e = apiLF  _ _ _} iomem role = tt
+noCliRead-role k cl sv cl≢sv {e = apiLP  _ _ _} iomem role = tt
 noCliRead-role k cl sv cl≢sv {e = sndmsg _ _ _} iomem role = tt
 noCliRead-role k cl sv cl≢sv {e = rcvmsg _ _ _} iomem role = tt
 noCliRead-role k cl sv cl≢sv {e = tx     _ _ _} iomem role = tt
@@ -407,6 +408,7 @@ noCliWrite-role k cl sv cl≢sv {e = apiKA  _ _ _} iomem role = tt
 noCliWrite-role k cl sv cl≢sv {e = apiTS  _ _ _} iomem role = tt
 noCliWrite-role k cl sv cl≢sv {e = apiLN  _ _ _} iomem role = tt
 noCliWrite-role k cl sv cl≢sv {e = apiLF  _ _ _} iomem role = tt
+noCliWrite-role k cl sv cl≢sv {e = apiLP  _ _ _} iomem role = tt
 noCliWrite-role k cl sv cl≢sv {e = sndmsg _ _ _} iomem role = tt
 noCliWrite-role k cl sv cl≢sv {e = rcvmsg _ _ _} iomem role = tt
 noCliWrite-role k cl sv cl≢sv {e = tx     _ _ _} iomem role = tt
@@ -538,6 +540,7 @@ noSrvWrite-role k cl sv cl≢sv {e = apiKA  _ _ _} iomem role = tt
 noSrvWrite-role k cl sv cl≢sv {e = apiTS  _ _ _} iomem role = tt
 noSrvWrite-role k cl sv cl≢sv {e = apiLN  _ _ _} iomem role = tt
 noSrvWrite-role k cl sv cl≢sv {e = apiLF  _ _ _} iomem role = tt
+noSrvWrite-role k cl sv cl≢sv {e = apiLP  _ _ _} iomem role = tt
 noSrvWrite-role k cl sv cl≢sv {e = sndmsg _ _ _} iomem role = tt
 noSrvWrite-role k cl sv cl≢sv {e = rcvmsg _ _ _} iomem role = tt
 noSrvWrite-role k cl sv cl≢sv {e = tx     _ _ _} iomem role = tt
@@ -589,6 +592,7 @@ noSrvRead-role k cl sv cl≢sv {e = apiKA  _ _ _} iomem role = tt
 noSrvRead-role k cl sv cl≢sv {e = apiTS  _ _ _} iomem role = tt
 noSrvRead-role k cl sv cl≢sv {e = apiLN  _ _ _} iomem role = tt
 noSrvRead-role k cl sv cl≢sv {e = apiLF  _ _ _} iomem role = tt
+noSrvRead-role k cl sv cl≢sv {e = apiLP  _ _ _} iomem role = tt
 noSrvRead-role k cl sv cl≢sv {e = sndmsg _ _ _} iomem role = tt
 noSrvRead-role k cl sv cl≢sv {e = rcvmsg _ _ _} iomem role = tt
 noSrvRead-role k cl sv cl≢sv {e = tx     _ _ _} iomem role = tt

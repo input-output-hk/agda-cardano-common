@@ -8,8 +8,9 @@
 -- WHY THIS FILE.  `Parametric.NodeLogic.Generic` (the topology-generic
 -- relay logic) and `Parametric.AnnounceSafe.Generic` (the topology-generic
 -- announcement-safety statement) are both only PARAMETERISED modules; the
--- only composed relay system anywhere in the repo is `NodeLogic.agda`'s
--- own `lineRelaySystem`, built over `Parametric.LineInstance.lineParams`
+-- only composed relay system anywhere in the repo is
+-- `NodeLogicLineSanity.agda`'s `lineRelaySystem`, built over
+-- `Parametric.LineInstance.lineParams`
 -- where `EB = EBHash = ⊤` and `announcedEB = λ _ → nothing`.  With that
 -- `Params` the announcement gate is VACUOUS — `AnnounceSafe.Generic`'s
 -- `announceOK` always returns `true`, because no header ever announces
@@ -22,7 +23,7 @@
 -- per-node reduction, at that `Params` and the same three-node line graph
 -- as `LineInstance`.
 --
--- As with `LineInstance` and `NodeLogic`'s own sanity check, the premises
+-- As with `LineInstance` and the `NodeLogicLineSanity` witness, the premises
 -- below are HYPOTHESES — nothing is discharged here.  This file is a
 -- composition/typechecking witness only.
 ------------------------------------------------------------------------
@@ -90,17 +91,23 @@ leiosCfg = (lo , N2N_KeepAlive)    ∷ (hi , N2N_KeepAlive)
 -- and an RB that either announces nothing or one of them
 leiosParams : Params
 leiosParams = record
-  { Cookie = U.⊤ ; Block = Maybe Bool ; Txid = U.⊤ ; LSlot = U.⊤
-  ; VoterId = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
+  { Cookie = U.⊤ ; Block = Maybe Bool ; LSlot = U.⊤
+  ; VoterId = U.⊤ ; VoteBlob = U.⊤
   ; numLinks = 2 ; linkConfig = λ _ → leiosCfg
-  ; decCookie = leiosDecEq⊤ ; decBlock = leiosDecEqMaybeBool ; decTxid = leiosDecEq⊤
-  ; decLSlot = leiosDecEq⊤ ; decVoterId = leiosDecEq⊤ ; decLFBitmap = leiosDecEq⊤
+  ; decCookie = leiosDecEq⊤ ; decBlock = leiosDecEqMaybeBool
+  ; decLSlot = leiosDecEq⊤ ; decVoterId = leiosDecEq⊤
   ; decVoteBlob = leiosDecEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
   ; decTime = leiosDecEq⊤ ; decLength = leiosDecEq⊤
   -- Leios EB domains, NON-TRIVIAL here: two hashes, an RB announcing either or none
   ; EB = Bool ; EBHash = Bool ; decEB = leiosDecEqBool ; decEBHash = leiosDecEqBool
-  ; ebHash = λ e → e ; announcedEB = λ b → b }
+  ; ebHash = λ e → e ; announcedEB = λ b → b
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = Maybe Bool ; decRbHash = leiosDecEqMaybeBool ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = U.⊤ ; decTxHash = leiosDecEq⊤ ; txHash = λ _ → U.tt
+  ; Size = U.⊤ ; decSize = leiosDecEq⊤ ; txSize = λ _ → U.tt
+  ; slotOf = λ _ → U.tt }
 
 open import CSP.Examples.Cardano_network.Net leiosParams using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data leiosParams using (Payload)

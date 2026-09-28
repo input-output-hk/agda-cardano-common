@@ -29,7 +29,7 @@ open import Level using (0ℓ)
 open import Data.Fin using (zero)
 open import Process_Trees using (PTree; ExtI; AnyTypes)
 open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (IDs; Dir; lo; hi; N2N_ChainSync)
+open import CSP.Examples.Cardano_network.Base using (IDs; Dir; lo; hi; N2N_ChainSync; OneTx; decOneTx)
 
 module CSP.Examples.Cardano_network.Terminable.FourNodeDiamondTerminable where
 ```
@@ -48,18 +48,24 @@ import Data.Maybe as PMaybe
 
 p : Params
 p = record
-  { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
-  ; VoterId = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
+  { Cookie = U.⊤ ; Block = U.⊤ ; LSlot = U.⊤
+  ; VoterId = U.⊤ ; VoteBlob = U.⊤
   ; numLinks = 1
   ; linkConfig = λ _ → (lo , N2N_ChainSync) ∷ []
-  ; decCookie  = decEq⊤ ; decBlock    = decEq⊤ ; decTxid    = decEq⊤
-  ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
+  ; decCookie  = decEq⊤ ; decBlock    = decEq⊤
+  ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
   ; decTime = decEq⊤ ; decLength = decEq⊤
   -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
   ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = U.⊤ ; decRbHash = decEq⊤ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = U.⊤ ; decTxHash = decEq⊤ ; txHash = λ _ → U.tt
+  ; Size = U.⊤ ; decSize = decEq⊤ ; txSize = λ _ → U.tt
+  ; slotOf = λ _ → U.tt }
 ```
 
 The local `NetT` alphabet (with `mdone`), the terminable medium/multiplexer, and

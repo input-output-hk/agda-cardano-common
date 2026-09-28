@@ -72,7 +72,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; nodeA; nodeB; nodeC; nodeD; produce; consume; consume-k; Block₃
         ; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Params using (Params)
-open Params p using ( time₀; length₀; Block; Cookie; VoteBlob; Txid; decCookie; LFBitmap
+open Params p using ( time₀; length₀; Block; Cookie; VoteBlob; Txid; Tx; decCookie
                     ; EB; EBHash )
 open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi; FromInitiator; N2N_ChainSync; N2N_BlockFetch; BlockingStyle; Blocking; NonBlocking)
 open import CSP.Examples.Cardano_network.Net p
@@ -89,8 +89,8 @@ open import CSP.Examples.Cardano_network.Net p
         ; sendLNBlockOffer; sendLNBlockTxsOffer; sendLNVotesOffer
         ; sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
         ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
-        ; sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-        ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+        ; sendLFBlockRequest; sendLFVotesRequest
+        ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
         ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange )
 open import CSP.Examples.Cardano_network.Data p
   using ( Payload; Header; Tip; header; tip; DecEq-Header; DecEq-Tip
@@ -98,8 +98,8 @@ open import CSP.Examples.Cardano_network.Data p
         ; chainSync; blockFetch; keepAlive; leiosNotify; leiosFetch
         ; MsgKeepAlive; MsgKADone; MsgLNDone; MsgLFDone
         ; MsgLNBlockAnnouncement; MsgLNBlockOffer; MsgLNBlockTxsOffer; MsgLNVotesOffer; Vote
-        ; MsgLFBlock; MsgLFBlockTxs; MsgLFVoteDelivery
-        ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; Tx
+        ; MsgLFBlock; MsgLFVoteDelivery
+        ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange
         ; txSubmission; MsgTSRequestTxIds; MsgTSRequestTxs; MsgTSDone
         ; MsgCSRequestNext; MsgCSFindIntersect; MsgCSDone
         ; MsgCSRollForward; MsgCSRollBackward; MsgCSAwaitReply
@@ -627,12 +627,10 @@ decLNs-src l d (lnsSil st)   = SrcOpN.iter-bind (SrcOpN.Ret (inj₁ st)) (LN.ser
 data LFcPos : Set where
   lfcHead : LF.LFState → LFcPos       -- loop head `iter (clientStep) st`
   lfcRblk1  : EB → LFcPos             -- stBlock recv MsgLFBlock b: offers `apiLFev recvLFBlock! b` → lfcSil stIdle
-  lfcRbtx1  : List Tx → LFcPos        -- stBlockTxs recv MsgLFBlockTxs ts: offers `apiLFev recvLFBlockTxs! ts` (Output) → lfcSil stIdle
   lfcRvot1  : List VoteBlob → LFcPos  -- stVotes recv MsgLFVoteDelivery vs: offers `apiLFev recvLFVoteDelivery! vs` (Output) → lfcSil stIdle
   lfcRnext1 : Block → List Tx → LFcPos -- stBlockRange recv MsgLFNextBlockAndTxsInRange b ts: offers `apiLFev recvLFRangeBlock! (b,ts)` (Output) → lfcSil stBlockRange (loop)
   lfcRlast1 : Block → List Tx → LFcPos -- stBlockRange recv MsgLFLastBlockAndTxsInRange b ts: offers `apiLFev recvLFRangeBlock! (b,ts)` (Output) → lfcSil stIdle (final)
   lfcWblk1 : EBHash → LFcPos          -- stIdle post-apiLFev sendLFBlockRequest pt: offers `sendLF!` (MsgLFBlockRequest pt) → lfcSil stBlock (io-case send leaf)
-  lfcWtxs1 : Point × LFBitmap → LFcPos -- stIdle post-apiLFev sendLFBlockTxsRequest (pt,bm): offers `sendLF!` (MsgLFBlockTxsRequest pt bm) → lfcSil stBlockTxs
   lfcWvot1 : List Vote → LFcPos       -- stIdle post-apiLFev sendLFVotesRequest vs: offers `sendLF!` (MsgLFVotesRequest vs) → lfcSil stVotes
   lfcWrng1 : ChainRange → LFcPos      -- stIdle post-apiLFev sendLFBlockRangeRequest r: offers `sendLF!` (MsgLFBlockRangeRequest r) → lfcSil stBlockRange
   lfcDone1 : LFcPos                   -- stIdle post-apiLFev sendLFDone: offers `sendLF!` (MsgLFDone) → lfcSil stDone
@@ -644,9 +642,6 @@ decLFc-src l d (lfcHead st) = SrcOpF.iter (LF.clientStep l d) st
 decLFc-src l d (lfcRblk1 b)     =
   succVF (SrcOpF.iter (LF.clientStep l d) LF.stBlock) (_ , LF.receiveLF l d)
          (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlock b))
-decLFc-src l d (lfcRbtx1 ts)    =
-  succVF (SrcOpF.iter (LF.clientStep l d) LF.stBlockTxs) (_ , LF.receiveLF l d)
-         (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxs ts))
 decLFc-src l d (lfcRvot1 vs)    =
   succVF (SrcOpF.iter (LF.clientStep l d) LF.stVotes) (_ , LF.receiveLF l d)
          (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVoteDelivery vs))
@@ -658,8 +653,6 @@ decLFc-src l d (lfcRlast1 b ts) =
          (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFLastBlockAndTxsInRange b ts))
 decLFc-src l d (lfcWblk1 pt) =
   succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFBlockRequest) pt
-decLFc-src l d (lfcWtxs1 pb) =
-  succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFBlockTxsRequest) pb
 decLFc-src l d (lfcWvot1 vs) =
   succVF (SrcOpF.iter (LF.clientStep l d) LF.stIdle) (_ , LF.apiLFev l d sendLFVotesRequest) vs
 decLFc-src l d (lfcWrng1 r) =
@@ -673,7 +666,6 @@ data LFsPos : Set where
   lfsHead  : LF.LFState → LFsPos   -- loop head `iter (serverStep) st`
   lfsDone1 : LFsPos                -- stIdle recv MsgLFDone: offers `doneLF` → lfsSil stDone (io-case post-receive done leaf)
   lfsWblk1 : EB → LFsPos           -- stBlock post-apiLFev sendLFBlock b: offers `sendLF!` (MsgLFBlock b) → lfsSil stIdle (io-case send leaf)
-  lfsWtxs1 : List Tx → LFsPos      -- stBlockTxs post-apiLFev sendLFBlockTxs ts: offers `sendLF!` (MsgLFBlockTxs ts) → lfsSil stIdle
   lfsWvot1 : List VoteBlob → LFsPos -- stVotes post-apiLFev sendLFVoteDelivery vs: offers `sendLF!` (MsgLFVoteDelivery vs) → lfsSil stIdle
   lfsWnext1 : Block × List Tx → LFsPos -- stBlockRange post-apiLFev sendLFNextBlockAndTxsInRange (b,ts): offers `sendLF!` → lfsSil stBlockRange (loop)
   lfsWlast1 : Block × List Tx → LFsPos -- stBlockRange post-apiLFev sendLFLastBlockAndTxsInRange (b,ts): offers `sendLF!` → lfsSil stIdle (final)
@@ -687,8 +679,6 @@ decLFs-src l d lfsDone1      =
          (time₀ , FromInitiator , length₀ , leiosFetch MsgLFDone)
 decLFs-src l d (lfsWblk1 b) =
   succVF (SrcOpF.iter (LF.serverStep l d) LF.stBlock) (_ , LF.apiLFev l d sendLFBlock) b
-decLFs-src l d (lfsWtxs1 ts) =
-  succVF (SrcOpF.iter (LF.serverStep l d) LF.stBlockTxs) (_ , LF.apiLFev l d sendLFBlockTxs) ts
 decLFs-src l d (lfsWvot1 vs) =
   succVF (SrcOpF.iter (LF.serverStep l d) LF.stVotes) (_ , LF.apiLFev l d sendLFVoteDelivery) vs
 decLFs-src l d (lfsWnext1 bt) =

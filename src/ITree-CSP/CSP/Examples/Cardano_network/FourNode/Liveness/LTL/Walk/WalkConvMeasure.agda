@@ -76,9 +76,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1
         ; lncReq1; lncDone1; lncSil
         ; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1
-        ; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
-        ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1
+        ; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
+        ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1
         ; lfsWnext1; lfsWlast1; lfsSil )
 
 -- the inert-peer FSM state enums (for the per-position wire budgets)
@@ -293,7 +293,6 @@ posWt-LNs (lnsWvot1 _) = 2
 posWt-LFcSt : LF.LFState → ℕ
 posWt-LFcSt LF.stIdle       = 0     -- offers api send-requests (τ-stuck)
 posWt-LFcSt LF.stBlock      = 1     -- recv MsgLFBlock → lfcRblk1(0)
-posWt-LFcSt LF.stBlockTxs   = 1     -- recv MsgLFBlockTxs → lfcRbtx1(0)
 posWt-LFcSt LF.stVotes      = 1     -- recv MsgLFVoteDelivery → lfcRvot1(0)
 posWt-LFcSt LF.stBlockRange = 1     -- recv MsgLFNext/Last → lfcRnext1(0)/lfcRlast1(0)
 posWt-LFcSt LF.stDone       = 0
@@ -302,12 +301,10 @@ posWt-LFc : LFcPos → ℕ
 posWt-LFc (lfcHead st)    = posWt-LFcSt st
 posWt-LFc (lfcSil  st)    = posWt-LFcSt st
 posWt-LFc (lfcRblk1 _)    = 0       -- offers api recvLFBlock! (τ-stuck)
-posWt-LFc (lfcRbtx1 _)    = 0
 posWt-LFc (lfcRvot1 _)    = 0
 posWt-LFc (lfcRnext1 _ _) = 0
 posWt-LFc (lfcRlast1 _ _) = 0
 posWt-LFc (lfcWblk1 _)    = 2       -- send MsgLFBlockRequest → lfcSil stBlock(1)
-posWt-LFc (lfcWtxs1 _)    = 2       -- send MsgLFBlockTxsRequest → lfcSil stBlockTxs(1)
 posWt-LFc (lfcWvot1 _)    = 2       -- send MsgLFVotesRequest → lfcSil stVotes(1)
 posWt-LFc (lfcWrng1 _)    = 2       -- send MsgLFBlockRangeRequest → lfcSil stBlockRange(1)
 posWt-LFc lfcDone1        = 1       -- send MsgLFDone → lfcSil stDone(0)
@@ -317,7 +314,6 @@ posWt-LFc lfcDone1        = 1       -- send MsgLFDone → lfcSil stDone(0)
 posWt-LFsSt : LF.LFState → ℕ
 posWt-LFsSt LF.stIdle       = 1     -- recv a request → stBlock/…/stBlockRange(0) or lfsDone1(0)
 posWt-LFsSt LF.stBlock      = 0     -- offers api sendLFBlock (τ-stuck)
-posWt-LFsSt LF.stBlockTxs   = 0
 posWt-LFsSt LF.stVotes      = 0
 posWt-LFsSt LF.stBlockRange = 0     -- offers api sendLFNext/LastBlock (τ-stuck)
 posWt-LFsSt LF.stDone       = 0
@@ -327,7 +323,6 @@ posWt-LFs (lfsHead st)    = posWt-LFsSt st
 posWt-LFs (lfsSil  st)    = posWt-LFsSt st
 posWt-LFs lfsDone1        = 0       -- offers doneLF (τ-stuck)
 posWt-LFs (lfsWblk1 _)    = 2       -- send MsgLFBlock → lfsSil stIdle(1)
-posWt-LFs (lfsWtxs1 _)    = 2
 posWt-LFs (lfsWvot1 _)    = 2
 posWt-LFs (lfsWnext1 _)   = 2       -- send MsgLFNextBlock → lfsSil stBlockRange(0)
 posWt-LFs (lfsWlast1 _)   = 2       -- send MsgLFLastBlock → lfsSil stIdle(1)

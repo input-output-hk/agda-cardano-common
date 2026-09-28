@@ -25,7 +25,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Net; Net-≟; break
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF )
+  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -103,7 +103,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -140,7 +140,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ; recvCSRollforward; recvCSRollback; recvCSIntersectFound; recvCSIntersectNotFound
   ; reqCSRequestNext; reqCSFindIntersect )
 open import CSP.Examples.Cardano_network.Data p using
-  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch
+  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgCSRequestNext; MsgCSAwaitReply; MsgCSRollForward; MsgCSRollBackward
   ; MsgCSFindIntersect; MsgCSIntersectFound; MsgCSIntersectNotFound; MsgCSDone
   ; Point; Tip; DecEq-Header; DecEq-Tip; DecEq-Point )
@@ -176,7 +176,7 @@ import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
 open import CSP.Examples.Cardano_network.Net p using
   ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
-  ; recvTSRequestTxIds; recvTSRequestTxs )
+  ; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 open import Data.List.Properties using (≡-dec)
@@ -194,12 +194,12 @@ open SN
   using ( succVF; vis-ofF; LFProc )
 import Semantics.LTS {E = LFp.LFEv} {I = ExtI LFp.LFEv} as LFL
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+  ( sendLFBlockRequest; sendLFVotesRequest
+  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
-  ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
+  ; recvLFBlock; recvLFVoteDelivery; recvLFRangeBlock; reqLFBlockRequest; reqLFVotesRequest )
 open import CSP.Examples.Cardano_network.Data p using
-  ( MsgLFBlockRequest; MsgLFBlock; MsgLFBlockTxsRequest; MsgLFBlockTxs
+  ( MsgLFBlockRequest; MsgLFBlock
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
 
@@ -289,6 +289,8 @@ decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ 
 decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
+decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
+decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.sendKA l' d'}      s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-dir l d (kcHead (KA.stServer cq)) {e₁ = KA.apiKAev l' d' m}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
@@ -342,6 +344,8 @@ decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ ,
 decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
+decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
+decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.sendKA l' d'}     s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-dir l d (ksHead KA.stClient) {e₁ = KA.apiKAev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
@@ -472,7 +476,9 @@ csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} �
 csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csSnxt-dir-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csSnxt-dir-no l d NS.csIdle (CS.apiCSev l' d' m) ¬eq = refl
 csSnxt-dir-no l d NS.csIdle (CS.doneCS l' d') ¬eq = refl
 csSnxt-dir-no l d NS.csAreq (CS.sendCS l' d') ¬eq = refl
@@ -716,7 +722,9 @@ csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} 
 csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csCnxt-dir-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csCnxt-dir-no l d NS.ccAwait (CS.apiCSev l' d' m) ¬eq = refl
 csCnxt-dir-no l d NS.ccAwait (CS.doneCS l' d') ¬eq = refl
 csCnxt-dir-no l d (NS.ccWfi _) (CS.sendCS l' d') ¬eq with l' ≟ l | d' ≟ d
@@ -748,7 +756,9 @@ csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} ¬
 csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csCnxt-dir-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csCnxt-dir-no l d NS.ccInt (CS.apiCSev l' d' m) ¬eq = refl
 csCnxt-dir-no l d NS.ccInt (CS.doneCS l' d') ¬eq = refl
 csCnxt-dir-no l d NS.ccWdone (CS.sendCS l' d') ¬eq with l' ≟ l | d' ≟ d
@@ -780,7 +790,9 @@ csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} �
 csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csCnxt-dir-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csCnxt-dir-no l d NS.ccMust (CS.apiCSev l' d' m) ¬eq = refl
 csCnxt-dir-no l d NS.ccMust (CS.doneCS l' d') ¬eq = refl
 csCnxt-dir-no l d (NS.ccArf _) (CS.sendCS l' d') ¬eq = refl
@@ -923,7 +935,9 @@ bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _} �
 bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+bfCnxt-dir-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcBusy (BF.apiBFev l' d' m) ¬eq = refl
 bfCnxt-dir-no l d NS.bcBusy (BF.doneBF l' d') ¬eq = refl
 bfCnxt-dir-no l d NS.bcWcd (BF.sendBF l' d') ¬eq with l' ≟ l | d' ≟ d
@@ -953,7 +967,9 @@ bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _}
 bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+bfCnxt-dir-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 bfCnxt-dir-no l d NS.bcStream (BF.apiBFev l' d' m) ¬eq = refl
 bfCnxt-dir-no l d NS.bcStream (BF.doneBF l' d') ¬eq = refl
 bfCnxt-dir-no l d (NS.bcAblk _) (BF.sendBF l' d') ¬eq = refl
@@ -1000,7 +1016,9 @@ bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _} �
 bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} ¬eq = refl
 bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+bfSnxt-dir-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 bfSnxt-dir-no l d NS.bsIdle (BF.apiBFev l' d' m) ¬eq = refl
 bfSnxt-dir-no l d NS.bsIdle (BF.doneBF l' d') ¬eq = refl
 bfSnxt-dir-no l d (NS.bsAreq _) (BF.sendBF l' d') ¬eq = refl
@@ -1331,10 +1349,6 @@ lfCnxt-noCS-pos l d (NS.lfcWblk _) (CS.sendCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcWblk _) (CS.receiveCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcWblk _) (CS.apiCSev _ _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcWblk _) (CS.doneCS _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcWtxs _) (CS.sendCS _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcWtxs _) (CS.receiveCS _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcWtxs _) (CS.apiCSev _ _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcWtxs _) (CS.doneCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcWvot _) (CS.sendCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcWvot _) (CS.receiveCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcWvot _) (CS.apiCSev _ _ _) = refl
@@ -1351,10 +1365,6 @@ lfCnxt-noCS-pos l d NS.lfcBlk (CS.sendCS _ _) = refl
 lfCnxt-noCS-pos l d NS.lfcBlk (CS.receiveCS _ _) = refl
 lfCnxt-noCS-pos l d NS.lfcBlk (CS.apiCSev _ _ _) = refl
 lfCnxt-noCS-pos l d NS.lfcBlk (CS.doneCS _ _) = refl
-lfCnxt-noCS-pos l d NS.lfcBtx (CS.sendCS _ _) = refl
-lfCnxt-noCS-pos l d NS.lfcBtx (CS.receiveCS _ _) = refl
-lfCnxt-noCS-pos l d NS.lfcBtx (CS.apiCSev _ _ _) = refl
-lfCnxt-noCS-pos l d NS.lfcBtx (CS.doneCS _ _) = refl
 lfCnxt-noCS-pos l d NS.lfcVot (CS.sendCS _ _) = refl
 lfCnxt-noCS-pos l d NS.lfcVot (CS.receiveCS _ _) = refl
 lfCnxt-noCS-pos l d NS.lfcVot (CS.apiCSev _ _ _) = refl
@@ -1367,10 +1377,6 @@ lfCnxt-noCS-pos l d (NS.lfcRblk _) (CS.sendCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcRblk _) (CS.receiveCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcRblk _) (CS.apiCSev _ _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcRblk _) (CS.doneCS _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcRbtx _) (CS.sendCS _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcRbtx _) (CS.receiveCS _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcRbtx _) (CS.apiCSev _ _ _) = refl
-lfCnxt-noCS-pos l d (NS.lfcRbtx _) (CS.doneCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcRvot _) (CS.sendCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcRvot _) (CS.receiveCS _ _) = refl
 lfCnxt-noCS-pos l d (NS.lfcRvot _) (CS.apiCSev _ _ _) = refl
@@ -1398,10 +1404,6 @@ lfCnxt-noBF-pos l d (NS.lfcWblk _) (BF.sendBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcWblk _) (BF.receiveBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcWblk _) (BF.apiBFev _ _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcWblk _) (BF.doneBF _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcWtxs _) (BF.sendBF _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcWtxs _) (BF.receiveBF _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcWtxs _) (BF.apiBFev _ _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcWtxs _) (BF.doneBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcWvot _) (BF.sendBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcWvot _) (BF.receiveBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcWvot _) (BF.apiBFev _ _ _) = refl
@@ -1418,10 +1420,6 @@ lfCnxt-noBF-pos l d NS.lfcBlk (BF.sendBF _ _) = refl
 lfCnxt-noBF-pos l d NS.lfcBlk (BF.receiveBF _ _) = refl
 lfCnxt-noBF-pos l d NS.lfcBlk (BF.apiBFev _ _ _) = refl
 lfCnxt-noBF-pos l d NS.lfcBlk (BF.doneBF _ _) = refl
-lfCnxt-noBF-pos l d NS.lfcBtx (BF.sendBF _ _) = refl
-lfCnxt-noBF-pos l d NS.lfcBtx (BF.receiveBF _ _) = refl
-lfCnxt-noBF-pos l d NS.lfcBtx (BF.apiBFev _ _ _) = refl
-lfCnxt-noBF-pos l d NS.lfcBtx (BF.doneBF _ _) = refl
 lfCnxt-noBF-pos l d NS.lfcVot (BF.sendBF _ _) = refl
 lfCnxt-noBF-pos l d NS.lfcVot (BF.receiveBF _ _) = refl
 lfCnxt-noBF-pos l d NS.lfcVot (BF.apiBFev _ _ _) = refl
@@ -1434,10 +1432,6 @@ lfCnxt-noBF-pos l d (NS.lfcRblk _) (BF.sendBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcRblk _) (BF.receiveBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcRblk _) (BF.apiBFev _ _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcRblk _) (BF.doneBF _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcRbtx _) (BF.sendBF _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcRbtx _) (BF.receiveBF _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcRbtx _) (BF.apiBFev _ _ _) = refl
-lfCnxt-noBF-pos l d (NS.lfcRbtx _) (BF.doneBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcRvot _) (BF.sendBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcRvot _) (BF.receiveBF _ _) = refl
 lfCnxt-noBF-pos l d (NS.lfcRvot _) (BF.apiBFev _ _ _) = refl
@@ -1465,10 +1459,6 @@ lfSnxt-noCS-pos l d NS.lfsBlk (CS.sendCS _ _) = refl
 lfSnxt-noCS-pos l d NS.lfsBlk (CS.receiveCS _ _) = refl
 lfSnxt-noCS-pos l d NS.lfsBlk (CS.apiCSev _ _ _) = refl
 lfSnxt-noCS-pos l d NS.lfsBlk (CS.doneCS _ _) = refl
-lfSnxt-noCS-pos l d NS.lfsBtx (CS.sendCS _ _) = refl
-lfSnxt-noCS-pos l d NS.lfsBtx (CS.receiveCS _ _) = refl
-lfSnxt-noCS-pos l d NS.lfsBtx (CS.apiCSev _ _ _) = refl
-lfSnxt-noCS-pos l d NS.lfsBtx (CS.doneCS _ _) = refl
 lfSnxt-noCS-pos l d NS.lfsVot (CS.sendCS _ _) = refl
 lfSnxt-noCS-pos l d NS.lfsVot (CS.receiveCS _ _) = refl
 lfSnxt-noCS-pos l d NS.lfsVot (CS.apiCSev _ _ _) = refl
@@ -1485,10 +1475,6 @@ lfSnxt-noCS-pos l d (NS.lfsWblk _) (CS.sendCS _ _) = refl
 lfSnxt-noCS-pos l d (NS.lfsWblk _) (CS.receiveCS _ _) = refl
 lfSnxt-noCS-pos l d (NS.lfsWblk _) (CS.apiCSev _ _ _) = refl
 lfSnxt-noCS-pos l d (NS.lfsWblk _) (CS.doneCS _ _) = refl
-lfSnxt-noCS-pos l d (NS.lfsWtxs _) (CS.sendCS _ _) = refl
-lfSnxt-noCS-pos l d (NS.lfsWtxs _) (CS.receiveCS _ _) = refl
-lfSnxt-noCS-pos l d (NS.lfsWtxs _) (CS.apiCSev _ _ _) = refl
-lfSnxt-noCS-pos l d (NS.lfsWtxs _) (CS.doneCS _ _) = refl
 lfSnxt-noCS-pos l d (NS.lfsWvot _) (CS.sendCS _ _) = refl
 lfSnxt-noCS-pos l d (NS.lfsWvot _) (CS.receiveCS _ _) = refl
 lfSnxt-noCS-pos l d (NS.lfsWvot _) (CS.apiCSev _ _ _) = refl
@@ -1516,10 +1502,6 @@ lfSnxt-noBF-pos l d NS.lfsBlk (BF.sendBF _ _) = refl
 lfSnxt-noBF-pos l d NS.lfsBlk (BF.receiveBF _ _) = refl
 lfSnxt-noBF-pos l d NS.lfsBlk (BF.apiBFev _ _ _) = refl
 lfSnxt-noBF-pos l d NS.lfsBlk (BF.doneBF _ _) = refl
-lfSnxt-noBF-pos l d NS.lfsBtx (BF.sendBF _ _) = refl
-lfSnxt-noBF-pos l d NS.lfsBtx (BF.receiveBF _ _) = refl
-lfSnxt-noBF-pos l d NS.lfsBtx (BF.apiBFev _ _ _) = refl
-lfSnxt-noBF-pos l d NS.lfsBtx (BF.doneBF _ _) = refl
 lfSnxt-noBF-pos l d NS.lfsVot (BF.sendBF _ _) = refl
 lfSnxt-noBF-pos l d NS.lfsVot (BF.receiveBF _ _) = refl
 lfSnxt-noBF-pos l d NS.lfsVot (BF.apiBFev _ _ _) = refl
@@ -1536,10 +1518,6 @@ lfSnxt-noBF-pos l d (NS.lfsWblk _) (BF.sendBF _ _) = refl
 lfSnxt-noBF-pos l d (NS.lfsWblk _) (BF.receiveBF _ _) = refl
 lfSnxt-noBF-pos l d (NS.lfsWblk _) (BF.apiBFev _ _ _) = refl
 lfSnxt-noBF-pos l d (NS.lfsWblk _) (BF.doneBF _ _) = refl
-lfSnxt-noBF-pos l d (NS.lfsWtxs _) (BF.sendBF _ _) = refl
-lfSnxt-noBF-pos l d (NS.lfsWtxs _) (BF.receiveBF _ _) = refl
-lfSnxt-noBF-pos l d (NS.lfsWtxs _) (BF.apiBFev _ _ _) = refl
-lfSnxt-noBF-pos l d (NS.lfsWtxs _) (BF.doneBF _ _) = refl
 lfSnxt-noBF-pos l d (NS.lfsWvot _) (BF.sendBF _ _) = refl
 lfSnxt-noBF-pos l d (NS.lfsWvot _) (BF.receiveBF _ _) = refl
 lfSnxt-noBF-pos l d (NS.lfsWvot _) (BF.apiBFev _ _ _) = refl
@@ -2170,10 +2148,6 @@ lfCnxt-noKA-pos l d (NS.lfcWblk _) (KA.sendKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcWblk _) (KA.receiveKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcWblk _) (KA.apiKAev _ _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcWblk _) (KA.doneKA _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcWtxs _) (KA.sendKA _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcWtxs _) (KA.receiveKA _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcWtxs _) (KA.apiKAev _ _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcWtxs _) (KA.doneKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcWvot _) (KA.sendKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcWvot _) (KA.receiveKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcWvot _) (KA.apiKAev _ _ _) = refl
@@ -2190,10 +2164,6 @@ lfCnxt-noKA-pos l d NS.lfcBlk (KA.sendKA _ _) = refl
 lfCnxt-noKA-pos l d NS.lfcBlk (KA.receiveKA _ _) = refl
 lfCnxt-noKA-pos l d NS.lfcBlk (KA.apiKAev _ _ _) = refl
 lfCnxt-noKA-pos l d NS.lfcBlk (KA.doneKA _ _) = refl
-lfCnxt-noKA-pos l d NS.lfcBtx (KA.sendKA _ _) = refl
-lfCnxt-noKA-pos l d NS.lfcBtx (KA.receiveKA _ _) = refl
-lfCnxt-noKA-pos l d NS.lfcBtx (KA.apiKAev _ _ _) = refl
-lfCnxt-noKA-pos l d NS.lfcBtx (KA.doneKA _ _) = refl
 lfCnxt-noKA-pos l d NS.lfcVot (KA.sendKA _ _) = refl
 lfCnxt-noKA-pos l d NS.lfcVot (KA.receiveKA _ _) = refl
 lfCnxt-noKA-pos l d NS.lfcVot (KA.apiKAev _ _ _) = refl
@@ -2206,10 +2176,6 @@ lfCnxt-noKA-pos l d (NS.lfcRblk _) (KA.sendKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcRblk _) (KA.receiveKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcRblk _) (KA.apiKAev _ _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcRblk _) (KA.doneKA _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcRbtx _) (KA.sendKA _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcRbtx _) (KA.receiveKA _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcRbtx _) (KA.apiKAev _ _ _) = refl
-lfCnxt-noKA-pos l d (NS.lfcRbtx _) (KA.doneKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcRvot _) (KA.sendKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcRvot _) (KA.receiveKA _ _) = refl
 lfCnxt-noKA-pos l d (NS.lfcRvot _) (KA.apiKAev _ _ _) = refl
@@ -2237,10 +2203,6 @@ lfSnxt-noKA-pos l d NS.lfsBlk (KA.sendKA _ _) = refl
 lfSnxt-noKA-pos l d NS.lfsBlk (KA.receiveKA _ _) = refl
 lfSnxt-noKA-pos l d NS.lfsBlk (KA.apiKAev _ _ _) = refl
 lfSnxt-noKA-pos l d NS.lfsBlk (KA.doneKA _ _) = refl
-lfSnxt-noKA-pos l d NS.lfsBtx (KA.sendKA _ _) = refl
-lfSnxt-noKA-pos l d NS.lfsBtx (KA.receiveKA _ _) = refl
-lfSnxt-noKA-pos l d NS.lfsBtx (KA.apiKAev _ _ _) = refl
-lfSnxt-noKA-pos l d NS.lfsBtx (KA.doneKA _ _) = refl
 lfSnxt-noKA-pos l d NS.lfsVot (KA.sendKA _ _) = refl
 lfSnxt-noKA-pos l d NS.lfsVot (KA.receiveKA _ _) = refl
 lfSnxt-noKA-pos l d NS.lfsVot (KA.apiKAev _ _ _) = refl
@@ -2257,10 +2219,6 @@ lfSnxt-noKA-pos l d (NS.lfsWblk _) (KA.sendKA _ _) = refl
 lfSnxt-noKA-pos l d (NS.lfsWblk _) (KA.receiveKA _ _) = refl
 lfSnxt-noKA-pos l d (NS.lfsWblk _) (KA.apiKAev _ _ _) = refl
 lfSnxt-noKA-pos l d (NS.lfsWblk _) (KA.doneKA _ _) = refl
-lfSnxt-noKA-pos l d (NS.lfsWtxs _) (KA.sendKA _ _) = refl
-lfSnxt-noKA-pos l d (NS.lfsWtxs _) (KA.receiveKA _ _) = refl
-lfSnxt-noKA-pos l d (NS.lfsWtxs _) (KA.apiKAev _ _ _) = refl
-lfSnxt-noKA-pos l d (NS.lfsWtxs _) (KA.doneKA _ _) = refl
 lfSnxt-noKA-pos l d (NS.lfsWvot _) (KA.sendKA _ _) = refl
 lfSnxt-noKA-pos l d (NS.lfsWvot _) (KA.receiveKA _ _) = refl
 lfSnxt-noKA-pos l d (NS.lfsWvot _) (KA.apiKAev _ _ _) = refl
@@ -2444,7 +2402,9 @@ kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , chainSy
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , blockFetch _} ¬d = refl
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , txSubmission _} ¬d = refl
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosNotify _} ¬d = refl
+kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosNotifyP _} ¬d = refl
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosFetch _} ¬d = refl
+kaCnxt-dir-no l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosFetchP _} ¬d = refl
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.sendKA l' d') ¬d = refl
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.apiKAev l' d' m) ¬d = refl
 kaCnxt-dir-no l d (NS.kcAwait c) (KA.doneKA l' d') ¬d = refl
@@ -2481,7 +2441,9 @@ kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , chainSync 
 kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , blockFetch _} ¬d = refl
 kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , txSubmission _} ¬d = refl
 kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosNotify _} ¬d = refl
+kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosNotifyP _} ¬d = refl
 kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosFetch _} ¬d = refl
+kaSnxt-dir-no l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosFetchP _} ¬d = refl
 kaSnxt-dir-no l d NS.ksClient (KA.sendKA l' d') ¬d = refl
 kaSnxt-dir-no l d NS.ksClient (KA.apiKAev l' d' m) ¬d = refl
 kaSnxt-dir-no l d NS.ksClient (KA.doneKA l' d') ¬d = refl
@@ -2839,6 +2801,8 @@ decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _
 decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
+decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
+decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-dir l d (tcHead TS.stIdle) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
@@ -2855,6 +2819,9 @@ decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSDo
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
+decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined} s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxsPipelined}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
@@ -2870,6 +2837,9 @@ decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendT
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
+decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSDone}                 s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined} s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
@@ -2886,6 +2856,9 @@ decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSReplyTxs} {a
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
+decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSDone}                  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-dir l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
@@ -2992,6 +2965,8 @@ decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _
 decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
+decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
+decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-dir l d (tsHead TS.stInit) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
@@ -3013,6 +2988,9 @@ decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSRequestTxsP
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
+decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSReplyTxs} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSDone}       s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-dir l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSRequestTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
@@ -3039,6 +3017,8 @@ decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = 
 decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
+decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
+decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
@@ -3058,6 +3038,8 @@ decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a
 decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
+decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
+decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
@@ -3077,6 +3059,8 @@ decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ 
 decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
+decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
+decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-dir l d (tsHead TS.stTxs) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
@@ -3521,10 +3505,6 @@ lfCnxt-noTS l d (NS.lfcWblk _) (TS.sendTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcWblk _) (TS.receiveTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcWblk _) (TS.apiTSev _ _ _) = refl
 lfCnxt-noTS l d (NS.lfcWblk _) (TS.doneTS _ _) = refl
-lfCnxt-noTS l d (NS.lfcWtxs _) (TS.sendTS _ _) = refl
-lfCnxt-noTS l d (NS.lfcWtxs _) (TS.receiveTS _ _) = refl
-lfCnxt-noTS l d (NS.lfcWtxs _) (TS.apiTSev _ _ _) = refl
-lfCnxt-noTS l d (NS.lfcWtxs _) (TS.doneTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcWvot _) (TS.sendTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcWvot _) (TS.receiveTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcWvot _) (TS.apiTSev _ _ _) = refl
@@ -3541,10 +3521,6 @@ lfCnxt-noTS l d NS.lfcBlk (TS.sendTS _ _) = refl
 lfCnxt-noTS l d NS.lfcBlk (TS.receiveTS _ _) = refl
 lfCnxt-noTS l d NS.lfcBlk (TS.apiTSev _ _ _) = refl
 lfCnxt-noTS l d NS.lfcBlk (TS.doneTS _ _) = refl
-lfCnxt-noTS l d NS.lfcBtx (TS.sendTS _ _) = refl
-lfCnxt-noTS l d NS.lfcBtx (TS.receiveTS _ _) = refl
-lfCnxt-noTS l d NS.lfcBtx (TS.apiTSev _ _ _) = refl
-lfCnxt-noTS l d NS.lfcBtx (TS.doneTS _ _) = refl
 lfCnxt-noTS l d NS.lfcVot (TS.sendTS _ _) = refl
 lfCnxt-noTS l d NS.lfcVot (TS.receiveTS _ _) = refl
 lfCnxt-noTS l d NS.lfcVot (TS.apiTSev _ _ _) = refl
@@ -3557,10 +3533,6 @@ lfCnxt-noTS l d (NS.lfcRblk _) (TS.sendTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcRblk _) (TS.receiveTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcRblk _) (TS.apiTSev _ _ _) = refl
 lfCnxt-noTS l d (NS.lfcRblk _) (TS.doneTS _ _) = refl
-lfCnxt-noTS l d (NS.lfcRbtx _) (TS.sendTS _ _) = refl
-lfCnxt-noTS l d (NS.lfcRbtx _) (TS.receiveTS _ _) = refl
-lfCnxt-noTS l d (NS.lfcRbtx _) (TS.apiTSev _ _ _) = refl
-lfCnxt-noTS l d (NS.lfcRbtx _) (TS.doneTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcRvot _) (TS.sendTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcRvot _) (TS.receiveTS _ _) = refl
 lfCnxt-noTS l d (NS.lfcRvot _) (TS.apiTSev _ _ _) = refl
@@ -3589,10 +3561,6 @@ lfSnxt-noTS l d NS.lfsBlk (TS.sendTS _ _) = refl
 lfSnxt-noTS l d NS.lfsBlk (TS.receiveTS _ _) = refl
 lfSnxt-noTS l d NS.lfsBlk (TS.apiTSev _ _ _) = refl
 lfSnxt-noTS l d NS.lfsBlk (TS.doneTS _ _) = refl
-lfSnxt-noTS l d NS.lfsBtx (TS.sendTS _ _) = refl
-lfSnxt-noTS l d NS.lfsBtx (TS.receiveTS _ _) = refl
-lfSnxt-noTS l d NS.lfsBtx (TS.apiTSev _ _ _) = refl
-lfSnxt-noTS l d NS.lfsBtx (TS.doneTS _ _) = refl
 lfSnxt-noTS l d NS.lfsVot (TS.sendTS _ _) = refl
 lfSnxt-noTS l d NS.lfsVot (TS.receiveTS _ _) = refl
 lfSnxt-noTS l d NS.lfsVot (TS.apiTSev _ _ _) = refl
@@ -3609,10 +3577,6 @@ lfSnxt-noTS l d (NS.lfsWblk _) (TS.sendTS _ _) = refl
 lfSnxt-noTS l d (NS.lfsWblk _) (TS.receiveTS _ _) = refl
 lfSnxt-noTS l d (NS.lfsWblk _) (TS.apiTSev _ _ _) = refl
 lfSnxt-noTS l d (NS.lfsWblk _) (TS.doneTS _ _) = refl
-lfSnxt-noTS l d (NS.lfsWtxs _) (TS.sendTS _ _) = refl
-lfSnxt-noTS l d (NS.lfsWtxs _) (TS.receiveTS _ _) = refl
-lfSnxt-noTS l d (NS.lfsWtxs _) (TS.apiTSev _ _ _) = refl
-lfSnxt-noTS l d (NS.lfsWtxs _) (TS.doneTS _ _) = refl
 lfSnxt-noTS l d (NS.lfsWvot _) (TS.sendTS _ _) = refl
 lfSnxt-noTS l d (NS.lfsWvot _) (TS.receiveTS _ _) = refl
 lfSnxt-noTS l d (NS.lfsWvot _) (TS.apiTSev _ _ _) = refl
@@ -3767,11 +3731,16 @@ tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , chainSync 
 tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , blockFetch _} ¬d = refl
 tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , keepAlive _} ¬d = refl
 tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotify _} ¬d = refl
+tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotifyP _} ¬d = refl
 tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetch _} ¬d = refl
+tsCnxt-dir-no l d NS.tcIdle (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetchP _} ¬d = refl
 tsCnxt-dir-no l d NS.tcIdle (TS.sendTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d NS.tcIdle (TS.apiTSev l′ d′ m) ¬d = refl
 tsCnxt-dir-no l d NS.tcIdle (TS.doneTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l′ d′ sendTSDone) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l′ d′ sendTSRequestTxIdsBlocking) ¬d = refl
@@ -3786,6 +3755,9 @@ tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.sendTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.receiveTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (Blocking , a , r)) (TS.doneTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l′ d′ sendTSDone) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l′ d′ sendTSRequestTxIdsBlocking) ¬d = refl
@@ -3800,6 +3772,9 @@ tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.sendTS l′ d′) ¬d = r
 tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.receiveTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d (NS.tcAri (NonBlocking , a , r)) (TS.doneTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d (NS.tcArt _) (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-dir-no l d (NS.tcArt _) (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsCnxt-dir-no l d (NS.tcArt _) (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d (NS.tcArt _) (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d (NS.tcArt _) (TS.apiTSev l′ d′ sendTSDone) ¬d = refl
 tsCnxt-dir-no l d (NS.tcArt _) (TS.apiTSev l′ d′ sendTSRequestTxIdsBlocking) ¬d = refl
@@ -3818,6 +3793,9 @@ tsCnxt-dir-no l d NS.tcBlk (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d with l′
 ... | yes refl | no _ = refl
 ... | no _ | _ = refl
 tsCnxt-dir-no l d NS.tcBlk (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-dir-no l d NS.tcBlk (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsCnxt-dir-no l d NS.tcBlk (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d NS.tcBlk (TS.apiTSev l′ d′ sendTSDone) ¬d with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = ⊥-elim (¬d refl)
 ... | yes refl | no _ = refl
@@ -3835,6 +3813,9 @@ tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d with l′
 ... | yes refl | no _ = refl
 ... | no _ | _ = refl
 tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ sendTSDone) ¬d = refl
 tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ sendTSRequestTxIdsBlocking) ¬d = refl
 tsCnxt-dir-no l d NS.tcNbl (TS.apiTSev l′ d′ sendTSRequestTxIdsPipelined) ¬d = refl
@@ -3845,6 +3826,9 @@ tsCnxt-dir-no l d NS.tcNbl (TS.sendTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d NS.tcNbl (TS.receiveTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d NS.tcNbl (TS.doneTS l′ d′) ¬d = refl
 tsCnxt-dir-no l d NS.tcTxs (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-dir-no l d NS.tcTxs (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsCnxt-dir-no l d NS.tcTxs (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsCnxt-dir-no l d NS.tcTxs (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = ⊥-elim (¬d refl)
 ... | yes refl | no _ = refl
@@ -3900,11 +3884,16 @@ tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , chainSync 
 tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , blockFetch _} ¬d = refl
 tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , keepAlive _} ¬d = refl
 tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotify _} ¬d = refl
+tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotifyP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetch _} ¬d = refl
+tsSnxt-dir-no l d NS.tsInit (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetchP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsInit (TS.sendTS l′ d′) ¬d = refl
 tsSnxt-dir-no l d NS.tsInit (TS.apiTSev l′ d′ m) ¬d = refl
 tsSnxt-dir-no l d NS.tsInit (TS.doneTS l′ d′) ¬d = refl
 tsSnxt-dir-no l d NS.tsIdle (TS.apiTSev l′ d′ sendTSReplyTxIds) ¬d = refl
+-- the two new TS request/reply-reporting tags are not offered here either
+tsSnxt-dir-no l d NS.tsIdle (TS.apiTSev l′ d′ recvTSReplyTxIds) ¬d = refl
+tsSnxt-dir-no l d NS.tsIdle (TS.apiTSev l′ d′ recvTSReplyTxs) ¬d = refl
 tsSnxt-dir-no l d NS.tsIdle (TS.apiTSev l′ d′ sendTSReplyTxs) ¬d = refl
 tsSnxt-dir-no l d NS.tsIdle (TS.apiTSev l′ d′ sendTSDone) ¬d = refl
 tsSnxt-dir-no l d NS.tsIdle (TS.apiTSev l′ d′ sendTSRequestTxIdsBlocking) ¬d with l′ ≟ l | d′ ≟ d
@@ -3961,7 +3950,9 @@ tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , chainSync _
 tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , blockFetch _} ¬d = refl
 tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , keepAlive _} ¬d = refl
 tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotify _} ¬d = refl
+tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotifyP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetch _} ¬d = refl
+tsSnxt-dir-no l d NS.tsBlk (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetchP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsBlk (TS.sendTS l′ d′) ¬d = refl
 tsSnxt-dir-no l d NS.tsBlk (TS.apiTSev l′ d′ m) ¬d = refl
 tsSnxt-dir-no l d NS.tsBlk (TS.doneTS l′ d′) ¬d = refl
@@ -3978,7 +3969,9 @@ tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , chainSync _
 tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , blockFetch _} ¬d = refl
 tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , keepAlive _} ¬d = refl
 tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotify _} ¬d = refl
+tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotifyP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetch _} ¬d = refl
+tsSnxt-dir-no l d NS.tsNbl (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetchP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsNbl (TS.sendTS l′ d′) ¬d = refl
 tsSnxt-dir-no l d NS.tsNbl (TS.apiTSev l′ d′ m) ¬d = refl
 tsSnxt-dir-no l d NS.tsNbl (TS.doneTS l′ d′) ¬d = refl
@@ -3995,7 +3988,9 @@ tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , chainSync _
 tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , blockFetch _} ¬d = refl
 tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , keepAlive _} ¬d = refl
 tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotify _} ¬d = refl
+tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosNotifyP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetch _} ¬d = refl
+tsSnxt-dir-no l d NS.tsTxs (TS.receiveTS l′ d′) {a = _ , _ , _ , leiosFetchP _} ¬d = refl
 tsSnxt-dir-no l d NS.tsTxs (TS.sendTS l′ d′) ¬d = refl
 tsSnxt-dir-no l d NS.tsTxs (TS.apiTSev l′ d′ m) ¬d = refl
 tsSnxt-dir-no l d NS.tsTxs (TS.doneTS l′ d′) ¬d = refl

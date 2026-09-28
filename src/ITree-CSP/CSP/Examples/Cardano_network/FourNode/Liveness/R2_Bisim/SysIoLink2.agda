@@ -29,7 +29,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF; store; env
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF; apiLP; store; env
   -- the producer/consumer api tags (the role discriminator's index values)
   ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
   ; sendCSRequestNext; recvCSRollforward; sendCSDone
@@ -129,7 +129,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -146,14 +146,14 @@ open import CSP.Examples.Cardano_network.Data p using
   ( MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer
   ; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone )
 open import CSP.Examples.Cardano_network.Data p using
-  ( MsgLFBlockRequest; MsgLFBlock; MsgLFBlockTxsRequest; MsgLFBlockTxs
+  ( MsgLFBlockRequest; MsgLFBlock
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+  ( sendLFBlockRequest; sendLFVotesRequest
+  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
-  ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
+  ; recvLFBlock; recvLFVoteDelivery; recvLFRangeBlock; reqLFBlockRequest; reqLFVotesRequest )
 open import Data.List using ( List; []; _∷_ )
 open import Data.List.Properties using ( ≡-dec )
 import Class.DecEq.Instances as DecEqI
@@ -197,6 +197,7 @@ dirOf (apiKA  _ d _) = d
 dirOf (apiTS  _ d _) = d
 dirOf (apiLN  _ d _) = d
 dirOf (apiLF  _ d _) = d
+dirOf (apiLP  _ d _) = d
 dirOf (sndmsg _ d _) = d
 dirOf (rcvmsg _ d _) = d
 dirOf (tx     _ d _) = d
@@ -701,6 +702,7 @@ bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iomem step
 bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 bundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem

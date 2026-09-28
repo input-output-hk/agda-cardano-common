@@ -54,7 +54,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Net; Net-≟; break
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF )
+  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -533,7 +533,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -1440,8 +1440,6 @@ decLNs-τ-inv l d (lnsSil st) step with τ-inv step
 -- source-force lemmas at the LF-client receive leaves (unstick the receiveLF `l≟l|d≟d` guard)
 hlfcRblk1 : (l : Link) (d : Dir) (b : _) → PTree.force (decLFc-src l d (lfcRblk1 b)) ≡ react _ _
 hlfcRblk1 l d b rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-hlfcRbtx1 : (l : Link) (d : Dir) (ts : _) → PTree.force (decLFc-src l d (lfcRbtx1 ts)) ≡ react _ _
-hlfcRbtx1 l d ts rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfcRvot1 : (l : Link) (d : Dir) (vs : _) → PTree.force (decLFc-src l d (lfcRvot1 vs)) ≡ react _ _
 hlfcRvot1 l d vs rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfcRnext1 : (l : Link) (d : Dir) (b : _) (ts : _) → PTree.force (decLFc-src l d (lfcRnext1 b ts)) ≡ react _ _
@@ -1450,8 +1448,6 @@ hlfcRlast1 : (l : Link) (d : Dir) (b : _) (ts : _) → PTree.force (decLFc-src l
 hlfcRlast1 l d b ts rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfcWblk1 : (l : Link) (d : Dir) (pt : _) → PTree.force (decLFc-src l d (lfcWblk1 pt)) ≡ react _ _
 hlfcWblk1 l d pt rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-hlfcWtxs1 : (l : Link) (d : Dir) (pb : _) → PTree.force (decLFc-src l d (lfcWtxs1 pb)) ≡ react _ _
-hlfcWtxs1 l d pb rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfcWvot1 : (l : Link) (d : Dir) (vs : _) → PTree.force (decLFc-src l d (lfcWvot1 vs)) ≡ react _ _
 hlfcWvot1 l d vs rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfcWrng1 : (l : Link) (d : Dir) (r : _) → PTree.force (decLFc-src l d (lfcWrng1 r)) ≡ react _ _
@@ -1464,17 +1460,14 @@ decLFc-τ-inv : (l : Link) (d : Dir) (pos : LFcPos) {M : NetProc}
   → Σ[ st ∈ LFp.LFState ] (pos ≡ lfcSil st) × (M ≡ decLFc l d (lfcHead st))
 decLFc-τ-inv l d (lfcHead LFp.stIdle) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcHead LFp.stIdle)} refl (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcHead LFp.stBlock) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcHead LFp.stBlock)} refl (λ _ _ → refl) step)
-decLFc-τ-inv l d (lfcHead LFp.stBlockTxs) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcHead LFp.stBlockTxs)} refl (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcHead LFp.stVotes) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcHead LFp.stVotes)} refl (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcHead LFp.stBlockRange) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcHead LFp.stBlockRange)} refl (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcHead LFp.stDone) step = ⊥-elim (LFNO.renameMap-ret-no-τ   {P = decLFc-src l d (lfcHead LFp.stDone)} refl step)
 decLFc-τ-inv l d (lfcRblk1 b)     step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcRblk1 b)}     (hlfcRblk1 l d b)     (λ _ _ → refl) step)
-decLFc-τ-inv l d (lfcRbtx1 ts)    step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcRbtx1 ts)}    (hlfcRbtx1 l d ts)    (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcRvot1 vs)    step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcRvot1 vs)}    (hlfcRvot1 l d vs)    (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcRnext1 b ts) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcRnext1 b ts)} (hlfcRnext1 l d b ts) (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcRlast1 b ts) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcRlast1 b ts)} (hlfcRlast1 l d b ts) (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcWblk1 pt) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcWblk1 pt)} (hlfcWblk1 l d pt) (λ _ _ → refl) step)
-decLFc-τ-inv l d (lfcWtxs1 pb) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcWtxs1 pb)} (hlfcWtxs1 l d pb) (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcWvot1 vs) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcWvot1 vs)} (hlfcWvot1 l d vs) (λ _ _ → refl) step)
 decLFc-τ-inv l d (lfcWrng1 r)  step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d (lfcWrng1 r)}  (hlfcWrng1 l d r)  (λ _ _ → refl) step)
 decLFc-τ-inv l d lfcDone1      step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFc-src l d lfcDone1}      (hlfcDone1 l d)    (λ _ _ → refl) step)
@@ -1493,8 +1486,6 @@ hlfsDone1 : (l : Link) (d : Dir) → PTree.force (decLFs-src l d lfsDone1) ≡ r
 hlfsDone1 l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfsWblk1 : (l : Link) (d : Dir) (b : _) → PTree.force (decLFs-src l d (lfsWblk1 b)) ≡ react _ _
 hlfsWblk1 l d b rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-hlfsWtxs1 : (l : Link) (d : Dir) (ts : _) → PTree.force (decLFs-src l d (lfsWtxs1 ts)) ≡ react _ _
-hlfsWtxs1 l d ts rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfsWvot1 : (l : Link) (d : Dir) (vs : _) → PTree.force (decLFs-src l d (lfsWvot1 vs)) ≡ react _ _
 hlfsWvot1 l d vs rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 hlfsWnext1 : (l : Link) (d : Dir) (bt : _) → PTree.force (decLFs-src l d (lfsWnext1 bt)) ≡ react _ _
@@ -1508,12 +1499,10 @@ decLFs-τ-inv : (l : Link) (d : Dir) (pos : LFsPos) {M : NetProc}
 decLFs-τ-inv l d (lfsHead LFp.stIdle) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsHead LFp.stIdle)} refl (λ _ _ → refl) step)
 decLFs-τ-inv l d lfsDone1             step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d lfsDone1} (hlfsDone1 l d) (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsHead LFp.stBlock) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsHead LFp.stBlock)} refl (λ _ _ → refl) step)
-decLFs-τ-inv l d (lfsHead LFp.stBlockTxs) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsHead LFp.stBlockTxs)} refl (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsHead LFp.stVotes) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsHead LFp.stVotes)} refl (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsHead LFp.stBlockRange) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsHead LFp.stBlockRange)} refl (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsHead LFp.stDone) step = ⊥-elim (LFNO.renameMap-ret-no-τ   {P = decLFs-src l d (lfsHead LFp.stDone)} refl step)
 decLFs-τ-inv l d (lfsWblk1 b)  step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsWblk1 b)}  (hlfsWblk1 l d b)  (λ _ _ → refl) step)
-decLFs-τ-inv l d (lfsWtxs1 ts) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsWtxs1 ts)} (hlfsWtxs1 l d ts) (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsWvot1 vs) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsWvot1 vs)} (hlfsWvot1 l d vs) (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsWnext1 bt) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsWnext1 bt)} (hlfsWnext1 l d bt) (λ _ _ → refl) step)
 decLFs-τ-inv l d (lfsWlast1 bt) step = ⊥-elim (LFNO.renameMap-react-no-τ {P = decLFs-src l d (lfsWlast1 bt)} (hlfsWlast1 l d bt) (λ _ _ → refl) step)

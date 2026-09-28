@@ -39,7 +39,7 @@ open import Class.DecEq using (DecEq)
 open import Process_Trees using (PTree; NodeKind; react; AnyTypes; ExtI)
 open import CSP.Examples.Cardano_network.Params using (Params)
 open import CSP.Examples.Cardano_network.Base
-  using (IDs; Dir; lo; N2N_KeepAlive)
+  using (IDs; Dir; lo; N2N_KeepAlive; OneTx; decOneTx)
 
 module CSP.Examples.Cardano_network.NetworkVerification.NetworkSanity where
 open PTree
@@ -56,18 +56,24 @@ import Data.Maybe as PMaybe
 
 p : Params
 p = record
-  { Cookie = ⊤ ; Block = ⊤ ; Txid = ⊤ ; LSlot = ⊤
-  ; VoterId = ⊤ ; LFBitmap = ⊤ ; VoteBlob = ⊤
+  { Cookie = ⊤ ; Block = ⊤ ; LSlot = ⊤
+  ; VoterId = ⊤ ; VoteBlob = ⊤
   ; numLinks = 1
   ; linkConfig = λ _ → (lo , N2N_KeepAlive) ∷ []
-  ; decCookie  = decEq⊤ ; decBlock    = decEq⊤ ; decTxid    = decEq⊤
-  ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤ ; decLFBitmap = decEq⊤
+  ; decCookie  = decEq⊤ ; decBlock    = decEq⊤
+  ; decLSlot   = decEq⊤ ; decVoterId  = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
   ; decTime = decEq⊤ ; decLength = decEq⊤
   -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
   ; EB = ⊤ ; EBHash = ⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; ebHash = λ _ → tt ; announcedEB = λ _ → PMaybe.nothing
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = ⊤ ; decRbHash = decEq⊤ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = ⊤ ; decTxHash = decEq⊤ ; txHash = λ _ → tt
+  ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
+  ; slotOf = λ _ → tt }
 
 open import CSP.Examples.Cardano_network.Net p
   using (Net; Link; input; sndmsg; tx)

@@ -69,17 +69,23 @@ import Data.Maybe as PMaybe
 
 lineParams : Params
 lineParams = record
-  { Cookie = U.⊤ ; Block = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
-  ; VoterId = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
+  { Cookie = U.⊤ ; Block = U.⊤ ; LSlot = U.⊤
+  ; VoterId = U.⊤ ; VoteBlob = U.⊤
   ; numLinks = 2 ; linkConfig = λ _ → lineCfg
-  ; decCookie = lineDecEq⊤ ; decBlock = lineDecEq⊤ ; decTxid = lineDecEq⊤
-  ; decLSlot = lineDecEq⊤ ; decVoterId = lineDecEq⊤ ; decLFBitmap = lineDecEq⊤
+  ; decCookie = lineDecEq⊤ ; decBlock = lineDecEq⊤
+  ; decLSlot = lineDecEq⊤ ; decVoterId = lineDecEq⊤
   ; decVoteBlob = lineDecEq⊤
   ; Time = U.⊤ ; Length = U.⊤ ; time₀ = U.tt ; length₀ = U.tt
   ; decTime = lineDecEq⊤ ; decLength = lineDecEq⊤
   -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
   ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = lineDecEq⊤ ; decEBHash = lineDecEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = U.⊤ ; decRbHash = lineDecEq⊤ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = U.⊤ ; decTxHash = lineDecEq⊤ ; txHash = λ _ → U.tt
+  ; Size = U.⊤ ; decSize = lineDecEq⊤ ; txSize = λ _ → U.tt
+  ; slotOf = λ _ → U.tt }
 
 open import CSP.Examples.Cardano_network.Net lineParams using (Link; Net_Api; Net_Api-≟)
 open import CSP.Examples.Cardano_network.Data lineParams using (Payload)

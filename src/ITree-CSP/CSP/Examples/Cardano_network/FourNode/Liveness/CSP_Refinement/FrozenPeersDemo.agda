@@ -30,7 +30,7 @@ open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break )
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.FrozenKAclient p using ( ΔKA )
@@ -55,4 +55,5 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSp
 ΔKA⊆apiES {f = apiTS  _ _ _} ()
 ΔKA⊆apiES {f = apiLN  _ _ _} ()
 ΔKA⊆apiES {f = apiLF  _ _ _} ()
+ΔKA⊆apiES {f = apiLP  _ _ _} ()
 ΔKA⊆apiES {f = break  _}     ()

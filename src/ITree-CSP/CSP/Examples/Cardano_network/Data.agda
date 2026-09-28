@@ -5,8 +5,8 @@
 -- messages, over **abstract** data domains.
 --
 -- This module is parametrised by `(p : Params)` and `open Params p`,
--- bringing the abstract opaque domains (`Cookie Block Txid LSlot
--- VoterId LFBitmap VoteBlob`) and their `Class.DecEq` instances into
+-- bringing the abstract opaque domains (`Cookie Block LSlot VoterId
+-- VoteBlob Tx TxHash RbHash Size`) and their `Class.DecEq` instances into
 -- scope. The concrete control enums (`IDs`/`Mode`/`BlockingStyle`) come
 -- from `Base`, and the numeric domains `Length`/`Time` are simply `ℕ`.
 --
@@ -38,11 +38,17 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Data.Product using (_×_; _,_)
 open import Class.DecEq using (DecEq; _≟_)
+import Class.DecEq.Instances as DecEqI
 
 open import CSP.Examples.Cardano_network.Base
   using ( BlockingStyle; Blocking; NonBlocking; Mode; DecEq-Mode )
 
 -- Abstract opaque domains + their DecEq instances, in scope here.
+-- NOT `public`: a public re-export makes every `Params` field an AMBIGUOUS OVERLOADED
+-- PROJECTION in the 62 modules that `open Params p` AND `open import Data p` (measured
+-- at `Net.agda:50`, `numLinks`).  `Tx` is therefore taken from `Params` by the modules
+-- that used to take it from here; only the plain alias `DecEq-Tx` below is re-exported.
+-- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
 open Params p
 
 ------------------------------------------------------------------------
@@ -65,11 +71,40 @@ announcedEBof (header b) = announcedEB b
 data Tip : Set where
   tip : Block → Tip
 
-data Tx : Set where
-  txData : Txid → Tx
-
 data Vote : Set where
   vote : LSlot → VoterId → Vote
+
+-- A TX BITMAP: a finite set of OFFSETS into an endorser block's tx-reference table
+-- `LeiosParams.ebTxs`.  The prototype's `TxBitmaps = [(Word16, Word64)]` is a COMPRESSED
+-- bitmap; compression is representation, not protocol, so the model carries the offsets.
+-- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+TxBitmap : Set
+TxBitmap = List ℕ
+
+-- the DecEq of a Leios point on the wire.  `LeiosParams.LeiosPoint` is definitionally the
+-- same type, but `Data.agda` precedes `LeiosParams` and may not import it.
+DecEq-EBPoint : DecEq (EBHash × LSlot)
+DecEq-EBPoint = DecEqI.DecEq-×
+
+-- the DecEq of a tx bitmap
+DecEq-TxBitmap : DecEq TxBitmap
+DecEq-TxBitmap = DecEqI.DecEq-List ⦃ DecEqI.DecEq-ℕ ⦄
+
+-- the DecEq of a tx-closure reply's entries, the offset-indexed map `offset ↦ tx`
+DecEq-TxEntries : DecEq (List (ℕ × Tx))
+DecEq-TxEntries = DecEqI.DecEq-List ⦃ DecEqI.DecEq-× ⦃ DecEqI.DecEq-ℕ ⦄ ⦃ decTx ⦄ ⦄
+
+-- the DecEq of the `lfpSendBlockTxsRequest` / `lfpReqBlockTxsRequest` carrier
+DecEq-TxsRequest : DecEq ((EBHash × LSlot) × TxBitmap)
+DecEq-TxsRequest = DecEqI.DecEq-× ⦃ DecEq-EBPoint ⦄ ⦃ DecEq-TxBitmap ⦄
+
+-- the DecEq of the `lfpSendBlockTxs` / `lfpRecvBlockTxs` carrier
+DecEq-TxsReply : DecEq ((EBHash × LSlot) × List (ℕ × Tx))
+DecEq-TxsReply = DecEqI.DecEq-× ⦃ DecEq-EBPoint ⦄ ⦃ DecEq-TxEntries ⦄
+
+-- the DecEq of the `lnpSendBlockOffer` / `lnpRecvBlockOffer` carrier
+DecEq-Offer : DecEq ((EBHash × LSlot) × Size)
+DecEq-Offer = DecEqI.DecEq-× ⦃ DecEq-EBPoint ⦄ ⦃ decSize ⦄
 
 ------------------------------------------------------------------------
 -- Step 2: the six message datatypes (constructors verbatim from the plan)
@@ -101,8 +136,8 @@ data MessageChainSync : Set where
 data MessageTxSubmission2 : Set where
   MsgTSInit         : MessageTxSubmission2
   MsgTSRequestTxIds : BlockingStyle → ℕ → ℕ → MessageTxSubmission2
-  MsgTSReplyTxIds   : List Txid → MessageTxSubmission2
-  MsgTSRequestTxs   : List Txid → MessageTxSubmission2
+  MsgTSReplyTxIds   : List TxHash → MessageTxSubmission2
+  MsgTSRequestTxs   : List TxHash → MessageTxSubmission2
   MsgTSReplyTxs     : List Tx → MessageTxSubmission2
   MsgTSDone         : MessageTxSubmission2
 
@@ -118,14 +153,38 @@ data MessageLeiosFetch : Set where
   -- Leios fetches ENDORSER blocks: a request carries only the EB's hash
   MsgLFBlockRequest             : EBHash → MessageLeiosFetch
   MsgLFBlock                    : EB → MessageLeiosFetch
-  MsgLFBlockTxsRequest          : Point → LFBitmap → MessageLeiosFetch
-  MsgLFBlockTxs                 : List Tx → MessageLeiosFetch
   MsgLFVotesRequest             : List Vote → MessageLeiosFetch
   MsgLFVoteDelivery             : List VoteBlob → MessageLeiosFetch
   MsgLFBlockRangeRequest        : ChainRange → MessageLeiosFetch
   MsgLFNextBlockAndTxsInRange   : Block → List Tx → MessageLeiosFetch
   MsgLFLastBlockAndTxsInRange   : Block → List Tx → MessageLeiosFetch
   MsgLFDone                     : MessageLeiosFetch
+
+-- the leios-prototype LeiosNotify messages (`LeiosDemoOnlyTestNotify.hs`): a long-poll
+-- request and the four notifications the producer may answer it with.  `Word32` is the
+-- opaque `Params.Size`; the signature is inside the opaque `Params.VoteBlob`.
+data MessageLeiosNotifyP : Set where
+  MsgLNPRequestNext       : MessageLeiosNotifyP
+  MsgLNPBlockAnnouncement : Header → MessageLeiosNotifyP
+  MsgLNPBlockOffer        : EBHash × LSlot → Size → MessageLeiosNotifyP
+  MsgLNPBlockTxsOffer     : EBHash × LSlot → MessageLeiosNotifyP
+  MsgLNPVotes             : List VoteBlob → MessageLeiosNotifyP
+  MsgLNPDone              : MessageLeiosNotifyP
+
+-- the leios-prototype LeiosFetch messages (`LeiosDemoOnlyTestFetch.hs`): the EB request
+-- and reply, the tx-closure request and reply, and Done.  The five messages commented out
+-- in the prototype's GADT (votes request/delivery, the three range messages) are
+-- deliberately NOT modelled — they are not in its `Message` type.
+-- `MsgLFPBlock` carries NO point: the client keys on the point it requested.
+-- `MsgLFPBlockTxs` echoes the point but NOT the bitmap — the reply is an offset-indexed
+-- map, so the offsets are its keys and the echo would be redundant.
+-- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+data MessageLeiosFetchP : Set where
+  MsgLFPBlockRequest    : EBHash × LSlot → MessageLeiosFetchP
+  MsgLFPBlock           : EB → MessageLeiosFetchP
+  MsgLFPBlockTxsRequest : EBHash × LSlot → TxBitmap → MessageLeiosFetchP
+  MsgLFPBlockTxs        : EBHash × LSlot → List (ℕ × Tx) → MessageLeiosFetchP
+  MsgLFPDone            : MessageLeiosFetchP
 
 data Messages : Set where
   keepAlive    : MessageKeepAlive     → Messages
@@ -134,6 +193,8 @@ data Messages : Set where
   txSubmission : MessageTxSubmission2 → Messages
   leiosNotify  : MessageLeiosNotify   → Messages
   leiosFetch   : MessageLeiosFetch    → Messages
+  leiosNotifyP : MessageLeiosNotifyP  → Messages
+  leiosFetchP  : MessageLeiosFetchP   → Messages
 
 ------------------------------------------------------------------------
 -- Step 3: DecEq instances
@@ -169,16 +230,22 @@ instance
   ... | yes refl = yes refl
   ... | no ¬p    = no λ where refl → ¬p refl
 
-  DecEq-Tx : DecEq Tx
-  DecEq-Tx ._≟_ (txData x) (txData y) with x ≟ y
-  ... | yes refl = yes refl
-  ... | no ¬p    = no λ where refl → ¬p refl
-
   DecEq-Vote : DecEq Vote
   DecEq-Vote ._≟_ (vote s u) (vote s′ u′) with s ≟ s′ | u ≟ u′
   ... | yes refl | yes refl = yes refl
   ... | no ¬p    | _        = no λ where refl → ¬p refl
   ... | _        | no ¬p    = no λ where refl → ¬p refl
+
+-- The name `DecEq-Tx` kept for the modules that import it BY NAME, and kept an INSTANCE:
+-- at a CONCRETE `Params` instantiation an opened record instance-FIELD is not in instance
+-- scope (measured: `NodeSpecs.agda:1101`, "No instance of type DecEq OneTx"), so `decTx`
+-- alone cannot answer `DecEq Tx` in the scenario modules.  A top-level `instance` of the
+-- parametrised `Data` module is in scope in BOTH the generic and the concrete world, which
+-- is what the deleted `data Tx` wrapper's instance used to provide — and having ONE name
+-- for it is what keeps the `with`-abstractions of the `R2_Bisim` estate matching.
+instance
+  DecEq-Tx : DecEq Tx
+  DecEq-Tx = decTx
 
 ------------------------------------------------------------------------
 -- The six message datatypes
@@ -441,13 +508,6 @@ instance
     go (MsgLFBlock b) (MsgLFBlock b′) with b ≟ b′
     ... | yes refl = yes refl
     ... | no ¬p    = no λ where refl → ¬p refl
-    go (MsgLFBlockTxsRequest p m) (MsgLFBlockTxsRequest p′ m′) with p ≟ p′ | m ≟ m′
-    ... | yes refl | yes refl = yes refl
-    ... | no ¬p    | _        = no λ where refl → ¬p refl
-    ... | _        | no ¬p    = no λ where refl → ¬p refl
-    go (MsgLFBlockTxs ts) (MsgLFBlockTxs ts′) with ts ≟ ts′
-    ... | yes refl = yes refl
-    ... | no ¬p    = no λ where refl → ¬p refl
     go (MsgLFVotesRequest vs) (MsgLFVotesRequest vs′) with vs ≟ vs′
     ... | yes refl = yes refl
     ... | no ¬p    = no λ where refl → ¬p refl
@@ -469,8 +529,6 @@ instance
     ... | _        | no ¬p    = no λ where refl → ¬p refl
     go MsgLFDone MsgLFDone = yes refl
     go (MsgLFBlockRequest _)              (MsgLFBlock _)                      = no λ ()
-    go (MsgLFBlockRequest _)              (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFBlockRequest _)              (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFBlockRequest _)              (MsgLFVotesRequest _)               = no λ ()
     go (MsgLFBlockRequest _)              (MsgLFVoteDelivery _)               = no λ ()
     go (MsgLFBlockRequest _)              (MsgLFBlockRangeRequest _)          = no λ ()
@@ -478,36 +536,14 @@ instance
     go (MsgLFBlockRequest _)              (MsgLFLastBlockAndTxsInRange _ _)   = no λ ()
     go (MsgLFBlockRequest _)              MsgLFDone                           = no λ ()
     go (MsgLFBlock _)                     (MsgLFBlockRequest _)               = no λ ()
-    go (MsgLFBlock _)                     (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFBlock _)                     (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFBlock _)                     (MsgLFVotesRequest _)               = no λ ()
     go (MsgLFBlock _)                     (MsgLFVoteDelivery _)               = no λ ()
     go (MsgLFBlock _)                     (MsgLFBlockRangeRequest _)          = no λ ()
     go (MsgLFBlock _)                     (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
     go (MsgLFBlock _)                     (MsgLFLastBlockAndTxsInRange _ _)   = no λ ()
     go (MsgLFBlock _)                     MsgLFDone                           = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFBlockRequest _)               = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFBlock _)                      = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFBlockTxs _)                   = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFVotesRequest _)               = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFVoteDelivery _)               = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFBlockRangeRequest _)          = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         (MsgLFLastBlockAndTxsInRange _ _)   = no λ ()
-    go (MsgLFBlockTxsRequest _ _)         MsgLFDone                           = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFBlockRequest _)               = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFBlock _)                      = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFVotesRequest _)               = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFVoteDelivery _)               = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFBlockRangeRequest _)          = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
-    go (MsgLFBlockTxs _)                  (MsgLFLastBlockAndTxsInRange _ _)   = no λ ()
-    go (MsgLFBlockTxs _)                  MsgLFDone                           = no λ ()
     go (MsgLFVotesRequest _)              (MsgLFBlockRequest _)               = no λ ()
     go (MsgLFVotesRequest _)              (MsgLFBlock _)                      = no λ ()
-    go (MsgLFVotesRequest _)              (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFVotesRequest _)              (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFVotesRequest _)              (MsgLFVoteDelivery _)               = no λ ()
     go (MsgLFVotesRequest _)              (MsgLFBlockRangeRequest _)          = no λ ()
     go (MsgLFVotesRequest _)              (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
@@ -515,8 +551,6 @@ instance
     go (MsgLFVotesRequest _)              MsgLFDone                           = no λ ()
     go (MsgLFVoteDelivery _)              (MsgLFBlockRequest _)               = no λ ()
     go (MsgLFVoteDelivery _)              (MsgLFBlock _)                      = no λ ()
-    go (MsgLFVoteDelivery _)              (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFVoteDelivery _)              (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFVoteDelivery _)              (MsgLFVotesRequest _)               = no λ ()
     go (MsgLFVoteDelivery _)              (MsgLFBlockRangeRequest _)          = no λ ()
     go (MsgLFVoteDelivery _)              (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
@@ -524,8 +558,6 @@ instance
     go (MsgLFVoteDelivery _)              MsgLFDone                           = no λ ()
     go (MsgLFBlockRangeRequest _)         (MsgLFBlockRequest _)               = no λ ()
     go (MsgLFBlockRangeRequest _)         (MsgLFBlock _)                      = no λ ()
-    go (MsgLFBlockRangeRequest _)         (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFBlockRangeRequest _)         (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFBlockRangeRequest _)         (MsgLFVotesRequest _)               = no λ ()
     go (MsgLFBlockRangeRequest _)         (MsgLFVoteDelivery _)               = no λ ()
     go (MsgLFBlockRangeRequest _)         (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
@@ -533,8 +565,6 @@ instance
     go (MsgLFBlockRangeRequest _)         MsgLFDone                           = no λ ()
     go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFBlockRequest _)               = no λ ()
     go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFBlock _)                      = no λ ()
-    go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFVotesRequest _)               = no λ ()
     go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFVoteDelivery _)               = no λ ()
     go (MsgLFNextBlockAndTxsInRange _ _)  (MsgLFBlockRangeRequest _)          = no λ ()
@@ -542,8 +572,6 @@ instance
     go (MsgLFNextBlockAndTxsInRange _ _)  MsgLFDone                           = no λ ()
     go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFBlockRequest _)               = no λ ()
     go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFBlock _)                      = no λ ()
-    go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFBlockTxs _)                   = no λ ()
     go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFVotesRequest _)               = no λ ()
     go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFVoteDelivery _)               = no λ ()
     go (MsgLFLastBlockAndTxsInRange _ _)  (MsgLFBlockRangeRequest _)          = no λ ()
@@ -551,13 +579,106 @@ instance
     go (MsgLFLastBlockAndTxsInRange _ _)  MsgLFDone                           = no λ ()
     go MsgLFDone                          (MsgLFBlockRequest _)               = no λ ()
     go MsgLFDone                          (MsgLFBlock _)                      = no λ ()
-    go MsgLFDone                          (MsgLFBlockTxsRequest _ _)          = no λ ()
-    go MsgLFDone                          (MsgLFBlockTxs _)                   = no λ ()
     go MsgLFDone                          (MsgLFVotesRequest _)               = no λ ()
     go MsgLFDone                          (MsgLFVoteDelivery _)               = no λ ()
     go MsgLFDone                          (MsgLFBlockRangeRequest _)          = no λ ()
     go MsgLFDone                          (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
     go MsgLFDone                          (MsgLFLastBlockAndTxsInRange _ _)   = no λ ()
+
+  -- the six prototype LeiosNotify messages are distinguishable
+  DecEq-MessageLeiosNotifyP : DecEq MessageLeiosNotifyP
+  DecEq-MessageLeiosNotifyP ._≟_ = go
+    where
+    go : (x y : MessageLeiosNotifyP) → Dec (x ≡ y)
+    go MsgLNPRequestNext MsgLNPRequestNext = yes refl
+    go (MsgLNPBlockAnnouncement h) (MsgLNPBlockAnnouncement h′) with h ≟ h′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLNPBlockOffer q sz) (MsgLNPBlockOffer q′ sz′)
+      with _≟_ ⦃ DecEq-EBPoint ⦄ q q′ | sz ≟ sz′
+    ... | yes refl | yes refl = yes refl
+    ... | no ¬p    | _        = no λ where refl → ¬p refl
+    ... | _        | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLNPBlockTxsOffer q) (MsgLNPBlockTxsOffer q′) with _≟_ ⦃ DecEq-EBPoint ⦄ q q′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLNPVotes vs) (MsgLNPVotes vs′) with vs ≟ vs′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go MsgLNPDone MsgLNPDone = yes refl
+    go MsgLNPRequestNext (MsgLNPBlockAnnouncement _) = no λ ()
+    go MsgLNPRequestNext (MsgLNPBlockOffer _ _) = no λ ()
+    go MsgLNPRequestNext (MsgLNPBlockTxsOffer _) = no λ ()
+    go MsgLNPRequestNext (MsgLNPVotes _) = no λ ()
+    go MsgLNPRequestNext MsgLNPDone = no λ ()
+    go (MsgLNPBlockAnnouncement _) MsgLNPRequestNext = no λ ()
+    go (MsgLNPBlockAnnouncement _) (MsgLNPBlockOffer _ _) = no λ ()
+    go (MsgLNPBlockAnnouncement _) (MsgLNPBlockTxsOffer _) = no λ ()
+    go (MsgLNPBlockAnnouncement _) (MsgLNPVotes _) = no λ ()
+    go (MsgLNPBlockAnnouncement _) MsgLNPDone = no λ ()
+    go (MsgLNPBlockOffer _ _) MsgLNPRequestNext = no λ ()
+    go (MsgLNPBlockOffer _ _) (MsgLNPBlockAnnouncement _) = no λ ()
+    go (MsgLNPBlockOffer _ _) (MsgLNPBlockTxsOffer _) = no λ ()
+    go (MsgLNPBlockOffer _ _) (MsgLNPVotes _) = no λ ()
+    go (MsgLNPBlockOffer _ _) MsgLNPDone = no λ ()
+    go (MsgLNPBlockTxsOffer _) MsgLNPRequestNext = no λ ()
+    go (MsgLNPBlockTxsOffer _) (MsgLNPBlockAnnouncement _) = no λ ()
+    go (MsgLNPBlockTxsOffer _) (MsgLNPBlockOffer _ _) = no λ ()
+    go (MsgLNPBlockTxsOffer _) (MsgLNPVotes _) = no λ ()
+    go (MsgLNPBlockTxsOffer _) MsgLNPDone = no λ ()
+    go (MsgLNPVotes _) MsgLNPRequestNext = no λ ()
+    go (MsgLNPVotes _) (MsgLNPBlockAnnouncement _) = no λ ()
+    go (MsgLNPVotes _) (MsgLNPBlockOffer _ _) = no λ ()
+    go (MsgLNPVotes _) (MsgLNPBlockTxsOffer _) = no λ ()
+    go (MsgLNPVotes _) MsgLNPDone = no λ ()
+    go MsgLNPDone MsgLNPRequestNext = no λ ()
+    go MsgLNPDone (MsgLNPBlockAnnouncement _) = no λ ()
+    go MsgLNPDone (MsgLNPBlockOffer _ _) = no λ ()
+    go MsgLNPDone (MsgLNPBlockTxsOffer _) = no λ ()
+    go MsgLNPDone (MsgLNPVotes _) = no λ ()
+
+  -- the five prototype LeiosFetch messages are distinguishable
+  DecEq-MessageLeiosFetchP : DecEq MessageLeiosFetchP
+  DecEq-MessageLeiosFetchP ._≟_ = go
+    where
+    go : (x y : MessageLeiosFetchP) → Dec (x ≡ y)
+    go (MsgLFPBlockRequest q) (MsgLFPBlockRequest q′) with _≟_ ⦃ DecEq-EBPoint ⦄ q q′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLFPBlock e) (MsgLFPBlock e′) with e ≟ e′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLFPBlockTxsRequest q bm) (MsgLFPBlockTxsRequest q′ bm′)
+      with _≟_ ⦃ DecEq-EBPoint ⦄ q q′ | _≟_ ⦃ DecEq-TxBitmap ⦄ bm bm′
+    ... | yes refl | yes refl = yes refl
+    ... | no ¬p    | _        = no λ where refl → ¬p refl
+    ... | _        | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLFPBlockTxs q es) (MsgLFPBlockTxs q′ es′)
+      with _≟_ ⦃ DecEq-EBPoint ⦄ q q′ | _≟_ ⦃ DecEq-TxEntries ⦄ es es′
+    ... | yes refl | yes refl = yes refl
+    ... | no ¬p    | _        = no λ where refl → ¬p refl
+    ... | _        | no ¬p    = no λ where refl → ¬p refl
+    go MsgLFPDone MsgLFPDone = yes refl
+    go (MsgLFPBlockRequest _) (MsgLFPBlock _) = no λ ()
+    go (MsgLFPBlockRequest _) (MsgLFPBlockTxsRequest _ _) = no λ ()
+    go (MsgLFPBlockRequest _) (MsgLFPBlockTxs _ _) = no λ ()
+    go (MsgLFPBlockRequest _) MsgLFPDone = no λ ()
+    go (MsgLFPBlock _) (MsgLFPBlockRequest _) = no λ ()
+    go (MsgLFPBlock _) (MsgLFPBlockTxsRequest _ _) = no λ ()
+    go (MsgLFPBlock _) (MsgLFPBlockTxs _ _) = no λ ()
+    go (MsgLFPBlock _) MsgLFPDone = no λ ()
+    go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlockRequest _) = no λ ()
+    go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlock _) = no λ ()
+    go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlockTxs _ _) = no λ ()
+    go (MsgLFPBlockTxsRequest _ _) MsgLFPDone = no λ ()
+    go (MsgLFPBlockTxs _ _) (MsgLFPBlockRequest _) = no λ ()
+    go (MsgLFPBlockTxs _ _) (MsgLFPBlock _) = no λ ()
+    go (MsgLFPBlockTxs _ _) (MsgLFPBlockTxsRequest _ _) = no λ ()
+    go (MsgLFPBlockTxs _ _) MsgLFPDone = no λ ()
+    go MsgLFPDone (MsgLFPBlockRequest _) = no λ ()
+    go MsgLFPDone (MsgLFPBlock _) = no λ ()
+    go MsgLFPDone (MsgLFPBlockTxsRequest _ _) = no λ ()
+    go MsgLFPDone (MsgLFPBlockTxs _ _) = no λ ()
 
 ------------------------------------------------------------------------
 -- The `Messages` union
@@ -584,6 +705,12 @@ instance
     ... | yes refl = yes refl
     ... | no ¬p    = no λ where refl → ¬p refl
     go (leiosFetch a)   (leiosFetch b)   with a ≟ b
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go (leiosNotifyP a) (leiosNotifyP b) with a ≟ b
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
+    go (leiosFetchP a)  (leiosFetchP b)  with a ≟ b
     ... | yes refl = yes refl
     ... | no ¬p    = no λ where refl → ¬p refl
     go (keepAlive _)    (blockFetch _)   = no λ ()
@@ -616,6 +743,32 @@ instance
     go (leiosFetch _)   (chainSync _)    = no λ ()
     go (leiosFetch _)   (txSubmission _) = no λ ()
     go (leiosFetch _)   (leiosNotify _)  = no λ ()
+    go (keepAlive _) (leiosNotifyP _) = no λ ()
+    go (keepAlive _) (leiosFetchP _) = no λ ()
+    go (blockFetch _) (leiosNotifyP _) = no λ ()
+    go (blockFetch _) (leiosFetchP _) = no λ ()
+    go (chainSync _) (leiosNotifyP _) = no λ ()
+    go (chainSync _) (leiosFetchP _) = no λ ()
+    go (txSubmission _) (leiosNotifyP _) = no λ ()
+    go (txSubmission _) (leiosFetchP _) = no λ ()
+    go (leiosNotify _) (leiosNotifyP _) = no λ ()
+    go (leiosNotify _) (leiosFetchP _) = no λ ()
+    go (leiosFetch _) (leiosNotifyP _) = no λ ()
+    go (leiosFetch _) (leiosFetchP _) = no λ ()
+    go (leiosNotifyP _) (keepAlive _) = no λ ()
+    go (leiosNotifyP _) (blockFetch _) = no λ ()
+    go (leiosNotifyP _) (chainSync _) = no λ ()
+    go (leiosNotifyP _) (txSubmission _) = no λ ()
+    go (leiosNotifyP _) (leiosNotify _) = no λ ()
+    go (leiosNotifyP _) (leiosFetch _) = no λ ()
+    go (leiosNotifyP _) (leiosFetchP _) = no λ ()
+    go (leiosFetchP _) (keepAlive _) = no λ ()
+    go (leiosFetchP _) (blockFetch _) = no λ ()
+    go (leiosFetchP _) (chainSync _) = no λ ()
+    go (leiosFetchP _) (txSubmission _) = no λ ()
+    go (leiosFetchP _) (leiosNotify _) = no λ ()
+    go (leiosFetchP _) (leiosFetch _) = no λ ()
+    go (leiosFetchP _) (leiosNotifyP _) = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 4: the negotiated payload `t.m.l.msg` (shared by every peer).

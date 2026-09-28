@@ -65,7 +65,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; Block₃; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; break
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; sendBFBlock ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using ( hi; N2N_BlockFetch )
@@ -447,6 +447,8 @@ evStepV l r {evLabel _ (apiLN l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLN (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 evStepV l r {evLabel _ (apiLF l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLF (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
+evStepV l r {evLabel _ (apiLP l₀ d₀ m) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-apiLP (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 evStepV l r {evLabel _ (sndmsg l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-sndmsg (med (toSys r))) (SR.absnodes-no-sndmsg (toSys r)) step)
 evStepV l r {evLabel _ (rcvmsg l₀ d₀ id) a} step =

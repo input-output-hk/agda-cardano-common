@@ -59,7 +59,7 @@ open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
 open import CSP.Examples.Cardano_network.Net p
   using ( Net; Net-≟; Net_Api; Net_Api-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-        ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break )
+        ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break )
 open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
 open import CSP.Examples.Cardano_network.Network p Payload
   using (NetProc; linkCopy; Copy)
@@ -178,6 +178,7 @@ linkAlphaA-disj i≢j at a (k , q₁) (k′ , q₂) =
 ι-alpha l (_ , apiKA _ _ _) b _ _ () _
 ι-alpha l (_ , apiLN _ _ _) b _ _ () _
 ι-alpha l (_ , apiLF _ _ _) b _ _ () _
+ι-alpha l (_ , apiLP _ _ _) b _ _ () _
 ι-alpha l (_ , store _ _ _) b _ _ () _
 ι-alpha l (_ , env   _ _ _) b _ _ () _
 ι-alpha l (_ , break _)     b _ _ () _

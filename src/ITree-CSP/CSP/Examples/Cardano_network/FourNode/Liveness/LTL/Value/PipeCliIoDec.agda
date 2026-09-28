@@ -220,7 +220,13 @@ bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , txSubmission _} step
 bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-recv-hstep-row l d BF.stBusy {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stBusy)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 -- STREAMING: the block read (the ONE block-gaining io) and the batch close
@@ -264,7 +270,13 @@ bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , txSubmission _} step
 bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfc-recv-hstep-row l d BF.stStreaming {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tbfc l d) (coarsenBFc (bcHead BF.stStreaming)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 

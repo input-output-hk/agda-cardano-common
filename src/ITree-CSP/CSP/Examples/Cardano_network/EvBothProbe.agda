@@ -34,7 +34,7 @@ open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; NodeKind; react; AnyTypes; ExtI)
 open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (IDs; N2N_KeepAlive)
+open import CSP.Examples.Cardano_network.Base using (IDs; N2N_KeepAlive; OneTx; decOneTx)
 
 module CSP.Examples.Cardano_network.EvBothProbe where
 open PTree
@@ -45,14 +45,20 @@ instance
 
 p1 : Params
 p1 = record
-  { Cookie = ⊤ ; Block = ⊤ ; Txid = ⊤ ; LSlot = ⊤
-  ; VoterId = ⊤ ; LFBitmap = ⊤ ; VoteBlob = ⊤
+  { Cookie = ⊤ ; Block = ⊤ ; LSlot = ⊤
+  ; VoterId = ⊤ ; VoteBlob = ⊤
   ; numConns = λ where N2N_KeepAlive → 1 ; _ → 0
-  ; decCookie  = decEq⊤ ; decBlock = decEq⊤ ; decTxid = decEq⊤
-  ; decLSlot = decEq⊤ ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤
+  ; decCookie  = decEq⊤ ; decBlock = decEq⊤
+  ; decLSlot = decEq⊤ ; decVoterId = decEq⊤
   ; decVoteBlob = decEq⊤
   ; Time = ⊤ ; Length = ⊤ ; time₀ = tt ; length₀ = tt
-  ; decTime = decEq⊤ ; decLength = decEq⊤ }
+  ; decTime = decEq⊤ ; decLength = decEq⊤
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = ⊤ ; decRbHash = decEq⊤ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = ⊤ ; decTxHash = decEq⊤ ; txHash = λ _ → tt
+  ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
+  ; slotOf = λ _ → tt }
 
 open import CSP.Examples.Cardano_network.Net p1
   using (Net; Conn; Net-≟; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)

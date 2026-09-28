@@ -79,7 +79,7 @@ module Generic
   open N p
     using ( Link; Net_Api; Net_Api-≟
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break
+          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; recvBFBlock )
   open D p using (Payload)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (Skip)
@@ -139,6 +139,7 @@ module Generic
   ιBF⁻¹-sound (apiKA  _ _ _) _ ()
   ιBF⁻¹-sound (apiLN  _ _ _) _ ()
   ιBF⁻¹-sound (apiLF  _ _ _) _ ()
+  ιBF⁻¹-sound (apiLP  _ _ _) _ ()
   ιBF⁻¹-sound (store  _ _ _) _ ()
   ιBF⁻¹-sound (env    _ _ _) _ ()
   ιBF⁻¹-sound (break  _)     _ ()

@@ -7,19 +7,32 @@ this repository. References are `Module.agda:line`, relative to this directory
 
 ## 1. Overview
 
-Six mini-protocols are modelled. Their identifiers are the constructors of `IDs`
-(`Base.agda:33-35`), a parameter-free enumeration — the model identifies a
-protocol by constructor, not by a numeric wire id. Only the two Leios protocols
-carry a numeric id anywhere in the source, and only in a comment.
+Six mini-protocols are modelled, and the two Leios ones have **two peer modules
+each**: the older CIP-draft model and the `leios-prototype` port that coexists
+beside it (see the coexistence note below the table). Their identifiers are the
+constructors of `IDs` (`Base.agda:33-35`), a parameter-free enumeration — the
+model identifies a protocol by constructor, not by a numeric wire id, so the two
+models of a Leios protocol share its constructor and a node runs one or the other
+by the bundle builder it is given. Only the Leios protocols carry a numeric id
+anywhere in the source, and only in a comment.
 
 | `IDs` constructor | Numeric id in source | Peer module | Lines | Verified beyond typechecking |
 |---|---|---|--:|---|
-| `N2N_KeepAlive` | — | `KeepAlive.agda` | 273 | yes — the medium refinement chain is instantiated at this protocol |
+| `N2N_KeepAlive` | — | `KeepAlive.agda` | 272 | yes — the medium refinement chain is instantiated at this protocol |
 | `N2N_ChainSync` | — | `ChainSync.agda` | 353 | yes — terminable-medium carrier; relay link inside `announceSafeT` |
 | `N2N_BlockFetch` | — | `BlockFetch.lagda.md` | 1225 | yes — own `≈DR` refinements, provenance, liveness, priority |
-| `N2N_TxSubmission` | — | `TxSubmission.agda` | 346 | no — typechecked only; exercised in the uniform bundle |
+| `N2N_TxSubmission` | — | `TxSubmission.agda` | 412 | no — typechecked only; exercised in the uniform bundle |
 | `N2N_LeiosNotify` | 18 (`LeiosNotify.agda:13`) | `LeiosNotify.agda` | 255 | yes — carries the announcement in `announceSafeT` |
-| `N2N_LeiosFetch` | 19 (`LeiosFetch.agda:13`) | `LeiosFetch.agda` | 373 | yes — the dominated side of the priority order |
+| `N2N_LeiosFetch` | 19 (`LeiosFetch.agda:13`) | `LeiosFetch.agda` | 380 | yes — the dominated side of the priority order |
+| `N2N_LeiosNotify` | 18 (`LeiosNotifyP.agda:12`) | `LeiosNotifyP.agda` | 286 | yes — the prototype port; carries the offers and votes of S1/S2/S2′ |
+| `N2N_LeiosFetch` | 19 (`LeiosFetchP.agda:12`) | `LeiosFetchP.agda` | 308 | yes — the prototype port; the reporting producer of the S1 fetch path |
+
+The last two rows are the **prototype** peers (`leios-prototype` branch of
+`ouroboros-consensus`, `LeiosDemoOnlyTest{Notify,Fetch}.hs`). They reuse the same
+two `IDs` constructors and the same wire channels as the rows above them; a node
+runs one pair or the other according to whether it is built with `nodeBundle` /
+`nodeBundleR` or with `nodeBundleP` (`Leios/PeersP.agda`). Theorems about the old
+peers are unaffected by the prototype ones and vice versa.
 
 **Initiator/agency convention.** A "connection" here is a *protocol-independent*
 TCP link `Link = Fin numLinks` (`Params.agda:38`) plus a `Dir` (`Base.agda:104-105`):
@@ -252,25 +265,28 @@ actually forged (§4).
 ### LeiosFetch (`N2N_LeiosFetch`, id 19)
 
 States (`LeiosFetch.agda`, the `LFState` block): `stIdle`, `stBlock`,
-`stBlockTxs`, `stVotes`, `stBlockRange`, `stDone`. Messages
-(`Data.agda:119-128`): `MsgLFBlockRequest EBHash`, `MsgLFBlock EB`,
-`MsgLFBlockTxsRequest Point LFBitmap`, `MsgLFBlockTxs (List Tx)`,
+`stVotes`, `stBlockRange`, `stDone`. Messages
+(`Data.agda`): `MsgLFBlockRequest EBHash`, `MsgLFBlock EB`,
 `MsgLFVotesRequest (List Vote)`, `MsgLFVoteDelivery (List VoteBlob)`,
 `MsgLFBlockRangeRequest ChainRange`,
 `MsgLFNextBlockAndTxsInRange Block (List Tx)`,
 `MsgLFLastBlockAndTxsInRange Block (List Tx)`, `MsgLFDone`.
 
-The consumer picks one of four request kinds from `stIdle` (`:184-215`), or
+The tx-closure branch (`MsgLFBlockTxsRequest`/`MsgLFBlockTxs`, `stBlockTxs`) was
+deleted from this protocol — the leios-prototype protocol owns tx closure (ADR
+2026-09-21 §6).
+
+The consumer picks one of three request kinds from `stIdle` (`:175-202`), or
 terminates; the producer delivers in the matching busy state. The block-range
 case genuinely **streams**: the producer may send any number of
-`MsgLFNextBlockAndTxsInRange`, staying in `stBlockRange` (`:345-348`), before a
-final `MsgLFLastBlockAndTxsInRange` returns to `stIdle` (`:350`). On the consumer
+`MsgLFNextBlockAndTxsInRange`, staying in `stBlockRange` (`:302-305`), before a
+final `MsgLFLastBlockAndTxsInRange` returns to `stIdle` (`:307-310`). On the consumer
 side both arrive through the *same* api tag `recvLFRangeBlock`, the last one
-returning to `stIdle` (`:255-258`).
+returning to `stIdle` (`:229-233`).
 
 *Abstracted away:* the same draft-protocol caveat as LeiosNotify (`:13`);
-`EB`/`EBHash`/`LFBitmap`/`VoteBlob` are opaque, so the selective-tx bitmap selects
-nothing in particular and no vote is validated.
+`EB`/`EBHash`/`VoteBlob` are opaque, and no vote is validated.  (The selective-tx
+bitmap left with the tx-closure branch; `TxBitmap` now serves `LeiosFetchP` only.)
 
 *Verified:* it is the *dominated* side of the priority work (§4).
 

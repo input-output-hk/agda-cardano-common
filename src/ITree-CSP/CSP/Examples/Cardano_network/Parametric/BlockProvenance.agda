@@ -524,7 +524,7 @@ module Generic
   open N p
     using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLF
+          ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
           ; stGet; stPut; sendBFBlock; recvBFBlock; sendLNBlockAnnouncement )
   open D p using (Payload; Header; header; blockFetch; MsgBlock)
   open import CSP.Examples.Cardano_network.Base using (Dir; Mode; N2N_BlockFetch)
@@ -637,6 +637,7 @@ module Generic
   hideKeep-ioES {e = apiKA  _ _ _} _ ()
   hideKeep-ioES {e = apiLN  _ _ _} _ ()
   hideKeep-ioES {e = apiLF  _ _ _} _ ()
+  hideKeep-ioES {e = apiLP  _ _ _} _ ()
   hideKeep-ioES {e = store  _ _ _} _ ()
   hideKeep-ioES {e = env    _ _ _} _ ()
   hideKeep-ioES {e = break  _}     _ ()

@@ -48,7 +48,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break )
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break )
 open import CSP.Examples.Cardano_network.Data p
 open import CSP.Examples.Cardano_network.Base using
   ( Dir; hi; IDs
@@ -127,7 +127,9 @@ plBlk? (_ , _ , _ , chainSync _)                    = inj₂ tt
 plBlk? (_ , _ , _ , txSubmission _)                 = inj₂ tt
 plBlk? (_ , _ , _ , keepAlive _)                    = inj₂ tt
 plBlk? (_ , _ , _ , leiosNotify _)                  = inj₂ tt
+plBlk? (_ , _ , _ , leiosNotifyP _)                  = inj₂ tt
 plBlk? (_ , _ , _ , leiosFetch _)                   = inj₂ tt
+plBlk? (_ , _ , _ , leiosFetchP _)                   = inj₂ tt
 
 ------------------------------------------------------------------------
 -- (2) THE PER-CLAUSE TRANSPORTS.
@@ -385,4 +387,5 @@ tauIoV l r {e = apiTS  _ _ _} ()
 tauIoV l r {e = apiKA  _ _ _} ()
 tauIoV l r {e = apiLN  _ _ _} ()
 tauIoV l r {e = apiLF  _ _ _} ()
+tauIoV l r {e = apiLP  _ _ _} ()
 tauIoV l r {e = break  _}     ()

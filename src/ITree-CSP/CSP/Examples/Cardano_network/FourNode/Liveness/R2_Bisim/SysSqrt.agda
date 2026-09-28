@@ -104,9 +104,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         ; ksHead; ksRecv1; ksDdone1; ksSil
         ; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil
         ; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1
-        ; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
-        ; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1
+        ; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil
+        ; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; decCSc; decCSs; decBFc; decBFs; decTSc; decTSs
         ; decKAc; decKAs; decLNc; decLNs; decLFc; decLFs
         ; decCSc-src; decCSs-src; decBFc-src; decBFs-src; decTSc-src; decTSs-src
@@ -161,9 +161,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_Ta
         ; hlncRann1; hlncRoff1; hlncRtxs1; hlncRvot1; hlncReq1; hlncDone1
         ; hlnsDone1; hlnsWann1; hlnsWoff1; hlnsWtxs1; hlnsWvot1
         -- LeiosFetch client / server leaves
-        ; hlfcRblk1; hlfcRbtx1; hlfcRvot1; hlfcRnext1; hlfcRlast1
-        ; hlfcWblk1; hlfcWtxs1; hlfcWvot1; hlfcWrng1; hlfcDone1
-        ; hlfsDone1; hlfsWblk1; hlfsWtxs1; hlfsWvot1; hlfsWnext1; hlfsWlast1 )
+        ; hlfcRblk1; hlfcRvot1; hlfcRnext1; hlfcRlast1
+        ; hlfcWblk1; hlfcWvot1; hlfcWrng1; hlfcDone1
+        ; hlfsDone1; hlfsWblk1; hlfsWvot1; hlfsWnext1; hlfsWlast1 )
 
 ------------------------------------------------------------------------
 -- `ret ≢ react`: a terminal node is not a branching node.
@@ -432,16 +432,13 @@ decLFc-ret→fin : (l : Link) (d : Dir) (q : LFcPos) {x : ⊤ {0ℓ}}
 decLFc-ret→fin l d (lfcHead LF.stDone)       eq = refl
 decLFc-ret→fin l d (lfcHead LF.stIdle)       ()
 decLFc-ret→fin l d (lfcHead LF.stBlock)      ()
-decLFc-ret→fin l d (lfcHead LF.stBlockTxs)   ()
 decLFc-ret→fin l d (lfcHead LF.stVotes)      ()
 decLFc-ret→fin l d (lfcHead LF.stBlockRange) ()
 decLFc-ret→fin l d (lfcRblk1 b)    eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcRblk1 b)}    (hlfcRblk1 l d b) eq)
-decLFc-ret→fin l d (lfcRbtx1 ts)   eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcRbtx1 ts)}   (hlfcRbtx1 l d ts) eq)
 decLFc-ret→fin l d (lfcRvot1 vs)   eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcRvot1 vs)}   (hlfcRvot1 l d vs) eq)
 decLFc-ret→fin l d (lfcRnext1 b ts) eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcRnext1 b ts)} (hlfcRnext1 l d b ts) eq)
 decLFc-ret→fin l d (lfcRlast1 b ts) eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcRlast1 b ts)} (hlfcRlast1 l d b ts) eq)
 decLFc-ret→fin l d (lfcWblk1 pt)   eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcWblk1 pt)}   (hlfcWblk1 l d pt) eq)
-decLFc-ret→fin l d (lfcWtxs1 pb)   eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcWtxs1 pb)}   (hlfcWtxs1 l d pb) eq)
 decLFc-ret→fin l d (lfcWvot1 vs)   eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcWvot1 vs)}   (hlfcWvot1 l d vs) eq)
 decLFc-ret→fin l d (lfcWrng1 r)    eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d (lfcWrng1 r)}    (hlfcWrng1 l d r) eq)
 decLFc-ret→fin l d lfcDone1        eq = ⊥-elim (renLF-react-not-ret {P = decLFc-src l d lfcDone1}        (hlfcDone1 l d) eq)
@@ -453,12 +450,10 @@ decLFs-ret→fin : (l : Link) (d : Dir) (q : LFsPos) {x : ⊤ {0ℓ}}
 decLFs-ret→fin l d (lfsHead LF.stDone)       eq = refl
 decLFs-ret→fin l d (lfsHead LF.stIdle)       ()
 decLFs-ret→fin l d (lfsHead LF.stBlock)      ()
-decLFs-ret→fin l d (lfsHead LF.stBlockTxs)   ()
 decLFs-ret→fin l d (lfsHead LF.stVotes)      ()
 decLFs-ret→fin l d (lfsHead LF.stBlockRange) ()
 decLFs-ret→fin l d lfsDone1       eq = ⊥-elim (renLF-react-not-ret {P = decLFs-src l d lfsDone1}       (hlfsDone1 l d) eq)
 decLFs-ret→fin l d (lfsWblk1 b)   eq = ⊥-elim (renLF-react-not-ret {P = decLFs-src l d (lfsWblk1 b)}   (hlfsWblk1 l d b) eq)
-decLFs-ret→fin l d (lfsWtxs1 ts)  eq = ⊥-elim (renLF-react-not-ret {P = decLFs-src l d (lfsWtxs1 ts)}  (hlfsWtxs1 l d ts) eq)
 decLFs-ret→fin l d (lfsWvot1 vs)  eq = ⊥-elim (renLF-react-not-ret {P = decLFs-src l d (lfsWvot1 vs)}  (hlfsWvot1 l d vs) eq)
 decLFs-ret→fin l d (lfsWnext1 bt) eq = ⊥-elim (renLF-react-not-ret {P = decLFs-src l d (lfsWnext1 bt)} (hlfsWnext1 l d bt) eq)
 decLFs-ret→fin l d (lfsWlast1 bt) eq = ⊥-elim (renLF-react-not-ret {P = decLFs-src l d (lfsWlast1 bt)} (hlfsWlast1 l d bt) eq)
@@ -901,16 +896,13 @@ decLFc-fin→wret l d (lfcHead LF.stDone) _ =
   decLFc l d (lfcHead LF.stDone) , τ*-refl , LFNO.force-renameMap-ret {P = decLFc-src l d (lfcHead LF.stDone)} refl
 decLFc-fin→wret l d (lfcHead LF.stIdle) ()
 decLFc-fin→wret l d (lfcHead LF.stBlock) ()
-decLFc-fin→wret l d (lfcHead LF.stBlockTxs) ()
 decLFc-fin→wret l d (lfcHead LF.stVotes) ()
 decLFc-fin→wret l d (lfcHead LF.stBlockRange) ()
 decLFc-fin→wret l d (lfcRblk1 b) ()
-decLFc-fin→wret l d (lfcRbtx1 ts) ()
 decLFc-fin→wret l d (lfcRvot1 vs) ()
 decLFc-fin→wret l d (lfcRnext1 b ts) ()
 decLFc-fin→wret l d (lfcRlast1 b ts) ()
 decLFc-fin→wret l d (lfcWblk1 pt) ()
-decLFc-fin→wret l d (lfcWtxs1 pb) ()
 decLFc-fin→wret l d (lfcWvot1 vs) ()
 decLFc-fin→wret l d (lfcWrng1 r) ()
 decLFc-fin→wret l d lfcDone1 ()
@@ -918,7 +910,6 @@ decLFc-fin→wret l d (lfcSil LF.stDone) _ =
   decLFc l d (lfcHead LF.stDone) , τ*-step (decLFc-sil-step l d LF.stDone) τ*-refl , LFNO.force-renameMap-ret {P = decLFc-src l d (lfcHead LF.stDone)} refl
 decLFc-fin→wret l d (lfcSil LF.stIdle) ()
 decLFc-fin→wret l d (lfcSil LF.stBlock) ()
-decLFc-fin→wret l d (lfcSil LF.stBlockTxs) ()
 decLFc-fin→wret l d (lfcSil LF.stVotes) ()
 decLFc-fin→wret l d (lfcSil LF.stBlockRange) ()
 
@@ -928,12 +919,10 @@ decLFs-fin→wret l d (lfsHead LF.stDone) _ =
   decLFs l d (lfsHead LF.stDone) , τ*-refl , LFNO.force-renameMap-ret {P = decLFs-src l d (lfsHead LF.stDone)} refl
 decLFs-fin→wret l d (lfsHead LF.stIdle) ()
 decLFs-fin→wret l d (lfsHead LF.stBlock) ()
-decLFs-fin→wret l d (lfsHead LF.stBlockTxs) ()
 decLFs-fin→wret l d (lfsHead LF.stVotes) ()
 decLFs-fin→wret l d (lfsHead LF.stBlockRange) ()
 decLFs-fin→wret l d lfsDone1 ()
 decLFs-fin→wret l d (lfsWblk1 b) ()
-decLFs-fin→wret l d (lfsWtxs1 ts) ()
 decLFs-fin→wret l d (lfsWvot1 vs) ()
 decLFs-fin→wret l d (lfsWnext1 bt) ()
 decLFs-fin→wret l d (lfsWlast1 bt) ()
@@ -941,7 +930,6 @@ decLFs-fin→wret l d (lfsSil LF.stDone) _ =
   decLFs l d (lfsHead LF.stDone) , τ*-step (decLFs-sil-step l d LF.stDone) τ*-refl , LFNO.force-renameMap-ret {P = decLFs-src l d (lfsHead LF.stDone)} refl
 decLFs-fin→wret l d (lfsSil LF.stIdle) ()
 decLFs-fin→wret l d (lfsSil LF.stBlock) ()
-decLFs-fin→wret l d (lfsSil LF.stBlockTxs) ()
 decLFs-fin→wret l d (lfsSil LF.stVotes) ()
 decLFs-fin→wret l d (lfsSil LF.stBlockRange) ()
 

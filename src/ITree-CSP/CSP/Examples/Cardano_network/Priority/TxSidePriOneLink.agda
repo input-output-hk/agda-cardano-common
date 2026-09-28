@@ -49,7 +49,7 @@ open import Process_Trees
 
 open import CSP.Examples.Cardano_network.Params using (Params)
 open import CSP.Examples.Cardano_network.Base
-  using (IDs; N2N_BlockFetch; N2N_LeiosFetch; Dir; lo; Mode; FromInitiator)
+  using (IDs; N2N_BlockFetch; N2N_LeiosFetch; Dir; lo; Mode; FromInitiator; OneTx; decOneTx)
 
 module CSP.Examples.Cardano_network.Priority.TxSidePriOneLink where
 
@@ -67,18 +67,24 @@ import Data.Maybe as PMaybe
 
 p₀ : Params
 p₀ = record
-  { Cookie   = U.⊤ ; Block  = U.⊤ ; Txid = U.⊤ ; LSlot = U.⊤
-  ; VoterId  = U.⊤ ; LFBitmap = U.⊤ ; VoteBlob = U.⊤
+  { Cookie   = U.⊤ ; Block  = U.⊤ ; LSlot = U.⊤
+  ; VoterId  = U.⊤ ; VoteBlob = U.⊤
   ; Time     = U.⊤ ; Length = U.⊤
   ; time₀    = U.tt ; length₀ = U.tt
   ; numLinks = 1
   ; linkConfig = λ _ → (lo , N2N_BlockFetch) ∷ (lo , N2N_LeiosFetch) ∷ []
-  ; decCookie = decEq⊤ ; decBlock = decEq⊤ ; decTxid = decEq⊤ ; decLSlot = decEq⊤
-  ; decVoterId = decEq⊤ ; decLFBitmap = decEq⊤ ; decVoteBlob = decEq⊤
+  ; decCookie = decEq⊤ ; decBlock = decEq⊤ ; decLSlot = decEq⊤
+  ; decVoterId = decEq⊤ ; decVoteBlob = decEq⊤
   ; decTime = decEq⊤ ; decLength = decEq⊤
   -- Leios EB domains, inert here: both ⊤, no RB ever announces an EB
   ; EB = U.⊤ ; EBHash = U.⊤ ; decEB = decEq⊤ ; decEBHash = decEq⊤
-  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing }
+  ; ebHash = λ _ → U.tt ; announcedEB = λ _ → PMaybe.nothing
+  -- the three hash-identified objects (spec §8.3 mechanical fillers: the trivially
+  -- injective hash, the opaque transaction, the one-point size domain)
+  ; RbHash = U.⊤ ; decRbHash = decEq⊤ ; rbHash = λ b → b
+  ; Tx = OneTx ; decTx = decOneTx ; TxHash = U.⊤ ; decTxHash = decEq⊤ ; txHash = λ _ → U.tt
+  ; Size = U.⊤ ; decSize = decEq⊤ ; txSize = λ _ → U.tt
+  ; slotOf = λ _ → U.tt }
 
 ------------------------------------------------------------------------
 -- Alphabet, data, operator layer, priority order — all at `p₀`.

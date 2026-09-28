@@ -77,7 +77,7 @@ open import CSP.Examples.Cardano_network.Base using
   ; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break ; store; env )
 open import CSP.Examples.Cardano_network.Data p
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
@@ -390,6 +390,7 @@ cssIoRow-fix k kd css {e = apiKA  _ _ _} nw = refl
 cssIoRow-fix k kd css {e = apiTS  _ _ _} nw = refl
 cssIoRow-fix k kd css {e = apiLN  _ _ _} nw = refl
 cssIoRow-fix k kd css {e = apiLF  _ _ _} nw = refl
+cssIoRow-fix k kd css {e = apiLP  _ _ _} nw = refl
 cssIoRow-fix k kd css {e = sndmsg _ _ _} nw = refl
 cssIoRow-fix k kd css {e = rcvmsg _ _ _} nw = refl
 cssIoRow-fix k kd css {e = tx     _ _ _} nw = refl
@@ -423,6 +424,7 @@ cscIoRow-fix k kd csc {e = apiKA  _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = apiTS  _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = apiLN  _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = apiLF  _ _ _} nb = refl
+cscIoRow-fix k kd csc {e = apiLP  _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = sndmsg _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = rcvmsg _ _ _} nb = refl
 cscIoRow-fix k kd csc {e = tx     _ _ _} nb = refl
@@ -488,7 +490,9 @@ plIsBlk⇒srvIo _ _ _ (_ , _ , _ , chainSync _)                     ()
 plIsBlk⇒srvIo _ _ _ (_ , _ , _ , keepAlive _)                     ()
 plIsBlk⇒srvIo _ _ _ (_ , _ , _ , txSubmission _)                  ()
 plIsBlk⇒srvIo _ _ _ (_ , _ , _ , leiosNotify _)                   ()
+plIsBlk⇒srvIo _ _ _ (_ , _ , _ , leiosNotifyP _)                   ()
 plIsBlk⇒srvIo _ _ _ (_ , _ , _ , leiosFetch _)                    ()
+plIsBlk⇒srvIo _ _ _ (_ , _ , _ , leiosFetchP _)                    ()
 
 -- THE FIXED-SLOT WRITE-OWNERSHIP ANSWER: sixteen label shapes make it vacuous;
 -- on the seventeenth (`input`) the ownership premise refutes the hypotheses
@@ -505,6 +509,7 @@ writeOwn-fix k kd bfs {e = apiKA  _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = apiTS  _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = apiLN  _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = apiLF  _ _ _} nw = tt
+writeOwn-fix k kd bfs {e = apiLP  _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = sndmsg _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = rcvmsg _ _ _} nw = tt
 writeOwn-fix k kd bfs {e = tx     _ _ _} nw = tt
@@ -576,6 +581,7 @@ cRefl⁺ l d bfc {e = apiKA  _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = apiTS  _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = apiLN  _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = apiLF  _ _ _} nb = inj₁ refl , tt
+cRefl⁺ l d bfc {e = apiLP  _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = sndmsg _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = rcvmsg _ _ _} nb = inj₁ refl , tt
 cRefl⁺ l d bfc {e = tx     _ _ _} nb = inj₁ refl , tt
@@ -817,7 +823,17 @@ kcRecv l cl sv cl≢sv bfc {a = _ , _ , _ , leiosNotify _} sM with decBFc-receiv
     , (((inj₂ (cli-nohold-recv l cl bfc sM) , readHit-noBlk l cl bfc′ (λ _ _ _ _ → λ ()))
        , inj₂ cls , inj₂ row)
       , λ q → cl≢sv (sym (trans q (absBFc-ev-dir l cl bfc sM))))
+kcRecv l cl sv cl≢sv bfc {a = _ , _ , _ , leiosNotifyP _} sM with decBFc-receiveBF-succ-row l cl bfc sM
+... | bfc′ , run , Meq , cls , row = bfc′ , run , Meq
+    , (((inj₂ (cli-nohold-recv l cl bfc sM) , readHit-noBlk l cl bfc′ (λ _ _ _ _ → λ ()))
+       , inj₂ cls , inj₂ row)
+      , λ q → cl≢sv (sym (trans q (absBFc-ev-dir l cl bfc sM))))
 kcRecv l cl sv cl≢sv bfc {a = _ , _ , _ , leiosFetch _} sM with decBFc-receiveBF-succ-row l cl bfc sM
+... | bfc′ , run , Meq , cls , row = bfc′ , run , Meq
+    , (((inj₂ (cli-nohold-recv l cl bfc sM) , readHit-noBlk l cl bfc′ (λ _ _ _ _ → λ ()))
+       , inj₂ cls , inj₂ row)
+      , λ q → cl≢sv (sym (trans q (absBFc-ev-dir l cl bfc sM))))
+kcRecv l cl sv cl≢sv bfc {a = _ , _ , _ , leiosFetchP _} sM with decBFc-receiveBF-succ-row l cl bfc sM
 ... | bfc′ , run , Meq , cls , row = bfc′ , run , Meq
     , (((inj₂ (cli-nohold-recv l cl bfc sM) , readHit-noBlk l cl bfc′ (λ _ _ _ _ → λ ()))
        , inj₂ cls , inj₂ row)
@@ -1009,6 +1025,7 @@ bdP l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iomem step = ⊥-elim 
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+bdP l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 bdP l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem

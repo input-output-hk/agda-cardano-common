@@ -116,7 +116,7 @@ open MSysNode
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSs; decKAc; decKAs; decLNc; decLNs; decLFc; decLFs
         ; ProdPh; ConsPh; ConsDPh; CPPh; consuming; producing
@@ -158,10 +158,10 @@ open NS using
   ; lncIdle; lncBusy; lncTerm; lncRann; lncRoff; lncRtxs; lncRvot; lnsIdle; lnsBusy; lnsDone; lnsTerm
   ; lncWreq; lncWdone; lnsWann; lnsWoff; lnsWtxs; lnsWvot
   -- abstract LF-client / LF-server head positions (for coarsening)
-  ; lfcIdle; lfcBlk; lfcBtx; lfcVot; lfcRng; lfcTerm; lfcRblk; lfcRbtx; lfcRvot; lfcRnextRng; lfcRlastRng
-  ; lfcWblk; lfcWtxs; lfcWvot; lfcWrng; lfcWdone
-  ; lfsIdle; lfsBlk; lfsBtx; lfsVot; lfsRng; lfsDone; lfsTerm
-  ; lfsWblk; lfsWtxs; lfsWvot; lfsWnext; lfsWlast
+  ; lfcIdle; lfcBlk; lfcVot; lfcRng; lfcTerm; lfcRblk; lfcRvot; lfcRnextRng; lfcRlastRng
+  ; lfcWblk; lfcWvot; lfcWrng; lfcWdone
+  ; lfsIdle; lfsBlk; lfsVot; lfsRng; lfsDone; lfsTerm
+  ; lfsWblk; lfsWvot; lfsWnext; lfsWlast
   -- abstract KA-client positions + abstract KA-server positions (for coarsening)
   ; kcClient; kcWmsg; kcAwait; kcWdone; kcErr; kcTerm; kcTermE
   ; ksClient; ksRecv; ksResp; ksDdone; ksTerm
@@ -695,7 +695,6 @@ absLNs l d q = tableSpec (record { isFin = lnSfin ; nxt = lnSnxt l d }) (coarsen
 coarsenLFcSt : LF.LFState → NS.LFcPos
 coarsenLFcSt LF.stIdle       = lfcIdle
 coarsenLFcSt LF.stBlock      = lfcBlk
-coarsenLFcSt LF.stBlockTxs   = lfcBtx
 coarsenLFcSt LF.stVotes      = lfcVot
 coarsenLFcSt LF.stBlockRange = lfcRng
 coarsenLFcSt LF.stDone       = lfcTerm
@@ -704,12 +703,10 @@ coarsenLFcSt LF.stDone       = lfcTerm
 coarsenLFc : LFcPos → NS.LFcPos
 coarsenLFc (lfcHead st) = coarsenLFcSt st
 coarsenLFc (lfcRblk1 b)     = lfcRblk b
-coarsenLFc (lfcRbtx1 ts)    = lfcRbtx ts
 coarsenLFc (lfcRvot1 vs)    = lfcRvot vs
 coarsenLFc (lfcRnext1 b ts) = lfcRnextRng (b , ts)
 coarsenLFc (lfcRlast1 b ts) = lfcRlastRng (b , ts)
 coarsenLFc (lfcWblk1 pt)  = lfcWblk pt
-coarsenLFc (lfcWtxs1 pb)  = lfcWtxs pb
 coarsenLFc (lfcWvot1 vs)  = lfcWvot vs
 coarsenLFc (lfcWrng1 r)   = lfcWrng r
 coarsenLFc lfcDone1       = lfcWdone
@@ -719,7 +716,6 @@ coarsenLFc (lfcSil st)  = coarsenLFcSt st
 coarsenLFsSt : LF.LFState → NS.LFsPos
 coarsenLFsSt LF.stIdle       = lfsIdle
 coarsenLFsSt LF.stBlock      = lfsBlk
-coarsenLFsSt LF.stBlockTxs   = lfsBtx
 coarsenLFsSt LF.stVotes      = lfsVot
 coarsenLFsSt LF.stBlockRange = lfsRng
 coarsenLFsSt LF.stDone       = lfsTerm
@@ -729,7 +725,6 @@ coarsenLFs : LFsPos → NS.LFsPos
 coarsenLFs (lfsHead st) = coarsenLFsSt st
 coarsenLFs lfsDone1     = lfsDone
 coarsenLFs (lfsWblk1 b)  = lfsWblk b
-coarsenLFs (lfsWtxs1 ts) = lfsWtxs ts
 coarsenLFs (lfsWvot1 vs) = lfsWvot vs
 coarsenLFs (lfsWnext1 bt) = lfsWnext bt
 coarsenLFs (lfsWlast1 bt) = lfsWlast bt

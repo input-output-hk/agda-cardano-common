@@ -56,7 +56,7 @@ open Params p
 open import CSP.Examples.Cardano_network.Base
 open import CSP.Examples.Cardano_network.Data p
   using ( Payload; DecEq-Payload; Messages
-        ; keepAlive; blockFetch; chainSync; txSubmission; leiosNotify; leiosFetch
+        ; keepAlive; blockFetch; chainSync; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
         ; MessageKeepAlive; MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
 open import CSP.Examples.Cardano_network.Net p
 
@@ -179,6 +179,7 @@ nj ()
 ιKA⁻¹-inv {e₂ = apiTS _ _ _}  eq = ⊥-elim (nj eq)
 ιKA⁻¹-inv {e₂ = apiLN _ _ _}  eq = ⊥-elim (nj eq)
 ιKA⁻¹-inv {e₂ = apiLF _ _ _}  eq = ⊥-elim (nj eq)
+ιKA⁻¹-inv {e₂ = apiLP _ _ _}  eq = ⊥-elim (nj eq)
 ιKA⁻¹-inv {e₂ = break _}      eq = ⊥-elim (nj eq)
 
 ------------------------------------------------------------------------
@@ -506,7 +507,9 @@ kacFwdE l d (cAwait c) (sVis {a = a} eqf br)
 ...   | _ , _ , _ , chainSync _                        | eqv′ = ⊥-elim (nj eqv′)
 ...   | _ , _ , _ , txSubmission _                     | eqv′ = ⊥-elim (nj eqv′)
 ...   | _ , _ , _ , leiosNotify _                      | eqv′ = ⊥-elim (nj eqv′)
+...   | _ , _ , _ , leiosNotifyP _                     | eqv′ = ⊥-elim (nj eqv′)
 ...   | _ , _ , _ , leiosFetch _                       | eqv′ = ⊥-elim (nj eqv′)
+...   | _ , _ , _ , leiosFetchP _                      | eqv′ = ⊥-elim (nj eqv′)
 ...   | t , m , n , keepAlive (MsgKeepAliveResponse c′) | eqv′ with l′ ≟ l | d′ ≟ d
 ...     | no _     | _     = ⊥-elim (nj eqv′)
 ...     | yes refl | no _  = ⊥-elim (nj eqv′)
@@ -667,7 +670,9 @@ inclAwait l d c _ (_ , sVis {at = A , e₂} {a = a} refl br) with ιKA⁻¹ e₂
 ...   | _ , _ , _ , chainSync _                        | ()
 ...   | _ , _ , _ , txSubmission _                     | ()
 ...   | _ , _ , _ , leiosNotify _                      | ()
+...   | _ , _ , _ , leiosNotifyP _                     | ()
 ...   | _ , _ , _ , leiosFetch _                       | ()
+...   | _ , _ , _ , leiosFetchP _                      | ()
 ...   | t , m , n , keepAlive (MsgKeepAliveResponse c′) | br″ with l′ ≟ l | d′ ≟ d
 ...     | no _     | _     = ⊥-elim (nj br″)
 ...     | yes refl | no _  = ⊥-elim (nj br″)

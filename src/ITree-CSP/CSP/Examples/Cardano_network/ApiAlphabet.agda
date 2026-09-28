@@ -40,7 +40,7 @@ open import Process_Trees using (AnyTypes)
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break )
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break )
 open import CSP.Examples.Cardano_network.Data p using (Payload)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -54,6 +54,10 @@ apiSet (_ , apiKA _ _ _) = ⊤
 apiSet (_ , apiTS _ _ _) = ⊤
 apiSet (_ , apiLN _ _ _) = ⊤
 apiSet (_ , apiLF _ _ _) = ⊤
+-- LOAD-BEARING, not coverage: `apiSet` ends in a catch-all `_ = ⊥`, so without this arm
+-- every prototype api event would fall outside `apiES` and the new peers would never
+-- rendezvous with the node logic — silently wrong rather than red.
+apiSet (_ , apiLP _ _ _) = ⊤
 apiSet (_ , done _ _ _)  = ⊤   -- `done` is api-synced (driven teardown), not node-local
 apiSet _                 = ⊥
 
@@ -74,6 +78,7 @@ apiSet-dec (_ , apiTS  _ _ _) = yes tt
 apiSet-dec (_ , apiKA  _ _ _) = yes tt
 apiSet-dec (_ , apiLN  _ _ _) = yes tt
 apiSet-dec (_ , apiLF  _ _ _) = yes tt
+apiSet-dec (_ , apiLP  _ _ _) = yes tt
 -- node-local, NOT peer apis: link bundles must not synchronise on them
 apiSet-dec (_ , store  _ _ _) = no λ ()
 apiSet-dec (_ , env    _ _ _) = no λ ()

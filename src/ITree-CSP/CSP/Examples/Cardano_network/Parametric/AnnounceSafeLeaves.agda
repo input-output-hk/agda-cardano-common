@@ -94,7 +94,7 @@ module Generic
   open N p
     using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLF
+          ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
           ; sendLNBlockAnnouncement )
   open D p
     using ( Payload; Point; Header; Tip; ChainRange; header; tip
@@ -249,6 +249,7 @@ module Generic
   HideOK-ioES {e = apiKA  _ _ _} ()
   HideOK-ioES {e = apiLN  _ _ _} ()
   HideOK-ioES {e = apiLF  _ _ _} ()
+  HideOK-ioES {e = apiLP  _ _ _} ()
   HideOK-ioES {e = store  _ _ _} ()
   HideOK-ioES {e = env    _ _ _} ()
   HideOK-ioES {e = break  _}     ()

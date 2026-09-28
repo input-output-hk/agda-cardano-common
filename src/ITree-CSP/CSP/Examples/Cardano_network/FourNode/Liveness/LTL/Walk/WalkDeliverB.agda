@@ -42,7 +42,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Base using ( hi )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Link
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; store; env
         ; recvBFBlock; sendBFBlock; sendBFBatchDone; reqBFRange
         ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks )
@@ -268,6 +268,10 @@ module _ (b : Block₃) (gs : GSide) where
   deliverB r pr (step {e = evl (evLabel _ (apiLF l₀ d₀ m) a)} wstep _) _ =
     ⊥-elim (refute-weak r
       (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-apiLF (med (toSys r₁)))
+                    (SR.absnodes-no-nonCSBF (toSys r₁) tt (λ ())) st) wstep)
+  deliverB r pr (step {e = evl (evLabel _ (apiLP l₀ d₀ m) a)} wstep _) _ =
+    ⊥-elim (refute-weak r
+      (λ r₁ st → SB.oevB-refute r₁ (SR.medium-no-apiLP (med (toSys r₁)))
                     (SR.absnodes-no-nonCSBF (toSys r₁) tt (λ ())) st) wstep)
 
   -- hidden io events: `∖ ioES` makes them invisible (`oevB-no-io`)

@@ -193,7 +193,9 @@ csServerSrc-OO F.zero = SrcCS.OffersOnly-iter {k = CS.serverStep F.zero lo} {a =
     mc (_ , CS.receiveCS l′ d′) (_ , _ , _ , blockFetch _) eq = case eq of λ ()
     mc (_ , CS.receiveCS l′ d′) (_ , _ , _ , txSubmission _) eq = case eq of λ ()
     mc (_ , CS.receiveCS l′ d′) (_ , _ , _ , leiosNotify _) eq = case eq of λ ()
+    mc (_ , CS.receiveCS l′ d′) (_ , _ , _ , leiosNotifyP _) eq = case eq of λ ()
     mc (_ , CS.receiveCS l′ d′) (_ , _ , _ , leiosFetch _) eq = case eq of λ ()
+    mc (_ , CS.receiveCS l′ d′) (_ , _ , _ , leiosFetchP _) eq = case eq of λ ()
     mc (_ , CS.sendCS _ _)    a eq = case eq of λ ()
     mc (_ , CS.apiCSev _ _ _)   a eq = case eq of λ ()
     mc (_ , CS.doneCS _ _)    a eq = case eq of λ ()
@@ -1625,7 +1627,9 @@ tsServerSrc-OO F.zero = SrcTS.OffersOnly-iter {k = TS.serverStep F.zero lo} {a =
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , blockFetch _) eq = case eq of λ ()
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , chainSync _) eq = case eq of λ ()
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , leiosNotify _) eq = case eq of λ ()
+    mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , leiosNotifyP _) eq = case eq of λ ()
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , leiosFetch _) eq = case eq of λ ()
+    mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , leiosFetchP _) eq = case eq of λ ()
     mc (_ , TS.sendTS _ _)    a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ _)   a eq = case eq of λ ()
     mc (_ , TS.doneTS _ _)    a eq = case eq of λ ()
@@ -2286,7 +2290,7 @@ tsClientSrc-OO F.zero = SrcTS.OffersOnly-iter {k = TS.clientStep F.zero hi} {a =
     -- recv MsgTSRequestTxs: fires only on (F.zero , hi)
     mc (_ , TS.receiveTS F.zero lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS F.zero hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) refl =
-      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxid ⦄ refl SrcTS.OffersOnly-Ret
+      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxHash ⦄ refl SrcTS.OffersOnly-Ret
     mc (_ , TS.receiveTS (F.suc F.zero) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc F.zero) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc F.zero)) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
@@ -2328,6 +2332,9 @@ tsClientSrc-OO F.zero = SrcTS.OffersOnly-iter {k = TS.clientStep F.zero hi} {a =
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSDone) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSDone) a ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ recvTSRequestTxIds) a eq = case eq of λ ()
@@ -2349,6 +2356,9 @@ tsClientSrc-OO F.zero = SrcTS.OffersOnly-iter {k = TS.clientStep F.zero hi} {a =
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSReplyTxIds) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxIds) a ()
     mc (_ , TS.apiTSev _ _ sendTSReplyTxs) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
@@ -2373,6 +2383,9 @@ tsClientSrc-OO F.zero = SrcTS.OffersOnly-iter {k = TS.clientStep F.zero hi} {a =
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
@@ -2416,7 +2429,7 @@ tsClientSrc-OO (F.suc F.zero) = SrcTS.OffersOnly-iter {k = TS.clientStep (F.suc 
     mc (_ , TS.receiveTS F.zero hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc F.zero) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc F.zero) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) refl =
-      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxid ⦄ refl SrcTS.OffersOnly-Ret
+      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxHash ⦄ refl SrcTS.OffersOnly-Ret
     mc (_ , TS.receiveTS (F.suc (F.suc F.zero)) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc F.zero)) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc (F.suc F.zero))) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
@@ -2456,6 +2469,9 @@ tsClientSrc-OO (F.suc F.zero) = SrcTS.OffersOnly-iter {k = TS.clientStep (F.suc 
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSDone) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSDone) a ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ recvTSRequestTxIds) a eq = case eq of λ ()
@@ -2477,6 +2493,9 @@ tsClientSrc-OO (F.suc F.zero) = SrcTS.OffersOnly-iter {k = TS.clientStep (F.suc 
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSReplyTxIds) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxIds) a ()
     mc (_ , TS.apiTSev _ _ sendTSReplyTxs) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
@@ -2501,6 +2520,9 @@ tsClientSrc-OO (F.suc F.zero) = SrcTS.OffersOnly-iter {k = TS.clientStep (F.suc 
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
@@ -2546,7 +2568,7 @@ tsClientSrc-OO (F.suc (F.suc F.zero)) = SrcTS.OffersOnly-iter {k = TS.clientStep
     mc (_ , TS.receiveTS (F.suc F.zero) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc F.zero)) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc F.zero)) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) refl =
-      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxid ⦄ refl SrcTS.OffersOnly-Ret
+      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxHash ⦄ refl SrcTS.OffersOnly-Ret
     mc (_ , TS.receiveTS (F.suc (F.suc (F.suc F.zero))) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc (F.suc F.zero))) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxs _)) eq = case eq of λ ()
@@ -2584,6 +2606,9 @@ tsClientSrc-OO (F.suc (F.suc F.zero)) = SrcTS.OffersOnly-iter {k = TS.clientStep
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSDone) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSDone) a ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ recvTSRequestTxIds) a eq = case eq of λ ()
@@ -2605,6 +2630,9 @@ tsClientSrc-OO (F.suc (F.suc F.zero)) = SrcTS.OffersOnly-iter {k = TS.clientStep
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSReplyTxIds) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxIds) a ()
     mc (_ , TS.apiTSev _ _ sendTSReplyTxs) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
@@ -2629,6 +2657,9 @@ tsClientSrc-OO (F.suc (F.suc F.zero)) = SrcTS.OffersOnly-iter {k = TS.clientStep
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) lo sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
@@ -2676,7 +2707,7 @@ tsClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcTS.OffersOnly-iter {k = TS.cl
     mc (_ , TS.receiveTS (F.suc (F.suc F.zero)) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc (F.suc F.zero))) lo) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) ()
     mc (_ , TS.receiveTS (F.suc (F.suc (F.suc F.zero))) hi) (_ , _ , _ , txSubmission (MsgTSRequestTxs _)) refl =
-      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxid ⦄ refl SrcTS.OffersOnly-Ret
+      refl , SrcTS.OffersOnly-Output ⦃ TS.DecEq-ListTxHash ⦄ refl SrcTS.OffersOnly-Ret
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSReplyTxs _)) eq = case eq of λ ()
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , txSubmission (MsgTSDone)) eq = case eq of λ ()
     mc (_ , TS.receiveTS l′ d′) (_ , _ , _ , keepAlive _) eq = case eq of λ ()
@@ -2712,6 +2743,9 @@ tsClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcTS.OffersOnly-iter {k = TS.cl
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSDone) a refl =
       refl , SrcTS.OffersOnly-Output refl (SrcTS.OffersOnly-Prefix₀ (λ _ → refl) SrcTS.OffersOnly-Ret)
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ recvTSRequestTxIds) a eq = case eq of λ ()
@@ -2733,6 +2767,9 @@ tsClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcTS.OffersOnly-iter {k = TS.cl
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxIds) a refl =
       refl , SrcTS.OffersOnly-Output refl SrcTS.OffersOnly-Ret
     mc (_ , TS.apiTSev _ _ sendTSReplyTxs) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
@@ -2746,6 +2783,9 @@ tsClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcTS.OffersOnly-iter {k = TS.cl
     where
     mc : SrcTS.MenuConf (srcAlphaTS hi) _
     mc (_ , TS.apiTSev _ _ sendTSReplyTxIds) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     -- api sendTSReplyTxs: fires only on ((F.suc (F.suc (F.suc F.zero))) , hi)
     mc (_ , TS.apiTSev F.zero lo sendTSReplyTxs) a ()
     mc (_ , TS.apiTSev F.zero hi sendTSReplyTxs) a ()
@@ -2757,6 +2797,9 @@ tsClientSrc-OO (F.suc (F.suc (F.suc F.zero))) = SrcTS.OffersOnly-iter {k = TS.cl
     mc (_ , TS.apiTSev (F.suc (F.suc (F.suc F.zero))) hi sendTSReplyTxs) a refl =
       refl , SrcTS.OffersOnly-Output refl SrcTS.OffersOnly-Ret
     mc (_ , TS.apiTSev _ _ sendTSDone) a eq = case eq of λ ()
+    -- the two new TS request/reply-reporting tags are not offered here either
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxIds) a eq = case eq of λ ()
+    mc (_ , TS.apiTSev _ _ recvTSReplyTxs) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsBlocking) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxIdsPipelined) a eq = case eq of λ ()
     mc (_ , TS.apiTSev _ _ sendTSRequestTxsPipelined) a eq = case eq of λ ()

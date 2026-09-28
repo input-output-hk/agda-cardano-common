@@ -113,7 +113,7 @@ open import CSP.Examples.Cardano_network.Net p
         -- (T8c-iii) §9's `cssRowP-noLink` is total on `Net_Api`, so every constructor
         -- is named: seven of them have no `ApiHasLink` witness at all and their
         -- clauses are absurd
-        ; done; input; output; apiKA; apiTS; apiLN; apiLF
+        ; done; input; output; apiKA; apiTS; apiLN; apiLF; apiLP
         ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break ; store; env )
 -- `MsgCSRequestNext` is the ONE message §4's narrowed cell arm admits (the T8
 -- review's I-1); the wire tuple's other three components stay lenient, which is why

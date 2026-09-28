@@ -32,7 +32,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF; apiLP
   -- the node-local channels (never performed by the four-node diamond)
   ; store; env; StoreTag; StoreCar; EnvTag; EnvCar
   -- the producer/consumer api tags (the role discriminator's index values)
@@ -1647,10 +1647,6 @@ lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stBlock) step with LFL.ev-inv step
 ... | v , τc , feq , veq with react-injective feq
 ...   | refl , _ with veq
 ...     | ()
-lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stBlockTxs) step with LFL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
 lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stVotes) step with LFL.ev-inv step
 ... | v , τc , feq , veq with react-injective feq
 ...   | refl , _ with veq
@@ -1662,11 +1658,6 @@ lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stBlockRange) step with LFL.ev-inv step
 lf-c-pos-no-doneLF l d (SN.lfcHead LFp.stDone) step with LFL.ev-inv step
 ... | _ , _ , () , _
 lf-c-pos-no-doneLF l d (SN.lfcRblk1 b) step
-  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-lf-c-pos-no-doneLF l d (SN.lfcRbtx1 ts) step
   rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
 ... | v , τc , feq , veq with react-injective feq
 ...   | refl , _ with veq
@@ -1687,11 +1678,6 @@ lf-c-pos-no-doneLF l d (SN.lfcRlast1 b ts) step
 ...   | refl , _ with veq
 ...     | ()
 lf-c-pos-no-doneLF l d (SN.lfcWblk1 pt) step
-  rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
-... | v , τc , feq , veq with react-injective feq
-...   | refl , _ with veq
-...     | ()
-lf-c-pos-no-doneLF l d (SN.lfcWtxs1 pb) step
   rewrite ≟-yes-refl l | ≟-yes-refl d with LFL.ev-inv step
 ... | v , τc , feq , veq with react-injective feq
 ...   | refl , _ with veq
@@ -2561,23 +2547,19 @@ lfCnxt-break-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {a : ⊤₀}
   → NS.lfCnxt l d (SStep.coarsenLFc q) (⊤₀ , break l₀) a ≡ nothing
 lfCnxt-break-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-break-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-break-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-break-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-break-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-break-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-break-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-break-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-break-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-break-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-break-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-break-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-break-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-break-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-break-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-break-c l d (SN.lfcDone1) = refl
 lfCnxt-break-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-break-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-break-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-break-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-break-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-break-c l d (SN.lfcSil LFp.stDone) = refl
@@ -2597,19 +2579,16 @@ lfSnxt-break-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {a : ⊤₀}
   → NS.lfSnxt l d (SStep.coarsenLFs q) (⊤₀ , break l₀) a ≡ nothing
 lfSnxt-break-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-break-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-break-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-break-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-break-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-break-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-break-c l d (SN.lfsDone1)           = refl
 lfSnxt-break-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-break-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-break-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-break-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-break-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-break-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-break-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-break-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-break-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-break-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-break-c l d (SN.lfsSil LFp.stDone) = refl
@@ -2914,6 +2893,25 @@ medium-no-apiLF : (m : MedState) {l₀ : Link} {d₀ : Dir} {m₀ : _} {a : _}
 medium-no-apiLF m =
   ⦀Fin-noOffer numLinks (λ l → decLink l (phase m l) (broken m l))
     (λ l → decLink-no-apiLF l (phase m l) (broken m l))
+
+-- one breakable link offers no `apiLP` (`ιNet⁻¹ (apiLP …) ≡ nothing`)
+decLink-no-apiLP : (l : Link) (ph : Dir → IDs → CopyPhase) (b : Bool)
+    {l₀ : Link} {d₀ : Dir} {m₀ : _} {a : _}
+  → ¬ IoOffers (decLink l ph b) (apiLP l₀ d₀ m₀) a
+decLink-no-apiLP l ph true  (M , step) = ret-no-ev {P = decLink l ph true} refl step
+decLink-no-apiLP l ph false (M , step) with fold-react l ph
+... | mkReactF V T feq with △-ev-elim (MedNO.force-renameMap-react
+        {P = ⦀⋆ (map (λ { (d , id) → decCopy l d id (ph d id) }) (linkConfig l))} feq)
+        refl refl step
+...   | P′ , leftStep , _ with MedNO.renameMap-ev-reflect-ι leftStep
+...     | e₁ , Q′ , () , _
+
+-- the medium offers no `apiLP`
+medium-no-apiLP : (m : MedState) {l₀ : Link} {d₀ : Dir} {m₀ : _} {a : _}
+  → ¬ IoOffers (decMed m) (apiLP l₀ d₀ m₀) a
+medium-no-apiLP m =
+  ⦀Fin-noOffer numLinks (λ l → decLink l (phase m l) (broken m l))
+    (λ l → decLink-no-apiLP l (phase m l) (broken m l))
 
 -- one breakable link offers no `sndmsg` (copy cells fire only input/output)
 decLink-no-sndmsg : (l : Link) (ph : Dir → IDs → CopyPhase) (b : Bool)
@@ -4115,23 +4113,19 @@ lfCnxt-sndmsg-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir
   → NS.lfCnxt l d (SStep.coarsenLFc q) (Payload , sndmsg l₀ d₀ id₀) a ≡ nothing
 lfCnxt-sndmsg-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-sndmsg-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-sndmsg-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-sndmsg-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-sndmsg-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-sndmsg-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-sndmsg-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-sndmsg-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-sndmsg-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-sndmsg-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-sndmsg-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-sndmsg-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-sndmsg-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-sndmsg-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-sndmsg-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-sndmsg-c l d (SN.lfcDone1) = refl
 lfCnxt-sndmsg-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-sndmsg-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-sndmsg-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-sndmsg-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-sndmsg-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-sndmsg-c l d (SN.lfcSil LFp.stDone) = refl
@@ -4151,19 +4145,16 @@ lfSnxt-sndmsg-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir
   → NS.lfSnxt l d (SStep.coarsenLFs q) (Payload , sndmsg l₀ d₀ id₀) a ≡ nothing
 lfSnxt-sndmsg-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-sndmsg-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-sndmsg-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-sndmsg-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-sndmsg-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-sndmsg-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-sndmsg-c l d (SN.lfsDone1)           = refl
 lfSnxt-sndmsg-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-sndmsg-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-sndmsg-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-sndmsg-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-sndmsg-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-sndmsg-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-sndmsg-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-sndmsg-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-sndmsg-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-sndmsg-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-sndmsg-c l d (SN.lfsSil LFp.stDone) = refl
@@ -4528,23 +4519,19 @@ lfCnxt-rcvmsg-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir
   → NS.lfCnxt l d (SStep.coarsenLFc q) (Payload , rcvmsg l₀ d₀ id₀) a ≡ nothing
 lfCnxt-rcvmsg-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-rcvmsg-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-rcvmsg-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-rcvmsg-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcDone1) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-rcvmsg-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-rcvmsg-c l d (SN.lfcSil LFp.stDone) = refl
@@ -4564,19 +4551,16 @@ lfSnxt-rcvmsg-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir
   → NS.lfSnxt l d (SStep.coarsenLFs q) (Payload , rcvmsg l₀ d₀ id₀) a ≡ nothing
 lfSnxt-rcvmsg-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-rcvmsg-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsDone1)           = refl
 lfSnxt-rcvmsg-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-rcvmsg-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-rcvmsg-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-rcvmsg-c l d (SN.lfsSil LFp.stDone) = refl
@@ -4941,23 +4925,19 @@ lfCnxt-tx-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {i
   → NS.lfCnxt l d (SStep.coarsenLFc q) (Payload , tx l₀ d₀ id₀) a ≡ nothing
 lfCnxt-tx-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-tx-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-tx-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-tx-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-tx-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-tx-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-tx-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-tx-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-tx-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-tx-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-tx-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-tx-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-tx-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-tx-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-tx-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-tx-c l d (SN.lfcDone1) = refl
 lfCnxt-tx-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-tx-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-tx-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-tx-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-tx-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-tx-c l d (SN.lfcSil LFp.stDone) = refl
@@ -4977,19 +4957,16 @@ lfSnxt-tx-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {i
   → NS.lfSnxt l d (SStep.coarsenLFs q) (Payload , tx l₀ d₀ id₀) a ≡ nothing
 lfSnxt-tx-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-tx-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-tx-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-tx-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-tx-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-tx-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-tx-c l d (SN.lfsDone1)           = refl
 lfSnxt-tx-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-tx-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-tx-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-tx-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-tx-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-tx-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-tx-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-tx-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-tx-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-tx-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-tx-c l d (SN.lfsSil LFp.stDone) = refl
@@ -5353,23 +5330,19 @@ lfCnxt-store-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir}
   → NS.lfCnxt l d (SStep.coarsenLFc q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
 lfCnxt-store-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-store-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-store-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-store-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-store-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-store-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-store-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-store-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-store-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-store-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-store-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-store-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-store-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-store-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-store-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-store-c l d (SN.lfcDone1) = refl
 lfCnxt-store-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-store-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-store-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-store-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-store-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-store-c l d (SN.lfcSil LFp.stDone) = refl
@@ -5389,19 +5362,16 @@ lfSnxt-store-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir}
   → NS.lfSnxt l d (SStep.coarsenLFs q) (StoreCar m₀ , store l₀ d₀ m₀) a ≡ nothing
 lfSnxt-store-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-store-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-store-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-store-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-store-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-store-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-store-c l d (SN.lfsDone1)           = refl
 lfSnxt-store-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-store-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-store-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-store-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-store-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-store-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-store-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-store-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-store-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-store-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-store-c l d (SN.lfsSil LFp.stDone) = refl
@@ -5765,23 +5735,19 @@ lfCnxt-env-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {
   → NS.lfCnxt l d (SStep.coarsenLFc q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
 lfCnxt-env-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-env-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-env-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-env-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-env-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-env-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-env-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-env-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-env-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-env-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-env-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-env-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-env-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-env-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-env-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-env-c l d (SN.lfcDone1) = refl
 lfCnxt-env-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-env-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-env-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-env-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-env-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-env-c l d (SN.lfcSil LFp.stDone) = refl
@@ -5801,19 +5767,16 @@ lfSnxt-env-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {
   → NS.lfSnxt l d (SStep.coarsenLFs q) (EnvCar m₀ , env l₀ d₀ m₀) a ≡ nothing
 lfSnxt-env-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-env-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-env-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-env-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-env-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-env-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-env-c l d (SN.lfsDone1)           = refl
 lfSnxt-env-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-env-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-env-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-env-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-env-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-env-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-env-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-env-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-env-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-env-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-env-c l d (SN.lfsSil LFp.stDone) = refl
@@ -6178,23 +6141,19 @@ lfCnxt-sndack-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir
   → NS.lfCnxt l d (SStep.coarsenLFc q) (⊤₀ , sndack l₀ d₀ id₀) a ≡ nothing
 lfCnxt-sndack-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-sndack-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-sndack-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-sndack-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-sndack-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-sndack-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-sndack-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-sndack-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-sndack-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-sndack-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-sndack-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-sndack-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-sndack-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-sndack-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-sndack-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-sndack-c l d (SN.lfcDone1) = refl
 lfCnxt-sndack-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-sndack-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-sndack-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-sndack-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-sndack-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-sndack-c l d (SN.lfcSil LFp.stDone) = refl
@@ -6214,19 +6173,16 @@ lfSnxt-sndack-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir
   → NS.lfSnxt l d (SStep.coarsenLFs q) (⊤₀ , sndack l₀ d₀ id₀) a ≡ nothing
 lfSnxt-sndack-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-sndack-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-sndack-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-sndack-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-sndack-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-sndack-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-sndack-c l d (SN.lfsDone1)           = refl
 lfSnxt-sndack-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-sndack-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-sndack-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-sndack-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-sndack-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-sndack-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-sndack-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-sndack-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-sndack-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-sndack-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-sndack-c l d (SN.lfsSil LFp.stDone) = refl
@@ -6591,23 +6547,19 @@ lfCnxt-rcvack-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir
   → NS.lfCnxt l d (SStep.coarsenLFc q) (⊤₀ , rcvack l₀ d₀ id₀) a ≡ nothing
 lfCnxt-rcvack-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-rcvack-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-rcvack-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-rcvack-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-rcvack-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-rcvack-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-rcvack-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-rcvack-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-rcvack-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-rcvack-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-rcvack-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-rcvack-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-rcvack-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-rcvack-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-rcvack-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-rcvack-c l d (SN.lfcDone1) = refl
 lfCnxt-rcvack-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-rcvack-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-rcvack-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-rcvack-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-rcvack-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-rcvack-c l d (SN.lfcSil LFp.stDone) = refl
@@ -6627,19 +6579,16 @@ lfSnxt-rcvack-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir
   → NS.lfSnxt l d (SStep.coarsenLFs q) (⊤₀ , rcvack l₀ d₀ id₀) a ≡ nothing
 lfSnxt-rcvack-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-rcvack-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-rcvack-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-rcvack-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-rcvack-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-rcvack-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-rcvack-c l d (SN.lfsDone1)           = refl
 lfSnxt-rcvack-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-rcvack-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-rcvack-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-rcvack-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-rcvack-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-rcvack-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-rcvack-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-rcvack-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-rcvack-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-rcvack-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-rcvack-c l d (SN.lfsSil LFp.stDone) = refl
@@ -7004,23 +6953,19 @@ lfCnxt-ack-c : (l : Link) (d : Dir) (q : SN.LFcPos) {l₀ : Link} {d₀ : Dir} {
   → NS.lfCnxt l d (SStep.coarsenLFc q) (⊤₀ , ack l₀ d₀ id₀) a ≡ nothing
 lfCnxt-ack-c l d (SN.lfcHead LFp.stIdle) = refl
 lfCnxt-ack-c l d (SN.lfcHead LFp.stBlock) = refl
-lfCnxt-ack-c l d (SN.lfcHead LFp.stBlockTxs) = refl
 lfCnxt-ack-c l d (SN.lfcHead LFp.stVotes) = refl
 lfCnxt-ack-c l d (SN.lfcHead LFp.stBlockRange) = refl
 lfCnxt-ack-c l d (SN.lfcHead LFp.stDone) = refl
 lfCnxt-ack-c l d (SN.lfcRblk1 b) = refl
-lfCnxt-ack-c l d (SN.lfcRbtx1 ts) = refl
 lfCnxt-ack-c l d (SN.lfcRvot1 vs) = refl
 lfCnxt-ack-c l d (SN.lfcRnext1 b ts) = refl
 lfCnxt-ack-c l d (SN.lfcRlast1 b ts) = refl
 lfCnxt-ack-c l d (SN.lfcWblk1 pt) = refl
-lfCnxt-ack-c l d (SN.lfcWtxs1 pb) = refl
 lfCnxt-ack-c l d (SN.lfcWvot1 vs) = refl
 lfCnxt-ack-c l d (SN.lfcWrng1 r) = refl
 lfCnxt-ack-c l d (SN.lfcDone1) = refl
 lfCnxt-ack-c l d (SN.lfcSil LFp.stIdle) = refl
 lfCnxt-ack-c l d (SN.lfcSil LFp.stBlock) = refl
-lfCnxt-ack-c l d (SN.lfcSil LFp.stBlockTxs) = refl
 lfCnxt-ack-c l d (SN.lfcSil LFp.stVotes) = refl
 lfCnxt-ack-c l d (SN.lfcSil LFp.stBlockRange) = refl
 lfCnxt-ack-c l d (SN.lfcSil LFp.stDone) = refl
@@ -7040,19 +6985,16 @@ lfSnxt-ack-c : (l : Link) (d : Dir) (q : SN.LFsPos) {l₀ : Link} {d₀ : Dir} {
   → NS.lfSnxt l d (SStep.coarsenLFs q) (⊤₀ , ack l₀ d₀ id₀) a ≡ nothing
 lfSnxt-ack-c l d (SN.lfsHead LFp.stIdle) = refl
 lfSnxt-ack-c l d (SN.lfsHead LFp.stBlock) = refl
-lfSnxt-ack-c l d (SN.lfsHead LFp.stBlockTxs) = refl
 lfSnxt-ack-c l d (SN.lfsHead LFp.stVotes) = refl
 lfSnxt-ack-c l d (SN.lfsHead LFp.stBlockRange) = refl
 lfSnxt-ack-c l d (SN.lfsHead LFp.stDone) = refl
 lfSnxt-ack-c l d (SN.lfsDone1)           = refl
 lfSnxt-ack-c l d (SN.lfsWblk1 b) = refl
-lfSnxt-ack-c l d (SN.lfsWtxs1 ts) = refl
 lfSnxt-ack-c l d (SN.lfsWvot1 vs) = refl
 lfSnxt-ack-c l d (SN.lfsWnext1 bt) = refl
 lfSnxt-ack-c l d (SN.lfsWlast1 bt) = refl
 lfSnxt-ack-c l d (SN.lfsSil LFp.stIdle) = refl
 lfSnxt-ack-c l d (SN.lfsSil LFp.stBlock) = refl
-lfSnxt-ack-c l d (SN.lfsSil LFp.stBlockTxs) = refl
 lfSnxt-ack-c l d (SN.lfsSil LFp.stVotes) = refl
 lfSnxt-ack-c l d (SN.lfsSil LFp.stBlockRange) = refl
 lfSnxt-ack-c l d (SN.lfsSil LFp.stDone) = refl

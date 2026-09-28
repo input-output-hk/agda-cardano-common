@@ -118,7 +118,7 @@ module Generic
   open N p
     using ( Link; Net_Api; Net_Api-≟
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; store; env; break
+          ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; envForge
           ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
           ; sendCSRequestNext; recvCSRollforward
@@ -206,6 +206,7 @@ module Generic
   storeSet-dec (_ , apiKA  _ _ _) = no λ ()
   storeSet-dec (_ , apiLN  _ _ _) = no λ ()
   storeSet-dec (_ , apiLF  _ _ _) = no λ ()
+  storeSet-dec (_ , apiLP  _ _ _) = no λ ()
   storeSet-dec (_ , break  _)     = no λ ()
 
   -- the store rendezvous alphabet (disjoint from `apiES` and from `ioES`, so store
@@ -422,25 +423,3 @@ module Generic
                      (map (endpointImpl n) (proj₂ (endpointsOf n)))))
          ∥⇘ storeES ⇙ blockStore n held)
     ⊑FD node n (nodeLogic n held)
-
-------------------------------------------------------------------------
--- Sanity check: the relay logic at the three-node line
---
--- `Parametric.LineInstance` witnesses `systemOf (λ _ → Skip)` — the
--- scaffolding over a DERIVED `endpointsOf`.  This is the same witness
--- with the trivial logic replaced by the real relay logic, every node
--- starting from an empty store.  The line's degree-2 middle node
--- exercises the non-empty-tail path through `⦀⁺` and its two degree-1
--- ends exercise the `⦀⁺ P [] = P` path.
-------------------------------------------------------------------------
-
-open import CSP.Examples.Cardano_network.Parametric.LineInstance
-  using (lineParams; line)
-open import CSP.Examples.Cardano_network.ApiAlphabet lineParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node lineParams line apiES
-  using (Proc; systemOf)
-
--- the three-node line running the relay logic at every node, each store initially
--- empty: a TYPECHECKING WITNESS that `nodeLogic` really is a `Parametric.Node` `lg`
-lineRelaySystem : Proc
-lineRelaySystem = systemOf (λ n → Generic.nodeLogic lineParams line apiES n [])

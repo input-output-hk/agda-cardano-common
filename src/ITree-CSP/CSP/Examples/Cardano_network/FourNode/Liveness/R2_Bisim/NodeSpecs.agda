@@ -98,9 +98,6 @@ instance
   -- NOTE: List Vote / List Tx / List VoteBlob equality is resolved by the
   -- AMBIENT generic `DecEqI.DecEq-List` — a NAMED local instance for them
   -- clashes with the generic (UnsolvedConstraints ambiguity), so is omitted.
-  -- Point × LFBitmap (LF sendLFBlockTxsRequest api payload)
-  DecEq-Point×LFBitmap : DecEq (Point × LFBitmap)
-  DecEq-Point×LFBitmap = DecEqI.DecEq-×
   -- Block × List Tx (LF recvLFRangeBlock api payload)
   DecEq-Block×ListTx : DecEq (Block × List Tx)
   DecEq-Block×ListTx = DecEqI.DecEq-×
@@ -996,18 +993,15 @@ lnServerSpec l d = tableSpec (record { isFin = lnSfin ; nxt = lnSnxt l d }) lnsI
 
 -- LF client positions
 data LFcPos : Set where
-  lfcIdle : LFcPos                       -- loop head: five request api offers
+  lfcIdle : LFcPos                       -- loop head: four request api offers
   lfcWblk : EBHash → LFcPos              -- wire-send MsgLFBlockRequest h (→ blk)
-  lfcWtxs : Point × LFBitmap → LFcPos     -- wire-send MsgLFBlockTxsRequest (→ btx)
   lfcWvot : List Vote → LFcPos           -- wire-send MsgLFVotesRequest vs (→ vot)
   lfcWrng : ChainRange → LFcPos          -- wire-send MsgLFBlockRangeRequest r (→ rng)
   lfcWdone : LFcPos                      -- wire-send MsgLFDone (→ √)
   lfcBlk : LFcPos                        -- await MsgLFBlock
-  lfcBtx : LFcPos                        -- await MsgLFBlockTxs
   lfcVot : LFcPos                        -- await MsgLFVoteDelivery
   lfcRng : LFcPos                        -- await MsgLFNext/Last… (streaming head)
   lfcRblk : EB → LFcPos                  -- api emit recvLFBlock e (→ idle)
-  lfcRbtx : List Tx → LFcPos             -- api emit recvLFBlockTxs ts (→ idle)
   lfcRvot : List VoteBlob → LFcPos       -- api emit recvLFVoteDelivery vs (→ idle)
   lfcRnextRng : Block × List Tx → LFcPos  -- api emit recvLFRangeBlock (→ rng, loop)
   lfcRlastRng : Block × List Tx → LFcPos  -- api emit recvLFRangeBlock (→ idle, final)
@@ -1024,9 +1018,6 @@ lfCnxt : Link → Dir → LFcPos
 lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFBlockRequest) pt with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just (lfcWblk pt)
 ... | _        | _        = nothing
-lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFBlockTxsRequest) pb with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = just (lfcWtxs pb)
-... | _        | _        = nothing
 lfCnxt l d lfcIdle (_ , apiLF l′ d′ sendLFVotesRequest) vs with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just (lfcWvot vs)
 ... | _        | _        = nothing
@@ -1042,12 +1033,6 @@ lfCnxt l d (lfcWblk pt) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l 
 ...     | yes _ = just lfcBlk
 ...     | no  _ = nothing
 lfCnxt l d (lfcWblk pt) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
-lfCnxt l d (lfcWtxs (pt , bm)) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl
-      with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm))
-...     | yes _ = just lfcBtx
-...     | no  _ = nothing
-lfCnxt l d (lfcWtxs (pt , bm)) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
 lfCnxt l d (lfcWvot vs) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl
       with pl ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVotesRequest vs))
@@ -1070,10 +1055,6 @@ lfCnxt l d lfcBlk (_ , output l′ d′ N2N_LeiosFetch)
       (t , m , len , leiosFetch (MsgLFBlock b)) with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just (lfcRblk b)
 ... | _        | _        = nothing
-lfCnxt l d lfcBtx (_ , output l′ d′ N2N_LeiosFetch)
-      (t , m , len , leiosFetch (MsgLFBlockTxs ts)) with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = just (lfcRbtx ts)
-... | _        | _        = nothing
 lfCnxt l d lfcVot (_ , output l′ d′ N2N_LeiosFetch)
       (t , m , len , leiosFetch (MsgLFVoteDelivery vs)) with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just (lfcRvot vs)
@@ -1091,11 +1072,6 @@ lfCnxt l d (lfcRblk b) (_ , apiLF l′ d′ recvLFBlock) x with l′ ≟ l | d�
 ...   | yes _ = just lfcIdle
 ...   | no  _ = nothing
 lfCnxt l d (lfcRblk b) (_ , apiLF l′ d′ recvLFBlock) x | _ | _ = nothing
-lfCnxt l d (lfcRbtx ts) (_ , apiLF l′ d′ recvLFBlockTxs) x with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl with x ≟ ts
-...   | yes _ = just lfcIdle
-...   | no  _ = nothing
-lfCnxt l d (lfcRbtx ts) (_ , apiLF l′ d′ recvLFBlockTxs) x | _ | _ = nothing
 lfCnxt l d (lfcRvot vs) (_ , apiLF l′ d′ recvLFVoteDelivery) x with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl with x ≟ vs
 ...   | yes _ = just lfcIdle
@@ -1126,14 +1102,12 @@ lfClientSpec l d = tableSpec (record { isFin = lfCfin ; nxt = lfCnxt l d }) lfcI
 
 -- LF server positions
 data LFsPos : Set where
-  lfsIdle : LFsPos                       -- await one of five requests off the wire
+  lfsIdle : LFsPos                       -- await one of four requests off the wire
   lfsBlk : LFsPos                        -- deliver a block (api)
-  lfsBtx : LFsPos                        -- deliver selective txs (api)
   lfsVot : LFsPos                        -- deliver votes (api)
   lfsRng : LFsPos                        -- deliver a range item (api, streaming head)
   lfsDone : LFsPos                       -- the server-local done event (→ √)
   lfsWblk : EB → LFsPos                  -- wire-send MsgLFBlock e (→ idle)
-  lfsWtxs : List Tx → LFsPos             -- wire-send MsgLFBlockTxs ts (→ idle)
   lfsWvot : List VoteBlob → LFsPos       -- wire-send MsgLFVoteDelivery vs (→ idle)
   lfsWnext : Block × List Tx → LFsPos     -- wire-send MsgLFNext… (→ rng, loop)
   lfsWlast : Block × List Tx → LFsPos     -- wire-send MsgLFLast… (→ idle, final)
@@ -1152,10 +1126,6 @@ lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
 ... | yes refl | yes refl = just lfsBlk
 ... | _        | _        = nothing
 lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
-      (t , m , len , leiosFetch (MsgLFBlockTxsRequest pt bm)) with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = just lfsBtx
-... | _        | _        = nothing
-lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
       (t , m , len , leiosFetch (MsgLFVotesRequest vs)) with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just lfsVot
 ... | _        | _        = nothing
@@ -1169,9 +1139,6 @@ lfSnxt l d lfsIdle (_ , output l′ d′ N2N_LeiosFetch)
 ... | _        | _        = nothing
 lfSnxt l d lfsBlk (_ , apiLF l′ d′ sendLFBlock) b with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just (lfsWblk b)
-... | _        | _        = nothing
-lfSnxt l d lfsBtx (_ , apiLF l′ d′ sendLFBlockTxs) ts with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = just (lfsWtxs ts)
 ... | _        | _        = nothing
 lfSnxt l d lfsVot (_ , apiLF l′ d′ sendLFVoteDelivery) vs with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = just (lfsWvot vs)
@@ -1188,12 +1155,6 @@ lfSnxt l d (lfsWblk b) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l |
 ...     | yes _ = just lfsIdle
 ...     | no  _ = nothing
 lfSnxt l d (lfsWblk b) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
-lfSnxt l d (lfsWtxs ts) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl
-      with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts))
-...     | yes _ = just lfsIdle
-...     | no  _ = nothing
-lfSnxt l d (lfsWtxs ts) (_ , input l′ d′ N2N_LeiosFetch) pl | _ | _ = nothing
 lfSnxt l d (lfsWvot vs) (_ , input l′ d′ N2N_LeiosFetch) pl with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl
       with pl ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFVoteDelivery vs))

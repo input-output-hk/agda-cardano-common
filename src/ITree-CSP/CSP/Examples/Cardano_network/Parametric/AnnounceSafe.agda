@@ -155,9 +155,9 @@ module Generic
 
   open Params p using (EB; EBHash; ebHash; decEBHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; apiLN; envForge; sendLNBlockAnnouncement
+    using ( Net_Api; Net_Api-≟; env; apiLN; envForge; envSubmit; envForgeCert; sendLNBlockAnnouncement
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-          ; apiCS; apiBF; apiTS; apiKA; apiLF; store; break
+          ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP; store; break
           ; sendLNRequestNext; sendLNDone; sendLNBlockOffer; sendLNBlockTxsOffer
           ; sendLNVotesOffer; recvLNBlockAnnouncement; recvLNBlockOffer
           ; recvLNBlockTxsOffer; recvLNVotesOffer )
@@ -401,11 +401,18 @@ module Generic
     menu-Ret ms (_ , apiTS  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , apiKA  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , apiLF  _ _ _) _ refl = ms , refl
+    menu-Ret ms (_ , apiLP  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , store  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , break  _)     _ refl = ms , refl
     -- the forge channel grows the forged set …
     menu-Ret ms (_ , env _ _ envForge) (just e  , _) refl = (ebHash e ∷ ms) , refl
     menu-Ret ms (_ , env _ _ envForge) (nothing , _) refl = ms , refl
+    -- … a transaction submission is not a forge, so it hits `announceOffer`'s
+    -- catch-all `just (Ret ms)` and leaves the forged set alone …
+    menu-Ret ms (_ , env _ _ envSubmit) _ refl = ms , refl
+    -- … a certificate-carrying forge is not an EB forge either, so it too hits the
+    -- catch-all and leaves the forged set alone …
+    menu-Ret ms (_ , env _ _ envForgeCert) _ refl = ms , refl
     -- … and the announce channel is the gated one; the rest of LeiosNotify is free
     menu-Ret ms (_ , apiLN _ _ sendLNBlockAnnouncement) h eq = gate-Ret (announceOK ms h) ms eq
     menu-Ret ms (_ , apiLN _ _ sendLNRequestNext)       _ refl = ms , refl

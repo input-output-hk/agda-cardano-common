@@ -25,7 +25,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Net; Net-≟; break
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF )
+  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -103,7 +103,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -140,7 +140,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ; recvCSRollforward; recvCSRollback; recvCSIntersectFound; recvCSIntersectNotFound
   ; reqCSRequestNext; reqCSFindIntersect )
 open import CSP.Examples.Cardano_network.Data p using
-  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch
+  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgCSRequestNext; MsgCSAwaitReply; MsgCSRollForward; MsgCSRollBackward
   ; MsgCSFindIntersect; MsgCSIntersectFound; MsgCSIntersectNotFound; MsgCSDone
   ; Point; Tip; DecEq-Header; DecEq-Tip; DecEq-Point )
@@ -176,7 +176,7 @@ import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
 open import CSP.Examples.Cardano_network.Net p using
   ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
-  ; recvTSRequestTxIds; recvTSRequestTxs )
+  ; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 open import Data.List.Properties using (≡-dec)
@@ -194,12 +194,12 @@ open SN
   using ( succVF; vis-ofF; LFProc )
 import Semantics.LTS {E = LFp.LFEv} {I = ExtI LFp.LFEv} as LFL
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+  ( sendLFBlockRequest; sendLFVotesRequest
+  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
-  ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
+  ; recvLFBlock; recvLFVoteDelivery; recvLFRangeBlock; reqLFBlockRequest; reqLFVotesRequest )
 open import CSP.Examples.Cardano_network.Data p using
-  ( MsgLFBlockRequest; MsgLFBlock; MsgLFBlockTxsRequest; MsgLFBlockTxs
+  ( MsgLFBlockRequest; MsgLFBlock
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
 
@@ -287,6 +287,8 @@ decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , 
 decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
 decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
 decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
+decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
+decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
 decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
 decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.sendCS l' d'}      s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
 decCSc-src-link l d (csHead CS.stCanAwait) {e₁ = CS.apiCSev l' d' m}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stCanAwait)) refl s))
@@ -312,6 +314,8 @@ decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ ,
 decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
 decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
 decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
+decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
+decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
 decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
 decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.sendCS l' d'}    s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
 decCSc-src-link l d (csHead CS.stMustReply) {e₁ = CS.apiCSev l' d' m} s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stMustReply)) refl s))
@@ -337,6 +341,8 @@ decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ ,
 decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
 decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
 decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
+decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
+decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
 decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
 decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.sendCS l' d'}    s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
 decCSc-src-link l d (csHead CS.stIntersect) {e₁ = CS.apiCSev l' d' m} s = ⊥-elim (nothing-absurd (step-target-CS (decCSc-src l d (csHead CS.stIntersect)) refl s))
@@ -451,6 +457,8 @@ decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , 
 decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
 decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
 decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
+decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
+decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
 decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.receiveCS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
 decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.sendCS l' d'}    s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
 decCSs-src-link l d (ssHead CS.stIdle) {e₁ = CS.apiCSev l' d' m} s = ⊥-elim (nothing-absurd (step-target-CS (decCSs-src l d (ssHead CS.stIdle)) refl s))
@@ -667,6 +675,8 @@ decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , 
 decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , chainSync x}    s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
 decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
 decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
+decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
+decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
 decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
 decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.sendBF l' d'}    s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
 decBFc-src-link l d (bcHead BF.stBusy) {e₁ = BF.apiBFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stBusy)) refl s))
@@ -690,6 +700,8 @@ decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ ,
 decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , chainSync x}    s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
 decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
 decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
+decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
+decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
 decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
 decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.sendBF l' d'}    s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
 decBFc-src-link l d (bcHead BF.stStreaming) {e₁ = BF.apiBFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-BF (decBFc-src l d (bcHead BF.stStreaming)) refl s))
@@ -758,6 +770,8 @@ decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , 
 decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , chainSync x}    s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
 decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
 decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
+decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
+decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
 decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.receiveBF l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
 decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.sendBF l' d'}    s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
 decBFs-src-link l d (bsHead BF.stIdle) {e₁ = BF.apiBFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-BF (decBFs-src l d (bsHead BF.stIdle)) refl s))
@@ -1250,7 +1264,9 @@ csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} 
 csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csSnxt-link-no l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csSnxt-link-no l d NS.csIdle (CS.apiCSev l' d' m) ¬eq = refl
 csSnxt-link-no l d NS.csIdle (CS.doneCS l' d') ¬eq = refl
 csSnxt-link-no l d NS.csAreq (CS.sendCS l' d') ¬eq = refl
@@ -1494,7 +1510,9 @@ csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _}
 csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csCnxt-link-no l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csCnxt-link-no l d NS.ccAwait (CS.apiCSev l' d' m) ¬eq = refl
 csCnxt-link-no l d NS.ccAwait (CS.doneCS l' d') ¬eq = refl
 csCnxt-link-no l d (NS.ccWfi _) (CS.sendCS l' d') ¬eq with l' ≟ l | d' ≟ d
@@ -1526,7 +1544,9 @@ csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} �
 csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csCnxt-link-no l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csCnxt-link-no l d NS.ccInt (CS.apiCSev l' d' m) ¬eq = refl
 csCnxt-link-no l d NS.ccInt (CS.doneCS l' d') ¬eq = refl
 csCnxt-link-no l d NS.ccWdone (CS.sendCS l' d') ¬eq with l' ≟ l | d' ≟ d
@@ -1558,7 +1578,9 @@ csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} 
 csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} ¬eq = refl
 csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+csCnxt-link-no l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 csCnxt-link-no l d NS.ccMust (CS.apiCSev l' d' m) ¬eq = refl
 csCnxt-link-no l d NS.ccMust (CS.doneCS l' d') ¬eq = refl
 csCnxt-link-no l d (NS.ccArf _) (CS.sendCS l' d') ¬eq = refl
@@ -1701,7 +1723,9 @@ bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _} 
 bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} ¬eq = refl
 bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+bfCnxt-link-no l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 bfCnxt-link-no l d NS.bcBusy (BF.apiBFev l' d' m) ¬eq = refl
 bfCnxt-link-no l d NS.bcBusy (BF.doneBF l' d') ¬eq = refl
 bfCnxt-link-no l d NS.bcWcd (BF.sendBF l' d') ¬eq with l' ≟ l | d' ≟ d
@@ -1731,7 +1755,9 @@ bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _
 bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} ¬eq = refl
 bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+bfCnxt-link-no l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 bfCnxt-link-no l d NS.bcStream (BF.apiBFev l' d' m) ¬eq = refl
 bfCnxt-link-no l d NS.bcStream (BF.doneBF l' d') ¬eq = refl
 bfCnxt-link-no l d (NS.bcAblk _) (BF.sendBF l' d') ¬eq = refl
@@ -1778,7 +1804,9 @@ bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _} 
 bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} ¬eq = refl
 bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} ¬eq = refl
 bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} ¬eq = refl
+bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} ¬eq = refl
 bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} ¬eq = refl
+bfSnxt-link-no l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} ¬eq = refl
 bfSnxt-link-no l d NS.bsIdle (BF.apiBFev l' d' m) ¬eq = refl
 bfSnxt-link-no l d NS.bsIdle (BF.doneBF l' d') ¬eq = refl
 bfSnxt-link-no l d (NS.bsAreq _) (BF.sendBF l' d') ¬eq = refl
@@ -2532,6 +2560,7 @@ bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = apiKA _ _ _} iomem step = 
 bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = apiTS _ _ _} iomem step = ⊥-elim iomem
 bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = apiLN _ _ _} iomem step = ⊥-elim iomem
 bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = apiLF _ _ _} iomem step = ⊥-elim iomem
+bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = apiLP _ _ _} iomem step = ⊥-elim iomem
 bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 bundle-io-inv l cl sv cl≢sv csc css bfc bfs ip {e = tx _ _ _} iomem step = ⊥-elim iomem
@@ -2571,6 +2600,7 @@ io⇒¬api {e = apiKA  _ _ _} ()
 io⇒¬api {e = apiTS  _ _ _} ()
 io⇒¬api {e = apiLN  _ _ _} ()
 io⇒¬api {e = apiLF  _ _ _} ()
+io⇒¬api {e = apiLP  _ _ _} ()
 io⇒¬api {e = break  _}     ()
 
 -- `ApiHasLink` at an `input`/`output` event pins the io's OWN link
@@ -2672,6 +2702,8 @@ decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _
 decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
+decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
+decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.sendKA l' d'}      s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-link l d (kcHead (KA.stServer cq)) {e₁ = KA.apiKAev l' d' m}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
@@ -2725,6 +2757,8 @@ decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ 
 decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
+decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
+decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.sendKA l' d'}     s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-link l d (ksHead KA.stClient) {e₁ = KA.apiKAev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
@@ -2923,6 +2957,8 @@ decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , 
 decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
+decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
+decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-link l d (tcHead TS.stIdle) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
@@ -2939,6 +2975,9 @@ decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSD
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
+decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined} s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-link l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxsPipelined}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
@@ -2954,6 +2993,9 @@ decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' send
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
+decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSDone}                 s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-link l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined} s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
@@ -2970,6 +3012,9 @@ decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSReplyTxs} {
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
+decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSDone}                  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-link l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
@@ -3078,6 +3123,8 @@ decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , 
 decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
+decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
+decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-link l d (tsHead TS.stInit) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
@@ -3099,6 +3146,9 @@ decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSRequestTxs
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = refl
 decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
+decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSReplyTxs} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSDone}       s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-link l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSRequestTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
@@ -3125,6 +3175,8 @@ decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a =
 decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
+decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
+decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
@@ -3144,6 +3196,8 @@ decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {
 decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
+decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
+decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-link l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
@@ -3163,6 +3217,8 @@ decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _
 decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
+decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
+decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-link l d (tsHead TS.stTxs) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
@@ -3396,6 +3452,8 @@ decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _
 decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
+decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
+decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.sendLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.apiLNev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-link l d (lncHead LNp.stBusy) {e₁ = LNp.doneLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
@@ -3493,6 +3551,8 @@ decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _
 decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
+decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
+decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.sendLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.apiLNev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-link l d (lnsHead LNp.stIdle) {e₁ = LNp.doneLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))

@@ -25,7 +25,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Net; Net-≟; break
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF )
+  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -102,7 +102,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -139,7 +139,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ; recvCSRollforward; recvCSRollback; recvCSIntersectFound; recvCSIntersectNotFound
   ; reqCSRequestNext; reqCSFindIntersect )
 open import CSP.Examples.Cardano_network.Data p using
-  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch
+  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgCSRequestNext; MsgCSAwaitReply; MsgCSRollForward; MsgCSRollBackward
   ; MsgCSFindIntersect; MsgCSIntersectFound; MsgCSIntersectNotFound; MsgCSDone
   ; Point; Tip; DecEq-Header; DecEq-Tip; DecEq-Point )
@@ -241,6 +241,7 @@ step-target-KA q {V} {T} {X} {e} {a} feq step with KAL.ev-inv step
 ιKA-inv-shape {e₂ = apiTS  _ _ _} ()
 ιKA-inv-shape {e₂ = apiLN  _ _ _} ()
 ιKA-inv-shape {e₂ = apiLF  _ _ _} ()
+ιKA-inv-shape {e₂ = apiLP  _ _ _} ()
 ιKA-inv-shape {e₂ = sndmsg _ _ _} ()
 ιKA-inv-shape {e₂ = rcvmsg _ _ _} ()
 ιKA-inv-shape {e₂ = tx     _ _ _} ()
@@ -355,6 +356,8 @@ decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a =
 decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
+decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
+decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.sendKA l' d'}      s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
 decKAc-src-ev-inv l d (kcHead (KA.stServer cq)) {e₁ = KA.apiKAev l' d' m}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAc-src l d (kcHead (KA.stServer cq))) refl s))
@@ -415,6 +418,8 @@ decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , 
 decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
+decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
+decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.receiveKA l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.sendKA l' d'}     s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
 decKAs-src-ev-inv l d (ksHead KA.stClient) {e₁ = KA.apiKAev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-KA (decKAs-src l d (ksHead KA.stClient)) refl s))
@@ -468,7 +473,7 @@ import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
 open import CSP.Examples.Cardano_network.Net p using
   ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
-  ; recvTSRequestTxIds; recvTSRequestTxs )
+  ; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 open import Data.List.Properties using (≡-dec)
@@ -527,6 +532,7 @@ step-target-TS q {V} {T} {X} {e} {a} feq step with TSL.ev-inv step
 ιTS-inv-shape {e₂ = apiKA  _ _ _} ()
 ιTS-inv-shape {e₂ = apiLN  _ _ _} ()
 ιTS-inv-shape {e₂ = apiLF  _ _ _} ()
+ιTS-inv-shape {e₂ = apiLP  _ _ _} ()
 ιTS-inv-shape {e₂ = sndmsg _ _ _} ()
 ιTS-inv-shape {e₂ = rcvmsg _ _ _} ()
 ιTS-inv-shape {e₂ = tx     _ _ _} ()
@@ -733,6 +739,8 @@ decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ 
 decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
+decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
+decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stIdle) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stIdle)) refl s))
@@ -749,6 +757,9 @@ decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendT
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = tcDone1 , succVT-inv (decTSc-src l d (tcHead TS.stTxIdsBlocking)) s , aTSc l d (tcHead TS.stTxIdsBlocking) tcDone1 refl (ceqTS-c-blkDone l d)
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
+decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined} s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxsPipelined}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsBlocking)) refl s))
@@ -764,6 +775,9 @@ decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' se
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = tcRepNB1 a , succVT-inv (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) s , aTSc l d (tcHead TS.stTxIdsNonBlocking) (tcRepNB1 a) refl (ceqTS-c-nblReply l d)
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
+decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}             s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSDone}                 s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined} s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxIdsNonBlocking)) refl s))
@@ -780,6 +794,9 @@ decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = tcRepTxs1 a , succVT-inv (decTSc-src l d (tcHead TS.stTxs)) s , aTSc l d (tcHead TS.stTxs) (tcRepTxs1 a) refl (ceqTS-c-txsReply l d)
 decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
+decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' recvTSReplyTxs}            s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSDone}                  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsBlocking}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
 decTSc-src-ev-inv l d (tcHead TS.stTxs) {e₁ = TS.apiTSev l' d' sendTSRequestTxIdsPipelined}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSc-src l d (tcHead TS.stTxs)) refl s))
@@ -889,6 +906,8 @@ decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ 
 decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stInit) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stInit)) refl s))
@@ -910,6 +929,9 @@ decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSRequestT
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = tsReqTxs1 a , succVT-inv (decTSs-src l d (tsHead TS.stIdle)) s , aTSs l d (tsHead TS.stIdle) (tsReqTxs1 a) refl (ceqTS-s-reqTxs l d)
 decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSReplyTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
+-- the two new TS request/reply-reporting tags are not offered here either
+decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSReplyTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSReplyTxs} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSReplyTxs}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' sendTSDone}       s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stIdle) {e₁ = TS.apiTSev l' d' recvTSRequestTxIds} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stIdle)) refl s))
@@ -936,6 +958,8 @@ decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsBlocking) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsBlocking)) refl s))
@@ -955,6 +979,8 @@ decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'}
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxIdsNonBlocking) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxIdsNonBlocking)) refl s))
@@ -974,6 +1000,8 @@ decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ ,
 decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , blockFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , keepAlive x}   s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
+decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.receiveTS l' d'} {a = _ , _ , _ , leiosFetch x}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.sendTS l' d'}     s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
 decTSs-src-ev-inv l d (tsHead TS.stTxs) {e₁ = TS.apiTSev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-TS (decTSs-src l d (tsHead TS.stTxs)) refl s))
@@ -1097,6 +1125,7 @@ step-target-LN q {V} {T} {X} {e} {a} feq step with LNL.ev-inv step
 ιLN-inv-shape {e₂ = apiKA  _ _ _} ()
 ιLN-inv-shape {e₂ = apiTS  _ _ _} ()
 ιLN-inv-shape {e₂ = apiLF  _ _ _} ()
+ιLN-inv-shape {e₂ = apiLP  _ _ _} ()
 ιLN-inv-shape {e₂ = sndmsg _ _ _} ()
 ιLN-inv-shape {e₂ = rcvmsg _ _ _} ()
 ιLN-inv-shape {e₂ = tx     _ _ _} ()
@@ -1296,6 +1325,8 @@ decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ ,
 decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
+decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
+decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.sendLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.apiLNev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
 decLNc-src-ev-inv l d (lncHead LNp.stBusy) {e₁ = LNp.doneLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNc-src l d (lncHead LNp.stBusy)) refl s))
@@ -1394,6 +1425,8 @@ decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ ,
 decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , keepAlive x}    s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetch x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
+decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosFetchP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
+decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.receiveLN l' d'} {a = _ , _ , _ , leiosNotifyP x}   s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.sendLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.apiLNev l' d' m}  s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
 decLNs-src-ev-inv l d (lnsHead LNp.stIdle) {e₁ = LNp.doneLN l' d'}     s = ⊥-elim (nothing-absurd (step-target-LN (decLNs-src l d (lnsHead LNp.stIdle)) refl s))
@@ -1496,12 +1529,12 @@ open SN
   using ( succVF; vis-ofF; LFProc )
 import Semantics.LTS {E = LFp.LFEv} {I = ExtI LFp.LFEv} as LFL
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+  ( sendLFBlockRequest; sendLFVotesRequest
+  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
-  ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
+  ; recvLFBlock; recvLFVoteDelivery; recvLFRangeBlock; reqLFBlockRequest; reqLFVotesRequest )
 open import CSP.Examples.Cardano_network.Data p using
-  ( MsgLFBlockRequest; MsgLFBlock; MsgLFBlockTxsRequest; MsgLFBlockTxs
+  ( MsgLFBlockRequest; MsgLFBlock
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
 
@@ -1554,6 +1587,7 @@ step-target-LF q {V} {T} {X} {e} {a} feq step with LFL.ev-inv step
 ιLF-inv-shape {e₂ = done   _ _ N2N_LeiosNotify}  ()
 ιLF-inv-shape {e₂ = done   _ _ N2N_LeiosFetch}   refl = refl
 ιLF-inv-shape {e₂ = apiLF  _ _ _} refl = refl
+ιLF-inv-shape {e₂ = apiLP  _ _ _} ()
 ιLF-inv-shape {e₂ = apiCS  _ _ _} ()
 ιLF-inv-shape {e₂ = apiBF  _ _ _} ()
 ιLF-inv-shape {e₂ = apiKA  _ _ _} ()
@@ -1585,9 +1619,6 @@ aLFs l d pos pos′ finEq ceq = tableSpec-ev-fwd _ (coarsenLFs pos) finEq ceq
 ceqLF-c-reqBlk : ∀ {a} (l : Link) (d : Dir)
   → NS.lfCnxt l d NS.lfcIdle (_ , apiLF l d sendLFBlockRequest) a ≡ just (NS.lfcWblk a)
 ceqLF-c-reqBlk l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-ceqLF-c-reqTxs : ∀ {a} (l : Link) (d : Dir)
-  → NS.lfCnxt l d NS.lfcIdle (_ , apiLF l d sendLFBlockTxsRequest) a ≡ just (NS.lfcWtxs a)
-ceqLF-c-reqTxs l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 ceqLF-c-reqVot : ∀ {a} (l : Link) (d : Dir)
   → NS.lfCnxt l d NS.lfcIdle (_ , apiLF l d sendLFVotesRequest) a ≡ just (NS.lfcWvot a)
 ceqLF-c-reqVot l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
@@ -1601,10 +1632,6 @@ ceqLF-c-blkRecv : ∀ {t0 md ln} (l : Link) (d : Dir) (b : _)
   → NS.lfCnxt l d NS.lfcBlk (_ , output l d N2N_LeiosFetch)
       (t0 , md , ln , leiosFetch (MsgLFBlock b)) ≡ just (NS.lfcRblk b)
 ceqLF-c-blkRecv l d b rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-ceqLF-c-btxRecv : ∀ {t0 md ln} (l : Link) (d : Dir) (ts : _)
-  → NS.lfCnxt l d NS.lfcBtx (_ , output l d N2N_LeiosFetch)
-      (t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)) ≡ just (NS.lfcRbtx ts)
-ceqLF-c-btxRecv l d ts rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 ceqLF-c-votRecv : ∀ {t0 md ln} (l : Link) (d : Dir) (vs : _)
   → NS.lfCnxt l d NS.lfcVot (_ , output l d N2N_LeiosFetch)
       (t0 , md , ln , leiosFetch (MsgLFVoteDelivery vs)) ≡ just (NS.lfcRvot vs)
@@ -1620,11 +1647,6 @@ ceqLF-c-rngLast l d b ts rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 ceqLF-c-rblk : (l : Link) (d : Dir) (b : _)
   → NS.lfCnxt l d (NS.lfcRblk b) (_ , apiLF l d recvLFBlock) b ≡ just NS.lfcIdle
 ceqLF-c-rblk l d b rewrite ≟-yes-refl l | ≟-yes-refl d | ≟-yes-refl b = refl
-ceqLF-c-rbtx : (l : Link) (d : Dir) (ts : _)
-  → NS.lfCnxt l d (NS.lfcRbtx ts) (_ , apiLF l d recvLFBlockTxs) ts ≡ just NS.lfcIdle
-ceqLF-c-rbtx l d ts rewrite ≟-yes-refl l | ≟-yes-refl d with ≡-dec _≟_ ts ts
-... | yes _  = refl
-... | no ¬p = ⊥-elim (¬p refl)
 ceqLF-c-rvot : (l : Link) (d : Dir) (vs : _)
   → NS.lfCnxt l d (NS.lfcRvot vs) (_ , apiLF l d recvLFVoteDelivery) vs ≡ just NS.lfcIdle
 ceqLF-c-rvot l d vs rewrite ≟-yes-refl l | ≟-yes-refl d with ≡-dec _≟_ vs vs
@@ -1645,11 +1667,6 @@ ceqLF-c-wblk : (l : Link) (d : Dir) (pt : _)
       (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRequest pt)) ≡ just NS.lfcBlk
 ceqLF-c-wblk l d pt rewrite ≟-yes-refl l | ≟-yes-refl d
   | ≟-yes-refl (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockRequest pt)) = refl
-ceqLF-c-wtxs : (l : Link) (d : Dir) (pt : _) (bm : _)
-  → NS.lfCnxt l d (NS.lfcWtxs (pt , bm)) (_ , input l d N2N_LeiosFetch)
-      (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just NS.lfcBtx
-ceqLF-c-wtxs l d pt bm rewrite ≟-yes-refl l | ≟-yes-refl d
-  | ≟-yes-refl (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm)) = refl
 ceqLF-c-wvot : (l : Link) (d : Dir) (vs : _)
   → NS.lfCnxt l d (NS.lfcWvot vs) (_ , input l d N2N_LeiosFetch)
       (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVotesRequest vs)) ≡ just NS.lfcVot
@@ -1670,13 +1687,6 @@ ceqLF-s-reqBlk : ∀ {t0 md ln} (l : Link) (d : Dir) (pt : _)
   → NS.lfSnxt l d NS.lfsIdle (_ , output l d N2N_LeiosFetch)
       (t0 , md , ln , leiosFetch (MsgLFBlockRequest pt)) ≡ just NS.lfsBlk
 ceqLF-s-reqBlk l d pt with l ≟ l | d ≟ d
-... | yes refl | yes refl = refl
-... | no ¬p    | _        = ⊥-elim (¬p refl)
-... | yes _    | no ¬p    = ⊥-elim (¬p refl)
-ceqLF-s-reqTxs : ∀ {t0 md ln} (l : Link) (d : Dir) (pt : _) (bm : _)
-  → NS.lfSnxt l d NS.lfsIdle (_ , output l d N2N_LeiosFetch)
-      (t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ just NS.lfsBtx
-ceqLF-s-reqTxs l d pt bm with l ≟ l | d ≟ d
 ... | yes refl | yes refl = refl
 ... | no ¬p    | _        = ⊥-elim (¬p refl)
 ... | yes _    | no ¬p    = ⊥-elim (¬p refl)
@@ -1704,9 +1714,6 @@ ceqLF-s-reqDone l d with l ≟ l | d ≟ d
 ceqLF-s-blk : ∀ {a} (l : Link) (d : Dir)
   → NS.lfSnxt l d NS.lfsBlk (_ , apiLF l d sendLFBlock) a ≡ just (NS.lfsWblk a)
 ceqLF-s-blk l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-ceqLF-s-btx : ∀ {a} (l : Link) (d : Dir)
-  → NS.lfSnxt l d NS.lfsBtx (_ , apiLF l d sendLFBlockTxs) a ≡ just (NS.lfsWtxs a)
-ceqLF-s-btx l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 ceqLF-s-vot : ∀ {a} (l : Link) (d : Dir)
   → NS.lfSnxt l d NS.lfsVot (_ , apiLF l d sendLFVoteDelivery) a ≡ just (NS.lfsWvot a)
 ceqLF-s-vot l d rewrite ≟-yes-refl l | ≟-yes-refl d = refl
@@ -1721,11 +1728,6 @@ ceqLF-s-wblk : (l : Link) (d : Dir) (b : _)
       (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlock b)) ≡ just NS.lfsIdle
 ceqLF-s-wblk l d b rewrite ≟-yes-refl l | ≟-yes-refl d
   | ≟-yes-refl (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlock b)) = refl
-ceqLF-s-wtxs : (l : Link) (d : Dir) (ts : _)
-  → NS.lfSnxt l d (NS.lfsWtxs ts) (_ , input l d N2N_LeiosFetch)
-      (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) ≡ just NS.lfsIdle
-ceqLF-s-wtxs l d ts rewrite ≟-yes-refl l | ≟-yes-refl d
-  | ≟-yes-refl (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts)) = refl
 ceqLF-s-wvot : (l : Link) (d : Dir) (vs : _)
   → NS.lfSnxt l d (NS.lfsWvot vs) (_ , input l d N2N_LeiosFetch)
       (time₀ , FromResponder , length₀ , leiosFetch (MsgLFVoteDelivery vs)) ≡ just NS.lfsIdle
@@ -1749,10 +1751,6 @@ brLFBlk : (l : Link) (d : Dir) (b : _) (t0 : _) (md : _) (ln : _)
   → succVF (decLFc-src l d (lfcHead LFp.stBlock)) (_ , LFp.receiveLF l d)
       (t0 , md , ln , leiosFetch (MsgLFBlock b)) ≡ decLFc-src l d (lfcRblk1 b)
 brLFBlk l d b t0 md ln rewrite ≟-yes-refl l | ≟-yes-refl d = refl
-brLFBtx : (l : Link) (d : Dir) (ts : _) (t0 : _) (md : _) (ln : _)
-  → succVF (decLFc-src l d (lfcHead LFp.stBlockTxs)) (_ , LFp.receiveLF l d)
-      (t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)) ≡ decLFc-src l d (lfcRbtx1 ts)
-brLFBtx l d ts t0 md ln rewrite ≟-yes-refl l | ≟-yes-refl d = refl
 brLFVot : (l : Link) (d : Dir) (vs : _) (t0 : _) (md : _) (ln : _)
   → succVF (decLFc-src l d (lfcHead LFp.stVotes)) (_ , LFp.receiveLF l d)
       (t0 , md , ln , leiosFetch (MsgLFVoteDelivery vs)) ≡ decLFc-src l d (lfcRvot1 vs)
@@ -1770,13 +1768,6 @@ brLFsReqBlk : (l : Link) (d : Dir) (pt : _) (t0 : _) (md : _) (ln : _)
   → succVF (decLFs-src l d (lfsHead LFp.stIdle)) (_ , LFp.receiveLF l d)
       (t0 , md , ln , leiosFetch (MsgLFBlockRequest pt)) ≡ decLFs-src l d (lfsSil LFp.stBlock)
 brLFsReqBlk l d pt t0 md ln with l ≟ l | d ≟ d
-... | yes refl | yes refl = refl
-... | no ¬p    | _        = ⊥-elim (¬p refl)
-... | yes _    | no ¬p    = ⊥-elim (¬p refl)
-brLFsReqTxs : (l : Link) (d : Dir) (pt : _) (bm : _) (t0 : _) (md : _) (ln : _)
-  → succVF (decLFs-src l d (lfsHead LFp.stIdle)) (_ , LFp.receiveLF l d)
-      (t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)) ≡ decLFs-src l d (lfsSil LFp.stBlockTxs)
-brLFsReqTxs l d pt bm t0 md ln with l ≟ l | d ≟ d
 ... | yes refl | yes refl = refl
 ... | no ¬p    | _        = ⊥-elim (¬p refl)
 ... | yes _    | no ¬p    = ⊥-elim (¬p refl)
@@ -1813,11 +1804,6 @@ decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFBlock
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfcWblk1 a , succVF-inv (decLFc-src l d (lfcHead LFp.stIdle)) s , aLFc l d (lfcHead LFp.stIdle) (lfcWblk1 a) refl (ceqLF-c-reqBlk l d)
-decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFBlockTxsRequest} {a} s with step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s
-... | offer with l' ≟ l | d' ≟ d
-...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
-...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl | yes refl = lfcWtxs1 a , succVF-inv (decLFc-src l d (lfcHead LFp.stIdle)) s , aLFc l d (lfcHead LFp.stIdle) (lfcWtxs1 a) refl (ceqLF-c-reqTxs l d)
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFVotesRequest} {a} s with step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s
 ... | offer with l' ≟ l | d' ≟ d
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
@@ -1834,26 +1820,24 @@ decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFDone}
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfcDone1 , succVF-inv (decLFc-src l d (lfcHead LFp.stIdle)) s , aLFc l d (lfcHead LFp.stIdle) (lfcDone1) refl (ceqLF-c-reqDone l d)
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' reqLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' reqLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' recvLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' recvLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' recvLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' recvLFRangeBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stIdle) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stIdle)) refl s))
--- head stBlock / stBlockTxs / stVotes / stBlockRange : wire receives
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlock b)} s with step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s
 ... | offer with l' ≟ l | d' ≟ d
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfcRblk1 b , trans (succVF-inv (decLFc-src l d (lfcHead LFp.stBlock)) s) (brLFBlk l d b t0 md ln) , aLFc l d (lfcHead LFp.stBlock) (lfcRblk1 b) refl (ceqLF-c-blkRecv {t0} {md} {ln} l d b)
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
@@ -1865,31 +1849,11 @@ decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ 
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlock) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlock)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlockTxs ts)} s with step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s
-... | offer with l' ≟ l | d' ≟ d
-...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
-...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl | yes refl = lfcRbtx1 ts , trans (succVF-inv (decLFc-src l d (lfcHead LFp.stBlockTxs)) s) (brLFBtx l d ts t0 md ln) , aLFc l d (lfcHead LFp.stBlockTxs) (lfcRbtx1 ts) refl (ceqLF-c-btxRecv {t0} {md} {ln} l d ts)
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFDone)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , chainSync x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , blockFetch x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockTxs) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockTxs)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFVoteDelivery vs)} s with step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s
 ... | offer with l' ≟ l | d' ≟ d
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
@@ -1897,8 +1861,6 @@ decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = t0
 ...   | yes refl | yes refl = lfcRvot1 vs , trans (succVF-inv (decLFc-src l d (lfcHead LFp.stVotes)) s) (brLFVot l d vs t0 md ln) , aLFc l d (lfcHead LFp.stVotes) (lfcRvot1 vs) refl (ceqLF-c-votRecv {t0} {md} {ln} l d vs)
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
@@ -1909,6 +1871,8 @@ decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ 
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stVotes) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stVotes)) refl s))
@@ -1924,8 +1888,6 @@ decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a
 ...   | yes refl | yes refl = lfcRlast1 b ts , trans (succVF-inv (decLFc-src l d (lfcHead LFp.stBlockRange)) s) (brLFLast l d b ts t0 md ln) , aLFc l d (lfcHead LFp.stBlockRange) (lfcRlast1 b ts) refl (ceqLF-c-rngLast {t0} {md} {ln} l d b ts)
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
-decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
@@ -1935,6 +1897,8 @@ decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
+decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
 decLFc-src-ev-inv l d (lfcHead LFp.stBlockRange) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcHead LFp.stBlockRange)) refl s))
@@ -1952,15 +1916,6 @@ decLFc-src-ev-inv l d (lfcRblk1 b) {e₁ = LFp.apiLFev l' d' m} {a = val} s with
 decLFc-src-ev-inv l d (lfcRblk1 b) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcRblk1 b)) (hlfcRblk1 l d b) s))
 decLFc-src-ev-inv l d (lfcRblk1 b) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcRblk1 b)) (hlfcRblk1 l d b) s))
 decLFc-src-ev-inv l d (lfcRblk1 b) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcRblk1 b)) (hlfcRblk1 l d b) s))
-decLFc-src-ev-inv l d (lfcRbtx1 ts) {e₁ = LFp.apiLFev l' d' m} {a = val} s with step-target-LF (decLFc-src l d (lfcRbtx1 ts)) (hlfcRbtx1 l d ts) s
-... | offer with LFp.LFEv-≟ (_ , LFp.apiLFev l d recvLFBlockTxs) (_ , LFp.apiLFev l' d' m)
-...   | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl with ≡-dec _≟_ val ts
-...     | no  _    = ⊥-elim (nothing-absurd offer)
-...     | yes refl = lfcSil LFp.stIdle , sym (just-injective offer) , aLFc l d (lfcRbtx1 ts) (lfcSil LFp.stIdle) refl (ceqLF-c-rbtx l d ts)
-decLFc-src-ev-inv l d (lfcRbtx1 ts) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcRbtx1 ts)) (hlfcRbtx1 l d ts) s))
-decLFc-src-ev-inv l d (lfcRbtx1 ts) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcRbtx1 ts)) (hlfcRbtx1 l d ts) s))
-decLFc-src-ev-inv l d (lfcRbtx1 ts) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcRbtx1 ts)) (hlfcRbtx1 l d ts) s))
 decLFc-src-ev-inv l d (lfcRvot1 vs) {e₁ = LFp.apiLFev l' d' m} {a = val} s with step-target-LF (decLFc-src l d (lfcRvot1 vs)) (hlfcRvot1 l d vs) s
 ... | offer with LFp.LFEv-≟ (_ , LFp.apiLFev l d recvLFVoteDelivery) (_ , LFp.apiLFev l' d' m)
 ...   | no  _    = ⊥-elim (nothing-absurd offer)
@@ -1998,15 +1953,6 @@ decLFc-src-ev-inv l d (lfcWblk1 pt) {e₁ = LFp.sendLF l' d'} {a = val} s with s
 decLFc-src-ev-inv l d (lfcWblk1 pt) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcWblk1 pt)) (hlfcWblk1 l d pt) s))
 decLFc-src-ev-inv l d (lfcWblk1 pt) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcWblk1 pt)) (hlfcWblk1 l d pt) s))
 decLFc-src-ev-inv l d (lfcWblk1 pt) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcWblk1 pt)) (hlfcWblk1 l d pt) s))
-decLFc-src-ev-inv l d (lfcWtxs1 (pt , bm)) {e₁ = LFp.sendLF l' d'} {a = val} s with step-target-LF (decLFc-src l d (lfcWtxs1 (pt , bm))) (hlfcWtxs1 l d (pt , bm)) s
-... | offer with LFp.LFEv-≟ (_ , LFp.sendLF l d) (_ , LFp.sendLF l' d')
-...   | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl with val ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm))
-...     | no  _    = ⊥-elim (nothing-absurd offer)
-...     | yes refl = lfcSil LFp.stBlockTxs , sym (just-injective offer) , aLFc l d (lfcWtxs1 (pt , bm)) (lfcSil LFp.stBlockTxs) refl (ceqLF-c-wtxs l d pt bm)
-decLFc-src-ev-inv l d (lfcWtxs1 (pt , bm)) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcWtxs1 (pt , bm))) (hlfcWtxs1 l d (pt , bm)) s))
-decLFc-src-ev-inv l d (lfcWtxs1 (pt , bm)) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcWtxs1 (pt , bm))) (hlfcWtxs1 l d (pt , bm)) s))
-decLFc-src-ev-inv l d (lfcWtxs1 (pt , bm)) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFc-src l d (lfcWtxs1 (pt , bm))) (hlfcWtxs1 l d (pt , bm)) s))
 decLFc-src-ev-inv l d (lfcWvot1 vs) {e₁ = LFp.sendLF l' d'} {a = val} s with step-target-LF (decLFc-src l d (lfcWvot1 vs)) (hlfcWvot1 l d vs) s
 ... | offer with LFp.LFEv-≟ (_ , LFp.sendLF l d) (_ , LFp.sendLF l' d')
 ...   | no  _    = ⊥-elim (nothing-absurd offer)
@@ -2051,11 +1997,6 @@ decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = t0 
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfsSil LFp.stBlock , trans (succVF-inv (decLFs-src l d (lfsHead LFp.stIdle)) s) (brLFsReqBlk l d pt t0 md ln) , aLFs l d (lfsHead LFp.stIdle) (lfsSil LFp.stBlock) refl (ceqLF-s-reqBlk {t0} {md} {ln} l d pt)
-decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFBlockTxsRequest pt bm)} s with step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s
-... | offer with l' ≟ l | d' ≟ d
-...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
-...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl | yes refl = lfsSil LFp.stBlockTxs , trans (succVF-inv (decLFs-src l d (lfsHead LFp.stIdle)) s) (brLFsReqTxs l d pt bm t0 md ln) , aLFs l d (lfsHead LFp.stIdle) (lfsSil LFp.stBlockTxs) refl (ceqLF-s-reqTxs {t0} {md} {ln} l d pt bm)
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = t0 , md , ln , leiosFetch (MsgLFVotesRequest vs)} s with step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s
 ... | offer with l' ≟ l | d' ≟ d
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
@@ -2072,7 +2013,6 @@ decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = t0 
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfsDone1 , trans (succVF-inv (decLFs-src l d (lfsHead LFp.stIdle)) s) (brLFsReqDone l d t0 md ln) , aLFs l d (lfsHead LFp.stIdle) (lfsDone1) refl (ceqLF-s-reqDone {t0} {md} {ln} l d)
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
@@ -2081,68 +2021,49 @@ decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ ,
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , txSubmission x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , keepAlive x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotify x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
+decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosNotifyP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
+decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.receiveLF l' d'} {a = _ , _ , _ , leiosFetchP x} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stIdle) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stIdle)) refl s))
--- head stBlock / stBlockTxs / stVotes / stBlockRange : api sends
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFBlock} {a} s with step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s
 ... | offer with l' ≟ l | d' ≟ d
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfsWblk1 a , succVF-inv (decLFs-src l d (lfsHead LFp.stBlock)) s , aLFs l d (lfsHead LFp.stBlock) (lfsWblk1 a) refl (ceqLF-s-blk l d)
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFBlockTxsRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' reqLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
+decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' reqLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFBlockRangeRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFDone} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' recvLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' recvLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' recvLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.apiLFev l' d' recvLFRangeBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlock) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlock)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFBlockTxs} {a} s with step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s
-... | offer with l' ≟ l | d' ≟ d
-...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
-...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl | yes refl = lfsWtxs1 a , succVF-inv (decLFs-src l d (lfsHead LFp.stBlockTxs)) s , aLFs l d (lfsHead LFp.stBlockTxs) (lfsWtxs1 a) refl (ceqLF-s-btx l d)
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFBlockTxsRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFBlockRangeRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFDone} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' recvLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' recvLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' recvLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.apiLFev l' d' recvLFRangeBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockTxs) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockTxs)) refl s))
+-- the two new LF request/reply-reporting tags are not offered here either
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFVoteDelivery} {a} s with step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s
 ... | offer with l' ≟ l | d' ≟ d
 ...   | no  _    | _        = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfsWvot1 a , succVF-inv (decLFs-src l d (lfsHead LFp.stVotes)) s , aLFs l d (lfsHead LFp.stVotes) (lfsWvot1 a) refl (ceqLF-s-vot l d)
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFBlockTxsRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' reqLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
+decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' reqLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFBlockRangeRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFDone} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' recvLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' recvLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' recvLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.apiLFev l' d' recvLFRangeBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stVotes) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stVotes)) refl s))
@@ -2159,15 +2080,15 @@ decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendL
 ...   | yes refl | no  _    = ⊥-elim (nothing-absurd offer)
 ...   | yes refl | yes refl = lfsWlast1 a , succVF-inv (decLFs-src l d (lfsHead LFp.stBlockRange)) s , aLFs l d (lfsHead LFp.stBlockRange) (lfsWlast1 a) refl (ceqLF-s-last l d)
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFBlockTxsRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
+-- the two new LF request/reply-reporting tags are not offered here either
+decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' reqLFBlockRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
+decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' reqLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFVotesRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFBlockRangeRequest} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFDone} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' sendLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' recvLFBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
-decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' recvLFBlockTxs} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' recvLFVoteDelivery} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.apiLFev l' d' recvLFRangeBlock} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
 decLFs-src-ev-inv l d (lfsHead LFp.stBlockRange) {e₁ = LFp.sendLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsHead LFp.stBlockRange)) refl s))
@@ -2195,15 +2116,6 @@ decLFs-src-ev-inv l d (lfsWblk1 b) {e₁ = LFp.sendLF l' d'} {a = val} s with st
 decLFs-src-ev-inv l d (lfsWblk1 b) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsWblk1 b)) (hlfsWblk1 l d b) s))
 decLFs-src-ev-inv l d (lfsWblk1 b) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsWblk1 b)) (hlfsWblk1 l d b) s))
 decLFs-src-ev-inv l d (lfsWblk1 b) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsWblk1 b)) (hlfsWblk1 l d b) s))
-decLFs-src-ev-inv l d (lfsWtxs1 ts) {e₁ = LFp.sendLF l' d'} {a = val} s with step-target-LF (decLFs-src l d (lfsWtxs1 ts)) (hlfsWtxs1 l d ts) s
-... | offer with LFp.LFEv-≟ (_ , LFp.sendLF l d) (_ , LFp.sendLF l' d')
-...   | no  _    = ⊥-elim (nothing-absurd offer)
-...   | yes refl with val ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts))
-...     | no  _    = ⊥-elim (nothing-absurd offer)
-...     | yes refl = lfsSil LFp.stIdle , sym (just-injective offer) , aLFs l d (lfsWtxs1 ts) (lfsSil LFp.stIdle) refl (ceqLF-s-wtxs l d ts)
-decLFs-src-ev-inv l d (lfsWtxs1 ts) {e₁ = LFp.receiveLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsWtxs1 ts)) (hlfsWtxs1 l d ts) s))
-decLFs-src-ev-inv l d (lfsWtxs1 ts) {e₁ = LFp.apiLFev l' d' m} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsWtxs1 ts)) (hlfsWtxs1 l d ts) s))
-decLFs-src-ev-inv l d (lfsWtxs1 ts) {e₁ = LFp.doneLF l' d'} s = ⊥-elim (nothing-absurd (step-target-LF (decLFs-src l d (lfsWtxs1 ts)) (hlfsWtxs1 l d ts) s))
 decLFs-src-ev-inv l d (lfsWvot1 vs) {e₁ = LFp.sendLF l' d'} {a = val} s with step-target-LF (decLFs-src l d (lfsWvot1 vs)) (hlfsWvot1 l d vs) s
 ... | offer with LFp.LFEv-≟ (_ , LFp.sendLF l d) (_ , LFp.sendLF l' d')
 ...   | no  _    = ⊥-elim (nothing-absurd offer)

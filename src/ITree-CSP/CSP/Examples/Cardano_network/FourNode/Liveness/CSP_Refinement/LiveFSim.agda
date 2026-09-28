@@ -267,7 +267,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; break; sendBFBlock; recvBFBlock
   ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks
   ; sendBFBatchDone; reqBFRange
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using ( Dir; hi; lo; IDs; DecEq-Dir )
@@ -1591,6 +1591,7 @@ module Sim
   fwdT-io r j {e = apiKA  _ _ _} ()
   fwdT-io r j {e = apiLN  _ _ _} ()
   fwdT-io r j {e = apiLF  _ _ _} ()
+  fwdT-io r j {e = apiLP  _ _ _} ()
   fwdT-io r j {e = break  _}     ()
 
   -- THE TRUE-τ ARM: a hidden τ of the abstraction is a medium drain or an io
@@ -1655,6 +1656,9 @@ module Sim
              (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
   fwdT-vis r j {e = apiLF l₀ d₀ m} hid step =
     ⊥-elim (oevB-refute r (SR.medium-no-apiLF (med (toSys r)))
+             (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
+  fwdT-vis r j {e = apiLP l₀ d₀ m} hid step =
+    ⊥-elim (oevB-refute r (SR.medium-no-apiLP (med (toSys r)))
              (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
   fwdT-vis r j {e = sndmsg l₀ d₀ id} hid step =
     ⊥-elim (oevB-refute r (SR.medium-no-sndmsg (med (toSys r)))
@@ -1889,6 +1893,7 @@ module Sim
   fwdE-kept r j {e = apiTS  _ _ _} ()
   fwdE-kept r j {e = apiLN  _ _ _} ()
   fwdE-kept r j {e = apiLF  _ _ _} ()
+  fwdE-kept r j {e = apiLP  _ _ _} ()
   fwdE-kept r j {e = done   _ _ _} ()
   fwdE-kept r j {e = input  _ _ _} ()
   fwdE-kept r j {e = output _ _ _} ()

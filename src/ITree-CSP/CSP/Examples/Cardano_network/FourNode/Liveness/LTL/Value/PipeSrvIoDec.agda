@@ -206,7 +206,13 @@ bfs-recv-hstep-row l d BF.stIdle {a = _ , _ , _ , txSubmission _} step
 bfs-recv-hstep-row l d BF.stIdle {a = _ , _ , _ , leiosNotify _} step
   with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfs-recv-hstep-row l d BF.stIdle {a = _ , _ , _ , leiosNotifyP _} step
+  with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 bfs-recv-hstep-row l d BF.stIdle {a = _ , _ , _ , leiosFetch _} step
+  with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
+... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
+bfs-recv-hstep-row l d BF.stIdle {a = _ , _ , _ , leiosFetchP _} step
   with tableSpec-ev-inv (Tbfs l d) (coarsenBFs (bsHead BF.stIdle)) step
 ... | q′ , ceq , Meq = ⊥-elim (nothing-absurd ceq)
 -- BUSY / STREAMING / DONE heads: the table has no wire-read row

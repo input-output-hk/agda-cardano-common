@@ -30,7 +30,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
-  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF
+  ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF; apiLP
   -- the producer/consumer api tags (the role discriminator's index values)
   ; reqCSRequestNext; sendCSAwaitReply; sendCSRollForward
   ; sendCSRequestNext; recvCSRollforward; sendCSDone
@@ -130,7 +130,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -140,21 +140,21 @@ open SN
 
 -- Data message constructors + payload wrappers used in the LF source-position clauses
 open import CSP.Examples.Cardano_network.Data p using
-  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch )
+  ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
 open import CSP.Examples.Cardano_network.Data p using
   ( MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer
   ; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone )
 open import CSP.Examples.Cardano_network.Data p using
-  ( MsgLFBlockRequest; MsgLFBlock; MsgLFBlockTxsRequest; MsgLFBlockTxs
+  ( MsgLFBlockRequest; MsgLFBlock
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendLFBlockRequest; sendLFBlockTxsRequest; sendLFVotesRequest
-  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock; sendLFBlockTxs
+  ( sendLFBlockRequest; sendLFVotesRequest
+  ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
-  ; recvLFBlock; recvLFBlockTxs; recvLFVoteDelivery; recvLFRangeBlock )
+  ; recvLFBlock; recvLFVoteDelivery; recvLFRangeBlock; reqLFBlockRequest; reqLFVotesRequest )
 open import Data.List using ( List; []; _∷_ )
 open import Data.List.Properties using ( ≡-dec )
 import Class.DecEq.Instances as DecEqI
@@ -185,7 +185,7 @@ open import CSP.Examples.Cardano_network.Net p using
 -- TS / LN api-tag constructors (same reason — the item-3a-rest CS/BF/TS/LN/LF
 -- tables pattern on these; unimported = silent pattern var = stuck table)
 open import CSP.Examples.Cardano_network.Net p using
-  ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone; recvTSRequestTxIds; recvTSRequestTxs
+  ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
   ; sendLNRequestNext; sendLNBlockAnnouncement; sendLNBlockOffer; sendLNBlockTxsOffer
   ; sendLNVotesOffer; sendLNDone; recvLNBlockAnnouncement; recvLNBlockOffer
@@ -269,7 +269,9 @@ kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , chainS
 kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+kaCnxt-io-role l d (NS.kcAwait c) (KA.receiveKA l' d') {a = t , m , len , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 kaCnxt-io-role l d (NS.kcAwait c) (KA.sendKA l' d') eq = ⊥-elim (nothing-absurd eq)
 kaCnxt-io-role l d (NS.kcAwait c) (KA.apiKAev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 kaCnxt-io-role l d (NS.kcAwait c) (KA.doneKA l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -309,7 +311,9 @@ kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , chainSync
 kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+kaSnxt-io-role l d NS.ksClient (KA.receiveKA l' d') {a = t , m , len , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 kaSnxt-io-role l d NS.ksClient (KA.sendKA l' d') eq = ⊥-elim (nothing-absurd eq)
 kaSnxt-io-role l d NS.ksClient (KA.apiKAev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 kaSnxt-io-role l d NS.ksClient (KA.doneKA l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -535,7 +539,9 @@ csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _}
 csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+csCnxt-io-role l d NS.ccAwait (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccAwait (CS.apiCSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccAwait (CS.doneCS l' d') eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d (NS.ccWfi pts) (CS.sendCS l' d') {a} eq with l' ≟ l | d' ≟ d
@@ -568,7 +574,9 @@ csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} e
 csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+csCnxt-io-role l d NS.ccInt (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccInt (CS.apiCSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccInt (CS.doneCS l' d') eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccWdone (CS.sendCS l' d') {a} eq with l' ≟ l | d' ≟ d
@@ -601,7 +609,9 @@ csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} 
 csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+csCnxt-io-role l d NS.ccMust (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccMust (CS.apiCSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d NS.ccMust (CS.doneCS l' d') eq = ⊥-elim (nothing-absurd eq)
 csCnxt-io-role l d (NS.ccArf _) (CS.sendCS l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -722,7 +732,9 @@ csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , keepAlive _} 
 csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+csSnxt-io-role l d NS.csIdle (CS.receiveCS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 csSnxt-io-role l d NS.csIdle (CS.apiCSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 csSnxt-io-role l d NS.csIdle (CS.doneCS l' d') eq = ⊥-elim (nothing-absurd eq)
 csSnxt-io-role l d NS.csAreq (CS.sendCS l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -971,7 +983,9 @@ bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _} 
 bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+bfCnxt-io-role l d NS.bcBusy (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcBusy (BF.apiBFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcBusy (BF.doneBF l' d') eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcWcd (BF.sendBF l' d') {a} eq with l' ≟ l | d' ≟ d
@@ -1002,7 +1016,9 @@ bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _
 bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+bfCnxt-io-role l d NS.bcStream (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcStream (BF.apiBFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d NS.bcStream (BF.doneBF l' d') eq = ⊥-elim (nothing-absurd eq)
 bfCnxt-io-role l d (NS.bcAblk _) (BF.sendBF l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1048,7 +1064,9 @@ bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , keepAlive _} 
 bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , chainSync _} eq = ⊥-elim (nothing-absurd eq)
 bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+bfSnxt-io-role l d NS.bsIdle (BF.receiveBF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 bfSnxt-io-role l d NS.bsIdle (BF.apiBFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 bfSnxt-io-role l d NS.bsIdle (BF.doneBF l' d') eq = ⊥-elim (nothing-absurd eq)
 bfSnxt-io-role l d (NS.bsAreq _) (BF.sendBF l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1200,11 +1218,16 @@ tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , chainSync _} 
 tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d NS.tcIdle (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcIdle (TS.sendTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcIdle (TS.apiTSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcIdle (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l' d' sendTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l' d' sendTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l' d' sendTSDone) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.apiTSev l' d' sendTSRequestTxIdsBlocking) eq = ⊥-elim (nothing-absurd eq)
@@ -1220,6 +1243,9 @@ tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.sendTS l' d') eq = ⊥-elim
 tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.receiveTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (Blocking , a , r)) (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l' d' sendTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l' d' sendTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l' d' sendTSDone) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.apiTSev l' d' sendTSRequestTxIdsBlocking) eq = ⊥-elim (nothing-absurd eq)
@@ -1235,6 +1261,9 @@ tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.sendTS l' d') eq = ⊥-e
 tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.receiveTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcAri (NonBlocking , a , r)) (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcArt _) (TS.apiTSev l' d' sendTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-io-role l d (NS.tcArt _) (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d (NS.tcArt _) (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcArt _) (TS.apiTSev l' d' sendTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcArt _) (TS.apiTSev l' d' sendTSDone) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d (NS.tcArt _) (TS.apiTSev l' d' sendTSRequestTxIdsBlocking) eq = ⊥-elim (nothing-absurd eq)
@@ -1255,6 +1284,9 @@ tsCnxt-io-role l d NS.tcBlk (TS.apiTSev l' d' sendTSReplyTxIds) eq with l' ≟ l
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcBlk (TS.apiTSev l' d' sendTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-io-role l d NS.tcBlk (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d NS.tcBlk (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcBlk (TS.apiTSev l' d' sendTSDone) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -1274,6 +1306,9 @@ tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' sendTSReplyTxIds) eq with l' ≟ l
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' sendTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' sendTSDone) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' sendTSRequestTxIdsBlocking) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcNbl (TS.apiTSev l' d' sendTSRequestTxIdsPipelined) eq = ⊥-elim (nothing-absurd eq)
@@ -1284,6 +1319,9 @@ tsCnxt-io-role l d NS.tcNbl (TS.sendTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcNbl (TS.receiveTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcNbl (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcTxs (TS.apiTSev l' d' sendTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsCnxt-io-role l d NS.tcTxs (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsCnxt-io-role l d NS.tcTxs (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsCnxt-io-role l d NS.tcTxs (TS.apiTSev l' d' sendTSReplyTxs) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -1348,11 +1386,16 @@ tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , chainSync _} 
 tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsInit (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsInit (TS.sendTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsInit (TS.apiTSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsInit (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsIdle (TS.apiTSev l' d' sendTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+-- the two new TS request/reply-reporting tags are not offered here either
+tsSnxt-io-role l d NS.tsIdle (TS.apiTSev l' d' recvTSReplyTxIds) eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsIdle (TS.apiTSev l' d' recvTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsIdle (TS.apiTSev l' d' sendTSReplyTxs) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsIdle (TS.apiTSev l' d' sendTSDone) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsIdle (TS.apiTSev l' d' sendTSRequestTxIdsBlocking) eq with l' ≟ l | d' ≟ d
@@ -1420,7 +1463,9 @@ tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , chainSync _} e
 tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsBlk (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsBlk (TS.sendTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsBlk (TS.apiTSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsBlk (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1438,7 +1483,9 @@ tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , chainSync _} e
 tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsNbl (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsNbl (TS.sendTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsNbl (TS.apiTSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsNbl (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1456,7 +1503,9 @@ tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , chainSync _} e
 tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+tsSnxt-io-role l d NS.tsTxs (TS.receiveTS l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsTxs (TS.sendTS l' d') eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsTxs (TS.apiTSev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 tsSnxt-io-role l d NS.tsTxs (TS.doneTS l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1559,6 +1608,8 @@ lnCnxt-io-role l d NS.lncBusy (LNp.receiveLN l' d') {a = _ , _ , _ , blockFetch 
 lnCnxt-io-role l d NS.lncBusy (LNp.receiveLN l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 lnCnxt-io-role l d NS.lncBusy (LNp.receiveLN l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 lnCnxt-io-role l d NS.lncBusy (LNp.receiveLN l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+lnCnxt-io-role l d NS.lncBusy (LNp.receiveLN l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
+lnCnxt-io-role l d NS.lncBusy (LNp.receiveLN l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 lnCnxt-io-role l d NS.lncBusy (LNp.sendLN l' d') eq = ⊥-elim (nothing-absurd eq)
 lnCnxt-io-role l d NS.lncBusy (LNp.apiLNev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lnCnxt-io-role l d NS.lncBusy (LNp.doneLN l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1658,6 +1709,8 @@ lnSnxt-io-role l d NS.lnsIdle (LNp.receiveLN l' d') {a = _ , _ , _ , blockFetch 
 lnSnxt-io-role l d NS.lnsIdle (LNp.receiveLN l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 lnSnxt-io-role l d NS.lnsIdle (LNp.receiveLN l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 lnSnxt-io-role l d NS.lnsIdle (LNp.receiveLN l' d') {a = _ , _ , _ , leiosFetch _} eq = ⊥-elim (nothing-absurd eq)
+lnSnxt-io-role l d NS.lnsIdle (LNp.receiveLN l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
+lnSnxt-io-role l d NS.lnsIdle (LNp.receiveLN l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
 lnSnxt-io-role l d NS.lnsIdle (LNp.sendLN l' d') eq = ⊥-elim (nothing-absurd eq)
 lnSnxt-io-role l d NS.lnsIdle (LNp.apiLNev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lnSnxt-io-role l d NS.lnsIdle (LNp.doneLN l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1764,11 +1817,6 @@ lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFBlockRequest) eq with l' 
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl = refl , tt
-... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
-... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFVotesRequest) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -1785,12 +1833,13 @@ lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFDone) eq with l' ≟ l | 
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcIdle (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -1805,15 +1854,6 @@ lfCnxt-io-role l d (NS.lfcWblk pt) (LFp.sendLF l' d') eq | no _ | _ = ⊥-elim (
 lfCnxt-io-role l d (NS.lfcWblk _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcWblk _) (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcWblk _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcWtxs (pt , bm)) (LFp.sendLF l' d') {a} eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl with a ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFBlockTxsRequest pt bm))
-...   | yes refl = refl , refl
-...   | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcWtxs (pt , bm)) (LFp.sendLF l' d') eq | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcWtxs (pt , bm)) (LFp.sendLF l' d') eq | no _ | _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcWtxs _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcWtxs _) (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcWtxs _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcWvot vs) (LFp.sendLF l' d') {a} eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl with a ≟ (time₀ , FromInitiator , length₀ , leiosFetch (MsgLFVotesRequest vs))
 ...   | yes refl = refl , refl
@@ -1842,7 +1882,6 @@ lfCnxt-io-role l d NS.lfcWdone (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absu
 lfCnxt-io-role l d NS.lfcWdone (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcWdone (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch MsgLFDone} eq = ⊥-elim (nothing-absurd eq)
@@ -1851,7 +1890,6 @@ lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} eq = ⊥-elim (nothing-absurd eq)
@@ -1860,38 +1898,16 @@ lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , blockFetch _
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcBlk (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcBlk (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch MsgLFDone} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl = refl , refl
-... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
-... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , chainSync _} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , blockFetch _} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcBtx (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch MsgLFDone} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , refl
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -1904,16 +1920,16 @@ lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , blockFetch _
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcVot (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcVot (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRequest _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockRangeRequest _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch MsgLFDone} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , refl
@@ -1930,16 +1946,19 @@ lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , blockFetch _
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d NS.lfcRng (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d NS.lfcRng (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
@@ -1948,45 +1967,24 @@ lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' recvLFBlock) eq with l' ≟
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRblk _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' recvLFBlockTxs) eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl = refl , tt
-... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
-... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRbtx _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.apiLFev l' d' recvLFVoteDelivery) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -1997,17 +1995,17 @@ lfCnxt-io-role l d (NS.lfcRvot _) (LFp.sendLF l' d') eq = ⊥-elim (nothing-absu
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRvot _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.apiLFev l' d' recvLFRangeBlock) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
@@ -2018,17 +2016,17 @@ lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.sendLF l' d') eq = ⊥-elim (nothing-
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRnextRng _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfCnxt-io-role l d (NS.lfcRlastRng _) (LFp.apiLFev l' d' recvLFRangeBlock) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
@@ -2052,11 +2050,6 @@ lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch 
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxsRequest _ _)} eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl = refl , refl
-... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
-... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVotesRequest _)} eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , refl
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -2073,7 +2066,6 @@ lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch 
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlock _)} eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFBlockTxs _)} eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFVoteDelivery _)} eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFNextBlockAndTxsInRange _ _)} eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetch (MsgLFLastBlockAndTxsInRange _ _)} eq = ⊥-elim (nothing-absurd eq)
@@ -2082,11 +2074,15 @@ lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , blockFetch 
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , txSubmission _} eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , keepAlive _} eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotify _} eq = ⊥-elim (nothing-absurd eq)
+lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosNotifyP _} eq = ⊥-elim (nothing-absurd eq)
+lfSnxt-io-role l d NS.lfsIdle (LFp.receiveLF l' d') {a = _ , _ , _ , leiosFetchP _} eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsIdle (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
@@ -2095,45 +2091,24 @@ lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFBlock) eq with l' ≟ l | 
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsBlk (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFBlockTxs) eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl = refl , tt
-... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
-... | no _ | no _ = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsBtx (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFVoteDelivery) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
 ... | yes refl | no _ = ⊥-elim (nothing-absurd eq)
@@ -2142,19 +2117,19 @@ lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFVoteDelivery) eq with l' �
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsVot (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFBlockTxsRequest) eq = ⊥-elim (nothing-absurd eq)
+-- the two new LF request/reply-reporting tags are not offered here either
+lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' reqLFBlockRequest) eq = ⊥-elim (nothing-absurd eq)
+lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' reqLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFVotesRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFBlockRangeRequest) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFDone) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFNextBlockAndTxsInRange) eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl = refl , tt
@@ -2167,7 +2142,6 @@ lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' sendLFLastBlockAndTxsInRange) eq
 ... | no _ | yes refl = ⊥-elim (nothing-absurd eq)
 ... | no _ | no _ = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' recvLFBlock) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' recvLFBlockTxs) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' recvLFVoteDelivery) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.apiLFev l' d' recvLFRangeBlock) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d NS.lfsRng (LFp.sendLF l' d') eq = ⊥-elim (nothing-absurd eq)
@@ -2182,15 +2156,6 @@ lfSnxt-io-role l d (NS.lfsWblk b) (LFp.sendLF l' d') eq | no _ | _ = ⊥-elim (n
 lfSnxt-io-role l d (NS.lfsWblk _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d (NS.lfsWblk _) (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d (NS.lfsWblk _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d (NS.lfsWtxs ts) (LFp.sendLF l' d') {a} eq with l' ≟ l | d' ≟ d
-... | yes refl | yes refl with a ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFBlockTxs ts))
-...   | yes refl = refl , refl
-...   | no _ = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d (NS.lfsWtxs ts) (LFp.sendLF l' d') eq | yes refl | no _ = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d (NS.lfsWtxs ts) (LFp.sendLF l' d') eq | no _ | _ = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d (NS.lfsWtxs _) (LFp.receiveLF l' d') eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d (NS.lfsWtxs _) (LFp.apiLFev l' d' m) eq = ⊥-elim (nothing-absurd eq)
-lfSnxt-io-role l d (NS.lfsWtxs _) (LFp.doneLF l' d') eq = ⊥-elim (nothing-absurd eq)
 lfSnxt-io-role l d (NS.lfsWvot vs) (LFp.sendLF l' d') {a} eq with l' ≟ l | d' ≟ d
 ... | yes refl | yes refl with a ≟ (time₀ , FromResponder , length₀ , leiosFetch (MsgLFVoteDelivery vs))
 ...   | yes refl = refl , refl
@@ -2596,6 +2561,7 @@ absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iomem s
 absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-role l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem
@@ -2663,6 +2629,7 @@ absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iomem st
 absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-ahl l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem

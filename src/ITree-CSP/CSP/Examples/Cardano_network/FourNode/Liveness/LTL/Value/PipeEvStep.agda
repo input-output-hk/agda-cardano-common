@@ -19,7 +19,7 @@
 --     client) is fixed, and break preserves the copy cells (`phase`) — so the
 --     preservation is `pipeInv⁺-frame`.
 --   · io (input/output ∈ ioES) is HIDDEN (`oevB-no-io`); the inert api events
---     (apiKA/apiTS/apiLN/apiLF) and the wire messages are impossible (refuted at
+--     (apiKA/apiTS/apiLN/apiLF/apiLP) and the wire messages are impossible (refuted at
 --     medium + abstract nodes via `oevB-refute`).
 --
 -- `evStep : EvStep l` is TOTAL (session 26): the `LegDriverStep`
@@ -50,7 +50,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; Block₃; linkAB; linkAC; linkBD; linkCD )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; break
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using ( hi; N2N_BlockFetch )
@@ -415,6 +415,8 @@ evStep l r {evLabel _ (apiLN l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLN (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 evStep l r {evLabel _ (apiLF l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLF (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
+evStep l r {evLabel _ (apiLP l₀ d₀ m) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-apiLP (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 evStep l r {evLabel _ (sndmsg l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-sndmsg (med (toSys r))) (SR.absnodes-no-sndmsg (toSys r)) step)
 evStep l r {evLabel _ (rcvmsg l₀ d₀ id) a} step =
@@ -524,6 +526,8 @@ evStepS l r {evLabel _ (apiLN l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLN (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 evStepS l r {evLabel _ (apiLF l₀ d₀ m) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-apiLF (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
+evStepS l r {evLabel _ (apiLP l₀ d₀ m) a} step =
+  ⊥-elim (oevB-refute r (SR.medium-no-apiLP (med (toSys r))) (SR.absnodes-no-nonCSBF (toSys r) tt (λ ())) step)
 evStepS l r {evLabel _ (sndmsg l₀ d₀ id) a} step =
   ⊥-elim (oevB-refute r (SR.medium-no-sndmsg (med (toSys r))) (SR.absnodes-no-sndmsg (toSys r)) step)
 evStepS l r {evLabel _ (rcvmsg l₀ d₀ id) a} step =

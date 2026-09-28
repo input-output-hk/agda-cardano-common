@@ -64,7 +64,7 @@ open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; ApiBFTag; ApiBFCar
   ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks
   ; sendBFBlock; sendBFBatchDone; recvBFBlock; reqBFRange
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-ChainRange )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -1011,6 +1011,8 @@ absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiKA l′ d′ m} ap
 absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiTS l′ d′ m} apimem step = tsEvR→g⁺ (absBundleTS-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = TS.apiTSev l′ d′ m} step)
 absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiLN l′ d′ m} apimem step = lnEvR→g⁺ (absBundleLN-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = LN.apiLNev l′ d′ m} step)
 absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiLF l′ d′ m} apimem step = lfEvR→g⁺ (absBundleLF-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = LF.apiLFev l′ d′ m} step)
+-- the prototype api family: this scenario has no prototype peer, so the step is impossible
+absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiLP l′ d′ m} apimem step = ⊥-elim (SIL6.absBundleG-no-apiLP l cl sv csc css bfc bfs ip (_ , step))
 absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_ChainSync}    apimem step = csEvR→g⁺ (absBundleCS-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = CS.doneCS l′ d′} step)
 absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_BlockFetch}   apimem step = bfEvR⁺→g (absBundleBF-ev-evo l cl sv cl≢sv csc css bfc bfs ip {e₁ = BF.doneBF l′ d′} (λ sM → ⊥-elim (decBFc-doneBF-absurd l cl bfc sM)) (decBFs-doneBF-succ⁺ l sv bfs) step)
 absBundleG-api-evo l cl sv cl≢sv csc css bfc bfs ip {e = done l′ d′ N2N_KeepAlive}    apimem step = kaEvR→g⁺ (absBundleKA-ev-prod l cl sv cl≢sv csc css bfc bfs ip {e₁ = KA.doneKA l′ d′} step)

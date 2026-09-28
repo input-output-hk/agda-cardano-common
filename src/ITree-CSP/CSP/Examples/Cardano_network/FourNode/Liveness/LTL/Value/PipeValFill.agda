@@ -200,7 +200,9 @@ cliRead⇒CliValOK bfc′ (_ , _ , _ , chainSync _)                    () cv h
 cliRead⇒CliValOK bfc′ (_ , _ , _ , txSubmission _)                 () cv h
 cliRead⇒CliValOK bfc′ (_ , _ , _ , keepAlive _)                    () cv h
 cliRead⇒CliValOK bfc′ (_ , _ , _ , leiosNotify _)                  () cv h
+cliRead⇒CliValOK bfc′ (_ , _ , _ , leiosNotifyP _)                  () cv h
 cliRead⇒CliValOK bfc′ (_ , _ , _ , leiosFetch _)                   () cv h
+cliRead⇒CliValOK bfc′ (_ , _ , _ , leiosFetchP _)                   () cv h
 
 ------------------------------------------------------------------------
 -- (5) THE BUNDLE-LEVEL VALUE FACT — refute the MISMATCH, do not extract the

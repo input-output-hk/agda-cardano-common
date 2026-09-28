@@ -25,7 +25,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Net; Net-≟; break
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
-  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF )
+  ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
 open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
 open import CSP.Examples.Cardano_network.Params using ( Params )
@@ -102,7 +102,7 @@ open SN
         ; TScPos; tcHead; tcReqIdsB1; tcReqIdsNB1; tcReqTxs1; tcRepB1; tcDone1; tcRepNB1; tcRepTxs1; tcSil; TSsPos; tsHead; tsDone1; tsReqB1; tsReqNB1; tsReqTxs1; tsSil
         ; KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1; KAsPos; ksHead; ksRecv1; ksDdone1; ksSil
         ; LNcPos; lncHead; lncRann1; lncRoff1; lncRtxs1; lncRvot1; lncReq1; lncDone1; lncSil; LNsPos; lnsHead; lnsDone1; lnsWann1; lnsWoff1; lnsWtxs1; lnsWvot1; lnsSil
-        ; LFcPos; lfcHead; lfcRblk1; lfcRbtx1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWtxs1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWtxs1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
+        ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil
         ; InertPos; mkInert; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; decTSc; decTSc-src; decTSs; decTSs-src
         ; decKAc; decKAc-src; decKAs; decKAs-src
@@ -1608,6 +1608,7 @@ link-io-chan l ph false {e = apiTS  l₀ d₀ m}   iomem step = ⊥-elim iomem
 link-io-chan l ph false {e = apiKA  l₀ d₀ m}   iomem step = ⊥-elim iomem
 link-io-chan l ph false {e = apiLN  l₀ d₀ m}   iomem step = ⊥-elim iomem
 link-io-chan l ph false {e = apiLF  l₀ d₀ m}   iomem step = ⊥-elim iomem
+link-io-chan l ph false {e = apiLP  l₀ d₀ m}   iomem step = ⊥-elim iomem
 link-io-chan l ph false {e = break  l₀}        iomem step = ⊥-elim iomem
 
 -- LINK DISJOINTNESS (the `⦀Fin`-ev evBoth refutation): distinct links cannot
@@ -1892,6 +1893,7 @@ decLink-ev-inv l ph false {e = apiTS  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv l ph false {e = apiKA  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv l ph false {e = apiLN  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv l ph false {e = apiLF  l₀ d₀ m}   iomem step = ⊥-elim iomem
+decLink-ev-inv l ph false {e = apiLP  l₀ d₀ m}   iomem step = ⊥-elim iomem
 decLink-ev-inv l ph false {e = break  l₀}        iomem step = ⊥-elim iomem
 
 -- MEDIUM ev-inversion (io delivery): `⦀Fin-ev-inv` peels the four-link

@@ -57,7 +57,7 @@ open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
 open import CSP.Examples.Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
-        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; break )
+        ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.Base using
   ( Dir; hi; IDs
@@ -492,4 +492,5 @@ tauIo l r {e = apiTS  _ _ _} ()
 tauIo l r {e = apiKA  _ _ _} ()
 tauIo l r {e = apiLN  _ _ _} ()
 tauIo l r {e = apiLF  _ _ _} ()
+tauIo l r {e = apiLP  _ _ _} ()
 tauIo l r {e = break  _}     ()

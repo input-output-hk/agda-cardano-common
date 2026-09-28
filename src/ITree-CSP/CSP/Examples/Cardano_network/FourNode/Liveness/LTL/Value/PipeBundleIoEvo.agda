@@ -66,7 +66,7 @@ open import CSP.Examples.Cardano_network.Base using
   ; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
 open import CSP.Examples.Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
-  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; done; input; output
+  ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; store; env; break )
 open import CSP.Examples.Cardano_network.Data p using ( Payload )
 open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
@@ -165,6 +165,7 @@ BlkReadAt l d q (apiTS  _ _ _) _ = ⊥
 BlkReadAt l d q (apiKA  _ _ _) _ = ⊥
 BlkReadAt l d q (apiLN  _ _ _) _ = ⊥
 BlkReadAt l d q (apiLF  _ _ _) _ = ⊥
+BlkReadAt l d q (apiLP  _ _ _) _ = ⊥
 BlkReadAt l d q (store  _ _ _) _ = ⊥
 BlkReadAt l d q (env    _ _ _) _ = ⊥
 BlkReadAt l d q (break  _)     _ = ⊥
@@ -456,6 +457,7 @@ absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiKA  _ _ _} iomem st
 absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiTS  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiLN  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiLF  _ _ _} iomem step = ⊥-elim iomem
+absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = apiLP  _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = sndmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = rcvmsg _ _ _} iomem step = ⊥-elim iomem
 absBundleG-io-evo l cl sv cl≢sv csc css bfc bfs ip {e = tx     _ _ _} iomem step = ⊥-elim iomem

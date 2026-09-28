@@ -48,12 +48,12 @@ Each module defines a small per-protocol event type, its `DecEq`, and the **clie
 
 | Module | Lines | Protocol |
 |---|--:|---|
-| `KeepAlive.agda` | 273 | KeepAlive (cookie ping/response). |
+| `KeepAlive.agda` | 272 | KeepAlive (cookie ping/response). |
 | `ChainSync.agda` | 353 | ChainSync (consumer tracks producer's chain: RequestNext / AwaitReply / RollForward / RollBackward / FindIntersect). |
 | `BlockFetch.lagda.md` | 1225 | BlockFetch (RequestRange → StartBatch → Block* → BatchDone / NoBlocks; ClientDone). Literate. |
-| `TxSubmission.agda` | 346 | TxSubmission2 (tx-id / tx request-reply, blocking & pipelined). |
+| `TxSubmission.agda` | 412 | TxSubmission2 (tx-id / tx request-reply, blocking & pipelined). |
 | `LeiosNotify.agda` | 255 | LeiosNotify (id 18): from `stIdle` the consumer requests the next notification (`MsgLNRequestNext` → `stBusy`) or terminates (`MsgLNDone`); in `stBusy` the producer replies with exactly one of four notifications (block announcement, block offer, block-txs offer, votes offer) and returns to `stIdle`. Wire events `sendLN`/`receiveLN`; api events `apiLNev`. |
-| `LeiosFetch.agda` | 373 | LeiosFetch (id 19): from `stIdle` the consumer requests an endorser block (`MsgLFBlockRequest`), selective txs (`MsgLFBlockTxsRequest`), votes (`MsgLFVotesRequest`) or a block range (`MsgLFBlockRangeRequest`), or terminates (`MsgLFDone`); the producer delivers in the matching busy state. The block-range case **streams**: several `MsgLFNextBlockAndTxsInRange` before a final `MsgLFLastBlockAndTxsInRange`. Wire events `sendLF`/`receiveLF`; api events `apiLFev`. |
+| `LeiosFetch.agda` | 380 | LeiosFetch (id 19): from `stIdle` the consumer requests an endorser block (`MsgLFBlockRequest`), votes (`MsgLFVotesRequest`) or a block range (`MsgLFBlockRangeRequest`), or terminates (`MsgLFDone`); the producer delivers in the matching busy state. The block-range case **streams**: several `MsgLFNextBlockAndTxsInRange` before a final `MsgLFLastBlockAndTxsInRange`. Wire events `sendLF`/`receiveLF`; api events `apiLFev`. |
 
 ## Scenario / system — `FourNode/`
 
