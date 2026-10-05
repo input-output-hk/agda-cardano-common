@@ -43,16 +43,16 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; tran
 
 open import Process_Trees using ( PTree; ExtI; deadlock; ret; sil; react )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkCausal (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkCausal (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkStepLift blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkStepLift blkA
   using ( liftReach-ev )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -67,7 +67,7 @@ open import Semantics.LTL.WTrace
   using ( WTrace; step; done; stuck; div; frameOf; IsTermᵂ
         ; drop; dropIdx; tail; tailIdx; dropIdx-stutter )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA )
 
 ------------------------------------------------------------------------

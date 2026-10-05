@@ -47,8 +47,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Level using () renaming (Level to Lvl)
 open import Process_Trees using (PTree; ExtI; NodeKind; ret; sil; react)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysSqrt (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysSqrt (blkA : Block₃) where
 
 open PTree using (force)
 
@@ -56,17 +56,17 @@ open PTree using (force)
 -- The shared alphabet, the whole-system process type, and the model.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Base using ( Dir; lo; hi )
 -- the whole-system decode + reachable-config foundation (for `sys-ret-transfer`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; ⟦_⟧; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA using ( decMed )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA using ( decMed )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys; rdec; radec )
 
 -- Net_Api operators (the whole-system alphabet)
@@ -78,20 +78,20 @@ NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- the source protocol FSM modules (state enums)
-import CSP.Examples.Cardano_network.ChainSync    p as CS
-import CSP.Examples.Cardano_network.BlockFetch   p as BF
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.KeepAlive    p as KA
-import CSP.Examples.Cardano_network.LeiosNotify  p as LN
-import CSP.Examples.Cardano_network.LeiosFetch   p as LF
+import Cardano_network.ChainSync    p as CS
+import Cardano_network.BlockFetch   p as BF
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.KeepAlive    p as KA
+import Cardano_network.LeiosNotify  p as LN
+import Cardano_network.LeiosFetch   p as LF
 
 -- the abstract peer table interpreter (`tsNode`/`tableSpec`/`isFin`)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open NS using ( tableSpec; tsNode )
 open NS.Table using ( isFin )
 
 -- the concrete fine positions + concrete renamed peer decodes (SysNode)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( CScPos; CSsPos; BFcPos; BFsPos; TScPos; TSsPos
         ; KAcPos; KAsPos; LNcPos; LNsPos; LFcPos; LFsPos
         ; csHead; csReqNext1; csFindInt1; csDone1; csRF1; csRB1; csIF1; csINF1; csSil
@@ -118,7 +118,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         ; mkNodeA; mkNodeB; mkNodeC; mkNodeD )
 
 -- the abstract peer decodes + the coarsen maps (SysStep)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as MSysStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as MSysStep
 open MSysStep
   using ( absCSc; absCSs; absBFc; absBFs; absTSc; absTSs
         ; absKAc; absKAs; absLNc; absLNs; absLFc; absLFs
@@ -132,7 +132,7 @@ open NS using ( csCfin; csSfin; bfCfin; bfSfin; tsCfin; tsSfin
               ; kaCfin; kaSfin; lnCfin; lnSfin; lfCfin; lfSfin )
 
 -- the six per-protocol alphabet injections (for the `renameMap`-ret inverse)
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( ιCS; ιCS⁻¹; ιCS-linv; ιBF; ιBF⁻¹; ιBF-linv
         ; ιTS; ιTS⁻¹; ιTS-linv; ιKA; ιKA⁻¹; ιKA-linv
         ; ιLN; ιLN⁻¹; ιLN-linv; ιLF; ιLF⁻¹; ιLF-linv )
@@ -145,7 +145,7 @@ import CSP.Rename {E₁ = LF.LFEv} {E₂ = Net_Api Payload} ιLF ιLF⁻¹ ιLF-
 
 -- the SOURCE-force `react` leaf lemmas (unstick the offer-map DecEq guard) +
 -- the per-peer `renameMap`-react transport (`RenTC` instances)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( module CSNO; module BFNO; module TSNO; module KANO; module LNNO; module LFNO
         ; fReqNext1; fFindInt1; fDone1; fRF1; fRB1; fIF1; fINF1  -- ChainSync client / server leaves
         ; gReqNext1; gFindInt1; gDone1; gRF1; gRB1; gAw1; gIF1; gINF1

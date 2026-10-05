@@ -44,7 +44,7 @@
 -- are plain non-abstract functions Agda reduces through on its own.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceContent where
+module Cardano_network.Parametric.AnnounceContent where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
@@ -59,16 +59,16 @@ open import Function.Base using (case_of_)
 
 open import Process_Trees using (ExtI)
 
-open import CSP.Examples.Cardano_network.Parametric.LeiosInstance
+open import Cardano_network.Parametric.LeiosInstance
   using (leiosParams; leiosLine)
-open import CSP.Examples.Cardano_network.Net leiosParams
+open import Cardano_network.Net leiosParams
   using (Net_Api; env; apiLN; envForge; sendLNBlockAnnouncement)
-open import CSP.Examples.Cardano_network.Data leiosParams
+open import Cardano_network.Data leiosParams
   using (Payload; Header; header)
-open import CSP.Examples.Cardano_network.Base using (lo)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosParams using (apiES)
+open import Cardano_network.Base using (lo)
+open import Cardano_network.ApiAlphabet leiosParams using (apiES)
 
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceSafe as AS
 open AS.Generic leiosParams leiosLine apiES
   using (AnnounceSpecT; AnnounceSpec; announceSpecT-traces⊆)
 

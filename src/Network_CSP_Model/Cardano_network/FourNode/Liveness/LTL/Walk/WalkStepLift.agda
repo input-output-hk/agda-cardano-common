@@ -32,18 +32,18 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; subst )
 
 open import Process_Trees using ( ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkStepLift (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkStepLift (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
 
 -- reachable-config machinery + the whole-system process type
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec )
 -- the R2 oracle: TOTAL abstract-step reflectors `otauB`/`oevB` (reachability)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( theOracle; otauB; oevB )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}

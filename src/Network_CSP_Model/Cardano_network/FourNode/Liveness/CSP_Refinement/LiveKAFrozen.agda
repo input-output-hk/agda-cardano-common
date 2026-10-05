@@ -69,8 +69,8 @@
 -- No postulate, hole, meta, `NON_TERMINATING` or `mutual`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveKAFrozen
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveKAFrozen
   (blkA : Block₃) where
 
 open import Level using ( 0ℓ )
@@ -82,11 +82,11 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir )
-import CSP.Examples.Cardano_network.KeepAlive p as KA
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir )
+import Cardano_network.KeepAlive p as KA
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _⦀_ )
@@ -96,24 +96,24 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _═[_]═►_ )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιKA )
+open import Cardano_network.NetworkPar p using ( ιKA )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( NetProc; absBundleG; absKAc; absKAs; absCSc; absCSs; absBFc; absBFs
                  ; absTSc; absTSs; absLNc; absLNs; absLFc; absLFs
                  ; coarsenKAc; ⦀-noOffer )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( BFcPos; BFsPos )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; nB; initial )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( tableSpec-ev-inv; nothing-absurd )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
 open SIL6 using ( ⦀-wev-L; ⦀-wev-R; absKAc-ev-dir; absKAs-ev-dir )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA
   using ( decKAc-ev-prod-abs; decKAs-ev-prod-abs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
   using ( noOffer→viewV
         ; kaTail-kas-noOffer; kaTail-csc-noOffer; decKAc-dir-noOffer
         ; absCSc-noKA; absCSs-noKA; absBFc-noKA; absBFs-noKA

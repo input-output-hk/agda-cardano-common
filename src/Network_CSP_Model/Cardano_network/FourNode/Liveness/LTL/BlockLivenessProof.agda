@@ -42,13 +42,13 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.BlockLivenessProof (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.BlockLivenessProof (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
+open import Cardano_network.Net p
   using ( Net_Api; apiBF; break; sendBFBlock; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( evl; evLabel )
@@ -71,22 +71,22 @@ open import Semantics.LTL.ClassicalDescent
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( descent-⊨ )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2; confined; respondsAtoD; BlockLiveness⁺At )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( sysBisim )
 
 open import Semantics.LTL.WTrace
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( WTrace; frameOf; _⊨ᵂ_ )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.RealAbs blkA as RA
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.AbstractLive blkA as AL
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.TProg blkA
+import Cardano_network.FourNode.Liveness.LTL.Walk.RealAbs blkA as RA
+import Cardano_network.FourNode.Liveness.LTL.Walk.AbstractLive blkA as AL
+open import Cardano_network.FourNode.Liveness.LTL.Walk.TProg blkA
   using ( tprog )
 
 ------------------------------------------------------------------------

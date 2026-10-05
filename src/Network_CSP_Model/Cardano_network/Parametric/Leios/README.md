@@ -11,7 +11,7 @@ The design spec is
 `docs/superpowers/specs/2026-09-21-leios-prototype-protocols-design.md`; the two payload
 abstractions are recorded in
 `docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`. The
-branch's public status record is `src/CSP/Laws_status.md` §"Leios prototype".
+branch's public status record is `csp-ptree-agda/src/CSP/Laws_status.md` §"Leios prototype".
 
 > **Read section C before quoting anything from sections A or B.** Every result on this
 > branch is a NODE-level trace-refinement fact. There is no network-wide statement here,
@@ -511,10 +511,10 @@ bridge back into `OriginSafe`, and `osafe→⊑T` finishes.
 To re-check one endpoint:
 
 ```sh
-cd src
-rm -f _build/2.8.0/agda/CSP/Examples/Cardano_network/Parametric/Leios/<Module>.agdai
+cd src/Network_CSP_Model
+rm -f _build/2.8.0/agda/Cardano_network/Parametric/Leios/<Module>.agdai
 systemd-run --user --scope -p MemoryMax=25G -p MemorySwapMax=0 \
-  -- stdbuf -oL agda CSP/Examples/Cardano_network/Parametric/Leios/<Module>.agda \
+  -- stdbuf -oL agda Cardano_network/Parametric/Leios/<Module>.agda \
      +RTS -M20G -RTS
 ```
 

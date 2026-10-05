@@ -32,16 +32,16 @@ open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNode (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNode (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir )
-import CSP.Examples.Cardano_network.BlockFetch p as BF
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιBF )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir )
+import Cardano_network.BlockFetch p as BF
+open import Cardano_network.NetworkPar p using ( ιBF )
+open import Cardano_network.NetCommon p using ( ioES )
 
 open import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) using ( EventSet )
 open EventSet using ( mem )
@@ -51,11 +51,11 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _═[_]═►_ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil; decBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; absBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvIoDrop blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvIoDrop blkA
   using ( decBFc-ev-io-drop )
 
 ------------------------------------------------------------------------

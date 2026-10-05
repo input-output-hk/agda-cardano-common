@@ -64,15 +64,15 @@ open import Relation.Binary.PropositionalEquality
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs; lo; hi; N2N_ChainSync)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; IDs; lo; hi; N2N_ChainSync)
 
-module CSP.Examples.Cardano_network.NetworkVerification.PerLink.Fold
+module Cardano_network.NetworkVerification.PerLink.Fold
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
 open PTree
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (linkConfig)
@@ -84,13 +84,13 @@ open import Semantics.LTS {E = Net Data} {I = ExtI (Net Data)} hiding (Diverges)
 open import Semantics.DRBisim {E = Net Data} {I = ExtI (Net Data)}
   using (Diverges)
 
-open import CSP.Examples.Cardano_network.Network p Data
+open import Cardano_network.Network p Data
   using ( NetProc
         ; csSR; csSR-dec; csRS; csRS-dec; csTA; csTA-dec )
-open import CSP.Examples.Cardano_network.NetworkLink p Data
+open import Cardano_network.NetworkLink p Data
   using ( Transmitterₗ; RcvAckₗ; Receiverₗ; SndAckₗ )
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.State p Data
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.Decode p Data
+open import Cardano_network.NetworkVerification.PerLink.State p Data
+open import Cardano_network.NetworkVerification.PerLink.Decode p Data
 
 open import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {Data})
   using (Par-τ-elim; ParτR; τL; τR
@@ -107,7 +107,7 @@ open import CSP.Laws.Traces.TraceLawsHide (Net-≟ {Data})
 -- the config-independent leaf layer (re-exported `public`, exactly as
 -- `PerLink.Step` did: confinement bridge, `(l)`-only `no-√`, and the
 -- `(l , dc , idc)`-parameterised `WithInstance` per-leaf machinery)
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.Leaf p Data public
+open import Cardano_network.NetworkVerification.PerLink.Leaf p Data public
 
 ------------------------------------------------------------------------
 -- All fold lemmas fix the link `l` (each cell instantiates `WithInstance

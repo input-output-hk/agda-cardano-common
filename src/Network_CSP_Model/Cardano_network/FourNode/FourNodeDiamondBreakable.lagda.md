@@ -29,14 +29,14 @@ open import Relation.Binary.PropositionalEquality using (refl)
 open import Level using (0ℓ)
 open import Process_Trees using (PTree; ExtI)
 
-module CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable where
+module Cardano_network.FourNode.FourNodeDiamondBreakable where
 ```
 
 The healthy diamond supplies the shared `Params` `p`, the four nodes, and the
 four link identifiers — all top-level, so a plain `using (…)` import works:
 
 ```agda
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; nodeA; nodeB; nodeC; nodeD
         ; linkAB; linkAC; linkBD; linkCD )
 ```
@@ -45,11 +45,11 @@ The breakable medium and the io sync set from `NetCommon p`; the `break` channel
 and the alphabet from `Net p`; the `Payload` data domain from `Data p`:
 
 ```agda
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.NetCommon p
   using ( CopySpecBreakableA; breakableLinkA; NetworkLinkBreakableA; ioES )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( break; Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using (Payload)
+open import Cardano_network.Data p using (Payload)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_; Skip )

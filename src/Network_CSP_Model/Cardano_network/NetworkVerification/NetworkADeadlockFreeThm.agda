@@ -9,7 +9,7 @@
 -- across the injective alphabet embedding `ιNet`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkADeadlockFreeThm where
+module Cardano_network.NetworkVerification.NetworkADeadlockFreeThm where
 
 open import Data.Unit using (⊤; tt)
 open import Class.DecEq using (DecEq)
@@ -24,16 +24,16 @@ instance
   decEq⊤ : DecEq ⊤
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGen ⊤ using (p1)
+open import Cardano_network.NetworkVerification.NetworkRefinementGen ⊤ using (p1)
 
 -- Bring Net, Net_Api, and their equality into scope.
-open import CSP.Examples.Cardano_network.Net p1 using (Net; Net_Api)
+open import Cardano_network.Net p1 using (Net; Net_Api)
 
 -- Bring Payload and its DecEq instance into scope from Data p1.
-open import CSP.Examples.Cardano_network.Data p1 using (Payload; DecEq-Payload)
+open import Cardano_network.Data p1 using (Payload; DecEq-Payload)
 
 -- Bring NetworkA, ιNet, ιNet⁻¹, ιNet-linv into scope.
-open import CSP.Examples.Cardano_network.NetCommon p1
+open import Cardano_network.NetCommon p1
   using (NetworkA; ιNet; ιNet⁻¹; ιNet-linv)
 
 -- Import the cross-alphabet rename-DeadlockFree at the SAME ι instance
@@ -53,7 +53,7 @@ open import Semantics.Deadlock {E = Net_Api Payload} {I = ExtI (Net_Api Payload)
 -- requires an inhabitant of the payload type to construct the bisimulation key.
 module _ (d₀ : Payload) where
 
-  open import CSP.Examples.Cardano_network.NetworkVerification.NetworkDeadlockFreeThm
+  open import Cardano_network.NetworkVerification.NetworkDeadlockFreeThm
     Payload ⦃ DecEq-Payload ⦄ d₀
     using (network-deadlockFree)
 

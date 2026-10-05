@@ -136,14 +136,14 @@ Self-contained inside the subfolder, because the parent `Net`/`Net_Api` alphabet
 
 ## Typechecking
 
-From the repository's `src/` directory (never the repo root):
+From the `src/Network_CSP_Model/` directory (never the repo root):
 
 ```
-cd src && agda CSP/Examples/Cardano_network/FourNode/FourNodeDiamond.lagda.md
+cd src/Network_CSP_Model && agda Cardano_network/FourNode/FourNodeDiamond.lagda.md
 ```
 
-Any module's imports are checked transitively. All modules use `{-# OPTIONS --guardedness #-}`; there is no `NON_TERMINATING`. Build artefacts go to `src/_build/`.
+Any module's imports are checked transitively. All modules use `{-# OPTIONS --guardedness #-}`; there is no `NON_TERMINATING`. Build artefacts go to `src/Network_CSP_Model/_build/`.
 
 ## Related documentation
 
-- Algebraic-law validation status: `src/CSP/Laws_status.md`.
+- Algebraic-law validation status: `csp-ptree-agda/src/CSP/Laws_status.md`.

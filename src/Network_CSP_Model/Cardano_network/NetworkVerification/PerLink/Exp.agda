@@ -57,15 +57,15 @@ open ℕSolver.+-*-Solver
   renaming (solve to ℕsolve; _:=_ to _:≡_; _:+_ to _:⊕_; con to ℕcon)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs; lo; hi)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; IDs; lo; hi)
 
-module CSP.Examples.Cardano_network.NetworkVerification.PerLink.Exp
+module Cardano_network.NetworkVerification.PerLink.Exp
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
 open PTree
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (linkConfig)
@@ -81,16 +81,16 @@ open import Semantics.DRBisim {E = Net Data} {I = ExtI (Net Data)}
 open import Semantics.Expansion {E = Net Data} {I = ExtI (Net Data)}
   using (Expand; ExpBwdF; _⪰_; ⪯→≈DR)
 
-open import CSP.Examples.Cardano_network.Network p Data
+open import Cardano_network.Network p Data
   using ( NetProc; Copy; copyMenu; linkCopy )
-open import CSP.Examples.Cardano_network.NetworkLink p Data
+open import Cardano_network.NetworkLink p Data
   using ( NetOneLink )
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.State p Data
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.Decode p Data
+open import Cardano_network.NetworkVerification.PerLink.State p Data
+open import Cardano_network.NetworkVerification.PerLink.Decode p Data
   using ( NetR; vis-of; succV; ⟦_⟧; dec-init )
 -- `Fold` re-exports `Leaf` publicly (⊤merge, ≟-diag(F), noView, noStep-Par,
 -- Skip-no-ev/τ, evN, …) and supplies the general six-lemma step interface.
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.Fold p Data
+open import Cardano_network.NetworkVerification.PerLink.Fold p Data
 
 open import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {Data})
   using (Par-ev-elim; evSync; evL; evR; evBoth; Par-τ-elim; τL; τR; Par-force-ret-inv)

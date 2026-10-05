@@ -53,30 +53,30 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; subst )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeStepEmit (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeStepEmit (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; τ; ev; evl; Event )
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[τ*]─►_; τ*-refl; τ*-step; _═[_]═►_; wev )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys; rdec )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( empty )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( PipeInv⁺; PipeStep⁺; psWeak; prodOf; relayOf; ProdSent; RelayFwd
         ; cellUp; cellDn; CellHasBlk )
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeExpose blkA as PE
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeExpose blkA as PE
 open PE using ( StepEmit )
 
 ------------------------------------------------------------------------

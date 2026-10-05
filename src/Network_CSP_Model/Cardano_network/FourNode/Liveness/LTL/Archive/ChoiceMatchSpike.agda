@@ -42,8 +42,8 @@ open import Process_Trees
 open ExtI using (base; pair; fin)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.ChoiceMatchSpike (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.ChoiceMatchSpike (blkA : Block₃) where
 
 open PTree
 
@@ -51,13 +51,13 @@ open PTree
 -- The concrete alphabet under study (Phase-1, `examples/praos_liveness`).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; linkAB )
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; linkAB )
+open import Cardano_network.Base using (Dir; IDs)
 open Dir using (lo)
 open IDs using (N2N_BlockFetch)
-open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟; Link; input; output)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Net p using (Net_Api; Net_Api-≟; Link; input; output)
+open import Cardano_network.Data p using (Payload)
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_; Par; EventSet; Stop; ∅ES; pchoice; par-brBoth )

@@ -5,7 +5,7 @@
 -- forwarded payload `Data` (Axis A of the generalisation effort).
 --
 -- This module is the PARAMETRIC counterpart of
--- `CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinement` (which fixes `Data = ⊤`).
+-- `Cardano_network.NetworkVerification.NetworkRefinement` (which fixes `Data = ⊤`).
 -- It re-uses the SAME single-channel instance `p1` (numConns N2N_KeepAlive = 1,
 -- all other protocols 0; all abstract data domains `⊤`) but keeps the forwarded
 -- payload `Data` an ABSTRACT `Set` with a `DecEq Data` instance.
@@ -46,13 +46,13 @@ open import Induction.WellFounded using (Acc; acc)
 open import Data.Nat.Induction using (<-wellFounded)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using
   ( IDs; Dir; lo; hi; N2N_KeepAlive
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
   ; N2N_LeiosNotify; N2N_LeiosFetch; OneTx; decOneTx )
 open import Data.List using (_∷_; [])
-open import CSP.Examples.Cardano_network.NetModel
+open import Cardano_network.NetModel
   using ( CS; mkCS; cs0
         ; inp; tr; ra; out; rc; sa
         ; IP; I0; I1; I2; Ig
@@ -63,9 +63,9 @@ open import CSP.Examples.Cardano_network.NetModel
         ; SP; Sa0; Sa1; Sag
         ; _⇒ᵢ_; _⇒ᵥ_
         ; gI; gT; gR; gO; gRc; gSa )
-import CSP.Examples.Cardano_network.NetModel as NM
+import Cardano_network.NetModel as NM
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGen
+module Cardano_network.NetworkVerification.NetworkRefinementGen
   (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
 open PTree
@@ -120,9 +120,9 @@ p1 = record
   ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
   ; slotOf = λ _ → tt }
 
-open import CSP.Examples.Cardano_network.Net p1
+open import Cardano_network.Net p1
   using (Net; Link; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)
-open import CSP.Examples.Cardano_network.Network p1 Data
+open import Cardano_network.Network p1 Data
 
 open import Semantics.LTS {E = Net Data} {I = ExtI (Net Data)} hiding (Diverges)
 open import Semantics.WeakBisim {E = Net Data} {I = ExtI (Net Data)}
@@ -137,7 +137,7 @@ open import Semantics.FailuresDivergences {E = Net Data} {I = ExtI (Net Data)}
   using (_⊇D_; divergences; IsDivergence)
 
 -- the Net-decidable-equality used to instantiate every operator/law module
-open import CSP.Examples.Cardano_network.Net p1 using (Net-≟)
+open import Cardano_network.Net p1 using (Net-≟)
 
 open import CSP.Operators {E = Net Data} (Net-≟ {Data})
   using (Par⊤; _∥⇘_⇙_; _⦀_; _∖_; chanSet; EventSet; Skip; Par; ∅ES; viewV)
@@ -564,7 +564,7 @@ evN {B} e a = evl (evLabel B e a)
 
 -- `output` is re-exported twice; pin the single intended constructor via a
 -- freshly qualified import.
-import CSP.Examples.Cardano_network.Net p1 as NetQ
+import Cardano_network.Net p1 as NetQ
 
 output′ : (l : Link) (d : Dir) (id : IDs) → Net Data Data
 output′ = NetQ.output

@@ -80,24 +80,24 @@ open import Data.Nat.Properties using (≤-refl; +-monoˡ-<; +-monoʳ-<; +-mono-
 open import Data.Bool using (Bool; true; false; not)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong₂)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.Walk (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The model links, the state, the medium, and the driver measures.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Link )
+open import Cardano_network.Net p using ( Link )
 -- the whole-system state and its medium projection
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; initial )
 -- the medium abstract state: per-link break flags
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; broken; initMed )
 -- the per-group driver delivery-distances (the SOUND monotone core)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( μG1; μG2; μG1-init; μG2-init )
 
 ------------------------------------------------------------------------
@@ -221,10 +221,10 @@ open import Data.Sum using ( _⊎_; inj₁; inj₂ )
 open import Data.Product using ( Σ; _,_; _×_ )
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
 
 open import Semantics.LTL.Traces_Based
@@ -234,7 +234,7 @@ open import Semantics.LTL.WTrace
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( WTrace; ⟦_⟧ᵂ; drop; _⊨ᵂ_ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2; confined; respondsAtoD )
 
 -- the campaign's SINGLE certified classical axiom (≡ LEM); `¬¬F⇒F` of

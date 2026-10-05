@@ -26,7 +26,7 @@
 -- through the head of a `⦀Fin⁺`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenanceSafe where
+module Cardano_network.Parametric.BlockProvenanceSafe where
 
 open import Level using (0ℓ; lift)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -40,16 +40,16 @@ open import Data.Unit.Polymorphic using (⊤; tt)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
 
 open import Process_Trees using (PTree; ptree; react; ret; sil; AnyTypes; ExtI; base; pair; fin)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCarrier as ASC
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeLeaves as ASL
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.AnnounceSafeCarrier as ASC
+import Cardano_network.Parametric.AnnounceSafeLeaves as ASL
+import Cardano_network.Parametric.BlockProvenance as BP
 
 -- the same three parameters as every other `Parametric.Announce*`/`BlockProvenance*`
 -- module, so `Safe`, `Wf`, `Carries` and `next` below are literally theirs

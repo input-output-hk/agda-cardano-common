@@ -27,9 +27,9 @@
 -- `DecEq` instance derived from the element instance.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.Data (p : Params) where
+module Cardano_network.Data (p : Params) where
 
 open import Data.Nat using (ℕ)
 open import Data.List using (List; []; _∷_)
@@ -40,7 +40,7 @@ open import Data.Product using (_×_; _,_)
 open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
 
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( BlockingStyle; Blocking; NonBlocking; Mode; DecEq-Mode )
 
 -- Abstract opaque domains + their DecEq instances, in scope here.

@@ -37,13 +37,13 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; tran
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.WalkApiReach (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.WalkApiReach (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _∖_; _⦀_; EventSet )
@@ -55,30 +55,30 @@ open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload
   using ( _═[_]═►_ )
 
 -- the whole-system state, its medium/decode
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed )
 -- the abstract/concrete decodes + the FORWARD visible-event top inversion
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; absDec; absNodesOf; nodesOf
         ; TopEvR; medEv; nodesEv; reflect-top-ev )
 -- reachable-config foundation (weak-run closure)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; rdec; toSys; rcloseʷ; rcloseʷ-abs )
 -- the abstract api-class fingerprint + api∉ioES + the medium api non-offer
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( IsApiCSBF )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
 -- the whole-system NODES weak-visible lift (medium fixed) + noOffer→viewV
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( lift-nodes-whole-wev )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA
   using ( noOffer→viewV )
 -- the driver-advance-carrying backward node peel + the whole-trace measure
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkApiDrop blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkApiDrop blkA
   using ( top-nodes-abs-wt )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( μTot )
 
 ------------------------------------------------------------------------

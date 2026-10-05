@@ -59,11 +59,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; ≡-≟-id
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using
   (IDs; Dir; lo; hi; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission; N2N_KeepAlive; N2N_LeiosNotify; N2N_LeiosFetch; OneTx; decOneTx)
 
-module CSP.Examples.Cardano_network.Terminable.NetworkTRefinement
+module Cardano_network.Terminable.NetworkTRefinement
   (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
 open PTree
@@ -106,11 +106,11 @@ p1 = record
 -- Instantiate the terminable copy-spec / multiplexer at `p1`, `Data`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Net p1 using (Link)
-open import CSP.Examples.Cardano_network.Terminable.NetT p1
+open import Cardano_network.Net p1 using (Link)
+open import Cardano_network.Terminable.NetT p1
   using ( NetT; NetT-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; mdone )
-open import CSP.Examples.Cardano_network.Terminable.NetworkT p1 Data
+open import Cardano_network.Terminable.NetworkT p1 Data
 
 open import CSP.Operators {E = NetT Data} (NetT-≟ {Data})
   using (iter-bind; Output; pchoice; Ret; Prefix₀; _∥⇘_⇙_; _∖_; _⦀_; chanSet; Skip)

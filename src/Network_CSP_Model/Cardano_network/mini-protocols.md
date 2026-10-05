@@ -3,7 +3,7 @@
 What is modelled, how, and what has been proved about each. For a reader who knows
 the `ouroboros-network` node-to-node mini-protocol specifications and CSP, but not
 this repository. References are `Module.agda:line`, relative to this directory
-(`src/CSP/Examples/Cardano_network/`) unless prefixed with `src/`.
+(`src/Network_CSP_Model/Cardano_network/`) unless prefixed with `csp-ptree-agda/src/`.
 
 ## 1. Overview
 
@@ -62,7 +62,7 @@ not part of event identity — and opens `CSP.Operators {E = XXEv}` at it
 (`ChainSync.agda:131-132`).
 
 **Peers as productive `iter` loops.** A peer is a *non-recursive* step function
-over a finite state enum, tied with `iter` (`src/CSP/Operators.agda:1031`, via
+over a finite state enum, tied with `iter` (`csp-ptree-agda/src/CSP/Operators.agda:1031`, via
 `iter-bind` at `:1053`):
 
 ```agda
@@ -363,8 +363,8 @@ complete proof.
 
 ## 5. Typechecking a peer module
 
-From `src/` (never the repository root); imports are checked transitively.
+From `src/Network_CSP_Model/` (never the repository root); imports are checked transitively.
 
 ```
-cd src && agda CSP/Examples/Cardano_network/ChainSync.agda
+cd src/Network_CSP_Model && agda Cardano_network/ChainSync.agda
 ```

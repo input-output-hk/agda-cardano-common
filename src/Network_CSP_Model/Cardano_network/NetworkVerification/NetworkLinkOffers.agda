@@ -31,13 +31,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; IDs)
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkLinkOffers
+module Cardano_network.NetworkVerification.NetworkLinkOffers
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (linkConfig)
@@ -48,8 +48,8 @@ open import CSP.Laws.Bisim.DRCongruenceRep (Net-≟ {Data})
 import CSP.Operators {E = Net Data} (Net-≟ {Data}) as Op
 open Op using (⦀⋆)
 
-open import CSP.Examples.Cardano_network.Network p Data
-open import CSP.Examples.Cardano_network.NetworkLink p Data
+open import Cardano_network.Network p Data
+open import Cardano_network.NetworkLink p Data
 
 ------------------------------------------------------------------------
 -- Link alphabets.

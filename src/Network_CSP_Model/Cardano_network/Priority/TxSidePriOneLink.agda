@@ -47,11 +47,11 @@ open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
   using (IDs; N2N_BlockFetch; N2N_LeiosFetch; Dir; lo; Mode; FromInitiator; OneTx; decOneTx)
 
-module CSP.Examples.Cardano_network.Priority.TxSidePriOneLink where
+module Cardano_network.Priority.TxSidePriOneLink where
 
 ------------------------------------------------------------------------
 -- The minimal, fully concrete parameter bundle.
@@ -90,11 +90,11 @@ p₀ = record
 -- Alphabet, data, operator layer, priority order — all at `p₀`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Data p₀
+open import Cardano_network.Data p₀
   using (Payload; DecEq-Payload; leiosFetch; MsgLFDone)
-open import CSP.Examples.Cardano_network.Net p₀
+open import Cardano_network.Net p₀
   using (Net; Net-≟; Link; input; sndmsg; rcvack)
-open import CSP.Examples.Cardano_network.Priority.BfOverLf p₀ using (bfOverLf)
+open import Cardano_network.Priority.BfOverLf p₀ using (bfOverLf)
 
 open import CSP.Operators (Net-≟ {Payload})
   using (Output; _⦀_; Skip; Prefix₀)
@@ -105,8 +105,8 @@ open import Semantics.Refusals {E = Net Payload} {I = ExtI (Net Payload)} using 
 open import CSP.Priority.Base    {0ℓ} {0ℓ} {Net Payload} using (FinBr)
 open import CSP.Priority.Channel (Net-≟ {Payload}) using (Priᶜ)
 open import CSP.Priority.Closure (Net-≟ {Payload}) using (finBr-prefix₀; finBr-Skip; finBr-⦀)
-open import CSP.Examples.Cardano_network.Priority.NetworkLinkPri p₀ using (finBr-Output; fbInputsₗ)
-open import CSP.Examples.Cardano_network.NetworkLink p₀ Payload ⦃ DecEq-Payload ⦄
+open import Cardano_network.Priority.NetworkLinkPri p₀ using (finBr-Output; fbInputsₗ)
+open import Cardano_network.NetworkLink p₀ Payload ⦃ DecEq-Payload ⦄
   using (Inputsₗ)
 
 ------------------------------------------------------------------------

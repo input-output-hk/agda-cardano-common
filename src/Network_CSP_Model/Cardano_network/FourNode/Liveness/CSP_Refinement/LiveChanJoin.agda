@@ -69,20 +69,20 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoin
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoin
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
+open import Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; break; apiBF; apiCS; apiKA; apiTS; apiLN; apiLF; apiLP
   ; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
   ; ApiBFTag; ApiBFCar ; store; env )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using
   ( Dir; hi; IDs; N2N_BlockFetch; N2N_ChainSync; N2N_KeepAlive; N2N_TxSubmission
   ; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _∖_; EventSet )
@@ -91,52 +91,52 @@ open EventSet using ( mem )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; τ; ev; evl; evLabel )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; initial; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining; phase; decMed; MedState; mkMed; broken )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; absNodesOf; coarsenBFs; coarsenBFc
         -- (T8c-iii) §5e's frame coarsens node D's client slot for the coupling, and
         -- §5g's io arms coarsen both CS peers for the row→adjacency lemmas
         ; coarsenCSc; coarsenCSs
         ; reflect-absDec-τ; innerτ; hidSync; reflect-inner-τ; medτ; nodesτ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( absNodesOf-no-τ )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( oevB-no-io; oevB-refute )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   -- (T8c-iii) §5f's relay branch refutes the dn CS server's row BY LINK
   using ( aicCS; aicBF; aicDone; ApiHasLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( IsApiCSBF )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( phase-upd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( setCell )
 -- the payload's ROLE: every wire payload is client- or server-originated, which is
 -- what makes the "neither peer moved" case of an io FILL refutable
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
   using ( ClientIo; ServerIo; msgOrigin )
-open import CSP.Examples.Cardano_network.Data p using ( Messages )
-open import CSP.Examples.Cardano_network.Base using ( Mode; FromInitiator; FromResponder )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
+open import Cardano_network.Data p using ( Messages )
+open import Cardano_network.Base using ( Mode; FromInitiator; FromResponder )
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
   using ( NoCliIoAt; NoSrvIoAt )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD
         -- (T8c-iii) node D's phase and stored block, leg-stated
         ; phOf; cblkOf
         -- (C, cellCp3) … and node D's PRE-RECEIVE region, the dn-hop twin of
         -- `RelayPre` that §5e's down-hop position lemma partitions
         ; InCp03 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvTauInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvTauInv blkA
   using ( medium-τ-inv-wt )
 -- the two hops' peer/cell/link accessors: §4's `HopArm` is parametric in the
 -- QUARTET, and §5 instantiates it at each
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( cellUp; upClient; cellDn; dnClient
         -- (T1) the relay driver's own phase — S1's antecedent slot
         ; relayOf
@@ -149,18 +149,18 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blk
         -- (C, cellCp3) … and the relay's PRE-RECEIVE region, which §5e's up-hop
         -- position lemma partitions into slice A's guard and the window's conclusion
         ; RelayPre )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( upSrv; dnSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeTauMed blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeTauMed blkA
   -- (T8c-iii) §5f's `up≢dn` is the leg's own two-link disequality
   using ( drainSucc; linkAB≢linkBD; linkAC≢linkCD )
 -- (T8c-iii) node D's driver advance, at the pair the merged cone field carries
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ConsAdv )
 -- the fine BF peer positions the four accessors return
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   -- (T8c-iii) §5f states node D's driver step at `consD (cblkOf l s) (phOf l s)`, which
   -- is the leg-stated form of the cone's node-projection one (η on `ConsDPh`)
   using ( BFsPos; BFcPos; consD; decConsD; cph; NodeStateD
@@ -174,11 +174,11 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
 -- the leg's own cell key, propositionally: `cellUp l s` is `phase (med s) (upLink l)
 -- hi N2N_BlockFetch` only after the leg is a constructor, so every hop-level
 -- statement about the medium goes through this (and the `dn` twin, for the down hop)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeTauIo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeTauIo blkA
   using ( cellUp-key; cellDn-key )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeMedKey blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeMedKey blkA
   using ( medium-ev-in-key; medium-ev-out-key )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiExpose blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiExpose blkA
   using ( driverExpose⁺
         -- (T8c-iii) the two MERGED node-D fields and the two relay ones
         ; deNodeDBD; deNodeDCD; deRelayBD; deRelayCD; deRelayAdvBD; deRelayAdvCD
@@ -194,48 +194,48 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLe
         -- (T10) … and the four slots the EIGHTH factor reads: the two legs' driver
         -- steps, their leaf records, and the two (T10) up-hop BF-CLIENT pairs
         ; deLdBD; deLdCD; deVlBD; deVlCD; deUpBfBD; deUpBfCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA
   using ( top-nodes-io-evoP⁺ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvStep blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvStep blkA
   using ( break-invert )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
   using ( PipeVal )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveKAFrozen blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveKAFrozen blkA
   using ( KAcFrz )
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA as LS
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA as LS
 -- (T10) §5i's cell predicate (the `full`-only one the token's own chains use)
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA as LLI
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA as LLI
 -- (T10) … and the token exclusion, whose `NoTwoTokens` field the eighth factor's api
 -- premise reads off the join's first factor
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveTokenExcl blkA as LTE
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegAssembly blkA as LA
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA as LIC
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA as LAC
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA as LCI
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveTokenExcl blkA as LTE
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegAssembly blkA as LA
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA as LIC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA as LAC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA as LCI
 -- (T1) S1, the BlockFetch DRIVER-TAIL coupling — the campaign's shared BF object,
 -- joined below as the FIFTH trailing factor
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA as LDB
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA as LDB
 -- (T6c) the ChainSync channel invariant and its hop-parametric join arms — the SIXTH
 -- trailing factor and the five arms that carry it
 -- (T11e) the coarse BF-client positions the fold's anchor names, and (T11g) the FIFTH
 -- factor's own third half — `BFFresh`, folded into `DrvBF` (§5c⁺)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFD blkA as LBFD
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA as LCC
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFD blkA as LBFD
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA as LCC
 -- (T6c) the CS api-axis facts, for §5d's two typed leg dispatches
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow blkA
   using ( CSsApiRowP; CScApiRowP )
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoinCS blkA as LCJC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoinCS blkA as LCJC
 -- (T8c-iii) node D's freshness clause and its driver-tail coupling, carried as
 -- `LegJointU`'s SEVENTH factor.  This is the edge that brings `LiveDrvCSD` into the
 -- endpoint's closure for the first time
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvCSD blkA as LDC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvCSD blkA as LDC
 -- (T10) node A's up-hop BF coupling and the `cp4` client region — the EIGHTH factor,
 -- travelling as ONE pair for `DnJoint`'s reason
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFA blkA as LDBA
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFA blkA as LDBA
 -- (T5) the down-hop CS SERVER slot accessor, for the new io selector's TYPE (the
 -- coupling's own third component is stated at it, so the two must be the same term)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayOpen blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayOpen blkA
   -- (T7) … and the leg's UP-hop CS CLIENT slot, which the `cp5` chain's selectors are
   -- stated at for `dnCssRow`'s reason: the leg being a CONSTRUCTOR is what makes the
   -- cone's node-field form and the coupling's `upCSc` form convertible

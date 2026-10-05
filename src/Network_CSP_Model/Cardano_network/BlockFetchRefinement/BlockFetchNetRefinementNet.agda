@@ -8,9 +8,9 @@
 -- the initial node `gNetInit`, and `net-noDiv = go-reach gNetInit`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefinementNet (p : Params) where
+module Cardano_network.BlockFetchRefinement.BlockFetchNetRefinementNet (p : Params) where
 
 open import Level using (lift) renaming (zero to lzero)
 import Data.Unit.Polymorphic as Poly
@@ -23,11 +23,11 @@ open import Data.Maybe using (Maybe; just; nothing)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.BlockFetch p
+open import Cardano_network.BlockFetch p
 
 -- API tags + carried payload types, needed for the JN-gevA result and the
 -- impossible-jeBoth refuter.
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( ApiBFTag; ApiBFCar; recvBFBlock )
 
 open import Semantics.LTS {E = BFNetEv} {I = ExtI BFNetEv} hiding (Diverges)
@@ -39,7 +39,7 @@ open NetOps using (_∖_; Par; iter; _⦀_; _∥⇘_⇙_; ∅ES; EventSet)
 
 -- everything from part 1: JN / Inner / the peer-state terms / the decomposers
 -- (JN-τ-cases, JN-gev, JN-gev-none), the net*-τ inversions, and the nd-* layer.
-open import CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefinement p
+open import Cardano_network.BlockFetchRefinement.BlockFetchNetRefinement p
 
 -- bring the coinductive `Good` projections (gnd / gτ / gev) into scope for copatterns.
 open Good

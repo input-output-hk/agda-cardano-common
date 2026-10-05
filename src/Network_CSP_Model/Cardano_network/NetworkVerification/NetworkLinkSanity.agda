@@ -18,11 +18,11 @@ open import Relation.Nullary using (yes)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
   using (Dir; IDs; lo; hi; N2N_KeepAlive; N2N_BlockFetch; OneTx; decOneTx)
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkLinkSanity where
+module Cardano_network.NetworkVerification.NetworkLinkSanity where
 
 -- decidable equality on ⊤ (trivial, the only inhabitant)
 instance
@@ -53,11 +53,11 @@ p2 = record
   ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
   ; slotOf = λ _ → tt }
 
-open import CSP.Examples.Cardano_network.NetworkLink p2 ⊤ using (NetworkLink)
-open import CSP.Examples.Cardano_network.Network p2 ⊤ using (CopySpec)
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkLinkEquiv p2 ⊤
+open import Cardano_network.NetworkLink p2 ⊤ using (NetworkLink)
+open import Cardano_network.Network p2 ⊤ using (CopySpec)
+open import Cardano_network.NetworkVerification.NetworkLinkEquiv p2 ⊤
   using (netLink≈FD-single)
-open import CSP.Examples.Cardano_network.Net p2 using (Net; Net-≟; Link)
+open import Cardano_network.Net p2 using (Net; Net-≟; Link)
 open Params p2 using (linkConfig)
 open import Process_Trees using (ExtI)
 open import Semantics.FailuresDivergences {E = Net ⊤} {I = ExtI (Net ⊤)} using (_≈FD_)

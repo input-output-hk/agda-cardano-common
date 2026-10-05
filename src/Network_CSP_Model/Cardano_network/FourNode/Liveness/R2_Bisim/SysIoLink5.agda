@@ -15,8 +15,8 @@
 -- import only SysIoLink5 (keeps SysIoLink4 frozen; cheap `.agdai` load).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 (blkA : Block₃) where
 
 open import Level using (0ℓ; Level)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -25,11 +25,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Process_Trees using ( PTree; ExtI; AnyTypes; ContinueType; react )
 
 -- re-export PART 4 (node-τ abstract collapse) so downstream imports SysIoLink5
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink4 blkA public
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink4 blkA public
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel; sVis; τ; sSil )
@@ -41,22 +41,22 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 import Data.Unit as U
 import Class.DecEq.Instances as DecEqI
 open import Data.Fin using ( Fin; zero; suc )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; FromInitiator; FromResponder )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Base using ( Dir; lo; hi; FromInitiator; FromResponder )
+open import Cardano_network.Params using ( Params )
 open Params p using ( time₀; length₀; Block; decBlock; decVoteBlob )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( Link; sendCSRequestNext; sendCSFindIntersect; sendCSDone
   ; recvCSRollforward; recvCSRollback; recvCSIntersectFound; recvCSIntersectNotFound )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( chainSync; Header; Tip; Point
   ; MsgCSRollForward; MsgCSRollBackward; MsgCSAwaitReply
   ; MsgCSIntersectFound; MsgCSIntersectNotFound
   ; MsgCSRequestNext; MsgCSFindIntersect; MsgCSDone
   ; DecEq-Payload; DecEq-Header; DecEq-Tip; DecEq-Point )
-import CSP.Examples.Cardano_network.ChainSync p as CS
-open import CSP.Examples.Cardano_network.NetworkPar p using
+import Cardano_network.ChainSync p as CS
+open import Cardano_network.NetworkPar p using
   ( ιCS; ιCS⁻¹; ιCS-linv )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as MSysNode
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as MSysNode
 open MSysNode using
   ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
   ; csRF1; csRB1; csIF1; csINF1; csSil
@@ -64,7 +64,7 @@ open MSysNode using
   ; CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
   ; ssRF1; ssRB1; ssAw1; ssIF1; ssINF1; ssSil
   ; decCSs-src; decCSs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA using
   ( ≟-yes-refl )
 
 -- the CS SOURCE-alphabet LTS (same instance the peer `renameMap` reflects into)
@@ -79,23 +79,23 @@ open import Data.Empty using ( ⊥-elim )
 open import Relation.Nullary using ( yes; no )
 open import Data.Maybe.Properties using ( just-injective )
 open import Class.DecEq using ( _≟_ )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open NS using ( tableSpec )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as MSysStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as MSysStep
 open MSysStep using
   ( NetProc; absCSc; coarsenCSc; coarsenCScSt; decCSc-sil-step
   ; absCSs; coarsenCSs; coarsenCSsSt; decCSs-sil-step )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using
   ( _═[_]═►_; wev; τ*-refl; τ*-step )
 -- extra ApiCSTag constructors (the non-firing tags at `ccIdle`/api positions)
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendCSAwaitReply; sendCSRollForward; sendCSRollBackward
   ; sendCSIntersectFound; sendCSIntersectNotFound
   ; reqCSRequestNext; reqCSFindIntersect )
 -- extra Payload body constructors (the non-ChainSync wire payloads)
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone
   ; MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone
@@ -106,13 +106,13 @@ open import CSP.Examples.Cardano_network.Data p using
 ------------------------------------------------------------------------
 -- STEP 2 (BF client + server) — BlockFetch alphabet + model imports.
 ------------------------------------------------------------------------
-import CSP.Examples.Cardano_network.BlockFetch p as BF
-open import CSP.Examples.Cardano_network.NetworkPar p using
+import Cardano_network.BlockFetch p as BF
+open import Cardano_network.NetworkPar p using
   ( ιBF; ιBF⁻¹; ιBF-linv )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendBFRequestRange; sendBFClientDone; sendBFStartBatch; sendBFNoBlocks
   ; sendBFBlock; sendBFBatchDone; recvBFBlock; reqBFRange )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( ChainRange; DecEq-ChainRange
   ; MsgRequestRange; MsgClientDone; MsgStartBatch; MsgNoBlocks
   ; MsgBlock; MsgBatchDone )
@@ -128,12 +128,12 @@ import Semantics.LTS {E = BF.BFEv} {I = ExtI BF.BFEv} as BFL
 ------------------------------------------------------------------------
 -- INERT PEER: KeepAlive (KA) client + server — alphabet + model imports.
 ------------------------------------------------------------------------
-import CSP.Examples.Cardano_network.KeepAlive p as KA
-open import CSP.Examples.Cardano_network.NetworkPar p using
+import Cardano_network.KeepAlive p as KA
+open import Cardano_network.NetworkPar p using
   ( ιKA; ιKA⁻¹; ιKA-linv )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendKAMsg; sendKADone; recvKACookie; errCookie )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
 open MSysNode using
   ( KAcPos; kcHead; kcErr1; kcReq1; kcDone1; kcSil; kcTermE1
@@ -149,14 +149,14 @@ import Semantics.LTS {E = KA.KAEv} {I = ExtI KA.KAEv} as KAL
 -- Role-INVERTED (server sends Request*, client sends Reply*); value carriers
 -- BlockingStyle×ℕ×ℕ / List Txid / List Tx are NON-trivial (unlike KA's ⊤).
 ------------------------------------------------------------------------
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-open import CSP.Examples.Cardano_network.NetworkPar p using
+import Cardano_network.TxSubmission p as TS
+open import Cardano_network.NetworkPar p using
   ( ιTS; ιTS⁻¹; ιTS-linv )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
   ; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( BlockingStyle; Blocking; NonBlocking )
 open import Data.Nat using ( ℕ )
 open import Data.List using ( List )
@@ -174,10 +174,10 @@ import Semantics.LTS {E = TS.TSEv} {I = ExtI TS.TSEv} as TSL
 -- Value carriers Header / Point (Block₃-based, plain `≟`) + List Vote
 -- (bare list → the source's named `DecEq-ListVote`, mirroring the table).
 ------------------------------------------------------------------------
-import CSP.Examples.Cardano_network.LeiosNotify p as LN
-open import CSP.Examples.Cardano_network.NetworkPar p using
+import Cardano_network.LeiosNotify p as LN
+open import Cardano_network.NetworkPar p using
   ( ιLN; ιLN⁻¹; ιLN-linv )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendLNRequestNext; sendLNDone; sendLNBlockAnnouncement; sendLNBlockOffer
   ; sendLNBlockTxsOffer; sendLNVotesOffer; recvLNBlockAnnouncement
   ; recvLNBlockOffer; recvLNBlockTxsOffer; recvLNVotesOffer )
@@ -200,10 +200,10 @@ import Semantics.LTS {E = LN.LNEv} {I = ExtI LN.LNEv} as LNL
 -- shape LF no longer has.)  LF has NO named List instance —
 -- the api-emit mid List gates use `DecEqI.DecEq-List` directly.
 ------------------------------------------------------------------------
-import CSP.Examples.Cardano_network.LeiosFetch p as LF
-open import CSP.Examples.Cardano_network.NetworkPar p using
+import Cardano_network.LeiosFetch p as LF
+open import Cardano_network.NetworkPar p using
   ( ιLF; ιLF⁻¹; ιLF-linv )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendLFBlockRequest; sendLFVotesRequest
   ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange

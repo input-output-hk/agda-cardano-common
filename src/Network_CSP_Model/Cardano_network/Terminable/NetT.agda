@@ -26,13 +26,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (AnyTypes)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
 
-module CSP.Examples.Cardano_network.Terminable.NetT (p : Params) where
+module Cardano_network.Terminable.NetT (p : Params) where
 
 open Params p
-open import CSP.Examples.Cardano_network.Net p using (Link)
+open import Cardano_network.Net p using (Link)
 
 ------------------------------------------------------------------------
 -- The local terminable event type: 8 wire channels + `mdone`.

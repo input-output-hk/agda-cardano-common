@@ -28,14 +28,14 @@ open import Class.DecEq using (_≟_)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; consume; apiES; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
-open import CSP.Examples.Cardano_network.NetworkPar p using ( miniProtocols )
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
+open import Cardano_network.NetworkPar p using ( miniProtocols )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _⦀_ )
@@ -45,12 +45,12 @@ open Op using ( _⦀_ )
 open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
   using ( Alpha; Disj; OffersOnly; OffersOnly-⦀; ≈DR-OO; OO-τ* )
 
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 -- the M1 per-link bundle bisim `b0 l : miniProtocols l hi lo ≈DR specBundle l`
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairAssembly
+open import Cardano_network.NetworkVerification.Liveness.PipePairAssembly
   using ( b0 )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeDOffers where
+module Cardano_network.NetworkVerification.Liveness.NodeDOffers where
 
 -- events on link `l` only (direct-on-constructor; the NetworkLinkOffers pattern)
 apiLinkAlpha : Link → Alpha

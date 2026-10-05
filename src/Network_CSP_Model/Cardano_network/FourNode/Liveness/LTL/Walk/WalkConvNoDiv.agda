@@ -40,13 +40,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNoDiv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNoDiv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _∖_; EventSet )
@@ -58,39 +58,39 @@ open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload
   using ( _═[_]═►_; wev; τ*-refl )
 
 -- the concrete/abstract decode + state records
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; decMed )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( absDec; absNodesOf; nodesOf
         ; ReflOut; innerτ; hidSync; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ )
 -- the abstract nodes-τ VACUITY + the whole-system io-sync weak lift
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( absNodesOf-no-τ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( lift-io-sync-whole-wτ )
 
 -- reachable-config foundation
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; mkR; radec; toSys; rdec; reach; Reachable )
 open Reachable using ( rStepʷ )
 
 -- the measure + the io-class arithmetic fact
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
   using ( μτ; μτ-sys; nodesWt; medWt; μτ-io-dec )
 -- the successor-exposing medium io-EVENT inversion (medium weight +1)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvEvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvEvInv blkA
   using ( medium-ev-inv-wt′ )
 -- the node cone weight drop (nodesWt −1 on an io-sync)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeDrop blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeDrop blkA
   using ( top-nodes-io-abs-wt )
 -- the MEDIUM-τ reflector
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMedStep blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMedStep blkA
   using ( τreflect-med )
 -- the well-founded τ-convergence ENGINE (parameterised over μτ + τreflect)
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConv blkA as WC
+import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConv blkA as WC
 
 ------------------------------------------------------------------------
 -- io-SYNC reflector: a hidden io-sync maps to a reachable successor with

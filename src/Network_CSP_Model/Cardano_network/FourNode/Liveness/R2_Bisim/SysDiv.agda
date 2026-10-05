@@ -18,8 +18,8 @@
 -- reused by the four thin `nodeX-τ-μ`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDiv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysDiv (blkA : Block₃) where
 
 open import Level using (0ℓ; Level)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -31,11 +31,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Process_Trees using (PTree; ExtI)
 
 -- links, api alphabet, block payloads
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
+open import Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir; lo; hi )
 
 -- Net_Api operators + the empty sync alphabet + the Par τ-elimination
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -47,7 +47,7 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; τ )
 
 -- concrete node decodes + states + drivers + bundles + positions
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using
   ( NetProc
   ; NodeStateA; NodeStateB; NodeStateC; NodeStateD
@@ -61,11 +61,11 @@ open SN using
   ; lncHead; lncSil; lnsHead; lnsSil; lfcHead; lfcSil; lfsHead; lfsSil )
 
 -- whole-system state + concrete decode
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using
   ( SysState; mkSys; med; nA; nB; nC; nD )
 
 -- abstract node decodes + abstract bundle + node-τ reflection + CS/BF weights
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( nodesOf; absNodesOf
   ; absNodeA; absNodeB; absNodeC; absNodeD; absBundleG
   ; NodeτR; bundleτ; driverτ; reflect-node-τ
@@ -73,7 +73,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   ; μCSc; μCSs; μBFc; μBFs )
 
 -- the 12-peer bundle τ-inversion + its result type + the driver τ-freedom
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( BundleτR; bcsc; bcss; bbfc; bbfs; btsc; btss; bkac; bkas; blnc; blns; blfc; blfs
   ; bundle-τ-inv; decProd-no-τ; decCP-no-τ; decConsD-no-τ )
 

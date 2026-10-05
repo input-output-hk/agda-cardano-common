@@ -85,7 +85,7 @@
 -- instance to need them.  They arrive with the `open OL.Generic.Leaves` below.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.VoteSound where
+module Cardano_network.Parametric.Leios.VoteSound where
 
 open import Level using (Level; 0ℓ)
 open import Data.Bool using (Bool; true; false; if_then_else_; _∧_; _∨_)
@@ -110,20 +110,20 @@ open import Class.DecEq using (DecEq)
 import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
 open import Class.DecEq.Instances using (DecEq-List)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginSafe as OS
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR as BPW
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceSafe as BPS
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginLeaves as OL
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.OriginSafe as OS
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceWfR as BPW
+import Cardano_network.Parametric.BlockProvenanceSafe as BPS
+import Cardano_network.Parametric.Leios.OriginLeaves as OL
 
 ------------------------------------------------------------------------
 -- The reusable Boolean/list lemmas
@@ -223,11 +223,11 @@ module Generic
           ; DecEq-TxsRequest; DecEq-TxsReply; DecEq-Offer )
   -- (wholesale, as `NetworkPar` and `BlockProvenancePeers`: the `Dir` decidable
   -- equality the peer bundle dispatches on, and the six `IDs` constructors)
-  open import CSP.Examples.Cardano_network.Base
+  open import Cardano_network.Base
   open Topology t using (Node; endpointsOf)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; nodeWith; bundleAtWith; linkBundlesWith)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -257,7 +257,7 @@ module Generic
   open OS using (memberOf; memberOf-mono; ∈→memberOf)
   open OS.Generic p t apiES using (noRet→noTick)
   -- the PROTOTYPE peer bundle (its nine `Wf` facts now live in `OriginLeaves.Leaves`)
-  open import CSP.Examples.Cardano_network.Parametric.Leios.PeersP p using (nodeBundleP)
+  open import Cardano_network.Parametric.Leios.PeersP p using (nodeBundleP)
 
   ------------------------------------------------------------------------
   -- The origin discipline

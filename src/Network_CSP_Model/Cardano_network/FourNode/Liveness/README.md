@@ -125,10 +125,10 @@ throwaway pricing spike, in
 
 **There are THREE endpoints (two liveness, one safety), and all are unconditional.**
 
-- LTL endpoint: `CSP.Examples.Cardano_network.FourNode.Liveness.LTL.BlockLiveness` —
+- LTL endpoint: `Cardano_network.FourNode.Liveness.LTL.BlockLiveness` —
   `blockLiveness⁺ : BlockLiveness⁺`, premise-free, payload-exact.
 - SAFETY endpoint (S1, provenance at D):
-  `CSP.Examples.Cardano_network.FourNode.Liveness.LTL.ProvenanceD` —
+  `Cardano_network.FourNode.Liveness.LTL.ProvenanceD` —
   `provenance⁺ : Provenance⁺` (`∀ blkA tr → □ᵗ (atom (provD blkA)) tr`, with
   `provD blkA fr = arrivedD⁻ fr → arrivedD blkA fr`): every block D receives IS the
   block A produced.  A SAFETY result that reuses the liveness route's machinery
@@ -157,7 +157,7 @@ throwaway pricing spike, in
   positive throughout), and the in-module checks show `provD b1` refutable on a
   wrong-payload frame and satisfiable on a right-payload one.
 - CSP-refinement endpoint:
-  `CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LivenessProof` —
+  `Cardano_network.FourNode.Liveness.CSP_Refinement.LivenessProof` —
   `livenessSpec-un : LivenessSpec` (`∀ b → LSpec b true true ⊑FD (breakableSystemOf b ∖
   hidden b)`) and `livenessDivFree : ∀ b → DivergenceFree (breakableSystemOf b ∖ hidden b)`.
   **Both premise-free since the cellCp3 window** — `LivenessProof.At.Premises` is an EMPTY

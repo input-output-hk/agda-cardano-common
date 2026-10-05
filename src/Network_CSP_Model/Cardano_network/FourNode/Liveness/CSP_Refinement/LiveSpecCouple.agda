@@ -49,8 +49,8 @@
 -- `mutual` blocks.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSpecCouple
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSpecCouple
   (blkA : Block₃) where
 
 import Data.Unit as U
@@ -73,12 +73,12 @@ open PTree
 -- The shared alphabet, the four link ids and the block domain.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD; DecEq-Block₃ )
-open import CSP.Examples.Cardano_network.Base using ( hi )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using ( hi )
+open import Cardano_network.Net p
   using ( Net_Api; Link; apiBF; break; sendBFBlock; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 ------------------------------------------------------------------------
 -- THE SPECIFICATION (the statement module) — the states this module couples to.
@@ -87,7 +87,7 @@ open import CSP.Examples.Cardano_network.Data p using ( Payload )
 -- `prodτ`/`idleτ` are imported for DOCUMENTATION only — the brief fixes them as
 -- consumed interface — and appear ZERO times below: `brOf`/`visOf` reach the same
 -- τ-maps structurally, by `.force` and pattern matching, never by name.
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( SpecProc; SpecMenu; Done; doneMenu; delivMenu
         ; Prod; prodτ; LSpec; idleτ; prodGo; isProd1 )
 
@@ -95,9 +95,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
 -- The R2 abstract decode's component states (the CHEAP prefix only).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( broken )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; ConsDPh; consD
@@ -107,9 +107,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         -- thresholds `pastSend`/`pastRecv` can be machine-linked to the table
         -- sites that give them meaning (see the threshold-link tests at the end)
         ; decProd; decCons )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; nA; nD; initial )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys )
 
 ------------------------------------------------------------------------

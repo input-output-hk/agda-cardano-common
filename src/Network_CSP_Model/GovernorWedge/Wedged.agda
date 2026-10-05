@@ -2,7 +2,7 @@
 
 -- The wedge is conditional on the field path (P1f: it lasts while D lives) and
 -- unconditional on the never-run path (W0: the awaited mux can never become terminal).
-module CSP.Examples.GovernorWedge.Wedged where
+module GovernorWedge.Wedged where
 
 open import Data.Empty using (⊥-elim)
 open import Data.Bool using (Bool; true; false)
@@ -22,10 +22,10 @@ open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; trans; cong; subst)
 
 open import Process_Trees
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
-open import CSP.Examples.GovernorWedge.Witness using (cW0; gW0)
-open import CSP.Examples.GovernorWedge.FieldPath using (cF; gF)
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
+open import GovernorWedge.Witness using (cW0; gW0)
+open import GovernorWedge.FieldPath using (cF; gF)
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_)
 

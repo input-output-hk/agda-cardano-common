@@ -454,7 +454,7 @@ sequenceDiagram
     Note over IG: awaits mux 0, which never stops - permanent (W0-permanent, CF3-permanent)
 ```
 
-Module paths are relative to `src/CSP/Examples/GovernorWedge/`.
+Module paths are relative to `src/Network_CSP_Model/GovernorWedge/`.
 "One run" = a concrete `Steps` witness; "every run" = over all states
 reachable from `(c₀, g₀)` (`Reach m c g`). Rows W1f-O1 follow v2 spec §5;
 rows CF1-CF5 follow v3 spec §5, and CF2-CF5 are results without the release
@@ -566,15 +566,15 @@ then the safer choice, at the cost of O1.
 
 ## 7. How to check
 
-From `src/` (run agda in its own memory-capped cgroup):
+From `src/Network_CSP_Model/` (run agda in its own memory-capped cgroup):
 
 ```
-agda CSP/Examples/GovernorWedge/Timeout.agda
-agda CSP/Examples/GovernorWedge/Wedged.agda
-agda CSP/Examples/GovernorWedge/Invariant.agda
-agda CSP/Examples/GovernorWedge/FullFix.agda
-agda CSP/Examples/GovernorWedge/CMFix.agda
-agda CSP/Examples/GovernorWedge/Release.agda
+agda GovernorWedge/Timeout.agda
+agda GovernorWedge/Wedged.agda
+agda GovernorWedge/Invariant.agda
+agda GovernorWedge/FullFix.agda
+agda GovernorWedge/CMFix.agda
+agda GovernorWedge/Release.agda
 ```
 
 Between them, all ten modules (`Model`, `Steps`, `Witness`, `FieldPath`,

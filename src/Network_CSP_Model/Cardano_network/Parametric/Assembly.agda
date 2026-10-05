@@ -52,16 +52,16 @@
 -- concrete `p`, which an outer parameter would shadow.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Assembly where
+module Cardano_network.Parametric.Assembly where
 
 open import Data.Fin using (Fin)
 open import Relation.Nullary using (¬_)
 
 open import Process_Trees using (ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 
 ------------------------------------------------------------------------
@@ -77,11 +77,11 @@ module Generic
 
   open N p using (Net_Api; Net_Api-≟)
   open D p using (Payload)
-  open import CSP.Examples.Cardano_network.NetCommon p
+  open import Cardano_network.NetCommon p
     using (ioES)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_∥⇘_⇙_; _∖_; ⦀Fin⁺)
   open Topology t using (Node; numNodes-1)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; node; systemOfWith; systemOfWithNode)
 
   open import Semantics.FailuresDivergences
@@ -169,18 +169,18 @@ module Generic
 -- `Parametric.Node.systemOf` defaults to.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using (p; Block₃; apiES)
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using (breakableSystem)
-open import CSP.Examples.Cardano_network.Parametric.DiamondInstance
+open import Cardano_network.Parametric.DiamondInstance
   using (diamond; diamondLogic)
 open N p using (Net_Api; Net_Api-≟)
 open D p using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.NetCommon p
   using (CopySpecBreakableA; ioES)
 open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_∥⇘_⇙_; _∖_; ⦀Fin⁺)
-open import CSP.Examples.Cardano_network.Parametric.Node p diamond apiES
+open import Cardano_network.Parametric.Node p diamond apiES
   using (Proc; nodeUniform)
 open import Semantics.FailuresDivergences
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}

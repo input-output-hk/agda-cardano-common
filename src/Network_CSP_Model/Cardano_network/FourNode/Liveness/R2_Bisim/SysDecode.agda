@@ -32,29 +32,29 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong₂)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model under study (Phase-1, `examples/praos_liveness`).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; nodeA; nodeB; nodeC; nodeD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
 
 -- Net_Api operators (the whole-system alphabet): the top io-gated stack + node ⦀
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_ )
 
 -- the three genuine sub-decodes (Tasks 1–3)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; decMed; initMed; decMed-home )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( NodeStateA; NodeStateB; NodeStateC; NodeStateD
         ; decNodeA; decNodeB; decNodeC; decNodeD
         ; initNodeA; initNodeB; initNodeC; initNodeD

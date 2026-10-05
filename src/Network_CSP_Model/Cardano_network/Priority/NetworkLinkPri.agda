@@ -44,13 +44,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; IDs)
 
-module CSP.Examples.Cardano_network.Priority.NetworkLinkPri (p : Params) where
+module Cardano_network.Priority.NetworkLinkPri (p : Params) where
 
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.Net p
   using ( Net; Net-≟; Net_Api; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (numLinks; linkConfig)
@@ -60,9 +60,9 @@ import CSP.Operators {E = Net Payload} (Net-≟ {Payload}) as Op
 open Op using (_∥⇘_⇙_; _⦀_; _∖_; ⦀Fin; chanSet)
 
 -- the plain link-indexed medium's leaves / sides we reuse verbatim
-open import CSP.Examples.Cardano_network.Network p Payload
+open import Cardano_network.Network p Payload
   using ( NetProc; Input; inputMenu; csSR; csSR-dec; csTA; csTA-dec )
-open import CSP.Examples.Cardano_network.NetworkLink p Payload
+open import Cardano_network.NetworkLink p Payload
   using ( Inputsₗ; Transmitterₗ; RcvAckₗ; RxSideₗ )
 
 -- the channel-level priority operator + its finite-branching certificates
@@ -74,11 +74,11 @@ open import Semantics.LTS {0ℓ} {0ℓ} {lsuc 0ℓ ⊔ 0ℓ} {Net Payload} {ExtI
   using (sRet; sSil; sVis; sTau)
 
 -- the BlockFetch≻LeiosFetch channel order (fixes Data = Payload; same alphabet)
-open import CSP.Examples.Cardano_network.Priority.BfOverLf p using (bfOverLf)
+open import Cardano_network.Priority.BfOverLf p using (bfOverLf)
 
 -- the `Net Payload ↪ Net_Api Payload` renaming (identity on channel names),
 -- reusing `NetCommon`'s injection so `NetworkLinkPriA` matches `NetworkA`
-open import CSP.Examples.Cardano_network.NetCommon p using (ιNet; ιNet⁻¹; ιNet-linv)
+open import Cardano_network.NetCommon p using (ιNet; ιNet⁻¹; ιNet-linv)
 import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload} ιNet ιNet⁻¹ ιNet-linv as RenNet
 
 ------------------------------------------------------------------------

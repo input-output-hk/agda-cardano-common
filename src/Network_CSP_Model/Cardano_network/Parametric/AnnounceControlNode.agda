@@ -64,7 +64,7 @@
 -- system-level refutation for the broken logic is established anywhere.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceControlNode where
+module Cardano_network.Parametric.AnnounceControlNode where
 
 open import Level using (0ℓ)
 open import Data.List using (List; [])
@@ -78,21 +78,21 @@ open import Data.List.Relation.Binary.Subset.Propositional.Properties using (⊆
 
 open import Process_Trees using (ExtI)
 
-open import CSP.Examples.Cardano_network.Parametric.LeiosInstance
+open import Cardano_network.Parametric.LeiosInstance
   using (leiosParams; leiosLine)
-open import CSP.Examples.Cardano_network.Net leiosParams
+open import Cardano_network.Net leiosParams
   using (Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data leiosParams using (Payload)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosParams leiosLine apiES
+open import Cardano_network.Data leiosParams using (Payload)
+open import Cardano_network.ApiAlphabet leiosParams using (apiES)
+open import Cardano_network.Parametric.Node leiosParams leiosLine apiES
   using (Proc; node)
 
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeLeaves as ASL
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceBF as BPBF
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCopy as ASCp
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.AnnounceSafeLeaves as ASL
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceBF as BPBF
+import Cardano_network.Parametric.AnnounceSafeCopy as ASCp
 
 open NL.Generic leiosParams leiosLine apiES using (nodeLogic)
 open AI.Generic leiosParams leiosLine apiES using (WellAnnounced; Gated)
@@ -105,7 +105,7 @@ open ASCp.Generic.Assembly leiosParams leiosLine apiES
   (λ {l} {d} → ASCp.bfSync-apiES leiosParams leiosLine {l} {d})
   using (wf-node)
 
-open import CSP.Examples.Cardano_network.Parametric.AnnounceBadTrace
+open import Cardano_network.Parametric.AnnounceBadTrace
   using (badNode; blk; evGet; step₁; step₂)
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}

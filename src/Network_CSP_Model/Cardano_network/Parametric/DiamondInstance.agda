@@ -44,18 +44,18 @@ open import Data.List.Relation.Unary.Unique.Propositional using (Unique)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; subst)
 
 open import Process_Trees using (ExtI)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
+open import Cardano_network.Parametric.Topology using (Topology)
 
-module CSP.Examples.Cardano_network.Parametric.DiamondInstance where
+module Cardano_network.Parametric.DiamondInstance where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; apiES; produce; consume
         ; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem; breakableSystemₗ )
-open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi)
-open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟; Link)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
+open import Cardano_network.Base using (Dir; lo; hi)
+open import Cardano_network.Net p using (Net_Api; Net_Api-≟; Link)
+open import Cardano_network.Data p using (Payload)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (_⦀_; _>>=_; _>>_; Skip)
@@ -122,7 +122,7 @@ diamond = record
                          ; (fsuc (fsuc (fsuc fzero))) → uniq₂ λ () }
   }
 
-open import CSP.Examples.Cardano_network.Parametric.Node p diamond apiES
+open import Cardano_network.Parametric.Node p diamond apiES
   using (Proc; node; systemOfUniform; systemOfCopyUniform)
 
 -- the existing scripted per-node application logic, indexed by node: A produces `blkA`
@@ -154,9 +154,9 @@ diamond-faithfulₗ blkA = refl
 open import Semantics.LTL.Traces_Based
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( Trace; atom; ¬_; □ᵗ; ◇ᵗ; ⟦_⟧; drop )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2 )
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.BlockLivenessProof as BLP
+import Cardano_network.FourNode.Liveness.LTL.BlockLivenessProof as BLP
 
 -- the body of `BlockLiveness⁺At` (Liveness/LTL/Spec, verbatim) abstracted over the
 -- process, so that it can be transported along the faithfulness gate

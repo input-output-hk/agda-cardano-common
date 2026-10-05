@@ -100,8 +100,8 @@
 -- `mutual` blocks.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveNoDivH
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveNoDivH
   (blkA : Block₃) where
 
 open import Level using (0ℓ)
@@ -124,9 +124,9 @@ open import Process_Trees using ( ExtI; deadlock )
 -- The shared alphabet.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
 
 -- the CSP operator layer at this alphabet (ONE application of `CSP.Operators`)
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -177,11 +177,11 @@ open import CSP.Laws.Traces.TraceLawsParallelTrace (Net_Api-≟ {Payload})
 -- NONE of `SysBisim` / `SysOracle*` / `SysIoLink*` / `Walk*`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys; rinit; radec-init )
 
 ------------------------------------------------------------------------
@@ -189,7 +189,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blk
 -- obligation (`hidden b .mem at a` is by definition `keptB b at a ≡ false`).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( hidden )
 
 ------------------------------------------------------------------------

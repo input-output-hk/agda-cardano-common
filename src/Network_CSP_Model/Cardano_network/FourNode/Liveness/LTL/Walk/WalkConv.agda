@@ -71,16 +71,16 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
 
 -- R2 reachable-config machinery: the reachable subtype `RState`, its abstract
 -- decode `radec r = absDec (toSys r)`, and the whole-system process type.
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
 
 -- labelled steps `─[ l ]─►` + the silent label `τ` + the coinductive

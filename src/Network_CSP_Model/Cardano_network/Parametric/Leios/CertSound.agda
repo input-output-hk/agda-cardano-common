@@ -127,7 +127,7 @@
 -- witnesses do (`OriginLeaves`' header says so).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.CertSound where
+module Cardano_network.Parametric.Leios.CertSound where
 
 open import Level using (0ℓ)
 open import Data.Bool using (Bool; true; false; not; _∧_)
@@ -148,22 +148,22 @@ open import Class.DecEq using (DecEq)
 open import Class.DecEq.Instances using (DecEq-List)
 
 open import Process_Trees using (AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginSafe as OS
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR as BPW
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceSafe as BPS
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginLeaves as OL
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.OriginSafe as OS
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceWfR as BPW
+import Cardano_network.Parametric.BlockProvenanceSafe as BPS
+import Cardano_network.Parametric.Leios.OriginLeaves as OL
 -- THE SHARED BOOLEAN/LIST LEMMAS.  They live at `VoteSound`'s top level (Task 6) and
 -- mention no network parameter; Task 7 deleted this module's own copies of them.
-open import CSP.Examples.Cardano_network.Parametric.Leios.VoteSound
+open import Cardano_network.Parametric.Leios.VoteSound
   using (∧-split; ∧-join; any-mono)
 
 -- the S3 origin discipline, parametric in the network parameters, the Leios
@@ -192,13 +192,13 @@ module Generic
   -- `NodeLogicL` used (ledger gotcha 4) — `VoteSound.Generic` does the same.
   open D p using (Payload)
   -- (wholesale, as `NetworkPar` and `OriginLeaves`: `Dir` and the six `IDs`)
-  open import CSP.Examples.Cardano_network.Base
+  open import Cardano_network.Base
   open Topology t using (Node)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (EventSet; _⦀_; _∥⇘_⇙_)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; nodeWith)
   -- the PROTOTYPE peer bundle, the selector for every theorem on this branch
-  open import CSP.Examples.Cardano_network.Parametric.Leios.PeersP p using (nodeBundleP)
+  open import Cardano_network.Parametric.Leios.PeersP p using (nodeBundleP)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; ev; τ; evl; √; evLabel)
@@ -735,9 +735,9 @@ module Generic
 -- `LeiosInstanceL.leiosSystemL`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL
+open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
 
 -- S3's discipline at the shipped three-node Linear-Leios line (`voterOf = id`, as
 -- `LeiosInstanceL` instantiates it)

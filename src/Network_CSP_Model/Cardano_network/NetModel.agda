@@ -1,4 +1,4 @@
-module CSP.Examples.Cardano_network.NetModel where
+module Cardano_network.NetModel where
 
 open import Data.Nat using (ℕ; suc; _+_; _<_)
 open import Data.Nat.Properties using (≤-reflexive)

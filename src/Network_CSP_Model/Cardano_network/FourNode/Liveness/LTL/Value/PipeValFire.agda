@@ -39,18 +39,18 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFire (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeValFire (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Block )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( Dir; lo; hi; N2N_BlockFetch )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; input )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; EventSet )
@@ -62,33 +62,33 @@ import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( NetProc; absBundleG; absNodeA; absNodeB; absNodeC; absNodeD; absNodesOf )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( BFcPos; BFsPos; bsBlk1; CScPos; CSsPos; InertPos
               ; decProd; decConsD; decCP )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( io⇒¬api; apiLink-inj; ahlIn )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
   using ( nodeA-drv-io-no; nodeB-drv-io-no; nodeC-drv-io-no; nodeD-drv-io-no
         ; linkAB≢linkAC; linkAB≢linkBD; linkAC≢linkCD; linkBD≢linkCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink2 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink2 blkA
   using ( lo≢hi )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA
   using ( absBundleG-io-ahl; absGroupA-io-no; absGroupB-io-no
         ; absNodeC-io-fp; absNodeD-io-no-when-C )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( PlIsBlk; upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( upSrv; dnSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvFire blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvFire blkA
   using ( bundle-blkfill-srv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
   using ( blkPayload; bundle-blkfill-val )
 
 ------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 -- Every step of the composite `SysAt m c g` is exactly one `sstep` move and vice
 -- versa (no τ, no √), so reachability and traces reduce to the pure `Steps` relation.
-module CSP.Examples.GovernorWedge.Steps where
+module GovernorWedge.Steps where
 
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit.Polymorphic using (tt)
@@ -17,7 +17,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; _≢_)
 
 open import Process_Trees
 open PTree
-open import CSP.Examples.GovernorWedge.Model
+open import GovernorWedge.Model
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces)
 open import CSP.Operators Ev-≟

@@ -72,16 +72,16 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; cong
 
 open import Process_Trees using ( ExtI; isStable )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSrvOpen
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSrvOpen
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   -- (T8c-ii) §6's `ReqOnly` arm fires the READER's polarity
   using ( Net_Api; Net_Api-≟; Link; input; output )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   -- (T8c-ii) §6's `ReqOnly` arm names the message its payload carries
   -- (T11) … and §7's three BlockFetch arms name the RANGE REQUEST's
   using ( Payload; chainSync; MsgCSRequestNext
@@ -89,7 +89,7 @@ open import CSP.Examples.Cardano_network.Data p
         -- (T11) §8's three client-READ arms name the two responder messages the
         -- `pp3` leaf's full-cell cases can carry
         ; MsgCSAwaitReply; MsgCSRollForward; Header; Tip )
-open import CSP.Examples.Cardano_network.Base using ( Dir; hi; N2N_BlockFetch
+open import Cardano_network.Base using ( Dir; hi; N2N_BlockFetch
   -- (T6c) §5's channel
   ; N2N_ChainSync
   -- (T8c-ii) the payload tuple's lenient middle component
@@ -97,13 +97,13 @@ open import CSP.Examples.Cardano_network.Base using ( Dir; hi; N2N_BlockFetch
   -- (T11) … and the initiator-side mode the client's own write is pinned at, and
   -- the responder-side one §8(4)'s write arm names
   ; FromInitiator; FromResponder )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 -- (T8c-ii) … and its two lenient outer ones
 -- (T11) … and the two the client's PINNED request payload names
 open Params p using ( Time; Length; time₀; length₀ )
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 -- (T11) §8's target positions are CS-client fine heads
-import CSP.Examples.Cardano_network.ChainSync p as CS
+import Cardano_network.ChainSync p as CS
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∖_ )
@@ -114,49 +114,49 @@ open import Semantics.Stability {E = Net_Api Payload} {I = ExtI (Net_Api Payload
   using ( stable-no-τ )
 import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload}) as TLH
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( med )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   -- (T8c-ii) `full`/`draining` are §6's two non-empty cell arms
   using ( broken; decMed; phase; empty; full; draining )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; IoOffers; absNodesOf; absBFs; coarsenBFs; coarsenBFc; coarsenCSs
         ; lift-med-whole-τ
         -- (T8c-ii) §6's client arm is stated at node D's own CS-client slot
         ; coarsenCSc
         -- (T11) §8's arms build node D's CS client's own read step
         ; absCSc )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 -- (T2) the PRE-region wire-send row, §3's rung 1 (`bfSnxt bsWsb (input …)
 -- MsgStartBatch ≡ just bsStream`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_PeerEvCSBF blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_PeerEvCSBF blkA
   -- (T11) … and §8's three client-READ rows, all LENIENT in the payload's first
   -- three components
   using ( aBFs; ceqBFs09; aCSc; ceqCSc04; ceqCSc06; ceqCSc07 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( cellUp; cellDn; upClient; dnClient )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( upSrv; dnSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
   using ( blkPayload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( hidden )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
   using ( lpUpSrv; lpDnSrv; SrvHas⁺; srvHas⁺⇒hasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA
   using ( NoTwoTokens; nUpSrvCli; nDnSrvCli )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveStableOffer blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveStableOffer blkA
   using ( RefutedAt; Window; wLink1; wLink2 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCellOpen blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCellOpen blkA
   using ( ioMove-⊥ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntro blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntro blkA
   using ( iomem-in; medOfferIn; medDrainτ; bfs-in-step
         ; srvInNodes-A-AB; srvInNodes-A-AC; srvInNodes-B-BD; srvInNodes-C-CD
         -- (T8c-ii) the READER polarity's io membership witness (`LiveIoIntroCS`
@@ -167,22 +167,22 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIo
         ; medOfferOut; bfs-out-step; bfc-in-step
         ; srvOutNodes-B-BD; srvOutNodes-C-CD
         ; cliInNodes-D-BD; cliInNodes-D-CD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanRead blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanRead blkA
   using ( cellFull-up-⊥; cellFull-dn-⊥; sbPayload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
   using ( SrvStr; H19; chanInv⇒h19; ChanUp; ChanDn; holdA⇒hasBlk
         -- (T2) §3's own two: the PRE region and the cell predicate its strengthened
         -- `cvQui` clause delivers
         ; SrvPre; CellPreQ; cvQui )
 -- (T6c) the CHAINSYNC channel invariant's down hop and its `csWar` consumer, and the
 -- CS io kits `LiveIoIntroCS` landed for exactly this refutation
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
   using ( ChanCSDn; chanCSDn-war; dnCSsOf; cellCSDn; arPayload
         -- (T8c-ii) §6's client arm: node D's own CS-client accessor and its request
         -- payload
         ; dnCScOf; rnPayload )
   renaming ( CellPreQ to CellPreQCS )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntroCS blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntroCS blkA
   using ( medOfferInCS; medDrainτCS-dn; srvInNodes-dnCS
         -- (T8c-ii) the three kits §2b/§1c landed for §6's three arms
         ; medOfferOutCS; cliInNodes-dnCS; srvOutNodes-dnCS

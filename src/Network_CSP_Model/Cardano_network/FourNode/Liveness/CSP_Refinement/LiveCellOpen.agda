@@ -60,17 +60,17 @@ open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
 open import Process_Trees using ( ExtI; isStable )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCellOpen
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCellOpen
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; output )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-open import CSP.Examples.Cardano_network.Base using ( hi; N2N_BlockFetch )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Base using ( hi; N2N_BlockFetch )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∖_; EventSet )
@@ -80,31 +80,31 @@ open import Semantics.Stability {E = Net_Api Payload} {I = ExtI (Net_Api Payload
   using ( stable-no-τ )
 import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload}) as TLH
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( broken; decMed )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( IoOffers; absNodesOf; lift-io-sync-whole-τ; coarsenBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( cellUp; cellDn; upClient; dnClient )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
   using ( blkPayload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( hidden )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
   using ( AtPos; lpUpCell; lpDnCell; CellFull⁺ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveStableOffer blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveStableOffer blkA
   using ( RefutedAt; Window; wLink1; wLink2 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntro blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntro blkA
   using ( iomem-out; medOfferOut; bfc-offer-out
         ; cliOutNodes-B; cliOutNodes-C; cliOutNodes-D-BD; cliOutNodes-D-CD )
 

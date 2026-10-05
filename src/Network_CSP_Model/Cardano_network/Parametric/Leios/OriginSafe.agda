@@ -58,7 +58,7 @@
 -- that is each instance's job (Tasks 8–12).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.OriginSafe where
+module Cardano_network.Parametric.Leios.OriginSafe where
 
 open import Level using (0ℓ)
 open import Data.Bool using (Bool; true; if_then_else_)
@@ -85,10 +85,10 @@ open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (PTree; ptree; react; AnyTypes; ContinueType; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 
 ------------------------------------------------------------------------
@@ -141,7 +141,7 @@ module Generic
     using ( pchoice; Ret; _>>=_; iter; iter-bind; loop; loop0; Stop; _⊓_
           ; Skip; Prefix₀
           ; EventSet; ∅ES; Par; par-brBoth; _⦀_; _∥⇘_⇙_; _∖_; ⦀Fin⁺ )
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
+  open import Cardano_network.Parametric.Node p t apiES using (Proc)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; Event√; ev; τ; evl; √; evLabel; _─[_]─►_; sRet; sVis; sSil)

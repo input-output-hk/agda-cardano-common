@@ -28,10 +28,10 @@ open import Class.DecEq using (DecEq)
 open import Level using (0ℓ)
 open import Data.Fin using (zero)
 open import Process_Trees using (PTree; ExtI; AnyTypes)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (IDs; Dir; lo; hi; N2N_ChainSync; OneTx; decOneTx)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (IDs; Dir; lo; hi; N2N_ChainSync; OneTx; decOneTx)
 
-module CSP.Examples.Cardano_network.Terminable.FourNodeDiamondTerminable where
+module Cardano_network.Terminable.FourNodeDiamondTerminable where
 ```
 
 ## A minimal single-instance `Params`
@@ -72,10 +72,10 @@ The local `NetT` alphabet (with `mdone`), the terminable medium/multiplexer, and
 the operators over `NetT`:
 
 ```agda
-open import CSP.Examples.Cardano_network.Net p using (Link)
-open import CSP.Examples.Cardano_network.Terminable.NetT p
+open import Cardano_network.Net p using (Link)
+open import Cardano_network.Terminable.NetT p
   using ( NetT; NetT-≟; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; mdone )
-open import CSP.Examples.Cardano_network.Terminable.NetworkT p U.⊤
+open import Cardano_network.Terminable.NetworkT p U.⊤
   using ( NetProc; CopyT; CopySpecT; NetworkT )
 
 import CSP.Operators {E = NetT U.⊤} (NetT-≟ {U.⊤}) as Op

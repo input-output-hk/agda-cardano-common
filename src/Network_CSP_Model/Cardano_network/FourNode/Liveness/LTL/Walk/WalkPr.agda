@@ -35,25 +35,25 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; tran
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Link; apiBF; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( hi )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃; linkBD; linkCD )
+open import Cardano_network.Net p using ( Net_Api; Link; apiBF; recvBFBlock )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( hi )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( evLabel )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN
   using ( ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6; cph; cblk; cons-BD; cons-CD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ConsAdv; c01; c12; c23; c34; c45; c56 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkDExpose blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkDExpose blkA
   using ( DReport; dFix; dBD; dCD )
 
 -- the D-consume phase of nD on link BD / CD (a `ConsPh`)

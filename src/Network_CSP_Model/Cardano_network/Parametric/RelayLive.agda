@@ -60,7 +60,7 @@
 -- its own (the same idiom as `Parametric.AnnounceContent`).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.RelayLive where
+module Cardano_network.Parametric.RelayLive where
 
 open import Level using (0ℓ)
 import Data.Unit.Polymorphic as Poly
@@ -75,20 +75,20 @@ open import Relation.Binary.PropositionalEquality using (refl)
 
 open import Process_Trees using (ExtI)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.LeiosInstance
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.LeiosInstance
   using (leiosParams; leiosLine)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using (lo; hi; N2N_LeiosNotify; FromInitiator)
-open import CSP.Examples.Cardano_network.Net leiosParams
+open import Cardano_network.Net leiosParams
   using ( Net_Api; Net_Api-≟; output; store; apiLN
         ; stGet; sendLNBlockAnnouncement )
-open import CSP.Examples.Cardano_network.Data leiosParams
+open import Cardano_network.Data leiosParams
   using (Payload; Header; header; Messages; leiosNotify; MsgLNRequestNext)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosParams leiosLine apiES
+open import Cardano_network.ApiAlphabet leiosParams using (apiES)
+open import Cardano_network.Parametric.Node leiosParams leiosLine apiES
   using (Proc; node)
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic leiosParams leiosLine apiES using (Held; nodeLogic)
 
 open Params leiosParams using (Block)

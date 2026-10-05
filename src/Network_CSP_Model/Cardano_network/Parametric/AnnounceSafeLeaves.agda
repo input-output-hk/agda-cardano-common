@@ -56,7 +56,7 @@
 -- `safe-Par` at the two places the assembly uses it.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafeLeaves where
+module Cardano_network.Parametric.AnnounceSafeLeaves where
 
 open import Level using (0ℓ)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -69,15 +69,15 @@ open import Class.DecEq using (DecEq)
 import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (PTree; ptree; react; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCarrier as ASC
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.AnnounceSafeCarrier as ASC
 
 ------------------------------------------------------------------------
 -- The generic layer
@@ -99,7 +99,7 @@ module Generic
   open D p
     using ( Payload; Point; Header; Tip; ChainRange; header; tip
           ; DecEq-Point; DecEq-Header; DecEq-Tip; DecEq-ChainRange; DecEq-Payload )
-  open import CSP.Examples.Cardano_network.Base using (Dir)
+  open import Cardano_network.Base using (Dir)
 
   -- product `DecEq` for the `sendCSRollForward` carrier (`Header × Tip`) — the same
   -- instance `NodeLogic` declares, so `OffersOnly-Output` sees the one the `!`-output
@@ -108,12 +108,12 @@ module Generic
     DecEq-Header×Tip : DecEq (Header × Tip)
     DecEq-Header×Tip = DecEqI.DecEq-×
 
-  open import CSP.Examples.Cardano_network.NetCommon p
+  open import Cardano_network.NetCommon p
     using (ioES; NetworkLinkBreakableA)
   open Topology t using (Node)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; par-brBoth; _∥⇘_⇙_; loop0)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
+  open import Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
     using (forge; clientLoop; serverLoop; lnClientLoop; clientBody-k; serverBody-k)
   open AS.Generic p t apiES using (Forged)
@@ -372,7 +372,7 @@ module Generic
 -- `ApiAlphabet.apiES`, which is what every non-diamond scenario passes.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.ApiAlphabet using (apiES)
+open import Cardano_network.ApiAlphabet using (apiES)
 
 -- `apiSet` answers `⊤` on every `apiLN` channel, so the announce event is
 -- synchronised at every node's `∥⇘ apiES ⇙` and `env-sync` applies there

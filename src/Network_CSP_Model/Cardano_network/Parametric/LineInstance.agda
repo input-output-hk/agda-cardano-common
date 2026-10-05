@@ -41,11 +41,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; mkTopology)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
+open import Cardano_network.Parametric.Topology using (Topology; mkTopology)
 
-module CSP.Examples.Cardano_network.Parametric.LineInstance where
+module Cardano_network.Parametric.LineInstance where
 
 ------------------------------------------------------------------------
 -- The scenario parameters (own, as the star's but TWO links)
@@ -87,13 +87,13 @@ lineParams = record
   ; Size = U.⊤ ; decSize = lineDecEq⊤ ; txSize = λ _ → U.tt
   ; slotOf = λ _ → U.tt }
 
-open import CSP.Examples.Cardano_network.Net lineParams using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data lineParams using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon lineParams
+open import Cardano_network.Net lineParams using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data lineParams using (Payload)
+open import Cardano_network.NetCommon lineParams
   using (NetworkLinkBreakableA; ioES)
 
 -- the {| all api channels |} alphabet, shared with every other gate-free scenario
-open import CSP.Examples.Cardano_network.ApiAlphabet lineParams using (apiES)
+open import Cardano_network.ApiAlphabet lineParams using (apiES)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Skip; _∥⇘_⇙_; _∖_; ⦀Fin⁺)
@@ -123,7 +123,7 @@ line = mkTopology 2 lineEnds
 -- The generic scaffolding at the line
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Parametric.Node lineParams line apiES
+open import Cardano_network.Parametric.Node lineParams line apiES
   using (Proc; node; systemOf)
 
 -- the line network with trivial (`Skip`) logic at every node — a TYPECHECKING
@@ -135,7 +135,7 @@ lineSystem = systemOf (λ _ → Skip)
 -- The assembly lemma at the line
 ------------------------------------------------------------------------
 
-import CSP.Examples.Cardano_network.Parametric.Assembly as Asm
+import Cardano_network.Parametric.Assembly as Asm
 open import Semantics.FailuresDivergences
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using (_⊑FD_; divergences)

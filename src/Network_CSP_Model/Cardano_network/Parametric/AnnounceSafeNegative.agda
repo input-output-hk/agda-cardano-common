@@ -56,7 +56,7 @@
 -- `backEdge`, absorbing the `sil` the loop emits between visible events.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafeNegative where
+module Cardano_network.Parametric.AnnounceSafeNegative where
 
 open import Level using (0ℓ)
 open import Data.List using ([]; _∷_)
@@ -69,17 +69,17 @@ open import Function.Base using (case_of_)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.Parametric.LeiosInstance
+open import Cardano_network.Parametric.LeiosInstance
   using (leiosParams; leiosLine)
-open import CSP.Examples.Cardano_network.Net leiosParams using (Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data leiosParams using (Payload)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosParams leiosLine apiES
+open import Cardano_network.Net leiosParams using (Net_Api; Net_Api-≟)
+open import Cardano_network.Data leiosParams using (Payload)
+open import Cardano_network.ApiAlphabet leiosParams using (apiES)
+open import Cardano_network.Parametric.Node leiosParams leiosLine apiES
   using (Proc)
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceSafe as AS
 open AS.Generic leiosParams leiosLine apiES
   using (AnnounceSpecT; Forged; announceOffer)
-open import CSP.Examples.Cardano_network.Parametric.AnnounceBadTrace
+open import Cardano_network.Parametric.AnnounceBadTrace
   using (badNode; evForge; evReq; evGet; evAnn; bad-announce-fires)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op

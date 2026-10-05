@@ -17,9 +17,9 @@
 -- BlockFetchNetworkPar / ChainSyncNetworkPar.)
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.NetworkPar (p : Params) where
+module Cardano_network.NetworkPar (p : Params) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
@@ -33,30 +33,30 @@ open import Class.DecEq using (_≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
 -- `Cookie` is an abstract data domain (for `KAserverA`); `linkConfig`
 -- assigns each link its active (direction, protocol) instances.
 open Params p using (Cookie; linkConfig)
 -- `Net p` brings `Net`, `Net_Api`, `Link`, `Net_Api-≟` and the channel
 -- constructors `input`/`output`/`apiXX`/`done`/… of both `Net` and `Net_Api`.
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
 -- `Data p` provides the shared `Payload` and its `DecEq`.
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
 -- the three peer families, over their small per-protocol event types
-open import CSP.Examples.Cardano_network.KeepAlive p
+open import Cardano_network.KeepAlive p
   using (KAEv; sendKA; receiveKA; apiKAev; doneKA; KAclientStClient; KAserverStClient)
-open import CSP.Examples.Cardano_network.BlockFetch p
+open import Cardano_network.BlockFetch p
   using (BFEv; sendBF; receiveBF; apiBFev; doneBF; BFclientStClient; BFserverStClient)
-open import CSP.Examples.Cardano_network.ChainSync p
+open import Cardano_network.ChainSync p
   using (CSEv; sendCS; receiveCS; apiCSev; doneCS; CSclientStClient; CSserverStClient)
-open import CSP.Examples.Cardano_network.TxSubmission p
+open import Cardano_network.TxSubmission p
   using (TSEv; sendTS; receiveTS; apiTSev; doneTS; TSclientStClient; TSserverStClient)
-open import CSP.Examples.Cardano_network.LeiosNotify p
+open import Cardano_network.LeiosNotify p
   using (LNEv; sendLN; receiveLN; apiLNev; doneLN; LNclientStClient; LNserverStClient)
-open import CSP.Examples.Cardano_network.LeiosFetch p
+open import Cardano_network.LeiosFetch p
   using (LFEv; sendLF; receiveLF; apiLFev; doneLF; LFclientStClient; LFserverStClient)
 -- the shared (renamed) Network multiplexer and `{| input, output |}` sync set
-open import CSP.Examples.Cardano_network.NetCommon p using (NetworkA; ioES; withNet; clientServerNet)
+open import Cardano_network.NetCommon p using (NetworkA; ioES; withNet; clientServerNet)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Par⊤; _∥⇘_⇙_; _⦀_; _∖_; Skip; ⦀⋆)

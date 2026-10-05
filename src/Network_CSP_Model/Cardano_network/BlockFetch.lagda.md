@@ -56,9 +56,9 @@ start │ StIdle │         MsgClientDone                 │ StDone │
 # Imports
 
 ```agda
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.BlockFetch (p : Params) where
+module Cardano_network.BlockFetch (p : Params) where
 
 open import Level renaming (zero to lzero)
 import Data.Unit.Polymorphic as Poly
@@ -73,9 +73,9 @@ open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net  p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net  p
 
 open Params p
 ```

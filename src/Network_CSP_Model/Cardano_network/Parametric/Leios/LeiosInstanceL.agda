@@ -28,7 +28,7 @@
 -- probe lived here and went with the old `LeiosFetch` peer.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL where
+module Cardano_network.Parametric.Leios.LeiosInstanceL where
 
 import Data.Unit as U
 open import Data.Bool using (Bool; true; false; if_then_else_)
@@ -46,11 +46,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 import Class.DecEq.Instances as DecEqI
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; mkTopology)
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
+open import Cardano_network.Parametric.Topology using (Topology; mkTopology)
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 
 -- trivial decidable equality for the ⊤ domains that stay inert here
 leiosLDecEq⊤ : DecEq U.⊤
@@ -140,11 +140,11 @@ leiosLP = record
   ; rbCert     = λ b → if ⌊ DecEq._≟_ leiosLDecEqBlock b (just false) ⌋
                        then just (just true) else nothing }
 
-open import CSP.Examples.Cardano_network.Net leiosLParams using (Link)
-open import CSP.Examples.Cardano_network.NetCommon leiosLParams
+open import Cardano_network.Net leiosLParams using (Link)
+open import Cardano_network.NetCommon leiosLParams
   using (NetworkLinkBreakableA)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Leios.PeersP leiosLParams
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.Parametric.Leios.PeersP leiosLParams
   using (nodeBundleP)
 
 -- the (lo-end , hi-end) pair of each link: link 0 joins A—B, link 1 joins B—C
@@ -160,7 +160,7 @@ leiosLLine = mkTopology 2 leiosLEnds
                   ; (fsuc fzero)        → (fzero      , hi) , refl
                   ; (fsuc (fsuc fzero)) → (fsuc fzero , hi) , refl })
 
-open import CSP.Examples.Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
+open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
   using (Proc; nodeWith; systemOfWithNode)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using (StateL; nodeLogicL; st₀)

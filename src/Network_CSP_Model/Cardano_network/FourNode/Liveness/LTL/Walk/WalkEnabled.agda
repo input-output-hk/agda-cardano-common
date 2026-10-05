@@ -49,14 +49,14 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; tran
 
 open import Process_Trees using ( PTree; ExtI; ret; react; sil )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkEnabled (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkEnabled (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Base using ( Dir; hi )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; apiBF; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir; hi )
+open import Cardano_network.Net p using ( Net_Api; apiBF; Link )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( Event; Event√; evl; √; evLabel; ev; τ; _─[_]─►_; sRet; ev-inv; τ-inv )
@@ -67,13 +67,13 @@ open import Semantics.Deadlock {E = Net_Api Payload} {I = ExtI (Net_Api Payload)
 open import Semantics.LTL.Fairness {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( WEnabled )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( cph )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( Pr; phBD; phCD; InCp03; TwoLegs; legBD; legCD; phOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauExpose blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauExpose blkA
   using ( DFix; BD; CD; liftτ*-expose )
 
 ------------------------------------------------------------------------

@@ -64,7 +64,7 @@
 -- REDUCES at a concrete channel, which a parameter never does.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.OriginLeaves where
+module Cardano_network.Parametric.Leios.OriginLeaves where
 
 open import Level using (Level; 0ℓ)
 open import Data.Bool using (if_then_else_)
@@ -79,18 +79,18 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 -- (wholesale, as `NetworkPar` and `BlockProvenancePeers`: `Dir`, its decidable
 -- equality — which the peer bundle dispatches on — and the six `IDs` constructors)
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Base
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 import Semantics.LTS as LTS
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR as BPW
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceWfR as BPW
 import CSP.Laws.Bisim.RenameOffers as RO
 
 -- the shared leaves, parametric in the network parameters, the topology, the api
@@ -117,20 +117,20 @@ module Generic
   open Topology t using (Node; endpointsOf)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; Skip)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; bundleAtWith; linkBundlesWith)
-  open import CSP.Examples.Cardano_network.KeepAlive    p using (KAEv; KAEv-≟)
-  open import CSP.Examples.Cardano_network.ChainSync    p using (CSEv; CSEv-≟)
-  open import CSP.Examples.Cardano_network.BlockFetch   p using (BFEv; BFEv-≟)
-  open import CSP.Examples.Cardano_network.TxSubmission p using (TSEv; TSEv-≟)
-  open import CSP.Examples.Cardano_network.NetworkPar p
+  open import Cardano_network.KeepAlive    p using (KAEv; KAEv-≟)
+  open import Cardano_network.ChainSync    p using (CSEv; CSEv-≟)
+  open import Cardano_network.BlockFetch   p using (BFEv; BFEv-≟)
+  open import Cardano_network.TxSubmission p using (TSEv; TSEv-≟)
+  open import Cardano_network.NetworkPar p
     using ( ιKA; ιKA⁻¹; ιKA-linv; ιBF; ιBF⁻¹; ιBF-linv; ιCS; ιCS⁻¹; ιCS-linv
           ; ιTS; ιTS⁻¹; ιTS-linv )
   -- the two PROTOTYPE mini-protocols and the prototype peer bundle, for the `…P`
   -- siblings at the bottom of `Leaves` (hoisted out of `VoteSound` in Task 7)
-  open import CSP.Examples.Cardano_network.LeiosNotifyP p using (LNPEv; LNPEv-≟)
-  open import CSP.Examples.Cardano_network.LeiosFetchP  p using (LFPEv; LFPEv-≟)
-  open import CSP.Examples.Cardano_network.Parametric.Leios.PeersP p
+  open import Cardano_network.LeiosNotifyP p using (LNPEv; LNPEv-≟)
+  open import Cardano_network.LeiosFetchP  p using (LFPEv; LFPEv-≟)
+  open import Cardano_network.Parametric.Leios.PeersP p
     using ( ιLNP; ιLNP⁻¹; ιLNP-linv; ιLFP; ιLFP⁻¹; ιLFP-linv
           ; clientPeerP; serverPeerP; nodeBundleP )
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})

@@ -48,9 +48,9 @@
 -- `⦀-mono-⊑FD` read in both directions — also unconditional.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.BundleBridge (p : Params) where
+module Cardano_network.BundleBridge (p : Params) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
@@ -63,13 +63,13 @@ open import Class.DecEq using (_≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using (Dir; lo; hi; IDs; N2N_KeepAlive; N2N_ChainSync; N2N_BlockFetch;
          N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch)
 open Params p using (linkConfig)
-open import CSP.Examples.Cardano_network.Net p using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.Net p using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.NetworkPar p
   using (nodeBundle; miniProtocols; clientPeer; serverPeer; LFserverA; LFclientA)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op

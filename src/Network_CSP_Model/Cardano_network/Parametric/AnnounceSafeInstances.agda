@@ -19,7 +19,7 @@
 -- and take the headline directly.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafeInstances where
+module Cardano_network.Parametric.AnnounceSafeInstances where
 
 open import Data.List using (List; []; _∷_)
 open import Data.List.Relation.Unary.Unique.Propositional using (Unique)
@@ -30,16 +30,16 @@ open import Relation.Binary.Definitions using (DecidableEquality)
 open import Relation.Nullary.Decidable using (from-yes)
 open import Class.DecEq using (DecEq)
 
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs; DecEq-Dir; DecEq-IDs)
-import CSP.Examples.Cardano_network.ApiAlphabet as AA
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCopy as ASCopy
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeConcrete as ASC
+open import Cardano_network.Base using (Dir; IDs; DecEq-Dir; DecEq-IDs)
+import Cardano_network.ApiAlphabet as AA
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceSafeCopy as ASCopy
+import Cardano_network.Parametric.AnnounceSafeConcrete as ASC
 open ASC using (LinkCfgWf)
-import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond as FND
-import CSP.Examples.Cardano_network.Parametric.DiamondInstance as DI
-import CSP.Examples.Cardano_network.Parametric.LineInstance as LI
-import CSP.Examples.Cardano_network.Parametric.StarInstance as SI
+import Cardano_network.FourNode.FourNodeDiamond as FND
+import Cardano_network.Parametric.DiamondInstance as DI
+import Cardano_network.Parametric.LineInstance as LI
+import Cardano_network.Parametric.StarInstance as SI
 
 -- decidable equality of a configuration entry
 entry-≟ : DecidableEquality (Dir × IDs)

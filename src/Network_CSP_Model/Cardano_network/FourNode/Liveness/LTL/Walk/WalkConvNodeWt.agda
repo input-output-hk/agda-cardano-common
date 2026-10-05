@@ -27,16 +27,16 @@ open import Data.Nat.Solver using (module +-*-Solver)
 open +-*-Solver
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeWt (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeWt (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( CScPos; CSsPos; BFcPos; BFsPos
         ; InertPos; tsc; tss; kac; kas; lnc; lns; lfc; lfs
         ; KAcPos; KAsPos; TScPos; TSsPos; LNcPos; LNsPos; LFcPos; LFsPos
         ; NodeStateA; NodeStateB; NodeStateC; NodeStateD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
   using ( posWt-CSc; posWt-CSs; posWt-BFc; posWt-BFs; posWt-Inert
         ; posWt-KAc; posWt-KAs; posWt-TSc; posWt-TSs
         ; posWt-LNc; posWt-LNs; posWt-LFc; posWt-LFs

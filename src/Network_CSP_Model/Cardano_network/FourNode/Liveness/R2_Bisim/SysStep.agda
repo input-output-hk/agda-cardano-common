@@ -63,29 +63,29 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Process_Trees using
   ( PTree; ExtI; AnyTypes; ContinueType; NodeKind; react; ret; sil; react-injective )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysStep (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model, the decode, and the abstract target.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; IDs; Blocking; NonBlocking )
+open import Cardano_network.Base using ( Dir; lo; hi; IDs; Blocking; NonBlocking )
 open IDs using ( N2N_ChainSync; N2N_BlockFetch )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output; apiCS; apiBF )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output; apiCS; apiBF )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
 
 -- the two FSM state enums (concrete peer positions embed these; the abstract
 -- positions are keyed on the same enums)
-import CSP.Examples.Cardano_network.ChainSync    p as CS
-import CSP.Examples.Cardano_network.BlockFetch   p as BF
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.KeepAlive    p as KA
-import CSP.Examples.Cardano_network.LeiosNotify  p as LN
-import CSP.Examples.Cardano_network.LeiosFetch   p as LF
+import Cardano_network.ChainSync    p as CS
+import Cardano_network.BlockFetch   p as BF
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.KeepAlive    p as KA
+import Cardano_network.LeiosNotify  p as LN
+import Cardano_network.LeiosFetch   p as LF
 
 -- Net_Api operators (the whole-system alphabet): the io-gated stack + node ⦀
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -97,13 +97,13 @@ NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- the concrete whole-system decode `⟦_⟧` + its state (R1 SysDecode, R2 Task 2 fine)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧; initial )
 -- the medium sub-decode (SHARED between concrete and abstract)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; decMed )
 -- the concrete node decodes + the fine per-peer positions and driver phases
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as MSysNode
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as MSysNode
 open MSysNode
   using ( NodeStateA; NodeStateB; NodeStateC; NodeStateD; mkNodeA
         ; decNodeA; decNodeB; decNodeC; decNodeD
@@ -125,7 +125,7 @@ open MSysNode
 open NodeStateA ; open NodeStateB ; open NodeStateC ; open NodeStateD
 
 -- the CS/BF alphabet injections (for the renameForce transport instances)
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( ιCS; ιCS⁻¹; ιCS-linv; ιBF; ιBF⁻¹; ιBF-linv )
 -- the fine driven-peer decoders + their source-side counterparts (R2 Task 2)
 open MSysNode
@@ -135,17 +135,17 @@ open MSysNode
 -- same module instance `RenNO ιCS …` inverts to, so the step types agree
 import Semantics.LTS {E = CS.CSEv} {I = ExtI CS.CSEv} as CSLTS
 -- reply-payload constructors for the value-route instance
-open import CSP.Examples.Cardano_network.Base using ( FromInitiator )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Base using ( FromInitiator )
+open import Cardano_network.Data p
   using ( Header; Tip; chainSync; MsgCSRollForward )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p using ( time₀; length₀ )
 
 -- the abstract target `abstractSystem` (R2 Task 3) + the τ-free peer specs and
 -- their tables (position-indexed, so any abstract position is directly nameable)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open NS.Table using ( isFin; nxt )
 open NS using
   ( tableSpec

@@ -59,21 +59,21 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; subst )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngine (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngine (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The model, the reachable-config machinery, and the LTL/WTrace layer.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
 
 open import Semantics.LTL.Traces_Based
@@ -83,12 +83,12 @@ open import Semantics.LTL.WTrace
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( WTrace; ⟦_⟧ᵂ; drop; dropIdx; tail; tailIdx )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD⁻; brkG1; brkG2 )
 
 -- match `Walk.agda`'s positive-globally exactly (so `walkPosFrom` produces the
 -- literal type of `Walk`'s `walkPos` module parameter)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( G⁺ᵂ )
 
 -- the whole-system process type at the shared alphabet

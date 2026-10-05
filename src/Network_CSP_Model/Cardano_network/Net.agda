@@ -31,15 +31,15 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (AnyTypes)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
 
-module CSP.Examples.Cardano_network.Net (p : Params) where
+module Cardano_network.Net (p : Params) where
 
 -- abstract data domains (+ their DecEq) and `numLinks` from the params
 open Params p
 -- derived structured types + messages (+ their DecEq) over those domains
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
 
 ------------------------------------------------------------------------
 -- Step 1: protocol-independent link.

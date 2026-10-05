@@ -51,7 +51,7 @@
 -- reasonable time (an hour and a half, unfinished; apart, 24s + 6m).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenanceNode where
+module Cardano_network.Parametric.BlockProvenanceNode where
 
 open import Level using (Level; 0ℓ; _⊔_) renaming (suc to lsuc)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -75,17 +75,17 @@ import Class.DecEq.Instances as DecEqI
 open import Process_Trees
   using ( PTree; ptree; NodeKind; ret; sil; react; AnyTypes; ExtI; ContinueType
         ; deadlock; sil-injective; react-injective )
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 import Semantics.LTS as LTS
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR as BPW
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceWfR as BPW
 
 ------------------------------------------------------------------------
 -- The Cardano instance: the store and the threads
@@ -110,11 +110,11 @@ module Generic
   open D p
     using ( Payload; Point; Header; Tip; ChainRange; header; tip; chainRange
           ; DecEq-Point; DecEq-Header; DecEq-Tip; DecEq-ChainRange; DecEq-Payload )
-  open import CSP.Examples.Cardano_network.Base using (Dir)
+  open import Cardano_network.Base using (Dir)
   open Topology t using (Node; endpointsOf)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (_⦀_; ⦀⁺; Prefix; Output; Ret; _□_)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
+  open import Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
     using ( Held; StoreProc; homeOf; forgeEv; putEv; getEv; offerHeld; acceptForge
           ; storeStep; blockStore; forge; clientBody-k; clientLoop; serverBody-k

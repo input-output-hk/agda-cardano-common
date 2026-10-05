@@ -77,7 +77,7 @@
 --     refusal is the MISSING CERTIFICATE and nothing else.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.CertRbOriginBad where
+module Cardano_network.Parametric.Leios.CertRbOriginBad where
 
 open import Level using (0ℓ)
 open import Data.Bool using (Bool; true; false; if_then_else_)
@@ -95,20 +95,20 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; ExtI)
-open import CSP.Examples.Cardano_network.Base using (Dir; lo)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL
+open import Cardano_network.Base using (Dir; lo)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine; leiosLDecEqBlock)
-open import CSP.Examples.Cardano_network.Net leiosLParams
+open import Cardano_network.Net leiosLParams
   using (Net_Api; Net_Api-≟; Link; store; stPut; env; envForgeCert)
-open import CSP.Examples.Cardano_network.Data leiosLParams using (Payload)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
+open import Cardano_network.Data leiosLParams using (Payload)
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
   using (Proc)
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
-import CSP.Examples.Cardano_network.Parametric.Leios.CertRbOrigin as CRO
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.CertRbOrigin as CRO
 
 open Params leiosLParams using (Block; RbHash; decBlock)
 

@@ -31,14 +31,14 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; produce; consume; apiES; Block₃; b1; linkAB; linkAC )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
-open import CSP.Examples.Cardano_network.NetworkPar p using ( miniProtocols )
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
+open import Cardano_network.NetworkPar p using ( miniProtocols )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _⦀_; _>>=_; _>>_; Skip )
@@ -49,19 +49,19 @@ open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
         ; OffersOnly-Ret; OffersOnly-Skip; OffersOnly->>= )
 
 -- the M1 contract surface (NetTree + all τ-free spec peers)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 -- the value-blind api alphabet (`apiAlpha at a = apiES.mem at a`)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairAssembly
+open import Cardano_network.NetworkVerification.Liveness.PipePairAssembly
   using ( apiAlpha )
 -- the ∀ d spec-peer link-confinement lemmas (reused at the flipped dirs)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeDOffers
+open import Cardano_network.NetworkVerification.Liveness.NodeDOffers
   using ( apiLinkAlpha; apiLinkAlpha-disj
         ; kaClientSpec-onLink; kaServerSpec-onLink
         ; csClientSpec-onLink; csServerSpec-onLink
         ; bfClientSpec-onLink; bfServerSpec-onLink
         ; tsClientSpec-onLink; tsServerSpec-onLink )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeAOffers where
+module Cardano_network.NetworkVerification.Liveness.NodeAOffers where
 
 -- nodeA's two produce links are distinct (linkAB = #0, linkAC = #1); gives the
 -- inner `cong-⦀` its `Sep ∅ES` via `apiLinkAlpha-disj linkAB≢linkAC`

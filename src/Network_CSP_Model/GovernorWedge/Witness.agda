@@ -4,7 +4,7 @@
 -- the log) and the non-vacuity controls, all proved by computation on `Steps`/`sstep`:
 -- no simulation reasoning, just `refl` per letter.
 -- IG:n = line n of ouroboros-network's InboundGovernor.hs at the pin (key: Model.agda).
-module CSP.Examples.GovernorWedge.Witness where
+module GovernorWedge.Witness where
 
 open import Data.Nat using (ℕ)
 open import Data.Bool using (false)
@@ -15,8 +15,8 @@ open import Relation.Binary.PropositionalEquality using (refl)
 
 open import Process_Trees
 open PTree
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (traces)
 

@@ -7,7 +7,7 @@
 -- of govstall-a1-20260927-full.log (the IG:n code key is in Model.agda): L210290,
 -- L210651, L211817, L211852, L212107, L212127, L707729;
 -- B = incarnation 0, C = incarnation 1, D = incarnation 2.
-module CSP.Examples.GovernorWedge.FieldPath where
+module GovernorWedge.FieldPath where
 
 open import Data.Nat using (ℕ)
 open import Data.Bool using (true; false)
@@ -21,8 +21,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; _≢_; con
 
 open import Process_Trees
 open PTree
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (traces)
 

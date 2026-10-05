@@ -40,26 +40,26 @@ open import Data.Nat.Properties
         ; *-suc; n≤1+n; module ≤-Reasoning )
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans; subst)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The reachable-config domain + the medium/node state records.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Base
   using ( Dir; lo; hi; IDs
         ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
         ; N2N_KeepAlive; N2N_LeiosNotify; N2N_LeiosFetch )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; phase; CopyPhase; empty; full; draining )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( NodeStateA; NodeStateB; NodeStateC; NodeStateD
         ; CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
@@ -82,15 +82,15 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         ; lfsWnext1; lfsWlast1; lfsSil )
 
 -- the inert-peer FSM state enums (for the per-position wire budgets)
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.KeepAlive    p as KA
-import CSP.Examples.Cardano_network.LeiosNotify  p as LN
-import CSP.Examples.Cardano_network.LeiosFetch   p as LF
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.KeepAlive    p as KA
+import Cardano_network.LeiosNotify  p as LN
+import Cardano_network.LeiosFetch   p as LF
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( linkAB; linkAC; linkBD; linkCD )
-import CSP.Examples.Cardano_network.ChainSync  p as CS
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.ChainSync  p as CS
+import Cardano_network.BlockFetch p as BF
 
 ------------------------------------------------------------------------
 -- MEDIUM summand — `cellWt` and the whole-medium cell sum `medWt`.

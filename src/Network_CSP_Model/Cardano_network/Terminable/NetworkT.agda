@@ -42,14 +42,14 @@ open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (PTree; AnyTypes; ContinueType; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
 
-module CSP.Examples.Cardano_network.Terminable.NetworkT
+module Cardano_network.Terminable.NetworkT
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p using (Link)
-open import CSP.Examples.Cardano_network.Terminable.NetT p
+open import Cardano_network.Net p using (Link)
+open import Cardano_network.Terminable.NetT p
   using ( NetT; NetT-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; mdone )
 open Params p using (numLinks; linkConfig)

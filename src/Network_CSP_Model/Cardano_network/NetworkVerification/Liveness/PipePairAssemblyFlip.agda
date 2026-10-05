@@ -23,15 +23,15 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
 
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( KAclientA; KAserverA; CSclientA; CSserverA
         ; BFclientA; BFserverA; TSclientA; TSserverA; miniProtocols )
 
@@ -49,21 +49,21 @@ open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
   using ( Alpha; OffersOnly; OffersOnly-mono; OffersOnly-⦀; sep-from-OffersOnly; ≈DR-OO )
 
 -- the contract surface + peer alphabets + all spec-side OffersOnly (∀d)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 -- the flipped spec bundle (mirror of miniProtocols l lo hi)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeAOffers
+open import Cardano_network.NetworkVerification.Liveness.NodeAOffers
   using ( specBundleFlip )
 -- the eight flipped per-peer bisims (client lo / server hi)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipKAs using ( kaServer≈DRhi )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipKAc using ( kaClient≈DRlo )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipBFs using ( bfServer≈DRhi )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipBFc using ( bfClient≈DRlo )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipCSs using ( csServer≈DRhi )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipCSc using ( csClient≈DRlo )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipTSs using ( tsServer≈DRhi )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipTSc using ( tsClient≈DRlo )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipKAs using ( kaServer≈DRhi )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipKAc using ( kaClient≈DRlo )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipBFs using ( bfServer≈DRhi )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipBFc using ( bfClient≈DRlo )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipCSs using ( csServer≈DRhi )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipCSc using ( csClient≈DRlo )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipTSs using ( tsServer≈DRhi )
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipTSc using ( tsClient≈DRlo )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairAssemblyFlip where
+module Cardano_network.NetworkVerification.Liveness.PipePairAssemblyFlip where
 
 -- impl-side per-peer OffersOnly at the flipped dir, derived via ≈DR-OO from the
 -- ∀d spec-side peerAlpha OO + the flipped bisim (backward OffersOnly transfer)

@@ -63,68 +63,68 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using ( ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoinCS
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanJoinCS
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using
   ( Net_Api; Link; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP
   ; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break
   ; ApiCSTag; ApiCSCar ; store; env )
-open import CSP.Examples.Cardano_network.Data p using ( Payload; Messages )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Data p using ( Payload; Messages )
+open import Cardano_network.Base using
   ( Dir; hi; IDs; DecEq-Dir; DecEq-IDs
   -- (T6c) the payload's ROLE — the two `Mode` constructors are what make the
   -- *(neither peer moved)* case of an io FILL refutable at the CS channel too
   ; Mode; FromInitiator; FromResponder
   ; N2N_BlockFetch; N2N_ChainSync; N2N_KeepAlive; N2N_TxSubmission
   ; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS )
-import CSP.Examples.Cardano_network.ChainSync p as CS
+open import Cardano_network.NetworkPar p using ( ιCS )
+import Cardano_network.ChainSync p as CS
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining; phase; MedState; mkMed; broken )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( coarsenCSs; coarsenCSc )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( phase-upd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( setCell; nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeTauMed blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeTauMed blkA
   using ( drainSucc )
 -- (T6c) the payload's ROLE, channel-generic (`SysIoLink:2471-2481` — no `IDs`
 -- occurs in either predicate), and the two ownership pairs the granted cone's
 -- fixity arms carry
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
   using ( ClientIo; ServerIo; msgOrigin )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
   using ( NoCliIoAt; NoSrvIoAt )
 -- (T6c, grant #12) *** THE TWO CS io FACT FAMILIES ARE THE CONE'S OWN. ***  They were
 -- defined locally here while the io half was blocked; now that `factsP` carries them
 -- the definitions live at the producer and this module consumes them, so the arms
 -- take the cone's slots with no conversion at all.
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA
   using ( CssIoRowP; CscIoRowP )
 -- the T4 row layer: the coarse ROW of a CS peer, its key pin, and the api-axis
 -- label-directed facts the api cone threads
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow blkA
   using ( CSsRow; CScRow; cssRow-key; cscRow-key
         ; CScApiRowP; CSsApiRowP )
 -- the layer itself: the invariant, its regions, its adjacencies, its producers and
 -- its per-hop instances
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
   using ( ChanCS; mkChanCS; ccQui; ccPre; ccReq
         ; SrvPre; CliAwt; CellPreQ
         ; SrvApiAdj; saReq; saFI; saDone; saRF; saRB; saAR; saMRF; saMRB; saIF; saINF

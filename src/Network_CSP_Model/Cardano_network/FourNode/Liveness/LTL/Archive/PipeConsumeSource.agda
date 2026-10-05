@@ -33,35 +33,35 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeConsumeSource (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.PipeConsumeSource (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Params using ( Params )
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p using
   ( Net_Api; Link; sendBFRequestRange; sendBFClientDone )
 open import Class.DecEq using ( _≟_ )
 import Class.DecEq.Instances as DecEqI
 
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιBF )
+open import Cardano_network.NetworkPar p using ( ιBF )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
 
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
   ( BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( NetProc; absBFc; coarsenBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using
   ( Tbfc; mkMbfc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
   ( BFcHasBlk )
 
 ------------------------------------------------------------------------

@@ -49,37 +49,37 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 
-module CSP.Examples.Cardano_network.FourNode.BreakableSystemEquiv where
+module Cardano_network.FourNode.BreakableSystemEquiv where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; nodeA; nodeB; nodeC; nodeD; produce; consume; consume-k
         ; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using (breakableSystem; breakableSystemₗ)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p using (linkConfig)
 -- opened UNQUALIFIED (as `FourNodeDiamond` itself does): the `Output` (`!`) steps of
 -- `produce`/`consume` need the per-message `DecEq` instances of `Data p` in scope
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Net p
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.Base
+open import Cardano_network.Net p
+open import Cardano_network.Data p
+open import Cardano_network.NetCommon p
   using (ioES; CopySpecBreakableA; NetworkLinkBreakableA)
 -- the twelve renamed mini-protocol peers, their bundle, and the six renamings
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( miniProtocols
         ; KAclientA; KAserverA; CSclientA; CSserverA; BFclientA; BFserverA
         ; TSclientA; TSserverA; LNclientA; LNserverA; LFclientA; LFserverA
         ; ιKA; ιKA⁻¹; ιKA-linv ; ιBF; ιBF⁻¹; ιBF-linv ; ιCS; ιCS⁻¹; ιCS-linv
         ; ιTS; ιTS⁻¹; ιTS-linv ; ιLN; ιLN⁻¹; ιLN-linv ; ιLF; ιLF⁻¹; ιLF-linv )
-open import CSP.Examples.Cardano_network.KeepAlive    p using (KAEv; KAEv-≟)
-open import CSP.Examples.Cardano_network.BlockFetch   p using (BFEv; BFEv-≟)
-open import CSP.Examples.Cardano_network.ChainSync    p using (CSEv; CSEv-≟)
-open import CSP.Examples.Cardano_network.TxSubmission p using (TSEv; TSEv-≟)
-open import CSP.Examples.Cardano_network.LeiosNotify  p using (LNEv; LNEv-≟)
-open import CSP.Examples.Cardano_network.LeiosFetch   p using (LFEv; LFEv-≟)
+open import Cardano_network.KeepAlive    p using (KAEv; KAEv-≟)
+open import Cardano_network.BlockFetch   p using (BFEv; BFEv-≟)
+open import Cardano_network.ChainSync    p using (CSEv; CSEv-≟)
+open import Cardano_network.TxSubmission p using (TSEv; TSEv-≟)
+open import Cardano_network.LeiosNotify  p using (LNEv; LNEv-≟)
+open import Cardano_network.LeiosFetch   p using (LFEv; LFEv-≟)
 -- (A), the medium equivalence, plus its per-cell alphabets and confinements
-open import CSP.Examples.Cardano_network.MediumEquivA p
+open import Cardano_network.MediumEquivA p
   using ( linkAlphaA; oo-breakableNetLinkA; oo-breakableLinkA; netLinkBreakable≈DR )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op

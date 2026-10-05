@@ -49,26 +49,26 @@ open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans; cong₂)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model + the R1/R2 state and reachable-config machinery.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; IDs )
-open import CSP.Examples.Cardano_network.Net p using ( Link )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Base using ( Dir; lo; hi; IDs )
+open import Cardano_network.Net p using ( Link )
+open import Cardano_network.Params using ( Params )
 open Params p using ( numLinks; linkConfig )
 
 -- the medium abstract state: per-cell `CopyPhase` + per-link break flag
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining )
 -- the driver phases + node states (the abstract config's shared drivers)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; CPPh; consuming; producing
@@ -76,9 +76,9 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
         ; NodeStateA; NodeStateB; NodeStateC; NodeStateD
         ; prod-AB; prod-AC; cp-B; cp-C; cons-BD; cons-CD )
 -- the whole-system state + its reachable subtype
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; initial )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys; rinit )
 
 ------------------------------------------------------------------------

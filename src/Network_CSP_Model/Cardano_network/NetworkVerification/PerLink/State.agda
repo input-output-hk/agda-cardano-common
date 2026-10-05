@@ -43,13 +43,13 @@ open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; sym; trans; cong; subst)
 open import Class.DecEq using (DecEq)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; IDs)
 
-module CSP.Examples.Cardano_network.NetworkVerification.PerLink.State
+module Cardano_network.NetworkVerification.PerLink.State
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p using (Link)
+open import Cardano_network.Net p using (Link)
 open Params p using (numLinks; linkConfig)
 
 ------------------------------------------------------------------------

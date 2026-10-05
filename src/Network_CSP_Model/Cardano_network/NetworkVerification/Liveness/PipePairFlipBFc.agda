@@ -35,30 +35,30 @@ open PTree
 
 -- the concrete FourNode instantiation: the shared Params `p`, the `consume`
 -- driver, the `apiES` sync set, and the two consume-side link ids
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; consume; apiES; linkBD; linkCD )
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p   -- Cookie/Block/Txid/Time/Length/time₀/length₀ + DecEq instances
 
 -- control enums (Dir/IDs/Mode/BlockingStyle) + their DecEq instances
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
 
 -- the shared payload (message datatypes + DecEq instances)
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
 
 -- the shared alphabet (Net_Api events, api tag enums) — opened fully so
 -- the tag/channel constructors and DecEq instances are all in scope
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
 
 -- the mini-protocol peer bundle (all eight renamed peers on the link) plus the
 -- impl peers + their event injections (needed for the impl-side OffersOnly 2(b))
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( miniProtocols
         ; KAclientA; KAserverA; ιKA; ιKA⁻¹; ιKA-linv
         ; BFclientA; BFserverA; ιBF; ιBF⁻¹; ιBF-linv )
 -- the KeepAlive source peer FSMs (client/server step functions + states)
-open import CSP.Examples.Cardano_network.KeepAlive p
+open import Cardano_network.KeepAlive p
   using ( KAEv; KAEv-≟; sendKA; receiveKA; apiKAev; doneKA
         ; KAState; stClient; stServer; stDone; Rr
         ; clientStep; serverStep; KAclientStClient; KAserverStClient )
@@ -68,7 +68,7 @@ import CSP.Operators {E = KAEv} KAEv-≟ as SrcOp
 import CSP.Rename {E₁ = KAEv} {E₂ = Net_Api Payload} ιKA ιKA⁻¹ ιKA-linv as RenKA
 -- the BlockFetch source peer FSM (qualified — its BFState/step/Rr names clash
 -- with KeepAlive's stDone/serverStep/Rr, so it must NOT be opened)
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 -- source-side operators for BFEv (name the BF server bisim's iter/iter-bind/Output states)
 import CSP.Operators {E = BF.BFEv} BF.BFEv-≟ as SrcOpB
 -- the BF rename instance (the same module application NetworkPar's peers use)
@@ -112,15 +112,15 @@ open import Process_Trees using (NodeKind)
 
 -- the contract surface + spec tables + generic transport + OffersOnly
 -- instances (all the KA/BF bisims' non-source-FSM dependencies)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 
 
 -- BF client per-peer bisim, relocated out of PipePairPeersKB to respect the
 -- ~9k/file guard (its l-generalisation quadruples the firing clauses).
 -- Reuses PipePairPeersKB's shared `visOf`/`≟-diagP` via open import.
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeersKB
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeersKB
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipBFc where
+module Cardano_network.NetworkVerification.Liveness.PipePairFlipBFc where
 
 -- Item 3, FOURTH PEER BISIM (BF client): `BFclientA linkBD lo ≈DR
 -- bfClientSpec linkBD lo`.  Validates the client template on a

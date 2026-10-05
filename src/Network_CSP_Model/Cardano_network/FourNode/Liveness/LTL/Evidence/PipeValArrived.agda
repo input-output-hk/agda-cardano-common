@@ -37,15 +37,15 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Evidence.PipeValArrived (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Evidence.PipeValArrived (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Base using ( hi )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using ( hi )
+open import Cardano_network.Net p
   using ( Net_Api; apiBF; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( evl; evLabel )

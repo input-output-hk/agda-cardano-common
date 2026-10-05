@@ -25,7 +25,7 @@
 -- instantiation instead.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Topology where
+module Cardano_network.Parametric.Topology where
 
 open import Data.Nat using (ℕ; suc)
 open import Data.Fin using (Fin)
@@ -45,8 +45,8 @@ open import Data.Empty using (⊥; ⊥-elim)
 open import Relation.Unary using (Decidable)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; trans; subst)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; lo; hi)
 
 -- the network graph: a finite set of nodes, and for each link the pair of nodes at its
 -- `lo` and `hi` ends, together with each node's incident (link, own-direction) list.

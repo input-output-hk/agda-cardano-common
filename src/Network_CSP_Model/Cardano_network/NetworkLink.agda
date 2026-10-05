@@ -31,13 +31,13 @@ open import Relation.Nullary using (yes; no)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ContinueType; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
 
-module CSP.Examples.Cardano_network.NetworkLink
+module Cardano_network.NetworkLink
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (numLinks; linkConfig)
@@ -45,7 +45,7 @@ open Params p using (numLinks; linkConfig)
 import CSP.Operators {E = Net Data} (Net-≟ {Data}) as Op
 open Op using (Par⊤; _∥⇘_⇙_; _⦀_; ⦀⋆; ⦀Fin; _∖_; pchoice; Prefix₀; Skip; loop0; chanSet)
 
-open import CSP.Examples.Cardano_network.Network p Data
+open import Cardano_network.Network p Data
   using ( NetProc; Menu; Input; Output
         ; csSR; csSR-dec; csRS; csRS-dec; csTA; csTA-dec )
 

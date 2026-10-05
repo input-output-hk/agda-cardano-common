@@ -21,7 +21,7 @@
 -- ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs ("IG" alone =
 -- the inbound governor); CM = .../Ouroboros/Network/ConnectionManager/Core.hs;
 -- CH = .../Ouroboros/Network/ConnectionHandler.hs (both under the same framework/lib).
-module CSP.Examples.GovernorWedge.Model where
+module GovernorWedge.Model where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤; tt)

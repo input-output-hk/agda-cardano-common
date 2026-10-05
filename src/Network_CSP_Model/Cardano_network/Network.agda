@@ -57,13 +57,13 @@ open import Relation.Binary.PropositionalEquality using (refl)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ContinueType; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
 
-module CSP.Examples.Cardano_network.Network
+module Cardano_network.Network
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (numLinks; linkConfig)

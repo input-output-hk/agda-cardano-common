@@ -49,27 +49,27 @@ open PTree
 
 -- the concrete FourNode instantiation: shared Params `p`, the produce/consume
 -- drivers, the `apiES` sync set, the seed block `blkA`, and the four link ids
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; produce; consume; apiES; linkAB; linkAC; linkBD; linkCD )
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p   -- Cookie/Block/Txid/Time/Length/time₀/length₀ + DecEq instances
 
 -- control enums (Dir/IDs/Mode/BlockingStyle/Link) + their DecEq instances
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
 
 -- the shared payload (message datatypes + DecEq instances)
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
 
 -- the shared alphabet (Net_Api events, api tag enums) + DecEq instances
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
 
 -- Net_Api operators used by the node specs + their drivers
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _>>_; _>>=_; Skip )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- Missing product/list DecEq instances for the `!`-output value gates

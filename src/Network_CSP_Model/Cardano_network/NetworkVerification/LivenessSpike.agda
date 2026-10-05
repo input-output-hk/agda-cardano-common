@@ -53,7 +53,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees
 
-module CSP.Examples.Cardano_network.NetworkVerification.LivenessSpike where
+module Cardano_network.NetworkVerification.LivenessSpike where
 
 open PTree
 
@@ -62,9 +62,9 @@ open PTree
 -- run over, so §2's `BisimStable` proofs consume the REAL atoms.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using (p; Block₃)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using (p; Block₃)
+open import Cardano_network.Data p using (Payload)
+open import Cardano_network.Net p
   using (Net_Api; apiBF; break; sendBFBlock; recvBFBlock)
 
 private
@@ -144,7 +144,7 @@ open import Semantics.LTL.FrameSim {E = E} {I = I}
   using ( FrameSim; BisimStable; bs-⊤; bs-atom; bs-¬; bs-∧; bs-X; bs-U )
 
 -- the real atoms + formula from the LTL spec module (unmodified).
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2; confined; respondsAtoD )
 
 -- A `step`-frame atom is bisim-stable: `FrameSim` on two `step` frames

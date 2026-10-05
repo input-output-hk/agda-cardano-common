@@ -36,22 +36,22 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subs
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; initial; nA; nB; nC )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( BFsPos )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ProdAdv; a01; a12; a23; a34; a45; a56; a67; a78; a89 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( prodOf; relayOf; ProdSent; RelayFwd; relayPre-fwd-⊥ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver blkA
   using ( RelayStepKind; rMove; rFwd; rRecv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
   using ( BFsHasBlk )
 
 ------------------------------------------------------------------------

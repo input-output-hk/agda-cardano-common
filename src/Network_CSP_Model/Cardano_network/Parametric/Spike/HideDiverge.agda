@@ -36,7 +36,7 @@
 -- defeat the entire purpose of the exercise).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Spike.HideDiverge where
+module Cardano_network.Parametric.Spike.HideDiverge where
 
 open import Level using (0ℓ; lift)
 import Data.Unit as U
@@ -55,8 +55,8 @@ open import Class.DecEq using (DecEq; _≟_)
 open import Process_Trees
   using (PTree; ptree; ExtI; base; pair; fin; AnyTypes; NodeKind; ret; sil; react)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi; IDs; N2N_KeepAlive; OneTx; decOneTx)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; lo; hi; IDs; N2N_KeepAlive; OneTx; decOneTx)
 
 -- decidable equality on the (level-0) unit type, the filler for every abstract domain
 decEq⊤ : DecEq U.⊤
@@ -86,10 +86,10 @@ pKA = record
   ; Size = U.⊤ ; decSize = decEq⊤ ; txSize = λ _ → U.tt
   ; slotOf = λ _ → U.tt }
 
-open import CSP.Examples.Cardano_network.Net pKA using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data pKA using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon pKA using (CopySpecA; ioES)
-open import CSP.Examples.Cardano_network.NetworkPar pKA
+open import Cardano_network.Net pKA using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data pKA using (Payload)
+open import Cardano_network.NetCommon pKA using (CopySpecA; ioES)
+open import Cardano_network.NetworkPar pKA
   using (nodeBundle; KAclientA; KAserverA)
 
 open import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload})

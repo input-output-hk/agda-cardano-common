@@ -60,14 +60,14 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subs
 
 open import Process_Trees using ( PTree; ExtI )
 
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.ProvenanceD where
+module Cardano_network.FourNode.Liveness.LTL.ProvenanceD where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; b1; b2; linkBD )
-open import CSP.Examples.Cardano_network.Base using ( hi )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using ( hi )
+open import Cardano_network.Net p
   using ( Net_Api; apiBF; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( evl; evLabel )
@@ -93,23 +93,23 @@ open import Semantics.LTL.TraceBridge
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( Trace↪WTrace; drop-sem-fwd )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( arrivedD; arrivedD⁻; mkVis )
 
 -- the `blkA`-parameterised machinery, imported UNAPPLIED so the ∀-closure over
 -- `blkA` can live in this very module
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach as SR
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem as ABS
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim as SB
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr as WPR
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.RealAbs as RA
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.TProg as TP
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv as PVI
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValEvStep as PVE
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValWalk as PVW
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValArrive as PVA
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach as SR
+import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem as ABS
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim as SB
+import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr as WPR
+import Cardano_network.FourNode.Liveness.LTL.Walk.RealAbs as RA
+import Cardano_network.FourNode.Liveness.LTL.Walk.TProg as TP
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv as PVI
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeValEvStep as PVE
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeValWalk as PVW
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeValArrive as PVA
 
 ------------------------------------------------------------------------
 -- (1) THE SAFETY ATOM AND THE STATEMENT.

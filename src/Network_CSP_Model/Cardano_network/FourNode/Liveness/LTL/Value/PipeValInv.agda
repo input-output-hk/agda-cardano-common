@@ -45,17 +45,17 @@ open import Data.Unit.Polymorphic using ( ⊤; tt )
 open import Data.Product using ( _×_; _,_; proj₁; proj₂ )
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subst )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
+open import Cardano_network.Data p
   using ( Messages; blockFetch; MsgBlock )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; nD; initial )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN
   using ( ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; CPPh; consuming; producing
@@ -63,11 +63,11 @@ open SN
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
         ; BFsPos; bsHead; bsReq1; bsDone1; bsStart1; bsNoBlk1; bsBlk1
         ; bsBatchDone1; bsSil )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD; phOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( cellUp; cellDn; upClient; dnClient; relayOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( upSrv; dnSrv )
 
 ------------------------------------------------------------------------

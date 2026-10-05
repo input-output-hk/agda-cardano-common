@@ -34,24 +34,24 @@
 -- No postulates, holes, or `--allow-unsolved-metas`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem (blkA : Block₃) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using (p)
-open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
+open import Cardano_network.FourNode.FourNodeDiamond using (p)
+open import Cardano_network.Net p using (Net_Api; Net_Api-≟)
+open import Cardano_network.Data p using (Payload)
 
 -- the breakable medium + the io sync set (shared verbatim with `breakableSystem`)
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.NetCommon p
   using ( CopySpecBreakableA; ioES )
 
 -- the four τ-free node specs (Praos-namespace rebuild)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA
   using ( nodeASpec; nodeBSpec; nodeCSpec; nodeDSpec )
 
 -- Net_Api operators (the whole-system alphabet): top io-gated stack + node ⦀

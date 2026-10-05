@@ -57,20 +57,20 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleIoEvo (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleIoEvo (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Base using
   ( Dir; N2N_ChainSync; N2N_BlockFetch; N2N_KeepAlive
   ; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; done; input; output
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; store; env; break )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
@@ -81,24 +81,24 @@ import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _⦀_; EventSet ) renaming ( ∅ES to ∅ESa )
 open EventSet using ( mem )
 
-import CSP.Examples.Cardano_network.ChainSync p as CS
-import CSP.Examples.Cardano_network.BlockFetch p as BF
-import CSP.Examples.Cardano_network.KeepAlive p as KA
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.LeiosNotify p as LN
-import CSP.Examples.Cardano_network.LeiosFetch p as LF
+import Cardano_network.ChainSync p as CS
+import Cardano_network.BlockFetch p as BF
+import Cardano_network.KeepAlive p as KA
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.LeiosNotify p as LN
+import Cardano_network.LeiosFetch p as LF
 
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using
   ( NetProc; absBundleG; absKAc; absKAs; absCSc; absCSs; absBFc; absBFs
   ; absTSc; absTSs; absLNc; absLNs; absLFc; absLFs )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using
   ( CScPos; CSsPos; BFcPos; BFsPos; InertPos; kac; kas; tsc; tss; lnc; lns; lfc; lfs
   ; bundleG; decKAc; decKAs; decCSc; decCSs; decBFc; decBFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA using
   ( noOffer→viewV
   ; decKAc-noOffer; decKAs-noOffer; ιKA⁻¹∘ιBF
   ; decCSc-noBFgen; decCSs-noBFgen; decBFc-dir-noOffer
@@ -106,7 +106,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_Ro
   ; absKAc-noBF; absKAs-noBF; absCSc-noBF; absCSs-noBF; absTSc-noBF; absTSs-noBF
   ; absLNc-noBF; absLNs-noBF; absLFc-noBF; absLFs-noBF
   ; absBFs-dir-noBoth )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
 open SIL6 using
   ( ⦀-wev-L; ⦀-wev-R; absBFc-ev-dir; absBFs-ev-dir
   ; BundleCSEvR-abs; bcscEB; bcssEB
@@ -116,15 +116,15 @@ open SIL6 using
   ; BundleLFEvR-abs; blfcEB; blfsEB
   ; absBundleCS-ev-prod; absBundleKA-ev-prod; absBundleTS-ev-prod
   ; absBundleLN-ev-prod; absBundleLF-ev-prod )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
   ( BFcHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA using
   ( BFsHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA using
   ( PlIsBlk )
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeCliIoDec blkA as CLI
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeCliIoDec blkA as CLI
 open CLI using ( BfcIoSucc; CliBlkVal; decBFc-sendBF-succ; decBFc-receiveBF-succ )
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvIoDec blkA as SRV
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvIoDec blkA as SRV
 open SRV using ( decBFs-sendBF-succ; decBFs-receiveBF-succ )
 
 ------------------------------------------------------------------------

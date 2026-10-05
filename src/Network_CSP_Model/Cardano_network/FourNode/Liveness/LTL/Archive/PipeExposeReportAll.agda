@@ -27,12 +27,12 @@ open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeReportAll (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeReportAll (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( EventSet )
@@ -43,26 +43,26 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _═[_]═►_ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( IsApiCSBF )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkDExpose blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkDExpose blkA
   using ( DReport )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeCell blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeCell blkA
   using ( CellReport; allCellAdv⇒CellReport )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNodeClient blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNodeClient blkA
   using ( ClientReport; allClientAdv-of; allClientAdv⇒ClientReport )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNodeProd blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNodeProd blkA
   using ( ProdReport; allProdAdv-of; allProdAdv⇒ProdReport )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNodeRelay blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNodeRelay blkA
   using ( RelayReport; allRelayAdv-of; allRelayAdv⇒RelayReport )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeReport blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeReport blkA
   using ( liftReach-ev-both )
 
 ------------------------------------------------------------------------

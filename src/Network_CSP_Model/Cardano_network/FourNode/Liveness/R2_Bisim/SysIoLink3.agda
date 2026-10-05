@@ -10,8 +10,8 @@
 -- the abstract side too.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 (blkA : Block₃) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -26,9 +26,9 @@ open import Data.Maybe.Properties using (just-injective)
 open import Process_Trees using (PTree; ExtI; react; ret; react-injective)
 
 -- links, api alphabet, block payloads
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
+open import Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( Net; Net-≟; Net_Api; Net_Api-≟; apiCS; apiBF; input; output; done; break; Link
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack; apiKA; apiTS; apiLN; apiLF; apiLP
   -- the producer/consumer api tags (the role discriminator's index values)
@@ -39,20 +39,20 @@ open import CSP.Examples.Cardano_network.Net p using
   ; recvCSRollback; recvCSIntersectFound; recvCSIntersectNotFound; reqCSFindIntersect
   ; reqBFRange; sendBFStartBatch; sendBFBlock; sendBFBatchDone; sendBFNoBlocks
   ; sendBFRequestRange; recvBFBlock; sendBFClientDone )
-open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-ChainRange )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi; IDs
+open import Cardano_network.Data p using ( Payload; DecEq-ChainRange )
+open import Cardano_network.Base using ( Dir; lo; hi; IDs
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
   ; N2N_KeepAlive; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.NetworkPar p using
+open import Cardano_network.NetworkPar p using
   ( ιCS; ιBF; ιLF
   ; KAclientA; KAserverA; TSclientA; TSserverA
   ; LNclientA; LNserverA; LFclientA; LFserverA )
-import CSP.Examples.Cardano_network.ChainSync  p as CS
-import CSP.Examples.Cardano_network.BlockFetch p as BF
-import CSP.Examples.Cardano_network.KeepAlive  p as KA
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.LeiosNotify p as LNp
-import CSP.Examples.Cardano_network.LeiosFetch  p as LFp
+import Cardano_network.ChainSync  p as CS
+import Cardano_network.BlockFetch p as BF
+import Cardano_network.KeepAlive  p as KA
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.LeiosNotify p as LNp
+import Cardano_network.LeiosFetch  p as LFp
 import Semantics.LTS {E = CS.CSEv} {I = ExtI CS.CSEv} as CSL
 import Semantics.LTS {E = BF.BFEv} {I = ExtI BF.BFEv} as BFL
 import Semantics.LTS {E = KA.KAEv} {I = ExtI KA.KAEv} as KAL
@@ -65,9 +65,9 @@ open import Data.Fin using ( Fin ) renaming ( zero to fzero; suc to fsuc )
 open import Data.List using ( map )
 open import Class.DecEq using ( _≟_ )
 -- the breakable medium decode (for the medium api-non-offer leaf)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken; CopyPhase )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 open Params p using ( numLinks; linkConfig; Block; decBlock )
 
 -- Net_Api operators + the empty sync alphabet + the Par ev-elimination
@@ -88,7 +88,7 @@ open import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload})
 open HideevR using ( heV; he√ )
 
 -- concrete node decodes + the generic bundle + the two drivers/phases
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN
   using ( decNodeB; decNodeC; decNodeD; bundleG; decCP; decConsD
         ; consD; consuming; producing
@@ -103,20 +103,20 @@ open SN
   using ( CSProc; BFProc; KAProc; TSProc; LNProc; LFProc )
 -- the τ-free peer interpreter (`tableSpec`) + abstract positions/tables + the
 -- inert KA/TS specs (for the ABSTRACT bundle break non-offer, `absBundleG` side)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 
 -- the Net_Api prefix (`⟶₀`) visible-step inversion (for the role discriminator)
 import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload}) as PInv
 open PInv using ( ⟶₀-ev-inv )
 -- abstract node decodes + the abstract bundle + the io-offer predicate
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep
   using ( absNodeA; absNodeB; absNodeC; absNodeD; absBundleG; IoOffers )
 -- the whole-system concrete decode + config record (for the top-level api peel)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧ )
 -- the shared io-hide alphabet (api events are disjoint from it)
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.NetCommon p using ( ioES )
 open SN using ( LFProc )
 open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
@@ -139,18 +139,18 @@ open SN
         ; decCSs; decCSs-src; decBFc; decBFc-src; decBFs; decBFs-src )
 
 -- Data message constructors + payload wrappers used in the LF source-position clauses
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgKeepAlive; MsgKeepAliveResponse; MsgKADone )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgLNRequestNext; MsgLNBlockAnnouncement; MsgLNBlockOffer
   ; MsgLNBlockTxsOffer; MsgLNVotesOffer; MsgLNDone )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgLFBlockRequest; MsgLFBlock
   ; MsgLFVotesRequest; MsgLFVoteDelivery; MsgLFBlockRangeRequest
   ; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange; MsgLFDone )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendLFBlockRequest; sendLFVotesRequest
   ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
   ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange
@@ -160,40 +160,40 @@ open import Data.List.Properties using ( ≡-dec )
 import Class.DecEq.Instances as DecEqI
 open import Class.DecEq using ( DecEq )
 open Params p using ( time₀; length₀ )
-open import CSP.Examples.Cardano_network.Base using ( FromResponder; FromInitiator )
+open import Cardano_network.Base using ( FromResponder; FromInitiator )
 -- BlockingStyle constructors: used in the TS `tcAri (Blocking/NonBlocking , …)`
 -- position patterns; unimported they would be silent pattern variables and the
 -- `tsCnxt` table would stay stuck on a non-constructor blocking flag
-open import CSP.Examples.Cardano_network.Base using ( Blocking; NonBlocking )
+open import Cardano_network.Base using ( Blocking; NonBlocking )
 -- the role tag TYPE + the `Messages` wire-message type (for `msgOrigin` below)
-open import CSP.Examples.Cardano_network.Base using ( Mode )
-open import CSP.Examples.Cardano_network.Data p using ( Messages )
+open import Cardano_network.Base using ( Mode )
+open import Cardano_network.Data p using ( Messages )
 -- CS / BF / TS wire-message constructors (for `msgOrigin`; KA/LN/LF already open)
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgCSRequestNext; MsgCSAwaitReply; MsgCSRollForward; MsgCSRollBackward
   ; MsgCSFindIntersect; MsgCSIntersectFound; MsgCSIntersectNotFound; MsgCSDone )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgRequestRange; MsgStartBatch; MsgNoBlocks; MsgBlock; MsgBatchDone; MsgClientDone )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( MsgTSInit; MsgTSRequestTxIds; MsgTSReplyTxIds; MsgTSRequestTxs; MsgTSReplyTxs; MsgTSDone )
 
 
 -- KA api-tag constructors (used as patterns in the kaCnxt/kaSnxt tables; an
 -- unimported tag would become a silent pattern variable and stick the table)
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendKAMsg; sendKADone; errCookie; recvKACookie )
 -- TS / LN api-tag constructors (same reason — the item-3a-rest CS/BF/TS/LN/LF
 -- tables pattern on these; unimported = silent pattern var = stuck table)
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( sendTSReplyTxIds; sendTSReplyTxs; sendTSDone; recvTSRequestTxIds; recvTSRequestTxs; recvTSReplyTxIds; recvTSReplyTxs
   ; sendTSRequestTxIdsBlocking; sendTSRequestTxIdsPipelined; sendTSRequestTxsPipelined
   ; sendLNRequestNext; sendLNBlockAnnouncement; sendLNBlockOffer; sendLNBlockTxsOffer
   ; sendLNVotesOffer; sendLNDone; recvLNBlockAnnouncement; recvLNBlockOffer
   ; recvLNBlockTxsOffer; recvLNVotesOffer )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink2 blkA public
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink2 blkA public
 -- ιKA/ιTS/ιLN reach lower modules only via body-level import → re-import here
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιKA; ιTS; ιLN )
+open import Cardano_network.NetworkPar p using ( ιKA; ιTS; ιLN )
 -- the abstract per-peer tableSpec decodes + their head-collapse coarsenings
 -- (a plain `open` in SysIoLink does NOT re-export through the public chain)
 open SStep using

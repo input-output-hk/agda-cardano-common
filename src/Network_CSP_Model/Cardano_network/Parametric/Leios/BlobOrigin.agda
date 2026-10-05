@@ -97,7 +97,7 @@
 -- it), so no system lift need buy that premise separately.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.BlobOrigin where
+module Cardano_network.Parametric.Leios.BlobOrigin where
 
 open import Level using (Level; 0ℓ)
 open import Data.Bool using (Bool; true; false; _∨_)
@@ -124,23 +124,23 @@ import Class.DecEq.Instances as DecEqI
 open import Class.DecEq.Instances using (DecEq-Fin)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginSafe as OS
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR as BPW
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceSafe as BPS
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginLeaves as OL
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.OriginSafe as OS
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceWfR as BPW
+import Cardano_network.Parametric.BlockProvenanceSafe as BPS
+import Cardano_network.Parametric.Leios.OriginLeaves as OL
 -- S2, for its twenty-one vacuous thread leaves and the shared Boolean lemmas.  NOTHING
 -- of S2's STATEMENT is used here; see the module header.
-import CSP.Examples.Cardano_network.Parametric.Leios.VoteSound as VS
-open import CSP.Examples.Cardano_network.Parametric.Leios.VoteSound
+import Cardano_network.Parametric.Leios.VoteSound as VS
+open import Cardano_network.Parametric.Leios.VoteSound
   using (∨-split; ∨-inl; ∨-inr; ⌊≟⌋-refl)
 
 -- the S2′ origin discipline, parametric in the network parameters, the Leios
@@ -175,7 +175,7 @@ module Generic
   open D p using (Payload)
   -- (wholesale, as `NetworkPar` and `OriginLeaves`: `Dir`, its decidable equality and
   -- the six `IDs` constructors)
-  open import CSP.Examples.Cardano_network.Base
+  open import Cardano_network.Base
   open Topology t using (Node; endpointsOf; endpointsList; endpoints-sound)
   -- `endAt` is NOT opened: the record's derived `endAt` is a pattern-matching lambda, and
   -- the opened copy does not unify with the one inside `endpoints-sound`'s instantiated
@@ -184,7 +184,7 @@ module Generic
   endAtT = Topology.endAt t
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Output; _□_)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; nodeWith; bundleAtWith; linkBundlesWith)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -208,7 +208,7 @@ module Generic
   open OS using (memberOf; memberOf-mono; ∈→memberOf)
   open OS.Generic p t apiES using (noRet→noTick)
   -- the PROTOTYPE peer bundle, whose nine `Wf` facts live in `OriginLeaves.Leaves`
-  open import CSP.Examples.Cardano_network.Parametric.Leios.PeersP p using (nodeBundleP)
+  open import Cardano_network.Parametric.Leios.PeersP p using (nodeBundleP)
   -- S2's `Generic`, at the SAME five parameters, for its vacuous thread leaves
   module VSG = VS.Generic p lp t apiES voterOf
 

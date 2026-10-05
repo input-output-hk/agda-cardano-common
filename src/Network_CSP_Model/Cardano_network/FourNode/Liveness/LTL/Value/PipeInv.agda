@@ -53,29 +53,29 @@ open import Data.Empty using ( ⊥; ⊥-elim )
 open import Data.Product using ( _×_; _,_; Σ; Σ-syntax; proj₁; proj₂ )
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subst )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeInv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( Block₃; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Base using ( hi; N2N_BlockFetch )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Base using ( hi; N2N_BlockFetch )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Data p
   using ( Messages; blockFetch; MsgBlock )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; nA; nB; nC; nD; med; initial )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining; MedState; phase )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN
   using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; CPPh; consuming; producing
         ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
         ; prod-AB; prod-AC; cp-B; cp-C )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD; phOf; InCp03; Pr )
 
 ------------------------------------------------------------------------

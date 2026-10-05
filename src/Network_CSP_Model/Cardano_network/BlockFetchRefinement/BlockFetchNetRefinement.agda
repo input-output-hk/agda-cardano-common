@@ -8,9 +8,9 @@
 -- event, so no infinite τ-run exists.  Mirrors `BlockFetchAbsRefinement`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefinement (p : Params) where
+module Cardano_network.BlockFetchRefinement.BlockFetchNetRefinement (p : Params) where
 
 open import Level using (lift) renaming (zero to lzero)
 open import Data.Unit using (⊤; tt)
@@ -25,14 +25,14 @@ open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.BlockFetch p
+open import Cardano_network.BlockFetch p
 
 -- API tags + carried payload types, needed to name the transient states.
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( ApiBFTag; ApiBFCar
         ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch
         ; sendBFNoBlocks; sendBFBlock; sendBFBatchDone; recvBFBlock; reqBFRange )
-open import CSP.Examples.Cardano_network.Data p using (ChainRange; DecEq-ChainRange)
+open import Cardano_network.Data p using (ChainRange; DecEq-ChainRange)
 -- full open brings the Params instance fields (decBlock, …) into instance scope.
 open Params p
 

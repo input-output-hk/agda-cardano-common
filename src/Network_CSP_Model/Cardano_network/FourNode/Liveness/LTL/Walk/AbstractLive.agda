@@ -28,14 +28,14 @@ open import Data.Sum using ( _⊎_ )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.AbstractLive (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.AbstractLive (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃ )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
 
 open import Semantics.LTL.Traces_Based
@@ -45,15 +45,15 @@ open import Semantics.LTL.WTrace
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( WTrace; ⟦_⟧ᵂ; drop; _⊨ᵂ_ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; brkG1; brkG2; respondsAtoD )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA as W
+import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA as W
 open W using ( G⁺ᵂ )
 -- SESSION-34: `wprog` is DISCHARGED — the walk comes premise-free from the
 -- side-fixed engine (`WalkEngineB`), which packages `WalkDeliverB.deliverB`
 -- and `WalkUnbLocate.locateU`.
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngineB blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngineB blkA
   using ( walkPosB )
 
 ------------------------------------------------------------------------

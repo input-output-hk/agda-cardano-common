@@ -10,7 +10,7 @@
 -- result.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGenSanity where
+module Cardano_network.NetworkVerification.NetworkRefinementGenSanity where
 
 open import Data.Unit using (⊤; tt)
 open import Class.DecEq using (DecEq)
@@ -21,7 +21,7 @@ instance
   decEq⊤ : DecEq ⊤
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGenExp ⊤
+open import Cardano_network.NetworkVerification.NetworkRefinementGenExp ⊤
 
 -- Re-export the headline result at `Data := ⊤` as a sanity check.  The
 -- general results take an arbitrary payload `(d : Data)`; here `Data = ⊤`,

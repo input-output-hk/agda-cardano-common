@@ -32,7 +32,7 @@
 -- below proves any leaf `Safe` fact; that is the successor task.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafeCarrier where
+module Cardano_network.Parametric.AnnounceSafeCarrier where
 
 open import Level using (0ℓ)
 open import Data.Bool using (true)
@@ -49,14 +49,14 @@ open import Data.Unit.Polymorphic using (⊤; tt)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; ptree; react; AnyTypes; ContinueType; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
 
 ------------------------------------------------------------------------
 -- The generic layer
@@ -84,7 +84,7 @@ module Generic
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using ( pchoice; Ret; _>>=_; iter; iter-bind
           ; EventSet; ∅ES; Par; par-brBoth; _⦀_; _∥⇘_⇙_; _∖_; ⦀Fin⁺ )
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; systemOfWith)
   open NL.Generic p t apiES using (nodeLogic)
   open AS.Generic p t apiES

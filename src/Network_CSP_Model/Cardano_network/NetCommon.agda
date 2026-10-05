@@ -8,9 +8,9 @@
 -- and synchronise their peer on `input`/`output` identically.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.NetCommon (p : Params) where
+module Cardano_network.NetCommon (p : Params) where
 
 open Params p using (numLinks)
 open import Level using (0ℓ)
@@ -23,11 +23,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Net p
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.Network p Payload using (Network; CopySpec; linkCopy)
-open import CSP.Examples.Cardano_network.NetworkLink p Payload using (NetOneLink; NetworkLink)
+open import Cardano_network.Base
+open import Cardano_network.Net p
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.Network p Payload using (Network; CopySpec; linkCopy)
+open import Cardano_network.NetworkLink p Payload using (NetOneLink; NetworkLink)
 
 ------------------------------------------------------------------------
 -- Net Payload ↪ Net_Api Payload   (identity on channel names)

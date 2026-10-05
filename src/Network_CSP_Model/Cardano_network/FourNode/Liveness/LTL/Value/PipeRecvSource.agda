@@ -35,28 +35,28 @@ open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeRecvSource (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeRecvSource (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Link; recvBFBlock )
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιBF )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Link; recvBFBlock )
+open import Cardano_network.NetworkPar p using ( ιBF )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
 
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
   ( BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( NetProc; absBFc; coarsenBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using ( Tbfc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using ( BFcHasBlk )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using ( Tbfc )
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using ( BFcHasBlk )
 
 ------------------------------------------------------------------------
 -- The witness: a `recvBFBlock` fire out of a BF client at source phase `bfc`

@@ -76,12 +76,12 @@ NetworkSanity                (standalone: reduction / refl sanity of Network)
 
 ## Typechecking
 
-From the repository `src/` directory (never the repo root):
+From the `src/Network_CSP_Model/` directory (never the repo root):
 
 ```
-cd <repo>/src
-agda CSP/Examples/Cardano_network/NetworkVerification/NetworkADeadlockFreeThm.agda
-agda CSP/Examples/Cardano_network/NetworkVerification/NetworkADivergenceFreeThm.agda
+cd <repo>/src/Network_CSP_Model
+agda Cardano_network/NetworkVerification/NetworkADeadlockFreeThm.agda
+agda Cardano_network/NetworkVerification/NetworkADivergenceFreeThm.agda
 ```
 
 The two `NetworkA*Thm` modules sit at the top of the dependency DAG, so checking

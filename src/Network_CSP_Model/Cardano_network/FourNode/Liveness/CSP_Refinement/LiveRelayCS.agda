@@ -138,48 +138,48 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( ExtI; isStable )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayCS
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayCS
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
 -- (T9) `Header`/`Tip`/`Point` are new here: §5b's `CliPost`-blindness witness names
 -- the two PAYLOAD-CARRYING members of node D's `cp1` client region (`ccArf`, `ccArb`)
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   -- (T11, round 3) §2f's rollforward arm names the message and the payload's three
   -- lenient components
   using ( Payload; ChainRange; Header; Tip; Point; chainSync; MsgCSRollForward )
-open import CSP.Examples.Cardano_network.Base using ( Mode )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Base using ( Mode )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Time; Length )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∖_ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; initial; med )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   -- (T8c-iii) `draining` joins `empty`: the bundle's drain field names it
   -- (T11, round 3) … and `full`, which §2f's two reader arms name
   using ( CopyPhase; empty; draining; full; broken )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( CPPh; consuming; producing
               ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
               ; ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9 )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( coarsenCSc; coarsenCSs; coarsenBFc; coarsenBFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   -- (T6d) `legCD` joins `legBD`: `dnCSs-is-of` dispatches on BOTH constructors
   -- (T8c-iii) … and node D's phase and stored block, which the bundle's api-sync field
   -- and its discharge name
   -- (T9) … and the token's own D-consumer region, which §5b shows does not separate
   -- the relay's `pp3` from node D's `cp1`
   using ( TwoLegs; legBD; legCD; phOf; cblkOf; InCp03 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   -- (T9) … and the token's relay-side region at level `L2`, §5b's other half
   -- (T10) … and the token ITSELF, with its producer constraint and the two relay
   -- regions §5c's `cp4` level computation eliminates.  *** THIS IS THE ARM's PIN AND
@@ -187,42 +187,42 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blk
   -- (T11) … and node D's own DOWN-hop BF client, which §2d's `pp3` arm reads
   using ( relayOf; upClient; RelayHas; PipeInv; PLvl; L0; L1; L2; L3; L4
         ; prodOf; ProdSent; RelayPre; RelayFwd; dnClient )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( dnSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( hidden )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
   using ( lpRelayIn; lpRelayOut )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveStableOffer blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveStableOffer blkA
   using ( RefutedAt; Window; wLink2 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
   using ( ChanInv; mkChan; ChanUp; ChanDn; ChanLeg; chanInv-init; chanLeg-init
         ; preQ-full-⊥ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayOpen blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayOpen blkA
   using ( upCSc; dnCSs; CoAt; RelayCo; relayOpen-in; relayOpen-out )
 -- (T1) S1, the BF driver-tail coupling — CARRIED in the FSim's `Rel`
 -- (`LiveChanJoin`'s fifth trailing factor), and the discharge of the `pp4` arm
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA as LDB
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA as LDB
 -- (T8c-iii) node D's freshness clause, its coupling and the sharpening that turns them
 -- into the `cp6`/`pp0` arms' own equation.  The carry is `LiveChanJoin`'s SEVENTH
 -- `LegJointU` factor, so a consumer of §3 already holds it
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvCSD blkA as LDC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvCSD blkA as LDC
 -- (T10) the UP hop's carried pair (`UpBd × UpCli`) and the equation it proves at the
 -- `cp4` guard.  The carry is `LiveChanJoin`'s EIGHTH `LegJointU` factor, so a consumer
 -- of §3 already holds it — exactly as it holds `LDB.DrvBF` and `LDC.DnJoint`
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFA blkA as LDBA
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFA blkA as LDBA
 -- (T11) *** the DOWN hop's BlockFetch freshness clause and the sharpening that turns
 -- it into the `pp3` arm's own equation. ***  Its carry is NOT yet a `LegJointU`
 -- factor, so §2d takes it as an ARGUMENT — the (T10) parked-interface pattern, and
 -- the acceptance probe for the object's consumer-facing shape
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFD blkA as LBFD
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFD blkA as LBFD
 -- (T2) … and the STABILITY half of the `pp5` discharge: the coupling pins the down
 -- server to the region `{bsWsb, bsStream}`, and a stable configuration cannot be at
 -- `bsWsb` (`LiveSrvOpen` §3).  This is the module's only io-side import and it is
 -- one lemma wide.
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSrvOpen blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSrvOpen blkA
   using ( srvWsb-⊥
         -- (T6d) … and its ChainSync twin, which is what sharpens the `pp2` REGION
         ; csWar-⊥
@@ -240,7 +240,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveSr
 -- `csWar-⊥` runs on, plus its own down-server accessor (the SAME node fields
 -- `LiveRelayOpen.dnCSs` reads, under a second name — `dnCSs-is-of` below bridges them,
 -- because neither reduces at a variable leg)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
   -- (T8c-iii) … and the hop's CELL, which §3's exclusion bundle names
   -- (T11, round 3) … and the client region §6h's correlations conclude in
   using ( ChanCSDn; dnCSsOf; cellCSDn; CliAwt )

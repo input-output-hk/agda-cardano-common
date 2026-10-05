@@ -28,7 +28,7 @@
 -- opens `Carrier`, and no `CSP.Laws` module imports `CSP.Examples`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR where
+module Cardano_network.Parametric.BlockProvenanceWfR where
 
 open import Level using (Level; 0ℓ; _⊔_) renaming (suc to lsuc)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -48,7 +48,7 @@ open import Process_Trees
         ; deadlock; sil-injective; react-injective )
 import Semantics.LTS as LTS
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenance as BP
 
 -- generic, over the same data as `BlockProvenance.Carrier` plus reflexivity of the
 -- growth order (the `_>>=_` lemma steps the continuation at its own state)

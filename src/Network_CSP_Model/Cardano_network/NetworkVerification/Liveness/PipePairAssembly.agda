@@ -26,15 +26,15 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; consume; apiES; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
 
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( KAclientA; KAserverA; CSclientA; CSserverA
         ; BFclientA; BFserverA; TSclientA; TSserverA; miniProtocols )
 
@@ -56,25 +56,25 @@ open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
         ; OffersOnly-Output; OffersOnly-Ret; OffersOnly-Skip )
 
 -- the contract surface + peer alphabets + KA/BF impl OO + all spec OO + driver
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 -- CS/TS impl-side OffersOnly
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers2
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeers2
   using ( csServer-OO; csClient-OO; tsServer-OO; tsClient-OO )
 -- the eight per-peer bisims
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeersKB
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeersKB
   using ( kaServer≈DR; bfServer≈DR; kaClient≈DR )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeersKB2
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeersKB2
   using ( bfClient≈DR )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers3
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeers3
   using ( csServer≈DR )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers4
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeers4
   using ( csClient≈DR )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers5
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeers5
   using ( tsServer≈DR )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers6
+open import Cardano_network.NetworkVerification.Liveness.PipePairPeers6
   using ( tsClient≈DR )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairAssembly where
+module Cardano_network.NetworkVerification.Liveness.PipePairAssembly where
 
 -- asymmetric Sep intro: if Q offers only events inside the sync set A, then
 -- Q never both-offers a non-sync event with ANY P, so `Sep A P Q` for all P.

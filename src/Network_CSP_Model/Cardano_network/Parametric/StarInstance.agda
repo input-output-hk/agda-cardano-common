@@ -51,11 +51,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
+open import Cardano_network.Parametric.Topology using (Topology)
 
-module CSP.Examples.Cardano_network.Parametric.StarInstance where
+module Cardano_network.Parametric.StarInstance where
 
 ------------------------------------------------------------------------
 -- The scenario parameters (own, not the diamond's)
@@ -97,13 +97,13 @@ starParams = record
   ; Size = U.⊤ ; decSize = starDecEq⊤ ; txSize = λ _ → U.tt
   ; slotOf = λ _ → U.tt }
 
-open import CSP.Examples.Cardano_network.Net starParams using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data starParams using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon starParams
+open import Cardano_network.Net starParams using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data starParams using (Payload)
+open import Cardano_network.NetCommon starParams
   using (NetworkLinkBreakableA; ioES)
 
 -- the {| all api channels |} alphabet, shared with every other gate-free scenario
-open import CSP.Examples.Cardano_network.ApiAlphabet starParams using (apiES)
+open import Cardano_network.ApiAlphabet starParams using (apiES)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Skip; _⦀_; _∥⇘_⇙_; _∖_; ⦀Fin⁺)
@@ -171,7 +171,7 @@ star = record
 -- The generic scaffolding at the star
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Parametric.Node starParams star apiES
+open import Cardano_network.Parametric.Node starParams star apiES
   using (Proc; bundleAt; linkBundles; node; systemOf)
 
 -- the star network with trivial (`Skip`) logic at every node — a TYPECHECKING
@@ -198,7 +198,7 @@ hub-bundle-refl = refl
 -- The assembly lemma at the star
 ------------------------------------------------------------------------
 
-import CSP.Examples.Cardano_network.Parametric.Assembly as Asm
+import Cardano_network.Parametric.Assembly as Asm
 open import Semantics.FailuresDivergences
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using (_⊑FD_; divergences)

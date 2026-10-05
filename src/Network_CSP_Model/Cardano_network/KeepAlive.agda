@@ -38,9 +38,9 @@
 --   6. Productivity via `iter` (no NON_TERMINATING).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.KeepAlive (p : Params) where
+module Cardano_network.KeepAlive (p : Params) where
 
 open import Level renaming (zero to lzero)
 import Data.Unit.Polymorphic as Poly
@@ -55,12 +55,12 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.Base
-import CSP.Examples.Cardano_network.Data as CardData
+open import Cardano_network.Base
+import Cardano_network.Data as CardData
 -- Open Data publicly so all names (including Payload/DecEq-Payload) are in local scope
 -- AND re-exported, allowing `KeepAliveNetworkPar` to still retrieve them from `KeepAlive`.
 open CardData p public
-open import CSP.Examples.Cardano_network.Net  p
+open import Cardano_network.Net  p
 
 open Params p
 

@@ -41,21 +41,21 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValTauIo (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeValTauIo (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break )
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Data p
+open import Cardano_network.Base using
   ( Dir; hi; IDs
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
   ; N2N_KeepAlive; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Block )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -65,48 +65,48 @@ open EventSet using ( mem )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; τ; ev; evl; evLabel )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining; MedState; mkMed; phase; broken; decMed )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; absNodesOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; mkR; radec; toSys; rdec; reach; Reachable )
 open Reachable using ( rStepʷ )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
 open STC using ( phase-upd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( setCell )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( BFcPos; BFsPos; ConsDPh )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( cellUp; cellDn; upClient; dnClient; relayOf; BFcHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( upSrv; dnSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( PlIsBlk; upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeMedKey blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeMedKey blkA
   using ( medium-ev-in-key; medium-ev-out-key; setRead )
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeCliIoDec blkA as CLI
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeCliIoDec blkA as CLI
 open CLI using ( CliBlkVal )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
   using ( CliIoCls; SrvIoCls; AllCliIoCls; AllSrvIoCls; top-nodes-io-evo )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvFire blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvFire blkA
   using ( nodes-blockfill-hi; srvHit-up; srvHit-dn )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeTauIo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeTauIo blkA
   using ( legRelay; pickCliUp; pickCliDn; pickSrvUp; pickSrvDn
         ; cellUp-key; cellDn-key; atKey; stepAtKey; io-sync-wrun )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
   using ( PipeVal; CellValOK; SrvValOK; CliValOK; RelayValOK; ConsDValOK; consOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
   using ( blkPayload; hasBlk⇒isBlk1; notHasBlk⇒SrvValOK; notHasBlk⇒CliValOK
         ; cellValOK-full⇒draining; cliRead⇒CliValOK; blkfill-cellValOK )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFire blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFire blkA
   using ( nodes-blockfill-val; srvHitVal-up; srvHitVal-dn )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValStep blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValStep blkA
   using ( TauIoV )
 
 ------------------------------------------------------------------------

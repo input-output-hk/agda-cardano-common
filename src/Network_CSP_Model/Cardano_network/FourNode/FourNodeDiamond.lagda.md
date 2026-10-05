@@ -34,10 +34,10 @@ import Class.DecEq.Instances as DecEqI
 
 open import Level using (0ℓ)
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
 
-module CSP.Examples.Cardano_network.FourNode.FourNodeDiamond where
+module Cardano_network.FourNode.FourNodeDiamond where
 ```
 
 The trivial `⊤` data domains keep their decidable equality:
@@ -121,7 +121,7 @@ p = record
 ```
 
 ```agda
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Link; Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
@@ -129,12 +129,12 @@ open import CSP.Examples.Cardano_network.Net p
         ; recvCSRollforward; sendCSDone
         ; reqBFRange; sendBFStartBatch; sendBFBlock; sendBFBatchDone
         ; sendBFRequestRange; recvBFBlock; sendBFClientDone )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using ( Payload; Point; Header; Tip; ChainRange
         ; point; header; tip; chainRange
         ; DecEq-Point; DecEq-Header; DecEq-Tip; DecEq-ChainRange )
-open import CSP.Examples.Cardano_network.NetCommon p using (NetworkA; CopySpecA; ioES)
-open import CSP.Examples.Cardano_network.NetworkPar p using (miniProtocols)
+open import Cardano_network.NetCommon p using (NetworkA; CopySpecA; ioES)
+open import Cardano_network.NetworkPar p using (miniProtocols)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( Par⊤; _∥⇘_⇙_; _⦀_; _∖_; Skip; Ret

@@ -49,58 +49,58 @@ open import Class.DecEq using ( DecEq; _≟_ )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Block; time₀; length₀ )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( Dir; hi; N2N_BlockFetch; FromResponder )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; input; recvBFBlock; sendBFBlock; apiBF )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel; sVis )
 
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
   ( BFsPos; bsHead; bsReq1; bsDone1; bsStart1; bsNoBlk1; bsBlk1; bsBatchDone1; bsSil
   ; BFcPos; bcHead; bcReq1; bcDone1; bcBlk1; bcSil
   ; decProd; ProdPh; pp5 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( NetProc; absBFs; coarsenBFs; absBundleG; absBFc; coarsenBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using ( Tbfs; Tbfc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using ( Tbfs; Tbfc )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( BFcHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
   using ( BFsHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( PlIsBlk )
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeCliIoDec blkA as CLI
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeCliIoDec blkA as CLI
 open CLI using ( CliBlkVal )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
   using ( MsgValOK; CellValOK; SrvValOK; CliValOK )
 -- the 12-peer bundle no-offer and the client's never-sends-a-block fact are
 -- ALREADY exported and ALREADY parametric in the two BF peers' own no-offers —
 -- so the bundle-level value lemma below needs no edit to `PipeSrvFire` at all
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvFire blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvFire blkA
   using ( bundleG-io-no-BF; blockFill-forces-cli )
 -- the bundle BF-peer eliminator is ALREADY parametric in BOTH peer facts (it
 -- takes them as continuations returning an arbitrary `R`), so the value-carrying
 -- bundle lemma below needs no edit to `PipeBundleRecv` either
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleRecv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleRecv blkA
   using ( bundleBF-ev-forces; recvBFBlock-server-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeRecvSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeRecvSource blkA
   using ( recvBFBlock-forces-src )
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιBF )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.NetworkPar p using ( ιBF )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( CScPos; CSsPos; InertPos )
 
 ------------------------------------------------------------------------

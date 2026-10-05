@@ -28,9 +28,9 @@
 -- with no edit to `Node.agda`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.Parametric.Leios.PeersP (p : Params) where
+module Cardano_network.Parametric.Leios.PeersP (p : Params) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
@@ -44,21 +44,21 @@ open import Class.DecEq using (_≟_)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using (Dir; IDs; N2N_LeiosNotify; N2N_LeiosFetch; N2N_TxSubmission)
 open Params p using (linkConfig)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using (Link; Net_Api; Net_Api-≟; apiLP; input; output; done)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
+open import Cardano_network.Data p using (Payload)
 -- both prototype peers name their api constructor `apiLPev`, so they are imported
 -- QUALIFIED: opening either unqualified would make that name ambiguous
-import CSP.Examples.Cardano_network.LeiosNotifyP p as LNP
-import CSP.Examples.Cardano_network.LeiosFetchP  p as LFP
+import Cardano_network.LeiosNotifyP p as LNP
+import Cardano_network.LeiosFetchP  p as LFP
 -- the stock builders stay in charge of the Praos protocols
-open import CSP.Examples.Cardano_network.NetworkPar p using (clientPeer; serverPeer)
+open import Cardano_network.NetworkPar p using (clientPeer; serverPeer)
 -- …except TxSubmission's requester, which is taken from `PeersR` rather than re-renamed
 -- here, so `nodeBundleP` and `nodeBundleR` hold the SAME term in that slot
-open import CSP.Examples.Cardano_network.Parametric.Leios.PeersR p using (TSserverRA)
+open import Cardano_network.Parametric.Leios.PeersR p using (TSserverRA)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Skip; ⦀⋆)

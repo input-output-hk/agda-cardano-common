@@ -53,47 +53,47 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; cong
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValRelay (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeValRelay (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃; produce )
-open import CSP.Examples.Cardano_network.Base using ( Dir; hi )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃; produce )
+open import Cardano_network.Base using ( Dir; hi )
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; apiBF; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel; Event )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( decCons; decCP; CPPh; consuming; producing
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; ProdPh; pp0; pp1 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ConsAdv; c01; c12; c23; c34; c45; c56
         ; ProdAdv; a01 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkClassify blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkClassify blkA
   using ( consAdv-of; prodAdv-of )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( bind-ev-inv; step-fcong; output-ev-inv )
 -- SESSION-51: the generic `⟶₀` visible-step inversion (the `cp5` hop's tail) and
 -- the bind the relay driver is built from
 open import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload})
   using ( ⟶₀-ev-inv )
 open import CSP.Operators (Net_Api-≟ {Payload}) using ( _>>=_ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( RelayPre; RelayHas; RelayFwd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver blkA
   using ( RelayStepKind; rMove; rFwd; rRecv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeProdFire blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeProdFire blkA
   using ( IsSBB; decCons-sbb-⊥; decProd-sbb-pp5 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvRelay blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvRelay blkA
   using ( consAdv→rk; prodAdv→rk; pp0≢pp5; padv-pp5-fwd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkDAnchor blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkDAnchor blkA
   using ( cons-c34-anchor )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
   using ( relayBlk; RelayValOK )
 
 ------------------------------------------------------------------------

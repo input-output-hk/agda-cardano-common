@@ -61,21 +61,21 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (PTree; ExtI; AnyTypes; NodeKind; react)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysNode (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model under study (Phase-1, `examples/praos_liveness`).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; nodeA; nodeB; nodeC; nodeD; produce; consume; consume-k; Block₃
         ; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p using ( time₀; length₀; Block; Cookie; VoteBlob; Txid; Tx; decCookie
                     ; EB; EBHash )
-open import CSP.Examples.Cardano_network.Base using (Dir; lo; hi; FromInitiator; N2N_ChainSync; N2N_BlockFetch; BlockingStyle; Blocking; NonBlocking)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using (Dir; lo; hi; FromInitiator; N2N_ChainSync; N2N_BlockFetch; BlockingStyle; Blocking; NonBlocking)
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; done
         ; apiCS; apiBF
         ; reqCSRequestNext; sendCSRollForward; sendCSAwaitReply
@@ -92,7 +92,7 @@ open import CSP.Examples.Cardano_network.Net p
         ; sendLFBlockRequest; sendLFVotesRequest
         ; sendLFBlockRangeRequest; sendLFDone; sendLFBlock
         ; sendLFVoteDelivery; sendLFNextBlockAndTxsInRange; sendLFLastBlockAndTxsInRange )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using ( Payload; Header; Tip; header; tip; DecEq-Header; DecEq-Tip
         ; Point; ChainRange; point; chainRange; DecEq-ChainRange
         ; chainSync; blockFetch; keepAlive; leiosNotify; leiosFetch
@@ -110,7 +110,7 @@ open import CSP.Examples.Cardano_network.Data p
 -- the eight inert non-Praos peer builders (KA / TS / LN / LF, client+server)
 -- and the four driven CS / BF peer builders + the rename injections, verbatim
 -- as they appear inside `miniProtocols` (NetworkPar.435)
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( KAclientA; KAserverA
         ; TSclientA; TSserverA
         ; LNclientA; LNserverA
@@ -123,12 +123,12 @@ open import CSP.Examples.Cardano_network.NetworkPar p
         ; ιLF; ιLF⁻¹; ιLF-linv )
 
 -- the source ChainSync / BlockFetch / TxSubmission / KeepAlive / LeiosNotify / LeiosFetch FSM modules (state enums + step bodies)
-import CSP.Examples.Cardano_network.ChainSync    p as CS
-import CSP.Examples.Cardano_network.BlockFetch   p as BF
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.KeepAlive    p as KA
-import CSP.Examples.Cardano_network.LeiosNotify  p as LN
-import CSP.Examples.Cardano_network.LeiosFetch   p as LF
+import Cardano_network.ChainSync    p as CS
+import Cardano_network.BlockFetch   p as BF
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.KeepAlive    p as KA
+import Cardano_network.LeiosNotify  p as LN
+import Cardano_network.LeiosFetch   p as LF
 
 -- the source-alphabet loop combinator `iter` (same `iter` the peer builders use)
 import CSP.Operators {E = CS.CSEv} CS.CSEv-≟ as SrcOpC

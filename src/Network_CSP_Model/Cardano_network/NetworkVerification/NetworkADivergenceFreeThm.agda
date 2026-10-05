@@ -9,7 +9,7 @@
 -- alphabet embedding `ιNet`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkADivergenceFreeThm where
+module Cardano_network.NetworkVerification.NetworkADivergenceFreeThm where
 
 open import Data.Unit using (⊤; tt)
 open import Class.DecEq using (DecEq)
@@ -23,10 +23,10 @@ instance
   decEq⊤ : DecEq ⊤
   decEq⊤ = record { _≟_ = λ _ _ → yes refl }
 
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGen ⊤ using (p1)
-open import CSP.Examples.Cardano_network.Net p1 using (Net; Net_Api)
-open import CSP.Examples.Cardano_network.Data p1 using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.NetCommon p1
+open import Cardano_network.NetworkVerification.NetworkRefinementGen ⊤ using (p1)
+open import Cardano_network.Net p1 using (Net; Net_Api)
+open import Cardano_network.Data p1 using (Payload; DecEq-Payload)
+open import Cardano_network.NetCommon p1
   using (NetworkA; ιNet; ιNet⁻¹; ιNet-linv)
 
 -- Cross-alphabet rename-DivergenceFree at the SAME ι instance NetCommon uses.
@@ -42,7 +42,7 @@ open import Semantics.DeadlockDR {E = Net_Api Payload} {I = ExtI (Net_Api Payloa
 
 module _ (d₀ : Payload) where
 
-  open import CSP.Examples.Cardano_network.NetworkVerification.NetworkDivergenceFreeThm
+  open import Cardano_network.NetworkVerification.NetworkDivergenceFreeThm
     Payload ⦃ DecEq-Payload ⦄ d₀
     using (Network-divergenceFree)
 

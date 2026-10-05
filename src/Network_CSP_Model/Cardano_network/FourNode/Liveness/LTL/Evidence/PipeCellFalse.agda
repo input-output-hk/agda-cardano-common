@@ -53,33 +53,33 @@ open import Data.Unit.Polymorphic using ( ⊤; tt )
 import Data.Unit as U
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subst )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Evidence.PipeCellFalse (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Evidence.PipeCellFalse (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; linkAB )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; linkAB )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Block; time₀; length₀ )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( hi; N2N_BlockFetch; FromResponder )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using ( Payload; Messages; blockFetch; MsgStartBatch )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; input; apiBF; sendBFStartBatch; sendBFBlock )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open NS using ( bfSnxt; bsBusy; bsWsb; bsStream )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; empty; full; draining )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( BFsPos; bsStart1; pp5 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( coarsenBFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( legBD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( PipeInv⁺; cellUp; prodOf; CellHasBlk; ProdSent )
 
 ------------------------------------------------------------------------

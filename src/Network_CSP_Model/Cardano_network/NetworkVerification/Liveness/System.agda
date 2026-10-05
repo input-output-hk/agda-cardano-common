@@ -77,24 +77,24 @@ open import Data.Unit.Polymorphic using (⊤)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using (p)
-open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.FourNode.FourNodeDiamond using (p)
+open import Cardano_network.Net p using (Net_Api; Net_Api-≟)
+open import Cardano_network.Data p using (Payload)
+open import Cardano_network.NetCommon p
   using ( CopySpecBreakableA; ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_ )
 
 -- the four node specs (M2/M3): each `nodeX ≈DR nodeXSpec` is proved
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeA
+open import Cardano_network.NetworkVerification.Liveness.NodeA
   using ( nodeASpec )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeBC
+open import Cardano_network.NetworkVerification.Liveness.NodeBC
   using ( nodeBSpec; nodeCSpec )
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeD
+open import Cardano_network.NetworkVerification.Liveness.NodeD
   using ( nodeDSpec )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.System where
+module Cardano_network.NetworkVerification.Liveness.System where
 
 ------------------------------------------------------------------------
 -- The M4 target: `breakableSystem` with each node replaced by its ≈DR spec,

@@ -44,15 +44,15 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeNodeFix (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.PipeNodeFix (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir; lo; hi )
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; EventSet; viewV )
@@ -66,40 +66,40 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _═[_]═►_ )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( NetProc; absNodeA; absNodeB; absNodeC; absNodeD; absBundleG; ⦀-noOffer
                  ; absNodesOf; nodesOf )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeDrop blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeDrop blkA
   using ( absBundleG-io-prod-wt; bgEBwt )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeFix blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeFix blkA
   using ( nodeA-ev-io-abs-fix; naEBafix )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( io⇒¬api; apiLink-inj )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
   using ( noOffer→viewV )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
   using ( nodeA-drv-io-no; nodeB-drv-io-no; nodeC-drv-io-no; nodeD-drv-io-no
         ; linkAB≢linkBD; linkAC≢linkCD; linkBD≢linkCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink2 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink2 blkA
   using ( nodeC-io-no-when-B; nodeD-io-no-when-B; nodeD-io-no-when-C
         ; nodeB-io-no-when-A; nodeC-io-no-when-A; nodeD-io-no-when-A )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA
   using ( absNodeA-io-fp; absNodeB-io-fp; absNodeC-io-fp; absNodeD-io-fp
         ; absNodeD-io-no-when-C; absGroupA-io-no; absGroupB-io-no; absBundleG-io-ahl )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA
   using ( bundleG-io-no; ∥⇘⇙-wev-soloL; ⦀-wev-L; ⦀-wev-R
         ; nodeA-io-no-when-B; nodeA-io-no-when-C; nodeA-io-no-when-D
         ; nodeB-io-no-when-C; nodeB-io-no-when-D; nodeC-io-no-when-D )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( upClient; dnClient )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNode blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.PipeExposeNode blkA
   using ( ClientAdv; cl-refl; cl-step; cl-trans; adv-of )
 
 ------------------------------------------------------------------------

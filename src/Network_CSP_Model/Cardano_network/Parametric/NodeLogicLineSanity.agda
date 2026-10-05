@@ -27,16 +27,16 @@
 -- ends exercise the `⦀⁺ P [] = P` path.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.NodeLogicLineSanity where
+module Cardano_network.Parametric.NodeLogicLineSanity where
 
 open import Data.List using ([])
 
-open import CSP.Examples.Cardano_network.Parametric.NodeLogic
+open import Cardano_network.Parametric.NodeLogic
   using (module Generic)
-open import CSP.Examples.Cardano_network.Parametric.LineInstance
+open import Cardano_network.Parametric.LineInstance
   using (lineParams; line)
-open import CSP.Examples.Cardano_network.ApiAlphabet lineParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node lineParams line apiES
+open import Cardano_network.ApiAlphabet lineParams using (apiES)
+open import Cardano_network.Parametric.Node lineParams line apiES
   using (Proc; systemOf)
 
 -- the three-node line running the relay logic at every node, each store initially

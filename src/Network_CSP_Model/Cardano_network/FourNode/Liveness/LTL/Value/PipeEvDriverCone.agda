@@ -33,8 +33,8 @@
 -- arithmetic).  No postulate/hole/meta.  Base modules READ-ONLY.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriverCone (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriverCone (blkA : Block₃) where
 
 open import Level using (0ℓ)
 open import Data.Product using ( _,_; Σ; _×_; Σ-syntax; proj₁; proj₂ )
@@ -45,10 +45,10 @@ open import Relation.Binary.PropositionalEquality
 open import Data.Sum using ( inj₁; inj₂; _⊎_ )
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
+open import Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD; Block₃ )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
@@ -60,34 +60,34 @@ open Op using ( _∥⇘_⇙_; _⦀_; EventSet; viewV )
 open EventSet using ( mem )
 open Op using () renaming ( ∅ES to ∅ESa )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( NetProc; ⦀-ev-L; ⦀-ev-R )
 
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
-open import CSP.Examples.Cardano_network.Net p using ( Link; apiBF; recvBFBlock )
+open import Cardano_network.Base using ( Dir; lo; hi )
+open import Cardano_network.Net p using ( Link; apiBF; recvBFBlock )
 open SStep using
   ( absBundleG; absNodeA; absNodeB; absNodeC; absNodeD )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using
   ( ProdPh; ConsPh; CPPh; consuming; producing; consD; cph; cblk; cp3 )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA using
   ( ApiHasLink; apiLink-inj; ahlBF
   ; decConsD-ev-link; decCP-ev-link )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using
   ( SysState; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA using
   ( absNodeA-fp; absNodeB-fp; absNodeC-fp; absNodeD-fp
   ; nodeB-no-when-A; nodeC-no-when-A; nodeD-no-when-A; nodeC-no-when-B; nodeD-no-when-B; nodeD-no-when-C
   ; absNodeB-no-when-A; absNodeC-no-when-A; absNodeD-no-when-A; absNodeC-no-when-B; absNodeD-no-when-B; absNodeD-no-when-C )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA using
   ( linkAB≢linkAC; linkAB≢linkBD; linkAC≢linkCD; linkBD≢linkCD )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
   using ( noOffer→viewV )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA
   using ( ⦀-wev-L; ⦀-wev-R; ∥⇘⇙-wev-sync
         ; ev→wev
         ; bgEB
@@ -96,53 +96,53 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 b
         ; nodeA-no-when-B; nodeA-no-when-C; nodeA-no-when-D
         ; nodeB-no-when-C; nodeB-no-when-D; nodeC-no-when-D )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkClassify blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkClassify blkA using
   ( consDAdv-of; consD-c34-lbl )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA using
   ( ProdAdv; ConsAdv; c01; c12; c23; c34; c45; c56 )
 
 -- the genuine driver-step consumers this cone feeds
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver blkA using
   ( RelayStepKind )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvRelay blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvRelay blkA using
   ( cpStepKind-of; cpStepKindL-of )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
   ( prodOf; relayOf; cellUp; cellDn; upClient; dnClient
   ; RelayPre; RelayHas; RelayFwd; ConsRecv; ProdSent; BFcHasBlk )
 -- SESSION-33 (G2c): the BF-SERVER slots + their maximal evolution witnesses
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA using
   ( upSrv; dnSrv; UpSrvEvo; DnSrvEvo )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeProdFire blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeProdFire blkA using
   ( IsSBB )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA using
   ( TwoLegs; legBD; legCD; phOf; linkOf; InCp03; cblkOf )
 -- SESSION-40: the VALUE-ANCHORED node-D classifier (the delivering label pinned
 -- at the SAME successor block), so `ldCons` can carry `cblkOf l s′ ≡ b″`
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkDAnchor blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkDAnchor blkA using
   ( consDAdv-of⁺; ConsHeld )
 -- SESSION-51: the per-component VALUE classifiers the appended `LegValStep`
 -- reports at (`PipeVal`'s clauses (1)/(4)/(5)/(8) are the four `LegDriverStep`
 -- does not carry)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA using
   ( RelayValOK )
 -- SESSION-41: the bundle-level client-POSITION pin, so `ldCons` can also carry
 -- `dnClient l s ≡ bcBlk1 b″` — the value-blind `wDn` cannot
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA using
   ( bundle-recv-cliPos )
 -- SESSION-45: the value-carrying relay classifier — its label component names
 -- the SUCCESSOR's shape, so `wUp` can report the relayed block
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValRelay blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValRelay blkA using
   ( cpStepKindL-of⁺; RelayAt )
 
 -- the receive-coupling feeders (session-26 cone-witness extension)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleRecv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleRecv blkA using
   ( bundle-recvBFBlock-forces-src )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA using
   ( BundleGEvR⁺; bgEB⁺; absBundleG-api-evo; BFsHasBlk; BfsSucc )
 
 -- node A: the SESSION-33 re-mirror on `absBundleG-api-evo` (the frozen
 -- `WalkApiDrop.nodeA-ev-api-abs-wt` drops the BF-server slot `SrvCoupled` reads)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeAEvo blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeAEvo blkA using
   ( NodeAEvR-abs-evo; naEBaev1; naEBaev2; nodeA-ev-api-abs-evo )
 
 ------------------------------------------------------------------------

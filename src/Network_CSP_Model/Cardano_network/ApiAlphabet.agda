@@ -26,9 +26,9 @@
 -- this module instead.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.ApiAlphabet (p : Params) where
+module Cardano_network.ApiAlphabet (p : Params) where
 
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Data.Empty using (⊥)
@@ -37,11 +37,11 @@ open import Relation.Nullary using (Dec; yes; no)
 
 open import Process_Trees using (AnyTypes)
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break )
-open import CSP.Examples.Cardano_network.Data p using (Payload)
+open import Cardano_network.Data p using (Payload)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (chanSet; EventSet)

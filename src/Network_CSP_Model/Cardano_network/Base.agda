@@ -19,7 +19,7 @@
 -- can compose decidable equality.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Base where
+module Cardano_network.Base where
 
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)

@@ -97,14 +97,14 @@ open import Data.Product using ( Σ-syntax; _×_; _,_; proj₁; proj₂ )
 open import Data.Sum using ( _⊎_; inj₁; inj₂ )
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; trans; subst )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveTokenExcl
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveTokenExcl
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using
   ( Dir; hi; IDs; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
   ; N2N_KeepAlive; N2N_LeiosNotify; N2N_LeiosFetch
   -- the two enum `DecEq` instances `setHit-np`'s `≟-yes-refl` resolves against
@@ -117,7 +117,7 @@ import Class.DecEq.Instances as DecEqI
 -- ASSEMBLY slice A1: the LTS level, needed by §7f's WIRED visible arm alone (the
 -- arm takes the api step itself, so `VisLeaves` is derived rather than assumed)
 open import Process_Trees using ( ExtI )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( apiES )
+open import Cardano_network.FourNode.FourNodeDiamond using ( apiES )
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( EventSet )
 open EventSet using ( mem )
@@ -125,58 +125,58 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _═[_]═►_ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; absNodesOf; nodesOf )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; initial )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD; phOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( prodOf; relayOf; cellUp; cellDn; upClient; dnClient
         ; ProdSent; ProdNotSent; RelayHas; RelayFwd; CellHasBlk; BFcHasBlk
         ; Coupled; prodSent-notSent-⊥ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   -- the two server EVOLUTIONS are §7f's pass-through: the assembly's `PipeInvS`
   -- half needs them at the SAME successor this arm returns
   using ( upSrv; dnSrv; UpSrvEvo; DnSrvEvo )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( CopyPhase; MedState; phase; empty; full; draining )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( phase-upd; flipCell; ≟-yes-refl )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( setCell )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( BFcPos; BFsPos )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
   using ( blkPayload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
   using ( BFsHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriverCone blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriverCone blkA
   using ( LegDriverStep; ldProd; ldRelay; ldCons; ldFix; LegValStep )
 -- §7's io axis: the FROZEN successor-negative classifiers (the shape this
 -- module's io arms need, and the one the ⁺ cone does NOT return — see §7d), their
 -- four-slot families and the leg projections, plus the read arm's block pin
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeNodeIoEvo blkA
   using ( CliIoCls; SrvIoCls; AllCliIoCls; AllSrvIoCls )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleIoEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleIoEvo blkA
   using ( BlkReadAt )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( PlIsBlk; upLink; dnLink )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeMedKey blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeMedKey blkA
   using ( setRead )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeTauIo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeTauIo blkA
   using ( pickCliUp; pickCliDn; pickSrvUp; pickSrvDn )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
   using ( LegInv; RelayCp3; ConsCp3; CellFullBlk; CellFull⁺; CliHas⁺
         ; cellFull⁺⇒fullBlk; cellFull⇒hasBlk )
 -- the TWO PREMISES, taken from their PRODUCER SITE so the bridges cannot drift:
 -- `CellCp3` (`LiveLegStep:967-972`; `:949` and `:964-969` are stale readings),
 -- `NoTwoTokens` and the two arms that
 -- consume them (`legInv-read` `:1065`, `legStep→legInv` `:1587`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA
   using ( CellCp3; NoTwoTokens; noTwo
         ; nUpSrvCli; nUpCellCli; nDnSrvCli; nDnCellCli
         ; legInv-read; legStep→legInv
@@ -184,7 +184,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLe
         ; cell-drain-eq⁺ )
 -- the visible arm's proved hand-over record, under the name `LiveLegStep` uses,
 -- with the two SERVER-keep fields §7e reads and the relay-phase disjointness
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiExpose blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiExpose blkA
   renaming ( VisLeaves⁺ to VisLeaves )
   using ( vUpSrvKeep; vDnSrvKeep; relayHas-fwd-⊥
         -- §7e's (P3), discharged: the two SOURCE-PHASE fields
@@ -196,7 +196,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLe
 -- §7d's io axis, PAIRED: the ⁺ cone now reports the FROZEN successor-directed
 -- classifiers at its OWN successor (P1 discharged in `LiveLegIoCone`'s §1b/§6),
 -- so the io arms read a cone OUTPUT where they used to take a premise
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA
   using ( AllCliP; AllSrvP; frozenCli; frozenSrv
         -- §7d's (P2), discharged: the paired server fact's WRITE-OWNERSHIP answer
         ; SrvWriteOwn )

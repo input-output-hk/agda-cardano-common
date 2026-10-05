@@ -28,16 +28,16 @@
 -- 0 postulate/hole/meta.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( Block₃ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( BlockLiveness⁺ )
 
 -- the per-`blkA` proof, imported UNAPPLIED so its parameter is bound by the
 -- ∀-closure below
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.BlockLivenessProof as BLP
+import Cardano_network.FourNode.Liveness.LTL.BlockLivenessProof as BLP
 
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.BlockLiveness where
+module Cardano_network.FourNode.Liveness.LTL.BlockLiveness where
 
 ------------------------------------------------------------------------
 -- THE ∀-CLOSURE — `BlockLiveness⁺`, UNCONDITIONAL.

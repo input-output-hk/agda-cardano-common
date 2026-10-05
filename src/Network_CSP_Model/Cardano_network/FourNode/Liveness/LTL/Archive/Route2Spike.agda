@@ -53,8 +53,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.Route2Spike (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.Route2Spike (blkA : Block₃) where
 
 open PTree
 
@@ -62,17 +62,17 @@ open PTree
 -- The concrete model under study (Phase-1, `examples/praos_liveness`).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; nodeA; nodeB; nodeC; nodeD
         ; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p using (numLinks)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
-open import CSP.Examples.Cardano_network.Net p using (Net_Api; Net_Api-≟; Link; input; output; break)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Net p using (Net_Api; Net_Api-≟; Link; input; output; break)
+open import Cardano_network.Data p using (Payload)
+open import Cardano_network.NetCommon p
   using ( CopySpecBreakableA; breakableLinkA; ioES; ioSet )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op

@@ -26,8 +26,8 @@
 -- import only SysIoLink6 (keeps SysIoLink5 frozen/capped; cheap `.agdai` load).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 (blkA : Block₃) where
 
 open import Level using (0ℓ)
 open import Data.Product using ( _,_ )
@@ -37,12 +37,12 @@ open import Relation.Nullary using ( ¬_ )
 open import Process_Trees using ( PTree; ExtI )
 
 -- re-export PART 5 (all 12 backward production leaves) so downstream imports SysIoLink6
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA public
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA public
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
+open import Cardano_network.FourNode.FourNodeDiamond using
   ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel; τ )
@@ -55,7 +55,7 @@ open Op using ( _∥⇘_⇙_; _⦀_; EventSet; viewV )
 open EventSet using ( mem )
 
 -- the STRONG single-step intro congruences to fold over
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using
   ( NetProc; IoOffers
   ; ⦀-τ-L; ⦀-τ-R; ∥⇘⇙-τ-L; ∥⇘⇙-τ-R
@@ -78,20 +78,20 @@ open import Class.DecEq using ( _≟_ )
 open import Data.Product using ( Σ; _×_; Σ-syntax )
 open import Data.Sum using ( inj₁; inj₂; _⊎_ )
 
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; lo; hi; N2N_ChainSync; N2N_BlockFetch; N2N_KeepAlive; N2N_TxSubmission; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( Link; input; output; done; break; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP
   ; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-import CSP.Examples.Cardano_network.ChainSync p as CS
-import CSP.Examples.Cardano_network.BlockFetch p as BF
-import CSP.Examples.Cardano_network.KeepAlive p as KA
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.LeiosNotify p as LN
-import CSP.Examples.Cardano_network.LeiosFetch p as LF
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+open import Cardano_network.NetCommon p using ( ioES )
+import Cardano_network.ChainSync p as CS
+import Cardano_network.BlockFetch p as BF
+import Cardano_network.KeepAlive p as KA
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.LeiosNotify p as LN
+import Cardano_network.LeiosFetch p as LF
+open import Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using
   ( CScPos; CSsPos; BFcPos; BFsPos; KAcPos; KAsPos; TScPos; TSsPos; LNcPos; LNsPos; LFcPos; LFsPos
   ; InertPos; kac; kas; tsc; tss; lnc; lns; lfc; lfs; bundleG
@@ -104,10 +104,10 @@ open SStep using
   ; coarsenCSc; coarsenCSs; coarsenBFc; coarsenBFs; coarsenKAc; coarsenKAs; coarsenTSc; coarsenTSs
   ; coarsenLNc; coarsenLNs; coarsenLFc; coarsenLFs )
 -- node states, decodes and constructors (qualified: SN.decNodeA / SN.mkNodeA / SN.NodeStateA…)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA as MSysOracle_NodeTauEv
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA as MSysOracle_NodeTauEv
 open MSysOracle_NodeTauEv using
   ( tableSpec-ev-inv; nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA using
   ( csEvDir; csCnxt-dir-no; csSnxt-dir-no; noOffer→viewV
   ; csTail-css-noOffer; csTail-bfc-noOffer
   ; decKAc-noOffer; decKAs-noOffer; decCSc-dir-noOffer; decCSs-dir-noOffer
@@ -162,19 +162,19 @@ open Op using () renaming ( ∅ES to ∅ESa )
 -- the api-link fingerprint + the committed per-channel concrete bundle io-link
 -- pins (CS/BF/KA/TS/LN in SysOracle, LF in SysIoLink); NOT re-exported by the
 -- SysIoLink4/5/6 (SysNode/SysStep) chain, so imported directly.
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA as MSysOracle
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA as MSysOracle
 open MSysOracle using
   ( ApiHasLink; ahlIn; ahlOut; apiLink-inj; io⇒¬api
   ; bundleCS-io-link-in; bundleCS-io-link-out; bundleBF-io-link-in; bundleBF-io-link-out
   ; bundleKA-io-link-in; bundleKA-io-link-out; bundleTS-io-link-in; bundleTS-io-link-out
   ; bundleLN-io-link-in; bundleLN-io-link-out )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA as MSysIoLink
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA as MSysIoLink
 open MSysIoLink using
   ( bundleLF-io-link-in; bundleLF-io-link-out
   ; bundleG-io-ahl; absBundleG-io-no
   ; nodeA-drv-io-no; nodeB-drv-io-no; nodeC-drv-io-no; nodeD-drv-io-no
   ; linkAB≢linkAC; linkAB≢linkBD; linkAC≢linkCD; linkBD≢linkCD )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA as MSysIoLink3
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA as MSysIoLink3
 open MSysIoLink3 using
   ( absBundleG-io-ahl )
 
@@ -199,9 +199,9 @@ open MSysOracle_NodeTauEv using
 -- pairwise/group non-offers (concrete api SysRoute, concrete io SysIoLink2 via
 -- SysIoLink3 re-export, abstract io SysIoLink3).  The 6 REVERSE concrete api +
 -- 6 REVERSE concrete io non-offers are built below (they had no prior use).
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using
   ( SysState; mkSys; med; nA; nB; nC; nD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA using
   ( ApiIsProd; ApiIsCons; prod≢cons
   ; nodeA-fp; nodeB-fp; nodeC-fp; nodeD-fp
   ; absNodeA-fp; absNodeB-fp; absNodeC-fp; absNodeD-fp

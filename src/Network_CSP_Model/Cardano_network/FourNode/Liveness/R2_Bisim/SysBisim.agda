@@ -51,18 +51,18 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import Process_Trees using (PTree; ExtI; ret)
 open PTree using (force)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The concrete model, the two endpoints, and the shared alphabet.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
 open import Data.Unit using () renaming (⊤ to ⊤₀)
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; store; env )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; store; env )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
 
 -- Net_Api operators (the whole-system alphabet), to state the inner-step probe
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -74,32 +74,32 @@ open import CSP.Laws.Traces.TraceLawsHide (Net_Api-≟ {Payload})
   using ( Hide-hidden; Hide-ev-elim; HideevR )
 open HideevR using ( heV )
 -- `noOffer→viewV` (the `¬ IoOffers → viewV ≡ nothing` bridge for the solo lift)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA as GB
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA as GB
 open EventSet using ( mem )
 
 -- the four concrete node decodes (the operands of `nodesOf`, for the nodesτ peel)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 
 -- the whole-system process type (shared with `⟦_⟧` / `absDec` / the endpoints)
 NetProc : Set₁
 NetProc = PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})
 
 -- the R1 concrete decode + its home equality (`⟦ initial ⟧ ≡ breakableSystem`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧; initial; dec-init )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem )
 -- the R2 abstract target + its home equality (`absDec initial ≡ abstractSystem`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
 
 -- the shared medium decode (the left operand of `⟦_⟧` / `absDec`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed )
 -- the whole generic step/reflection machinery (R2 Task 4)
 -- qualified alias too, for the `TopEvR` constructors (`medEv`/`nodesEv` clash
 -- with `comove-io-sync`'s argument names if opened unqualified)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep
   using ( absDec; absDec-init; nodesOf; absNodesOf
         ; absNodeA; absNodeB; absNodeC; absNodeD
@@ -115,25 +115,25 @@ open SStep
         ; lift-nodes-whole-ev; lift-med-whole-ev )
 -- the R2 D1 reachable-config foundation (RState subtype + decoded transition
 -- `_↝_` + reachable closure `rclose`) — the domain the compositional bisim walks
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; toSys; rdec; radec; rinit; rclose; rclose-abs
         ; rcloseʷ; rcloseʷ-abs
         ; _↝_; mkStep; Reachable; rStep; reach; mkR )
 -- the R2 D3 top-level co-moves + impossible-event refutations (visible classes)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
 -- the api-class witness constructors (`IsApiCSBF`), for the `oev` api dispatch
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA as SO
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA as SO
 -- the R2 D3 io leaf machinery (`top-nodes-io` for `otau`'s hidSync branch)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA as SIL
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA as SIL
 -- the R2 D3 abstract node-τ collapse (`nodeX-τ-inv-abs` for `otau`'s nodesτ branch)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink4 blkA as SIL4
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink4 blkA as SIL4
 -- the abstract nodes-τ VACUITY (`absNodesOf-no-τ` for `otauB`'s nodesτ branch)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA as SNT
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA as SNT
 -- the R2 D3 backward abstract node peels (`top-nodes-abs`/`top-nodes-io-abs` — the
 -- abstract-primary → concrete-nodes weak run — for the backward `oevB`/`otauB` fields)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA as SIL6
 -- the io / event alphabet constructors (for the `oev` label dispatch)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; Link
         ; break; done; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 
@@ -149,11 +149,11 @@ open DRbisim
 open import Process_Trees using ( deadlock )
 -- the R2 D3 √ ret-transfer leaf machinery (`sys-ret-transfer` for `osqrt`;
 -- `nodes-wret` + generic ret/τ* helpers for the backward `osqrtB`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysSqrt blkA as SS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysSqrt blkA as SS
   using ( sys-ret-transfer; nodes-wret
         ; fHide-ret; fHide-ret-inv; ∥⇙-ret-inv; ∥⇙-ret-intro; ∥⇘⇙-τ*-R )
 -- the R2 D3 forward-divergence measure `μ'Sys` + the μ'-aware nodes-τ drop
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDiv blkA as SD
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDiv blkA as SD
   using ( μ'Sys; nodes-τ-μ'↓ )
 open import Data.Nat using ( _<_ )
 open import Data.Nat.Induction using ( <-wellFounded )

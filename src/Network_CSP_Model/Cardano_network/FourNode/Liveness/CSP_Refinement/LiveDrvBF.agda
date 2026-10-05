@@ -179,50 +179,50 @@ open import Relation.Binary.PropositionalEquality
 open import Class.DecEq using ( DecEq; _≟_ )
 open import Class.DecEq.Instances using ( DecEq-Fin )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p
   using ( Link; input; output; apiBF; ApiBFCar; reqBFRange )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using ( Payload; ChainRange; DecEq-ChainRange )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( Dir; hi; IDs; DecEq-Dir
         ; N2N_ChainSync; N2N_BlockFetch; N2N_KeepAlive; N2N_TxSubmission
         ; N2N_LeiosNotify; N2N_LeiosFetch )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; initial; nB; nC )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 -- the relay driver's phase datatype, UNQUALIFIED: §1's dispatch writes all
 -- seventeen shapes out, so the clause heads have to be readable
 open SN using ( CPPh; consuming; producing
               ; cp0; cp1; cp2; cp3; cp4; cp5; cp6
               ; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9 )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   -- (T7) `coarsenCSc` is the CS CLIENT's coarsening — the `cp5` chain's own
   -- (B, cellCp3) … and `coarsenBFc` is the BF CLIENT's, which §3's two new selectors
   -- state their answer at
   using ( coarsenBFs; coarsenBFc; coarsenCSs; coarsenCSc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( relayOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( dnSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   -- (T7) the leg's UPSTREAM link, so the `cp5` chain's arms are stated hop-generically
   -- (`upLink legBD = linkAB`, `upLink legCD = linkAC`)
   using ( dnLink; upLink )
 -- the io axis: the four peers' fired-row facts (grant #7's cone slots), and the
 -- two io adjacency transcriptions the refutations at `bsBusy` run on
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA as LIC
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA as LIC
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
   -- (T2) `ssSB` is the wire-send row that closes the `pp5` region, and it is
   -- MATCHED below, so the constructor has to be in scope by name (measured: without
   -- it the clause head reads as a pattern VARIABLE and the target is unconstrained —
@@ -235,12 +235,12 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCh
 -- `LiveRelayCS.CSAt`'s `pp1` clause reads, which is what makes the discharge
 -- convertible — a local twin would not be), and the two io refutations plus the
 -- per-key landing the arm rests on
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayOpen blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRelayOpen blkA
   -- (T7) … and the leg's UP-hop CS CLIENT slot accessor beside it, the term
   -- `LiveRelayCS.CSAt`'s `cp5` clause reads — for `dnCSs`'s reason exactly: a local twin
   -- would not be convertible with the residual's own statement
   using ( dnCSs; upCSc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow blkA
   using ( cssCanAwait-in-⊥; cssCanAwait-out-⊥
         -- (T6d) §4c's four io facts about the `pp2` REGION: `csWar`'s ONE io row
         -- lands INSIDE it (at `csMust`), `csWar` has no io READ row, and `csMust`
@@ -251,7 +251,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCS
         -- arms are `csCanAwait`'s refutations and not `csWar`'s region
         ; cscIdle-in-⊥; cscIdle-out-⊥ )
 -- the api axis: the whole content of S1's visible arm
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA as LAC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA as LAC
 
 ------------------------------------------------------------------------
 -- §1  THE COUPLING.

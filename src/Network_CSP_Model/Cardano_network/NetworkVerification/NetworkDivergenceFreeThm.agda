@@ -14,11 +14,11 @@
 open import Class.DecEq using (DecEq)
 open import Process_Trees using (ExtI)
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkDivergenceFreeThm
+module Cardano_network.NetworkVerification.NetworkDivergenceFreeThm
   (Data : Set) ⦃ _ : DecEq Data ⦄ (d₀ : Data) where
 
 -- Reuse every Step-0/1 definition + the C0/C1/Cg lemmas from the Gen module.
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGen Data
+open import Cardano_network.NetworkVerification.NetworkRefinementGen Data
   using ( p1
         ; NetR
         ; C0; C1; Cg
@@ -28,13 +28,13 @@ open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGe
         ; ≟-diag )
 
 -- Bring Net into scope (for the Semantics.* instantiations).
-open import CSP.Examples.Cardano_network.Net p1 using (Net)
+open import Cardano_network.Net p1 using (Net)
 
 -- Master key: Network ≈DR CopySpec over p1.
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGenExp Data using (net≈DR)
+open import Cardano_network.NetworkVerification.NetworkRefinementGenExp Data using (net≈DR)
 
 -- `Network` and `CopySpec` both come from the SAME `Network p1 Data` open.
-open import CSP.Examples.Cardano_network.Network p1 Data using (Network; NetProc; CopySpec)
+open import Cardano_network.Network p1 Data using (Network; NetProc; CopySpec)
 
 -- Generic divergence-freedom predicate + its trivial ≈DR transfer.
 open import Semantics.DeadlockDR {E = Net Data} {I = ExtI (Net Data)}

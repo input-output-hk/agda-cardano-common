@@ -45,8 +45,8 @@
 -- postulate, hole, meta, `NON_TERMINATING` or `mutual`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRetFree
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveRetFree
   (blkA : Block₃) where
 
 open import Level using ( 0ℓ )
@@ -59,37 +59,37 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; subst )
 open import Process_Trees using ( PTree; ExtI; ret )
 open PTree using ( force )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; linkAB )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir; hi; lo )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
-import CSP.Examples.Cardano_network.KeepAlive p as KA
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; linkAB )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir; hi; lo )
+open import Cardano_network.NetCommon p using ( ioES )
+import Cardano_network.KeepAlive p as KA
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_ )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 -- the frozen position, the conjunct and the inversion that preserves it all live
 -- together, so they cannot drift apart
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveKAFrozen blkA as KAF
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveKAFrozen blkA as KAF
 open KAF using ( KAcAtHead )
 -- the assembly, for the LITERAL premise type of (P5) (`noRetA-lit` below).  No
 -- cycle: the assembly takes the conjunct from `LiveKAFrozen`, not from here.
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegAssembly blkA as LA
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegAssembly blkA as LA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; initial )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( NetProc; absDec; absNodeA; absNodeB; absNodeC; absNodeD
         ; absBundleG; absKAc; coarsenKAc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysSqrt blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysSqrt blkA
   using ( fHide-ret-inv; ⦀-ret-inv; ∥⇙-ret-inv; tableSpec-ret-fin )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
 
 ------------------------------------------------------------------------

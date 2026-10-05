@@ -48,20 +48,20 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvEvInv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvEvInv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Net; Net-≟; Link; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
         ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv; ioES )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv; ioES )
+open import Cardano_network.Params using ( Params )
 open Params p using ( numLinks; linkConfig )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; lo; hi; IDs
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission; N2N_KeepAlive
   ; N2N_LeiosNotify; N2N_LeiosFetch )
@@ -76,17 +76,17 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; τ; ev; evl; evLabel )
 import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)} as LN
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN )
 
 -- R2's frozen inversion primitives (all re-derivations reuse these verbatim)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
 open STC using ( NetProc; △-ev-elim; finUpd; fold-react; phase-upd; recon-decMed
                ; ReactF; mkReactF )
 open STC.MedNO using ( force-renameMap-react; renameMap-ev-reflect )
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA as SNT
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA as SNT
 open SNT using ( ret-no-ev; decCopy-ev-inv; CopyEvR; cevIn; cevOut
                ; ⦀⋆-ev-inv; ⦀Fin-ev-inv; cell-noBoth; link-io-diff; setCell )
 
@@ -96,7 +96,7 @@ import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload}
 open RenNet using ( renameMap )
 
 -- the measure's cell/row/medium weights
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
   using ( cellWt; rowWt; medWt )
 
 ------------------------------------------------------------------------

@@ -34,7 +34,7 @@
 -- `medG`/`Carries` read through `ιNet`, not a second enumeration.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenanceCopy where
+module Cardano_network.Parametric.BlockProvenanceCopy where
 
 open import Level using (0ℓ)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -48,16 +48,16 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 import CSP.Laws.Bisim.DRCongruenceRep as DR
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceWfR as BPW
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceWfR as BPW
 
 -- the same three parameters as every other `Parametric.BlockProvenance*` module
 module Generic
@@ -68,11 +68,11 @@ module Generic
   -- instance inside the cell's `!`-output elaborate to the terms the cells were
   -- built with (the `with`s below have to abstract exactly those)
   open Params p
-  open import CSP.Examples.Cardano_network.Base
-  open import CSP.Examples.Cardano_network.Data p
-  open import CSP.Examples.Cardano_network.Net p
-  open import CSP.Examples.Cardano_network.Network p Payload using (copyMenu; Copy; linkCopy)
-  open import CSP.Examples.Cardano_network.NetCommon p using (ιNet)
+  open import Cardano_network.Base
+  open import Cardano_network.Data p
+  open import Cardano_network.Net p
+  open import Cardano_network.Network p Payload using (copyMenu; Copy; linkCopy)
+  open import Cardano_network.NetCommon p using (ιNet)
   open O {E = Net Payload} (Net-≟ {Payload}) using (pchoice)
   open import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)}
     using (sRet; sSil; sVis; sTau)

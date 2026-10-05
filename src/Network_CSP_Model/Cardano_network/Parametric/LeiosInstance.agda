@@ -41,11 +41,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; mkTopology)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
+open import Cardano_network.Parametric.Topology using (Topology; mkTopology)
 
-module CSP.Examples.Cardano_network.Parametric.LeiosInstance where
+module Cardano_network.Parametric.LeiosInstance where
 
 ------------------------------------------------------------------------
 -- The scenario parameters — same three-node line graph as `LineInstance`,
@@ -109,13 +109,13 @@ leiosParams = record
   ; Size = U.⊤ ; decSize = leiosDecEq⊤ ; txSize = λ _ → U.tt
   ; slotOf = λ _ → U.tt }
 
-open import CSP.Examples.Cardano_network.Net leiosParams using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data leiosParams using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon leiosParams
+open import Cardano_network.Net leiosParams using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data leiosParams using (Payload)
+open import Cardano_network.NetCommon leiosParams
   using (NetworkLinkBreakableA; ioES)
 
 -- the {| all api channels |} alphabet, shared with every other gate-free scenario
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosParams using (apiES)
+open import Cardano_network.ApiAlphabet leiosParams using (apiES)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (_∥⇘_⇙_; _∖_; ⦀Fin⁺)
@@ -144,10 +144,10 @@ leiosLine = mkTopology 2 leiosEnds
 -- The composed system: the real relay logic over the non-trivial Leios domains
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Parametric.Node leiosParams leiosLine apiES
+open import Cardano_network.Parametric.Node leiosParams leiosLine apiES
   using (Proc; node; systemOf)
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
 open NL.Generic leiosParams leiosLine apiES using (nodeLogic)
 open AS.Generic leiosParams leiosLine apiES
   using (AnnounceSpec; AnnounceSafe; announceSafe-from-nodes)

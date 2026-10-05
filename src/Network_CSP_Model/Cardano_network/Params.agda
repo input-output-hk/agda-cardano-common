@@ -17,7 +17,7 @@
 -- ↦ concrete `Set`s, `numLinks`/`linkConfig` ↦ concrete values).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Params where
+module Cardano_network.Params where
 
 open import Data.Nat using (ℕ)
 open import Data.Fin using (Fin)
@@ -26,7 +26,7 @@ open import Data.Product using (_×_)
 open import Data.Maybe using (Maybe)
 open import Class.DecEq using (DecEq)
 
-open import CSP.Examples.Cardano_network.Base using (IDs; Dir)
+open import Cardano_network.Base using (IDs; Dir)
 
 record Params : Set₁ where
   field

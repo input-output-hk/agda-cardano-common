@@ -50,7 +50,7 @@
 -- first step inside the full `nodeLogicL`).
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL where
+module Cardano_network.Parametric.Leios.NodeLogicL where
 
 open import Data.Bool using (Bool; true; false; if_then_else_; not; _∧_)
 open import Data.List using (List; []; _∷_; map; reverse; _++_)
@@ -69,13 +69,13 @@ import Class.DecEq.Instances as DecEqI
 open import Class.DecEq.Instances using (DecEq-List)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.NodeLogic as NL
 
 -- the Linear-Leios logic, parametric in the network parameters, the Leios parameters,
 -- the topology, the api alphabet and the node-to-voter map.  `voterOf` is a parameter
@@ -95,7 +95,7 @@ module Generic
   open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets)
   open LeiosP.LeiosParams lp using (mkVoteBlob; blobVoter; blobRb; certifies; ebTxs
                                    ; ebSize; rbCert)
-  open import CSP.Examples.Cardano_network.Base using (Dir)
+  open import Cardano_network.Base using (Dir)
   -- EVERY tag this module names MUST appear here: an unlisted tag silently becomes a
   -- pattern VARIABLE and the carrier table turns into a stuck term (ledger gotcha 1).
   open N p
@@ -126,7 +126,7 @@ module Generic
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using ( EventSet; _∥⇘_⇙_; _⦀_; ⦀⁺; _□_; _◁_▷_; _>>_
           ; Skip; Stop; Ret; Prefix; Prefix₀; Output; loop; loop0 )
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
+  open import Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
     using ( Held; StoreProc; homeOf; forgeEv; putEv; getEv; offerHeld; acceptForge
           ; storeES; clientLoop; serverBody-k )

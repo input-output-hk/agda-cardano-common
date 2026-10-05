@@ -11,7 +11,7 @@
 -- CF4: CM fix plus fix #2 — no wedge, and no orphan with the byKey unregister
 -- (no identity check): the FIFO order puts every NewConnection before any MuxFinished
 -- out of the running, so while the IG awaits, its entry cannot be an active incarnation.
-module CSP.Examples.GovernorWedge.CMFix where
+module GovernorWedge.CMFix where
 
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit using (⊤; tt)
@@ -35,14 +35,14 @@ open import Relation.Nullary using (¬_; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; trans; cong)
 
 open import Process_Trees
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
-open import CSP.Examples.GovernorWedge.Witness using (w0; cW0; gW0; clean)
-open import CSP.Examples.GovernorWedge.FieldPath using (wF)
-open import CSP.Examples.GovernorWedge.Wedged using (blocked-until; dead-steps; bW0; dW0)
-open import CSP.Examples.GovernorWedge.Invariant
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
+open import GovernorWedge.Witness using (w0; cW0; gW0; clean)
+open import GovernorWedge.FieldPath using (wF)
+open import GovernorWedge.Wedged using (blocked-until; dead-steps; bW0; dW0)
+open import GovernorWedge.Invariant
   using (CInv; uniq; ran-fresh; Runs; conn-good; trace-in; hs-lt; movePh-all; trace-all; movePh-any; movePh-others; own-safe; own-live-sys)
-open import CSP.Examples.GovernorWedge.FullFix using (conn-all; no-runs; hs-inv)
+open import GovernorWedge.FullFix using (conn-all; no-runs; hs-inv)
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_; traces)
 

@@ -79,7 +79,7 @@
 -- `AnnounceSafeT` / `announceSafeT-from-nodes`) is KEPT: it states the
 -- safety property at the order safety belongs at, over the leaner
 -- Chaos-free spec, and is what `AnnounceContent` pins.
--- `CSP.Examples.Cardano_network.Parametric.AnnounceContent` is the
+-- `Cardano_network.Parametric.AnnounceContent` is the
 -- machine-checked negative control pinning `AnnounceSpecT`'s content.
 --
 -- THE SPEC SHAPE, AND WHY IT IS CHAOS- AND NOT RUN-SHAPED.  `AnnounceSpec`
@@ -116,7 +116,7 @@
 -- at the same medium for free.  Nothing has to be proved twice.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafe where
+module Cardano_network.Parametric.AnnounceSafe where
 
 open import Level using (0ℓ; Lift; lift)
 open import Data.Bool using (Bool; true; false; if_then_else_)
@@ -133,13 +133,13 @@ open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ContinueType; ExtI; NodeKind; react; base; pair; fin)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Assembly as Asm
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Assembly as Asm
 
 ------------------------------------------------------------------------
 -- The generic layer
@@ -163,11 +163,11 @@ module Generic
           ; recvLNBlockTxsOffer; recvLNVotesOffer )
   open D p using (Payload; Header; announcedEBof)
   open Topology t using (Node; numNodes-1)
-  open import CSP.Examples.Cardano_network.NetCommon p
+  open import Cardano_network.NetCommon p
     using (NetworkLinkBreakableA; ioES)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (_∥⇘_⇙_; _∖_; ⦀Fin⁺; _⊓_; Stop; pchoice; loop; Ret; _>>=_; iter; iter-bind; ∅t; bindV; bindT)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; node; systemOfWith)
   open NL.Generic p t apiES using (nodeLogic)
   open import Semantics.LTS

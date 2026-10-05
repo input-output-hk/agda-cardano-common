@@ -30,7 +30,7 @@
 -- the shared `ApiAlphabet.apiES`, as `AnnounceSafeLeaves.annSync-apiES`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafeCopy where
+module Cardano_network.Parametric.AnnounceSafeCopy where
 
 open import Level using (0ℓ)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -41,24 +41,24 @@ open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Unit.Polymorphic using (⊤; tt)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.NetCommon as NC
-import CSP.Examples.Cardano_network.ApiAlphabet as AA
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCarrier as ASC
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeLeaves as ASL
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceNode as BPN
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceBF as BPBF
-import CSP.Examples.Cardano_network.Parametric.BlockProvenancePeers as BPP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceCopy as BPC
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceMedium as BPM
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceSafe as BPS
+import Cardano_network.NetCommon as NC
+import Cardano_network.ApiAlphabet as AA
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceSafeCarrier as ASC
+import Cardano_network.Parametric.AnnounceSafeLeaves as ASL
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceNode as BPN
+import Cardano_network.Parametric.BlockProvenanceBF as BPBF
+import Cardano_network.Parametric.BlockProvenancePeers as BPP
+import Cardano_network.Parametric.BlockProvenanceCopy as BPC
+import Cardano_network.Parametric.BlockProvenanceMedium as BPM
+import Cardano_network.Parametric.BlockProvenanceSafe as BPS
 
 -- the same three parameters as every other `Parametric.Announce*`/`BlockProvenance*`
 -- module, so every leaf fact below is literally theirs
@@ -69,11 +69,11 @@ module Generic
   open Params p using (Block)
   open N p using (Link; Net_Api; Net_Api-≟; output; apiBF; sendBFBlock; recvBFBlock)
   open D p using (Payload)
-  open import CSP.Examples.Cardano_network.Base using (Dir)
+  open import Cardano_network.Base using (Dir)
   open NC p using (ioES; CopySpecBreakableA)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (EventSet; ⦀⁺; ⦀Fin⁺)
   open Topology t using (Node; numNodes-1; endpointsOf)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (node; bundleAt; linkBundles; systemOfWith; systemOfCopy)
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
     using (Alpha; NoRet; NoRet-Par; NoRet-⦀; NoRet-loop0)

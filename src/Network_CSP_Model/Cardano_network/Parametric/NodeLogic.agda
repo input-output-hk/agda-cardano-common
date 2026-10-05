@@ -81,7 +81,7 @@
 -- head of `endpointsOf n`), which `endpoints-sound` makes unique to it.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.NodeLogic where
+module Cardano_network.Parametric.NodeLogic where
 
 open import Data.Empty using (⊥)
 open import Data.List using (List; []; _∷_; map)
@@ -93,10 +93,10 @@ open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 
 ------------------------------------------------------------------------
@@ -112,7 +112,7 @@ module Generic
 
   open Params p using (Block; EB; EBHash; time₀; length₀; decBlock; ebHash; announcedEB)
   open import Data.Maybe using (Maybe)
-  open import CSP.Examples.Cardano_network.Base
+  open import Cardano_network.Base
     using ( Dir; FromInitiator
           ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission )
   open N p
@@ -135,7 +135,7 @@ module Generic
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using ( EventSet; chanSet; _∥⇘_⇙_; _⦀_; ⦀⁺; _□_
           ; Skip; Stop; Ret; Prefix; Prefix₀; Output; loop; loop0 )
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; bundleAt; node)
   open import Semantics.FailuresDivergences
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using (_⊑FD_)

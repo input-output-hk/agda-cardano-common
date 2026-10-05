@@ -7,7 +7,7 @@
 -- `nc` ids increase and exceed the entry; every active incarnation is the entry or
 -- has its `nc` queued. So `take (nc k)` never displaces an active entry, and the
 -- identity-checked unregister clears only a terminal (hence inactive) mux.
-module CSP.Examples.GovernorWedge.FullFix where
+module GovernorWedge.FullFix where
 
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit using (⊤; tt)
@@ -33,10 +33,10 @@ open import Relation.Nullary using (¬_; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; cong; subst)
 
 open import Process_Trees
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
-open import CSP.Examples.GovernorWedge.Wedged using (stopped-conn)
-open import CSP.Examples.GovernorWedge.Invariant
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
+open import GovernorWedge.Wedged using (stopped-conn)
+open import GovernorWedge.Invariant
   using (GoodO; cinv; queue-ok; goodO₀; goodO-step; goodO-run; run-out; Runs; MuxAlive; QOK;
          conn-good; movePh-all; trace-all; freeIt-all; closeIt-all; active-out; own-safe; own-live-sys)
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}

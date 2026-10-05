@@ -14,9 +14,9 @@
 -- `BlockFetchAbsRefinement`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchAbsRefinementBisim (p : Params) where
+module Cardano_network.BlockFetchRefinement.BlockFetchAbsRefinementBisim (p : Params) where
 
 open import Level using (lift)
 open import Data.Unit using (⊤; tt)
@@ -31,12 +31,12 @@ open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.BlockFetch p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.BlockFetch p
+open import Cardano_network.Net p
   using ( ApiBFTag; ApiBFCar
         ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch
         ; sendBFNoBlocks; sendBFBlock; sendBFBatchDone; recvBFBlock; reqBFRange )
-open import CSP.Examples.Cardano_network.Data p using (ChainRange; DecEq-ChainRange)
+open import Cardano_network.Data p using (ChainRange; DecEq-ChainRange)
 open Params p
 
 open import Semantics.LTS {E = BFAbsEv} {I = ExtI BFAbsEv} hiding (Diverges)
@@ -60,7 +60,7 @@ open import CSP.Laws.Traces.TraceLawsParallelElim BFAbsEv-≟
         ; Par-ev-elim; ParevR; evSync; evL; evR; evBoth; ev√)
 
 -- the committed transition oracle (Good gA..gTb, goodP-*, step lemmas, noDiv).
-open import CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchAbsRefinement p
+open import Cardano_network.BlockFetchRefinement.BlockFetchAbsRefinement p
 
 open AbsOps using (_∖_; Par⊤; Par; iter; Ret; Output; Prefix; Prefix₀; pchoice; viewV; EventSet)
 open Good

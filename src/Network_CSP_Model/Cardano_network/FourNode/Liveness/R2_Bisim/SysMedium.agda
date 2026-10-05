@@ -43,8 +43,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI; NodeKind; react)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium (blkA : Block₃) where
 
 open PTree
 
@@ -52,16 +52,16 @@ open PTree
 -- The concrete model under study (Phase-1, `examples/praos_liveness`).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using (p)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.FourNode.FourNodeDiamond using (p)
+open import Cardano_network.Params using (Params)
 open Params p using (numLinks; linkConfig)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Net p
   using ( Net; Net-≟; Net_Api; Net_Api-≟; Link; input; output; break )
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.NetCommon p
   using ( CopySpecBreakableA; breakableLinkA; ιNet; ιNet⁻¹; ιNet-linv )
-open import CSP.Examples.Cardano_network.Network p Payload using (Copy)
+open import Cardano_network.Network p Payload using (Copy)
 
 -- the SAME renaming NetCommon's `linkMediumA` uses (re-instantiated with the
 -- SAME ι/ι⁻¹/ι-linv, so `renameMap (linkCopy l)` matches `linkMediumA l`)

@@ -24,9 +24,9 @@
 -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities) §6
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.LeiosFetch (p : Params) where
+module Cardano_network.LeiosFetch (p : Params) where
 
 open import Level renaming (zero to lzero)
 import Data.Unit.Polymorphic as Poly
@@ -42,9 +42,9 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net  p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net  p
 
 open Params p
 

@@ -33,10 +33,10 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; NodeKind; react; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (IDs; N2N_KeepAlive; OneTx; decOneTx)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (IDs; N2N_KeepAlive; OneTx; decOneTx)
 
-module CSP.Examples.Cardano_network.EvBothProbe where
+module Cardano_network.EvBothProbe where
 open PTree
 
 instance
@@ -60,9 +60,9 @@ p1 = record
   ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
   ; slotOf = λ _ → tt }
 
-open import CSP.Examples.Cardano_network.Net p1
+open import Cardano_network.Net p1
   using (Net; Conn; Net-≟; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)
-open import CSP.Examples.Cardano_network.Network p1 ⊤
+open import Cardano_network.Network p1 ⊤
 import CSP.Operators {E = Net ⊤} (Net-≟ {⊤}) as Op
 open Op using (Par⊤; _∥⇘_⇙_)
 

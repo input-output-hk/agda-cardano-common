@@ -14,7 +14,7 @@
 -- `nodeC`, `nodeD`, the systems) is mentioned, so nothing is forced.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.FrozenPeersDemo where
+module Cardano_network.FourNode.Liveness.CSP_Refinement.FrozenPeersDemo where
 
 open import Level using (0ℓ)
 open import Data.Unit using (⊤; tt)
@@ -24,16 +24,16 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.FrozenKAclient p using ( ΔKA )
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.FrozenKAclient p using ( ΔKA )
 
 -- `Δ ⊆ apiES`: the `apiKA` channel is inside `apiES`
 -- (`apiSet (_ , apiKA _ _ _) = ⊤`), and `ΔKA` is `⊥` on every other channel, so the

@@ -45,38 +45,38 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 open Params p
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( Dir; hi; N2N_BlockFetch; FromResponder )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Link; input )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Net p using ( Net_Api; Link; input )
+open import Cardano_network.Data p
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
 
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
   ( BFsPos; bsHead; bsReq1; bsDone1; bsStart1; bsNoBlk1; bsBlk1; bsBatchDone1; bsSil )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( NetProc; absBFs; coarsenBFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using ( Tbfs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using ( SysState )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using ( Tbfs )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA using ( SysState )
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( CellHasBlk; prodOf; relayOf; ProdSent; RelayFwd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
   using ( BFsHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( SrvCoupled; upSrv; dnSrv )
 
 ------------------------------------------------------------------------
@@ -87,7 +87,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv 
 -- the wire payload carries a BlockFetch `MsgBlock`
 PlIsBlk : Payload → Set
 PlIsBlk pl = CellHasBlk (SM.full pl)
-  where import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA as SM
+  where import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA as SM
 
 ------------------------------------------------------------------------
 -- THE WITNESS: a BLOCK-carrying cell FILL forces the sending BF server to have

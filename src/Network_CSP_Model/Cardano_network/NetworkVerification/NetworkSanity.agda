@@ -37,11 +37,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; NodeKind; react; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
   using (IDs; Dir; lo; N2N_KeepAlive; OneTx; decOneTx)
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkSanity where
+module Cardano_network.NetworkVerification.NetworkSanity where
 open PTree
 
 ------------------------------------------------------------------------
@@ -75,9 +75,9 @@ p = record
   ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
   ; slotOf = λ _ → tt }
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using (Net; Link; input; sndmsg; tx)
-open import CSP.Examples.Cardano_network.Network p ⊤
+open import Cardano_network.Network p ⊤
 
 ------------------------------------------------------------------------
 -- Read the visible-offer continuation out of a node.

@@ -35,27 +35,27 @@ open import Process_Trees
 open PTree
 
 -- the concrete FourNode instantiation (same as PipePair)
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; consume; apiES; linkBD; linkCD )
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
 
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
 
 -- the ChainSync / TxSubmission impl peers + their event injections
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( CSclientA; CSserverA; ιCS; ιCS⁻¹; ιCS-linv
         ; TSclientA; TSserverA; ιTS; ιTS⁻¹; ιTS-linv )
 
 -- ChainSync source FSM (qualified — see the split rationale)
-import CSP.Examples.Cardano_network.ChainSync p as CS
+import Cardano_network.ChainSync p as CS
 import CSP.Operators {E = CS.CSEv} CS.CSEv-≟ as SrcOpC
 import CSP.Rename {E₁ = CS.CSEv} {E₂ = Net_Api Payload} ιCS ιCS⁻¹ ιCS-linv as RenCS
 -- TxSubmission source FSM (qualified — see the split rationale)
-import CSP.Examples.Cardano_network.TxSubmission p as TS
+import Cardano_network.TxSubmission p as TS
 import CSP.Operators {E = TS.TSEv} TS.TSEv-≟ as SrcOpT
 import CSP.Rename {E₁ = TS.TSEv} {E₂ = Net_Api Payload} ιTS ιTS⁻¹ ιTS-linv as RenTS
 
@@ -83,9 +83,9 @@ open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
 -- the contract surface + the generic `RenOO` transport + `peerAlpha` slots
 -- + the τ-free spec tables (`csServerSpec`/`csClientSpec`/`tsServerSpec`/
 -- `tsClientSpec`) all come from `PipePair`.
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers2 where
+module Cardano_network.NetworkVerification.Liveness.PipePairPeers2 where
 
 ------------------------------------------------------------------------
 -- Item 2(b), ChainSync server + client impl-side OffersOnly at their

@@ -20,12 +20,12 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subs
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.WalkReachMu (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Archive.WalkReachMu (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; apiES )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( EventSet )
@@ -36,15 +36,15 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[τ*]─►_; _═[_]═►_; wev )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( IsApiCSBF )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( μTot )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Archive.WalkApiReach blkA
+open import Cardano_network.FourNode.Liveness.LTL.Archive.WalkApiReach blkA
   using ( reach-ev-μ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauMu blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauMu blkA
   using ( liftτ*-μ )
 
 ------------------------------------------------------------------------

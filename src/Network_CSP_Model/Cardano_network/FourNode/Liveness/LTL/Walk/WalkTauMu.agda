@@ -31,13 +31,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauMu (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauMu (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟ )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _∖_; EventSet )
@@ -49,39 +49,39 @@ open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload
   using ( _─[τ*]─►_; τ*-refl; τ*-step; _═[_]═►_; wev; wτ )
 
 -- the concrete/abstract decode + state records
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; mkSys; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; mkMed; phase; broken; decMed )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( absDec; absNodesOf; nodesOf; lift-med-whole-τ
         ; ReflOut; innerτ; hidSync; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( absNodesOf-no-τ; setCell )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( lift-io-sync-whole-wτ )
 
 -- reachable-config foundation
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; mkR; radec; toSys; rdec; reach; Reachable )
 open Reachable using ( rStepʷ )
 
 -- the medium io-EVENT inversion (successor components) + the drain τ inversion
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvEvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvEvInv blkA
   using ( medium-ev-inv-wt )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvTauInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvTauInv blkA
   using ( medium-τ-inv-wt )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
 open STC using ( phase-upd; flipCell )
 
 -- the io-sync DRIVER-FIXITY node cone
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeFix blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNodeFix blkA
   using ( top-nodes-io-abs-fix )
 -- the whole-trace measure + break budget, and the per-group congruences
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( μTot; breakBudget )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( μG1; μG2; μG1-cong; μG2-cong )
 
 ------------------------------------------------------------------------

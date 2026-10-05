@@ -29,15 +29,15 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl; subst )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngineB (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngineB (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
 
 open import Semantics.LTL.Traces_Based
@@ -47,24 +47,24 @@ open import Semantics.LTL.WTrace
   {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( WTrace; ⟦_⟧ᵂ; drop; dropIdx; tail; tailIdx )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; arrivedD⁻; brkG1; brkG2 )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( μTot; G⁺ᵂ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngine blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkEngine blkA
   using ( G⁺-dropn; F-suc; F-transport )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkBrkFire blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkBrkFire blkA
   using ( GSide; g1; g2 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkUnbLocate blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkUnbLocate blkA
   using ( Cfᵂ; Cf-tail; brkOf; locateU )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkDeliverB blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkDeliverB blkA
   using ( PrU; deliverB )
 -- SESSION-51: the PAYLOAD upgrade.  The descent establishes the payload-AGNOSTIC
 -- `arrivedD⁻`; the `F` witness then hands over the delivering frame's index while
 -- `tr` is still in scope, so the value layer runs from `rinit` to that frame
 -- instead of riding the descent.
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValArrive blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValArrive blkA
   using ( arrUpgradeAt )
 
 ------------------------------------------------------------------------

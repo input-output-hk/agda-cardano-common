@@ -29,9 +29,9 @@
 -- and no composite is ever forced.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.FrozenKAclient (p : Params) where
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.FrozenKAclient (p : Params) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -48,17 +48,17 @@ open PTree
 
 open Params p
 
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.Net p
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.Base
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.Net p
+open import Cardano_network.NetworkPar p
   using ( KAclientA; ιKA; ιKA⁻¹; ιKA-linv )
-open import CSP.Examples.Cardano_network.KeepAlive p
+open import Cardano_network.KeepAlive p
   using ( KAEv; KAEv-≟; sendKA; receiveKA; apiKAev; doneKA
         ; KAState; stClient; clientStep )
 -- the two generic inversion lemmas of the calibrated leaf precedent are reused
 -- verbatim; nothing else of that module is needed here
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.KAclient p
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LeafSpecs.KAclient p
   using ( ren-ev-inv; ιKA⁻¹-inv; nj )
 
 import CSP.Operators {E = KAEv} KAEv-≟ as SrcOp

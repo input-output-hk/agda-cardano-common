@@ -69,8 +69,8 @@
 -- module.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveHeavyFacts
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveHeavyFacts
   (blkA : Block₃) where
 
 open import Level using ( 0ℓ )
@@ -86,13 +86,13 @@ open import Process_Trees using ( ExtI )
 -- The shared alphabet and the semantic vocabulary.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
   renaming ( done to netDone )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( EventSet )
@@ -104,41 +104,41 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 -- The reachable-config foundation and the two refutation families.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( aicCS; aicBF; aicDone )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA
   using ( oevB-refute; oevB-no-io )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
 
 ------------------------------------------------------------------------
 -- THE HEAVY SUFFIX — the five banked lemmas, and the exposure cone the class
 -- split is built from.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( μTot )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
   using ( μτ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNoDiv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvNoDiv blkA
   using ( τreflect )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauMu blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkTauMu blkA
   using ( liftτ*-μ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkStepLift blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkStepLift blkA
   using ( liftReach-ev )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkReachExpose blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkReachExpose blkA
   using ( reach-ev-expose )
 
 ------------------------------------------------------------------------
 -- The statement module (the hidden event set) and the descent engine.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( hidden )
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveNoDivH blkA
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveNoDivH blkA
   as LNDH
 
 ------------------------------------------------------------------------

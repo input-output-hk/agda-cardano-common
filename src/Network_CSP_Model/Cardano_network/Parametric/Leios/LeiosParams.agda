@@ -17,9 +17,9 @@
 -- `Data`/`Net` need).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams (p : Params) where
+module Cardano_network.Parametric.Leios.LeiosParams (p : Params) where
 
 open import Data.Bool using (Bool; true)
 open import Data.List using (List)
@@ -32,7 +32,7 @@ open import Class.DecEq using (DecEq)
 import Class.DecEq.Instances as DecEqI
 
 open Params p using (Block; TxHash; Size; VoterId; VoteBlob; EB; EBHash; RbHash; LSlot)
-open import CSP.Examples.Cardano_network.Data p using (TxBitmap)
+open import Cardano_network.Data p using (TxBitmap)
 
 -- the Leios EB body, an alias for the opaque Params `EB`
 LeiosEb : Set

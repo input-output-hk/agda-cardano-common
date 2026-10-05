@@ -75,7 +75,7 @@
 --     and not an incidental hash mismatch.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.CertSoundBad where
+module Cardano_network.Parametric.Leios.CertSoundBad where
 
 open import Level using (0ℓ)
 open import Data.Bool using (Bool; true; false; _∧_)
@@ -92,24 +92,24 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; ExtI)
-open import CSP.Examples.Cardano_network.Base using (lo)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL
+open import Cardano_network.Base using (lo)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine; LVoteBlob)
-open import CSP.Examples.Cardano_network.Net leiosLParams
+open import Cardano_network.Net leiosLParams
   using (Net_Api; Net_Api-≟; store; stGetAt; stGetBody; stPutVote; stCert)
-open import CSP.Examples.Cardano_network.Data leiosLParams using (Payload)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
+open import Cardano_network.Data leiosLParams using (Payload)
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
   using (Proc)
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
-import CSP.Examples.Cardano_network.Parametric.Leios.OriginSafe as OS
-import CSP.Examples.Cardano_network.Parametric.Leios.CertSound as CS
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.OriginSafe as OS
+import Cardano_network.Parametric.Leios.CertSound as CS
 -- the shared Boolean lemmas the quorum's monotonicity spends (Task 6 put them at
 -- `VoteSound`'s top level; `CertSound` no longer carries copies)
-open import CSP.Examples.Cardano_network.Parametric.Leios.VoteSound
+open import Cardano_network.Parametric.Leios.VoteSound
   using (∧-split; ∧-join)
 
 open Params leiosLParams using (Block; EB; EBHash; RbHash; VoteBlob; decVoteBlob; decRbHash)

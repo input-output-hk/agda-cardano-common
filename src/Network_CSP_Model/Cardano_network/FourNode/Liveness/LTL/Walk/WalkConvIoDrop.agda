@@ -31,12 +31,12 @@ open import Class.DecEq using (_≟_)
 import Class.DecEq.Instances as DecEqI
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvIoDrop (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvIoDrop (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link )
+open import Cardano_network.Data p using
   ( Payload; Header; Tip; Point
   ; chainSync; keepAlive; blockFetch; txSubmission; leiosNotify; leiosFetch; leiosNotifyP; leiosFetchP
   ; MsgCSRollForward; MsgCSRollBackward; MsgCSAwaitReply
@@ -50,11 +50,11 @@ open import CSP.Examples.Cardano_network.Data p using
   ; MsgLFBlockRequest; MsgLFVotesRequest; MsgLFBlockRangeRequest; MsgLFDone
   ; MsgLFBlock; MsgLFVoteDelivery; MsgLFNextBlockAndTxsInRange; MsgLFLastBlockAndTxsInRange
   ; DecEq-Payload; DecEq-Header; DecEq-Tip; DecEq-Point; DecEq-Tx )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; lo; hi; FromInitiator; FromResponder; BlockingStyle; Blocking; NonBlocking )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 open Params p using ( time₀; length₀; Block )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES )
+open import Cardano_network.NetCommon p using ( ioES )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as OpA
 open OpA using ( EventSet )
@@ -65,14 +65,14 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.WeakBisim {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _═[_]═►_; wev; τ*-refl; τ*-step )
 
-import CSP.Examples.Cardano_network.ChainSync p as CS
-import CSP.Examples.Cardano_network.BlockFetch p as BF
-import CSP.Examples.Cardano_network.KeepAlive p as KA
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.LeiosNotify p as LN
-import CSP.Examples.Cardano_network.LeiosFetch p as LF
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
+import Cardano_network.ChainSync p as CS
+import Cardano_network.BlockFetch p as BF
+import Cardano_network.KeepAlive p as KA
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.LeiosNotify p as LN
+import Cardano_network.LeiosFetch p as LF
+open import Cardano_network.NetworkPar p using ( ιCS; ιBF; ιKA; ιTS; ιLN; ιLF )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
   ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
   ; csRF1; csRB1; csIF1; csINF1; csSil; decCSc
   ; CSsPos; ssHead; ssReqNext1; ssFindInt1; ssDone1
@@ -88,7 +88,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   ; LFcPos; lfcHead; lfcRblk1; lfcRvot1; lfcRnext1; lfcRlast1
   ; lfcWblk1; lfcWvot1; lfcWrng1; lfcDone1; lfcSil; decLFc
   ; LFsPos; lfsHead; lfsDone1; lfsWblk1; lfsWvot1; lfsWnext1; lfsWlast1; lfsSil; decLFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA using
   ( NetProc; absCSc; coarsenCSc; decCSc-sil-step
   ; absCSs; coarsenCSs; decCSs-sil-step
   ; absBFc; coarsenBFc; decBFc-sil-step
@@ -97,12 +97,12 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   ; absTSc; coarsenTSc; absTSs; coarsenTSs
   ; absLNc; coarsenLNc; absLNs; coarsenLNs
   ; absLFc; coarsenLFc; absLFs; coarsenLFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA using
   ( tableSpec-ev-inv; nothing-absurd )
 
 -- reuse the frozen SIL5 leaf infrastructure (firing builders, coarse tables,
 -- `mkMcsc`/`RFCS`/…, the strong sils) — imported, never edited
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA using
   ( Tcsc; mkMcsc; module RFCS
   ; csc-fire-rf-CA; csc-fire-rb-CA; csc-fire-aw-CA
   ; csc-fire-rf-MR; csc-fire-rb-MR; csc-fire-if; csc-fire-inf
@@ -145,7 +145,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 b
   ; lfs-fire-wblk1; lfs-fire-wvot1; lfs-fire-wnext1; lfs-fire-wlast1 )
 
 -- the per-peer wire-event budgets
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA using
   ( posWt-CSc; posWt-CScSt; posWt-CSs; posWt-CSsSt
   ; posWt-BFc; posWt-BFcSt; posWt-BFs; posWt-BFsSt
   ; posWt-KAc; posWt-KAcSt; posWt-KAs; posWt-KAsSt

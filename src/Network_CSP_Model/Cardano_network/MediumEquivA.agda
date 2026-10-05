@@ -50,29 +50,29 @@ open import Function.Base using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; trans; cong)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.MediumEquivA (p : Params) where
+module Cardano_network.MediumEquivA (p : Params) where
 
 open Params p using (numLinks; linkConfig)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Net p
   using ( Net; Net-≟; Net_Api; Net_Api-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
         ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break )
-open import CSP.Examples.Cardano_network.Data p using (Payload; DecEq-Payload)
-open import CSP.Examples.Cardano_network.Network p Payload
+open import Cardano_network.Data p using (Payload; DecEq-Payload)
+open import Cardano_network.Network p Payload
   using (NetProc; linkCopy; Copy)
-open import CSP.Examples.Cardano_network.NetworkLink p Payload using (NetOneLink)
-open import CSP.Examples.Cardano_network.NetCommon p
+open import Cardano_network.NetworkLink p Payload using (NetOneLink)
+open import Cardano_network.NetCommon p
   using ( ιNet; ιNet⁻¹; ιNet-linv
         ; linkMediumA; breakableLinkA; CopySpecBreakableA
         ; netLinkMediumA; breakableNetLinkA; NetworkLinkBreakableA )
 -- the PRE-rename link alphabet and the two `Net`-side confinement results
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkLinkOffers p Payload
+open import Cardano_network.NetworkVerification.NetworkLinkOffers p Payload
   using (linkAlpha; oo-NetOneLink; oo-linkCopy)
 -- the per-link equivalence, PROVED (two honest hypotheses, no axiom)
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.Exp p Payload
+open import Cardano_network.NetworkVerification.PerLink.Exp p Payload
   using (perLink)
 
 -- the CSP operator vocabulary at each alphabet (only `⦀⋆` is needed source-side)

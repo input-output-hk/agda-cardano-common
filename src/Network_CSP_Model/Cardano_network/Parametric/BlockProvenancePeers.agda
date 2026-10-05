@@ -39,7 +39,7 @@
 -- half must supply at the top level.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenancePeers where
+module Cardano_network.Parametric.BlockProvenancePeers where
 
 open import Level using (0ℓ)
 open import Data.Bool using (if_then_else_)
@@ -58,15 +58,15 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; cong;
 open import Class.DecEq using (_≟_)
 
 open import Process_Trees using (AnyTypes)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceBF as BPBF
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceBF as BPBF
 
 -- the same three parameters as every other `Parametric.BlockProvenance*` module
 module Generic
@@ -75,7 +75,7 @@ module Generic
 
   open Params p using (Block; linkConfig)
   -- (wholesale, as `NetworkPar`: the `Dir` decidable equality the bundle dispatches on)
-  open import CSP.Examples.Cardano_network.Base
+  open import Cardano_network.Base
   open N p
     using ( Link; Net_Api; Net_Api-≟
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
@@ -83,9 +83,9 @@ module Generic
           ; recvBFBlock )
   open D p using (Payload)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (Skip)
-  open import CSP.Examples.Cardano_network.BlockFetch p
+  open import Cardano_network.BlockFetch p
     using (BFEv; sendBF; receiveBF; apiBFev; doneBF; BFEv-≟)
-  open import CSP.Examples.Cardano_network.NetworkPar p
+  open import Cardano_network.NetworkPar p
     using ( ιKA; ιKA⁻¹; ιKA-linv; ιBF; ιBF⁻¹; ιBF-linv; ιCS; ιCS⁻¹; ιCS-linv
           ; ιTS; ιTS⁻¹; ιTS-linv; ιLN; ιLN⁻¹; ιLN-linv; ιLF; ιLF⁻¹; ιLF-linv
           ; BFclientA; BFserverA; clientPeer; serverPeer; nodeBundle )

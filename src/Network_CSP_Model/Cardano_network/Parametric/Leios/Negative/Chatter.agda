@@ -23,7 +23,7 @@
 -- for the same reason.  Nothing here is a claim about `systemOf`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.Negative.Chatter where
+module Cardano_network.Parametric.Leios.Negative.Chatter where
 
 open import Data.Bool using (true)
 open import Data.Empty using (⊥)
@@ -36,24 +36,24 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL
+open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
-open import CSP.Examples.Cardano_network.Base using (lo; hi)
-open import CSP.Examples.Cardano_network.Net leiosLParams
+open import Cardano_network.Base using (lo; hi)
+open import Cardano_network.Net leiosLParams
   using ( Net_Api; Net_Api-≟; store; env; apiLN; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done; break
         ; sendLNBlockAnnouncement )
-open import CSP.Examples.Cardano_network.Data leiosLParams using (Payload; Header; header)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
+open import Cardano_network.Data leiosLParams using (Payload; Header; header)
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
   using (Proc)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params leiosLParams using (Block)
 
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic leiosLParams leiosLLine apiES
   using (lnServerLoop; blockStore; storeES; getEv)
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using (blockStoreL; getAtEv)
 

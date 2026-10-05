@@ -35,15 +35,15 @@ open import Function.Base using (case_of_)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
+open import Cardano_network.NetworkPar p
   using ( BFserverA; ιBF; ιBF⁻¹; ιBF-linv )
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 import CSP.Operators {E = BF.BFEv} BF.BFEv-≟ as SrcOpB
 import CSP.Rename {E₁ = BF.BFEv} {E₂ = Net_Api Payload} ιBF ιBF⁻¹ ιBF-linv as RenBF
 
@@ -65,10 +65,10 @@ open import Semantics.DRImpliesFD {E = Net_Api Payload} {I = ExtI (Net_Api Paylo
 
 -- the spec tables + `NetTree` + `tableSpec`/`tMenu`, and the DR proof this
 -- experiment is compared against (its FORWARD obligations are reused verbatim)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipBFs
+open import Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePairFlipBFs
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairFlipBFsFSim where
+module Cardano_network.NetworkVerification.Liveness.PipePairFlipBFsFSim where
 
 ------------------------------------------------------------------------
 -- The offer-reflection lemmas: at every STABLE related pair, every visible

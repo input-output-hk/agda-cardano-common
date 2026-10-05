@@ -28,12 +28,12 @@ open import Data.Maybe.Properties using (just-injective)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using
   ( IDs; Dir; lo; hi; N2N_KeepAlive
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
   ; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.NetModel
+open import Cardano_network.NetModel
   using ( CS; mkCS; cs0
         ; inp; tr; ra; out; rc; sa
         ; IP; I0; I1; I2; Ig
@@ -44,9 +44,9 @@ open import CSP.Examples.Cardano_network.NetModel
         ; SP; Sa0; Sa1; Sag
         ; _⇒ᵢ_; _⇒ᵥ_
         ; gI; gT; gR; gO; gRc; gSa )
-import CSP.Examples.Cardano_network.NetModel as NM
+import Cardano_network.NetModel as NM
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGenExp
+module Cardano_network.NetworkVerification.NetworkRefinementGenExp
   (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
 open PTree
@@ -58,11 +58,11 @@ open ExtI
 -- downstream module open below.  (Defining a fresh local `p1` would make a
 -- distinct extended lambda for `numConns` and so a type-incompatible `Net p1`.)
 ------------------------------------------------------------------------
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinementGen Data
+open import Cardano_network.NetworkVerification.NetworkRefinementGen Data
 
-open import CSP.Examples.Cardano_network.Net p1
+open import Cardano_network.Net p1
   using (Net; Link; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)
-open import CSP.Examples.Cardano_network.Network p1 Data
+open import Cardano_network.Network p1 Data
 
 open import Semantics.LTS {E = Net Data} {I = ExtI (Net Data)} hiding (Diverges)
 open import Semantics.WeakBisim {E = Net Data} {I = ExtI (Net Data)}
@@ -78,7 +78,7 @@ open import Semantics.FailuresDivergences {E = Net Data} {I = ExtI (Net Data)}
 open import Semantics.DRImpliesFD {E = Net Data} {I = ExtI (Net Data)}
   using (drbisim→≈FD)
 
-open import CSP.Examples.Cardano_network.Net p1 using (Net-≟)
+open import Cardano_network.Net p1 using (Net-≟)
 
 open import CSP.Operators {E = Net Data} (Net-≟ {Data})
   using (Par⊤; _∥⇘_⇙_; _⦀_; _∖_; chanSet; EventSet; Skip; Par; ∅ES; viewV)

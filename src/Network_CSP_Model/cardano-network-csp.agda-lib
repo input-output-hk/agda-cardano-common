@@ -1,0 +1,6 @@
+name: cardano-network-csp
+depend:
+  standard-library
+  standard-library-classes
+  csp-ptree
+include: .

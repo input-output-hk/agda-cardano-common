@@ -36,18 +36,18 @@ open import Relation.Nullary using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (AnyTypes)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base
   using (N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission; N2N_KeepAlive
         ; N2N_LeiosNotify; N2N_LeiosFetch; FromInitiator)
 
 -- parametrised by the SAME abstract data bundle `NetworkLink`/`Net`/`Data` use
-module CSP.Examples.Cardano_network.Priority.BfOverLf (p : Params) where
+module Cardano_network.Priority.BfOverLf (p : Params) where
 
 open Params p using (time₀; length₀)
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using (Net; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack)
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using (Payload; leiosFetch; MsgLFDone)
 
 open import Semantics.PriOrderC {0ℓ} {0ℓ} {Net Payload}

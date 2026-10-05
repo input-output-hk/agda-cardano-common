@@ -47,15 +47,15 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; consume; produce; apiES; linkAB; linkAC; linkBD; linkCD; nodeB; nodeC )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
 
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( miniProtocols )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -73,23 +73,23 @@ open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
         ; sep-from-OffersOnly; ≈DR-OO )
 
 -- the M1 contract surface (NetTree)
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
   using ( NetTree )
 -- the M1 straight bundle bisim `b0 l : miniProtocols l hi lo ≈DR specBundle l`
 -- + the driver-Sep helper `sep-R` + value-blind api alphabet `apiAlpha`
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairAssembly
+open import Cardano_network.NetworkVerification.Liveness.PipePairAssembly
   using ( b0; sep-R; apiAlpha )
 -- the link-refined alphabet + its disjointness + straight bundle confinement
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeDOffers
+open import Cardano_network.NetworkVerification.Liveness.NodeDOffers
   using ( apiLinkAlpha; apiLinkAlpha-disj; specBundle; specBundle-onLink; implBundle-onLink )
 -- the flipped spec bundle + confinement + bind-coupled relay-driver OO
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeAOffers
+open import Cardano_network.NetworkVerification.Liveness.NodeAOffers
   using ( specBundleFlip; specBundleFlip-onLink; relay-OO-api )
 -- the flipped per-link bundle bisim `b0flip l : miniProtocols l lo hi ≈DR specBundleFlip l`
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairAssemblyFlip
+open import Cardano_network.NetworkVerification.Liveness.PipePairAssemblyFlip
   using ( b0flip )
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.NodeBC where
+module Cardano_network.NetworkVerification.Liveness.NodeBC where
 
 ------------------------------------------------------------------------
 -- Link-distinctness lemmas for the inner `cong-⦀` `Sep ∅ES` (trivial

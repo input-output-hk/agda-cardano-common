@@ -19,9 +19,9 @@
 -- (BFnetSpec ∖ bfMsgES)`, and the goal follows by `drbisim-sym`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefinementBisim (p : Params) where
+module Cardano_network.BlockFetchRefinement.BlockFetchNetRefinementBisim (p : Params) where
 
 open import Level using (lift) renaming (zero to lzero)
 open import Data.Unit using (⊤; tt)
@@ -36,12 +36,12 @@ open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
 
-open import CSP.Examples.Cardano_network.BlockFetch p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.BlockFetch p
+open import Cardano_network.Net p
   using ( ApiBFTag; ApiBFCar
         ; sendBFRequestRange; sendBFClientDone; sendBFStartBatch
         ; sendBFNoBlocks; sendBFBlock; sendBFBatchDone; recvBFBlock; reqBFRange )
-open import CSP.Examples.Cardano_network.Data p using (ChainRange; DecEq-ChainRange)
+open import Cardano_network.Data p using (ChainRange; DecEq-ChainRange)
 open Params p
 
 open import Semantics.LTS {E = BFNetEv} {I = ExtI BFNetEv} hiding (Diverges)
@@ -69,7 +69,7 @@ open import CSP.Laws.Traces.TraceLawsParallelElim BFNetEv-≟
 -- the committed network transition oracle (part 1): JN-τ-cases / JN-ev-apiBF,
 -- the per-config netX-τ inversions, the per-config nd-* divergence lemmas, the
 -- spec states IT / S-loop / S-req / …, spec3-noDiv, and the joint configs.
-open import CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefinement p
+open import Cardano_network.BlockFetchRefinement.BlockFetchNetRefinement p
 -- net-noDiv (part 2): the hidden network is divergence-free at every reach.
 -- DEV-DECOUPLE: part 2 (net-noDiv) has no cached interface and is very slow to
 -- cold-typecheck, so during development it is stubbed locally (see the
@@ -77,7 +77,7 @@ open import CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefin
 -- the final full verify.  The RState CARRIER below does not use net-noDiv at
 -- all (it is needed only in mkDR's div→ field), so the carrier increment checks
 -- against part 1 (cached) alone.
--- open import CSP.Examples.Cardano_network.BlockFetchRefinement.BlockFetchNetRefinementNet p using (net-noDiv)
+-- open import Cardano_network.BlockFetchRefinement.BlockFetchNetRefinementNet p using (net-noDiv)
 
 open NetOps using (_∖_; Par⊤; Par; iter; iter-bind; Ret; Output; Prefix; Prefix₀; pchoice; Skip; loop0; loop; _⦀_; _∥⇘_⇙_; _>>=_; ∅ES; viewV; EventSet)
 open DRbisim

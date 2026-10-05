@@ -28,7 +28,7 @@
 -- broken one coexist, which is what lets the two be compared.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceBadLogic where
+module Cardano_network.Parametric.AnnounceBadLogic where
 
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe)
@@ -36,12 +36,12 @@ open import Data.Product using (_×_; _,_)
 -- the `DecEq (List Block)` instance the `□`s of the store step need (`Held` is a list)
 open import Class.DecEq.Instances using (DecEq-List)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.NodeLogic as NL
 
 ------------------------------------------------------------------------
 -- The generic layer — same three parameters as `Parametric.NodeLogic.Generic`
@@ -60,7 +60,7 @@ module Generic
   open Topology t using (Node)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (_∥⇘_⇙_; _⦀_; _□_; Ret; Prefix; loop)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (Proc)
+  open import Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
     using (Held; StoreProc; forgeEv; putEv; offerHeld; storeES; forge; allThreads)
 

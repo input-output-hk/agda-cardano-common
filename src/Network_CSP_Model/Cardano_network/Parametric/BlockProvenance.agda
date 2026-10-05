@@ -63,7 +63,7 @@
 --     `wellAnnounced-mono`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenance where
+module Cardano_network.Parametric.BlockProvenance where
 
 open import Level using (Level; 0ℓ; _⊔_; lift) renaming (suc to lsuc)
 open import Data.Empty using (⊥; ⊥-elim)
@@ -80,14 +80,14 @@ open import Relation.Nullary using (Dec; ¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; ptree; react; AnyTypes; ExtI; base; pair; fin; deadlock)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 import Semantics.LTS as LTS
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
 
 ------------------------------------------------------------------------
 -- The generic carrier
@@ -527,8 +527,8 @@ module Generic
           ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
           ; stGet; stPut; sendBFBlock; recvBFBlock; sendLNBlockAnnouncement )
   open D p using (Payload; Header; header; blockFetch; MsgBlock)
-  open import CSP.Examples.Cardano_network.Base using (Dir; Mode; N2N_BlockFetch)
-  open import CSP.Examples.Cardano_network.NetCommon p using (ioES)
+  open import Cardano_network.Base using (Dir; Mode; N2N_BlockFetch)
+  open import Cardano_network.NetCommon p using (ioES)
   open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; ev; τ; evl; √; evLabel; _─[_]─►_)
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload}) using (Alpha)

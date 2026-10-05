@@ -74,36 +74,36 @@ open import Relation.Binary.PropositionalEquality
 open import Process_Trees
   using ( PTree; ExtI; AnyTypes; ContinueType; react )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntroCS
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntroCS
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; apiES; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   -- (T8c-ii) `output` joins `input`: §1c is §1's `input` ladder at the READER's
   -- polarity, which is what the down CS SERVER's own wire-read needs
   using ( Net; Net-≟; Net_Api; Net_Api-≟; Link; break; input; output )
 -- (T8c-ii) `chainSync`/`MsgCSRequestNext` are named by §2b's rung 1(b): the
 -- server's read row is LENIENT in the payload tuple's first three components, so the
 -- lemma quantifies them and spells the message out
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   -- (T11) §3's `csWrf` position instance names the ROLLFORWARD the relay's own
   -- server writes at `pp3`
   using ( Payload; chainSync; MsgCSRequestNext
         ; MsgCSRollForward; Header; Tip )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv )
+open import Cardano_network.Params using ( Params )
 -- (T8c-ii) `Time`/`Length` are the two lenient components of the read row's payload
 -- (T11) … and `time₀`/`length₀`, the two PINNED components of that write's payload
 open Params p using ( linkConfig; Time; Length; time₀; length₀ )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; lo; hi; IDs; Mode
   -- (T11) the responder-side mode the `csWrf` write's payload is pinned at
   ; FromResponder
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission; N2N_KeepAlive
   ; N2N_LeiosNotify; N2N_LeiosFetch )
-import CSP.Examples.Cardano_network.ChainSync p as CS
+import Cardano_network.ChainSync p as CS
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as OpA
 open OpA using ( _△_; _⦀_; Prefix₀ )
@@ -121,32 +121,32 @@ import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload}
   ιNet ιNet⁻¹ ιNet-linv as RenNet
 open RenNet using ( renameMap; rnFan; rnCollect; invRel; invPreimg; ι-vis-inv )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; phase; broken; decMed; decLink; decCopy
         ; CopyPhase; empty; draining; full; NetProcN )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
 open STC using ( NetProc; fold-react; mkReactF )
 open STC.MedNO using ( force-renameMap-react )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( IoOffers; ⦀-ev-L; ⦀-ev-R; ⦀-noOffer; ∥⇘⇙-ev-soloL; ⦀-τ-L; ⦀-τ-R
         ; absCSs; absBundleG; absNodeB; absNodeC; absNodesOf; coarsenCSs
         -- (T8c-ii) §2b's two new ladders: node D's own CS CLIENT (the writer) and
         -- the relay's CS SERVER at the READER's polarity
         ; absCSc; absNodeA; absNodeD; coarsenCSc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 -- (T6b review, finding M-4: this module opened `SysOracle blkA` TWICE at the same
 -- instantiation with disjoint `using` lists; the two are merged here, restoring the
 -- campaign's one-import-per-parameterised-module rule)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( io⇒¬api; ahlIn
         -- (T8c-ii) the READER polarity's link witness, for §2b(b)'s two rung-3 lifts
         ; ahlOut )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA
   using ( noOffer→viewV )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_PeerEvCSBF blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_PeerEvCSBF blkA
   using ( aCSs; ceqCSs16
         -- (T8c-ii) rung 1 of the two new ladders: the client's own request WRITE row
         -- (`ccWreq → ccAwait`, payload-gated) and the server's request READ row
@@ -155,17 +155,17 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_Pe
         -- (T11) … and the ROLLFORWARD wire-send row (`csWrf ht → csIdle`,
         -- payload-PINNED), which is §3's new position instance's rung 1
         ; aCSc; ceqCSc11; ceqCSs01; ceqCSs14 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteKaTs blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteKaTs blkA
   using ( absBundle-CSs-ev
         -- (T8c-ii) rung 2 of the CLIENT ladder — the CS-client twin
         ; absBundle-CSc-ev )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink blkA
   using ( absBundleG-io-no; nodeB-drv-io-no; nodeC-drv-io-no
         ; linkAB≢linkBD; linkAC≢linkCD
         -- (T8c-ii) node D's own driver refusal (rung 3 of the CLIENT ladder) and the
         -- two-link disequality its co-bundle refusal needs
         ; nodeD-drv-io-no; linkBD≢linkCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 blkA
   using ( absNodeB-io-fp; absNodeC-io-fp; absGroupB-io-no
         ; absNodeA-io-no-when-B
         ; absNodeA-io-no-when-C; absNodeB-io-no-when-C; absNodeD-io-no-when-C
@@ -173,13 +173,13 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink3 b
         -- it — rung 4 of the CLIENT ladder, node D being the FOURTH operand
         ; absNodeD-io-fp
         ; absNodeA-io-no-when-D; absNodeB-io-no-when-D; absNodeC-io-no-when-D )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( dnLink )
 
 -- *** THE KEY-GENERIC HALF OF THE BF LADDERS, CALLED AND NEVER COPIED. ***
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntro blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIoIntro blkA
   using ( SkipA; IoOffersN; noOfferN→viewV; ⦀N-ev-L; ⦀N-ev-R; ⦀N-noOffer
         ; skipN-no-ev; rnN-vis-just; △-fire-P
         ; cell-in-fire; cell-no-in-d; cell-no-in-i; cell-no-in-dv; cell-no-in-iv
@@ -191,7 +191,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveIo
         ; cell-out-fire; cell-no-out-d; cell-no-out-i; cell-no-out-dv; cell-no-out-iv
         ; ι-vis-inv-out; prefix-no-out; medF-no-out; iomem-out )
 -- the CS channel invariant's own accessors and the `MsgCSAwaitReply` payload
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanCS blkA
   using ( arPayload; dnCSsOf; cellCSDn
         -- (T8c-ii) the client's own request payload (rung 1 of the CLIENT ladder is
         -- payload-GATED, unlike the server's) and node D's CS-client accessor

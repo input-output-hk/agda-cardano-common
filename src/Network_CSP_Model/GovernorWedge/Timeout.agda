@@ -7,7 +7,7 @@
 -- the never-run wedge W0 the next incarnation is tracked (F1-heal). On the field path
 -- the timeout fires while the IG awaits live, active D and deletes D's entry by key
 -- (IG:406), so fix #1 alone orphans D (F1-orphan).
-module CSP.Examples.GovernorWedge.Timeout where
+module GovernorWedge.Timeout where
 
 open import Data.Nat using (ℕ)
 open import Data.Bool using (false)
@@ -20,10 +20,10 @@ open import Relation.Binary.PropositionalEquality using (refl)
 
 open import Process_Trees
 open PTree
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
-open import CSP.Examples.GovernorWedge.Witness using (w0; W0T-reach)
-open import CSP.Examples.GovernorWedge.FieldPath using (wF; cF; gF; W1fT-reach)
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
+open import GovernorWedge.Witness using (w0; W0T-reach)
+open import GovernorWedge.FieldPath using (wF; cF; gF; W1fT-reach)
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_; traces)
 

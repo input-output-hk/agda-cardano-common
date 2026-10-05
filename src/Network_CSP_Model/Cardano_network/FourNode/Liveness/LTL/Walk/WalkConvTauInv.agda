@@ -34,16 +34,16 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvTauInv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvTauInv (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Net; Net-≟; Link; break )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Net; Net-≟; Link; break )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.NetCommon p using ( ιNet; ιNet⁻¹; ιNet-linv )
+open import Cardano_network.Params using ( Params )
 open Params p using ( numLinks; linkConfig )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; lo; hi; IDs
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission; N2N_KeepAlive
   ; N2N_LeiosNotify; N2N_LeiosFetch )
@@ -61,12 +61,12 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)} as LN
 
 -- the shared medium decode + records
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN )
 
 -- R2's frozen inversion primitives (all re-derivations reuse these verbatim)
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA as STC
 open STC using
   ( NetProc; decCopy-τ-inv; flipCell; ⦀⋆-τ-inv; ⦀Fin-τ-inv; finUpd
   ; fold-react; △-τ-elim; ret-no-τ; phase-upd; recon-decMed

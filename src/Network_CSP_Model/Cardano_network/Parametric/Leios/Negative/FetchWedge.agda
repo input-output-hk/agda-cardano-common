@@ -38,7 +38,7 @@
 -- statement.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.Negative.FetchWedge where
+module Cardano_network.Parametric.Leios.Negative.FetchWedge where
 
 open import Level using (0ℓ; lift)
 open import Data.Bool using (true; false)
@@ -53,21 +53,21 @@ open import Relation.Nullary using (¬_; yes; no)
 open import Relation.Binary.PropositionalEquality using (refl)
 
 open import Process_Trees using (ExtI; base; pair; fin)
-open import CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL
+open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
-open import CSP.Examples.Cardano_network.Base using (lo; hi)
-open import CSP.Examples.Cardano_network.Net leiosLParams
+open import Cardano_network.Base using (lo; hi)
+open import Cardano_network.Net leiosLParams
   using (Net_Api; Net_Api-≟; apiLP; lfpReqBlockRequest)
-open import CSP.Examples.Cardano_network.Data leiosLParams using (Payload)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
+open import Cardano_network.Data leiosLParams using (Payload)
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
   using (Proc)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params leiosLParams using (EB; EBHash; LSlot)
 
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using (getBodyEv; putBodyEv; bodyStore; ebServeLoop)
 

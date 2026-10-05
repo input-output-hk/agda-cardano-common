@@ -25,7 +25,7 @@
 -- surface (and `AnnounceContent`'s negative control over it) untouched.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceInvariant where
+module Cardano_network.Parametric.AnnounceInvariant where
 
 open import Level using (0ℓ)
 open import Data.Bool using (Bool; true)
@@ -47,13 +47,13 @@ open import Relation.Nullary.Decidable using (⌊_⌋; fromWitness; toWitness)
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
 
 ------------------------------------------------------------------------
 -- The generic layer
@@ -72,15 +72,15 @@ module Generic
     using ( Net_Api; Net_Api-≟; env; envForge; apiLN; sendLNBlockAnnouncement )
   open D p using (Payload; Header; header)
   open Topology t using (Node)
-  open import CSP.Examples.Cardano_network.NetCommon p using (NetworkLinkBreakableA)
+  open import Cardano_network.NetCommon p using (NetworkLinkBreakableA)
   -- the medium's own event classification and the per-link confinement witnesses
   -- (`classify` sends the eight wire channels and `break` to `just`, and EVERY
   -- node-local channel — `done`/`api*`/`store`/`env` — to `nothing`)
-  open import CSP.Examples.Cardano_network.MediumEquivA p
+  open import Cardano_network.MediumEquivA p
     using (classify; linkAlphaA; oo-breakableNetLinkA)
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload})
     using (Alpha; OffersOnly; OffersOnly-mono; OffersOnly-⦀Fin; unionAlpha)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES
+  open import Cardano_network.Parametric.Node p t apiES
     using (Proc; systemOfWith)
   open NL.Generic p t apiES using (nodeLogic)
   open AS.Generic p t apiES

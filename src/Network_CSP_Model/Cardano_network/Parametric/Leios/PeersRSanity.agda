@@ -14,19 +14,19 @@
 -- `Parametric/Node.agda`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.PeersRSanity where
+module Cardano_network.Parametric.Leios.PeersRSanity where
 
 open import Data.Product using (_×_)
 
-open import CSP.Examples.Cardano_network.Base using (Dir)
-open import CSP.Examples.Cardano_network.Parametric.LineInstance using (lineParams; line)
-open import CSP.Examples.Cardano_network.Net lineParams using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data lineParams using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon lineParams using (NetworkLinkBreakableA)
-open import CSP.Examples.Cardano_network.ApiAlphabet lineParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node lineParams line apiES
+open import Cardano_network.Base using (Dir)
+open import Cardano_network.Parametric.LineInstance using (lineParams; line)
+open import Cardano_network.Net lineParams using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data lineParams using (Payload)
+open import Cardano_network.NetCommon lineParams using (NetworkLinkBreakableA)
+open import Cardano_network.ApiAlphabet lineParams using (apiES)
+open import Cardano_network.Parametric.Node lineParams line apiES
   using (Proc; bundleAtWith; nodeWith; systemOfWithNode)
-open import CSP.Examples.Cardano_network.Parametric.Leios.PeersR lineParams
+open import Cardano_network.Parametric.Leios.PeersR lineParams
   using (nodeBundleR)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op

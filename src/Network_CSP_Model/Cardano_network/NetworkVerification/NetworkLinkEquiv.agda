@@ -31,14 +31,14 @@ import Data.List.Relation.Unary.All as All
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkLinkEquiv
+module Cardano_network.NetworkVerification.NetworkLinkEquiv
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using (Net; Net-≟; Link)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Base using (Dir; IDs)
 open Params p using (linkConfig)
 
 -- the generic `OffersOnly`/`≈DR`-congruence layer, instantiated at `E = Net Data`
@@ -52,16 +52,16 @@ open import Semantics.FailuresDivergences {E = Net Data} {I = ExtI (Net Data)}
 open import Semantics.DRImpliesFD {E = Net Data} {I = ExtI (Net Data)}
   using (drbisim→≈FD)
 
-open import CSP.Examples.Cardano_network.Network p Data
+open import Cardano_network.Network p Data
   using (CopySpec; linkCopy)
-open import CSP.Examples.Cardano_network.NetworkLink p Data
+open import Cardano_network.NetworkLink p Data
   using (NetworkLink; NetOneLink)
-open import CSP.Examples.Cardano_network.NetworkVerification.NetworkLinkOffers p Data
+open import Cardano_network.NetworkVerification.NetworkLinkOffers p Data
   using (linkAlpha; linkAlpha-disj; oo-NetOneLink; oo-linkCopy)
 -- the GENERAL per-link result, PROVED without any axiom (Milestone 2b capstone):
 -- `perLink : (l : Link) → linkConfig l ≢ [] → Unique (linkConfig l)
 --          → NetOneLink l ≈DR linkCopy l`
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.Exp p Data
+open import Cardano_network.NetworkVerification.PerLink.Exp p Data
   using (perLink)
 
 ------------------------------------------------------------------------

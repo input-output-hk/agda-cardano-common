@@ -23,9 +23,9 @@
 -- `systemOfWithNode (nodeWith nodeBundleR) …` with no edit to `Node.agda`.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
-module CSP.Examples.Cardano_network.Parametric.Leios.PeersR (p : Params) where
+module Cardano_network.Parametric.Leios.PeersR (p : Params) where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤)
@@ -37,14 +37,14 @@ open import Class.DecEq using (_≟_)
 
 open import Process_Trees using (PTree; ExtI)
 
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs; N2N_TxSubmission; N2N_LeiosFetch)
+open import Cardano_network.Base using (Dir; IDs; N2N_TxSubmission; N2N_LeiosFetch)
 open Params p using (linkConfig)
-open import CSP.Examples.Cardano_network.Net p using (Link; Net_Api; Net_Api-≟)
-open import CSP.Examples.Cardano_network.Data p using (Payload)
-open import CSP.Examples.Cardano_network.TxSubmission p using (TSEv; TSserverStClientR)
-open import CSP.Examples.Cardano_network.LeiosFetch p using (LFEv; LFserverStClientR)
+open import Cardano_network.Net p using (Link; Net_Api; Net_Api-≟)
+open import Cardano_network.Data p using (Payload)
+open import Cardano_network.TxSubmission p using (TSEv; TSserverStClientR)
+open import Cardano_network.LeiosFetch p using (LFEv; LFserverStClientR)
 -- the ι-renames and the stock bundle builder are all public in `NetworkPar`
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( ιTS; ιTS⁻¹; ιTS-linv; ιLF; ιLF⁻¹; ιLF-linv; clientPeer; serverPeer )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op

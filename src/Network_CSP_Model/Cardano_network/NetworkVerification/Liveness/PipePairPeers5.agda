@@ -35,17 +35,17 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Process_Trees
 open PTree
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; consume; apiES; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open Params p
-open import CSP.Examples.Cardano_network.Base
-open import CSP.Examples.Cardano_network.Data p
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base
+open import Cardano_network.Data p
+open import Cardano_network.Net p
 
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( TSserverA; ιTS; ιTS⁻¹; ιTS-linv )
-import CSP.Examples.Cardano_network.TxSubmission p as TS
+import Cardano_network.TxSubmission p as TS
 import CSP.Operators {E = TS.TSEv} TS.TSEv-≟ as SrcOpT
 import CSP.Rename {E₁ = TS.TSEv} {E₂ = Net_Api Payload} ιTS ιTS⁻¹ ιTS-linv as RenTS
 
@@ -61,9 +61,9 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; sRet; sSil; sVis; sTau; ev; evl; evLabel; Event√; √; Label; τ
         ; Diverges )
 
-open import CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePair
+open import Cardano_network.NetworkVerification.Liveness.PipePair
 
-module CSP.Examples.Cardano_network.NetworkVerification.Liveness.PipePairPeers5 where
+module Cardano_network.NetworkVerification.Liveness.PipePairPeers5 where
 
 -- x ≟ x computes to yes refl for the Payload DecEq (repo ≟-diag idiom)
 ≟-diagP : (x : Payload) → (x ≟ x) ≡ yes refl

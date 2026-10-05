@@ -80,26 +80,26 @@ open import Class.DecEq using ( DecEq; _≟_ )
 
 open import Process_Trees using ( PTree; ExtI; AnyTypes; ContinueType; NodeKind; react )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Evidence.PipeValGate (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Evidence.PipeValGate (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; Block₃; linkAB; linkAC; linkBD; linkCD; produce; consume )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Block; time₀; length₀ )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Base
   using ( Dir; hi; lo; N2N_BlockFetch; FromResponder; FromInitiator )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using ( Payload; Messages; blockFetch; MsgBlock; MsgStartBatch; MsgNoBlocks
         ; MsgBatchDone; DecEq-Payload )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; input; output; apiBF; apiCS
         ; sendBFBlock; recvBFBlock )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 
 -- the whole-system process type
 NetProc : Set₁

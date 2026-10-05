@@ -36,17 +36,17 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; _≢_; refl; sy
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkUnbLocate (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkUnbLocate (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Base using ( hi )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Base using ( hi )
+open import Cardano_network.Net p
   using ( Net_Api; Link
         ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; break
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack ; store; env )
   renaming ( done to netDone )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( Event; Event√; evl; √; evLabel; ev; _─[_]─►_ )
@@ -60,30 +60,30 @@ open import Semantics.LTL.WTrace
   using ( WTrace; ∞WTrace; step; done; stuck; div; ⟦_⟧ᵂ; frameOf; IsTermᵂ
         ; drop; dropIdx; tail; tailIdx; dropIdx-stutter )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; brkG1; brkG2 )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys; rinit; radec-init )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( G⁺ᵂ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( Pr )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkCausal blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkCausal blkA
   using ( term-no-prod; noWeakVis-deadlock; sqrt-target-deadlock )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkDeliver blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkDeliver blkA
   using ( refute-weak )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA as SB
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA as SO
-import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeLocate blkA as PL
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkBrkFire blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysBisim blkA as SB
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA as SR
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA as SO
+import Cardano_network.FourNode.Liveness.LTL.Value.PipeLocate blkA as PL
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkBrkFire blkA
   using ( GSide; g1; g2; protA; protB; Unb; unbFix; unbT )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkBrkLift blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkBrkLift blkA
   using ( liftReach-ev-brk; liftReach-break-brk )
 
 ------------------------------------------------------------------------

@@ -34,19 +34,19 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; _≢_; refl; sy
 open import Process_Trees using ( PTree; ExtI )
 open import Class.DecEq using ( _≟_ )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkBreakDrop (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkBreakDrop (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The model, the medium decode, the break inversion, and the budget.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
+open import Cardano_network.FourNode.FourNodeDiamond using
   ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; break )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( Dir; IDs )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; break )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( Dir; IDs )
+open import Cardano_network.Params using ( Params )
 open Params p using ( numLinks )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -56,19 +56,19 @@ open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
 
 -- the medium state, its decode, and the per-link decode
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; mkMed; phase; broken; decLink; decMed; CopyPhase; NetProc )
 -- the frozen break inversion + the `broken`-flip successor + reconstruction
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysRoute blkA
   using ( broken-upd; link-break-chan; break-noBoth; recon-decMed-brk )
 -- the four-link interleave ev-inversion + the `ret` no-event refuter
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( ⦀Fin-ev-inv; ret-no-ev )
 -- the positional finite update (target of `⦀Fin-ev-inv`)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( finUpd )
 -- the whole-trace break budget (the descent's break summand)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.Walk blkA
   using ( breakBudget; b2n; linkBudget )
 
 ------------------------------------------------------------------------

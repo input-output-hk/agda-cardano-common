@@ -122,12 +122,12 @@ import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using ( PTree; ExtI; ret; react )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCSRow
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Link; ApiCSTag; ApiCSCar
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; break; done
   ; apiCS; apiBF; apiKA; apiTS; apiLN; apiLF; apiLP; store; env
@@ -142,20 +142,20 @@ open import CSP.Examples.Cardano_network.Net p using
   ; sendCSIntersectNotFound; recvCSRollforward; recvCSRollback
   ; recvCSIntersectFound; recvCSIntersectNotFound
   ; reqCSRequestNext; reqCSFindIntersect )
-open import CSP.Examples.Cardano_network.Data p using
+open import Cardano_network.Data p using
   ( Payload; Point; Header; Tip; point; header; tip
   ; DecEq-Point; DecEq-Header; DecEq-Tip; DecEq-Payload
   ; chainSync; MsgCSRequestNext; MsgCSFindIntersect; MsgCSDone
   ; MsgCSRollForward; MsgCSRollBackward; MsgCSAwaitReply
   ; MsgCSIntersectFound; MsgCSIntersectNotFound )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Params using ( Params )
 open Params p using ( time₀; length₀ )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; DecEq-Dir; FromInitiator; FromResponder; IDs
   ; N2N_ChainSync; N2N_BlockFetch; N2N_KeepAlive; N2N_TxSubmission
   ; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.NetworkPar p using ( ιCS )
-import CSP.Examples.Cardano_network.ChainSync p as CS
+open import Cardano_network.NetworkPar p using ( ιCS )
+import Cardano_network.ChainSync p as CS
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
@@ -167,38 +167,38 @@ open Op using ( _⦀_ )
 open Op using () renaming ( ∅ES to ∅ESa )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open NS using ( DecEq-H×T; DecEq-P×T )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( CScPos; CSsPos; BFcPos; BFsPos; InertPos
               ; kac; kas; tsc; tss; lnc; lns; lfc; lfs
               ; bundleG; decKAc; decKAs; decCSc; decCSs )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA as SStep
 open SStep using ( NetProc; absCSc; absCSs; coarsenCSc; coarsenCSs; absBundleG
                  ; absKAc; absKAs; absBFc; absBFs; absTSc; absTSs
                  ; absLNc; absLNs; absLFc; absLFs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle blkA
   using ( csEvLink; csCnxt-link-no; csSnxt-link-no )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_GapBDisj blkA
   using ( csEvDir; noOffer→viewV; ιKA⁻¹∘ιCS
         ; decKAc-noOffer; decKAs-noOffer
         ; absKAc-noCS; absKAs-noCS; absBFc-noCS; absBFs-noCS
         ; absTSc-noCS; absTSs-noCS )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteKaTs blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteKaTs blkA
   using ( csCnxt-dir-no; csSnxt-dir-no; absCSs-dir-noBoth; decCSc-dir-noOffer
         ; absLNc-noCS; absLNs-noCS; absLFc-noCS; absLFs-noCS )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_RouteLnLf blkA
   using ( csTail-css-noOffer; csTail-bfc-noOffer )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink6 blkA
   using ( ⦀-wev-L; ⦀-wev-R; absCSc-ev-dir; absCSs-ev-dir )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( tableSpec-ev-inv; tableSpec-ev-fwd; nothing-absurd
         ; tsForce-ret; tsForce-react )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( ≟-yes-refl )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysIoLink5 blkA
   using ( Tcsc; Tcss; decCSc-ev-prod-abs; decCSs-ev-prod-abs )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_PeerEvCSBF blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_PeerEvCSBF blkA
   using ( ceqCSc01; ceqCSc06; ceqCSc07; ceqCSc10; ceqCSc11; ceqCSc12; ceqCSc13
         ; ceqCSc15; ceqCSc16; ceqCSc17; ceqCSc18
         ; ceqCSs01; ceqCSs06; ceqCSs07; ceqCSs10; ceqCSs11; ceqCSs12; ceqCSs13

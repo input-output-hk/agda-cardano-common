@@ -34,7 +34,7 @@
 -- three shipped topologies by a decision procedure.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.AnnounceSafeConcrete where
+module Cardano_network.Parametric.AnnounceSafeConcrete where
 
 open import Data.List using ([])
 open import Data.List.Relation.Unary.Unique.Propositional using (Unique)
@@ -42,17 +42,17 @@ open import Data.Product using (_×_; proj₁)
 open import Relation.Binary.PropositionalEquality using (_≢_)
 
 open import Process_Trees using (ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.NetCommon as NC
-import CSP.Examples.Cardano_network.ApiAlphabet as AA
-import CSP.Examples.Cardano_network.MediumEquivA as ME
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafeCopy as ASC
+import Cardano_network.NetCommon as NC
+import Cardano_network.ApiAlphabet as AA
+import Cardano_network.MediumEquivA as ME
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceSafeCopy as ASC
 
 -- a well-formed link configuration: every link is configured with at least one
 -- mini-protocol instance, and no instance twice — `netLinkBreakable≈DR`'s premise
@@ -93,7 +93,7 @@ module Generic
   open NC p using (CopySpecBreakableA; NetworkLinkBreakableA)
   open import Semantics.Failures {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (⊑T-refl)
-  open import CSP.Examples.Cardano_network.Parametric.Node p t apiES using (node)
+  open import Cardano_network.Parametric.Node p t apiES using (node)
   open NL.Generic p t apiES using (nodeLogic)
   open AS.Generic p t apiES using (AnnounceSafeTWith; AnnounceSafeT; announceSafeT-from-nodes)
   open Medium p

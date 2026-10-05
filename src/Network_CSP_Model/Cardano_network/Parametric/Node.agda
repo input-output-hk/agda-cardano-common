@@ -41,21 +41,21 @@ open import Data.Unit.Polymorphic using (⊤)
 open import Level using (0ℓ)
 
 open import Process_Trees using (PTree; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology; opposite)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology; opposite)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
 
-module CSP.Examples.Cardano_network.Parametric.Node
+module Cardano_network.Parametric.Node
   (p : Params) (t : Topology p)
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
-open import CSP.Examples.Cardano_network.Base using (Dir)
+open import Cardano_network.Base using (Dir)
 open N p using (Link; Net_Api; Net_Api-≟)
 open D p using (Payload)
-open import CSP.Examples.Cardano_network.NetCommon p using (CopySpecBreakableA; NetworkLinkBreakableA; ioES)
-open import CSP.Examples.Cardano_network.NetworkPar p using (miniProtocols; nodeBundle)
+open import Cardano_network.NetCommon p using (CopySpecBreakableA; NetworkLinkBreakableA; ioES)
+open import Cardano_network.NetworkPar p using (miniProtocols; nodeBundle)
 open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_⦀_; _∥⇘_⇙_; _∖_; ⦀⁺; ⦀Fin⁺)
 open Topology t using (Node; numNodes-1; endpointsOf)
 
@@ -92,7 +92,7 @@ linkBundles = linkBundlesWith nodeBundle
 
 -- THE DEFAULT NODE: config-driven peers.  A `linkConfig`/peer mismatch is what made
 -- every Leios announcement unreachable before `5c16c3ff`; this instantiation makes
--- such a mismatch unstatable.  `CSP.Examples.Cardano_network.BundleBridge` relates
+-- such a mismatch unstatable.  `Cardano_network.BundleBridge` relates
 -- the two builders by a theorem — `nodeBundle∼miniProtocols-lo` at `∼` and
 -- `nodeBundle≈FDminiProtocols` at `≈FD`, under a `FullConfig` hypothesis — so the
 -- switch of default is not a change of semantics on a fully-configured link.

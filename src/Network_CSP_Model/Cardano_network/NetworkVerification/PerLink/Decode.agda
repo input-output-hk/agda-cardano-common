@@ -39,13 +39,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; IDs)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; IDs)
 
-module CSP.Examples.Cardano_network.NetworkVerification.PerLink.Decode
+module Cardano_network.NetworkVerification.PerLink.Decode
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ where
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Net-≟; Link
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
 open Params p using (linkConfig)
@@ -53,12 +53,12 @@ open Params p using (linkConfig)
 import CSP.Operators {E = Net Data} (Net-≟ {Data}) as Op
 open Op using (_∥⇘_⇙_; _⦀_; ⦀⋆; _∖_; chanSet; Skip)
 
-open import CSP.Examples.Cardano_network.Network p Data
+open import Cardano_network.Network p Data
   using ( NetProc; Input; Output
         ; csSR; csSR-dec; csRS; csRS-dec; csTA; csTA-dec )
-open import CSP.Examples.Cardano_network.NetworkLink p Data
+open import Cardano_network.NetworkLink p Data
   using ( Transmitterₗ; RcvAckₗ; Receiverₗ; SndAckₗ; NetOneLink )
-open import CSP.Examples.Cardano_network.NetworkVerification.PerLink.State p Data
+open import Cardano_network.NetworkVerification.PerLink.State p Data
 
 ------------------------------------------------------------------------
 -- The three value-level sync/hide sets, exactly the `Network.agda` forms

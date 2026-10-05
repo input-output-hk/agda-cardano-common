@@ -40,20 +40,20 @@ open import Data.Product using ( _×_; _,_ )
 open import Data.Sum using ( _⊎_; inj₁; inj₂ )
 open import Relation.Binary.PropositionalEquality using ( _≡_; refl; sym; subst )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriver (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA using
   ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
   ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
   ; CPPh; consuming; producing )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA using
   ( ProdAdv; a01; a12; a23; a34; a45; a56; a67; a78; a89
   ; ConsAdv; c01; c12; c23; c34; c45; c56
   ; CPAdv; cpC; cpB; cpP )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA using
   ( TwoLegs; phOf; InCp03 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA using
   ( PipeInv⁺; prodOf; relayOf; cellUp; cellDn; upClient; dnClient
   ; ProdSent; ProdNotSent; RelayPre; RelayHas; RelayFwd; ConsRecv; BFcHasBlk
   ; CellHasBlk; transImp

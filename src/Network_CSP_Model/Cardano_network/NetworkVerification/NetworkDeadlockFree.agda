@@ -30,25 +30,25 @@ open import Data.Nat using (ℕ; zero; suc)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.List using (List; []; _∷_; map)
 open PTree
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 
 -- `d₀ : Data` is an inhabitant witness: the head `Copy l dr id` offers `input l dr id ? d`
 -- for `d : Data`, so liveness genuinely requires the payload type to be inhabited
 -- (an empty `Data` would deadlock the buffer at its first input).
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkDeadlockFree
+module Cardano_network.NetworkVerification.NetworkDeadlockFree
   (p : Params) (Data : Set) ⦃ _ : DecEq Data ⦄ (d₀ : Data) where
 
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   using ( Net; Link; Net-≟
         ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack )
-open import CSP.Examples.Cardano_network.Base using (IDs; Dir)
+open import Cardano_network.Base using (IDs; Dir)
 open Params p using (numLinks; linkConfig)
 
 import CSP.Operators {E = Net Data} (Net-≟ {Data}) as Op
 open Op using (pchoice; Skip; loop0; Par; _⦀_; ∅ES; par-pVis; par-brBoth; EventSet; ⦀Fin; ⦀⋆)
 open EventSet
 
-open import CSP.Examples.Cardano_network.Network p Data
+open import Cardano_network.Network p Data
   using (Copy; NetProc; Menu; copyMenu; linkCopy; CopySpec; Network)
 open Op using (Output; _>>=_; Ret; iter; iter-bind)
 

@@ -45,7 +45,7 @@
 -- the repair.  Nothing imports it.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicLSanity where
+module Cardano_network.Parametric.Leios.NodeLogicLSanity where
 
 import Data.Unit as U
 open import Data.Unit.Polymorphic using (tt)
@@ -57,19 +57,19 @@ open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; ExtI)
-open import CSP.Examples.Cardano_network.Base using (Dir; lo)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Leios.LeiosInstanceL
+open import Cardano_network.Base using (Dir; lo)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
-open import CSP.Examples.Cardano_network.Net leiosLParams
+open import Cardano_network.Net leiosLParams
   using (Net_Api; Net_Api-≟; env; envSubmit; envForgeCert; store; stPut)
-open import CSP.Examples.Cardano_network.Data leiosLParams using (Payload)
-open import CSP.Examples.Cardano_network.ApiAlphabet leiosLParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
+open import Cardano_network.Data leiosLParams using (Payload)
+open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
+open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
   using (Proc)
-import CSP.Examples.Cardano_network.Parametric.NodeLogic as NL
-import CSP.Examples.Cardano_network.Parametric.Leios.NodeLogicL as NLL
-import CSP.Examples.Cardano_network.Parametric.Leios.CertRbOrigin as CRO
+import Cardano_network.Parametric.NodeLogic as NL
+import Cardano_network.Parametric.Leios.NodeLogicL as NLL
+import Cardano_network.Parametric.Leios.CertRbOrigin as CRO
 
 open Params leiosLParams using (Block; RbHash; Tx)
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)

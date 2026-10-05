@@ -49,7 +49,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Level using (0ℓ)
 open import Process_Trees using (PTree; ExtI)
 
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec where
+module Cardano_network.FourNode.Liveness.LTL.Spec where
 ```
 
 The healthy diamond supplies the shared `Params` `p`, the four link
@@ -58,9 +58,9 @@ the BF `sendBFBlock`/`recvBFBlock` API events carry); the broken diamond
 supplies the system under specification:
 
 ```agda
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD; Block₃; b1; b2 )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamondBreakable
+open import Cardano_network.FourNode.FourNodeDiamondBreakable
   using ( breakableSystem )
 ```
 
@@ -69,11 +69,11 @@ BlockFetch API tags, and decidable equality from `Net p`; the `Payload` data
 domain from `Data p`:
 
 ```agda
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Base using ( Dir; lo; hi )
+open import Cardano_network.Net p
   using ( Net_Api; Net_Api-≟; Link; apiBF; apiKA; break
         ; sendBFBlock; recvBFBlock; sendBFStartBatch; sendKADone; sendKAMsg )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
+open import Cardano_network.Data p using ( Payload )
 ```
 
 `Op.Skip` fills the (never-forced) state slot of hand-built test frames;

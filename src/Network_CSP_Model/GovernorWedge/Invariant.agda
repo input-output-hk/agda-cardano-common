@@ -6,7 +6,7 @@
 -- additionally keeps every active incarnation's entry (no orphaning step). `GoodO`
 -- and `goodO-step` are generic over every mode with `enqP ≡ own` (FullFix reuses them).
 -- The v1 claim N1 is false on the v2 model; its refutation is `FieldPath.notN1`.
-module CSP.Examples.GovernorWedge.Invariant where
+module GovernorWedge.Invariant where
 
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Bool using (true; false)
@@ -29,9 +29,9 @@ open import Relation.Nullary using (¬_; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; subst)
 
 open import Process_Trees
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
-open import CSP.Examples.GovernorWedge.Wedged using (stopped-conn)
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
+open import GovernorWedge.Wedged using (stopped-conn)
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_; traces)
 

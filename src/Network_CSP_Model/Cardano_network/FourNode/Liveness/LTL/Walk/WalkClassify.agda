@@ -41,25 +41,25 @@ open import Relation.Binary.PropositionalEquality using ( _≡_; refl )
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkClassify (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkClassify (blkA : Block₃) where
 
 ------------------------------------------------------------------------
 -- The model, driver decodes, driver phases, and the measure adjacencies.
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃; produce )
-open import CSP.Examples.Cardano_network.Base using ( Dir; lo; hi )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; apiBF; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload; Header; header )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p; Block₃; produce )
+open import Cardano_network.Base using ( Dir; lo; hi )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; apiBF; recvBFBlock )
+open import Cardano_network.Data p using ( Payload; Header; header )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA
   using ( decProd; decCons; decConsD; decCP
         ; ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
         ; ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
         ; CPPh; consuming; producing
         ; ConsDPh; consD; cblk; cph )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ProdAdv; a01; a12; a23; a34; a45; a56; a67; a78; a89
         ; ConsAdv; c01; c12; c23; c34; c45; c56
         ; CPAdv; cpC; cpB; cpP
@@ -71,7 +71,7 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure 
 -- (from the node-τ-ev module)
 open import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload})
   using ( ⟶₀-ev-inv; Prefix-cont-fires )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( output-ev-inv; prefix-ev-inv; ret-no-ev; bind-ev-inv; step-fcong )
 -- `Skip` (the `>> Skip` tail of node-D's consume driver `decConsD`)
 open import CSP.Operators (Net_Api-≟ {Payload}) using ( Skip; Prefix )

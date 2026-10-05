@@ -1,7 +1,7 @@
 # Announcement safety — what is proved, and where
 
 *Paths below are relative to this directory
-(`src/CSP/Examples/Cardano_network/Parametric/`) unless prefixed with `src/`.*
+(`src/Network_CSP_Model/Cardano_network/Parametric/`) unless prefixed with `csp-ptree-agda/src/`.*
 
 **Status:** complete, 2026-09-09, on branch `examples/n_node_parametric`.
 Every module listed here typechecks with zero postulates, zero holes and no
@@ -70,13 +70,13 @@ the theorem means:
 
 The modules listed in §4 introduce no postulates. Their transitive closure
 inherits exactly one, through the medium transport:
-`src/Semantics/DRImpliesFD.agda:70` postulates `¬-divergent→normal` — a
+`csp-ptree-agda/src/Semantics/DRImpliesFD.agda:70` postulates `¬-divergent→normal` — a
 non-divergent tree reaches a τ-normal form — and `drbisim→fsim` uses it to
 supply `FSim`'s `stab` field (`:145-146`). The transport step `drbisim→⊑F` is
 defined in terms of it, so `AnnounceSafeConcrete` depends on it.
 
 It is a certified seam, not an open assumption:
-`src/CSP/Laws/ClassicalFromLEM.agda:128-131` derives `¬-divergent→normal` from
+`csp-ptree-agda/src/CSP/Laws/ClassicalFromLEM.agda:128-131` derives `¬-divergent→normal` from
 a single instance of double-negation elimination. So the theorem is classical,
 not unsound — it holds in Agda extended with excluded middle.
 
@@ -124,12 +124,12 @@ events are possible, and says nothing about refusals or divergence. `⊑T` is
 therefore the order that states exactly the property.
 
 The two neighbouring orders are not interchangeable here, and in opposite ways.
-`⊑F` is strictly stronger — `⊑F→⊑T = proj₁` (`src/Semantics/Failures.agda:88`) —
+`⊑F` is strictly stronger — `⊑F→⊑T = proj₁` (`csp-ptree-agda/src/Semantics/Failures.agda:88`) —
 so proving the property at `⊑F` would additionally oblige the implementation's
 refusals to be justified, for no gain in what is asserted about announcements.
 `⊑FD`, by contrast, would **not** give the property at all: it has no `⊇T`
 conjunct, so it does not imply `⊑T`
-(`src/Semantics/FailuresDivergences.agda:88-92`, counterexample in
+(`csp-ptree-agda/src/Semantics/FailuresDivergences.agda:88-92`, counterexample in
 `CSP.Examples.RefinementOrderCounterexamples`). Reaching for the
 failures-divergences order because it "sounds stronger" would leave the
 announcement constraint unstated.
@@ -217,17 +217,17 @@ topology instances `LineInstance` / `StarInstance` / `DiamondInstance`.
 
 ## 5. Typechecking
 
-From `src/`, endpoints only — imports are checked transitively:
+From `src/Network_CSP_Model/`, endpoints only — imports are checked transitively:
 
 ```
-cd src
-agda +RTS -M16G -RTS CSP/Examples/Cardano_network/Parametric/AnnounceSafeInstances.agda
-agda +RTS -M16G -RTS CSP/Examples/Cardano_network/Parametric/AnnounceControlNode.agda
+cd src/Network_CSP_Model
+agda +RTS -M16G -RTS Cardano_network/Parametric/AnnounceSafeInstances.agda
+agda +RTS -M16G -RTS Cardano_network/Parametric/AnnounceControlNode.agda
 ```
 
 Two cautions learned the hard way. Agda exiting 0 does **not** mean the module
 was rechecked — demand the literal `Checking …` line for the endpoint, and if
-it is absent delete only that endpoint's own `.agdai` under `src/_build/`. And
+it is absent delete only that endpoint's own `.agdai` under `src/Network_CSP_Model/_build/`. And
 a long-running check here has always meant a type error, never mere size: the
 whole chain is seconds to tens of seconds, so kill anything that runs long and
 diagnose it rather than waiting.

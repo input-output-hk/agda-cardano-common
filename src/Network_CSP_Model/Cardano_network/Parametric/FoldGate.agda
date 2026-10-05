@@ -20,7 +20,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 
-module CSP.Examples.Cardano_network.Parametric.FoldGate
+module Cardano_network.Parametric.FoldGate
   {ℓ ℓe} {E : Set ℓ → Set ℓe}
   (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y)) where
 

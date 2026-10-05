@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv (blkA : Block₃) where
 
 open import Level using (0ℓ; Level)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -21,14 +21,14 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym
 open import Process_Trees using
   ( PTree; ExtI; AnyTypes; ContinueType; react; ret; sil; react-injective; sil-injective
   ; base; pair; fin )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using
   ( Net_Api; Net_Api-≟; Net; Net-≟; break
   ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack
   ; done; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP )
-open import CSP.Examples.Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
-open import CSP.Examples.Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Data p using ( Payload; DecEq-Payload; Header; header; Vote )
+open import Cardano_network.NetCommon p using ( ioES; ιNet; ιNet⁻¹; ιNet-linv )
+open import Cardano_network.Params using ( Params )
 open Params p using ( numLinks; linkConfig; Cookie )
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∥⇘_⇙_; _⦀_; _∖_; EventSet; _△_; △-merge; △-τ; ⦀Fin; Prefix₀ )
@@ -38,22 +38,22 @@ open TLB using ( fBind-react; bindV-elim )
 open EventSet using ( mem )
 import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload}) as PEA
 open Op using () renaming (∅ES to ∅ESa)
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; med; nA; nB; nC; nD; ⟦_⟧ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( decMed; decLink; decCopy; MedState; mkMed; phase; broken
         ; CopyPhase; empty; full; draining; NetProcN; vis-of )
-open import CSP.Examples.Cardano_network.Network p Payload using ( Copy )
+open import Cardano_network.Network p Payload using ( Copy )
 import CSP.Operators {E = Net Payload} (Net-≟ {Payload}) as OpN
 open OpN using ( ⦀⋆; Skip; ∅ES )
 import Semantics.LTS {E = Net Payload} {I = ExtI (Net Payload)} as LN
 import CSP.Laws.Traces.TraceLawsParallelElim (Net-≟ {Payload}) as PEN
 open import CSP.Laws.Traces.TraceLawsParallel (Net-≟ {Payload}) using ( fPar-er; fPar-sr; fPar-nn )
 open import Data.List using ( List; []; _∷_; length; lookup; updateAt; map )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN
   using ( decNodeA; decNodeB; decNodeC; decNodeD; bundleG; bundleA )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( absDec; nodesOf; absNodesOf
         ; ReflOut; innerτ; hidSync; reflect-⟦⟧-τ; reflect-absDec-τ
         ; InnerτR; medτ; nodesτ; reflect-inner-τ
@@ -67,29 +67,29 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
         ; coarsenLNc; coarsenLNs; coarsenLFc; coarsenLFs
         -- io-offer predicate (GAP-B disjointness leaves; `RenNO` via `SStep`)
         ; IoOffers )
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( apiES; linkAB; linkAC; linkBD; linkCD; Block₃; produce )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
 open NS using ( tableSpec; tsNode; tMenu; tGo
               ; kaClientSpec; kaServerSpec; tsClientSpec; tsServerSpec )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; Label; ev; τ; evl; evLabel; τ-inv; ev-inv; sRet; sSil; sTau; sVis )
 open import Class.DecEq using ( DecEq; _≟_ )
 open import Relation.Nullary using ( yes; no )
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( Dir; lo; hi
   ; IDs; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission; N2N_KeepAlive
   ; N2N_LeiosNotify; N2N_LeiosFetch
   ; BlockingStyle; Blocking; NonBlocking )
-open import CSP.Examples.Cardano_network.Net p using ( Link )
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.Net p using ( Link )
+open import Cardano_network.NetworkPar p
   using ( ιCS; ιCS⁻¹; ιCS-linv; ιBF; ιBF⁻¹; ιBF-linv )
-import CSP.Examples.Cardano_network.ChainSync    p as CS
-import CSP.Examples.Cardano_network.BlockFetch   p as BF
-import CSP.Examples.Cardano_network.TxSubmission p as TS
-import CSP.Examples.Cardano_network.KeepAlive    p as KA
-import CSP.Examples.Cardano_network.LeiosNotify  p as LNp
-import CSP.Examples.Cardano_network.LeiosFetch   p as LFp
+import Cardano_network.ChainSync    p as CS
+import Cardano_network.BlockFetch   p as BF
+import Cardano_network.TxSubmission p as TS
+import Cardano_network.KeepAlive    p as KA
+import Cardano_network.LeiosNotify  p as LNp
+import Cardano_network.LeiosFetch   p as LFp
 open SN
   using ( CScPos; csHead; csReqNext1; csFindInt1; csDone1
         ; csRF1; csRB1; csIF1; csINF1; csSil
@@ -115,18 +115,18 @@ open SN
         ; ConsDPh; consD
         ; CPPh; consuming; producing
         ; decProd; decCons; decConsD; decCP )
-open import CSP.Examples.Cardano_network.NetworkPar p
+open import Cardano_network.NetworkPar p
   using ( ιKA; ιKA⁻¹; ιKA-linv; ιTS; ιTS⁻¹; ιTS-linv
         ; ιLN; ιLN⁻¹; ιLN-linv; ιLF; ιLF⁻¹; ιLF-linv
         ; KAclientA; KAserverA; TSclientA; TSserverA
         ; LNclientA; LNserverA; LFclientA; LFserverA )
-open import CSP.Examples.Cardano_network.KeepAlive p using ( KAclientStClient; KAserverStClient )
-open import CSP.Examples.Cardano_network.TxSubmission p using ( TSclientStClient; TSserverStClient )
-open import CSP.Examples.Cardano_network.LeiosNotify p using ( LNclientStClient; LNserverStClient )
-open import CSP.Examples.Cardano_network.LeiosFetch p using ( LFclientStClient; LFserverStClient )
+open import Cardano_network.KeepAlive p using ( KAclientStClient; KAserverStClient )
+open import Cardano_network.TxSubmission p using ( TSclientStClient; TSserverStClient )
+open import Cardano_network.LeiosNotify p using ( LNclientStClient; LNserverStClient )
+open import Cardano_network.LeiosFetch p using ( LFclientStClient; LFserverStClient )
 open import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload} ιNet ιNet⁻¹ ιNet-linv using ( renameMap )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA public
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA public
 
 ------------------------------------------------------------------------
 -- STAGE-2 NODE-τ BACKBONE — the 12-peer bundle τ-inversion.  A τ of a

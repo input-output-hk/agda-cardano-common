@@ -31,7 +31,7 @@
 -- `medG` is total.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.BlockProvenanceMedium where
+module Cardano_network.Parametric.BlockProvenanceMedium where
 
 open import Level using (0ℓ)
 open import Data.Empty using (⊥-elim)
@@ -45,15 +45,15 @@ open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; cong; subst)
 
 open import Process_Trees using (AnyTypes; ExtI)
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Parametric.Topology using (Topology)
-import CSP.Examples.Cardano_network.Net as N
-import CSP.Examples.Cardano_network.Data as D
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Parametric.Topology using (Topology)
+import Cardano_network.Net as N
+import Cardano_network.Data as D
 import CSP.Operators as O
-import CSP.Examples.Cardano_network.Parametric.AnnounceSafe as AS
-import CSP.Examples.Cardano_network.Parametric.AnnounceInvariant as AI
-import CSP.Examples.Cardano_network.Parametric.BlockProvenance as BP
-import CSP.Examples.Cardano_network.Parametric.BlockProvenanceCopy as BPC
+import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
+import Cardano_network.Parametric.BlockProvenance as BP
+import Cardano_network.Parametric.BlockProvenanceCopy as BPC
 
 -- the same three parameters as every other `Parametric.BlockProvenance*` module
 module Generic
@@ -69,7 +69,7 @@ module Generic
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (Prefix₀; Skip)
   open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (sRet; sSil; sVis; sTau)
-  open import CSP.Examples.Cardano_network.NetCommon p
+  open import Cardano_network.NetCommon p
     using ( ιNet; ιNet⁻¹; ιNet-linv
           ; linkMediumA; breakableLinkA; CopySpecBreakableA )
   import CSP.Rename {E₁ = Net Payload} {E₂ = Net_Api Payload} ιNet ιNet⁻¹ ιNet-linv as RenNet

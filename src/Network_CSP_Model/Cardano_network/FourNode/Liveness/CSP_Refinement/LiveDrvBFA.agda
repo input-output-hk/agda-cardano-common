@@ -46,53 +46,53 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( ExtI; isStable )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFA
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFA
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
-open import CSP.Examples.Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output )
-open import CSP.Examples.Cardano_network.Data p using ( Payload; ChainRange )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.Net p using ( Net_Api; Net_Api-≟; Link; input; output )
+open import Cardano_network.Data p using ( Payload; ChainRange )
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( _∖_ )
-open import CSP.Examples.Cardano_network.Base using ( Dir; hi; IDs )
+open import Cardano_network.Base using ( Dir; hi; IDs )
 -- (T10) §5b's two coarse/fine bridges dispatch on the peer's BF STATE at the loop
 -- head and the loop re-entry, where `coarsenBFs` is stuck until the state is a
 -- constructor (measured: `[UnsolvedConstraints] Is empty: coarsenBFs (bsHead st) …`)
-import CSP.Examples.Cardano_network.BlockFetch p as BF
+import Cardano_network.BlockFetch p as BF
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   -- (T12 close) `med` was a SECOND `open import` of this module at the header's §6 group;
   -- unioned here for the one-import-per-parameterised-module rule
   using ( SysState; initial; nA; med )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   -- (T12 close) `broken` was a SECOND `open import` of this module, same reason as above
   using ( CopyPhase; empty; full; draining; broken )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9
               -- (T10) §5's guard is a dispatch on the RELAY's phase, so its
               -- seventeen shapes are written out and the constructors are needed
               ; CPPh; consuming; producing; cp0; cp1; cp2; cp3; cp4; cp5; cp6 )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   using ( coarsenBFs; coarsenBFc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ProdAdv; a01; a12; a23; a34; a45; a56; a67; a78; a89 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( prodOf; ProdSent; ProdNotSent; prodSent-notSent-⊥
         ; relayOf; upClient; cellUp; BFcHasBlk
         -- (T10) … and the token itself, which the guard's `ProdSent` consequence reads
         ; PipeInv; PLvl; L0; L1; L2; L3; L4; RelayPre; RelayFwd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( upSrv )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriverCone blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeEvDriverCone blkA
   using ( LegDriverStep; ldProd; ldRelay; ldCons; ldFix )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeFillSource blkA
   using ( upLink )
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA as LIC
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA as LCI
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegIoCone blkA as LIC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA as LCI
 -- (T12 close) ONE import of this module: the alias below was a second `import … as LCI`, so
 -- the unqualified names now come off the alias by `open LCI`
 open LCI
@@ -103,36 +103,36 @@ open LCI
         -- its cell field refutes
         ; CliSendAdj; CliReadAdj; csReq; csCD; crSB; crNB; crBlk; crBD
         ; nbPayload; bdPayload; cdPayload; rrPayload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanRead blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanRead blkA
   using ( sbPayload )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegInv blkA
   using ( CellFullBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegStep blkA
   using ( NoTwoTokens; nUpSrvCli; nUpCellCli )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeBundleEvo blkA
   using ( BFsHasBlk )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValFill blkA
   using ( blkPayload )
 -- (T10) §6's arm is `isStable`-scoped, so it needs the reachable-config level and the
 -- hop's channel invariant beside the leaf it calls
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.Spec
   using ( hidden )
 -- (T10) §5's region predicate (and §8's acceptance probe, which pins it to the cone)
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveUpOpen blkA as LUO
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveUpOpen blkA as LUO
 -- the api axis: the two (T10) landing facts, and the io axis: `LiveDrvBF`'s two
 -- row reducers, reused verbatim at the UP hop (both are stated at an abstract key)
 -- (T10) … and §5c's api arm reads the relay's own landing pair, qualified — and (T12 close)
 -- this is now the module's ONE import of the cone: the two unqualified names below were a
 -- second `open import … using (ProdDone; SrvBatch)`
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA as LAC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA as LAC
 open LAC using ( ProdDone; SrvBatch )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiExpose blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiExpose blkA
   using ( VisLeaves⁺; vProdBd; vUpDone
         -- (T10) §7's api arm reads the two SERVER keeps beside them
         ; vUpSrvKeep; vUpSrvGain )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA
   using ( srvFill-adj; srvRead-adj )
 
 ------------------------------------------------------------------------

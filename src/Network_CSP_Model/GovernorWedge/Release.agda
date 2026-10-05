@@ -13,7 +13,7 @@
 -- release itself, the IG's deliberate teardown, excluded; `rel-orphans` shows it must be).
 -- v4.1a: the release is the general atomic one (Model `relLive`: by ConnectionId on the newest
 -- incarnation, CommitTr or UnsupportedState, failed → failedT); the runs here use CommitTr (`REL 0 true`).
-module CSP.Examples.GovernorWedge.Release where
+module GovernorWedge.Release where
 
 open import Data.Empty using (⊥-elim)
 open import Data.Nat using (ℕ; _≟_)
@@ -31,11 +31,11 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; _≢_)
 
 open import Process_Trees
 open PTree
-open import CSP.Examples.GovernorWedge.Model
-open import CSP.Examples.GovernorWedge.Steps
+open import GovernorWedge.Model
+open import GovernorWedge.Steps
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
-open import CSP.Examples.GovernorWedge.Wedged using (Blocked; blocked-until; stopped-conn)
-open import CSP.Examples.GovernorWedge.Invariant using (GoodO; cinv; own-reach; own-safe; own-live-sys; active-out)
+open import GovernorWedge.Wedged using (Blocked; blocked-until; stopped-conn)
+open import GovernorWedge.Invariant using (GoodO; cinv; own-reach; own-safe; own-live-sys; active-out)
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_; traces)
 
 -- the release interleaving: B released by the IG (CommitTr), reset by the peer, redialled as C; C tracked; B dies late

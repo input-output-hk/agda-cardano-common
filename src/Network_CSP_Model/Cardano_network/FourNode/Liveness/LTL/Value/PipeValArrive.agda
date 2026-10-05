@@ -56,15 +56,15 @@ open import Relation.Binary.PropositionalEquality
 
 open import Process_Trees using ( PTree; ExtI )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValArrive (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Value.PipeValArrive (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using
+open import Cardano_network.FourNode.FourNodeDiamond using
   ( p; Block₃; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Net p using
+open import Cardano_network.Net p using
   ( Net_Api; apiBF; recvBFBlock )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base using ( hi )
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base using ( hi )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( _─[_]─►_; ev; evl; evLabel )
@@ -78,30 +78,30 @@ open import Semantics.LTL.WTrace
   using ( WTrace; step; done; stuck; div; ⟦_⟧ᵂ; frameOf; IsTermᵂ
         ; drop; dropIdx )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Spec
+open import Cardano_network.FourNode.Liveness.LTL.Spec
   using ( producedA; arrivedD; arrivedD⁻ )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysReach blkA
   using ( NetProc; RState; radec; toSys )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.AbstractSystem blkA
   using ( abstractSystem )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   using ( TwoLegs; legBD; legCD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( dnClient )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValInv blkA
   using ( PipeVal; CliValOK )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValStep blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValStep blkA
   using ( TauIoV; tauStepV-from; liftτ*-preserveV′ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValTauIo blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValTauIo blkA
   using ( tauIoV )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValEvStep blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValEvStep blkA
   using ( stepEmitVᶠ )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValRecv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValRecv blkA
   using ( recvFire-blkA-BD; recvFire-blkA-CD )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeValWalk blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeValWalk blkA
   using ( pipeVal-fold; pipeVal-along-walk; prodBlkA )
 
 ------------------------------------------------------------------------

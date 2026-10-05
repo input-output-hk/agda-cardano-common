@@ -39,14 +39,14 @@ open import Data.Sum using ( _⊎_; inj₁; inj₂ )
 open import Relation.Binary.PropositionalEquality
   using ( _≡_; refl; sym; trans; cong; subst )
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFD
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBFD
   (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( p )
+open import Cardano_network.FourNode.FourNodeDiamond using ( p )
 -- §0(4)'s row-degeneracy check is stated at an `apiCS` label, so the label's
 -- constructor and its carrier family are both needed
-open import CSP.Examples.Cardano_network.Net p
+open import Cardano_network.Net p
   -- (T11d) … and §2c's producer inverts node D's own step at each of its six heads,
   -- so the three `apiCS` tags of `consume`, the three `apiBF` ones, both carrier
   -- families and the decidable equality that unsticks the offer map all join
@@ -54,18 +54,18 @@ open import CSP.Examples.Cardano_network.Net p
         ; sendCSRequestNext; recvCSRollforward; sendCSDone
         ; apiBF; ApiBFTag; ApiBFCar
         ; sendBFRequestRange; recvBFBlock; sendBFClientDone )
-open import CSP.Examples.Cardano_network.Data p
+open import Cardano_network.Data p
   using ( Payload; blockFetch; ChainRange; MessageBlockFetch
         ; MsgRequestRange; MsgStartBatch; MsgNoBlocks; MsgBlock
         ; MsgBatchDone; MsgClientDone )
-open import CSP.Examples.Cardano_network.Base using ( Dir; hi; Mode )
-open import CSP.Examples.Cardano_network.Params using ( Params )
+open import Cardano_network.Base using ( Dir; hi; Mode )
+open import Cardano_network.Params using ( Params )
 open Params p using ( Time; Length )
 
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysDecode blkA
   using ( SysState; initial )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA as SM
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA as SM
+import Cardano_network.FourNode.Liveness.R2_Bisim.SysNode blkA as SN
 open SN using ( ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
               -- (T11d) node D's own driver, at the phase-indexed decode §2c inverts,
               -- and the FINE client position the cone's row facts are stated at
@@ -74,24 +74,24 @@ open SN using ( ConsPh; cp0; cp1; cp2; cp3; cp4; cp5; cp6
               -- shapes are written out and every constructor is needed
               ; CPPh; consuming; producing
               ; ProdPh; pp0; pp1; pp2; pp3; pp4; pp5; pp6; pp7; pp8; pp9 )
-import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
+import Cardano_network.FourNode.Liveness.R2_Bisim.NodeSpecs blkA as NS
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysStep blkA
   -- (T11d) … and the FINE client position §2c's producer is stated at (the cone's
   -- row facts are), beside the process type its step inversion names
   using ( coarsenBFs; coarsenBFc; NetProc )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkPr blkA
   -- node D's per-leg consume phase: the LANDED accessor, so this file adds none
   using ( TwoLegs; legBD; legCD; phOf )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkMeasure blkA
   using ( ConsAdv; c01; c12; c23; c34; c45; c56
         ; ProdAdv; a01; a12; a23; a34; a45; a56; a67; a78; a89 )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeInv blkA
   using ( relayOf; dnClient; cellDn )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
+open import Cardano_network.FourNode.Liveness.LTL.Value.PipeSrvInv blkA
   using ( dnSrv )
 -- §0's guard dispatch runs on the cone's relay-advance relation, and §0(4) reads
 -- the two BF api-row facts the cone reports at EVERY label
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveLegApiCone blkA
   -- (T11d) … and the two BF-CLIENT LANDINGS §2c's `cp2` and `cp3` clauses read: the
   -- `sendBFRequestRange` one is §2b⁷'s (built for this consumer) and the
   -- `recvBFBlock` one is T10's §2b′⁶, reused verbatim.  Both are bundle facts —
@@ -107,12 +107,12 @@ import Relation.Nullary as RN
 open import Process_Trees using ( ExtI )
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using ( ev; evl; evLabel; _─[_]─►_; sVis )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_NodeTauEv blkA
   using ( nothing-absurd; bind-ev-inv )
 -- the SIX BlockFetch step adjacencies, at COARSE positions: the landed
 -- transcriptions of the two tables (`LiveChanInv` §4), so §2's calculus
 -- transcribes no table of its own
-open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
+open import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveChanInv blkA
   using ( SrvSendAdj; ssSB; ssNB; ssBlk; ssBD
         ; SrvReadAdj; srReq; srCD
         ; CliSendAdj; csReq; csCD
@@ -121,10 +121,10 @@ open import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveCh
 -- §0(3)'s contrast: the ChainSync twin's own guard, which is `⊥` at `pp3` where
 -- this one is `⊤` (`LiveRelayCS` §5b(1) is the negative that made this module
 -- necessary)
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvCSD blkA as LDC
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvCSD blkA as LDC
 -- (T11e) … and the FIFTH `LegJointU` factor, which §3's pair joins: `BFFresh` walks
 -- the SAME down-BlockFetch hop, so it folds into `DrvBF` rather than trailing behind it
-import CSP.Examples.Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA as LDB
+import Cardano_network.FourNode.Liveness.CSP_Refinement.LiveDrvBF blkA as LDB
 
 ------------------------------------------------------------------------
 -- §0  *** THE GUARD CHECK — THE (T9/T10) MANDATORY FIRST STEP, DONE IN WRITING

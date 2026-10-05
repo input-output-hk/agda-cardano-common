@@ -32,22 +32,22 @@ open +-*-Solver
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans)
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
-module CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMedium (blkA : Block₃) where
+open import Cardano_network.FourNode.FourNodeDiamond using ( Block₃ )
+module Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMedium (blkA : Block₃) where
 
-open import CSP.Examples.Cardano_network.FourNode.FourNodeDiamond
+open import Cardano_network.FourNode.FourNodeDiamond
   using ( p; linkAB; linkAC; linkBD; linkCD )
-open import CSP.Examples.Cardano_network.Data p using ( Payload )
-open import CSP.Examples.Cardano_network.Base
+open import Cardano_network.Data p using ( Payload )
+open import Cardano_network.Base
   using ( Dir; lo; hi; IDs
         ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
         ; N2N_KeepAlive; N2N_LeiosNotify; N2N_LeiosFetch )
-open import CSP.Examples.Cardano_network.Net p using ( Link )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
+open import Cardano_network.Net p using ( Link )
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysMedium blkA
   using ( MedState; mkMed; phase; broken; CopyPhase; empty; full; draining )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
+open import Cardano_network.FourNode.Liveness.R2_Bisim.SysOracle_TauCore blkA
   using ( flipCell; phase-upd )
-open import CSP.Examples.Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
+open import Cardano_network.FourNode.Liveness.LTL.Walk.WalkConvMeasure blkA
   using ( cellWt; rowWt; medWt )
 
 ------------------------------------------------------------------------

@@ -19,7 +19,7 @@
 -- `Diverges W`; `Reach-noDiv` rules every such `W` out GIVEN the coinductive
 -- invariant `GoodU (Par⊤ csTA' TxSide RxSide)`.  That invariant is supplied
 -- by a verified FINITE-STATE ABSTRACTION of the un-hidden composite:
---   * `CSP.Examples.Cardano_network.NetModel` — an abstract control-state
+--   * `Cardano_network.NetModel` — an abstract control-state
 --     automaton `CS` (six per-leaf position enums) with internal `_⇒ᵢ_` and
 --     visible `_⇒ᵥ_` transitions, and a measure `μ` that EVERY `_⇒ᵢ_` step
 --     strictly decreases (`μ-dec`).  The loop-restart "guard" diamonds are
@@ -59,13 +59,13 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; con
 open import Class.DecEq using (DecEq; _≟_)
 
 open import Process_Trees
-open import CSP.Examples.Cardano_network.Params using (Params)
+open import Cardano_network.Params using (Params)
 open import Data.List using (_∷_; [])
-open import CSP.Examples.Cardano_network.Base using
+open import Cardano_network.Base using
   ( IDs; Dir; lo; hi; N2N_KeepAlive
   ; N2N_ChainSync; N2N_BlockFetch; N2N_TxSubmission
   ; N2N_LeiosNotify; N2N_LeiosFetch; OneTx; decOneTx )
-open import CSP.Examples.Cardano_network.NetModel
+open import Cardano_network.NetModel
   using ( CS; mkCS; cs0
         ; inp; tr; ra; out; rc; sa
         ; IP; I0; I1; I2; Ig
@@ -76,9 +76,9 @@ open import CSP.Examples.Cardano_network.NetModel
         ; SP; Sa0; Sa1; Sag
         ; _⇒ᵢ_; _⇒ᵥ_
         ; gI; gT; gR; gO; gRc; gSa )
-import CSP.Examples.Cardano_network.NetModel as NM
+import Cardano_network.NetModel as NM
 
-module CSP.Examples.Cardano_network.NetworkVerification.NetworkRefinement where
+module Cardano_network.NetworkVerification.NetworkRefinement where
 
 open PTree
 open ExtI
@@ -114,9 +114,9 @@ p1 = record
   ; Size = ⊤ ; decSize = decEq⊤ ; txSize = λ _ → tt
   ; slotOf = λ _ → tt }
 
-open import CSP.Examples.Cardano_network.Net p1
+open import Cardano_network.Net p1
   using (Net; Link; input; output; sndmsg; tx)
-open import CSP.Examples.Cardano_network.Network p1 ⊤
+open import Cardano_network.Network p1 ⊤
 
 open import Semantics.LTS {E = Net ⊤} {I = ExtI (Net ⊤)} hiding (Diverges)
 open import Semantics.WeakBisim {E = Net ⊤} {I = ExtI (Net ⊤)}
@@ -132,7 +132,7 @@ open import Semantics.Expansion {E = Net ⊤} {I = ExtI (Net ⊤)}
   using (Expand; ExpBwdF; _⪰_; ⪯→≈DR)
 
 -- the Net-decidable-equality used to instantiate every law module
-open import CSP.Examples.Cardano_network.Net p1 using (Net-≟)
+open import Cardano_network.Net p1 using (Net-≟)
 
 open import CSP.Operators {E = Net ⊤} (Net-≟ {⊤})
   using (Par⊤; _∥⇘_⇙_; _⦀_; _∖_; chanSet; ∅ES; EventSet; Skip; Par; viewV)
@@ -260,7 +260,7 @@ N2─τ─►N3 = sTau {i = txIdx} {a = txVal} refl refl
 
 -- Third hidden τ-step: N3 fires `rcvmsg` (hidden in RxSide's csSR... csRS);
 -- outer csTA tag0 (own τ), inner Par⊤ csTA tag1 (Q=RxSide), csRS tag1.
-open import CSP.Examples.Cardano_network.Net p1 using (rcvmsg)
+open import Cardano_network.Net p1 using (rcvmsg)
 
 rcvmsgIdx : AnyTypes (ExtI (Net ⊤))
 rcvmsgIdx = _ , pair (fin {n = 2})
@@ -304,7 +304,7 @@ N5 with vis-of (force N4) outputAt tt
 N4─output─►N5 : N4 ─[ ev outputLbl ]─► N5
 N4─output─►N5 = sVis {at = outputAt} refl refl
 
-open import CSP.Examples.Cardano_network.Net p1 using (sndack; ack; rcvack)
+open import Cardano_network.Net p1 using (sndack; ack; rcvack)
 
 -- N5 --sndack--> N6 (hidden in RxSide csRS; same shape as rcvmsg).
 sndackIdx : AnyTypes (ExtI (Net ⊤))
@@ -451,7 +451,7 @@ N0═input═►N4 =
 -- via the Hide-divergence König infrastructure (MAcc descent).
 ------------------------------------------------------------------------
 
-open import CSP.Examples.Cardano_network.Net p1 using (output)
+open import Cardano_network.Net p1 using (output)
 
 -- The eight raw τ-branch index shapes of a stable react head; every leaf
 -- below has an everywhere-`nothing` τ-map, so each is refuted by `refl ()`.
@@ -1306,7 +1306,7 @@ evN {B} e a = evl (evLabel B e a)
 
 -- `output` is re-exported twice; pin the single intended constructor via a
 -- freshly qualified import.
-import CSP.Examples.Cardano_network.Net p1 as NetQ
+import Cardano_network.Net p1 as NetQ
 
 output′ : (l : Link) (d : Dir) (id : IDs) → Net ⊤ ⊤
 output′ = NetQ.output

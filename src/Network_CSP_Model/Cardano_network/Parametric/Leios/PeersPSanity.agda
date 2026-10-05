@@ -12,7 +12,7 @@
 -- med lg` with NO edit to `Parametric/Node.agda`.
 ------------------------------------------------------------------------
 
-module CSP.Examples.Cardano_network.Parametric.Leios.PeersPSanity where
+module Cardano_network.Parametric.Leios.PeersPSanity where
 
 open import Data.Fin using (Fin) renaming (zero to fzero)
 open import Data.Product using (_×_; _,_)
@@ -21,22 +21,22 @@ open import Data.Maybe using (Maybe; just; nothing)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Process_Trees using (PTree; ExtI; AnyTypes; ContinueType; react)
 
-open import CSP.Examples.Cardano_network.Params using (Params)
-open import CSP.Examples.Cardano_network.Base using (Dir; lo; FromInitiator)
-open import CSP.Examples.Cardano_network.Parametric.LineInstance using (lineParams; line)
+open import Cardano_network.Params using (Params)
+open import Cardano_network.Base using (Dir; lo; FromInitiator)
+open import Cardano_network.Parametric.LineInstance using (lineParams; line)
 open Params lineParams using (EBHash; LSlot; time₀; length₀)
-open import CSP.Examples.Cardano_network.Net lineParams
+open import Cardano_network.Net lineParams
   using (Link; Net_Api; Net_Api-≟; lfpReqBlockRequest)
-open import CSP.Examples.Cardano_network.Data lineParams
+open import Cardano_network.Data lineParams
   using (Payload; leiosFetchP; MsgLFPBlockRequest; DecEq-EBPoint)
-open import CSP.Examples.Cardano_network.NetCommon lineParams
+open import Cardano_network.NetCommon lineParams
   using (NetworkLinkBreakableA)
-open import CSP.Examples.Cardano_network.ApiAlphabet lineParams using (apiES)
-open import CSP.Examples.Cardano_network.Parametric.Node lineParams line apiES
+open import Cardano_network.ApiAlphabet lineParams using (apiES)
+open import Cardano_network.Parametric.Node lineParams line apiES
   using (Proc; bundleAtWith; nodeWith; systemOfWithNode)
-open import CSP.Examples.Cardano_network.Parametric.Leios.PeersP lineParams
+open import Cardano_network.Parametric.Leios.PeersP lineParams
   using (nodeBundleP)
-import CSP.Examples.Cardano_network.LeiosFetchP lineParams as LFP
+import Cardano_network.LeiosFetchP lineParams as LFP
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (Skip)
