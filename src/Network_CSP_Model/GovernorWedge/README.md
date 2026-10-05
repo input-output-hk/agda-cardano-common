@@ -1,12 +1,5 @@
 # Inbound-governor wedge: what is modelled, assumed, and proved
 
-Design (v4.1a, current; the general atomic release): [`docs/superpowers/specs/2026-09-29-governor-wedge-release-general-design.md`](../../../../docs/superpowers/specs/2026-09-29-governor-wedge-release-general-design.md)
-Design (v4; the IG's `CommitRemote` release): [`docs/superpowers/specs/2026-09-29-governor-wedge-release-design.md`](../../../../docs/superpowers/specs/2026-09-29-governor-wedge-release-design.md)
-Design (v3; the connection-manager fix): [`docs/superpowers/specs/2026-09-29-governor-wedge-cmfix-design.md`](../../../../docs/superpowers/specs/2026-09-29-governor-wedge-cmfix-design.md)
-Design (v2; overlapping incarnations): [`docs/superpowers/specs/2026-09-28-governor-wedge-overlap-design.md`](../../../../docs/superpowers/specs/2026-09-28-governor-wedge-overlap-design.md)
-Design (v1, superseded in part; holds the citation key): [`docs/superpowers/specs/2026-09-28-governor-wedge-design.md`](../../../../docs/superpowers/specs/2026-09-28-governor-wedge-design.md)
-Plans: [`docs/superpowers/plans/2026-09-28-governor-wedge-overlap.md`](../../../../docs/superpowers/plans/2026-09-28-governor-wedge-overlap.md) (v2), [`docs/superpowers/plans/2026-09-29-governor-wedge-cmfix.md`](../../../../docs/superpowers/plans/2026-09-29-governor-wedge-cmfix.md) (v3), [`docs/superpowers/plans/2026-09-29-governor-wedge-release.md`](../../../../docs/superpowers/plans/2026-09-29-governor-wedge-release.md) (v4), [`docs/superpowers/plans/2026-09-29-governor-wedge-release-general.md`](../../../../docs/superpowers/plans/2026-09-29-governor-wedge-release-general.md) (v4.1a)
-
 ## 1. What this is
 
 John Lotoski observed a permanent stall of the `ouroboros-network` inbound
