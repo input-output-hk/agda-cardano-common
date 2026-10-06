@@ -33,6 +33,7 @@ open import Class.DecEq using (DecEq)
 open import Cardano_network.Base using (Dir; IDs; DecEq-Dir; DecEq-IDs)
 import Cardano_network.ApiAlphabet as AA
 import Cardano_network.Parametric.AnnounceSafe as AS
+import Cardano_network.Parametric.AnnounceInvariant as AI
 import Cardano_network.Parametric.AnnounceSafeCopy as ASCopy
 import Cardano_network.Parametric.AnnounceSafeConcrete as ASC
 open ASC using (LinkCfgWf)
@@ -87,4 +88,8 @@ diamondAnnounceSafeT : AS.Generic.AnnounceSafeT FND.p DI.diamond FND.apiES
 diamondAnnounceSafeT =
   ASC.Generic.transport FND.p DI.diamond FND.apiES diamondCfgWf
     (ASCopy.Generic.Assembly.announceSafeT-copy FND.p DI.diamond FND.apiES
-      (λ {l} {d} _ → tt) (λ {l} {d} _ → tt , tt))
+      (λ { annLN → tt ; annLP → tt }) (λ {l} {d} _ → tt , tt))
+  where
+  -- the announce-channel witnesses at the diamond's own parameters: `AnnSync` is
+  -- discharged one channel at a time, `apiSet` answering `⊤` on `apiLN` and `apiLP` alike
+  open AI.Generic FND.p DI.diamond FND.apiES using (annLN; annLP)

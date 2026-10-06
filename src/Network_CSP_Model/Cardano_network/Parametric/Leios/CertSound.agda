@@ -40,23 +40,26 @@
 -- satisfy `CertifiesMono`.  The admissible stricter oracle is the two-voter
 -- quorum of `CertSoundBad.certifies₂` (campaign ledger, gotcha 9).
 --
--- THE DISCIPLINE IS ENDPOINT-AGNOSTIC — READ THIS BEFORE ANY SYSTEM LIFT.
--- `certMints` mints on `store _ _ stPutVote` and `certNeeds` fires at
--- `store _ _ stCert` for EVERY link and direction; nothing in the key, the
--- mints or the gate says WHOSE store was written or whose certified.  The
--- "at that node" wording above is licensed only because the theorem is
--- stated of ONE node: inside `nodeP n (nodeLogicL n st₀)` the only `store`
--- channels that occur are the `homeOf n` ones — every thread and every store
--- is built from `putVoteEv n` / `certEv n`, and no peer of the bundle offers
--- a `store` channel at all (that is exactly what `ooKA`/`ooCS`/`ooBF`/`ooTS`/
--- `ooLNP`/`ooLFP` establish).  CONSEQUENCE: this discipline does NOT lift to
--- a system of several nodes as it stands — with more than one node's stores
--- in the same composite, a `stPutVote` performed at node X would vouch a
--- `stCert` fired at node Y.  A system-level S3 must first make the key
--- ENDPOINT-INDEXED (mint `(l , d , v)` and gate `stCert` at `(l , d)` on keys
--- carrying that same `(l , d)`); until that is done, no result here may be
--- quoted above node level.  This is the same caveat `VoteSound`'s header
--- records for S2, and for the same reason.
+-- THE DISCIPLINE IS ENDPOINT-INDEXED, AND THAT IS WHAT LETS IT LIFT.
+-- `certMints` mints `((l , d) , v)` on `store l d stPutVote` and `certNeeds`
+-- demands `((l , d) , r)` at `store l d stCert`, so the key a gate asks for is
+-- literally the key its OWN endpoint's deposits produced; the oracle at an
+-- endpoint reads `blobsAt (l , d)` — the minted list filtered to that endpoint —
+-- and never another node's deposits.  This is the re-keying an earlier revision
+-- of this header flagged as a prerequisite for any system lift, and
+-- `Leios.CertSystemL` now spends it: a `stPutVote` performed at node X does NOT
+-- vouch a `stCert` fired at node Y.  It is also NO WEAKER than the old
+-- endpoint-agnostic key: the blobs the new gate reads are those the old one read
+-- with the foreign endpoints dropped, and `certifies` is monotone, so whenever
+-- the new gate stands open the old one did too — i.e. every trace the NEW
+-- `CertSpecT` permits the old one permitted.  (The converse is not proved here,
+-- so "no weaker" is the claim, not "strictly stronger".)  Node-locality still
+-- needs no `homeAt`
+-- machinery: inside `nodeP n (nodeLogicL n st₀)` the only `store` channels that
+-- occur are the `homeOf n` ones — every thread and every store is built from
+-- `putVoteEv n` / `certEv n`, and no peer of the bundle offers a `store` channel
+-- at all (that is exactly what `ooKA`/`ooCS`/`ooBF`/`ooTS`/`ooLNP`/`ooLFP`
+-- establish).
 --
 -- HOW IT IS PROVED — THE ASSUME-GUARANTEE FRAMEWORK, as in `VoteSound.agda`:
 -- `Parametric.BlockProvenance.Carrier` (which carries no `noTick` obligation,
@@ -78,12 +81,14 @@
 --     and the LeiosFetch client included.  This is the exact mirror image
 --     of S2, where the stores were free and the threads carried the gate;
 --   * the STORE side takes the FULL alphabet, and the vote store carries a
---     genuinely non-trivial loop invariant, `InvV ms (bs , cs) = bs ⊆ ms`:
---     every blob the store holds was minted by the deposit that put it
---     there.  `insertU-⊆-cons` maintains it across a deposit and
+--     genuinely non-trivial loop invariant,
+--     `InvV ld ms (bs , cs) = bs ⊆ blobsAt ld ms`: every blob the store at
+--     endpoint `ld` holds was minted by a deposit AT THAT ENDPOINT.
+--     `insertU-⊆-at` maintains it across a deposit and
 --     `CertifiesMono` spends it at the firing — `certifies bs r ≡ true`
---     (the guard of `certify`) plus `bs ⊆ ms` gives `certifies ms r ≡ true`
---     (the gate).  This is the campaign's first non-trivial `InvA`;
+--     (the guard of `certify`) plus `bs ⊆ blobsAt ld ms` gives
+--     `certifies (blobsAt ld ms) r ≡ true` (the gate).  This is the
+--     campaign's first non-trivial `InvA`;
 --   * `Sep storeES ∅α fullα` is vacuous, because the only key-carrying
 --     channel is `store … stCert`, which is INSIDE `storeES`.
 --
@@ -134,18 +139,24 @@ open import Data.Bool using (Bool; true; false; not; _∧_)
 open import Data.Bool.ListAction using (all)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Nat using (ℕ; suc)
-open import Data.List using (List; []; _∷_; _++_; reverse)
+open import Data.List using (List; []; _∷_; _++_; reverse; map; filter)
 open import Data.List.Membership.Propositional using (_∈_)
-open import Data.List.Membership.Propositional.Properties using (∈-++⁻; ∈-++⁺ʳ)
+open import Data.List.Membership.Propositional.Properties
+  using (∈-++⁻; ∈-++⁺ʳ; ∈-map⁺; ∈-filter⁺)
 open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.List.Relation.Binary.Subset.Propositional using (_⊆_)
-open import Data.List.Relation.Binary.Subset.Propositional.Properties using (⊆-refl; ⊆-trans)
+open import Data.List.Relation.Binary.Subset.Propositional.Properties
+  using (⊆-refl; ⊆-trans; map⁺; filter⁺′)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
+open import Data.Product.Properties using (≡-dec)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Nullary using (Dec)
+open import Relation.Unary using (Decidable)
 open import Class.DecEq using (DecEq)
 open import Class.DecEq.Instances using (DecEq-List)
+import Class.DecEq.Instances as DecEqI
 
 open import Process_Trees using (AnyTypes; ExtI)
 open import Cardano_network.Params using (Params)
@@ -210,7 +221,7 @@ module Generic
   -- `∥⇘ apiES ⇙`, and `DRCongruenceRep.NoRet-Par` reads the left operand.  Already
   -- proved, at this very telescope, by the announcement campaign.
   open BPS.Generic p t apiES using (NoRet-ParR)
-  open NL.Generic p t apiES using (Held; storeES; offerHeld)
+  open NL.Generic p t apiES using (Held; storeES; offerHeld; homeOf)
   open NLL.Generic p lp t apiES voterOf
     using ( nodeLogicL; st₀; DecEq-⊤poly; DecEq-Votes
           ; Entries; Bodies; Mem; Blobs; Certs; Votes
@@ -225,44 +236,88 @@ module Generic
   -- The origin discipline
   ------------------------------------------------------------------------
 
-  -- THE KEY IS THE VOTE BLOB ITSELF.  The certification oracle reads a LIST OF BLOBS,
-  -- not hashes, so the minted set has to be exactly the list of blobs deposited.
-  Minted : Set
-  Minted = List VoteBlob
+  -- THE ENDPOINT EQUALITY the re-keying filters on.  Assembled EXPLICITLY rather than by
+  -- instance search: `Class.DecEq.Instances` is imported qualified here, so declaring a
+  -- product instance would compete with the ones `wfR-Output`'s `DecEq X` resolves to.
+  ld-≟ : (x y : Link × Dir) → Dec (x ≡ y)
+  ld-≟ = ≡-dec (DecEq._≟_ DecEqI.DecEq-Fin) (DecEq._≟_ DecEq-Dir)
 
-  -- THE RANKING-BLOCK HASHES A LABEL NEEDS CERTIFIED before it may fire: one for a
-  -- certificate, none anywhere else.  A certificate names an RB, not an EB — the
-  -- prototype's vote endorses the RANKING BLOCK (spec §4.1) — so the key type is
-  -- `RbHash`.  The gate, the carrying relation of the assume-guarantee instance and
+  -- THE KEY IS THE VOTE BLOB *TOGETHER WITH THE ENDPOINT IT WAS DEPOSITED AT*.  The
+  -- certification oracle reads a LIST OF BLOBS, not hashes, so the blob itself must be
+  -- minted; the endpoint is what makes the discipline sound at a system of SEVERAL nodes,
+  -- where without it a `stPutVote` at node X would vouch a `stCert` at node Y.
+  Minted : Set
+  Minted = List ((Link × Dir) × VoteBlob)
+
+  -- the MINTED key's equality, which `OriginSafe.Generic.Origin` demands of its key type
+  decMintKey : DecEq ((Link × Dir) × VoteBlob)
+  decMintKey = record { _≟_ = ≡-dec ld-≟ (DecEq._≟_ decVoteBlob) }
+
+  -- is this minted entry's endpoint the one being asked about?
+  AtEnd : (Link × Dir) → ((Link × Dir) × VoteBlob) → Set
+  AtEnd ld x = ld ≡ proj₁ x
+
+  -- … decidably, which is what makes `blobsAt` a function
+  atEnd? : ∀ ld → Decidable (AtEnd ld)
+  atEnd? ld x = ld-≟ ld (proj₁ x)
+
+  -- THE BLOBS DEPOSITED AT ONE ENDPOINT — the only ones that endpoint's certification
+  -- oracle may read.  This filter is the whole content of the endpoint re-keying.
+  blobsAt : (Link × Dir) → Minted → List VoteBlob
+  blobsAt ld ms = map proj₂ (filter (atEnd? ld) ms)
+
+  -- the filter is `⊆`-monotone, so a growing minted set grows every endpoint's view —
+  -- which is what keeps `certGate-mono` and the vote store's loop invariant alive
+  blobsAt-mono : ∀ ld {ms ms′} → ms ⊆ ms′ → blobsAt ld ms ⊆ blobsAt ld ms′
+  blobsAt-mono ld sub = map⁺ proj₂ (filter⁺′ (atEnd? ld) (atEnd? ld) (λ q → q) sub)
+
+  -- a blob just deposited at `ld` is in `ld`'s view
+  ∈-blobsAt : ∀ ld (v : VoteBlob) (ms : Minted) → v ∈ blobsAt ld ((ld , v) ∷ ms)
+  ∈-blobsAt ld v ms = ∈-map⁺ proj₂ (∈-filter⁺ (atEnd? ld) (here refl) refl)
+
+  -- THE KEY A LABEL NEEDS GRANTED: an ENDPOINT together with a ranking-block hash.  A
+  -- certificate names an RB, not an EB — the prototype's vote endorses the RANKING BLOCK
+  -- (spec §4.1) — and it is read off the very `store l d stCert` channel that fires, so
+  -- the key a gate demands is literally the key its own endpoint's deposits produced.
+  NeedKey : Set
+  NeedKey = (Link × Dir) × RbHash
+
+  -- WHAT EACH LABEL NEEDS GRANTED before it may fire: one key for a certificate, none
+  -- anywhere else.  The gate, the carrying relation of the assume-guarantee instance and
   -- every peer's confinement are all read off THIS list, so the channel enumeration is
   -- paid once (`needs-store`).
-  certNeeds : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List RbHash
-  certNeeds (_ , store _ _ stCert) r = r ∷ []
+  certNeeds : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List NeedKey
+  certNeeds (_ , store l d stCert) r = ((l , d) , r) ∷ []
   certNeeds _                      _ = []
 
-  -- WHAT MINTS: depositing a vote blob.  Nothing else adds to the oracle's input.
-  -- ENDPOINT-AGNOSTIC (link and direction are `_`) — see the module header before
-  -- lifting any of this above node level.
+  -- WHAT MINTS: depositing a vote blob, AT THE ENDPOINT THE DEPOSIT WAS MADE AT.
+  -- Nothing else adds to any oracle's input.
   certMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Minted
-  certMints (_ , store _ _ stPutVote) v = v ∷ []
+  certMints (_ , store l d stPutVote) v = ((l , d) , v) ∷ []
   certMints _                         _ = []
 
-  -- are all the RB hashes the label needs certified by the blobs minted so far?
-  allCert : List RbHash → Minted → Bool
-  allCert rs ms = all (certifies ms) rs
+  -- does the oracle grant this key, reading ONLY the blobs deposited at the key's own
+  -- endpoint?  Written with projections rather than a pair pattern so that it reduces at
+  -- a variable key, which `allCert⁺`/`allCert⁻` need.
+  certAt : Minted → NeedKey → Bool
+  certAt ms b = certifies (blobsAt (proj₁ b) ms) (proj₂ b)
 
-  -- every hash certified gives the Boolean conjunction …
-  allCert⁺ : ∀ rs ms → (∀ {r} → r ∈ rs → certifies ms r ≡ true) → allCert rs ms ≡ true
+  -- are all the keys the label needs granted by the blobs minted so far?
+  allCert : List NeedKey → Minted → Bool
+  allCert rs ms = all (certAt ms) rs
+
+  -- every key granted gives the Boolean conjunction …
+  allCert⁺ : ∀ rs ms → (∀ {b} → b ∈ rs → certAt ms b ≡ true) → allCert rs ms ≡ true
   allCert⁺ []       ms f = refl
   allCert⁺ (x ∷ rs) ms f = ∧-join (f (here refl)) (allCert⁺ rs ms (λ q → f (there q)))
 
   -- … and back
-  allCert⁻ : ∀ rs ms → allCert rs ms ≡ true → ∀ {r} → r ∈ rs → certifies ms r ≡ true
+  allCert⁻ : ∀ rs ms → allCert rs ms ≡ true → ∀ {b} → b ∈ rs → certAt ms b ≡ true
   allCert⁻ (x ∷ rs) ms eq (here refl) = proj₁ (∧-split eq)
   allCert⁻ (x ∷ rs) ms eq (there q)   = allCert⁻ rs ms (proj₂ (∧-split eq)) q
 
-  -- WHAT IS GATED: a label may fire only when the oracle certifies every RB hash it
-  -- names against the blobs minted so far.  Only a certificate names one.
+  -- WHAT IS GATED: a label may fire only when the oracle certifies every key it names
+  -- against the blobs minted AT THAT KEY'S ENDPOINT.  Only a certificate names one.
   certGate : Minted → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
   certGate ms at a = allCert (certNeeds at a) ms
 
@@ -277,14 +332,15 @@ module Generic
   -- The assume-guarantee data
   ------------------------------------------------------------------------
 
-  -- WHICH LABEL CARRIES WHICH RB HASH: a certificate carries the hash it names, and
-  -- nothing else carries anything.  `Carries` and the gate are the same list.
-  certCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → RbHash → Set
-  certCarries at a r = r ∈ certNeeds at a
+  -- WHICH LABEL CARRIES WHICH KEY: a certificate carries the (endpoint, hash) pair it
+  -- names, and nothing else carries anything.  `Carries` and the gate are the same list.
+  certCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → NeedKey → Set
+  certCarries at a b = b ∈ certNeeds at a
 
-  -- the payload predicate: the oracle certifies the RB hash against what has been minted
-  certWA : Minted → RbHash → Set
-  certWA ms r = certifies ms r ≡ true
+  -- the payload predicate: the oracle grants the key against the blobs minted at the
+  -- key's own endpoint
+  certWA : Minted → NeedKey → Set
+  certWA ms b = certAt ms b ≡ true
 
   -- the minted set a label leads to: EXACTLY `OriginSafe`'s `mintedAfter` on a visible
   -- label, and unchanged on a τ or a `√`.  This equation is what makes the bridge a
@@ -346,18 +402,24 @@ module Generic
 
   -- THE SHARED LEAVES: the vacuous-leaf lemmas at both carriers, the two guarantee
   -- alphabets and their `Sep`s, and the whole peer bundle — none of which depends on
-  -- WHICH store channel is gated
-  open OL.Generic.Leaves p t apiES Minted RbHash certCarries certWA certNext
-                         _⊆_ ⊆-refl ⊆-trans certNext-⊆ needs-store
+  -- WHICH store channel is gated.  RE-EXPORTED (`public`), so that a system-level
+  -- module such as `Leios.CertSystemL` reaches them through `CS.Generic` instead of
+  -- re-applying `OriginLeaves.Generic.Leaves` at the same eleven arguments.
+  open OL.Generic.Leaves p t apiES Minted NeedKey certCarries certWA certNext
+                         _⊆_ ⊆-refl ⊆-trans certNext-⊆ needs-store public
 
-  -- the assume-guarantee carrier at the S3 discipline …
-  open BP.Carrier (Net_Api-≟ {Payload}) Minted RbHash certCarries certWA
+  -- the assume-guarantee carrier at the S3 discipline … also re-exported, so that the
+  -- `Wf` a system module folds with is THIS module application's and not a second one
+  open BP.Carrier (Net_Api-≟ {Payload}) Minted NeedKey certCarries certWA
                   certNext _⊆_ ⊆-trans certNext-⊆
-    using (Wf; nowW; stepW; wf-mono-G; Sep; wf-Par; wf-⦀)
+    using ( Wf; nowW; stepW; wf-mono-G; Sep; wf-Par; wf-⦀
+          -- … and the four a SYSTEM fold needs and this module does not, so that
+          -- `Leios.CertSystemL` need not re-apply `BlockProvenance.Carrier` itself
+          ; wf-⦀Fin⁺; HideCov; HideKeep; wf-Hide ) public
 
   -- … and its returning-tree layer, at the SAME arguments, so the two `Wf`s are the
   -- same record
-  open BPW.Body (Net_Api-≟ {Payload}) Minted RbHash certCarries certWA
+  open BPW.Body (Net_Api-≟ {Payload}) Minted NeedKey certCarries certWA
                 certNext _⊆_ ⊆-refl ⊆-trans certNext-⊆
     using ( WfR; Stable; stable-node; stable-□
           ; wfR-Ret; wfR-Stop; wfR-Prefix; wfR-Output; wfR-□; wf-loop )
@@ -450,9 +512,8 @@ module Generic
   -- prefixes, outputs and menus on channels other than `stCert`.
   ------------------------------------------------------------------------
 
-  -- the RB store: forge, THE CERTIFICATE FORGE RENDEZVOUS, deposit, the legacy menu and
-  -- the read-pointer menu.  The `envForgeCert` arm is an `env` channel, so it carries
-  -- nothing here for exactly the same reason the `envForge` arm does.
+  -- the RB store: forge, deposit, the legacy menu and the read-pointer menu.  The
+  -- forge arm is an `env` channel, so it carries nothing here.
   wf-blockStoreL : ∀ {ms} n (held : Held) → Wf fullα ms (blockStoreL n held)
   wf-blockStoreL n held =
     wf-loop {body = storeStepL n} {a = held} (λ _ _ _ → tt) (λ _ hs _ → body hs) tt
@@ -462,24 +523,18 @@ module Generic
     body hs =
       wfR-□ _ _ (stable-node refl)
         (stable-□ (stable-node refl)
-          (stable-□ (stable-node refl)
-            (stable-□ (stable-offerHeld n hs hs)
-                      (stable-offerIx (getAtEv n) (reverse hs) 0 hs))))
+          (stable-□ (stable-offerHeld n hs hs)
+                    (stable-offerIx (getAtEv n) (reverse hs) 0 hs)))
         (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
         (wfR-□ _ _ (stable-node refl)
-          (stable-□ (stable-node refl)
-            (stable-□ (stable-offerHeld n hs hs)
-                      (stable-offerIx (getAtEv n) (reverse hs) 0 hs)))
+          (stable-□ (stable-offerHeld n hs hs)
+                    (stable-offerIx (getAtEv n) (reverse hs) 0 hs))
           (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
-          (wfR-□ _ _ (stable-node refl)
-            (stable-□ (stable-offerHeld n hs hs)
-                      (stable-offerIx (getAtEv n) (reverse hs) 0 hs))
-            (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
-            (wfR-□ _ _ (stable-offerHeld n hs hs)
-                       (stable-offerIx (getAtEv n) (reverse hs) 0 hs)
-              (wfR-offerHeld n hs hs)
-              (wfR-offerIx (getAtEv n) (reverse hs) 0 hs
-                           (λ _ _ ()) (λ _ _ → tt) tt))))
+          (wfR-□ _ _ (stable-offerHeld n hs hs)
+                     (stable-offerIx (getAtEv n) (reverse hs) 0 hs)
+            (wfR-offerHeld n hs hs)
+            (wfR-offerIx (getAtEv n) (reverse hs) 0 hs
+                         (λ _ _ ()) (λ _ _ → tt) tt)))
 
   -- the EB-entry store: a deposit and a read-pointer menu
   wf-ebStore : ∀ {ms} n (es : Entries) → Wf fullα ms (ebStore n es)
@@ -529,25 +584,27 @@ module Generic
   -- THE CONTENT-BEARING LEAF: the vote store
   ------------------------------------------------------------------------
 
-  -- THE CARRIED INVARIANT: every blob the vote store holds was minted by the
-  -- `stPutVote` that deposited it.  This is the campaign's first non-trivial loop
-  -- invariant — S2 ran `InvA = λ _ _ → ⊤` throughout.
-  InvV : Minted → Votes → Set
-  InvV ms v = proj₁ v ⊆ ms
+  -- THE CARRIED INVARIANT: every blob the vote store at endpoint `ld` holds was minted by
+  -- a `stPutVote` AT THAT ENDPOINT.  This is the campaign's first non-trivial loop
+  -- invariant — S2 ran `InvA = λ _ _ → ⊤` throughout — and the endpoint index is what
+  -- makes it survive a composite containing several nodes' stores.
+  InvV : (Link × Dir) → Minted → Votes → Set
+  InvV ld ms v = proj₁ v ⊆ blobsAt ld ms
 
-  -- a dedup insert of a freshly minted blob keeps the invariant: the old blobs are
-  -- minted by hypothesis and the new one is minted by the very deposit
-  insertU-⊆-cons : ∀ (v : VoteBlob) (bs ms : Minted)
-                 → bs ⊆ ms → insertU v bs ⊆ (v ∷ ms)
-  insertU-⊆-cons v bs ms sub with memberOf v bs
-  ... | true  = λ q → there (sub q)
+  -- a dedup insert of a freshly minted blob keeps the invariant AT THE ENDPOINT THE
+  -- DEPOSIT WAS MADE AT: the old blobs are in that endpoint's view by hypothesis and the
+  -- new one is put there by the very deposit
+  insertU-⊆-at : ∀ ld (v : VoteBlob) (bs : List VoteBlob) (ms : Minted)
+               → bs ⊆ blobsAt ld ms → insertU v bs ⊆ blobsAt ld ((ld , v) ∷ ms)
+  insertU-⊆-at ld v bs ms sub with memberOf v bs
+  ... | true  = λ q → blobsAt-mono ld (λ r → there r) (sub q)
   ... | false = f
     where
     -- the appended list: an old blob, or the new one at the end
-    f : (bs ++ (v ∷ [])) ⊆ (v ∷ ms)
+    f : (bs ++ (v ∷ [])) ⊆ blobsAt ld ((ld , v) ∷ ms)
     f q with ∈-++⁻ bs q
-    ... | inj₁ old        = there (sub old)
-    ... | inj₂ (here refl) = here refl
+    ... | inj₁ old         = blobsAt-mono ld (λ r → there r) (sub old)
+    ... | inj₂ (here refl) = ∈-blobsAt ld v ms
 
   -- THE CERTIFICATE MENU is stable: every operand is a value-free prefix on
   -- `store … stHasCert`, and `Stop` is a `react` with no τ
@@ -558,13 +615,13 @@ module Generic
 
   -- … and well-formed under the carried invariant: `stHasCert` needs nothing certified
   -- and hands the vote store's state straight back, so `bs ⊆ ms` survives the pass
-  wfR-offerCerts : ∀ {ms} n (vs : Votes) (rs : Certs) → InvV ms vs
-                 → WfR fullα ms InvV (offerCerts n vs rs)
+  wfR-offerCerts : ∀ {ms} n (vs : Votes) (rs : Certs) → InvV (homeOf n) ms vs
+                 → WfR fullα ms (InvV (homeOf n)) (offerCerts n vs rs)
   wfR-offerCerts n vs []       inv = wfR-Stop
   wfR-offerCerts n vs (r ∷ rs) inv =
     wfR-□ _ _ (stable-node refl) (stable-offerCerts n vs rs)
       (wfR-Prefix (λ _ _ _ ()) (λ le _ _ → wfR-Ret (λ le′ →
-         ⊆-trans inv (⊆-trans le le′))))
+         ⊆-trans inv (blobsAt-mono (homeOf n) (⊆-trans le le′)))))
       (wfR-offerCerts n vs rs inv)
 
   ------------------------------------------------------------------------
@@ -579,11 +636,13 @@ module Generic
                   → ∀ at a → certGate ms at a ≡ true → certGate ms′ at a ≡ true
     certGate-mono {ms} {ms′} sub at a eq =
       allCert⁺ (certNeeds at a) ms′
-               (λ q → certMono sub _ (allCert⁻ (certNeeds at a) ms eq q))
+               (λ {b} q → certMono (blobsAt-mono (proj₁ b) sub) (proj₂ b)
+                                   (allCert⁻ (certNeeds at a) ms eq q))
 
     -- the generic carrier at the S3 discipline.  `OriginSpecT` is renamed rather than
     -- listed: Agda rejects a name that appears in both `using` and `renaming`.
-    open OS.Generic.Origin p t apiES VoteBlob decVoteBlob certMints certGate certGate-mono
+    open OS.Generic.Origin p t apiES ((Link × Dir) × VoteBlob) decMintKey
+                           certMints certGate certGate-mono
       using ( mintedAfter; mintedAfter-⊇; originOffer; OriginSpecAt; specAt-init
             ; OSafe; gateOK; onτ; onEv; noTick; osafe→⊑T )
       renaming (OriginSpecT to CertSpecT)
@@ -613,34 +672,42 @@ module Generic
     -- `certifies bs h ∧ not (memberOf h cs)`; its left conjunct plus the carried
     -- `bs ⊆ ms` and `CertifiesMono` give the gate, `certifies ms h ≡ true`.
     wfR-certify : ∀ n {ms} (bs : Blobs) (cs : Certs) (r : RbHash)
-                → bs ⊆ ms → WfR fullα ms InvV (certify n bs cs r)
+                → bs ⊆ blobsAt (homeOf n) ms
+                → WfR fullα ms (InvV (homeOf n)) (certify n bs cs r)
     wfR-certify n bs cs r sub with certifies bs r ∧ not (memberOf r cs) in eq
-    ... | false = wfR-Ret (λ le → ⊆-trans sub le)
+    ... | false = wfR-Ret (λ le → ⊆-trans sub (blobsAt-mono (homeOf n) le))
     ... | true  =
-      wfR-Output (λ le _ → λ { (here refl) → certMono (λ q → le (sub q)) r
-                                                      (proj₁ (∧-split eq))
+      wfR-Output (λ le _ → λ { (here refl) →
+                                 certMono (λ q → blobsAt-mono (homeOf n) le (sub q)) r
+                                          (proj₁ (∧-split eq))
                              ; (there ()) })
-                 (λ le _ → wfR-Ret (λ le′ → ⊆-trans sub (⊆-trans le le′)))
+                 (λ le _ → wfR-Ret (λ le′ →
+                    ⊆-trans sub (blobsAt-mono (homeOf n) (⊆-trans le le′))))
 
-    -- one pass of the vote store: a deposit — which mints the blob, dedup-inserts it
-    -- and consults the oracle — or the read-pointer menu
-    wfR-voteStep : ∀ n {ms} (vs : Votes) → InvV ms vs → WfR fullα ms InvV (voteStep n vs)
+    -- one pass of the vote store: a deposit — which mints the blob AT THIS NODE'S
+    -- ENDPOINT, dedup-inserts it and consults the oracle — or the read-pointer menu
+    wfR-voteStep : ∀ n {ms} (vs : Votes) → InvV (homeOf n) ms vs
+                 → WfR fullα ms (InvV (homeOf n)) (voteStep n vs)
     wfR-voteStep n (bs , cs) inv =
       wfR-□ _ _ (stable-node refl)
         (stable-□ (stable-offerIx (getVoteAtEv n) bs 0 (bs , cs))
                   (stable-offerCerts n (bs , cs) cs))
         (wfR-Prefix (λ _ _ _ ()) (λ le v _ →
-           wfR-certify n (insertU v bs) cs _ (insertU-⊆-cons v bs _ (⊆-trans inv le))))
+           wfR-certify n (insertU v bs) cs _
+             (insertU-⊆-at (homeOf n) v bs _
+                (⊆-trans inv (blobsAt-mono (homeOf n) le)))))
         (wfR-□ _ _ (stable-offerIx (getVoteAtEv n) bs 0 (bs , cs))
                    (stable-offerCerts n (bs , cs) cs)
           (wfR-offerIx (getVoteAtEv n) bs 0 (bs , cs)
-                       (λ _ _ ()) (λ le iv → ⊆-trans iv le) inv)
+                       (λ _ _ ()) (λ le iv → ⊆-trans iv (blobsAt-mono (homeOf n) le)) inv)
           (wfR-offerCerts n (bs , cs) cs inv))
 
     -- THE VOTE STORE: the loop, under the carried invariant
-    wf-voteStore : ∀ {ms} n (vs : Votes) → InvV ms vs → Wf fullα ms (voteStore n vs)
+    wf-voteStore : ∀ {ms} n (vs : Votes) → InvV (homeOf n) ms vs
+                 → Wf fullα ms (voteStore n vs)
     wf-voteStore n vs inv =
-      wf-loop {body = voteStep n} {InvA = InvV} {a = vs} (λ le a iv → ⊆-trans iv le)
+      wf-loop {body = voteStep n} {InvA = InvV (homeOf n)} {a = vs}
+              (λ le a iv → ⊆-trans iv (blobsAt-mono (homeOf n) le))
               (λ _ a iv → wfR-voteStep n a iv) inv
 
     ------------------------------------------------------------------------

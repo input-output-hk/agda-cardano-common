@@ -154,6 +154,19 @@ module Generic
   systemN-mono-T med mSpec nSpec lg hM hN =
     Hide-mono-⊑ᵀ ioES (∥-mono-⊑T ioES hM (⦀Fin⁺-mono-⊑ᵀ hN))
 
+  -- the NODE-BUILDER-PARAMETRIC sibling of `systemN-mono-T`, for the same reason
+  -- `systemN-monoWith` is parametric: none of the three monotonicity steps inspects
+  -- the builder, so the body is `systemN-mono-T`'s verbatim and the lemma holds at
+  -- `node`, at `nodeUniform` and at the Leios-prototype `nodeWith nodeBundleP` alike
+  systemN-monoWith-T : (mk : Node → Proc → Proc) (med : Proc) (mSpec : Proc)
+                       (nSpec lg : Node → Proc)
+                     → mSpec ⊑T med
+                     → (∀ n → nSpec n ⊑T mk n (lg n))
+                     → ((mSpec ∥⇘ ioES ⇙ ⦀Fin⁺ numNodes-1 nSpec) ∖ ioES)
+                         ⊑T systemOfWithNode mk med lg
+  systemN-monoWith-T mk med mSpec nSpec lg hM hN =
+    Hide-mono-⊑ᵀ ioES (∥-mono-⊑T ioES hM (⦀Fin⁺-mono-⊑ᵀ hN))
+
 ------------------------------------------------------------------------
 -- Sanity check: the lemma instantiated at the four-node diamond
 --

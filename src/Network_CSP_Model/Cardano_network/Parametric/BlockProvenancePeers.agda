@@ -190,61 +190,71 @@ module Generic
   module VLF = Vacuous ιLF ιLF⁻¹ ιLF-linv
 
   -- no block-carrying channel is in the image of the KeepAlive renaming: on each of
-  -- the seven `Carries` shapes `ιKA⁻¹` answers `nothing`
+  -- the nine `Carries` shapes `ιKA⁻¹` answers `nothing`
   hKA : ∀ bt b at a → VKA.ι-vis-inv bt b ≡ just (at , a) → peersG bt b
       → ∀ {blk} → ¬ Carries bt b blk
-  hKA _ _ _ _ eq _ c-stGet  = case eq of λ ()
+  hKA _ _ _ _ eq _ c-stGet   = case eq of λ ()
+  hKA _ _ _ _ eq _ c-stGetAt = case eq of λ ()
   hKA _ _ _ _ eq _ c-stPut  = case eq of λ ()
   hKA _ _ _ _ eq _ c-sendBF = case eq of λ ()
   hKA _ _ _ _ eq _ c-recvBF = case eq of λ ()
   hKA _ _ _ _ eq _ c-ann    = case eq of λ ()
   hKA _ _ _ _ eq _ c-input  = case eq of λ ()
-  hKA _ _ _ _ eq _ c-output = case eq of λ ()
+  hKA _ _ _ _ eq _ c-output  = case eq of λ ()
+  hKA _ _ _ _ eq _ c-annP    = case eq of λ ()
 
   -- likewise ChainSync
   hCS : ∀ bt b at a → VCS.ι-vis-inv bt b ≡ just (at , a) → peersG bt b
       → ∀ {blk} → ¬ Carries bt b blk
-  hCS _ _ _ _ eq _ c-stGet  = case eq of λ ()
+  hCS _ _ _ _ eq _ c-stGet   = case eq of λ ()
+  hCS _ _ _ _ eq _ c-stGetAt = case eq of λ ()
   hCS _ _ _ _ eq _ c-stPut  = case eq of λ ()
   hCS _ _ _ _ eq _ c-sendBF = case eq of λ ()
   hCS _ _ _ _ eq _ c-recvBF = case eq of λ ()
   hCS _ _ _ _ eq _ c-ann    = case eq of λ ()
   hCS _ _ _ _ eq _ c-input  = case eq of λ ()
-  hCS _ _ _ _ eq _ c-output = case eq of λ ()
+  hCS _ _ _ _ eq _ c-output  = case eq of λ ()
+  hCS _ _ _ _ eq _ c-annP    = case eq of λ ()
 
   -- likewise TxSubmission
   hTS : ∀ bt b at a → VTS.ι-vis-inv bt b ≡ just (at , a) → peersG bt b
       → ∀ {blk} → ¬ Carries bt b blk
-  hTS _ _ _ _ eq _ c-stGet  = case eq of λ ()
+  hTS _ _ _ _ eq _ c-stGet   = case eq of λ ()
+  hTS _ _ _ _ eq _ c-stGetAt = case eq of λ ()
   hTS _ _ _ _ eq _ c-stPut  = case eq of λ ()
   hTS _ _ _ _ eq _ c-sendBF = case eq of λ ()
   hTS _ _ _ _ eq _ c-recvBF = case eq of λ ()
   hTS _ _ _ _ eq _ c-ann    = case eq of λ ()
   hTS _ _ _ _ eq _ c-input  = case eq of λ ()
-  hTS _ _ _ _ eq _ c-output = case eq of λ ()
+  hTS _ _ _ _ eq _ c-output  = case eq of λ ()
+  hTS _ _ _ _ eq _ c-annP    = case eq of λ ()
 
   -- LeiosNotify: the ONE block-carrying channel in its image is the announcement,
   -- and that is outside `peersG` — the LN server peer RELIES on it
   hLN : ∀ bt b at a → VLN.ι-vis-inv bt b ≡ just (at , a) → peersG bt b
       → ∀ {blk} → ¬ Carries bt b blk
-  hLN _ _ _ _ eq _ c-stGet  = case eq of λ ()
+  hLN _ _ _ _ eq _ c-stGet   = case eq of λ ()
+  hLN _ _ _ _ eq _ c-stGetAt = case eq of λ ()
   hLN _ _ _ _ eq _ c-stPut  = case eq of λ ()
   hLN _ _ _ _ eq _ c-sendBF = case eq of λ ()
   hLN _ _ _ _ eq _ c-recvBF = case eq of λ ()
   hLN _ _ _ _ _  g c-ann    = g
   hLN _ _ _ _ eq _ c-input  = case eq of λ ()
-  hLN _ _ _ _ eq _ c-output = case eq of λ ()
+  hLN _ _ _ _ eq _ c-output  = case eq of λ ()
+  hLN _ _ _ _ eq _ c-annP    = case eq of λ ()
 
   -- likewise LeiosFetch
   hLF : ∀ bt b at a → VLF.ι-vis-inv bt b ≡ just (at , a) → peersG bt b
       → ∀ {blk} → ¬ Carries bt b blk
-  hLF _ _ _ _ eq _ c-stGet  = case eq of λ ()
+  hLF _ _ _ _ eq _ c-stGet   = case eq of λ ()
+  hLF _ _ _ _ eq _ c-stGetAt = case eq of λ ()
   hLF _ _ _ _ eq _ c-stPut  = case eq of λ ()
   hLF _ _ _ _ eq _ c-sendBF = case eq of λ ()
   hLF _ _ _ _ eq _ c-recvBF = case eq of λ ()
   hLF _ _ _ _ eq _ c-ann    = case eq of λ ()
   hLF _ _ _ _ eq _ c-input  = case eq of λ ()
-  hLF _ _ _ _ eq _ c-output = case eq of λ ()
+  hLF _ _ _ _ eq _ c-output  = case eq of λ ()
+  hLF _ _ _ _ eq _ c-annP    = case eq of λ ()
 
   ------------------------------------------------------------------------
   -- The bundle

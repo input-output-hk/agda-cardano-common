@@ -288,16 +288,18 @@ StoreCar stCert          = RbHash    -- CHANGED from EBHash: a vote names the RB
 StoreCar (stGetTx _)     = Tx
 StoreCar (stHasCert _)   = ⊤
 
--- the environment's channels into a node: the block forge, a transaction submission, and the
--- forge of a CERTIFICATE-carrying ranking block (whose body certifies some earlier RB)
-data EnvTag : Set where envForge envSubmit envForgeCert : EnvTag
+-- the environment's TWO channels into a node: the block forge and a transaction
+-- submission.  There is no separate certificate-RB forge channel: a ranking block whose
+-- body carries a certificate is forged on `envForge` like any other, and the extra
+-- rendezvous such a block must earn is the node logic's business, not the alphabet's.
+data EnvTag : Set where envForge envSubmit : EnvTag
 
--- a forge delivers an optional EB forged together with its announcing RB; a submission
--- delivers one transaction; a certificate forge delivers the certificate-carrying RB
+-- a forge delivers an optional EB forged together with its announcing RB — the pair the
+-- announcement check reads, and the same pair whether or not the RB carries a
+-- certificate; a submission delivers one transaction
 EnvCar : EnvTag → Set
-EnvCar envForge     = Maybe EB × Block
-EnvCar envSubmit    = Tx
-EnvCar envForgeCert = Block
+EnvCar envForge  = Maybe EB × Block
+EnvCar envSubmit = Tx
 
 ------------------------------------------------------------------------
 -- DecEq instances for the six finite api tag enums (payload-free) and
@@ -1571,13 +1573,8 @@ instance
     go : (x y : EnvTag) → Dec (x ≡ y)
     go envForge  envForge  = yes refl
     go envSubmit envSubmit = yes refl
-    go envForgeCert envForgeCert = yes refl
     go envForge  envSubmit = no λ ()
     go envSubmit envForge  = no λ ()
-    go envForge envForgeCert = no λ ()
-    go envSubmit envForgeCert = no λ ()
-    go envForgeCert envForge = no λ ()
-    go envForgeCert envSubmit = no λ ()
 
 
 ------------------------------------------------------------------------

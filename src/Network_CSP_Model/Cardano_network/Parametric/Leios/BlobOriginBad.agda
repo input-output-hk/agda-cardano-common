@@ -118,7 +118,7 @@ private
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using ( StateL; getAtEv; getBodyEv; putVoteEv; nodeLogicL
-        ; forgeL; forgeCert; ebIndex; submit; certSink; allThreadsL
+        ; forgeL; ebIndex; submit; certSink; allThreadsL
         ; blockStoreL; ebStore; bodyStore; mempool; voteStore )
 -- S2′ at this instance: `VoterId = Node = Fin 3`, so the voter map and its inverse are
 -- both the identity and the round-trip law is `refl`
@@ -180,8 +180,8 @@ voterBlobBad n = loop (voterBlobBadBody n) 0
 -- POSITIVE is stated over.)
 nodeLogicLBlobBad : Fin 3 → StateL → Proc
 nodeLogicLBlobBad n (held , es , bs , ts , vs) =
-  (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voterBlobBad n ⦀ (submit n ⦀
-     (certSink n ⦀ allThreadsL n))))))
+  (forgeL n ⦀ (ebIndex n ⦀ (voterBlobBad n ⦀ (submit n ⦀
+     (certSink n ⦀ allThreadsL n)))))
     ∥⇘ storeES ⇙
   (blockStoreL n held ⦀ (ebStore n es ⦀ (bodyStore n bs ⦀ (mempool n ts ⦀ voteStore n vs))))
 
@@ -257,8 +257,7 @@ step₁ = _ ,
   Par-soloR _ _ _ _ (λ ())
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())                          -- past forgeL
-        (Par-soloR _ _ _ _ (λ ())                        -- past forgeCert
-          (Par-brBoth _ _ _ _ (λ ())                     -- ebIndex COLLIDES
+        (Par-brBoth _ _ _ _ (λ ())                   -- ebIndex COLLIDES
             (sVis refl refl)
             (Par-brBoth _ _ _ _ (λ ())                   -- the voter COLLIDES
               (sVis refl refl)
@@ -272,7 +271,7 @@ step₁ = _ ,
                           (Par-soloL _ _ _ _ (λ ())      -- bodyOfferLoop, alone
                             (sVis refl refl) refl))
                         refl) refl) refl)
-                  refl) refl))) refl) refl)
+                  refl) refl))) refl)
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl))
     refl
 
@@ -280,14 +279,14 @@ step₁ = _ ,
 step₂ : Σ[ P₂ ∈ Proc ] (proj₁ step₁ ─[ τ ]─► P₂)
 step₂ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τR _ _ _ _ _ _))))
+    (Par-τ-R _ _ _ _ (par-brNode-τR _ _ _ _ _ _)))
 
 -- STEP 3.  Resolve the INNER collision to the LEFT: the broken voter advances and the
 -- twelve threads below it stand still.
 step₃ : Σ[ P₃ ∈ Proc ] (proj₁ step₂ ─[ τ ]─► P₃)
 step₃ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τL _ _ _ _ _ _)))))
+    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τL _ _ _ _ _ _))))
 
 -- STEP 4.  The block store's loop-back τ.
 step₄ : Σ[ P₄ ∈ Proc ] (proj₁ step₃ ─[ τ ]─► P₄)
@@ -301,9 +300,8 @@ step₅ = _ ,
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())
         (Par-soloR _ _ _ _ (λ ())
-          (Par-soloR _ _ _ _ (λ ())
-            (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
-            refl) refl) refl)
+          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+          refl) refl)
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
@@ -324,9 +322,8 @@ step₇ = _ ,
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())
         (Par-soloR _ _ _ _ (λ ())
-          (Par-soloR _ _ _ _ (λ ())
-            (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
-            refl) refl) refl)
+          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+          refl) refl)
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())

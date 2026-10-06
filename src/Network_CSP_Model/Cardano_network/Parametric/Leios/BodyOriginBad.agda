@@ -76,6 +76,7 @@ open import Data.Bool using (Bool; true; false)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.Maybe using (Maybe; just)
 open import Data.List using (List; []; _∷_)
+open import Data.List.Relation.Unary.Any using (here)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -240,6 +241,12 @@ evRecvBlock = evl (evLabel EB (apiLP fzero lo lfpRecvBlock) ebBad)
 evPutBody : Event√ (⊤ {0ℓ})
 evPutBody = evl (evLabel EB (store fzero lo stPutBody) ebBad)
 
+-- THE MINTED SET THE REQUEST LEAVES BEHIND.  Since the re-keying, a mint carries the
+-- endpoint the deposit it licenses is made at: node `nA` has degree 1, so the endpoint it
+-- asked at is already its own home endpoint and `homeAt (fzero , lo)` IS `(fzero , lo)`.
+msReq : Minted
+msReq = ((fzero , lo) , true) ∷ []
+
 ------------------------------------------------------------------------
 -- The five steps
 --
@@ -321,36 +328,36 @@ backEdge (⟹-ev (sVis eq _) _)   = case eq of λ ()
 
 -- NON-VACUITY, PINPOINTED — the body the node DID ask for is licensed outright at the
 -- very same minted set, at the very same channel
-gate-requested : bodyGate (true ∷ []) (EB , store fzero lo stPutBody) ebGood ≡ true
+gate-requested : bodyGate msReq (EB , store fzero lo stPutBody) ebGood ≡ true
 gate-requested = refl
 
 -- … and the body it did NOT ask for is not.  So what refuses the deposit is the HASH
 -- MISMATCH and nothing else — exactly the conditional `fetchBad` deleted.
-gate-unrequested : bodyGate (true ∷ []) (EB , store fzero lo stPutBody) ebBad ≡ false
+gate-unrequested : bodyGate msReq (EB , store fzero lo stPutBody) ebBad ≡ false
 gate-unrequested = refl
 
 -- THE GATE.  The request minted `true`, the delivery minted nothing, and the body
--- deposited is `false`, so `bodyGate (true ∷ []) _ false` computes to `false`: the
+-- deposited is `false`, so `bodyGate msReq _ false` computes to `false`: the
 -- deposit is not offered and the spec's map is definitionally `nothing`.  The menu has
 -- no τ either, hence three clauses.
-noPut : ∀ {q} → ¬ (OriginSpecAt (true ∷ []) ⟹⟨ evPutBody ∷ [] ⟩ q)
+noPut : ∀ {q} → ¬ (OriginSpecAt msReq ⟹⟨ evPutBody ∷ [] ⟩ q)
 noPut (⟹-τ (sSil eq) _) = case eq of λ ()
 noPut (⟹-τ (sTau refl ()) _)
 noPut (⟹-ev (sVis refl ()) _)
 
 -- the DELIVERY mints nothing: minting there would licence any body at all and delete
 -- the theorem
-noRecv : ∀ {q} → ¬ (OriginSpecAt (true ∷ []) ⟹⟨ evRecvBlock ∷ evPutBody ∷ [] ⟩ q)
+noRecv : ∀ {q} → ¬ (OriginSpecAt msReq ⟹⟨ evRecvBlock ∷ evPutBody ∷ [] ⟩ q)
 noRecv (⟹-τ (sSil eq) _) = case eq of λ ()
 noRecv (⟹-τ (sTau refl ()) _)
-noRecv (⟹-ev (sVis refl refl) rest) = noPut (proj₂ (backEdge {ms = true ∷ []} rest))
+noRecv (⟹-ev (sVis refl refl) rest) = noPut (proj₂ (backEdge {ms = msReq} rest))
 
 -- the REQUEST is the one minting event, and it mints `true` — not `false`
 noSend : ∀ {q} → ¬ (OriginSpecAt []
                       ⟹⟨ evSendReq ∷ evRecvBlock ∷ evPutBody ∷ [] ⟩ q)
 noSend (⟹-τ (sSil eq) _) = case eq of λ ()
 noSend (⟹-τ (sTau refl ()) _)
-noSend (⟹-ev (sVis refl refl) rest) = noRecv (proj₂ (backEdge {ms = true ∷ []} rest))
+noSend (⟹-ev (sVis refl refl) rest) = noRecv (proj₂ (backEdge {ms = msReq} rest))
 
 -- an OFFER received mints nothing: what licences a deposit is the node's own asking
 noOffer : ∀ {q} → ¬ (OriginSpecAt []
@@ -396,5 +403,5 @@ bodySound-node-FAILS h = noReqNext (proj₂ (h _ bad-body-fires))
 bodySound-logic-good : BodySpecT ⊑T nodeLogicLBodyGood nA st₀
 bodySound-logic-good =
   soundLogic (nodeLogicLBodyGood nA st₀)
-    (wf-withStores (wf-lnClient nA (fzero , lo)))
+    (wf-withStores (wf-lnClient nA (fzero , lo) (here refl)))
     (NoRet-Par storeES (λ _ _ → tt) NoRet-loop0)

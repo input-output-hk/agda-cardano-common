@@ -49,10 +49,9 @@
 --     an earlier origin", not "one request, one deposit".
 --   * A FORGE THE BLOCK STORE REJECTS STILL MINTS: `bodyMints` fires on the
 --     `env … envForge` LABEL, whereas `forgeBodyL` suppresses the deposit
---     under `forgeOK` and `acceptForgeL` drops cert-carrying RBs — so the
---     permission outlives the rejection.  (This is a weakening of the gate,
---     never of soundness: the deposit it licenses is one `forgeBodyL` does
---     not make.)
+--     under `forgeOK` — so the permission outlives the rejection.  (This is
+--     a weakening of the gate, never of soundness: the deposit it licenses is
+--     one `forgeBodyL` does not make.)
 --   * It says nothing about the BLOCK store (`stPut`), the mempool
 --     (`stPutTx`), the EB-entry store (`stPutEB`) or the vote store
 --     (`stPutVote`).  `storeStepL`'s `putEv` branch is deliberately ungated
@@ -66,20 +65,32 @@
 --     actually reaching `stPutBody`; the three liveness ceilings recorded in
 --     Task 4 are untouched.
 --
--- "ITS OWN FORGE / ITS OWN REQUEST" IS A NODE-LEVEL READING — READ THIS
--- BEFORE ANY SYSTEM LIFT.  Like S2's, S2′'s and S3's, this discipline is
--- ENDPOINT-AGNOSTIC in its MINTS: `bodyMints` mints on `env _ _ envForge`
--- and on `apiLP _ _ lfpSendBlockRequest` for EVERY link and direction, and
--- `isPutBody` ignores the endpoint of the deposit.  At NODE level the two
--- coincide, for the reason `VoteSound`'s header records: inside
--- `nodeP n (nodeLogicL n st₀)` the only `store`/`env` channels that occur
--- are the `homeOf n` ones, and no peer of the bundle offers a `store`
--- channel at all.  CONSEQUENCE: with more than one node in one composite, a
--- request sent at node X would licence a body deposit at node Y.  A
--- system-level S1 must first make the key ENDPOINT-INDEXED — mint
--- `(l , d , h)` and gate a `stPutBody` at `(l , d)` on keys carrying that
--- same `(l , d)` — exactly as S2's header prescribes.  Until then, no result
--- here may be quoted above node level.
+-- THE DISCIPLINE IS ENDPOINT-INDEXED, AND THAT IS WHAT LETS IT LIFT.  The key
+-- is an EB hash TOGETHER WITH THE DEPOSIT ENDPOINT it licenses
+-- (`BodyKey = (Link × Dir) × EBHash`, so `Minted = List BodyKey`).  An
+-- `env l d envForge` carrying `e` mints `((l , d) , ebHash e)` — node-local,
+-- since `forgeEv n` fires at `homeOf n`, which is also where `putBodyEv n`
+-- fires, so record η closes that half definitionally.  An
+-- `apiLP l d lfpSendBlockRequest ! q` mints `(homeAt (l , d) , proj₁ q)`,
+-- where `homeAt (l , d)` is the home endpoint of the node that OWNS
+-- `(l , d)`; a `store l d stPutBody ! eb` demands `((l , d) , ebHash eb)`.
+-- Since `homeOf` is injective (`homeOf-inj`), a request sent at node X mints
+-- no key any deposit of node Y can spend, and `Leios.BodySystemL` spends
+-- exactly that.  The request mint has to be NORMALISED to the depositing
+-- endpoint rather than keyed by the sending one, because a node sends at
+-- every incident endpoint but deposits only at `homeOf n`; the normalisation
+-- is sound because `Topology.endpoints-sound` identifies the owner of
+-- `(l , d)`, which the membership-carrying fold
+-- `BlockProvenanceWfR.wf-⦀⁺∈` delivers to the one leaf that needs it.
+--
+-- THE RE-KEYED NODE-LEVEL THEOREM IS **NO WEAKER** THAN THE OLD ONE, and that
+-- is the direction that may be quoted.  Whenever the new gate stands open at
+-- a deposit, so did the old one: the new minted set holds
+-- `((l , d) , ebHash eb)`, which only a forge of that hash or a request for
+-- that point can have put there — so the old endpoint-blind
+-- `memberOf (ebHash eb)` was `true` too.  Hence every trace the NEW
+-- `BodySpecT` permits the old one permitted.  The converse is NOT proved
+-- here, so "no weaker" is the claim, never "strictly stronger".
 --
 -- HOW IT IS PROVED.  The assume-guarantee route S2/S2′ take —
 -- `BlockProvenance.Carrier` plus `BlockProvenanceWfR.Body`, the shared
@@ -105,12 +116,14 @@
 -- verbatim: `noPuts` excludes BOTH thread-emitted deposits, so every thread
 -- proved vacuous here is vacuous for S4 too, and S4's own
 -- `noPuts → noNeed` is the same three lines as `nP→noNeed` below with its
--- own `needs-*`.  What S4 must still write for itself are the FOUR leaves
--- that fall outside `noPuts`: `oo-forgeCert` and `oo-clientLoop` (written
--- here at S1's `noNeed`, because they offer `stPut`, which is precisely what
--- S4 gates — they are S4's two CONTENT-BEARING leaves) and vacuity for
--- `forgeL` and `lnClientLoopL` (content-bearing here, vacuous there — the
--- shapes are `VoteSound.oo-forgeL` / `oo-fetchBody` / `oo-fetchDep`).
+-- own `needs-*`.  What S4 must still write for itself are the THREE leaves
+-- that fall outside `noPuts`: `oo-clientLoop` (written here at S1's
+-- `noNeed`, because it offers `stPut`, which is precisely what S4 gates) and
+-- vacuity for `lnClientLoopL` (content-bearing here, vacuous there — the
+-- shapes are `oo-fetchBody` / `oo-fetchDep`).  `forgeL` is content-bearing
+-- for BOTH, because it deposits the EB body AND, after the `stHasCert`
+-- rendezvous, a certificate-carrying ranking block; each theorem writes its
+-- own `wf-forgeL`.
 ------------------------------------------------------------------------
 
 module Cardano_network.Parametric.Leios.BodyOrigin where
@@ -123,7 +136,7 @@ open import Data.List using (List; []; _∷_; _++_)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Relation.Nullary using (yes; no)
+open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
@@ -131,8 +144,10 @@ open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.List.Relation.Binary.Subset.Propositional using (_⊆_)
 open import Data.List.Relation.Binary.Subset.Propositional.Properties using (⊆-refl; ⊆-trans)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
+open import Data.Product.Properties using (≡-dec)
 open import Data.Unit.Polymorphic using (⊤; tt)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Binary.PropositionalEquality
+  using (_≡_; refl; sym; trans; cong; subst)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 open import Cardano_network.Params using (Params)
@@ -171,7 +186,7 @@ module Generic
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
           ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
-          ; envForge; envSubmit; envForgeCert
+          ; envForge; envSubmit
           ; lnpSendBlockOffer; lnpSendBlockTxsOffer
           ; lnpRecvBlockAnnouncement; lnpRecvBlockOffer; lnpRecvBlockTxsOffer
           ; lnpRecvVotes
@@ -189,7 +204,12 @@ module Generic
   -- (wholesale, as `NetworkPar` and `OriginLeaves`: `Dir`, its decidable equality and
   -- the six `IDs` constructors)
   open import Cardano_network.Base
-  open Topology t using (Node; endpointsOf)
+  open Topology t using (Node; endpointsOf; endpointsList; endpoints-sound)
+  -- `endAt` is NOT opened: the record's derived `endAt` is a pattern-matching lambda, and
+  -- the opened copy does not unify with the one inside `endpoints-sound`'s instantiated
+  -- type (`BlobOrigin` measured the `UnequalTerms`).  The qualified projection does.
+  endAtT : Link → Dir → Node
+  endAtT = Topology.endAt t
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_)
   open import Cardano_network.Parametric.Node p t apiES
@@ -213,11 +233,16 @@ module Generic
     using ( nodeLogicL; st₀; DecEq-⊤poly; DecEq-ℕ×ℕ; at?
           ; getAtEv; putEBEv; putBodyEv; getBodyEv; putVoteEv; getVoteAtEv
           ; putTxEv; getTxAtEv; getTxEv; hasCertEv; forgeOK
-          ; forgeL; forgeBodyL; forgeCert; ebIndex; voter; voterBody; submit; certSink
+          ; forgeL; forgeBodyL; forgeCertL
+          ; ebIndex; voter; voterBody; submit; certSink
           ; serverLoopL; lnServerLoopL; bodyOfferLoop; voteOfferLoop
           ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; tsPull; tsServe; putAllTx
-          ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes
+          ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes; awaitTxs
           ; endpointThreadsL; allThreadsL )
+    -- `putAllTx`'s own membership test, RENAMED so it cannot be confused with (or
+    -- shadowed by) `OriginSafe.memberOf` below: the two are textually identical but
+    -- DISTINCT functions, and a `with` on the wrong one leaves the guard's `if` stuck
+    renaming (memberOf to memberOfNL)
   open OS using (memberOf; memberOf-mono; ∈→memberOf)
   open OS.Generic p t apiES using (noRet→noTick)
   -- the PROTOTYPE peer bundle, whose nine `Wf` facts live in `OriginLeaves.Leaves`
@@ -231,6 +256,68 @@ module Generic
     DecEq-Header×Tip = DecEqI.DecEq-×
 
   ------------------------------------------------------------------------
+  -- THE MINTED KEY, AND THE ENDPOINT BOOKKEEPING IT NEEDS
+  ------------------------------------------------------------------------
+
+  -- the endpoint equality, assembled out of the QUALIFIED `Fin` and `Dir` instances.
+  -- Deliberately not an instance declaration: a product instance at this type would
+  -- compete with the ones `wfR-Output` resolves its `DecEq X` to (campaign ledger,
+  -- gotcha 4).  `CertSound.ld-≟` is the precedent.
+  ld-≟ : (x y : Link × Dir) → Dec (x ≡ y)
+  ld-≟ = ≡-dec (DecEq._≟_ DecEqI.DecEq-Fin) (DecEq._≟_ DecEq-Dir)
+
+  -- THE MINTED KEY: AN EB HASH TOGETHER WITH THE DEPOSIT ENDPOINT IT LICENSES.  The
+  -- endpoint index is what makes the discipline sound at a composite of SEVERAL nodes:
+  -- without it a request sent at node X would licence a body deposit at node Y.
+  BodyKey : Set
+  BodyKey = (Link × Dir) × EBHash
+
+  -- the key's equality, likewise explicit rather than an instance
+  decBodyKey : DecEq BodyKey
+  decBodyKey = record { _≟_ = ≡-dec ld-≟ (DecEq._≟_ decEBHash) }
+
+  -- is this key in the minted set?  `OriginSafe.memberOf` at the equality above, passed
+  -- explicitly because `memberOf` takes its `DecEq` as an INSTANCE argument and
+  -- `decBodyKey` is not one
+  memKey : BodyKey → List BodyKey → Bool
+  memKey k ms = memberOf ⦃ decBodyKey ⦄ k ms
+
+  -- … monotone in the minted set, which is what keeps the gate monotone
+  memKey-mono : ∀ {k ms ms′} → ms ⊆ ms′ → memKey k ms ≡ true → memKey k ms′ ≡ true
+  memKey-mono sub eq = memberOf-mono ⦃ decBodyKey ⦄ sub eq
+
+  -- … and implied by propositional membership
+  ∈→memKey : ∀ k ms → k ∈ ms → memKey k ms ≡ true
+  ∈→memKey k ms q = ∈→memberOf ⦃ decBodyKey ⦄ k ms q
+
+  -- `endpoints-sound` with the direction SPLIT FIRST.  The record's derived `endAt` is an
+  -- extended lambda, which only reduces at a CONCRETE direction, so the law's conclusion
+  -- at an abstract `d` is a stuck term that does not unify with `endAtT l d`
+  -- (`BlobOrigin.sound-at` and `Topology.agda:225-227` make exactly this move).
+  sound-at : ∀ n l d → (l , d) ∈ endpointsList n → endAtT l d ≡ n
+  sound-at n l lo mem = endpoints-sound n l lo mem
+  sound-at n l hi mem = endpoints-sound n l hi mem
+
+  -- a node's HOME endpoint really is its own: `endpoints-sound` at the head of its
+  -- incidence list, which is what `NodeLogic.homeOf` picks
+  home-own : ∀ n → endAtT (proj₁ (homeOf n)) (proj₂ (homeOf n)) ≡ n
+  home-own n = sound-at n (proj₁ (homeOf n)) (proj₂ (homeOf n)) (here refl)
+
+  -- … hence `homeOf` is INJECTIVE: an endpoint belongs to at most one node.  This is the
+  -- fact that makes the endpoint-indexed key separate the nodes of one composite.
+  homeOf-inj : ∀ {n m} → homeOf n ≡ homeOf m → n ≡ m
+  homeOf-inj {n} {m} eq =
+    trans (sym (home-own n))
+          (trans (cong (λ ld → endAtT (proj₁ ld) (proj₂ ld)) eq) (home-own m))
+
+  -- THE DEPOSIT ENDPOINT A REQUEST SENT AT ONE ENDPOINT LICENSES: the home endpoint of
+  -- the node that owns the sending endpoint.  A node sends at EVERY endpoint incident to
+  -- it but deposits only at `homeOf n` (`NodeLogicL.putBodyEv`), so a mint keyed by the
+  -- sending endpoint itself would licence nothing at a node of degree > 1.
+  homeAt : Link × Dir → Link × Dir
+  homeAt ld = homeOf (endAtT (proj₁ ld) (proj₂ ld))
+
+  ------------------------------------------------------------------------
   -- The origin discipline
   ------------------------------------------------------------------------
 
@@ -238,9 +325,10 @@ module Generic
   -- of the discipline: the gate and the carrying relation both route through it, so
   -- each is discharged by a two-clause case on this `Maybe` instead of a
   -- thirty-two-clause alphabet enumeration (`needs-putBody` still writes that
-  -- enumeration once, because its conclusion is a Σ about the channel).
-  isPutBody : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Maybe LeiosEb
-  isPutBody (_ , store _ _ stPutBody) eb = just eb
+  -- enumeration once, because its conclusion is a Σ about the channel).  The ENDPOINT is
+  -- kept, because the key the deposit demands is indexed by it.
+  isPutBody : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Maybe ((Link × Dir) × LeiosEb)
+  isPutBody (_ , store l d stPutBody) eb = just ((l , d) , eb)
   isPutBody _                         _  = nothing
 
   -- WHAT MINTS.  A forge CARRYING an EB mints that EB's hash — a forge with no EB mints
@@ -250,29 +338,35 @@ module Generic
   -- hash inside the point it asked for: having asked for `q`, the node may store the
   -- body that hashes to `proj₁ q`, and nothing else.  The REPLY (`lfpRecvBlock`) mints
   -- NOTHING — minting there would make the wire branch vacuous and delete the theorem.
-  -- ENDPOINT-AGNOSTIC (link and direction are `_`): see the module header before
-  -- lifting this above node level.
-  bodyMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List EBHash
-  bodyMints (_ , env _ _ envForge)             mb = maybe (λ e → ebHash e ∷ []) [] (proj₁ mb)
-  bodyMints (_ , apiLP _ _ lfpSendBlockRequest) q = proj₁ q ∷ []
+  -- BOTH MINTS ARE KEYED BY THE DEPOSIT ENDPOINT THEY LICENSE.  The forge is node-local
+  -- (`forgeEv n` fires at `homeOf n`, which is exactly where `putBodyEv n` fires), so its
+  -- own `(l , d)` is already the right key.  The request is PER-ENDPOINT, so it is
+  -- normalised through `homeAt`: having asked at one of its endpoints, a node may deposit
+  -- at its own.  `homeOf` is injective (`homeOf-inj`), so node X's requests mint no key
+  -- node Y's deposits can spend — which is what lifts S1 to a system.
+  bodyMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List BodyKey
+  bodyMints (_ , env l d envForge) mb =
+    maybe (λ e → ((l , d) , ebHash e) ∷ []) [] (proj₁ mb)
+  bodyMints (_ , apiLP l d lfpSendBlockRequest) q = (homeAt (l , d) , proj₁ q) ∷ []
   bodyMints _                                   _ = []
 
-  -- IS THIS DEPOSIT LICENSED?  The body's hash must have been forged or requested here.
-  vouched : List EBHash → LeiosEb → Bool
-  vouched ms eb = memberOf (ebHash eb) ms
+  -- IS THIS DEPOSIT LICENSED?  The body's hash must have been forged or requested here,
+  -- FOR THIS VERY DEPOSIT ENDPOINT.
+  vouched : List BodyKey → (Link × Dir) × LeiosEb → Bool
+  vouched ms (ld , eb) = memKey (ld , ebHash eb) ms
 
   -- WHAT IS GATED: only an EB-body deposit, and only by `vouched`.  Everything else
   -- is free — in particular every other store deposit (see the module header).
-  bodyGate : List EBHash → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
+  bodyGate : List BodyKey → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
   bodyGate ms at a = maybe′ (vouched ms) true (isPutBody at a)
 
   -- the gate's monotonicity, as a case on `isPutBody`'s answer alone: the only
-  -- state-dependent test is `memberOf`, which is monotone
-  gate-mono-aux : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe LeiosEb)
+  -- state-dependent test is `memKey`, which is monotone
+  gate-mono-aux : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe ((Link × Dir) × LeiosEb))
                 → maybe′ (vouched ms) true z ≡ true
                 → maybe′ (vouched ms′) true z ≡ true
-  gate-mono-aux sub nothing   eq = refl
-  gate-mono-aux sub (just eb) eq = memberOf-mono sub eq
+  gate-mono-aux sub nothing          eq = refl
+  gate-mono-aux sub (just (ld , eb)) eq = memKey-mono sub eq
 
   -- MINTING ONLY EVER OPENS THE GATE
   bodyGate-mono : ∀ {ms ms′} → ms ⊆ ms′
@@ -285,7 +379,7 @@ module Generic
 
   -- the generic carrier at the S1 discipline.  `OriginSpecT` is renamed rather than
   -- listed: Agda rejects a name that appears in both `using` and `renaming`.
-  open OS.Generic.Origin p t apiES EBHash decEBHash bodyMints bodyGate bodyGate-mono
+  open OS.Generic.Origin p t apiES BodyKey decBodyKey bodyMints bodyGate bodyGate-mono
     using ( Minted; mintedAfter; mintedAfter-⊇; originOffer; OriginSpecAt; specAt-init
           ; OSafe; gateOK; onτ; onEv; noTick; osafe→⊑T )
     renaming (OriginSpecT to BodySpecT)
@@ -295,15 +389,21 @@ module Generic
   -- The assume-guarantee instance, and the ONE alphabet enumeration
   ------------------------------------------------------------------------
 
-  -- WHAT A LABEL CARRIES: a body deposit carries the hash of the body it deposits;
-  -- nothing else carries anything.  (This is the `Carries` of the Wf framework — "needs
-  -- a justification" — NOT the same thing as `bodyMints`.)
-  bodyCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → EBHash → Set
-  bodyCarries at a h = maybe′ (λ eb → ebHash eb ≡ h) ⊥ (isPutBody at a)
+  -- WHAT A DEPOSIT AT ONE ENDPOINT CARRIES: an obligation keyed by the body's hash AND
+  -- the endpoint the deposit is made at
+  carriesAt : (Link × Dir) × LeiosEb → BodyKey → Set
+  carriesAt (ld , eb) k = (ld , ebHash eb) ≡ k
 
-  -- WHAT THE MINTED SET MUST SAY ABOUT A CARRIED HASH: it was forged or requested here
-  bodyWA : Minted → EBHash → Set
-  bodyWA ms h = memberOf h ms ≡ true
+  -- WHAT A LABEL CARRIES: a body deposit carries the hash of the body it deposits KEYED
+  -- BY THE ENDPOINT IT IS DEPOSITED AT; nothing else carries anything.  (This is the
+  -- `Carries` of the Wf framework — "needs a justification" — NOT `bodyMints`.)
+  bodyCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → BodyKey → Set
+  bodyCarries at a k = maybe′ (λ z → carriesAt z k) ⊥ (isPutBody at a)
+
+  -- WHAT THE MINTED SET MUST SAY ABOUT A CARRIED KEY: that hash was forged or requested
+  -- here, for that very deposit endpoint
+  bodyWA : Minted → BodyKey → Set
+  bodyWA ms k = memKey k ms ≡ true
 
   -- the state a label leads to: EXACTLY `OriginSafe`'s `mintedAfter` on a visible label
   -- (definitionally — `mintedAfter at a ms = mints at a ++ ms`), unchanged on τ and `√`
@@ -322,7 +422,7 @@ module Generic
   -- constructors plus 14 `StoreTag`s), of which 31 are absurd — because `isPutBody`'s catch-all
   -- does not reduce until the constructor is known.  This is the whole alphabet tax of
   -- S1, and it does double duty: `needs-store` and `nP→noNeed` both fall out of it.
-  needs-putBody : ∀ {X} {e : Net_Api Payload X} {a : X} {h} → bodyCarries (X , e) a h
+  needs-putBody : ∀ {X} {e : Net_Api Payload X} {a : X} {k} → bodyCarries (X , e) a k
                 → Σ[ l ∈ Link ] Σ[ d ∈ Dir ]
                     (_≡_ {A = AnyTypes (Net_Api Payload)}
                          (X , e) (StoreCar stPutBody , store l d stPutBody))
@@ -360,46 +460,51 @@ module Generic
   needs-putBody {e = break _}                   ()
 
   -- … weakened to the "some store tag" form `OriginLeaves` asks for
-  needs-store : ∀ {X} {e : Net_Api Payload X} {a : X} {h} → bodyCarries (X , e) a h
+  needs-store : ∀ {X} {e : Net_Api Payload X} {a : X} {k} → bodyCarries (X , e) a k
               → Σ[ l ∈ Link ] Σ[ d ∈ Dir ] Σ[ m ∈ StoreTag ]
                   (_≡_ {A = AnyTypes (Net_Api Payload)}
                        (X , e) (StoreCar m , store l d m))
-  needs-store {X} {e} {a} {h} c with needs-putBody {X} {e} {a} {h} c
+  needs-store {X} {e} {a} {k} c with needs-putBody {X} {e} {a} {k} c
   ... | l , d , refl = l , d , stPutBody , refl
 
   -- THE SHARED LEAVES: the vacuous-leaf lemmas at both carriers, the two guarantee
-  -- alphabets and their `Sep`s, and the prototype peer bundle
-  open OL.Generic.Leaves p t apiES Minted EBHash bodyCarries bodyWA bodyNext
-                         _⊆_ ⊆-refl ⊆-trans bodyNext-⊆ needs-store
+  -- alphabets and their `Sep`s, and the prototype peer bundle.  RE-EXPORTED, so that
+  -- `Leios.BodySystemL` reaches them through this module instead of re-applying
+  -- `OriginLeaves.Generic.Leaves` at the same eleven arguments.
+  open OL.Generic.Leaves p t apiES Minted BodyKey bodyCarries bodyWA bodyNext
+                         _⊆_ ⊆-refl ⊆-trans bodyNext-⊆ needs-store public
 
-  -- the assume-guarantee carrier at the S1 discipline …
-  open BP.Carrier (Net_Api-≟ {Payload}) Minted EBHash bodyCarries bodyWA
+  -- the assume-guarantee carrier at the S1 discipline … also re-exported, so that the
+  -- `Wf` a system module folds with is THIS module application's and not a second one
+  open BP.Carrier (Net_Api-≟ {Payload}) Minted BodyKey bodyCarries bodyWA
                   bodyNext _⊆_ ⊆-trans bodyNext-⊆
     using ( OK; lbl; Wf; nowW; stepW; wf-mono; wf-mono-G; wf-Skip; wf-deadlock
-          ; Sep; _∪α_; wf-Par; wf-⦀; wf-⦀⋆ )
+          ; Sep; _∪α_; wf-Par; wf-⦀; wf-⦀⋆
+          -- … and the four only a SYSTEM fold needs
+          ; wf-⦀Fin⁺; HideCov; HideKeep; wf-Hide ) public
 
   -- … and its returning-tree layer, at the SAME arguments, so the two `Wf`s are the
   -- same record
-  open BPW.Body (Net_Api-≟ {Payload}) Minted EBHash bodyCarries bodyWA
+  open BPW.Body (Net_Api-≟ {Payload}) Minted BodyKey bodyCarries bodyWA
                 bodyNext _⊆_ ⊆-refl ⊆-trans bodyNext-⊆
     using ( WfR; nowR; stepR; retR; Stable; stable-node; stable-□
           ; wfR-mono; wfR-Ret; wfR-Stop; wfR-Prefix; wfR-Output; wfR-⊓; wfR-□
-          ; wfR->>=; wf-loop; wf-loop0; wf-⦀⁺ )
+          ; wfR->>=; wf-loop; wf-loop0; wf-⦀⁺; wf-⦀⁺∈ )
 
   ------------------------------------------------------------------------
   -- THE BRIDGE
   ------------------------------------------------------------------------
 
   -- `OK` at a body deposit IS the gate, and at every other channel the gate is `true`
-  gate-ok-aux : (ms : Minted) (z : Maybe LeiosEb)
-              → (∀ {h} → maybe′ (λ eb → ebHash eb ≡ h) ⊥ z → memberOf h ms ≡ true)
+  gate-ok-aux : (ms : Minted) (z : Maybe ((Link × Dir) × LeiosEb))
+              → (∀ {k} → maybe′ (λ y → carriesAt y k) ⊥ z → memKey k ms ≡ true)
               → maybe′ (vouched ms) true z ≡ true
-  gate-ok-aux ms nothing   g = refl
-  gate-ok-aux ms (just eb) g = g refl
+  gate-ok-aux ms nothing          g = refl
+  gate-ok-aux ms (just (ld , eb)) g = g refl
 
   -- `OK` at a label IS the gate
   ok→gate : ∀ {X} {e : Net_Api Payload X} {a : X} {ms}
-          → (∀ {h} → bodyCarries (X , e) a h → bodyWA ms h)
+          → (∀ {k} → bodyCarries (X , e) a k → bodyWA ms k)
           → bodyGate ms (X , e) a ≡ true
   ok→gate {X} {e} {a} {ms} f = gate-ok-aux ms (isPutBody (X , e) a) f
 
@@ -418,9 +523,9 @@ module Generic
 
   -- a membership fact transported along a proved hash equality.  The wire guard proves
   -- `ebHash eb ≡ proj₁ q`; the mint is about `proj₁ q`; this is the one step between.
-  mem-≡ : ∀ (h h′ : EBHash) (ms : Minted) → h ≡ h′ → memberOf h′ ms ≡ true
-        → memberOf h ms ≡ true
-  mem-≡ h .h ms refl m = m
+  mem-≡ : ∀ (ld : Link × Dir) (h h′ : EBHash) (ms : Minted) → h ≡ h′
+        → memKey (ld , h′) ms ≡ true → memKey (ld , h) ms ≡ true
+  mem-≡ ld h .h ms refl m = m
 
   ------------------------------------------------------------------------
   -- THE `noPuts` BLOCK — written for S4 as much as for S1 (module header)
@@ -438,7 +543,7 @@ module Generic
   -- which `noPuts` excludes.  (S4's counterpart is these same three lines with its own
   -- `needs-*`; that is the whole cost of the transport.)
   nP→noNeed : ∀ at a → noPuts at a → noNeed at a
-  nP→noNeed (X , e) a np {h} c with needs-putBody {X} {e} {a} {h} c
+  nP→noNeed (X , e) a np {k} c with needs-putBody {X} {e} {a} {k} c
   ... | l , d , refl = np
 
   -- a thread confined to `noPuts` carries nothing for S1 …
@@ -517,6 +622,12 @@ module Generic
     OffersOnly-loop (λ k → OffersOnly-Prefix (λ _ → tt)
                              (λ b → OffersOnly-Output tt OffersOnly-Ret))
 
+  -- the tx-closure gate: mempool READS only (`stGetTx`), so it keeps any `noPuts` continuation
+  oo-awaitTxs : ∀ n (hs : List (TxHash × Size)) {P}
+              → OffersOnly noPuts P → OffersOnly noPuts (awaitTxs n hs P)
+  oo-awaitTxs n []             oo = oo
+  oo-awaitTxs n ((h , _) ∷ hs) oo = OffersOnly-Prefix (λ _ → tt) (λ _ → oo-awaitTxs n hs oo)
+
   -- the body-offer thread: two store READS and two offers
   oo-bodyOfferLoop : ∀ n ld → OffersOnly noPuts (bodyOfferLoop n ld)
   oo-bodyOfferLoop n (l , d) =
@@ -527,15 +638,17 @@ module Generic
              (maybe′ (λ h → getBodyEv n h ⟶ (λ eb →
                         Output ⦃ DecEq-Offer ⦄ (apiLP l (opposite d) lnpSendBlockOffer)
                           ((h , slotOf b) , ebSize eb)
-                          (Output ⦃ DecEq-EBPoint ⦄
-                             (apiLP l (opposite d) lnpSendBlockTxsOffer)
-                             (h , slotOf b) (Ret (suc k)))))
+                          (awaitTxs n (ebTxs h)
+                            (Output ⦃ DecEq-EBPoint ⦄
+                               (apiLP l (opposite d) lnpSendBlockTxsOffer)
+                               (h , slotOf b) (Ret (suc k))))))
                      (Ret (suc k)) (announcedEB b))
     body k b with announcedEB b
     ... | nothing = OffersOnly-Ret
     ... | just h  = OffersOnly-Prefix (λ _ → tt) (λ eb →
                       OffersOnly-Output ⦃ DecEq-Offer ⦄ tt
-                        (OffersOnly-Output ⦃ DecEq-EBPoint ⦄ tt OffersOnly-Ret))
+                        (oo-awaitTxs n (ebTxs h)
+                          (OffersOnly-Output ⦃ DecEq-EBPoint ⦄ tt OffersOnly-Ret)))
 
   -- the vote-offer thread: a vote-store read and a send
   oo-voteOfferLoop : ∀ n ld → OffersOnly noPuts (voteOfferLoop n ld)
@@ -565,10 +678,13 @@ module Generic
     OffersOnly-loop0 (OffersOnly-Prefix (λ _ → tt) (λ { (q , bm) →
       OffersOnly-Prefix (λ _ → tt) (λ _ → oo-serveTxs n l (opposite d) q bm []) }))
 
-  -- every transaction pulled off the wire, deposited in the MEMPOOL
-  oo-putAllTx : ∀ n txs → OffersOnly noPuts (putAllTx n txs)
-  oo-putAllTx n []         = OffersOnly-Skip
-  oo-putAllTx n (t′ ∷ txs) = OffersOnly-Output tt (oo-putAllTx n txs)
+  -- every REQUESTED transaction pulled off the wire, deposited in the MEMPOOL; the
+  -- membership guard only drops deposits, so both arms are `noPuts` — `oo-putChecked`'s shape
+  oo-putAllTx : ∀ n ids txs → OffersOnly noPuts (putAllTx n ids txs)
+  oo-putAllTx n ids []         = OffersOnly-Skip
+  oo-putAllTx n ids (t′ ∷ txs) with memberOfNL (txHash t′) ids
+  ... | true  = OffersOnly-Output tt (oo-putAllTx n ids txs)
+  ... | false = oo-putAllTx n ids txs
 
   -- the TxSubmission pull thread
   oo-tsPull : ∀ n ld → OffersOnly noPuts (tsPull n ld)
@@ -576,7 +692,7 @@ module Generic
     OffersOnly-loop0 (OffersOnly-Output ⦃ DecEq-ℕ×ℕ ⦄ tt
       (OffersOnly-Prefix (λ _ → tt) (λ ids →
         OffersOnly-Output ⦃ DecEqI.DecEq-List ⦄ tt
-          (OffersOnly-Prefix (λ _ → tt) (λ txs → oo-putAllTx n txs)))))
+          (OffersOnly-Prefix (λ _ → tt) (λ txs → oo-putAllTx n ids txs)))))
 
   -- the TxSubmission serve thread: a mempool read and two replies
   oo-tsServe : ∀ n ld → OffersOnly noPuts (tsServe n ld)
@@ -617,25 +733,12 @@ module Generic
   oo-putAllVotes n (v ∷ vs) = OffersOnly-Output tt (oo-putAllVotes n vs)
 
   ------------------------------------------------------------------------
-  -- The two threads that deposit a BLOCK: vacuous here, CONTENT-BEARING for S4
+  -- The BLOCK-depositing leaf that is vacuous here and CONTENT-BEARING for S4
   --
-  -- They offer `stPut`, so they fall outside `noPuts` and are written at S1's own
-  -- `noNeed`.  S4 cannot reuse them — they are exactly the two leaves it has to prove
-  -- something about.
+  -- It offers `stPut`, so it falls outside `noPuts` and is written at S1's own
+  -- `noNeed`.  S4 cannot reuse it — it is one of the two leaves S4 has to prove
+  -- something about; the other is `forgeL`, content-bearing for both.
   ------------------------------------------------------------------------
-
-  -- the certificate-RB forge thread: it deposits a BLOCK after the `stHasCert`
-  -- rendezvous
-  oo-forgeCert : ∀ n → OffersOnly noNeed (forgeCert n)
-  oo-forgeCert n = OffersOnly-loop0 (OffersOnly-Prefix (λ _ → λ ()) body)
-    where
-    -- one pass, once the offered ranking block is in hand
-    body : ∀ b → OffersOnly noNeed
-             (maybe′ (λ r → hasCertEv n r ⟶₀ (putEv n ! b ⟶ Skip)) Skip (rbCert b))
-    body b with rbCert b
-    ... | nothing = OffersOnly-Skip
-    ... | just r  = OffersOnly-Prefix₀ (λ _ → λ ())
-                      (OffersOnly-Output (λ ()) OffersOnly-Skip)
 
   -- the BlockFetch client thread: it deposits a BLOCK received off the wire
   oo-clientLoop : ∀ n ld → OffersOnly noNeed (clientLoop n ld)
@@ -660,27 +763,40 @@ module Generic
   -- THE FORGE THREAD.  `forgeBodyL` offers `putBodyEv n ! eb` only in the `just eb`
   -- branch, which is reached only after the `env … envForge` that MINTED `ebHash eb`
   -- one step earlier.  A forge carrying no EB deposits nothing, and a forge the block
-  -- store rejects (`forgeOK` false) deposits nothing either.
+  -- store rejects (`forgeOK` false) deposits nothing either.  The CERTIFICATE HALF the
+  -- pass ends with — the `stHasCert` rendezvous and the ranking-block deposit — carries
+  -- nothing S1 gates, so it is vacuous here; it is S4 that has to earn it.
   wf-forgeL : ∀ {ms} n → Wf fullα ms (forgeL n)
   wf-forgeL n = wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ mb _ → pass mb))
     where
-    -- the deposit, under the premise that the hash is already minted
+    -- the certificate half: an RB deposit, never an EB body
+    oo-cert : ∀ b → OffersOnly noNeed (forgeCertL n b)
+    oo-cert b with rbCert b
+    ... | nothing = OffersOnly-Skip
+    ... | just r  = OffersOnly-Prefix₀ (λ _ → λ ())
+                      (OffersOnly-Output (λ ()) OffersOnly-Skip)
+
+    -- the deposit, under the premise that the key is already minted.  The key is at
+    -- `homeOf n`, which is where `putBodyEv n` fires.
     dep : ∀ {s} (me : Maybe LeiosEb) (b : Block)
-        → (∀ eb → me ≡ just eb → memberOf (ebHash eb) s ≡ true)
+        → (∀ eb → me ≡ just eb → memKey (homeOf n , ebHash eb) s ≡ true)
         → WfR fullα s (λ _ _ → ⊤) (forgeBodyL n (me , b))
     dep nothing   b h with forgeOK (nothing , b)
-    ... | true  = wfR-free OffersOnly-Skip tt
+    ... | true  = wfR-free (oo-cert b) tt
     ... | false = wfR-free OffersOnly-Skip tt
     dep (just eb) b h with forgeOK (just eb , b)
     ... | false = wfR-free OffersOnly-Skip tt
-    ... | true  = wfR-Output (λ le _ → λ { refl → memberOf-mono le (h eb refl) })
-                             (λ _ _ → wfR-free OffersOnly-Skip tt)
+    ... | true  = wfR-Output (λ le _ → λ { refl → memKey-mono le (h eb refl) })
+                             (λ _ _ → wfR-free (oo-cert b) tt)
 
-    -- THE MINT: the forge event itself puts `ebHash eb` in the minted set, so the state
-    -- its continuation runs at already contains it
+    -- THE MINT: the forge event itself puts `(homeOf n , ebHash eb)` in the minted set,
+    -- so the state its continuation runs at already contains it.  `forgeEv n` fires at
+    -- `homeOf n`, so the mint's own endpoint IS the deposit endpoint and record η closes
+    -- the bookkeeping definitionally — no `endpoints-sound` is needed on this branch.
     mint : ∀ {s} (me : Maybe LeiosEb) (b : Block) (eb : LeiosEb) → me ≡ just eb
-         → memberOf (ebHash eb) (bodyNext (lbl (forgeEv n) (me , b)) s) ≡ true
-    mint {s} .(just eb) b eb refl = ∈→memberOf (ebHash eb) (ebHash eb ∷ s) (here refl)
+         → memKey (homeOf n , ebHash eb) (bodyNext (lbl (forgeEv n) (me , b)) s) ≡ true
+    mint {s} .(just eb) b eb refl =
+      ∈→memKey (homeOf n , ebHash eb) ((homeOf n , ebHash eb) ∷ s) (here refl)
 
     -- one pass of the forge thread, at the state the forge event led to
     pass : ∀ {s} (mb : Maybe LeiosEb × Block)
@@ -692,8 +808,11 @@ module Generic
   -- `lfpSendBlockRequest` — the step that MINTED `proj₁ q`.  The guard's witness turns
   -- the deposit's obligation into that mint.  The other three branches deposit an EB
   -- ENTRY, TRANSACTIONS and VOTE BLOBS respectively, none of which S1 gates.
-  wf-lnClient : ∀ {ms} n ld → Wf fullα ms (lnClientLoopL n ld)
-  wf-lnClient n (l , d) = wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ _ _ → choice))
+  -- IT TAKES THE ENDPOINT'S MEMBERSHIP: the request mints at `homeAt (l , d)` and the
+  -- deposit it licenses is at `homeOf n`, so the leaf has to know that `(l , d)` really
+  -- is one of `n`'s endpoints.
+  wf-lnClient : ∀ {ms} n ld → ld ∈ endpointsList n → Wf fullα ms (lnClientLoopL n ld)
+  wf-lnClient n (l , d) mem = wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ _ _ → choice))
     where
     -- the announcement branch: a no-op
     annB : ∀ {s} → WfR fullα s (λ _ _ → ⊤)
@@ -702,24 +821,33 @@ module Generic
 
     -- THE GUARDED DEPOSIT: the body is stored only if it hashes to the requested point,
     -- and that point is in the minted set by the premise
-    dep : ∀ {s} (q : EBHash × LSlot) (eb : LeiosEb) → memberOf (proj₁ q) s ≡ true
+    dep : ∀ {s} (q : EBHash × LSlot) (eb : LeiosEb) → memKey (homeOf n , proj₁ q) s ≡ true
         → WfR fullα s (λ _ _ → ⊤)
             ((putBodyEv n ! eb ⟶ Skip {0ℓ}) ◁ ⌊ ebHash eb ≟ proj₁ q ⌋ ▷ Skip {0ℓ})
     dep q eb h with ebHash eb ≟ proj₁ q
     ... | no  _  = wfR-free OffersOnly-Skip tt
     ... | yes pr =
       wfR-Output (λ {s′} le _ → λ { refl →
-                    mem-≡ (ebHash eb) (proj₁ q) s′ pr (memberOf-mono le h) })
+                    mem-≡ (homeOf n) (ebHash eb) (proj₁ q) s′ pr (memKey-mono le h) })
                  (λ _ _ → wfR-free OffersOnly-Skip tt)
 
-    -- the reaction to one body offer: the request MINTS `proj₁ q`, the reply mints
-    -- nothing, and the deposit spends the mint
+    -- A REQUEST AT THIS ENDPOINT MINTS AT THIS NODE'S OWN DEPOSIT ENDPOINT.  The mint is
+    -- keyed by `homeAt (l , d)`, i.e. `homeOf (endAt l d)`, and `endAt l d` IS `n` because
+    -- `(l , d)` is one of `n`'s endpoints — `Topology.endpoints-sound`, through
+    -- `sound-at`.  THIS is the one leaf the threaded membership is spent at.
+    atHome : ∀ (h : EBHash) (ms : Minted) → (homeAt (l , d) , h) ∈ ms
+           → memKey (homeOf n , h) ms ≡ true
+    atHome h ms q =
+      ∈→memKey _ _ (subst (λ z → (z , h) ∈ ms) (cong homeOf (sound-at n l d mem)) q)
+
+    -- the reaction to one body offer: the request MINTS `(homeOf n , proj₁ q)`, the reply
+    -- mints nothing, and the deposit spends the mint
     fetch : ∀ {s} (qs : (EBHash × LSlot) × Size)
           → WfR fullα s (λ _ _ → ⊤) (fetchBody n l d qs)
     fetch (q , sz) =
       wfR-Output (λ _ _ → λ ())
         (λ _ _ → wfR-Prefix (λ _ _ _ → λ ())
-                   (λ le eb _ → dep q eb (∈→memberOf (proj₁ q) _ (le (here refl)))))
+                   (λ le eb _ → dep q eb (atHome (proj₁ q) _ (le (here refl)))))
 
     -- the body-offer branch
     offB : ∀ {s} → WfR fullα s (λ _ _ → ⊤)
@@ -757,12 +885,13 @@ module Generic
   -- The assembly
   ------------------------------------------------------------------------
 
-  -- one endpoint's ten threads
-  wf-endpoint : ∀ {ms} n e → Wf fullα ms (endpointThreadsL n e)
-  wf-endpoint n e =
+  -- one endpoint's ten threads.  Nine of them carry nothing and ignore the membership;
+  -- only the Notify client spends it.
+  wf-endpoint : ∀ {ms} n e → e ∈ endpointsList n → Wf fullα ms (endpointThreadsL n e)
+  wf-endpoint n e mem =
     wf-⦀ (wf-free (oo-clientLoop n e))
       (wf-⦀ (wf-nP (oo-serverLoopL n e))
-      (wf-⦀ (wf-lnClient n e)
+      (wf-⦀ (wf-lnClient n e mem)
       (wf-⦀ (wf-nP (oo-lnServerLoopL n e))
       (wf-⦀ (wf-nP (oo-bodyOfferLoop n e))
       (wf-⦀ (wf-nP (oo-voteOfferLoop n e))
@@ -770,23 +899,24 @@ module Generic
       (wf-⦀ (wf-nP (oo-ebTxsServeLoop n e))
       (wf-⦀ (wf-nP (oo-tsPull n e)) (wf-nP (oo-tsServe n e))))))))))
 
-  -- every incident endpoint's threads
+  -- every incident endpoint's threads, each handed its own membership in
+  -- `endpointsList n` — which is definitionally the head-plus-tail list this fold runs
+  -- over, so `wf-⦀⁺∈` supplies it with nothing to prove
   wf-allThreads : ∀ {ms} n → Wf fullα ms (allThreadsL n)
   wf-allThreads n =
-    wf-⦀⁺ (endpointThreadsL n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n))
-          (λ e → wf-endpoint n e)
+    wf-⦀⁺∈ (endpointThreadsL n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n))
+           (λ e mem → wf-endpoint n e mem)
 
-  -- the six node-level threads and every endpoint's ten
+  -- the five node-level threads and every endpoint's ten
   wf-threads : ∀ {ms} n
-             → Wf fullα ms (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voter n ⦀
-                              (submit n ⦀ (certSink n ⦀ allThreadsL n))))))
+             → Wf fullα ms (forgeL n ⦀ (ebIndex n ⦀ (voter n ⦀
+                              (submit n ⦀ (certSink n ⦀ allThreadsL n)))))
   wf-threads n =
     wf-⦀ (wf-forgeL n)
-      (wf-⦀ (wf-free (oo-forgeCert n))
       (wf-⦀ (wf-nP (oo-ebIndex n))
       (wf-⦀ (wf-nP (oo-voter n))
       (wf-⦀ (wf-nP (oo-submit n))
-      (wf-⦀ (wf-nP (oo-certSink n)) (wf-allThreads n))))))
+      (wf-⦀ (wf-nP (oo-certSink n)) (wf-allThreads n)))))
 
   -- A GATE-CARRYING THREAD GROUP AGAINST ANY STORE GROUP.  The threads carry the gate,
   -- the stores guarantee nothing, and the one key-needing channel is inside `storeES`,
@@ -814,9 +944,10 @@ module Generic
   nodeP = nodeWith nodeBundleP
 
   -- S1 — BODY ORIGIN, node-local.  A node running `nodeLogicL` from empty stores stores
-  -- no EB body it neither forged nor asked for.  LEVEL: node.  The network-wide form
-  -- ("every body held anywhere was forged somewhere") needs the medium and is NOT proved
-  -- here; see the module header for the full list of what this does not rule out.
+  -- no EB body it neither forged nor asked for AT ONE OF ITS OWN ENDPOINTS.  LEVEL:
+  -- node — `Leios.BodySystemL` lifts this to the whole network.  The form "every body
+  -- held anywhere was forged somewhere" is still NOT proved: see the module header for
+  -- the full list of what this does not rule out.
   BodySound : Set₁
   BodySound = ∀ (n : Node) → BodySpecT ⊑T nodeP n (nodeLogicL n st₀)
 

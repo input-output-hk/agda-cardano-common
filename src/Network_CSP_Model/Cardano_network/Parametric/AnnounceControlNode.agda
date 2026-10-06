@@ -97,11 +97,12 @@ import Cardano_network.Parametric.AnnounceSafeCopy as ASCp
 open NL.Generic leiosParams leiosLine apiES using (nodeLogic)
 open AI.Generic leiosParams leiosLine apiES using (WellAnnounced; Gated)
 open BP.Generic leiosParams leiosLine apiES
-  using (Wf; nowW; stepW; _∪α_; AnnIn; wf→gate; blockOK-forge; c-stGet)
+  using ( Wf; nowW; stepW; _∪α_; AnnIn; wf→gate; blockOK-forge; c-stGet
+        ; annLN; annLP )
 open BPBF.Generic leiosParams leiosLine apiES using (peersG)
 open ASCp.Generic leiosParams leiosLine apiES using (logicG)
 open ASCp.Generic.Assembly leiosParams leiosLine apiES
-  (λ {l} {d} → ASL.annSync-apiES leiosParams leiosLine {l} {d})
+  (ASL.annSync-apiES leiosParams leiosLine)
   (λ {l} {d} → ASCp.bfSync-apiES leiosParams leiosLine {l} {d})
   using (wf-node)
 
@@ -129,10 +130,12 @@ nodeG = peersG ∪α logicG
 -- THE POSITIVE HALF — the good node, and what its `Wf` buys
 ------------------------------------------------------------------------
 
--- the announce channel is in `nodeG`: it is a threads label (`threadsG`), and it is
--- not `output`, so it survives the `logicG` shrink.  `wf→gate`'s only side condition.
+-- both announce channels are in `nodeG`: each is a threads label (`threadsG`), and
+-- neither is `output`, so both survive the `logicG` shrink.  `wf→gate`'s only side
+-- condition.
 annIn-nodeG : AnnIn nodeG
-annIn-nodeG _ = inj₂ (inj₁ tt , tt)
+annIn-nodeG annLN = inj₂ (inj₁ tt , tt)
+annIn-nodeG annLP = inj₂ (inj₁ tt , tt)
 
 -- THE SYMMETRY, MACHINE-CHECKED.  `AnnounceSafeCopy.Assembly.wf-node` really does
 -- land at the very type the negative half below negates — same predicate, same
@@ -147,7 +150,7 @@ wf-goodNode n = wf-node n
 -- already in the (here empty) forged set.  Premise-free — `wf-node`'s two `Assembly`
 -- premises are discharged above for the shipped api alphabet.
 gated-goodNode : ∀ n → Gated [] (node n (nodeLogic n []))
-gated-goodNode n = wf→gate (λ {l} {d} → annIn-nodeG {l} {d}) (wf-node n)
+gated-goodNode n = wf→gate annIn-nodeG (wf-node n)
 
 ------------------------------------------------------------------------
 -- THE NEGATIVE HALF — the broken node fails the SAME predicate

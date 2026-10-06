@@ -34,20 +34,30 @@
 -- an earlier version of this paragraph got that wrong by listing only one
 -- polarity: a store-side event with no thread-side partner blocks that STORE
 -- forever (`stCert` needs `certSink`), and a THREAD-side event with no
--- store-side partner blocks that THREAD forever (`envForgeCert` needs an arm
--- in `storeStepL`, `envSubmit` one in `memStep`).  The inverted pair is the
--- easy one to miss precisely because an `env` channel reads like an input from
--- outside the node — but `storeSet` puts it in the rendezvous set all the
--- same, so the environment can only reach a thread THROUGH a store.
--- The four pairs, each named with the side that would otherwise be alone:
---   `envForge`     — thread `forgeL`     / store `storeStepL`
---   `envForgeCert` — thread `forgeCert`  / store `storeStepL`  (the second arm)
---   `envSubmit`    — thread `submit`     / store `memStep`     (the second arm)
---   `stCert`       — store `voteStep`    / thread `certSink`
--- The two `env*Cert`/`envSubmit` store arms were MISSING as originally shipped,
--- which blocked `forgeCert` and `submit` at their first event; they are present
--- now and both threads are live (`Leios/NodeLogicLSanity.agda` witnesses each
--- first step inside the full `nodeLogicL`).
+-- store-side partner blocks that THREAD forever (`envSubmit` needs an arm in
+-- `memStep`).  The inverted pair is the easy one to miss precisely because an
+-- `env` channel reads like an input from outside the node — but `storeSet`
+-- puts it in the rendezvous set all the same, so the environment can only
+-- reach a thread THROUGH a store.
+-- The three pairs, each named with the side that would otherwise be alone:
+--   `envForge`  — thread `forgeL`   / store `storeStepL`
+--   `envSubmit` — thread `submit`   / store `memStep`    (the second arm)
+--   `stCert`    — store `voteStep`  / thread `certSink`
+-- The `envSubmit` store arm was MISSING as originally shipped, which blocked
+-- `submit` at its first event; it is present now and the thread is live
+-- (`Leios/NodeLogicLSanity.agda` witnesses the first step of `forgeL` and of
+-- `submit` inside the full `nodeLogicL`).
+--
+-- ONE FORGE CHANNEL, NOT TWO.  An earlier revision routed a
+-- certificate-carrying ranking block through a SEPARATE `env … envForgeCert`
+-- channel served by a `forgeCert` thread of its own.  That channel is gone and
+-- the tag with it: a cert-RB is now forged on `envForge` like any other block,
+-- and `forgeL` is the single forge thread.  The reason is announcement safety
+-- — the old route deposited an unconstrained environment block through
+-- `storeStepL`'s ungated `putEv` branch while the announce discipline's forged
+-- set grows only on `env _ _ envForge`, so a block announcing an EB hash nobody
+-- forged could reach `held` and be announced.  Merging the routes puts every
+-- forged block behind the same `envForge` label the discipline mints at.
 ------------------------------------------------------------------------
 
 module Cardano_network.Parametric.Leios.NodeLogicL where
@@ -102,7 +112,7 @@ module Generic
     using ( Link; Net_Api; Net_Api-≟; apiCS; apiTS; apiLP; store; env
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
           ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
-          ; envForge; envSubmit; envForgeCert
+          ; envForge; envSubmit
           ; reqCSRequestNext; sendCSRequestNext; recvCSRollforward
           ; lnpSendRequestNext; lnpSendBlockAnnouncement; lnpSendBlockOffer
           ; lnpSendBlockTxsOffer; lnpSendVotes
@@ -221,15 +231,10 @@ module Generic
 
   -- the "is this RB already certified here?" channel of `n`: offered by the vote store
   -- exactly for the RB hashes in its `certs` list, so synchronising on it IS the guard
-  -- `forgeCert` needs.  Its carrier is `Net.StoreCar (stHasCert r)`, i.e. the NON-
+  -- the forge thread needs.  Its carrier is `Net.StoreCar (stHasCert r)`, i.e. the NON-
   -- polymorphic `Data.Unit.⊤` that `Net.agda` uses.
   hasCertEv : Node → RbHash → Net_Api Payload U.⊤
   hasCertEv n r = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) (stHasCert r)
-
-  -- the certificate-RB forge channel of `n`: the environment offers a ranking block whose
-  -- body carries a certificate
-  forgeCertEv : Node → Net_Api Payload Block
-  forgeCertEv n = env (proj₁ (homeOf n)) (proj₂ (homeOf n)) envForgeCert
 
   -- the transaction-BY-HASH channel of `n`: offered iff the mempool holds a transaction
   -- with that hash.  The `stGetBody h` idiom on the mempool — the store-side lookup that
@@ -274,8 +279,11 @@ module Generic
   -- `acceptForge` RESTRICTED TO CERTIFICATE-FREE BLOCKS.  An `envForge` of a block with
   -- `rbCert b = just r` still fires — the forge loop keeps its visible event — but the
   -- store is left unchanged, so a certificate RB cannot be LOCALLY FORGED into `held`: the
-  -- forge route for such a block is `forgeCert`'s `putEv`, taken only after the
-  -- `stHasCert r` rendezvous.  `NodeLogic.acceptForge` itself is NOT edited.
+  -- forge route for such a block is `forgeL`'s OWN `putEv`, taken only after the
+  -- `stHasCert r` rendezvous later in the very same pass.  `NodeLogic.acceptForge` itself
+  -- is NOT edited.  THIS WITHHOLDING IS WHAT MAKES ONE CHANNEL ENOUGH: on `envForge` the
+  -- store deposits the plain blocks and the thread deposits the cert-carrying ones, so
+  -- the two routes never both fire for the same offer.
   --
   -- THE SCOPE OF S4 (spec §5.4).  S4 is a FORGE-ROUTE statement: every cert-RB that enters
   -- `held` BY THE FORGE ROUTE was preceded by a local `stCert` for the RB its `rbCert`
@@ -285,30 +293,27 @@ module Generic
   -- like any RB".  That wire route is DELIBERATELY ungated, exactly as S1/S2 already found
   -- for their channels: a node accepts what a peer sends it, and provenance for the wire
   -- route is the origin theorems' business, not S4's.  Tasks 8-10 must quote S4 with this
-  -- scope and never as "only `forgeCert` can put a cert-RB in `held`".
+  -- scope and never as "only the forge thread can put a cert-RB in `held`".
   acceptForgeL : Maybe LeiosEb × Block → Held → Held
   acceptForgeL (me , b) held with rbCert b
   ... | just _  = held
   ... | nothing = acceptForge (me , b) held
 
-  -- one step of the RB store: `NodeLogic.storeStep`'s three branches (with `acceptForge`
-  -- replaced by `acceptForgeL` in the forge branch), plus the read-pointer menu law L
-  -- needs.  `held` is PREPENDED by the put/forge branches, so the menu enumerates
-  -- `reverse held`.  The `putEv` branch is UNGATED — see the S4 scope note above.
+  -- one step of the RB store: `NodeLogic.storeStep`'s three branches (`acceptForgeL` in the
+  -- forge branch) plus law L's read-pointer menu over `reverse held`.  The `putEv` branch is
+  -- UNGATED (S4 scope note above) but DEDUPED: a held block leaves `held` as it is, a fresh
+  -- one is PREPENDED as before, so no index shifts (`insertU` would APPEND; RB-echo fix).
   --
-  -- THE `envForgeCert` ARM — the store side `forgeCert` was missing — is a PURE
-  -- RENDEZVOUS: it leaves `held` UNCHANGED.  That is the design, not an omission:
-  -- `acceptForgeL` rejects a cert-carrying RB on the `envForge` route and this arm
-  -- deposits nothing, so the ONLY way a certificate RB reaches `held` is `forgeCert`'s
-  -- own `putEv`, taken after the `stHasCert r` rendezvous.  Without the arm the thread
-  -- could not fire even its first event (SYNC-PARTNER RULE, module header).
+  -- THERE IS NO SEPARATE CERT-FORGE ARM any more, and none is needed: a cert-carrying
+  -- RB is offered on `envForge` too, the forge branch below serves the rendezvous and
+  -- leaves `held` alone (`acceptForgeL`), and the deposit is `forgeL`'s own `putEv` one
+  -- `stHasCert` later.
   storeStepL : Node → Held → StoreProc
   storeStepL n held =
       (forgeEv n ⟶ (λ mb → Ret (acceptForgeL mb held)))
-    □ ((forgeCertEv n ⟶ (λ _ → Ret held))
-    □ ((putEv n ⟶ (λ b → Ret (b ∷ held)))
+    □ ((putEv n ⟶ (λ b → Ret (if memberOf b held then held else b ∷ held)))
     □ (offerHeld n held held
-    □  offerIx (getAtEv n) (reverse held) 0 held)))
+    □  offerIx (getAtEv n) (reverse held) 0 held))
 
   -- the node's RB store holding `held`: `NodeLogic.blockStore`'s loop over the extended
   -- step.  `NodeLogic.blockStore` itself is untouched and still serves `nodeLogic`.
@@ -393,8 +398,8 @@ module Generic
     Ret (bs , cs)
 
   -- offer `stHasCert r` for every RB hash already certified, state intact.  This is the
-  -- store side of `forgeCert`'s guard: nothing is offered for an uncertified RB, so
-  -- `forgeCert` BLOCKS there — design law L applied to a membership test.  The channel is
+  -- store side of `forgeCertL`'s guard: nothing is offered for an uncertified RB, so
+  -- `forgeL` BLOCKS there — design law L applied to a membership test.  The channel is
   -- value-free, so both sides use `⟶₀` (`Prefix₀`) and no `DecEq ⊤` is needed.
   offerCerts : Node → Votes → Certs
              → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Votes
@@ -415,7 +420,7 @@ module Generic
   voteStore n vs = loop (voteStep n) vs
 
   ------------------------------------------------------------------------
-  -- The six node-level threads
+  -- The five node-level threads
   ------------------------------------------------------------------------
 
   -- THE FORGE GUARD as a Boolean: exactly the test `NodeLogic.acceptForge` performs
@@ -424,36 +429,36 @@ module Generic
   forgeOK : Maybe LeiosEb × Block → Bool
   forgeOK (me , b) = ⌊ announcedEB b ≟ Data.Maybe.map ebHash me ⌋
 
-  -- the body deposited by one forge: the forged EB, when the forge is accepted
+  -- THE CERTIFICATE HALF of one forge pass: a block whose body carries a certificate for
+  -- `r` enters `held` only AFTER the vote store has vouched for `r` (the `stHasCert r`
+  -- rendezvous, offered only for the hashes in its `certs` list), and the deposit is
+  -- this thread's own `putEv` — the block store withheld it at the forge event
+  -- (`acceptForgeL`).  A certificate-free block adds nothing here: the store already
+  -- deposited it.  THE RENDEZVOUS STRICTLY PRECEDES THE DEPOSIT, which is exactly what
+  -- S4 (`Leios/CertRbOrigin.certRbSound`) proves and `CertRbOriginBad` refutes without it.
+  forgeCertL : Node → Block → Proc
+  forgeCertL n b = maybe′ (λ r → hasCertEv n r ⟶₀ (putEv n ! b ⟶ Skip)) Skip (rbCert b)
+
+  -- one pass of the forge, once the offered `(optional EB , ranking block)` pair is in
+  -- hand: the EB body, then the certificate half — both under the ANNOUNCEMENT GUARD
+  -- `forgeOK`, the very test `NodeLogic.acceptForge` performs, so an offer whose
+  -- `announcedEB b` disagrees with `ebHash <$> me` still FIRES its visible event and
+  -- deposits NOTHING.  That guard is what announcement safety needs of this thread: the
+  -- store's `putEv` branch is ungated by design (the wire route needs it), so it is the
+  -- THREAD that must be shown to put only well-announced blocks.
   forgeBodyL : Node → Maybe LeiosEb × Block → Proc
   forgeBodyL n (me , b) =
-    (maybe (λ eb → putBodyEv n ! eb ⟶ Skip) Skip me) ◁ forgeOK (me , b) ▷ Skip
+    (maybe (λ eb → putBodyEv n ! eb ⟶ forgeCertL n b) (forgeCertL n b) me)
+      ◁ forgeOK (me , b) ▷ Skip
 
-  -- THE FORGE THREAD: fire the environment's forge, and deposit the forged EB body
-  -- when the forge is accepted.  It is also the sync partner `envForge` needs.
-  -- VISIBLE EVENT PER PASS: `env home(n) envForge`.
+  -- THE FORGE THREAD — the node's ONLY forge route, for plain and certificate-carrying
+  -- ranking blocks alike.  Fire the environment's forge, deposit the forged EB body, and
+  -- for a cert-carrying block earn and take the deposit.  It is also the sync partner
+  -- `envForge` needs.
+  -- VISIBLE EVENTS PER PASS: `env home(n) envForge`, then at most
+  -- `store home(n) stPutBody`, `store home(n) (stHasCert r)`, `store home(n) stPut`.
   forgeL : Node → Proc
   forgeL n = loop0 (forgeEv n ⟶ forgeBodyL n)
-
-  -- THE CERTIFICATE-RB FORGE THREAD: the environment offers a ranking block; if its body
-  -- carries a certificate for `r`, the block enters `held` only AFTER the vote store has
-  -- certified `r` (the `stHasCert r` rendezvous).  A certificate-free block offered here is
-  -- simply dropped — `forgeL`/`envForge` is its route.
-  -- VISIBLE EVENT PER PASS: `env home(n) envForgeCert`.
-  -- POLARITY — THIS THREAD IS THE **THREAD** SIDE, NOT "the sync partner `envForgeCert`
-  -- needs".  Every `env` channel is in `storeES` (`NodeLogic.storeSet`) and a
-  -- synchronised event fires only when BOTH operands of `∥⇘ storeES ⇙` offer it, so this
-  -- thread needs a STORE-side arm, which `storeStepL` now supplies.  It was missing as
-  -- originally shipped and the whole thread was blocked at its first event; it is live
-  -- now, witnessed inside the full `nodeLogicL` by
-  -- `Leios/NodeLogicLSanity.forgeCert-first-step`.  The SECOND event stays gated: from
-  -- empty stores no `stHasCert r` is offered, so a cert-RB is deposited only after this
-  -- node has certified `r` — that gate is what S4 proves and `CertRbOriginBad` refutes
-  -- without it.
-  forgeCert : Node → Proc
-  forgeCert n =
-    loop0 (forgeCertEv n ⟶ (λ b →
-      maybe′ (λ r → hasCertEv n r ⟶₀ (putEv n ! b ⟶ Skip)) Skip (rbCert b)))
 
   -- one pass of the EB index: take the k-th oldest held RB and, when it announces an
   -- EB, record `(hash , announcing slot)` in the EB store.  Purely additive — the
@@ -490,12 +495,14 @@ module Generic
   -- THE SUBMISSION THREAD: accept a transaction from the environment and put it in the
   -- mempool.
   -- POLARITY — THIS THREAD IS THE **THREAD** SIDE, NOT "the sync partner `envSubmit`
-  -- needs", exactly as `forgeCert` above.  `envSubmit` is in `storeES`, so the thread
+  -- needs", exactly as `forgeL` above.  `envSubmit` is in `storeES`, so the thread
   -- needs a STORE-side arm, which `memStep` now supplies; without it the thread was
   -- blocked at its first event and the node had NO ENVIRONMENT ROUTE INTO ITS MEMPOOL at
   -- all.  It is live now, witnessed inside the full `nodeLogicL` by
   -- `Leios/NodeLogicLSanity.submit-first-step`, and it joins the two wire routes
-  -- (`putChecked`, a tx-closure reply, and `putAllTx`, a TxSubmission pull).
+  -- (`putChecked`, a tx-closure reply, and `putAllTx`, a TxSubmission pull) — both of
+  -- which are now hash-checked against what this node requested, while THIS arm needs no
+  -- check: the transaction is the environment's own, not a peer's.
   submit : Node → Proc
   submit n = loop0 (submitEv n ⟶ (λ tx → putTxEv n ! tx ⟶ Skip))
 
@@ -545,21 +552,32 @@ module Generic
   lnServerLoopL : Node → Link × Dir → Proc
   lnServerLoopL n (l , d) = loop (lnServerBodyL n l (opposite d)) 0
 
+  -- THE TX-CLOSURE GATE: wait until the mempool of `n` holds every transaction of the given
+  -- closure, then continue as `P`.  Structural on the list, the `serveTxs` pattern.
+  awaitTxs : Node → List (TxHash × Size) → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) ℕ
+           → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) ℕ
+  awaitTxs n []             P = P
+  awaitTxs n ((h , _) ∷ hs) P = getTxEv n h ⟶ (λ _ → awaitTxs n hs P)
+
   -- one body-offer round: take the k-th oldest held RB and, when it announces an EB,
-  -- BLOCK until this node holds that body, then offer the POINT AND THE SIZE and, in the
-  -- same round, the tx closure of that point (the prototype's `MsgLeiosBlockOffer` +
-  -- `MsgLeiosBlockTxsOffer`).  `ebSize` is the `LeiosParams` projection.  A node offers a
-  -- body only once it holds it — which is what makes offer-driven fetch wedge-free.
-  -- KNOWN CEILING: an RB whose body never arrives holds this pointer up, so later
-  -- bodies are not offered on this endpoint.  Deliberate (spec §4.5), not a wedge.
+  -- BLOCK until this node holds that body, offer the POINT AND THE SIZE
+  -- (`MsgLeiosBlockOffer`), then BLOCK in `awaitTxs` until the mempool holds the EB's whole
+  -- tx closure, and only then offer that closure (`MsgLeiosBlockTxsOffer`) — the prototype
+  -- sends it on `AcquiredEbTxs`.  `ebSize` is the `LeiosParams` projection.  A node offers a
+  -- body only once it holds it and a closure only once it holds all of it, so the fetch a
+  -- peer makes in reply never blocks this node's `ebServeBody`/`serveTxs` store read.
+  -- KNOWN CEILINGS: an RB whose body, or whose EB's closure, never arrives holds this
+  -- pointer up, so neither the body nor the closure of any later RB is offered on this
+  -- endpoint.  Deliberate (spec §4.5; 2026-10-02 design §3.2/§3.3), not wedges.
   bodyOfferBody : Node → Link → Dir → ℕ → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) ℕ
   bodyOfferBody n l d k =
     getAtEv n k ⟶ (λ b →
       maybe′ (λ h → getBodyEv n h ⟶ (λ eb →
                 Output ⦃ DecEq-Offer ⦄ (apiLP l d lnpSendBlockOffer)
                   ((h , slotOf b) , ebSize eb)
-                  (Output ⦃ DecEq-EBPoint ⦄ (apiLP l d lnpSendBlockTxsOffer)
-                     (h , slotOf b) (Ret (suc k)))))
+                  (awaitTxs n (ebTxs h)
+                     (Output ⦃ DecEq-EBPoint ⦄ (apiLP l d lnpSendBlockTxsOffer)
+                        (h , slotOf b) (Ret (suc k))))))
              (Ret (suc k))
              (announcedEB b))
 
@@ -657,13 +675,13 @@ module Generic
   -- mempool HOLDS — gives the transaction; that store read is what makes the reply's
   -- entries real.  An offset past the table is skipped.  Structurally recursive on the
   -- bitmap, so no `>>=` and no corecursion here.
-  -- LIVENESS CEILING: `getTxEv n h` BLOCKS when this node holds the EB body but not the
-  -- transaction at offset `o` — holding a body does not imply holding its closure.  Because
-  -- `ebServeLoop` and `ebTxsServeLoop` drive the SAME LeiosFetchP producer, a round stuck in
-  -- `stBlockTxs` also stops EB-BODY serving on this endpoint.  Reachable in the good logic
-  -- and sanctioned by spec §5.2 (the store read is exactly what makes the reply's entries
-  -- real); skipping a missing hash the way a bad offset is skipped would trade that for
-  -- wedge-freedom.  Task 10 / `Negative/FetchWedge` owns the choice.
+  -- NO LONGER A LIVENESS CEILING (2026-10-02 dedup/closure-gate design §2, bug 2).
+  -- `getTxEv n h` would block if this node held the EB body but not the transaction at
+  -- offset `o`, and since `ebServeLoop` and `ebTxsServeLoop` drive the SAME LeiosFetchP
+  -- producer that would also stop EB-BODY serving on this endpoint.  The store read STAYS
+  -- (it is what makes the reply's entries real); the OFFER moved instead: `bodyOfferBody`
+  -- sends `lnpSendBlockTxsOffer` only after `awaitTxs` has seen the whole closure, and the
+  -- mempool never drops a transaction, so a closure this node offered never blocks here.
   -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
   serveTxs : Node → Link → Dir → EBHash × LSlot → TxBitmap → List (ℕ × Tx) → Proc
   serveTxs n l d q []       acc =
@@ -685,12 +703,21 @@ module Generic
   ebTxsServeLoop : Node → Link × Dir → Proc
   ebTxsServeLoop n (l , d) = loop0 (ebTxsServeBody n l (opposite d))
 
-  -- deposit every transaction pulled off the wire
-  putAllTx : Node → List Tx → Proc
-  putAllTx n []         = Skip
-  putAllTx n (tx ∷ txs) = putTxEv n ! tx ⟶ putAllTx n txs
+  -- DEPOSIT EVERY REQUESTED TRANSACTION of a TxSubmission reply: an entry `tx` is stored
+  -- only when its hash is one of the `ids` THIS NODE ASKED FOR in the same round.  An
+  -- unrequested transaction is SKIPPED, exactly as `putChecked` skips an entry that fails
+  -- its offset check — the reply is data, and dropping a bad entry is the modelled form of
+  -- the prototype's wire check.  Real TxSubmission does not accept an unrequested
+  -- transaction; this route had NO wire check at all, the one deposit path of the three
+  -- (`fetchBody`, `putChecked`, here) that did not guard against its own request.
+  putAllTx : Node → List TxHash → List Tx → Proc
+  putAllTx n ids []         = Skip
+  putAllTx n ids (tx ∷ txs) =
+    (putTxEv n ! tx ⟶ putAllTx n ids txs)
+      ◁ memberOf (txHash tx) ids ▷ putAllTx n ids txs
 
-  -- one TxSubmission PULL round: ask for ids, then for those txs, then deposit them.
+  -- one TxSubmission PULL round: ask for ids, then for those txs, then deposit THE ONES
+  -- ASKED FOR — the `ids` of this round are threaded into `putAllTx` as the wire check.
   -- This drives the protocol's REQUESTER (`TxSubmission.serverStep` = `TSserverA`),
   -- which is a SERVER peer, hence direction `opposite d`.
   tsPullBody : Node → Link → Dir → Proc
@@ -698,7 +725,7 @@ module Generic
     apiTS l d sendTSRequestTxIdsBlocking ! (0 , 1) ⟶
       (apiTS l d recvTSReplyTxIds ⟶ (λ ids →
         Output ⦃ DecEqI.DecEq-List ⦄ (apiTS l d sendTSRequestTxsPipelined) ids
-          (apiTS l d recvTSReplyTxs ⟶ putAllTx n)))
+          (apiTS l d recvTSReplyTxs ⟶ putAllTx n ids)))
 
   -- the TxSubmission pull thread of one endpoint.  IT DRIVES `opposite d`.
   tsPull : Node → Link × Dir → Proc
@@ -750,11 +777,12 @@ module Generic
     ⦀⁺ (endpointThreadsL n (proj₁ (endpointsOf n)))
        (map (endpointThreadsL n) (proj₂ (endpointsOf n)))
 
-  -- THE LINEAR-LEIOS NODE LOGIC: the SIX node-level threads and every endpoint's ten, all
-  -- interleaved, synchronised with the node's five stores on `storeES`
+  -- THE LINEAR-LEIOS NODE LOGIC: the FIVE node-level threads and every endpoint's ten, all
+  -- interleaved, synchronised with the node's five stores on `storeES`.  (Five, not six:
+  -- the certificate-RB forge is now part of `forgeL` — see the module header.)
   nodeLogicL : Node → StateL → Proc
   nodeLogicL n (held , es , bs , ts , vs) =
-    (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voter n ⦀ (submit n ⦀
-       (certSink n ⦀ allThreadsL n))))))
+    (forgeL n ⦀ (ebIndex n ⦀ (voter n ⦀ (submit n ⦀
+       (certSink n ⦀ allThreadsL n)))))
       ∥⇘ storeES ⇙
     (blockStoreL n held ⦀ (ebStore n es ⦀ (bodyStore n bs ⦀ (mempool n ts ⦀ voteStore n vs))))

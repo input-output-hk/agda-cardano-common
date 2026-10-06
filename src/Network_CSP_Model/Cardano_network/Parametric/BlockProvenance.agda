@@ -5,8 +5,10 @@
 -- assume-guarantee carrier `Wf`, and its congruences.
 --
 -- `Parametric.AnnounceSafeCarrier.Safe` demands `gate` — "every block
--- announced is well-announced" — of a process, and its congruences pass
--- `gate` DOWN to the operand that announced.  At the leaves that is
+-- announced, on either announce channel, is well-announced" — of a process,
+-- and its congruences pass `gate` DOWN to the operand that announced.  The
+-- two announce channels are named by `AnnEv`, and `annCarries` below turns
+-- such a witness into the matching `Carries` one.  At the leaves `gate` is
 -- unprovable: `lnServerLoop` announces whatever block the store hands it,
 -- the store holds whatever the client thread deposits, and the client
 -- thread deposits whatever the BlockFetch client peer pins, which pins
@@ -525,7 +527,8 @@ module Generic
     using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
-          ; stGet; stPut; sendBFBlock; recvBFBlock; sendLNBlockAnnouncement )
+          ; stGet; stGetAt; stPut; sendBFBlock; recvBFBlock
+          ; sendLNBlockAnnouncement; lnpSendBlockAnnouncement )
   open D p using (Payload; Header; header; blockFetch; MsgBlock)
   open import Cardano_network.Base using (Dir; Mode; N2N_BlockFetch)
   open import Cardano_network.NetCommon p using (ioES)
@@ -534,6 +537,9 @@ module Generic
   open import CSP.Laws.Bisim.DRCongruenceRep (Net_Api-≟ {Payload}) using (Alpha)
   open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES using (WellAnnounced; forgedAfter; Gated)
+  -- the announce-channel witness family, re-exported: `AnnIn` quantifies over it, so
+  -- every consumer that discharges an `AnnIn` needs its constructors in scope
+  open AI.Generic p t apiES using (AnnEv; annLN; annLP) public
   open import Data.List using (List; []; _∷_; _++_)
   open import Data.List.Membership.Propositional.Properties using (∈-++⁺ʳ)
   open import Data.List.Relation.Binary.Subset.Propositional.Properties
@@ -543,18 +549,25 @@ module Generic
   -- Which events carry a block
   ------------------------------------------------------------------------
 
-  -- THE PROVENANCE CHANNELS: the seven event shapes on which a `Block` travels from
-  -- the store to an announcement — the store's two ends, the BlockFetch api in both
-  -- directions, the BlockFetch wire in both directions, and the announcement itself.
+  -- THE PROVENANCE CHANNELS: the nine event shapes on which a `Block` travels from the
+  -- store to an announcement — the store's THREE ends (a deposit, the by-value menu and
+  -- the read-pointer menu of design law L), the BlockFetch api in both directions, the
+  -- BlockFetch wire in both directions, and the announcement on EITHER announce channel.
   -- `env … envForge` is deliberately ABSENT: neither the forge thread nor the store pins
   -- that value, and `acceptForge`'s guard restores the invariant one step later; a
   -- constructor here would make every leaf fact about the forge FALSE.
   data Carries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Block → Set where
     c-stGet  : ∀ {l d b}    → Carries (_ , store l d stGet) b b
+    -- the read-pointer read hands out the block it names, exactly as `stGet` does: the
+    -- thread half of announcement safety relies at this channel, and without an arm here
+    -- `serverLoopL`'s `apiBF … sendBFBlock` guarantee has nothing to spend
+    c-stGetAt : ∀ {l d k b} → Carries (_ , store l d (stGetAt k)) b b
     c-stPut  : ∀ {l d b}    → Carries (_ , store l d stPut) b b
     c-sendBF : ∀ {l d b}    → Carries (_ , apiBF l d sendBFBlock) b b
     c-recvBF : ∀ {l d b}    → Carries (_ , apiBF l d recvBFBlock) b b
     c-ann    : ∀ {l d b}    → Carries (_ , apiLN l d sendLNBlockAnnouncement) (header b) b
+    -- the PROTOTYPE announce channel, the one `nodeLogicL` actually fires; same carrier
+    c-annP   : ∀ {l d b}    → Carries (_ , apiLP l d lnpSendBlockAnnouncement) (header b) b
     c-input  : ∀ {l d b} {tm : Time} {md : Mode} {ln : Length}
              → Carries (_ , input  l d N2N_BlockFetch) (tm , md , ln , blockFetch (MsgBlock b)) b
     c-output : ∀ {l d b} {tm : Time} {md : Mode} {ln : Length}
@@ -608,15 +621,21 @@ module Generic
   -- The payoff, and the hiding side condition at `ioES`
   ------------------------------------------------------------------------
 
-  -- the announce channel is in a guarantee alphabet
-  AnnIn : Alpha → Set
-  AnnIn G = ∀ {l : Link} {d : Dir} (h : Header)
-          → G (Header , apiLN l d sendLNBlockAnnouncement) h
+  -- BOTH announce channels are in a guarantee alphabet
+  AnnIn : Alpha → Set₁
+  AnnIn G = ∀ {X} {e : Net_Api Payload X} {a : X} {b} → AnnEv (X , e) a b → G (X , e) a
 
-  -- `Wf`'s guarantee on the announce channel IS `Safe`'s `gate`: `BlockOK` at an
-  -- announcement of `header b` is `WellAnnounced ms b`, by `c-ann`
+  -- an announcement CARRIES the block it announces — one `Carries` arm per announce
+  -- channel, which is what lets `Gated`'s witness be spent as a provenance witness
+  annCarries : ∀ {X} {e : Net_Api Payload X} {a : X} {b}
+             → AnnEv (X , e) a b → Carries (X , e) a b
+  annCarries annLN = c-ann
+  annCarries annLP = c-annP
+
+  -- `Wf`'s guarantee on an announce channel IS `Safe`'s `gate`: `BlockOK` at an
+  -- announcement of `header b` is `WellAnnounced ms b`, by `annCarries`
   wf→gate : ∀ {G ms M} → AnnIn G → Wf G ms M → Gated ms M
-  wf→gate ann w st = nowW w ⊆-refl (ann _) st c-ann
+  wf→gate ann w ac st = nowW w ⊆-refl (ann ac) st (annCarries ac)
 
   -- the system's own hiding keeps the forged set: `∖ ioES` hides only `input`/
   -- `output`, and a forge rides `env`.  One clause per `Net_Api` constructor, because

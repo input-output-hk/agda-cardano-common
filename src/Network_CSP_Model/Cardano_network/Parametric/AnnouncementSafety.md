@@ -92,9 +92,13 @@ endorser-block hash was actually produced by a forge. Nothing may announce a
 block it invented, or one that arrived carrying a hash no forge ever created.
 
 The specification is `AnnounceSafe.Generic.AnnounceSpecT`: a loop over the set
-of hashes forged so far, whose offer map gates
-`apiLN _ _ sendLNBlockAnnouncement` on membership in that set and passes every
-other event through freely. Forges (`env _ _ envForge`) grow the set. It is a
+of hashes forged so far, whose offer map gates *both* announce channels —
+`apiLN _ _ sendLNBlockAnnouncement`, which `nodeLogic` uses, and
+`apiLP _ _ lnpSendBlockAnnouncement`, which the LeiosNotify prototype logic
+`nodeLogicL` uses — on membership in that set, and passes every other event
+through freely.  The two channels carry the same `Header`, so one `announceOK`
+gates both; `AnnounceInvariant.AnnEv` is the witness family that `Gated`,
+`NoAnn`, `AnnSync` and `AnnIn` all quantify over. Forges (`env _ _ envForge`) grow the set. It is a
 *safety* specification — it constrains which announcements are possible, and
 imposes no obligation to offer anything.
 
@@ -176,7 +180,7 @@ from the copy medium to the concrete multiplexer along
 | File | Lines | Role |
 |---|---:|---|
 | `AnnounceSafe.agda` | 509 | states the property at `⊑T`; `AnnounceSpecT`, `AnnounceSafeT`, `AnnounceSafeTWith`, and the reduction to per-node obligations |
-| `AnnounceInvariant.agda` | 318 | the residual obligations stated as types — `WellAnnounced`, `forgedAfter`, `Reach`, `Gated`, `MediumConfined` |
+| `AnnounceInvariant.agda` | 332 | the residual obligations stated as types — `WellAnnounced`, `forgedAfter`, `Reach`, `AnnEv`, `Gated`, `MediumConfined` |
 | `AnnounceSafeCarrier.agda` | 453 | the coinductive `Safe` carrier, its monotonicity, the composition lemmas (`safe-Par`, `safe-⦀`, `safe-⦀Fin⁺`, `safe-Hide`), and `safe→wsim` / `safe→announceSafeT` |
 | `AnnounceSafeLeaves.agda` | 380 | the announcement-free thread leaves (`quiet→Safe`), `Env`, and the one-sided congruence `safe-ParE` |
 | `AnnounceSafeCopy.agda` | 255 | the assembly: the whole N-node network over the copy medium, `AnnounceSafeTWith CopySpecBreakableA`; also `wf-node` |

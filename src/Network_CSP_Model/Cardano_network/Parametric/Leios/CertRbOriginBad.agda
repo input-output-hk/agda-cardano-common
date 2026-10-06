@@ -8,18 +8,18 @@
 -- for every `Params`, every `LeiosParams`, every topology and every node: a
 -- certificate-carrying ranking block enters the block store by the FORGE
 -- ROUTE only after this node certified the RB that certificate names.
--- `NodeLogicL.forgeCert` earns its deposit with ONE rendezvous —
+-- `NodeLogicL.forgeL` earns that deposit with ONE rendezvous —
 -- `hasCertEv n r ⟶₀ …`, on a channel `voteStore` offers only for the hashes
--- already in its `certs` list.  Delete that rendezvous — `forgeCertBad`
--- below deposits straight away — and the property FAILS, machine-checked:
--- the node forges and stores a block certifying an RB it never certified.
+-- already in its `certs` list.  Delete that rendezvous — `forgeLBad` below
+-- deposits straight away — and the property FAILS, machine-checked: the node
+-- forges and stores a block certifying an RB it never certified.
 --
 -- THE WRITE-UP RULE — READ THIS BEFORE QUOTING EITHER RESULT.
 -- `certRbSound` is ∀-`Params`, ∀-`LeiosParams`, ∀-topology, ∀-node and
 -- premise-free.  THE REFUTATION IS NOT: it is at the concrete `leiosLParams`
--- line, at node 0, under a NON-TRIVIAL `rbCert` this module supplies itself,
--- over a REDUCED composite (see below).  Never state the two quantifications
--- in one sentence, and never read a system-level break out of the refutation.
+-- line, at node 0, under a NON-TRIVIAL `rbCert` this module supplies itself.
+-- Never state the two quantifications in one sentence, and never read a
+-- system-level break out of the refutation.
 -- Quote it as "the `stHasCert` guard is load-bearing", never as "certificate
 -- RBs are unsound".
 --
@@ -33,32 +33,26 @@
 -- load-bearing; it is kept so that this control's statement is pinned to a
 -- `rbCert` of its own and does not move with the shipped instance.
 --
--- ============ WHY THE COMPOSITE IS REDUCED, AND EXACTLY HOW ============
+-- ============ THE COMPOSITE IS NOT REDUCED ============
 --
--- WHY THIS COMPOSITE, AND WHAT CHANGED UNDER IT.  When Task 10 wrote this
--- control, a full-`nodeLogicL` trace was not writable at all: `forgeCert`'s
--- first event `env home(n) envForgeCert` is INSIDE `storeES`
--- (`forgeCertEv-in-storeES` below, by `refl`), no store offered it, and under
--- `∥⇘ storeES ⇙` a synchronised event fires only when BOTH operands offer it
--- (`CSP.Operators.par-pVis`: `... | yes _ | _ | _ = nothing`), so the thread —
--- honest or broken — was blocked at its first event.  R1 REPAIRED THAT:
--- `storeStepL` now has an `envForgeCert` arm.  R2 RESTATED THE CONTROL, and
--- the restatement is STRICTLY STRONGER: the composite below is
--- `nodeP nA (nodeLogicL`'s own composite`)` with ONE slot changed,
--- `forgeCertBad` in place of `forgeCert`, and the bad trace now survives BOTH
--- the store rendezvous and the peer bundle.  The old caveat — that the
--- refutation reached only the load-bearing HALF (`wf-threads`) and not
--- `CertRbSpecT ⊑T nodeP …` — IS RETIRED: the statement refuted is now
--- literally `CertRbSpecT ⊑T nodeP nA (…)`, the shape `certRbSound` has.
+-- The composite below is `nodeLogicL`'s OWN — the node-level threads, every
+-- incident endpoint's ten and the same five stores on the same
+-- `∥⇘ storeES ⇙` rendezvous, wrapped in `nodeP nA`'s peer bundle — with ONE
+-- slot changed, `forgeLBad` in place of `forgeL`.  Nothing is pruned, so the
+-- statement refuted is literally `CertRbSpecT ⊑T nodeP nA (…)`, the shape
+-- `certRbSound` has.  (Earlier revisions of this control DID reduce it, and
+-- earlier still the trace was not writable at all, because the cert forge sat
+-- on an `env` channel no store served.  Both caveats are retired: the cert
+-- forge is now part of `forgeL` on `envForge`, which `storeStepL` has always
+-- served.)
 --
--- WHY IT SURVIVES THE STORES, which was the open question.  Both events of
--- the defect are in `storeES`, so both are now rendezvous, and both partners
--- exist: `storeStepL`'s new `envForgeCert` arm serves event 1, and its
--- `putEv` arm — DELIBERATELY UNGATED, the block store accepts any block —
--- serves event 2.  Neither event collides: `forgeL` heads its loop at
--- `forgeEv`, not `putEv`, so the `par-brBoth` introduction this round built
--- for S2/S2′/S3 is NOT needed here, and every bypassed operand discharges
--- its `viewV … ≡ nothing` obligation by `refl`.
+-- WHY IT SURVIVES THE STORES.  All three events of the defect are in
+-- `storeES`, so all three are rendezvous, and every partner exists:
+-- `storeStepL`'s forge arm serves event 1, `bodyStore`'s deposit arm event 2,
+-- and `storeStepL`'s `putEv` arm — DELIBERATELY UNGATED, the block store
+-- accepts any block — event 3.  No event collides, so the `par-brBoth`
+-- introduction this round built for S2/S2′/S3 is NOT needed here, and every
+-- bypassed operand discharges its `viewV … ≡ nothing` obligation by `refl`.
 --
 -- THE SUBSTITUTION IS NOT WHAT BREAKS S4, and that is machine-checked:
 -- `certRbSound-node-good` at the bottom is `CertRbOrigin.certRbSound` ITSELF
@@ -68,13 +62,15 @@
 -- WHAT THE REFUTATION SPENDS.  Two independent halves:
 --
 --   * the IMPLEMENTATION half — `bad-cert-fires`: the broken node has the
---     two-event trace ⟨the environment offering the certificate block
---     `just false`, the deposit of that block⟩, FROM EMPTY STORES;
+--     three-event trace ⟨the environment forging the certificate block
+--     `just false` together with the EB it announces, the deposit of that EB
+--     body, the deposit of the block⟩, FROM EMPTY STORES;
 --   * the SPECIFICATION half — `noForgeCert`: that same trace is not a trace
---     of `CertRbSpecT`.  `envForgeCert` mints nothing, so when the deposit
---     fires the minted set is still empty while the block certifies the RB
---     `just true`.  `gate-uncertified` and `gate-certified` pin that the
---     refusal is the MISSING CERTIFICATE and nothing else.
+--     of `CertRbSpecT`.  Neither the forge nor the body deposit mints, so
+--     when the block deposit fires the minted set is still empty while the
+--     block certifies the RB `just true`.  `gate-uncertified` and
+--     `gate-certified` pin that the refusal is the MISSING CERTIFICATE and
+--     nothing else.
 ------------------------------------------------------------------------
 
 module Cardano_network.Parametric.Leios.CertRbOriginBad where
@@ -82,7 +78,7 @@ module Cardano_network.Parametric.Leios.CertRbOriginBad where
 open import Level using (0ℓ)
 open import Data.Bool using (Bool; true; false; if_then_else_)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
-open import Data.Maybe using (Maybe; just; nothing; maybe′)
+open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
 open import Data.List using (List; []; _∷_)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁)
@@ -100,7 +96,7 @@ open import Cardano_network.Params using (Params)
 open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine; leiosLDecEqBlock)
 open import Cardano_network.Net leiosLParams
-  using (Net_Api; Net_Api-≟; Link; store; stPut; env; envForgeCert)
+  using (Net_Api; Net_Api-≟; Link; store; stPut; stPutBody; env; envForge)
 open import Cardano_network.Data leiosLParams using (Payload)
 open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
 open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
@@ -110,7 +106,7 @@ import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.Leios.CertRbOrigin as CRO
 
-open Params leiosLParams using (Block; RbHash; decBlock)
+open Params leiosLParams using (Block; RbHash; EB; decBlock; decEB)
 
 -- (NO `DecEq Block` INSTANCE IS DECLARED HERE.  At `leiosLParams` `Block = Maybe Bool`
 -- and `Class.DecEq` itself exports `DecEq-Maybe`, so a declared instance leaves an
@@ -140,9 +136,9 @@ leiosLP₃ = record leiosLP
 rbCert-agrees : LeiosP.LeiosParams.rbCert leiosLP₃ ≡ LeiosP.LeiosParams.rbCert leiosLP
 rbCert-agrees = refl
 
-open NL.Generic leiosLParams leiosLLine apiES using (storeES; putEv)
+open NL.Generic leiosLParams leiosLLine apiES using (storeES; forgeEv; putEv)
 open NLL.Generic leiosLParams leiosLP₃ leiosLLine apiES (λ n → n)
-  using ( StateL; st₀; forgeCertEv; forgeL; forgeCert; ebIndex; voter; submit
+  using ( StateL; st₀; forgeOK; putBodyEv; forgeL; ebIndex; voter; submit
         ; certSink; allThreadsL; nodeLogicL
         ; blockStoreL; ebStore; bodyStore; mempool; voteStore )
 -- S4 at this instance, under the control's own `rbCert`: the five parameters
@@ -153,7 +149,7 @@ open CRO.Generic leiosLParams leiosLP₃ leiosLLine apiES (λ n → n)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using ( EventSet; Ret; Skip; pchoice; iter-bind; _>>=_; loop0; _⦀_; _∥⇘_⇙_
-              ; Prefix; Output )
+              ; Prefix; Output; _◁_▷_ )
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.Failures
@@ -178,24 +174,42 @@ nA = fzero
 bCert : Block
 bCert = just false
 
--- THE BROKEN FORGE: `NodeLogicL.forgeCert` with the `stHasCert` rendezvous DELETED.
--- Same environment channel, same dispatch on `rbCert`, same deposit — the ONLY
--- difference is that the node no longer waits for its own vote store to have certified
--- the ranking block the certificate names.
-forgeCertBad : Fin 3 → Proc
-forgeCertBad n =
-  loop0 (forgeCertEv n ⟶ (λ b →
-    maybe′ (λ _ → Output ⦃ decBlock ⦄ (putEv n) b Skip) Skip
-           (LeiosP.LeiosParams.rbCert leiosLP₃ b)))
+-- the EB forged alongside it.  `announcedEB` is the identity at `leiosLParams`, so this
+-- is the one value that satisfies the announcement guard both threads carry — the guard
+-- is therefore NOT what the control removes, and it cannot be blamed for the defect.
+meCert : Maybe EB
+meCert = just false
 
--- THE CONTROL'S LOGIC: `nodeLogicL`'s composite EXACTLY — the six node-level threads,
--- every incident endpoint's ten, and the same five stores on the same `∥⇘ storeES ⇙`
--- rendezvous — with ONE slot changed, `forgeCertBad` in place of `forgeCert`.  Nothing
--- is pruned, and unlike S2/S2′/S3 nothing had to be: see the header.
+-- the certificate half of one BROKEN pass: the ranking-block deposit with no `stHasCert`
+-- in between.  Everything else about the pass is the honest thread's.
+certBadPart : Block → Fin 3 → Proc
+certBadPart b n =
+  maybe′ (λ _ → Output ⦃ decBlock ⦄ (putEv n) b Skip) Skip
+         (LeiosP.LeiosParams.rbCert leiosLP₃ b)
+
+-- one pass of the broken forge: the EB-body deposit exactly as `NodeLogicL.forgeBodyL`
+-- makes it, under the SAME announcement guard `forgeOK`, and then `certBadPart`.
+forgeBadBody : Maybe EB × Block → Fin 3 → Proc
+forgeBadBody (me , b) n =
+  (maybe (λ eb → Output ⦃ decEB ⦄ (putBodyEv n) eb (certBadPart b n)) (certBadPart b n) me)
+    ◁ forgeOK (me , b) ▷ Skip
+
+-- THE BROKEN FORGE: `NodeLogicL.forgeL` with the `stHasCert` rendezvous DELETED.  Same
+-- environment channel, same payload, same announcement guard, same EB-body deposit, same
+-- dispatch on `rbCert`, same block deposit — the ONLY difference is that the node no
+-- longer waits for its own vote store to have certified the ranking block the
+-- certificate names.
+forgeLBad : Fin 3 → Proc
+forgeLBad n = loop0 (forgeEv n ⟶ (λ mb → forgeBadBody mb n))
+
+-- THE CONTROL'S LOGIC: `nodeLogicL`'s composite EXACTLY — the node-level threads, every
+-- incident endpoint's ten, and the same five stores on the same `∥⇘ storeES ⇙`
+-- rendezvous — with ONE slot changed, `forgeLBad` in place of `forgeL`.  Nothing is
+-- pruned, and unlike S2/S2′/S3 nothing had to be: see the header.
 nodeLogicLCertRbBad : Fin 3 → StateL → Proc
 nodeLogicLCertRbBad n (held , es , bs , ts , vs) =
-  (forgeL n ⦀ (forgeCertBad n ⦀ (ebIndex n ⦀ (voter n ⦀ (submit n ⦀
-     (certSink n ⦀ allThreadsL n))))))
+  (forgeLBad n ⦀ (ebIndex n ⦀ (voter n ⦀ (submit n ⦀
+     (certSink n ⦀ allThreadsL n)))))
     ∥⇘ storeES ⇙
   (blockStoreL n held ⦀ (ebStore n es ⦀ (bodyStore n bs ⦀ (mempool n ts ⦀ voteStore n vs))))
 
@@ -204,43 +218,49 @@ nodeLogicLCertRbBad n (held , es , bs , ts , vs) =
 badNode : Proc
 badNode = nodeP nA (nodeLogicLCertRbBad nA st₀)
 
--- `env … envForgeCert` IS in `storeES`, so under `∥⇘ storeES ⇙` it fires only if the
--- store group offers it too.  No store did when this control was written; `storeStepL`
--- has had the arm since R1, which is what lets step 1 below be a `Par-sync`.
-forgeCertEv-in-storeES : EventSet.mem storeES (Block , env fzero lo envForgeCert) bCert
-forgeCertEv-in-storeES = tt
+-- `env … envForge` IS in `storeES`, so under `∥⇘ storeES ⇙` it fires only if the store
+-- group offers it too — which `storeStepL`'s forge arm always has.  (The carrier needs
+-- its own parentheses: stdlib's `_,_` binds TIGHTER than `_×_`, so an unbracketed
+-- `Maybe EB × Block , e` parses as `Maybe EB × (Block , e)`.)
+forgeEv-in-storeES :
+  EventSet.mem storeES ((Maybe EB × Block) , env fzero lo envForge) (meCert , bCert)
+forgeEv-in-storeES = tt
 
 ------------------------------------------------------------------------
--- The two visible events of the bad trace
+-- The three visible events of the bad trace
 ------------------------------------------------------------------------
 
--- event 1: the environment offers the certificate-carrying ranking block.  Mints
--- NOTHING — a forge is not a certification.
+-- event 1: the environment forges the certificate-carrying ranking block together with
+-- the EB it announces.  Mints NOTHING — a forge is not a certification.
 evForgeCert : Event√ (⊤ {0ℓ})
-evForgeCert = evl (evLabel Block (env fzero lo envForgeCert) bCert)
+evForgeCert = evl (evLabel (Maybe EB × Block) (env fzero lo envForge) (meCert , bCert))
 
--- event 2: THE UNEARNED DEPOSIT — a block certifying `just true` enters the block store
+-- event 2: the announced EB's body enters the body store.  Mints nothing either — S4
+-- gates the BLOCK store and nothing else.
+evPutBody : Event√ (⊤ {0ℓ})
+evPutBody = evl (evLabel EB (store fzero lo stPutBody) false)
+
+-- event 3: THE UNEARNED DEPOSIT — a block certifying `just true` enters the block store
 -- although this node never fired `stHasCert (just true)`
 evPut : Event√ (⊤ {0ℓ})
 evPut = evl (evLabel Block (store fzero lo stPut) bCert)
 
 ------------------------------------------------------------------------
--- The three steps
+-- The four steps
 --
--- Both events are in `storeES` and OUTSIDE `apiES`, so each is a `Par-soloR` past the
--- peer bundle wrapping a `Par-sync` of the thread group with the store group.  Neither
+-- All three events are in `storeES` and OUTSIDE `apiES`, so each is a `Par-soloR` past
+-- the peer bundle wrapping a `Par-sync` of the thread group with the store group.  No
 -- event collides, so every other thread and store is passed by `Par-soloL`/`Par-soloR`
 -- with a `viewV … ≡ nothing` obligation discharged by `refl`.
 ------------------------------------------------------------------------
 
--- STEP 1.  The environment's certificate forge: the broken thread (second of the six
--- node-level threads) with the block store's `envForgeCert` arm (first of the five).
+-- STEP 1.  The environment's forge: the broken thread (first of the node-level threads)
+-- with the block store's forge arm (first of the five stores).
 step₁ : Σ[ P₁ ∈ Proc ] (badNode ─[ ev evForgeCert ]─► P₁)
 step₁ = _ ,
   Par-soloR _ _ _ _ (λ ())
     (Par-sync _ _ _ _ _
-      (Par-soloR _ _ _ _ (λ ())
-        (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl) refl)
+      (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl))
     refl
 
@@ -249,21 +269,35 @@ step₁ = _ ,
 step₂ : Σ[ P₂ ∈ Proc ] (proj₁ step₁ ─[ τ ]─► P₂)
 step₂ = _ , Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _ (sSil refl)))
 
--- STEP 3.  THE UNEARNED DEPOSIT, with no `stHasCert` rendezvous in between: the broken
--- thread deposits and the block store's UNGATED `putEv` arm accepts.
-step₃ : Σ[ P₃ ∈ Proc ] (proj₁ step₂ ─[ ev evPut ]─► P₃)
+-- STEP 3.  The EB body the forge announced enters the body store (third of the five).
+-- This deposit is honest and S4 does not gate it; it is on the path because the guard
+-- `forgeOK` accepts the offer only when the block announces the EB offered with it.
+step₃ : Σ[ P₃ ∈ Proc ] (proj₁ step₂ ─[ ev evPutBody ]─► P₃)
 step₃ = _ ,
   Par-soloR _ _ _ _ (λ ())
     (Par-sync _ _ _ _ _
+      (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
       (Par-soloR _ _ _ _ (λ ())
-        (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl) refl)
+        (Par-soloR _ _ _ _ (λ ())
+          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl) refl) refl))
+    refl
+
+-- STEP 4.  THE UNEARNED DEPOSIT, with no `stHasCert` rendezvous anywhere before it: the
+-- broken thread deposits and the block store's UNGATED `putEv` arm accepts.
+step₄ : Σ[ P₄ ∈ Proc ] (proj₁ step₃ ─[ ev evPut ]─► P₄)
+step₄ = _ ,
+  Par-soloR _ _ _ _ (λ ())
+    (Par-sync _ _ _ _ _
+      (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl))
     refl
 
 -- THE BROKEN NODE STORES A CERTIFICATE IT NEVER EARNED
-bad-cert-fires : traces badNode (evForgeCert ∷ evPut ∷ [])
+bad-cert-fires : traces badNode (evForgeCert ∷ evPutBody ∷ evPut ∷ [])
 bad-cert-fires =
-  _ , ⟹-ev (proj₂ step₁) (⟹-τ (proj₂ step₂) (⟹-ev (proj₂ step₃) ⟹-refl))
+  _ , ⟹-ev (proj₂ step₁)
+        (⟹-τ (proj₂ step₂)
+          (⟹-ev (proj₂ step₃) (⟹-ev (proj₂ step₄) ⟹-refl)))
 
 ------------------------------------------------------------------------
 -- The two states `CertRbSpecT` alternates between
@@ -300,12 +334,15 @@ backEdge (⟹-ev (sRet eq) _)     = case eq of λ ()
 backEdge (⟹-ev (sVis eq _) _)   = case eq of λ ()
 
 -- NON-VACUITY, PINPOINTED — the very same deposit is licensed OUTRIGHT once the RB the
--- certificate names has been certified here …
-gate-certified : certRbGate (just true ∷ []) (Block , store fzero lo stPut) bCert ≡ true
+-- certificate names has been certified here.  Since the re-keying, a mint carries the
+-- endpoint the deposit it licenses is made at, and node `nA` has degree 1, so the only
+-- endpoint it certifies at is already its own home endpoint `(fzero , lo)`.
+gate-certified : certRbGate (((fzero , lo) , just true) ∷ [])
+                            (Block , store fzero lo stPut) bCert ≡ true
 gate-certified = refl
 
 -- … and refused when it has not.  So what refuses the deposit is the MISSING
--- CERTIFICATE and nothing else — exactly the rendezvous `forgeCertBad` deleted.
+-- CERTIFICATE and nothing else — exactly the rendezvous `forgeLBad` deleted.
 gate-uncertified : certRbGate [] (Block , store fzero lo stPut) bCert ≡ false
 gate-uncertified = refl
 
@@ -318,31 +355,37 @@ noPut (⟹-τ (sSil eq) _) = case eq of λ ()
 noPut (⟹-τ (sTau refl ()) _)
 noPut (⟹-ev (sVis refl ()) _)
 
+-- THE BODY DEPOSIT IS PERMITTED AND MINTS NOTHING: S4 gates the block store alone, so
+-- the spec takes this event and stays at the empty minted set, where `noPut` bites.
+noBodyPut : ∀ {q} → ¬ (OriginSpecAt [] ⟹⟨ evPutBody ∷ evPut ∷ [] ⟩ q)
+noBodyPut (⟹-τ (sSil eq) _) = case eq of λ ()
+noBodyPut (⟹-τ (sTau refl ()) _)
+noBodyPut (⟹-ev (sVis refl refl) rest) = noPut (proj₂ (backEdge {ms = []} rest))
+
 -- THE WHOLE BAD TRACE IS REFUSED, from the empty minted set the specification starts in:
--- the environment's forge is permitted, and it mints NOTHING
-noForgeCert : ∀ {q} → ¬ (OriginSpecAt [] ⟹⟨ evForgeCert ∷ evPut ∷ [] ⟩ q)
+-- the environment's forge is permitted too, and it mints NOTHING
+noForgeCert : ∀ {q} → ¬ (OriginSpecAt [] ⟹⟨ evForgeCert ∷ evPutBody ∷ evPut ∷ [] ⟩ q)
 noForgeCert (⟹-τ (sSil eq) _) = case eq of λ ()
 noForgeCert (⟹-τ (sTau refl ()) _)
-noForgeCert (⟹-ev (sVis refl refl) rest) = noPut (proj₂ (backEdge {ms = []} rest))
+noForgeCert (⟹-ev (sVis refl refl) rest) = noBodyPut (proj₂ (backEdge {ms = []} rest))
 
 ------------------------------------------------------------------------
 -- THE NEGATIVE CONTROL
 ------------------------------------------------------------------------
 
--- the certificate-RB origin property over the BROKEN thread group: exactly
--- `CertRbOrigin.CertRbSound`'s specification and order, but with `forgeCertBad` in the
--- certificate-forge slot, over the REDUCED composite of the module header
+-- the certificate-RB origin property over the BROKEN node: exactly
+-- `CertRbOrigin.CertRbSound`'s specification and order, but with `forgeLBad` in the
+-- forge slot of `nodeLogicL`'s own composite
 CertRbSound-node-Bad : Set₁
 CertRbSound-node-Bad = CertRbSpecT ⊑T badNode
 
 -- THE REFUTATION: dropping the `stHasCert` rendezvous BREAKS certificate-RB origin.
 -- This ONE node, on this ONE instance, under this ONE `rbCert`, running the broken
--- certificate forge over the REDUCED composite, has a trace the specification forbids,
--- so the trace refinement cannot hold — the shipped theorem is not vacuous and the
+-- forge inside `nodeLogicL`'s own composite, has a trace the specification forbids, so
+-- the trace refinement cannot hold — the shipped theorem is not vacuous and the
 -- rendezvous is load-bearing.
 --
--- LEVEL: the node logic's THREAD GROUP, not the node composite — see "WHY THE COMPOSITE
--- IS REDUCED" and "WHAT THAT COSTS, HONESTLY" in the module header.  SCOPE: this
+-- LEVEL: the node composite `nodeP nA (…)`, the shape `certRbSound` has.  SCOPE: this
 -- instance, this node, this `rbCert`.  WRITE-UP RULE: never pair this with
 -- `certRbSound`'s "∀ Params", and never quote it as "certificate RBs are unsound".
 certRbSound-node-FAILS : ¬ CertRbSound-node-Bad

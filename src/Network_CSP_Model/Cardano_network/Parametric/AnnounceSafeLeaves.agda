@@ -95,7 +95,7 @@ module Generic
     using ( Link; Net_Api; Net_Api-≟; env; envForge; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
-          ; sendLNBlockAnnouncement )
+          ; sendLNBlockAnnouncement; lnpSendBlockAnnouncement )
   open D p
     using ( Payload; Point; Header; Tip; ChainRange; header; tip
           ; DecEq-Point; DecEq-Header; DecEq-Tip; DecEq-ChainRange; DecEq-Payload )
@@ -119,6 +119,9 @@ module Generic
   open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES
     using (NotForge; Gated; linkEvents; MediumConfined; confined-NetworkLinkBreakableA)
+  -- the announce-channel witness family, re-exported: `AnnSync`/`NoAnn` below quantify
+  -- over it, so every consumer needs its constructors in scope to discharge them
+  open AI.Generic p t apiES using (AnnEv; annLN; annLP) public
   open ASC.Generic p t apiES using (Safe; HideOK; safe-mono; forgedAfter-⊇; onOther′)
   open Safe
   open import Semantics.LTS
@@ -138,17 +141,20 @@ module Generic
   -- "Never announces", as an alphabet
   ------------------------------------------------------------------------
 
-  -- an alphabet does not contain the Leios block-announcement channel.  This is the
-  -- ONE property of a confining alphabet that `Safe`'s `gate` needs.
-  NoAnn : Alpha → Set
-  NoAnn α = ∀ {l : Link} {d : Dir} (h : Header)
-          → α (Header , apiLN l d sendLNBlockAnnouncement) h → ⊥
+  -- an alphabet contains NEITHER block-announcement channel — the LeiosNotify api nor
+  -- its prototype counterpart.  This is the ONE property of a confining alphabet that
+  -- `Safe`'s `gate` needs, and it is phrased over `AnnEv` so that it covers both.
+  NoAnn : Alpha → Set₁
+  NoAnn α = ∀ {X} {e : Net_Api Payload X} {a : X} {b}
+          → AnnEv (X , e) a b → α (X , e) a → ⊥
 
-  -- the largest such alphabet: everything EXCEPT a block announcement.  A process
-  -- confined to it can be read off its syntax by `OffersOnly`'s closure lemmas.
+  -- the largest such alphabet: everything EXCEPT a block announcement on either
+  -- channel.  A process confined to it can be read off its syntax by `OffersOnly`'s
+  -- closure lemmas.
   notAnn : Alpha
-  notAnn (_ , apiLN _ _ sendLNBlockAnnouncement) _ = ⊥
-  notAnn _                                      _ = ⊤ {0ℓ}
+  notAnn (_ , apiLN _ _ sendLNBlockAnnouncement)  _ = ⊥
+  notAnn (_ , apiLP _ _ lnpSendBlockAnnouncement) _ = ⊥
+  notAnn _                                        _ = ⊤ {0ℓ}
 
   ------------------------------------------------------------------------
   -- The generic leaf lemma
@@ -166,7 +172,7 @@ module Generic
   -- `NoRet` witness, both of which the repo's closure lemmas already build.
   quiet→Safe : ∀ {α : Alpha} {ms : Forged} {M : Proc}
              → NoAnn α → OffersOnly α M → NoRet M → Safe ms M
-  quiet→Safe na oo nr .gate st       = ⊥-elim (na _ (OffersOnly.now oo st))
+  quiet→Safe na oo nr .gate ac st    = ⊥-elim (na ac (OffersOnly.now oo st))
   quiet→Safe na oo nr .onτ st        = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
   quiet→Safe na oo nr .onForge st     = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
   quiet→Safe na oo nr .onOther nm st = quiet→Safe na (OffersOnly.step oo st) (NoRet.stepNR nr st)
@@ -175,11 +181,13 @@ module Generic
   -- the shape every thread below instantiates: a `loop0` whose body is
   -- announcement-free.  `α` is given EXPLICITLY: `NoAnn` is a definition, not a
   -- datatype, so leaving it to unification poses a higher-order problem and strands
-  -- the alphabet as an unsolved meta.  The `NoAnn notAnn` witness is `λ _ x → x`,
-  -- `notAnn`'s announcement clause being `⊥` outright.
+  -- the alphabet as an unsolved meta.  The `NoAnn notAnn` witness is the identity at
+  -- each announce channel, both of `notAnn`'s announcement clauses being `⊥` outright.
   quietLoop→Safe : ∀ {ms : Forged} {body : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (⊤ {0ℓ})}
                  → OffersOnly notAnn body → Safe ms (loop0 body)
-  quietLoop→Safe oob = quiet→Safe {α = notAnn} (λ _ x → x) (OffersOnly-loop0 oob) NoRet-loop0
+  quietLoop→Safe oob =
+    quiet→Safe {α = notAnn} (λ { annLN x → x ; annLP x → x })
+               (OffersOnly-loop0 oob) NoRet-loop0
 
   ------------------------------------------------------------------------
   -- The announcement-free threads
@@ -266,28 +274,29 @@ module Generic
   record Env (A : EventSet) (P : Proc) : Set₁ where
     coinductive
     field
-      noSolo : ∀ {l d b P′}
-             → (EventSet.mem A (Header , apiLN l d sendLNBlockAnnouncement) (header b) → ⊥)
-             → P ─[ ev (evl (evLabel Header (apiLN l d sendLNBlockAnnouncement) (header b))) ]─► P′
+      noSolo : ∀ {X} {e : Net_Api Payload X} {a : X} {b} {P′}
+             → AnnEv (X , e) a b
+             → (EventSet.mem A (X , e) a → ⊥)
+             → P ─[ ev (evl (evLabel X e a)) ]─► P′
              → ⊥
       stepE  : ∀ {l : Label (⊤ {0ℓ})} {P′} → P ─[ l ]─► P′ → Env A P′
   open Env
 
   -- `A` SYNCHRONISES the announcement channel: then no operand can announce solo, and
   -- the left operand is unconstrained.  This is the node level (`∥⇘ apiES ⇙`).
-  AnnSync : EventSet → Set
-  AnnSync A = ∀ {l : Link} {d : Dir} (h : Header)
-            → EventSet.mem A (Header , apiLN l d sendLNBlockAnnouncement) h
+  AnnSync : EventSet → Set₁
+  AnnSync A = ∀ {X} {e : Net_Api Payload X} {a : X} {b}
+            → AnnEv (X , e) a b → EventSet.mem A (X , e) a
 
   -- a synchronised announcement channel makes EVERY process an `Env`
   env-sync : ∀ {A P} → AnnSync A → Env A P
-  env-sync ann .noSolo ¬m st = ¬m (ann _)
+  env-sync ann .noSolo ac ¬m st = ¬m (ann ac)
   env-sync ann .stepE  st    = env-sync ann
 
   -- …and so does an alphabet confinement that excludes announcements outright.  This
   -- is the medium level (`∥⇘ ioES ⇙`), where the announce channel is NOT synchronised.
   env-oo : ∀ {α A P} → NoAnn α → OffersOnly α P → Env A P
-  env-oo na oo .noSolo ¬m st = na _ (OffersOnly.now oo st)
+  env-oo na oo .noSolo ac ¬m st = na ac (OffersOnly.now oo st)
   env-oo na oo .stepE  st    = env-oo na (OffersOnly.step oo st)
 
   -- THE DEFAULT MEDIUM AS AN ENVIRONMENT, for any synchronisation set.  `classify`
@@ -296,7 +305,9 @@ module Generic
   -- medium is NOT `Safe`: once every link's `break` has fired it is `Skip`, which
   -- ticks, and `Safe`'s `noTick` is then false.
   env-medium : ∀ (A : EventSet) → Env A NetworkLinkBreakableA
-  env-medium A = env-oo {α = linkEvents} (λ h ne → ne refl) confined-NetworkLinkBreakableA
+  env-medium A =
+    env-oo {α = linkEvents} (λ { annLN ne → ne refl ; annLP ne → ne refl })
+           confined-NetworkLinkBreakableA
 
   -- THE ONE-SIDED PARALLEL CONGRUENCE, and its collision companion, mutually
   -- corecursive — the shape of `AnnounceSafeCarrier.safe-Par`/`safe-both`, but with
@@ -309,11 +320,11 @@ module Generic
 
   -- an announcement of the composite is either synchronised — and then the LOGIC
   -- announced it, so its `gate` answers — or solo on the left, which `Env` forbids
-  safe-ParE A {P = P} {Q = Q} e s .gate st with Par-ev-elim A (λ _ _ → tt) P Q st
-  ... | evSync _  _   stQ = gate s stQ
-  ... | evL    ¬m stP     = ⊥-elim (noSolo e ¬m stP)
-  ... | evR    _  stQ     = gate s stQ
-  ... | evBoth ¬m stP _   = ⊥-elim (noSolo e ¬m stP)
+  safe-ParE A {P = P} {Q = Q} e s .gate ac st with Par-ev-elim A (λ _ _ → tt) P Q st
+  ... | evSync _  _   stQ = gate s ac stQ
+  ... | evL    ¬m stP     = ⊥-elim (noSolo e ac ¬m stP)
+  ... | evR    _  stQ     = gate s ac stQ
+  ... | evBoth ¬m stP _   = ⊥-elim (noSolo e ac ¬m stP)
   -- a τ of the composite is a τ of one operand; the other is untouched
   safe-ParE A {P = P} {Q = Q} e s .onτ st with Par-τ-elim A (λ _ _ → tt) P Q st
   ... | τL P′ stP refl    = safe-ParE A (stepE e stP) s
@@ -347,7 +358,7 @@ module Generic
 
   -- the collision node offers no visible event at all, so only its two committing τ's
   -- have content — and each lands back in `safe-ParE`
-  safe-bothE A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} eP eP′ sQ sQ′ .gate st =
+  safe-bothE A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} eP eP′ sQ sQ′ .gate ac st =
     ⊥-elim (brBoth-no-ev A (λ _ _ → tt) P Q P′ Q′ st)
   safe-bothE A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} eP eP′ sQ sQ′ .onτ st
     with brBoth-τ-elim A (λ _ _ → tt) P Q P′ Q′ st
@@ -374,8 +385,14 @@ module Generic
 
 open import Cardano_network.ApiAlphabet using (apiES)
 
--- `apiSet` answers `⊤` on every `apiLN` channel, so the announce event is
--- synchronised at every node's `∥⇘ apiES ⇙` and `env-sync` applies there
+-- `apiSet` answers `⊤` on every `apiLN` AND every `apiLP` channel, so an announcement
+-- on either is synchronised at every node's `∥⇘ apiES ⇙` and `env-sync` applies there
 annSync-apiES : ∀ (p : Params) (t : Topology p)
               → Generic.AnnSync p t (apiES p) (apiES p)
-annSync-apiES p t h = tt
+annSync-apiES p t = go
+  where
+  open Generic p t (apiES p) using (annLN; annLP)
+  -- one clause per announce channel; `apiSet` answers `⊤` once the constructor is known
+  go : Generic.AnnSync p t (apiES p) (apiES p)
+  go annLN = tt
+  go annLP = tt

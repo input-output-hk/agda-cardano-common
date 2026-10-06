@@ -92,12 +92,12 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq)
 
 open import Process_Trees using (PTree; ExtI)
-open import Cardano_network.Base using (lo)
+open import Cardano_network.Base using (Dir; lo)
 open import Cardano_network.Params using (Params)
 open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine; LVoteBlob)
 open import Cardano_network.Net leiosLParams
-  using (Net_Api; Net_Api-≟; store; stGetAt; stGetBody; stPutVote; stCert)
+  using (Link; Net_Api; Net_Api-≟; store; stGetAt; stGetBody; stPutVote; stCert)
 open import Cardano_network.Data leiosLParams using (Payload)
 open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
 open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
@@ -148,7 +148,7 @@ leiosLP₂ = record leiosLP { certifies = certifies₂ }
 
 open LeiosP.LeiosParams leiosLP₂ using (mkVoteBlob; blobRb)
 open CS.Generic leiosLParams leiosLP₂ leiosLLine apiES (λ n → n)
-  using (CertifiesMono; Minted)
+  using (CertifiesMono; Minted; blobsAt)
 
 -- THE PREMISE, DISCHARGED at the control's oracle: a quorum, once reached, is never
 -- lost when more blobs arrive
@@ -165,7 +165,7 @@ open NLL.Generic leiosLParams leiosLP₂ leiosLLine apiES (λ n → n)
   using ( StateL; Blobs; Certs; Votes; DecEq-Votes
         ; getAtEv; getBodyEv; putVoteEv; getVoteAtEv; certEv
         ; insertU; offerIx; offerCerts
-        ; nodeLogicL; forgeL; forgeCert; ebIndex; voter; submit; certSink; allThreadsL
+        ; nodeLogicL; forgeL; ebIndex; voter; submit; certSink; allThreadsL
         ; blockStoreL; ebStore; bodyStore; mempool; voteStore )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
@@ -221,8 +221,8 @@ voteStoreBad n vs = loop (voteStepBad n) vs
 -- POSITIVE `certSoundL` is stated over.)
 nodeLogicLCertBad : Fin 3 → StateL → Proc
 nodeLogicLCertBad n (held , es , bs , ts , vs) =
-  (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voter n ⦀ (submit n ⦀
-     (certSink n ⦀ allThreadsL n))))))
+  (forgeL n ⦀ (ebIndex n ⦀ (voter n ⦀ (submit n ⦀
+     (certSink n ⦀ allThreadsL n)))))
     ∥⇘ storeES ⇙
   (blockStoreL n held ⦀ (ebStore n es ⦀ (bodyStore n bs ⦀ (mempool n ts ⦀ voteStoreBad n vs))))
 
@@ -269,6 +269,16 @@ evGetBody = evl (evLabel LeiosEb (store fzero lo (stGetBody ebH)) ebSeed)
 theBlob : VoteBlob
 theBlob = mkVoteBlob nA rbSeed
 
+-- node 0's HOME endpoint — link 0, direction `lo` — which is what the ENDPOINT-RE-KEYED
+-- discipline mints and gates on (`CertSound`'s `certMints`/`certNeeds`)
+homeA : Link × Dir
+homeA = fzero , lo
+
+-- the one MINTED ENTRY the bad trace produces: that blob, tagged with the endpoint the
+-- deposit was made at
+theEntry : (Link × Dir) × VoteBlob
+theEntry = homeA , theBlob
+
 -- event 3: the deposit.  ONE blob — a two-voter quorum is not reached.
 evPutVote : Event√ (⊤ {0ℓ})
 evPutVote = evl (evLabel VoteBlob (store fzero lo stPutVote) theBlob)
@@ -295,8 +305,7 @@ step₁ = _ ,
   Par-soloR _ _ _ _ (λ ())
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())                          -- past forgeL
-        (Par-soloR _ _ _ _ (λ ())                        -- past forgeCert
-          (Par-brBoth _ _ _ _ (λ ())                     -- ebIndex COLLIDES
+        (Par-brBoth _ _ _ _ (λ ())                   -- ebIndex COLLIDES
             (sVis refl refl)
             (Par-brBoth _ _ _ _ (λ ())                   -- the voter COLLIDES
               (sVis refl refl)
@@ -310,7 +319,7 @@ step₁ = _ ,
                           (Par-soloL _ _ _ _ (λ ())      -- bodyOfferLoop, alone
                             (sVis refl refl) refl))
                         refl) refl) refl)
-                  refl) refl))) refl) refl)
+                  refl) refl))) refl)
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl))
     refl
 
@@ -318,14 +327,14 @@ step₁ = _ ,
 step₂ : Σ[ P₂ ∈ Proc ] (proj₁ step₁ ─[ τ ]─► P₂)
 step₂ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τR _ _ _ _ _ _))))
+    (Par-τ-R _ _ _ _ (par-brNode-τR _ _ _ _ _ _)))
 
 -- STEP 3.  Resolve the INNER collision to the LEFT: the honest voter advances and the
 -- twelve threads below it stand still.
 step₃ : Σ[ P₃ ∈ Proc ] (proj₁ step₂ ─[ τ ]─► P₃)
 step₃ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τL _ _ _ _ _ _)))))
+    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τL _ _ _ _ _ _))))
 
 -- STEP 4.  The block store's loop-back τ.
 step₄ : Σ[ P₄ ∈ Proc ] (proj₁ step₃ ─[ τ ]─► P₄)
@@ -338,9 +347,8 @@ step₅ = _ ,
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())
         (Par-soloR _ _ _ _ (λ ())
-          (Par-soloR _ _ _ _ (λ ())
-            (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
-            refl) refl) refl)
+          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+          refl) refl)
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
@@ -360,9 +368,8 @@ step₇ = _ ,
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())
         (Par-soloR _ _ _ _ (λ ())
-          (Par-soloR _ _ _ _ (λ ())
-            (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
-            refl) refl) refl)
+          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+          refl) refl)
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
@@ -374,7 +381,7 @@ step₇ = _ ,
 step₈ : Σ[ P₈ ∈ Proc ] (proj₁ step₇ ─[ τ ]─► P₈)
 step₈ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _ (sSil refl))))))
+    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _ (sSil refl)))))
 
 -- STEP 9.  THE UNGRANTED CERTIFICATE: the broken vote store fires `stCert ! rbSeed` and
 -- the certificate sink (sixth of the node-level threads) absorbs it.
@@ -386,9 +393,8 @@ step₉ = _ ,
         (Par-soloR _ _ _ _ (λ ())
           (Par-soloR _ _ _ _ (λ ())
             (Par-soloR _ _ _ _ (λ ())
-              (Par-soloR _ _ _ _ (λ ())
-                (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
-                refl) refl) refl) refl) refl)
+              (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+              refl) refl) refl) refl)
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
@@ -449,10 +455,16 @@ voter0-conjunct-holds = refl
 quorum-fails : certifies₂ (theBlob ∷ []) rbSeed ≡ false
 quorum-fails = refl
 
+-- THE RE-KEYING IS NOT WHAT REFUSES THE TRACE.  Node 0's view of the minted list is
+-- exactly the one blob it deposited, so the gate the certificate meets below IS the
+-- quorum test above and not an endpoint mismatch.
+blobs-at-A : blobsAt homeA (theEntry ∷ []) ≡ theBlob ∷ []
+blobs-at-A = refl
+
 -- THE GATE.  With only the one blob minted, the two-voter quorum is not reached:
--- `certifies₂ (theBlob ∷ []) rbSeed` computes to `false`, so the certificate is not
+-- `certifies₂ (blobsAt homeA (theEntry ∷ [])) rbSeed` computes to `false`, so the certificate is not
 -- offered and the spec's map is definitionally `nothing`.  The menu has no τ either.
-noCert : ∀ {q} → ¬ (OriginSpecAt (theBlob ∷ []) ⟹⟨ evCert ∷ [] ⟩ q)
+noCert : ∀ {q} → ¬ (OriginSpecAt (theEntry ∷ []) ⟹⟨ evCert ∷ [] ⟩ q)
 noCert (⟹-τ (sSil eq) _) = case eq of λ ()
 noCert (⟹-τ (sTau refl ()) _)
 noCert (⟹-ev (sVis refl ()) _)
@@ -462,7 +474,7 @@ noCert (⟹-ev (sVis refl ()) _)
 noPut : ∀ {q} → ¬ (OriginSpecAt [] ⟹⟨ evPutVote ∷ evCert ∷ [] ⟩ q)
 noPut (⟹-τ (sSil eq) _) = case eq of λ ()
 noPut (⟹-τ (sTau refl ()) _)
-noPut (⟹-ev (sVis refl refl) rest) = noCert (proj₂ (backEdge {ms = theBlob ∷ []} rest))
+noPut (⟹-ev (sVis refl refl) rest) = noCert (proj₂ (backEdge {ms = theEntry ∷ []} rest))
 
 -- reading a BODY mints nothing — only a deposit does
 noBody : ∀ {q} → ¬ (OriginSpecAt [] ⟹⟨ evGetBody ∷ evPutVote ∷ evCert ∷ [] ⟩ q)

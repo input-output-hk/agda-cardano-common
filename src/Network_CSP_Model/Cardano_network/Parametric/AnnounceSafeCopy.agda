@@ -125,33 +125,42 @@ module Generic
   sep-store : Sep storeES threadsG storeG
   sep-store =
       (λ { c-stGet  () _        ; c-stPut  _ ¬m → ⊥-elim (¬m tt)
+         ; c-stGetAt _ ¬m → ⊥-elim (¬m tt)
          ; c-sendBF _ _ → tt    ; c-recvBF () _
-         ; c-ann    _ _ → tt    ; c-input  _ _ → tt ; c-output _ _ → tt })
+         ; c-ann    _ _ → tt    ; c-annP   _ _ → tt
+         ; c-input  _ _ → tt    ; c-output _ _ → tt })
     , (λ { c-stGet  _ ¬m → ⊥-elim (¬m tt) ; c-stPut  () _
+         ; c-stGetAt _ ¬m → ⊥-elim (¬m tt)
          ; c-sendBF _ _ → tt    ; c-recvBF () _
-         ; c-ann    _ _ → tt    ; c-input  _ _ → tt ; c-output _ _ → tt })
+         ; c-ann    _ _ → tt    ; c-annP   _ _ → tt
+         ; c-input  _ _ → tt    ; c-output _ _ → tt })
 
   -- medium vs nodes at `ioES`: `medG` is total outside `ioES`, and every non-io
   -- block-carrying label is in the peers' alphabet or the logic's
   sep-io : Sep ioES medG (peersG ∪α logicG)
   sep-io =
       (λ { c-stGet  _ _ → inj₂ (inj₂ tt , tt) ; c-stPut  _ _ → inj₂ (inj₁ tt , tt)
+         ; c-stGetAt _ _ → inj₂ (inj₂ tt , tt)
          ; c-sendBF _ _ → inj₂ (inj₁ tt , tt) ; c-recvBF _ _ → inj₁ tt
-         ; c-ann    _ _ → inj₂ (inj₁ tt , tt)
+         ; c-ann    _ _ → inj₂ (inj₁ tt , tt) ; c-annP   _ _ → inj₂ (inj₁ tt , tt)
          ; c-input  () _                      ; c-output _ ¬m → ⊥-elim (¬m tt) })
-    , (λ { c-stGet  _ _ → tt ; c-stPut  _ _ → tt ; c-sendBF _ _ → tt ; c-recvBF _ _ → tt
-         ; c-ann    _ _ → tt ; c-input  _ ¬m → ⊥-elim (¬m tt) ; c-output _ _ → tt })
+    , (λ { c-stGet  _ _ → tt ; c-stPut  _ _ → tt ; c-stGetAt _ _ → tt
+         ; c-sendBF _ _ → tt ; c-recvBF _ _ → tt
+         ; c-ann    _ _ → tt ; c-annP   _ _ → tt
+         ; c-input  _ ¬m → ⊥-elim (¬m tt) ; c-output _ _ → tt })
 
-  -- THE COVERAGE CONDITION: every one of the seven block-carrying shapes is guaranteed
+  -- THE COVERAGE CONDITION: every one of the nine block-carrying shapes is guaranteed
   -- by some side of the top-level composite — no rely is left
   covers-sysG : Covers sysG
-  covers-sysG c-stGet  = inj₁ tt
-  covers-sysG c-stPut  = inj₁ tt
-  covers-sysG c-sendBF = inj₁ tt
-  covers-sysG c-recvBF = inj₁ tt
-  covers-sysG c-ann    = inj₁ tt
-  covers-sysG c-input  = inj₂ (inj₁ tt)
-  covers-sysG c-output = inj₁ tt
+  covers-sysG c-stGet   = inj₁ tt
+  covers-sysG c-stGetAt = inj₁ tt
+  covers-sysG c-stPut   = inj₁ tt
+  covers-sysG c-sendBF  = inj₁ tt
+  covers-sysG c-recvBF  = inj₁ tt
+  covers-sysG c-ann     = inj₁ tt
+  covers-sysG c-annP    = inj₁ tt
+  covers-sysG c-input   = inj₂ (inj₁ tt)
+  covers-sysG c-output  = inj₁ tt
 
   -- …so in particular every hidden io label is (`wf-Hide`'s side condition)
   hideCov-sysG : HideCov ioES sysG
@@ -204,14 +213,17 @@ module Generic
     sep-api : Sep apiES peersG logicG
     sep-api =
         (λ { c-stGet  _ _  → inj₂ tt , tt ; c-stPut _ _ → inj₁ tt , tt
+           ; c-stGetAt _ _ → inj₂ tt , tt
            ; c-sendBF () _
            ; c-recvBF _ ¬m → ⊥-elim (¬m (proj₂ (bfSync _)))
            ; c-ann    () _
+           ; c-annP   _ ¬m → ⊥-elim (¬m (annSync annLP))
            ; c-input  _ _  → inj₁ tt , tt ; c-output () _ })
-      , (λ { c-stGet  _ _  → tt ; c-stPut _ _ → tt
+      , (λ { c-stGet  _ _  → tt ; c-stPut _ _ → tt ; c-stGetAt _ _ → tt
            ; c-sendBF _ ¬m → ⊥-elim (¬m (proj₁ (bfSync _)))
            ; c-recvBF _ ¬m → ⊥-elim (¬m (proj₂ (bfSync _)))
-           ; c-ann    _ ¬m → ⊥-elim (¬m (annSync _))
+           ; c-ann    _ ¬m → ⊥-elim (¬m (annSync annLN))
+           ; c-annP   _ ¬m → ⊥-elim (¬m (annSync annLP))
            ; c-input  _ _  → tt ; c-output (_ , ()) _ })
 
     -- ONE NODE, its store initially empty
@@ -245,11 +257,12 @@ bfSync-apiES : ∀ (p : Params) (t : Topology p) → Generic.BFSync p t (AA.apiE
 bfSync-apiES p t _ = tt , tt
 
 -- THE HEADLINE, for every parameter set and topology, at the shared api alphabet.
--- (The two premises are passed under explicit hidden binders: `apiSet` reduces to `⊤`
--- before the link and direction are unified, which would leave them unsolved.)
+-- (`bfSync` is passed under explicit hidden binders: `apiSet` reduces to `⊤` before the
+-- link and direction are unified, which would leave them unsolved.  `annSync` needs no
+-- such care — its `AnnEv` witness is explicit and pins the channel by itself.)
 announceSafeT-copy : ∀ (p : Params) (t : Topology p)
                    → AS.Generic.AnnounceSafeTWith p t (AA.apiES p) (NC.CopySpecBreakableA p)
 announceSafeT-copy p t =
   Generic.Assembly.announceSafeT-copy p t (AA.apiES p)
-    (λ {l} {d} → ASL.annSync-apiES p t {l} {d})
+    (ASL.annSync-apiES p t)
     (λ {l} {d} → bfSync-apiES p t {l} {d})

@@ -37,7 +37,7 @@ open import Data.List.Relation.Unary.Any.Properties using (any⁺; any⁻)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Relation.Binary.Subset.Propositional using (_⊆_)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Product using (Σ; Σ-syntax; _×_; _,_)
+open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit.Polymorphic using (⊤; tt)
 open import Function.Bundles using (Equivalence)
@@ -69,7 +69,8 @@ module Generic
 
   open Params p using (Block; EB; EBHash; ebHash; announcedEB; decEBHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; sendLNBlockAnnouncement )
+    using ( Net_Api; Net_Api-≟; env; envForge; apiLN; sendLNBlockAnnouncement
+          ; apiLP; lnpSendBlockAnnouncement )
   open D p using (Payload; Header; header)
   open Topology t using (Node)
   open import Cardano_network.NetCommon p using (NetworkLinkBreakableA)
@@ -243,12 +244,25 @@ module Generic
   -- The residual obligations
   ------------------------------------------------------------------------
 
-  -- the invariant ONE state must carry: every announcement it can make next is of a
-  -- block well-announced against the forged set it was reached with.  `Header` has
-  -- the single constructor `header`, so quantifying over `header b` loses nothing.
+  -- THE ANNOUNCEMENT CHANNELS, as a witness family.  `nodeLogic` announces on the
+  -- LeiosNotify api (`apiLN … sendLNBlockAnnouncement`); `nodeLogicL` announces on the
+  -- PROTOTYPE api (`apiLP … lnpSendBlockAnnouncement`) and on nothing else — it contains
+  -- no `apiLN` at all.  Both channels carry a `Header` (`Net.agda:169`/`:232`), so both
+  -- are gated by the same `announceOK` and one family covers them.  Indexing `Gated` by
+  -- a witness rather than giving the carrier one field per channel is what keeps the
+  -- congruences one clause each: a third announce channel costs one constructor here.
+  data AnnEv : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Block → Set where
+    annLN : ∀ {l d b} → AnnEv (_ , apiLN l d sendLNBlockAnnouncement) (header b) b
+    annLP : ∀ {l d b} → AnnEv (_ , apiLP l d lnpSendBlockAnnouncement) (header b) b
+
+  -- the invariant ONE state must carry: every announcement it can make next, on EITHER
+  -- announce channel, is of a block well-announced against the forged set it was reached
+  -- with.  `Header` has the single constructor `header`, so quantifying over `header b`
+  -- loses nothing.
   Gated : Forged → Proc → Set₁
-  Gated ms M = ∀ {l d b M′}
-             → M ─[ ev (evl (evLabel _ (apiLN l d sendLNBlockAnnouncement) (header b))) ]─► M′
+  Gated ms M = ∀ {X} {e : Net_Api Payload X} {a : X} {b} {M′}
+             → AnnEv (X , e) a b
+             → M ─[ ev (evl (evLabel X e a)) ]─► M′
              → WellAnnounced ms b
 
   -- THE RESIDUAL OBLIGATION.  For the composite to simulate `AnnounceSpecT`, every

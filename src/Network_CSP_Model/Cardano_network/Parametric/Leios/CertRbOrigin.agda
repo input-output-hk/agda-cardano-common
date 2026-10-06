@@ -38,7 +38,7 @@
 -- requires, a cert-RB "diffuses like any RB".  THE WIRE ROUTE IS DELIBERATELY
 -- UNGATED, and this module makes that explicit by MINTING at
 -- `apiBF _ _ recvBFBlock`: a delivered block licenses its own deposit.
--- Never state S4 as "only `forgeCert` can put a cert-RB in `held`".
+-- Never state S4 as "only the forge thread can put a cert-RB in `held`".
 --
 -- WHAT S4 DOES **NOT** RULE OUT.
 --   * THE WIRE ROUTE, explicitly (above).  A neighbour may hand this node any
@@ -57,48 +57,68 @@
 --   * It says nothing about OTHER nodes (see the endpoint caveat below).
 --   * It is purely safety-shaped: see the REACHABILITY NOTE below.
 --
--- ============ REACHABILITY NOTE (Task 10's finding, REPAIRED in R1) ============
+-- ============ REACHABILITY NOTE ============
 --
--- `forgeCert`'s first event is `env home(n) envForgeCert`.  That channel is
--- INSIDE `storeES` (`NodeLogic.storeSet` maps every `env` channel to `⊤`), and
--- under `∥⇘ storeES ⇙` a synchronised event fires only when BOTH operands offer
--- it (`CSP.Operators.par-pVis`, the `yes _ | _ | _ = nothing` clause).  AS
--- ORIGINALLY SHIPPED NO STORE OFFERED IT — `storeStepL` offered `envForge` and
--- `envForgeCert` occurred nowhere else in the estate — so inside
--- `nodeLogicL n st₀` the whole `forgeCert` thread was BLOCKED AT ITS FIRST
--- EVENT, as was `submit`, and the forge route this theorem constrains was
--- UNREACHABLE rather than merely unexercised.
+-- THE FORGE ROUTE IS ONE CHANNEL.  A certificate-carrying ranking block is
+-- forged on `env home(n) envForge` like any other block, by the single thread
+-- `forgeL`; there is no `envForgeCert` tag and no `forgeCert` thread any more.
+-- (An earlier revision had both, and shipped them with NO STORE ARM at all, so
+-- inside `nodeLogicL n st₀` the whole thread was BLOCKED AT ITS FIRST EVENT and
+-- the route this theorem constrains was UNREACHABLE.  Merging the routes
+-- retires that hazard outright: `storeStepL` has always offered `envForge`.)
 --
--- THAT DEFECT IS FIXED.  `NodeLogicL.storeStepL` now carries a pure-rendezvous
--- `envForgeCert` arm (and `memStep` an `envSubmit` one), and
 -- `Leios/NodeLogicLSanity.forgeCert-first-step` exhibits the first step of the
--- forge route INSIDE the full `nodeLogicL nA st₀` as an LTS derivation.  So S4
--- now constrains a route the composite can actually take, and the deposit at
--- the end of it is still earned only through the `stHasCert r` rendezvous.
+-- forge route, with a CERTIFICATE-CARRYING block, INSIDE the full
+-- `nodeLogicL nA st₀` as an LTS derivation.  So S4 constrains a route the
+-- composite can actually take, and the deposit at the end of it is still
+-- earned only through the `stHasCert r` rendezvous.
 -- `NodeLogicLSanity.uncertified-blocks`/`certified-offers` probe that at ONE
 -- hash, on the ISOLATED `voteStore`: they are not the ∀ statement.  The ∀
 -- fact — the store offers `stHasCert r` exactly for the `r` in its `certs`
 -- list — is structural in `NodeLogicL.offerCerts` and is read off that
 -- definition, not proved by those two probes.
 -- NOTE FOR ANY WRITE-UP that quotes the older, blocked-thread wording (ledger
--- entries up to 2026-09-23, `Laws_status` limitation 3): it described the model
--- before this repair and is now historical.
+-- entries up to 2026-09-23, `Laws_status` limitation 3), or the two-channel
+-- wording that replaced it: both described earlier models and are historical.
 --
--- "ITS OWN CERTIFICATE" IS A NODE-LEVEL READING — READ THIS BEFORE ANY SYSTEM
--- LIFT.  Like S1's, S2's, S2′'s and S3's, this discipline is ENDPOINT-AGNOSTIC
--- in its mints: `certRbMints` mints at EVERY link and direction and `isPut`
--- ignores the endpoint of the deposit.  At NODE level the two coincide, for
--- the reason `VoteSound`'s header records: inside `nodeP n (nodeLogicL n st₀)`
--- the only `store`/`env` channels that occur are the `homeOf n` ones and no
--- peer of the bundle offers a `store` channel at all.  A system lift would let
--- node X's certificate licence node Y's deposit; the fix is to index the key
--- by `(l , d)` and gate a `stPut` at `(l , d)` on keys carrying that same
--- `(l , d)`, exactly as S2's header prescribes.
+-- THE DISCIPLINE IS ENDPOINT-INDEXED, AND THAT IS WHAT LETS IT LIFT.  The key
+-- is an RB hash TOGETHER WITH THE DEPOSIT ENDPOINT it licenses
+-- (`CertRbKey = (Link × Dir) × RbHash`, so `Minted = List CertRbKey`).  A
+-- `store l d (stHasCert r)` rendezvous mints `((l , d) , r)` — node-local,
+-- since `hasCertEv n r` fires at `homeOf n`, which is also where `putEv n`
+-- fires, so record η closes that half definitionally.  An
+-- `apiBF l d recvBFBlock` delivery of `b` mints `(homeAt (l , d) , r)` when
+-- `rbCert b = just r`, where `homeAt (l , d)` is the home endpoint of the node
+-- that OWNS `(l , d)`; a `store l d stPut ! b` demands `((l , d) , r)`.  Since
+-- `homeOf` is injective (`homeOf-inj`), a certificate or a delivery at node X
+-- mints no key any deposit of node Y can spend, and
+-- `Leios.CertRbSystemL` spends exactly that.  The wire mint has to be
+-- NORMALISED to the depositing endpoint rather than keyed by the receiving one,
+-- because a node receives at every incident endpoint but deposits only at
+-- `homeOf n`; the normalisation is sound because `Topology.endpoints-sound`
+-- identifies the owner of `(l , d)`, which the membership-carrying fold
+-- `BlockProvenanceWfR.wf-⦀⁺∈` delivers to the one leaf that needs it.
+--
+-- THE RE-KEYING DOES NOT STRENGTHEN THE WIRE CLAUSE INTO A CONSTRAINT.  The
+-- wire route stays SELF-LICENSING: a delivery at one of this node's endpoints
+-- still mints the key its own deposit demands, so S4's network theorem remains
+-- the weakest of the five in CONTENT, exactly as the node-level one is.  What
+-- the key buys is only that node X's deliveries no longer licence node Y's
+-- deposits — necessary for the lift to mean anything, not a new restriction on
+-- what a node may accept.
+--
+-- THE RE-KEYED NODE-LEVEL THEOREM IS **NO WEAKER** THAN THE OLD ONE, and that
+-- is the direction that may be quoted.  Whenever the new gate stands open at a
+-- deposit, so did the old one: the new minted set holds `((l , d) , r)`, which
+-- only a `stHasCert r` rendezvous or a delivery of a block certifying `r` can
+-- have put there — so the old endpoint-blind `memberOf r` was `true` too.  The
+-- converse is NOT proved here, so "no weaker" is the claim, never "strictly
+-- stronger".
 --
 -- HOW IT IS PROVED.  S1's/S2's assume-guarantee route — `BlockProvenance`'s
 -- `Carrier` plus `BlockProvenanceWfR.Body`, the shared leaves of
 -- `OriginLeaves`, and `wf→osafe` back into `OriginSafe`.  THE GATED CHANNEL IS
--- EMITTED BY THREADS (`forgeCert` and the BlockFetch `clientLoop`), never by a
+-- EMITTED BY THREADS (`forgeL` and the BlockFetch `clientLoop`), never by a
 -- store, so this is S2's ORIENTATION and not S3's: the thread group carries
 -- `fullα`, the store group `∅α`, the `Sep` is `sep-store`, and the assembly is
 -- `wf-withStores`.
@@ -107,9 +127,9 @@
 -- six helpers — are NOT written here: `BodyOrigin` proves them at the shared
 -- alphabet `noPuts` ("this channel is neither `stPut` nor `stPutBody`"), and
 -- three lines (`nP→noNeed`/`oo↓`/`wf-nP`) turn each into an S4 leaf.  What is
--- written here is the four leaves outside `noPuts` — vacuity for `forgeL` and
--- for the Notify client, which deposit an EB BODY — and the two
--- CONTENT-BEARING ones, `forgeCert` and `clientLoop`.
+-- written here is the three leaves outside `noPuts` — vacuity for the Notify
+-- client, which deposits an EB BODY — and the two CONTENT-BEARING ones,
+-- `forgeL` and `clientLoop`.
 ------------------------------------------------------------------------
 
 module Cardano_network.Parametric.Leios.CertRbOrigin where
@@ -122,7 +142,7 @@ open import Data.List using (List; []; _∷_; _++_)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Relation.Nullary using (yes; no)
+open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
@@ -130,8 +150,10 @@ open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.List.Relation.Binary.Subset.Propositional using (_⊆_)
 open import Data.List.Relation.Binary.Subset.Propositional.Properties using (⊆-refl; ⊆-trans)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
+open import Data.Product.Properties using (≡-dec)
 open import Data.Unit.Polymorphic using (⊤; tt)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans)
+open import Relation.Binary.PropositionalEquality
+  using (_≡_; refl; sym; trans; cong; subst)
 
 open import Process_Trees using (PTree; AnyTypes; ExtI)
 open import Cardano_network.Params using (Params)
@@ -171,7 +193,7 @@ module Generic
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
           ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
-          ; envForge; envSubmit; envForgeCert
+          ; envForge; envSubmit
           ; recvBFBlock
           ; lnpSendBlockOffer; lnpSendBlockTxsOffer
           ; lnpRecvBlockAnnouncement; lnpRecvBlockOffer; lnpRecvBlockTxsOffer
@@ -190,7 +212,12 @@ module Generic
   -- (wholesale, as `NetworkPar` and `OriginLeaves`: `Dir`, its decidable equality and
   -- the six `IDs` constructors)
   open import Cardano_network.Base
-  open Topology t using (Node; endpointsOf)
+  open Topology t using (Node; endpointsOf; endpointsList; endpoints-sound)
+  -- `endAt` is NOT opened: the record's derived `endAt` is a pattern-matching lambda and
+  -- the opened copy does not unify with the one inside `endpoints-sound`'s instantiated
+  -- type (`BlobOrigin` measured the `UnequalTerms`).  The qualified projection does.
+  endAtT : Link → Dir → Node
+  endAtT = Topology.endAt t
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_)
   open import Cardano_network.Parametric.Node p t apiES
@@ -213,8 +240,8 @@ module Generic
   open NLL.Generic p lp t apiES voterOf
     using ( nodeLogicL; st₀; DecEq-⊤poly; DecEq-ℕ×ℕ; at?
           ; getAtEv; putEBEv; putBodyEv; getBodyEv; putVoteEv; getVoteAtEv
-          ; putTxEv; getTxAtEv; getTxEv; hasCertEv; forgeCertEv; forgeOK
-          ; forgeL; forgeBodyL; forgeCert; ebIndex; voter; submit; certSink
+          ; putTxEv; getTxAtEv; getTxEv; hasCertEv; forgeOK
+          ; forgeL; forgeBodyL; forgeCertL; ebIndex; voter; submit; certSink
           ; serverLoopL; lnServerLoopL; bodyOfferLoop; voteOfferLoop
           ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; tsPull; tsServe; putAllTx
           ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes
@@ -237,6 +264,69 @@ module Generic
           ; oo-tsServe; oo-fetchTxs; oo-putAllVotes )
 
   ------------------------------------------------------------------------
+  -- THE MINTED KEY, AND THE ENDPOINT BOOKKEEPING IT NEEDS
+  ------------------------------------------------------------------------
+
+  -- the endpoint equality, assembled out of the QUALIFIED `Fin` and `Dir` instances.
+  -- Deliberately not an instance declaration: a product instance at this type would
+  -- compete with the ones `wfR-Output` resolves its `DecEq X` to (campaign ledger,
+  -- gotcha 4).  `CertSound.ld-≟` is the precedent.
+  ld-≟ : (x y : Link × Dir) → Dec (x ≡ y)
+  ld-≟ = ≡-dec (DecEq._≟_ DecEqI.DecEq-Fin) (DecEq._≟_ DecEq-Dir)
+
+  -- THE MINTED KEY: AN RB HASH TOGETHER WITH THE DEPOSIT ENDPOINT IT LICENSES.  The
+  -- endpoint index is what makes the discipline sound at a composite of SEVERAL nodes:
+  -- without it node X's certificate would licence node Y's deposit.
+  CertRbKey : Set
+  CertRbKey = (Link × Dir) × RbHash
+
+  -- the key's equality, likewise explicit rather than an instance — and all the more so
+  -- here, where at `leiosLParams` `RbHash = Maybe Bool` and a declared instance would
+  -- clash with stdlib's `DecEq-Maybe` (the Task-7 ruling)
+  decCertRbKey : DecEq CertRbKey
+  decCertRbKey = record { _≟_ = ≡-dec ld-≟ (DecEq._≟_ decRbHash) }
+
+  -- is this key in the minted set?  `OriginSafe.memberOf` at the equality above, passed
+  -- explicitly because `memberOf` takes its `DecEq` as an INSTANCE argument and
+  -- `decCertRbKey` is not one
+  memKey : CertRbKey → List CertRbKey → Bool
+  memKey k ms = memberOf ⦃ decCertRbKey ⦄ k ms
+
+  -- … monotone in the minted set, which is what keeps the gate monotone
+  memKey-mono : ∀ {k ms ms′} → ms ⊆ ms′ → memKey k ms ≡ true → memKey k ms′ ≡ true
+  memKey-mono sub eq = memberOf-mono ⦃ decCertRbKey ⦄ sub eq
+
+  -- … and implied by propositional membership
+  ∈→memKey : ∀ k ms → k ∈ ms → memKey k ms ≡ true
+  ∈→memKey k ms q = ∈→memberOf ⦃ decCertRbKey ⦄ k ms q
+
+  -- `endpoints-sound` with the direction SPLIT FIRST.  The record's derived `endAt` is an
+  -- extended lambda, which only reduces at a CONCRETE direction, so the law's conclusion
+  -- at an abstract `d` is a stuck term that does not unify with `endAtT l d`.
+  sound-at : ∀ n l d → (l , d) ∈ endpointsList n → endAtT l d ≡ n
+  sound-at n l lo mem = endpoints-sound n l lo mem
+  sound-at n l hi mem = endpoints-sound n l hi mem
+
+  -- a node's HOME endpoint really is its own: `endpoints-sound` at the head of its
+  -- incidence list, which is what `NodeLogic.homeOf` picks
+  home-own : ∀ n → endAtT (proj₁ (homeOf n)) (proj₂ (homeOf n)) ≡ n
+  home-own n = sound-at n (proj₁ (homeOf n)) (proj₂ (homeOf n)) (here refl)
+
+  -- … hence `homeOf` is INJECTIVE: an endpoint belongs to at most one node.  This is the
+  -- fact that makes the endpoint-indexed key separate the nodes of one composite.
+  homeOf-inj : ∀ {n m} → homeOf n ≡ homeOf m → n ≡ m
+  homeOf-inj {n} {m} eq =
+    trans (sym (home-own n))
+          (trans (cong (λ ld → endAtT (proj₁ ld) (proj₂ ld)) eq) (home-own m))
+
+  -- THE DEPOSIT ENDPOINT A DELIVERY AT ONE ENDPOINT LICENSES: the home endpoint of the
+  -- node that owns the receiving endpoint.  A node receives at EVERY endpoint incident to
+  -- it but deposits only at `homeOf n` (`NodeLogic.putEv`), so a mint keyed by the
+  -- receiving endpoint itself would licence nothing at a node of degree > 1.
+  homeAt : Link × Dir → Link × Dir
+  homeAt ld = homeOf (endAtT (proj₁ ld) (proj₂ ld))
+
+  ------------------------------------------------------------------------
   -- The origin discipline
   ------------------------------------------------------------------------
 
@@ -245,45 +335,51 @@ module Generic
   -- is discharged by a two-clause case on this `Maybe` instead of a thirty-two-clause
   -- alphabet enumeration (`needs-put` still writes that enumeration once, because its
   -- conclusion is a Σ about the channel).
-  isPut : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Maybe Block
-  isPut (_ , store _ _ stPut) b = just b
+  -- The ENDPOINT is kept, because the key the deposit demands is indexed by it.
+  isPut : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Maybe ((Link × Dir) × Block)
+  isPut (_ , store l d stPut) b = just ((l , d) , b)
   isPut _                     _ = nothing
 
   -- WHAT MINTS.  The vote store vouching that `r` is already certified HERE — the
   -- `stHasCert r` rendezvous, offered only for the hashes in its `certs` list — and a
   -- BlockFetch delivery of a block that carries a certificate: the node relays what it is
   -- given, and S4 constrains what it INVENTS (the forge-route scope, module header).
-  -- ENDPOINT-AGNOSTIC (link and direction are `_`): see the header before lifting this
-  -- above node level.
-  certRbMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List RbHash
-  certRbMints (_ , store _ _ (stHasCert r)) _ = r ∷ []
-  certRbMints (_ , apiBF _ _ recvBFBlock)   b = maybe′ (λ r → r ∷ []) [] (rbCert b)
+  -- BOTH MINTS ARE KEYED BY THE DEPOSIT ENDPOINT THEY LICENSE.  The rendezvous is
+  -- node-local (`hasCertEv n r` fires at `homeOf n`, which is also where `putEv n` fires),
+  -- so its own `(l , d)` is already the right key.  The wire delivery is PER-ENDPOINT, so
+  -- it is normalised through `homeAt`.  `homeOf` is injective (`homeOf-inj`), so node X's
+  -- certificates and deliveries mint no key node Y's deposits can spend.
+  certRbMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List CertRbKey
+  certRbMints (_ , store l d (stHasCert r)) _ = ((l , d) , r) ∷ []
+  certRbMints (_ , apiBF l d recvBFBlock)   b =
+    maybe′ (λ r → (homeAt (l , d) , r) ∷ []) [] (rbCert b)
   certRbMints _                             _ = []
 
   -- IS THIS DEPOSIT LICENSED?  A certificate-free block is free; a certificate-carrying
-  -- one needs the RB hash its certificate names to have been minted.
-  vouchedRb : List RbHash → Block → Bool
-  vouchedRb ms b = maybe′ (λ r → memberOf r ms) true (rbCert b)
+  -- one needs the RB hash its certificate names to have been minted FOR THIS VERY DEPOSIT
+  -- ENDPOINT.
+  vouchedRb : List CertRbKey → (Link × Dir) × Block → Bool
+  vouchedRb ms (ld , b) = maybe′ (λ r → memKey (ld , r) ms) true (rbCert b)
 
   -- WHAT IS GATED: only a ranking-block deposit, and only by `vouchedRb`.  Everything
   -- else is free — in particular every other store deposit (see the module header).
-  certRbGate : List RbHash → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
+  certRbGate : List CertRbKey → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
   certRbGate ms at a = maybe′ (vouchedRb ms) true (isPut at a)
 
   -- monotonicity of the membership test under the block's optional certificate
-  mem-mono-maybe : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe RbHash)
-                 → maybe′ (λ r → memberOf r ms)  true z ≡ true
-                 → maybe′ (λ r → memberOf r ms′) true z ≡ true
-  mem-mono-maybe sub nothing  eq = refl
-  mem-mono-maybe sub (just r) eq = memberOf-mono sub eq
+  mem-mono-maybe : ∀ {ms ms′} → ms ⊆ ms′ → (ld : Link × Dir) (z : Maybe RbHash)
+                 → maybe′ (λ r → memKey (ld , r) ms)  true z ≡ true
+                 → maybe′ (λ r → memKey (ld , r) ms′) true z ≡ true
+  mem-mono-maybe sub ld nothing  eq = refl
+  mem-mono-maybe sub ld (just r) eq = memKey-mono sub eq
 
   -- the gate's monotonicity, as a case on `isPut`'s answer alone: the only
-  -- state-dependent test is `memberOf`, which is monotone
-  gate-mono-aux : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe Block)
+  -- state-dependent test is `memKey`, which is monotone
+  gate-mono-aux : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe ((Link × Dir) × Block))
                 → maybe′ (vouchedRb ms)  true z ≡ true
                 → maybe′ (vouchedRb ms′) true z ≡ true
-  gate-mono-aux sub nothing  eq = refl
-  gate-mono-aux sub (just b) eq = mem-mono-maybe sub (rbCert b) eq
+  gate-mono-aux sub nothing         eq = refl
+  gate-mono-aux sub (just (ld , b)) eq = mem-mono-maybe sub ld (rbCert b) eq
 
   -- MINTING ONLY EVER OPENS THE GATE
   certRbGate-mono : ∀ {ms ms′} → ms ⊆ ms′
@@ -296,7 +392,8 @@ module Generic
 
   -- the generic carrier at the S4 discipline.  `OriginSpecT` is renamed rather than
   -- listed: Agda rejects a name that appears in both `using` and `renaming`.
-  open OS.Generic.Origin p t apiES RbHash decRbHash certRbMints certRbGate certRbGate-mono
+  open OS.Generic.Origin p t apiES CertRbKey decCertRbKey certRbMints certRbGate
+                         certRbGate-mono
     using ( Minted; mintedAfter; mintedAfter-⊇; originOffer; OriginSpecAt; specAt-init
           ; OSafe; gateOK; onτ; onEv; noTick; osafe→⊑T )
     renaming (OriginSpecT to CertRbSpecT)
@@ -306,15 +403,24 @@ module Generic
   -- The assume-guarantee instance, and the ONE alphabet enumeration
   ------------------------------------------------------------------------
 
-  -- WHAT A LABEL CARRIES: a block deposit carries the RB hash its certificate names,
-  -- when it has one; nothing else carries anything.  (This is the `Carries` of the Wf
-  -- framework — "needs a justification" — NOT the same thing as `certRbMints`.)
-  certRbCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → RbHash → Set
-  certRbCarries at a r = maybe′ (λ b → rbCert b ≡ just r) ⊥ (isPut at a)
+  -- WHAT A DEPOSIT AT ONE ENDPOINT CARRIES: an obligation keyed by the RB hash the
+  -- block's certificate names AND the endpoint the deposit is made at.  Written as a Σ
+  -- rather than as a `maybe′` over `rbCert b`, so that it can be DESTRUCTED at a variable
+  -- block: `(r , eq , refl)` hands over both the certificate witness and the key.
+  carriesAt : (Link × Dir) × Block → CertRbKey → Set
+  carriesAt (ld , b) k = Σ[ r ∈ RbHash ] (rbCert b ≡ just r × (ld , r) ≡ k)
 
-  -- WHAT THE MINTED SET MUST SAY ABOUT A CARRIED HASH: it was certified or delivered here
-  certRbWA : Minted → RbHash → Set
-  certRbWA ms r = memberOf r ms ≡ true
+  -- WHAT A LABEL CARRIES: a block deposit carries the RB hash its certificate names KEYED
+  -- BY THE ENDPOINT IT IS DEPOSITED AT, when it has one; nothing else carries anything.
+  -- (This is the `Carries` of the Wf framework — "needs a justification" — NOT the same
+  -- thing as `certRbMints`.)
+  certRbCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → CertRbKey → Set
+  certRbCarries at a k = maybe′ (λ z → carriesAt z k) ⊥ (isPut at a)
+
+  -- WHAT THE MINTED SET MUST SAY ABOUT A CARRIED KEY: that hash was certified or
+  -- delivered here, for that very deposit endpoint
+  certRbWA : Minted → CertRbKey → Set
+  certRbWA ms k = memKey k ms ≡ true
 
   -- the state a label leads to: EXACTLY `OriginSafe`'s `mintedAfter` on a visible label
   -- (definitionally), unchanged on τ and `√`
@@ -332,7 +438,7 @@ module Generic
   -- and, under `store`, one per `StoreTag` — 32 in all — because `isPut`'s catch-all does
   -- not reduce until the constructor is known.  This is the whole alphabet tax of S4, and
   -- it does double duty: `needs-store` and `nP→noNeed` both fall out of it.
-  needs-put : ∀ {X} {e : Net_Api Payload X} {a : X} {r} → certRbCarries (X , e) a r
+  needs-put : ∀ {X} {e : Net_Api Payload X} {a : X} {k} → certRbCarries (X , e) a k
             → Σ[ l ∈ Link ] Σ[ d ∈ Dir ]
                 (_≡_ {A = AnyTypes (Net_Api Payload)}
                      (X , e) (StoreCar stPut , store l d stPut))
@@ -370,31 +476,36 @@ module Generic
   needs-put {e = break _}                   ()
 
   -- … weakened to the "some store tag" form `OriginLeaves` asks for
-  needs-store : ∀ {X} {e : Net_Api Payload X} {a : X} {r} → certRbCarries (X , e) a r
+  needs-store : ∀ {X} {e : Net_Api Payload X} {a : X} {k} → certRbCarries (X , e) a k
               → Σ[ l ∈ Link ] Σ[ d ∈ Dir ] Σ[ m ∈ StoreTag ]
                   (_≡_ {A = AnyTypes (Net_Api Payload)}
                        (X , e) (StoreCar m , store l d m))
-  needs-store {X} {e} {a} {r} c with needs-put {X} {e} {a} {r} c
+  needs-store {X} {e} {a} {k} c with needs-put {X} {e} {a} {k} c
   ... | l , d , refl = l , d , stPut , refl
 
   -- THE SHARED LEAVES: the vacuous-leaf lemmas at both carriers, the two guarantee
-  -- alphabets and their `Sep`s, and the prototype peer bundle
-  open OL.Generic.Leaves p t apiES Minted RbHash certRbCarries certRbWA certRbNext
-                         _⊆_ ⊆-refl ⊆-trans certRbNext-⊆ needs-store
+  -- alphabets and their `Sep`s, and the prototype peer bundle.  RE-EXPORTED, so that
+  -- `Leios.CertRbSystemL` reaches them through this module instead of re-applying
+  -- `OriginLeaves.Generic.Leaves` at the same eleven arguments.
+  open OL.Generic.Leaves p t apiES Minted CertRbKey certRbCarries certRbWA certRbNext
+                         _⊆_ ⊆-refl ⊆-trans certRbNext-⊆ needs-store public
 
-  -- the assume-guarantee carrier at the S4 discipline …
-  open BP.Carrier (Net_Api-≟ {Payload}) Minted RbHash certRbCarries certRbWA
+  -- the assume-guarantee carrier at the S4 discipline … also re-exported, so that the
+  -- `Wf` a system module folds with is THIS module application's and not a second one
+  open BP.Carrier (Net_Api-≟ {Payload}) Minted CertRbKey certRbCarries certRbWA
                   certRbNext _⊆_ ⊆-trans certRbNext-⊆
     using ( OK; lbl; Wf; nowW; stepW; wf-mono; wf-mono-G; wf-Skip; wf-deadlock
-          ; Sep; _∪α_; wf-Par; wf-⦀; wf-⦀⋆ )
+          ; Sep; _∪α_; wf-Par; wf-⦀; wf-⦀⋆
+          -- … and the four only a SYSTEM fold needs
+          ; wf-⦀Fin⁺; HideCov; HideKeep; wf-Hide ) public
 
   -- … and its returning-tree layer, at the SAME arguments, so the two `Wf`s are the
   -- same record
-  open BPW.Body (Net_Api-≟ {Payload}) Minted RbHash certRbCarries certRbWA
+  open BPW.Body (Net_Api-≟ {Payload}) Minted CertRbKey certRbCarries certRbWA
                 certRbNext _⊆_ ⊆-refl ⊆-trans certRbNext-⊆
     using ( WfR; nowR; stepR; retR; Stable; stable-node; stable-□
           ; wfR-mono; wfR-Ret; wfR-Stop; wfR-Prefix; wfR-Output; wfR-⊓; wfR-□
-          ; wfR->>=; wf-loop; wf-loop0; wf-⦀⁺ )
+          ; wfR->>=; wf-loop; wf-loop0; wf-⦀⁺; wf-⦀⁺∈ )
 
   ------------------------------------------------------------------------
   -- THE BRIDGE
@@ -402,22 +513,23 @@ module Generic
 
   -- the gate at a deposit, from the deposit's `OK` obligation, as a case on the block's
   -- optional certificate
-  gate-ok-mb : (ms : Minted) (z : Maybe RbHash)
-             → (∀ {r} → z ≡ just r → memberOf r ms ≡ true)
-             → maybe′ (λ r → memberOf r ms) true z ≡ true
-  gate-ok-mb ms nothing  g = refl
-  gate-ok-mb ms (just r) g = g refl
+  gate-ok-mb : (ms : Minted) (ld : Link × Dir) (z : Maybe RbHash)
+             → (∀ {r} → z ≡ just r → memKey (ld , r) ms ≡ true)
+             → maybe′ (λ r → memKey (ld , r) ms) true z ≡ true
+  gate-ok-mb ms ld nothing  g = refl
+  gate-ok-mb ms ld (just r) g = g refl
 
   -- `OK` at a block deposit IS the gate, and at every other channel the gate is `true`
-  gate-ok-aux : (ms : Minted) (z : Maybe Block)
-              → (∀ {r} → maybe′ (λ b → rbCert b ≡ just r) ⊥ z → memberOf r ms ≡ true)
+  gate-ok-aux : (ms : Minted) (z : Maybe ((Link × Dir) × Block))
+              → (∀ {k} → maybe′ (λ y → carriesAt y k) ⊥ z → memKey k ms ≡ true)
               → maybe′ (vouchedRb ms) true z ≡ true
-  gate-ok-aux ms nothing  g = refl
-  gate-ok-aux ms (just b) g = gate-ok-mb ms (rbCert b) g
+  gate-ok-aux ms nothing         g = refl
+  gate-ok-aux ms (just (ld , b)) g =
+    gate-ok-mb ms ld (rbCert b) (λ {r} eq → g {ld , r} (r , eq , refl))
 
   -- `OK` at a label IS the gate
   ok→gate : ∀ {X} {e : Net_Api Payload X} {a : X} {ms}
-          → (∀ {r} → certRbCarries (X , e) a r → certRbWA ms r)
+          → (∀ {k} → certRbCarries (X , e) a k → certRbWA ms k)
           → certRbGate ms (X , e) a ≡ true
   ok→gate {X} {e} {a} {ms} f = gate-ok-aux ms (isPut (X , e) a) f
 
@@ -442,7 +554,7 @@ module Generic
   -- ALL FOUR IMPLICITS ARE PINNED ON BOTH SIDES: `certRbCarries` is `maybe′`-defined and
   -- therefore non-injective, so an unpinned `with` dies in `UnificationStuck` (Task 8).
   nP→noNeed : ∀ at a → noPuts at a → noNeed at a
-  nP→noNeed (X , e) a np {r} c with needs-put {X} {e} {a} {r} c
+  nP→noNeed (X , e) a np {k} c with needs-put {X} {e} {a} {k} c
   ... | l , d , refl = np
 
   -- a thread confined to `noPuts` carries nothing for S4 …
@@ -455,23 +567,11 @@ module Generic
   wf-nP oo = wf-free (oo↓ oo)
 
   ------------------------------------------------------------------------
-  -- The four leaves OUTSIDE `noPuts`: vacuous for S4, content-bearing for S1
+  -- The leaf OUTSIDE `noPuts` that is vacuous for S4
   --
-  -- `forgeL` and the Notify client deposit an EB BODY (`stPutBody`), which `noPuts`
-  -- excludes and S4 does not gate, so they are written here at S4's own `noNeed`.
+  -- The Notify client deposits an EB BODY (`stPutBody`), which `noPuts` excludes and
+  -- S4 does not gate, so it is written here at S4's own `noNeed`.
   ------------------------------------------------------------------------
-
-  -- the forge thread: `env … envForge`, then at most an EB-BODY deposit — never a block
-  oo-forgeL : ∀ n → OffersOnly noNeed (forgeL n)
-  oo-forgeL n = OffersOnly-loop0 (OffersOnly-Prefix (λ _ → λ ()) body)
-    where
-    -- the body deposited by one forge, under the forge guard and the optional EB
-    body : ∀ mb → OffersOnly noNeed (forgeBodyL n mb)
-    body (me , b) with forgeOK (me , b)
-    ... | false = OffersOnly-Skip
-    ... | true with me
-    ...   | nothing = OffersOnly-Skip
-    ...   | just eb = OffersOnly-Output (λ ()) OffersOnly-Skip
 
   -- the guarded EB-BODY deposit of a fetch: not a block either way
   oo-fetchDep : ∀ n h′ eb
@@ -541,62 +641,103 @@ module Generic
   ------------------------------------------------------------------------
 
   -- the deposit of a block, under the premise that its certificate hash is already minted
+  -- The key is at `homeOf n`, which is where `putEv n` fires, so record η closes the
+  -- endpoint bookkeeping definitionally on this side.
   dep-put : ∀ {s} n (b : Block)
-          → (∀ {r} → rbCert b ≡ just r → memberOf r s ≡ true)
+          → (∀ {r} → rbCert b ≡ just r → memKey (homeOf n , r) s ≡ true)
           → WfR fullα s (λ _ _ → ⊤) (putEv n ! b ⟶ Skip {0ℓ})
-  dep-put n b h = wfR-Output (λ le _ → λ c → memberOf-mono le (h c))
+  dep-put n b h = wfR-Output (λ le _ → λ { (r , eq , refl) → memKey-mono le (h eq) })
                              (λ _ _ → wfR-free OffersOnly-Skip tt)
 
   -- THE RENDEZVOUS MINTED EXACTLY THE HASH the block's certificate names.  The list is
   -- pinned explicitly: `memberOf` unfolds to a `foldr` over a `map` and an unpinned
   -- application leaves an uninvertible meta (Task 9's measured trap).
-  mint-cert : ∀ {r r′} (s : Minted) → _≡_ {A = Maybe RbHash} (just r) (just r′)
-            → memberOf r′ (r ∷ s) ≡ true
-  mint-cert {r} s refl = ∈→memberOf r (r ∷ s) (here refl)
+  -- `hasCertEv n r` fires at `homeOf n`, so the mint's own endpoint IS the deposit
+  -- endpoint and no `endpoints-sound` is needed on this branch.
+  mint-cert : ∀ {r r′} n (s : Minted) → _≡_ {A = Maybe RbHash} (just r) (just r′)
+            → memKey (homeOf n , r′) ((homeOf n , r) ∷ s) ≡ true
+  mint-cert {r} n s refl = ∈→memKey (homeOf n , r) ((homeOf n , r) ∷ s) (here refl)
 
-  -- THE CERTIFICATE-RB FORGE THREAD — the whole content of S4.  For a block with
-  -- `rbCert b = just r` the thread BLOCKS at `hasCertEv n r`, which MINTS `r`, before its
-  -- `putEv n ! b`; for a certificate-free block it offers nothing at all.  (`forgeL` is
-  -- vacuous BECAUSE of `acceptForgeL`: its only store interaction is `forgeEv`, and the
-  -- certificate-carrying case is dropped by the block store, so `forgeL` never fires
-  -- `stPut` — that is the reason this theorem is true rather than merely stated.)
-  wf-forgeCert : ∀ {ms} n → Wf fullα ms (forgeCert n)
-  wf-forgeCert n = wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ b _ → pass b))
+  -- THE FORGE THREAD — the whole content of S4.  One pass takes the environment's forge
+  -- off `env … envForge`, deposits the announced EB body, and then, for a block with
+  -- `rbCert b = just r` WHOSE ANNOUNCEMENT MATCHES the EB offered with it, BLOCKS at
+  -- `hasCertEv n r`, which MINTS `r`, BEFORE its `putEv n ! b`.  For a certificate-free
+  -- block, or one the announcement guard rejects, no `stPut` is offered at all.
+  --
+  -- THE RENDEZVOUS STRICTLY PRECEDES THE DEPOSIT — that ordering is literally what this
+  -- proof spends, in `cert`'s `just r` clause, and `CertRbOriginBad` refutes S4 when it
+  -- is removed.  The reason the theorem is TRUE rather than merely stated is
+  -- `acceptForgeL`: the block store WITHHOLDS a cert-carrying RB at the forge event, so
+  -- the thread's own gated `putEv` is the only forge-route way into `held`.
+  wf-forgeL : ∀ {ms} n → Wf fullα ms (forgeL n)
+  wf-forgeL n = wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ mb _ → pass mb))
     where
-    -- one pass, dispatched on the block's optional certificate (passed explicitly, so no
-    -- `with` has to abstract the premise that mentions it)
-    body : ∀ {s} (b : Block) (z : Maybe RbHash) → rbCert b ≡ z
+    -- the certificate half, dispatched on the block's optional certificate (passed
+    -- explicitly, so no `with` has to abstract the premise that mentions it)
+    cert : ∀ {s} (b : Block) (z : Maybe RbHash) → rbCert b ≡ z
          → WfR fullα s (λ _ _ → ⊤)
              (maybe′ (λ r → hasCertEv n r ⟶₀ (putEv n ! b ⟶ Skip {0ℓ}))
                      (Skip {0ℓ}) z)
-    body b nothing  eq = wfR-free OffersOnly-Skip tt
-    body b (just r) eq =
+    cert b nothing  eq = wfR-free OffersOnly-Skip tt
+    cert b (just r) eq =
       wfR-Prefix (λ _ _ _ → λ ())
-                 (λ {s′} _ _ _ → dep-put n b (λ c → mint-cert s′ (trans (sym eq) c)))
+                 (λ {s′} _ _ _ → dep-put n b (λ c → mint-cert n s′ (trans (sym eq) c)))
 
-    -- one pass, at the state the `envForgeCert` event led to (it mints nothing)
-    pass : ∀ {s} (b : Block)
-         → WfR fullα (certRbNext (lbl (forgeCertEv n) b) s) (λ _ _ → ⊤)
-             (maybe′ (λ r → hasCertEv n r ⟶₀ (putEv n ! b ⟶ Skip {0ℓ}))
-                     (Skip {0ℓ}) (rbCert b))
-    pass b = body b (rbCert b) refl
+    -- the EB-body deposit, which S4 does not gate, and the certificate half after it
+    dep : ∀ {s} (me : Maybe LeiosEb) (b : Block)
+        → WfR fullα s (λ _ _ → ⊤)
+            (maybe (λ eb → putBodyEv n ! eb ⟶ forgeCertL n b) (forgeCertL n b) me)
+    dep nothing   b = cert b (rbCert b) refl
+    dep (just eb) b =
+      wfR-Output (λ _ _ → λ ()) (λ _ _ → cert b (rbCert b) refl)
 
-  -- THE WIRE MINT: a BlockFetch delivery of `b` puts `rbCert b`'s hash at the head of the
-  -- minted set, so the deposit one step later finds it there.  This is the clause that
-  -- makes the WIRE ROUTE unconstrained — deliberately, per the forge-route scope.
-  mint-recv : ∀ (z : Maybe RbHash) (s : Minted) {r} → z ≡ just r
-            → memberOf r (maybe′ (λ r′ → r′ ∷ []) [] z ++ s) ≡ true
-  mint-recv (just r) s refl = ∈→memberOf r (r ∷ s) (here refl)
-  mint-recv nothing  s ()
+    -- the announcement guard's two branches: the accepted forge is `dep`, the rejected
+    -- one offers nothing.  Dispatched on the Boolean passed explicitly, so the
+    -- conditional reduces without a `with` abstracting the state.
+    guarded : ∀ {s} (me : Maybe LeiosEb) (b : Block) (t : Bool)
+            → WfR fullα s (λ _ _ → ⊤)
+                ((maybe (λ eb → putBodyEv n ! eb ⟶ forgeCertL n b) (forgeCertL n b) me)
+                   ◁ t ▷ Skip {0ℓ})
+    guarded me b true  = dep me b
+    guarded me b false = wfR-free OffersOnly-Skip tt
+
+    -- one pass, at the state the `envForge` event led to (it mints nothing for S4)
+    pass : ∀ {s} (mb : Maybe LeiosEb × Block)
+         → WfR fullα (certRbNext (lbl (forgeEv n) mb) s) (λ _ _ → ⊤)
+             (forgeBodyL n mb)
+    pass (me , b) = guarded me b (forgeOK (me , b))
 
   -- THE BLOCKFETCH CLIENT.  `NodeLogic.clientBody-k` deposits exactly the block that
   -- arrived on `recvBFBlock`, and that delivery MINTED the hash its certificate names.
-  -- The node relays; it does not invent.
-  wf-clientLoop : ∀ {ms} n ld → Wf fullα ms (clientLoop n ld)
-  wf-clientLoop n (l , d) =
+  -- The node relays; it does not invent.  IT TAKES THE ENDPOINT'S MEMBERSHIP: the delivery
+  -- mints at `homeAt (l , d)` and the deposit it licenses is at `homeOf n`, so the leaf
+  -- has to know that `(l , d)` really is one of `n`'s endpoints.
+  wf-clientLoop : ∀ {ms} n ld → ld ∈ endpointsList n → Wf fullα ms (clientLoop n ld)
+  wf-clientLoop n (l , d) mem =
     wf-loop0 (wfR-Prefix (λ _ _ _ → λ ())
                (λ _ _ _ → wfR-Prefix (λ _ _ _ → λ ()) (λ _ a _ → k a)))
     where
+    -- A DELIVERY AT THIS ENDPOINT MINTS AT THIS NODE'S OWN DEPOSIT ENDPOINT, because
+    -- `endAt l d` IS `n` — `Topology.endpoints-sound`, through `sound-at`.  THIS is the
+    -- one leaf the threaded membership is spent at.
+    atHome : ∀ (r : RbHash) (ms : Minted) → (homeAt (l , d) , r) ∈ ms
+           → memKey (homeOf n , r) ms ≡ true
+    atHome r ms q =
+      ∈→memKey _ _ (subst (λ z → (z , r) ∈ ms) (cong homeOf (sound-at n l d mem)) q)
+
+    -- THE WIRE MINT: a BlockFetch delivery of `b` puts `rbCert b`'s hash, keyed by this
+    -- node's own deposit endpoint, at the head of the minted set, so the deposit one step
+    -- later finds it there.  This is the clause that makes the WIRE ROUTE unconstrained —
+    -- deliberately, per the forge-route scope, and the re-keying NARROWS it to the
+    -- receiving node without removing it.
+    mint-recv : ∀ (z : Maybe RbHash) (s : Minted) {r} → z ≡ just r
+              → memKey (homeOf n , r)
+                       (maybe′ (λ r′ → (homeAt (l , d) , r′) ∷ []) [] z ++ s) ≡ true
+    -- the list is pinned explicitly: `memKey` unfolds to a `foldr` over a `map` and an
+    -- unpinned application leaves an uninvertible meta (Task 9's measured trap)
+    mint-recv (just r) s refl = atHome r ((homeAt (l , d) , r) ∷ s) (here refl)
+    mint-recv nothing  s ()
+
     -- the reaction to one header: request the block's range, receive it — the mint — and
     -- deposit it.  The `(header b , _)` pattern is what makes `clientBody-k` reduce.
     k : ∀ {s} a → WfR fullα s (λ _ _ → ⊤) (clientBody-k n l d a)
@@ -609,10 +750,11 @@ module Generic
   -- The assembly
   ------------------------------------------------------------------------
 
-  -- one endpoint's ten threads
-  wf-endpoint : ∀ {ms} n e → Wf fullα ms (endpointThreadsL n e)
-  wf-endpoint n e =
-    wf-⦀ (wf-clientLoop n e)
+  -- one endpoint's ten threads.  Nine of them carry nothing or are node-local and ignore
+  -- the membership; only the BlockFetch client spends it.
+  wf-endpoint : ∀ {ms} n e → e ∈ endpointsList n → Wf fullα ms (endpointThreadsL n e)
+  wf-endpoint n e mem =
+    wf-⦀ (wf-clientLoop n e mem)
       (wf-⦀ (wf-nP (oo-serverLoopL n e))
       (wf-⦀ (wf-lnClient n e)
       (wf-⦀ (wf-nP (oo-lnServerLoopL n e))
@@ -622,23 +764,24 @@ module Generic
       (wf-⦀ (wf-nP (oo-ebTxsServeLoop n e))
       (wf-⦀ (wf-nP (oo-tsPull n e)) (wf-nP (oo-tsServe n e))))))))))
 
-  -- every incident endpoint's threads
+  -- every incident endpoint's threads, each handed its own membership in
+  -- `endpointsList n` — which is definitionally the head-plus-tail list this fold runs
+  -- over, so `wf-⦀⁺∈` supplies it with nothing to prove
   wf-allThreads : ∀ {ms} n → Wf fullα ms (allThreadsL n)
   wf-allThreads n =
-    wf-⦀⁺ (endpointThreadsL n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n))
-          (λ e → wf-endpoint n e)
+    wf-⦀⁺∈ (endpointThreadsL n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n))
+           (λ e mem → wf-endpoint n e mem)
 
-  -- the six node-level threads and every endpoint's ten
+  -- the five node-level threads and every endpoint's ten
   wf-threads : ∀ {ms} n
-             → Wf fullα ms (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voter n ⦀
-                              (submit n ⦀ (certSink n ⦀ allThreadsL n))))))
+             → Wf fullα ms (forgeL n ⦀ (ebIndex n ⦀ (voter n ⦀
+                              (submit n ⦀ (certSink n ⦀ allThreadsL n)))))
   wf-threads n =
-    wf-⦀ (wf-free (oo-forgeL n))
-      (wf-⦀ (wf-forgeCert n)
+    wf-⦀ (wf-forgeL n)
       (wf-⦀ (wf-nP (oo-ebIndex n))
       (wf-⦀ (wf-nP (oo-voter n))
       (wf-⦀ (wf-nP (oo-submit n))
-      (wf-⦀ (wf-nP (oo-certSink n)) (wf-allThreads n))))))
+      (wf-⦀ (wf-nP (oo-certSink n)) (wf-allThreads n)))))
 
   -- A GATE-CARRYING THREAD GROUP AGAINST ANY STORE GROUP.  The threads carry the gate,
   -- the stores guarantee nothing, and the one key-needing channel is inside `storeES`, so
@@ -668,10 +811,12 @@ module Generic
   -- S4 — CERTIFICATE-RB ORIGIN, node-local, FORGE-ROUTE SCOPED.  A node running
   -- `nodeLogicL` from empty stores never puts a certificate-carrying ranking block into
   -- its own store unless its own vote store had certified that RB, or the block arrived
-  -- off the wire.  LEVEL: node.  The network-wide form ("every certificate RB anywhere
-  -- entered through some node's `forgeCert` after that node's `stCert`") needs the medium
-  -- and is NOT proved here; see the module header for the full list of what this does not
-  -- rule out, and for the reachability finding.
+  -- off the wire AT ONE OF THAT NODE'S OWN ENDPOINTS.  LEVEL: node —
+  -- `Leios.CertRbSystemL` lifts this to the whole network.  The form "every certificate
+  -- RB anywhere entered through some node's forge after that node's `stCert`" is still
+  -- NOT proved, because the wire clause is self-licensing by design; see the module
+  -- header for the full list of what this does not rule out, and for the reachability
+  -- finding.
   CertRbSound : Set₁
   CertRbSound = ∀ (n : Node) → CertRbSpecT ⊑T nodeP n (nodeLogicL n st₀)
 

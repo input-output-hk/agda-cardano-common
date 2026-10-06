@@ -33,6 +33,8 @@ module Cardano_network.Parametric.BlockProvenanceWfR where
 open import Level using (Level; 0ℓ; _⊔_) renaming (suc to lsuc)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.List using (List; []; _∷_; map)
+open import Data.List.Membership.Propositional using (_∈_)
+open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Maybe.Properties using (just-injective)
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
@@ -431,4 +433,15 @@ module Body {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) �
         → (∀ a → Wf G s (f a)) → Wf G s (⦀⁺ (f x) (map f xs))
   wf-⦀⁺ f x []       h = h x
   wf-⦀⁺ f x (y ∷ ys) h = wf-⦀ (h x) (wf-⦀⁺ f y ys h)
+
+  -- THE SAME FOLD, HANDING EACH LEAF ITS OWN MEMBERSHIP.  A leaf that is indexed by a
+  -- network endpoint often needs to know WHICH list it was taken from — an endpoint of
+  -- node `n` is `n`'s by `Topology.endpoints-sound`, and only that fact ties a delivery
+  -- received there to a deposit made at `n`'s home endpoint.  `wf-⦀⁺` cannot supply it,
+  -- since its hypothesis is quantified over the whole index type; this variant quantifies
+  -- over the list instead, and is otherwise the same recursion.
+  wf-⦀⁺∈ : ∀ {ℓa} {A : Set ℓa} (f : A → PTree E (ExtI E) (⊤ {0ℓ})) (x : A) (xs : List A)
+         → (∀ a → a ∈ (x ∷ xs) → Wf G s (f a)) → Wf G s (⦀⁺ (f x) (map f xs))
+  wf-⦀⁺∈ f x []       h = h x (here refl)
+  wf-⦀⁺∈ f x (y ∷ ys) h = wf-⦀ (h x (here refl)) (wf-⦀⁺∈ f y ys (λ a q → h a (there q)))
 

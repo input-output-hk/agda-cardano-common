@@ -46,25 +46,31 @@
 -- casting and relaying is the whole content of this theorem, so it is built
 -- into `blobCarries`, which is `⊥` at the claimed voter's own endpoint.
 --
--- "ITS OWN VOTER" IS A NODE-LEVEL READING — READ THIS BEFORE ANY SYSTEM
--- LIFT.  Like S2's and S3's, this discipline is ENDPOINT-AGNOSTIC in its
--- MINTS: `blobMints` mints on `apiLP _ _ lnpRecvVotes` for EVERY link and
--- direction, so nothing in the minted set says WHICH endpoint received the
--- delivery.  (The GATE is endpoint-sensitive — `atVoter` compares the
--- deposit's endpoint against the claimed voter's home — but that only
--- decides whether an obligation arises, not who discharged it.)  CONSEQUENCE:
--- with more than one node in the same composite, a `lnpRecvVotes` delivered
--- at node X would licence a relay deposit at node Y.  A system-level S2′
--- must first make the key ENDPOINT-INDEXED, exactly as `VoteSound`'s header
--- prescribes for S2 — mint `(l , d , v)` and gate a `stPutVote` at `(l , d)`
--- on keys carrying that same `(l , d)`.  Until that is done, no result here
--- may be quoted above node level.  At node level the reading is licensed for
--- the reason S2's header records: inside `nodeP n (nodeLogicL n st₀)` the
--- only `store` channels that occur are the `homeOf n` ones, and no peer of
--- the bundle offers a `store` channel at all.
+-- THE DISCIPLINE IS ENDPOINT-INDEXED, AND THAT IS WHAT LETS IT LIFT.  The
+-- key is a blob TOGETHER WITH THE DEPOSIT ENDPOINT it licenses
+-- (`BlobKey = (Link × Dir) × VoteBlob`, so `Minted = List BlobKey`).  A
+-- `lnpRecvVotes` delivery at endpoint `(l , d)` mints `(homeAt (l , d) , v)`
+-- for each blob `v` it carried, where `homeAt (l , d)` is the home endpoint of
+-- the node that OWNS `(l , d)`; a `store l d stPutVote ! v` demands
+-- `((l , d) , v)`.  Since `homeOf` is injective (`homeOf-inj`), a delivery
+-- received at node X mints no key that any deposit of node Y can spend, and
+-- `Leios.BlobSystemL` spends exactly that.  The mint has to be NORMALISED to
+-- the depositing endpoint rather than keyed by the receiving one, because a
+-- node receives at every incident endpoint but deposits only at `homeOf n`
+-- (`NodeLogicL.putVoteEv`); the normalisation is sound because
+-- `Topology.endpoints-sound` identifies the owner of `(l , d)`, which is the
+-- one fact the membership-carrying fold `BlockProvenanceWfR.wf-⦀⁺∈` was added
+-- to deliver to the leaf.  (`VoteSound`'s header still records the OLD
+-- endpoint-agnostic caveat for S2, which has not been re-keyed.)
 --
--- THE KEY IS THE BLOB ITSELF (`Minted = List VoteBlob`): S2′ asks only
--- whether THIS blob was delivered, so there is nothing to sort.
+-- THE RE-KEYED NODE-LEVEL THEOREM IS **NO WEAKER** THAN THE OLD ONE, and that
+-- is the direction that may be quoted.  Whenever the new gate stands open at a
+-- deposit, so did the old one: either the `atVoter` disjunct closed it (the
+-- same test, untouched by the key), or the new minted set holds
+-- `((l , d) , v)`, which only a delivery of `v` can have put there — so the
+-- old endpoint-blind `memberOf v` was `true` too.  Hence every trace the NEW
+-- `BlobSpecT` permits the old one permitted.  The converse is NOT proved here,
+-- so "no weaker" is the claim, never "strictly stronger".
 --
 -- HOW IT IS PROVED.  The same assume-guarantee route S2 takes —
 -- `BlockProvenance.Carrier` plus `BlockProvenanceWfR.Body`, the shared
@@ -103,9 +109,9 @@ open import Level using (Level; 0ℓ)
 open import Data.Bool using (Bool; true; false; _∨_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Nat using (ℕ; zero; suc)
-open import Data.List using (List; []; _∷_; _++_)
+open import Data.List using (List; []; _∷_; _++_; map)
 open import Data.List.Membership.Propositional using (_∈_)
-open import Data.List.Membership.Propositional.Properties using (∈-++⁺ˡ)
+open import Data.List.Membership.Propositional.Properties using (∈-++⁺ˡ; ∈-map⁺)
 open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (yes; no)
@@ -115,8 +121,10 @@ open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.List.Relation.Binary.Subset.Propositional using (_⊆_)
 open import Data.List.Relation.Binary.Subset.Propositional.Properties using (⊆-refl; ⊆-trans)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
+open import Data.Product.Properties using (≡-dec)
 open import Data.Unit.Polymorphic using (⊤; tt)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong)
+open import Relation.Binary.PropositionalEquality
+  using (_≡_; refl; sym; trans; cong; subst)
 open import Class.DecEq using (DecEq)
 import Class.DecEq.Instances as DecEqI
 -- `Link = Fin numLinks`, so the endpoint equality below needs the `Fin` instance in
@@ -202,7 +210,7 @@ module Generic
   open NLL.Generic p lp t apiES voterOf
     using ( nodeLogicL; st₀; DecEq-⊤poly
           ; getBodyEv; putVoteEv
-          ; forgeL; forgeCert; ebIndex; voter; voterBody; submit; certSink
+          ; forgeL; ebIndex; voter; voterBody; submit; certSink
           ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes
           ; endpointThreadsL; allThreadsL )
   open OS using (memberOf; memberOf-mono; ∈→memberOf)
@@ -222,6 +230,39 @@ module Generic
     -- `DecEq (Link × Dir)` in scope and `⌊≟⌋-refl` below resolves to it.
     DecEq-Endpoint : DecEq (Link × Dir)
     DecEq-Endpoint = DecEqI.DecEq-×
+
+  -- THE MINTED KEY: A VOTE BLOB TOGETHER WITH THE DEPOSIT ENDPOINT IT LICENSES.  The
+  -- endpoint index is what makes the discipline sound at a composite of SEVERAL nodes:
+  -- without it a delivery received at node X would licence a relay deposit at node Y.
+  BlobKey : Set
+  BlobKey = (Link × Dir) × VoteBlob
+
+  -- the key's equality.  Assembled EXPLICITLY rather than declared as an instance: a
+  -- product instance at this type would compete with the ones `wfR-Output` resolves its
+  -- `DecEq X` to (campaign ledger, gotcha 4) — `CertSound.decMintKey` does the same.
+  decBlobKey : DecEq BlobKey
+  decBlobKey = record { _≟_ = ≡-dec (DecEq._≟_ DecEq-Endpoint) (DecEq._≟_ decVoteBlob) }
+
+  -- is this key in the minted set?  `OriginSafe.memberOf` at the equality above, passed
+  -- explicitly for the same reason
+  memKey : BlobKey → List BlobKey → Bool
+  memKey k ms = memberOf ⦃ decBlobKey ⦄ k ms
+
+  -- … monotone in the minted set, which is what keeps the gate monotone
+  memKey-mono : ∀ {k ms ms′} → ms ⊆ ms′ → memKey k ms ≡ true → memKey k ms′ ≡ true
+  memKey-mono sub eq = memberOf-mono ⦃ decBlobKey ⦄ sub eq
+
+  -- … and implied by propositional membership
+  ∈→memKey : ∀ k ms → k ∈ ms → memKey k ms ≡ true
+  ∈→memKey k ms q = ∈→memberOf ⦃ decBlobKey ⦄ k ms q
+
+  -- THE DEPOSIT ENDPOINT A DELIVERY AT ONE ENDPOINT LICENSES: the home endpoint of the
+  -- node that owns the receiving endpoint.  A node receives at EVERY endpoint incident
+  -- to it but deposits only at `homeOf n` (`NodeLogicL.putVoteEv`), so a mint keyed by
+  -- the receiving endpoint itself would licence nothing at a node of degree > 1.
+  -- `Topology.endAt` is total, so this is defined at every endpoint.
+  homeAt : Link × Dir → Link × Dir
+  homeAt ld = homeOf (endAtT (proj₁ ld) (proj₂ ld))
 
   -- IS THIS ENDPOINT THE HOME ENDPOINT OF THE NODE THE BLOB CLAIMS AS ITS VOTER?
   -- `homeOf` picks one endpoint per node (`proj₁ (endpointsOf n)`), so this is a
@@ -287,36 +328,38 @@ module Generic
   -- `Maybe` instead of a thirty-two-clause alphabet enumeration (`needs-putVote` still
   -- writes that enumeration once, because its conclusion is a Σ about the channel).
   -- The endpoint is kept because S2′'s question is WHOSE ballot this is.
-  isPutVote : (at : AnyTypes (Net_Api Payload)) → proj₁ at
-            → Maybe ((Link × Dir) × VoteBlob)
+  isPutVote : (at : AnyTypes (Net_Api Payload)) → proj₁ at → Maybe BlobKey
   isPutVote (_ , store l d stPutVote) v = just ((l , d) , v)
   isPutVote _                         _ = nothing
 
   -- WHAT MINTS: a Notify votes delivery, and nothing else.  Each blob the reply carried
-  -- becomes a permission to deposit THAT blob.  ENDPOINT-AGNOSTIC (link and direction
-  -- are `_`) — see the module header before lifting this to a system.
-  blobMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List VoteBlob
-  blobMints (_ , apiLP _ _ lnpRecvVotes) vs = vs
+  -- becomes a permission to deposit THAT blob — AT THE RECEIVING NODE'S OWN DEPOSIT
+  -- ENDPOINT and nowhere else.  That key is what lifts S2′ to a system: `homeOf` is
+  -- injective (`homeOf-inj`), so node X's deliveries mint no key any other node's
+  -- deposits can spend.
+  blobMints : (at : AnyTypes (Net_Api Payload)) → proj₁ at → List BlobKey
+  blobMints (_ , apiLP l d lnpRecvVotes) vs = map (λ v → (homeAt (l , d) , v)) vs
   blobMints _                            _  = []
 
   -- IS THIS DEPOSIT LICENSED?  Either it is the node casting its own ballot (the
-  -- deposit is at the claimed voter's home endpoint), or the blob came off the wire.
-  vouchedAt : List VoteBlob → (Link × Dir) × VoteBlob → Bool
-  vouchedAt ms (ld , v) = atVoter ld v ∨ memberOf v ms
+  -- deposit is at the claimed voter's home endpoint), or the blob came off the wire AT
+  -- THIS VERY DEPOSIT ENDPOINT.
+  vouchedAt : List BlobKey → BlobKey → Bool
+  vouchedAt ms (ld , v) = atVoter ld v ∨ memKey (ld , v) ms
 
   -- WHAT IS GATED: only a vote deposit, and only by `vouchedAt`.  Everything else free.
-  blobGate : List VoteBlob → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
+  blobGate : List BlobKey → (at : AnyTypes (Net_Api Payload)) → proj₁ at → Bool
   blobGate ms at a = maybe′ (vouchedAt ms) true (isPutVote at a)
 
   -- the gate's monotonicity, as a case on `isPutVote`'s answer alone: the left disjunct
-  -- does not mention the minted set and the right one is `memberOf`, which is monotone
-  gate-mono-aux : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe ((Link × Dir) × VoteBlob))
+  -- does not mention the minted set and the right one is `memKey`, which is monotone
+  gate-mono-aux : ∀ {ms ms′} → ms ⊆ ms′ → (z : Maybe BlobKey)
                 → maybe′ (vouchedAt ms) true z ≡ true
                 → maybe′ (vouchedAt ms′) true z ≡ true
   gate-mono-aux sub nothing         eq = refl
   gate-mono-aux sub (just (ld , v)) eq with ∨-split eq
   ... | inj₁ l = ∨-inl l
-  ... | inj₂ r = ∨-inr (memberOf-mono sub r)
+  ... | inj₂ r = ∨-inr (memKey-mono sub r)
 
   -- MINTING ONLY EVER OPENS THE GATE
   blobGate-mono : ∀ {ms ms′} → ms ⊆ ms′
@@ -329,7 +372,7 @@ module Generic
 
   -- the generic carrier at the S2′ discipline.  `OriginSpecT` is renamed rather than
   -- listed: Agda rejects a name that appears in both `using` and `renaming`.
-  open OS.Generic.Origin p t apiES VoteBlob decVoteBlob blobMints blobGate blobGate-mono
+  open OS.Generic.Origin p t apiES BlobKey decBlobKey blobMints blobGate blobGate-mono
     using ( Minted; mintedAfter; mintedAfter-⊇; originOffer; OriginSpecAt; specAt-init
           ; OSafe; gateOK; onτ; onEv; noTick; osafe→⊑T )
     renaming (OriginSpecT to BlobSpecT)
@@ -342,18 +385,19 @@ module Generic
   -- WHAT A DEPOSIT AT ONE ENDPOINT CARRIES: an obligation, but ONLY when the deposit is
   -- NOT at the claimed voter's own home endpoint.  A node casting its own ballot owes
   -- nothing — that asymmetry IS S2′.
-  carriesAt : (Link × Dir) × VoteBlob → VoteBlob → Set
-  carriesAt (ld , v) w = atVoter ld v ≡ false × v ≡ w
+  carriesAt : BlobKey → BlobKey → Set
+  carriesAt (ld , v) w = atVoter ld v ≡ false × (ld , v) ≡ w
 
-  -- WHAT A LABEL CARRIES: a foreign-voter deposit carries the blob it deposits; nothing
-  -- else carries anything.  (This is the `Carries` of the Wf framework — "needs a
-  -- justification" — NOT the same thing as `blobMints`.)
-  blobCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → VoteBlob → Set
+  -- WHAT A LABEL CARRIES: a foreign-voter deposit carries the blob it deposits KEYED BY
+  -- THE ENDPOINT IT IS DEPOSITED AT; nothing else carries anything.  (This is the
+  -- `Carries` of the Wf framework — "needs a justification" — NOT `blobMints`.)
+  blobCarries : (at : AnyTypes (Net_Api Payload)) → proj₁ at → BlobKey → Set
   blobCarries at a w = maybe′ (λ z → carriesAt z w) ⊥ (isPutVote at a)
 
-  -- WHAT THE MINTED SET MUST SAY ABOUT A CARRIED BLOB: a neighbour delivered it
-  blobWA : Minted → VoteBlob → Set
-  blobWA ms v = memberOf v ms ≡ true
+  -- WHAT THE MINTED SET MUST SAY ABOUT A CARRIED KEY: a neighbour delivered that blob
+  -- at that very endpoint
+  blobWA : Minted → BlobKey → Set
+  blobWA ms k = memKey k ms ≡ true
 
   -- the state a label leads to: EXACTLY `OriginSafe`'s `mintedAfter` on a visible
   -- label (definitionally — `mintedAfter at a ms = mints at a ++ ms`), and unchanged
@@ -419,23 +463,29 @@ module Generic
   ... | l , d , refl = l , d , stPutVote , refl
 
   -- THE SHARED LEAVES: the vacuous-leaf lemmas at both carriers, the two guarantee
-  -- alphabets and their `Sep`s, and the prototype peer bundle
-  open OL.Generic.Leaves p t apiES Minted VoteBlob blobCarries blobWA blobNext
-                         _⊆_ ⊆-refl ⊆-trans blobNext-⊆ needs-store
+  -- alphabets and their `Sep`s, and the prototype peer bundle.  RE-EXPORTED, so that
+  -- `Leios.BlobSystemL` reaches them through this module instead of re-applying
+  -- `OriginLeaves.Generic.Leaves` at the same eleven arguments (as `CertSound` does).
+  open OL.Generic.Leaves p t apiES Minted BlobKey blobCarries blobWA blobNext
+                         _⊆_ ⊆-refl ⊆-trans blobNext-⊆ needs-store public
 
-  -- the assume-guarantee carrier at the S2′ discipline …
-  open BP.Carrier (Net_Api-≟ {Payload}) Minted VoteBlob blobCarries blobWA
+  -- the assume-guarantee carrier at the S2′ discipline … also re-exported, so that the
+  -- `Wf` a system module folds with is THIS module application's and not a second one
+  open BP.Carrier (Net_Api-≟ {Payload}) Minted BlobKey blobCarries blobWA
                   blobNext _⊆_ ⊆-trans blobNext-⊆
     using ( OK; lbl; Wf; nowW; stepW; wf-mono; wf-mono-G; wf-Skip; wf-deadlock
-          ; Sep; _∪α_; wf-Par; wf-⦀; wf-⦀⋆ )
+          ; Sep; _∪α_; wf-Par; wf-⦀; wf-⦀⋆
+          -- … and the four a SYSTEM fold needs and this module does not, so that
+          -- `Leios.BlobSystemL` need not re-apply `BlockProvenance.Carrier` itself
+          ; wf-⦀Fin⁺; HideCov; HideKeep; wf-Hide ) public
 
   -- … and its returning-tree layer, at the SAME arguments, so the two `Wf`s are the
   -- same record
-  open BPW.Body (Net_Api-≟ {Payload}) Minted VoteBlob blobCarries blobWA
+  open BPW.Body (Net_Api-≟ {Payload}) Minted BlobKey blobCarries blobWA
                 blobNext _⊆_ ⊆-refl ⊆-trans blobNext-⊆
     using ( WfR; nowR; stepR; retR; Stable; stable-node; stable-□
           ; wfR-mono; wfR-Ret; wfR-Stop; wfR-Prefix; wfR-Output; wfR-⊓; wfR-□
-          ; wfR->>=; wf-loop; wf-loop0; wf-⦀⁺ )
+          ; wfR->>=; wf-loop; wf-loop0; wf-⦀⁺; wf-⦀⁺∈ )
 
   ------------------------------------------------------------------------
   -- THE BRIDGE
@@ -446,14 +496,14 @@ module Generic
   -- over.  Written as a case on a NAMED Boolean rather than a `with`, so that nothing
   -- depends on `with`-abstraction finding `atVoter ld v` under a `maybe′`.
   ok-aux : ∀ (ms : Minted) (ld : Link × Dir) (v : VoteBlob) (b : Bool)
-         → atVoter ld v ≡ b → (atVoter ld v ≡ false → memberOf v ms ≡ true)
-         → atVoter ld v ∨ memberOf v ms ≡ true
+         → atVoter ld v ≡ b → (atVoter ld v ≡ false → memKey (ld , v) ms ≡ true)
+         → atVoter ld v ∨ memKey (ld , v) ms ≡ true
   ok-aux ms ld v true  eq g = ∨-inl eq
   ok-aux ms ld v false eq g = ∨-inr (g eq)
 
   -- `OK` at a vote deposit IS the gate, and at every other channel the gate is `true`
-  gate-ok-aux : (ms : Minted) (z : Maybe ((Link × Dir) × VoteBlob))
-              → (∀ {w} → maybe′ (λ y → carriesAt y w) ⊥ z → memberOf w ms ≡ true)
+  gate-ok-aux : (ms : Minted) (z : Maybe BlobKey)
+              → (∀ {w} → maybe′ (λ y → carriesAt y w) ⊥ z → memKey w ms ≡ true)
               → maybe′ (vouchedAt ms) true z ≡ true
   gate-ok-aux ms nothing         _ = refl
   gate-ok-aux ms (just (ld , v)) g =
@@ -486,7 +536,10 @@ module Generic
   -- every `OffersOnly`-vacuity S2 proved of a thread holds here unchanged.
   ------------------------------------------------------------------------
 
-  -- S2′'s obligation implies S2's: drop the endpoint side condition
+  -- S2′'s obligation implies S2's: drop the endpoint side condition.  Since S2 was
+  -- re-keyed by the deposit endpoint too, `VSG.VoteNeed` IS `BlobKey` and the conclusion
+  -- is at `w` itself again — the `proj₂`/`cong proj₂` detour the earlier revision needed
+  -- is gone.
   carries-VS : ∀ {X} {e : Net_Api Payload X} {a : X} {w}
              → blobCarries (X , e) a w → VSG.voteCarries (X , e) a w
   carries-VS {X} {e} {a} {w} c with needs-putVote {X} {e} {a} {w} c
@@ -494,7 +547,7 @@ module Generic
 
   -- S2's shared leaves, at S2's OWN carrier data, so that `VSG.oo-*`'s alphabet has a
   -- name here.  Only `noNeed` is used; the `Wf` of this application is S2's, not ours.
-  module VSL = OL.Generic.Leaves p t apiES VSG.Minted VoteBlob
+  module VSL = OL.Generic.Leaves p t apiES VSG.Minted VSG.VoteNeed
                  VSG.voteCarries VSG.voteWA VSG.voteNext
                  _⊆_ ⊆-refl ⊆-trans VSG.voteNext-⊆ VSG.needs-store
 
@@ -560,22 +613,27 @@ module Generic
     vbody k = wfR-Prefix (λ _ _ _ → λ ()) (λ _ b _ → vtail k b)
 
   -- EVERY DELIVERED BLOB IS DEPOSITED UNCHANGED, and the delivery that carried them
-  -- minted each one — so each deposit's obligation, if it arises at all, is discharged
-  -- by the right disjunct.  By induction on the delivered list, with `memberOf-mono`
-  -- carrying the witness across the growing state.
-  wf-putAllVotes : ∀ {s} n′ vs → (∀ {v} → v ∈ vs → memberOf v s ≡ true)
+  -- minted each one AT THE DEPOSITING NODE'S OWN ENDPOINT — so each deposit's
+  -- obligation, if it arises at all, is discharged by the right disjunct.  The
+  -- hypothesis is therefore keyed by `homeOf n′`, which is exactly where `putVoteEv n′`
+  -- fires.  By induction on the delivered list, with `memKey-mono` carrying the witness
+  -- across the growing state.
+  wf-putAllVotes : ∀ {s} n′ vs → (∀ {v} → v ∈ vs → memKey (homeOf n′ , v) s ≡ true)
                  → WfR fullα s (λ _ _ → ⊤) (putAllVotes n′ vs)
   wf-putAllVotes n′ []       h = wfR-Ret (λ _ → tt)
   wf-putAllVotes n′ (v ∷ vs) h =
-    wfR-Output (λ le _ → λ { (_ , refl) → memberOf-mono le (h (here refl)) })
-               (λ le _ → wf-putAllVotes n′ vs (λ q → memberOf-mono le (h (there q))))
+    wfR-Output (λ le _ → λ { (_ , refl) → memKey-mono le (h (here refl)) })
+               (λ le _ → wf-putAllVotes n′ vs (λ q → memKey-mono le (h (there q))))
 
   -- THE NOTIFY CLIENT.  Four branches after the long-poll request: an announcement
   -- (nothing), a body offer (deposits a BODY), a tx-closure offer (deposits
   -- TRANSACTIONS) and a votes reply — the only one that deposits a blob, and the one
-  -- place `blobMints` fires.
-  wf-lnClient : ∀ {ms} n ld → Wf fullα ms (lnClientLoopL n ld)
-  wf-lnClient n (l , d) = wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ _ _ → choice))
+  -- place `blobMints` fires.  IT TAKES THE ENDPOINT'S MEMBERSHIP: the delivery mints at
+  -- `homeAt (l , d)` and the deposits it licenses are at `homeOf n`, so the leaf has to
+  -- know that `(l , d)` really is one of `n`'s endpoints.
+  wf-lnClient : ∀ {ms} n ld → ld ∈ endpointsList n → Wf fullα ms (lnClientLoopL n ld)
+  wf-lnClient n (l , d) mem =
+    wf-loop0 (wfR-Prefix (λ _ _ _ → λ ()) (λ _ _ _ → choice))
     where
     -- the announcement branch
     annB : ∀ {s} → WfR fullα s (λ _ _ → ⊤)
@@ -594,11 +652,22 @@ module Generic
     txB = wfR-free (OffersOnly-Prefix (λ _ → λ ())
                      (λ q → ooB (VSG.oo-fetchTxs n l d q))) tt
 
+    -- A DELIVERY AT THIS ENDPOINT MINTS AT THIS NODE'S OWN DEPOSIT ENDPOINT.  The mint
+    -- is keyed by `homeAt (l , d)`, i.e. `homeOf (endAt l d)`, and `endAt l d` IS `n`
+    -- because `(l , d)` is one of `n`'s endpoints — `Topology.endpoints-sound`, through
+    -- `sound-at`.  THIS is the one leaf the threaded membership is spent at.
+    minted-here : ∀ (vs : List VoteBlob) {v} → v ∈ vs
+                → (homeOf n , v) ∈ map (λ w → (homeAt (l , d) , w)) vs
+    minted-here vs {v} q =
+      subst (λ k → (k , v) ∈ map (λ w → (homeAt (l , d) , w)) vs)
+            (cong homeOf (sound-at n l d mem))
+            (∈-map⁺ (λ w → (homeAt (l , d) , w)) q)
+
     -- the votes branch: deposit exactly the blobs the reply carried, which that very
-    -- reply minted
+    -- reply minted at this node's deposit endpoint
     votB : ∀ {s} → WfR fullα s (λ _ _ → ⊤) (apiLP l d lnpRecvVotes ⟶ putAllVotes n)
     votB = wfR-Prefix (λ _ _ _ → λ ()) (λ _ vs _ →
-             wf-putAllVotes n vs (λ q → ∈→memberOf _ _ (∈-++⁺ˡ q)))
+             wf-putAllVotes n vs (λ q → ∈→memKey _ _ (∈-++⁺ˡ (minted-here vs q))))
 
     -- the four branches, offered together
     choice : ∀ {s} → WfR fullα s (λ _ _ → ⊤)
@@ -620,12 +689,13 @@ module Generic
   -- The assembly
   ------------------------------------------------------------------------
 
-  -- one endpoint's ten threads
-  wf-endpoint : ∀ {ms} n e → Wf fullα ms (endpointThreadsL n e)
-  wf-endpoint n e =
+  -- one endpoint's ten threads.  Nine of them carry nothing and ignore the membership;
+  -- only the Notify client spends it.
+  wf-endpoint : ∀ {ms} n e → e ∈ endpointsList n → Wf fullα ms (endpointThreadsL n e)
+  wf-endpoint n e mem =
     wf-⦀ (wf-vs (VSG.oo-clientLoop n e))
       (wf-⦀ (wf-vs (VSG.oo-serverLoopL n e))
-      (wf-⦀ (wf-lnClient n e)
+      (wf-⦀ (wf-lnClient n e mem)
       (wf-⦀ (wf-vs (VSG.oo-lnServerLoopL n e))
       (wf-⦀ (wf-vs (VSG.oo-bodyOfferLoop n e))
       (wf-⦀ (wf-vs (VSG.oo-voteOfferLoop n e))
@@ -633,23 +703,24 @@ module Generic
       (wf-⦀ (wf-vs (VSG.oo-ebTxsServeLoop n e))
       (wf-⦀ (wf-vs (VSG.oo-tsPull n e)) (wf-vs (VSG.oo-tsServe n e))))))))))
 
-  -- every incident endpoint's threads
+  -- every incident endpoint's threads, each handed its own membership in
+  -- `endpointsList n` — which is definitionally the head-plus-tail list this fold runs
+  -- over, so `wf-⦀⁺∈` supplies it with nothing to prove
   wf-allThreads : ∀ {ms} n → Wf fullα ms (allThreadsL n)
   wf-allThreads n =
-    wf-⦀⁺ (endpointThreadsL n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n))
-          (λ e → wf-endpoint n e)
+    wf-⦀⁺∈ (endpointThreadsL n) (proj₁ (endpointsOf n)) (proj₂ (endpointsOf n))
+           (λ e mem → wf-endpoint n e mem)
 
-  -- the six node-level threads and every endpoint's ten
+  -- the five node-level threads and every endpoint's ten
   wf-threads : ∀ {ms} n
-             → Wf fullα ms (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voter n ⦀
-                              (submit n ⦀ (certSink n ⦀ allThreadsL n))))))
+             → Wf fullα ms (forgeL n ⦀ (ebIndex n ⦀ (voter n ⦀
+                              (submit n ⦀ (certSink n ⦀ allThreadsL n)))))
   wf-threads n =
     wf-⦀ (wf-vs (VSG.oo-forgeL n))
-      (wf-⦀ (wf-vs (VSG.oo-forgeCert n))
       (wf-⦀ (wf-vs (VSG.oo-ebIndex n))
       (wf-⦀ (wf-voter n)
       (wf-⦀ (wf-vs (VSG.oo-submit n))
-      (wf-⦀ (wf-vs (VSG.oo-certSink n)) (wf-allThreads n))))))
+      (wf-⦀ (wf-vs (VSG.oo-certSink n)) (wf-allThreads n)))))
 
   -- A GATE-CARRYING THREAD GROUP AGAINST ANY STORE GROUP.  The threads carry the gate,
   -- the stores guarantee nothing, and the one key-needing channel is inside `storeES`,
@@ -678,11 +749,11 @@ module Generic
 
   -- S2′ — BLOB ORIGIN, node-local.  A node running `nodeLogicL` from empty stores never
   -- deposits a vote blob attributed to ANOTHER voter unless a neighbour delivered that
-  -- exact blob on `lnpRecvVotes`; blobs it casts itself are attributed to itself.  So
-  -- relayed blobs have an origin and the node invents no ballot in another's name.
-  -- LEVEL: node.  It says nothing about what other nodes do, and nothing about whether
-  -- the claimed voter really cast the blob at ITS node — that is a network-wide
-  -- statement and is NOT proved here.
+  -- exact blob on `lnpRecvVotes` AT ONE OF THAT NODE'S OWN ENDPOINTS; blobs it casts
+  -- itself are attributed to itself.  So relayed blobs have an origin and the node
+  -- invents no ballot in another's name.  LEVEL: node — `Leios.BlobSystemL` lifts this
+  -- to the whole network.  It still says nothing about whether the claimed voter really
+  -- cast the blob at ITS node, which no module proves.
   BlobSound : Set₁
   BlobSound = ∀ (n : Node) → BlobSpecT ⊑T nodeP n (nodeLogicL n st₀)
 

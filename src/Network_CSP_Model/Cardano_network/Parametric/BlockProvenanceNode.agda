@@ -328,9 +328,10 @@ module Generic
   wf-threads n = wf-⦀ (wf-forge n) (wf-allThreads n)
 
   ------------------------------------------------------------------------
-  -- Non-vacuity: the announce channel is in the threads' alphabet
+  -- Non-vacuity: both announce channels are in the threads' alphabet
   ------------------------------------------------------------------------
 
   -- so `wf→gate` applies to every thread fact above (and to their interleavings)
   annIn-threadsG : AnnIn threadsG
-  annIn-threadsG _ = tt
+  annIn-threadsG annLN = tt
+  annIn-threadsG annLP = tt

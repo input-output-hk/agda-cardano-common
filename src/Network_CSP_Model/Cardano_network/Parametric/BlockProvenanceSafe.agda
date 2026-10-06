@@ -58,7 +58,7 @@ module Generic
   (apiES : O.EventSet (N.Net_Api-≟ p {D.Payload p})) where
 
   open N p
-    using ( Net_Api; Net_Api-≟; env; envForge; envSubmit; envForgeCert; apiLN; store; break
+    using ( Net_Api; Net_Api-≟; env; envForge; envSubmit; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP )
   open D p using (Payload)
@@ -119,20 +119,20 @@ module Generic
   next-notForge (ev (evl (evLabel _ (env _ _ envForge) (nothing , _)))) _ _ = refl
   -- a transaction submission is not a forge, so the forged set is unchanged
   next-notForge (ev (evl (evLabel _ (env _ _ envSubmit) _))) _ _ = refl
-  -- a certificate-carrying forge is not an EB forge, so the forged set is unchanged
-  next-notForge (ev (evl (evLabel _ (env _ _ envForgeCert) _))) _ _ = refl
 
   ------------------------------------------------------------------------
   -- The bridge
   ------------------------------------------------------------------------
 
-  -- THE BRIDGE.  `gate` is the guarantee at the announce channel; each step spends
+  -- THE BRIDGE.  `gate` is the guarantee at whichever announce channel the witness
+  -- names (`annCarries` turns that witness into the provenance one); each step spends
   -- `M`'s own guarantee as the step's `OK` (τ and `√` carry nothing, a forge is exempt
   -- by `blockOK-forge`, a visible label is covered by `Covers`), and the state `Wf`
   -- lands in is rewritten to the one `Safe` demands — `next-forge` on a forge,
   -- `next-notForge` otherwise.  `noTick` and its `√` case are `NoRet`'s.
   wf→safe : ∀ {G ms M} → Covers G → NoRet M → Wf G ms M → Safe ms M
-  wf→safe cov nr w .gate st = nowW w ⊆-refl (cov c-ann) st c-ann
+  wf→safe cov nr w .gate ac st =
+    nowW w ⊆-refl (cov (annCarries ac)) st (annCarries ac)
   wf→safe cov nr w .onτ st  = wf→safe cov (NoRet.stepNR nr st) (stepW w ⊆-refl st tt)
   wf→safe {G} {ms} cov nr w .onForge {M′ = M′} {mb = mb} st =
     wf→safe cov (NoRet.stepNR nr st)

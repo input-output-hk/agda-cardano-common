@@ -979,7 +979,7 @@ phase rather than a product, so its cascade must be re-run with a product conclu
   `[LibraryError] … csp-ptree.agda-lib does not exist` means "sandbox off", not broken code.
 - **One Agda build at a time**; judge only by `echo "EXIT=$?"`; detach cold builds.
 - **The FALSE GREEN — same family as the phantom red below, opposite direction, and worse
-  because it invents success.**  A chained `cd src/Network_CSP_Model` fails when cwd is *already* `src/Network_CSP_Model`; the
+  because it invents success.**  A chained `cd src` fails when cwd is *already* `src`; the
   `&&` short-circuits so the *edit never runs*; a trailing `agda` then re-checks the
   **unmodified** file and reports `EXIT=0`.  **Verify the edit applied — `git status` /
   `git diff`, or grep for the new name — before trusting any green.**  (Environmental, not

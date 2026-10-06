@@ -72,13 +72,20 @@ module Generic
 
   open Params p using (Block; EB; EBHash; ebHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; envForge; envSubmit; envForgeCert; apiLN; store; break
+    using ( Net_Api; Net_Api-≟; env; envForge; envSubmit; apiLN; store; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP
           ; sendLNBlockAnnouncement; sendLNRequestNext; sendLNDone
           ; sendLNBlockOffer; sendLNBlockTxsOffer; sendLNVotesOffer
           ; recvLNBlockAnnouncement; recvLNBlockOffer
-          ; recvLNBlockTxsOffer; recvLNVotesOffer )
+          ; recvLNBlockTxsOffer; recvLNVotesOffer
+          -- the PROTOTYPE api: `lnpSendBlockAnnouncement` is the second gated channel
+          ; lnpSendRequestNext; lnpSendDone; lnpSendBlockAnnouncement; lnpSendBlockOffer
+          ; lnpSendBlockTxsOffer; lnpSendVotes; lnpRecvBlockAnnouncement
+          ; lnpRecvBlockOffer; lnpRecvBlockTxsOffer; lnpRecvVotes
+          ; lfpSendBlockRequest; lfpSendBlockTxsRequest; lfpSendDone; lfpSendBlock
+          ; lfpSendBlockTxs; lfpRecvBlock; lfpRecvBlockTxs; lfpReqBlockRequest
+          ; lfpReqBlockTxsRequest )
   open D p using (Payload; Header; header)
   open Topology t using (Node)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
@@ -91,7 +98,7 @@ module Generic
     using (Forged; announceOK; announceOffer; AnnounceSpecT; AnnounceSafeTWith)
   open AI.Generic p t apiES
     using (WellAnnounced; wellAnnounced-mono; wellAnnounced→announceOK
-          ; forgedAfter; NotForge; Gated)
+          ; forgedAfter; NotForge; Gated; AnnEv; annLN; annLP)
   open import Semantics.LTS
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (Label; Event√; ev; τ; evl; √; evLabel; _─[_]─►_; sRet; sVis; sSil)
@@ -101,6 +108,9 @@ module Generic
   open import Semantics.WeakSim
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (WSim; wsim→⊑T)
+  -- (the order `safe→⊑T` below is stated in; `AnnounceSafeTWith` already spends it)
+  open import Semantics.Failures
+    {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using (_⊑T_)
   open import Semantics.BisimFromRel
     {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
     using (module WSimFromRel)
@@ -167,7 +177,7 @@ module Generic
   -- safe against a smaller forged set is safe against a larger one.  Corecursive
   -- through every step field, guarded by copatterns.
   safe-mono : ∀ {ms ms′ M} → ms ⊆ ms′ → Safe ms M → Safe ms′ M
-  safe-mono sub s .gate st           = wellAnnounced-mono sub (gate s st)
+  safe-mono sub s .gate ac st        = wellAnnounced-mono sub (gate s ac st)
   safe-mono sub s .onτ st            = safe-mono sub (onτ s st)
   safe-mono sub s .onForge {mb = mb} st = safe-mono (forgedAfter-mono mb sub) (onForge s st)
   safe-mono sub s .onOther nm st     = safe-mono sub (onOther s nm st)
@@ -204,11 +214,11 @@ module Generic
                               (par-brBoth A (λ _ _ → tt) P Q P′ Q′)))
 
   -- an announcement of the composite is an announcement of one operand
-  safe-Par A {P = P} {Q = Q} sP sQ .gate st with Par-ev-elim A (λ _ _ → tt) P Q st
-  ... | evSync _ stP _   = gate sP stP
-  ... | evL    _ stP     = gate sP stP
-  ... | evR    _ stQ     = gate sQ stQ
-  ... | evBoth _ stP _   = gate sP stP
+  safe-Par A {P = P} {Q = Q} sP sQ .gate ac st with Par-ev-elim A (λ _ _ → tt) P Q st
+  ... | evSync _ stP _   = gate sP ac stP
+  ... | evL    _ stP     = gate sP ac stP
+  ... | evR    _ stQ     = gate sQ ac stQ
+  ... | evBoth _ stP _   = gate sP ac stP
   -- a τ of the composite is a τ of one operand; the other is untouched
   safe-Par A {P = P} {Q = Q} sP sQ .onτ st with Par-τ-elim A (λ _ _ → tt) P Q st
   ... | τL P′ stP refl   = safe-Par A (onτ sP stP) sQ
@@ -242,7 +252,7 @@ module Generic
   safe-Par A {P = P} {Q = Q} sP sQ .noTick st with Par-ev-elim A (λ _ _ → tt) P Q st
   ... | ev√ fpP _        = noTick sP (sRet fpP)
 
-  safe-both A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} sP sQ sP′ sQ′ .gate st =
+  safe-both A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} sP sQ sP′ sQ′ .gate ac st =
     ⊥-elim (brBoth-no-ev A (λ _ _ → tt) P Q P′ Q′ st)
   safe-both A {P = P} {Q = Q} {P′ = P′} {Q′ = Q′} sP sQ sP′ sQ′ .onτ st
     with brBoth-τ-elim A (λ _ _ → tt) P Q P′ Q′ st
@@ -285,8 +295,8 @@ module Generic
   -- `√` passes straight through to `noTick`); a τ of `P ∖ A` is either a τ of `P` or a
   -- hidden visible event of `P`, and `HideOK` says the latter is never a forge.
   safe-Hide : ∀ {ms} (A : EventSet) → HideOK A → ∀ {P} → Safe ms P → Safe ms (P ∖ A)
-  safe-Hide A ok {P = P} s .gate st with Hide-ev-elim A P st
-  ... | heV P′ _ stP      = gate s stP
+  safe-Hide A ok {P = P} s .gate ac st with Hide-ev-elim A P st
+  ... | heV P′ _ stP      = gate s ac stP
   safe-Hide A ok {P = P} s .onτ st with Hide-τ-elim A P st
   ... | hτP P′ stP refl   = safe-Hide A ok (onτ s stP)
   ... | hτH P′ c stP refl = safe-Hide A ok (onOther′ s stP (ok c))
@@ -359,16 +369,23 @@ module Generic
                ≡ just (Ret ms)
   announceEq eq rewrite eq = refl
 
+  -- … and the same for the PROTOTYPE announce channel, whose clause of `announceOffer`
+  -- is byte-identical to the LeiosNotify one
+  announceEqP : ∀ {ms b l d} → announceOK ms (header b) ≡ true
+              → announceOffer ms (_ , apiLP l d lnpSendBlockAnnouncement) (header b)
+                ≡ just (Ret ms)
+  announceEqP eq rewrite eq = refl
+
   ------------------------------------------------------------------------
   -- The step correspondence
   ------------------------------------------------------------------------
 
   -- EVERY visible step the implementation can make is offered by the spec's menu,
-  -- and the successor is safe against the state the menu moves to.  The announce
-  -- channel is the only clause with content — it spends `gate` — and the forge
-  -- channel is the only one that changes the state; the remaining twenty-four
-  -- clauses are the free channels, enumerated because `announceOffer`'s catch-all
-  -- does not reduce until the constructor is known.
+  -- and the successor is safe against the state the menu moves to.  The TWO announce
+  -- channels are the only clauses with content — each spends `gate` at its own `AnnEv`
+  -- witness — and the forge channel is the only one that changes the state; the
+  -- remaining forty-four clauses are the free channels, enumerated because
+  -- `announceOffer`'s catch-all does not reduce until the constructor is known.
   menuStep : ∀ {ms M M′} → Safe ms M
            → (at : AnyTypes (Net_Api Payload)) (a : proj₁ at)
            → M ─[ ev (evl (evLabel (proj₁ at) (proj₂ at) a)) ]─► M′
@@ -387,7 +404,6 @@ module Generic
   menuStep {ms} s (_ , apiTS  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiKA  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLF  _ _ _) a st = ms , refl , onOther′ s st tt
-  menuStep {ms} s (_ , apiLP  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , store  _ _ _) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , break  _)     a st = ms , refl , onOther′ s st tt
   -- the forge channel: the spec's state and `forgedAfter` grow by the same hash
@@ -397,12 +413,11 @@ module Generic
     forgedAfter (nothing , b) ms , refl , onForge s st
   -- a transaction submission is not a forge: the spec's forged set stands still
   menuStep {ms} s (_ , env _ _ envSubmit) a st = ms , refl , onOther′ s st tt
-  -- a certificate-carrying forge is not an EB forge: the spec's forged set stands still
-  menuStep {ms} s (_ , env _ _ envForgeCert) a st = ms , refl , onOther′ s st tt
   -- THE LOAD-BEARING CLAUSE: `gate` says the announced block is well-announced, and
   -- `wellAnnounced→announceOK` turns that into the boolean the spec's gate tests
   menuStep {ms} s (_ , apiLN l d sendLNBlockAnnouncement) (header b) st =
-    ms , announceEq {l = l} {d = d} (wellAnnounced→announceOK (gate s st)) , onOther′ s st tt
+    ms , announceEq {l = l} {d = d} (wellAnnounced→announceOK (gate s annLN st))
+       , onOther′ s st tt
   -- the rest of LeiosNotify is free
   menuStep {ms} s (_ , apiLN _ _ sendLNRequestNext)       a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLN _ _ sendLNDone)              a st = ms , refl , onOther′ s st tt
@@ -413,6 +428,30 @@ module Generic
   menuStep {ms} s (_ , apiLN _ _ recvLNBlockOffer)        a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLN _ _ recvLNBlockTxsOffer)     a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLN _ _ recvLNVotesOffer)        a st = ms , refl , onOther′ s st tt
+  -- THE SECOND LOAD-BEARING CLAUSE, and the one `nodeLogicL` actually fires: the
+  -- PROTOTYPE announce channel, gated by the very same `announceOK` via `annLP`
+  menuStep {ms} s (_ , apiLP l d lnpSendBlockAnnouncement) (header b) st =
+    ms , announceEqP {l = l} {d = d} (wellAnnounced→announceOK (gate s annLP st))
+       , onOther′ s st tt
+  -- the rest of the prototype api is free
+  menuStep {ms} s (_ , apiLP _ _ lnpSendRequestNext)       a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpSendDone)              a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpSendBlockOffer)        a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpSendBlockTxsOffer)     a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpSendVotes)             a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpRecvBlockAnnouncement) a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpRecvBlockOffer)        a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpRecvBlockTxsOffer)     a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpRecvVotes)             a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpSendBlockRequest)      a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpSendBlockTxsRequest)   a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpSendDone)              a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpSendBlock)             a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpSendBlockTxs)          a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpRecvBlock)             a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpRecvBlockTxs)          a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpReqBlockRequest)       a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lfpReqBlockTxsRequest)    a st = ms , refl , onOther′ s st tt
 
   ------------------------------------------------------------------------
   -- The bridge
@@ -447,6 +486,14 @@ module Generic
   -- `WSimFromRel` needs, so the coinduction principle discharges it outright.
   safe→wsim : ∀ {ms M} → Safe ms M → WSim (⊤ {0ℓ}) M (AnnounceSpecAt ms)
   safe→wsim {ms} s = rel→wsim (ms , s , refl)
+
+  -- THE BRIDGE, in its general form: a `Safe` fact about ANY process at the empty
+  -- forged set IS that process's trace refinement of the announcement spec.  Nothing
+  -- in `safe→wsim` inspects the composite, so this is `safe→announceSafeT` with the
+  -- system fixed by the caller instead — which is what the Leios-prototype assembly
+  -- (a different node builder AND a different node logic) needs.
+  safe→⊑T : ∀ {M} → Safe [] M → AnnounceSpecT ⊑T M
+  safe→⊑T s = wsim→⊑T (safe→wsim s)
 
   -- THE BRIDGE: one `Safe` fact about the initial composite IS announcement safety
   -- at `⊑T`.  Note the argument order — `wsim→⊑T` takes the IMPLEMENTATION first.

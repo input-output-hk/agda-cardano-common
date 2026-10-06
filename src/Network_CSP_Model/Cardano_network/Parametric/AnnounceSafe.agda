@@ -11,6 +11,14 @@
 -- `ebHash e ≡ eh`.  An RB announcing no EB (`announcedEBof h ≡
 -- nothing`) is unconstrained.
 --
+-- BOTH ANNOUNCE CHANNELS ARE GATED, by the same test.  `nodeLogic`
+-- announces on `apiLN … sendLNBlockAnnouncement`; the LeiosNotify
+-- PROTOTYPE logic `nodeLogicL` announces on `apiLP …
+-- lnpSendBlockAnnouncement` and on nothing else.  The two carry the same
+-- `Header` (`Net.agda:169`/`:232`), so `announceOffer` gates them with one
+-- `announceOK`, and `AnnounceInvariant.AnnEv` is the witness family that
+-- lets `Gated` and its whole congruence layer cover both at once.
+--
 -- WHY IT IS TRUE.  NOT because a node's own forge guard makes its store
 -- well-announced — it does not: `NodeLogic.storeStep`'s `putEv` clause
 -- deposits a client-received block into the store with NO announcement
@@ -155,12 +163,20 @@ module Generic
 
   open Params p using (EB; EBHash; ebHash; decEBHash)
   open N p
-    using ( Net_Api; Net_Api-≟; env; apiLN; envForge; envSubmit; envForgeCert; sendLNBlockAnnouncement
+    using ( Net_Api; Net_Api-≟; env; apiLN; envForge; envSubmit; sendLNBlockAnnouncement
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLF; apiLP; store; break
           ; sendLNRequestNext; sendLNDone; sendLNBlockOffer; sendLNBlockTxsOffer
           ; sendLNVotesOffer; recvLNBlockAnnouncement; recvLNBlockOffer
-          ; recvLNBlockTxsOffer; recvLNVotesOffer )
+          ; recvLNBlockTxsOffer; recvLNVotesOffer
+          -- the PROTOTYPE LeiosNotify/LeiosFetch api: `lnpSendBlockAnnouncement` is the
+          -- second gated channel, the other eighteen tags are free and enumerated
+          ; lnpSendRequestNext; lnpSendDone; lnpSendBlockAnnouncement; lnpSendBlockOffer
+          ; lnpSendBlockTxsOffer; lnpSendVotes; lnpRecvBlockAnnouncement
+          ; lnpRecvBlockOffer; lnpRecvBlockTxsOffer; lnpRecvVotes
+          ; lfpSendBlockRequest; lfpSendBlockTxsRequest; lfpSendDone; lfpSendBlock
+          ; lfpSendBlockTxs; lfpRecvBlock; lfpRecvBlockTxs; lfpReqBlockRequest
+          ; lfpReqBlockTxsRequest )
   open D p using (Payload; Header; announcedEBof)
   open Topology t using (Node; numNodes-1)
   open import Cardano_network.NetCommon p
@@ -207,13 +223,18 @@ module Generic
   ... | just eh = forgedIn eh ms
 
   -- the spec's offer map: forge grows the state, a gated announce keeps it, every
-  -- other event of every other channel is offered freely and leaves the state alone
+  -- other event of every other channel is offered freely and leaves the state alone.
+  -- BOTH announce channels are gated, and by the same test: the LeiosNotify api that
+  -- `nodeLogic` announces on and the PROTOTYPE api that `nodeLogicL` announces on carry
+  -- the same `Header` (`Net.agda:169`/`:232`), so `announceOK` is reused verbatim.
   announceOffer : Forged → (at : AnyTypes (Net_Api Payload))
                 → ContinueType at
                     (Maybe (PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Forged))
   announceOffer ms (_ , env _ _ envForge) (just e  , _) = just (Ret (ebHash e ∷ ms))
   announceOffer ms (_ , env _ _ envForge) (nothing , _) = just (Ret ms)
   announceOffer ms (_ , apiLN _ _ sendLNBlockAnnouncement) h =
+    if announceOK ms h then just (Ret ms) else nothing
+  announceOffer ms (_ , apiLP _ _ lnpSendBlockAnnouncement) h =
     if announceOK ms h then just (Ret ms) else nothing
   announceOffer ms _ _ = just (Ret ms)
 
@@ -401,7 +422,6 @@ module Generic
     menu-Ret ms (_ , apiTS  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , apiKA  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , apiLF  _ _ _) _ refl = ms , refl
-    menu-Ret ms (_ , apiLP  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , store  _ _ _) _ refl = ms , refl
     menu-Ret ms (_ , break  _)     _ refl = ms , refl
     -- the forge channel grows the forged set …
@@ -410,9 +430,6 @@ module Generic
     -- … a transaction submission is not a forge, so it hits `announceOffer`'s
     -- catch-all `just (Ret ms)` and leaves the forged set alone …
     menu-Ret ms (_ , env _ _ envSubmit) _ refl = ms , refl
-    -- … a certificate-carrying forge is not an EB forge either, so it too hits the
-    -- catch-all and leaves the forged set alone …
-    menu-Ret ms (_ , env _ _ envForgeCert) _ refl = ms , refl
     -- … and the announce channel is the gated one; the rest of LeiosNotify is free
     menu-Ret ms (_ , apiLN _ _ sendLNBlockAnnouncement) h eq = gate-Ret (announceOK ms h) ms eq
     menu-Ret ms (_ , apiLN _ _ sendLNRequestNext)       _ refl = ms , refl
@@ -424,6 +441,26 @@ module Generic
     menu-Ret ms (_ , apiLN _ _ recvLNBlockOffer)        _ refl = ms , refl
     menu-Ret ms (_ , apiLN _ _ recvLNBlockTxsOffer)     _ refl = ms , refl
     menu-Ret ms (_ , apiLN _ _ recvLNVotesOffer)        _ refl = ms , refl
+    -- … and so is the PROTOTYPE announce channel; the rest of the prototype api is free
+    menu-Ret ms (_ , apiLP _ _ lnpSendBlockAnnouncement) h eq = gate-Ret (announceOK ms h) ms eq
+    menu-Ret ms (_ , apiLP _ _ lnpSendRequestNext)       _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpSendDone)              _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpSendBlockOffer)        _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpSendBlockTxsOffer)     _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpSendVotes)             _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpRecvBlockAnnouncement) _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpRecvBlockOffer)        _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpRecvBlockTxsOffer)     _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpRecvVotes)             _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpSendBlockRequest)      _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpSendBlockTxsRequest)   _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpSendDone)              _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpSendBlock)             _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpSendBlockTxs)          _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpRecvBlock)             _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpRecvBlockTxs)          _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpReqBlockRequest)       _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lfpReqBlockTxsRequest)    _ refl = ms , refl
 
     -- the menu node itself, and the node it becomes under `loop`'s state threading —
     -- named so the `iterV`/`bindV` peeling lemmas below can be pointed at them

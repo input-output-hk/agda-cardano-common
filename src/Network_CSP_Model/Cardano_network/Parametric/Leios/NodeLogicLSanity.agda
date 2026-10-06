@@ -1,20 +1,26 @@
 {-# OPTIONS --guardedness #-}
 
 ------------------------------------------------------------------------
--- Cardano network example — THE LIVENESS PROBES FOR THE TWO REPAIRED
--- THREADS of `NodeLogicL`: `forgeCert` and `submit` really do take their
+-- Cardano network example — THE LIVENESS PROBES FOR THE ENVIRONMENT ROUTES
+-- of `NodeLogicL`: the certificate-RB forge and `submit` really do take their
 -- first event INSIDE THE FULL `nodeLogicL`.
 --
--- WHAT THIS ANSWERS.  As originally shipped, `storeStepL` offered `envForge`
--- and `memStep` offered no `env` channel at all, while `NodeLogic.storeSet`
--- puts EVERY `env` channel in the rendezvous set `storeES`.  A synchronised
--- event fires only when BOTH operands of `∥⇘ storeES ⇙` offer it, so
--- `forgeCert` (first event `env home(n) envForgeCert`) and `submit` (first
--- event `env home(n) envSubmit`) were BLOCKED AT THEIR FIRST EVENT: the
--- cert-RB forge route was unreachable and the mempool had no environment
--- route in.  `storeStepL` and `memStep` each gained one pure-rendezvous arm;
--- the two `Σ`-typed LTS steps below are the proof that the repair works, at
--- the SHIPPED composite `nodeLogicL nA st₀` — threads, stores and all.
+-- WHAT THIS ANSWERS.  `NodeLogic.storeSet` puts EVERY `env` channel in the
+-- rendezvous set `storeES`, and under `∥⇘ storeES ⇙` a synchronised event
+-- fires only when BOTH operands offer it, so an `env` channel no store serves
+-- blocks its thread at the first event.  `submit` was in exactly that state as
+-- originally shipped — `memStep` offered no `env` channel at all, so the node
+-- had no environment route into its mempool — and `memStep` gained one
+-- pure-rendezvous `envSubmit` arm.
+--
+-- THE CERTIFICATE-RB FORGE HAS NO CHANNEL OF ITS OWN any more.  An earlier
+-- revision gave it `env … envForgeCert` and a `forgeCert` thread; that tag is
+-- deleted and the route is merged into `forgeL`/`envForge`, which `storeStepL`
+-- has always served.  Probe 1 below is therefore `forgeL` taking the
+-- environment's forge OF A CERTIFICATE-CARRYING BLOCK — the first event of
+-- the route S4 constrains — rather than a separate thread's first event.
+-- The two `Σ`-typed LTS steps are at the SHIPPED composite
+-- `nodeLogicL nA st₀` — threads, stores and all.
 --
 -- THE LEVELS DIFFER, AND THE DIFFERENCE MATTERS.  Probes 1 and 2 are LTS
 -- steps of the FULL COMPOSITE `nodeLogicL nA st₀`.  Probes 3 and 4 are
@@ -24,9 +30,9 @@
 -- composite except probes 1 and 2.
 --
 -- THE RENDEZVOUS IS STILL WITHHELD (probes 3 and 4).  Taking the first event
--- does NOT buy the deposit: `forgeCert`'s second event is the `stHasCert r`
--- rendezvous, and `voteStore` offers it only for an RB hash already in its
--- `certs` list.  At the one hash `rCert`, from an empty `certs` the offer is
+-- does NOT buy the deposit: for a cert-carrying block `forgeL` must next take
+-- the `stHasCert r` rendezvous, and `voteStore` offers it only for an RB hash
+-- already in its `certs` list.  At the one hash `rCert`, from an empty `certs` the offer is
 -- `nothing` (`uncertified-blocks`) and with `rCert` certified it is `just`
 -- (`certified-offers`).  That is a PROCESS fact about the store, at ONE hash —
 -- the ∀ version is structural (`NodeLogicL.offerCerts`) and is NOT what these
@@ -42,7 +48,7 @@
 -- non-trivial" claim rests on a proof term.
 --
 -- It proves no property of the protocol; it is a non-vacuity certificate for
--- the repair.  Nothing imports it.
+-- the environment routes.  Nothing imports it.
 ------------------------------------------------------------------------
 
 module Cardano_network.Parametric.Leios.NodeLogicLSanity where
@@ -62,7 +68,7 @@ open import Cardano_network.Params using (Params)
 open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
 open import Cardano_network.Net leiosLParams
-  using (Net_Api; Net_Api-≟; env; envSubmit; envForgeCert; store; stPut)
+  using (Net_Api; Net_Api-≟; env; envForge; envSubmit; store; stPut)
 open import Cardano_network.Data leiosLParams using (Payload)
 open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
 open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
@@ -71,7 +77,7 @@ import Cardano_network.Parametric.NodeLogic as NL
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.Leios.CertRbOrigin as CRO
 
-open Params leiosLParams using (Block; RbHash; Tx)
+open Params leiosLParams using (Block; RbHash; Tx; EB)
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using (nodeLogicL; st₀; hasCertEv; voteStore)
@@ -92,8 +98,8 @@ open import CSP.Laws.Traces.TraceLawsParallel (Net_Api-≟ {Payload})
 nA : Fin 3
 nA = fzero
 
--- the ranking block the environment offers on the certificate-forge channel.  At
--- `leiosLP` its body certifies the ranking block `just true` (`rbCert`).
+-- the ranking block the environment offers on the forge channel.  At `leiosLP` its body
+-- certifies the ranking block `just true` (`rbCert`), so it is the forge route S4 gates.
 bCert : Block
 bCert = just false
 
@@ -101,42 +107,45 @@ bCert = just false
 txA : Tx
 txA = true
 
--- the ranking block `bCert`'s certificate names, i.e. the one `forgeCert` must find
+-- the ranking block `bCert`'s certificate names, i.e. the one `forgeL` must find
 -- already certified here before it may deposit
 rCert : RbHash
 rCert = just true
 
 ------------------------------------------------------------------------
--- PROBE 1 — the certificate forge takes its first event
+-- PROBE 1 — the forge takes its first event, FOR A CERTIFICATE-CARRYING BLOCK
 --
--- `env … envForgeCert` IS in `storeES`, so this is a `Par-sync`: the THREAD side is
--- `forgeCert`, reached past `forgeL` (`Par-soloR`) and ahead of the other fourteen
--- threads (`Par-soloL`); the STORE side is `storeStepL`'s new arm, offered by the
--- leftmost store of the group.  Before the repair the store side did not exist and
--- this step was underivable.
+-- `env … envForge` IS in `storeES`, so this is a `Par-sync`: the THREAD side is
+-- `forgeL`, the leftmost of the node-level threads (`Par-soloL` past the other
+-- fourteen); the STORE side is `storeStepL`'s forge arm, offered by the leftmost store
+-- of the group.  The block offered is `bCert`, whose body carries a certificate, so
+-- this is the first event of the very route S4 gates — there is no separate
+-- certificate-forge channel to take it.
 ------------------------------------------------------------------------
 
--- the environment's certificate-forge event at node 0
-evForgeCert : Net_Api Payload Block
-evForgeCert = env fzero lo envForgeCert
+-- the environment's forge event at node 0.  Its carrier is the `(optional EB , RB)`
+-- pair, and the offer below pairs `bCert` with the EB it announces, so the
+-- announcement guard `forgeOK` accepts it.
+evForge : Net_Api Payload (Maybe EB × Block)
+evForge = env fzero lo envForge
 
--- THE WITNESS: the SHIPPED composite `nodeLogicL nA st₀` — all sixteen threads
--- synchronised with all five stores — fires `env … envForgeCert`
+-- THE WITNESS: the SHIPPED composite `nodeLogicL nA st₀` — all fifteen threads
+-- synchronised with all five stores — fires `env … envForge` carrying a cert-RB
 forgeCert-first-step :
-  Σ[ P ∈ Proc ] (nodeLogicL nA st₀ ─[ ev (evl (evLabel Block evForgeCert bCert)) ]─► P)
+  Σ[ P ∈ Proc ] (nodeLogicL nA st₀
+                   ─[ ev (evl (evLabel (Maybe EB × Block) evForge (just false , bCert))) ]─► P)
 forgeCert-first-step =
-  _ , Par-sync storeES _ _ _ {e = evForgeCert} {a = bCert} tt
-        (Par-soloR _ _ _ _ (λ ())
-          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl) refl)
+  _ , Par-sync storeES _ _ _ {e = evForge} {a = just false , bCert} tt
+        (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
         (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
 
 ------------------------------------------------------------------------
 -- PROBE 2 — the submission thread takes its first event
 --
--- Same shape one level deeper: `submit` is the fifth node-level thread (four
--- `Par-soloR`s past `forgeL`, `forgeCert`, `ebIndex` and `voter`), and the store side
--- is `memStep`'s new arm in the fourth store (three `Par-soloR`s past the RB, EB-entry
--- and body stores).
+-- Same shape one level deeper: `submit` is the fourth node-level thread (three
+-- `Par-soloR`s past `forgeL`, `ebIndex` and `voter`), and the store side is `memStep`'s
+-- new arm in the fourth store (three `Par-soloR`s past the RB, EB-entry and body
+-- stores).
 ------------------------------------------------------------------------
 
 -- the environment's transaction-submission event at node 0
@@ -152,8 +161,7 @@ submit-first-step =
         (Par-soloR _ _ _ _ (λ ())
           (Par-soloR _ _ _ _ (λ ())
             (Par-soloR _ _ _ _ (λ ())
-              (Par-soloR _ _ _ _ (λ ())
-                (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl) refl) refl) refl) refl)
+              (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl) refl) refl) refl)
         (Par-soloR _ _ _ _ (λ ())
           (Par-soloR _ _ _ _ (λ ())
             (Par-soloR _ _ _ _ (λ ())
@@ -164,8 +172,8 @@ submit-first-step =
 ------------------------------------------------------------------------
 
 -- FROM EMPTY STORES THE GATE BITES: the vote store has certified nothing, so it offers
--- no `stHasCert (just true)` and `forgeCert` — which has just taken its first event —
--- can go no further.  The repair made the route reachable; it did not open it.
+-- no `stHasCert (just true)` and `forgeL` — which has just taken the forge event —
+-- can go no further.  Merging the routes kept them reachable; it did not open the gate.
 uncertified-blocks :
   viewV (PTree.force (voteStore nA ([] , []))) (U.⊤ , hasCertEv nA rCert) U.tt ≡ nothing
 uncertified-blocks = refl
@@ -195,8 +203,10 @@ gate-uncertified-at-leiosLP :
   certRbGate [] (Block , store fzero lo stPut) bCert ≡ false
 gate-uncertified-at-leiosLP = refl
 
--- … and it LICENSES the same deposit once `rCert` has been minted.  So at `leiosLP` the
--- gate is a real test, and what it tests is the certificate and nothing else.
+-- … and it LICENSES the same deposit once `rCert` has been minted AT THE ENDPOINT THE
+-- DEPOSIT IS MADE AT.  So at `leiosLP` the gate is a real test, and what it tests is the
+-- certificate and the endpoint and nothing else.  Node `nA` has degree 1, so the endpoint
+-- it certifies at is already its own home endpoint `(fzero , lo)`.
 gate-certified-at-leiosLP :
-  certRbGate (rCert ∷ []) (Block , store fzero lo stPut) bCert ≡ true
+  certRbGate (((fzero , lo) , rCert) ∷ []) (Block , store fzero lo stPut) bCert ≡ true
 gate-certified-at-leiosLP = refl

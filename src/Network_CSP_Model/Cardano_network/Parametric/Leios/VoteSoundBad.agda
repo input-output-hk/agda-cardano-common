@@ -106,7 +106,7 @@ instance
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using ( StateL; getAtEv; putVoteEv; nodeLogicL
-        ; forgeL; forgeCert; ebIndex; submit; certSink; allThreadsL
+        ; forgeL; ebIndex; submit; certSink; allThreadsL
         ; blockStoreL; ebStore; bodyStore; mempool; voteStore )
 open VS.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using ( Minted; VoteKey; kRb; voteκ; VoteSpecT; originOffer; OriginSpecAt; nodeP
@@ -160,8 +160,8 @@ voterBad n = loop (voterBadBody n) 0
 -- written over the same composite the POSITIVE `voteSound` is stated over.)
 nodeLogicLBad : Fin 3 → StateL → Proc
 nodeLogicLBad n (held , es , bs , ts , vs) =
-  (forgeL n ⦀ (forgeCert n ⦀ (ebIndex n ⦀ (voterBad n ⦀ (submit n ⦀
-     (certSink n ⦀ allThreadsL n))))))
+  (forgeL n ⦀ (ebIndex n ⦀ (voterBad n ⦀ (submit n ⦀
+     (certSink n ⦀ allThreadsL n)))))
     ∥⇘ storeES ⇙
   (blockStoreL n held ⦀ (ebStore n es ⦀ (bodyStore n bs ⦀ (mempool n ts ⦀ voteStore n vs))))
 
@@ -218,8 +218,7 @@ step₁ = _ ,
   Par-soloR _ _ _ _ (λ ())
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())                          -- past forgeL
-        (Par-soloR _ _ _ _ (λ ())                        -- past forgeCert
-          (Par-brBoth _ _ _ _ (λ ())                     -- ebIndex COLLIDES
+        (Par-brBoth _ _ _ _ (λ ())                   -- ebIndex COLLIDES
             (sVis refl refl)
             (Par-brBoth _ _ _ _ (λ ())                   -- voterBad COLLIDES
               (sVis refl refl)
@@ -233,7 +232,7 @@ step₁ = _ ,
                           (Par-soloL _ _ _ _ (λ ())      -- bodyOfferLoop, alone
                             (sVis refl refl) refl))
                         refl) refl) refl)
-                  refl) refl))) refl) refl)
+                  refl) refl))) refl)
       (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl))
     refl
 
@@ -242,7 +241,7 @@ step₁ = _ ,
 step₂ : Σ[ P₂ ∈ Proc ] (proj₁ step₁ ─[ τ ]─► P₂)
 step₂ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τR _ _ _ _ _ _))))
+    (Par-τ-R _ _ _ _ (par-brNode-τR _ _ _ _ _ _)))
 
 -- STEP 3.  Resolve the INNER collision to the LEFT: the branch in which `voterBad`
 -- advances and the twelve threads below it stand still.  After this the composite is
@@ -250,7 +249,7 @@ step₂ = _ ,
 step₃ : Σ[ P₃ ∈ Proc ] (proj₁ step₂ ─[ τ ]─► P₃)
 step₃ = _ ,
   Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _
-    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τL _ _ _ _ _ _)))))
+    (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (par-brNode-τL _ _ _ _ _ _))))
 
 -- STEP 4.  The block store's loop-back: having served the block it returns its state
 -- to `iter`, whose `sil` guard is one τ.
@@ -267,9 +266,8 @@ step₅ = _ ,
     (Par-sync _ _ _ _ _
       (Par-soloR _ _ _ _ (λ ())
         (Par-soloR _ _ _ _ (λ ())
-          (Par-soloR _ _ _ _ (λ ())
-            (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
-            refl) refl) refl)
+          (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+          refl) refl)
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
       (Par-soloR _ _ _ _ (λ ())
@@ -320,9 +318,12 @@ backEdge (⟹-τ (sTau eq _) _)    = case eq of λ ()
 backEdge (⟹-ev (sRet eq) _)     = case eq of λ ()
 backEdge (⟹-ev (sVis eq _) _)   = case eq of λ ()
 
--- THE MINTED SET AFTER THE BLOCK READ: the ranking block, and NOTHING about its body
+-- THE MINTED SET AFTER THE BLOCK READ: the ranking block, and NOTHING about its body.
+-- Since the re-keying, a mint carries the endpoint the deposit it licenses is made at,
+-- and node `nA` has degree 1, so the endpoint it reads at is already its own home
+-- endpoint `(fzero , lo)`.
 msAfter : Minted
-msAfter = kRb rbSeed ∷ []
+msAfter = ((fzero , lo) , kRb rbSeed) ∷ []
 
 -- NON-VACUITY, PINPOINTED — the gate's RB conjunct IS satisfied.  The blob names
 -- exactly the ranking block that was read, so the deposit is not refused for some
@@ -332,7 +333,8 @@ rb-conjunct-holds = refl
 
 -- … and the `voteκ` witness is nevertheless `false`, so what refuses the deposit is
 -- the MISSING BODY READ and nothing else — exactly the step `voterBad` deleted
-body-conjunct-fails : voteκ msAfter badBlob (kRb rbSeed) ≡ false
+body-conjunct-fails :
+  voteκ msAfter (fzero , lo) badBlob ((fzero , lo) , kRb rbSeed) ≡ false
 body-conjunct-fails = refl
 
 -- THE GATE.  With only `kRb rbSeed` minted, the deposit of `badBlob` is not offered:
