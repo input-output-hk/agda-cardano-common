@@ -57,6 +57,13 @@ one.
 | S4 | `certRbSoundLT` | `CertRbSystemL.agda:261-264` | **none** | `leiosCertRbSoundLT` (`:286-288`) |
 | **S5** | **`txSoundLT`** | **`TxSystemL.agda:260-263`** | **none** | **`leiosTxSoundLT`** (`:284-286`) |
 
+**The dozen devnet.** `LeiosInstanceDozen.agda` instantiates all seven, premise-free, at
+the 12-node, 45-link Leios demo devnet (3 BPs, each with 3 own relays; the 9 relays a K9
+mesh; `pL 45 12`, `voterOf = id`), against `dozenSystem` (`:168`): `dozenAnnSafeT`
+(`:182`, via `dozenLCfgWf`), `dozenBodySoundT`, `dozenVoteSoundT`, `dozenBlobSoundT`,
+`dozenCertSoundT` (`:218`, oracle monotonicity re-proved as `dozenCertMono`),
+`dozenCertRbSoundT`, `dozenTxSoundT` (`:233`). No no-livelock result is provided there.
+
 Each `*LT` is ∀-`Params`, ∀-`LeiosParams`, ∀-topology, ∀-`voterOf`; the `apiES` argument
 is fixed to the shared `ApiAlphabet.apiES`, which is where both of S0's `Assembly`
 premises are discharged. S2′'s two extras are **parameter data, not hypotheses about the
@@ -885,7 +892,7 @@ the same shape, the bundle contributing only the vacuous `wf-linkBundlesP`.
 
 ## D. The directory
 
-37 modules, 15,612 lines, not counting the no-livelock work of section F
+38 modules, 15,846 lines, not counting the no-livelock work of section F
 (`LeiosInstance2.agda`, `LeiosInstance3.agda` and `NoLivelock/`, 31 modules, 11,808 lines).
 
 ### The model
@@ -897,6 +904,7 @@ the same shape, the bundle contributing only the vacuous `wf-linkBundlesP`.
 | `PeersP.agda` | 170 | The **prototype** peer bundle `nodeBundleP`, over `LeiosNotifyP`/`LeiosFetchP` (`apiLP`). Additive: `NetworkPar` and `Node.agda` are untouched; a node runs one bundle or another via `Node.nodeWith`. |
 | `PeersR.agda` | 85 | The earlier **request-reporting** bundle `nodeBundleR`, which swaps in the reporting LeiosFetch/TxSubmission servers of the *old* CIP-draft peers. Superseded: it now carries zero `Wf` facts and one consumer, `PeersRSanity`. |
 | `LeiosInstanceL.agda` | 176 | The concrete three-node Linear-Leios line over its own `Params` (`leiosLParams`, `:94`; `leiosLP`, `:130`; `leiosLLine`, `:156`), and the system `leiosSystemL` (`:174`) — the prototype bundle over `NetworkLinkBreakableA`. |
+| `LeiosInstanceDozen.agda` | 234 | The 12-node, 45-link **dozen devnet** (BP1–3 each with 3 own relays, relays in a K9 mesh) as the family member `pL 45 12`/`lpF 45 12`: `dozenTopo` (`:124`) by `mkTopology` with `irr`/`cover` decided, `refl` degree checks, `dozenSystem` (`:168`), and S0–S5 premise-free at it (section A0). `voterOf = id` over-approximates (relays do not vote); no no-livelock. |
 
 ### The proof framework
 
