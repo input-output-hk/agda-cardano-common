@@ -25,6 +25,29 @@
 -- Theorems about the old peers (`announceSafeT`, `bfOverLf`, the four-node liveness estate)
 -- are untouched by this module.
 --
+-- GRACEFUL SHUTDOWN (ouroboros-consensus PR 2344; cardano-blueprint PR 67 state table).
+-- The peers follow the blueprint's LeiosNotify table LITERALLY:
+--     agency:  StIdle = Initiator (client)   StBusy = Responder (server)   StQuit = Responder
+--     StIdle --MsgQuit-->                         StQuit
+--     StQuit --MsgDone-->                         End     (`√`)
+--     StIdle --MsgLeiosNotificationRequestNext--> StBusy
+--     StBusy --MsgLeiosBlockAnnouncement-->       StIdle
+--     StBusy --MsgLeiosBlockOffer-->              StIdle
+--     StBusy --MsgLeiosBlockTxsOffer-->           StIdle
+--     StBusy --MsgLeiosVotes-->                   StIdle
+--     StBusy --MsgCanceled-->                     StIdle
+-- `LNPState` is exactly the table state, End is the peer's `√`, and every send / receive
+-- below is one table transition from the peer's current state — nothing else.  NO
+-- PIPELINING, NO LOOKAHEAD: the peers are depth-1 alternating machines, so a client in
+-- StBusy (no agency) can leave it ONLY by a reply or by MsgCanceled; it cannot quit there.
+-- The server may send MsgCanceled from StBusy at any time (table semantics, not only
+-- after a quit), and the client always accepts it (no api delivery).  Api triggers:
+-- client `lnpSendRequestNext` / `lnpSendDone` (the application's QUIT command: it now
+-- sends MsgQuit); server `lnpSend{BlockAnnouncement,BlockOffer,BlockTxsOffer,Votes}` and
+-- `lnpSendCanceled` (carrier ⊤); the server's `doneLNP` precedes its MsgDone.  The
+-- client fires no `doneLNP`.  Pair-level results (table conformance, deadlock freedom,
+-- quit completion, the non-pipelined stall) are in `Parametric/Leios/LeiosNotifyQuit.agda`.
+--
 -- "Protocol numbers 18/19" is the PROTOTYPE's numbering: the model's `Base.IDs` is a plain
 -- six-constructor enum (`N2N_LeiosNotify`, `N2N_LeiosFetch`) and carries no numeric tag.
 ------------------------------------------------------------------------
@@ -130,12 +153,13 @@ open LNPOps LNPEv-≟
 -- Step 4: unified peer state (both peers walk the same FSM; agency differs).
 ------------------------------------------------------------------------
 
--- the leios-prototype LeiosNotify peer state; identical to the prototype's
--- `StIdle | StBusy | StDone`.  SPECIALISATION: depth-1, no pipelining (spec §3).
+-- the leios-prototype LeiosNotify peer state: exactly the table's (PR 2344)
+-- `StIdle | StBusy | StQuit`, with End rendered as the peer's `√`.
+-- No pipelining: at most one outstanding request.
 data LNPState : Set where
-  stIdle : LNPState   -- consumer requests / producer awaits a request
-  stBusy : LNPState   -- producer sends ONE notification / consumer awaits it
-  stDone : LNPState   -- terminal (√)
+  stIdle : LNPState   -- client (agency) requests or quits / server awaits
+  stBusy : LNPState   -- server (agency) replies or cancels / client awaits
+  stQuit : LNPState   -- server (agency) owes MsgDone / client awaits it
 
 instance
   -- decidable equality on the unified prototype LeiosNotify state
@@ -145,13 +169,13 @@ instance
     go : (x y : LNPState) → Dec (x ≡ y)
     go stIdle stIdle = yes refl
     go stBusy stBusy = yes refl
-    go stDone stDone = yes refl
+    go stQuit stQuit = yes refl
     go stIdle stBusy = no λ ()
-    go stIdle stDone = no λ ()
+    go stIdle stQuit = no λ ()
     go stBusy stIdle = no λ ()
-    go stBusy stDone = no λ ()
-    go stDone stIdle = no λ ()
-    go stDone stBusy = no λ ()
+    go stBusy stQuit = no λ ()
+    go stQuit stIdle = no λ ()
+    go stQuit stBusy = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 5: the client (consumer) peer.
@@ -168,15 +192,18 @@ clientStepP l d stIdle = pchoice v
         (sendLNP l d ! (time₀ , FromInitiator , length₀ , leiosNotifyP MsgLNPRequestNext) ⟶
            Ret (inj₁ stBusy))
   ... | _        | _        = nothing
+  -- StIdle --MsgQuit--> StQuit (the api's QUIT command `lnpSendDone`)
   v (_ , apiLPev l′ d′ lnpSendDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
-        (sendLNP l d ! (time₀ , FromInitiator , length₀ , leiosNotifyP MsgLNPDone) ⟶
-           Ret (inj₁ stDone))
+        (sendLNP l d ! (time₀ , FromInitiator , length₀ , leiosNotifyP MsgLNPQuit) ⟶
+           Ret (inj₁ stQuit))
   ... | _        | _        = nothing
   v (_ , apiLPev _ _ _)  _ = nothing
   v (_ , sendLNP _ _)    _ = nothing
   v (_ , receiveLNP _ _) _ = nothing
   v (_ , doneLNP _ _)    _ = nothing
+-- StBusy (no agency): one of the four replies is delivered to the api, or MsgCanceled
+-- is accepted (nothing delivered); every one is StBusy → StIdle
 clientStepP l d stBusy = pchoice v
   where
   v : (at : AnyTypes LNPEv)
@@ -203,12 +230,26 @@ clientStepP l d stBusy = pchoice v
   ... | yes refl | yes refl = just
         (Output ⦃ DecEqI.DecEq-List ⦄ (apiLPev l d lnpRecvVotes) vs (Ret (inj₁ stIdle)))
   ... | _        | _        = nothing
+  v (_ , receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPCanceled)
+    with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
   v (_ , receiveLNP _ _) _ = nothing
   v (_ , sendLNP _ _)    _ = nothing
   v (_ , apiLPev _ _ _)  _ = nothing
   v (_ , doneLNP _ _)    _ = nothing
--- StDone: successful termination (√)
-clientStepP _ _ stDone = Ret (inj₂ _)
+-- StQuit (no agency): MsgDone ends the peer (StQuit → End, `√`)
+clientStepP l d stQuit = pchoice v
+  where
+  v : (at : AnyTypes LNPEv)
+    → ContinueType at (Maybe (PTree LNPEv (ExtI LNPEv) (LNPState ⊎ Rr)))
+  v (_ , receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPDone) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₂ _))
+  ... | _        | _        = nothing
+  v (_ , receiveLNP _ _) _ = nothing
+  v (_ , sendLNP _ _)    _ = nothing
+  v (_ , apiLPev _ _ _)  _ = nothing
+  v (_ , doneLNP _ _)    _ = nothing
 
 -- the consumer peer: loop the step from the idle state
 LNPclientStClient : Link → Dir → PTree LNPEv (ExtI LNPEv) Rr
@@ -218,8 +259,9 @@ LNPclientStClient l d = iter (clientStepP l d) stIdle
 -- Step 6: the server (producer) peer.
 ------------------------------------------------------------------------
 
--- one producer step: in `stBusy` the long-poll is answered with EXACTLY ONE
--- notification, chosen by whichever api event the application offers
+-- one producer step: in `stIdle` it awaits RequestNext or MsgQuit; in `stBusy` the
+-- long-poll is answered with EXACTLY ONE notification or MsgCanceled, chosen by
+-- whichever api event the application offers; in `stQuit` it sends MsgDone
 serverStepP : Link → Dir → LNPState → PTree LNPEv (ExtI LNPEv) (LNPState ⊎ Rr)
 serverStepP l d stIdle = pchoice v
   where
@@ -228,8 +270,9 @@ serverStepP l d stIdle = pchoice v
   v (_ , receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPRequestNext) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just (Ret (inj₁ stBusy))
   ... | _        | _        = nothing
-  v (_ , receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPDone) with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just (doneLNP l d ⟶₀ Ret (inj₁ stDone))
+  -- StIdle --MsgQuit--> StQuit
+  v (_ , receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPQuit) with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just (Ret (inj₁ stQuit))
   ... | _        | _        = nothing
   v (_ , receiveLNP _ _) _ = nothing
   v (_ , sendLNP _ _)    _ = nothing
@@ -263,12 +306,29 @@ serverStepP l d stBusy = pchoice v
            (time₀ , FromResponder , length₀ , leiosNotifyP (MsgLNPVotes vs)) ⟶
            Ret (inj₁ stIdle))
   ... | _        | _        = nothing
+  -- StBusy --MsgCanceled--> StIdle, on the api's cancel command (at any time)
+  v (_ , apiLPev l′ d′ lnpSendCanceled) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendLNP l d ! (time₀ , FromResponder , length₀ , leiosNotifyP MsgLNPCanceled) ⟶
+           Ret (inj₁ stIdle))
+  ... | _        | _        = nothing
   v (_ , apiLPev _ _ _)  _ = nothing
   v (_ , sendLNP _ _)    _ = nothing
   v (_ , receiveLNP _ _) _ = nothing
   v (_ , doneLNP _ _)    _ = nothing
--- StDone: successful termination (√)
-serverStepP _ _ stDone = Ret (inj₂ _)
+-- StQuit (agency): report the peer-local Done, send MsgDone (StQuit → End), then √
+serverStepP l d stQuit = pchoice v
+  where
+  v : (at : AnyTypes LNPEv)
+    → ContinueType at (Maybe (PTree LNPEv (ExtI LNPEv) (LNPState ⊎ Rr)))
+  v (_ , doneLNP l′ d′) _ with l′ ≟ l | d′ ≟ d
+  ... | yes refl | yes refl = just
+        (sendLNP l d ! (time₀ , FromResponder , length₀ , leiosNotifyP MsgLNPDone) ⟶
+           Ret (inj₂ _))
+  ... | _        | _        = nothing
+  v (_ , sendLNP _ _)    _ = nothing
+  v (_ , receiveLNP _ _) _ = nothing
+  v (_ , apiLPev _ _ _)  _ = nothing
 
 -- the producer peer: loop the step from the idle state
 LNPserverStClient : Link → Dir → PTree LNPEv (ExtI LNPEv) Rr

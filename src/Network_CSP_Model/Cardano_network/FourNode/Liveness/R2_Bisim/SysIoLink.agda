@@ -143,7 +143,7 @@ open import Cardano_network.Data p using
 -- the leios-prototype message constructors, for `msgOrigin`'s totality
 open import Cardano_network.Data p using
   ( MsgLNPRequestNext; MsgLNPBlockAnnouncement; MsgLNPBlockOffer
-  ; MsgLNPBlockTxsOffer; MsgLNPVotes; MsgLNPDone
+  ; MsgLNPBlockTxsOffer; MsgLNPVotes; MsgLNPDone; MsgLNPQuit; MsgLNPCanceled
   ; MsgLFPBlockRequest; MsgLFPBlock; MsgLFPBlockTxsRequest
   ; MsgLFPBlockTxs; MsgLFPDone )
 open import Cardano_network.Data p using
@@ -2349,14 +2349,17 @@ msgOrigin (leiosFetch (MsgLFBlockRangeRequest _))    = FromInitiator
 msgOrigin (leiosFetch (MsgLFNextBlockAndTxsInRange _ _)) = FromResponder
 msgOrigin (leiosFetch (MsgLFLastBlockAndTxsInRange _ _)) = FromResponder
 msgOrigin (leiosFetch MsgLFDone)                     = FromInitiator
--- the leios-prototype LeiosNotify: the consumer long-polls and closes, the producer
--- answers with the four notifications (mirrors the LeiosNotify block above)
+-- the leios-prototype LeiosNotify: the consumer long-polls and quits, the producer
+-- answers with the four notifications, cancels an outstanding request after a quit,
+-- and closes with MsgDone (server-sent since ouroboros-consensus PR 2344)
 msgOrigin (leiosNotifyP MsgLNPRequestNext)           = FromInitiator
 msgOrigin (leiosNotifyP (MsgLNPBlockAnnouncement _)) = FromResponder
 msgOrigin (leiosNotifyP (MsgLNPBlockOffer _ _))      = FromResponder
 msgOrigin (leiosNotifyP (MsgLNPBlockTxsOffer _))     = FromResponder
 msgOrigin (leiosNotifyP (MsgLNPVotes _))             = FromResponder
-msgOrigin (leiosNotifyP MsgLNPDone)                  = FromInitiator
+msgOrigin (leiosNotifyP MsgLNPDone)                  = FromResponder
+msgOrigin (leiosNotifyP MsgLNPQuit)                  = FromInitiator
+msgOrigin (leiosNotifyP MsgLNPCanceled)              = FromResponder
 -- the leios-prototype LeiosFetch: the client requests and closes, the server delivers
 msgOrigin (leiosFetchP (MsgLFPBlockRequest _))       = FromInitiator
 msgOrigin (leiosFetchP (MsgLFPBlock _))              = FromResponder

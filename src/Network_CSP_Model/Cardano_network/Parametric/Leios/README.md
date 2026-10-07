@@ -172,7 +172,7 @@ hash.
 
 **Why the peer bundle gets a waiver, not a vacuity claim.** The prototype LeiosNotify
 producer really does accept an announcement and re-emit it
-(`LeiosNotifyP.agda:242-247`, renamed onto `apiLP` by `PeersP.ιLNP`), so it cannot be
+(`LeiosNotifyP.agda:285-290`, renamed onto `apiLP` by `PeersP.ιLNP`), so it cannot be
 proved to carry nothing. `peersPG` (`AnnounceSystemL.agda:165`) therefore *excludes* that
 channel — it is a peer RELY, exactly as `apiLN … sendLNBlockAnnouncement` already is in
 `BlockProvenanceBF.peersG` — and `sep-apiL`'s `c-annP` arm discharges it from the fact
@@ -729,7 +729,10 @@ and differ in the node builder and the node logic.
 
 All results on this branch, node-level and network-level alike, are purely safety-shaped —
 **except section F's no-livelock theorems**, which are divergence-freedom of a two-node
-instance (`noLivelock2`) and of the shipped three-node line (`noLivelockL`), and are not
+instance (`noLivelock2`) and of the shipped three-node line (`noLivelockL`), and the
+LeiosNotify peer-PAIR results of `LeiosNotifyQuit.agda` (§D: conformance to the blueprint
+state table, deadlock- and divergence-freedom of one directly composed client/server pair,
+and termination after the client's quit), and none of these is
 delivery liveness: **no module exhibits a good node actually reaching the gated
 event**, and no theorem says a forged block ever arrives anywhere. The lift changed the
 level and nothing else — `⊑T` is a safety order, and `systemOfWithNode` does not make it
@@ -892,8 +895,8 @@ the same shape, the bundle contributing only the vacuous `wf-linkBundlesP`.
 
 ## D. The directory
 
-38 modules, 15,846 lines, not counting the no-livelock work of section F
-(`LeiosInstance2.agda`, `LeiosInstance3.agda` and `NoLivelock/`, 31 modules, 11,808 lines).
+39 modules, 18,481 lines, not counting the no-livelock work of section F
+(`LeiosInstance2.agda`, `LeiosInstance3.agda` and `NoLivelock/`, 31 modules, 11,959 lines).
 
 ### The model
 
@@ -988,6 +991,12 @@ tick — peers terminate on `done`. The `Wf`/`Carries` framework carries the who
 | `PeersRSanity.agda` | 43 | The line system over `nodeBundleR`; the only remaining consumer of `PeersR`. |
 | `Negative/Chatter.agda` | 189 | `chatter-diverges` (`:179`) — the unchanged relay chatters. Design law L's justification. |
 | `Negative/FetchWedge.agda` | 247 | `wedge-reachable` (`:147`) / `wedge-stuck` (`:238`) — the pointer-driven fetch wedge (spec correction C2). |
+
+### The LeiosNotify peer pair: graceful shutdown (ouroboros-consensus PR 2344)
+
+| Module | Lines | Purpose |
+|---|--:|---|
+| `LeiosNotifyQuit.agda` | 1898 | The ported `LeiosNotifyP` client (at `(l , lo)`) and server (at `(l , hi)`) — the real step functions, not a copy. The peers follow the cardano-blueprint table literally (no pipelining, no lookahead), so they are composed DIRECTLY: the server is renamed (`srv`: its receive becomes the client end's send and vice versa) and the pair synchronises on the wire (`sys`), api/done left open. Each component is abstracted by a small LTS (`Abs`/`AbsI`, closed under `Par⊤` by `Prod`); a 9-phase invariant `J` is inductive. (T) `LNPSpec` is the table as one process over the protocol messages; `sys-conforms` (every trace of the pair, api/done projected away by `wire`, is a trace of `LNPSpec`, termination included), and per peer `client-conforms` / `server-conforms`. (a) `sys-deadlockFree`, `sys-divergenceFree`. (b) with every server api send blocked, incl. the new `lnpSendCanceled` (`blk`): `blk-afterQuit` (after the client's `lnpSendDone`: deadlock-free, divergence-free, at most 3 more visible events, so every run ends in √). (c) the non-pipelined stall: `blk-stall` / `blk-deadlock` (after RequestNext the blocked pair is stuck; the client, in StBusy, cannot quit), and `blkC-cancelThenQuit` (with only the cancel allowed, MsgCanceled, the quit and MsgDone reach √). (d) the old pre-PR-2344 negative control is removed (without pipelining both protocols stall identically; the only difference is MsgCanceled, i.e. (c)). Pair level, not system level. Imported by nobody. |
 
 ---
 

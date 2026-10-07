@@ -161,15 +161,19 @@ data MessageLeiosFetch : Set where
   MsgLFDone                     : MessageLeiosFetch
 
 -- the leios-prototype LeiosNotify messages (`LeiosDemoOnlyTestNotify.hs`): a long-poll
--- request and the four notifications the producer may answer it with.  `Word32` is the
--- opaque `Params.Size`; the signature is inside the opaque `Params.VoteBlob`.
+-- request and the four notifications the producer may answer it with, plus the graceful
+-- shutdown of ouroboros-consensus PR 2344 (client `MsgQuit` from StIdle; server
+-- `MsgCanceled` answering an outstanding request; the SERVER-sent `MsgDone` from StQuit).  `Word32` is the opaque
+-- `Params.Size`; the signature is inside the opaque `Params.VoteBlob`.
 data MessageLeiosNotifyP : Set where
   MsgLNPRequestNext       : MessageLeiosNotifyP
   MsgLNPBlockAnnouncement : Header → MessageLeiosNotifyP
   MsgLNPBlockOffer        : EBHash × LSlot → Size → MessageLeiosNotifyP
   MsgLNPBlockTxsOffer     : EBHash × LSlot → MessageLeiosNotifyP
   MsgLNPVotes             : List VoteBlob → MessageLeiosNotifyP
-  MsgLNPDone              : MessageLeiosNotifyP
+  MsgLNPDone              : MessageLeiosNotifyP   -- server: StQuit → StDone
+  MsgLNPQuit              : MessageLeiosNotifyP   -- client: StIdle → StQuit
+  MsgLNPCanceled          : MessageLeiosNotifyP   -- server: StBusy → StIdle (at any time)
 
 -- the leios-prototype LeiosFetch messages (`LeiosDemoOnlyTestFetch.hs`): the EB request
 -- and reply, the tx-closure request and reply, and Done.  The five messages commented out
@@ -585,7 +589,7 @@ instance
     go MsgLFDone                          (MsgLFNextBlockAndTxsInRange _ _)   = no λ ()
     go MsgLFDone                          (MsgLFLastBlockAndTxsInRange _ _)   = no λ ()
 
-  -- the six prototype LeiosNotify messages are distinguishable
+  -- the eight prototype LeiosNotify messages are distinguishable
   DecEq-MessageLeiosNotifyP : DecEq MessageLeiosNotifyP
   DecEq-MessageLeiosNotifyP ._≟_ = go
     where
@@ -606,6 +610,8 @@ instance
     ... | yes refl = yes refl
     ... | no ¬p    = no λ where refl → ¬p refl
     go MsgLNPDone MsgLNPDone = yes refl
+    go MsgLNPQuit MsgLNPQuit = yes refl
+    go MsgLNPCanceled MsgLNPCanceled = yes refl
     go MsgLNPRequestNext (MsgLNPBlockAnnouncement _) = no λ ()
     go MsgLNPRequestNext (MsgLNPBlockOffer _ _) = no λ ()
     go MsgLNPRequestNext (MsgLNPBlockTxsOffer _) = no λ ()
@@ -636,6 +642,32 @@ instance
     go MsgLNPDone (MsgLNPBlockOffer _ _) = no λ ()
     go MsgLNPDone (MsgLNPBlockTxsOffer _) = no λ ()
     go MsgLNPDone (MsgLNPVotes _) = no λ ()
+    go MsgLNPRequestNext MsgLNPQuit = no λ ()
+    go MsgLNPRequestNext MsgLNPCanceled = no λ ()
+    go (MsgLNPBlockAnnouncement _) MsgLNPQuit = no λ ()
+    go (MsgLNPBlockAnnouncement _) MsgLNPCanceled = no λ ()
+    go (MsgLNPBlockOffer _ _) MsgLNPQuit = no λ ()
+    go (MsgLNPBlockOffer _ _) MsgLNPCanceled = no λ ()
+    go (MsgLNPBlockTxsOffer _) MsgLNPQuit = no λ ()
+    go (MsgLNPBlockTxsOffer _) MsgLNPCanceled = no λ ()
+    go (MsgLNPVotes _) MsgLNPQuit = no λ ()
+    go (MsgLNPVotes _) MsgLNPCanceled = no λ ()
+    go MsgLNPDone MsgLNPQuit = no λ ()
+    go MsgLNPDone MsgLNPCanceled = no λ ()
+    go MsgLNPQuit MsgLNPRequestNext = no λ ()
+    go MsgLNPQuit (MsgLNPBlockAnnouncement _) = no λ ()
+    go MsgLNPQuit (MsgLNPBlockOffer _ _) = no λ ()
+    go MsgLNPQuit (MsgLNPBlockTxsOffer _) = no λ ()
+    go MsgLNPQuit (MsgLNPVotes _) = no λ ()
+    go MsgLNPQuit MsgLNPDone = no λ ()
+    go MsgLNPQuit MsgLNPCanceled = no λ ()
+    go MsgLNPCanceled MsgLNPRequestNext = no λ ()
+    go MsgLNPCanceled (MsgLNPBlockAnnouncement _) = no λ ()
+    go MsgLNPCanceled (MsgLNPBlockOffer _ _) = no λ ()
+    go MsgLNPCanceled (MsgLNPBlockTxsOffer _) = no λ ()
+    go MsgLNPCanceled (MsgLNPVotes _) = no λ ()
+    go MsgLNPCanceled MsgLNPDone = no λ ()
+    go MsgLNPCanceled MsgLNPQuit = no λ ()
 
   -- the five prototype LeiosFetch messages are distinguishable
   DecEq-MessageLeiosFetchP : DecEq MessageLeiosFetchP

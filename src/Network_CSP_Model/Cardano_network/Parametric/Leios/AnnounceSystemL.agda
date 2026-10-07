@@ -26,7 +26,7 @@
 --     announce channel.  `peersG` already excludes the OLD announce
 --     channel `apiLN … sendLNBlockAnnouncement` because the LN server
 --     peer relays rather than originates it; the prototype peer
---     (`LeiosNotifyP.agda:242-247`, renamed by `PeersP.ιLNP`) does the
+--     (`LeiosNotifyP.agda:285-290`, renamed by `PeersP.ιLNP`) does the
 --     same on `apiLP … lnpSendBlockAnnouncement`, so that channel is a
 --     peer RELY too and must leave the peers' guarantee.  It is written
 --     as a PRODUCT with `NotAnnP`, so `peersPG ⊆ peersG` is `proj₁` and

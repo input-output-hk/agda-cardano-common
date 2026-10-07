@@ -24,7 +24,7 @@ anywhere in the source, and only in a comment.
 | `N2N_TxSubmission` | — | `TxSubmission.agda` | 412 | no — typechecked only; exercised in the uniform bundle |
 | `N2N_LeiosNotify` | 18 (`LeiosNotify.agda:13`) | `LeiosNotify.agda` | 255 | yes — carries the announcement in `announceSafeT` |
 | `N2N_LeiosFetch` | 19 (`LeiosFetch.agda:13`) | `LeiosFetch.agda` | 380 | yes — the dominated side of the priority order |
-| `N2N_LeiosNotify` | 18 (`LeiosNotifyP.agda:12`) | `LeiosNotifyP.agda` | 286 | yes — the prototype port; carries the offers and votes of S1/S2/S2′ |
+| `N2N_LeiosNotify` | 18 (`LeiosNotifyP.agda:14`) | `LeiosNotifyP.agda` | 346 | yes — the prototype port; carries the offers and votes of S1/S2/S2′; its graceful shutdown (PR 2344, the blueprint state table literally, no pipelining: `stQuit`, client MsgQuit from StIdle, server MsgCanceled from StBusy on `lnpSendCanceled`, server MsgDone) is verified on the peer pair in `Leios/LeiosNotifyQuit.agda` (table conformance, deadlock freedom, quit completion, the non-pipelined stall) |
 | `N2N_LeiosFetch` | 19 (`LeiosFetchP.agda:12`) | `LeiosFetchP.agda` | 308 | yes — the prototype port; the reporting producer of the S1 fetch path |
 
 The last two rows are the **prototype** peers (`leios-prototype` branch of
@@ -83,7 +83,7 @@ stub `ιXXNet : ∀ {A} → XXEv A → Maybe (Net Payload A)` recording only the
 intended wire images (`KeepAlive.agda:269-273`) — `Maybe`-valued because
 `api`/`done` have no `Net` image. The real, total injection is in
 `NetworkPar.agda`, into the *superset* alphabet `Net_Api Payload`
-(`Net.agda:1075-1089`), which adds `done`, one `apiXX` channel per protocol, the
+(`Net.agda:1784-1800`), which adds `done`, one `apiXX` channel per protocol, the
 node-local `store`/`env` channels and the fault trigger `break`. For KeepAlive:
 `sendKA l d ↦ input l d N2N_KeepAlive`, `receiveKA ↦ output …`,
 `apiKAev l d a ↦ apiKA l d a`, `doneKA ↦ done … N2N_KeepAlive`, plus a partial
