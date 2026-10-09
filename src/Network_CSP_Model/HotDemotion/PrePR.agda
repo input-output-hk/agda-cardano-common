@@ -1,9 +1,10 @@
 {-# OPTIONS --guardedness #-}
 
 -- D1 (DESIGN.md §5): before ouroboros-consensus PR 2344, with no Leios load, the demotion
--- can never end Warm.  Adaptations to the brief: traces are arbitrary `t : List (Event√ U)`
--- (√-ended ones handled via `Sys-anyTrace`), `GV-event warm` is the letter `GV warm`, and
--- Steps entries are `((X , ch) , a)` pairs.
+-- can never end Warm.  Traces are arbitrary `t : List (Event√ U)` (√-ended ones handled via
+-- `Sys-anyTrace`), the warm event is the letter `GV warm`, and Steps entries are `((X , ch) , a)` pairs.
+-- The run-form machinery (`aw-move` … `endsCold`) is generic over the mode and a Warm-excluding
+-- invariant, and is reused for D3 in Blockers.agda.
 module HotDemotion.PrePR where
 
 open import Data.Empty using (⊥; ⊥-elim)
@@ -16,7 +17,7 @@ open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Function using (case_of_)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; s≤s; z≤n)
-open import Data.Nat.Properties using (≤-refl; ≤-trans; ≤-reflexive; +-monoˡ-≤; +-monoʳ-≤; +-suc; m≤m+n; n≤1+n)
+open import Data.Nat.Properties using (≤-refl; ≤-trans; ≤-reflexive; +-monoˡ-≤; +-monoʳ-≤; +-suc; +-comm; m≤m+n; n≤1+n)
 open import Data.List using (length)
 open import Data.List.Properties using (length-++; ∷ʳ-injective; ∷-injectiveʳ)
 open import Relation.Nullary using (¬_)
@@ -29,9 +30,9 @@ open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_)
 open import Semantics.Deadlock {E = Ev} {I = ExtI Ev} using (DeadlockFree; IsStuck; _⟹∖√⟨_⟩_; ∖√-refl; ∖√-τ; ∖√-ev)
 
--- the pre-PR mode: env flags for blocks / txReqs, no Leios load, timer on
-Pre : Bool → Bool → Mode
-Pre b t = mode pre b t false true
+-- the pre-PR mode: env flags for blocks / txReqs, no Leios load, timer flag
+Pre : Bool → Bool → Bool → Mode
+Pre b t c = mode pre b t false c
 
 -- a LeiosNotify phase that has not progressed past waiting for a Leios reply
 J : PSt → Set
@@ -73,7 +74,7 @@ J-notFin (inj₁ refl) = refl
 J-notFin (inj₂ refl) = refl
 
 -- the warm move is impossible while the invariant holds
-warm-step : ∀ {b t s s′} → Inv s → sstep (GAct , gov) warm (Pre b t) s ≡ just s′ → ⊥
+warm-step : ∀ {b t c s s′} → Inv s → sstep (GAct , gov) warm (Pre b t c) s ≡ just s′ → ⊥
 warm-step {s = mkSt hot f}      _ ()
 warm-step {s = mkSt warmD f}    _ ()
 warm-step {s = mkSt timedOut f} _ ()
@@ -83,7 +84,7 @@ warm-step {s = mkSt awaiting f} (j , _) h with allFin (mkSt awaiting f) | allFin
 ... | false | _  | ()
 
 -- every sstep move preserves the invariant
-step-inv : ∀ {b t} s {s′} at a → Inv s → sstep at a (Pre b t) s ≡ just s′ → Inv s′
+step-inv : ∀ {b t c} s {s′} at a → Inv s → sstep at a (Pre b t c) s ≡ just s′ → Inv s′
 step-inv (mkSt hot f)      (_ , gov) demote i refl = inj₂ refl , λ ()
 step-inv (mkSt hot f)      (_ , gov) warm   i ()
 step-inv (mkSt hot f)      (_ , gov) tmo    i ()
@@ -92,8 +93,9 @@ step-inv (mkSt hot f)      (_ , rtn) p      i ()
 step-inv (mkSt hot f)      (_ , env) e      i ()
 step-inv (mkSt hot f)      (_ , int) a      i ()
 step-inv (mkSt awaiting f) (_ , gov) demote i ()
-step-inv {b} {t} (mkSt awaiting f) (_ , gov) warm   i h = ⊥-elim (warm-step {b} {t} i h)
-step-inv (mkSt awaiting f) (_ , gov) tmo    (j , _) refl = j , λ ()
+step-inv {b} {t} {c} (mkSt awaiting f) (_ , gov) warm   i h = ⊥-elim (warm-step {b} {t} {c} i h)
+step-inv {c = c} (mkSt awaiting f) (_ , gov) tmo    (j , _) h with if-just c h
+... | refl = j , λ ()
 step-inv (mkSt awaiting f) (_ , gov) cold   i ()
 step-inv (mkSt awaiting f) (_ , rtn) cs     (j , _) h with stepIf-inv h
 ... | _ , refl = j , λ ()
@@ -136,7 +138,7 @@ step-inv (mkSt coldD f)    (_ , env) e      i ()
 step-inv (mkSt coldD f)    (_ , int) a      i ()
 
 -- the invariant holds along every Steps run
-steps-inv : ∀ {b t s w s′} → Steps (Pre b t) s w s′ → Inv s → Inv s′
+steps-inv : ∀ {b t c s w s′} → Steps (Pre b t c) s w s′ → Inv s → Inv s′
 steps-inv done i = i
 steps-inv {s = s} (more {at = at} {a = a} eq ss) i = steps-inv ss (step-inv s at a i eq)
 
@@ -145,25 +147,25 @@ inv₀ : Inv st₀
 inv₀ = inj₁ refl , λ ()
 
 -- the LeiosNotify phase never reaches ready/fin while lnLoad is false
-pre-ln-stuck : ∀ {b t s w} → Steps (Pre b t) st₀ w s → ps s ln ≢ ready × ps s ln ≢ fin
+pre-ln-stuck : ∀ {b t c s w} → Steps (Pre b t c) st₀ w s → ps s ln ≢ ready × ps s ln ≢ fin
 pre-ln-stuck ss with proj₁ (steps-inv ss inv₀)
 ... | inj₁ e = (λ x → case trans (sym e) x of λ ()) , (λ x → case trans (sym e) x of λ ())
 ... | inj₂ e = (λ x → case trans (sym e) x of λ ()) , (λ x → case trans (sym e) x of λ ())
 
 -- D1, state form: no reachable state is Warm
-pre-neverWarm : ∀ {b t w s} → Steps (Pre b t) st₀ w s → gph s ≢ warmD
+pre-neverWarm : ∀ {b t c w s} → Steps (Pre b t c) st₀ w s → gph s ≢ warmD
 pre-neverWarm ss = proj₂ (steps-inv ss inv₀)
 
--- the timeout is always an escape while awaiting (Review Focus 2)
+-- the timeout is always an escape while awaiting (PLAN.md review focus 2)
 tmo-enabled : ∀ {m s w} → timer m ≡ true → Steps m st₀ w s → gph s ≡ awaiting
             → Σ[ s′ ∈ St ] (sstep (GAct , gov) tmo m s ≡ just s′)
 tmo-enabled {m} {mkSt _ f} te _ refl rewrite te = _ , refl
 
 -- no warm letter in any Steps run that starts in an invariant state
-noWarm-steps : ∀ {b t s w s′} → Steps (Pre b t) s w s′ → Inv s → ¬ Any (_≡ GV warm) (lab w)
+noWarm-steps : ∀ {b t c s w s′} → Steps (Pre b t c) s w s′ → Inv s → ¬ Any (_≡ GV warm) (lab w)
 noWarm-steps done i ()
 noWarm-steps {s = s} (more {at = _ , gov} {a = demote} eq ss) i (here ())
-noWarm-steps {b} {t} {s = s} (more {at = _ , gov} {a = warm}   eq ss) i (here _) = warm-step {b} {t} i eq
+noWarm-steps {b} {t} {c} {s = s} (more {at = _ , gov} {a = warm}   eq ss) i (here _) = warm-step {b} {t} {c} i eq
 noWarm-steps {s = s} (more {at = _ , gov} {a = tmo}    eq ss) i (here ())
 noWarm-steps {s = s} (more {at = _ , gov} {a = cold}   eq ss) i (here ())
 noWarm-steps {s = s} (more {at = _ , rtn} eq ss) i (here ())
@@ -177,16 +179,16 @@ noWarm-steps {s = s} (more {at = at} {a = a} eq ss) i (there p) = noWarm-steps s
 √-notWarm (there ())
 
 -- D1: no trace (√-ended or not) of the pre-PR system contains warm
-pre-noWarm : ∀ {b t tr W} → Sys (Pre b t) ⟹⟨ tr ⟩ W → ¬ Any (_≡ GV warm) tr
+pre-noWarm : ∀ {b t c tr W} → Sys (Pre b t c) ⟹⟨ tr ⟩ W → ¬ Any (_≡ GV warm) tr
 pre-noWarm r with Sys-anyTrace r
 ... | w , s′ , ss , inj₁ (refl , _) = noWarm-steps ss inv₀
 ... | w , s′ , ss , inj₂ (rr , refl , _) = λ a → case ++⁻ _ a of λ where
   (inj₁ x) → noWarm-steps ss inv₀ x
   (inj₂ y) → √-notWarm y
 
--- vacuity guard (Review Focus 1): the pre-PR system reaches awaiting with all protocols but ln returned
-pre-nearlyWarm : Σ[ w ∈ List (Σ (AnyTypes Ev) proj₁) ] Σ[ s ∈ St ]
-                 (Steps (Pre true true) st₀ w s × gph s ≡ awaiting
+-- vacuity guard (PLAN.md review focus 1): the pre-PR system reaches awaiting with all protocols but ln returned
+pre-nearlyWarm : ∀ {c} → Σ[ w ∈ List (Σ (AnyTypes Ev) proj₁) ] Σ[ s ∈ St ]
+                 (Steps (Pre true true c) st₀ w s × gph s ≡ awaiting
                   × ps s cs ≡ fin × ps s bf ≡ fin × ps s tx ≡ fin × ps s lf ≡ fin)
 pre-nearlyWarm =
   ( ((GAct , gov) , demote) ∷ ((IntAct , int) , bfDrain) ∷ ((EnvAct , env) , block) ∷ ((EnvAct , env) , txReq)
@@ -195,19 +197,20 @@ pre-nearlyWarm =
   , more refl (more refl (more refl (more refl (more refl (more refl (more refl (more refl done)))))))
   , refl , refl , refl , refl , refl
 
--- ===================== D1 run form (fix round 1) =====================
--- Every maximal run of `Sys (Pre b t)` contains tmo and then cold, for all b t:
+-- ===================== D1 run form =====================
+-- Every maximal run of `Sys (Pre b t true)` contains tmo and then cold, for all b t:
 --  * (a) `pre-deadlockFree` / `pre-progress`: a reachable non-final state always has an enabled move
 --    (hot: demote; awaiting: tmo, as `timer` is on whatever blocks/txReqs are; timedOut: cold), so a run
 --    is never stuck before √;
 --  * (b) `pre-bounded`: every trace has length ≤ 11, so runs are finite;
 --  * (c) `pre-endsCold`: every trace ending in √ is  t₁ ++ GV tmo ∷ t₂  with cold in t₂.
--- Hence a maximal run is finite (b), cannot stop short of √ (a), and so is a √-run, which contains tmo
--- then cold (c).  Nothing depends on blocks/txReqs: if an env event is off its protocol just stays
--- waiting and tmo remains available.
+-- Hence a maximal run is finite (b), cannot stop short of √ (a), and cannot diverge, since the system
+-- has no τ at all (`Sys-no-τ`); so it is a √-run, which contains tmo then cold (c).  Nothing depends on
+-- blocks/txReqs: if an env event is off its protocol just stays waiting and tmo remains available.
+-- (b) and (c) hold for every timer setting; (a) needs the timer on.
 
 -- a state that is not final always has an enabled move (needs only timer = true)
-prog : ∀ {b t s} → final s ≡ false → Σ[ at ∈ AnyTypes Ev ] Σ[ a ∈ proj₁ at ] Σ[ s′ ∈ St ] (sstep at a (Pre b t) s ≡ just s′)
+prog : ∀ {b t s} → final s ≡ false → Σ[ at ∈ AnyTypes Ev ] Σ[ a ∈ proj₁ at ] Σ[ s′ ∈ St ] (sstep at a (Pre b t true) s ≡ just s′)
 prog {s = mkSt hot f}      _ = (GAct , gov) , demote , _ , refl
 prog {s = mkSt awaiting f} _ = (GAct , gov) , tmo , _ , refl
 prog {s = mkSt timedOut f} _ = (GAct , gov) , cold , _ , refl
@@ -215,8 +218,8 @@ prog {s = mkSt warmD f}    ()
 prog {s = mkSt coldD f}    ()
 
 -- (a) progress form: every reachable non-final state has an enabled sstep move
-pre-progress : ∀ {b t w s} → Steps (Pre b t) st₀ w s → final s ≡ false
-             → Σ[ at ∈ AnyTypes Ev ] Σ[ a ∈ proj₁ at ] Σ[ s′ ∈ St ] (sstep at a (Pre b t) s ≡ just s′)
+pre-progress : ∀ {b t w s} → Steps (Pre b t true) st₀ w s → final s ≡ false
+             → Σ[ at ∈ AnyTypes Ev ] Σ[ a ∈ proj₁ at ] Σ[ s′ ∈ St ] (sstep at a (Pre b t true) s ≡ just s′)
 pre-progress _ fe = prog fe
 
 -- a √-free run of SysAt is a Steps run
@@ -228,18 +231,26 @@ pre-progress _ fe = prog fe
 ... | s₁ , eq , refl with ∖√-reach rest
 ...   | w , s′ , ss , e = ((X , ch) , a) ∷ w , s′ , more eq ss , e
 
--- no SysAt state of Pre is stuck
-not-stuck : ∀ {b t} s → IsStuck (SysAt (Pre b t) s) → ⊥
-not-stuck (mkSt hot f)      st = st (Sys-ev-intro (GAct , gov) demote refl refl)
-not-stuck (mkSt awaiting f) st = st (Sys-ev-intro (GAct , gov) tmo refl refl)
-not-stuck (mkSt timedOut f) st = st (Sys-ev-intro (GAct , gov) cold refl refl)
-not-stuck (mkSt warmD f)    st = st (sRet refl)
-not-stuck (mkSt coldD f)    st = st (sRet refl)
+-- with the timer on, the tmo move from an awaiting state succeeds
+tmo-step : ∀ {m} f → timer m ≡ true → sstep (GAct , gov) tmo m (mkSt awaiting f) ≡ just (mkSt timedOut f)
+tmo-step {m} f te rewrite te = refl
 
--- (a) the pre-PR system is deadlock free (√ is not a deadlock)
-pre-deadlockFree : ∀ {b t} → DeadlockFree (Sys (Pre b t))
-pre-deadlockFree r st with ∖√-reach r
-... | w , s′ , ss , refl = not-stuck s′ st
+-- with the timer on, no SysAt state is stuck (any mode)
+not-stuck : ∀ {m} → timer m ≡ true → ∀ s → IsStuck (SysAt m s) → ⊥
+not-stuck te (mkSt hot f)      st = st (Sys-ev-intro (GAct , gov) demote refl refl)
+not-stuck {m} te (mkSt awaiting f) st = st (Sys-ev-intro (GAct , gov) tmo (tmo-step {m} f te) refl)
+not-stuck te (mkSt timedOut f) st = st (Sys-ev-intro (GAct , gov) cold refl refl)
+not-stuck te (mkSt warmD f)    st = st (sRet refl)
+not-stuck te (mkSt coldD f)    st = st (sRet refl)
+
+-- with the timer on, the system is deadlock free (any mode; √ is not a deadlock)
+timer-deadlockFree : ∀ {m} → timer m ≡ true → DeadlockFree (Sys m)
+timer-deadlockFree te r st with ∖√-reach r
+... | w , s′ , ss , refl = not-stuck te s′ st
+
+-- (a) the pre-PR system with the timer on is deadlock free
+pre-deadlockFree : ∀ {b t} → DeadlockFree (Sys (Pre b t true))
+pre-deadlockFree = timer-deadlockFree refl
 
 -- phase potentials: remaining moves of one protocol (LeiosNotify only counts a pending return,
 -- since in Pre it can neither be answered nor quit)
@@ -325,7 +336,7 @@ eqP-need ready ()
 eqP-need fin ()
 
 -- every sstep move of Pre strictly decreases the rank
-step-rank : ∀ {b t} s {s′} at a → sstep at a (Pre b t) s ≡ just s′ → suc (rank s′) ≤ rank s
+step-rank : ∀ {b t c} s {s′} at a → sstep at a (Pre b t c) s ≡ just s′ → suc (rank s′) ≤ rank s
 step-rank (mkSt hot f)      (_ , gov) demote refl = ≤-refl
 step-rank (mkSt hot f)      (_ , gov) warm   ()
 step-rank (mkSt hot f)      (_ , gov) tmo    ()
@@ -337,7 +348,8 @@ step-rank (mkSt awaiting f) (_ , gov) demote ()
 step-rank (mkSt awaiting f) (_ , gov) warm   h with allFin (mkSt awaiting f) | h
 ... | true  | refl = s≤s z≤n
 ... | false | ()
-step-rank (mkSt awaiting f) (_ , gov) tmo    refl = s≤s (s≤s z≤n)
+step-rank {c = true}  (mkSt awaiting f) (_ , gov) tmo    refl = s≤s (s≤s z≤n)
+step-rank {c = false} (mkSt awaiting f) (_ , gov) tmo    ()
 step-rank (mkSt awaiting f) (_ , gov) cold   ()
 step-rank (mkSt awaiting f) (_ , rtn) cs     h with stepIf-inv h
 ... | q , refl rewrite eqP-ready (f cs) q = lift1 2 (dropA 1 0 (pot (f bf)) (pot (f tx)) (pot (f lf)) (potLn (f ln)) ≤-refl)
@@ -381,7 +393,7 @@ step-rank (mkSt coldD f)    (_ , env) e      ()
 step-rank (mkSt coldD f)    (_ , int) a      ()
 
 -- a Steps run's length plus the final rank is at most the initial rank
-steps-len : ∀ {b t s w s′} → Steps (Pre b t) s w s′ → length w + rank s′ ≤ rank s
+steps-len : ∀ {b t c s w s′} → Steps (Pre b t c) s w s′ → length w + rank s′ ≤ rank s
 steps-len done = ≤-refl
 steps-len {s = s} (more {at = at} {a = a} eq ss) = ≤-trans (s≤s (steps-len ss)) (step-rank s at a eq)
 
@@ -391,17 +403,22 @@ lab-length []              = refl
 lab-length (((X , ch) , a) ∷ w) = cong suc (lab-length w)
 
 -- every Steps run from st₀ has at most 10 moves
-steps-10 : ∀ {b t w s} → Steps (Pre b t) st₀ w s → length w ≤ 10
+steps-10 : ∀ {b t c w s} → Steps (Pre b t c) st₀ w s → length w ≤ 10
 steps-10 ss = ≤-trans (m≤m+n _ _) (steps-len ss)
+
+-- a bound n on the Steps runs from st₀ bounds every trace by n + 1 (the final √)
+steps⇒traceBound : ∀ {m n} → (∀ {w s} → Steps m st₀ w s → length w ≤ n)
+                 → ∀ {tr W} → Sys m ⟹⟨ tr ⟩ W → length tr ≤ suc n
+steps⇒traceBound {n = n} sb x with Sys-anyTrace x
+... | w , s′ , ss , inj₁ (refl , _) = ≤-trans (≤-reflexive (lab-length w)) (≤-trans (sb ss) (n≤1+n n))
+... | w , s′ , ss , inj₂ (r , refl , _) =
+  ≤-trans (≤-reflexive (trans (length-++ (lab w)) (+-comm (length (lab w)) 1)))
+          (s≤s (≤-trans (≤-reflexive (lab-length w)) (sb ss)))
 
 -- (b) N = 11: demote, 3 env/int moves (bfDrain, block, txReq), 4 rtn (cs bf tx lf; ln never returns),
 -- tmo, cold = 10 moves, plus one final √
-pre-bounded : ∀ {b t tr W} → Sys (Pre b t) ⟹⟨ tr ⟩ W → length tr ≤ 11
-pre-bounded x with Sys-anyTrace x
-... | w , s′ , ss , inj₁ (refl , _) = ≤-trans (≤-reflexive (lab-length w)) (≤-trans (steps-10 ss) (n≤1+n 10))
-... | w , s′ , ss , inj₂ (r , refl , _) =
-  ≤-trans (≤-reflexive (length-++ (lab w)))
-          (+-monoˡ-≤ 1 (≤-trans (≤-reflexive (lab-length w)) (steps-10 ss)))
+pre-bounded : ∀ {b t c tr W} → Sys (Pre b t c) ⟹⟨ tr ⟩ W → length tr ≤ 11
+pre-bounded = steps⇒traceBound steps-10
 
 -- a trace ending in √ is not a list of evl letters
 lab-last : ∀ tr (r : U) w → tr ++ √ r ∷ [] ≡ lab w → ⊥
@@ -422,34 +439,36 @@ TC-cons x (t₁ , t₂ , e , c) = x ∷ t₁ , t₂ , cong (x ∷_) e , c
 TC-tmo : ∀ {x t₂} → x ≡ GV tmo → Any (_≡ GV cold) t₂ → TC (x ∷ t₂)
 TC-tmo l c = [] , _ , cong (_∷ _) l , c
 
--- a move from awaiting stays awaiting or is the tmo move
-aw-move : ∀ {b t f s′} at a → Inv (mkSt awaiting f) → sstep at a (Pre b t) (mkSt awaiting f) ≡ just s′
-        → (gph s′ ≡ awaiting) ⊎ (gph s′ ≡ timedOut × lbl at a ≡ GV tmo)
-aw-move (_ , gov) demote i ()
-aw-move {b} {t} (_ , gov) warm   i h = ⊥-elim (warm-step {b} {t} i h)
-aw-move (_ , gov) tmo    i refl = inj₂ (refl , refl)
-aw-move (_ , gov) cold   i ()
-aw-move (_ , rtn) cs     i h with stepIf-inv h
-... | _ , refl = inj₁ refl
-aw-move (_ , rtn) bf     i h with stepIf-inv h
-... | _ , refl = inj₁ refl
-aw-move (_ , rtn) tx     i h with stepIf-inv h
-... | _ , refl = inj₁ refl
-aw-move (_ , rtn) lf     i h with stepIf-inv h
-... | _ , refl = inj₁ refl
-aw-move (_ , rtn) ln     (j , _) h = ⊥-elim (J-no-ready j (proj₁ (stepIf-inv h)))
-aw-move {b} (_ , env) block   i h with stepIf-inv (if-just b h)
-... | _ , refl = inj₁ refl
-aw-move {b} {t} (_ , env) txReq   i h with stepIf-inv (if-just t h)
-... | _ , refl = inj₁ refl
-aw-move (_ , env) lnReply i ()
-aw-move (_ , int) bfDrain    i h with stepIf-inv h
-... | _ , refl = inj₁ refl
-aw-move (_ , int) lnQuit     i ()
-aw-move (_ , int) lnQuitDone i ()
+-- an invariant that every move of mode m preserves
+Pres : Mode → (St → Set) → Set₁
+Pres m I = ∀ s {s′} (at : AnyTypes Ev) (a : proj₁ at) → I s → sstep at a m s ≡ just s′ → I s′
 
--- from a timed-out state the run to a final state contains cold
-run-to : ∀ {b t s w s′} → gph s ≡ timedOut → Steps (Pre b t) s w s′ → final s′ ≡ true → Any (_≡ GV cold) (lab w)
+-- an invariant that excludes Warm
+NoWarm : (St → Set) → Set
+NoWarm I = ∀ {s} → I s → gph s ≢ warmD
+
+-- a move from awaiting (any mode) stays awaiting, is the warm move, or is the tmo move
+aw-move : ∀ {m f s′} at a → sstep at a m (mkSt awaiting f) ≡ just s′
+        → (gph s′ ≡ awaiting) ⊎ (gph s′ ≡ warmD) ⊎ (gph s′ ≡ timedOut × lbl at a ≡ GV tmo)
+aw-move (_ , gov) demote ()
+aw-move {f = f} (_ , gov) warm h with allFin (mkSt awaiting f) | h
+... | true  | refl = inj₂ (inj₁ refl)
+... | false | ()
+aw-move {m} (_ , gov) tmo h with timer m | h
+... | true  | refl = inj₂ (inj₂ (refl , refl))
+... | false | ()
+aw-move (_ , gov) cold ()
+aw-move (_ , rtn) p h with stepIf-inv h
+... | _ , refl = inj₁ refl
+aw-move {m} (_ , env) e h with stepIf-inv (if-just (envOn m e) h)
+... | _ , refl = inj₁ refl
+aw-move {m} (_ , int) a h with intMove (var m) a | h
+... | nothing                 | ()
+... | just (p , need , yield) | h′ with stepIf-inv h′
+...   | _ , refl = inj₁ refl
+
+-- from a timed-out state (any mode) the run to a final state contains cold
+run-to : ∀ {m s w s′} → gph s ≡ timedOut → Steps m s w s′ → final s′ ≡ true → Any (_≡ GV cold) (lab w)
 run-to {s = mkSt _ f} refl done ()
 run-to {s = mkSt _ f} refl (more {at = _ , gov} {a = demote} () ss) _
 run-to {s = mkSt _ f} refl (more {at = _ , gov} {a = warm}   () ss) _
@@ -459,29 +478,40 @@ run-to {s = mkSt _ f} refl (more {at = _ , rtn} () ss) _
 run-to {s = mkSt _ f} refl (more {at = _ , env} () ss) _
 run-to {s = mkSt _ f} refl (more {at = _ , int} () ss) _
 
--- from an awaiting state (with the invariant) the run to a final state contains tmo then cold
-run-aw : ∀ {b t s w s′} → gph s ≡ awaiting → Inv s → Steps (Pre b t) s w s′ → final s′ ≡ true → TC (lab w)
-run-aw {s = mkSt _ f} refl i done ()
-run-aw {s = mkSt _ f} refl i (more {at = at} {a = a} eq ss) fz with aw-move at a i eq
-... | inj₁ g = TC-cons (lbl at a) (run-aw g (step-inv _ at a i eq) ss fz)
-... | inj₂ (g , l) = TC-tmo l (run-to g ss fz)
+-- from an awaiting state, under a preserved Warm-excluding invariant, the run to a final state
+-- contains tmo then cold
+run-aw : ∀ {m I} → Pres m I → NoWarm I
+       → ∀ {s w s′} → gph s ≡ awaiting → I s → Steps m s w s′ → final s′ ≡ true → TC (lab w)
+run-aw pr nw {s = mkSt _ f} refl i done ()
+run-aw pr nw {s = mkSt _ f} refl i (more {at = at} {a = a} eq ss) fz with aw-move at a eq
+... | inj₁ g             = TC-cons (lbl at a) (run-aw pr nw g (pr _ at a i eq) ss fz)
+... | inj₂ (inj₁ g)      = ⊥-elim (nw (pr _ at a i eq) g)
+... | inj₂ (inj₂ (g , l)) = TC-tmo l (run-to g ss fz)
 
--- from the hot start the run to a final state contains tmo then cold
-run-hot : ∀ {b t s w s′} → gph s ≡ hot → Steps (Pre b t) s w s′ → final s′ ≡ true → TC (lab w)
-run-hot {s = mkSt _ f} refl done ()
-run-hot {s = mkSt _ f} refl (more {at = _ , gov} {a = demote} refl ss) fz =
-  TC-cons (GV demote) (run-aw refl (inj₂ refl , λ ()) ss fz)
-run-hot {s = mkSt _ f} refl (more {at = _ , gov} {a = warm}   () ss) _
-run-hot {s = mkSt _ f} refl (more {at = _ , gov} {a = tmo}    () ss) _
-run-hot {s = mkSt _ f} refl (more {at = _ , gov} {a = cold}   () ss) _
-run-hot {s = mkSt _ f} refl (more {at = _ , rtn} () ss) _
-run-hot {s = mkSt _ f} refl (more {at = _ , env} () ss) _
-run-hot {s = mkSt _ f} refl (more {at = _ , int} () ss) _
+-- from the hot start, under a preserved Warm-excluding invariant, the run to a final state contains
+-- tmo then cold
+run-hot : ∀ {m I} → Pres m I → NoWarm I
+        → ∀ {s w s′} → gph s ≡ hot → I s → Steps m s w s′ → final s′ ≡ true → TC (lab w)
+run-hot pr nw {s = mkSt _ f} refl i done ()
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , gov} {a = demote} refl ss) fz =
+  TC-cons (GV demote) (run-aw pr nw refl (pr (mkSt hot f) (GAct , gov) demote i refl) ss fz)
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , gov} {a = warm}   () ss) _
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , gov} {a = tmo}    () ss) _
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , gov} {a = cold}   () ss) _
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , rtn} () ss) _
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , env} () ss) _
+run-hot pr nw {s = mkSt _ f} refl i (more {at = _ , int} () ss) _
+
+-- every √-ended trace of `Sys m` is  t₁ ++ GV tmo ∷ t₂  with cold in t₂, given a preserved
+-- Warm-excluding invariant that holds initially
+endsCold : ∀ {m I} → Pres m I → NoWarm I → I st₀
+         → ∀ {tr r W} → Sys m ⟹⟨ tr ++ √ r ∷ [] ⟩ W → TC tr
+endsCold pr nw i₀ {tr} {r} x with Sys-anyTrace x
+... | w , s′ , ss , inj₁ (e , _) = ⊥-elim (lab-last tr r w e)
+... | w , s′ , ss , inj₂ (r′ , e , fz) with ∷ʳ-injective tr (lab w) e
+...   | refl , _ = run-hot pr nw refl i₀ ss fz
 
 -- (c) every trace of the pre-PR system that ends in √ is  t₁ ++ GV tmo ∷ t₂  with cold in t₂
 -- (stronger than Any tmo × Any cold: it also orders tmo before cold)
-pre-endsCold : ∀ {b t tr r W} → Sys (Pre b t) ⟹⟨ tr ++ √ r ∷ [] ⟩ W → TC tr
-pre-endsCold {tr = tr} {r} x with Sys-anyTrace x
-... | w , s′ , ss , inj₁ (e , _) = ⊥-elim (lab-last tr r w e)
-... | w , s′ , ss , inj₂ (r′ , e , fz) with ∷ʳ-injective tr (lab w) e
-...   | refl , _ = run-hot refl ss fz
+pre-endsCold : ∀ {b t c tr r W} → Sys (Pre b t c) ⟹⟨ tr ++ √ r ∷ [] ⟩ W → TC tr
+pre-endsCold {b} {t} {c} = endsCold {Pre b t c} step-inv proj₂ inv₀

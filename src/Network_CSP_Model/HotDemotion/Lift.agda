@@ -4,7 +4,7 @@
 -- traces of `Sys m` (as lists of `lbl` letters, no √) are exactly `Steps` runs.
 module HotDemotion.Lift where
 
-open import Data.Empty using (⊥)
+open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit.Polymorphic using (tt)
 open import Data.Bool using (Bool; true; false)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -96,10 +96,8 @@ Sys-√ {m} {s} (sRet eq) with final s | eq
 traces⇒Steps : ∀ {m s W} (w : List (Σ (AnyTypes Ev) proj₁))
              → SysAt m s ⟹⟨ lab w ⟩ W → Σ[ s′ ∈ St ] (Steps m s w s′ × W ≡ SysAt m s′)
 traces⇒Steps []                  ⟹-refl = _ , done , refl
-traces⇒Steps []                  (⟹-τ st _) with Sys-no-τ st
-... | ()
-traces⇒Steps (_ ∷ _)             (⟹-τ st _) with Sys-no-τ st
-... | ()
+traces⇒Steps []                  (⟹-τ st _) = ⊥-elim (Sys-no-τ st)
+traces⇒Steps (_ ∷ _)             (⟹-τ st _) = ⊥-elim (Sys-no-τ st)
 traces⇒Steps (((X , ch) , a) ∷ w)  (⟹-ev st rest) with Sys-ev-inv st
 ... | s₁ , eq , refl with traces⇒Steps w rest
 ...   | s′ , ss , eqW = s′ , more eq ss , eqW

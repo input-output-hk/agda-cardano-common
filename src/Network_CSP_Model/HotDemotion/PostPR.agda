@@ -2,9 +2,10 @@
 
 -- D2 (DESIGN.md §5): after ouroboros-consensus PR 2344, with no Leios load, the demotion can
 -- always still end Warm (D2a), and with the timeout removed it always does, within 12 moves
--- (D2b and the bound).  Adaptations to the brief (as in PrePR): traces are arbitrary
--- `t : List (Event√ U)` (√-ended ones via `Sys-anyTrace`), so the trace bound is 13 = 12 moves
--- plus the final √; Steps entries are `((X , ch) , a)` pairs.
+-- (D2b and the bound).  As in PrePR, traces are arbitrary `t : List (Event√ U)` (√-ended ones
+-- via `Sys-anyTrace`), so the trace bound is 13 = 12 moves plus the final √; Steps entries are
+-- `((X , ch) , a)` pairs.  All of D2 rests on the LeiosNotify abstraction `afterTerm post ln`
+-- and its assumptions (Model.agda, README §2).
 module HotDemotion.PostPR where
 
 open import Level using (Lift) renaming (zero to lzero; suc to lsuc)
@@ -13,11 +14,10 @@ open import Data.Unit using (⊤; tt)
 open import Data.Bool using (Bool; true; false)
 open import Data.Maybe using (just)
 open import Data.List using (List; []; _∷_; _++_; length)
-open import Data.List.Properties using (length-++)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤_; _<_; s≤s; z≤n)
-open import Data.Nat.Properties using (≤-refl; ≤-trans; ≤-reflexive; +-monoˡ-≤; m≤m+n; n≤1+n)
+open import Data.Nat.Properties using (≤-refl; ≤-trans; m≤m+n)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans)
 
 open import Process_Trees hiding (div)
@@ -26,7 +26,7 @@ open import HotDemotion.Model
 open import HotDemotion.Lift
 open import HotDemotion.PrePR
   using (∖√-reach; stepIf-inv; if-just; lift1; dropA; dropB; dropC; dropD; dropE
-        ; eqP-ready; eqP-wait; eqP-need; lab-length; rk5; pot)
+        ; eqP-ready; eqP-wait; eqP-need; rk5; pot; steps⇒traceBound)
 open import Semantics.LTS {E = Ev} {I = ExtI Ev}
 open import Semantics.Failures {E = Ev} {I = ExtI Ev} using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev)
 open import Semantics.Deadlock {E = Ev} {I = ExtI Ev} using (DeadlockFree; IsStuck)
@@ -44,7 +44,7 @@ Post b t c = mode post b t false c
 P : Mode
 P = Post true true false
 
--- ===================== Review Focus 4 =====================
+-- ===================== no env for LeiosNotify (PLAN.md review focus 4) =====================
 
 -- post-PR LeiosNotify finishes (MsgQuit, the server's answer, return) with no env event
 post-ln-noEnv : ∀ {b t c}
@@ -386,8 +386,9 @@ cont (suc n) at a (mkSt g f′) eq (s≤s lt) (inj₁ refl) i′ with drive n f�
 ... | w , s″ , ss , g′ = (at , a) ∷ w , s″ , more eq ss , g′
 cont zero    at a s′ eq () (inj₁ _) _
 
--- D2a: from every reachable awaiting state (so before tmo) a run to Warm exists; by construction
--- (prog) it uses only block, txReq, bfDrain, lnQuit, lnQuitDone, rtn and finally warm
+-- D2a: from every reachable awaiting state (so before tmo) a run to Warm exists.  The type already
+-- limits its alphabet to block, txReq, bfDrain, lnQuit, lnQuitDone, rtn and warm: it ends warmD, which
+-- is unreachable after tmo (so no tmo, cold); lnLoad = false (no lnReply); it starts awaiting (no demote)
 post-warmReachable : ∀ {c w s} → Steps (Post true true c) st₀ w s → gph s ≡ awaiting
                    → Σ[ w′ ∈ List (Σ (AnyTypes Ev) proj₁) ] Σ[ s′ ∈ St ] (Steps (Post true true c) s w′ s′ × gph s′ ≡ warmD)
 post-warmReachable {c} {s = mkSt _ f} ss refl = drive (rank c (mkSt awaiting f)) f ≤-refl (steps-inv ss tt)
@@ -419,18 +420,14 @@ steps-12 ss = ≤-trans (m≤m+n _ _) (steps-len ss)
 
 -- every trace has length ≤ 13: at most 12 moves (rank of st₀) plus one final √
 post-traceBound : ∀ {tr W} → Sys P ⟹⟨ tr ⟩ W → length tr ≤ 13
-post-traceBound x with Sys-anyTrace x
-... | w , s′ , ss , inj₁ (refl , _) = ≤-trans (≤-reflexive (lab-length w)) (≤-trans (steps-12 ss) (n≤1+n 12))
-... | w , s′ , ss , inj₂ (r , refl , _) =
-  ≤-trans (≤-reflexive (length-++ (lab w)))
-          (+-monoˡ-≤ 1 (≤-trans (≤-reflexive (lab-length w)) (steps-12 ss)))
+post-traceBound = steps⇒traceBound steps-12
 
 -- bounded progress with the timeout removed: deadlock and divergence free, every trace ≤ 13 letters
 -- (12 moves: demote, bfDrain, block, txReq, lnQuit, lnQuitDone, 5 rtn, warm; plus √)
 post-bounded : DeadlockFree (Sys P) × DivergenceFree (Sys P) × (∀ {tr W} → Sys P ⟹⟨ tr ⟩ W → length tr ≤ 13)
 post-bounded = post-deadlockFree , post-divergenceFree , post-traceBound
 
--- ===================== the bound is attained (Review Focus 5) =====================
+-- ===================== the bound is attained (PLAN.md review focus 5) =====================
 
 -- the 12-move run to Warm
 wT : List (Σ (AnyTypes Ev) proj₁)
