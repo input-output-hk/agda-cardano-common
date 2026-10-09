@@ -7,7 +7,6 @@ module HotDemotion.Model where
 
 open import Level using (0ℓ)
 open import Data.Unit.Polymorphic using (⊤; tt)
-open import Data.Empty using (⊥)
 open import Data.Bool using (Bool; true; false; _∧_; if_then_else_)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.List using (List; []; _∷_)
@@ -118,6 +117,11 @@ afterTerm _    tx = waitEnv     -- TxSubmission2 outbound waits in StIdle for a 
 afterTerm _    lf = ready       -- LeiosFetch with nothing in flight stops at once
 afterTerm pre  ln = waitEnv     -- pre-PR: owes replies; only a Leios reply lets it proceed
 afterTerm post ln = needInt     -- post-PR: sends MsgQuit
+-- The post-PR line assumes (i) on Terminate the client sends MsgQuit even with a full pipeline (the real
+-- client pipelines to depth 100 and then blocks in `Collect Nothing`, which does not read the control var,
+-- RESEARCH.md §3/§5; whether PR 2344 sends MsgQuit from there, CN2N:504-515, is unverified), and (ii) both
+-- ends run PR 2344 (a pre-PR server does not know MsgQuit: protocol error, hence Cold).  The cited
+-- `LeiosNotifyPipelinedProps.pblk-afterQuit` holds only once MsgQuit has been sent, and has depth 1.
 
 -- set one protocol's phase
 setP : Proto → PSt → (Proto → PSt) → (Proto → PSt)
@@ -225,12 +229,12 @@ EV = lbl (EnvAct , env)
 IN : IntAct → Event√ U
 IN = lbl (IntAct , int)
 
--- the pure multi-step relation over sstep
+-- the pure multi-step relation over sstep (in Set₁: its labels pair an event type, a Set, with an event)
 data Steps (m : Mode) : St → List (Σ (AnyTypes Ev) proj₁) → St → Set₁ where
   done : ∀ {s} → Steps m s [] s
   more : ∀ {s s′ s″ at a w} → sstep at a m s ≡ just s′ → Steps m s′ w s″ → Steps m s ((at , a) ∷ w) s″
 
--- a block is refused before demote: ChainSync cannot be pre-finished (Review Focus 3)
+-- a block is refused before demote: ChainSync cannot be pre-finished (PLAN.md review focus 3)
 block-only-when-waiting : ∀ m → sstep (EnvAct , env) block m st₀ ≡ nothing
 block-only-when-waiting m = refl
 

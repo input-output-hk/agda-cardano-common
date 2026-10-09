@@ -1,7 +1,5 @@
 # Hot→warm Demotion Model Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** A standalone CSP model of the outbound hot→warm demotion that proves Warm is impossible before ouroboros-consensus PR 2344 (with no Leios load) and guaranteed after it (given Praos blocks and TxSubmission2 requests), and that TxSubmission2 / missing blocks remain blockers.
 
 **Architecture:** One monolithic step relation over a product state (governor phase × five hot-protocol phases), parameterised by a `Mode` (LeiosNotify variant, which environment events are offered, whether the timeout exists). The process `Sys m` is generated from the step function exactly like `GovernorWedge.Model.Conn`/`Gov` (no τ). Properties are proved on the pure step relation and lifted to `Sys` through a `Steps` correspondence module, following `GovernorWedge/Steps.agda`.
