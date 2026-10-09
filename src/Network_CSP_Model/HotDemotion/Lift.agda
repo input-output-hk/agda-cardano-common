@@ -8,8 +8,9 @@ open import Data.Empty using (⊥)
 open import Data.Unit.Polymorphic using (tt)
 open import Data.Bool using (Bool; true; false)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; _++_)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (¬_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans)
 
@@ -112,3 +113,29 @@ Steps⇒traces (more {at = at} {a = a} eq ss) = ⟹-ev (Sys-ev-intro at a eq (ss
 Sys-traces⇒Steps : ∀ {m W} (w : List (Σ (AnyTypes Ev) proj₁))
                  → Sys m ⟹⟨ lab w ⟩ W → Σ[ s ∈ St ] (Steps m st₀ w s × W ≡ SysAt m s)
 Sys-traces⇒Steps = traces⇒Steps
+
+-- nothing happens after √: the deadlock tree has only the empty trace
+deadlock-trace : ∀ {t W} → (deadlock {E = Ev} {I = ExtI Ev} {R = U}) ⟹⟨ t ⟩ W → t ≡ []
+deadlock-trace ⟹-refl = refl
+deadlock-trace (⟹-τ (sSil ()) _)
+deadlock-trace (⟹-τ (sTau refl ()) _)
+deadlock-trace (⟹-ev (sRet ()) _)
+deadlock-trace (⟹-ev (sVis refl ()) _)
+
+-- every run on an arbitrary trace is a Steps run, optionally closed by one √ from a final state
+Sys-anyTrace : ∀ {m s t W} → SysAt m s ⟹⟨ t ⟩ W
+             → Σ[ w ∈ List (Σ (AnyTypes Ev) proj₁) ] Σ[ s′ ∈ St ]
+               (Steps m s w s′ × ((t ≡ lab w × W ≡ SysAt m s′) ⊎ (Σ[ r ∈ U ] (t ≡ lab w ++ √ r ∷ [] × final s′ ≡ true))))
+Sys-anyTrace ⟹-refl = [] , _ , done , inj₁ (refl , refl)
+Sys-anyTrace (⟹-τ st _) with Sys-no-τ st
+... | ()
+Sys-anyTrace {s = s} (⟹-ev {e = √ r} st rest) with Sys-√ st | deadlock-trace-after st rest
+  where
+  -- after a √ step the remainder is empty
+  deadlock-trace-after : ∀ {p r′ t W} → SysAt _ _ ─[ ev (√ r′) ]─► p → p ⟹⟨ t ⟩ W → t ≡ []
+  deadlock-trace-after (sRet _) rest′ = deadlock-trace rest′
+... | fz | refl = [] , s , done , inj₂ (r , refl , fz)
+Sys-anyTrace (⟹-ev {e = evl (evLabel X ch a)} st rest) with Sys-ev-inv st
+... | s₁ , eq , refl with Sys-anyTrace rest
+...   | w , s′ , ss , inj₁ (refl , eqW) = ((X , ch) , a) ∷ w , s′ , more eq ss , inj₁ (refl , eqW)
+...   | w , s′ , ss , inj₂ (r , refl , f) = ((X , ch) , a) ∷ w , s′ , more eq ss , inj₂ (r , refl , f)
