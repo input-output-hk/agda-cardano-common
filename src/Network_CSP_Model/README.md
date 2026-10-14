@@ -14,6 +14,7 @@ library. It does not depend on `cardano-common`.
 
 | Folder | What it is |
 |---|---|
+| [`ConnectionManagement/`](ConnectionManagement/README.md) | Standalone CM/IG/OG/Server design and source ledger, with admission/handshake-consumer slices and local map/reference proofs. |
 | [`Cardano_network/`](Cardano_network/README.md) | The Ouroboros N2N mini-protocols (KeepAlive, ChainSync, BlockFetch, TxSubmission2, LeiosNotify, LeiosFetch) as client/server peer processes, the network multiplexer and its copy-buffer specification, whole-network systems built from them, and the proofs about them. |
 | [`GovernorWedge/`](GovernorWedge/README.md) | A small standalone model of the `ouroboros-network` inbound governor's connection-management path, checking which interleavings wedge the governor and what each proposed fix does. |
 
