@@ -24,9 +24,10 @@ data Publication : Set where
   writerBlocked : Publication
 
 publishBoundary : WorkerId → HandshakeResult → State → Maybe Publication
-publishBoundary w result s with lookup w (handlers s)
-... | nothing = nothing
-... | just h with any (λ p → does (p ≟ handlerPromise h)) (promises s)
+publishBoundary w result s with lookup w (handlers s) | lookup w (cleanups s)
+... | nothing | _ = nothing
+... | just _ | just _ = nothing -- the body has already exited
+... | just h | nothing with any (λ p → does (p ≟ handlerPromise h)) (promises s)
 ...   | false = nothing -- malformed, unallocated promise
 ...   | true with lookup (handlerPromise h) (handshakeResults s)
 ...     | just _ = just writerBlocked

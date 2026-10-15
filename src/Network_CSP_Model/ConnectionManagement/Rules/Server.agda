@@ -58,7 +58,7 @@ stepWorker w a fork s with pc a
                           | lookup (child (request a)) (admissions s)
 ...   | nothing | nothing = just (setPC w a (publish l p e)
         (record s
-          { handlers = put (child (request a)) (handlerStart e (socketRef (request a)) p) (handlers s)
+          { handlers = put (child (request a)) (handlerStart e (socketRef (request a)) p (key (request a))) (handlers s)
           ; sockets = put (socketRef (request a)) (handling (child (request a))) (sockets s) }))
 ...   | _ | _ = nothing -- a reused child token is a malformed fixture
 stepWorker w a fork s | _ = nothing

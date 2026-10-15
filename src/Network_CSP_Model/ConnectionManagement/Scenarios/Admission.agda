@@ -49,7 +49,7 @@ r₁ = admission key₁ (ident 1) child₁ 10
 fixture : CMStore → State
 fixture c = state c
   ((w₀ , admissionWorker r₀ acquireMap) ∷ (w₁ , admissionWorker r₁ acquireMap) ∷ [])
-  [] ((ident 0 , admitting w₀) ∷ (ident 1 , admitting w₁) ∷ []) [] 0 [] []
+  [] ((ident 0 , admitting w₀) ∷ (ident 1 , admitting w₁) ∷ []) [] 0 [] [] []
 
 emptyCM : CMStore
 emptyCM = cmStore (full []) [] 0
@@ -67,7 +67,7 @@ admission-reaches-handshake = refl
 
 child-gets-selected-entry :
   map (λ s → lookup child₀ (handlers s)) (runPrefix prefix₀ (fixture emptyCM))
-  ≡ just (just (handlerStart (ident 0) (ident 0) (ident 0)))
+  ≡ just (just (handlerStart (ident 0) (ident 0) (ident 0) key₀))
 child-gets-selected-entry = refl
 
 -- An entry constructor has the exact inbound-counter projection of Core.hs.

@@ -163,11 +163,35 @@ record HandlerStart : Set where
   field handlerEntry : EntryId
         handlerSocket : SocketId
         handlerPromise : PromiseId
+        handlerKey : ConnectionKey
 open HandlerStart public
 
 data SocketOwner : Set where
   admitting handling : WorkerId → SocketOwner
   closed : SocketOwner
+  closeUncertain : ErrorId → SocketOwner
+
+-- Cleanup enters after the handler body exits. The body outcome is external to
+-- this slice; these outcomes concern cleanup itself, including TIME_WAIT failure.
+data CleanupOutcome : Set where
+  cleanupNormal : CleanupOutcome
+  cleanupError : ErrorId → CleanupOutcome
+
+data CleanupTail : Set where
+  countImmediately : CleanupTail
+  timeWait : ConnectionState → CleanupTail
+
+-- The saved map and the proposed map are distinct until putMap completes.
+data CleanupPC : Set where
+  cleanupAcquire : CleanupPC
+  cleanupSelect : Lease → CleanupPC
+  cleanupClose : Lease → ConnMap → CleanupTail → CleanupPC
+  cleanupPublish : Lease → ConnMap → CleanupTail → CleanupPC
+  cleanupRestore : Lease → ErrorId → CleanupPC
+  cleanupWaiting : ConnectionState → CleanupPC
+  cleanupFinalize : ConnectionState → CleanupOutcome → CleanupPC
+  cleanupCount : CleanupOutcome → CleanupPC
+  cleanupDone : CleanupOutcome → CleanupPC
 
 record State : Set where
   constructor state
@@ -180,4 +204,5 @@ record State : Set where
     nextPromise : ℕ
     handshakeResults : Store PromiseId HandshakeResult
     inboundInfo : List NewConnectionInfo
+    cleanups : Store WorkerId CleanupPC
 open State public
