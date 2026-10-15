@@ -62,9 +62,23 @@ use `start` and a checked execution prefix when making history claims.
 This is trace inclusion, not failures refinement, equivalence, or a source
 simulation. Adding a filter can add refusals. Contract rejection is neither source
 blocking nor a source deadlock, and the monitor does not establish liveness.
-There is not yet a global theorem identifying every stored ticket in every
-reachable monitor state with a source object; the target association and the
-source-to-model identity/projection map remain assumptions.
+`Properties/OriginMonitorInvariant.reachable-invariant` now identifies every
+stored ticket in a reachable state with its exact **model** handle descriptor.
+It starts at `start c` with resource evidence for the selected worker and permits
+any accepted finite execution. Both `awaitingPublication` and `published` carry
+`Origin` for the ticket's mux, bundle and flow; `awaitingAllocation` requires no
+handle. Resource evidence is retained throughout. The proof first identifies the
+actual selected allocation action, then uses origin creation and exhaustive
+preservation across subsequent actions.
+
+`CSP/OriginMonitorInvariant.raw-invariant` lifts this to every finite raw CSP
+execution, retaining the actual process endpoint and its certified monitor state.
+`trace-invariant` gives the existential endpoint version for finite traces.
+These theorems do not assume an origin certificate at the initial state. They do
+assume initial worker resources and the observer-supplied target association.
+They do not identify model objects with source objects, validate every source
+invocation, or establish mux readiness. The source-to-model identity/projection
+map remains a separate obligation.
 
 ## Witnesses and negative controls
 
@@ -88,10 +102,19 @@ The wrong-key, wrong-flow and wrong-handle checks include CSP non-trace proofs;
 the wrong-flow check covers the accepted allocation prefix followed by the refused
 publication. The remaining ordering/freshness controls are step-equality proofs.
 
+`Negative/OriginMonitorInvariant` derives both the allocated and completed
+witness states from the generic invariant. A forged `published` phase before
+allocation has no invariant and is unreachable from the resource-backed fresh
+observation, for **any** finite action list. The module also imports the existing
+monitor mismatch controls.
+
 ## Next obligations
 
-Extend the monitor to explicit per-invocation allocation attribution and multiple
-workers, then establish a reachable-state ticket/origin invariant. Add query/error
+[AttributedOrigin](AttributedOrigin.md) now adds explicit worker-labelled allocation
+with erasure to this monitor and preserves its reachable-state invariant. The
+runtime registry for that boundary is implemented by [OriginRegistry](OriginRegistry.md), with
+per-allocation resource premises. Next, connect its overlapping-worker witness
+to actual admission selection/fork traces. Add query/error
 profiles and interruption/masking constraints without treating excluded outcomes
 as source bugs. Concrete source replay still needs identity and version/application
 projections. The present monitor is an executable subset of the documented success
@@ -102,6 +125,7 @@ contract, not a complete source-admissibility oracle.
 Run from the standalone library root, sequentially:
 
 ```sh
+agda ConnectionManagement/Negative/OriginMonitorInvariant.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/OriginMonitor.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerOrigin.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS

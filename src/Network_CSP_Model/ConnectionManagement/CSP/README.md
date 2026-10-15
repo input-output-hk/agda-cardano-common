@@ -360,3 +360,20 @@ key, flow, handle and ordering mismatches. Accepted allocation derives an origin
 certificate given resource evidence, and every finite monitored CSP trace projects
 to the open process. Multi-worker attribution, error profiles and source scheduling
 constraints remain outside this first success profile.
+
+`Properties/OriginMonitorInvariant` now certifies every ticket reached from a
+fresh observation with initial worker resource evidence. Its CSP counterpart
+retains the actual endpoint of every finite raw execution. A forged published
+phase before allocation is proved unreachable; source identity attribution and
+multi-worker coverage remain separate obligations.
+
+[Explicit allocation attribution](../AttributedOrigin.md) adds a visible worker tag,
+rejects raw allocation bypasses, and projects accepted traces into the existing
+single-target monitor. The reachable invariant is preserved; the dynamic
+registry below extends this boundary to multiple invocations.
+
+[Dynamic invocation registry](../OriginRegistry.md) registers fresh worker/handle pairs
+at allocation and checks every registered invocation. Accepted traces erase to
+the open machine; per-allocation resource evidence establishes the all-entry
+invariant. The two-worker fixture publishes in reverse order and rejects handle
+swaps. Deriving its resource premises from admission traces is the next step.

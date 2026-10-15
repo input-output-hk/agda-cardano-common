@@ -98,8 +98,10 @@ wrong-key trace in `Negative/HandlerEstablishment` remains another such control.
 2. Define application/version-data projections and justify ordered/supported
    protocol assumptions. The descriptor certificate does not prove projection correctness.
 3. The [single-target success monitor](OriginMonitor.md) now checks selected
-   allocation/publication boundaries. Extend it to explicit multi-invocation
-   attribution and a reachable ticket/origin invariant. It is not a complete
+   allocation/publication boundaries and has a reachable ticket/origin invariant.
+   [Explicit allocation attribution](AttributedOrigin.md) preserves that invariant;
+   [OriginRegistry](OriginRegistry.md) extends it to multiple invocations with
+   explicit resource evidence at each allocation. It is not a complete
    executable filter for source-admissible behavior.
 4. Account for masking, exceptions and interruption between handshake success,
    allocation, promise publication and mux execution. The theorem preserves
