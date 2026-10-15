@@ -510,5 +510,12 @@ publication or attachment remains enabled.
 mux monitor/job/tracer forms, handler exit and every cleanup action. Shared
 retention proofs keep the earlier chain APIs intact. Pre-attachment evidence
 survives socket closure, map removal and mux stopping, while negative CSP checks
-exclude publication after cleanup and attachment to a stopped mux. Remaining IG
-startup, loop and installation actions are still outside this interference API.
+exclude publication after cleanup and attachment to a stopped mux. The next layer below adds IG
+startup and loop actions; fresh installation and decision publication remain pending.
+
+[`HandlerIGInterference`](CSP/HandlerIGInterference.agda) extends pre-attachment runtime interference
+with all ten IG loop actions and all three startup/restart actions. It transports
+preparation through registration and responder execution, and through a local
+partial-start failure fixture. Its negative control rejects a stale clock sample
+after batch completion. Fresh installation and decision publication remain outside
+this pre-attachment alphabet; the existing tracked-chain theorem still covers them.

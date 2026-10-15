@@ -399,7 +399,8 @@ mixed finite sequences with arbitrary actor identities:
 | All handshake-consumer actions | Covered |
 | Ten mux monitor/job/tracer action forms | Covered |
 | Handler exit and every cleanup action | Covered |
-| Other IG actions: installation, startup/restart, event loop | Not yet covered |
+| Three IG startup/restart and ten event-loop action forms | Covered |
+| IG fresh installation and decision publication | Not yet covered |
 | Other admission, lifecycle, publication, release and remote actions | Not yet covered |
 
 `CSP/HandlerRuntimeInterference` lifts resources and preparation to raw traces
@@ -423,8 +424,23 @@ proves the child was not implicitly tracked, and rejects attachment to the
 stopped mux despite retained preparation. These are reference-safety and
 readiness distinctions within the model, not source deadlock or bug claims.
 
-Next, extend pre-attachment coverage to the remaining IG startup/event-loop
-operations and fresh installation. The source contract for matched installation
+`Properties/LoopRetention` and `Properties/StartupRetention` now extract the
+existing IG proofs into handle-equality and mux-key retention effects, without
+requiring a handler chain. The old tracked-chain APIs remain wrappers over these
+effects. Runtime `Interference` additionally covers all ten loop actions and all
+three startup/restart actions; its existing raw CSP trace lifts inherit this
+coverage, including partial failure and failed-start shutdown requests.
+
+`CSP/HandlerIGInterference` transports preparation from the installed fixture
+through registration and responder execution without attachment. A separate local
+two-protocol fixture preserves preparation through partial startup failure and
+its shutdown request. `Negative/HandlerIGInterference` rejects a stale clock sample
+after a successful batch finish. Retained references imply neither readiness nor
+progress; the failure fixture is not claimed reachable from admission.
+
+Next, extend pre-attachment coverage to fresh installation and decision publication.
+Fresh installation needs retention of old handle lookups, rather than equality
+of the whole handle table. The source contract for matched installation
 and publication, as well as phase and source-refinement obligations, remains
 separate.
 
@@ -433,6 +449,7 @@ separate.
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/Negative/HandlerIGInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerRuntimeInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerEstablishment.agda +RTS -M2G -RTS
