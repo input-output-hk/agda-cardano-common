@@ -18,6 +18,7 @@ open import ConnectionManagement.State
 import ConnectionManagement.Rules.Server as Server
 import ConnectionManagement.Rules.Handshake as Handshake
 import ConnectionManagement.Rules.Cleanup as Cleanup
+import ConnectionManagement.Rules.IGRegistration as IG
 
 data PublicationOutcome : Set where
   resultWritten duplicateWrite : PublicationOutcome
@@ -29,6 +30,7 @@ data Action : Set where
   cleanupStep : WorkerId → Cleanup.CleanupAction → Action
   handlerPublication : WorkerId → HandshakeResult → PublicationOutcome → Action
   handlerExit : WorkerId → Action
+  igStep : IG.IGAction → Action
 
 record Configuration : Set where
   constructor configuration
@@ -38,15 +40,20 @@ record Configuration : Set where
     -- A throwing writer cannot publish again. The boundary may subsequently
     -- enter cleanup; rethrow policy and exception unwinding are still abstract.
     publicationFaults : List WorkerId
+    inboundGovernor : IG.Runtime
 open Configuration public
 
 initial : ResponderMode → State → Configuration
-initial mode s = configuration mode s []
+initial mode s = configuration mode s [] IG.initial
 
 replaceWorld : Configuration → State → Configuration
 replaceWorld c s = record c { world = s }
 
 advance : Action → Configuration → Maybe Configuration
+advance (igStep a) c with IG.step (responder c) a (inboundGovernor c) (inboundInfo (world c))
+... | nothing = nothing
+... | just (ig , queue) = just (record c
+  { world = record (world c) { inboundInfo = queue }; inboundGovernor = ig })
 advance (admissionStep w a) c = map (replaceWorld c) (Server.stepPrefix w a (world c))
 advance (handshakeStep w a) c = map (replaceWorld c) (Handshake.stepHandshake (responder c) w a (world c))
 advance (cleanupStep w a) c = map (replaceWorld c) (Cleanup.stepCleanup w a (world c))

@@ -4,6 +4,8 @@
 -- machine. This is not whole-state validity, source refinement, or liveness.
 module ConnectionManagement.Properties.SupplyInvariant where
 
+open import Data.Product using (_,_)
+import ConnectionManagement.Rules.IGRegistration as IG
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (just; nothing)
@@ -40,6 +42,10 @@ publication-preserves w result s eq bounded with lookup w (handlers s) | lookup 
 
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   SupplyBounds (world c) → SupplyBounds (world c′)
+advance-preserves (igStep action) c eq bounded
+  with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
+... | nothing = case eq of λ ()
+... | just (ig , queue) = subst (λ config → SupplyBounds (world config)) (just-injective eq) bounded
 advance-preserves (admissionStep w action) c eq bounded with lookup w (admissions (world c))
 ... | nothing = case eq of λ ()
 ... | just a with Server.stepWorker w a action (world c) in stepped

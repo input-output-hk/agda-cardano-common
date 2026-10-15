@@ -4,6 +4,8 @@
 -- machine. This is not whole-state validity, source refinement, or liveness.
 module ConnectionManagement.Properties.OwnershipInvariant where
 
+open import Data.Product using (_,_)
+import ConnectionManagement.Rules.IGRegistration as IG
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (just; nothing)
@@ -40,6 +42,10 @@ publication-preserves w result s eq own with lookup w (handlers s) | lookup w (c
 
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   Ownership (world c) → Ownership (world c′)
+advance-preserves (igStep action) c eq own
+  with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
+... | nothing = case eq of λ ()
+... | just (ig , queue) = subst (λ config → Ownership (world config)) (just-injective eq) own
 advance-preserves (admissionStep w action) c = admission-lift action (admission-worker action) w c
 advance-preserves (cleanupStep w action) c = cleanup-lift action (cleanup-worker action) w c
 advance-preserves (handshakeStep w action) c eq own with lookup w (admissions (world c)) in found

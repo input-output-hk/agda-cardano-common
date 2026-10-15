@@ -6,12 +6,13 @@ module ConnectionManagement.CSP.Scope where
 
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe; just; nothing)
+import ConnectionManagement.Rules.IGRegistration as IG
 open import ConnectionManagement.State
 open import ConnectionManagement.Domain using (WorkerId)
 
 data Frontier : Set where
   acceptLoop serverReturn admissionUnwind handlerBody handlerUnwind
-    cleanupReturn igRegistration ogSubsystem : Frontier
+    cleanupReturn igResponderStartup igNextBatch igInactivity ogSubsystem : Frontier
 
 admissionFrontier : AdmissionPC → Maybe Frontier
 admissionFrontier (finished _) = just acceptLoop
@@ -25,9 +26,14 @@ handlerFrontier nothing = just handlerBody
 handlerFrontier (just (cleanupDone _)) = just cleanupReturn
 handlerFrontier (just _) = nothing
 
-queueFrontier : List NewConnectionInfo → Maybe Frontier
-queueFrontier [] = nothing
-queueFrontier (_ ∷ _) = just igRegistration
+-- Registration now has executable prefix rules. The success boundary still
+-- abstracts responder startup; empty/repeated IG iterations are not implemented.
+igFrontier : IG.Runtime → Maybe Frontier
+igFrontier ig with IG.continuation ig
+... | IG.startResponders _ _ _ _ _ = just igResponderStartup
+... | IG.readNext _ [] = just igNextBatch
+... | IG.awaitFirstBatch _ _ = just igInactivity
+... | _ = nothing
 
 publicationFrontier : List WorkerId → Maybe Frontier
 publicationFrontier [] = nothing

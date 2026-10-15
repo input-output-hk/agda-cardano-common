@@ -68,6 +68,15 @@ record ConnectionKey : Set where
   field local remote : PeerAddr
 open ConnectionKey public
 
+-- IG registration uses the complete local/remote tuple as its map key.
+instance
+  DecEq-ConnectionKey : DecEq ConnectionKey
+  DecEq-ConnectionKey ._≟_ (connection l r) (connection l′ r′) with l ≟ l′
+  ... | no neq = no (λ eq → neq (cong local eq))
+  ... | yes refl with r ≟ r′
+  ...   | no neq = no (λ eq → neq (cong remote eq))
+  ...   | yes refl = yes refl
+
 -- Unknown local addresses remain separate map keys, not wildcard matches.
 data LocalKey : Set where
   unknownLocal : LocalKey

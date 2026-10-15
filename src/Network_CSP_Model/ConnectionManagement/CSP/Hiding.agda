@@ -17,6 +17,7 @@ open import ConnectionManagement.CSP.Correspondence using (exec-intro; all-exec-
 import ConnectionManagement.Rules.Server as Server
 import ConnectionManagement.Rules.Handshake as Handshake
 import ConnectionManagement.Rules.Cleanup as Cleanup
+import ConnectionManagement.Rules.IGRegistration as IG
 open import CSP.Operators channel-≟ using (EventSet; _∖_)
 open EventSet
 open import Semantics.Failures {E = Channel} {I = ExtI Channel} using (traces)
@@ -41,6 +42,9 @@ internal (cleanupStep _ (Cleanup.interruptTimeWait _)) = false
 internal (cleanupStep _ _) = true
 internal (handlerPublication _ _ _) = false
 internal (handlerExit _) = false
+internal (igStep (IG.captureTime _)) = false
+internal (igStep IG.successfulResponderStart) = false
+internal (igStep _) = true
 
 internalSet : EventSet
 internalSet .mem (_ , action) a = internal a ≡ true

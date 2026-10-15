@@ -154,8 +154,9 @@ bad-trace-excluded = refused-extension {c = start} {as = lockTrace} {c′ = lock
 -- Missing-continuation diagnostics do not create process transitions.
 at-server-frontier : admissionFrontier (completedHandshake (connected info)) ≡ just serverReturn
 at-server-frontier = refl
-at-IG-frontier : queueFrontier (inboundInfo (world raceEnd)) ≡ just igRegistration
-at-IG-frontier = refl
+-- The queued notification now has an implemented IG continuation.
+IG-prefix-available : igFrontier (inboundGovernor raceEnd) ≡ nothing
+IG-prefix-available = refl
 
 -- Duplicate publication is recorded once, not dropped and not a self-loop.
 duplicateEnd : Configuration
