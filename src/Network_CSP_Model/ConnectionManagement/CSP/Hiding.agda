@@ -18,6 +18,7 @@ import ConnectionManagement.Rules.Server as Server
 import ConnectionManagement.Rules.Handshake as Handshake
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.IGRegistration as IG
+import ConnectionManagement.Rules.InboundRelease as Release
 open import CSP.Operators channel-≟ using (EventSet; _∖_)
 open EventSet
 open import Semantics.Failures {E = Channel} {I = ExtI Channel} using (traces)
@@ -42,6 +43,9 @@ internal (cleanupStep _ (Cleanup.interruptTimeWait _)) = false
 internal (cleanupStep _ _) = true
 internal (handlerPublication _ _ _) = false
 internal (handlerExit _) = false
+internal (releaseStep (Release.cancellationDelivered _)) = false
+internal (releaseStep Release.returnToIG) = false
+internal (releaseStep _) = true
 internal (igStep (IG.captureTime _)) = false
 internal (igStep IG.deactivateIG) = false
 internal (igStep (IG.installHandle _ _ _ _ _)) = false

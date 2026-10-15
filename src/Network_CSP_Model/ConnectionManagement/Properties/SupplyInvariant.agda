@@ -4,8 +4,9 @@
 -- machine. This is not whole-state validity, source refinement, or liveness.
 module ConnectionManagement.Properties.SupplyInvariant where
 
-open import Data.Product using (_,_)
+open import Data.Product using (_,_; proj₁; proj₂)
 import ConnectionManagement.Rules.IGRegistration as IG
+import ConnectionManagement.Rules.InboundRelease as Release
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (just; nothing)
@@ -40,8 +41,24 @@ publication-preserves w result s eq bounded with lookup w (handlers s) | lookup 
 ...     | nothing with just-injective eq
 ...       | refl = bounded
 
+-- Entry-only edits preserve the map lease census and allocation supplies.
+release-edit-preserves : ∀ edit s {s′} → Release.applyEdit edit s ≡ just s′ →
+  SupplyBounds s → SupplyBounds s′
+release-edit-preserves nothing s eq bounded = subst SupplyBounds (just-injective eq) bounded
+release-edit-preserves (just (e , st)) s eq bounded with lookup e (entries (cm s)) in found
+... | nothing = case eq of λ ()
+... | just old with just-injective eq
+...   | refl = overwrite-bound (nextEntry (cm s)) e st (entries (cm s)) (proj₁ bounded) found , proj₂ bounded
+
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   SupplyBounds (world c) → SupplyBounds (world c′)
+advance-preserves (releaseStep action) c eq bounded
+  with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
+... | nothing = case eq of λ ()
+... | just p with Release.applyEdit (Release.edit p) (world c) in edited
+...   | nothing = case eq of λ ()
+...   | just s = subst (λ config → SupplyBounds (world config)) (just-injective eq)
+  (release-edit-preserves (Release.edit p) (world c) edited bounded)
 advance-preserves (igStep action) c eq bounded
   with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
 ... | nothing = case eq of λ ()

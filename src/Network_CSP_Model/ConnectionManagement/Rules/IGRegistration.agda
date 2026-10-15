@@ -43,7 +43,7 @@ emptyPublished : Published
 emptyPublished = published [] []
 
 data PC : Set where
-  sampleTime exitFlush exited : PC
+  sampleTime exitFlush exited inCM : PC
   armInactivity : ℕ → PC
   awaitBatch : ℕ → TimerId → PC
   readNext : ℕ → List IGEvent → PC

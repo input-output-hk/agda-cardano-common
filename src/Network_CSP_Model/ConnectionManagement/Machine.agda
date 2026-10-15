@@ -19,6 +19,7 @@ import ConnectionManagement.Rules.Server as Server
 import ConnectionManagement.Rules.Handshake as Handshake
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.IGRegistration as IG
+import ConnectionManagement.Rules.InboundRelease as Release
 
 data PublicationOutcome : Set where
   resultWritten duplicateWrite : PublicationOutcome
@@ -31,6 +32,7 @@ data Action : Set where
   handlerPublication : WorkerId → HandshakeResult → PublicationOutcome → Action
   handlerExit : WorkerId → Action
   igStep : IG.IGAction → Action
+  releaseStep : Release.Action → Action
 
 record Configuration : Set where
   constructor configuration
@@ -41,15 +43,21 @@ record Configuration : Set where
     -- enter cleanup; rethrow policy and exception unwinding are still abstract.
     publicationFaults : List WorkerId
     inboundGovernor : IG.Runtime
+    inboundRelease : Maybe Release.Frame
 open Configuration public
 
 initial : ResponderMode → State → Configuration
-initial mode s = configuration mode s [] IG.initial
+initial mode s = configuration mode s [] IG.initial nothing
 
 replaceWorld : Configuration → State → Configuration
 replaceWorld c s = record c { world = s }
 
 advance : Action → Configuration → Maybe Configuration
+advance (releaseStep a) c with Release.step a (inboundRelease c) (inboundGovernor c) (world c)
+... | nothing = nothing
+... | just p with Release.applyEdit (Release.edit p) (world c)
+...   | nothing = nothing
+...   | just s = just (record c { world = s ; inboundGovernor = Release.governor p ; inboundRelease = Release.pending p })
 advance (igStep a) c with IG.step (responder c) a (inboundGovernor c) (inboundInfo (world c))
 ... | nothing = nothing
 ... | just (ig , queue) = just (record c

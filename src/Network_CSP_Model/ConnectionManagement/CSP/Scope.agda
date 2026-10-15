@@ -8,13 +8,14 @@ open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe; just; nothing)
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.InboundRelease as Release
 open import ConnectionManagement.Store using (lookup)
 open import ConnectionManagement.State
 open import ConnectionManagement.Domain using (WorkerId)
 
 data Frontier : Set where
   acceptLoop serverReturn admissionUnwind handlerBody handlerUnwind
-    cleanupReturn igHandleSetup igCMCall igExceptionUnwind muxShutdownCompletion ogSubsystem : Frontier
+    cleanupReturn igReleaseAssertion igHandleSetup igCMCall igExceptionUnwind muxShutdownCompletion ogSubsystem : Frontier
 
 admissionFrontier : AdmissionPC → Maybe Frontier
 admissionFrontier (finished _) = just acceptLoop
@@ -37,6 +38,7 @@ igFrontier ig with IG.continuation ig
 ...   | just h with lookup (M.muxRef h) (IG.muxes (IG.execution ig))
 ...     | nothing = just igHandleSetup
 ...     | just _ = nothing
+igFrontier ig | IG.needsCM _ _ (commitRemote _) _ = nothing
 igFrontier ig | IG.needsCM _ _ _ _ = just igCMCall
 igFrontier ig | IG.exited = just igExceptionUnwind
 igFrontier ig | _ = nothing
@@ -55,3 +57,10 @@ publicationFrontier (_ ∷ _) = just handlerUnwind
 -- a particular fixture currently requests an outbound connection.
 remainingSubsystem : Frontier
 remainingSubsystem = ogSubsystem
+
+-- An enabled-assertion exception needs the future IG unwind/supervision model.
+releaseFrontier : Maybe Release.Frame → Maybe Frontier
+releaseFrontier nothing = nothing
+releaseFrontier (just f) with Release.pc f
+... | Release.assertionRaised = just igReleaseAssertion
+... | _ = nothing
