@@ -258,3 +258,6 @@ agda ConnectionManagement/Negative/HandlerUniqueOwnership.agda +RTS -M2G -RTS
 Reference-chain preservation now covers arbitrary finite sequences of handler
 lifecycle actions, including a raw CSP trace lift. See [Handler references](../HandlerReferences.md)
 for the exact premises, creation negative controls, and remaining dispatcher coverage.
+
+`HandlerAttachment.agda` derives a tracked chain from raw attachment traces under
+explicit resource/coherence premises, then preserves it along lifecycle suffixes.

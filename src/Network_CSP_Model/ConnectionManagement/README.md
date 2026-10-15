@@ -462,3 +462,7 @@ source replay remain required before interpreting candidates as source defects.
 Reference-chain preservation now covers arbitrary finite sequences of handler
 lifecycle actions, including a raw CSP trace lift. See [Handler references](HandlerReferences.md)
 for the exact premises, creation negative controls, and remaining dispatcher coverage.
+
+`CSP/HandlerAttachment.agda` and `Negative/HandlerAttachment.agda` add conditional
+creation at attachment and show why its resource/coherence premises are needed.
+The premises are not yet invariants of all allocation/publication executions.

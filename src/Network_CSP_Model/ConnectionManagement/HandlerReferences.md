@@ -40,8 +40,22 @@ covers only lifecycle actions. In particular it does not yet cover interleaved I
 updates, Server allocation, handshake publication, release, pruning or cleanup.
 It proves neither progress nor liveness, and does not assert a result after hiding.
 
-Next, establish chain creation from explicit allocation/publication premises and
-extend preservation through the remaining dispatcher families. Retain immutable
+`Properties/HandlerAttachment.agda` now derives a new tracked chain from a
+successful attachment and `CreationPremises`. These premises require entry/socket
+existence for the actual handler and key coherence for the actual negotiated
+handle/mux lookup chain. They do not assume the chain exists: attachment success
+supplies the handler, result, handle and mux lookup witnesses.
+
+`CSP/HandlerAttachment.raw-attachment-creates` combines creation with preservation
+through any finite lifecycle-only suffix. A concrete registration fixture checks
+that the worker is initially untracked and obtains a chain after attachment.
+`Negative/HandlerAttachment.agda` proves that each of the three malformed fixtures
+violates these premises, complementing their successful-attachment witnesses.
+
+This establishes conditional creation at the attachment boundary, not a proof
+that allocation and publication always establish the premises. Next, derive those
+premises from the relevant transitions and extend reference preservation through
+the remaining dispatcher families. Retain immutable
 original references across mutable connection-map and governor membership changes.
 Only then combine these results with phase and cleanup obligations for a global
 runtime-validity theorem.
@@ -51,6 +65,8 @@ runtime-validity theorem.
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/CSP/HandlerAttachment.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerAttachment.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerReferences.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerReferences.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
