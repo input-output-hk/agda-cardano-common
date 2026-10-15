@@ -550,3 +550,18 @@ The second-admission witness runs without lifecycle frames, and negative control
 reject reused child IDs, result overwrites and retries after a writer fault.
 This proves preservation of existing evidence, not coherent creation or progress.
 The matched installation/publication source contract is the next obligation.
+
+[Handle-origin contract](HandlerOrigin.md) maps the pinned handler's shared mux,
+application and agreed-options values to matched installation/publication inputs.
+`HandlerOrigin` certifies the exact installed bundle and flow and retains them
+across arbitrary dispatcher traces. A negative CSP witness installs unidirectional
+flow but publishes duplex: attachment and reference coherence still succeed, while
+the matching origin certificate is impossible. This is an open-boundary mismatch,
+not a source bug or a Haskell refinement theorem.
+
+[Executable origin monitor](OriginMonitor.md) checks one selected worker/handle pair around
+the unchanged dispatcher. It accepts the good establishment trace and rejects
+key, flow, handle and ordering mismatches. Accepted allocation derives an origin
+certificate given resource evidence, and every finite monitored CSP trace projects
+to the open process. Multi-worker attribution, error profiles and source scheduling
+constraints remain outside this first success profile.

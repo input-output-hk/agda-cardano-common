@@ -573,6 +573,16 @@ attachment is enabled, that executions progress, or that Haskell refines this
 model. Next is the source contract relating actual handle creation, installation
 and promise publication, with explicit negative cases for incoherent boundaries.
 
+## Source-origin follow-up
+
+[HandlerOrigin.md](HandlerOrigin.md) records a fresh review of the pinned Haskell
+allocation/publication path. `Prepared` and `Chain` establish reference coherence;
+they do not equate installed flow with the result's negotiated flow. The new
+`Origin` certificate records the exact installed handle descriptor, and a matched
+trace theorem carries this through interleavings to attachment. A negative flow
+mismatch still has a valid tracked reference chain, demonstrating the distinction.
+Source projection and executable admissibility monitoring remain separate work.
+
 ## Validation
 
 Run from the standalone library root, one Agda process at a time:
