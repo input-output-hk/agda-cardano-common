@@ -476,9 +476,16 @@ closure and CM map removal; global runtime validity remains a separate obligatio
 `CSP/HandlerManagement.agda` also covers inbound release and remote operations,
 including scored pruning and cancellation delivery. `HandlerIGBoundary` now adds
 IG decision publication and fresh handle/mux installation to the same theorem.
-Other IG steps, Server admission and handshake consumers remain outside coverage.
+The extensions below complete coverage of the implemented dispatcher.
 See the action coverage table in the handler reference documentation.
 
 `HandlerIGStartup` adds responder startup/restart and the failed-start stop
-request, including partial bundle failure. Monitor, job and tracer execution
-remain outside the current reference-chain action set.
+request, including partial bundle failure. `HandlerIGMux` adds monitor, job and
+tracer execution, including error outcomes and blocking negative controls.
+`HandlerIGLoop` covers the remaining event-loop operations, and `HandlerIG`
+combines all IG actions into an exhaustive reference-preservation theorem and
+raw CSP trace lift. It requires an existing tracked chain, but no IG action
+coverage certificate. `HandlerAdmission` and `HandlerHandshake` now cover Server
+admission and handshake consumers. [`HandlerAll`](CSP/HandlerAll.agda) lifts preservation to arbitrary finite raw dispatcher traces and
+conditional attachment followed by any suffix. This is existing-reference safety,
+not full runtime validity or source completeness.

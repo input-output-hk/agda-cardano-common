@@ -37,9 +37,9 @@ This is not the full `HandlerValidity.valid` invariant: phase, cleanup, and
 unique-ownership obligations remain separate. The all-dispatcher uniqueness and
 capture-retention theorems continue to hold. The original `HandlerReferences`
 theorem covers only lifecycle actions; the extensions below add publication,
-exit, cleanup, release and remote operations including pruning. Server,
-handshake-consumer and most IG steps remain outside the reference-chain trace
-theorem; the IG boundary cases below are now covered.
+exit, cleanup, release, remote operations including pruning, every IG action,
+Server admission and handshake consumers. `CSP/HandlerAll` covers every action
+in the current dispatcher. The executable subsystem itself remains partial.
 It proves neither progress nor liveness, and does not assert a result after hiding.
 
 `Properties/HandlerAttachment.agda` now derives a new tracked chain from a
@@ -112,7 +112,7 @@ assertions, counters, cancellation delivery and return to IG. Their proposals
 preserve the IG execution engine. The dispatcher combines that fact with entry
 reference retention and the existing captured-mux retention theorem.
 
-`Properties/HandlerManagement.agda` combines the six covered action families.
+`Properties/HandlerManagement.agda` combines the covered action families, including every IG action.
 `CSP/HandlerManagement` lifts arbitrary finite interleavings to raw CSP traces,
 and composes conditional attachment creation with the same broader suffix.
 
@@ -123,8 +123,9 @@ and composes conditional attachment creation with the same broader suffix.
 | Remote promotion/demotion, including pruning | Covered |
 | IG decision publication and fresh handle/mux installation | Covered |
 | IG responder startup/restart and failed-start stop request | Covered |
-| IG monitor/job/tracer execution and other event-loop steps | Pending |
-| Server admission and handshake-consumer steps | Pending |
+| IG monitor, job and tracer execution | Covered |
+| Other IG event-loop steps, timers, deactivation and flushing | Covered |
+| Server admission and handshake-consumer steps | Covered |
 
 Concrete tracked witnesses cover release through return to IG, self-pruning
 through cancellation delivery, and a transaction writing two victims plus the
@@ -162,8 +163,8 @@ remain explicit.
 `Negative/HandlerIGBoundary` rules out overwriting either an occupied handle or
 an occupied mux and rejects a second decision publication in the resulting phase.
 The witnesses and negatives are raw CSP traces/refusals, before hiding.
-The startup extension below covers responder start/restart; monitor, job, tracer
-and other event-loop operations still need preservation proofs.
+The extensions below cover responder start/restart and monitor, job and tracer
+execution. The exhaustive IG theorem below also covers the event loop.
 
 ## Responder startup and restart
 
@@ -191,16 +192,107 @@ registration after partial failure, and excludes traces that skip the stop reque
 or repeat startup/restart in the wrong phase. A queued shutdown command does not
 establish that the mux has stopped or that handler cleanup has completed.
 
-Next, cover monitor commands/completions, protocol jobs and synchronous tracer
-callbacks, followed by the remaining IG event-loop actions.
+## Monitor, job and tracer execution
+
+`Properties/HandlerIGMux.agda` proves preservation through ten parameterized IG
+action forms: `monitorCommand`, `monitorCompletion`, `startOnDemand`,
+`sampleTracer`, `commitTracer`, `finishStart`, `forkResponder`, `finishProtocol`,
+`publishJobResult` and `finishStop`. Each successful action updates a looked-up
+mux without changing its connection key. `setMux-preserves` retains all other
+captured mux references. Queue changes do not alter the original handler resources.
+
+The proof checks clean and exceptional completion, active/inactive tracer paths,
+missing-descriptor faults and stopped-mux transitions. Blocked callbacks have no
+successful transition to preserve. The theorem assumes an existing chain, not
+valid counters or a promise of eventual callback completion.
+
+`ManagementActions.igMux` extends both raw CSP preservation and conditional
+attachment creation. `CSP/HandlerIGMux` reuses existing checked execution paths
+for normal shutdown, synchronous failure and asynchronous cancellation after
+attachment, and adds tracked startup/job-completion, overlap and tracer-fault
+witnesses. In the overlap fixture the original chain survives even though the
+callback's event captures the currently registered mux of another incarnation.
+The witnesses do not establish source reachability or universal progress.
+
+`Negative/HandlerIGMux` certifies a reference chain in a queue-blocked fixture,
+then excludes its tracer commit trace. It also checks expired-idle refusal,
+completion before job launch, and monitor consumption before result publication.
+Thus reference preservation does not make a blocked callback runnable or fuse the
+separate job completion, publication and monitor boundaries.
+
+## Exhaustive IG preservation
+
+`Properties/HandlerIGLoop.agda` covers clock capture, inactivity/idle timer
+registration, timer expiry, batch selection, event reading, batch completion,
+stopped-mux polling, deactivation and exit flushing. These operations retain the
+handle table and mux references; queue replacement is independent of the chain.
+The proofs follow the actual dispatcher guards, including monotonic clock checks
+and responder mode.
+
+`Properties/HandlerIG.agda` exhaustively matches every `IGAction` constructor and
+combines the boundary, startup, mux and loop proofs. Every successful IG step
+preserves every existing tracked chain. `ManagementActions.ig` admits arbitrary
+IG actions into the mixed finite-execution theorem and conditional creation lift;
+the earlier narrower constructors remain available. The next extension covers
+admission and handshake steps too.
+
+`CSP/HandlerIG.raw-ig-reachability` lifts this result to arbitrary finite raw CSP
+IG traces without a caller-supplied action coverage certificate. Its conclusion
+identifies an endpoint configuration with the same tracked chain. This is before
+hiding and is reference safety, not deadlock freedom or eventual progress.
+
+Concrete tracked fixtures exercise registration after installation, maturity
+batching, queue draining followed by tracer commitment, timer expiry, stopped-mux
+polling, and exit followed by a previously sampled callback. The exit endpoint
+has an inactive IG and a nonempty queue: flushing does not cancel a callback that
+already sampled the active flag. Its reference chain still holds. This preserves
+the existing modeled behavior and does not establish a new implementation bug
+or source reachability of the fixtures.
+
+`Negative/HandlerIG` rejects backward clock capture, polling a running mux,
+repeated deactivation, flushing after exit, and finishing an unconsumed batch.
+Each refusal is also lifted to exclusion of its corresponding raw CSP trace.
+
+## Admission, handshake and unrestricted dispatcher traces
+
+`Properties/HandlerAdmission.agda` covers every admission action. Entry selection
+may allocate or overwrite an entry, socket close may change its value, and fork
+may add a handler. Entry/socket presence survives these writes. The absent-child
+guard ensures fork cannot replace the handler record used by an existing chain.
+Promise allocation changes the allocation list and supply, not a stored result.
+Taking, publishing and restoring the map retain the entry heap.
+
+`Properties/HandlerHandshake.agda` covers every handshake-consumer action in both
+responder modes. Success may overwrite the captured entry; error/query processing
+may remove its map binding and update the heap. Neither removes the heap object,
+the handler, its negotiated result, or the socket. Queue writes and continuation
+changes also retain the chain. These results require neither fresh supplies nor
+map ownership as extra premises: those are separate, stronger invariants.
+
+`ManagementActions.all-actions` covers every constructor of the current
+`Machine.Action`. `all-exec-preserves` therefore accepts arbitrary finite executions
+without a coverage certificate. `CSP/HandlerAll.raw-all-preserves` gives the raw
+CSP reachability version. `raw-attachment-all-creates` retains the explicit
+`CreationPremises` and permits any subsequent dispatcher actions. This establishes
+preservation of an existing worker's chain, not automatic tracking of newly forked
+workers or correctness of the entire intended CM/IG/OG/Server subsystem.
+
+The new concrete paths start from a local coherent tracked fixture before
+handshake consumption, complete its success path, admit a second connection,
+then publish and consume the second child's query result. Its binding disappears
+and its terminated entry remains; the first worker's chain survives throughout.
+Every step uses the unmodified dispatcher. No source reachability of the starting
+fixture is asserted. `Negative/HandlerAll` excludes child-token reuse, repeated
+result reads in the wrong phase, and writes to a full notification queue. It also
+proves that the second child has not implicitly acquired a tracked chain.
 
 Full runtime validity, source refinement and progress remain separate.
 
 This establishes conditional creation at the attachment boundary, not a proof
 that allocation and publication always establish the premises. Next, derive those
-premises from the relevant transitions and extend reference preservation through
-the remaining dispatcher families. Retain immutable
-original references across mutable connection-map and governor membership changes.
+premises from the relevant allocation/publication transitions. Reference
+preservation is now exhaustive for the implemented dispatcher; immutable original
+references survive mutable connection-map and governor membership changes.
 Only then combine these results with phase and cleanup obligations for a global
 runtime-validity theorem.
 
@@ -209,6 +301,12 @@ runtime-validity theorem.
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/CSP/HandlerAll.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerAll.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerIG.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerIG.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerIGMux.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerIGMux.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerIGStartup.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerIGStartup.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerIGBoundary.agda +RTS -M2G -RTS
