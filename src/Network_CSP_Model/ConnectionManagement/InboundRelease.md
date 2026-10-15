@@ -53,8 +53,9 @@ all bound entries are read, but complete diagnostic counter values are not expos
 
 `throwTo` delivery is separated from request. The target stays captured even if a
 later action changes the current entry. Delivery does not wait for TIME_WAIT or
-handler cleanup. The handler's reception/unwind behavior is not derived from the
-mux model yet; the input can also abstract a target that has already exited.
+handler cleanup. Opt-in [tracked handlers](HandlerLifecycle.md) now enter pool
+unwinding on delivery. Untracked handlers retain the earlier abstract exit
+boundary; the input can also abstract a target that has already exited.
 Consequently the trace allowing IG publication before any modeled cleanup is
 conditional on this explicit boundary, not a source execution claim.
 
@@ -91,6 +92,7 @@ different assertion/counter ordering: promotion checks deferred assertions befor
 counting and counts successful results only; demotion checks assertions first and
 then counts every returned classification. Promotion may invoke pruning inside
 its transaction; the [pruning model](Pruning.md) implements the diffusion policy
-with explicit random-score inputs and ordered cancellation delivery. Handler
-cancellation/unwind integration, OG, bounded exploration and source replay remain
-outstanding. No code-defect or liveness claim follows from these witnesses.
+with explicit random-score inputs and ordered cancellation delivery.
+[Tracked async unwinding](HandlerLifecycle.md) and [selected normal/synchronous
+exits](HandlerOutcomes.md) are implemented. Full handler coverage, OG, bounded
+exploration and source replay remain outstanding. No code-defect or liveness claim follows from these witnesses.

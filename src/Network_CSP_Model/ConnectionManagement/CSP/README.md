@@ -177,6 +177,8 @@ agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Pruning.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerLifecycle.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerOutcomes.agda +RTS -M2G -RTS
 ```
 
 The whole-replay proof originally exhausted a 3 GB heap. The maintained witnesses
@@ -210,6 +212,14 @@ The [pruning endpoint](Pruning.agda) checks atomic multi-victim writes, policy
 ordering, self-pruning and captured cancellation delivery; see
 [its contracts and randomness abstraction](../Pruning.md).
 
-Next: connect cancellation and mux/tracer termination
-to handler cleanup, then add OG under the same dispatcher. Full subsystem
+The [handler lifecycle endpoint](HandlerLifecycle.agda) connects release and
+pruning delivery to tracked async unwinding, Dead tracing and the existing
+finalizer; see [its scope and completion inputs](../HandlerLifecycle.md).
+
+The [handler outcome endpoint](HandlerOutcomes.agda) covers normal shutdown,
+synchronous protocol failure, both rethrow-policy branches and tracer failure;
+see [its contracts](../HandlerOutcomes.md).
+
+Next: strengthen runtime validity and tracked source scenarios, then add OG under
+the same dispatcher. Full subsystem
 failures/divergence or liveness claims require additional coverage and validity.

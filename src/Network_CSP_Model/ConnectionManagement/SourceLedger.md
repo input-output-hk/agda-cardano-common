@@ -75,7 +75,11 @@ call under enabled assertions, with explicit cancellation delivery.
 [Pruning](Pruning.md) implements diffusion-policy ordering, atomic victim writes
 and captured cancellation delivery. Random scores are explicit generation-tagged
 inputs, not a concrete StdGen implementation. Full handler/supervision execution
-remains pending. ConnectionId ordering is remote-before-local in both IG and pruning.
+remains partial. [Tracked async cancellation](HandlerLifecycle.md) now links
+delivery, pool-close completion, Dead tracing and finalizer entry. [Normal and
+selected synchronous exits](HandlerOutcomes.md) now include both rethrow-policy
+branches; concrete policy evaluation remains an input. ConnectionId ordering is remote-before-
+local in both IG and pruning.
 
 ## 1. Rule record and naming
 
@@ -110,7 +114,7 @@ be abstracted only with its assumptions recorded.
 | `JOB.WAIT/CANCEL` | [JobPool][job-pool] | OG or scope owner | `waitForJob` reads unbounded TQueue; pool close cancels jobs with source masking/join behavior | Family |
 | `IG.QUEUE` | [InformationChannel][info] | Producers and IG | Capacity 100 TBQueue; FIFO write and whole-queue flush in caller STM | Full event union and queue/tracer integration implemented in selected runtime profile (§6) |
 | `MUX.STOP/STOPPED` | [Mux API][mux-api] | Calling action/IG thread | Stop writes `CmdShutdown` to an unbounded command TQueue; stopped reads mux status and may retry | Implemented commands/status wait; cancellation/egress completion is a boundary |
-| `EXN.DELIVER` | Call sites plus pinned concurrency dependencies | Sender/target/scope owner | Distinguish request, blocking `throwTo`, permitted delivery, unwinding and termination | Family; dependency audit required |
+| `EXN.DELIVER` | Call sites plus pinned concurrency dependencies | Sender/target/scope owner | Distinguish request, blocking `throwTo`, permitted delivery, unwinding and termination | Tracked monitoring-phase cancellation and completed-target acknowledgment implemented; other masking windows pending; [contracts](HandlerLifecycle.md) |
 | `TIMER/PROMISE` | [Handler][handler], [OG loop][og], [Actions][actions] | Owner and observer | Capture fresh token/promise, readiness, read, cancellation; preserve timeout winner ordering | Family; dependency audit required |
 
 The mux also has its own execution/job machinery and an egress queue. Do not
@@ -144,7 +148,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `CM.REMOTE.WARM` | [Remote promotion][remote-warm] | Promotion transitions and relevant pruning/cancellation | Implemented, including pruning with explicit random-score inputs; [contracts](RemoteState.md) |
 | `CM.REMOTE.COLD` | [Remote demotion][remote-cold] | Demotion by exact key/entry, state-dependent results | Implemented with enabled assertions, later counter read and separate IG timer/publication |
 | `CM.PRUNE` | [Pruning helper][prune] and operation call sites | Candidate selection, committed state changes, subsequent cancellation | Promotion call sites implemented with scored diffusion policy and ordered delivery; outbound-release call site pending; [contracts](Pruning.md) |
-| `HANDLER.PUBLISH/RUN` | [ConnectionHandler][handler] | Negotiate, allocate control bundle/mux handle, publish promise, then enter mux execution | Expanded ordering; failure/query branches still Family |
+| `HANDLER.PUBLISH/RUN` | [ConnectionHandler][handler] | Negotiate, allocate control bundle/mux handle, publish promise, then enter mux execution | Tracked async, normal and selected synchronous exits implemented with pool/buffer/policy/delivery inputs; [contracts](HandlerOutcomes.md) |
 | `HANDLER.CLEANUP` | [forkConnectionHandler cleanup][cleanup] | Identity-sensitive map cleanup, entry updates, socket/timeout/cancellation obligations | Expanded §4.2; cleanup slice implemented with exit/timeout/close boundaries |
 
 ### IG

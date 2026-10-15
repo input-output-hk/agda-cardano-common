@@ -10,7 +10,7 @@ ownership and allocation-supply invariants, and local reference-preservation
 lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
 handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
-Cleanup starts at a separate abstract handler-exit boundary and includes socket
+Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket
 close, map restoration, and the untimed TIME_WAIT finalizer. The earlier
 admission-only witnesses remain available.
 
@@ -56,7 +56,10 @@ bursts/counters, monitor callbacks and repeated batches.
 cancellation boundary and separate IG publication. [Remote promotion/demotion](RemoteState.md)
 now execute too, including [over-limit pruning](Pruning.md) with explicit random
 score inputs, atomic victim writes and ordered cancellation delivery.
-Full handler execution and OG remain incomplete.
+[Tracked async handler cancellation](HandlerLifecycle.md) now connects delivery,
+pool-close completion, Dead tracing and CM cleanup. [Normal and selected synchronous
+exits](HandlerOutcomes.md) now include rethrow-policy branches and node-delivery
+ordering. Full handler coverage and OG remain incomplete.
 
 ## Implemented behavior
 
@@ -365,8 +368,11 @@ of rendered processes.
   payload does not allocate or validate a mux/control bundle. It explicitly reports
   duplicate-write exceptions; neither those exceptions nor impossible-state outcomes
   have unwinding rules yet. It does not model `forcePromise`.
-- `beginCleanupBoundary` assumes the registered handler body has exited, normally
-  or exceptionally. The body outcome and its rethrow policy are not modeled;
+- For untracked handlers, `beginCleanupBoundary` assumes the body has exited.
+  [Tracked handlers](HandlerLifecycle.md) derive cleanup entry through the async
+  cancellation path, with pool-join and buffer-unwind completion inputs.
+  [Normal and selected synchronous exits](HandlerOutcomes.md) also enter cleanup;
+  concrete rethrow-policy evaluation remains an input;
   `cleanupDone cleanupNormal` describes the finalizer, not successful body execution.
   Ordinary tracing is assumed total/nonblocking; counter-read transactions remain
   explicit. Close outcomes are supplied by the environment. General IO
@@ -378,9 +384,9 @@ of rendered processes.
   [inbound release](InboundRelease.md); [promotion/demotion](RemoteState.md)
   preserve assertion/counter ordering and separate idle-timer allocation.
   Over-limit promotion executes the diffusion pruning policy with abstract random
-  score inputs and explicit cancellation delivery. The handler-exit
-  boundary is not yet derived from the new mux runtime.
-- Handler body execution, OG, timed scheduling, general
+  score inputs and explicit cancellation delivery. Opt-in tracked handlers
+  connect that delivery to mux failure tracing and finalization.
+- Complete handler body execution, OG, timed scheduling, general
   asynchronous exception delivery/unwinding, server handling of CM returns, and
   accept-loop rate limiting remain absent. No enabled-step completeness,
   source refinement, deadlock, divergence, or liveness claim follows from it.
@@ -421,6 +427,8 @@ agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Pruning.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerLifecycle.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerOutcomes.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
@@ -431,7 +439,7 @@ postulates, holes or unsafe termination pragmas. This describes the local source
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
-Next: connect cancellation, mux termination and tracer failure to handler
-cleanup, then add outbound acquisition and OG jobs/completions. Retain structural
+Next: strengthen runtime validity and tracked source scenarios, then
+add outbound acquisition and OG jobs/completions. Retain structural
 invariants as regression checks. Full runtime validity, bounded exploration and
 source replay remain required before interpreting candidates as source defects.

@@ -13,7 +13,10 @@ monitor/tracer behavior is integrated; see [its contracts](IGRegistration.md).
 counter, cancellation and publication steps. [Promotion/demotion](RemoteState.md)
 now preserve their distinct assertion/counter ordering. [Promotion pruning](Pruning.md)
 commits policy-selected victims atomically and delivers captured cancellations.
-Concrete PRNG replay, complete handler execution and OG remain outstanding.
+[Tracked async handler cancellation](HandlerLifecycle.md) now connects delivery
+to Dead tracing and finalization, with pool/buffer completion inputs.
+[Normal and selected synchronous exits](HandlerOutcomes.md) now cover policy and
+node-delivery ordering. Concrete PRNG replay, full handler coverage and OG remain outstanding.
 The full combined subsystem and source
 correspondence remain unimplemented. Schematic declarations below describe the target design.
 
@@ -413,8 +416,9 @@ These are concrete work items, not permission gates:
 
 Notification-to-registration, responder startup and subsequent maturity batches
 now have dispatcher/CSP traces, as do inbound release and remote promotion.
-Connect cancellation and mux/tracer termination to
-handler cleanup. Then implement outbound acquisition and OG jobs.
+Strengthen runtime validity and tracked source scenarios, then implement
+outbound acquisition and OG jobs. Selected normal/synchronous handler exits
+are now covered; concrete policy evaluation and general exception coverage remain open.
 Retain the existing invariants as regression checks while extending behavior.
 Neither G1 nor the first combined lifecycle gate G2 is complete. The
 [progress review](../review/connection-management-progress-review.md) records

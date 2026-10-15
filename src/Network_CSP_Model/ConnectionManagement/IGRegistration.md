@@ -131,8 +131,10 @@ publication.
 - Shutdown completion represents cancellation/egress completion. The model does
   not derive this readiness from those resources. Handle allocation, transport,
   protocol execution and exception unwinding remain abstract.
-- The existing handler-exit boundary still does not derive exit from the mux
-  runtime. Whole-handler wedge/deadlock claims must wait for that integration.
+- [Tracked async handlers](HandlerLifecycle.md) now derive finalizer entry through
+  pool-close completion, Failed status and Dead tracing. Untracked handlers retain
+  the abstract exit boundary. [Normal and selected synchronous exits](HandlerOutcomes.md)
+  are also connected; whole-handler wedge/deadlock claims remain incomplete.
 - IG version data is referenced through immutable handles. Diagnostic counter
   caches and total/nonblocking diagnostic tracing are abstracted; the real
   queue-writing tracer is modeled explicitly.
@@ -167,5 +169,5 @@ standard decidable comparison operators, which were inspected; it found no actua
 holes or unsafe options. Local documentation links and `git diff --check` passed.
 This is not a term-level axiom audit of external dependencies.
 
-Next connect cancellation, mux termination and tracer failure to handler cleanup. OG
-jobs and completion processing remain required for the combined lifecycle gate.
+Next strengthen runtime validity and tracked source scenarios. OG jobs and
+completion processing remain required for the combined lifecycle gate.

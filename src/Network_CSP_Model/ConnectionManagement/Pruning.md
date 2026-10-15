@@ -94,8 +94,9 @@ visible under the current CSP hiding policy.
 
 Cancellation captures the selected worker IDs at commit. It does not look them up
 again after a wait; replacement entries cannot retarget the operation. Delivery
-acknowledgment is an environment input, not a derived handler-unwind transition or
-a join on cleanup/TIME_WAIT. Full masking and handler supervision remain absent.
+acknowledgment remains an environment input. For [tracked handlers](HandlerLifecycle.md)
+it also enters async pool unwinding; it never joins cleanup/TIME_WAIT. Full masking
+and handler supervision remain absent.
 
 `ConnectionOrder.agda` now provides remote-before-local ordering for both pruning
 and IG's expired-idle selection. This corrects the previous **model** helper, which
@@ -124,6 +125,8 @@ full-state-validity, source-refinement or universal-liveness theorem is claimed.
 agda ConnectionManagement/CSP/Pruning.agda +RTS -M2G -RTS
 ```
 
-Next connect cancellation/mux/tracer termination to handler unwind and cleanup,
-then continue outbound acquisition and OG. Seeded source replay, stronger runtime
+[Tracked async cancellation](HandlerLifecycle.md) now connects delivery to mux
+Dead tracing and cleanup, with explicit pool/buffer completion inputs.
+[Selected normal/synchronous exits](HandlerOutcomes.md) are also implemented.
+Next strengthen runtime validity and tracking, then continue outbound acquisition and OG. Seeded source replay, stronger runtime
 validity and bounded exploration remain separate work.
