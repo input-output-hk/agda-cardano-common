@@ -23,6 +23,7 @@ import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
 import ConnectionManagement.Rules.Pruning as Prune
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 
 data PublicationOutcome : Set where
   resultWritten duplicateWrite : PublicationOutcome
@@ -34,6 +35,7 @@ data Action : Set where
   cleanupStep : WorkerId → Cleanup.CleanupAction → Action
   handlerPublication : WorkerId → HandshakeResult → PublicationOutcome → Action
   handlerExit : WorkerId → Action
+  handlerStep : WorkerId → Life.Action → Action
   igStep : IG.IGAction → Action
   remoteStep : Remote.Action → Action
   releaseStep : Release.Action → Action
@@ -52,34 +54,56 @@ record Configuration : Set where
     promotionHardLimit : ℕ
     -- Counts committed split/draw inputs; the concrete StdGen is abstract.
     pruningGeneration : ℕ
+    handlerLifecycles : Life.Runtime
 open Configuration public
 
 initial : ResponderMode → State → Configuration
-initial mode s = configuration mode s [] IG.initial nothing nothing 10 0
+initial mode s = configuration mode s [] IG.initial nothing nothing 10 0 []
 
 replaceWorld : Configuration → State → Configuration
 replaceWorld c s = record c { world = s }
 
 advance : Action → Configuration → Maybe Configuration
-advance (remoteStep a) c with Remote.step (promotionHardLimit c) (pruningGeneration c) a (remoteCall c) (inboundGovernor c) (world c)
+advance (handlerStep w a) c with Life.step w a (handlerLifecycles c) (inboundGovernor c) (world c)
 ... | nothing = nothing
-... | just p with Prune.applyEdits (Remote.edits p) (world c)
-...   | nothing = nothing
-...   | just s = just (record c { world = s ; inboundGovernor = Remote.governor p ; remoteCall = Remote.pending p
-      ; pruningGeneration = if Remote.consumedRandom p then suc (pruningGeneration c) else pruningGeneration c })
-advance (releaseStep a) c with Release.step a (inboundRelease c) (inboundGovernor c) (world c)
-... | nothing = nothing
-... | just p with Release.applyEdit (Release.edit p) (world c)
-...   | nothing = nothing
-...   | just s = just (record c { world = s ; inboundGovernor = Release.governor p ; inboundRelease = Release.pending p })
-advance (igStep a) c with IG.step (responder c) a (inboundGovernor c) (inboundInfo (world c))
-... | nothing = nothing
-... | just (ig , queue) = just (record c
-  { world = record (world c) { inboundInfo = queue }; inboundGovernor = ig })
+... | just (rt , ig) = just (record c { handlerLifecycles = rt ; inboundGovernor = ig })
+advance (remoteStep a) c with Life.allowRemote a (handlerLifecycles c) (world c)
+... | false = nothing
+... | true = advanceRemote
+  where
+  advanceRemote : Maybe Configuration
+  advanceRemote with Remote.step (promotionHardLimit c) (pruningGeneration c) a (remoteCall c) (inboundGovernor c) (world c)
+  ... | nothing = nothing
+  ... | just p with Prune.applyEdits (Remote.edits p) (world c)
+  ...   | nothing = nothing
+  ...   | just s = just (record c { world = s ; inboundGovernor = Remote.governor p ; remoteCall = Remote.pending p ; handlerLifecycles = Life.noteRemote a (handlerLifecycles c)
+        ; pruningGeneration = if Remote.consumedRandom p then suc (pruningGeneration c) else pruningGeneration c })
+advance (releaseStep a) c with Life.allowRelease a (handlerLifecycles c) (world c)
+... | false = nothing
+... | true = advanceRelease
+  where
+  advanceRelease : Maybe Configuration
+  advanceRelease with Release.step a (inboundRelease c) (inboundGovernor c) (world c)
+  ... | nothing = nothing
+  ... | just p with Release.applyEdit (Release.edit p) (world c)
+  ...   | nothing = nothing
+  ...   | just s = just (record c { world = s ; inboundGovernor = Release.governor p ; inboundRelease = Release.pending p ; handlerLifecycles = Life.noteRelease a (handlerLifecycles c) })
+advance (igStep a) c with Life.allowIG a (handlerLifecycles c)
+... | false = nothing
+... | true = advanceIG
+  where
+  advanceIG : Maybe Configuration
+  advanceIG with IG.step (responder c) a (inboundGovernor c) (inboundInfo (world c))
+  ... | nothing = nothing
+  ... | just (ig , queue) = just (record c
+    { world = record (world c) { inboundInfo = queue }; inboundGovernor = ig })
 advance (admissionStep w a) c = map (replaceWorld c) (Server.stepPrefix w a (world c))
 advance (handshakeStep w a) c = map (replaceWorld c) (Handshake.stepHandshake (responder c) w a (world c))
 advance (cleanupStep w a) c = map (replaceWorld c) (Cleanup.stepCleanup w a (world c))
-advance (handlerExit w) c = map (replaceWorld c) (Cleanup.beginCleanupBoundary w (world c))
+advance (handlerExit w) c with Life.mayExit w (handlerLifecycles c)
+... | false = nothing
+... | true = map (λ s → record c { world = s ; handlerLifecycles = Life.noteExit w (handlerLifecycles c) })
+                (Cleanup.beginCleanupBoundary w (world c))
 advance (handlerPublication w result outcome) c with any (λ v → does (v ≟ w)) (publicationFaults c)
 ... | true = nothing
 ... | false with Handshake.publishBoundary w result (world c) | outcome

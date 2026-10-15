@@ -10,13 +10,14 @@ import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxRuntime as M
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 open import ConnectionManagement.Store using (lookup)
 open import ConnectionManagement.State
 open import ConnectionManagement.Domain using (WorkerId)
 
 data Frontier : Set where
   acceptLoop serverReturn admissionUnwind handlerBody handlerUnwind
-    cleanupReturn igRemoteAssertion igReleaseAssertion igHandleSetup igCMCall igExceptionUnwind muxShutdownCompletion ogSubsystem : Frontier
+    handlerPoolJoin cleanupReturn igRemoteAssertion igReleaseAssertion igHandleSetup igCMCall igExceptionUnwind muxShutdownCompletion ogSubsystem : Frontier
 
 admissionFrontier : AdmissionPC → Maybe Frontier
 admissionFrontier (finished _) = just acceptLoop
@@ -72,4 +73,13 @@ remoteFrontier : Maybe Remote.Frame → Maybe Frontier
 remoteFrontier nothing = nothing
 remoteFrontier (just f) with Remote.pc f
 ... | Remote.assertionRaised = just igRemoteAssertion
+... | _ = nothing
+
+-- Pool joining remains an explicit completion boundary for every exit path.
+handlerLifecycleFrontier : Life.Frame → Maybe Frontier
+handlerLifecycleFrontier f with Life.phase f
+... | Life.monitoring = just handlerBody
+... | Life.poolClosing = just handlerPoolJoin
+... | Life.normalClosing = just handlerPoolJoin
+... | Life.syncClosing _ = just handlerPoolJoin
 ... | _ = nothing

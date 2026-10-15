@@ -20,6 +20,7 @@ import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 open import CSP.Operators channel-≟ using (EventSet; _∖_)
 open EventSet
 open import Semantics.Failures {E = Channel} {I = ExtI Channel} using (traces)
@@ -44,6 +45,11 @@ internal (cleanupStep _ (Cleanup.interruptTimeWait _)) = false
 internal (cleanupStep _ _) = true
 internal (handlerPublication _ _ _) = false
 internal (handlerExit _) = false
+internal (handlerStep _ Life.publishAsyncFailure) = true
+internal (handlerStep _ Life.monitorReturned) = true
+internal (handlerStep _ Life.monitorThrew) = true
+internal (handlerStep _ Life.rethrow) = true
+internal (handlerStep _ _) = false
 internal (remoteStep (Remote.transactPruning _ _)) = false
 internal (remoteStep (Remote.pruneCancellationDelivered _)) = false
 internal (remoteStep Remote.returnToIG) = false

@@ -9,6 +9,7 @@ import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
 import ConnectionManagement.Rules.Pruning as Prune
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 open import Data.List using ([]; _∷_)
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
@@ -66,22 +67,32 @@ prune-edits-preserves (edit ∷ edits) s eq bounded
 
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   SupplyBounds (world c) → SupplyBounds (world c′)
+advance-preserves (handlerStep w action) c eq bounded
+  with Life.step w action (handlerLifecycles c) (inboundGovernor c) (world c)
+... | nothing = case eq of λ ()
+... | just (rt , ig) = subst (λ config → SupplyBounds (world config)) (just-injective eq) bounded
 advance-preserves (remoteStep action) c eq bounded
-  with Remote.step (promotionHardLimit c) (pruningGeneration c) action (remoteCall c) (inboundGovernor c) (world c)
+  with Life.allowRemote action (handlerLifecycles c) (world c)
+... | false = case eq of λ ()
+... | true with Remote.step (promotionHardLimit c) (pruningGeneration c) action (remoteCall c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()
 ... | just p with Prune.applyEdits (Remote.edits p) (world c) in edited
 ...   | nothing = case eq of λ ()
 ...   | just s = subst (λ config → SupplyBounds (world config)) (just-injective eq)
   (prune-edits-preserves (Remote.edits p) (world c) edited bounded)
 advance-preserves (releaseStep action) c eq bounded
-  with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
+  with Life.allowRelease action (handlerLifecycles c) (world c)
+... | false = case eq of λ ()
+... | true with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()
 ... | just p with Release.applyEdit (Release.edit p) (world c) in edited
 ...   | nothing = case eq of λ ()
 ...   | just s = subst (λ config → SupplyBounds (world config)) (just-injective eq)
   (release-edit-preserves (Release.edit p) (world c) edited bounded)
 advance-preserves (igStep action) c eq bounded
-  with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
+  with Life.allowIG action (handlerLifecycles c)
+... | false = case eq of λ ()
+... | true with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
 ... | nothing = case eq of λ ()
 ... | just (ig , queue) = subst (λ config → SupplyBounds (world config)) (just-injective eq) bounded
 advance-preserves (admissionStep w action) c eq bounded with lookup w (admissions (world c))
@@ -105,7 +116,9 @@ advance-preserves (handshakeStep w action) c eq bounded with lookup w (admission
 ...   | just s′ = subst (λ config → SupplyBounds (world config)) (just-injective eq)
   (handshake-preserves action (responder c) w a (world c) stepped bounded)
 advance-preserves (handlerExit w) c eq bounded
-  with lookup w (handlers (world c)) | lookup w (cleanups (world c))
+  with Life.mayExit w (handlerLifecycles c)
+... | false = case eq of λ ()
+... | true with lookup w (handlers (world c)) | lookup w (cleanups (world c))
 ... | nothing | _ = case eq of λ ()
 ... | just _ | just _ = case eq of λ ()
 ... | just _ | nothing = subst (λ config → SupplyBounds (world config)) (just-injective eq) bounded

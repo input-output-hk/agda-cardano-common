@@ -9,6 +9,7 @@ import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
 import ConnectionManagement.Rules.Pruning as Prune
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 open import Data.List using ([]; _∷_)
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
@@ -66,22 +67,32 @@ prune-edits-preserves (edit ∷ edits) s eq own
 
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   Ownership (world c) → Ownership (world c′)
+advance-preserves (handlerStep w action) c eq own
+  with Life.step w action (handlerLifecycles c) (inboundGovernor c) (world c)
+... | nothing = case eq of λ ()
+... | just (rt , ig) = subst (λ config → Ownership (world config)) (just-injective eq) own
 advance-preserves (remoteStep action) c eq own
-  with Remote.step (promotionHardLimit c) (pruningGeneration c) action (remoteCall c) (inboundGovernor c) (world c)
+  with Life.allowRemote action (handlerLifecycles c) (world c)
+... | false = case eq of λ ()
+... | true with Remote.step (promotionHardLimit c) (pruningGeneration c) action (remoteCall c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()
 ... | just p with Prune.applyEdits (Remote.edits p) (world c) in edited
 ...   | nothing = case eq of λ ()
 ...   | just s = subst (λ config → Ownership (world config)) (just-injective eq)
   (prune-edits-preserves (Remote.edits p) (world c) edited own)
 advance-preserves (releaseStep action) c eq own
-  with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
+  with Life.allowRelease action (handlerLifecycles c) (world c)
+... | false = case eq of λ ()
+... | true with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()
 ... | just p with Release.applyEdit (Release.edit p) (world c) in edited
 ...   | nothing = case eq of λ ()
 ...   | just s = subst (λ config → Ownership (world config)) (just-injective eq)
   (release-edit-preserves (Release.edit p) (world c) edited own)
 advance-preserves (igStep action) c eq own
-  with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
+  with Life.allowIG action (handlerLifecycles c)
+... | false = case eq of λ ()
+... | true with IG.step (responder c) action (inboundGovernor c) (inboundInfo (world c))
 ... | nothing = case eq of λ ()
 ... | just (ig , queue) = subst (λ config → Ownership (world config)) (just-injective eq) own
 advance-preserves (admissionStep w action) c = admission-lift action (admission-worker action) w c
@@ -93,7 +104,9 @@ advance-preserves (handshakeStep w action) c eq own with lookup w (admissions (w
 ...   | just s′ = subst (λ config → Ownership (world config)) (just-injective eq)
   (handshake-worker action (responder c) w a (world c) found stepped own)
 advance-preserves (handlerExit w) c eq own
-  with lookup w (handlers (world c)) | lookup w (cleanups (world c)) in found
+  with Life.mayExit w (handlerLifecycles c)
+... | false = case eq of λ ()
+... | true with lookup w (handlers (world c)) | lookup w (cleanups (world c)) in found
 ... | nothing | _ = case eq of λ ()
 ... | just _ | just _ = case eq of λ ()
 ... | just _ | nothing = subst (λ config → Ownership (world config)) (just-injective eq)
