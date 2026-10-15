@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
--- Explicit coverage includes IG boundary and startup actions; admission,
--- handshake consumers and remaining IG actions are outside this theorem.
+-- Boundary, startup, monitor, job and tracer actions are covered; admission,
+-- handshake consumers and remaining IG loop actions are separate.
 module ConnectionManagement.Properties.HandlerManagement where
 
 open import Data.List using (List; []; _∷_)
@@ -13,6 +13,7 @@ import ConnectionManagement.Properties.HandlerRelease as Release
 import ConnectionManagement.Properties.HandlerRemote as Remote
 import ConnectionManagement.Properties.HandlerIGBoundary as IG
 import ConnectionManagement.Properties.HandlerIGStartup as Startup
+import ConnectionManagement.Properties.HandlerIGMux as Mux
 
 data ManagementActions : List Action → Set where
   empty : ManagementActions []
@@ -24,6 +25,7 @@ data ManagementActions : List Action → Set where
   remote : ∀ {a as} → ManagementActions as → ManagementActions (remoteStep a ∷ as)
   igBoundary : ∀ {a as} → IG.CoveredIG a → ManagementActions as → ManagementActions (igStep a ∷ as)
   igStartup : ∀ {a as} → Startup.CoveredStartup a → ManagementActions as → ManagementActions (igStep a ∷ as)
+  igMux : ∀ {a as} → Mux.CoveredMux a → ManagementActions as → ManagementActions (igStep a ∷ as)
 
 exec-preserves : ∀ {c as c′} → ManagementActions as → Executes c as c′ →
   ∀ q → TrackedChain q c → TrackedChain q c′
@@ -44,3 +46,5 @@ exec-preserves (igBoundary {a} covered only) (next {c = c} eq rest) q chain =
   exec-preserves only rest q (IG.step-preserves a covered c eq q chain)
 exec-preserves (igStartup {a} covered only) (next {c = c} eq rest) q chain =
   exec-preserves only rest q (Startup.step-preserves a covered c eq q chain)
+exec-preserves (igMux {a} covered only) (next {c = c} eq rest) q chain =
+  exec-preserves only rest q (Mux.step-preserves a covered c eq q chain)
