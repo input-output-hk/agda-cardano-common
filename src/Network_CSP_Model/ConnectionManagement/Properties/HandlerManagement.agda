@@ -1,6 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
--- Explicit dispatcher coverage: IG, admission and handshake consumers remain out.
+-- Explicit coverage includes IG publication and installation; admission,
+-- handshake consumers and remaining IG actions are outside this theorem.
 module ConnectionManagement.Properties.HandlerManagement where
 
 open import Data.List using (List; []; _∷_)
@@ -10,6 +11,7 @@ open import ConnectionManagement.Properties.HandlerBoundaries using (publication
 import ConnectionManagement.Properties.HandlerCleanup as Cleanup
 import ConnectionManagement.Properties.HandlerRelease as Release
 import ConnectionManagement.Properties.HandlerRemote as Remote
+import ConnectionManagement.Properties.HandlerIGBoundary as IG
 
 data ManagementActions : List Action → Set where
   empty : ManagementActions []
@@ -19,6 +21,7 @@ data ManagementActions : List Action → Set where
   cleanup : ∀ {w a as} → ManagementActions as → ManagementActions (cleanupStep w a ∷ as)
   release : ∀ {a as} → ManagementActions as → ManagementActions (releaseStep a ∷ as)
   remote : ∀ {a as} → ManagementActions as → ManagementActions (remoteStep a ∷ as)
+  igBoundary : ∀ {a as} → IG.CoveredIG a → ManagementActions as → ManagementActions (igStep a ∷ as)
 
 exec-preserves : ∀ {c as c′} → ManagementActions as → Executes c as c′ →
   ∀ q → TrackedChain q c → TrackedChain q c′
@@ -35,3 +38,5 @@ exec-preserves (release {a} only) (next {c = c} eq rest) q chain =
   exec-preserves only rest q (Release.step-preserves a c eq q chain)
 exec-preserves (remote {a} only) (next {c = c} eq rest) q chain =
   exec-preserves only rest q (Remote.step-preserves a c eq q chain)
+exec-preserves (igBoundary {a} covered only) (next {c = c} eq rest) q chain =
+  exec-preserves only rest q (IG.step-preserves a covered c eq q chain)
