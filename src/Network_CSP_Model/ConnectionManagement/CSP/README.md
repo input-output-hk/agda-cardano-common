@@ -267,3 +267,8 @@ creation to raw traces interleaving lifecycle, publication and handler exit.
 `HandlerCleanup.agda` further adds all cleanup steps, including socket-close
 failure, map restoration and interrupted TIME_WAIT. Reference existence survives
 closure and CM map removal; global runtime validity remains a separate obligation.
+
+`HandlerManagement.agda` also covers inbound release and remote operations,
+including scored pruning and cancellation delivery. IG decision publication,
+Server admission and handshake-consumer steps remain outside the reference-chain
+theorem. See the action coverage table in the handler reference documentation.

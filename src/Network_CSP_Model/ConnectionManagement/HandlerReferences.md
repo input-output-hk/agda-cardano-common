@@ -37,8 +37,8 @@ This is not the full `HandlerValidity.valid` invariant: phase, cleanup, and
 unique-ownership obligations remain separate. The all-dispatcher uniqueness and
 capture-retention theorems continue to hold. The original `HandlerReferences`
 theorem covers only lifecycle actions; the extensions below add publication,
-exit and cleanup execution. Server, handshake-consumer, IG, release and pruning
-steps remain outside the reference-chain trace theorem.
+exit, cleanup, release and remote operations including pruning. Server,
+handshake-consumer and IG steps remain outside the reference-chain trace theorem.
 It proves neither progress nor liveness, and does not assert a result after hiding.
 
 `Properties/HandlerAttachment.agda` now derives a new tracked chain from a
@@ -98,8 +98,44 @@ certified; the witness does not establish source reachability or eventual cleanu
 TIME_WAIT readiness, publish after failed close, or skip finalization after
 interruption. It uses the unchanged dispatcher's refusal results.
 
-Server, handshake-consumer, IG, release and pruning actions remain outside this
-coverage. Full runtime validity, source refinement and progress remain separate.
+## Release and remote-operation coverage
+
+`Properties/HandlerRelease.agda` proves that release proposals preserve the IG
+execution engine and that entry writes preserve every existing chain.
+`edits-chain` extends the latter fact to arbitrary successful atomic pruning
+batches, including repeated targets. A failed batch has no successful endpoint.
+
+`Properties/HandlerRemote.agda` checks all remote-operation branches: promotion,
+demotion, ordinary and scored transactions, capacity decisions, pruning selection,
+assertions, counters, cancellation delivery and return to IG. Their proposals
+preserve the IG execution engine. The dispatcher combines that fact with entry
+reference retention and the existing captured-mux retention theorem.
+
+`Properties/HandlerManagement.agda` combines the six covered action families.
+`CSP/HandlerManagement` lifts arbitrary finite interleavings to raw CSP traces,
+and composes conditional attachment creation with the same broader suffix.
+
+| Action family | Reference-chain preservation |
+| --- | --- |
+| Lifecycle, publication, handler exit | Covered |
+| Cleanup, inbound release | Covered |
+| Remote promotion/demotion, including pruning | Covered |
+| IG steps, including decision publication | Pending |
+| Server admission and handshake-consumer steps | Pending |
+
+Concrete tracked witnesses cover release through return to IG, self-pruning
+through cancellation delivery, and a transaction writing two victims plus the
+surviving owner's promotion. The self-pruned worker retains its chain even after
+its entry becomes terminated. These are local fixture witnesses, not claims that
+outbound acquisition or source execution reaches those fixtures.
+
+Returning to IG changes its continuation; it does not itself publish the captured
+registration update. The release witness therefore stops before `IG.commitDecision`.
+The new theorem does not yet preserve references across that publication step.
+Negative controls reject wrong cancellation targets and replay of a committed
+pruning transaction; a malformed multi-write batch has no endpoint.
+
+Full runtime validity, source refinement and progress remain separate.
 
 This establishes conditional creation at the attachment boundary, not a proof
 that allocation and publication always establish the premises. Next, derive those
@@ -114,6 +150,8 @@ runtime-validity theorem.
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/CSP/HandlerManagement.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerManagement.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerCleanup.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerCleanup.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerBoundaries.agda +RTS -M2G -RTS
