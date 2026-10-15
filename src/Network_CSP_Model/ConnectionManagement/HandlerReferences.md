@@ -38,7 +38,8 @@ unique-ownership obligations remain separate. The all-dispatcher uniqueness and
 capture-retention theorems continue to hold. The original `HandlerReferences`
 theorem covers only lifecycle actions; the extensions below add publication,
 exit, cleanup, release and remote operations including pruning. Server,
-handshake-consumer and IG steps remain outside the reference-chain trace theorem.
+handshake-consumer and most IG steps remain outside the reference-chain trace
+theorem; the IG boundary cases below are now covered.
 It proves neither progress nor liveness, and does not assert a result after hiding.
 
 `Properties/HandlerAttachment.agda` now derives a new tracked chain from a
@@ -120,7 +121,9 @@ and composes conditional attachment creation with the same broader suffix.
 | Lifecycle, publication, handler exit | Covered |
 | Cleanup, inbound release | Covered |
 | Remote promotion/demotion, including pruning | Covered |
-| IG steps, including decision publication | Pending |
+| IG decision publication and fresh handle/mux installation | Covered |
+| IG responder startup/restart and failed-start stop request | Covered |
+| IG monitor/job/tracer execution and other event-loop steps | Pending |
 | Server admission and handshake-consumer steps | Pending |
 
 Concrete tracked witnesses cover release through return to IG, self-pruning
@@ -131,9 +134,65 @@ outbound acquisition or source execution reaches those fixtures.
 
 Returning to IG changes its continuation; it does not itself publish the captured
 registration update. The release witness therefore stops before `IG.commitDecision`.
-The new theorem does not yet preserve references across that publication step.
+The IG boundary extension below now covers that publication step.
 Negative controls reject wrong cancellation targets and replay of a committed
 pruning transaction; a malformed multi-write batch has no endpoint.
+
+## IG publication and installation
+
+`Properties/HandlerIGBoundary.agda` proves two additional cases of the actual IG
+dispatcher. `CoveredIG` explicitly names `commitDecision` and `installHandle`;
+`ManagementActions.igBoundary` includes just those cases in the existing finite
+execution and raw CSP trace theorems. The conditional attachment-creation lift
+therefore also permits these operations in its suffix.
+
+Decision publication may replace the entire published governor membership but
+leaves the execution engine unchanged. The concrete release witness extends
+through `IG.commitDecision`: its registration is absent afterward, while the
+tracked original reference chain still holds.
+
+Installation checks that both the handle ID and mux ID are absent. Its proof
+uses preservation of existing lookups under fresh insertion, rather than equality
+of the complete handle table. The earlier `HandlerAnchors` API remains unchanged.
+A checked installation adds an unrelated handle/mux pair while preserving the old
+handler's chain. This does not establish a chain for a newly allocated handler or
+guarantee that an arbitrary new mux key matches a handler: creation premises
+remain explicit.
+
+`Negative/HandlerIGBoundary` rules out overwriting either an occupied handle or
+an occupied mux and rejects a second decision publication in the resulting phase.
+The witnesses and negatives are raw CSP traces/refusals, before hiding.
+The startup extension below covers responder start/restart; monitor, job, tracer
+and other event-loop operations still need preservation proofs.
+
+## Responder startup and restart
+
+`Properties/MuxStartReferences.agda` proves that `startOne` and `startBundle`
+retain the mux connection key in every returned outcome. Bundle failure may
+retain successful earlier starts; the proof neither assumes nor introduces a
+rollback. It covers arbitrary protocol lists and mux states, including stopped
+muxes, unknown protocols and already-running protocols.
+
+`Properties/HandlerIGStartup.agda` uses that result and `setMux-preserves` to
+preserve any existing tracked chain through `runResponders`, `restart` and
+`requestFailedStop`. These actions may change governor registration, continuation,
+protocol status and command queues while retaining handles and captured mux keys.
+The acted-on mux need not belong to the worker whose chain is protected.
+
+`ManagementActions.igStartup` extends the existing finite-execution theorem,
+raw CSP reachability theorem and conditional attachment-creation lift. Coverage
+is explicit via `CoveredStartup`; it does not admit arbitrary IG actions.
+
+`CSP/HandlerIGStartup` checks successful startup, failure on the second protocol
+followed by a stop request, and successful/failed restart. The restart snapshots
+are local post-completion fixtures, not proofs of their preceding source execution.
+`Negative/HandlerIGStartup` checks the retained first command and absent
+registration after partial failure, and excludes traces that skip the stop request
+or repeat startup/restart in the wrong phase. A queued shutdown command does not
+establish that the mux has stopped or that handler cleanup has completed.
+
+Next, cover monitor commands/completions, protocol jobs and synchronous tracer
+callbacks, followed by the remaining IG event-loop actions.
 
 Full runtime validity, source refinement and progress remain separate.
 
@@ -150,6 +209,10 @@ runtime-validity theorem.
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/CSP/HandlerIGStartup.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerIGStartup.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerIGBoundary.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerIGBoundary.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerManagement.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerManagement.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerCleanup.agda +RTS -M2G -RTS

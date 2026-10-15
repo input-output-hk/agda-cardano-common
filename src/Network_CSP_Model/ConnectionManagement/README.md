@@ -474,6 +474,11 @@ failure, map restoration and interrupted TIME_WAIT. Reference existence survives
 closure and CM map removal; global runtime validity remains a separate obligation.
 
 `CSP/HandlerManagement.agda` also covers inbound release and remote operations,
-including scored pruning and cancellation delivery. IG decision publication,
-Server admission and handshake-consumer steps remain outside the reference-chain
-theorem. See the action coverage table in the handler reference documentation.
+including scored pruning and cancellation delivery. `HandlerIGBoundary` now adds
+IG decision publication and fresh handle/mux installation to the same theorem.
+Other IG steps, Server admission and handshake consumers remain outside coverage.
+See the action coverage table in the handler reference documentation.
+
+`HandlerIGStartup` adds responder startup/restart and the failed-start stop
+request, including partial bundle failure. Monitor, job and tracer execution
+remain outside the current reference-chain action set.
