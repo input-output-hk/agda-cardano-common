@@ -469,15 +469,47 @@ This completes pre-attachment coverage of the current **IG dispatcher**, not the
 whole Machine dispatcher. Other admission, lifecycle, publication, release and
 remote actions remain outside this interference alphabet. Successful publication
 and attachment are still premises; retention establishes neither readiness nor
-progress. The next work is to address these other dispatcher families and the
-source contract for coherent installation/publication. Phase and source-refinement
-obligations remain separate.
+progress. The following layer adds release and remote actions; admission, lifecycle
+and publication interference still require separate treatment. Phase and
+source-refinement obligations remain separate.
+
+### Release and remote-state interference
+
+`Properties/ReleaseRetention` and `Properties/RemoteRetention` extract the existing
+engine-equality proofs from the tracked-chain modules. They additionally retain
+handler and result stores exactly, and entry/socket presence by identity, through
+the actual dispatcher guards and atomic entry edits. The batch lemma handles any
+successful edit list, including repeated targets; failed edits expose no partial
+endpoint. Existing `HandlerRelease` and `HandlerRemote` APIs remain available.
+
+`Properties/HandlerGovernorInterference` embeds all-IG interference and adds every
+`releaseStep` and `remoteStep`, including scored pruning and cancellation delivery.
+It transports resources, preparation and untracked chains through successful
+finite sequences. `CSP/HandlerGovernorInterference` supplies raw trace lifts and
+delayed attachment with successful matched publication and attachment as premises.
+
+The release witness transports preparation from the existing registered fixture
+through cancellation delivery and membership removal. The promotion witness starts
+after responder startup. Both reuse existing paths without inserting a lifecycle
+frame. Local self-pruning and two-victim fixtures demonstrate retention after
+termination writes and atomic multi-entry edits. Their outbound acquisition history
+is not modeled; no admission reachability is claimed for the pruning inputs.
+Negative controls reject premature release return, premature self-pruning return,
+and a scored transaction whose ticket differs from the current generation.
+
+These are reference-safety results. Cancellation delivery remains an external
+input, and no fairness, termination, enabled attachment, or Haskell refinement
+follows. The remaining pre-attachment dispatcher families are admission beyond
+parent publication/counters, handler lifecycle actions, and result publication.
+The source contract tying installation to the published negotiated handle also
+remains open.
 
 ## Validation
 
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/Negative/HandlerGovernorInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerAllIGInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerIGInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerRuntimeInterference.agda +RTS -M2G -RTS

@@ -322,3 +322,10 @@ handle-table equality API remains unchanged. CSP witnesses cover fresh insertion
 before original publication/attachment and a local decision removing membership.
 Negative controls reject occupied IDs and repeated out-of-phase publication.
 Other dispatcher families and source correspondence remain separate obligations.
+
+[`HandlerGovernorInterference`](HandlerGovernorInterference.agda) further covers all release and remote-state
+actions before attachment, including scored pruning. Shared effects preserve
+resource identities through atomic entry edits and retain the IG engine. CSP
+witnesses transport preparation through release, promotion and local pruning
+fixtures; negative controls retain cancellation, phase and generation guards.
+Admission, lifecycle and publication interference remain the next proof boundary.
