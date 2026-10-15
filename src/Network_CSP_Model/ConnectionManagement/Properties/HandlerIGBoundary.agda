@@ -23,12 +23,7 @@ import ConnectionManagement.Rules.HandlerLifecycle as L
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxRuntime as M
 
--- Fresh allocation preserves every old lookup, without requiring unique stores.
-fresh-lookup : ∀ {K V} ⦃ _ : DecEq K ⦄ (k q : K) (v old : V) xs →
-  lookup k xs ≡ nothing → lookup q xs ≡ just old → lookup q (put k v xs) ≡ just old
-fresh-lookup k q v old xs absent found with q ≟ k
-... | yes refl = case trans (sym absent) found of λ ()
-... | no neq = trans (lookup-put-other k q v xs neq) found
+open import ConnectionManagement.Properties.IGTableRetention public using (fresh-lookup)
 
 -- This helper describes only table growth; the actual rule enforces freshness.
 extend-chain : ∀ hid hd mid m {q captured s ig} →
@@ -61,37 +56,13 @@ queue-chain queue chain = record
   ; handleFound = handleFound chain; handleMux = handleMux chain; muxFound = muxFound chain
   ; keyMatches = keyMatches chain; entryPresent = entryPresent chain; socketPresent = socketPresent chain }
 
-data CoveredIG : IG.IGAction → Set where
-  decision : CoveredIG IG.commitDecision
-  install : ∀ {hid mid k ps flow} → CoveredIG (IG.installHandle hid mid k ps flow)
+open import ConnectionManagement.Properties.IGBoundaryRetention public using (CoveredIG; decision; install)
+import ConnectionManagement.Properties.IGBoundaryRetention as Retention
+open import ConnectionManagement.Properties.HandlerTableRetention using (retains-chain)
 
 worker-chain : ∀ a → CoveredIG a → ∀ ig queue s {ig′ queue′ q mid} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Chain q mid s ig → Chain q mid s ig′
-worker-chain .IG.commitDecision decision ig queue s eq chain with IG.continuation ig
-... | IG.sampleTime = case eq of λ ()
-... | IG.exitFlush = case eq of λ ()
-... | IG.exited = case eq of λ ()
-... | IG.inCM = case eq of λ ()
-... | IG.armInactivity t = case eq of λ ()
-... | IG.awaitBatch t tid = case eq of λ ()
-... | IG.readNext t rest = case eq of λ ()
-... | IG.prepareNew t info rest old = case eq of λ ()
-... | IG.startResponders t info rest old tid = case eq of λ ()
-... | IG.stopAfterFailure t rest mid n err = case eq of λ ()
-... | IG.waitStopped t rest k mid old = case eq of λ ()
-... | IG.restartResponder t rest term = case eq of λ ()
-... | IG.awaitRemoteIdle t k rest old = case eq of λ ()
-... | IG.needsCM t rest event old = case eq of λ ()
-... | IG.publishDecision t rest old with just-injective eq
-...   | refl = control-chain old _ (IG.readNext t rest) chain
-worker-chain .(IG.installHandle hid mid k ps flow) (install {hid} {mid} {k} {ps} {flow}) ig queue s eq chain
-  with lookup hid (IG.handles (IG.execution ig)) in absentHandle | lookup mid (IG.muxes (IG.execution ig)) in absentMux | IG.ordered ps | IG.supported ps
-... | just _ | _ | _ | _ = case eq of λ ()
-... | nothing | just _ | _ | _ = case eq of λ ()
-... | nothing | nothing | false | _ = case eq of λ ()
-... | nothing | nothing | true | false = case eq of λ ()
-... | nothing | nothing | true | true with just-injective eq
-...   | refl = extend-chain hid _ mid _ absentHandle absentMux chain
+worker-chain a covered ig queue s eq = retains-chain (Retention.worker-retains a covered ig queue eq)
 
 mode-chain : ∀ mode a → CoveredIG a → ∀ ig queue s {ig′ queue′ q mid} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Chain q mid s ig → Chain q mid s ig′
