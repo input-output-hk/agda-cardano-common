@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- Extend caller interference with mux execution, handler exit and all cleanup.
+-- Extend caller interference with mux execution, IG startup/loop, exit and cleanup.
 -- This preserves reference evidence, not publication or attachment readiness.
 module ConnectionManagement.Properties.HandlerRuntimeInterference where
 
@@ -24,6 +24,8 @@ import ConnectionManagement.Properties.HandlerInterference as Caller
 import ConnectionManagement.Properties.HandlerConsumerEffects as Effects
 import ConnectionManagement.Properties.CleanupRetention as Cleanup
 import ConnectionManagement.Properties.MuxRetention as Mux
+import ConnectionManagement.Properties.LoopRetention as Loop
+import ConnectionManagement.Properties.StartupRetention as Startup
 import ConnectionManagement.Rules.Cleanup as C
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.HandlerLifecycle as L
@@ -47,6 +49,8 @@ prepared-retained {hid = hid} {mid} eff anchors p with muxesRetained anchors mid
 data Covered : Action → Set where
   caller : ∀ {a} → Caller.Covered a → Covered a
   mux : ∀ {a} → Mux.CoveredMux a → Covered (igStep a)
+  loop : ∀ {a} → Loop.CoveredLoop a → Covered (igStep a)
+  startup : ∀ {a} → Startup.CoveredStartup a → Covered (igStep a)
   cleanup : ∀ {w a} → Covered (cleanupStep w a)
   exit : ∀ {w} → Covered (handlerExit w)
 
@@ -70,6 +74,20 @@ step-effects .(igStep a) (mux {a} covered) c eq with L.allowIG a (handlerLifecyc
 ...   | just (ig′ , queue′) with just-injective eq
 ...     | refl = Cleanup.retains refl refl (λ _ p → p) (λ _ p → p) ,
   Mux.mode-anchors (responder c) a covered (inboundGovernor c) (inboundInfo (world c)) stepped
+step-effects .(igStep a) (loop {a} covered) c eq with L.allowIG a (handlerLifecycles c)
+... | false = case eq of λ ()
+... | true with IG.step (responder c) a (inboundGovernor c) (inboundInfo (world c)) in stepped
+...   | nothing = case eq of λ ()
+...   | just (ig′ , queue′) with just-injective eq
+...     | refl = Cleanup.retains refl refl (λ _ p → p) (λ _ p → p) ,
+  Loop.mode-anchors (responder c) a covered (inboundGovernor c) (inboundInfo (world c)) stepped
+step-effects .(igStep a) (startup {a} covered) c eq with L.allowIG a (handlerLifecycles c)
+... | false = case eq of λ ()
+... | true with IG.step (responder c) a (inboundGovernor c) (inboundInfo (world c)) in stepped
+...   | nothing = case eq of λ ()
+...   | just (ig′ , queue′) with just-injective eq
+...     | refl = Cleanup.retains refl refl (λ _ p → p) (λ _ p → p) ,
+  Startup.mode-anchors (responder c) a covered (inboundGovernor c) (inboundInfo (world c)) stepped
 step-effects .(cleanupStep w a) (cleanup {w} {a}) c eq with C.stepCleanup w a (world c) in stepped
 ... | nothing = case eq of λ ()
 ... | just s′ with just-injective eq
