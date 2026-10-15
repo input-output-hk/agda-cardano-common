@@ -5,8 +5,8 @@ together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
 
 The current model covers **inbound admission, the CM handshake-result consumer,
-and handler cleanup**, with a productive CSP interpretation and local preservation
-lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
+and handler cleanup**, with a productive CSP interpretation, a machine-wide lease-ownership invariant,
+and local reference-preservation lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
 handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a separate abstract handler-exit boundary and includes socket
@@ -170,6 +170,127 @@ it can acquire the map. General lemmas establish identity-guarded purge, preserv
 of the map cell and existing references during selection, and atomic blocking of
 the finalizer. None proves eventual completion.
 
+## Counter validity before interpreting refusals
+
+[Properties/Counters.agda](Properties/Counters.agda) proves that
+`countIncoming heap map` succeeds exactly when every stored map binding refers
+to an existing heap entry. The structural predicate `CounterReferences` includes
+both map levels and unknown-local keys. It implies the earlier lookup-based
+`MapReferences` property and is preserved by entry updates. At an admission
+`countPublished` continuation, a valid full map enables the counter step; a taken
+map blocks it. Worker lookup remains a separate premise of the dispatcher.
+
+[Properties/CounterState.agda](Properties/CounterState.agda) collects the full map,
+admission leases, cleanup leases, and proposed cleanup maps. `CounterStateValid`
+checks all these maps against the current heap, including while the global map
+is taken. It is a reference-validity obligation, **not** a whole-state validity or
+machine-preservation theorem. Unique keys, fresh supplies, ownership, other
+references, and reachability still need separate obligations.
+
+[Negative/CounterValidity.agda](Negative/CounterValidity.agda) checks initial,
+handshake-wait, committed-result, cleanup and map-held snapshots. Its malformed
+fixtures demonstrate two distinct hazards: a duplicate remote key can hide a
+bucket from lookup while counter traversal still visits it; and a dangling
+reference can produce a raw CSP singleton refusal even with a full map. A dangling
+saved map is also rejected when the global cell is taken. These are negative
+controls for model validity, not reachable source defects or global deadlocks.
+
+## Store uniqueness and allocation freshness
+
+[Properties/Stores.agda](Properties/Stores.agda) uses the standard library's
+`AllPairs` to express unique store keys. Local `put` and `delete` preserve this
+property and predicates on retained keys/values. Under uniqueness, properties of
+all successful lookups hold for every stored binding.
+
+[Properties/MapUniqueness.agda](Properties/MapUniqueness.agda) requires unique
+remote keys and unique local keys in each bucket. Both `insertLocal` and
+`deleteConnection` preserve this nested property. With it, the earlier
+`MapReferences` predicate implies `CounterReferences`, closing the gap exposed
+by the shadowed-bucket counterexample. Distinct keys may still alias an entry;
+key uniqueness is not unique ownership of heap entries.
+
+[Properties/Freshness.agda](Properties/Freshness.agda) bounds every stored ID's
+serial strictly below the next supply. This proves the next ID is absent, and
+allocation followed by supply increment preserves the bound. Applied to
+`freshInbound`, unique heap keys and this bound guarantee a successful allocation
+whose heap remains unique and bounded. The generic lemmas apply to typed ID
+stores; preservation for promise allocation and the whole dispatcher is not yet
+proved.
+
+[Negative/Freshness.agda](Negative/Freshness.agda) checks a unique heap containing
+a future ID: the current ID is unused and one allocation succeeds, but the next
+allocation collides. This rejects next-ID absence as a sufficient inductive
+invariant. It also checks the maintained singleton map/heap premises and proves
+the shadowed-map fixture violates uniqueness. These are model-validity controls,
+not source defect claims.
+
+## Exclusive map ownership
+
+[Properties/Ownership.agda](Properties/Ownership.agda) collects lease claims from
+all stored admission and cleanup continuations. `Ownership` requires no claim
+when the map is full, and exactly one claim when it is taken. That claimant's
+worker must equal both the map owner and the captured lease owner. This rejects
+orphaned locks, duplicate claims (even for the same worker), and stale leases
+retained after publication. It does not certify saved-map contents, socket
+ownership, fresh IDs, or other references.
+
+[Properties/OwnershipSteps.agda](Properties/OwnershipSteps.agda) proves preservation
+through the **actual `Machine.advance` dispatcher** for `closeHandlerSocket` and
+`failSocketClose`. These operations change socket status and cleanup continuation
+while retaining the same lease. The proof handles handler/continuation lookup and
+all disabled phase combinations, rather than assuming the intended branch ran.
+The projection lemma works for the local store's first-match update; it does not
+need unique store keys.
+
+[Properties/OwnershipCensus.agda](Properties/OwnershipCensus.agda) proves the
+list-context facts for adding a claim to an empty census and removing the sole
+claim from a singleton census. [OwnershipMapSteps](Properties/OwnershipMapSteps.agda)
+uses them for admission and cleanup continuation changes and the actual CM
+`takeMap`/`putMap` outcomes. No uniqueness premise is added to these ownership
+proofs; reference validity and store uniqueness remain separate obligations.
+
+[Properties/OwnershipMapDispatcher.agda](Properties/OwnershipMapDispatcher.agda)
+covers the six map-changing action families through `Machine.advance`: admission
+`take`, `putMapBack`, `restore`, and cleanup `takeCleanupMap`, `publishCleanupMap`,
+`restoreCleanupMap`. Coverage includes hard-limit publication, forbidden/fork-failed
+restoration, and both counter and TIME_WAIT publication tails. Disabled phase
+combinations are inverted explicitly.
+
+[Properties/OwnershipInvariant.agda](Properties/OwnershipInvariant.agda) now
+proves `advance-preserves` for **every action** of the current dispatcher, followed
+by `exec-preserves` for arbitrary finite executions and `replay-preserves` for
+successful replay. Its sole state premise is `Ownership` of the initial world;
+there is no restriction to a selected action set or schedule. Supporting modules
+[OwnershipNeutral](Properties/OwnershipNeutral.agda),
+[OwnershipAdmission](Properties/OwnershipAdmission.agda),
+[OwnershipCleanup](Properties/OwnershipCleanup.agda), and
+[OwnershipHandshake](Properties/OwnershipHandshake.agda) cover the remaining
+branches. Handler publication/exit retain their existing abstract-boundary semantics.
+
+[CSP/Ownership.agda](CSP/Ownership.agda) retains the narrower action-family lemmas.
+[CSP/OwnershipInvariant.agda](CSP/OwnershipInvariant.agda) transfers the complete
+invariant to arbitrary finite raw CSP executions and traces. It recovers an owned
+machine endpoint and a corresponding action sequence, without assuming that the
+renderer is injective. These are safety statements about the current partial
+machine. They do not prove eventual release, whole-state validity, source
+refinement, or hidden-process liveness/divergence freedom.
+
+[Negative/Ownership.agda](Negative/Ownership.agda) checks initial and handshake-wait
+snapshots and both socket-close outcomes. Its negative controls reject a taken map
+without a claimant, a full map with a retained lease, duplicate claimants, and a
+mismatched lease owner. These are malformed-fixture controls, not source defects.
+[Scenarios/MapOwnership.agda](Scenarios/MapOwnership.agda) checks enabled steps
+and ownership at both endpoints for each map action, including hard-limit,
+forbidden, fork-failure, TIME_WAIT and failed-close restoration branches. These
+are local snapshots; source reachability is not established.
+[Scenarios/OwnershipInvariant.agda](Scenarios/OwnershipInvariant.agda) instantiates
+the invariant at the accepted-socket start state for every finite execution. It
+applies to the two existing cleanup/result race paths, the map-lock refusal path,
+and the duplicate-publication path. The four malformed ownership fixtures are
+proved unreachable from that start state for every finite action sequence. This
+is model unreachability, not a claim about Haskell source reachability or equality
+of rendered processes.
+
 ## Scope and fixture assumptions
 
 - The network source pin is
@@ -228,6 +349,11 @@ agda ConnectionManagement/Scenarios/Admission.agda
 agda ConnectionManagement/Negative/HeapRollback.agda
 agda ConnectionManagement/Negative/StaleHandshake.agda
 agda ConnectionManagement/Negative/CleanupAtomicity.agda
+agda ConnectionManagement/Negative/CounterValidity.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/Freshness.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/Ownership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/MapOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/OwnershipInvariant.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
@@ -238,7 +364,9 @@ postulates, holes or unsafe termination pragmas. This describes the local source
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
-Next: complete whole-state validity obligations and replace the handler-publication
+Next: establish whole-machine preservation for counter references, store uniqueness,
+supply bounds and the other reference obligations, alongside the completed lease
+ownership invariant. Complete whole-state validity and replace the handler-publication
 and exit boundaries with allocation, mux execution, error/query timing and
 exception rules.
 Then add IG batch/registration and outbound acquisition/OG workers through the

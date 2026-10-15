@@ -118,12 +118,47 @@ frontier is not proof of completeness. `advance = nothing` still includes malfor
 fixtures, wrong-phase attempts and real blocking, as documented in the parent
 README. This layer has no finite-carrier bound or explorer cutoff.
 
+The [counter-validity negative control](../Negative/CounterValidity.agda)
+constructs a malformed full-map state whose raw process refuses a counter action.
+The [counter proof layer](../Properties/Counters.agda) shows that this action is
+enabled at the correct admission continuation when its full map has valid entry
+references. The refusal theorem alone cannot distinguish malformed fixtures from
+source blocking. The state predicate additionally checks saved/proposed maps;
+whole-machine validity preservation remains unproved.
+
+[Ownership.agda](Ownership.agda) now transfers ownership preservation for the
+successful and failed cleanup socket-close actions and all six admission/cleanup
+map acquisition, publication and restoration action families to raw CSP steps. It recovers
+a machine endpoint with an exact single-lease claim for a taken map (or no claim
+for a full map). Coverage is explicit in `CloseAction` and `MapAction`; arbitrary
+machine traces are handled by the complete invariant below; hidden transitions
+are not covered by these lemmas. The
+[map-action scenarios](../Scenarios/MapOwnership.agda) provide enabled steps for
+every map-action family, including the rejection and TIME_WAIT branches. The
+[ownership negative controls](../Negative/Ownership.agda) exercise both outcomes
+and reject orphaned, duplicate, mismatched and full-map lease claims.
+
+[OwnershipInvariant.agda](OwnershipInvariant.agda) now lifts the full machine
+invariant to **every finite raw CSP execution and trace**, recovering an endpoint
+configuration with valid lease ownership and its machine execution. The only
+state premise is initial ownership. The renderer need not be injective; no
+claim is made that every configuration rendering the same process is valid.
+The [invariant scenarios](../Scenarios/OwnershipInvariant.agda) apply the theorem
+to the existing race, lock and duplicate-publication paths and exclude all four
+malformed ownership fixtures from finite machine reachability. This establishes
+lease safety for the current partial model, not whole-state validity, eventual
+release, source correspondence or hidden-process liveness.
+
 ## Validation and next work
 
 From the library root, using Agda 2.8.0, one process at a time:
 
 ```sh
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/CounterValidity.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/Ownership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/MapOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/OwnershipInvariant.agda +RTS -M2G -RTS
 ```
 
 The whole-replay proof originally exhausted a 3 GB heap. The maintained witnesses
