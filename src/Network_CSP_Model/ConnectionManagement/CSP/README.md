@@ -223,3 +223,24 @@ see [its contracts](../HandlerOutcomes.md).
 Next: strengthen runtime validity and tracked source scenarios, then add OG under
 the same dispatcher. Full subsystem
 failures/divergence or liveness claims require additional coverage and validity.
+
+The [handler-validity endpoint](HandlerValidity.agda) checks every state in
+selected lifecycle witnesses using [CheckedExecution](CheckedExecution.agda).
+A continuously tracked startup/error path attaches before monitor execution.
+The [contracts](../HandlerValidity.md) distinguish these finite certificates
+from a global preservation theorem; the validator never filters the process.
+
+```sh
+agda ConnectionManagement/CSP/HandlerValidity.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerValidity.agda +RTS -M2G -RTS
+```
+
+[HandlerCapture.agda](HandlerCapture.agda) lifts machine-wide capture retention
+to finite raw process reachability. Unlike the selected-state validity checks,
+this covers arbitrary actions and interleavings, but only preserves the stored
+mux identity. See [the statement and limits](../HandlerCapture.md).
+
+```sh
+agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerCapture.agda +RTS -M2G -RTS
+```

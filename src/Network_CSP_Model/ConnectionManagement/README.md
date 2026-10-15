@@ -61,6 +61,14 @@ pool-close completion, Dead tracing and CM cleanup. [Normal and selected synchro
 exits](HandlerOutcomes.md) now include rethrow-policy branches and node-delivery
 ordering. Full handler coverage and OG remain incomplete.
 
+[Tracked-handler validity](HandlerValidity.md) now checks captured references,
+unique ownership and lifecycle/cleanup consistency at every state of selected
+executions. A startup-to-node-rethrow scenario attaches before monitor execution.
+These certificates do not yet establish a machine-wide runtime invariant.
+A separate [capture-retention theorem](HandlerCapture.md) now covers every
+successful dispatcher step and arbitrary finite executions: stored mux captures
+cannot disappear or change.
+
 ## Implemented behavior
 
 - Distinct identity types; abstract address family/host/port; exact local/remote
@@ -429,6 +437,10 @@ agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Pruning.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerLifecycle.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerOutcomes.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerValidity.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerValidity.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 

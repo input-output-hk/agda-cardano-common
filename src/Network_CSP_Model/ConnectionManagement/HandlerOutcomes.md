@@ -97,6 +97,8 @@ agda ConnectionManagement/CSP/HandlerOutcomes.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerLifecycle.agda +RTS -M2G -RTS
 ```
 
-Next strengthen runtime validity and source-scenario tracking before integrating
-outbound acquisition and OG jobs. No complete source refinement, source defect,
+[Every-state validity certificates](HandlerValidity.md) now cover selected paths,
+including a scenario tracked before monitor startup. Global preservation and
+broader tracking coverage remain required before integrating outbound acquisition
+and OG jobs. No complete source refinement, source defect,
 deadlock-freedom or universal cleanup-progress theorem follows from these traces.
