@@ -4,12 +4,18 @@ This directory develops a source-derived CSP model of CM, IG, OG and Server
 together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
 
-The current executable layer covers **inbound admission and the CM handshake-result
-consumer**, with map-lock and reference-preservation lemmas. It is not yet the
-complete subsystem or a CSP process. Admission starts after accepted-socket
+The current model covers **inbound admission, the CM handshake-result consumer,
+and handler cleanup**, with a productive CSP interpretation and local preservation
+lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
 handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
-The earlier admission-only witnesses remain available.
+Cleanup starts at a separate abstract handler-exit boundary and includes socket
+close, map restoration, and the untimed TIME_WAIT finalizer. The earlier
+admission-only witnesses remain available.
+
+The [CSP layer](CSP/README.md) now supplies one dispatcher, raw and hidden processes,
+machine/process trace correspondence, and concrete trace/refusal checks. The
+subsystem remains open and partial; no source deadlock/liveness claim follows.
 
 ## Reading order
 
@@ -18,11 +24,18 @@ The earlier admission-only witnesses remain available.
 3. [Domain.agda](Domain.agda), [Store.agda](Store.agda), [State.agda](State.agda).
 4. [CM primitives](Rules/CM.agda) and [admission prefix](Rules/Server.agda).
 5. [Handshake consumer](Rules/Handshake.agda) and [handshake witnesses](Scenarios/Handshake.agda).
-6. [Entry references](Properties/Entries.agda), [handshake preservation](Properties/Handshake.agda),
+6. [Cleanup rules](Rules/Cleanup.agda), [cleanup witnesses](Scenarios/Cleanup.agda),
+   [cleanup properties](Properties/Cleanup.agda), and
+   [atomicity negative control](Negative/CleanupAtomicity.agda).
+7. [Entry references](Properties/Entries.agda), [handshake preservation](Properties/Handshake.agda),
    [map-lock properties](Properties/MapLocks.agda),
    [admission witnesses](Scenarios/Admission.agda),
    [heap-rollback negative control](Negative/HeapRollback.agda), and
    [stale-handshake negative control](Negative/StaleHandshake.agda).
+
+8. [Combined dispatcher](Machine.agda), [CSP guide](CSP/README.md),
+   [renderer](CSP/Process.agda), [correspondence](CSP/Correspondence.agda),
+   [hiding](CSP/Hiding.agda), and [CSP scenarios](CSP/Scenarios.agda).
 
 The [architecture review](../review/connection-management-architecture-review.md)
 contains the seven source/runtime/semantic diagrams.
@@ -72,11 +85,44 @@ flowchart LR
   D --> T
 ```
 
+The cleanup slice preserves these source boundaries:
+
+```mermaid
+flowchart LR
+  E[Abstract handler exit] --> T[Take map]
+  T --> S[Entry STM and proposed map]
+  S --> C[Close socket while map held]
+  C --> P[Publish proposed map]
+  C --> R[Close failure: restore saved map]
+  R --> X[Cleanup exception boundary]
+  P --> N[Ordinary path: counter read]
+  P --> W[Terminating path: TIME_WAIT]
+  W --> F[Expiry or interruption: finally STM]
+  F --> N
+  N --> D[Cleanup completion]
+```
+
+- Every entry-state constructor has a cleanup decision. Ordinary states become
+  `Terminated Nothing`; already-terminated entries retain their stored error;
+  terminating entries defer the write and purge until TIME_WAIT finishes.
+- Map deletion checks **entry identity**. The captured entry can still be written
+  when the map has a different replacement entry. Changing only its worker field
+  does not change entry identity.
+- The first heap write commits before socket close and map publication. A modeled
+  close failure restores the saved map, retaining that write. Socket status becomes
+  `closeUncertain`: a throwing close does not establish that the socket is closed.
+- The finalizer's entry write and identity-guarded deletion are one STM operation.
+  It uses the state captured before waiting. A taken map blocks the whole commit.
+- TIME_WAIT expiry and interruption are explicit untimed environment events.
+  Interruption still runs the finalizer and counter read before propagating its error.
+- Cleanup neither fills a handshake promise nor removes its stored result. Once
+  cleanup begins, the abstract publication boundary rejects later body publication.
+
 `State` contains only resources used by these slices. Future IG/OG, protocol,
 transport and supervision records are not represented by dummy fields. Worker
 IDs supplied for the future handler are symbolic references for the source's lazy
 `mfix` reference; recording the fork is separate from running the child. Handler
-execution, handle/mux allocation, and evaluation of unresolved lazy references
+body execution, handle/mux allocation, and evaluation of unresolved lazy references
 after a failed fork are outside these slices, so fork-failure witnesses are not source-bug claims.
 
 ## Properties and witnesses
@@ -114,6 +160,16 @@ whole-source reachable race witnesses. The outbound-idle fixture preserves the
 source distinction between the old flow stored in the entry and the negotiated flow
 reported to IG. No source bug is claimed.
 
+Cleanup witnesses compose with admission and result consumption to cover competing
+map ownership, close-before-publication, both sides of the cleanup/result race,
+interrupted TIME_WAIT, and failed-close restoration. Direct fixtures test replacement
+entry protection, same-entry worker changes, and the captured-state decision after
+another actor changes an entry. These injections are not source-reachability claims.
+`Negative/CleanupAtomicity.agda` refutes exposing the finalizer's entry write before
+it can acquire the map. General lemmas establish identity-guarded purge, preservation
+of the map cell and existing references during selection, and atomic blocking of
+the finalizer. None proves eventual completion.
+
 ## Scope and fixture assumptions
 
 - The network source pin is
@@ -127,15 +183,24 @@ reported to IG. No source bug is claimed.
   or randomized remote-address selection. Those operations are not implemented.
 - Addresses and exceptions have abstract carriers. Concrete source replay must
   instantiate valid addresses and admissible errors.
-- `stepPrefix` and `stepHandshake` cover different continuations of the same state.
-  There is no combined dispatcher yet. Keep `ResponderMode` fixed within a scenario.
+- `Machine.advance` dispatches admission, handshake and cleanup steps on one state,
+  with responder mode fixed in its configuration. The CSP process directly uses
+  this dispatcher. The raw view exposes diagnostic scheduling labels; a separate
+  view hides selected internal operations using the library's CSP operator.
   `publishBoundary` assumes the recorded child has reached `writePromise`; supplied
   handles and error classifications must be admissible source outcomes. Its success
   payload does not allocate or validate a mux/control bundle. It explicitly reports
   duplicate-write exceptions; neither those exceptions nor impossible-state outcomes
   have unwinding rules yet. It does not model `forcePromise`.
-- Child execution/cleanup, IG consumption/registration, OG, timers, asynchronous
-  exception delivery, general unwinding, server handling of CM returns, and
+- `beginCleanupBoundary` assumes the registered handler body has exited, normally
+  or exceptionally. The body outcome and its rethrow policy are not modeled;
+  `cleanupDone cleanupNormal` describes the finalizer, not successful body execution.
+  Ordinary tracing is assumed total/nonblocking; counter-read transactions remain
+  explicit. Close outcomes are supplied by the environment. General tracer/IO
+  exceptions, asynchronous delivery outside TIME_WAIT, and masking semantics are
+  still outside the model. The cleanup continuation and lease must match the worker.
+- Handler body execution, IG consumption/registration, OG, timed scheduling, general
+  asynchronous exception delivery/unwinding, server handling of CM returns, and
   accept-loop rate limiting remain absent. No enabled-step completeness,
   source refinement, deadlock, divergence, or liveness claim follows from it.
 - `nothing` from a wrong-phase attempt means that attempt is unavailable. Helpers
@@ -144,8 +209,13 @@ reported to IG. No source bug is claimed.
   cutoff handling before reporting deadlocks.
 - No capacity bounds are imposed on semantic identity allocation here. The finite
   explorer and cutoff handling described in the design are not implemented.
-- No PTree renderer, machine/process correspondence, exporter, FDR search or Haskell
-  replay has been added. The first combined lifecycle gate G2 is not complete.
+- Raw step/finite-trace correspondence is proved between the machine and its
+  `PTree` rendering. This is not source correspondence or equivalence with a
+  separate parallel architecture. No exporter, FDR search, Haskell replay or
+  hidden-process divergence proof has been added. G2 is not complete.
+- `CSP.Scope` reports selected incomplete continuations without adding tick or
+  self-loop events. An empty offer set in this partial process is not evidence of
+  a source deadlock. Absence of a scope diagnostic does not establish completeness.
 
 ## Validation
 
@@ -157,15 +227,20 @@ agda ConnectionManagement/Rules/Server.agda
 agda ConnectionManagement/Scenarios/Admission.agda
 agda ConnectionManagement/Negative/HeapRollback.agda
 agda ConnectionManagement/Negative/StaleHandshake.agda
+agda ConnectionManagement/Negative/CleanupAtomicity.agda
+agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
 The negative-control endpoints import the admission/handshake witnesses and local
-properties transitively. The new modules preserve `--guardedness` and contain no
+properties transitively, including cleanup. The new modules preserve
+`--guardedness` and contain no
 postulates, holes or unsafe termination pragmas. This describes the local sources,
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
 Next: complete whole-state validity obligations and replace the handler-publication
-boundary with allocation, mux execution, error/query timing and cleanup rules.
-Then add IG batch/registration and outbound acquisition/OG workers under one
-executable semantics before building the CSP rendering.
+and exit boundaries with allocation, mux execution, error/query timing and
+exception rules.
+Then add IG batch/registration and outbound acquisition/OG workers through the
+existing dispatcher. Strengthen the observation alphabet and coverage arguments
+before full-system refinement or failures/divergence claims.

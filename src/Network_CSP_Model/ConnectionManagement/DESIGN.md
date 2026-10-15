@@ -1,9 +1,11 @@
 # Implementation design: CM, IG, OG and Server
 
 **Design baseline: 14 October 2026; implementation update: 15 October 2026.**
-The admission prefix, inbound handshake-result consumer and local map/reference
+The admission prefix, inbound handshake-result consumer, handler cleanup and local map/reference
 preservation lemmas are available; see [README.md](README.md) for exact coverage.
-The combined machine, CSP rendering and source correspondence remain unimplemented. Schematic declarations below describe the target design.
+A dispatcher for those slices, a productive CSP renderer, hiding and machine/trace
+correspondence are also available. The full combined subsystem and source
+correspondence remain unimplemented. Schematic declarations below describe the target design.
 
 ## 1. Objective and authority
 

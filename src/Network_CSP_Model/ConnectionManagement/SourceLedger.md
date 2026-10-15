@@ -26,7 +26,7 @@ also follows `Core.hs:174–215`, which is needed by `Core.hs:557–562`.
 and [a negative control](Negative/HeapRollback.agda) typecheck. They establish
 primitive guarantees and model-prefix behavior, not source refinement or complete
 coverage of these rule families. Accepted-socket handoff is the fixture boundary;
-`SERVER.ACCEPT/HANDOFF`, child execution and general exception/supervision behavior
+`SERVER.ACCEPT/HANDOFF`, child body execution and general exception/supervision behavior
 are not implemented. See [scope](README.md).
 
 [Handshake rules](Rules/Handshake.agda) now transcribe the inbound result consumer
@@ -35,7 +35,8 @@ read, IG enqueue and return. `Types.hs:266–322` supplies non-consuming promise
 and duplicate-write exceptions. `InformationChannel.hs:35–54` supplies the queue
 bound of 100. `ConnectionHandler.hs:186–200` supplies the two error classes;
 `401–460` locates the abstract publication boundary. Actual negotiation, handle/mux
-allocation, delayed query shutdown and handler cleanup remain unimplemented.
+allocation and delayed query shutdown remain unimplemented. Handler cleanup is now
+implemented separately from an abstract exit boundary; see §4.2.
 
 [Handshake witnesses](Scenarios/Handshake.agda), [local reference lemmas](Properties/Entries.agda),
 [success preservation](Properties/Handshake.agda) and the [stale-result negative
@@ -43,6 +44,13 @@ control](Negative/StaleHandshake.agda) check this slice. They do not establish
 source reachability for injected replacement/self-connection fixtures, whole-state
 validity, exception unwinding, or IG registration. Enqueueing a notification is not
 registering or running a responder.
+
+The [combined dispatcher](Machine.agda) delegates to these rule families with a
+fixed responder mode and explicit duplicate-publication faults. The [CSP
+interpretation](CSP/README.md) renders that dispatcher directly, proves raw
+step/finite-trace correspondence, and reuses the dependency's hiding laws. This
+adds a semantics for the existing rules, not new source coverage. Scope diagnostics
+identify selected unimplemented continuations without inventing progress events.
 
 ## 1. Rule record and naming
 
@@ -112,7 +120,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `CM.REMOTE.COLD` | [Remote demotion][remote-cold] | Demotion by exact key/entry, state-dependent results | Family |
 | `CM.PRUNE` | [Pruning helper][prune] and operation call sites | Candidate selection, committed state changes, subsequent cancellation | Family; do not fuse phases |
 | `HANDLER.PUBLISH/RUN` | [ConnectionHandler][handler] | Negotiate, allocate control bundle/mux handle, publish promise, then enter mux execution | Expanded ordering; failure/query branches still Family |
-| `HANDLER.CLEANUP` | [forkConnectionHandler cleanup][cleanup] | Identity-sensitive map cleanup, entry updates, socket/timeout/cancellation obligations | Family; expand branches before implementation |
+| `HANDLER.CLEANUP` | [forkConnectionHandler cleanup][cleanup] | Identity-sensitive map cleanup, entry updates, socket/timeout/cancellation obligations | Expanded §4.2; cleanup slice implemented with exit/timeout/close boundaries |
 
 ### IG
 
@@ -206,13 +214,48 @@ Transcribe executable branches, not an isolated comment. [Admission][include]
 | `commitResult` / `terminateResult` | `Core.hs:1007–1101` | One STM reads captured entry and full map, compares entry identities, updates and deletes only if still current. |
 | `readResultCounters` | `Core.hs:968`, `1073` | Separate map/entry read; can block behind another map owner. |
 | `enqueueInbound` | `Core.hs:984–989`, `InformationChannel.hs:35–54` | Connected responder-mode results enter the capacity-100 FIFO. No IG-active guard or drain added. |
-| `returnResult` | `Core.hs:990–995`, `1075` | Explicit CM API return; server and handler cleanup remain later work. |
+| `returnResult` | `Core.hs:990–995`, `1075` | Explicit CM API return; server handling remains later work; handler cleanup is a separate rule family. |
 
 `OutboundIdleState` uses the pre-existing flow in the new entry but reports the
 negotiated result flow in `Connected`/`NewConnectionInfo`. `OutboundUniState` and
 `OutboundDupState` retain the existing entry while reporting outbound provenance.
 These are transcribed branch behaviors, not evidence that arbitrary mismatched
 flow fixtures are source-reachable.
+
+### 4.2 Implemented handler cleanup
+
+[Cleanup rules](Rules/Cleanup.agda) transcribe `forkConnectionHandler`'s finalizer
+at `Core.hs:594–713`. The fork now retains the connection key as well as entry,
+socket and promise references. `beginCleanupBoundary` assumes body exit and prevents
+later publication by that body; it does not run negotiation, mux, query delay, or
+rethrow policy. Ordinary trace calls are abstracted as total/nonblocking. Counter
+reads are retained. Socket-close success/failure and delay readiness are explicit
+inputs, not derived from transport or a clock model.
+
+| Model operation | Source | Atomicity and effects |
+| --- | --- | --- |
+| `takeCleanupMap` | `606`, helper `2366–2380` | Take map separately; retain a saved map lease. |
+| `selectCleanupEntry` | `607–653` | One entry STM while holding map. All ordinary constructors write `Terminated Nothing` and propose identity-guarded purge. Already-Terminated proposes purge without writing. Terminating retains state/map and captures the TIME_WAIT branch. |
+| `closeHandlerSocket` | `655–662` | Socket IO while map remains taken; proposed map is still unpublished. |
+| `failSocketClose` / `restoreCleanupMap` | `658/661`, helper exception branch | Mark socket outcome uncertain; restore saved map, retain committed entry writes, expose cleanup error. |
+| `publishCleanupMap` | helper completion | Put proposed map separately; route to counter read or TIME_WAIT. |
+| `timeWaitElapsed` / `interruptTimeWait` | `666–669` | Untimed environment completion/interruption of unmasked delay; both enter finally. |
+| `finishTimeWait` | `677–709` | One STM writes captured entry and identity-guards deletion. If map is taken, neither effect commits. Uses captured state, not a refreshed decision. |
+| `readCleanupCounters` | `665/713` | Separate full-map/entry read, then finalizer completion or delayed interruption propagation. |
+
+The Terminating branch is the only valid entrance to TIME_WAIT. Therefore the
+captured abstract-state comparison in the finalizer requests a write even if the
+current entry has since changed. A different mapped EntryId protects that binding;
+a changed WorkerId in the same entry does not. Already-Terminated in the initial
+selection preserves its error, unlike the finalizer reached from Terminating.
+
+[Cleanup properties](Properties/Cleanup.agda) prove local purge, map-cell,
+reference-preservation and atomic-blocking facts. [Scenarios](Scenarios/Cleanup.agda)
+cover result/cleanup ordering, close failure, interruption and replacement fixtures.
+The [negative control](Negative/CleanupAtomicity.agda) refutes splitting the final
+STM into an exposed entry write followed by a blocking map acquisition. These are
+model properties under stated boundaries, not source refinement or race-reachability
+proofs. No global exception/masking semantics or real-time liveness claim is made.
 
 ## 5. Expanded job-pool boundaries
 
