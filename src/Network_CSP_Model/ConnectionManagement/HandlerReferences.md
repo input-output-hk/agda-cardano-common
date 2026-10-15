@@ -438,17 +438,47 @@ its shutdown request. `Negative/HandlerIGInterference` rejects a stale clock sam
 after a successful batch finish. Retained references imply neither readiness nor
 progress; the failure fixture is not claimed reachable from admission.
 
-Next, extend pre-attachment coverage to fresh installation and decision publication.
-Fresh installation needs retention of old handle lookups, rather than equality
-of the whole handle table. The source contract for matched installation
-and publication, as well as phase and source-refinement obligations, remains
-separate.
+### All IG actions before attachment
+
+`Properties/IGTableRetention.agda` adds a lookup-retention relation: every old
+handle lookup keeps its exact value, and every old mux lookup retains a mux with
+the same connection key. Unlike `Anchors`, it permits handle-table growth. The
+stronger `Anchors` API and narrower runtime-interference theorem are unchanged.
+Fresh insertion uses both executable absence guards; no store-uniqueness premise
+is added. `IGBoundaryRetention` supplies installation and decision effects, and
+`IGRetention.mode-retains` exhaustively covers all 25 current IG action forms.
+The existing tracked boundary theorem reuses these effects through
+`HandlerTableRetention`, retaining its public signatures.
+
+`Properties/HandlerAllIGInterference.agda` embeds the runtime alphabet and adds
+any `igStep`. Resources, preparation, and untracked chains survive successful
+finite executions over this enlarged alphabet. Its raw CSP lifts in
+`CSP/HandlerAllIGInterference` also allow any IG action before matched publication
+and between publication and successful attachment. The suffix after attachment
+remains unrestricted by the already established tracked-chain theorem.
+
+The fresh-installation witness starts at the earlier waiting fixture, adds
+unrelated handle/mux IDs, then publishes the original result and attaches the
+original handler. Preparation is transported across the insertion, rather than
+reconstructed at the endpoint. A separate local pending-decision fixture removes
+IG membership without attachment and retains preparation. Its pending continuation
+is not claimed reachable from the whole admission trace. Negative controls reject
+an occupied handle, an occupied mux, and a second decision outside its phase.
+
+This completes pre-attachment coverage of the current **IG dispatcher**, not the
+whole Machine dispatcher. Other admission, lifecycle, publication, release and
+remote actions remain outside this interference alphabet. Successful publication
+and attachment are still premises; retention establishes neither readiness nor
+progress. The next work is to address these other dispatcher families and the
+source contract for coherent installation/publication. Phase and source-refinement
+obligations remain separate.
 
 ## Validation
 
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/Negative/HandlerAllIGInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerIGInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerRuntimeInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerInterference.agda +RTS -M2G -RTS

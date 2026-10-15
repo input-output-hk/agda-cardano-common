@@ -519,3 +519,11 @@ preparation through registration and responder execution, and through a local
 partial-start failure fixture. Its negative control rejects a stale clock sample
 after batch completion. Fresh installation and decision publication remain outside
 this pre-attachment alphabet; the existing tracked-chain theorem still covers them.
+
+[`HandlerAllIGInterference`](CSP/HandlerAllIGInterference.agda) adds fresh installation and decision
+publication, completing pre-attachment coverage of all 25 current IG action forms.
+It uses preservation of old handle lookups so tables may grow; the earlier
+handle-table equality API remains unchanged. CSP witnesses cover fresh insertion
+before original publication/attachment and a local decision removing membership.
+Negative controls reject occupied IDs and repeated out-of-phase publication.
+Other dispatcher families and source correspondence remain separate obligations.
