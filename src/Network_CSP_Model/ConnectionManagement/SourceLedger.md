@@ -52,6 +52,21 @@ step/finite-trace correspondence, and reuses the dependency's hiding laws. This
 adds a semantics for the existing rules, not new source coverage. Scope diagnostics
 identify selected unimplemented continuations without inventing progress events.
 
+[Information-channel rules](Rules/InformationChannel.agda) now implement the
+capacity-100 FIFO operations in [InformationChannel.hs][info]. Handshake enqueue
+uses the shared write operation. An all-or-retry burst helper represents several
+writes in one STM transaction, as needed by the responder tracer; other transaction
+effects must be committed with it when that tracer is implemented.
+[IG batch selection](Rules/IGBatch.agda) implements the ordered selection/flush
+kernel in [the batch source][ig-batch], checked by
+[batch scenarios](Scenarios/IGBatch.agda). It takes readiness candidates as inputs;
+general source-derived readiness and the actual event union remain unimplemented.
+The separate [first-batch prefix](IGRegistration.md) specializes readiness to an empty
+registry and adds retained batch/cursor, per-event state read, idle-timer allocation,
+atomic successful-start/registration and duplicate publication. Its
+[CSP endpoint](CSP/IGRegistration.agda) composes notification-to-registration
+traces. Startup remains an explicit success contract, not modeled mux execution.
+
 ## 1. Rule record and naming
 
 Every implemented rule receives a stable identifier, for example
@@ -83,7 +98,7 @@ be abstracted only with its assumptions recorded.
 | `JOB.FORK/REGISTER` | [JobPool fork][job-fork] | Parent and newly runnable child | Parent masked, child can execute before registry insertion | Expanded §5 |
 | `JOB.COMPLETE/DEREGISTER` | [JobPool fork][job-fork] | Job child | Queue result only for `WithQueue`; deregister waits for registration; async exceptions excluded from ordinary error handler | Expanded §5 |
 | `JOB.WAIT/CANCEL` | [JobPool][job-pool] | OG or scope owner | `waitForJob` reads unbounded TQueue; pool close cancels jobs with source masking/join behavior | Family |
-| `IG.QUEUE` | [InformationChannel][info] | Producers and IG | Capacity 100 TBQueue; FIFO write and whole-queue flush in caller STM | Expanded §6 |
+| `IG.QUEUE` | [InformationChannel][info] | Producers and IG | Capacity 100 TBQueue; FIFO write and whole-queue flush in caller STM | Kernel and first notification batch implemented; full event/runtime integration pending (§6) |
 | `MUX.STOP/STOPPED` | [Mux API][mux-api] | Calling action/IG thread | Stop writes `CmdShutdown` to an unbounded command TQueue; stopped reads mux status and may retry | Family |
 | `EXN.DELIVER` | Call sites plus pinned concurrency dependencies | Sender/target/scope owner | Distinguish request, blocking `throwTo`, permitted delivery, unwinding and termination | Family; dependency audit required |
 | `TIMER/PROMISE` | [Handler][handler], [OG loop][og], [Actions][actions] | Owner and observer | Capture fresh token/promise, readiness, read, cancellation; preserve timeout winner ordering | Family; dependency audit required |
@@ -110,7 +125,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | ID | Source | State/effect and continuation boundary | Status |
 |---|---|---|---|
 | `CM.INCLUDE` | [Inbound admission][include] | Lock map, check hard limit, select/overwrite/create entry, fork handler, restore map, await handshake | Expanded §4 |
-| `CM.INCLUDE.RESULT` | [Inbound admission][include] | Read captured entry, branch on current state and handshake result, negotiated update, notification transaction, return | Family; source branches mandatory |
+| `CM.INCLUDE.RESULT` | [Inbound admission][include] | Read captured entry, branch on current state and handshake result, negotiated update, notification transaction, return | Inbound consumer implemented; handler execution pending |
 | `CM.ACQUIRE.SELECT` | [Outbound acquisition][acquire] | Remote-address lookup and PRNG state; return existing connection/error/wait/reservation branch | Family |
 | `CM.ACQUIRE.CONNECT` | [Outbound acquisition][acquire] | Reserve unknown local address, socket/connect, update local key, fork handler and await negotiation | Family |
 | `CM.ACQUIRE.REUSE` | [Outbound acquisition][acquire] | Duplex reuse, current entry/handle captures and CM transition; reject unsupported unidirectional reuse | Family |
@@ -126,8 +141,8 @@ it must not add a bounded queue to a source-unbounded channel.
 
 | ID | Source | State/effect and continuation boundary | Status |
 |---|---|---|---|
-| `IG.BATCH` | [Setup and batch selection][ig-batch] | Read time, arm inactivity timer, choose STM alternative, prefix generated event if applicable, flush queue | Expanded §6 |
-| `IG.NEW` | [Event handling][ig-events] | Read published state; keep existing entry or prepare/start responders and register new entry | Family |
+| `IG.BATCH` | [Setup and batch selection][ig-batch] | Read time, arm inactivity timer, choose STM alternative, prefix generated event if applicable, flush queue | General kernel and first empty-registry batch implemented; later readiness/loop pending (§6) |
+| `IG.NEW` | [Event handling][ig-events] | Read published state; keep existing entry or prepare/start responders and register new entry | First-batch success/duplicate prefix implemented; startup success is a boundary contract; failures pending |
 | `IG.FINISHED` | [MuxFinished handler][ig-finished] | Capture currently registered mux by key; wait on captured mux; prepare unregister decision | Expanded §6 |
 | `IG.PROTOCOL.END` | [Event handling][ig-events] | Current registration, outcome, and restart behavior | Family |
 | `IG.REMOTE` | [Event handling][ig-events] | WaitIdle, promote/demote, maturity and idle-state transitions | Family |

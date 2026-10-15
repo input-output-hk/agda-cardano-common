@@ -5,8 +5,9 @@ together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
 
 The current model covers **inbound admission, the CM handshake-result consumer,
-and handler cleanup**, with a productive CSP interpretation, a machine-wide lease-ownership invariant,
-and local reference-preservation lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
+handler cleanup, and an initial IG registration prefix**, with a productive CSP interpretation, machine-wide lease
+ownership and allocation-supply invariants, and local reference-preservation
+lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
 handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a separate abstract handler-exit boundary and includes socket
@@ -38,7 +39,20 @@ subsystem remains open and partial; no source deadlock/liveness claim follows.
    [hiding](CSP/Hiding.agda), and [CSP scenarios](CSP/Scenarios.agda).
 
 The [architecture review](../review/connection-management-architecture-review.md)
-contains the seven source/runtime/semantic diagrams.
+contains the seven source/runtime/semantic diagrams. The subsequent
+[progress review](../review/connection-management-progress-review.md) evaluates
+the implemented coverage and prioritizes integrated IG/OG behavior over further
+broad structural proofs.
+
+The [information-channel kernel](Rules/InformationChannel.agda) provides FIFO
+reads, whole-queue flush and capacity-100 writes, including atomic multi-message
+bursts. The handshake enqueue uses this shared helper. The
+[IG batch-selection kernel](Rules/IGBatch.agda) preserves ordered selection and
+flush boundaries, with [executable checks](Scenarios/IGBatch.agda). Its general readiness
+inputs remain parameters. The [first-batch IG prefix](IGRegistration.md) now
+integrates queue draining and successful new-connection registration into the
+machine/CSP process, specializing readiness to an initially empty registry.
+The general IG loop, actual event union and mux/tracer runtime remain outstanding.
 
 ## Implemented behavior
 
@@ -65,7 +79,7 @@ The handshake consumer additionally implements:
 - Error/query cleanup in one map-and-entry transaction, guarded by captured/current
   entry identity; a replacement binding and the old entry are both left untouched.
 - A separate counter read followed by bounded IG notification in responder mode.
-  The source queue depth is 100; a full queue retries. IG draining is not implemented.
+  The source queue depth is 100; a full queue retries. The first IG batch can drain it.
 - Explicit return continuations, with no automatic server closure or child cleanup.
 
 ```mermaid
@@ -118,7 +132,8 @@ flowchart LR
 - Cleanup neither fills a handshake promise nor removes its stored result. Once
   cleanup begins, the abstract publication boundary rejects later body publication.
 
-`State` contains only resources used by these slices. Future IG/OG, protocol,
+`State` contains the CM resources and shared queue; `Configuration` additionally
+contains the IG runtime. Future OG, protocol,
 transport and supervision records are not represented by dummy fields. Worker
 IDs supplied for the future handler are symbolic references for the source's lazy
 `mfix` reference; recording the fork is separate from running the child. Handler
@@ -214,8 +229,8 @@ serial strictly below the next supply. This proves the next ID is absent, and
 allocation followed by supply increment preserves the bound. Applied to
 `freshInbound`, unique heap keys and this bound guarantee a successful allocation
 whose heap remains unique and bounded. The generic lemmas apply to typed ID
-stores; preservation for promise allocation and the whole dispatcher is not yet
-proved.
+stores. The reachable allocation-bound proof below covers promise allocation and
+the complete current dispatcher; whole-machine uniqueness is still separate.
 
 [Negative/Freshness.agda](Negative/Freshness.agda) checks a unique heap containing
 a future ID: the current ID is unused and one allocation succeeds, but the next
@@ -223,6 +238,39 @@ allocation collides. This rejects next-ID absence as a sufficient inductive
 invariant. It also checks the maintained singleton map/heap premises and proves
 the shadowed-map fixture violates uniqueness. These are model-validity controls,
 not source defect claims.
+
+## Reachable allocation bounds
+
+[Properties/SupplyBounds.agda](Properties/SupplyBounds.agda) defines `SupplyBounds`:
+every heap entry ID is strictly below `nextEntry`, and every allocated promise ID
+is strictly below `nextPromise`. It proves that guarded entry updates preserve the
+bound, fresh allocation advances it, and prepending a newly allocated promise
+preserves the incremented promise bound.
+
+[Properties/SupplyInvariant.agda](Properties/SupplyInvariant.agda) proves
+preservation by **every `Machine.advance` action**, arbitrary finite executions,
+and successful replay. It uses the
+[admission](Properties/SupplyAdmission.agda),
+[cleanup](Properties/SupplyCleanup.agda), and
+[handshake](Properties/SupplyHandshake.agda) rule-family proofs. The only state
+premise is initial `SupplyBounds`; ownership, unique keys and reference validity
+are not assumed. Each potentially writing entry operation uses its actual
+successful lookup, including cleanup selection, error-result handling and
+TIME_WAIT finalization.
+
+[CSP/SupplyInvariant.agda](CSP/SupplyInvariant.agda) transfers the invariant to
+arbitrary finite raw CSP executions/traces, recovering bounded machine endpoints
+without assuming renderer injectivity.
+[Scenarios/SupplyInvariant.agda](Scenarios/SupplyInvariant.agda) establishes it
+from the accepted-socket start, checks the existing race, lock and duplicate-write
+paths, and proves both next IDs unused at every reachable state. The earlier
+future-entry collision fixture is unreachable from that start.
+
+These bounds concern entry and allocated-promise identities only. They do not
+exclude duplicates already present in an arbitrary initial store/list, validate
+references, bound worker/handle IDs, impose finite explorer capacities, or prove
+whole-state validity or source correspondence. Remaining store-uniqueness and
+reference-preservation obligations are separate.
 
 ## Exclusive map ownership
 
@@ -304,7 +352,7 @@ of rendered processes.
   or randomized remote-address selection. Those operations are not implemented.
 - Addresses and exceptions have abstract carriers. Concrete source replay must
   instantiate valid addresses and admissible errors.
-- `Machine.advance` dispatches admission, handshake and cleanup steps on one state,
+- `Machine.advance` dispatches admission, handshake, cleanup and initial IG steps,
   with responder mode fixed in its configuration. The CSP process directly uses
   this dispatcher. The raw view exposes diagnostic scheduling labels; a separate
   view hides selected internal operations using the library's CSP operator.
@@ -320,7 +368,10 @@ of rendered processes.
   explicit. Close outcomes are supplied by the environment. General tracer/IO
   exceptions, asynchronous delivery outside TIME_WAIT, and masking semantics are
   still outside the model. The cleanup continuation and lease must match the worker.
-- Handler body execution, IG consumption/registration, OG, timed scheduling, general
+- IG registration is conditional on the successful responder-start contract in
+  [IGRegistration.md](IGRegistration.md). Subsequent batches, the full event union,
+  startup failure and mux/tracer behavior remain absent.
+- Handler body execution, OG, timed scheduling, general
   asynchronous exception delivery/unwinding, server handling of CM returns, and
   accept-loop rate limiting remain absent. No enabled-step completeness,
   source refinement, deadlock, divergence, or liveness claim follows from it.
@@ -354,6 +405,9 @@ agda ConnectionManagement/Negative/Freshness.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/Ownership.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/MapOwnership.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/OwnershipInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/SupplyInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/IGBatch.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
@@ -364,11 +418,10 @@ postulates, holes or unsafe termination pragmas. This describes the local source
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
-Next: establish whole-machine preservation for counter references, store uniqueness,
-supply bounds and the other reference obligations, alongside the completed lease
-ownership invariant. Complete whole-state validity and replace the handler-publication
-and exit boundaries with allocation, mux execution, error/query timing and
-exception rules.
-Then add IG batch/registration and outbound acquisition/OG workers through the
-existing dispatcher. Strengthen the observation alphabet and coverage arguments
-before full-system refinement or failures/divergence claims.
+Next: extend the first-batch IG prefix with the actual event union and mux/tracer
+runtime, determining responder-start outcomes from modeled state. Preserve atomic
+tracer queue/counter effects and derive readiness for subsequent batches. Then add
+inbound release and outbound acquisition/OG jobs. Keep the existing invariants as
+regression checks; full reference/store validity remains an obligation. Strengthen
+the observation alphabet and add bounded exploration/source replay before reporting
+source defects or full-system refinement/failures/divergence claims.

@@ -4,7 +4,12 @@
 The admission prefix, inbound handshake-result consumer, handler cleanup and local map/reference
 preservation lemmas are available; see [README.md](README.md) for exact coverage.
 A dispatcher for those slices, a productive CSP renderer, hiding and machine/trace
-correspondence are also available. The full combined subsystem and source
+correspondence are also available, with machine-wide lease-ownership and allocation-
+supply invariants. Shared information-channel and pure IG batch-selection kernels
+are implemented. The first-batch IG registration prefix now has machine/CSP traces;
+see [its contracts](IGRegistration.md). General readiness, mux/tracer runtime and
+subsequent IG iterations remain outstanding.
+The full combined subsystem and source
 correspondence remain unimplemented. Schematic declarations below describe the target design.
 
 ## 1. Objective and authority
@@ -401,6 +406,12 @@ These are concrete work items, not permission gates:
 - Select an exporter only after confirming tool availability and the intended CSP
   semantic model. No exporter or FDR run is assumed to exist today.
 
-The immediate coding entry point is `Domain.agda` and `State.agda`, followed by
-the primitive rules and admission path in the ledger. G0/G1 provide the small
-reviewable foundation before the combined model grows.
+The first notification-to-registration prefix is now dispatcher-integrated, with
+readiness specialized to the initially empty registry and a successful-start
+boundary. Extend it with the actual IG event union and mux/tracer runtime,
+source-derived startup outcomes and subsequent-batch readiness. Follow with
+inbound release, then outbound acquisition and OG jobs.
+Retain the existing invariants as regression checks while extending behavior.
+Neither G1 nor the first combined lifecycle gate G2 is complete. The
+[progress review](../review/connection-management-progress-review.md) records
+coverage, remaining abstractions and the revised implementation priorities.

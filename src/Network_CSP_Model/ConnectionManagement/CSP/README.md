@@ -2,8 +2,8 @@
 
 The CSP layer now interprets the source-derived transition rules as a productive
 `PTree`, using `csp-ptree-agda`'s LTS, traces, stable failures and hiding semantics.
-The implemented subsystem remains partial: handler execution, IG and OG are still
-abstract or missing. This is a CSP model of the implemented slice, not a complete
+The implemented subsystem remains partial: handler execution, the general IG loop and OG are still
+abstract or missing; the first-batch IG registration prefix is implemented. This is a CSP model of the implemented slice, not a complete
 model of the network source.
 
 ## Architecture
@@ -71,7 +71,8 @@ process. No divergence-freedom or failures-divergences refinement claim is made.
 `Hiding.internal` explicitly selects the events made silent. It hides map/entry
 transactions, promise reads, local allocation, counter reads and IG enqueue.
 Fork and socket-close outcomes, handler publication/exit, TIME_WAIT readiness or
-interruption, and CM return labels remain visible. `HiddenProcess` uses the
+interruption, CM return, IG clock capture and successful responder-start labels
+remain visible. IG queue/cursor/timer operations are hidden. `HiddenProcess` uses the
 library's `_∖_` operator, so hidden enabled events become internal choices.
 
 This is an initial diagnostic observation policy, not a validated API abstraction.
@@ -107,7 +108,8 @@ The raw negative-trace theorem is not a negative-trace theorem after hiding.
 
 `Scope.agda` identifies selected unimplemented continuations: server handling of
 CM returns, admission unwinding, accept-loop continuation, handler body/cleanup
-return, and IG registration. OG remains unimplemented throughout this slice.
+return, IG responder-start outcomes, inactivity handling and subsequent IG batches.
+OG remains unimplemented throughout this slice.
 These diagnostics are separate from the process alphabet. They add neither a tick
 nor a self-loop to make an incomplete state appear to progress.
 
@@ -149,6 +151,14 @@ malformed ownership fixtures from finite machine reachability. This establishes
 lease safety for the current partial model, not whole-state validity, eventual
 release, source correspondence or hidden-process liveness.
 
+[SupplyInvariant.agda](SupplyInvariant.agda) similarly transfers the complete
+entry/promise supply-bound invariant to arbitrary finite raw CSP executions and
+traces. Its initial-state premise is `SupplyBounds`, independent of ownership.
+The [supply scenarios](../Scenarios/SupplyInvariant.agda) prove that both next IDs
+are unused at every state reachable from the accepted-socket start and rule out
+the earlier future-entry collision fixture. The result does not certify store
+uniqueness, reference validity, worker/handle freshness or finite explorer bounds.
+
 ## Validation and next work
 
 From the library root, using Agda 2.8.0, one process at a time:
@@ -159,6 +169,8 @@ agda ConnectionManagement/Negative/CounterValidity.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/Ownership.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/MapOwnership.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/OwnershipInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Scenarios/SupplyInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
 ```
 
 The whole-replay proof originally exhausted a 3 GB heap. The maintained witnesses
@@ -170,8 +182,13 @@ This checks the dispatcher, renderer, correspondence, hiding and scope modules,
 and their imported admission/handshake witnesses. The separate cleanup and negative
 control endpoints remain part of regression validation.
 
-Next: strengthen whole-state validity, implement handler execution and IG/OG under
-the same dispatcher, and refine the observation alphabet before asserting full
-subsystem failures/divergence or liveness properties. A parallel component
+The [IG registration endpoint](IGRegistration.agda) adds a raw and hidden CSP trace
+from admission through notification and first-batch registration. It also checks
+duplicate preservation, drain/processing separation, premature-start refusal and a
+late enqueue. See [the source mapping and contracts](../IGRegistration.md).
+
+Next: extend IG with the event union and mux/tracer behavior, then inbound release
+and OG under the same dispatcher. Refine the observation alphabet before asserting
+full subsystem failures/divergence or liveness properties. A parallel component
 presentation requires its own correspondence proof against this authoritative
 machine.
