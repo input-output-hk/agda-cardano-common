@@ -69,6 +69,7 @@ agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerCapture.agda +RTS -M2G -RTS
 ```
 
-Next extend global preservation to unique tracked ownership and the original
-handler/promise/handle/mux references. Keep phase validity and full source coverage
+[Unique tracked ownership](HandlerUniqueOwnership.md) is now proved separately,
+using a shared proof of permitted tracking-table edits. Next extend global
+preservation to the original handler/promise/handle/mux references. Keep phase validity and full source coverage
 as separate obligations before treating exploration results as source defects.

@@ -66,7 +66,9 @@ not reachable source-defect witnesses.
 
 The complete validity predicate is **not a machine-wide inductive invariant**.
 A separate [capture-retention theorem](HandlerCapture.md) now proves that arbitrary
-finite executions neither remove nor retarget existing stored mux captures. It does not establish validity
+finite executions neither remove nor retarget existing stored mux captures.
+[Unique tracked ownership](HandlerUniqueOwnership.md) is now also preserved
+machine-wide, using the exact `uniqueOwners` predicate above. It does not establish validity
 for arbitrary interleavings or arbitrary actions. `monitoring` and `poolClosing`
 permit intermediate mux states, finalization forgets the exact body-exit reason,
 and failed-tracer exception identities remain inputs. Uniqueness of other stores,
@@ -80,6 +82,6 @@ agda ConnectionManagement/CSP/HandlerValidity.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerValidity.agda +RTS -M2G -RTS
 ```
 
-Next extend global preservation from stored capture retention to unique ownership
-and reference-chain validity, and extend tracking to more source scenarios.
+Next extend global preservation to reference-chain validity, and extend tracking
+to more source scenarios.
 These obligations remain separate from outbound acquisition and OG integration.

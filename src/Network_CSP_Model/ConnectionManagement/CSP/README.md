@@ -244,3 +244,13 @@ mux identity. See [the statement and limits](../HandlerCapture.md).
 agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerCapture.agda +RTS -M2G -RTS
 ```
+
+[HandlerUniqueOwnership.agda](HandlerUniqueOwnership.agda) lifts preservation of
+unique tracked worker keys and captured mux ownership to raw finite process
+reachability. Its [scope](../HandlerUniqueOwnership.md) excludes full reference
+validity and coverage of untracked handlers.
+
+```sh
+agda ConnectionManagement/CSP/HandlerUniqueOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerUniqueOwnership.agda +RTS -M2G -RTS
+```

@@ -67,7 +67,8 @@ executions. A startup-to-node-rethrow scenario attaches before monitor execution
 These certificates do not yet establish a machine-wide runtime invariant.
 A separate [capture-retention theorem](HandlerCapture.md) now covers every
 successful dispatcher step and arbitrary finite executions: stored mux captures
-cannot disappear or change.
+cannot disappear or change. [Unique tracked ownership](HandlerUniqueOwnership.md)
+is also preserved by every successful action and arbitrary finite executions.
 
 ## Implemented behavior
 
@@ -441,6 +442,8 @@ agda ConnectionManagement/CSP/HandlerValidity.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerValidity.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerUniqueOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerUniqueOwnership.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
