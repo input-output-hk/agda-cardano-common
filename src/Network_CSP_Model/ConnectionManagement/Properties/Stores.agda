@@ -101,3 +101,17 @@ delete-values P k [] [] = []
 delete-values P k ((q , old) ∷ xs) (p ∷ ps) with k ≟ q
 ... | yes _ = ps
 ... | no _ = p ∷ delete-values P k xs ps
+
+-- A store write at a different key preserves the complete lookup value.
+lookup-put-other : ∀ {K V} ⦃ _ : DecEq K ⦄ (w q : K) (v : V) xs →
+  q ≢ w → lookup q (put w v xs) ≡ lookup q xs
+lookup-put-other w q v [] neq with q ≟ w
+... | yes eq = ⊥-elim (neq eq)
+... | no _ = refl
+lookup-put-other w q v ((r , old) ∷ xs) neq with w ≟ r
+... | yes refl with q ≟ r
+...   | yes eq = ⊥-elim (neq eq)
+...   | no _ = refl
+lookup-put-other w q v ((r , old) ∷ xs) neq | no _ with q ≟ r
+... | yes _ = refl
+... | no _ = lookup-put-other w q v xs neq

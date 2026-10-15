@@ -35,19 +35,7 @@ retains-trans left right w f found with left w f found
 ... | g , fg , same with right w g fg
 ...   | h , gh , same′ = h , gh , trans same′ same
 
--- A store write at a different key preserves the complete lookup value.
-lookup-put-other : ∀ {K V} ⦃ _ : DecEq K ⦄ (w q : K) (v : V) xs →
-  q ≢ w → lookup q (put w v xs) ≡ lookup q xs
-lookup-put-other w q v [] neq with q ≟ w
-... | yes eq = ⊥-elim (neq eq)
-... | no _ = refl
-lookup-put-other w q v ((r , old) ∷ xs) neq with w ≟ r
-... | yes refl with q ≟ r
-...   | yes eq = ⊥-elim (neq eq)
-...   | no _ = refl
-lookup-put-other w q v ((r , old) ∷ xs) neq | no _ with q ≟ r
-... | yes _ = refl
-... | no _ = lookup-put-other w q v xs neq
+open import ConnectionManagement.Properties.Stores using (lookup-put-other) public
 
 phase-retains : ∀ w f p rt → lookup w rt ≡ just f → Retains rt (L.setPhase w f p rt)
 phase-retains w f p rt owned q old found with q ≟ w
