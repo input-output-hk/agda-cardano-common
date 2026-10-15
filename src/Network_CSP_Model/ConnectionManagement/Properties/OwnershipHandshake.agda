@@ -144,7 +144,7 @@ handshake-worker H.enqueueInbound mode w a@(admissionWorker r (notifyInbound inf
   with suc (length (inboundInfo s)) ≤? 100
 ... | no _ = case eq of λ ()
 ... | yes _ = subst Ownership (just-injective eq) (admission-neutral w a (returnHandshake (connected info))
-  (record s { inboundInfo = inboundInfo s ++ (info ∷ []) }) found refl own)
+  (record s { inboundInfo = inboundInfo s ++ (newConnection info ∷ []) }) found refl own)
 handshake-worker H.returnResult mode w (admissionWorker r acquireMap) s found () own
 handshake-worker H.returnResult mode w (admissionWorker r (count l)) s found () own
 handshake-worker H.returnResult mode w (admissionWorker r (prepare l)) s found () own

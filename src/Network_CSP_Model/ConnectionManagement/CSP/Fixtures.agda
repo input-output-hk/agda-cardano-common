@@ -5,7 +5,7 @@
 module ConnectionManagement.CSP.Fixtures where
 
 open import Data.Nat using (ℕ)
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; map)
 open import Data.Product using (_,_)
 open import Data.Maybe using (just; nothing)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
@@ -51,7 +51,7 @@ snapshot st cell pc owner rs queue cs = initial responderMode
   (state (cmStore cell ((entry₀ , st) ∷ []) 1) (requests pc)
     ((child₀ , handlerStart entry₀ (ident 0) promise₀ key₀) ∷ [])
     ((ident 0 , owner) ∷ (ident 1 , admitting w₁) ∷ [])
-    (promise₀ ∷ []) 1 rs queue cs)
+    (promise₀ ∷ []) 1 rs (map newConnection queue) cs)
 
 resultStore : Store PromiseId HandshakeResult
 resultStore = (promise₀ , success) ∷ []

@@ -56,7 +56,7 @@ race-trace = trace-intro {c = start} {as = race} {c′ = raceEnd} race-path
 race-hidden-trace : traces (HiddenProcess start) (map label (project race))
 race-hidden-trace = hidden-trace {c = start} {as = race} {c′ = raceEnd} race-path
 
-race-keeps-notification : inboundInfo (world raceEnd) ≡ info ∷ []
+race-keeps-notification : inboundInfo (world raceEnd) ≡ newConnection info ∷ []
 race-keeps-notification = refl
 
 race-has-no-binding : mapCell (cm (world raceEnd)) ≡ full []

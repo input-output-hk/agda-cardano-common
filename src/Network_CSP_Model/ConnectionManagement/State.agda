@@ -7,6 +7,7 @@ open import Data.Nat using (ℕ; zero; suc; _+_)
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_)
+open import ConnectionManagement.IGTypes public
 open import ConnectionManagement.Domain
 open import ConnectionManagement.Store using (Store; lookup; put; delete)
 
@@ -116,14 +117,6 @@ data DisconnectReason : Set where
   handshakeError : HandlerErrorClass → ErrorId → DisconnectReason
   inTerminating inTerminated : Maybe ErrorId → DisconnectReason
 
-record NewConnectionInfo : Set where
-  constructor newConnectionInfo
-  field origin : Provenance
-        connectionKey : ConnectionKey
-        negotiatedFlow : DataFlow
-        negotiatedHandle : HandleId
-open NewConnectionInfo public
-
 data Completion : Set where
   connected : NewConnectionInfo → Completion
   disconnected : DisconnectReason → Completion
@@ -203,6 +196,6 @@ record State : Set where
     promises : List PromiseId
     nextPromise : ℕ
     handshakeResults : Store PromiseId HandshakeResult
-    inboundInfo : List NewConnectionInfo
+    inboundInfo : List IGEvent
     cleanups : Store WorkerId CleanupPC
 open State public

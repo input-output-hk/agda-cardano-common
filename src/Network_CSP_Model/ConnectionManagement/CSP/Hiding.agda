@@ -43,7 +43,12 @@ internal (cleanupStep _ _) = true
 internal (handlerPublication _ _ _) = false
 internal (handlerExit _) = false
 internal (igStep (IG.captureTime _)) = false
-internal (igStep IG.successfulResponderStart) = false
+internal (igStep IG.deactivateIG) = false
+internal (igStep (IG.installHandle _ _ _ _ _)) = false
+internal (igStep (IG.expireTimer _)) = false
+internal (igStep (IG.startOnDemand _ _)) = false
+internal (igStep (IG.finishProtocol _ _ _)) = false
+internal (igStep (IG.finishStop _)) = false
 internal (igStep _) = true
 
 internalSet : EventSet

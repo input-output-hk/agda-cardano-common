@@ -123,7 +123,7 @@ stepWorker mode w a readResultCounters s | _ | _ = nothing
 -- InformationChannel.hs uses a TBQueue of depth 100; queue-full retries. IG
 -- consumption is deliberately absent until the IG batch/registration rules exist.
 stepWorker mode w a enqueueInbound s with pc a
-... | notifyInbound info with InfoChannel.writeMessage info (inboundInfo s)
+... | notifyInbound info with InfoChannel.writeMessage (newConnection info) (inboundInfo s)
 ...   | nothing = nothing
 ...   | just queue = just (setPC w a (returnHandshake (connected info))
       (record s { inboundInfo = queue }))

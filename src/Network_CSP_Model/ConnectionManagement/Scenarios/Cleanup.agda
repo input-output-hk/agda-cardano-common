@@ -106,7 +106,7 @@ cleanupAfterDecision = bind
 notification-can-follow-cleanup :
   map inboundInfo (bind cleanupAfterDecision
     (runHandshake responderMode (readResultCounters ∷ enqueueInbound ∷ returnResult ∷ [])))
-  ≡ just (info ∷ [])
+  ≡ just (newConnection info ∷ [])
 notification-can-follow-cleanup = refl
 
 -- Negotiation failure supplies a Terminating entry through implemented consumer

@@ -60,7 +60,7 @@ success-completes : map resultPC (resume success responderMode successActions)
 success-completes = refl
 
 success-notifies : map inboundInfo (resume success responderMode successActions)
-  ≡ just (info ∷ [])
+  ≡ just (newConnection info ∷ [])
 success-notifies = refl
 
 success-updates-captured-entry :
@@ -149,7 +149,7 @@ no-responder-skips-queue = refl
 -- Direct guard fixture: the production channel capacity is 100, not a finite
 -- explorer cutoff. IG draining will be modeled separately.
 fullQueue : State → State
-fullQueue s = record s { inboundInfo = replicate 100 info }
+fullQueue s = record s { inboundInfo = replicate 100 (newConnection info) }
 
 full-info-queue-waits :
   bind (map fullQueue (resume success responderMode
@@ -229,7 +229,7 @@ outboundRace = bind (map outboundIdleAfterRead
   (runHandshake responderMode (commitResult ∷ readResultCounters ∷ enqueueInbound ∷ returnResult ∷ []))
 
 outbound-race-reports-result-flow : map inboundInfo outboundRace
-  ≡ just (newConnectionInfo outbound key₀ duplex (ident 0) ∷ [])
+  ≡ just (newConnection (newConnectionInfo outbound key₀ duplex (ident 0)) ∷ [])
 outbound-race-reports-result-flow = refl
 
 outbound-race-retains-entry-flow : map (λ s → lookup (ident 0) (entries (cm s))) outboundRace
