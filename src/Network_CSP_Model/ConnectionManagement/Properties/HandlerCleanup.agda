@@ -35,151 +35,17 @@ reframe c′ ss pcs ep sp chain = record
   ; keyMatches = keyMatches chain
   ; entryPresent = ep _ (entryPresent chain); socketPresent = sp _ (socketPresent chain) }
 
-take-entries : ∀ w c {l c′} → CM.takeMap w c ≡ just (l , c′) → entries c′ ≡ entries c
-take-entries w c eq with mapCell c
-... | taken _ = case eq of λ ()
-... | full m with just-injective eq
-...   | refl = refl
-put-entries : ∀ l m c {c′} → CM.putMap l m c ≡ just c′ → entries c′ ≡ entries c
-put-entries l m c eq with mapCell c
-... | full _ = case eq of λ ()
-... | taken w with owner l ≟ w
-...   | no _ = case eq of λ ()
-...   | yes _ with just-injective eq
-...     | refl = refl
+-- Preserve existing helper signatures while sharing the source-rule analysis.
+open import ConnectionManagement.Properties.CleanupRetention public using (take-entries; put-entries; finish-present)
+import ConnectionManagement.Properties.CleanupRetention as Retention
 
 select-preserves : ∀ w h l decision s {q mid ig} →
   Chain q mid s ig → Chain q mid (Cleanup.selectCleanup w h l decision s) ig
-select-preserves w h l Cleanup.terminateAndPurge s chain =
-  reframe _ _ _ (λ e → put-preserves-present (handlerEntry h) e (terminated nothing) (entries (cm s))) (λ _ p → p) chain
-select-preserves w h l Cleanup.purgeOnly s chain = reframe _ _ _ (λ _ p → p) (λ _ p → p) chain
-select-preserves w h l (Cleanup.waitBeforePurge st) s chain = reframe _ _ _ (λ _ p → p) (λ _ p → p) chain
-
-finish-present : ∀ e captured heap q → Present q heap → Present q (Cleanup.finishEntry e captured heap)
-finish-present e (terminated _) heap q present = present
-finish-present e reservedOutbound heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (unnegotiated _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (outboundUni _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (outboundDup _ _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (outboundIdle _ _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (inboundIdle _ _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (inboundActive _ _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (duplexActive _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
-finish-present e (terminating _ _ _) heap q present = put-preserves-present e q (terminated nothing) heap present
+select-preserves w h l decision s = Retention.retains-chain (Retention.select-retains w h l decision s)
 
 cleanup-preserves : ∀ {q mid ig} action w h p s {s′} → Cleanup.stepWorker w h p action s ≡ just s′ →
   Chain q mid s ig → Chain q mid s′ ig
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.takeCleanupMap w h cleanupAcquire s eq chain with CM.takeMap w (cm s) in takenEq
-... | nothing = case eq of λ ()
-... | just (l , c′) = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ e p → subst (Present e) (sym (take-entries w (cm s) takenEq)) p) (λ _ p → p) chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.selectCleanupEntry w h (cleanupSelect l) s eq chain with mapCell (cm s)
-... | full _ = case eq of λ ()
-... | taken owner with owner ≟ w
-...   | no _ = case eq of λ ()
-...   | yes _ with lookup (handlerEntry h) (entries (cm s)) in found
-...     | nothing = case eq of λ ()
-...     | just st = subst (λ s → Chain q mid s ig) (just-injective eq) (select-preserves w h l (Cleanup.decideCleanup st) s chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.closeHandlerSocket w h (cleanupClose l m tail) s eq chain = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ _ p → p) (λ sock → put-preserves-present (handlerSocket h) sock closed (sockets s)) chain)
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.failSocketClose error) w h (cleanupClose l m tail) s eq chain = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ _ p → p) (λ sock → put-preserves-present (handlerSocket h) sock (closeUncertain error) (sockets s)) chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.publishCleanupMap w h (cleanupPublish l m tail) s eq chain with CM.putMap l m (cm s) in putEq
-... | nothing = case eq of λ ()
-... | just c′ = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ e p → subst (Present e) (sym (put-entries l m (cm s) putEq)) p) (λ _ p → p) chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.restoreCleanupMap w h (cleanupRestore l err) s eq chain with CM.putMap l (savedMap l) (cm s) in putEq
-... | nothing = case eq of λ ()
-... | just c′ = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ e p → subst (Present e) (sym (put-entries l (savedMap l) (cm s) putEq)) p) (λ _ p → p) chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.timeWaitElapsed w h (cleanupWaiting st) s eq chain = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ _ p → p) (λ _ p → p) chain)
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} (Cleanup.interruptTimeWait error) w h (cleanupWaiting st) s eq chain = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ _ p → p) (λ _ p → p) chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupCount outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.finishTimeWait w h (cleanupFinalize st outcome) s eq chain with mapCell (cm s)
-... | taken _ = case eq of λ ()
-... | full m with lookup (handlerEntry h) (entries (cm s)) in found
-...   | nothing = case eq of λ ()
-...   | just _ = subst (λ s → Chain q mid s ig) (just-injective eq)
-  (reframe _ _ _ (finish-present (handlerEntry h) st (entries (cm s))) (λ _ p → p) chain)
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h cleanupAcquire s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupSelect l) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupClose l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupPublish l m tail) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupRestore l err) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupWaiting st) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupFinalize st outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupDone outcome) s () chain
-cleanup-preserves {q} {mid} {ig} Cleanup.readCleanupCounters w h (cleanupCount outcome) s eq chain with mapCell (cm s)
-... | taken _ = case eq of λ ()
-... | full m with countIncoming (entries (cm s)) m
-...   | nothing = case eq of λ ()
-...   | just _ = subst (λ s → Chain q mid s ig) (just-injective eq) (reframe _ _ _ (λ _ p → p) (λ _ p → p) chain)
+cleanup-preserves action w h p s eq = Retention.retains-chain (Retention.worker-retains action w h p s eq)
 
 -- Lift from a selected cleanup worker to the actual dispatcher.
 step-preserves : ∀ w a c {c′} → advance (cleanupStep w a) c ≡ just c′ →
