@@ -12,6 +12,7 @@ open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Bool using (Bool; true; false)
 open import Data.Product using (_×_; _,_)
 open import Relation.Nullary using (yes; no)
+open import ConnectionManagement.ConnectionOrder public using (lexLess; addressCode; keyLess)
 open import ConnectionManagement.Domain
 open import ConnectionManagement.State using (ResponderMode; responderMode; noResponderMode)
 open import ConnectionManagement.IGTypes public
@@ -108,21 +109,6 @@ expiredTimer t e with lookup t (timers e)
 ... | just expired = true
 ... | _ = false
 
--- Abstract Ord peerAddr instance: lexicographic family/host/port. Concrete
--- replay must instantiate a matching order. Select minimum, not list head.
-lexLess : List ℕ → List ℕ → Bool
-lexLess [] _ = false
-lexLess (_ ∷ _) [] = false
-lexLess (x ∷ xs) (y ∷ ys) with x <? y | y <? x
-... | yes _ | _ = true
-... | no _ | yes _ = false
-... | no _ | no _ = lexLess xs ys
-addressCode : PeerAddr → List ℕ
-addressCode (addr ipv4 h p) = 0 ∷ h ∷ p ∷ []
-addressCode (addr ipv6 h p) = 1 ∷ h ∷ p ∷ []
-keyLess : ConnectionKey → ConnectionKey → Bool
-keyLess x y = lexLess (addressCode (local x) ++ addressCode (remote x))
-                     (addressCode (local y) ++ addressCode (remote y))
 minimumKey : ConnectionKey → Maybe ConnectionKey → Maybe ConnectionKey
 minimumKey k nothing = just k
 minimumKey k (just other) with keyLess k other
