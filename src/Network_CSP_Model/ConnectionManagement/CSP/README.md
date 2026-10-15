@@ -300,3 +300,10 @@ handshake-consumer actions before attachment. The raw CSP theorem permits these
 interleavings around result publication and retains arbitrary suffixes after
 attachment. Coverage is explicit; preserved evidence does not guarantee that
 publication or attachment remains enabled.
+
+[`HandlerRuntimeInterference`](HandlerRuntimeInterference.agda) extends that alphabet with all ten
+mux monitor/job/tracer forms, handler exit and every cleanup action. Shared
+retention proofs keep the earlier chain APIs intact. Pre-attachment evidence
+survives socket closure, map removal and mux stopping, while negative CSP checks
+exclude publication after cleanup and attachment to a stopped mux. Remaining IG
+startup, loop and installation actions are still outside this interference API.

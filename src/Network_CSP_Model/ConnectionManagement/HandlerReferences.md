@@ -350,8 +350,8 @@ arbitrary finite sequences of those actions:
 
 The actor may be any worker, not just the worker whose references are protected.
 `Interference` explicitly restricts action families. This is not yet an
-all-dispatcher pre-attachment theorem; IG/mux actions, other admission actions,
-cleanup, release and remote-state actions remain outside this new alphabet.
+all-dispatcher pre-attachment theorem; the runtime extension below adds mux
+execution, handler exit and cleanup in a separate, broader alphabet.
 The earlier all-dispatcher theorem for already tracked chains is unchanged.
 
 `CSP/HandlerInterference` supplies raw resource/preparation trace lifts and
@@ -372,15 +372,68 @@ untracked handler exit: that particular step retains `Prepared`, but cleanup
 blocks subsequent publication. Exit is outside `Interference`; this witness
 illustrates the difference between preserved references and continued readiness.
 
-Next, extend pre-attachment interference coverage to IG/mux and cleanup actions
-while keeping readiness separate, and relate allowed installation/publication
-inputs to the source. Phase and source-refinement obligations remain separate.
+## Mux execution and cleanup before attachment
+
+`Properties/MuxRetention.agda` extracts handle equality and mux-key retention
+from all ten monitor/job/tracer action forms previously covered by
+`HandlerIGMux`. The latter keeps its existing coverage constructors and chain
+proof signatures, now using the shared effect proof. No handler, negotiated
+result or lifecycle frame is required to establish the mux effects.
+
+`Properties/CleanupRetention.agda` similarly extracts the effects of every
+cleanup action, including socket-close failure, restoration and TIME_WAIT
+interruption. Handler and result stores stay equal; entry and socket identities
+remain present even when their values change. The existing `HandlerCleanup`
+interfaces and chain theorems use this shared proof without changing their types.
+This is deliberately weaker than equality of socket values, which cleanup
+cannot preserve.
+
+`Properties/HandlerRuntimeInterference.agda` supplies a broader `Interference`
+alphabet, embedding the earlier caller alphabet without changing its APIs.
+It transports `Resources`, `Prepared` and untracked `Chain` evidence through
+mixed finite sequences with arbitrary actor identities:
+
+| Action family | Pre-attachment runtime coverage |
+| --- | --- |
+| Parent map publication and counter reads | Covered |
+| All handshake-consumer actions | Covered |
+| Ten mux monitor/job/tracer action forms | Covered |
+| Handler exit and every cleanup action | Covered |
+| Other IG actions: installation, startup/restart, event loop | Not yet covered |
+| Other admission, lifecycle, publication, release and remote actions | Not yet covered |
+
+`CSP/HandlerRuntimeInterference` lifts resources and preparation to raw traces
+and broadens delayed attachment around matched publication. Successful
+publication and attachment remain premises. A cleanup or stopped-mux path that
+blocks those actions cannot satisfy that trace premise, even though its
+reference evidence survives.
+
+The pre-attachment responder-start witness reuses the checked registration and
+mux-job path, including its model trace from the accepted-socket fixture. Its
+starting `Prepared` certificate is a concrete lookup certificate. The cleanup
+witness transports the earlier transition-derived preparation through handler
+exit, map acquisition, entry termination, socket close, map removal and counter
+reading, before any negotiated result or lifecycle attachment. It ends with a
+closed socket, empty map and no tracked frame, while `Prepared` and `Resources`
+still hold. A separate local queued-shutdown fixture retains preparation through
+monitor consumption and mux stop; its shutdown-command origin is not established.
+
+`Negative/HandlerRuntimeInterference` rejects publication after that cleanup,
+proves the child was not implicitly tracked, and rejects attachment to the
+stopped mux despite retained preparation. These are reference-safety and
+readiness distinctions within the model, not source deadlock or bug claims.
+
+Next, extend pre-attachment coverage to the remaining IG startup/event-loop
+operations and fresh installation. The source contract for matched installation
+and publication, as well as phase and source-refinement obligations, remains
+separate.
 
 ## Validation
 
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/Negative/HandlerRuntimeInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerEstablishment.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerAll.agda +RTS -M2G -RTS
