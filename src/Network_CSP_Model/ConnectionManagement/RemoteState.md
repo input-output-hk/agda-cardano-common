@@ -1,7 +1,7 @@
 # IG remote promotion and demotion
 
 `Rules/RemoteState.agda` implements `AwakeRemote` and `WaitIdleRemote` CM calls,
-with promotion pruning left as an explicit coverage frontier. The authority is
+including over-limit promotion with [policy-driven pruning](Pruning.md). The authority is
 network revision `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
 [promotion](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L2061-L2252),
 [demotion](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L2253-L2355),
@@ -33,7 +33,9 @@ flowchart TD
     E[IG captures state and enters CM call] --> T[Atomic lookup and state-dependent write]
     T --> A[Evaluate deferred assertion]
     A -->|failure| X[Assertion exception frontier]
-    A -->|promotion success or any demotion result| C[Separate counter read]
+    A -->|promotion with victims| D[Ordered cancellation delivery]
+    D --> C[Separate counter read]
+    A -->|no victims or any demotion result| C
     A -->|promotion unsupported| R[Return to IG]
     C --> R
     R -->|AwakeRemote: every returned classification| W[Prepare RemoteWarm]
@@ -41,7 +43,6 @@ flowchart TD
     R -->|WaitIdleRemote: other| N[Advance batch without publication]
     I --> P[Separate IG publication]
     W --> P
-    T -->|promotion exceeds capacity: no write| F[Pruning coverage frontier]
 ```
 
 A taken map blocks both the initial transaction and a later counter read. Assertion
@@ -58,7 +59,7 @@ results advance the cursor without timer allocation or publication. Pending CM
 calls prevent batch advancement. The shared `inCM` continuation does not spawn a
 separate CM thread: these are caller-run operations in the authoritative dispatcher.
 
-## Capacity and pruning boundary
+## Capacity and pruning
 
 Only outbound-duplex and outbound-idle-duplex promotion perform the capacity test.
 They count current inbound entries and require `count + 1 ≤ promotionHardLimit`.
@@ -68,19 +69,13 @@ builders must keep admission request limits consistent with it; a global policy-
 consistency invariant is not yet proved. All machine transitions preserve the
 configuration field.
 
-When the test fails, the model enters `requiresPruning` without modifying the
-world, and `CSP.Scope.remoteFrontier` reports `promotionPruning`. This diagnostic
-transition marks missing coverage; it is not a source STM commit or a waiting
-condition that can be interpreted as a source deadlock.
-
-The [source pruning helper](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L720-L777)
-builds an inbound candidate map including the prospective connection, splits the
-random generator, invokes the configured pruning policy, and atomically writes
-selected entries to Terminated. It writes the prospective promoted state only if
-that connection was not selected. Afterward it delivers cancellations in map order
-before the counter read. No arbitrary victim choice or successful promotion is
-substituted for this missing behavior. Implementing the pinned policy, generator
-semantics and cancellation sequence is the next slice.
+When the test fails, `transactPruning generation scores` constructs and scores
+candidates, atomically marks victims Terminated and promotes only a surviving
+self. The caller then checks assertions, delivers captured cancellations in key
+order, reads counters and returns. See [Pruning.md](Pruning.md) for the pinned
+policy, the score/generation abstraction and both source promotion branches.
+No pruning frontier remains; a plain unscored `transact` is unavailable for an
+over-limit call. The scored transaction is the enabled alternative.
 
 ## Evidence and limits
 
@@ -92,7 +87,7 @@ claimed to compose from responder completion yet.
 
 Checks cover CM/IG publication separation, fresh idle-timer allocation, unsupported
 promotion return while the map is taken, terminated demotion counter blocking,
-assertion failure, and the exact-capacity versus pruning-required boundary. Existing
+assertion failure, and exact-capacity versus scored-pruning transactions. Existing
 ownership and allocation-supply theorem statements remain unchanged and cover every
 new action using the existing entry-edit preservation lemma and CSP lifts.
 
@@ -101,5 +96,5 @@ agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
 ```
 
 These are proofs about the partial Agda machine, not Haskell refinement, bounded
-exploration, universal liveness or a source-code defect. Pruning, complete handler
+exploration, universal liveness or a source-code defect. Concrete PRNG replay, complete handler
 unwinding, OG and source replay remain outstanding.

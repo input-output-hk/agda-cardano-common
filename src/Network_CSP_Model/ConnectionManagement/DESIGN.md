@@ -11,8 +11,9 @@ readiness, and determines startup outcomes from mux/protocol state. Selected
 monitor/tracer behavior is integrated; see [its contracts](IGRegistration.md).
 [Caller-run inbound release](InboundRelease.md) is implemented with separate
 counter, cancellation and publication steps. [Promotion/demotion](RemoteState.md)
-now preserve their distinct assertion/counter ordering. Promotion pruning, complete
-handler execution and OG remain outstanding.
+now preserve their distinct assertion/counter ordering. [Promotion pruning](Pruning.md)
+commits policy-selected victims atomically and delivers captured cancellations.
+Concrete PRNG replay, complete handler execution and OG remain outstanding.
 The full combined subsystem and source
 correspondence remain unimplemented. Schematic declarations below describe the target design.
 
@@ -412,7 +413,7 @@ These are concrete work items, not permission gates:
 
 Notification-to-registration, responder startup and subsequent maturity batches
 now have dispatcher/CSP traces, as do inbound release and remote promotion.
-Implement promotion pruning and connect mux/tracer termination to
+Connect cancellation and mux/tracer termination to
 handler cleanup. Then implement outbound acquisition and OG jobs.
 Retain the existing invariants as regression checks while extending behavior.
 Neither G1 nor the first combined lifecycle gate G2 is complete. The

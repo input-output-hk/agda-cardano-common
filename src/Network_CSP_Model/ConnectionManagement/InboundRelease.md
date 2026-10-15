@@ -90,7 +90,7 @@ agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
 different assertion/counter ordering: promotion checks deferred assertions before
 counting and counts successful results only; demotion checks assertions first and
 then counts every returned classification. Promotion may invoke pruning inside
-its transaction, so its capacity-exceeded branch needs the actual pruning policy.
-Over-limit promotion remains an explicit pruning frontier. Handler
+its transaction; the [pruning model](Pruning.md) implements the diffusion policy
+with explicit random-score inputs and ordered cancellation delivery. Handler
 cancellation/unwind integration, OG, bounded exploration and source replay remain
 outstanding. No code-defect or liveness claim follows from these witnesses.

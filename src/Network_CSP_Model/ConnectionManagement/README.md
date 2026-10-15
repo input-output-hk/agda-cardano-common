@@ -54,7 +54,8 @@ mux/protocol state. It carries the full event union and models atomic tracer
 bursts/counters, monitor callbacks and repeated batches.
 [IG inbound release](InboundRelease.md) now executes its CM call, counter read,
 cancellation boundary and separate IG publication. [Remote promotion/demotion](RemoteState.md)
-now execute too, with over-limit promotion reported as a pruning frontier.
+now execute too, including [over-limit pruning](Pruning.md) with explicit random
+score inputs, atomic victim writes and ordered cancellation delivery.
 Full handler execution and OG remain incomplete.
 
 ## Implemented behavior
@@ -376,7 +377,8 @@ of rendered processes.
   boundaries; see [IGRegistration.md](IGRegistration.md). `CommitRemote` uses
   [inbound release](InboundRelease.md); [promotion/demotion](RemoteState.md)
   preserve assertion/counter ordering and separate idle-timer allocation.
-  Over-limit promotion stops at an explicit pruning frontier. The handler-exit
+  Over-limit promotion executes the diffusion pruning policy with abstract random
+  score inputs and explicit cancellation delivery. The handler-exit
   boundary is not yet derived from the new mux runtime.
 - Handler body execution, OG, timed scheduling, general
   asynchronous exception delivery/unwinding, server handling of CM returns, and
@@ -418,6 +420,7 @@ agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/Pruning.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
@@ -428,7 +431,7 @@ postulates, holes or unsafe termination pragmas. This describes the local source
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
-Next: implement promotion pruning and its ordered cancellation deliveries. Connect mux termination and tracer failure to handler
+Next: connect cancellation, mux termination and tracer failure to handler
 cleanup, then add outbound acquisition and OG jobs/completions. Retain structural
 invariants as regression checks. Full runtime validity, bounded exploration and
 source replay remain required before interpreting candidates as source defects.

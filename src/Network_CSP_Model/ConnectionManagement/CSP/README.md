@@ -3,7 +3,7 @@
 The CSP layer now interprets the source-derived transition rules as a productive
 `PTree`, using `csp-ptree-agda`'s LTS, traces, stable failures and hiding semantics.
 The implemented subsystem remains partial. IG batches and selected mux/tracer
-behavior now execute in the machine, while promotion pruning, full handler
+behavior now execute in the machine, while concrete PRNG replay, full handler
 execution and OG remain incomplete. This is not a complete source model.
 
 ## Architecture
@@ -176,6 +176,7 @@ agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/Pruning.agda +RTS -M2G -RTS
 ```
 
 The whole-replay proof originally exhausted a 3 GB heap. The maintained witnesses
@@ -202,9 +203,13 @@ cancellation delivery, assertion outcomes and IG publication; see
 [the source mapping and limitations](../InboundRelease.md).
 
 The [remote-state endpoint](RemoteState.agda) composes mux startup and promotion,
-and checks demotion timer allocation, result-dependent counter reads and pruning
-frontiers; see [the contracts](../RemoteState.md).
+and checks demotion timer allocation, result-dependent counter reads and scored
+pruning; see [the contracts](../RemoteState.md).
 
-Next: implement promotion pruning and connect mux/tracer termination
+The [pruning endpoint](Pruning.agda) checks atomic multi-victim writes, policy
+ordering, self-pruning and captured cancellation delivery; see
+[its contracts and randomness abstraction](../Pruning.md).
+
+Next: connect cancellation and mux/tracer termination
 to handler cleanup, then add OG under the same dispatcher. Full subsystem
 failures/divergence or liveness claims require additional coverage and validity.

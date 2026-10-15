@@ -3,7 +3,7 @@
 The model now carries the full source IG event union and executes repeated batch
 selection, registration, responder startup outcomes and synchronous mux tracer
 transactions. This replaces the earlier success-only, first-batch prefix.
-Promotion pruning and OG are still incomplete; this is not a full subsystem
+Full handler unwinding and OG are still incomplete; this is not a full subsystem
 model or a source-conformance proof.
 
 ## Modules and source mapping
@@ -101,7 +101,7 @@ The first two alternatives prepend their generated event to the entire queue
 flush. Batch processing re-reads published state for each event. Timer expiry is
 an explicit untimed input; timestamps are nondecreasing natural seconds. There is
 no elapsed-time or fairness theorem. The minimum-key computation is independent
-of association-list insertion order, using an explicit abstract lexicographic
+of association-list insertion order, using an explicit abstract remote-before-local key order and lexicographic
 address order; concrete replay must match the source address ordering.
 
 The event union includes NewConnection, MuxFinished, MiniProtocolTerminated,
@@ -113,8 +113,8 @@ Implemented event handlers cover registration/duplicates, maturity, inactivity,
 hot/warm updates, captured-mux stopping waits, and clean/error termination with
 restart outcomes. `CommitRemote` enters the [caller-run inbound release](InboundRelease.md)
 path and publishes only after CM returns. `AwakeRemote` and `WaitIdleRemote` enter
-[caller-run promotion/demotion](RemoteState.md); over-limit promotion remains an
-explicit pruning frontier. Successful demotion allocates a fresh idle timer before
+[caller-run promotion/demotion](RemoteState.md); over-limit promotion uses
+[scored pruning and ordered cancellation](Pruning.md). Successful demotion allocates a fresh idle timer before
 publication.
 
 ## Profile and remaining abstractions
@@ -167,5 +167,5 @@ standard decidable comparison operators, which were inspected; it found no actua
 holes or unsafe options. Local documentation links and `git diff --check` passed.
 This is not a term-level axiom audit of external dependencies.
 
-Next implement promotion pruning and its cancellation sequence, then connect mux termination and tracer failure to handler cleanup. OG
+Next connect cancellation, mux termination and tracer failure to handler cleanup. OG
 jobs and completion processing remain required for the combined lifecycle gate.

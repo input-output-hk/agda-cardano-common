@@ -71,8 +71,11 @@ identities. `InboundGovernor/State.hs:189–192` uses signed Int tracer counters
 the model preserves negative values with integers, abstracting machine-word
 overflow. [Inbound release](InboundRelease.md) now implements the CommitRemote
 call under enabled assertions, with explicit cancellation delivery.
-[Promotion/demotion](RemoteState.md) execute their non-pruning branches and IG
-continuations. Promotion pruning and full handler/supervision execution remain pending.
+[Promotion/demotion](RemoteState.md) execute their branches and IG continuations.
+[Pruning](Pruning.md) implements diffusion-policy ordering, atomic victim writes
+and captured cancellation delivery. Random scores are explicit generation-tagged
+inputs, not a concrete StdGen implementation. Full handler/supervision execution
+remains pending. ConnectionId ordering is remote-before-local in both IG and pruning.
 
 ## 1. Rule record and naming
 
@@ -138,9 +141,9 @@ it must not add a bounded queue to a source-unbounded channel.
 | `CM.ACQUIRE.REUSE` | [Outbound acquisition][acquire] | Duplex reuse, current entry/handle captures and CM transition; reject unsupported unidirectional reuse | Family |
 | `CM.RELEASE.IN` | [Inbound release][release-in] | Lookup key, atomic state/result decision, trace/count read, possible cancellation, assertion evaluation, return | Implemented with enabled assertions and explicit delivery; see [contracts](InboundRelease.md) |
 | `CM.RELEASE.OUT` | [Outbound release][release-out] | Per-constructor release decisions, pruning, idle/termination waits and later cancellation | Family |
-| `CM.REMOTE.WARM` | [Remote promotion][remote-warm] | Promotion transitions and relevant pruning/cancellation | Non-pruning branches implemented; explicit pruning frontier; [contracts](RemoteState.md) |
+| `CM.REMOTE.WARM` | [Remote promotion][remote-warm] | Promotion transitions and relevant pruning/cancellation | Implemented, including pruning with explicit random-score inputs; [contracts](RemoteState.md) |
 | `CM.REMOTE.COLD` | [Remote demotion][remote-cold] | Demotion by exact key/entry, state-dependent results | Implemented with enabled assertions, later counter read and separate IG timer/publication |
-| `CM.PRUNE` | [Pruning helper][prune] and operation call sites | Candidate selection, committed state changes, subsequent cancellation | Family; do not fuse phases |
+| `CM.PRUNE` | [Pruning helper][prune] and operation call sites | Candidate selection, committed state changes, subsequent cancellation | Promotion call sites implemented with scored diffusion policy and ordered delivery; outbound-release call site pending; [contracts](Pruning.md) |
 | `HANDLER.PUBLISH/RUN` | [ConnectionHandler][handler] | Negotiate, allocate control bundle/mux handle, publish promise, then enter mux execution | Expanded ordering; failure/query branches still Family |
 | `HANDLER.CLEANUP` | [forkConnectionHandler cleanup][cleanup] | Identity-sensitive map cleanup, entry updates, socket/timeout/cancellation obligations | Expanded §4.2; cleanup slice implemented with exit/timeout/close boundaries |
 
@@ -152,7 +155,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `IG.NEW` | [Event handling][ig-events] | Read published state; keep existing entry or prepare/start responders and register new entry | State-derived startup success/failure and duplicate paths implemented; handler allocation remains a boundary |
 | `IG.FINISHED` | [MuxFinished handler][ig-finished] | Capture currently registered mux by key; wait on captured mux; prepare unregister decision | Implemented; source mapping §6 |
 | `IG.PROTOCOL.END` | [Event handling][ig-events] | Current registration, outcome, and restart behavior | Implemented for modeled responder profiles |
-| `IG.REMOTE` | [Event handling][ig-events] | WaitIdle, promote/demote, maturity and idle-state transitions | Hot/warm, maturity and caller-run CM calls implemented; promotion pruning remains a frontier |
+| `IG.REMOTE` | [Event handling][ig-events] | WaitIdle, promote/demote, maturity and idle-state transitions | Hot/warm, maturity and caller-run CM calls including scored pruning implemented |
 | `IG.COMMIT` | [CommitRemote/publication][ig-commit] | Caller-run CM release; CommitTr/KeepTr/unsupported handling against captured state | Expanded §7 |
 | `IG.PUBLISH` | [CommitRemote/publication][ig-commit] | Commit prepared decision under masking, then traces/continuation | Expanded boundary; specialize each decision |
 | `IG.TRACER` | [Mux tracer][ig-tracer] | Sample active flag; producer STM reads counters/IG state; conditional retries and atomic message bursts | Atomic tracer bursts/counters and sampled-active callbacks implemented (§6) |
