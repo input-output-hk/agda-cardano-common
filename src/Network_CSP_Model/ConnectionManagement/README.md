@@ -5,7 +5,7 @@ together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
 
 The current model covers **inbound admission, the CM handshake-result consumer,
-handler cleanup, and an initial IG registration prefix**, with a productive CSP interpretation, machine-wide lease
+handler cleanup, IG batches/registration and selected mux/tracer behavior**, with a productive CSP interpretation, machine-wide lease
 ownership and allocation-supply invariants, and local reference-preservation
 lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
 handoff. The consumer continues from an explicitly abstracted handler publication
@@ -47,12 +47,15 @@ broad structural proofs.
 The [information-channel kernel](Rules/InformationChannel.agda) provides FIFO
 reads, whole-queue flush and capacity-100 writes, including atomic multi-message
 bursts. The handshake enqueue uses this shared helper. The
-[IG batch-selection kernel](Rules/IGBatch.agda) preserves ordered selection and
-flush boundaries, with [executable checks](Scenarios/IGBatch.agda). Its general readiness
-inputs remain parameters. The [first-batch IG prefix](IGRegistration.md) now
-integrates queue draining and successful new-connection registration into the
-machine/CSP process, specializing readiness to an initially empty registry.
-The general IG loop, actual event union and mux/tracer runtime remain outstanding.
+[IG batch-selection kernel](Rules/IGBatch.agda) preserves source ordering.
+The [integrated IG runtime](IGRegistration.md) now derives readiness from stored
+freshness, timers and ordered keys, and determines responder-start outcomes from
+mux/protocol state. It carries the full event union and models atomic tracer
+bursts/counters, monitor callbacks and repeated batches.
+[IG inbound release](InboundRelease.md) now executes its CM call, counter read,
+cancellation boundary and separate IG publication. [Remote promotion/demotion](RemoteState.md)
+now execute too, with over-limit promotion reported as a pruning frontier.
+Full handler execution and OG remain incomplete.
 
 ## Implemented behavior
 
@@ -79,7 +82,7 @@ The handshake consumer additionally implements:
 - Error/query cleanup in one map-and-entry transaction, guarded by captured/current
   entry identity; a replacement binding and the old entry are both left untouched.
 - A separate counter read followed by bounded IG notification in responder mode.
-  The source queue depth is 100; a full queue retries. The first IG batch can drain it.
+  The source queue depth is 100; a full queue retries. IG batch selection drains it atomically.
 - Explicit return continuations, with no automatic server closure or child cleanup.
 
 ```mermaid
@@ -352,7 +355,7 @@ of rendered processes.
   or randomized remote-address selection. Those operations are not implemented.
 - Addresses and exceptions have abstract carriers. Concrete source replay must
   instantiate valid addresses and admissible errors.
-- `Machine.advance` dispatches admission, handshake, cleanup and initial IG steps,
+- `Machine.advance` dispatches admission, handshake, cleanup and IG/mux/tracer steps,
   with responder mode fixed in its configuration. The CSP process directly uses
   this dispatcher. The raw view exposes diagnostic scheduling labels; a separate
   view hides selected internal operations using the library's CSP operator.
@@ -365,12 +368,16 @@ of rendered processes.
   or exceptionally. The body outcome and its rethrow policy are not modeled;
   `cleanupDone cleanupNormal` describes the finalizer, not successful body execution.
   Ordinary tracing is assumed total/nonblocking; counter-read transactions remain
-  explicit. Close outcomes are supplied by the environment. General tracer/IO
-  exceptions, asynchronous delivery outside TIME_WAIT, and masking semantics are
+  explicit. Close outcomes are supplied by the environment. General IO
+  exceptions, asynchronous delivery outside the modeled release/IG-exit/TIME_WAIT boundaries, and masking semantics are
   still outside the model. The cleanup continuation and lease must match the worker.
-- IG registration is conditional on the successful responder-start contract in
-  [IGRegistration.md](IGRegistration.md). Subsequent batches, the full event union,
-  startup failure and mux/tracer behavior remain absent.
+- IG startup outcomes follow installed mux/protocol state. Handle allocation,
+  on-demand traffic, job outcomes and shutdown completion remain explicit
+  boundaries; see [IGRegistration.md](IGRegistration.md). `CommitRemote` uses
+  [inbound release](InboundRelease.md); [promotion/demotion](RemoteState.md)
+  preserve assertion/counter ordering and separate idle-timer allocation.
+  Over-limit promotion stops at an explicit pruning frontier. The handler-exit
+  boundary is not yet derived from the new mux runtime.
 - Handler body execution, OG, timed scheduling, general
   asynchronous exception delivery/unwinding, server handling of CM returns, and
   accept-loop rate limiting remain absent. No enabled-step completeness,
@@ -408,6 +415,9 @@ agda ConnectionManagement/Scenarios/OwnershipInvariant.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/SupplyInvariant.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/IGBatch.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/Scenarios.agda +RTS -M2G -RTS
 ```
 
@@ -418,10 +428,7 @@ postulates, holes or unsafe termination pragmas. This describes the local source
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
-Next: extend the first-batch IG prefix with the actual event union and mux/tracer
-runtime, determining responder-start outcomes from modeled state. Preserve atomic
-tracer queue/counter effects and derive readiness for subsequent batches. Then add
-inbound release and outbound acquisition/OG jobs. Keep the existing invariants as
-regression checks; full reference/store validity remains an obligation. Strengthen
-the observation alphabet and add bounded exploration/source replay before reporting
-source defects or full-system refinement/failures/divergence claims.
+Next: implement promotion pruning and its ordered cancellation deliveries. Connect mux termination and tracer failure to handler
+cleanup, then add outbound acquisition and OG jobs/completions. Retain structural
+invariants as regression checks. Full runtime validity, bounded exploration and
+source replay remain required before interpreting candidates as source defects.

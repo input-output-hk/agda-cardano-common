@@ -6,9 +6,13 @@ preservation lemmas are available; see [README.md](README.md) for exact coverage
 A dispatcher for those slices, a productive CSP renderer, hiding and machine/trace
 correspondence are also available, with machine-wide lease-ownership and allocation-
 supply invariants. Shared information-channel and pure IG batch-selection kernels
-are implemented. The first-batch IG registration prefix now has machine/CSP traces;
-see [its contracts](IGRegistration.md). General readiness, mux/tracer runtime and
-subsequent IG iterations remain outstanding.
+are implemented. IG now carries the full event union, derives subsequent-batch
+readiness, and determines startup outcomes from mux/protocol state. Selected
+monitor/tracer behavior is integrated; see [its contracts](IGRegistration.md).
+[Caller-run inbound release](InboundRelease.md) is implemented with separate
+counter, cancellation and publication steps. [Promotion/demotion](RemoteState.md)
+now preserve their distinct assertion/counter ordering. Promotion pruning, complete
+handler execution and OG remain outstanding.
 The full combined subsystem and source
 correspondence remain unimplemented. Schematic declarations below describe the target design.
 
@@ -406,11 +410,10 @@ These are concrete work items, not permission gates:
 - Select an exporter only after confirming tool availability and the intended CSP
   semantic model. No exporter or FDR run is assumed to exist today.
 
-The first notification-to-registration prefix is now dispatcher-integrated, with
-readiness specialized to the initially empty registry and a successful-start
-boundary. Extend it with the actual IG event union and mux/tracer runtime,
-source-derived startup outcomes and subsequent-batch readiness. Follow with
-inbound release, then outbound acquisition and OG jobs.
+Notification-to-registration, responder startup and subsequent maturity batches
+now have dispatcher/CSP traces, as do inbound release and remote promotion.
+Implement promotion pruning and connect mux/tracer termination to
+handler cleanup. Then implement outbound acquisition and OG jobs.
 Retain the existing invariants as regression checks while extending behavior.
 Neither G1 nor the first combined lifecycle gate G2 is complete. The
 [progress review](../review/connection-management-progress-review.md) records

@@ -53,6 +53,7 @@ data PC : Set where
   stopAfterFailure : ℕ → List IGEvent → MuxId → ℕ → M.StartError → PC
   waitStopped : ℕ → List IGEvent → ConnectionKey → MuxId → Published → PC
   restartResponder : ℕ → List IGEvent → Terminated → PC
+  awaitRemoteIdle : ℕ → ConnectionKey → List IGEvent → Published → PC
   needsCM : ℕ → List IGEvent → IGEvent → Published → PC
 
 record Engine : Set where
@@ -280,6 +281,8 @@ stepWorker readEvent r queue with continuation r
 ... | readNext time (ev ∷ rest) = just (readOne time ev rest r , queue)
 ... | _ = nothing
 stepWorker registerIdleTimer r queue with continuation r
+... | awaitRemoteIdle time k rest captured = just (allocateTimer
+      (publishDecision time rest (setRemote k (remoteIdle (ident (nextTimer r))) captured)) r , queue)
 ... | prepareNew time info rest captured = just (allocateTimer
       (startResponders time info rest captured (ident (nextTimer r))) r , queue)
 ... | _ = nothing

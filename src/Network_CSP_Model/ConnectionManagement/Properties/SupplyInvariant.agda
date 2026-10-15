@@ -7,6 +7,7 @@ module ConnectionManagement.Properties.SupplyInvariant where
 open import Data.Product using (_,_; proj₁; proj₂)
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
+import ConnectionManagement.Rules.RemoteState as Remote
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (just; nothing)
@@ -52,6 +53,13 @@ release-edit-preserves (just (e , st)) s eq bounded with lookup e (entries (cm s
 
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   SupplyBounds (world c) → SupplyBounds (world c′)
+advance-preserves (remoteStep action) c eq bounded
+  with Remote.step (promotionHardLimit c) action (remoteCall c) (inboundGovernor c) (world c)
+... | nothing = case eq of λ ()
+... | just p with Release.applyEdit (Remote.edit p) (world c) in edited
+...   | nothing = case eq of λ ()
+...   | just s = subst (λ config → SupplyBounds (world config)) (just-injective eq)
+  (release-edit-preserves (Remote.edit p) (world c) edited bounded)
 advance-preserves (releaseStep action) c eq bounded
   with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()

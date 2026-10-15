@@ -4,6 +4,7 @@
 -- subsystem: no rule duplication, scheduler fairness or source completeness.
 module ConnectionManagement.Machine where
 
+open import Data.Nat using (ℕ)
 open import Data.List using (List; []; _∷_; _++_)
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
@@ -20,6 +21,7 @@ import ConnectionManagement.Rules.Handshake as Handshake
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
+import ConnectionManagement.Rules.RemoteState as Remote
 
 data PublicationOutcome : Set where
   resultWritten duplicateWrite : PublicationOutcome
@@ -32,6 +34,7 @@ data Action : Set where
   handlerPublication : WorkerId → HandshakeResult → PublicationOutcome → Action
   handlerExit : WorkerId → Action
   igStep : IG.IGAction → Action
+  remoteStep : Remote.Action → Action
   releaseStep : Release.Action → Action
 
 record Configuration : Set where
@@ -44,15 +47,22 @@ record Configuration : Set where
     publicationFaults : List WorkerId
     inboundGovernor : IG.Runtime
     inboundRelease : Maybe Release.Frame
+    remoteCall : Maybe Remote.Frame
+    promotionHardLimit : ℕ
 open Configuration public
 
 initial : ResponderMode → State → Configuration
-initial mode s = configuration mode s [] IG.initial nothing
+initial mode s = configuration mode s [] IG.initial nothing nothing 10
 
 replaceWorld : Configuration → State → Configuration
 replaceWorld c s = record c { world = s }
 
 advance : Action → Configuration → Maybe Configuration
+advance (remoteStep a) c with Remote.step (promotionHardLimit c) a (remoteCall c) (inboundGovernor c) (world c)
+... | nothing = nothing
+... | just p with Release.applyEdit (Remote.edit p) (world c)
+...   | nothing = nothing
+...   | just s = just (record c { world = s ; inboundGovernor = Remote.governor p ; remoteCall = Remote.pending p })
 advance (releaseStep a) c with Release.step a (inboundRelease c) (inboundGovernor c) (world c)
 ... | nothing = nothing
 ... | just p with Release.applyEdit (Release.edit p) (world c)

@@ -2,9 +2,9 @@
 
 The CSP layer now interprets the source-derived transition rules as a productive
 `PTree`, using `csp-ptree-agda`'s LTS, traces, stable failures and hiding semantics.
-The implemented subsystem remains partial: handler execution, the general IG loop and OG are still
-abstract or missing; the first-batch IG registration prefix is implemented. This is a CSP model of the implemented slice, not a complete
-model of the network source.
+The implemented subsystem remains partial. IG batches and selected mux/tracer
+behavior now execute in the machine, while promotion pruning, full handler
+execution and OG remain incomplete. This is not a complete source model.
 
 ## Architecture
 
@@ -71,8 +71,9 @@ process. No divergence-freedom or failures-divergences refinement claim is made.
 `Hiding.internal` explicitly selects the events made silent. It hides map/entry
 transactions, promise reads, local allocation, counter reads and IG enqueue.
 Fork and socket-close outcomes, handler publication/exit, TIME_WAIT readiness or
-interruption, CM return, IG clock capture and successful responder-start labels
-remain visible. IG queue/cursor/timer operations are hidden. `HiddenProcess` uses the
+interruption, CM return, IG clock/expiry, handle allocation, traffic readiness,
+protocol outcomes, shutdown completion and IG-exit labels remain visible.
+State-derived startup and queue/cursor/timer allocation operations are hidden. `HiddenProcess` uses the
 library's `_∖_` operator, so hidden enabled events become internal choices.
 
 This is an initial diagnostic observation policy, not a validated API abstraction.
@@ -108,7 +109,8 @@ The raw negative-trace theorem is not a negative-trace theorem after hiding.
 
 `Scope.agda` identifies selected unimplemented continuations: server handling of
 CM returns, admission unwinding, accept-loop continuation, handler body/cleanup
-return, IG responder-start outcomes, inactivity handling and subsequent IG batches.
+return, missing IG handle setup, IG CM-call continuations, shutdown completion
+and exception unwinding.
 OG remains unimplemented throughout this slice.
 These diagnostics are separate from the process alphabet. They add neither a tick
 nor a self-loop to make an incomplete state appear to progress.
@@ -171,6 +173,9 @@ agda ConnectionManagement/Scenarios/MapOwnership.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/OwnershipInvariant.agda +RTS -M2G -RTS
 agda ConnectionManagement/Scenarios/SupplyInvariant.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/InboundRelease.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/RemoteState.agda +RTS -M2G -RTS
 ```
 
 The whole-replay proof originally exhausted a 3 GB heap. The maintained witnesses
@@ -187,8 +192,19 @@ from admission through notification and first-batch registration. It also checks
 duplicate preservation, drain/processing separation, premature-start refusal and a
 late enqueue. See [the source mapping and contracts](../IGRegistration.md).
 
-Next: extend IG with the event union and mux/tracer behavior, then inbound release
-and OG under the same dispatcher. Refine the observation alphabet before asserting
-full subsystem failures/divergence or liveness properties. A parallel component
-presentation requires its own correspondence proof against this authoritative
-machine.
+The [runtime endpoint](IGRuntime.agda) adds composed responder-start and subsequent-
+batch traces, plus transaction/interleaving regressions for partial startup failure,
+backpressure, active-flag sampling and overlapping mux identities.
+
+The [inbound release endpoint](InboundRelease.agda) composes admission, registration,
+idle timeout and release into a CSP trace. It checks separate counter reads,
+cancellation delivery, assertion outcomes and IG publication; see
+[the source mapping and limitations](../InboundRelease.md).
+
+The [remote-state endpoint](RemoteState.agda) composes mux startup and promotion,
+and checks demotion timer allocation, result-dependent counter reads and pruning
+frontiers; see [the contracts](../RemoteState.md).
+
+Next: implement promotion pruning and connect mux/tracer termination
+to handler cleanup, then add OG under the same dispatcher. Full subsystem
+failures/divergence or liveness claims require additional coverage and validity.

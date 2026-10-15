@@ -1,134 +1,171 @@
-# First IG batch: notification to registration
+# IG events, registration and mux/tracer execution
 
-This increment adds an executable IG prefix to the existing machine and CSP
-process. It implements the **first nonempty batch from an empty IG registry**,
-with successful responder startup represented by an explicit boundary contract.
-It is not the general IG loop or a complete CM/IG/OG/Server lifecycle.
+The model now carries the full source IG event union and executes repeated batch
+selection, registration, responder startup outcomes and synchronous mux tracer
+transactions. This replaces the earlier success-only, first-batch prefix.
+Promotion pruning and OG are still incomplete; this is not a full subsystem
+model or a source-conformance proof.
 
-The implementation is [Rules/IGRegistration.agda](Rules/IGRegistration.agda);
-[CSP/IGRegistration.agda](CSP/IGRegistration.agda) supplies machine executions,
-raw and hidden CSP traces, and negative checks. No historical model is imported.
+## Modules and source mapping
 
-## Source mapping
+| Module | Responsibility |
+|---|---|
+| [IGTypes.agda](IGTypes.agda) | All ten source event families; captured termination descriptors and mux identities |
+| [Rules/MuxRuntime.agda](Rules/MuxRuntime.agda) | Mux/protocol states, startup fold and atomic tracer queue/counter effects |
+| [Rules/IGRegistration.agda](Rules/IGRegistration.agda) | IG continuation, published state, timers, handles/muxes, monitor callbacks and repeated batch selection |
+| [CSP/IGRegistration.agda](CSP/IGRegistration.agda) | Admission-to-registration traces and earlier duplicate/late-enqueue checks |
+| [CSP/IGRuntime.agda](CSP/IGRuntime.agda) | Runtime/interleaving regressions and composed startup/subsequent-batch CSP traces |
 
-All references are to network `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
-The relevant source is [InboundGovernor.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L242-L398).
+The source baseline remains network
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. The focused recheck used:
 
-| Model action/state | Source boundary | Scope |
-|---|---|---|
-| `captureTime` | `getMonotonicTime` | Symbolic timestamp captured before the batch transaction; no elapsed-time theorem |
-| `registerInactivity` | `registerDelay inactionTimeout` | Allocate a symbolic timer token; expiry/empty-loop branch is not implemented |
-| `drainFirstBatch` | Queued-message alternative, whole-queue flush | Requires empty registry/freshness and a nonempty queue; retains the entire batch atomically |
-| `readEvent` | `readTVarIO stateVar`, lookup by connection ID | Re-read published state for each event; retain the captured snapshot across later steps |
-| `registerIdleTimer` | `traverse registerDelay idleTimeout` | Profile with idle timeout enabled; allocate a fresh symbolic timer, without registration yet |
-| `successfulResponderStart` | Successful `foldM runResponder` plus `writeTVar stateVar` in one STM transaction | Explicit successful-start contract; commit registration and duplex freshness together |
-| `commitDuplicate` | Existing-key branch and later `StateWithPeerTransition` publication | Write the captured snapshot, preserving the original handle, timer and freshness |
-| `readNext time []` | End of the retained batch | Stop at a scope boundary; do not fabricate another iteration |
+- [InboundGovernor.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs): exit deactivation/flush (197–205), batch selection (242–278), registration (280–398), event handling (400–612), synchronous tracer (635–728), maturity (796–804), event payloads (871–944), and peer-commit readiness (949–959).
+- [Network/Mux.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs): stopped/stop (121–180), protocol completion (310–365), monitor selection and callbacks (424–618), and `runMiniProtocolSTM` (749–789).
+- [InboundGovernor/State.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor/State.hs): unregister (201–215), remote states and updates (224–283).
 
-At the first batch, the empty registry and fresh-peer map make maturity and
-peer-commit candidates absent. With a nonempty queue, the queued-message branch
-wins over inactivity regardless of timer readiness. This is a source-derived
-specialization of the [general selection kernel](Rules/IGBatch.agda), not an
-arbitrary readiness input. It cannot be reused for later batches with live peers.
+## Startup outcomes from state
+
+`installHandle` is an explicit handle-allocation boundary. It installs a distinct
+handle/mux pair with an ordered protocol bundle, idle protocol statuses and zero
+tracer counters. It is not yet wired into the actual handler allocation code.
+
+`runResponders` looks up that handle and runs the source-ordered startup fold.
+Unknown protocol, non-Ready mux, and non-idle protocol status produce named errors.
+Success commits armed protocol statuses, start commands, IG registration and
+duplex freshness in one transaction. Presence in the registry means submitted
+responders, not executing protocol workers.
+
+If a later invocation fails, earlier successful invocations remain in the returned
+mux state. The enclosing fold catches the failed invocation; it does not roll back
+the preceding successful starts. IG leaves its registry unchanged and separately
+enqueues shutdown. A stop request is not a stopped mux. `pollStopped` waits on
+its captured mux until that mux is Stopped or Failed, then prepares the captured
+unregister decision for a separate publication step.
+
+## Tracer and monitor boundaries
 
 ```mermaid
-sequenceDiagram
-    participant CM as CM result consumer
-    participant Q as Information queue
-    participant IG as IG continuation
-    participant P as Published IG state
-    CM->>Q: Enqueue NewConnectionInfo
-    IG->>Q: Atomically flush entire first batch
-    Note over IG: Retain batch separately from live queue
-    IG->>P: Read state for current event
-    alt Key absent
-        Note over IG: Allocate idle timer; capture state
-        IG->>P: Atomic successful startup + registration + freshness
-    else Key already tracked
-        IG->>P: Publish captured state unchanged
-    end
-    Note over IG: Advance retained batch cursor
+flowchart TD
+    S[Atomic startup fold and registration] --> C[Unbounded mux command queue]
+    C --> M[Monitor consumes command]
+    M --> T[Tracer samples IG active flag]
+    T --> X[Tracer STM: queue burst and counter update]
+    X -->|queue full or idle expired| X
+    X -->|commit| P[Protocol status update]
+    P --> F[Responder job launch]
+    F --> J[Job completion and status transaction]
+    J --> R[JobPool result publication]
+    R --> D[Monitor consumes result]
+    D --> T
+    Q[IG batch selection and queue flush] -->|releases queue capacity| X
 ```
 
-## Representation and contracts
+The retry arrow describes an unavailable transaction, not an executable self-loop
+or a divergence claim. While a callback is pending, that monitor cannot process
+another command/completion. Other protocol jobs may finish and publish results.
+Job completion, result publication and monitor consumption are separate steps.
+Monitor completions precede commands; commands precede on-demand traffic starts.
 
-`Configuration.inboundGovernor` contains the IG continuation, published registry,
-fresh-peer metadata and timer supply. `State.inboundInfo` remains the shared
-notification queue. The authoritative dispatcher commits the updated queue and
-IG runtime together. Other machine actions retain the IG runtime. Existing
-initial fixtures initialize an empty IG; initiator-only configurations refuse IG
-actions. This models post-wiring initialization, not Server supervision.
+An active flag is sampled before the tracer transaction. The transaction uses the
+sample even if IG deactivates meanwhile. Deactivation and the final queue flush
+are separate steps in the source exception handler. A previously sampled callback
+can write after that flush. The model records this interleaving without asserting
+that it constitutes a source defect.
 
-A `Registration` records notification/handle identity and the idle timer. Its
-presence means that every responder was successfully submitted to
-`runMiniProtocolSTM` in that transaction; it does **not** mean that protocols have
-started executing. The handle's bundle and version data are opaque: freshness
-retains a handle reference identifying the source version data, not a new version
-value. The protocol map, run statuses, active counters and counter cache are not
-represented. The source `RemoteIdle` projection is represented by the idle timer;
-no remote-state transitions are implemented yet.
+Tracer counters are signed integers, matching source Int behavior below
+machine-word overflow; decrementing zero is not saturated. They belong to the
+originating mux. The current IG registration,
+looked up by connection key, supplies the protocol descriptor, version data and
+captured mux placed in `MiniProtocolTerminated`. These may belong to a replacement
+connection. The model deliberately preserves that source distinction. Missing
+protocol descriptors become an explicit tracer-exception continuation; they are
+not misreported as queue retry.
 
-`successfulResponderStart` is an environment boundary analogous to the existing
-handler-publication boundary. It assumes all startup calls succeed. The model does
-not yet determine that outcome from mux/control state. Partial successful startups
-followed by failure, `Mux.stop`, cancellation, tracer effects and exception
-unwinding require separate rules. A trace choosing success is conditional on this
-contract, even if another model action has closed the socket in the meantime.
-Diagnostic logging is assumed total and nonblocking; the queue-writing mux tracer
-is a missing behavioral dependency, not logging that may be erased.
+Clean last-hot completion atomically writes termination, demotion and idle events
+with the counter decrement. Exceptional completion writes termination and clears
+counters; the later dead-mux trace writes `MuxFinished` separately. Full queues
+block the whole transaction. Expired RemoteIdle blocks start tracing even with
+queue capacity available.
 
-The first-batch queue contains only `NewConnectionInfo`. The complete event union,
-nonempty-registry readiness, timer expiry, later iterations and interaction with
-mux tracing are still outstanding. The `igNextBatch`, `igResponderStartup` and
-`igInactivity` diagnostics expose selected limits. They are not process events or
-completeness certificates; `igInactivity` marks an omitted alternative even when
-the nonempty-queue action is available.
+## Subsequent batches and event coverage
 
-## Evidence and limitations
+`finishBatch` returns to clock capture and inactivity-timer registration. Selection
+uses the existing ordered batch kernel with readiness derived from stored state:
 
-The main witness composes existing admission and handshake executions with CM
-notification and this IG prefix. It reaches registration as both a raw CSP trace
-and a trace under the existing hiding policy. Clock capture and the explicit
-successful-start boundary remain visible; internal queue/cursor/timer steps are
-hidden. API-outcome equivalence is not claimed.
+1. Captured time partitions fresh peers at `observedAt + 900 ≤ time`.
+2. The minimum expired RemoteIdle connection key supplies `CommitRemote`.
+3. A nonempty information queue is flushed.
+4. An expired inactivity token supplies `InactivityTimeout`.
 
-Checks also establish:
+The first two alternatives prepend their generated event to the entire queue
+flush. Batch processing re-reads published state for each event. Timer expiry is
+an explicit untimed input; timestamps are nondecreasing natural seconds. There is
+no elapsed-time or fairness theorem. The minimum-key computation is independent
+of association-list insertion order, using an explicit abstract lexicographic
+address order; concrete replay must match the source address ordering.
 
-- The queue is empty after draining while the retained batch is still unprocessed.
-- No registration exists before the atomic successful-start boundary.
-- Startup before the event-state read is refused, and its raw CSP trace is excluded.
-- A duplicate key with a different supplied handle/capability preserves the prior
-  registration, timer and freshness; it does not allocate another idle timer.
-- Unidirectional registration does not add duplex freshness.
-- A CM enqueue interleaved after drain survives processing of the retained batch.
-- Initiator-only mode refuses IG actions, and completed first batches cannot be
-  drained again by this prefix rule.
+The event union includes NewConnection, MuxFinished, MiniProtocolTerminated,
+WaitIdleRemote, RemotePromotedToHot, RemoteDemotedToWarm, CommitRemote,
+AwakeRemote, MaturedDuplexPeers and InactivityTimeout. The queue now stores this
+union; handshake producers wrap their notifications in NewConnection.
 
-Duplicate and late-enqueue fixtures are local branch/interleaving tests; their
-injected initial states are not claimed reachable from source initialization.
-The ownership and entry/promise supply proofs now cover **all extended machine
-actions**, including IG. They do not establish IG registry/timer validity or full
-state validity. No source replay, bounded search, source defect, deadlock or
-liveness result is claimed.
+Implemented event handlers cover registration/duplicates, maturity, inactivity,
+hot/warm updates, captured-mux stopping waits, and clean/error termination with
+restart outcomes. `CommitRemote` enters the [caller-run inbound release](InboundRelease.md)
+path and publishes only after CM returns. `AwakeRemote` and `WaitIdleRemote` enter
+[caller-run promotion/demotion](RemoteState.md); over-limit promotion remains an
+explicit pruning frontier. Successful demotion allocates a fresh idle timer before
+publication.
+
+## Profile and remaining abstractions
+
+- The runtime profile supports eager and independent on-demand responders.
+  `installHandle` explicitly rejects StartOnDemandAny bundles until grouped
+  scheduling is modeled. The startup kernel still represents that status.
+- On-demand traffic readiness is a boundary input naming one ready channel;
+  the model does not implement ingress bytes or simultaneous-ready channel order.
+- Job completion represents the clean egress-drained boundary or a supplied
+  exceptional outcome. JobPool ownership, cancellation and completion promises
+  are not fully modeled. No overlapping jobs of the same protocol number are
+  assumed in the selected profile.
+- Shutdown completion represents cancellation/egress completion. The model does
+  not derive this readiness from those resources. Handle allocation, transport,
+  protocol execution and exception unwinding remain abstract.
+- The existing handler-exit boundary still does not derive exit from the mux
+  runtime. Whole-handler wedge/deadlock claims must wait for that integration.
+- IG version data is referenced through immutable handles. Diagnostic counter
+  caches and total/nonblocking diagnostic tracing are abstracted; the real
+  queue-writing tracer is modeled explicitly.
+- Existing ownership and entry/promise supply theorems retain their statements
+  over every machine action. They do not prove IG timer/registry/mux validity.
+- Local fixtures with injected queues or overlapping incarnations are branch
+  checks, not source-reachability witnesses. No bounded search or source replay
+  has been performed, and no source defect or subsystem liveness is claimed.
 
 ## Validation and next work
 
-From the library root, with Agda 2.8.0:
+From the library root, with Agda 2.8.0, one process at a time:
 
 ```sh
-agda ConnectionManagement/CSP/IGRegistration.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/IGRuntime.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/CleanupAtomicity.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/StaleHandshake.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HeapRollback.agda +RTS -M2G -RTS
 ```
 
-This endpoint checks the new rules and traces, hiding, correspondence, and the
-extended ownership/supply proof endpoints transitively. This endpoint passed with
-fresh elaboration of the affected closure. Separate checks of
-`Negative/CleanupAtomicity.agda` and `Negative/StaleHandshake.agda` also passed
-with the same heap limit. The nine-file local proof audit found no holes or unsafe
-markers; documentation links and `git diff --check` passed. These checks are not
-an audit of term-level assumptions in external dependencies.
+The runtime endpoint covers registration and real responder startup traces,
+subsequent maturity batches, startup failure with partial effects, queue/counter
+atomicity, drain-unblocks-tracer traces, expired-idle blocking, active-sample/exit
+ordering, and old-callback/current-registration captures. It imports the ownership
+and supply endpoints transitively.
 
-The next behavioral step
-is the real IG event union and mux/tracer runtime: determine startup outcomes,
-preserve atomic tracer queue/counter effects, and implement subsequent-batch
-readiness from state. Add inbound release and OG jobs before claiming the first
-combined subsystem lifecycle gate is complete.
+Validation of this increment: the runtime endpoint and its affected dependency
+closure freshly elaborated successfully; cleanup atomicity, stale-handshake and
+heap-rollback checks passed separately. The final runtime check emitted no
+warnings. The 14-file local static audit reported only the `?` characters in
+standard decidable comparison operators, which were inspected; it found no actual
+holes or unsafe options. Local documentation links and `git diff --check` passed.
+This is not a term-level axiom audit of external dependencies.
+
+Next implement promotion pruning and its cancellation sequence, then connect mux termination and tracer failure to handler cleanup. OG
+jobs and completion processing remain required for the combined lifecycle gate.
