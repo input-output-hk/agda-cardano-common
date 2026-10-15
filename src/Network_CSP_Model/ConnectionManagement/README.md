@@ -533,4 +533,20 @@ actions before attachment, including scored pruning. Shared effects preserve
 resource identities through atomic entry edits and retain the IG engine. CSP
 witnesses transport preparation through release, promotion and local pruning
 fixtures; negative controls retain cancellation, phase and generation guards.
-Admission, lifecycle and publication interference remain the next proof boundary.
+The following layer adds lifecycle interference; admission and publication remain.
+
+[`HandlerLifecycleInterference`](CSP/HandlerLifecycleInterference.agda) adds all handler lifecycle actions to
+the governor-interference alphabet, using existing exhaustive mux-anchor proofs.
+Preparation survives attachment, cancellation unwind and cleanup, including a
+closed socket and removed map binding. It does not imply the handler stays
+unattached or can attach again. Negative controls preserve join and unwind order.
+The following layer adds the remaining admission and result-publication actions.
+
+[`HandlerDispatcherInterference`](CSP/HandlerDispatcherInterference.agda) completes preservation across every
+current dispatcher action, with no action-subset or lifecycle-frame premise.
+Fresh handler/result writes retain older lookups; resources, preparation and
+untracked chains survive arbitrary successful finite executions and raw CSP traces.
+The second-admission witness runs without lifecycle frames, and negative controls
+reject reused child IDs, result overwrites and retries after a writer fault.
+This proves preservation of existing evidence, not coherent creation or progress.
+The matched installation/publication source contract is the next obligation.

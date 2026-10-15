@@ -499,16 +499,87 @@ and a scored transaction whose ticket differs from the current generation.
 
 These are reference-safety results. Cancellation delivery remains an external
 input, and no fairness, termination, enabled attachment, or Haskell refinement
-follows. The remaining pre-attachment dispatcher families are admission beyond
-parent publication/counters, handler lifecycle actions, and result publication.
+follows. The next layer adds handler lifecycle actions. Admission beyond parent
+publication/counters and result publication still require separate treatment.
 The source contract tying installation to the published negotiated handle also
 remains open.
+
+### Lifecycle interference without an attachment premise
+
+`Properties/LifecycleRetention.step-effects` lifts the existing exhaustive
+`HandlerEvolution.step-anchors` theorem through the dispatcher. Every successful
+handler lifecycle step preserves the world exactly and retains the installed
+handle/mux references. No lifecycle frame for the observed handler is a premise.
+The executing worker and observed worker may differ. Existing phase, mux and
+callback guards remain in the executable step relation.
+
+`HandlerGovernorInterference.Covered` now also includes arbitrary `handlerStep`
+actions, so its finite-execution and raw CSP trace lifts inherit this coverage.
+The earlier constructors and effect type remain unchanged. This is preservation
+of evidence that can be obtained before attachment, not an invariant that the
+handler stays unattached. In particular, the alphabet includes attachment itself.
+Successful final attachment remains a premise of the delayed-attachment theorem.
+
+`CSP/HandlerLifecycleInterference` transports preparation from the registered
+fixture through the release cancellation request, then attachment, delivery,
+pool closure, async failure publication, tracing, rethrow and cleanup. The endpoint
+has a closed socket and empty CM map while retaining the original references.
+The witness uses existing checked paths; cancellation delivery, job-pool closure,
+and TIME_WAIT completion remain environment inputs, not liveness conclusions.
+Negative controls reject failure publication before the pool join, cleanup before
+unwind, and reattachment after cleanup despite retained preparation.
+
+The following layer handles admission and result-publication interference using
+lookup preservation. Source correspondence and the matched installation/result
+contract remain separate obligations.
+
+### Exhaustive dispatcher preservation before attachment
+
+`Properties/StateRetention` permits growth of handler and result tables while
+preserving every existing lookup exactly. Mutable entry/socket values may change,
+but their identities remain present. Earlier exact-store retention embeds into
+this relation; its existing API is unchanged. `HandlerStateRetention` transports
+resource and untracked-chain evidence through these effects.
+
+`AdmissionRetention` extracts the existing exhaustive admission case analysis.
+The absent-child guard preserves existing handler records during fork; selection,
+rejection, fork failure, map publication/restoration and socket closure retain
+existing resource identities. The old `HandlerAdmission.worker-chain` type remains
+available as a wrapper. `PublicationRetention` handles fresh result writes and the
+explicit duplicate-write outcome, preserving older results. The tracked boundary
+proof reuses the fresh-publication effect.
+
+`Properties/HandlerDispatcherInterference.all-actions` exhaustively covers every
+current `Machine.Action` constructor. `all-resources`, `all-prepared`, and
+`all-chain` therefore preserve existing evidence along **any successful finite
+dispatcher execution**, without an action-subset premise or a lifecycle-frame
+premise. `CSP/HandlerDispatcherInterference` lifts this to raw traces and removes
+the interference-subset premises around delayed matched publication/attachment.
+Successful publication and attachment remain necessary premises. A trace may
+attach or finalize the observed handler; “before attachment” describes where the
+evidence can originate, not an invariant that the handler stays unattached.
+
+The CSP witness reruns the existing second-admission snapshots without optional
+lifecycle frames, checking every transition again. The original handler retains
+preparation while another child is forked, publishes a query result and has its
+binding removed by the handshake consumer. Both result lookups remain present.
+A subsequent duplicate-write outcome records the original writer as blocked while
+retaining its evidence. Negative controls reject a reused child identity, a
+claimed overwrite, and a retry after the writer fault; no tracking is created.
+
+This closes the current dispatcher **preservation** obligation. It does not prove
+that arbitrary installations/publications establish coherent references, that
+attachment is enabled, that executions progress, or that Haskell refines this
+model. Next is the source contract relating actual handle creation, installation
+and promise publication, with explicit negative cases for incoherent boundaries.
 
 ## Validation
 
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerLifecycleInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerGovernorInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerAllIGInterference.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerIGInterference.agda +RTS -M2G -RTS
