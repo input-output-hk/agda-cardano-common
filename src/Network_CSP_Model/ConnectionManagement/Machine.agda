@@ -4,9 +4,9 @@
 -- subsystem: no rule duplication, scheduler fairness or source completeness.
 module ConnectionManagement.Machine where
 
-open import Data.Nat using (ℕ)
+open import Data.Nat using (ℕ; suc)
 open import Data.List using (List; []; _∷_; _++_)
-open import Data.Bool using (true; false)
+open import Data.Bool using (true; false; if_then_else_)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (Maybe; just; nothing; map)
 open import Data.Maybe.Properties using (just-injective)
@@ -22,6 +22,7 @@ import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
+import ConnectionManagement.Rules.Pruning as Prune
 
 data PublicationOutcome : Set where
   resultWritten duplicateWrite : PublicationOutcome
@@ -49,20 +50,23 @@ record Configuration : Set where
     inboundRelease : Maybe Release.Frame
     remoteCall : Maybe Remote.Frame
     promotionHardLimit : ℕ
+    -- Counts committed split/draw inputs; the concrete StdGen is abstract.
+    pruningGeneration : ℕ
 open Configuration public
 
 initial : ResponderMode → State → Configuration
-initial mode s = configuration mode s [] IG.initial nothing nothing 10
+initial mode s = configuration mode s [] IG.initial nothing nothing 10 0
 
 replaceWorld : Configuration → State → Configuration
 replaceWorld c s = record c { world = s }
 
 advance : Action → Configuration → Maybe Configuration
-advance (remoteStep a) c with Remote.step (promotionHardLimit c) a (remoteCall c) (inboundGovernor c) (world c)
+advance (remoteStep a) c with Remote.step (promotionHardLimit c) (pruningGeneration c) a (remoteCall c) (inboundGovernor c) (world c)
 ... | nothing = nothing
-... | just p with Release.applyEdit (Remote.edit p) (world c)
+... | just p with Prune.applyEdits (Remote.edits p) (world c)
 ...   | nothing = nothing
-...   | just s = just (record c { world = s ; inboundGovernor = Remote.governor p ; remoteCall = Remote.pending p })
+...   | just s = just (record c { world = s ; inboundGovernor = Remote.governor p ; remoteCall = Remote.pending p
+      ; pruningGeneration = if Remote.consumedRandom p then suc (pruningGeneration c) else pruningGeneration c })
 advance (releaseStep a) c with Release.step a (inboundRelease c) (inboundGovernor c) (world c)
 ... | nothing = nothing
 ... | just p with Release.applyEdit (Release.edit p) (world c)

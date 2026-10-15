@@ -3,6 +3,7 @@
 -- Promotion composes from real mux startup; remaining fixtures state their scope.
 module ConnectionManagement.CSP.RemoteState where
 
+open import Data.Integer using (+_)
 open import Data.List using (List; []; _∷_; _++_; map)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
@@ -146,16 +147,16 @@ assertion-frontier = refl
 assertion-cannot-return : advance (remoteStep R.returnToIG) a₂ ≡ nothing
 assertion-cannot-return = refl
 
--- Capacity is tested before promotion writes; no pretend success through pruning.
+-- Capacity is tested before promotion writes; over-limit cases require scores.
 p₀ p₁ : Configuration
 p₀ = record (replaceEntry (outboundDup key₀ child₀ (ident 0) expired) entered) { promotionHardLimit = 0 }
-p₁ = after (remoteStep R.transact) p₀
-pruning-path : Executes p₀ (remoteStep R.transact ∷ []) p₁
+p₁ = after (remoteStep (R.transactPruning 0 (+ 0 ∷ []))) p₀
+pruning-path : Executes p₀ (remoteStep (R.transactPruning 0 (+ 0 ∷ [])) ∷ []) p₁
 pruning-path = next refl done
-pruning-frontier : remoteFrontier (remoteCall p₁) ≡ just promotionPruning
-pruning-frontier = refl
-pruning-does-not-write : world p₁ ≡ world p₀
-pruning-does-not-write = refl
+pruning-is-implemented : remoteFrontier (remoteCall p₁) ≡ nothing
+pruning-is-implemented = refl
+pruning-self-terminates : lookup (ident 0) (entries (cm (world p₁))) ≡ just (terminated nothing)
+pruning-self-terminates = refl
 pruning-cannot-return : advance (remoteStep R.returnToIG) p₁ ≡ nothing
 pruning-cannot-return = refl
 

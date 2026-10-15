@@ -8,6 +8,8 @@ open import Data.Product using (_,_)
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
+import ConnectionManagement.Rules.Pruning as Prune
+open import Data.List using ([]; _∷_)
 open import Data.Bool using (true; false)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (just; nothing)
@@ -51,15 +53,26 @@ release-edit-preserves (just (e , st)) s eq own with lookup e (entries (cm s)) i
 ... | just old with just-injective eq
 ...   | refl = own
 
+-- Sequential proof of the pure helper; Machine publishes only the final
+-- state, so intermediate writes are not observable execution steps.
+prune-edits-preserves : ∀ edits s {s′} → Prune.applyEdits edits s ≡ just s′ →
+  Ownership s → Ownership s′
+prune-edits-preserves [] s eq own = subst Ownership (just-injective eq) own
+prune-edits-preserves (edit ∷ edits) s eq own
+  with Release.applyEdit (just edit) s in changed
+... | nothing = case eq of λ ()
+... | just s₁ = prune-edits-preserves edits s₁ eq
+  (release-edit-preserves (just edit) s changed own)
+
 advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
   Ownership (world c) → Ownership (world c′)
 advance-preserves (remoteStep action) c eq own
-  with Remote.step (promotionHardLimit c) action (remoteCall c) (inboundGovernor c) (world c)
+  with Remote.step (promotionHardLimit c) (pruningGeneration c) action (remoteCall c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()
-... | just p with Release.applyEdit (Remote.edit p) (world c) in edited
+... | just p with Prune.applyEdits (Remote.edits p) (world c) in edited
 ...   | nothing = case eq of λ ()
 ...   | just s = subst (λ config → Ownership (world config)) (just-injective eq)
-  (release-edit-preserves (Remote.edit p) (world c) edited own)
+  (prune-edits-preserves (Remote.edits p) (world c) edited own)
 advance-preserves (releaseStep action) c eq own
   with Release.step action (inboundRelease c) (inboundGovernor c) (world c)
 ... | nothing = case eq of λ ()

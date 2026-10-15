@@ -16,7 +16,7 @@ open import ConnectionManagement.Domain using (WorkerId)
 
 data Frontier : Set where
   acceptLoop serverReturn admissionUnwind handlerBody handlerUnwind
-    cleanupReturn igRemoteAssertion promotionPruning igReleaseAssertion igHandleSetup igCMCall igExceptionUnwind muxShutdownCompletion ogSubsystem : Frontier
+    cleanupReturn igRemoteAssertion igReleaseAssertion igHandleSetup igCMCall igExceptionUnwind muxShutdownCompletion ogSubsystem : Frontier
 
 admissionFrontier : AdmissionPC → Maybe Frontier
 admissionFrontier (finished _) = just acceptLoop
@@ -72,5 +72,4 @@ remoteFrontier : Maybe Remote.Frame → Maybe Frontier
 remoteFrontier nothing = nothing
 remoteFrontier (just f) with Remote.pc f
 ... | Remote.assertionRaised = just igRemoteAssertion
-... | Remote.requiresPruning = just promotionPruning
 ... | _ = nothing
