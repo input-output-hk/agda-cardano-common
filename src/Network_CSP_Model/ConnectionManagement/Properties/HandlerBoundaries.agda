@@ -49,17 +49,12 @@ fresh-result-chain p result {s = s} absent chain with handlerPromise (originalHa
   ; handleFound = handleFound chain; handleMux = handleMux chain; muxFound = muxFound chain
   ; keyMatches = keyMatches chain; entryPresent = entryPresent chain; socketPresent = socketPresent chain }
 
+import ConnectionManagement.Properties.PublicationRetention as Publication
+import ConnectionManagement.Properties.HandlerStateRetention as StateRetention
+
 publication-chain : ∀ w result s {s′ q mid ig} → H.publishBoundary w result s ≡ just (H.published s′) →
   Chain q mid s ig → Chain q mid s′ ig
-publication-chain w result s eq chain with lookup w (handlers s) | lookup w (cleanups s)
-... | nothing | _ = case eq of λ ()
-... | just _ | just _ = case eq of λ ()
-... | just h | nothing with any (λ p → does (p ≟ handlerPromise h)) (promises s)
-...   | false = case eq of λ ()
-...   | true with lookup (handlerPromise h) (handshakeResults s) in found
-...     | just _ = case eq of λ ()
-...     | nothing with just-injective eq
-...       | refl = fresh-result-chain (handlerPromise h) result found chain
+publication-chain w result s eq = StateRetention.retains-chain (Publication.publication-retains w result s eq)
 
 exit-chain : ∀ w s {s′ q mid ig} → C.beginCleanupBoundary w s ≡ just s′ →
   Chain q mid s ig → Chain q mid s′ ig
