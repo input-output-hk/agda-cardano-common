@@ -42,7 +42,7 @@ raw-attachment-management-creates {w} {err} {c} premises only reach with exec-in
 ... | c′ , same , next attached rest = c′ , same ,
   exec-preserves only rest w (advance-creates w err c premises attached)
 
--- Stop before IG.commitDecision: general IG steps are outside this theorem.
+-- This witness stops before IG.commitDecision; HandlerIGBoundary extends it.
 r₀ r₁ r₂ r₃ r₄ r₅ r₆ : Configuration
 r₀ = tracked L.monitoring Release.b₆
 r₁ = tracked L.monitoring Release.written
