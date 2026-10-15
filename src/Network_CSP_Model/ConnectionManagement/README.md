@@ -489,3 +489,19 @@ coverage certificate. `HandlerAdmission` and `HandlerHandshake` now cover Server
 admission and handshake consumers. [`HandlerAll`](CSP/HandlerAll.agda) lifts preservation to arbitrary finite raw dispatcher traces and
 conditional attachment followed by any suffix. This is existing-reference safety,
 not full runtime validity or source completeness.
+
+
+[`HandlerEstablishment`](CSP/HandlerEstablishment.agda) derives a new tracked chain through
+selection/fork, matched installation, publication and attachment, then preserves
+it through any dispatcher suffix. The caller need not provide the earlier
+`CreationPremises`; resource evidence is derived from selection/fork in the
+concrete witness. A negative CSP trace installs the wrong key and still attaches,
+proving that arbitrary abstract boundary inputs cannot guarantee coherence.
+See [the reference-safety analysis](HandlerReferences.md) for the exact scope and remaining source-boundary obligation.
+
+[`HandlerInterference`](CSP/HandlerInterference.agda) carries resource, prepared-handle and
+published-chain evidence across parent map publication/counter reads and all
+handshake-consumer actions before attachment. The raw CSP theorem permits these
+interleavings around result publication and retains arbitrary suffixes after
+attachment. Coverage is explicit; preserved evidence does not guarantee that
+publication or attachment remains enabled.

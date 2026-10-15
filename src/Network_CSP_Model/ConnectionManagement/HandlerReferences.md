@@ -288,19 +288,101 @@ proves that the second child has not implicitly acquired a tracked chain.
 
 Full runtime validity, source refinement and progress remain separate.
 
-This establishes conditional creation at the attachment boundary, not a proof
-that allocation and publication always establish the premises. Next, derive those
-premises from the relevant allocation/publication transitions. Reference
-preservation is now exhaustive for the implemented dispatcher; immutable original
-references survive mutable connection-map and governor membership changes.
-Only then combine these results with phase and cleanup obligations for a global
-runtime-validity theorem.
+## Establishment from selection and matched boundaries
+
+`Properties/HandlerResources.agda` proves that successful entry selection returns
+an existing heap object, whether selection reuses or allocates its identity.
+`selection-fork-resources` composes consecutive successful selection and fork to
+establish the handler's entry/socket resources. A raw fork alone does not check
+entry existence, so `fork-resources` keeps that premise explicit.
+
+`Properties/HandlerEstablishment.agda` establishes the remaining lookup chain:
+
+1. Install a fresh handle/mux pair using the original handler's key.
+2. Successfully publish a negotiated result naming that installed handle.
+3. Attach the handler successfully.
+
+`Prepared` records the installed lookups and resource existence before the
+promise is published. Successful publication supplies the final lookup and
+establishes `Chain`; `chain-premises` derives the earlier attachment premises
+from it. No executable guard was added or changed. Neither a pre-existing chain
+nor `CreationPremises` is an input to the new establishment trace theorem.
+The installation key and published handle ID are tied together explicitly in
+the theorem's trace, rather than being assumed properties of arbitrary inputs.
+
+`CSP/HandlerEstablishment.raw-establishment` takes resource evidence at the fork
+boundary and a raw trace of those matched operations followed by any finite
+dispatcher suffix. It returns an endpoint with a tracked chain. The concrete
+witness derives its resource evidence through actual selection/fork transitions
+and starts from the accepted-socket fixture, with no handlers, result, handle or
+mux initially installed. It attaches before the admission caller publishes its
+map and consumes the result; those subsequent steps preserve the new chain.
+This is a finite model trace, not a universal completion or source-refinement
+claim. The original theorem covers this consecutive establishment sequence. The
+interference extension below permits parent and handshake-consumer steps around
+publication and before attachment.
+
+`Negative/HandlerEstablishment` constructs a trace from the same accepted-socket
+fixture that installs a mux under a different key, publishes its handle, and
+successfully attaches. Its endpoint provably has no coherent tracked chain.
+It also rejects attachment before result publication. The wrong-key trace is
+reachable in the open model because installation and publication are abstract
+input boundaries; it is not evidence of a Haskell implementation bug.
+Consequently, an unconditional creation invariant for all currently allowed
+boundary inputs would be false. A source-derived boundary contract or a more
+detailed allocation/negotiation model is needed before claiming global validity.
+
+## Parent and consumer interleavings before attachment
+
+`Properties/HandlerConsumerEffects.agda` records the world effects of admission
+`putMapBack`/`readCounters` and all five handshake-consumer actions. They retain
+the handler and promise-result stores and socket values exactly, and retain
+entry identities even when updating heap values or removing map bindings.
+The existing `HandlerHandshake` chain theorem now uses this shared analysis;
+its type and coverage are unchanged.
+
+`Properties/HandlerInterference.agda` transports three kinds of evidence across
+arbitrary finite sequences of those actions:
+
+- `Resources`, before handle installation;
+- `Prepared`, after installation but without assuming a published result;
+- `Chain`, after publication but without assuming a lifecycle attachment.
+
+The actor may be any worker, not just the worker whose references are protected.
+`Interference` explicitly restricts action families. This is not yet an
+all-dispatcher pre-attachment theorem; IG/mux actions, other admission actions,
+cleanup, release and remote-state actions remain outside this new alphabet.
+The earlier all-dispatcher theorem for already tracked chains is unchanged.
+
+`CSP/HandlerInterference` supplies raw resource/preparation trace lifts and
+`raw-delayed-attachment`. The latter permits a covered sequence before matched
+publication and another before successful attachment, then an arbitrary finite
+dispatcher suffix. It assumes the actual publication and attachment transitions
+succeed; evidence retention is not a proof that either action remains enabled.
+
+The concrete witness begins at the accepted-socket fixture. It publishes the
+admission map between fork and installation, reads counters between installation
+and result publication, and performs all handshake-consumer phases before
+attachment. Resource, prepared and chain certificates are transported through
+the respective segments, rather than reconstructed from endpoint lookups.
+
+`Negative/HandlerInterference` rejects result reading and attachment while the
+promise is empty despite a valid `Prepared` certificate. It also executes an
+untracked handler exit: that particular step retains `Prepared`, but cleanup
+blocks subsequent publication. Exit is outside `Interference`; this witness
+illustrates the difference between preserved references and continued readiness.
+
+Next, extend pre-attachment interference coverage to IG/mux and cleanup actions
+while keeping readiness separate, and relate allowed installation/publication
+inputs to the source. Phase and source-refinement obligations remain separate.
 
 ## Validation
 
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/Negative/HandlerInterference.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerEstablishment.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerAll.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerAll.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerIG.agda +RTS -M2G -RTS
