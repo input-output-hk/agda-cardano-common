@@ -261,3 +261,9 @@ for the exact premises, creation negative controls, and remaining dispatcher cov
 
 `HandlerAttachment.agda` derives a tracked chain from raw attachment traces under
 explicit resource/coherence premises, then preserves it along lifecycle suffixes.
+
+`HandlerBoundaries.agda` extends reference preservation and conditional
+creation to raw traces interleaving lifecycle, publication and handler exit.
+`HandlerCleanup.agda` further adds all cleanup steps, including socket-close
+failure, map restoration and interrupted TIME_WAIT. Reference existence survives
+closure and CM map removal; global runtime validity remains a separate obligation.

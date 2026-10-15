@@ -35,9 +35,10 @@ returns false. These are model boundary tests, not reachable source defects.
 
 This is not the full `HandlerValidity.valid` invariant: phase, cleanup, and
 unique-ownership obligations remain separate. The all-dispatcher uniqueness and
-capture-retention theorems continue to hold, but this reference-chain theorem
-covers only lifecycle actions. In particular it does not yet cover interleaved IG
-updates, Server allocation, handshake publication, release, pruning or cleanup.
+capture-retention theorems continue to hold. The original `HandlerReferences`
+theorem covers only lifecycle actions; the extensions below add publication,
+exit and cleanup execution. Server, handshake-consumer, IG, release and pruning
+steps remain outside the reference-chain trace theorem.
 It proves neither progress nor liveness, and does not assert a result after hiding.
 
 `Properties/HandlerAttachment.agda` now derives a new tracked chain from a
@@ -52,6 +53,54 @@ that the worker is initially untracked and obtains a chain after attachment.
 `Negative/HandlerAttachment.agda` proves that each of the three malformed fixtures
 violates these premises, complementing their successful-attachment witnesses.
 
+## Publication and exit coverage
+
+`Properties/HandlerBoundaries.agda` extends preservation to handler publication
+and handler exit, for any acting worker and any protected worker. A successful
+publication inserts only into an empty promise-result slot, so it cannot replace
+the negotiated result supporting an existing chain. Duplicate publication records
+a fault without changing the world. Exit enters cleanup and changes the lifecycle
+phase while retaining original references.
+
+`HandlerActions` explicitly admits lifecycle, publication and exit actions.
+`CSP/HandlerBoundaries` lifts preservation and conditional attachment creation to
+raw traces with arbitrary finite interleavings of these actions. The original
+lifecycle-only theorem APIs remain unchanged. Concrete witnesses cover duplicate
+publication and the normal-exit suffix through cleanup entry.
+`Negative/HandlerBoundaries` excludes raw traces that overwrite a filled promise,
+repeat the recorded publication fault, or publish after cleanup entry.
+
+## Cleanup execution coverage
+
+`Properties/HandlerCleanup.agda` proves preservation through every successful
+cleanup action, for arbitrary acting and protected workers. It reuses
+`put-preserves-present`: writing a closed/uncertain socket or a terminated entry
+retains that resource's identity. Taking, publishing and restoring the CM map
+leave the entry heap unchanged. TIME_WAIT finalization may remove map membership
+without deleting the captured entry. No fresh-resource or ownership premise was
+added to the preservation theorem.
+
+`CleanupActions` permits lifecycle, publication, exit and cleanup actions.
+`CSP/HandlerCleanup` lifts preservation and conditional attachment creation to
+raw finite traces with arbitrary interleavings from this action set. It checks
+three concrete paths from a certified cleanup-entry fixture:
+
+- normal cleanup through TIME_WAIT completion;
+- failed socket close followed by map restoration and an error outcome;
+- interrupted TIME_WAIT followed by finalization, purge and an error outcome.
+
+The resulting chains coexist with a closed socket and empty map, or an uncertain
+socket after close failure. These facts establish existence of original resources,
+not usability or current registration. The starting fixture is explicitly
+certified; the witness does not establish source reachability or eventual cleanup.
+
+`Negative/HandlerCleanup` rules out raw one-action traces that finalize before
+TIME_WAIT readiness, publish after failed close, or skip finalization after
+interruption. It uses the unchanged dispatcher's refusal results.
+
+Server, handshake-consumer, IG, release and pruning actions remain outside this
+coverage. Full runtime validity, source refinement and progress remain separate.
+
 This establishes conditional creation at the attachment boundary, not a proof
 that allocation and publication always establish the premises. Next, derive those
 premises from the relevant transitions and extend reference preservation through
@@ -65,6 +114,10 @@ runtime-validity theorem.
 Run from the standalone library root, one Agda process at a time:
 
 ```sh
+agda ConnectionManagement/CSP/HandlerCleanup.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerCleanup.agda +RTS -M2G -RTS
+agda ConnectionManagement/CSP/HandlerBoundaries.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerBoundaries.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerAttachment.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerAttachment.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/HandlerReferences.agda +RTS -M2G -RTS

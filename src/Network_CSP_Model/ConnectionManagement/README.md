@@ -466,3 +466,9 @@ for the exact premises, creation negative controls, and remaining dispatcher cov
 `CSP/HandlerAttachment.agda` and `Negative/HandlerAttachment.agda` add conditional
 creation at attachment and show why its resource/coherence premises are needed.
 The premises are not yet invariants of all allocation/publication executions.
+
+`CSP/HandlerBoundaries.agda` extends reference preservation and conditional
+creation to raw traces interleaving lifecycle, publication and handler exit.
+`CSP/HandlerCleanup.agda` further adds all cleanup steps, including socket-close
+failure, map restoration and interrupted TIME_WAIT. Reference existence survives
+closure and CM map removal; global runtime validity remains a separate obligation.
