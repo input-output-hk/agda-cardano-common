@@ -25,6 +25,7 @@ open import ConnectionManagement.Properties.HandlerRuntimeInterference using (re
 import ConnectionManagement.Properties.HandlerAllIGInterference as Runtime
 import ConnectionManagement.Properties.ReleaseRetention as Release
 import ConnectionManagement.Properties.RemoteRetention as Remote
+import ConnectionManagement.Properties.LifecycleRetention as Lifecycle
 import ConnectionManagement.Properties.IGRetention as IGEffects
 import ConnectionManagement.Properties.CleanupRetention as Cleanup
 import ConnectionManagement.Rules.IGRegistration as IG
@@ -44,6 +45,7 @@ data Covered : Action → Set where
   runtime : ∀ {a} → Runtime.Covered a → Covered a
   release : ∀ {a} → Covered (releaseStep a)
   remoteOp : ∀ {a} → Covered (remoteStep a)
+  lifecycle : ∀ {w a} → Covered (handlerStep w a)
 
 step-effects : ∀ a → Covered a → ∀ c {c′} → advance a c ≡ just c′ →
   Cleanup.Retains (world c) (world c′) × Retains (inboundGovernor c) (inboundGovernor c′)
@@ -53,6 +55,9 @@ step-effects .(releaseStep a) (release {a}) c eq with Release.step-effects a c e
 ... | eff , anchors = eff , from-anchors anchors
 step-effects .(remoteStep a) (remoteOp {a}) c eq with Remote.step-effects a c eq
 ... | eff , anchors = eff , from-anchors anchors
+
+step-effects .(handlerStep w a) (lifecycle {w} {a}) c eq with Lifecycle.step-effects w a c eq
+... | refl , anchors = Cleanup.retains refl refl (λ _ p → p) (λ _ p → p) , from-anchors anchors
 
 resources-step : ∀ a → Covered a → ∀ c {c′ w} → advance a c ≡ just c′ →
   Resources w (world c) → Resources w (world c′)
