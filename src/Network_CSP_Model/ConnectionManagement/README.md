@@ -458,3 +458,7 @@ Next: strengthen runtime validity and tracked source scenarios, then
 add outbound acquisition and OG jobs/completions. Retain structural
 invariants as regression checks. Full runtime validity, bounded exploration and
 source replay remain required before interpreting candidates as source defects.
+
+Reference-chain preservation now covers arbitrary finite sequences of handler
+lifecycle actions, including a raw CSP trace lift. See [Handler references](HandlerReferences.md)
+for the exact premises, creation negative controls, and remaining dispatcher coverage.

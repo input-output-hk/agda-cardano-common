@@ -67,5 +67,6 @@ agda ConnectionManagement/CSP/HandlerCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerCapture.agda +RTS -M2G -RTS
 ```
 
-Next extend preservation to the original handler/promise/handle/mux reference
-chain, with resource and allocation assumptions stated explicitly.
+[Reference-chain preservation](HandlerReferences.md) now covers lifecycle-only
+executions from an already-valid chain. Creation and preservation across the
+remaining dispatcher families are still required.
