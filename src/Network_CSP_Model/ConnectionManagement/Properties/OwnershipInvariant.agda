@@ -1,0 +1,77 @@
+{-# OPTIONS --guardedness #-}
+
+-- Exclusive lease ownership is preserved by EVERY action of the current partial
+-- machine. This is not whole-state validity, source refinement, or liveness.
+module ConnectionManagement.Properties.OwnershipInvariant where
+
+open import Data.Bool using (true; false)
+open import Data.Bool.ListAction using (any)
+open import Data.Maybe using (just; nothing)
+open import Data.Maybe.Properties using (just-injective)
+open import Relation.Nullary using (does)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
+open import Function using (case_of_)
+open import Class.DecEq using (_≟_)
+open import ConnectionManagement.Domain
+open import ConnectionManagement.Store using (lookup)
+open import ConnectionManagement.State
+open import ConnectionManagement.Machine
+open import ConnectionManagement.Properties.Ownership
+open import ConnectionManagement.Properties.OwnershipNeutral
+open import ConnectionManagement.Properties.OwnershipAdmission
+open import ConnectionManagement.Properties.OwnershipCleanup
+open import ConnectionManagement.Properties.OwnershipHandshake
+open import ConnectionManagement.Properties.OwnershipMapDispatcher using (admission-lift; cleanup-lift)
+import ConnectionManagement.Rules.Handshake as H
+
+-- The abstract publication boundary changes promise results only. Duplicate
+-- publication is handled separately by the machine's publication-fault list.
+publication-preserves : ∀ w result s {s′} → H.publishBoundary w result s ≡ just (H.published s′) →
+  Ownership s → Ownership s′
+publication-preserves w result s eq own with lookup w (handlers s) | lookup w (cleanups s)
+... | nothing | _ = case eq of λ ()
+... | just _ | just _ = case eq of λ ()
+... | just h | nothing with any (λ p → does (p ≟ handlerPromise h)) (promises s)
+...   | false = case eq of λ ()
+...   | true with lookup (handlerPromise h) (handshakeResults s)
+...     | just _ = case eq of λ ()
+...     | nothing with just-injective eq
+...       | refl = own
+
+advance-preserves : ∀ action c {c′} → advance action c ≡ just c′ →
+  Ownership (world c) → Ownership (world c′)
+advance-preserves (admissionStep w action) c = admission-lift action (admission-worker action) w c
+advance-preserves (cleanupStep w action) c = cleanup-lift action (cleanup-worker action) w c
+advance-preserves (handshakeStep w action) c eq own with lookup w (admissions (world c)) in found
+... | nothing = case eq of λ ()
+... | just a with H.stepWorker (responder c) w a action (world c) in stepped
+...   | nothing = case eq of λ ()
+...   | just s′ = subst (λ config → Ownership (world config)) (just-injective eq)
+  (handshake-worker action (responder c) w a (world c) found stepped own)
+advance-preserves (handlerExit w) c eq own
+  with lookup w (handlers (world c)) | lookup w (cleanups (world c)) in found
+... | nothing | _ = case eq of λ ()
+... | just _ | just _ = case eq of λ ()
+... | just _ | nothing = subst (λ config → Ownership (world config)) (just-injective eq)
+  (cleanup-new w (world c) found own)
+advance-preserves (handlerPublication w result outcome) c eq own
+  with any (λ v → does (v ≟ w)) (publicationFaults c)
+... | true = case eq of λ ()
+... | false with H.publishBoundary w result (world c) in published | outcome
+...   | nothing | _ = case eq of λ ()
+...   | just (H.published s′) | resultWritten =
+  subst (λ config → Ownership (world config)) (just-injective eq)
+    (publication-preserves w result (world c) published own)
+...   | just H.writerBlocked | duplicateWrite =
+  subst (λ config → Ownership (world config)) (just-injective eq) own
+...   | just (H.published _) | duplicateWrite = case eq of λ ()
+...   | just H.writerBlocked | resultWritten = case eq of λ ()
+
+-- Arbitrary finite execution, with no restriction on actions or scheduling.
+exec-preserves : ∀ {c actions c′} → Ownership (world c) → Executes c actions c′ → Ownership (world c′)
+exec-preserves own done = own
+exec-preserves own (next {c = c} {a = action} eq rest) = exec-preserves (advance-preserves action c eq own) rest
+
+-- Replay inherits the same invariant; a failed replay is not an execution.
+replay-preserves : ∀ actions c {c′} → Ownership (world c) → replay actions c ≡ just c′ → Ownership (world c′)
+replay-preserves actions c own eq = exec-preserves own (replay-sound actions c eq)
