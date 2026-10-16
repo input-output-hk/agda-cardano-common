@@ -1,0 +1,155 @@
+diff --git a/ouroboros-network/framework/sim-tests/Main.hs b/ouroboros-network/framework/sim-tests/Main.hs
+--- a/ouroboros-network/framework/sim-tests/Main.hs
++++ b/ouroboros-network/framework/sim-tests/Main.hs
+@@ -4,6 +4,7 @@
+ import Test.Tasty
+ 
+ import Test.Ouroboros.Network.ConnectionManager qualified as ConnectionManager
++import Test.Ouroboros.Network.OverLimitReleaseReplay qualified as OverLimitReleaseReplay
+ import Test.Ouroboros.Network.RateLimiting qualified as RateLimiting
+ import Test.Ouroboros.Network.Server.Sim qualified as Server
+ import Test.Simulation.Network.Snocket qualified as Snocket
+@@ -14,7 +15,8 @@
+ tests :: TestTree
+ tests =
+   testGroup "ouroboros-network-framework:sim-tests"
+-  [ ConnectionManager.tests
++  [ OverLimitReleaseReplay.tests
++  , ConnectionManager.tests
+   , Server.tests
+   , RateLimiting.tests
+   , Snocket.tests
+diff --git a/ouroboros-network/ouroboros-network.cabal b/ouroboros-network/ouroboros-network.cabal
+--- a/ouroboros-network/ouroboros-network.cabal
++++ b/ouroboros-network/ouroboros-network.cabal
+@@ -540,6 +540,7 @@
+   hs-source-dirs: framework/sim-tests
+   other-modules:
+     Test.Ouroboros.Network.ConnectionManager
++    Test.Ouroboros.Network.OverLimitReleaseReplay
+     Test.Ouroboros.Network.RateLimiting
+     Test.Ouroboros.Network.RawBearer
+     Test.Ouroboros.Network.Server.Sim
+diff --git a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/OverLimitReleaseReplay.hs b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/OverLimitReleaseReplay.hs
+new file mode 100644
+index 0000000..3c33ce8
+--- /dev/null
++++ b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/OverLimitReleaseReplay.hs
+@@ -0,0 +1,117 @@
++{-# LANGUAGE DataKinds #-}
++{-# LANGUAGE ScopedTypeVariables #-}
++
++-- Public CM API replay; transport, handshake and victim choice are fixtures.
++module Test.Ouroboros.Network.OverLimitReleaseReplay (tests) where
++
++import Control.Concurrent.Class.MonadSTM.Strict
++import Control.Monad.Class.MonadTimer.SI
++import Control.Monad.IOSim
++import Control.Tracer (mkTracer, nullTracer)
++import Data.Map.Strict qualified as Map
++import Data.Set qualified as Set
++import Data.Proxy (Proxy (..))
++import Data.Void (Void)
++import System.Random qualified as Random
++import Test.Tasty (TestTree, testGroup)
++import Test.Tasty.QuickCheck (testProperty)
++import Test.QuickCheck
++import Network.Mux.Types qualified as Mx
++import Ouroboros.Network.ConnectionId (ConnectionId (..))
++import Ouroboros.Network.ConnectionManager.Core qualified as CM
++import Ouroboros.Network.ConnectionManager.State qualified as CS
++import Ouroboros.Network.ConnectionManager.Types
++import Ouroboros.Network.DiffusionMode
++import Ouroboros.Network.InboundGovernor.InformationChannel (newInformationChannel)
++import Ouroboros.Network.MuxMode
++import Ouroboros.Network.Server.RateLimiting
++import Ouroboros.Network.Snocket
++
++type Addr = TestAddress Int
++
++-- A fresh outbound duplex entry is Ticking; the other peer is inbound idle.
++experiment :: forall s. Bool -> Bool -> IOSim s (Bool, Bool, Bool, Bool)
++experiment overLimit pruneSelf = do
++  let local = TestAddress 0
++      self = TestAddress 1
++      other = TestAddress 2
++      selfKey = ConnectionId local self
++      otherKey = ConnectionId local other
++      victim = if pruneSelf then selfKey else otherKey
++      limit = if overLimit then 1 else 2
++      transport :: Snocket (IOSim s) Addr Addr
++      transport = Snocket {
++        getLocalAddr = const (pure local), getRemoteAddr = pure,
++        addrFamily = const TestFamily, open = const (pure local),
++        openToConnect = pure, connect = \_ _ -> pure (),
++        bind = \_ _ -> pure (), listen = const (pure ()),
++        accept = const (atomically retry), close = const (pure ())
++      }
++      handler :: ConnectionHandler Mx.InitiatorResponderMode () Addr Addr () Void () DataFlow (IOSim s)
++      handler = ConnectionHandler (WithInitiatorResponderMode body body)
++        where
++          body _ _ writer _ _ _ _ = MaskedAction $ \unmask -> do
++            atomically $ writePromise writer (Right (HandshakeConnectionResult () ((), Duplex)))
++            unmask (atomically retry)
++      expectedBefore = Map.fromList
++        [(self, Map.singleton (CS.LocalAddr local) (OutboundDupSt Ticking)),
++         (other, Map.singleton (CS.LocalAddr local) (InboundIdleSt Duplex))]
++      expectedAfter
++        | not overLimit = Map.fromList
++            [(self, Map.singleton (CS.LocalAddr local) (InboundIdleSt Duplex)),
++             (other, Map.singleton (CS.LocalAddr local) (InboundIdleSt Duplex))]
++        | pruneSelf = Map.singleton other (Map.singleton (CS.LocalAddr local) (InboundIdleSt Duplex))
++        | otherwise = Map.singleton self (Map.singleton (CS.LocalAddr local) (OutboundDupSt Ticking))
++  pruneEvents <- newTVarIO []
++  supply <- atomically $ CS.newConnStateIdSupply Proxy
++  info <- newInformationChannel
++  CM.with CM.Arguments {
++      CM.tracer = mkTracer $ \event -> case event of
++        CM.TrPruneConnections selected count choices ->
++          atomically $ modifyTVar pruneEvents (++ [(selected, count, choices)])
++        _ -> pure (),
++      CM.trTracer = nullTracer,
++      CM.ipv4Address = Nothing, CM.ipv6Address = Nothing,
++      CM.addressType = const (Just IPv4Address), CM.snocket = transport,
++      CM.makeBearer = MakeBearer $ \_ _ _ -> fail "unexpected bearer",
++      CM.withBuffer = \f -> f Nothing, CM.configureSocket = \_ _ -> pure (),
++      CM.connectionDataFlow = id,
++      -- Selection is controlled, but the production CM builds the candidates,
++      -- applies victim writes, delivers cancellation and runs handler cleanup.
++      CM.prunePolicy = \_ _ _ -> Set.singleton victim,
++      CM.stdGen = Random.mkStdGen 0,
++      CM.connectionsLimits = AcceptedConnectionsLimit limit limit 0,
++      CM.timeWaitTimeout = 1, CM.outboundIdleTimeout = 1,
++      CM.updateVersionData = \a _ -> a, CM.connStateIdSupply = supply,
++      CM.classifyHandlerError = const HandshakeFailure
++    } (InResponderMode info) handler $ \cm -> do
++      Connected actualSelf _ _ <- acquireOutboundConnection cm InitiatorAndResponderDiffusionMode self Outbound
++      Connected actualOther _ _ <- includeInboundConnection cm limit other otherKey
++      before <- atomically $ CS.getConnMap <$> readState cm
++      result <- releaseOutboundConnection cm selfKey
++      -- Wait for the cancelled handler's finalizer, not just throwTo delivery.
++      after <- timeout 10 $ atomically $ do
++        states <- CS.getConnMap <$> readState cm
++        check (states == expectedAfter)
++        pure states
++      events <- atomically $ readTVar pruneEvents
++      let expectedEvents = if overLimit
++            then [(Set.singleton victim, 1, Set.fromList [selfKey, otherKey])]
++            else []
++          success = case result of
++            OperationSuccess (OutboundDupSt Ticking) -> True
++            _ -> False
++      pure (actualSelf == selfKey && actualOther == otherKey && before == expectedBefore,
++            success, after == Just expectedAfter, events == expectedEvents)
++
++-- Characterization tests: a production fix should change the survivor result.
++prop_release :: Bool -> Bool -> Property
++prop_release overLimit pruneSelf =
++  let observed = runSimOrThrow (experiment overLimit pruneSelf)
++  in counterexample (show observed) (observed === (True, True, True, True))
++
++tests :: TestTree
++tests = testGroup "OverLimitReleaseReplay"
++  [testProperty "over-limit survivor remains outbound ticking" (once (prop_release True False)),
++   testProperty "over-limit self-pruning removes self" (once (prop_release True True)),
++   testProperty "within-limit release writes inbound idle" (once (prop_release False False))]

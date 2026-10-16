@@ -21,6 +21,10 @@ correspondence for the dispatchers, concrete trace/refusal checks, and a hidden
 view of the earlier inbound process. The
 subsystem remains open and partial; no source deadlock/liveness claim follows.
 
+The [source replays](SourceReplay/README.md) check governor retries after
+socket-open failure and over-limit outbound release against the exact network
+pin. The confirmed release mismatch is corrected in the model.
+
 ## Reading order
 
 1. [DESIGN.md](DESIGN.md): target architecture, scenario, state design and gates.
@@ -656,7 +660,8 @@ rules; source replay and general combined invariants remain separate obligations
 leak at the pinned CM interface, with a configuration-failure cleanup control.
 `CSP/GovernorOpenFailure` separately checks the modeled OG backoff/retry consequence
 in 64 actions; its negative endpoint excludes premature retry and duplicate
-completion. Full source governor/supervision replay remains outstanding.
+completion. The source governor retry path is now replayed with peer-state-actions and CM;
+full diffusion supervision remains outside the replay.
 
 `CSP/GovernorFailureLimit` extends that model trace to 211 actions: with a
 configured failure limit of five, the sixth failure makes OG forget the peer

@@ -81,6 +81,11 @@ selected synchronous exits](HandlerOutcomes.md) now include both rethrow-policy
 branches; concrete policy evaluation remains an input. ConnectionId ordering is remote-before-
 local in both IG and pruning.
 
+The [source replay results](SourceReplay/README.md) record the integrated
+governor retry path and over-limit release against the exact pin. The latter
+confirms that release writes only pruning victims, leaving a surviving self
+in OutboundDup Ticking; the model now preserves this behavior.
+
 ## 1. Rule record and naming
 
 Every implemented rule receives a stable identifier, for example

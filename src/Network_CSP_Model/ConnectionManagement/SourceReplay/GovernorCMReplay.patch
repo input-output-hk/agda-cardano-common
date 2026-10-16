@@ -1,0 +1,300 @@
+diff --git a/ouroboros-network/framework/sim-tests/Main.hs b/ouroboros-network/framework/sim-tests/Main.hs
+index 0fcdcd2..3b87ebb 100644
+--- a/ouroboros-network/framework/sim-tests/Main.hs
++++ b/ouroboros-network/framework/sim-tests/Main.hs
+@@ -4,6 +4,7 @@ import Main.Utf8 (withUtf8)
+ import Test.Tasty
+ 
+ import Test.Ouroboros.Network.ConnectionManager qualified as ConnectionManager
++import Test.Ouroboros.Network.GovernorCMReplay qualified as GovernorCMReplay
+ import Test.Ouroboros.Network.RateLimiting qualified as RateLimiting
+ import Test.Ouroboros.Network.Server.Sim qualified as Server
+ import Test.Simulation.Network.Snocket qualified as Snocket
+@@ -14,7 +15,8 @@ main = withUtf8 $ defaultMain tests
+ tests :: TestTree
+ tests =
+   testGroup "ouroboros-network-framework:sim-tests"
+-  [ ConnectionManager.tests
++  [ GovernorCMReplay.tests
++  , ConnectionManager.tests
+   , Server.tests
+   , RateLimiting.tests
+   , Snocket.tests
+diff --git a/ouroboros-network/ouroboros-network.cabal b/ouroboros-network/ouroboros-network.cabal
+index 90e72d2..4b66926 100644
+--- a/ouroboros-network/ouroboros-network.cabal
++++ b/ouroboros-network/ouroboros-network.cabal
+@@ -540,6 +540,7 @@ test-suite framework-sim-tests
+   hs-source-dirs: framework/sim-tests
+   other-modules:
+     Test.Ouroboros.Network.ConnectionManager
++    Test.Ouroboros.Network.GovernorCMReplay
+     Test.Ouroboros.Network.RateLimiting
+     Test.Ouroboros.Network.RawBearer
+     Test.Ouroboros.Network.Server.Sim
+@@ -558,6 +559,7 @@ test-suite framework-sim-tests
+     io-sim,
+     monoidal-synchronisation,
+     network-mux,
++    ouroboros-network,
+     ouroboros-network:{api, framework, framework-tests-lib, tests-lib},
+     pretty-simple,
+     psqueues,
+diff --git a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/GovernorCMReplay.hs b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/GovernorCMReplay.hs
+new file mode 100644
+index 0000000..d758fbb
+--- /dev/null
++++ b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/GovernorCMReplay.hs
+@@ -0,0 +1,252 @@
++{-# LANGUAGE DataKinds #-}
++{-# LANGUAGE FlexibleInstances #-}
++{-# LANGUAGE MultiParamTypeClasses #-}
++{-# LANGUAGE NamedFieldPuns #-}
++{-# LANGUAGE ScopedTypeVariables #-}
++{-# LANGUAGE TypeFamilies #-}
++{-# LANGUAGE TypeSynonymInstances #-}
++
++-- Real OG + PeerStateActions + CM. Transport and discovery are test inputs.
++module Test.Ouroboros.Network.GovernorCMReplay (tests) where
++
++import Control.Concurrent.Class.MonadSTM.Strict
++import Control.Monad.Class.MonadAsync
++import Control.Monad.Class.MonadFork
++import Control.Monad.Class.MonadThrow
++import Control.Monad.Class.MonadTime.SI
++import Control.Monad.Class.MonadTimer.SI
++import Control.Monad.IOSim hiding (Failure)
++import Control.Tracer (mkTracer, nullTracer)
++import Data.ByteString.Lazy qualified as BL
++import Data.Map.Strict qualified as Map
++import Data.Set qualified as Set
++import Data.Proxy (Proxy (..))
++import GHC.IO.Exception
++import System.Random qualified as Random
++import Test.Tasty (TestTree, testGroup)
++import Test.Tasty.QuickCheck (testProperty)
++import Test.QuickCheck hiding (Failure, classify)
++import Network.Mux.Types qualified as Mx
++import Ouroboros.Network.ConnectionHandler qualified as H
++import Ouroboros.Network.ConnectionManager.Core qualified as CM
++import Ouroboros.Network.ConnectionManager.State qualified as CS
++import Ouroboros.Network.ConnectionManager.Types
++import Ouroboros.Network.Context (ExpandedInitiatorContext)
++import Ouroboros.Network.ExitPolicy (alwaysCleanReturnPolicy)
++import Ouroboros.Network.InboundGovernor.InformationChannel (newInformationChannel)
++import Ouroboros.Network.MuxMode
++import Ouroboros.Network.PeerSelection.Governor qualified as OG
++import Ouroboros.Network.PeerSelection.Governor.Types
++import Ouroboros.Network.PeerSelection.LedgerPeers.Type
++import Ouroboros.Network.PeerSelection.PeerSharing (PeerSharing (..))
++import Ouroboros.Network.PeerSelection.PeerStateActions qualified as PSA
++import Ouroboros.Network.PeerSelection.PublicRootPeers qualified as Public
++import Ouroboros.Network.PeerSelection.State.KnownPeers qualified as Known
++import Ouroboros.Network.PeerSelection.Types (nullPublicExtraPeersAPI)
++import Ouroboros.Network.Point (WithOrigin (..))
++import Ouroboros.Network.RethrowPolicy (ioErrorRethrowPolicy)
++import Ouroboros.Network.Server.RateLimiting
++import Ouroboros.Network.Snocket
++
++type Addr = TestAddress Int
++-- No protected extra peers, local roots, big-ledger targets or churn.
++data NoExtras = NoExtras deriving (Eq, Show)
++instance Semigroup NoExtras where _ <> _ = NoExtras
++instance Monoid NoExtras where mempty = NoExtras
++instance SupportsPeerSelectionState NoExtras Addr where
++  data ToExtraTrace NoExtras = NoExtraTrace deriving Show
++  data ViewExtraPeers NoExtras = NoExtraView deriving (Eq, Show)
++  publicExtraPeersAPI = nullPublicExtraPeersAPI
++  mkViewExtraPeers _ = NoExtraView
++
++type Peer s = PSA.PeerConnectionHandle Mx.InitiatorResponderMode () Addr () DataFlow BL.ByteString (IOSim s) () ()
++type Handle s = H.Handle Mx.InitiatorResponderMode (ExpandedInitiatorContext Addr () (IOSim s)) () DataFlow BL.ByteString (IOSim s) () ()
++type GState s = PeerSelectionState () () NoExtras Addr (Peer s)
++
++data Failure = Failure Time String Bool (Maybe Int) deriving (Eq, Show)
++data Observation = Observation [Failure] Int Int Int Bool Bool Bool deriving Show
++
++peer :: Addr
++peer = TestAddress 1
++injected :: IOException
++injected = IOError Nothing ResourceExhausted "governor-cm-replay" "one-shot open failure" Nothing Nothing
++
++policy :: PeerSelectionPolicy Addr (IOSim s)
++policy = PeerSelectionPolicy {
++    policyPickKnownPeersForPeerShare = pick,
++    policyPickColdPeersToPromote = pick,
++    policyPickWarmPeersToPromote = pick,
++    policyPickHotPeersToDemote = \_ _ _ peers n ->
++      let chosen = Set.fromList (take n (Set.toAscList peers))
++      in pure (chosen, Map.fromSet (const Nothing) chosen),
++    policyPickWarmPeersToDemote = pick,
++    policyPickColdPeersToForget = pick,
++    policyPickInboundPeers = pick,
++    policyFindPublicRootTimeout = 1000,
++    policyMaxInProgressPeerShareReqs = 1,
++    policyPeerShareRetryTime = 1000,
++    policyPeerShareFailureRetryTime = 1000,
++    policyPeerShareBatchWaitTime = 1,
++    policyPeerShareOverallTimeout = 10,
++    policyPeerShareActivationDelay = 1,
++    policyMaxConnectionRetries = 5,
++    policyClearFailCountDelay = 60
++  }
++  where pick _ _ _ peers n = pure (Set.fromList (take n (Set.toAscList peers)))
++
++replayTargets :: PeerSelectionTargets
++replayTargets = nullPeerSelectionTargets {
++    targetNumberOfRootPeers = 1,
++    targetNumberOfKnownPeers = 1,
++    targetNumberOfEstablishedPeers = 1
++  }
++
++experiment :: forall s. Int -> IOSim s Observation
++experiment seed = do
++  opens <- newTVarIO (0 :: Int)
++  connects <- newTVarIO (0 :: Int)
++  closes <- newTVarIO (0 :: Int)
++  failures <- newTVarIO []
++  observed <- newTVarIO (Nothing :: Maybe Int)
++  settled <- newTVarIO False
++  mainThread <- myThreadId
++  let transport :: Snocket (IOSim s) () Addr
++      transport = Snocket {
++        getLocalAddr = \_ -> pure (TestAddress 0),
++        getRemoteAddr = \_ -> pure peer,
++        addrFamily = const TestFamily,
++        open = \_ -> pure (),
++        openToConnect = \_ -> do
++          n <- atomically $ do
++            n <- readTVar opens
++            writeTVar opens (n + 1)
++            pure n
++          if n == 0 then throwIO injected else pure (),
++        connect = \_ _ -> atomically $ modifyTVar connects (+1),
++        bind = \_ _ -> pure (),
++        listen = \_ -> pure (),
++        accept = \_ -> atomically retry,
++        close = \_ -> atomically $ modifyTVar closes (+1)
++      }
++      -- No handler should be forked on the observed path. Fail the test if
++      -- execution reaches it instead of fabricating a successful handshake.
++      handler :: ConnectionHandler Mx.InitiatorResponderMode () () Addr (Handle s) (H.HandlerError ()) () DataFlow (IOSim s)
++      handler = ConnectionHandler $ WithInitiatorResponderMode body body
++        where body _ _ _ _ _ _ _ = MaskedAction $ \_ -> fail "unexpected handler execution"
++  supply <- atomically $ CS.newConnStateIdSupply Proxy
++  info <- newInformationChannel
++  CM.with CM.Arguments {
++      CM.tracer = nullTracer, CM.trTracer = nullTracer,
++      CM.ipv4Address = Nothing, CM.ipv6Address = Nothing,
++      CM.addressType = const (Just IPv4Address), CM.snocket = transport,
++      CM.makeBearer = MakeBearer $ \_ _ _ -> fail "unexpected bearer creation",
++      CM.withBuffer = \f -> f Nothing, CM.configureSocket = \_ _ -> pure (),
++      CM.connectionDataFlow = id, CM.prunePolicy = simplePrunePolicy,
++      CM.stdGen = Random.mkStdGen seed,
++      CM.connectionsLimits = AcceptedConnectionsLimit maxBound maxBound 0,
++      CM.timeWaitTimeout = 1, CM.outboundIdleTimeout = 1,
++      CM.updateVersionData = \a _ -> a, CM.connStateIdSupply = supply,
++      CM.classifyHandlerError = const HandshakeFailure
++    } (InResponderMode info) handler $ \cm ->
++    PSA.withPeerStateActions PSA.PeerStateActionsArguments {
++        PSA.spsTracer = nullTracer, PSA.spsDeactivateTimeout = 1,
++        PSA.spsCloseConnectionTimeout = 1, PSA.spsConnectionManager = cm,
++        PSA.spsExitPolicy = alwaysCleanReturnPolicy 1,
++        PSA.spsRethrowPolicy = ioErrorRethrowPolicy,
++        PSA.spsMainThreadId = mainThread
++      } $ \peerActions -> do
++        public <- makePublicPeerSelectionStateVar
++        debug <- newTVarIO (emptyPeerSelectionState (Random.mkStdGen seed) () NoExtras :: GState s)
++        counters <- newTVarIO (emptyPeerSelectionCounters NoExtraView)
++        supplied <- newTVarIO False
++        let interfaces = PeerSelectionInterfaces counters public debug (pure DontUseLedgerPeers)
++            actions :: PeerSelectionActions () () NoExtras () Addr (Peer s) (IOSim s)
++            actions = PeerSelectionActions {
++                peerSelectionTargets = replayTargets, readPeerSelectionTargets = pure replayTargets,
++                readLocalRootPeersFromFile = pure [], readLocalRootPeers = pure [],
++                readInboundPeers = pure Map.empty,
++                peerSharing = PeerSharingDisabled, peerConnToPeerSharing = const PeerSharingDisabled,
++                extraPeersAPI = nullPublicExtraPeersAPI,
++                requestPublicRootPeers = \_ _ _ -> do
++                  atomically $ do
++                    done <- readTVar supplied
++                    check (not done)
++                    writeTVar supplied True
++                  pure (Public.fromLedgerPeers (Set.singleton peer), 1000),
++                requestPeerShare = \_ _ -> atomically retry,
++                peerStateActions = peerActions,
++                getLedgerStateCtx = LedgerPeersConsensusInterface (pure Origin) (pure []) (),
++                readLedgerPeerSnapshot = pure Nothing
++              }
++            args :: PeerSelectionGovernorArgs () () () NoExtras () Addr (Peer s) IOException (IOSim s)
++            args = PeerSelectionGovernorArgs {
++                abortGovernor = \_ _ -> Nothing,
++                updateWithState = \_ _ _ st -> do
++                  writeTVar observed (Known.lookupFailCount peer (knownPeers st))
++                  writeTVar settled
++                    (not (Public.member peer (\_ _ -> False) (publicRootPeers st))
++                     && Set.null (inProgressPromoteCold st)),
++                extraDecisions = ExtraGuardedDecisions {
++                    preBlocking = \_ _ _ -> GuardedSkip Nothing,
++                    postBlocking = \_ _ _ -> GuardedSkip Nothing,
++                    postNonBlocking = \_ _ _ -> GuardedSkip Nothing,
++                    customTargetsAction = Nothing, customLocalRootsAction = Nothing,
++                    enableProgressMakingActions = const True,
++                    ledgerPeerSnapshotExtraStateChange = id
++                  },
++                defaultExtraFlags = ()
++              }
++            trace = mkTracer $ \event -> case event of
++              TracePromoteColdFailed _ _ addr _ err forgotten | addr == peer -> do
++                t <- getMonotonicTime
++                atomically $ do
++                  count <- readTVar observed
++                  modifyTVar failures (++ [Failure t (classify err) forgotten count])
++              _ -> pure ()
++        withAsync (OG.peerSelectionGovernor trace nullTracer nullTracer args
++                    (Random.mkStdGen seed) () NoExtras actions policy interfaces) $ \governor -> do
++          link governor
++          result <- timeout 400 $ atomically $ do
++            events <- readTVar failures
++            check (length events == 6)
++            pure events
++          case result of
++            Nothing -> fail "governor did not produce six failed completions"
++            Just events -> do
++              states <- atomically $ readState cm
++              nOpen <- atomically $ readTVar opens
++              nConnect <- atomically $ readTVar connects
++              nClose <- atomically $ readTVar closes
++              forgotten <- atomically $ (== Nothing) <$> readTVar observed
++              let reserved = CS.getConnMap states == Map.singleton peer
++                    (Map.singleton CS.UnknownLocalAddr ReservedOutboundSt)
++              noRootOrPromotion <- atomically $ readTVar settled
++              pure (Observation events nOpen nConnect nClose forgotten reserved noRootOrPromotion)
++  where
++    classify e | Just (_ :: IOException) <- fromException e = "io"
++    classify e | Just (SomeConnectionManagerError (ConnectionExists {})) <- fromException e = "exists"
++    classify e = show e
++
++prop_governorReservation :: Int -> Property
++prop_governorReservation seed =
++  let result@(Observation events opens connects closes forgotten reserved settled) = runSimOrThrow (experiment seed)
++  in counterexample (show result) $ conjoin [
++       [kind | Failure _ kind _ _ <- events] === ["io", "exists", "exists", "exists", "exists", "exists"],
++       [gone | Failure _ _ gone _ <- events] === [False, False, False, False, False, True],
++       [count | Failure _ _ _ count <- events] === [Just 1, Just 2, Just 3, Just 4, Just 5, Nothing],
++       opens === 1, connects === 0, closes === 0,
++       property forgotten, property reserved, property settled,
++       -- The failure completion schedules base +/- 2 seconds of random jitter.
++       -- No transport latency is injected, so consecutive completions must
++       -- observe those exact source bounds.
++       let times = [t | Failure t _ _ _ <- events]
++           gaps = zipWith diffTime (drop 1 times) times
++       in conjoin [counterexample (show (base, gap))
++                    (property (base - 2 <= gap && gap <= base + 2))
++                  | (base, gap) <- zip [5, 10, 20, 40, 80] gaps]
++     ]
++
++tests :: TestTree
++tests = testGroup "GovernorCMReplay"
++  [testProperty ("one-shot open failure, seed " ++ show seed)
++      (once (prop_governorReservation seed)) | seed <- [0, 1, 42]]

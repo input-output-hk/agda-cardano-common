@@ -94,10 +94,15 @@ ready timeout. Timeout selection and the later unconditional terminating write
 are separate steps, preserving that race. Counters precede cancellation; delivered
 cancellation does not imply the handler has joined or cleaned up.
 
-Ticking outbound duplex becomes inbound-idle, with capacity checking and scored
-pruning; duplex-active becomes inbound-active. Pruning uses the existing policy
-kernel and explicit victim cancellation order. Timer expiry and delivery remain
-untimed environment readiness inputs.
+Ticking outbound duplex becomes inbound-idle when capacity permits. Over limit,
+the pinned source prunes selected victims but does not write the prospective
+inbound-idle state to a surviving self: it remains outbound-duplex ticking.
+`Negative/Outbound.over-limit-release-retains-surviving-self` checks this branch
+in a conditional two-entry fixture. The [Haskell release replay](SourceReplay/README.md#verified-over-limit-outbound-release-replay)
+now reproduces that outcome through public CM calls, with self-pruning and
+within-capacity controls. Duplex-active becomes inbound-active.
+Pruning uses the existing policy kernel and explicit victim cancellation order.
+Timer expiry and delivery remain untimed environment readiness inputs.
 
 ## OG, peer jobs and monitoring
 
@@ -196,9 +201,12 @@ ConnectionExists; there is no acquired socket or forked handler to clean it up.
 An [IOSim replay of the pinned CM](SourceReplay/README.md) now reproduces this
 local reservation leak. It checks the entire map and open/close call counts; a
 configuration-failure control confirms cleanup after successful acquisition.
-This is direct CM execution, not full OG/rethrow-policy/diffusion supervision.
-The next obligation is the integrated retry path and deployment impact; inbound
-admission or node shutdown could alter the outcome.
+The separate integrated replay now executes OG, peer-state-actions and CM through
+six failed completions and forgetting, with source jitter bounds checked.
+Inbound admission uses an exact known-local key and does not remove this
+unknown-local reservation; outbound lookup gives the reservation priority over
+known-local entries. Deployment supervision and restart behavior remain outside
+the replay. See the [source replay scope and results](SourceReplay/README.md).
 
 ### Governor consequence in the Agda model
 
