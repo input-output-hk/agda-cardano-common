@@ -398,7 +398,21 @@ the 2 GB Agda heap. The checked version uses explicit snapshots and local transi
 equalities; it passes with the same heap limit. No checker limit or theorem premise
 was relaxed.
 
-Next, connect the registered-finish fixture to an admission-derived producer
-execution, preserving startup notification ordering and CM-call boundaries.
+## Admission-derived producer and registered consumer
+
+[`CSP/RegistryProducer.agda`](CSP/RegistryProducer.agda) now supplies that connection
+in a checked 57-action trace. It starts from accepted-socket admission, derives
+the publication/attachment certificate, starts the responder, consumes its awake
+and hot messages through CM promotion, then produces synchronous-failure and
+mux-finished notifications. IG processes the failure event before capturing and
+polling the currently registered failed mux, publishes removal and completes its
+batch. The handler has not exited at this endpoint.
+
+The `result` theorem preserves the admission-derived attachment certificate.
+`accepted` proves registry CSP trace membership; `projected` erases it into the
+open dispatcher. `Negative/RegistryProducer` checks event order, mux capture,
+unregistration and absence of handler exit. This closes this producer-reachability
+obligation for the selected failure path, not universal producer/consumer progress.
+See [Outbound.md](Outbound.md) for the new, separate combined outbound/OG layer.
 Lifecycle/reuse policies, query/error profiles, interruption constraints and
 concrete source replay remain separate obligations.

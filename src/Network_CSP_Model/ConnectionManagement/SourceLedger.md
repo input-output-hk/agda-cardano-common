@@ -140,14 +140,14 @@ it must not add a bounded queue to a source-unbounded channel.
 |---|---|---|---|
 | `CM.INCLUDE` | [Inbound admission][include] | Lock map, check hard limit, select/overwrite/create entry, fork handler, restore map, await handshake | Expanded §4 |
 | `CM.INCLUDE.RESULT` | [Inbound admission][include] | Read captured entry, branch on current state and handshake result, negotiated update, notification transaction, return | Inbound consumer implemented; handler execution pending |
-| `CM.ACQUIRE.SELECT` | [Outbound acquisition][acquire] | Remote-address lookup and PRNG state; return existing connection/error/wait/reservation branch | Family |
-| `CM.ACQUIRE.CONNECT` | [Outbound acquisition][acquire] | Reserve unknown local address, socket/connect, update local key, fork handler and await negotiation | Family |
-| `CM.ACQUIRE.REUSE` | [Outbound acquisition][acquire] | Duplex reuse, current entry/handle captures and CM transition; reject unsupported unidirectional reuse | Family |
+| `CM.ACQUIRE.SELECT` | [Outbound acquisition][acquire] | Remote-address lookup and PRNG state; return existing connection/error/wait/reservation branch | Implemented: reservation-first remote selection, explicit eligible-member input and generation marker; concrete PRNG abstract |
+| `CM.ACQUIRE.CONNECT` | [Outbound acquisition][acquire] | Reserve unknown local address, socket/connect, update local key, fork handler and await negotiation | Implemented: phased socket IO, address collision, fork, promise consumption, atomic success enqueue and error/query paths |
+| `CM.ACQUIRE.REUSE` | [Outbound acquisition][acquire] | Duplex reuse, current entry/handle captures and CM transition; reject unsupported unidirectional reuse | Implemented: exhaustive CM-state case table and captured inbound wait |
 | `CM.RELEASE.IN` | [Inbound release][release-in] | Lookup key, atomic state/result decision, trace/count read, possible cancellation, assertion evaluation, return | Implemented with enabled assertions and explicit delivery; see [contracts](InboundRelease.md) |
-| `CM.RELEASE.OUT` | [Outbound release][release-out] | Per-constructor release decisions, pruning, idle/termination waits and later cancellation | Family |
+| `CM.RELEASE.OUT` | [Outbound release][release-out] | Per-constructor release decisions, pruning, idle/termination waits and later cancellation | Implemented: exhaustive case table, timer winner/write separation, scored pruning and cancellation; see [Outbound](Outbound.md) |
 | `CM.REMOTE.WARM` | [Remote promotion][remote-warm] | Promotion transitions and relevant pruning/cancellation | Implemented, including pruning with explicit random-score inputs; [contracts](RemoteState.md) |
 | `CM.REMOTE.COLD` | [Remote demotion][remote-cold] | Demotion by exact key/entry, state-dependent results | Implemented with enabled assertions, later counter read and separate IG timer/publication |
-| `CM.PRUNE` | [Pruning helper][prune] and operation call sites | Candidate selection, committed state changes, subsequent cancellation | Promotion call sites implemented with scored diffusion policy and ordered delivery; outbound-release call site pending; [contracts](Pruning.md) |
+| `CM.PRUNE` | [Pruning helper][prune] and operation call sites | Candidate selection, committed state changes, subsequent cancellation | Promotion and outbound-release call sites implemented with scored inputs and ordered delivery |
 | `HANDLER.PUBLISH/RUN` | [ConnectionHandler][handler] | Negotiate, allocate control bundle/mux handle, publish promise, then enter mux execution | Tracked async, normal and selected synchronous exits implemented with pool/buffer/policy/delivery inputs; [contracts](HandlerOutcomes.md) |
 | `HANDLER.CLEANUP` | [forkConnectionHandler cleanup][cleanup] | Identity-sensitive map cleanup, entry updates, socket/timeout/cancellation obligations | Expanded §4.2; cleanup slice implemented with exit/timeout/close boundaries |
 
@@ -169,17 +169,17 @@ it must not add a bounded queue to a source-unbounded channel.
 
 | ID | Source | State/effect and continuation boundary | Status |
 |---|---|---|---|
-| `OG.DECIDE` | [Governor loop][og] | Inputs/time, ordered guarded alternatives, timed decision, private state and published view | Family |
-| `OG.LAUNCH` | [Governor loop][og] | Publish view/traces then fork selected jobs individually; parent continuation retained | Expanded boundary |
-| `OG.COMPLETE` | [Monitor.jobs][og-monitor] | Read completion in guarded STM; apply captured completion function to current OG state/time | Expanded boundary; defunctionalize per job |
-| `OG.ESTABLISH/CLOSE` | [EstablishedPeers][established] | Target/eligibility guards, in-progress changes, establish/close jobs, exception completions | Family |
-| `OG.ACTIVATE/DEMOTE` | [ActivePeers][active] | Guards, captured peer handle, hot promotion/demotion jobs and completion bookkeeping | Family |
-| `ACTION.ESTABLISH` | [PeerStateActions][actions] | Acquire; initialize controls/results; start selected groups; publish Warm; fork monitor | Family |
-| `ACTION.ACTIVATE` | [PeerStateActions][actions] | State-dependent controls/start operations and status publication | Family |
-| `ACTION.DEACTIVATE` | [Deactivation and close][actions-close] | Guarded control transaction, all-hot-results wait, status-sensitive result branch or stop/cooling/error | Expanded milestones §8 |
-| `ACTION.CLOSE` | [Deactivation and close][actions-close] | All-temperature termination, result wait and CM release/error/timeout paths | Family |
-| `PEER.MONITOR` | [Peer monitoring][actions-monitor] | First-result alternatives, concurrent demotion/close, source Cold condition | Family |
-| `OG.DEMOTE.ERROR` | [Demotion job][demote-job] | Separate timed wait for Cold; timeout-dependent completion membership changes | Expanded milestones §8 |
+| `OG.DECIDE` | [Governor loop][og] | Inputs/time, ordered guarded alternatives, timed decision, private state and published view | Implemented for ordinary fixed-known-peer profile: ordered guards, clock/wakeup and timed application |
+| `OG.LAUNCH` | [Governor loop][og] | Publish view/traces then fork selected jobs individually; parent continuation retained | Implemented: publication/tracing, individual fork and later pool registration |
+| `OG.COMPLETE` | [Monitor.jobs][og-monitor] | Read completion in guarded STM; apply captured completion function to current OG state/time | Implemented: FIFO and current-state interpretation; successful hot-demotion assertion retained |
+| `OG.ESTABLISH/CLOSE` | [EstablishedPeers][established] | Target/eligibility guards, in-progress changes, establish/close jobs, exception completions | Implemented for ordinary peers, including failure/backoff and Cold-wait timeout |
+| `OG.ACTIVATE/DEMOTE` | [ActivePeers][active] | Guards, captured peer handle, hot promotion/demotion jobs and completion bookkeeping | Implemented for ordinary peers, including late/aborted completions and timeout membership |
+| `ACTION.ESTABLISH` | [PeerStateActions][actions] | Acquire; initialize controls/results; start selected groups; publish Warm; fork monitor | Implemented with real CM acquire, sequential startup/result publication and monitor fork; IO/policy boundaries explicit |
+| `ACTION.ACTIVATE` | [PeerStateActions][actions] | State-dependent controls/start operations and status publication | Implemented: status/controls, sequential starts and later promotion-time write |
+| `ACTION.DEACTIVATE` | [Deactivation and close][actions-close] | Guarded control transaction, all-hot-results wait, status-sensitive result branch or stop/cooling/error | Implemented: all-hot-result wait, status-sensitive branch, timeout stop and cooling |
+| `ACTION.CLOSE` | [Deactivation and close][actions-close] | All-temperature termination, result wait and CM release/error/timeout paths | Implemented: controls, all-results, real CM release and timeout/error continuations |
+| `PEER.MONITOR` | [Peer monitoring][actions-monitor] | First-result alternatives, concurrent demotion/close, source Cold condition | Implemented: ordered first-result reads, background close/demotion and CM Cold condition |
+| `OG.DEMOTE.ERROR` | [Demotion job][demote-job] | Separate timed wait for Cold; timeout-dependent completion membership changes | Implemented: separate Cold wait and timeout-dependent completion |
 | `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry] | Control reads, pending work, blocking, run results and bracket cleanup | Family; initial per-protocol contracts required |
 
 ## 4. Expanded admission and map-lock boundaries
@@ -423,6 +423,31 @@ declared complete.
 The generic concurrency dependency's promise/timeout/exception semantics and the
 full protocol lifecycle contracts remain explicit audit items. No source-refinement
 or complete-ledger claim is made by this initial document.
+
+## 10. Outbound and ordinary-peer implementation update
+
+[Outbound.md](Outbound.md) records the implementation contracts and limitations.
+The profile retains ordinary known peers and sane targets from the design; discovery,
+root groups, ledger peers, churn and full diffusion supervision are not implemented.
+`Rules/OutboundAcquire` follows Core 1273–1832 and `Rules/OutboundRelease` follows
+1834–2060. `Rules/OutboundGovernor`, `Rules/PeerActions`, `Rules/PeerJobs` and
+`Subsystem` expand the ordinary branches of the pinned governor/action sources.
+
+The [JobPool][job-pool] deregistration transaction checks that the parent's insert
+has happened and retries otherwise. `Negative/Subsystem` delays parent registration
+while the child completes, proves early deregistration unavailable, and then checks
+parent registration followed by child removal. Completion enqueue is not evidence
+that deregistration or parent registration already occurred.
+
+The open-socket failure candidate has a checked model trace but no IOSim replay.
+It depends on reservation preceding the `bracketOnError` acquisition in [Core][acquire].
+The model preserves the distinction between acquisition failure and errors after
+socket acquisition. Policy and supervision must be included in source validation.
+
+The producer obligation is closed for the selected synchronous-failure path by
+`CSP/RegistryProducer`: admission, startup and actual CM promotion precede queued
+failure/mux notifications and registered-mux removal. This does not complete all
+handler, Server, exception or source-refinement obligations.
 
 ## Pinned references
 

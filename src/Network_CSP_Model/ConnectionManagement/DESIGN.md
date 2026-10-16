@@ -1,6 +1,6 @@
 # Implementation design: CM, IG, OG and Server
 
-**Design baseline: 14 October 2026; implementation update: 15 October 2026.**
+**Design baseline: 14 October 2026; implementation update: 16 October 2026.**
 The admission prefix, inbound handshake-result consumer, handler cleanup and local map/reference
 preservation lemmas are available; see [README.md](README.md) for exact coverage.
 A dispatcher for those slices, a productive CSP renderer, hiding and machine/trace
@@ -16,9 +16,12 @@ commits policy-selected victims atomically and delivers captured cancellations.
 [Tracked async handler cancellation](HandlerLifecycle.md) now connects delivery
 to Dead tracing and finalization, with pool/buffer completion inputs.
 [Normal and selected synchronous exits](HandlerOutcomes.md) now cover policy and
-node-delivery ordering. Concrete PRNG replay, full handler coverage and OG remain outstanding.
-The full combined subsystem and source
-correspondence remain unimplemented. Schematic declarations below describe the target design.
+node-delivery ordering. [Outbound CM and ordinary-peer OG](Outbound.md) now add
+acquisition/release, peer jobs, completions and monitoring on the shared state.
+The checked 146-action lifecycle includes real CM calls and IG registration; the
+57-action producer trace closes the admission-derived registered-finish gap.
+Concrete PRNG replay, full handler coverage, wider OG policies and source
+correspondence remain outstanding. Schematic declarations below describe the target design.
 
 ## 1. Objective and authority
 
@@ -416,8 +419,10 @@ These are concrete work items, not permission gates:
 
 Notification-to-registration, responder startup and subsequent maturity batches
 now have dispatcher/CSP traces, as do inbound release and remote promotion.
-Strengthen runtime validity and tracked source scenarios, then implement
-outbound acquisition and OG jobs. Selected normal/synchronous handler exits
+Outbound acquisition/release and the fixed-known-peer OG profile now execute in
+`OutboundMachine` and `Subsystem`, with raw CSP correspondence and combined
+lifecycle witnesses. Extend runtime validity to these writes and perform source
+fault-injection replay; do not transfer the earlier invariants automatically. Selected normal/synchronous handler exits
 are now covered; concrete policy evaluation and general exception coverage remain open.
 Retain the existing invariants as regression checks while extending behavior.
 Neither G1 nor the first combined lifecycle gate G2 is complete. The

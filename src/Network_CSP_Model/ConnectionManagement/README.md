@@ -4,18 +4,21 @@ This directory develops a source-derived CSP model of CM, IG, OG and Server
 together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
 
-The current model covers **inbound admission, the CM handshake-result consumer,
-handler cleanup, IG batches/registration and selected mux/tracer behavior**, with a productive CSP interpretation, machine-wide lease
-ownership and allocation-supply invariants, and local reference-preservation
-lemmas. It is not yet the complete subsystem. Admission starts after accepted-socket
-handoff. The consumer continues from an explicitly abstracted handler publication
+The current model covers **inbound admission, outbound acquisition/release, an
+ordinary-peer OG, peer jobs/monitoring, handler cleanup, IG batches/registration
+and selected mux/tracer behavior**. [Outbound.md](Outbound.md) describes the new
+combined dispatcher, source mapping and checked lifecycles. The earlier inbound
+dispatcher has lease-ownership, allocation-supply and reference-preservation
+theorems; these have not yet been extended to the new outbound/OG writes. It is
+not yet the complete subsystem. Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket
 close, map restoration, and the untimed TIME_WAIT finalizer. The earlier
 admission-only witnesses remain available.
 
-The [CSP layer](CSP/README.md) now supplies one dispatcher, raw and hidden processes,
-machine/process trace correspondence, and concrete trace/refusal checks. The
+The [CSP layer](CSP/README.md) supplies raw process renderings and machine/trace
+correspondence for the dispatchers, concrete trace/refusal checks, and a hidden
+view of the earlier inbound process. The
 subsystem remains open and partial; no source deadlock/liveness claim follows.
 
 ## Reading order
@@ -34,9 +37,12 @@ subsystem remains open and partial; no source deadlock/liveness claim follows.
    [heap-rollback negative control](Negative/HeapRollback.agda), and
    [stale-handshake negative control](Negative/StaleHandshake.agda).
 
-8. [Combined dispatcher](Machine.agda), [CSP guide](CSP/README.md),
+8. [Inbound dispatcher](Machine.agda), [CSP guide](CSP/README.md),
    [renderer](CSP/Process.agda), [correspondence](CSP/Correspondence.agda),
    [hiding](CSP/Hiding.agda), and [CSP scenarios](CSP/Scenarios.agda).
+
+9. [Outbound CM and OG](Outbound.md), [combined subsystem](Subsystem.agda),
+   and [integrated lifecycle](CSP/GovernorLifecycle.agda).
 
 The [architecture review](../review/connection-management-architecture-review.md)
 contains the seven source/runtime/semantic diagrams. The subsequent
@@ -59,7 +65,8 @@ score inputs, atomic victim writes and ordered cancellation delivery.
 [Tracked async handler cancellation](HandlerLifecycle.md) now connects delivery,
 pool-close completion, Dead tracing and CM cleanup. [Normal and selected synchronous
 exits](HandlerOutcomes.md) now include rethrow-policy branches and node-delivery
-ordering. Full handler coverage and OG remain incomplete.
+ordering. Full handler coverage remains incomplete; the ordinary-peer OG profile is now
+executable through [Subsystem](Subsystem.agda).
 
 [Tracked-handler validity](HandlerValidity.md) now checks captured references,
 unique ownership and lifecycle/cleanup consistency at every state of selected
@@ -149,8 +156,8 @@ flowchart LR
   cleanup begins, the abstract publication boundary rejects later body publication.
 
 `State` contains the CM resources and shared queue; `Configuration` additionally
-contains the IG runtime. Future OG, protocol,
-transport and supervision records are not represented by dummy fields. Worker
+contains the IG runtime. `OutboundMachine` embeds it, and `Subsystem` adds OG,
+peer-action and job state; transport and general supervision remain outside scope. Worker
 IDs supplied for the future handler are symbolic references for the source's lazy
 `mfix` reference; recording the fork is separate from running the child. Handler
 body execution, handle/mux allocation, and evaluation of unresolved lazy references
@@ -364,8 +371,9 @@ of rendered processes.
   distinct admission/child workers, and accepted sockets associated with their
   callers. The current witnesses meet these conditions; a general preservation
   invariant for the future combined machine is not proved.
-- Association stores model exact lookup/update, not the source's ordered traversal
-  or randomized remote-address selection. Those operations are not implemented.
+- Association stores model exact lookup/update. Outbound acquisition now validates
+  remote-bucket selection and reservation priority; concrete PRNG replay remains
+  abstract. Source-sensitive peer/protocol traversals use explicit ordering.
 - Addresses and exceptions have abstract carriers. Concrete source replay must
   instantiate valid addresses and admissible errors.
 - `Machine.advance` dispatches admission, handshake, cleanup and IG/mux/tracer steps,
@@ -395,7 +403,7 @@ of rendered processes.
   Over-limit promotion executes the diffusion pruning policy with abstract random
   score inputs and explicit cancellation delivery. Opt-in tracked handlers
   connect that delivery to mux failure tracing and finalization.
-- Complete handler body execution, OG, timed scheduling, general
+- Complete handler body execution, OG discovery/root/ledger/churn policies, continuous-time scheduling, general
   asynchronous exception delivery/unwinding, server handling of CM returns, and
   accept-loop rate limiting remain absent. No enabled-step completeness,
   source refinement, deadlock, divergence, or liveness claim follows from it.
@@ -454,9 +462,9 @@ postulates, holes or unsafe termination pragmas. This describes the local source
 not a term-level audit of external dependencies. No existing network or historical
 model was changed, and no heavy network proof rebuild is required.
 
-Next: strengthen runtime validity and tracked source scenarios, then
-add outbound acquisition and OG jobs/completions. Retain structural
-invariants as regression checks. Full runtime validity, bounded exploration and
+Next: extend validity/invariant coverage to the combined outbound/OG dispatcher
+and replay the source candidates described in [Outbound.md](Outbound.md). Retain
+existing structural invariants as regression checks for their original dispatcher. Full runtime validity, bounded exploration and
 source replay remain required before interpreting candidates as source defects.
 
 Reference-chain preservation now covers arbitrary finite sequences of handler
@@ -631,5 +639,14 @@ batch-completion boundaries. This is a finite witness, not universal progress.
 `CSP/RegistryRegisteredFinish` checks the complementary registered-event fixture:
 IG captures the current mux, polls a stopped or failed status, then publishes
 removal. Negative CSP controls reject ready/stopping polls and skipped polling.
-This local fixture assumes an already-selected notification; connecting its
-producer to admission remains separate from the completed late-notification trace.
+This local fixture assumes an already-selected notification.
+`CSP/RegistryProducer` now supplies a 57-action admission-derived producer and
+registered-consumer trace, including actual startup-event consumption and CM
+promotion. Its attachment certificate survives; `Negative/RegistryProducer`
+checks notification order and the final registration/handler distinction.
+
+[Outbound CM and OG](Outbound.md) adds the shared `OutboundMachine` and
+`Subsystem` dispatchers, their productive CSP renderings and trace inversion,
+and a 146-action ordinary-peer establishment/activation/demotion/release witness.
+The fixed-known-peer profile includes failure, timeout, monitoring and completion
+rules; source replay and general combined invariants remain separate obligations.

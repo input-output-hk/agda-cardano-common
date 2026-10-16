@@ -3,8 +3,9 @@
 The CSP layer now interprets the source-derived transition rules as a productive
 `PTree`, using `csp-ptree-agda`'s LTS, traces, stable failures and hiding semantics.
 The implemented subsystem remains partial. IG batches and selected mux/tracer
-behavior now execute in the machine, while concrete PRNG replay, full handler
-execution and OG remain incomplete. This is not a complete source model.
+behavior execute in the machine. [Outbound CM and ordinary-peer OG](../Outbound.md)
+now extend it through `OutboundMachine` and `Subsystem`; concrete PRNG replay, full
+handler execution and the wider discovery/root/ledger/churn profile remain open. This is not a complete source model.
 
 ## Architecture
 
@@ -111,7 +112,8 @@ The raw negative-trace theorem is not a negative-trace theorem after hiding.
 CM returns, admission unwinding, accept-loop continuation, handler body/cleanup
 return, missing IG handle setup, IG CM-call continuations, shutdown completion
 and exception unwinding.
-OG remains unimplemented throughout this slice.
+The original `Scope` checker does not classify the new outbound/OG continuations;
+see [their explicit boundaries](../Outbound.md).
 These diagnostics are separate from the process alphabet. They add neither a tick
 nor a self-loop to make an incomplete state appear to progress.
 
@@ -220,8 +222,8 @@ The [handler outcome endpoint](HandlerOutcomes.agda) covers normal shutdown,
 synchronous protocol failure, both rethrow-policy branches and tracer failure;
 see [its contracts](../HandlerOutcomes.md).
 
-Next: strengthen runtime validity and tracked source scenarios, then add OG under
-the same dispatcher. Full subsystem
+Next: extend runtime validity across outbound/OG writes and replay the combined
+source scenarios. Full subsystem
 failures/divergence or liveness claims require additional coverage and validity.
 
 The [handler-validity endpoint](HandlerValidity.agda) checks every state in
@@ -426,5 +428,21 @@ batch-completion boundaries. This is a finite witness, not universal progress.
 `CSP/RegistryRegisteredFinish` checks the complementary registered-event fixture:
 IG captures the current mux, polls a stopped or failed status, then publishes
 removal. Negative CSP controls reject ready/stopping polls and skipped polling.
-This local fixture assumes an already-selected notification; connecting its
-producer to admission remains separate from the completed late-notification trace.
+This local fixture assumes an already-selected notification. `RegistryProducer`
+now checks its admission-derived producer/consumer counterpart in 57 actions,
+with startup notifications consumed through CM promotion before failure.
+
+## Outbound and combined governor processes
+
+`Outbound.Process` renders `OutboundMachine.advance`; `Subsystem.Process` renders
+`Subsystem.advance`. Both provide step/run/trace introduction and inversion,
+exclude raw tick/tau steps and prove refused-extension results. They use the same
+shared inbound machine and library process semantics. No separate parallel
+composition equivalence or hidden-subsystem liveness theorem is asserted.
+
+`GovernorLifecycle` supplies a 146-action ordinary-peer trace with actual CM
+acquire/release and IG registration. `Negative/Subsystem` checks its endpoint and
+a child-before-parent-registration interleaving. `OutboundAdmission`,
+`OutboundReleaseScenarios` and `OutboundOpenFailure` supply acquisition, conditional
+release and socket-open-failure traces. See [coverage and validation](../Outbound.md)
+for source mappings, fixture qualifications and the unconfirmed source candidate.
