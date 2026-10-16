@@ -113,8 +113,8 @@ monitor mismatch controls.
 [AttributedOrigin](AttributedOrigin.md) now adds explicit worker-labelled allocation
 with erasure to this monitor and preserves its reachable-state invariant. The
 runtime registry for that boundary is implemented by [OriginRegistry](OriginRegistry.md), with
-per-allocation resource premises. Next, connect its overlapping-worker witness
-to actual admission selection/fork traces. Add query/error
+per-allocation resource premises. Its admission-derived witness discharges those
+premises through actual model selection/fork traces. Add query/error
 profiles and interruption/masking constraints without treating excluded outcomes
 as source bugs. Concrete source replay still needs identity and version/application
 projections. The present monitor is an executable subset of the documented success

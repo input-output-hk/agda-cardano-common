@@ -93,17 +93,137 @@ Step-equality controls reject worker reuse, handle reuse, raw allocation even wi
 an empty registry, and a negotiated-flow mismatch. Earlier attributed and
 single-target controls are imported transitively.
 
+## Admission-derived witness
+
+`CSP/RegistryAdmission` removes the hand-supplied handler/resource fixture from a
+second witness. It begins at `CSP/Fixtures.start`, after two accepted sockets have
+been handed to admission workers, with no handler records or registry entries.
+This is model reachability from that fixture, not a source `accept()` trace.
+
+```mermaid
+sequenceDiagram
+  participant A as First admission
+  participant H as First handler
+  participant B as Second admission
+  participant J as Second handler
+  participant R as Origin registry
+  A->>A: Take map, count, allocate promise, select entry, fork
+  H->>R: Allocate handle 0; register pending ticket
+  A->>A: Restore map and read counters
+  B->>B: Take map, count, allocate promise, select entry, fork
+  Note over H,R: First ticket remains pending throughout second admission
+  B->>B: Restore map and read counters
+  J->>R: Allocate handle 1; register pending ticket
+  J->>R: Publish handle 1
+  H->>R: Publish handle 0
+```
+
+The complete 18-action registry execution has a CSP trace and an erased open
+machine trace. Both resource certificates come from `selection-fork-resources`;
+the second certificate is transported through parent map restoration and the
+counter read. `Supported` is discharged for the complete execution without a
+hand-built resource record. `first-retained` certifies the first registry entry
+after the second admission, and `all-certified` covers both final entries.
+Exact phase checks confirm that both entries are pending before either publication
+and both are published at the endpoint.
+
+This witness uses the two distinct connection keys from the admission fixture.
+The earlier synthetic shared-key witness remains valuable: its swap control
+shows that key agreement alone cannot substitute for worker/handle attribution.
+Neither witness extends the registry's success-only scope or models attachment,
+mux execution, or handshake-result consumption in this new schedule.
+
+`Negative/RegistryAdmission` proves CSP non-traces for a swapped publication after
+the complete two-allocation prefix and repeated allocation after the second
+admission. It imports the earlier registry negative controls.
+
+## Reachable identity uniqueness
+
+`Properties/RegistryUnique.Unique` uses the standard library's `AllPairs` over
+registry targets. Each earlier target differs from every later target in **both**
+worker ID and handle ID. This is stronger than uniqueness of worker/handle pairs:
+two different handles cannot share a worker, and two different workers cannot
+share a handle.
+
+The proof connects the executable freshness checks to pairwise inequality.
+`prepare-unique` permits only a fresh target to be prepended; `drive-targets`
+proves that successful phase updates preserve the entire target list in order.
+`step-unique` and `exec-unique` retain uniqueness, and `reachable-unique` derives
+it from an empty registry for every accepted finite execution.
+
+This theorem has **no** `Supported`, resource, heap-validity or finite-carrier
+premise. It holds for `start c` with arbitrary machine configuration `c`.
+Descriptor origin still requires the separate per-allocation resource evidence;
+identity uniqueness does not supply it. Nor does uniqueness authenticate observer
+tags, establish source object identity, or justify recycling an old worker ID.
+
+`CSP/RegistryUnique.raw-unique` retains the exact process endpoint and its unique
+registry for every finite raw CSP execution from `start`. `trace-unique` gives
+the corresponding existential endpoint for finite traces. Both reuse the existing
+execution correspondence; the runtime rules and event alphabet are unchanged.
+
+`Negative/RegistryUnique` derives uniqueness for both the synthetic overlapping
+fixture and the admission-derived witness. Separate generic contradictions exclude
+a repeated worker even with different handles, and a repeated handle even with
+different workers. Two forged endpoint registries are proved unreachable from
+any `start c`, for every finite action list. Arbitrarily pre-seeded registries
+are not certified by the theorem.
+
+## Publication soundness
+
+`Properties/RegistryPublication.publication-sound` relates an accepted successful
+publication to the pre-state origin invariant and identity uniqueness. Its `Sound`
+record names an actual registry member and proves:
+
+- Its worker is the publishing worker, and every other member with that worker
+  equals the selected entry.
+- Its phase was `awaitingPublication` with a particular ticket.
+- The published handle and flow equal the selected handle and ticket flow.
+- The corresponding entry is present in the post-state with phase `published`.
+- The exact handle origin, including ticket mux and protocol bundle, holds both
+  before and after the publication.
+
+`worker-member` obtains existence from the executable registration guard;
+`owner-unique` obtains uniqueness from pairwise identity separation. `drive-member`
+recovers the selected entry's successful single-target monitor transition, so the
+handle/flow and phase checks reuse `accepted-publication`. Origin comes from the
+pre-state certificate and is retained through the underlying publication action.
+
+`reachable-publication` discharges identity uniqueness from any accepted prefix
+starting at an empty registry, and discharges origin from `Supported` evidence for
+that prefix. A successful monitor step alone still does not authenticate an
+observer tag or supply missing heap-resource evidence.
+
+`CSP/RegistryPublication.raw-publication` lifts this to an arbitrary finite raw
+CSP prefix followed by a visible successful publication event. It retains the
+actual pre- and post-process endpoints and the recovered prefix execution. The
+soundness result remains conditional on resource support for that exact prefix.
+It is not a failures-refinement or source-implementation correspondence theorem.
+
+`Negative/RegistryPublication` instantiates the theorem for both publications in
+the reverse-order admission-derived schedule. It also proves that the final state
+cannot support another `Sound` certificate for any publishing worker, handle,
+flow or endpoint: both registry entries are already published, so no pending
+entry exists. Earlier ownership-swap and duplicate-identity controls are imported.
+This excludes a repeated success in this monitor profile, not every source
+publication-fault or query/error outcome.
+
 ## Validation and next step
 
 Run sequentially from the standalone library root:
 
 ```sh
-agda ConnectionManagement/Negative/OriginRegistry.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/RegistryPublication.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS
 ```
 
-Next, derive the two-worker resource premises from actual admission selection/fork
-traces and carry the first registered invocation through the second admission.
-That will connect the dynamic registry to the existing Server/CM proof layer.
-Formal registry uniqueness and lifecycle/reuse policies, query/error profiles,
-interruption constraints and concrete source replay remain separate obligations.
+The first admission-derived draft used recursively computed snapshots and exhausted
+the 2 GB Agda heap. The checked version uses explicit snapshots and local transition
+equalities; it passes with the same heap limit. No checker limit or theorem premise
+was relaxed.
+
+Next, connect the publication certificate to attachment and its tracked mux
+reference, using the same registered invocation through arbitrary accepted
+interleavings.
+Lifecycle/reuse policies, query/error profiles, interruption constraints and
+concrete source replay remain separate obligations.

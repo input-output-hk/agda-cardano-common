@@ -80,7 +80,7 @@ agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G 
 [OriginRegistry](OriginRegistry.md) now creates worker/handle associations at
 allocation, checks all registered invocations and preserves their certificates
 under per-allocation resource evidence. It includes an overlapping-worker witness
-and ownership-swap controls. The next step is to derive that witness's resource
-premises from actual admission selection/fork traces. Identity recycling,
+and ownership-swap controls. A further witness now derives both resource premises from actual model admission
+selection/fork traces, starting after accepted-socket handoff. Identity recycling,
 query/error profiles, interruption and source replay projections remain separate
 obligations.

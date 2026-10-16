@@ -581,4 +581,19 @@ registry below extends this boundary to multiple invocations.
 at allocation and checks every registered invocation. Accepted traces erase to
 the open machine; per-allocation resource evidence establishes the all-entry
 invariant. The two-worker fixture publishes in reverse order and rejects handle
-swaps. Deriving its resource premises from admission traces is the next step.
+swaps. `CSP/RegistryAdmission` now also derives both resource premises from
+selection/fork traces starting at the accepted-socket fixture, preserving the
+first ticket through the second admission. `Negative/RegistryAdmission` checks
+swap and repeated-allocation refusals after those reachable prefixes.
+
+`Properties/RegistryUnique` proves separate worker-ID and handle-ID uniqueness
+for every finite execution from an empty registry, without resource premises.
+Its CSP theorem retains the actual endpoint; generic duplicate-identity controls
+exclude both worker and handle forgeries. Descriptor origin still needs the
+separate per-allocation resource evidence.
+
+`Properties/RegistryPublication` connects accepted successful publication to its
+unique pending registry entry, matching handle/flow, published successor and
+exact descriptor origin before and after the step. Its CSP theorem retains both
+actual endpoints and the prefix resource premise. Both admission-derived
+publications instantiate the theorem; repeated-success certificates are excluded.
