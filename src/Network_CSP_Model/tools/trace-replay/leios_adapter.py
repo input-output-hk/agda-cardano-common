@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Normalize prototype LeiosFetch/LeiosNotify logs into one interleaved stream.
+"""Normalize prototype LeiosFetch/LeiosNotify/BlockFetch/ChainSync/TxSubmission2 logs into one interleaved stream.
 
-Usage: python3 -I leios_adapter.py LOG OUTDIR [--no-mux-split]
+Usage: python3 -I leios_adapter.py LOG OUTDIR [--no-mux-split] [--exclude-txsubmission2]
        python3 -I leios_adapter.py --selftest
 
-Writes interleaved.txt with fetch:client/server and notify:client/server entries,
-interleaved.src, original tracer namespaces on event rows, protocol-qualified per-session files and index.tsv (including
-protocol). Sessions are grouped by connection/protocol/role; Done ends only that
-session, NewMux ends all open sessions on the connection, and Dead does not cut.
+Writes interleaved.txt with fetch, notify, blockfetch, chainsync and txsubmission2 role tags.
+BlockFetch, ChainSync and TxSubmission2 explicitly check control only.
+TxSubmission2 requires enriched blocking and reply-emptiness evidence; the
+standard node tracer omits these fields, so adaptation fails instead of guessing.
+Reads raw node JSON, journal-prefixed JSON, or devnet supervisor JSON wrappers.
+Writes interleaved.src, protocol-qualified session files and index.tsv,
+with original tracer namespaces on event rows. Sessions are grouped by
+connection/protocol/role; Done (or BlockFetch ClientDone) ends only that session, NewMux ends all open sessions on the connection, and Dead does not cut.
 No RequestNext is synthesized. Logs omitting Notify requests are not complete
 inputs to the strict LeiosNotifyP wire-order checker.
 """
@@ -91,9 +95,14 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     if args == ['--selftest']:
         selftest()
-    elif len(args) in (2, 3) and args[2:] in ([], ['--no-mux-split']):
-        with open(args[0], encoding='utf-8') as log:
-            rows = adapter.split(log, args[1], mux_split=not args[2:], include_notify=True)
+    elif len(args) >= 2 and len(set(args[2:])) == len(args[2:]) and set(args[2:]) <= {'--no-mux-split', '--exclude-txsubmission2'}:
+        try:
+            with open(args[0], encoding='utf-8') as log:
+                rows = adapter.split(log, args[1], mux_split='--no-mux-split' not in args[2:],
+                                     include_notify=True, include_control=True,
+                                     include_txsubmission2='--exclude-txsubmission2' not in args[2:])
+        except ValueError as err:
+            sys.exit(str(err))
         print('%d sessions written to %s' % (len(rows), args[1]))
     else:
         sys.exit(__doc__)

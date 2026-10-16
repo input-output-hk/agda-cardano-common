@@ -10,9 +10,13 @@ open import Data.Product using (Σ; _×_; _,_)
 open import Data.String using (String; words; lines; intersperse)
 open import Data.Sum using (_⊎_; inj₁; inj₂; map₂)
 open import Cardano_network.Replay.Sessions
-import Cardano_network.Replay.Parse as F
-import Cardano_network.Replay.ParseNotify as N
+import Cardano_network.Replay.LeiosFetchParse as F
+import Cardano_network.Replay.LeiosNotifyParse as N
 import Cardano_network.Replay.LeiosNotifyPipeline as NP
+import Cardano_network.Replay.ChainSyncParse as C
+import Cardano_network.Replay.TxSubmission2Parse as T
+import Cardano_network.Replay.BlockFetchReport as B
+import Cardano_network.Replay.BlockFetchServerReport as BS
 open import Data.Nat.Show renaming (show to showℕ)
 open import Data.String using (_++_)
 
@@ -24,6 +28,12 @@ session "fetch:client" = just (fetch client)
 session "fetch:server" = just (fetch server)
 session "notify:client" = just (notify client)
 session "notify:server" = just (notify server)
+session "blockfetch:client" = just (blockfetch client)
+session "blockfetch:server" = just (blockfetch server)
+session "chainsync:client" = just (chainsync client)
+session "chainsync:server" = just (chainsync server)
+session "txsubmission2:client" = just (txsubmission2 client)
+session "txsubmission2:server" = just (txsubmission2 server)
 session _ = nothing
 
 -- Parse the manifest once, preserving id order.
@@ -35,6 +45,9 @@ sessions (s ∷ ss) = session s >>= λ s′ → sessions ss >>= λ ss′ → jus
 localEvent : (s : Session) → String → Maybe (LocalEvent s)
 localEvent (fetch _) = F.parseEvent
 localEvent (notify _) = N.parseEvent
+localEvent (blockfetch _) = B.parseEvent
+localEvent (chainsync _) = C.parseEvent
+localEvent (txsubmission2 _) = T.parseEvent
 
 -- Bounds-check the tag and parse its component's message language.
 tagged : (ss : List Session) → ℕ → String → Maybe (Events ss)
@@ -65,20 +78,37 @@ parse txt with lines txt
 ...     | just ss = map₂ (ss ,_) (events ss 2 ls)
 parse txt | h ∷ ls | _ = inj₁ (1 , h)
 
--- A single Notify session uses the existing role-header convention.
-parseNotify : String → (ℕ × String) ⊎ Σ (List Session) (λ ss → List (Events ss))
-parseNotify txt with lines txt
+-- Parse one role-selected session into the same one-component product.
+parseSingle : (protocol : Role → Session) → String →
+  (ℕ × String) ⊎ Σ (List Session) (λ ss → List (Events ss))
+parseSingle protocol txt with lines txt
 ... | [] = inj₁ (1 , "")
 ... | h ∷ ls with F.parseRole h
 ...   | nothing = inj₁ (1 , h)
-...   | just r = map₂ ((notify r ∷ []) ,_) (go r 2 ls)
+...   | just r = map₂ ((protocol r ∷ []) ,_) (go r 2 ls)
   where
-  -- Parse untagged local lines into the one-component product.
-  go : (r : Role) → ℕ → List String → (ℕ × String) ⊎ List (Events (notify r ∷ []))
+  -- Preserve line numbers while tagging each local event with session zero.
+  go : (r : Role) → ℕ → List String → (ℕ × String) ⊎ List (Events (protocol r ∷ []))
   go r i [] = inj₂ []
-  go r i (l ∷ ls) with N.parseEvent l
+  go r i (l ∷ ls) with localEvent (protocol r) l
   ... | nothing = inj₁ (i , l)
   ... | just e = map₂ (inj₁ e ∷_) (go r (suc i) ls)
+
+-- Preserve the standalone Notify role-header convention.
+parseNotify : String → (ℕ × String) ⊎ Σ (List Session) (λ ss → List (Events ss))
+parseNotify = parseSingle notify
+
+-- Both BlockFetch roles use one parser and select distinct component models.
+parseBlockFetch : String → (ℕ × String) ⊎ Σ (List Session) (λ ss → List (Events ss))
+parseBlockFetch = parseSingle blockfetch
+
+-- Both ChainSync roles share the same strict wire-control parser.
+parseChainSync : String → (ℕ × String) ⊎ Σ (List Session) (λ ss → List (Events ss))
+parseChainSync = parseSingle chainsync
+
+-- Select the submitter/client or requester/server from the role header.
+parseTxSubmission2 : String → (ℕ × String) ⊎ Σ (List Session) (λ ss → List (Events ss))
+parseTxSubmission2 = parseSingle txsubmission2
 
 -- Recover the numerical id for diagnostics.
 index : ∀ {ss} → Events ss → ℕ
@@ -99,6 +129,9 @@ showNotifyState _ NP.closed = "notify closed after Done (accepts nothing)"
 showLocal : (s : Session) → LocalEvent s → String
 showLocal (fetch _) = F.showEvent
 showLocal (notify _) = N.showEvent
+showLocal (blockfetch _) = B.showEvent
+showLocal (chainsync _) = C.showEvent
+showLocal (txsubmission2 _) = T.showEvent
 
 -- Print the event at its selected component.
 showEvent : ∀ {ss} → Events ss → String
@@ -109,6 +142,12 @@ showEvent {s ∷ ss} (inj₂ e) = showEvent e
 showState : (s : Session) → LocalState s → String
 showState (fetch _) = F.showSt
 showState (notify r) = showNotifyState r
+showState (blockfetch client) st = "blockfetch client " ++ B.showState st
+showState (blockfetch server) st = "blockfetch server " ++ BS.showState st
+
+showState (chainsync r) st = "chainsync " ++ roleName r ++ " " ++ C.showState st
+
+showState (txsubmission2 r) st = "txsubmission2 " ++ roleName r ++ " " ++ T.showState st
 
 -- Select only the failing event's component for diagnostics.
 componentState : ∀ {ss} → States ss → Events ss → String

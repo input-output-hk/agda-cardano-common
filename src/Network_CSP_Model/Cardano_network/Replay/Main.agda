@@ -1,13 +1,18 @@
 {-# OPTIONS --guardedness #-}
 
--- Trace replay: Fetch, Notify, or one heterogeneous interleaved stream.
+-- Trace replay: Fetch, Notify, BlockFetch, ChainSync and TxSubmission2, standalone or interleaved.
 -- Each component uses its certified session decider. The only replay module
 -- without --safe (it imports the stdlib IO and System.Environment bindings);
 -- no postulates or pragmas of its own.
 --
 --   Main FILE [K]      K = Fetch client pipelining bound, default 4
+--   Main --blockfetch FILE [K_BF]         role-selected; client depth default 100
+--   Main --blockfetch-client FILE [K_BF]  control-only, default 100
+--   Main --blockfetch-server FILE        sequential server, no depth argument
+--   Main --txsubmission2 FILE [K_TS]   server/requester depth default 4
+--   Main --chainsync FILE [K_CS]      role-selected; client depth default 300
 --   Main --notify FILE [K_NOTIFY]   Notify credit bound, default 1
---   Main --interleaved FILE [K_FETCH [K_NOTIFY]]   independent bounds
+--   Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   independent bounds
 --
 -- Single-session mode prints one of
 --   accepted (<n> events)
@@ -41,8 +46,10 @@ open import System.Environment using (getArgs)
 
 open import Cardano_network.Replay.LeiosFetchSession
 open import Cardano_network.Replay.LeiosFetchDecide
-open import Cardano_network.Replay.Parse
+open import Cardano_network.Replay.LeiosFetchParse
 import Cardano_network.Replay.SessionReport as Interleaved
+import Cardano_network.Replay.BlockFetchReport as BlockFetch
+import Cardano_network.Replay.BlockFetchServerReport as BlockFetchServer
 
 -- Checking with client pipelining bound k.
 module Check (k : ℕ) where
@@ -77,7 +84,7 @@ report k s with parseFile s
 
 -- Usage line.
 usage : String
-usage = "usage: Main FILE [K_FETCH] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY]]   (defaults: Fetch 4, Notify 1)"
+usage = "usage: Main FILE [K_FETCH] | Main --blockfetch FILE [K_BF] | Main --blockfetch-client FILE [K_BF] | Main --blockfetch-server FILE | Main --txsubmission2 FILE [K_TS] | Main --chainsync FILE [K_CS] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   (defaults: Fetch 4, Notify 1, BlockFetch 100, ChainSync 300, TxSubmission2 4)"
 
 -- Read, check and print one file.
 checkFile : ℕ → String → IO ⊤
@@ -87,12 +94,66 @@ checkFile k path = readFiniteFile path >>= λ s → putStrLn (report k s)
 checkInterleaved : ℕ → ℕ → String → IO ⊤
 checkInterleaved k depth path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportWithDepth k depth s)
 
+-- Read an interleaving with a separately configured BlockFetch client bound.
+checkInterleavedWithDepths : ℕ → ℕ → ℕ → String → IO ⊤
+checkInterleavedWithDepths k depth bfDepth path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportWithDepths k depth bfDepth s)
+
+-- Read a role-selected BlockFetch session through the same product checker.
+checkBlockFetchRole : ℕ → String → IO ⊤
+checkBlockFetchRole bfDepth path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportBlockFetch bfDepth s)
+
 -- Read one bounded Notify session with a role header.
 checkNotify : ℕ → String → IO ⊤
 checkNotify depth path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportNotifyWithDepth depth s)
 
+-- Read one pipelined BlockFetch client control trace.
+checkBlockFetch : ℕ → String → IO ⊤
+checkBlockFetch depth path = readFiniteFile path >>= λ s → putStrLn (BlockFetch.report depth s)
+
+-- Read one sequential BlockFetch server control trace.
+checkBlockFetchServer : String → IO ⊤
+checkBlockFetchServer path = readFiniteFile path >>= λ s → putStrLn (BlockFetchServer.report s)
+
+-- Check a role-selected ChainSync session; only clients use the bound.
+checkChainSync : ℕ → String → IO ⊤
+checkChainSync depth path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportChainSync depth s)
+
+-- Check an interleaving with all four independent protocol bounds.
+checkInterleavedWithAllDepths : ℕ → ℕ → ℕ → ℕ → String → IO ⊤
+checkInterleavedWithAllDepths k n b c path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportWithAllDepths k n b c s)
+
+-- Check a TxSubmission2 submitter/client or requester/server session.
+checkTxSubmission2 : ℕ → String → IO ⊤
+checkTxSubmission2 depth path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportTxSubmission2 depth s)
+
+-- Read all five protocol bounds for heterogeneous replay.
+checkInterleavedWithProtocolDepths : ℕ → ℕ → ℕ → ℕ → ℕ → String → IO ⊤
+checkInterleavedWithProtocolDepths k n b c t path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportWithProtocolDepths k n b c t s)
+
 -- Dispatch on the command-line arguments.
 dispatch : List String → IO ⊤
+dispatch ("--txsubmission2" ∷ f ∷ []) = checkTxSubmission2 4 f
+dispatch ("--txsubmission2" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkTxSubmission2 depth f
+... | nothing = putStrLn usage
+dispatch ("--txsubmission2" ∷ _) = putStrLn usage
+dispatch ("--chainsync" ∷ f ∷ []) = checkChainSync 300 f
+dispatch ("--chainsync" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkChainSync depth f
+... | nothing = putStrLn usage
+dispatch ("--chainsync" ∷ _) = putStrLn usage
+dispatch ("--blockfetch" ∷ f ∷ []) = checkBlockFetchRole 100 f
+dispatch ("--blockfetch" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkBlockFetchRole depth f
+... | nothing = putStrLn usage
+dispatch ("--blockfetch" ∷ _) = putStrLn usage
+dispatch ("--blockfetch-server" ∷ f ∷ []) = checkBlockFetchServer f
+dispatch ("--blockfetch-server" ∷ _) = putStrLn usage
+dispatch ("--blockfetch-client" ∷ f ∷ []) = checkBlockFetch 100 f
+dispatch ("--blockfetch-client" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkBlockFetch depth f
+... | nothing = putStrLn usage
+dispatch ("--blockfetch-client" ∷ _) = putStrLn usage
 dispatch ("--notify" ∷ f ∷ []) = checkNotify 1 f
 dispatch ("--notify" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just depth = checkNotify depth f
@@ -105,6 +166,15 @@ dispatch ("--interleaved" ∷ f ∷ k ∷ []) with readMaybe 10 k
 dispatch ("--interleaved" ∷ f ∷ k ∷ n ∷ []) with readMaybe 10 k | readMaybe 10 n
 ... | just k′ | just n′ = checkInterleaved k′ n′ f
 ... | _ | _ = putStrLn usage
+dispatch ("--interleaved" ∷ f ∷ k ∷ n ∷ b ∷ []) with readMaybe 10 k | readMaybe 10 n | readMaybe 10 b
+... | just k′ | just n′ | just b′ = checkInterleavedWithDepths k′ n′ b′ f
+... | _ | _ | _ = putStrLn usage
+dispatch ("--interleaved" ∷ f ∷ k ∷ n ∷ b ∷ c ∷ []) with readMaybe 10 k | readMaybe 10 n | readMaybe 10 b | readMaybe 10 c
+... | just k′ | just n′ | just b′ | just c′ = checkInterleavedWithAllDepths k′ n′ b′ c′ f
+... | _ | _ | _ | _ = putStrLn usage
+dispatch ("--interleaved" ∷ f ∷ k ∷ n ∷ b ∷ c ∷ t ∷ []) with readMaybe 10 k | readMaybe 10 n | readMaybe 10 b | readMaybe 10 c | readMaybe 10 t
+... | just k′ | just n′ | just b′ | just c′ | just t′ = checkInterleavedWithProtocolDepths k′ n′ b′ c′ t′ f
+... | _ | _ | _ | _ | _ = putStrLn usage
 dispatch ("--interleaved" ∷ _) = putStrLn usage
 dispatch (f ∷ []) = checkFile 4 f
 dispatch (f ∷ k ∷ []) with readMaybe 10 k

@@ -17,7 +17,7 @@ import Semantics.Replay.Empty as Empty
 open import Semantics.Replay.Interleave using (module Product)
 open import Cardano_network.Replay.LeiosFetchSession
 open import Cardano_network.Replay.LeiosFetchDecide using (module Cert)
-open import Cardano_network.Replay.Parse using (Role; client; server)
+open import Cardano_network.Replay.LeiosFetchParse using (Role; client; server)
 
 -- Nested products retain every session's state independently.
 States : ℕ → Set

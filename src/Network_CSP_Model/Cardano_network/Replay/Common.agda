@@ -7,6 +7,7 @@ module Cardano_network.Replay.Common where
 data Direction : Set where
   Send Recv : Direction
 
--- Client means initiator/consumer; server means responder/producer.
+-- Roles follow each protocol: TxSubmission2 client submits transactions,
+-- while its server requests them (the reverse data flow of ChainSync).
 data Role : Set where
   client server : Role

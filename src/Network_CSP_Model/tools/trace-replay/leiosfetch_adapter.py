@@ -8,7 +8,7 @@ leios_adapter.py, which shares this implementation with include_notify=True.
 never modified. Output, into OUTDIR (never into the repository):
 
   sNNNN-<role>.txt   one session in the normalized format parsed by
-                     src/Cardano_network/Replay/Parse.agda: a header line
+                     src/Cardano_network/Replay/LeiosFetchParse.agda: a header line
                      `role client|server`, then one event per line
   sNNNN-<role>.src   per event (same order): raw log line number and `at`
   interleaved.txt    `sessions <role> ...`, then `<zero-based id> <event>`
@@ -41,6 +41,9 @@ import tempfile
 
 LF = 'LeiosFetch.Remote.'
 LN = 'LeiosNotify.Remote.'
+CS = 'ChainSync.Remote.'
+BF = 'BlockFetch.Remote.'
+TS = 'TxSubmission.Remote.'
 MUX = 'Net.Mux.Remote.'
 HEX = re.compile(r'[0-9a-f]+')
 BITMAP = re.compile(r'(\d+):0x([0-9a-fA-F]+)')
@@ -69,6 +72,77 @@ for _name in ('RequestNext', 'NotificationRequestNext', 'Done'):
 for _name in ('BlockAnnouncement', 'BlockOffer', 'BlockTxsOffer', 'Votes'):
     NOTIFY_KINDS['Send.' + _name] = ('server', 'Send', _name)
     NOTIFY_KINDS['Receive.' + _name] = ('client', 'Recv', _name)
+
+
+# Kind-only control protocols: request agency determines endpoint role.
+def control_kinds(requests, replies):
+    """Build exact namespace mappings without accepting unknown messages."""
+    kinds = {}
+    for name in requests:
+        kinds['Send.' + name] = ('client', 'Send', name)
+        kinds['Receive.' + name] = ('server', 'Recv', name)
+    for name in replies:
+        kinds['Send.' + name] = ('server', 'Send', name)
+        kinds['Receive.' + name] = ('client', 'Recv', name)
+    return kinds
+
+
+CHAIN_SYNC_KINDS = control_kinds(
+    ('RequestNext', 'FindIntersect', 'Done'),
+    ('AwaitReply', 'RollForward', 'RollBackward',
+     'IntersectFound', 'IntersectNotFound'))
+BLOCK_FETCH_KINDS = control_kinds(
+    ('RequestRange', 'ClientDone'),
+    ('StartBatch', 'NoBlocks', 'Block', 'BatchDone'))
+
+
+# TxSubmission2 reverses the requester/submitter roles used by Fetch.
+TX_SUBMISSION_KINDS = {}
+for _name in ('MsgInit', 'ReplyTxIds', 'ReplyTxs', 'Done'):
+    _kind = 'Init' if _name == 'MsgInit' else _name
+    TX_SUBMISSION_KINDS['Send.' + _name] = ('client', 'Send', _kind)
+    TX_SUBMISSION_KINDS['Receive.' + _name] = ('server', 'Recv', _kind)
+for _name in ('RequestTxIds', 'RequestTxs'):
+    TX_SUBMISSION_KINDS['Send.' + _name] = ('server', 'Send', _name)
+    TX_SUBMISSION_KINDS['Receive.' + _name] = ('client', 'Recv', _name)
+
+
+def normalize_txsubmission2(direction, kind, msg):
+    """Require the control evidence omitted by the standard node tracer.
+
+    An enriched tracer must supply RequestTxIds.blocking (JSON boolean),
+    and ReplyTxIds.txIdCount (natural) or ReplyTxIds.txIds (JSON array).
+    Do not reconstruct missing flags or reply shape from later events.
+    """
+    if not isinstance(msg, dict) or msg.get('kind', 'Msg' + kind) != 'Msg' + kind:
+        raise ValueError('TxSubmission2 namespace disagrees with message kind')
+    fields = []
+    if kind == 'RequestTxIds':
+        if type(msg.get('blocking')) is not bool:
+            raise ValueError('TxSubmission2 RequestTxIds requires a logged boolean blocking field; standard tracer evidence is insufficient')
+        fields = ['Blocking' if msg['blocking'] else 'NonBlocking']
+    elif kind == 'ReplyTxIds':
+        count = None
+        if 'txIds' in msg:
+            if not isinstance(msg['txIds'], list):
+                raise ValueError('TxSubmission2 txIds must be a JSON array')
+            count = len(msg['txIds'])
+        if 'txIdCount' in msg:
+            n(msg['txIdCount'])
+            if count is not None and count != msg['txIdCount']:
+                raise ValueError('TxSubmission2 txIdCount disagrees with txIds')
+            count = msg['txIdCount']
+        if count is None:
+            raise ValueError('TxSubmission2 ReplyTxIds requires logged txIdCount or txIds; reply emptiness is unknown')
+        fields = ['Empty' if count == 0 else 'NonEmpty']
+    return ' '.join([direction, kind] + fields)
+
+
+def normalize_control(direction, kind, msg):
+    """Explicitly erase payloads; reject contradictory logged message kinds."""
+    if not isinstance(msg, dict) or msg.get('kind', 'Msg' + kind) != 'Msg' + kind:
+        raise ValueError('control namespace disagrees with message kind')
+    return direction + ' ' + kind
 
 
 def h(x):
@@ -144,10 +218,13 @@ def normalize_notify(direction, kind, m):
     return ' '.join([direction, kind] + fields)
 
 
-def split(lines, outdir, mux_split=True, include_notify=False):
+def split(lines, outdir, mux_split=True, include_notify=False, include_control=False, include_txsubmission2=False):
     """Stream `lines` and write the session files and index into `outdir`.
-    With include_notify, emit protocol-tagged Fetch/Notify manifests and index rows.
+    With include_notify, include Notify. With include_control, include control-only
+    ChainSync and BlockFetch. include_txsubmission2 requires enriched control
+    evidence. Any protocol option enables protocol-tagged output.
     Returns the index rows."""
+    mixed = include_notify or include_control or include_txsubmission2
     os.makedirs(outdir, exist_ok=True)
     open_ = {}   # (cid, role, protocol) -> session generation
     rows = []
@@ -159,7 +236,7 @@ def split(lines, outdir, mux_split=True, include_notify=False):
         s = open_.pop(key, None)
         if s is None:
             return
-        suffix = '%s-%s' % (key[2], key[1]) if include_notify else key[1]
+        suffix = '%s-%s' % (key[2], key[1]) if mixed else key[1]
         base = os.path.join(outdir, '%s-%s' % (s['id'], suffix))
         with open(base + '.txt', 'w') as fh:
             fh.write('role %s\n' % key[1])
@@ -168,14 +245,25 @@ def split(lines, outdir, mux_split=True, include_notify=False):
             fh.writelines('%d %s\n' % src for src in s['src'])
         rows.append((s['id'], key[0], key[1], len(s['events']),
                      s['src'][0][1], s['src'][-1][1], end) +
-                    ((key[2],) if include_notify else ()))
+                    ((key[2],) if mixed else ()))
 
     for lineno, line in enumerate(lines, 1):
         i = line.find('{')
         if i < 0 or (LF not in line and MUX not in line and
-                     (not include_notify or LN not in line)):   # cheap pre-filter
+                     (not include_notify or LN not in line) and
+                     (not include_control or (CS not in line and BF not in line)) and
+                     (not include_txsubmission2 or TS not in line)):   # cheap pre-filter
             continue
         o = json.loads(line[i:])
+        # Local devnet supervisors wrap the node JSON in a message string.
+        # Keep the outer line number as the source-map coordinate.
+        if 'ns' not in o and isinstance(o.get('message'), str):
+            nested = o['message']
+            if not nested.startswith('{'):
+                continue
+            o = json.loads(nested)
+        if 'ns' not in o:
+            continue
         ns, d = o['ns'], o['data']
         if ns.startswith(MUX):
             if mux_split and ns == MUX + 'NewMux':
@@ -188,7 +276,16 @@ def split(lines, outdir, mux_split=True, include_notify=False):
             protocol, prefix, kinds, normalizer = 'fetch', LF, KINDS, normalize
         elif include_notify and ns.startswith(LN):
             protocol, prefix, kinds, normalizer = 'notify', LN, NOTIFY_KINDS, normalize_notify
+        elif include_txsubmission2 and ns.startswith(TS):
+            protocol, prefix, kinds, normalizer = 'txsubmission2', TS, TX_SUBMISSION_KINDS, normalize_txsubmission2
+        elif include_control and ns.startswith(CS):
+            protocol, prefix, kinds, normalizer = 'chainsync', CS, CHAIN_SYNC_KINDS, normalize_control
+        elif include_control and ns.startswith(BF):
+            protocol, prefix, kinds, normalizer = 'blockfetch', BF, BLOCK_FETCH_KINDS, normalize_control
         else:
+            continue
+        # Serialised tracers are separate observations, not wire-message rows.
+        if ns.startswith(prefix + 'Serialised.'):
             continue
         suffix = ns[len(prefix):]
         if suffix not in kinds:
@@ -197,7 +294,7 @@ def split(lines, outdir, mux_split=True, include_notify=False):
         try:
             key = (d['peer']['connectionId'], role, protocol)
             ev = normalizer(direction, kind, d['msg'])
-            if include_notify:
+            if mixed:
                 # Keep the exact tracer namespace on each row, including aliases.
                 payload = ev.split(' ', 2)
                 ev = ns + (' ' + payload[2] if len(payload) == 3 else '')
@@ -207,11 +304,11 @@ def split(lines, outdir, mux_split=True, include_notify=False):
             counter[0] += 1
             open_[key] = {'id': 's%04d' % counter[0], 'tag': counter[0] - 1,
                           'events': [], 'src': []}
-            session_roles.append(protocol + ':' + role if include_notify else role)
+            session_roles.append(protocol + ':' + role if mixed else role)
         interleaved.append((open_[key]['tag'], ev, lineno, o['at']))
         open_[key]['events'].append(ev)
         open_[key]['src'].append((lineno, o['at']))
-        if kind == 'Done':
+        if kind in ('Done', 'ClientDone'):
             close(key, 'done')
     for key in list(open_):
         close(key, 'eof')
@@ -226,7 +323,7 @@ def split(lines, outdir, mux_split=True, include_notify=False):
     rows.sort()
     with open(os.path.join(outdir, 'index.tsv'), 'w') as fh:
         fh.write('session\tconnectionId\trole\tevents\tfirst_at\tlast_at\tend' +
-                 ('\tprotocol' if include_notify else '') + '\n')
+                 ('\tprotocol' if mixed else '') + '\n')
         fh.writelines('\t'.join(map(str, r)) + '\n' for r in rows)
     return rows
 

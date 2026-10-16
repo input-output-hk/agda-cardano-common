@@ -69,7 +69,10 @@ def main(binary):
             check('role client\n', 'usage:', '--notify', (value,))
             check('sessions\n', 'usage:', bounds=(4, value))
             check('sessions\n', 'usage:', bounds=(value, 2))
-        check('sessions\n', 'usage:', bounds=(4, 2, 3))
+        check('sessions\n', 'accepted (0 events, 0 sessions)', bounds=(4, 2, 3))
+        check('sessions\n', 'accepted (0 events, 0 sessions)', bounds=(4, 2, 3, 4))
+        check('sessions\n', 'accepted (0 events, 0 sessions)', bounds=(4, 2, 3, 4, 5))
+        check('sessions\n', 'usage:', bounds=(4, 2, 3, 4, 5, 6))
         raw = root / 'raw.jsonl'
         records = []
         for protocol, suffix, msg in [
