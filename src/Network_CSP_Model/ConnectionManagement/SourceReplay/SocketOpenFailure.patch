@@ -1,0 +1,105 @@
+diff --git a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ConnectionManager.hs b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ConnectionManager.hs
+index 71ca7ec..9e1a8c7 100644
+--- a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ConnectionManager.hs
++++ b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ConnectionManager.hs
+@@ -32,7 +32,7 @@ import Control.Monad.Class.MonadThrow
+ import Control.Monad.Class.MonadTime.SI
+ import Control.Monad.Class.MonadTimer.SI
+ import Control.Monad.IOSim
+-import Control.Tracer (Tracer (..), contramap)
++import Control.Tracer (Tracer (..), contramap, nullTracer)
+ 
+ import GHC.Generics
+ import GHC.IO.Exception
+@@ -85,6 +85,8 @@ tests =
+     -- TODO: replace these tests with 'Test.Ouroboros.Network.Server' simulation.
+     testProperty "overwritten"                    unit_overwritten
+   , testProperty "timeoutExpired"                 unit_timeoutExpired
++  , testProperty "socket-open-failure-reservation" (unit_socketFailureBoundary True)
++  , testProperty "socket-configure-failure-cleanup" (unit_socketFailureBoundary False)
+   ]
+ 
+ 
+@@ -1101,3 +1103,82 @@ unit_timeoutExpired =
+ (/\) f g = getAll . ((All . f) <> (All . g))
+ 
+ infixr 3 /\
++
++-- Reproduce the acquisition-bracket boundary with the actual CM implementation.
++-- The control throws after acquisition, from configureSocket, and must clean up.
++unit_socketFailureBoundary :: Bool -> Property
++unit_socketFailureBoundary failDuringOpen =
++    let observed = runSimOrThrow experiment
++        expected = if failDuringOpen
++          then ("io", True, "exists", True, 1, 0)
++          else ("io", True, "io", True, 2, 2)
++    in counterexample (show observed) (observed === expected)
++  where
++    experiment :: forall s. IOSim s (String, Bool, String, Bool, Int, Int)
++    experiment = do
++      baseSnocket <- mkSnocket mempty
++      opens <- newTVarIO (0 :: Int)
++      closes <- newTVarIO (0 :: Int)
++      let injected = IOError Nothing ResourceExhausted
++                       "CM socket acquisition replay" "injected failure"
++                       Nothing Nothing
++          faultSnocket = baseSnocket {
++              openToConnect = \addr -> do
++                atomically $ modifyTVar opens (+1)
++                if failDuringOpen
++                  then throwIO injected
++                  else openToConnect baseSnocket addr,
++              close = \fd -> do
++                atomically $ modifyTVar closes (+1)
++                close baseSnocket fd
++            }
++      connStateIdSupply <- atomically $ CM.newConnStateIdSupply Proxy
++      info <- newInformationChannel
++      CM.with
++        CM.Arguments {
++          tracer = nullTracer,
++          trTracer = nullTracer,
++          ipv4Address = Nothing,
++          ipv6Address = Nothing,
++          addressType = \_ -> Just IPv4Address,
++          snocket = faultSnocket,
++          makeBearer = makeFDBearer,
++          withBuffer = \f -> f Nothing,
++          configureSocket = \_ _ -> throwIO injected,
++          connectionDataFlow = id,
++          prunePolicy = simplePrunePolicy,
++          stdGen = Random.mkStdGen 0,
++          connectionsLimits = AcceptedConnectionsLimit maxBound maxBound 0,
++          timeWaitTimeout = testTimeWaitTimeout,
++          outboundIdleTimeout = testOutboundIdleTimeout,
++          updateVersionData = \a _ -> a,
++          connStateIdSupply,
++          classifyHandlerError = \_ -> HandshakeFailure
++        }
++        (InResponderMode info)
++        (mkConnectionHandler faultSnocket)
++        $ \cm -> do
++          let peer = TestAddress 1
++              attempt =
++                (acquireOutboundConnection cm
++                  InitiatorAndResponderDiffusionMode peer Outbound $> "connected")
++                `catches`
++                  [ Handler $ \(_ :: IOException) -> pure "io"
++                  , Handler $ \(e :: SomeConnectionManagerError) ->
++                      case e of
++                        SomeConnectionManagerError (ConnectionExists {}) -> pure "exists"
++                        _ -> throwIO e
++                  ]
++              stateMatches = do
++                states <- atomically $ readState cm
++                let expectedMap = if failDuringOpen
++                      then Map.singleton peer (Map.singleton CM.UnknownLocalAddr ReservedOutboundSt)
++                      else Map.empty
++                pure (CM.getConnMap states == expectedMap)
++          first <- attempt
++          firstState <- stateMatches
++          second <- attempt
++          secondState <- stateMatches
++          openCount <- atomically $ readTVar opens
++          closeCount <- atomically $ readTVar closes
++          pure (first, firstState, second, secondState, openCount, closeCount)
