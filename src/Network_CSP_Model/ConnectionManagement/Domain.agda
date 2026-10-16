@@ -11,14 +11,14 @@ open import Class.DecEq using (DecEq; _≟_)
 
 -- The index prevents entry, worker, socket, and other identities from unifying.
 data IdKind : Set where
-  entry worker socket mux promise run timer job handle : IdKind
+  entry worker socket mux promise run timer job handle peerConnection : IdKind
 
 record Id (kind : IdKind) : Set where
   constructor ident
   field serial : ℕ
 open Id public
 
-EntryId WorkerId SocketId MuxId PromiseId RunId TimerId JobId HandleId : Set
+EntryId WorkerId SocketId MuxId PromiseId RunId TimerId JobId HandleId PeerConnectionId : Set
 EntryId = Id entry
 WorkerId = Id worker
 SocketId = Id socket
@@ -28,6 +28,7 @@ RunId = Id run
 TimerId = Id timer
 JobId = Id job
 HandleId = Id handle
+PeerConnectionId = Id peerConnection
 
 instance
   DecEq-Id : ∀ {k} → DecEq (Id k)
