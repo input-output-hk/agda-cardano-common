@@ -6,7 +6,7 @@ module ConnectionManagement.Rules.OutboundRelease where
 open import Data.Bool using (Bool; true; false)
 open import Data.Nat using (ℕ; suc; _≤?_; _∸_)
 open import Data.Integer using (ℤ)
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; map)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_)
 open import Relation.Nullary using (yes; no)
@@ -95,7 +95,11 @@ capacity limit scores m e old d f s | true | just n | no _ with scores | replace
 ...   | nothing = nothing
 ...   | just self with Prune.makePlan (suc n ∸ limit) self st candidates draws
 ...     | nothing = nothing
-...     | just selectedPlan with Prune.applyEdits (Prune.edits selectedPlan) s
+-- Core.hs:1920 discards pruneSelf: unlike remote promotion, release writes
+-- only the victims. A surviving self retains OutboundDup Ticking.
+...     | just selectedPlan with Prune.applyEdits
+          (map (λ c → Prune.entryRef c , terminated nothing)
+            (Prune.victims selectedPlan)) s
 ...       | nothing = nothing
 ...       | just s′ = just (setPC f (prune (Prune.victims selectedPlan) (success (just old))) s′)
 capacity limit scores m e old d f s | true | just n | no _ | _ | _ | _ = nothing

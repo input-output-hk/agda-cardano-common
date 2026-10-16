@@ -5,6 +5,7 @@ module ConnectionManagement.Negative.Outbound where
 
 open import Data.Bool using (false; true)
 open import Data.List using ([]; _∷_; replicate)
+open import Data.Integer using (+_)
 open import Data.Maybe using (just; nothing)
 open import Data.Product using (_,_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
@@ -15,7 +16,8 @@ import ConnectionManagement.Rules.OutboundAcquire as A
 import ConnectionManagement.Rules.OutboundCases as C
 import ConnectionManagement.Rules.OutboundRelease as R
 import ConnectionManagement.CSP.OutboundAdmission as Trace
-open import ConnectionManagement.Scenarios.Admission using (key₀)
+open import ConnectionManagement.Scenarios.Admission using (key₀; key₁)
+import ConnectionManagement.Rules.Pruning as Prune
 
 frame : A.Frame
 frame = A.frame Trace.req (A.commitResult (ident 0) key₀ (S.negotiated (ident 0) duplex))
@@ -74,3 +76,28 @@ initial-terminal-retries : C.acquireCase (S.terminated nothing) ≡ C.retry
 initial-terminal-retries = refl
 captured-terminal-returns : C.waitCase key₀ (S.terminated nothing) ≡ C.gone (C.disconnected key₀ (S.inTerminated nothing))
 captured-terminal-returns = refl
+
+-- Conditional two-entry fixture, not a reachability claim. At limit one the
+-- prospective self and an existing inbound peer compete for one prune slot.
+releaseFixture : S.State
+releaseFixture = record Trace.negotiated { cm = S.cmStore
+  (S.full (S.insertConnection key₁ (ident 1)
+    (S.insertConnection key₀ (ident 0) [])))
+  ((ident 0 , S.outboundDup key₀ Trace.child (ident 0) ticking) ∷
+   (ident 1 , S.inboundIdle key₁ (ident 99) (ident 99) duplex) ∷ []) 2 }
+
+-- The higher score keeps self alive; release must not apply promotion's edit.
+releaseSurvivor : S.State
+releaseSurvivor = record releaseFixture { cm = record (S.cm releaseFixture)
+  { entries = put (ident 1) (S.terminated nothing) (S.entries (S.cm releaseFixture)) } }
+
+-- Both the complete transaction and its continuation are checked, so a
+-- disabled step cannot make the survivor assertion vacuous.
+over-limit-release-retains-surviving-self :
+  R.step 1 (R.transactionPruning (+ 10 ∷ + 0 ∷ []))
+    (R.frame key₀ R.transaction false) releaseFixture ≡
+  just (R.frame key₀ (R.prune
+    (Prune.candidate key₁ (ident 1) (ident 99) 2 false ∷ [])
+    (R.success (just (S.outboundDup key₀ Trace.child (ident 0) ticking)))) false ,
+    releaseSurvivor)
+over-limit-release-retains-surviving-self = refl
