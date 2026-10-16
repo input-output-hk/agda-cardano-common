@@ -439,7 +439,9 @@ while the child completes, proves early deregistration unavailable, and then che
 parent registration followed by child removal. Completion enqueue is not evidence
 that deregistration or parent registration already occurred.
 
-The open-socket failure candidate has a checked model trace but no IOSim replay.
+The open-socket failure has a checked model trace and a
+[direct CM IOSim reproduction](SourceReplay/README.md), including a
+post-acquisition configuration-failure cleanup control.
 It depends on reservation preceding the `bracketOnError` acquisition in [Core][acquire].
 The model preserves the distinction between acquisition failure and errors after
 socket acquisition. Policy and supervision must be included in source validation.
@@ -448,6 +450,16 @@ The producer obligation is closed for the selected synchronous-failure path by
 `CSP/RegistryProducer`: admission, startup and actual CM promotion precede queued
 failure/mux notifications and registered-mux removal. This does not complete all
 handler, Server, exception or source-refinement obligations.
+
+### Ordinary-peer failure-limit boundary
+
+The pinned `PeerSelection/State/KnownPeers.hs` `reportFailures` (lines 452–507)
+uses the pre-increment `allPeers` in its maximum-failure filter, with an explicit
+unforgetable-peer exception. `Governor/EstablishedPeers.hs` (lines 522–540) uses
+`pred failCount` when calculating exponential backoff from the incremented count.
+`CSP/GovernorFailureLimit` checks six attempts with configured limit five, ending
+in OG forgetting while CM retains the reservation. The 211-action trace and its
+negative endpoint are model proofs; the Haskell replay still covers CM only.
 
 ## Pinned references
 

@@ -650,3 +650,16 @@ checks notification order and the final registration/handler distinction.
 and a 146-action ordinary-peer establishment/activation/demotion/release witness.
 The fixed-known-peer profile includes failure, timeout, monitoring and completion
 rules; source replay and general combined invariants remain separate obligations.
+
+
+[Source replay](SourceReplay/README.md) now reproduces the socket-open reservation
+leak at the pinned CM interface, with a configuration-failure cleanup control.
+`CSP/GovernorOpenFailure` separately checks the modeled OG backoff/retry consequence
+in 64 actions; its negative endpoint excludes premature retry and duplicate
+completion. Full source governor/supervision replay remains outstanding.
+
+`CSP/GovernorFailureLimit` extends that model trace to 211 actions: with a
+configured failure limit of five, the sixth failure makes OG forget the peer
+while CM retains the reservation. Its negative controls prove the fifth/sixth
+boundary and reject further ordinary promotion and timer expiry from that
+endpoint. This is a finite fixed-known-peer witness, not global deadlock.

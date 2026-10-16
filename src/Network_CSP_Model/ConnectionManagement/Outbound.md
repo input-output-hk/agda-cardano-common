@@ -162,7 +162,11 @@ shutdown and full node supervision are not implemented.
 | `CSP/OutboundReleaseScenarios` | Conditional unidirectional idle-timeout release and duplex over-limit self-pruning traces |
 | `Negative/Outbound` | Full-queue atomicity, replaced-entry error write, address collision, reservation preference and timeout-winner distinctions |
 | `Negative/OutboundGovernor` | Progress exclusions, late completion/timeout behavior, cooling, target validity and result-action identity |
-| `CSP/OutboundOpenFailure` | 10-action reservation/open-failure/retry candidate described below |
+| `CSP/OutboundOpenFailure` | 10-action reservation/open-failure/retry trace, now reproduced at the CM level in IOSim |
+| `CSP/GovernorOpenFailure` | 64-action OG failure completion, backoff, fresh establishment job, rejected retry and second failure completion |
+| `Negative/GovernorOpenFailure` | Reachable premature-retry refusal, deadline check, retained reservation, two failure counts and duplicate-completion exclusion |
+| `CSP/GovernorFailureLimit` | 211-action extension through six failed attempts and public-state publication after forgetting the peer |
+| `Negative/GovernorFailureLimit` | Fifth failure retains the peer, sixth forgets it; CM reservation persists and no further ordinary promotion/timer is enabled |
 
 The 57-action witness derives the attachment certificate from admission and
 publication, then preserves it through the producer and consumer. Startup
@@ -181,7 +185,7 @@ including inversion and refused extensions, for their respective dispatchers.
 These are model representation theorems. They do not prove Haskell refinement,
 universal progress, deadlock freedom or hidden-process divergence freedom.
 
-### Candidate: socket-open failure leaves a reservation
+### Reproduced CM behavior: socket-open failure leaves a reservation
 
 Core reserves the unknown-local entry before `openToConnect`. Its `bracketOnError`
 cleanup is entered only after socket acquisition succeeds. The checked trace
@@ -189,11 +193,91 @@ supplies an exception during open, returns the failure, and attempts acquisition
 again. The map still contains ReservedOutbound and the second call returns
 ConnectionExists; there is no acquired socket or forked handler to clean it up.
 
-This is a source-correspondence candidate, **not a confirmed implementation bug**.
-The next experiment is an IOSim fault injection at this exact acquisition boundary,
-with the actual rethrow policy and diffusion supervision: inspect the map after
-the failed job and test whether retry survives long enough to encounter it. Other
-inbound admission or node shutdown could alter the outcome. No replay has run.
+An [IOSim replay of the pinned CM](SourceReplay/README.md) now reproduces this
+local reservation leak. It checks the entire map and open/close call counts; a
+configuration-failure control confirms cleanup after successful acquisition.
+This is direct CM execution, not full OG/rethrow-policy/diffusion supervision.
+The next obligation is the integrated retry path and deployment impact; inbound
+admission or node shutdown could alter the outcome.
+
+### Governor consequence in the Agda model
+
+[`CSP/GovernorOpenFailure.agda`](CSP/GovernorOpenFailure.agda) now connects the
+failure to actual modeled governor decisions and job completions in 64 actions.
+It shares the initial establishment prefix with `GovernorLifecycle`, then fails
+socket acquisition. The selected ShutdownPeer branch completes the job; OG
+consumes it against its current state, records failure count 1 and connect time 5
+(using zero jitter), and waits on its wakeup timer. At time 5, OG launches a new
+job with fresh caller/child/socket identities. CM rejects that acquisition from
+the retained reservation. The second completion records failure count 2 and
+connect time 15. Both jobs deregister and both completions are consumed.
+
+```mermaid
+sequenceDiagram
+  participant OG
+  participant Job
+  participant CM
+  OG->>Job: Establish peer
+  Job->>CM: Acquire, reserve, attempt open
+  CM-->>Job: IOException; reservation retained
+  Job-->>OG: Failed completion
+  Note over OG: failures = 1, connectAt = 5
+  OG->>OG: Wakeup, cancel timer, sample time 5
+  OG->>Job: New establishment job
+  Job->>CM: Acquire same remote
+  CM-->>Job: ConnectionExists; no socket open
+  Job-->>OG: Failed completion
+  Note over OG: failures = 2, connectAt = 15
+```
+
+`Negative/GovernorOpenFailure` proves the premature-promotion extension of the
+reachable prefix is not a raw CSP trace. It also checks that a wakeup cannot be
+applied with time 4, the reservation persists, neither outbound socket exists,
+no peer is established, and repeated completion enqueue is unavailable after
+the full trace. These are finite model results under the explicit policy/time
+inputs. They do not establish an infinite retry loop, permanent node wedge or
+source reachability of the entire governor schedule. In particular, the failure
+limit can eventually remove a known peer; concurrent admission is absent here.
+
+The actual Haskell replay still stops at the CM interface. It corroborates the
+CM failure/retry segment, not the entire 64-action governor trace.
+
+### Failure-limit consequence
+
+[`CSP/GovernorFailureLimit.agda`](CSP/GovernorFailureLimit.agda) extends the
+64-action prefix through four additional establishment attempts, all using fresh
+job/caller identities and the actual CM rejection/completion path. It checks
+211 actions from the original initial configuration to the settled governor
+selection point. The configured `maxRetries = 5` is a model setting, not a claim
+about a protocol-wide or deployment default.
+
+The pinned `KnownPeers.reportFailures` tests the original `allPeers` count while
+incrementing a separate updated state. For ordinary, forgettable peers, this
+means the fifth failure is retained and the sixth is forgotten. The source
+backoff uses the incremented count minus one, matching this model's use of the
+previous count. With zero jitter, the checked attempt times are:
+
+| Attempt | Time | Known-peer state after completion |
+| --- | --- | --- |
+| 1 | 0 | Failures 1; retry at 5 |
+| 2 | 5 | Failures 2; retry at 15 |
+| 3 | 15 | Failures 3; retry at 35 |
+| 4 | 35 | Failures 4; retry at 75 |
+| 5 | 75 | Failures 5; retry at 155 |
+| 6 | 155 | Forgotten |
+
+`Negative/GovernorFailureLimit` checks that both private and published OG state
+forget the peer, no job or completion remains outstanding, and there is no next
+ordinary promotion or retry timer. Nevertheless, CM still holds exactly the
+unknown-local reservation and ReservedOutbound entry. Forgetting a peer in OG
+is not a CM release operation.
+
+The two refused extensions are proved against the full reachable raw CSP prefix.
+This is not a global deadlock or permanent-outage theorem: the process remains
+open to environment/inbound actions, and the fixed-known-peer profile excludes
+rediscovery. Root/extra peers can be protected against forgetting by the source's
+`unforgetable` predicate and are outside this witness. Full Haskell OG/supervision
+replay is still outstanding; the source replay remains CM-level only.
 
 ## Validation and remaining obligations
 
@@ -206,9 +290,18 @@ agda ConnectionManagement/Negative/OutboundGovernor.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/Subsystem.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/OutboundReleaseScenarios.agda +RTS -M2G -RTS
 agda ConnectionManagement/CSP/OutboundOpenFailure.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/GovernorOpenFailure.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/GovernorFailureLimit.agda +RTS -M2G -RTS
 ```
 
-All six endpoints above passed with Agda 2.8.0 after the implementation changes.
+`Negative/GovernorFailureLimit` and its new CSP dependency also passed with
+Agda 2.8.0 and the 2 GB heap limit. Both new modules have zero proof-audit
+findings; no transition rules or earlier theorem types were changed.
+
+The original six endpoints passed with Agda 2.8.0 after the implementation changes.
+The added `Negative/GovernorOpenFailure` endpoint and its 64-action CSP dependency
+also passed with the same 2 GB heap limit. Its two new modules had zero findings
+in the local proof audit; no transition rules or prior theorem types were changed.
 The producer check also rechecked its affected inbound proof dependencies. The
 combined lifecycle and refusal endpoints were elaborated after the final rule
 changes; no whole-cache purge or unrelated network proof rebuild was performed.
