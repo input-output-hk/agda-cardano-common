@@ -155,6 +155,110 @@ job records for diagnostics and prevents repeated enqueue/deregister actions.
 Asynchronous exceptions across arbitrary job-pool masking/fork windows, pool
 shutdown and full node supervision are not implemented.
 
+## Invariant extension: captured-entry prerequisite
+
+The inbound `SupplyInvariant.advance-preserves` theorem cannot be copied to
+`OutboundMachine` or `Subsystem` with only `SupplyBounds` on the shared world.
+[`Negative/OutboundSupply`](Negative/OutboundSupply.agda) refutes precisely
+those two proposed one-step statements. It starts with an empty, bounded heap
+and a forged `removeError` frame capturing entry zero. The enabled
+`removeReservation` step inserts `Terminated` at zero while the next-entry supply
+is still zero. Exact lease ownership holds before and after. This is an injected
+frame counterexample, not a source bug or a trace from valid initial frames.
+
+The source-derived rule relies on a previously captured entry, so no extra
+lookup guard has been added merely to make the proof pass. The local
+[`OutboundSupply.remove-reservation-preserves`](Properties/OutboundSupply.agda)
+lemma proves preservation with the explicit premise that the captured entry's
+serial is below the current supply. [`Properties/OutboundCapture`](Properties/OutboundCapture.agda) now defines an
+exhaustive capture projection over every acquisition PC, including nested counter
+continuations. `Valid` requires the captured entry to exist in the heap; it does
+not require a live map alias. `step-valid` proves preservation across every
+successful `OutboundAcquire.step`. Fresh selection derives allocation directly,
+while completed frames carry no mutable-entry capture. `run-valid` lifts this
+to all finite single-caller runs, and `from-selecting-valid` derives validity
+without an initial capture premise.
+
+`valid-removal-preserves-supply` combines this certificate with the unchanged
+heap supply invariant to discharge cleanup's captured-entry bound. The negative
+module proves that the forged frame above cannot be the endpoint of any such
+acquisition run from `selecting`. `retained-valid` transports a waiting frame
+across interference only when given a proved heap-retention law. It does not
+assume every subsystem action has that law.
+
+[`Properties/OutboundRuntimeCapture`](Properties/OutboundRuntimeCapture.agda)
+now lifts validity to **every pending acquisition frame** in the runtime store.
+`advance-preserves` covers every `OutboundMachine.Action`, and `exec-preserves`
+covers arbitrary finite `OutboundMachine.Executes` interleavings. `from-initial`
+derives the certificate from the empty acquisition runtime without hand-supplied
+frame premises. `removal-bound` obtains the selected caller's entry bound from
+this certificate and the current heap supply bound.
+
+The lift uses [`OutboundAcquireRetention`](Properties/OutboundAcquireRetention.agda)
+and [`OutboundReleaseRetention`](Properties/OutboundReleaseRetention.agda) for
+other callers and release/pruning, and reuses the existing exhaustive inbound
+retention proof. These establish stored entry existence even after map removal;
+they do not assert source object lifetime or a live connection. Runtime return
+removes a frame, while begin-acquire installs a capture-free selecting frame.
+The negative module now excludes the forged counterexample from **all** finite
+executions starting at `OutboundMachine.initial`, including inbound and release
+interleavings.
+
+[`Properties/PeerJobCapture`](Properties/PeerJobCapture.agda) now proves that
+every successful `PeerJobs.step` preserves validity of all pending acquisition
+frames. Protocol actions change only peer/IG state; CM acquisition and release
+calls reuse the runtime preservation theorem. Failure, timeout and exception
+policy paths are included, with no assumptions on the job frame or action.
+
+The remaining lift is through `Subsystem.Executes`, followed by the combined
+supply invariant. This result covers acquisition captures, not
+release-frame validity, ownership, map uniqueness of all reachable states, or
+supply preservation for every dispatcher step. Existing inbound theorem
+statements and transition rules remain unchanged.
+
+[`Properties/OutboundMapUniqueness`](Properties/OutboundMapUniqueness.agda)
+proves nested key uniqueness for both outbound `updateLocal` branches and
+`removeAliases`, including deletion of empty buckets. It reuses the existing
+store lemmas and the standard library's filtering theorem. The alias predicate
+was moved from a local definition to `differentEntry` so proofs share its exact
+term; its cases and the transition behavior are unchanged. These are map-helper
+lemmas, not yet a combined-dispatcher map or ownership invariant.
+
+Check these additions from the library root, sequentially:
+
+```sh
+agda ConnectionManagement/Properties/OutboundMapUniqueness.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundSupply.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundRuntimeCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/PeerJobCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/OutboundSupply.agda +RTS -M2G -RTS
+```
+
+The three new endpoints passed with Agda 2.8.0 and `+RTS -M2G -RTS`,
+with `Checking` output. After the alias-predicate refactor, the sequential
+checks of `Negative/Outbound`, `CSP/OutboundReleaseScenarios`,
+`Negative/Subsystem` and `Negative/GovernorFailureLimit` also exited 0,
+rechecking the affected lifecycle/open-failure dependencies. No cache purge
+was used. The four-file audit (three new modules plus `Rules/OutboundAcquire`)
+reported zero findings; this is not a transitive axiom audit. `git diff --check`
+passed. The subsequent `OutboundCapture` and updated `Negative/OutboundSupply` checks
+also passed with explicit `Checking` lines and the same 2 GB heap limit. Their
+local proof audit reported zero findings. No additional transition edit or
+heavy rebuild was needed.
+
+The subsequent runtime lift and its acquisition/release retention dependencies
+also passed Agda 2.8.0 with the 2 GB limit and explicit `Checking` lines; the
+updated negative endpoint passed again. The four-file audit found one lexical
+match, the `≤?` comparison in the release capacity proof, not a hole. No axioms,
+unsafe options or new transition edits were introduced. Full subsystem capture
+preservation and general ownership/supply invariants remain unproved.
+
+The peer-job lift passed Agda 2.8.0 with `+RTS -M2G -RTS` and an explicit
+`Checking` line. Its local proof audit reported zero findings. The existing
+`Negative/Subsystem` and `Negative/OutboundSupply` endpoints also exited 0
+using cached interfaces. This addition changes no transition rules.
+
 ## Checked witnesses and their limits
 
 | Endpoint | Evidence |

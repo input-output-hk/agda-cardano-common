@@ -10,7 +10,11 @@ and selected mux/tracer behavior**. [Outbound.md](Outbound.md) describes the new
 combined dispatcher, source mapping and checked lifecycles. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems; these have not yet been extended to the new outbound/OG writes. It is
-not yet the complete subsystem. Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
+not yet the complete subsystem. The [invariant-extension analysis](Outbound.md#invariant-extension-captured-entry-prerequisite)
+now proves the outbound map-helper uniqueness laws and acquisition-capture
+validity across all `OutboundMachine` interleavings and each peer-job step. It also demonstrates why a
+heap-only supply theorem needs that frame-validity evidence; the subsystem and
+combined supply lifts remain open. Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket
 close, map restoration, and the untimed TIME_WAIT finalizer. The earlier

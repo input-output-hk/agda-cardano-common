@@ -63,16 +63,18 @@ validSelection p (just e) m with lookup p m
 ...   | just reserved = does (e ≟ reserved)
 ...   | nothing = memberEntry e inner
 
+-- The alias filter is public so map-invariant proofs can share its exact term.
+differentEntry : EntryId → EntryId → Bool
+differentEntry x y with x ≟ y
+... | yes _ = false
+... | no _ = true
+
 -- Failure cleanup removes only aliases of this captured entry at this remote.
 removeAliases : PeerAddr → EntryId → ConnMap → ConnMap
 removeAliases p e m with lookup p m
 ... | nothing = m
-... | just inner = keep (filterᵇ (λ pair → notEqual (proj₂ pair) e) inner)
+... | just inner = keep (filterᵇ (λ pair → differentEntry (proj₂ pair) e) inner)
   where
-  notEqual : EntryId → EntryId → Bool
-  notEqual x y with x ≟ y
-  ... | yes _ = false
-  ... | no _ = true
   keep : Store LocalKey EntryId → ConnMap
   keep [] = delete p m
   keep xs = put p xs m
