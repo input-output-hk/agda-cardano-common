@@ -415,5 +415,16 @@ exit and reattachment. Cancellation and timeout readiness remain explicit inputs
 release caller returns and IG removes registration before pool closure. The
 remaining tracer and cleanup steps are rechecked after unregistration; the
 admission-derived attachment certificate survives. Negative controls separate
-registration removal from handler exit and socket closure. Subsequent IG batch
-consumption of the queued mux-finished event remains the next concrete step.
+registration removal from handler exit and socket closure. The subsequent batch is checked below.
+
+`CSP/RegistryBatch` extends that trace to 54 actions: IG drains the queued
+mux-finished notification, skips its absent registration, and returns to the
+batch boundary without another CM call. The identity certificate survives;
+`Negative/RegistryBatch` rejects replay and checks the distinct queue, read and
+batch-completion boundaries. This is a finite witness, not universal progress.
+
+`CSP/RegistryRegisteredFinish` checks the complementary registered-event fixture:
+IG captures the current mux, polls a stopped or failed status, then publishes
+removal. Negative CSP controls reject ready/stopping polls and skipped polling.
+This local fixture assumes an already-selected notification; connecting its
+producer to admission remains separate from the completed late-notification trace.

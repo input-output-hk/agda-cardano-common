@@ -343,12 +343,53 @@ the missing IG registration, and the final endpoint has an empty CM map, closed
 socket and completed cleanup. This is a finite possible interleaving, not a
 universal progress theorem or an implementation refinement proof.
 
+## Subsequent batch consumes the late notification
+
+`CSP/RegistryBatch` extends the early-return schedule to 54 visible actions.
+IG finishes the previous batch, samples time 12, registers an inactivity timer,
+selects the queued `muxFinished` notification, reads it, and finishes that batch.
+No timer-expiry event is required: the nonempty information queue supplies the
+batch. Explicit intermediate snapshots are checked against the existing rules.
+The trace projects to the open machine, and attachment identity is preserved
+from the admission-derived certificate through the six additional actions.
+
+`Negative/RegistryBatch` checks that selection drains the queue, reading the
+notification advances to an empty batch without a CM call or release frame, and
+registration remains absent. Polling a stopped mux is refused at that point.
+A full-prefix CSP non-trace excludes another read after the final batch boundary.
+The endpoint is `sampleTime`, not a claim that another batch is already enabled.
+This single finite schedule does not establish fairness or universal IG progress.
+
+## Registered mux-finished polling boundary
+
+`CSP/RegistryRegisteredFinish` checks the complementary registered branch from
+an explicit local fixture: a `muxFinished` notification is already selected into
+IG's batch and the registered descriptor names the mux being polled. Reading
+captures that mux in `waitStopped`. Both `stopped` and `failed err` permit polling
+and then decision publication; the failed case is quantified over the error.
+These are three-action registry CSP traces, not admission-derived schedules.
+
+`Negative/RegistryRegisteredFinish` rejects polling for `ready` and `stopping`
+muxes after the read prefix. Even a failed mux cannot bypass polling and commit
+immediately. Successful polling prepares a decision while retaining the current
+registration; only `commitDecision` publishes removal. Socket ownership remains
+and no inbound-release frame is introduced. These controls preserve the source
+branch's distinction between waiting for the mux and asking CM to release it.
+
+The fixture deliberately varies status independently of the already-selected
+notification. In particular, the ready/stopping controls do not prove that those
+combinations arise for the same invocation in a source execution. They test the
+polling guard, relevant also when a connection key resolves to a replacement mux.
+The current increment does not prove replacement reachability, trace a producer,
+or supply an admission-derived attachment certificate for this fixture.
+
 ## Validation and next step
 
 Run sequentially from the standalone library root:
 
 ```sh
-agda ConnectionManagement/Negative/RegistryReturn.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/RegistryBatch.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/RegistryRegisteredFinish.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS
 ```
 
@@ -357,7 +398,7 @@ the 2 GB Agda heap. The checked version uses explicit snapshots and local transi
 equalities; it passes with the same heap limit. No checker limit or theorem premise
 was relaxed.
 
-Next, follow IG into its subsequent batch and check consumption of the queued
-`muxFinished` event after unregistration, separately from retained origin identity.
+Next, connect the registered-finish fixture to an admission-derived producer
+execution, preserving startup notification ordering and CM-call boundaries.
 Lifecycle/reuse policies, query/error profiles, interruption constraints and
 concrete source replay remain separate obligations.
