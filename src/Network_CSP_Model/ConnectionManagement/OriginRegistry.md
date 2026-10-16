@@ -108,12 +108,12 @@ sequenceDiagram
   participant J as Second handler
   participant R as Origin registry
   A->>A: Take map, count, allocate promise, select entry, fork
-  H->>R: Allocate handle 0; register pending ticket
+  H->>R: Allocate handle 0 and register pending ticket
   A->>A: Restore map and read counters
   B->>B: Take map, count, allocate promise, select entry, fork
   Note over H,R: First ticket remains pending throughout second admission
   B->>B: Restore map and read counters
-  J->>R: Allocate handle 1; register pending ticket
+  J->>R: Allocate handle 1 and register pending ticket
   J->>R: Publish handle 1
   H->>R: Publish handle 0
 ```
