@@ -208,12 +208,147 @@ entry exists. Earlier ownership-swap and duplicate-identity controls are importe
 This excludes a repeated success in this monitor profile, not every source
 publication-fault or query/error outcome.
 
+## Publication-to-attachment identity
+
+`Properties/RegistryAttachment.publication-attachment` starts with a supported
+registry prefix and an accepted successful publication. It permits arbitrary
+accepted interleavings before a successful attachment and arbitrary accepted
+suffix actions afterward. Its result retains the publication's `Sound` certificate
+and an `Attached` certificate at the final machine state.
+
+`Attached` names the actual lifecycle frame, proves its lookup, and equates its
+captured mux with the publication ticket's mux. It also retains the reference chain
+for that mux and the exact allocated handle descriptor. `chain-mux` derives mux
+identity from functional handler, promise and handle lookups: two chains for the
+same worker cannot silently choose different muxes.
+
+The construction reuses `publication-creates`, exhaustive chain preservation,
+`attach-established`, tracked-chain preservation and origin preservation. It does
+not require fresh resource premises for unrelated allocations in the interleaving;
+it protects the already-certified invocation. Registry and open-machine guards
+still check every action. The theorem does not certify all other invocations
+without their own resource evidence.
+
+`CSP/RegistryAttachment.raw-attachment` recovers the concrete registry prefix and
+publication/attachment schedule from visible CSP executions, retaining both
+actual process endpoints. The result is conditional on support for the recovered
+prefix. A successful attachment is an explicit premise, not a conclusion of
+origin validity. Neither readiness nor eventual attachment is proved.
+
+`Negative/RegistryAttachment` uses the admission-derived prefix for the second
+handler's publication. During its delay, the first handler publishes and attaches.
+After the second handler attaches, CM reads the first handler's handshake result.
+The theorem retains the second handler's exact mux identity through this nonempty
+delay and suffix. A negative proof excludes a certificate naming the other
+handler's mux; a step control confirms that another attachment is refused even
+while origin and tracked-reference evidence remain valid.
+
+## Exit and cleanup preserve identity, not activity
+
+`Properties/RegistryCleanup.open-preserves` retains an existing `Attached`
+certificate across every successful finite dispatcher execution.
+`registry-preserves` obtains the same result by erasing a registry execution.
+The proof reuses tracked-chain, reference-chain and origin preservation, and
+reconstructs the exact ticket-mux equality. It requires an initial attachment
+certificate, not a promise that the handler remains active.
+
+`CSP/RegistryCleanup.raw-preserves` retains the actual endpoint and its attachment
+certificate for any finite raw registry CSP execution. It accepts a certified
+initial state; it does not infer certification from a pre-seeded phase or require
+that initial state to be `start c`.
+
+`Negative/RegistryCleanup` wraps the existing asynchronous lifecycle fixture with
+one published registry entry. Its initial attachment certificate is checked by
+explicit lookups. The complete 14-action continuation is rechecked through the
+registry: cancellation delivery, job-pool closure, mux failure publication,
+synchronous tracer sampling/commit, rethrow completion, handler exit, map take,
+cleanup selection, socket close, map publication, TIME_WAIT readiness, finalization
+and cleanup counter read.
+
+At the final endpoint, the attachment certificate coexists with:
+
+- Mux status `failed` and a socket recorded as `closed`.
+- A retained CM heap entry recorded as `terminated` and an empty CM map.
+- Cleanup PC `cleanupDone cleanupNormal`.
+- A retained lifecycle frame with phase `finalizing` and the original captured mux.
+
+Negative controls rule out `ready` mux status and `handling` socket ownership at
+that endpoint. Both reattachment and repeated handler exit are refused. These
+facts show why the certificate must not be used as a readiness or progress test.
+The source-model profile retains its lifecycle frame and registry entry; this
+increment adds neither frame reclamation nor identity recycling.
+
+This cleanup instance is conditional on the existing certified lifecycle fixture.
+It does **not** connect the two-admission publication witness to that fixture: the
+intervening IG registration and inbound-release trace is supplied for one
+invocation by the separate composition below. TIME_WAIT readiness is an untimed event, and job-pool/tracer boundary
+completions are explicit inputs; the witness is not a universal cleanup-liveness
+proof or a source implementation refinement theorem.
+
+## Admission-to-cleanup composition
+
+`CSP/RegistryShutdown` closes the concrete prefix gap for **one invocation**.
+It starts at `CSP/Fixtures.start` with an empty registry, derives resource evidence
+from selection/fork, allocates the attributed handle, and only then publishes it.
+It continues through CM result consumption and inbound notification, six IG
+registration steps, a subsequent timer batch, release transaction/counter read,
+cancellation request, attachment, cancellation delivery, unwind and CM cleanup.
+The complete registry schedule has exactly 45 visible actions and projects to a
+trace of the unchanged open machine.
+
+The older `CSP/IGRegistration.lifecycle` trace published before abstract handle
+allocation, so it was not reused wholesale. The new trace uses the allocation-first
+admission prefix and rechecks the remaining registration snapshots after allocation.
+Parent/handshake snapshots are also rechecked without prematurely attached
+lifecycle frames. No generic commutation or erasure law is assumed for those
+snapshot transformations.
+
+`result` applies `publication-attachment` to this supported admission prefix and
+the complete intervening registration/release schedule. The final `Attached`
+certificate at `Life.doneCleanup` is derived, not supplied as an initial lookup
+record. The earlier conditional cleanup witness remains useful as a small local
+control, but its pre-seeded certificate is not a premise of this composition.
+
+`Negative/RegistryShutdown` proves full-prefix CSP non-traces for premature handler
+exit immediately after cancellation delivery and reattachment after the complete
+shutdown. It also derives final registry uniqueness from reachability and checks
+the closed socket, empty map and completed cleanup at the actual endpoint.
+
+This is an existential finite execution from an **accepted-socket** fixture. It
+does not model the source `accept()` prefix, does not join both handlers from the
+two-admission witness, and does not prove eventual cancellation or cleanup. Timer
+readiness, cancellation delivery, pool closure, tracer completion and TIME_WAIT
+readiness remain explicit modeled boundaries. The originating success-profile
+assumptions and source identity/projection obligations remain unchanged.
+
+## Release returns before unwind
+
+`CSP/RegistryReturn` adds a second admission-derived shutdown schedule with 48
+visible actions. After cancellation delivery, the caller checks its assertion,
+returns to IG, and IG commits its registration-removal decision **before** the
+handler closes its job pool. The remaining unwind and cleanup transitions are
+rechecked with the returned caller state and the updated IG publication. These
+snapshot substitutions are not assumed to commute with arbitrary execution.
+
+The schedule is a registry CSP trace and projects to an open-machine trace.
+Its terminal attachment certificate is derived from the same supported admission
+and publication prefix. Removal from IG's current connection table does not erase
+the historical origin certificate or the registry entry.
+
+`Negative/RegistryReturn` checks the separate boundaries: return alone retains
+registration; IG's commit removes it while the pool is still closing, the socket
+is owned, and cleanup has not started. Handler exit at that reachable prefix is
+refused. The subsequent mux tracer successfully enqueues `muxFinished` despite
+the missing IG registration, and the final endpoint has an empty CM map, closed
+socket and completed cleanup. This is a finite possible interleaving, not a
+universal progress theorem or an implementation refinement proof.
+
 ## Validation and next step
 
 Run sequentially from the standalone library root:
 
 ```sh
-agda ConnectionManagement/Negative/RegistryPublication.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/RegistryReturn.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS
 ```
 
@@ -222,8 +357,7 @@ the 2 GB Agda heap. The checked version uses explicit snapshots and local transi
 equalities; it passes with the same heap limit. No checker limit or theorem premise
 was relaxed.
 
-Next, connect the publication certificate to attachment and its tracked mux
-reference, using the same registered invocation through arbitrary accepted
-interleavings.
+Next, follow IG into its subsequent batch and check consumption of the queued
+`muxFinished` event after unregistration, separately from retained origin identity.
 Lifecycle/reuse policies, query/error profiles, interruption constraints and
 concrete source replay remain separate obligations.

@@ -597,3 +597,28 @@ unique pending registry entry, matching handle/flow, published successor and
 exact descriptor origin before and after the step. Its CSP theorem retains both
 actual endpoints and the prefix resource premise. Both admission-derived
 publications instantiate the theorem; repeated-success certificates are excluded.
+
+`Properties/RegistryAttachment` connects a supported publication to successful
+attachment across arbitrary accepted interleavings, retaining the exact ticket
+mux in the lifecycle frame and preserving origin through the suffix. Its CSP
+counterpart retains actual endpoints. The two-handler witness includes another
+attachment during the delay and a CM read afterward; readiness is not inferred.
+
+`Properties/RegistryCleanup` preserves an attachment certificate across every
+successful dispatcher or registry continuation. A checked registry shutdown
+witness ends with a failed mux, closed socket, terminated entry and removed map
+binding while retaining the certificate. This local fixture is conditional; the
+separate composition below supplies an admission-to-cleanup prefix.
+
+`CSP/RegistryShutdown` now connects one allocation-first admission to IG
+registration, inbound release and cleanup in a 45-action registry trace.
+Its terminal attachment certificate comes from selection/fork and publication,
+without a pre-seeded certificate. Full-prefix negative controls reject premature
+exit and reattachment. Cancellation and timeout readiness remain explicit inputs.
+
+`CSP/RegistryReturn` adds a 48-action admission-to-cleanup trace in which the
+release caller returns and IG removes registration before pool closure. The
+remaining tracer and cleanup steps are rechecked after unregistration; the
+admission-derived attachment certificate survives. Negative controls separate
+registration removal from handler exit and socket closure. Subsequent IG batch
+consumption of the queued mux-finished event remains the next concrete step.
