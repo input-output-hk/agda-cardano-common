@@ -210,19 +210,56 @@ frames. Protocol actions change only peer/IG state; CM acquisition and release
 calls reuse the runtime preservation theorem. Failure, timeout and exception
 policy paths are included, with no assumptions on the job frame or action.
 
-The remaining lift is through `Subsystem.Executes`, followed by the combined
-supply invariant. This result covers acquisition captures, not
-release-frame validity, ownership, map uniqueness of all reachable states, or
-supply preservation for every dispatcher step. Existing inbound theorem
-statements and transition rules remain unchanged.
+[`Properties/SubsystemCapture`](Properties/SubsystemCapture.agda) now covers
+**every successful subsystem action and arbitrary finite `Subsystem.Executes`**.
+`from-initial` derives capture validity from `Subsystem.initial
+(OutboundMachine.initial c) governor`, with no initial acquisition-frame premise.
+`Negative/OutboundSupply.forged-not-a-subsystem-execution` consequently excludes
+the forged frame even with governor/job/monitor interleavings.
+
+[`Properties/SubsystemSupply`](Properties/SubsystemSupply.agda) proves the
+combined entry/promise allocation-supply invariant. Its closed induction
+predicate pairs capture validity with the existing `SupplyBounds`:
+
+- `advance-bounds` and `exec-bounds` preserve the unchanged heap bounds from an
+  arbitrary configuration when capture validity and heap bounds both hold.
+- `from-initial` needs only `SupplyBounds` for the initial shared world; the real
+  nested initializer supplies capture validity. Every allocated entry and promise
+  identity stays strictly below its corresponding current supply throughout
+  arbitrary finite executions.
+
+This does not require release-frame validity: release writes look up their entry
+or use the checked pruning-edit helper. Acquisition cleanup is the distinct case
+where the source writes a captured entry without looking it up; its bound is
+obtained from the capture invariant. Fresh entry/promise allocations advance
+supplies and lift the previous bounds. The original heap-only counterexample
+still refutes unconditional preservation from arbitrary injected frames.
+
+The proof layers are [`OutboundAcquireSupply`](Properties/OutboundAcquireSupply.agda),
+[`OutboundReleaseSupply`](Properties/OutboundReleaseSupply.agda), and
+[`OutboundRuntimeSupply`](Properties/OutboundRuntimeSupply.agda). Shared
+[`PeerJobInvariant`](Properties/PeerJobInvariant.agda) and
+[`SubsystemInvariant`](Properties/SubsystemInvariant.agda) lifts avoid repeating
+administrative-action cases between the capture and combined-supply instances.
+`PeerJobCapture` retains its original public proof API through specialization.
+
+[`Negative/SubsystemSupply`](Negative/SubsystemSupply.agda) applies the general
+supply theorem to the existing lifecycle, child-before-registration race, and
+six-failure/forgetting paths. It also rejects the forged certificate and excludes
+the forged post-state from executions with initially bounded heaps.
+
+Exclusive map-lease ownership is now covered by the separate theorem below.
+Current and captured map uniqueness is covered by its separate theorem below.
+Whole-runtime reference validity remains open. These additions do not extend the Haskell replay or
+establish source refinement, infinite-execution liveness, or deadlock freedom.
 
 [`Properties/OutboundMapUniqueness`](Properties/OutboundMapUniqueness.agda)
 proves nested key uniqueness for both outbound `updateLocal` branches and
 `removeAliases`, including deletion of empty buckets. It reuses the existing
 store lemmas and the standard library's filtering theorem. The alias predicate
 was moved from a local definition to `differentEntry` so proofs share its exact
-term; its cases and the transition behavior are unchanged. These are map-helper
-lemmas, not yet a combined-dispatcher map or ownership invariant.
+term; its cases and the transition behavior are unchanged. These map-helper laws are reused by the state-level map uniqueness invariant
+below; by themselves they make no claim about captured maps or executions.
 
 Check these additions from the library root, sequentially:
 
@@ -232,7 +269,10 @@ agda ConnectionManagement/Properties/OutboundSupply.agda +RTS -M2G -RTS
 agda ConnectionManagement/Properties/OutboundCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/Properties/OutboundRuntimeCapture.agda +RTS -M2G -RTS
 agda ConnectionManagement/Properties/PeerJobCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/SubsystemCapture.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/SubsystemSupply.agda +RTS -M2G -RTS
 agda ConnectionManagement/Negative/OutboundSupply.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemSupply.agda +RTS -M2G -RTS
 ```
 
 The three new endpoints passed with Agda 2.8.0 and `+RTS -M2G -RTS`,
@@ -251,13 +291,168 @@ The subsequent runtime lift and its acquisition/release retention dependencies
 also passed Agda 2.8.0 with the 2 GB limit and explicit `Checking` lines; the
 updated negative endpoint passed again. The four-file audit found one lexical
 match, the `≤?` comparison in the release capacity proof, not a hole. No axioms,
-unsafe options or new transition edits were introduced. Full subsystem capture
-preservation and general ownership/supply invariants remain unproved.
+unsafe options or new transition edits were introduced. At that checkpoint full
+subsystem capture preservation and general ownership/supply invariants were
+still unproved; the 19 October extension above establishes capture and supply
+preservation for the current subsystem.
 
 The peer-job lift passed Agda 2.8.0 with `+RTS -M2G -RTS` and an explicit
 `Checking` line. Its local proof audit reported zero findings. The existing
 `Negative/Subsystem` and `Negative/OutboundSupply` endpoints also exited 0
 using cached interfaces. This addition changes no transition rules.
+
+On 19 October 2026 the subsystem capture and supply layers and their local
+acquisition/release proofs passed Agda 2.8.0 with `+RTS -M2G -RTS` and explicit
+`Checking` output. `Negative/OutboundSupply` passed with the new subsystem
+exclusion. The new `Negative/SubsystemSupply` endpoint passed its lifecycle,
+registration-race, failure-limit, and forged-state applications. Its first
+sandboxed attempt failed while writing the external `csp-ptree` interface cache;
+the approved rerun refreshed those interfaces and exited 0. No dependency source
+was edited and no cache purge was performed.
+
+The existing `Negative/Outbound`, `CSP/OutboundReleaseScenarios`, and
+`Negative/GovernorFailureLimit` endpoints then exited 0 with cached interfaces.
+The ten-file local audit reported four inspected lexical matches, all `≤?`
+comparisons. There are no added postulates, holes or unsafe options in this
+extension; this is not a transitive term-level axiom audit. `git diff --check`
+passed. Source replay was not rerun because executable transition rules and
+replay patches were unchanged.
+
+## Combined exclusive map ownership
+
+[`Properties/SubsystemOwnership`](Properties/SubsystemOwnership.agda) now proves
+preservation of the existing `Ownership` proposition through every successful
+`Subsystem.advance` and arbitrary finite `Subsystem.Executes`. `from-initial`
+requires only ownership of the initial shared world; it has no capture-validity,
+allocation-bound, store-uniqueness, or scheduling premise.
+
+The exact census is unchanged: a full map has no lease claimant; a taken map has
+exactly one admission/cleanup continuation claiming it, whose worker equals the
+captured lease owner and the map-cell owner. Outbound continuations do not claim
+map leases. Fresh reservations, address updates, and error cleanup preserve a
+full map; other outbound edits preserve the map cell and lease-bearing
+continuations. Entry writes may occur while another worker holds the map.
+Release/pruning retains the map cell, reusing the checked atomic-edit law.
+
+The component proofs are
+[`OutboundAcquireOwnership`](Properties/OutboundAcquireOwnership.agda),
+[`OutboundReleaseOwnership`](Properties/OutboundReleaseOwnership.agda), and
+[`OutboundRuntimeOwnership`](Properties/OutboundRuntimeOwnership.agda).
+[`PeerJobOwnership`](Properties/PeerJobOwnership.agda) and the subsystem endpoint
+specialize the existing generic lifts. The earlier inbound ownership statement
+and all executable transition rules retain their original definitions.
+
+[`Negative/SubsystemOwnership`](Negative/SubsystemOwnership.agda) applies the
+general theorem to the lifecycle, child-before-registration race, and failure-limit
+paths. A conditional fixture executes a socket-open error while inbound cleanup
+owns the map, preserving that worker's lease; an attempted outbound selection is
+unavailable while the map is held. The fixture's source reachability is not
+asserted. The forged supply-counterexample cleanup also preserves ownership,
+showing why ownership and captured-entry/supply validity are distinct properties.
+
+The endpoint additionally rejects orphan, full-with-lease, double-claim, and
+wrong-owner shared worlds embedded in the actual subsystem configuration, and
+proves them unreachable from initially owned subsystem executions. It does not
+prove that every owned state is well formed: saved-map contents, socket ownership,
+freshness, map uniqueness, and general runtime/reference validity remain outside
+this ownership predicate. No eventual-release or liveness theorem follows.
+
+Validation on 19 October 2026, sequentially from the library root:
+
+```sh
+agda ConnectionManagement/Properties/OutboundAcquireOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundRuntimeOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/PeerJobOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemOwnership.agda +RTS -M2G -RTS
+```
+
+All six new modules, including transitive `OutboundReleaseOwnership` and
+`SubsystemOwnership`, passed Agda 2.8.0 with explicit `Checking` output. The
+six-file local audit found one lexical match, the inspected `≤?` capacity
+comparison. No holes, postulates, unsafe options, or weakened existing theorems
+were added. This is not a transitive term-level axiom audit. `git diff --check`
+passed; no source replay or unrelated heavy proof build was performed.
+
+## Current, saved, and prospective map uniqueness
+
+[`Properties/StateMapUniqueness`](Properties/StateMapUniqueness.agda) defines
+`Valid` over all maps that can become the current map:
+
+- The current map when its cell is full (`CellUnique`). A taken cell contains no
+  current map, so the remaining components must account for captured maps.
+- Every admission continuation's saved lease map (`AdmissionMaps`).
+- Every cleanup continuation's saved lease map and, in `cleanupClose` and
+  `cleanupPublish`, its separate prospective output map (`CleanupMaps`).
+
+The continuation predicates enumerate every PC. Certificates traverse all stored
+bindings, including shadowed worker keys; unique admission/cleanup store keys are
+not assumed. `MapUnique` retains its existing meaning: unique remote keys and
+unique local keys within each bucket. Distinct keys may still alias an entry.
+This property does not validate entry references or prove heap-key uniqueness.
+
+[`Properties/SubsystemMapUnique`](Properties/SubsystemMapUnique.agda) proves
+`advance-preserves` and `exec-preserves` for every successful subsystem action
+and arbitrary finite interleavings. `from-initial` requires only `Valid` of the
+initial shared world; no ownership, supply-bound, capture-validity, or scheduling
+premise is added. For the actual empty-map fixture with lease-free workers,
+`Negative/SubsystemMapUnique.initial-unique` derives that premise directly.
+
+The inbound component proofs are
+[`MapUniqueAdmission`](Properties/MapUniqueAdmission.agda),
+[`MapUniqueCleanup`](Properties/MapUniqueCleanup.agda),
+[`MapUniqueHandshake`](Properties/MapUniqueHandshake.agda), and
+[`MapUniqueInvariant`](Properties/MapUniqueInvariant.agda). Taking a map transfers
+its uniqueness certificate into a lease; cleanup selection derives a unique
+prospective map by identity-guarded deletion. Publication uses the prospective
+map's certificate, while failure restoration uses the original lease's.
+Outbound acquisition uses the existing insertion/address-update/alias-removal
+laws in [`OutboundAcquireMapUnique`](Properties/OutboundAcquireMapUnique.agda).
+[`OutboundReleaseMapUnique`](Properties/OutboundReleaseMapUnique.agda),
+[`OutboundRuntimeMapUnique`](Properties/OutboundRuntimeMapUnique.agda), and
+[`PeerJobMapUnique`](Properties/PeerJobMapUnique.agda) complete the shared-state
+writer and job layers before the generic subsystem lift.
+
+[`Negative/SubsystemMapUnique`](Negative/SubsystemMapUnique.agda) derives
+certificates for the lifecycle, child-before-registration race, and six-failure
+paths. Its injected controls establish:
+
+- Restoring a duplicate-remote-key saved map refutes preservation from current-map
+  uniqueness plus exclusive lease ownership alone.
+- Publishing a duplicate-local-key prospective map refutes preservation even
+  when the current cell and every lease's saved map pass a weaker `LeaseOnly`
+  invariant. The fixture is also exclusively owned.
+
+These are enabled actual dispatcher transitions from injected malformed states;
+they are not source-reachable bugs. The full invariant rejects both inputs and
+proves them unreachable from initialized subsystem executions whose initial maps
+satisfy `Valid`. Neither input was rejected by adding a transition guard.
+
+On 19 October 2026, cleanup's map boundary was rechecked in `Core.hs:592–713` at
+network pin `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: `modifyTMVar` computes
+`state'`, closes the socket, and then returns the prospective map. This source
+inspection supports retaining both original and prospective maps in the model's
+proof obligations. It is not a new source replay or refinement theorem.
+
+Validation commands, sequentially from the library root:
+
+```sh
+agda ConnectionManagement/Properties/MapUniqueAdmission.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/MapUniqueCleanup.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/MapUniqueHandshake.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/MapUniqueInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundRuntimeMapUnique.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/PeerJobMapUnique.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemMapUnique.agda +RTS -M2G -RTS
+```
+
+All eleven new modules passed Agda 2.8.0 with explicit `Checking` output and the
+2 GB heap limit, including transitive helper and subsystem endpoints. The local
+proof audit's two lexical matches were inspected `≤?` comparisons. No holes,
+postulates, unsafe options, or changes to existing theorem statements were added.
+The existing ownership and supply endpoints also passed using cached interfaces.
+This is not a transitive term-level axiom audit; no Haskell replay or unrelated
+heavy proof rebuild was performed. General runtime/reference validity remains
+open, and these structural invariants do not complete the design's G1/G2 gates.
 
 ## Checked witnesses and their limits
 
@@ -425,7 +620,7 @@ termination options. This is a local source audit, not a term-level audit of all
 external library assumptions. Long witnesses use explicit snapshots and checked
 local transitions to keep elaboration within the 2 GB heap limit.
 
-Remaining work includes combined runtime-validity and identity-supply invariants,
+Remaining work includes broader combined runtime/reference validity invariants,
 source replay, bounded exploration with explicit cutoffs, full handler/transport
 execution, general exception unwinding and supervision, and Server's accept/rate
 control front end. Valid symbolic identities, admissible IO/policy inputs and

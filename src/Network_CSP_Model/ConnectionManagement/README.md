@@ -9,12 +9,18 @@ ordinary-peer OG, peer jobs/monitoring, handler cleanup, IG batches/registration
 and selected mux/tracer behavior**. [Outbound.md](Outbound.md) describes the new
 combined dispatcher, source mapping and checked lifecycles. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
-theorems; these have not yet been extended to the new outbound/OG writes. It is
-not yet the complete subsystem. The [invariant-extension analysis](Outbound.md#invariant-extension-captured-entry-prerequisite)
-now proves the outbound map-helper uniqueness laws and acquisition-capture
-validity across all `OutboundMachine` interleavings and each peer-job step. It also demonstrates why a
-heap-only supply theorem needs that frame-validity evidence; the subsystem and
-combined supply lifts remain open. Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
+theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
+now covers every successful `Subsystem.advance` and arbitrary finite
+`Subsystem.Executes`, including outbound/OG writes. From the real nested
+initializer, it requires only the initial shared world's entry/promise bounds;
+acquisition-capture validity is derived.
+[Exclusive map-lease ownership](Outbound.md#combined-exclusive-map-ownership)
+also holds through every successful subsystem action and arbitrary finite
+execution, requiring only the initial ownership premise.
+[Current and captured map uniqueness](Outbound.md#current-saved-and-prospective-map-uniqueness)
+also holds across the combined dispatcher, including saved lease maps and cleanup
+prospective maps. General runtime/reference validity still needs extension.
+Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket
 close, map restoration, and the untimed TIME_WAIT finalizer. The earlier
@@ -261,7 +267,18 @@ allocation followed by supply increment preserves the bound. Applied to
 `freshInbound`, unique heap keys and this bound guarantee a successful allocation
 whose heap remains unique and bounded. The generic lemmas apply to typed ID
 stores. The reachable allocation-bound proof below covers promise allocation and
-the complete current dispatcher; whole-machine uniqueness is still separate.
+the complete current dispatcher; uniqueness of other stores remains separate.
+
+[Properties/SubsystemMapUnique.agda](Properties/SubsystemMapUnique.agda) now
+preserves nested-map uniqueness through every successful subsystem action and
+arbitrary finite executions. Its initial premise covers the current full map,
+every saved lease map, and cleanup's prospective output maps. It adds no
+ownership, allocation-bound, or unique worker-store premise. The
+[map-uniqueness report](Outbound.md#current-saved-and-prospective-map-uniqueness)
+describes the component proofs and counterexamples to weaker premises;
+[Negative/SubsystemMapUnique.agda](Negative/SubsystemMapUnique.agda) checks both
+malformed-map controls and existing lifecycle/race/failure paths. This is distinct
+from unique entry aliases, valid map references, or unique keys in other stores.
 
 [Negative/Freshness.agda](Negative/Freshness.agda) checks a unique heap containing
 a future ID: the current ID is unused and one allocation succeeds, but the next
@@ -345,6 +362,15 @@ there is no restriction to a selected action set or schedule. Supporting modules
 [OwnershipCleanup](Properties/OwnershipCleanup.agda), and
 [OwnershipHandshake](Properties/OwnershipHandshake.agda) cover the remaining
 branches. Handler publication/exit retain their existing abstract-boundary semantics.
+
+[Properties/SubsystemOwnership.agda](Properties/SubsystemOwnership.agda) now
+extends the same ownership proposition to all outbound/OG subsystem actions and
+arbitrary finite interleavings. It reuses the inbound proof and adds outbound
+acquisition/release, peer-job, and subsystem lifts. No capture-validity or supply
+premise is required. [The outbound report](Outbound.md#combined-exclusive-map-ownership)
+records the exact component statements, held-map interleaving fixture, four
+malformed-state exclusions, and validation. Saved-map validity, socket ownership,
+and map uniqueness remain separate.
 
 [CSP/Ownership.agda](CSP/Ownership.agda) retains the narrower action-family lemmas.
 [CSP/OwnershipInvariant.agda](CSP/OwnershipInvariant.agda) transfers the complete

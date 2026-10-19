@@ -120,3 +120,11 @@ forged-not-an-outbound-execution : ∀ c actions →
   ¬ O.Executes (O.initial c) actions before
 forged-not-an-outbound-execution c actions path with RuntimeCapture.from-initial path
 ... | valid ∷ rest = forged-capture-invalid valid
+
+import ConnectionManagement.Properties.SubsystemCapture as SubsystemCapture
+
+-- Governor/job/monitor interleavings cannot produce the injected capture.
+forged-not-a-subsystem-execution : ∀ c s actions →
+  ¬ G.Executes (G.initial (O.initial c) s) actions subBefore
+forged-not-a-subsystem-execution c s actions path with SubsystemCapture.from-initial path
+... | valid ∷ rest = forged-capture-invalid valid

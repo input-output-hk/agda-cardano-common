@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
 -- The two outbound map writers preserve nested key uniqueness. This is a
--- helper-level theorem, not yet an invariant of either combined dispatcher.
+-- helper layer reused by the current/captured-map dispatcher invariants.
 module ConnectionManagement.Properties.OutboundMapUniqueness where
 
 open import Data.Bool using (Bool; true; false; T?)
