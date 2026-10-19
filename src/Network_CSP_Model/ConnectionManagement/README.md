@@ -19,7 +19,12 @@ also holds through every successful subsystem action and arbitrary finite
 execution, requiring only the initial ownership premise.
 [Current and captured map uniqueness](Outbound.md#current-saved-and-prospective-map-uniqueness)
 also holds across the combined dispatcher, including saved lease maps and cleanup
-prospective maps. General runtime/reference validity still needs extension.
+prospective maps. [Entry-reference validity](Outbound.md#entry-references-in-current-saved-and-prospective-maps)
+now covers those maps too, with an additional pending-publication certificate.
+[Existing handler entry/socket records](Outbound.md#existing-handler-entry-and-socket-records)
+are also preserved across every finite combined execution, conditional on their
+initial presence. This is historical record retention; wider handler/runtime
+validity still needs extension.
 Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket
@@ -200,8 +205,15 @@ by key alone when processing an old handshake result.
 `MapReferences` expresses lookup validity through both levels of the connection
 map, including unknown-local reservations. General lemmas show that entry overwrite
 preserves all existing references, and every successful-result decision preserves
-the map cell and any previously valid map references. These are local preservation
-results, not a complete validity invariant for admission and cleanup.
+the map cell and any previously valid map references. The separate
+[`SubsystemMapReferences`](Properties/SubsystemMapReferences.agda) invariant now
+checks current, saved, and prospective maps structurally across all finite
+combined-subsystem executions, including shadowed bindings. Its initial premise
+also certifies entries awaiting admission publication; it implies the unchanged
+`CounterStateValid` predicate. See the
+[proof scope and negative controls](Outbound.md#entry-references-in-current-saved-and-prospective-maps).
+Broader handler/runtime
+validity remains open.
 
 Handshake witnesses cover normal admission-to-return, early publication before the
 map is restored, non-consuming reads, duplicate-write exception outcomes, successful

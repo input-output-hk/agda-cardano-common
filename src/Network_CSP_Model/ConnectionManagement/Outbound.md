@@ -454,6 +454,165 @@ This is not a transitive term-level axiom audit; no Haskell replay or unrelated
 heavy proof rebuild was performed. General runtime/reference validity remains
 open, and these structural invariants do not complete the design's G1/G2 gates.
 
+## Entry references in current, saved, and prospective maps
+
+[`Properties/StateMapReferences`](Properties/StateMapReferences.agda) supplies an
+inductive certificate over the current map and every saved/prospective map in
+admission and cleanup continuations. It uses structural `CounterReferences`, so
+shadowed association-list bindings are checked too. No map/store-key uniqueness,
+lease-ownership or supply-bound premise is needed.
+
+Map validity alone is insufficient for induction: admission's `publish` PC can
+insert its captured entry without looking it up. The new certificate additionally
+requires `Present e heap` at `forkHandler` and `publish` PCs. Successful selection
+establishes this fact in
+[`AdmissionAllocation`](Properties/AdmissionAllocation.agda); heap-retention laws
+transport it across interference. This is a separate induction predicate, not a
+change to the existing `CounterStateValid` type or executable transition rules.
+
+[`Properties/SubsystemMapReferences`](Properties/SubsystemMapReferences.agda)
+proves `advance-preserves` and `exec-preserves` for all successful combined actions
+and arbitrary finite executions. `from-initial` needs only the new certificate
+for the initial shared world. Through
+[`MapReferencesCounters`](Properties/MapReferencesCounters.agda),
+`from-initial-counter-valid` derives the unchanged `CounterStateValid` for every
+such execution. `current-count-total` in the bridge module proves that a full
+current map has a successful structural counter traversal; it does not establish
+whole-action enablement or eventual progress.
+
+The component chain uses [`MapReferenceLaws`](Properties/MapReferenceLaws.agda),
+`MapReferencesAdmission`, `MapReferencesCleanup`, `MapReferencesHandshake`,
+`MapReferencesInvariant`, `OutboundAcquireMapReferences`,
+`OutboundReleaseMapReferences`, `OutboundRuntimeMapReferences`, and the existing
+exhaustive generic subsystem lift. `PeerJobMapReferences` separately exports its
+peer-job specialization. Heap writes retain pointers even when their connection
+values change; map publication checks the actual prospective output, while
+failure restoration checks the original lease.
+
+[`Negative/SubsystemMapReferences`](Negative/SubsystemMapReferences.agda)
+applies the general theorem to the lifecycle, child-before-registration race,
+and six-failure paths. Its injected controls check malformed current and saved
+maps, an independently malformed cleanup output map with a good empty saved map,
+and a forged admission-publication frame with a missing captured entry. The last
+frame has valid retained maps, exclusive ownership and unique maps, yet the actual
+subsystem dispatcher publishes a dangling binding. This refutes preservation from
+`CounterStateValid` alone on arbitrary frames. The stronger certificate rejects
+the input and excludes it, its dangling output, and the bad pending cleanup map
+from initialized executions whose initial world satisfies that certificate.
+These injections are not source-reachable defect claims.
+
+Source fidelity was rechecked on 19 October 2026 at network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, `Core.hs:815–892`: inbound
+selection creates or reuses a mutable entry before the handler fork, and
+`State.insert` publishes the returned mutable entry. Cleanup's original versus
+prospective map boundary was checked separately above. These inspections support
+the proof obligations; they do not establish Haskell-to-Agda refinement.
+
+Validation on 19 October 2026 used Agda 2.8.0 with one process at a time:
+
+```sh
+agda ConnectionManagement/Properties/MapReferencesInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundRuntimeMapReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/PeerJobMapReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemMapReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemMapUnique.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemOwnership.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemSupply.agda +RTS -M2G -RTS
+```
+
+All fourteen new modules passed, with explicit `Checking` output across the
+incremental component and endpoint checks. The three existing regression
+endpoints also exited 0 with their own `Checking` lines; unchanged dependency
+interfaces were reused. The fifteen-file local audit, including the existing
+`CounterState` scope-comment update, reported two inspected `≤?` comparison-token
+false positives. No holes, postulates, unsafe options, or old theorem-type changes
+were introduced. This is not a transitive term-level axiom audit. `git diff --check` passed; no Haskell replay or unrelated heavy network build was run.
+
+This completes the entry-reference substep of CM-I4c. General handler/runtime
+validity, including admission PCs after publication, promise/handler/socket
+coherence and installed descriptors, remains separate. The new invariant only
+certifies references in retained maps and the two admission PCs that can publish
+an entry. It does not complete the design's G1/G2 gates.
+
+## Existing handler entry and socket records
+
+[`Properties/SubsystemResources`](Properties/SubsystemResources.agda) now proves
+`resources-step` and `resources-exec` for the unchanged `HandlerResources.Resources`
+predicate through every successful combined action and arbitrary finite
+`Subsystem.Executes`. The initial premise is an existing handler with a stored
+entry and socket. No ownership, supply, unique-store, action-subset or scheduling
+premise is added. The observed worker need not be the acting caller or child.
+
+[`HandlerResourceFacts`](Properties/HandlerResourceFacts.agda) fixes the exact
+original `HandlerStart` descriptor throughout the induction. `For q captured`
+exports `advance-preserves` and `exec-preserves` for this stronger fixed-descriptor
+statement. Public wrappers recover `Resources` without changing its definition.
+The proof covers entry overwrites, socket open/close/close-failure writes, fresh
+handler insertion, reservation removal, pruning, timeout and cancellation.
+Outbound fork's absent-child guard preserves every existing handler lookup;
+entry and socket writes preserve presence while allowing values to change.
+
+The component proofs are
+[`OutboundAcquireResources`](Properties/OutboundAcquireResources.agda),
+[`OutboundReleaseResources`](Properties/OutboundReleaseResources.agda), and
+[`OutboundRuntimeResources`](Properties/OutboundRuntimeResources.agda).
+The runtime layer reuses the exhaustive inbound effects in
+`HandlerDispatcherInterference`; `PeerJobResources` and `SubsystemResources`
+specialize the existing generic lifts for all peer jobs, monitors and OG actions.
+No executable rule, new guard or earlier theorem type was changed.
+
+The source-fidelity review's concern about historical stores was rechecked before
+this extension. `Rules/Cleanup` writes closed/uncertain socket values and terminal
+entry values while retaining stored identities. At network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, `Core.hs:1435–1464,1527–1535`
+describes transfer of socket cleanup from `bracketOnError` to the forked handler;
+`Core.hs:625–661` closes the socket and conditionally removes the live CM binding.
+The model's historical resource records are not a claim about Haskell object
+lifetime. In particular, stored socket presence does not imply an open socket,
+correct socket ownership, current map membership or current IG registration.
+This preserves the review's substantive limitation, rather than treating the new
+combined coverage as a resolution of source-lifetime modeling.
+
+[`Negative/SubsystemResources`](Negative/SubsystemResources.agda) applies the
+general theorem to the existing lifecycle suffix from the real outbound fork,
+and to the child-before-parent-registration race suffix. It lifts the conditional
+timeout/cancellation and self-pruning release paths through the actual subsystem
+core. Injected error continuations check successful socket close, throwing close,
+and reservation removal. These controls still have resource certificates when
+the socket is closed and the CM map is empty, making the historical-record scope
+explicit. A reused child is refused by the existing fork guard; injected missing
+entries/sockets and retargeted handler descriptors fail the fixed certificate.
+Such injected frames are not source-reachability claims.
+
+Validation on 19 October 2026 used Agda 2.8.0, sequentially:
+
+```sh
+agda ConnectionManagement/Properties/OutboundAcquireResources.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/OutboundRuntimeResources.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemResources.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/PeerJobResources.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemMapReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemSupply.agda +RTS -M2G -RTS
+```
+
+All seven new modules passed with explicit `Checking` output across the component
+and endpoint checks. All three regression endpoints exited 0: map-reference and
+supply checks reused cached interfaces; the handler-dispatcher endpoint and its
+affected scenario dependencies were rechecked with `Checking` output. The
+seven-file local proof audit found one inspected `≤?` comparison-token false
+positive. No holes, postulates, unsafe options or old theorem-type changes were
+introduced. `git diff --check` and whitespace checks of the new files passed.
+This is not a transitive term-level axiom audit. No Haskell replay or unrelated
+heavy network build was run.
+
+This completes existing entry/socket resource preservation within CM-I4c. It does
+not establish resources for every newly created arbitrary handler, preserve
+`Prepared`/`Chain` through the combined dispatcher, or prove tracked phase/cleanup
+validity. The latter predicates observe IG handle/mux state as well, so the
+state-only generic lift used here cannot establish them without further work.
+The overall structural-invariant milestone and design gates remain open.
+
 ## Checked witnesses and their limits
 
 | Endpoint | Evidence |

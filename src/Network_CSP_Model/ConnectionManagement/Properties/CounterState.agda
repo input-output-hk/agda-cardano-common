@@ -51,6 +51,7 @@ retainedMaps s = cellMaps (mapCell (cm s)) ++
   concatMap (λ binding → cleanupMaps (proj₂ binding)) (cleanups s)
 
 -- This deliberately does not certify uniqueness, fresh supplies, lease ownership,
--- handler references or reachable continuations. No preservation theorem yet.
+-- handler references or reachable continuations. SubsystemMapReferences derives
+-- this predicate from its stronger preserved map/publication certificate.
 CounterStateValid : State → Set
 CounterStateValid s = All (CounterReferences (entries (cm s))) (retainedMaps s)

@@ -24,6 +24,20 @@ to the raw process-tree trace semantics, using the existing correspondence. A
 checked normal-exit suffix closes the job pool and completes buffer release;
 its start and end have concrete reference-chain certificates.
 
+## Combined-dispatcher resource coverage
+
+[`SubsystemResources`](Properties/SubsystemResources.agda) now preserves the
+unchanged `Resources` predicate for an existing handler across every combined
+`Subsystem.advance` and finite `Subsystem.Executes`. A stronger fixed-descriptor
+certificate preserves the exact original handler lookup and the stored entry and
+socket identities. Outbound acquisition/release, peer jobs and governor actions
+are included. See the [component proofs, controls and limitations](Outbound.md#existing-handler-entry-and-socket-records).
+
+This concerns historical record presence. Closed sockets and terminal entries
+remain stored; it does not establish live source ownership or object lifetime.
+The `Prepared`/`Chain` theorems below still quantify over the inbound `Machine`;
+the combined resource theorem does not extend their IG handle/mux conclusions.
+
 ## Creation and coverage boundary
 
 Preservation assumes a chain already exists. Attachment checks the presence of
