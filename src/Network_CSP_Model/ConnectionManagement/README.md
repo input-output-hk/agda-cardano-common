@@ -23,8 +23,10 @@ prospective maps. [Entry-reference validity](Outbound.md#entry-references-in-cur
 now covers those maps too, with an additional pending-publication certificate.
 [Existing handler entry/socket records](Outbound.md#existing-handler-entry-and-socket-records)
 are also preserved across every finite combined execution, conditional on their
-initial presence. This is historical record retention; wider handler/runtime
-validity still needs extension.
+initial presence. [Existing prepared and published chains](Outbound.md#existing-prepared-and-published-chains-across-the-subsystem)
+also retain their handle descriptors and mux keys through all combined
+interleavings. These are historical reference-coherence results; wider
+handler/runtime validity still needs extension.
 Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket

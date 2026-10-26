@@ -607,11 +607,96 @@ This is not a transitive term-level axiom audit. No Haskell replay or unrelated
 heavy network build was run.
 
 This completes existing entry/socket resource preservation within CM-I4c. It does
-not establish resources for every newly created arbitrary handler, preserve
-`Prepared`/`Chain` through the combined dispatcher, or prove tracked phase/cleanup
-validity. The latter predicates observe IG handle/mux state as well, so the
-state-only generic lift used here cannot establish them without further work.
+not establish resources for every newly created arbitrary handler or prove
+tracked phase/cleanup validity. `Prepared`/`Chain` additionally observe IG
+handle/mux state; the following section adds their separate combined proof.
 The overall structural-invariant milestone and design gates remain open.
+
+## Existing prepared and published chains across the subsystem
+
+[`Properties/SubsystemReferences`](Properties/SubsystemReferences.agda) proves
+`prepared-step`, `chain-step`, `prepared-exec` and `chain-exec` for the existing,
+unchanged `Prepared` and `Chain` predicates. Every successful `Subsystem.advance`
+and arbitrary finite `Subsystem.Executes` is covered, starting from an existing
+certificate. No action subset, scheduling, supply, ownership or store-uniqueness
+premise is added. Preparation does not assume a published promise result.
+
+These observers include IG execution, which the older state-only generic lifts
+cannot observe. The new
+[`OutboundWorldInvariant`](Properties/OutboundWorldInvariant.agda),
+[`PeerJobWorldInvariant`](Properties/PeerJobWorldInvariant.agda), and
+[`SubsystemWorldInvariant`](Properties/SubsystemWorldInvariant.agda) instead
+observe `State → IG.Runtime → Set`. Their concrete stability proofs use the
+existing `StateRetention` and `IGTableRetention` relations. The earlier generic
+lifts and all existing theorem types remain unchanged.
+
+[`SharedStateEffects`](Properties/SharedStateEffects.agda),
+[`OutboundAcquireEffects`](Properties/OutboundAcquireEffects.agda), and
+[`OutboundReleaseEffects`](Properties/OutboundReleaseEffects.agda) establish
+shared-store retention for all outbound writers: exact handler and promise-result
+lookups, plus entry/socket presence despite value changes. The inbound cases reuse
+`HandlerDispatcherInterference.step-effects`. Handles retain their complete
+installed descriptors; retained muxes may change their dynamic state while
+keeping their connection keys.
+
+The additional IG writers were inspected explicitly:
+
+- [`PeerActionRetention`](Properties/PeerActionRetention.agda) covers every peer
+  action. Timeout appends a shutdown command to a looked-up mux; other peer actions
+  leave IG execution unchanged. The peer-job lift uses this checked effect.
+- `Subsystem.observeInitiatorFailure` changes a looked-up mux's status/callback.
+  The new subsystem lift applies `setMux-preserves` with its actual lookup proof;
+  it does not treat this IG update as an invisible peer-state edit.
+
+On 19 October 2026 the pinned network checkout was confirmed at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+`PeerStateActions.hs:435–445,1017–1033,1074–1098` was rechecked: a peer handle
+captures its mux; timeout calls `Mux.stop` on that mux; a protocol error relies on
+the mux's own exception path. This supports the model's use of the same captured
+mux rather than a replacement identity. It does not prove a Haskell/model
+refinement or precise source object lifetime. The historical-store review
+limitation recorded above still applies.
+
+[`Negative/SubsystemReferences`](Negative/SubsystemReferences.agda) checks
+preparation from actual installation through publication and the rest of the
+lifecycle, and chains from actual publication through the lifecycle and delayed
+parent-registration suffix. Separate conditional fixtures exercise successful
+close, throwing close, reservation removal, the direct initiator-failure mux
+write, and a peer-job timeout. Injected wrong-key and wrong-handle/mux fixtures
+fail the intended certificates. No transition guard was added to reject them.
+The conditional fixtures are not source-reachability claims.
+
+Validation on 19 October 2026 used Agda 2.8.0, one process at a time:
+
+```sh
+agda ConnectionManagement/Properties/OutboundWorldInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/SubsystemWorldInvariant.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/SubsystemReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemResources.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerDispatcherInterference.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/HandlerOrigin.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemMapReferences.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/SubsystemSupply.agda +RTS -M2G -RTS
+```
+
+All nine new modules passed with `Checking` output across incremental component
+and endpoint checks. An initial acquisition-effect elaboration exhausted 2 GB;
+explicitly supplying its starting state removed the unconstrained elaboration,
+and the final checks passed at the same 2 GB limit. All five regression endpoints
+exited 0. Handler-origin and its CSP scenario were rechecked with `Checking`
+output; the other four reused cached interfaces. The nine-file local audit's
+four matches were inspected `≤?` operators, not holes. No new postulates, holes,
+unsafe flags or old theorem-type changes were added. `git diff --check` passed.
+This is not a transitive term-level axiom audit; Haskell replays and unrelated
+heavy network builds were not run.
+
+The predicates preserve reference coherence. `Chain` still does not equate a
+handle's installed flow with its promise's negotiated flow; `Origin` addresses
+that separate premise. These results do not prove establishment for every new
+handler/publication, `TrackedChain` preservation over the combined machine,
+tracked phase/cleanup validity, source lifetimes, or liveness. CM-I4c and the
+parent structural milestone therefore remain open.
 
 ## Checked witnesses and their limits
 

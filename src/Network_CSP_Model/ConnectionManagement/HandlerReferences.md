@@ -35,8 +35,14 @@ are included. See the [component proofs, controls and limitations](Outbound.md#e
 
 This concerns historical record presence. Closed sockets and terminal entries
 remain stored; it does not establish live source ownership or object lifetime.
-The `Prepared`/`Chain` theorems below still quantify over the inbound `Machine`;
-the combined resource theorem does not extend their IG handle/mux conclusions.
+The combined resource theorem alone does not extend IG handle/mux conclusions.
+[`SubsystemReferences`](Properties/SubsystemReferences.agda) now provides the
+separate `prepared-step`, `chain-step`, `prepared-exec`, and `chain-exec` proofs
+for the unchanged predicates through all combined interleavings. Its observers
+include IG execution and use checked handle-descriptor/mux-key retention. See the
+[combined proof and controls](Outbound.md#existing-prepared-and-published-chains-across-the-subsystem).
+The earlier theorems described below retain their inbound `Machine` scope;
+combined tracked-capture, phase/cleanup and origin obligations remain separate.
 
 ## Creation and coverage boundary
 
