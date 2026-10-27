@@ -87,7 +87,7 @@ data IGAction : Set where
     deactivateIG flushOnExit : IGAction
   expireTimer : TimerId → IGAction
   -- Handler allocation and monitor/job progress remain explicit boundaries.
-  installHandle : HandleId → MuxId → ConnectionKey → List Protocol → DataFlow → IGAction
+  installHandle installOutboundHandle : HandleId → MuxId → ConnectionKey → List Protocol → DataFlow → IGAction
   monitorCommand monitorCompletion sampleTracer commitTracer finishStart forkResponder finishStop : MuxId → IGAction
   startOnDemand : MuxId → ℕ → IGAction
   publishJobResult : MuxId → ℕ → IGAction
@@ -216,6 +216,35 @@ afterTrace (M.completed n clean) = M.returned
 afterTrace (M.completed n (errored _)) = M.afterFailure
 afterTrace M.muxStopped = M.returned
 
+-- Inbound handlers always attach the IG tracer. Outbound handlers attach it
+-- only when a responder-capable node negotiates duplex flow.
+outboundTracer : ResponderMode → DataFlow → M.TracerAttachment
+outboundTracer noResponderMode _ = M.noIGTracer
+outboundTracer responderMode unidirectional = M.noIGTracer
+outboundTracer responderMode duplex = M.igTracer
+
+-- A missing tracer skips its entire callback, preserving monitor continuations.
+traceCallback : M.Mux → M.Trace → M.Callback
+traceCallback m tr with M.tracerAttachment m
+... | M.noIGTracer = afterTrace tr
+... | M.igTracer = M.readActive tr
+
+-- Counters can later be cleared without changing attachment.
+initialCounters : M.TracerAttachment → Maybe M.Counters
+initialCounters M.noIGTracer = nothing
+initialCounters M.igTracer = just (M.counters (+ 0) (+ 0))
+
+-- Allocation retains the original freshness and protocol-bundle guards.
+installWith : M.TracerAttachment → HandleId → MuxId → ConnectionKey → List Protocol → DataFlow →
+  Runtime → List IGEvent → Maybe Result
+installWith attachment hid mid k ps flow r queue
+  with lookup hid (handles (execution r)) | lookup mid (muxes (execution r)) | ordered ps | supported ps
+... | nothing | nothing | true | true = just (record r { execution = record (execution r)
+      { handles = put hid (M.handleState mid ps flow) (handles (execution r))
+      ; muxes = put mid (M.muxState k M.ready (map (λ p → number p , M.idle) ps) [] [] [] [] []
+          (initialCounters attachment) M.returned attachment) (muxes (execution r)) } } , queue)
+... | _ | _ | _ | _ = nothing
+
 hasJob : ℕ → List ℕ → Bool
 hasJob n [] = false
 hasJob n (other ∷ rest) with n Data.Nat.≟ other
@@ -319,30 +348,28 @@ stepWorker (expireTimer t) r queue with lookup t (timers (execution r))
 ... | just ticking = just (record r { execution = record (execution r)
       { timers = put t expired (timers (execution r)) } } , queue)
 ... | _ = nothing
-stepWorker (installHandle hid mid k ps flow) r queue
-  with lookup hid (handles (execution r)) | lookup mid (muxes (execution r)) | ordered ps | supported ps
-... | nothing | nothing | true | true = just (record r { execution = record (execution r)
-      { handles = put hid (M.handleState mid ps flow) (handles (execution r))
-      ; muxes = put mid (M.muxState k M.ready (map (λ p → number p , M.idle) ps) [] [] [] [] []
-          (just (M.counters (+ 0) (+ 0))) M.returned) (muxes (execution r)) } } , queue)
-... | _ | _ | _ | _ = nothing
+stepWorker (installHandle hid mid k ps flow) r queue = installWith M.igTracer hid mid k ps flow r queue
+stepWorker (installOutboundHandle hid mid k ps flow) r queue =
+  installWith (outboundTracer responderMode flow) hid mid k ps flow r queue
 stepWorker (sampleTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
-... | just m with M.callback m
-...   | M.readActive tr = just (setMux mid (record m { callback = M.commitTrace (active (execution r)) tr }) r , queue)
-...   | _ = nothing
+... | just m with M.tracerAttachment m | M.callback m
+...   | M.noIGTracer | M.readActive tr = just (setMux mid (record m { callback = afterTrace tr }) r , queue)
+...   | M.igTracer | M.readActive tr = just (setMux mid (record m { callback = M.commitTrace (active (execution r)) tr }) r , queue)
+...   | _ | _ = nothing
 stepWorker (commitTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
-... | just m with M.callback m
-...   | M.commitTrace false tr = just (setMux mid (record m { callback = afterTrace tr }) r , queue)
-...   | M.commitTrace true tr with Readiness.prefixReady (M.key m) tr (tracerView (M.key m) r) (M.traceCounters m) queue
+... | just m with M.tracerAttachment m | M.callback m
+...   | M.noIGTracer | M.commitTrace flag tr = just (setMux mid (record m { callback = afterTrace tr }) r , queue)
+...   | M.igTracer | M.commitTrace false tr = just (setMux mid (record m { callback = afterTrace tr }) r , queue)
+...   | M.igTracer | M.commitTrace true tr with Readiness.prefixReady (M.key m) tr (tracerView (M.key m) r) (M.traceCounters m) queue
 ...     | false = nothing
 ...     | true with missingDescriptor tr (tracerView (M.key m) r) (M.traceCounters m)
 ...       | just n = just (setMux mid (record m { callback = M.tracerFailed n }) r , queue)
 ...       | nothing with M.traceSTM (M.key m) tr (tracerView (M.key m) r) (M.traceCounters m) queue
 ...         | nothing = nothing
 ...         | just (rc , q) = just (setMux mid (record m { traceCounters = rc; callback = afterTrace tr }) r , q)
-stepWorker (commitTracer mid) r queue | just m | _ = nothing
+stepWorker (commitTracer mid) r queue | just m | _ | _ = nothing
 stepWorker (finishStart mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m
@@ -359,12 +386,12 @@ stepWorker (monitorCommand mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m | M.status m | M.completions m | M.commands m
 ...   | M.returned | M.ready | [] | M.startCommand p ∷ rest with startMode p
-...     | eagerly = just (setMux mid (record m { commands = rest; callback = M.readActive (M.started (number p)) }) r , queue)
+...     | eagerly = just (setMux mid (record m { commands = rest; callback = traceCallback m (M.started (number p)) }) r , queue)
 ...     | mode = just (setMux mid (record m { commands = rest; waiting = put (number p) mode (M.waiting m) }) r , queue)
 stepWorker (monitorCommand mid) r queue | just m | M.returned | M.ready | [] | M.shutdown ∷ rest =
   just (setMux mid (record m { commands = rest; status = M.stopping }) r , queue)
 stepWorker (monitorCommand mid) r queue | just m | M.afterFailure | _ | _ | _ =
-  just (setMux mid (record m { callback = M.readActive M.muxStopped }) r , queue)
+  just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
 stepWorker (monitorCommand mid) r queue | just m | _ | _ | _ | _ = nothing
 -- One FIFO contains both initiator and responder job results. Initiator
 -- traces do not produce responder termination/counter events in the IG tracer.
@@ -372,11 +399,11 @@ stepWorker (monitorCompletion mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m | M.status m | M.completions m
 ...   | M.returned | M.ready | M.jobResult M.responderJob n outcome ∷ rest with outcome
-...     | clean = just (setMux mid (record m { completions = rest; callback = M.readActive (M.completed n outcome) }) r , queue)
-...     | errored err = just (setMux mid (record m { completions = rest; status = M.failed err; callback = M.readActive (M.completed n outcome) }) r , queue)
+...     | clean = just (setMux mid (record m { completions = rest; callback = traceCallback m (M.completed n outcome) }) r , queue)
+...     | errored err = just (setMux mid (record m { completions = rest; status = M.failed err; callback = traceCallback m (M.completed n outcome) }) r , queue)
 stepWorker (monitorCompletion mid) r queue | just m | M.returned | M.ready | M.jobResult M.initiatorJob n outcome ∷ rest with outcome
 ... | clean = just (setMux mid (record m { completions = rest }) r , queue)
-... | errored err = just (setMux mid (record m { completions = rest; status = M.failed err; callback = M.readActive M.muxStopped }) r , queue)
+... | errored err = just (setMux mid (record m { completions = rest; status = M.failed err; callback = traceCallback m M.muxStopped }) r , queue)
 stepWorker (monitorCompletion mid) r queue | just m | _ | _ | _ = nothing
 -- A selected channel has traffic. Ordered selection among simultaneously ready
 -- channels is outside this boundary; fixtures supply one traffic-ready channel.
@@ -384,7 +411,7 @@ stepWorker (startOnDemand mid n) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m | M.status m | M.commands m | M.completions m | lookup n (M.waiting m)
 ...   | M.returned | M.ready | [] | [] | just onDemand = just (setMux mid
-      (record m { waiting = delete n (M.waiting m); callback = M.readActive (M.started n) }) r , queue)
+      (record m { waiting = delete n (M.waiting m); callback = traceCallback m (M.started n) }) r , queue)
 ...   | _ | _ | _ | _ | _ = nothing
 -- A job can finish while a different callback blocks the monitor. Clean exit
 -- includes the source egress-drained boundary; exceptional exit does not reset
@@ -409,9 +436,41 @@ stepWorker (publishJobResult mid n) r queue with lookup mid (muxes (execution r)
 stepWorker (finishStop mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.status m | M.callback m
-...   | M.stopping | M.returned = just (setMux mid (record m { status = M.stopped; runningJobs = []; callback = M.readActive M.muxStopped }) r , queue)
+...   | M.stopping | M.returned = just (setMux mid (record m { status = M.stopped; runningJobs = []; callback = traceCallback m M.muxStopped }) r , queue)
 ...   | _ | _ = nothing
 
+-- Mux execution exists without an IG governor. Only these engine actions are
+-- admitted in initiator-only mode; batch/registration/timer actions stay absent.
+runtimeAction : IGAction → Bool
+runtimeAction (monitorCommand _) = true
+runtimeAction (monitorCompletion _) = true
+runtimeAction (sampleTracer _) = true
+runtimeAction (commitTracer _) = true
+runtimeAction (finishStop _) = true
+runtimeAction _ = false
+
+-- In initiator-only mode, the shared monitor may consume initiator results
+-- and shutdown, but cannot create or consume responder work from injected state.
+runtimeAllowed : IGAction → Runtime → Bool
+runtimeAllowed (monitorCommand mid) r with lookup mid (muxes (execution r))
+... | nothing = false
+... | just m with M.callback m
+...   | M.afterFailure = true
+...   | M.returned with M.commands m
+...     | M.shutdown ∷ _ = true
+...     | _ = false
+runtimeAllowed (monitorCommand mid) r | just m | _ = false
+runtimeAllowed (monitorCompletion mid) r with lookup mid (muxes (execution r))
+... | nothing = false
+... | just m with M.completions m
+...   | M.jobResult M.initiatorJob _ _ ∷ _ = true
+...   | _ = false
+runtimeAllowed a r = runtimeAction a
+
 step : ResponderMode → IGAction → Runtime → List IGEvent → Maybe Result
-step noResponderMode _ _ _ = nothing
+step noResponderMode (installOutboundHandle hid mid k ps flow) ig queue =
+  installWith M.noIGTracer hid mid k ps flow ig queue
+step noResponderMode a ig queue with runtimeAllowed a ig
+... | true = stepWorker a ig queue
+... | false = nothing
 step responderMode a ig queue = stepWorker a ig queue

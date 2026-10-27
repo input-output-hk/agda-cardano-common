@@ -17,6 +17,7 @@ step-preserves : ∀ a c {c′} → advance (igStep a) c ≡ just c′ →
   ∀ q → TrackedChain q c → TrackedChain q c′
 step-preserves IG.commitDecision = Boundary.step-preserves IG.commitDecision Boundary.decision
 step-preserves (IG.installHandle hid mid k ps flow) = Boundary.step-preserves (IG.installHandle hid mid k ps flow) Boundary.install
+step-preserves (IG.installOutboundHandle hid mid k ps flow) = Boundary.step-preserves (IG.installOutboundHandle hid mid k ps flow) Boundary.installOutbound
 step-preserves IG.runResponders = Startup.step-preserves IG.runResponders Startup.start
 step-preserves IG.restart = Startup.step-preserves IG.restart Startup.restart
 step-preserves IG.requestFailedStop = Startup.step-preserves IG.requestFailedStop Startup.failedStop

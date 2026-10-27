@@ -96,7 +96,7 @@ step-evidence w L.publishAsyncFailure rt ig s eq with lookup w rt in owned
 ... | nothing = case eq of λ ()
 ... | just f with L.phase f | lookup (L.capturedMux f) (IG.muxes (IG.execution ig)) in muxFound
 ...   | L.poolClosed | just m = subst (λ pair → Evolution rt (proj₁ pair) × Anchors ig (proj₂ pair)) (just-injective eq)
-  (phaseChanged w f (L.deadTracing) rt owned , setMux-preserves (L.capturedMux f) m (record m { status = M.failed (L.cancellationError f); callback = M.readActive M.muxStopped }) ig muxFound refl)
+  (phaseChanged w f (L.deadTracing) rt owned , setMux-preserves (L.capturedMux f) m (record m { status = M.failed (L.cancellationError f); callback = IG.traceCallback m M.muxStopped }) ig muxFound refl)
 step-evidence w L.publishAsyncFailure rt ig s eq | just f | L.monitoring | _ = case eq of λ ()
 step-evidence w L.publishAsyncFailure rt ig s eq | just f | L.poolClosing | _ = case eq of λ ()
 step-evidence w L.publishAsyncFailure rt ig s eq | just f | L.poolClosed | nothing = case eq of λ ()

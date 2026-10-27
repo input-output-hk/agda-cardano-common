@@ -56,7 +56,7 @@ queue-chain queue chain = record
   ; handleFound = handleFound chain; handleMux = handleMux chain; muxFound = muxFound chain
   ; keyMatches = keyMatches chain; entryPresent = entryPresent chain; socketPresent = socketPresent chain }
 
-open import ConnectionManagement.Properties.IGBoundaryRetention public using (CoveredIG; decision; install)
+open import ConnectionManagement.Properties.IGBoundaryRetention public using (CoveredIG; decision; install; installOutbound)
 import ConnectionManagement.Properties.IGBoundaryRetention as Retention
 open import ConnectionManagement.Properties.HandlerTableRetention using (retains-chain)
 
@@ -66,8 +66,8 @@ worker-chain a covered ig queue s eq = retains-chain (Retention.worker-retains a
 
 mode-chain : ∀ mode a → CoveredIG a → ∀ ig queue s {ig′ queue′ q mid} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Chain q mid s ig → Chain q mid s ig′
-mode-chain noResponderMode a covered ig queue s () chain
-mode-chain responderMode a covered ig queue s eq chain = worker-chain a covered ig queue s eq chain
+mode-chain mode a covered ig queue s eq chain =
+  retains-chain (Retention.mode-retains mode a covered ig queue eq) chain
 
 step-preserves : ∀ a → CoveredIG a → ∀ c {c′} → advance (igStep a) c ≡ just c′ →
   ∀ q → TrackedChain q c → TrackedChain q c′

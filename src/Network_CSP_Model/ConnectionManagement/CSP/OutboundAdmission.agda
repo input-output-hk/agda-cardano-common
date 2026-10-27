@@ -76,7 +76,7 @@ schedule = beginAcquire caller req ∷ acquire caller (A.select nothing) ∷
   acquire caller A.readCounters ∷ acquire caller A.newPromise ∷ acquire caller A.openOK ∷
   acquire caller A.configureOK ∷ acquire caller A.connectOK ∷ acquire caller (A.gotLocal (local key₀)) ∷
   acquire caller A.updateLocalAddress ∷ acquire caller A.forkOK ∷ acquire caller A.commitConnected ∷
-  acquire caller A.readCounters ∷ inbound (Inbound.igStep (IG.installHandle (ident 0) G.mid key₀ (G.proto ∷ []) duplex)) ∷
+  acquire caller A.readCounters ∷ inbound (Inbound.igStep (IG.installOutboundHandle (ident 0) G.mid key₀ (G.proto ∷ []) duplex)) ∷
   inbound (Inbound.handlerPublication child (S.negotiated (ident 0) duplex) Inbound.resultWritten) ∷
   acquire caller A.readResult ∷ acquire caller A.commitHandshake ∷ acquire caller A.readCounters ∷ acquire caller A.returnResult ∷ []
 path : Executes (initial F.start) schedule returned

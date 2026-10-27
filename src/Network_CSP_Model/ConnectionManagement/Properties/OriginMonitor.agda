@@ -109,3 +109,9 @@ accepted-publication : ∀ t hid f s {s′} →
 accepted-publication t hid f s eq = publication-checked t hid f s
   (subst (λ event → check t event s ≡ _) (selected-publication t hid f)
     (step-checks t (Open.handlerPublication (workerId t) (negotiated hid f) Open.resultWritten) s eq))
+
+-- Outbound allocation is explicitly outside this inbound success-contract
+-- profile rather than silently passing as unrelated dispatcher interference.
+outbound-allocation-refused : ∀ t hid mid k ps f s →
+  step t (Open.igStep (IG.installOutboundHandle hid mid k ps f)) s ≡ nothing
+outbound-allocation-refused t hid mid k ps f s = refl

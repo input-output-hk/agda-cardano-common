@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- A single-invocation success-contract filter over the unchanged open machine.
+-- A single-inbound-invocation success-contract filter over the open machine.
 -- The observer supplies the worker/handle association absent from installHandle.
 module ConnectionManagement.Rules.OriginMonitor where
 
@@ -43,11 +43,15 @@ open State public
 data Event : Set where
   allocation : MuxId → ConnectionKey → List Protocol → DataFlow → Event
   publication : HandshakeResult → PublicationOutcome → Event
+  -- This profile certifies inbound allocation only. Outbound allocation must
+  -- not bypass its contract by being classified as an unrelated action.
+  unsupportedOutboundAllocation : Event
   attachment other : Event
 classify : Target → Open.Action → Event
 classify t (Open.igStep (IG.installHandle hid mid k ps f)) with hid ≟ handleId t
 ... | yes _ = allocation mid k ps f
 ... | no _ = other
+classify t (Open.igStep (IG.installOutboundHandle hid mid k ps f)) = unsupportedOutboundAllocation
 classify t (Open.handlerPublication w r o) with w ≟ workerId t
 ... | yes _ = publication r o
 ... | no _ = other
@@ -69,6 +73,7 @@ check t (allocation mid k ps f) (observed c awaitingAllocation) with lookup (wor
 ...   | yes _ = just (awaitingPublication (ticket mid ps f))
 ...   | no _ = nothing
 check t (allocation _ _ _ _) _ = nothing
+check t unsupportedOutboundAllocation _ = nothing
 check t (publication (negotiated hid f) resultWritten) (observed c (awaitingPublication tk)) with hid ≟ handleId t
 ... | yes _ = match-flow f (flow tk) tk
 ... | no _ = nothing

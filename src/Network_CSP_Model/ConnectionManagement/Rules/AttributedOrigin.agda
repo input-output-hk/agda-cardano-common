@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- Explicit observer attribution; the tag is not evidence of source ownership.
+-- Explicit inbound observer attribution; the tag is not source-ownership evidence.
 module ConnectionManagement.Rules.AttributedOrigin where
 
 open import Data.Bool using (Bool; true; false)
@@ -28,6 +28,8 @@ erase (dispatch a) = a
 -- Raw allocation cannot bypass attribution, even for an unrelated handle.
 ordinary : Open.Action → Bool
 ordinary (Open.igStep (IG.installHandle _ _ _ _ _)) = false
+-- Outbound allocation has no attributed constructor in this inbound profile.
+ordinary (Open.igStep (IG.installOutboundHandle _ _ _ _ _)) = false
 ordinary _ = true
 
 -- The selected worker and handle must occur together. Other pairs remain outside

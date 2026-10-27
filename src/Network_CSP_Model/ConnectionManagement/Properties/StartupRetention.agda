@@ -103,5 +103,7 @@ worker-anchors .IG.requestFailedStop failedStop ig queue eq with IG.continuation
 
 mode-anchors : ∀ mode a → CoveredStartup a → ∀ ig queue {ig′ queue′} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
-mode-anchors noResponderMode a covered ig queue ()
+mode-anchors noResponderMode .IG.runResponders start ig queue ()
+mode-anchors noResponderMode .IG.restart restart ig queue ()
+mode-anchors noResponderMode .IG.requestFailedStop failedStop ig queue ()
 mode-anchors responderMode a covered ig queue eq = worker-anchors a covered ig queue eq

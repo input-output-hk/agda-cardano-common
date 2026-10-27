@@ -103,3 +103,9 @@ raw-empty-refused : step (dispatch (Open.igStep (IG.installHandle (ident 0) (ide
 raw-empty-refused = refl
 flow-mismatch-refused : step (dispatch (Open.handlerPublication child₀ (S.negotiated (ident 0) unidirectional) Open.resultWritten)) s₂ ≡ nothing
 flow-mismatch-refused = refl
+
+-- An empty registry cannot admit an outbound allocation through raw dispatch;
+-- this registry remains a filter for attributed inbound allocations only.
+outbound-empty-refused : step
+  (dispatch (Open.igStep (IG.installOutboundHandle (ident 0) (ident 0) key₀ (G.proto ∷ []) duplex))) s₀ ≡ nothing
+outbound-empty-refused = refl

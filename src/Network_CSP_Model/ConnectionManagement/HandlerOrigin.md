@@ -16,7 +16,7 @@ not update the pin or claim these are the current branch heads.
 | [Core.hs:579–592](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L579-L592) | The forked handler receives the socket, writer and connection ID from its caller. | The handler's captured key/socket/promise must identify that invocation. |
 | [Core.hs:796–814](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L796-L814) | Inbound inclusion allocates the reader/writer pair for the accepted connection. | Promise allocation belongs to this admission instance. |
 | [ConnectionHandler.hs:429–452](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L429-L452) | The inbound success branch creates control TVars and a mux, builds a handle from that mux, application and agreed options, publishes it with those options, then runs that mux. | Key, mux identity, bundle and negotiated-flow projection must have a common origin. |
-| [ConnectionHandler.hs:352–380](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L352-L380) | The outbound success branch has the same handle/publication data sharing, with mode/flow-dependent tracer setup. | Outbound acquisition now executes through the same `installHandle` boundary; the origin theorems here remain scoped to the inbound `Machine` and do not establish the outbound allocation/publication contract. |
+| [ConnectionHandler.hs:352–380](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L352-L380) | The outbound success branch has the same handle/publication data sharing, with mode/flow-dependent tracer setup. | Outbound acquisition executes through the mode-aware `installOutboundHandle` boundary; the origin theorems here remain scoped to inbound `installHandle` and do not establish the outbound allocation/publication contract. |
 | [Core.hs:897–908](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L897-L908) | CM reads the promise and computes data flow from the published version data. | `flow` must be the same projection of agreed options represented by the installed handle. |
 
 The files were read directly at this revision. SHA-256 digests of downloaded raw
@@ -77,6 +77,14 @@ retained origin certificate. This is a theorem about traces satisfying the
 contract, **not a proof that every source execution projects to such a trace**.
 The positive instance derives its certificate from allocation and transports it
 along the existing establishment witness.
+
+The single-origin, attributed-origin and origin-registry profiles remain
+explicitly inbound-allocation-only. They reject raw `installOutboundHandle`,
+including unrelated handle IDs and an empty registry, rather than silently
+classifying it as an unrelated dispatch. The open machine accepts valid outbound
+allocation; profile refusal is a scope restriction, not a source prohibition or
+an outbound-origin proof. Their existing preservation theorem statements remain
+unchanged.
 
 ## Negative control and interpretation
 

@@ -43,25 +43,39 @@ worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
 worker-anchors .(IG.sampleTracer mid) (sample {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
-... | just m with M.callback m
-...   | M.returned = case eq of λ ()
-...   | M.readActive tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
-...   | M.commitTrace active tr = case eq of λ ()
-...   | M.afterStart j = case eq of λ ()
-...   | M.forkPending j = case eq of λ ()
-...   | M.afterFailure = case eq of λ ()
-...   | M.tracerFailed j = case eq of λ ()
+... | just m with M.tracerAttachment m | M.callback m
+...   | M.noIGTracer | M.readActive tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.igTracer | M.readActive tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.noIGTracer | M.returned = case eq of λ ()
+...   | M.igTracer | M.returned = case eq of λ ()
+...   | M.noIGTracer | M.commitTrace active tr = case eq of λ ()
+...   | M.igTracer | M.commitTrace active tr = case eq of λ ()
+...   | M.noIGTracer | M.afterStart j = case eq of λ ()
+...   | M.igTracer | M.afterStart j = case eq of λ ()
+...   | M.noIGTracer | M.forkPending j = case eq of λ ()
+...   | M.igTracer | M.forkPending j = case eq of λ ()
+...   | M.noIGTracer | M.afterFailure = case eq of λ ()
+...   | M.igTracer | M.afterFailure = case eq of λ ()
+...   | M.noIGTracer | M.tracerFailed j = case eq of λ ()
+...   | M.igTracer | M.tracerFailed j = case eq of λ ()
 worker-anchors .(IG.commitTracer mid) (trace {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
-... | just m with M.callback m
-...   | M.returned = case eq of λ ()
-...   | M.readActive tr = case eq of λ ()
-...   | M.afterStart j = case eq of λ ()
-...   | M.forkPending j = case eq of λ ()
-...   | M.afterFailure = case eq of λ ()
-...   | M.tracerFailed j = case eq of λ ()
-...   | M.commitTrace false tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
-...   | M.commitTrace true tr with Readiness.prefixReady (M.key m) tr (IG.tracerView (M.key m) ig) (M.traceCounters m) queue
+... | just m with M.tracerAttachment m | M.callback m
+...   | M.noIGTracer | M.returned = case eq of λ ()
+...   | M.igTracer | M.returned = case eq of λ ()
+...   | M.noIGTracer | M.readActive tr = case eq of λ ()
+...   | M.igTracer | M.readActive tr = case eq of λ ()
+...   | M.noIGTracer | M.afterStart j = case eq of λ ()
+...   | M.igTracer | M.afterStart j = case eq of λ ()
+...   | M.noIGTracer | M.forkPending j = case eq of λ ()
+...   | M.igTracer | M.forkPending j = case eq of λ ()
+...   | M.noIGTracer | M.afterFailure = case eq of λ ()
+...   | M.igTracer | M.afterFailure = case eq of λ ()
+...   | M.noIGTracer | M.tracerFailed j = case eq of λ ()
+...   | M.igTracer | M.tracerFailed j = case eq of λ ()
+...   | M.noIGTracer | M.commitTrace active tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.igTracer | M.commitTrace false tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.igTracer | M.commitTrace true tr with Readiness.prefixReady (M.key m) tr (IG.tracerView (M.key m) ig) (M.traceCounters m) queue
 ...     | false = case eq of λ ()
 ...     | true with IG.missingDescriptor tr (IG.tracerView (M.key m) ig) (M.traceCounters m)
 ...       | just n = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
@@ -176,5 +190,18 @@ worker-anchors .(IG.finishStop mid) (stopped {mid}) ig queue eq with lookup mid 
 
 mode-anchors : ∀ mode a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
-mode-anchors noResponderMode a covered ig queue ()
+mode-anchors noResponderMode .(IG.monitorCommand mid) (command {mid}) ig queue eq with IG.runtimeAllowed (IG.monitorCommand mid) ig
+... | false = case eq of λ ()
+... | true = worker-anchors (IG.monitorCommand mid) command ig queue eq
+mode-anchors noResponderMode .(IG.monitorCompletion mid) (completion {mid}) ig queue eq with IG.runtimeAllowed (IG.monitorCompletion mid) ig
+... | false = case eq of λ ()
+... | true = worker-anchors (IG.monitorCompletion mid) completion ig queue eq
+mode-anchors noResponderMode .(IG.sampleTracer mid) (sample {mid}) ig queue eq = worker-anchors (IG.sampleTracer mid) sample ig queue eq
+mode-anchors noResponderMode .(IG.commitTracer mid) (trace {mid}) ig queue eq = worker-anchors (IG.commitTracer mid) trace ig queue eq
+mode-anchors noResponderMode .(IG.finishStop mid) (stopped {mid}) ig queue eq = worker-anchors (IG.finishStop mid) stopped ig queue eq
+mode-anchors noResponderMode .(IG.finishStart mid) (started {mid}) ig queue ()
+mode-anchors noResponderMode .(IG.forkResponder mid) (fork {mid}) ig queue ()
+mode-anchors noResponderMode .(IG.startOnDemand mid n) (demand {mid} {n}) ig queue ()
+mode-anchors noResponderMode .(IG.finishProtocol mid n result) (jobFinished {mid} {n} {result}) ig queue ()
+mode-anchors noResponderMode .(IG.publishJobResult mid n) (jobResult {mid} {n}) ig queue ()
 mode-anchors responderMode a covered ig queue eq = worker-anchors a covered ig queue eq

@@ -232,5 +232,14 @@ worker-anchors .IG.pollStopped poll ig queue eq | IG.waitStopped t rest k mid ol
 
 mode-anchors : ∀ mode a → CoveredLoop a → ∀ ig queue {ig′ queue′} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
-mode-anchors noResponderMode a covered ig queue ()
+mode-anchors noResponderMode .IG.deactivateIG deactivate ig queue ()
+mode-anchors noResponderMode .IG.flushOnExit flush ig queue ()
+mode-anchors noResponderMode .(IG.captureTime time) (capture {time}) ig queue ()
+mode-anchors noResponderMode .IG.registerInactivity inactivity ig queue ()
+mode-anchors noResponderMode .IG.selectBatch select ig queue ()
+mode-anchors noResponderMode .IG.readEvent read ig queue ()
+mode-anchors noResponderMode .IG.registerIdleTimer idleTimer ig queue ()
+mode-anchors noResponderMode .IG.finishBatch finish ig queue ()
+mode-anchors noResponderMode .IG.pollStopped poll ig queue ()
+mode-anchors noResponderMode .(IG.expireTimer tid) (expire {tid}) ig queue ()
 mode-anchors responderMode a covered ig queue eq = worker-anchors a covered ig queue eq

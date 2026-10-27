@@ -45,9 +45,11 @@ subsystem remains open and partial; no source deadlock/liveness claim follows.
 
 The [27 October correction plan](../review/connection-management-correction-plan-2026-10-27.md)
 records the source/spec review response. Shared initiator/responder FIFO ordering
-and start-tracer retry precedence are corrected and checked. Tracer attachment,
-initiator-only engine driving and other documented profile differences remain
-separate workstreams; these checks do not establish source refinement.
+and start-tracer retry precedence are corrected and checked. Mode/flow-dependent
+tracer attachment and initiator-only shared engine driving are also implemented
+and checked. Target-input, policy/supervision and other documented profile
+differences remain separate workstreams; these checks do not establish source
+refinement.
 
 The [source replays](SourceReplay/README.md) check governor retries after
 socket-open failure and over-limit outbound release against the exact network

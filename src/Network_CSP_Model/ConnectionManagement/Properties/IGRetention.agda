@@ -17,6 +17,7 @@ mode-retains : ∀ mode a ig queue {ig′ queue′} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Retains ig ig′
 mode-retains mode IG.commitDecision ig queue eq = Boundary.mode-retains mode IG.commitDecision Boundary.decision ig queue eq
 mode-retains mode (IG.installHandle hid mid k ps flow) ig queue eq = Boundary.mode-retains mode (IG.installHandle hid mid k ps flow) Boundary.install ig queue eq
+mode-retains mode (IG.installOutboundHandle hid mid k ps flow) ig queue eq = Boundary.mode-retains mode (IG.installOutboundHandle hid mid k ps flow) Boundary.installOutbound ig queue eq
 mode-retains mode IG.runResponders ig queue eq = from-anchors (Startup.mode-anchors mode IG.runResponders Startup.start ig queue eq)
 mode-retains mode IG.restart ig queue eq = from-anchors (Startup.mode-anchors mode IG.restart Startup.restart ig queue eq)
 mode-retains mode IG.requestFailedStop ig queue eq = from-anchors (Startup.mode-anchors mode IG.requestFailedStop Startup.failedStop ig queue eq)

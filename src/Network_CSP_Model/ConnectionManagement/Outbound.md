@@ -796,18 +796,82 @@ tracks the verified source/spec review. Two executable corrections are integrate
 
 These controls are conditional model fixtures, not new initial-state reachability
 or Haskell-refinement proofs. The acceptance scope is the current responder-capable
-profile. Initiator-only mux-engine driving is still part of A2's planned split
-from IG governor actions. Responder pending results still publish by protocol
+profile. A2 now separates initiator-only shared mux monitoring from IG governor
+actions, as described below. Responder pending results still publish by protocol
 number, restricting repeated same-number responder publication ordering. Normal
 shutdown abstracts the source's job cancellation/join; untracked stored pending
 results can outlive a stopped snapshot. Those lifetime/order limits remain open.
 Asynchronous handler cancellation can legitimately leave queued results unread
 and retains its separate teardown path.
 
-A2's tracer-attachment correction is designed but not implemented. A4–A7 profile
-differences are now documented above; concrete target-input and production-policy/
-supervision execution remain separate extensions. A8/A9 stale names, comments and
+A2's tracer-attachment correction is integrated below. A4–A7 profile differences
+are documented above; concrete target-input and production-policy/supervision
+execution remain separate extensions. A8/A9 stale names, comments and
 source ranges are corrected without broadening the existing proof scopes.
+
+## Mode and flow dependent tracer attachment
+
+`Rules/MuxRuntime.TracerAttachment` distinguishes an IG tracer that exists from
+one that does not. Its per-mux marker is separate from `Maybe Counters`: an
+attached tracer can clear its counters after deregistration and still emit
+MuxFinished. The distinction follows pinned `ConnectionHandler.hs:359–369` for
+outbound handlers and `437–440` for inbound handlers.
+
+| Allocation boundary | Mode and flow | IG tracer |
+| --- | --- | --- |
+| `installHandle` (inbound) | Responder mode, either flow | Attached, initially zero counters |
+| `installHandle` (inbound) | Initiator-only mode | Refused |
+| `installOutboundHandle` | Responder mode, duplex | Attached, initially zero counters |
+| `installOutboundHandle` | Responder mode, unidirectional | Absent |
+| `installOutboundHandle` | Initiator-only mode, either flow | Absent |
+
+Both boundaries retain handle/mux freshness, ordered-bundle and supported-protocol
+checks. The outbound admission/lifecycle witnesses now use the outbound boundary;
+the old inbound boundary and its theorem statements keep their inbound meaning.
+These are explicit source-allocation abstractions, not Haskell IG API calls.
+
+Without an IG tracer, `traceCallback` takes the normal continuation without
+sampling IG active state, inspecting descriptor/readiness, updating counters or
+writing the IG queue. Sample/commit also bypass those operations on injected
+no-tracer callbacks. Full IG queues cannot introduce tracing backpressure on
+those muxes. Attached tracers retain the existing source callback and atomic
+queue/counter behavior, including MuxFinished after counters were cleared.
+Handler asynchronous failure uses the same attachment-aware continuation.
+
+The shared engine now runs in `noResponderMode` without an IG governor. It admits
+outbound allocation and shared monitor/tracer/stop operations. Direction-sensitive
+checks refuse responder start commands and responder completion heads rather than
+overtaking them. Responder fork/result/on-demand operations and IG batch,
+registration and timer actions remain unavailable. Initiator starts/results use
+the existing peer/subsystem boundaries.
+
+The ordinary IG preservation closure covers the new boundary and mode dispatch
+without weakening existing theorem types. Inbound-only origin/attribution/registry
+profiles explicitly reject raw outbound allocation, even unrelated handles and
+empty registries; they do not silently extend their origin claims. A matching
+outbound allocation still succeeds in the open machine. Conditional-filter refusal
+is a profile scope restriction, not a source prohibition.
+
+`Negative/TracerAttachment` supplies 44 actual-step controls covering allocation,
+mode/flow combinations, startup/completion/stop under a full queue, cleared-counter
+tracing, absent-tracer sampling/readiness/descriptor bypass, freshness and mode
+refusals. It also checks initiator-only allocation through `Machine.advance` and
+FIFO error consumption through `Subsystem.advance` with an unchanged full IG
+queue. These conditional snapshots do not establish complete source reachability,
+allocation/publication provenance or object lifetime.
+
+A2 validation on 27 October 2026 used Agda 2.8.0 and
+`+RTS -M2G -RTS`, one process at a time. Core IGRegistration, ordinary HandlerIG
+and combined-reference closures passed; origin-monitor/attribution/registry
+endpoints also passed. The final `Negative/TracerAttachment` check passed all 44
+equations, followed by eighteen FIFO/readiness, structural-invariant,
+origin/registry/producer and lifecycle regression endpoints. Some final endpoint
+calls reused already checked interfaces; exact commands/cache distinctions are
+in the [A2 execution report](../review/connection-management-correction-plan-2026-10-27.md#a2-execution-results).
+The twenty-nine-file local audit found four inspected comparison operators, no
+new holes/axioms/unsafe flags, and no weakened existing theorem statements.
+Whitespace checks passed. No Haskell replay or source-pin change was performed.
+A2 was validated on top of first-wave commit `b8d0081`.
 
 ## Checked witnesses and their limits
 

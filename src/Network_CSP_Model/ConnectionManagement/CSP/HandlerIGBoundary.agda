@@ -46,7 +46,7 @@ newMux : MuxId
 newMux = ident 10
 installedMux : M.Mux
 installedMux = M.muxState key₁ M.ready ((1 , M.idle) ∷ []) [] [] [] [] []
-  (just (M.counters (+ 0) (+ 0))) M.returned
+  (just (M.counters (+ 0) (+ 0))) M.returned M.igTracer
 installAction : IG.IGAction
 installAction = IG.installHandle newHandle newMux key₁ (proto ∷ []) duplex
 added : Configuration

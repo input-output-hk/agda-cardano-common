@@ -23,6 +23,7 @@ import ConnectionManagement.CSP.IGRegistration as G
 open import ConnectionManagement.CSP.HandlerLifecycle using (cancelError)
 open import ConnectionManagement.Scenarios.Admission using (child₀; key₀)
 import ConnectionManagement.Rules.HandlerLifecycle as L
+import ConnectionManagement.Rules.IGRegistration as IG
 open import Semantics.Failures {E = Channel} {I = ExtI Channel} using (traces)
 import ConnectionManagement.Negative.OriginMonitorInvariant
 
@@ -70,3 +71,12 @@ wrong-handle-refused : step selected wrong-handle initial ≡ nothing
 wrong-handle-refused = refl
 no-wrong-handle : ¬ traces (Process selected initial) (map label (wrong-handle ∷ []))
 no-wrong-handle = refused-extension {as = []} done wrong-handle-refused
+
+-- The open machine can allocate an outbound duplex handle, but this attributed
+-- monitor has deliberately not acquired an outbound allocation/origin contract.
+outbound-raw : Action
+outbound-raw = dispatch (Open.igStep (IG.installOutboundHandle (ident 0) G.mid key₀ (G.proto ∷ []) duplex))
+outbound-open-accepted : Open.advance (erase outbound-raw) E.forked ≡ just E.installed
+outbound-open-accepted = refl
+outbound-profile-refused : step selected outbound-raw initial ≡ nothing
+outbound-profile-refused = refl

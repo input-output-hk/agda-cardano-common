@@ -59,7 +59,7 @@ mid = ident 0
 handleTable : List (HandleId × M.Handle)
 handleTable = (ident 0 , M.handleState mid (proto ∷ []) duplex) ∷ []
 newMux : M.Mux
-newMux = M.muxState key₀ M.ready ((1 , M.idle) ∷ []) [] [] [] [] [] (just (M.counters (+ 0) (+ 0))) M.returned
+newMux = M.muxState key₀ M.ready ((1 , M.idle) ∷ []) [] [] [] [] [] (just (M.counters (+ 0) (+ 0))) M.returned M.igTracer
 armedMux : M.Mux
 armedMux = record newMux { protocols = (1 , M.demand) ∷ []; commands = M.startCommand proto ∷ [] }
 e₀ e₁ e₂ e₃ e₄ : IG.Engine

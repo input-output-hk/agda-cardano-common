@@ -85,7 +85,7 @@ step w publishAsyncFailure rt ig s with lookup w rt
 ... | just f with phase f | lookup (capturedMux f) (IG.muxes (IG.execution ig))
 ...   | poolClosed | just m = just (setPhase w f deadTracing rt ,
       IG.setMux (capturedMux f) (record m { status = M.failed (cancellationError f)
-                                ; callback = M.readActive M.muxStopped }) ig)
+                                ; callback = IG.traceCallback m M.muxStopped }) ig)
 ...   | _ | _ = nothing
 step w finishRethrow rt ig s with lookup w rt
 ... | nothing = nothing

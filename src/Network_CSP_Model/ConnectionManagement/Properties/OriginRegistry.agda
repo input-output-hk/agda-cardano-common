@@ -13,6 +13,7 @@ open import Data.Unit using (⊤; tt)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans; sym)
 open import Function using (case_of_)
 import ConnectionManagement.Machine as Open
+import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.OriginMonitor as Single
 open import ConnectionManagement.Rules.AttributedOrigin using (Action; allocate; dispatch; erase; ordinary)
 import ConnectionManagement.Rules.AttributedOrigin as Attributed
@@ -102,3 +103,9 @@ invariant-exec (next {s = s} {a = a} eq path) (next evidence supported) inv =
 
 reachable : ∀ {c as s′} (path : Executes (start c) as s′) → Supported path → Invariant s′
 reachable path supported = invariant-exec path supported []
+
+-- Outbound allocation is outside the registry's attributed inbound profile,
+-- regardless of its current entries or the selected handle identity.
+raw-outbound-allocation-refused : ∀ hid mid k ps f s →
+  step (dispatch (Open.igStep (IG.installOutboundHandle hid mid k ps f))) s ≡ nothing
+raw-outbound-allocation-refused hid mid k ps f (registry c es) = refl

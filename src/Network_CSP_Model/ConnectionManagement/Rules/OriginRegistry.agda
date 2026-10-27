@@ -48,6 +48,7 @@ requiredWorker _ = nothing
 
 -- Allocate registers a fresh pair before the same event checks its captured key.
 -- Publication and attachment require prior registration, including on empty lists.
+-- ordinary rejects raw inbound and unsupported outbound allocation alike.
 prepare : Action → List Entry → Maybe (List Entry)
 prepare (allocate w hid mid k ps f) es with hasWorker w es ∨ hasHandle hid es
 ... | true = nothing

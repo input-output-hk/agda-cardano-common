@@ -57,3 +57,9 @@ reachable path = reachable-invariant (exec-projects path)
 raw-allocation-refused : ∀ t hid mid k ps f s →
   step t (dispatch (Open.igStep (IG.installHandle hid mid k ps f))) s ≡ nothing
 raw-allocation-refused t hid mid k ps f s = refl
+
+-- The existing attributed profile never accepts raw outbound allocation,
+-- including allocations whose handle/worker is unrelated to the selected pair.
+raw-outbound-allocation-refused : ∀ t hid mid k ps f s →
+  step t (dispatch (Open.igStep (IG.installOutboundHandle hid mid k ps f))) s ≡ nothing
+raw-outbound-allocation-refused t hid mid k ps f s = refl

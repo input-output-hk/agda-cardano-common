@@ -68,6 +68,7 @@ allocation-action t (Open.handlerStep w (L.nodeExceptionDelivered)) mid k ps fl 
 allocation-action t (Open.handlerStep w (L.rethrow)) mid k ps fl ()
 allocation-action t (Open.handlerStep w (L.choosePolicy p)) mid k ps fl ()
 allocation-action t (Open.handlerStep w (L.tracerThrew e)) mid k ps fl ()
+allocation-action t (Open.igStep (IG.installOutboundHandle hid mid′ k′ ps′ f′)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.captureTime n)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.registerInactivity)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.selectBatch)) mid k ps fl ()
@@ -119,6 +120,7 @@ checked-ticket t attachment (observed c awaitingAllocation) ph c′ () old creat
 checked-ticket t attachment (observed c (awaitingPublication tk)) ph c′ () old create
 checked-ticket t attachment (observed c (published tk)) ph c′ eq old create with just-injective eq
 ... | refl = old
+checked-ticket t unsupportedOutboundAllocation s ph c′ () old create
 checked-ticket t other s ph c′ eq old create with just-injective eq
 ... | refl = old
 

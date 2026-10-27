@@ -240,7 +240,7 @@ step21 : advance a21 c20 ≡ just c21
 step21 = refl
 
 a22 : Action
-a22 = core (CM.inbound (Inbound.igStep (IG.installHandle (ident 0) Fixture.mid key₀ (Fixture.proto ∷ []) duplex)))
+a22 = core (CM.inbound (Inbound.igStep (IG.installOutboundHandle (ident 0) Fixture.mid key₀ (Fixture.proto ∷ []) duplex)))
 c22 : Configuration
 c22 = configuration (J.world (O.withHandle (O.at O.wait O.connected)) []) (g1) (settings) (launch []) 0 (G.targets 1 1 1)
   ((ident 0 , jobFrame (J.frame (G.job G.establish peerAddr nothing) (caller) (child) (ident 10) (ident 0) (J.awaitAcquire)) false false) ∷ []) (ident 0 ∷ []) [] [] 1 1 5 60 nothing false

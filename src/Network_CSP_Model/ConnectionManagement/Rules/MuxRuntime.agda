@@ -62,6 +62,10 @@ record JobResult : Set where
         jobOutcome : RunResult
 open JobResult public
 
+-- Tracer attachment belongs to the mux; cleared counters do not detach it.
+data TracerAttachment : Set where
+  noIGTracer igTracer : TracerAttachment
+
 record Mux : Set where
   constructor muxState
   field
@@ -75,6 +79,7 @@ record Mux : Set where
     completions : List JobResult
     traceCounters : Maybe Counters
     callback : Callback
+    tracerAttachment : TracerAttachment
 open Mux public
 
 record Handle : Set where

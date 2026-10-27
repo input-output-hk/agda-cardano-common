@@ -40,8 +40,8 @@ worker-chain a covered ig queue s eq = anchors-preserve-chain (Retention.worker-
 
 mode-chain : ∀ mode a → CoveredMux a → ∀ ig queue s {ig′ queue′ q mid} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Chain q mid s ig → Chain q mid s ig′
-mode-chain noResponderMode a covered ig queue s () chain
-mode-chain responderMode a covered ig queue s eq chain = worker-chain a covered ig queue s eq chain
+mode-chain mode a covered ig queue s eq chain =
+  anchors-preserve-chain (Retention.mode-anchors mode a covered ig queue eq) chain
 
 step-preserves : ∀ a → CoveredMux a → ∀ c {c′} → advance (igStep a) c ≡ just c′ →
   ∀ q → TrackedChain q c → TrackedChain q c′

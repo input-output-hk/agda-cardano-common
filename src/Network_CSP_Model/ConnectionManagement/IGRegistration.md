@@ -25,9 +25,28 @@ The source baseline remains network
 
 ## Startup outcomes from state
 
-`installHandle` is an explicit handle-allocation boundary. It installs a distinct
-handle/mux pair with an ordered protocol bundle, idle protocol statuses and zero
-tracer counters. It is not yet wired into the actual handler allocation code.
+`installHandle` is the explicit inbound handle-allocation boundary. It installs a
+distinct handle/mux pair with an ordered protocol bundle, idle protocol statuses,
+an attached IG tracer and zero counters. Inbound unidirectional flow still attaches
+the tracer. `installOutboundHandle` is the outbound boundary: only responder mode
+with duplex flow attaches the IG tracer; other outbound combinations install no
+IG tracer or counters. These remain abstractions of source handler allocation,
+not Haskell IG API calls.
+
+`Mux.tracerAttachment` is separate from mutable `traceCounters`. Clearing counters
+after deregistration does not detach the tracer: an attached tracer can still
+emit MuxFinished. A mux without an IG tracer skips callback sampling, active-state,
+readiness and descriptor checks, and queue writes, while retaining its normal
+start/fork/failure/stop continuation. It therefore cannot acquire IG queue
+backpressure simply because an installed descriptor exists.
+
+The shared mux engine can run in `noResponderMode` without enabling an IG governor.
+That mode permits outbound installation and shared monitor/tracer/stop operations.
+Its monitor accepts only initiator completion heads and shutdown commands; it
+refuses responder start/fork/result operations, inbound installation, and IG
+batch/registration/timer actions. Initiator starts and result publication use the
+peer/subsystem boundaries. `Negative/TracerAttachment` checks the actual mode-aware
+steps, full-queue behavior and allocation freshness on conditional fixtures.
 
 `runResponders` looks up that handle and runs the source-ordered startup fold.
 Unknown protocol, non-Ready mux, and non-idle protocol status produce named errors.

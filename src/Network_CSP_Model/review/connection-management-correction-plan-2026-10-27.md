@@ -18,7 +18,7 @@ errata. Part C concerns a later snapshot and does not authorize moving the pin.
 | ID | Findings | Action and acceptance condition | Status |
 | --- | --- | --- | --- |
 | CM-SF1 | A1 | Use one direction-tagged JobPool completion FIFO, preserving separate job outcome and queue publication transactions. Gate monitor consumption by handler phase. Check FIFO priority, initiator clean/error handling, restart before publication, and exactly-once consumption. | Implemented and checked for the current responder-capable profile; broader lifetime limits below remain open. |
-| CM-SF2 | A2 | Represent actual IG tracer attachment. Inbound handlers attach it regardless of flow; outbound handlers require responder mode plus duplex. An absent tracer must emit no IG events or queue backpressure, including mux stop. Keep attachment distinct from counters becoming inactive. | Design and migration inventory complete; next semantic wave. |
+| CM-SF2 | A2 | Represent actual IG tracer attachment. Inbound handlers attach it regardless of flow; outbound handlers require responder mode plus duplex. An absent tracer must emit no IG events or queue backpressure, including mux stop. Keep attachment distinct from counters becoming inactive. | Implemented and checked after `b8d0081`; 44 acceptance equations and 18 final regression endpoints pass. See the A2 execution results below. |
 | CM-SF3 | A3 | Restore source retry precedence before missing-descriptor failure for started traces: expired idle first, and initial AwakeRemote queue write before descriptor forcing. Preserve transaction atomicity and test expired/full/available cases. Treat completed traces separately according to their source evaluation order. | Integrated after SF1; helper and actual dispatcher controls pass. |
 | CM-SF4 | A4 | Separate the model's target ordering predicate from production bounds and explicitly document invalid-input filtering. A source-faithful input profile would permit arbitrary overwrites and check the current value at selection. | Differences documented; executable target/input correction remains open. |
 | CM-SF5 | A5 | State model/replay clearing delay 60 versus pinned production 120, and retries 5 in both. Keep this profile's historical witnesses rather than silently changing their policy. | Documentation corrected; no default change. |
@@ -82,7 +82,7 @@ allocation-monitor classifications explicitly; a new outbound boundary must not
 silently bypass origin/admissibility monitoring. Acceptance includes full IG
 queue controls for absent/attached tracers, inbound unidirectional tracing,
 cleared counters on attached tracers, allocation freshness and noResponder IG
-registration refusal. This is a separate wave, not a completed A2 fix.
+registration refusal. This second-wave design is now implemented and checked; see the A2 execution results below.
 
 CM-SF3 adds a pure preflight for started traces only. With a registered view and
 active counters, expired RemoteIdle retries first; otherwise zero counters require
@@ -128,8 +128,9 @@ outlive a normal stopped snapshot. Source completed group shutdown excludes such
 late publication. Keep these as explicit follow-ups rather than claiming global
 queue/lifetime fidelity.
 
-The current noResponderMode does not drive the shared IG mux-monitor actions.
-Initiator-only consumption remains part of CM-SF2's engine/governor separation.
+The first wave did not drive shared mux monitors in noResponderMode. A2 now
+separates shared engine actions from governor/responder operations and validates
+initiator-only consumption; the earlier mode gap is resolved in the A2 scope.
 Do not add a FIFO-empty condition to the asynchronous handler-cancellation path:
 source asynchronous teardown may legitimately leave queued job results unread.
 Exactly-once publication means removal of one selected pending occurrence; it
@@ -141,7 +142,8 @@ CM-SF1 and CM-SF3 are integrated; CM-SF8/9 and profile documentation corrections
 are complete in the worktree. Three delegated workstreams performed FIFO code/
 proof migration, citation/comment fixes, and profile/tracer design and tests.
 Shared semantic edits were sequenced and all Agda checks ran one process at a
-time. This checkpoint covers the first wave; A2 remains the next semantic change.
+time. The first wave is committed as `b8d0081`; A2 is being implemented on top
+of that checkpoint.
 
 The A1 leaf and proof checks passed Agda 2.8.0 at `+RTS -M2G -RTS`:
 PeerActions, IGRegistration, Subsystem, MuxRetention, both subsystem invariant
@@ -180,8 +182,55 @@ failure transition were replaced with publication/consumption steps.
 
 These are Agda model checks, not Haskell replay or source refinement. No replay,
 upstream spec edit, source-pin migration or unrelated heavy network build was run.
-CM-SF2 is the next semantic workstream; it must retain the no-tracer/cleared-counter
-distinction and address initiator-only engine driving before claiming mode coverage.
+CM-SF2 was the next semantic workstream after this checkpoint. Its implemented
+no-tracer/cleared-counter distinction and initiator-only engine checks are recorded
+in the second-wave results below.
+
+## A2 execution results
+
+First-wave corrections were committed as `b8d0081` before starting A2. The A2
+worktree now adds a separate `TracerAttachment` marker, inbound/outbound allocation
+boundaries, attachment-aware callbacks and direction-sensitive initiator-only
+engine dispatch. Actual outbound witnesses use `installOutboundHandle`. Existing
+origin/attribution/registry profiles explicitly refuse the new outbound boundary,
+including unrelated IDs and empty registries, without asserting outbound origin.
+The open machine still accepts the corresponding allocation.
+
+Agda 2.8.0 checks ran sequentially with `+RTS -M2G -RTS`. The core/ordinary closure
+passed `Rules/IGRegistration`, `Properties/HandlerIG`, and combined references;
+the monitor closure passed `Properties/OriginMonitorInvariant` and the three
+origin-profile negative endpoints. The final
+`Negative/TracerAttachment.agda` check passed all 44 acceptance equations,
+including actual initiator-only Machine allocation and Subsystem FIFO consumption
+against a full IG queue. These fixtures remain conditional model controls.
+
+The final regression batch also passed all eighteen endpoints:
+
+- `Negative/{InitiatorCompletionFIFO,TracerReadinessIntegration,SubsystemReferences}`.
+- `Negative/{SubsystemSupply,SubsystemOwnership,SubsystemMapUnique,SubsystemMapReferences,SubsystemResources}`.
+- `Negative/{HandlerOrigin,OriginMonitor,AttributedOrigin,OriginRegistry,HandlerIGMux,RegistryProducer}`.
+- `CSP/{HandlerOutcomes,IGRuntime,OutboundAdmission,GovernorLifecycle}`.
+
+New/affected modules emitted Checking output during incremental validation;
+repeated endpoints reused cached interfaces. In the final batch, SubsystemReferences,
+HandlerOrigin, the three origin-profile controls, HandlerOutcomes, IGRuntime,
+OutboundAdmission and GovernorLifecycle reused their already checked interfaces.
+Other batch endpoints rechecked affected closures. Logs are in
+`/tmp/cm-review-20261027/a2-checks/`. This was not a whole-cache fresh build.
+
+The twenty-nine-file local proof audit found four inspected comparison operators,
+not holes. No new axioms, unsafe flags or weakened existing theorem statements
+were introduced. Whitespace checks passed. The first acceptance compile exposed
+two fixture naming/import errors; those were corrected and all final checks
+exited 0. No Haskell replay, upstream spec edit or source-pin migration was run.
+A2 and its documentation were validated on top of `b8d0081`.
+
+Next is CM-SF4's executable target/input semantics: implement the source bounds
+for the ordinary-peer profile, permit overwriting the input with invalid values,
+and select only a sane current value. Preserve the documented fixed-profile
+policy values and keep CM-SF6 production fault classification/supervision separate.
+Broader responder publication ordering, shutdown/job lifetime and handler validity
+limits remain open as stated above.
 
 ## Remaining scope
 

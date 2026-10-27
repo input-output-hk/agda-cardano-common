@@ -61,3 +61,12 @@ occupied-installation : step selected allocate (start E.installed) ≡ nothing
 occupied-installation = refl
 repeated-allocation : step selected allocate installed ≡ nothing
 repeated-allocation = refl
+
+-- Even unrelated outbound handle allocation is explicitly outside the inbound
+-- monitor profile; classification must not fall through to `other`.
+outbound-selected-refused : step selected
+  (igStep (IG.installOutboundHandle (ident 0) G.mid key₀ (G.proto ∷ []) duplex)) initial ≡ nothing
+outbound-selected-refused = refl
+outbound-unrelated-refused : step selected
+  (igStep (IG.installOutboundHandle (ident 99) (ident 99) key₁ (G.proto ∷ []) unidirectional)) initial ≡ nothing
+outbound-unrelated-refused = refl
