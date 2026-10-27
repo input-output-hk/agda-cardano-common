@@ -10,6 +10,11 @@ This folder is its own Agda library, `cardano-network-csp`
 (`cardano-network-csp.agda-lib`), separate from the enclosing `cardano-common`
 library. It does not depend on `cardano-common`.
 
+For the active project's goals, milestones, evidence, and next step, start with
+[PROJECT_STATE.md](PROJECT_STATE.md). The repository's
+[project-continuity skill](skills/project-continuity/SKILL.md) defines how to
+resume and checkpoint that work across sessions.
+
 ## Contents
 
 | Folder | What it is |

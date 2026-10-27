@@ -1,5 +1,9 @@
 # Standalone connection-management model
 
+For the current goal, milestone status, evidence, and next action, see
+[Project state](../PROJECT_STATE.md). The design and source ledger below remain
+the authority for scope and source mappings.
+
 This directory develops a source-derived CSP model of CM, IG, OG and Server
 together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
@@ -26,8 +30,9 @@ are also preserved across every finite combined execution, conditional on their
 initial presence. [Existing prepared and published chains](Outbound.md#existing-prepared-and-published-chains-across-the-subsystem)
 also retain their handle descriptors and mux keys through all combined
 interleavings. These are historical reference-coherence results; wider
-handler/runtime validity still needs extension.
-Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
+handler/runtime validity still needs extension. The
+[goal tracker](../PROJECT_STATE.md) records the completed milestones and next
+workstream. Admission starts after accepted-socket handoff. The consumer continues from an explicitly abstracted handler publication
 to the CM return boundary, or an explicit impossible-state exception boundary.
 Cleanup starts at a handler-exit boundary, derived for opt-in tracked handlers, and includes socket
 close, map restoration, and the untimed TIME_WAIT finalizer. The earlier
