@@ -109,3 +109,115 @@ quiescence premises or a source change, with their status stated separately.
 [server-child]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L234-L254
 [ig-exit]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L193-L235
 [inbound-fork]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L870-L881
+
+
+## Pre-handshake physical completion increment
+
+The next adapter begins before any handler exists and records physical ownership
+at the actual inbound `Server.fork` transition. It does not adopt the retained
+handler heap or a post-handshake snapshot as a physical registry. This first
+profile covers pre-handshake asynchronous cancellation; successful handshake,
+outbound physical spawning and mux execution are later obligations.
+
+The pinned exception classifier is especially significant here:
+`classifyHandlerError (HandlerError _) = HandshakeProtocolViolation`
+([ConnectionHandler:186–200][handler-error-class]). This includes an async
+exception caught by the handshake's `SomeException` handler. It differs from
+`HandleHandshakeClientError/ServerError (HandshakeProtocolError _)`, which is
+classified as `HandshakeFailure`. The consumer therefore uses the existing
+`protocolViolation` branch for the caught cancellation result. An interrupted
+masked bearer setup is outside that catch and has no such promise publication.
+Its cancellation delivery needs an explicit blocked-operation observation;
+ordinary delivery at an arbitrary masked setup boundary is not justified.
+
+Physical result publication must follow actual `Machine.handlerExit`, the
+existing captured-entry/socket cleanup steps and an observed `cleanupDone`
+outcome. A failed socket close replaces the original exception; it can complete
+the Async with a close error while retaining socket-close uncertainty and the
+restored original map. Delivery acknowledgment and handshake-result publication
+are both earlier than this Async result. Cleanup remains uninterruptible except
+for the source TIME_WAIT delay. Its interruption must invoke the existing real
+finalizer transaction before propagating the replacement error.
+
+These source mappings justify the bounded adapter's transitions. They are not a
+proof of complete mask semantics, eventual delivery, successful socket closure,
+or coverage of every handler body outcome. Source setup completion and Async
+result-publication scheduling remain explicit local observations.
+
+[handler-error-class]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L186-L200
+
+
+## Outbound birth and successful mux startup continuation
+
+[Core:1531–1545][outbound-birth] forks the physical handler before the separate
+Connected transaction. The source entry can still be ReservedOutbound while the
+child starts its body. Recording physical ownership at `commitConnected`, or
+reconstructing it from `getConnThread`, would omit that interval. The adapter
+must capture the child's actual HandlerStart at `OutboundAcquire.forkOK` while
+preserving the other callers' runtime frames and independent inbound actions.
+Old inbound-only proofs do not justify preservation across the new outbound
+writes: projection must target OutboundMachine, and supply induction must retain
+the existing pending-acquisition capture invariant.
+
+A snapshot read in this interval may skip the reserved entry despite the
+physical child. This is a local interleaving observation, not a proof that full
+diffusion shutdown reaches that interval: the earlier caller/pool joins and API
+scope contracts still matter. It must not be presented as a replay-confirmed bug
+or as permission to fabricate a handler reference in ReservedOutbound.
+
+Successful negotiation has a separate source sequence: handle/mux construction,
+promise publication, the buffer bracket, bearer construction and unmasked
+`Mx.run` ([ConnectionHandler:353–381][successful-handler]). In particular, the
+application can observe a successful promise before either mux infrastructure
+job is forked. `MuxRuntime.ready` already represents the Mx.new state and is not
+proof of either physical startup or shutdown.
+
+[Mux:248–270][physical-startup] traces Starting, allocates the egress queue,
+creates one WithQueue JobPool, forks/registers the muxer, then forks/registers
+the demuxer, traces Mature and enters the monitor. Both jobs share the same pool
+that will later own directional mini-protocol generations. Each
+[JobPool:122–145][startup-registration] parent masks its own fork/insertion gap;
+a child can act before insertion but its deregistration waits for that insertion.
+A standalone startup component can certify these captured fork/register histories;
+it cannot certify that a caller actually published a successful handler promise,
+released a buffer or joined the pool until the adapter supplies those couplings.
+
+[outbound-birth]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L1531-L1545
+[successful-handler]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L353-L381
+[physical-startup]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs#L248-L270
+[startup-registration]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Control/Concurrent/JobPool.hs#L122-L145
+
+
+## Coupling successful publication to per-handler startup
+
+Successful negotiation returns into the masked handler body before handle
+allocation and promise publication ([successful-handler]). The handshake-only
+catch no longer surrounds this continuation. The coupled prefix must disable
+the old unmasked-handshake cancellation route immediately at observed successful
+return, rather than keeping it available until the promise is written. Blocking
+interruptibility and unwind in later masked setup/startup remain separate future
+observations; omission of those branches is not a theorem that cancellation
+cannot occur there.
+
+Birth direction determines source allocation policy. Outbound success attaches
+an IG tracer only in responder mode with duplex flow (ConnectionHandler:361–370).
+Inbound success always constructs the IG tracer (435–443). A current CM entry can
+have been overwritten by another incarnation by then, so it cannot determine
+which handler function is running. Capture inbound/outbound origin at the actual
+fork and retain the original handler key, promise, socket and entry references.
+
+The actual successful `Machine.handlerPublication` and the startup component's
+`observePublication` must advance together. Before that event, callers cannot
+observe the negotiated promise. After it, callers may consume the result or queue
+responder requests while buffer/bearer creation and physical mux jobs remain
+pending. Neither handle allocation's M.ready status nor command enqueue proves
+that the mux monitor is running. Startup ownership must remain per handler, so
+independent handlers and callers can interleave throughout this prefix.
+
+The prefix must also guard inherited entry points: raw handle installation,
+publication observation, old handler body/cleanup/result paths and monitor/job
+progress cannot bypass the new resource ownership. In particular, successful
+startup does not justify `HandlerLifecycle.jobPoolClosed`, buffer release,
+CM-finalizer entry or Async result publication. Global physical JobId freshness
+across these per-handler pool histories is an explicit adapter check; a per-pool
+distinctness theorem alone cannot establish it.

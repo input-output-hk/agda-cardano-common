@@ -23,7 +23,7 @@ validation and commit status must be checked in the current worktree.
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: source audit and CM snapshot/send-all/wait coordinator; handler/mux and Server integration still open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: successful handler publication coupled to per-handler physical mux startup; protocol jobs/unwind, outer and Server integration still open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -469,7 +469,8 @@ The final three-file local proof audit found zero holes, postulates or unsafe
 flags; whitespace passed. Existing theorem files were not modified. No broad
 unrelated proof rebuild, source change or replay was run. Logs are
 `/tmp/cm-review-20261027/si4-cmshutdown-{rules,negative}.log` and
-`/tmp/si4-cmshutdown-properties.log`. This SI4 increment remains uncommitted.
+`/tmp/si4-cmshutdown-properties.log`. This CM traversal increment is committed
+as `2c39700`.
 
 Next executable obligation: track physical handler identity from the real fork
 and bind pre-handshake cancellation, promise catch regions and CM finalizer
@@ -478,3 +479,279 @@ per-direction/per-generation job pool, with its separate interruptible group
 close and buffer boundary, before supplying post-handshake observations to the
 CM coordinator. Server listener/action/IG ordering and admission quiescence must
 remain explicit before SI5 consumes a whole-scope certificate.
+
+
+## SI4 second increment: pre-handshake handler completion
+
+`HandlerSupervision` is a bounded inbound pre-handshake adapter over the actual
+`Machine` dispatcher and `CMShutdown` coordinator. It initializes only without
+pre-existing handlers/cleanups/lifecycle frames/publication faults and captures
+the physical child's original `HandlerStart` at the successful admission fork.
+No later key lookup changes that child's captured entry, socket or promise.
+The historical handler heap is not adopted as an active Async registry.
+
+Setup return and blocked-setup interruptibility are explicit local observations.
+Ordinary async delivery is allowed in the unmasked handshake; its catch must
+publish the real `handlerError protocolViolation` promise, rethrow, then enter
+the actual CM finalizer. Observed blocked cancellation in masked setup bypasses
+that promise because setup is outside the catch. This first profile supplies no
+successful-handshake/mux completion shortcut.
+
+All finalizer transitions invoke existing cleanup writers. Completion retains
+both the original cancellation error and actual cleanup outcome. A close error
+replaces the effective exception and can leave socket-close uncertainty.
+`cleanupDone`, finalizer return and Async result publication are separate
+boundaries. The last publication checks the real cleanup outcome again. The CM
+coordinator receives only the registry's `resultReady`; callers cannot inject an
+oracle or acknowledge a cancellation without coupled delivery/finished-target
+evidence. During TIME_WAIT a coupled delivery invokes the real interruption
+step, whose termination/purge continuation still must run before result return.
+
+Raw handler publication/exit/lifecycle/cleanup and release/pruning cancellation
+acknowledgments are refused by this adapter. Ordinary independent source actions
+retain the original guards. Delivery coupling for release/pruning senders, outer
+peer supervision, outbound physical fork, normal/synchronous handler outcomes,
+mux jobs and Server scopes remain later integration work. No global closed flag
+freezes later admissions; a closed snapshot is not whole-node shutdown.
+
+
+`Properties/HandlerSupervision` projects every successful wrapper step and every
+finite interleaving into actual `Machine.Executes` and `CMShutdown.Executes`
+paths. Its `closed-from-initial` certificate retains a drained traversal and a
+`PhysicalWait` with the actual wrapper finish transition and its registry-derived
+oracle. The checkpoint remains meaningful after independent source actions;
+it does not assert the same oracle at every later state. Existing Machine supply,
+map-uniqueness and lease-ownership theorems lift through the projected real source
+execution, with their original initial premises and no new runtime validity gate.
+
+Integration must eventually start at the real outer initializer so all physical
+forks are tracked. The SI3 endpoint's retained post-handshake handler cannot simply
+be adopted into this empty-registry initializer. Outbound birth and successful
+handshake/mux startup must be coupled before replaying that entire outer history.
+
+
+Validation on 27 October 2026: `HandlerSupervision.agda`,
+`Properties/HandlerSupervision.agda` and `Negative/HandlerSupervision.agda` all
+passed with fresh Checking output, sequentially in Agda 2.8.0 with
+`+RTS -M2G -RTS`, without warnings. The final acceptance check includes the
+initialized 24-action fork/cancel/promise/finalizer/result/CM-close execution,
+73 named reflexivity controls, and the initialized ten-action empty-close then
+late-admission execution. It instantiates the generic physical-wait certificate,
+actual Machine trace projection, supply preservation and both successful and
+failed-cleanup result-publication checkpoints. The latter checkpoints retain the
+original captured thread and the real cleanupDone observation at publication.
+The generic map and lease-ownership corollaries preserve their explicit initial
+premises; no whole-state validity is assumed by execution guards.
+
+Controls additionally cover masked setup without a promise, refusal of raw
+handler and cancellation-acknowledgment bypasses, wrong workers, failed socket
+close/map restoration/exception replacement, and a child finalizer blocked by
+its parent's outstanding map lease. A two-action consumer suffix from the
+reachable caught publication checks protocolViolation's actual Terminated/purge
+effect. TIME_WAIT interruption controls are conditional snapshots, not initialized
+source reachability witnesses. The source exports and exception classifier were
+checked at the existing network pin; no pin change or Haskell replay was run.
+
+Initial checker failures were nested-with clause association, a fixture argument
+name collision, and implicit inference of trace inputs erased by reduction.
+Explicit clauses/arguments resolved them without modifying existing semantics,
+weakening theorem statements, raising the heap limit or adding trust assumptions.
+The final three-file proof audit had zero findings; whitespace checks passed.
+Logs: `/tmp/cm-review-20261027/si4-handler-{rules,properties,negative-final}.log`.
+No unrelated proof rebuild was run. This second SI4 increment is uncommitted.
+
+Next is outbound physical birth and successful-handshake/mux ownership, including
+fresh directional run identities, real pool startup, the separate interruptible
+mini-protocol group close, final pool joins and buffer release. Couple these from
+the true outer initializer, retaining the earlier peer supervision proofs and
+late-admission behavior. Release/pruning sender acknowledgments and Server/IG
+scope completion still need integration before SI5 can derive full shutdown.
+
+
+## SI4 third increment: outbound physical birth and mux-startup prerequisite
+
+`OutboundHandlerSupervision` extends the pre-handshake physical registry across
+actual outbound acquisition/release and inbound interleavings. `O.core` is the
+only stored dispatcher configuration; the inherited handler state is a view,
+so handler writes replace that core without losing pending callers, operation
+results or the random-generation field. Outbound `forkOK` captures the actual
+new HandlerStart immediately, before `commitConnected`. Physical child freshness
+also excludes active admission/outbound caller identifiers and retained physical
+history. This is a symbolic worker-identity profile, not an implementation
+ThreadId ordering theorem.
+
+Raw `O.inbound` cannot bypass handler gates; raw outbound release delivery is
+also refused until a coupled delivery adapter exists. The real source operation
+still has its original guard for every enabled step. The initializer refuses
+existing handler captures while retaining any supplied caller runtime; arbitrary
+such runtimes require the existing capture/supply premises. The ordinary
+`O.initial` corollaries derive empty-runtime capture validity and require only
+the shared world's initial allocation bounds.
+
+`Properties/OutboundHandlerSupervision` projects every step and finite execution
+to actual `OutboundMachine.Executes` and `CMShutdown.Executes`. New outbound
+writers remain real source steps, rather than stutters justified by an old
+inbound invariant. Its capture and combined runtime/supply corollaries reuse the
+actual outbound proof endpoints. The closed certificate retains the exhausted
+snapshot and inherited physical wait at the actual handler-view boundary, with
+no claim about all historical or later handlers.
+
+The standalone `Rules/MuxStartup Result` is the next prerequisite, with a generic
+result type so mux infrastructure and later mini-protocol actors can share one
+WithQueue pool. It separates observed success publication, buffer acquisition,
+bearer construction, run/Starting/egress/pool setup, each infrastructure fork and
+registry insertion, Mature and monitor entry. Its startup phases retain the
+muxer/demuxer physical identities; child completion can run between parent steps.
+Neither `MuxRuntime.ready` nor an existing pool snapshot initializes ownership.
+
+Success publication remains an explicit observed boundary in this component:
+no theorem yet couples it to a successful handler promise in the physical
+outbound adapter. It supplies no buffer-release, shutdown, group-cancel or join
+action, and no successful/mux handler result can be published through the bounded
+pre-handshake adapter. The next integration must couple that boundary and actual
+startup to each captured handler before deriving post-handshake completion.
+
+
+Validation on 27 October 2026: all six new modules passed with Agda 2.8.0,
+`+RTS -M2G -RTS`, one process at a time, without final warnings. The outbound
+adapter, its property endpoint and its acceptance endpoint had fresh Checking
+output. MuxStartup rules checked transitively during the first property check;
+the subsequent explicit rule command passed using that cached interface. Final
+MuxStartup property and acceptance commands had fresh Checking output. The first
+transitive rule output remains in the tool transcript rather than a preserved
+log; the explicit rule log is empty because that check was cached.
+
+Outbound acceptance has 54 named reflexivity controls, an initialized 28-action
+acquisition/child-before-Connected/cancellation/cleanup/result/CM-close execution,
+and applications of the actual source/coordinator projections, physical-wait,
+capture and combined runtime/supply certificates. Initialized inbound/outbound
+interleavings preserve pending callers, and empty-close/later-admission still
+captures new physical children. An initialized 14-action local run closes a CM
+snapshot that skipped the ReservedOutbound entry while the already forked child
+remains alive. This does not derive the full diffusion prefix: outer caller joins
+and scoped API use still need integration before claiming a source shutdown race.
+
+Mux-startup acceptance includes 15 named reflexivity controls, a 13-action
+initialized startup, actual same-pool fork/register projections, distinct physical
+capture certificates, refusal of out-of-order/reused identities and early monitor
+entry, plus a fast-child interleaving. The child returns and publishes to the
+queue before insertion, cannot deregister early, then inserts/deregisters and
+publishes its Async result before the demuxer fork. A final initialized run still
+reaches monitor entry with that first child already unregistered; the historical
+capture certificate and actual pool trace both apply. These remain standalone
+component executions with observed body/publication boundaries, not successful
+handler-source refinement or completed mux shutdown.
+
+Proof-checker repairs concerned names colliding with existing constructors,
+implicit argument inference, with-abstraction equality transport and an explicit
+All constructor for initial bounds. All were resolved in the new files without
+modifying the old rules or weakening statements. The final six-file local proof
+audit found zero holes, postulates or unsafe flags; whitespace passed. Source
+exports for Core, ConnectionHandler, Mux and JobPool were compared again against
+the pinned Git objects. No replay, pin change or unrelated proof rebuild was run.
+Logs: `/tmp/cm-review-20261027/si4-outbound-handler-{rules,properties,negative}.log`
+and `si4-mux-startup-{rules,properties,negative}.log` in the same directory.
+All work after `2c39700`, including the prior pre-handshake increment, remains
+uncommitted. The pre-existing `.claude` symlink is untouched.
+
+Next executable action: couple successful handshake/handle allocation and actual
+promise publication to each captured handler's mux-startup instance, including
+the masked post-handshake/buffer/bearer interval. Do not leave the old handshaking
+cancellation path enabled after success or infer physical startup from M.ready.
+Then add fresh directional/generation mini-protocol ownership in the same pool,
+exact result publication, separate interruptible group cancellation, final pool
+joins and buffer release before enabling post-handshake CM finalization. Reconnect
+the outer peer-supervision history from its true initializer and finish Server/IG
+scopes with admission quiescence explicit. SI4/SI5 and full shutdown remain open.
+
+
+## SI4 fourth increment: successful handler to mux-startup coupling
+
+`MuxHandlerSupervision Result` is an additive wrapper over
+OutboundHandlerSupervision. It retains one shared outbound source, records
+inbound/outbound birth provenance only at successful real fork transitions, and
+keeps a separate startup frame for each observed successful handler. Its
+initializer rejects pre-existing physical handlers and pre-existing IG
+handles/muxes rather than adopting their ownership.
+
+`negotiate` is the explicit restored-handshake-success observation. It captures
+the registered handler's original references, protocol bundle and flow, and
+immediately disables that handler's old handshaking/cancellation/body/cleanup/
+result paths. Birth provenance selects actual `installHandle` for inbound or
+mode/flow-sensitive `installOutboundHandle` for outbound, using the captured key;
+mutable CM entry provenance is never consulted for this decision.
+
+`publishSuccess` invokes the real `OutboundMachine.inbound` handler-publication
+writer and the selected `MuxStartup.observePublication` in the same transition.
+Handle allocation alone does not publish a promise. After publication, independent
+callers may consume the result and enqueue requests while the buffer, bearer and
+physical infrastructure startup remain pending. Each handler then advances its
+own startup instance through the same queued-pool fork/register transitions.
+Infrastructure JobIds must be fresh across all captured mux pool histories,
+including deregistered children; the per-pool certificate alone is not described
+as a proof of global uniqueness.
+
+Raw handle installation and independent publication observations are blocked.
+Inherited old handler and CM-delivery actions cannot bypass a captured success
+frame. Monitor/tracer/job actions for its allocated mux are also parked until a
+physical protocol/monitor adapter extends this startup prefix; ordinary command
+enqueue and unrelated actors retain their original guards. There is no successful
+body-exit, pool-close, buffer-release, CM-finalizer or Async-result shortcut.
+Masked setup failures, blocking interruption and startup unwind remain future
+branches, not a theorem that those interruptions cannot happen.
+
+
+`Properties/MuxHandlerSupervision` projects every step and finite execution to
+actual OutboundMachine and CMShutdown executions, retaining the physical final
+wait, and to a separate startup execution for every selected handler. Its
+initialized monitoring certificate gives that handler's distinct captured
+infrastructure identities and actual same-pool history. The source projection
+lifts existing capture/runtime-supply theorems with their original premises;
+new allocation and publication writes are not erased into old-wrapper stutters.
+A local `Publication` witness retains the actual source promise write and matching
+startup observation. `startup-parent-registry` proves every startup-only step
+leaves the physical parent handler table unchanged; a child Async result does
+not fabricate the parent handler's result.
+
+Validation on 27 October 2026: the new model, property and acceptance modules all
+passed with fresh Checking output, sequentially at Agda 2.8.0 with
+`+RTS -M2G -RTS`, without final warnings. The maintained endpoint is
+`Negative/MuxHandlerSupervision.agda`. It contains 104 named reflexivity controls,
+an initialized 27-action outbound fork/success/publication/monitor-entry run,
+actual inbound second-handler birth and independent per-handler startup histories,
+and an actual CM-consumer/IG request-enqueue suffix before buffer/job startup.
+Generic source/coordinator/selected-handler projections, monitoring/pool-history,
+publication, capture/supply and parent-registry certificates are instantiated.
+A three-action initialized empty CM close also instantiates the inherited
+physical-wait certificate; it does not assert future quiescence.
+
+Controls cover publication before buffer/physical jobs, refusal of independent
+publication observation and raw install/cleanup/exit/cancellation bypasses,
+mode/flow-sensitive outbound tracer selection versus inbound tracer selection,
+foreign-pool body results, globally fresh captured mux-job identities even after
+deregistration, and another pool forking during the first parent's insertion gap.
+The birth-policy control with an overwritten mutable CM entry is a conditional
+snapshot; the real initialized paths are labeled separately. Negotiation return,
+local buffer/bearer/setup boundaries and child body outcomes remain explicit
+component observations, not implementation refinement or eventuality claims.
+
+Checker repairs concerned local names colliding with existing constructors;
+there was no old-rule change, theorem weakening, heap increase or new trust
+assumption. Final three-file local proof audit: zero findings. Tracked diffs and
+new-file whitespace checks passed. ConnectionHandler, Mux and JobPool exports
+were compared again with the pinned Git objects. No Haskell replay, source-pin
+migration, unrelated proof build or commit was performed. Logs are
+`/tmp/cm-review-20261027/si4-mux-handler-{rules,properties,negative,negative-final}.log`.
+All work after `2c39700` remains uncommitted; `.claude` remains untouched.
+
+Next executable obligation: extend each captured startup's SAME physical pool
+with directional/generation mini-protocol jobs and an exact result sum that can
+also represent muxer/demuxer outcomes. Bind protocol fork/start, body result,
+queue publication and deregistration to actual source operations without using
+legacy runningJobs/finishedJobs cells as physical identities. Then permit mux
+monitor processing through that adapter, including interruptible MiniProtocolJob
+group cancellation, final pool close/joins, async-vs-normal tracer ordering and
+buffer release before CM finalizer entry. Masked setup/startup failure and
+interruption branches need their real unwind, too. Preserve independent actors,
+per-parent insertion masks and late admissions while integrating outer scopes.
+SI4/SI5 and full shutdown remain open.
