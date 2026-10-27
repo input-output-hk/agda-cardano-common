@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- A single-spawning-owner pool, with explicit completion-queue policy.
+-- A pool with explicit completion-queue policy and spawning boundaries.
 -- Source: JobPool.hs:105-109,119-164 at the network pin. The supplied close
 -- order represents the source map traversal order; this module checks its
 -- membership, not a concrete ThreadId ordering. No CM unwind/join is invented.
@@ -10,6 +10,7 @@ module ConnectionManagement.Rules.JobPoolKernel (Result : Set) (queued : Bool) w
 open import Data.Bool using (Bool; true; false; not; _∧_)
 open import Data.List using (List; []; _∷_; _++_; filterᵇ)
 open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Product using (_,_)
 open import Relation.Nullary using (yes; no; does)
 open import Relation.Binary.PropositionalEquality using (_≡_)
 open import Class.DecEq using (_≟_)
@@ -66,6 +67,26 @@ sameSnapshot : List JobId → List JobId → Bool
 sameSnapshot order current = unique order ∧ unique current ∧
   allMembers order current ∧ allMembers current order
 
+-- Active historical handles without an insertion still represent a masked
+-- parent registration gap. Removed children never require a second insertion.
+awaitingRegistration : ThreadPhase → Bool
+awaitingRegistration (deregistered _) = false
+awaitingRegistration (resultAvailable _) = false
+awaitingRegistration _ = true
+registrationsSettled : Store JobId ThreadPhase → List JobId → Bool
+registrationsSettled [] current = true
+registrationsSettled ((j , state) ∷ rest) current with awaitingRegistration state
+... | true = member j current ∧ registrationsSettled rest current
+... | false = registrationsSettled rest current
+
+-- WithQueue retains its existing single-owner mask discipline. WithoutQueue
+-- also admits multiple spawning parents, all of whose insertions must finish
+-- before a quiescent outer owner can capture the close snapshot.
+canSnapshot : Bool → List JobId → State → Bool
+canSnapshot true order s = sameSnapshot order (registered s)
+canSnapshot false order s = registrationsSettled (handles s) (registered s) ∧
+  sameSnapshot order (registered s)
+
 -- The source child deregister operation removes only its own current registry
 -- binding; the Async handle remains in historical storage and captured snapshots.
 remove : JobId → List JobId → List JobId
@@ -75,6 +96,7 @@ remove j = filterᵇ (λ k → not (does (j ≟ k)))
 data Action : Set where
   fork : JobId → Action
   register : Action
+  forkConcurrent registerConcurrent : JobId → Action
   bodyReturnedWith : JobId → Result → Action
   publishCompletion bodyUnwound deregister publishAsyncResult : JobId → Action
   resumeAfterUnwindError : JobId → Action
@@ -105,6 +127,21 @@ publishQueued true j s with lookup j (handles s)
   ; completions = completions s ++ (result ∷ []) })
 ... | _ = nothing
 
+-- Queue policy is an explicit helper argument so its false specialization can
+-- admit several parents without changing the WithQueue owner's mask protocol.
+concurrentFork : Bool → JobId → State → Maybe State
+concurrentFork true j s = nothing
+concurrentFork false j s with phase s | lookup j (handles s)
+... | openPool | nothing = just (record s { handles = put j bodyRunning (handles s) })
+... | _ | _ = nothing
+concurrentRegister : Bool → JobId → State → Maybe State
+concurrentRegister true j s = nothing
+concurrentRegister false j s with phase s | lookup j (handles s) | member j (registered s)
+... | openPool | just state | false with awaitingRegistration state
+...   | true = just (record s { registered = j ∷ registered s })
+...   | false = nothing
+concurrentRegister false j s | _ | _ | _ = nothing
+
 -- Owner fork and registration are separate source boundaries. While the parent
 -- is masked in this gap it cannot start its own lexical close operation.
 step : Action → State → Maybe State
@@ -117,6 +154,12 @@ step register s with phase s | parentFork s
 ...   | false = just (record s { registered = j ∷ registered s; parentFork = nothing })
 ...   | true = nothing
 step register s | _ | _ = nothing
+
+-- Concurrent parent identities and their masked continuations belong to the
+-- integrating outer scope. These operations expose only their distinct child
+-- fork/insertion events and cannot reopen a closing pool.
+step (forkConcurrent j) s = concurrentFork queued j s
+step (registerConcurrent j) s = concurrentRegister queued j s
 
 -- The body-return boundary carries the actual job/handler result, not a promise
 -- of thread termination. Publication occurs before ordinary deregistration.
@@ -148,10 +191,9 @@ step (publishAsyncResult j) s with lookup j (handles s)
 ... | just (deregistered exit) = just (record s { handles = put j (resultAvailable exit) (handles s) })
 ... | _ = nothing
 
--- Read the current registry ONCE after the spawning owner leaves its body.
--- The model is for the governor pool's single spawning owner; peer-monitor and
--- transport pools require their own owners and independently ordered snapshots.
-step (beginClose order) s with phase s | parentFork s | sameSnapshot order (registered s)
+-- Read the registry ONCE after the integrating owner establishes its spawning
+-- parents quiescent. The queue-free guard also rejects outstanding insertions.
+step (beginClose order) s with phase s | parentFork s | canSnapshot queued order s
 ... | openPool | nothing | true = just (record s
   { phase = closing; snapshot = order; remaining = order; joined = [] })
 ... | _ | _ | _ = nothing

@@ -18,7 +18,9 @@ supplied shutdown-completion boundary; full thread supervision remains open.
 A [standalone governor-pool close](Outbound.md#one-governor-job-pool-close) now
 models sequential cancellation/joins and proves result availability for the
 captured snapshot. [Supervision integration](Supervision.md) now couples that
-pool to executable CM caller unwind; remaining scopes and full shutdown are open. The earlier inbound
+pool to executable CM caller unwind and a separate physical monitor registry,
+with ordered Async joins and capture/supply preservation. Handler/server scopes
+and full shutdown remain open. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite

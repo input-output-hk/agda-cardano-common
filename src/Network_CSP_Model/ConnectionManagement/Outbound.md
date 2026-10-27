@@ -308,8 +308,9 @@ This primitive is now coupled to the source world by
 bracket/socket cleanup or all source mask states. A removed historical child
 outside the snapshot can still expose its Async result after this pool closes.
 The separate background-monitor registry is not the subsystem's `monitors`
-follow-up-operation table. The provider, monitor and server scopes and their
-unwind order remain to be integrated. Detached cleanup capture/supply validity
+follow-up-operation table. The monitor/provider/Async scopes and their ordering are now coupled in
+`PeerSupervision`, with initialized close witnesses and component certificates.
+Handler/server scope integration remains open. Detached cleanup capture/supply validity
 is now proved in `Properties/GovernorPoolSupply` for arbitrary finite coupled
 executions, with explicit initial supply bounds. Accordingly the existing production
 profile's external `completeShutdown` boundary is retained until that wider

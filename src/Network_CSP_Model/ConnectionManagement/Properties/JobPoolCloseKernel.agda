@@ -134,6 +134,50 @@ publish-empty true k c eq valid with lookup k (Pool.handles c)
 ... | just (Pool.deregistered ex) = case eq of λ ()
 ... | just (Pool.resultAvailable ex) = case eq of λ ()
 
+concurrent-coverage-fork : ∀ policy k c {c′} → Pool.concurrentFork policy k c ≡ just c′ → Covered c → Covered c′
+concurrent-coverage-fork true k c () valid
+concurrent-coverage-fork false k c eq valid with Pool.phase c | lookup k (Pool.handles c) in absent
+... | Pool.openPool | nothing = case just-injective eq of λ { refl → fresh-preserves c k Pool.bodyRunning absent valid }
+concurrent-coverage-fork false k c eq valid | Pool.closing | _ = case eq of λ ()
+concurrent-coverage-fork false k c eq valid | Pool.closedPool | _ = case eq of λ ()
+concurrent-coverage-fork false k c eq valid | (Pool.cancelPending current) | _ = case eq of λ ()
+concurrent-coverage-fork false k c eq valid | (Pool.joinPending current) | _ = case eq of λ ()
+concurrent-coverage-fork false k c eq valid | Pool.openPool | just old = case eq of λ ()
+concurrent-coverage-register : ∀ policy k c {c′} → Pool.concurrentRegister policy k c ≡ just c′ → Covered c → Covered c′
+concurrent-coverage-register true k c () valid
+concurrent-coverage-register false k c eq valid with Pool.phase c | lookup k (Pool.handles c) | Pool.member k (Pool.registered c)
+... | Pool.openPool | just state | false with Pool.awaitingRegistration state
+...   | true = case just-injective eq of λ { refl → valid }
+...   | false = case eq of λ ()
+concurrent-coverage-register false k c eq valid | Pool.closing | _ | _ = case eq of λ ()
+concurrent-coverage-register false k c eq valid | Pool.closedPool | _ | _ = case eq of λ ()
+concurrent-coverage-register false k c eq valid | (Pool.cancelPending current) | _ | _ = case eq of λ ()
+concurrent-coverage-register false k c eq valid | (Pool.joinPending current) | _ | _ = case eq of λ ()
+concurrent-coverage-register false k c eq valid | Pool.openPool | nothing | _ = case eq of λ ()
+concurrent-coverage-register false k c eq valid | Pool.openPool | just state | true = case eq of λ ()
+
+concurrent-empty-fork : ∀ policy k c {c′} → Pool.concurrentFork policy k c ≡ just c′ → ClosedEmpty c → ClosedEmpty c′
+concurrent-empty-fork true k c () valid
+concurrent-empty-fork false k c eq valid with Pool.phase c in phaseEq | lookup k (Pool.handles c) in absent
+... | Pool.openPool | nothing = case just-injective eq of λ { refl → λ closed → case trans (sym phaseEq) closed of λ () }
+concurrent-empty-fork false k c eq valid | Pool.closing | _ = case eq of λ ()
+concurrent-empty-fork false k c eq valid | Pool.closedPool | _ = case eq of λ ()
+concurrent-empty-fork false k c eq valid | (Pool.cancelPending current) | _ = case eq of λ ()
+concurrent-empty-fork false k c eq valid | (Pool.joinPending current) | _ = case eq of λ ()
+concurrent-empty-fork false k c eq valid | Pool.openPool | just old = case eq of λ ()
+concurrent-empty-register : ∀ policy k c {c′} → Pool.concurrentRegister policy k c ≡ just c′ → ClosedEmpty c → ClosedEmpty c′
+concurrent-empty-register true k c () valid
+concurrent-empty-register false k c eq valid with Pool.phase c in phaseEq | lookup k (Pool.handles c) | Pool.member k (Pool.registered c)
+... | Pool.openPool | just state | false with Pool.awaitingRegistration state
+...   | true = case just-injective eq of λ { refl → λ closed → case trans (sym phaseEq) closed of λ () }
+...   | false = case eq of λ ()
+concurrent-empty-register false k c eq valid | Pool.closing | _ | _ = case eq of λ ()
+concurrent-empty-register false k c eq valid | Pool.closedPool | _ | _ = case eq of λ ()
+concurrent-empty-register false k c eq valid | (Pool.cancelPending current) | _ | _ = case eq of λ ()
+concurrent-empty-register false k c eq valid | (Pool.joinPending current) | _ | _ = case eq of λ ()
+concurrent-empty-register false k c eq valid | Pool.openPool | nothing | _ = case eq of λ ()
+concurrent-empty-register false k c eq valid | Pool.openPool | just state | true = case eq of λ ()
+
 -- Every successful primitive preserves coverage; no scheduling restriction is
 -- imposed on body completion, deregistration or Async result publication.
 step-preserves : ∀ a c {c′} → Pool.step a c ≡ just c′ → Covered c → Covered c′
@@ -146,6 +190,8 @@ step-preserves (Pool.fork k) c eq valid | (Pool.cancelPending k₁) | _ | _ = ca
 step-preserves (Pool.fork k) c eq valid | (Pool.joinPending k₁) | _ | _ = case eq of λ ()
 step-preserves (Pool.fork k) c eq valid | Pool.openPool | just pending | _ = case eq of λ ()
 step-preserves (Pool.fork k) c eq valid | Pool.openPool | nothing | just old = case eq of λ ()
+step-preserves (Pool.forkConcurrent k) c eq valid = concurrent-coverage-fork queued k c eq valid
+step-preserves (Pool.registerConcurrent k) c eq valid = concurrent-coverage-register queued k c eq valid
 step-preserves Pool.register c eq valid with Pool.phase c | Pool.parentFork c
 ... | Pool.openPool | just k with Pool.member k (Pool.registered c)
 ...   | false = case just-injective eq of λ { refl → valid }
@@ -202,7 +248,7 @@ step-preserves (Pool.publishAsyncResult k) c eq valid with lookup k (Pool.handle
 ... | just Pool.bodyUnwinding = case eq of λ ()
 ... | just (Pool.deregisterPending ex) = case eq of λ ()
 ... | just (Pool.resultAvailable ex) = case eq of λ ()
-step-preserves (Pool.beginClose order) c eq valid with Pool.phase c | Pool.parentFork c | Pool.sameSnapshot order (Pool.registered c)
+step-preserves (Pool.beginClose order) c eq valid with Pool.phase c | Pool.parentFork c | Pool.canSnapshot queued order c
 ... | Pool.openPool | nothing | true = case just-injective eq of λ { refl → λ j member → inj₁ member }
 ... | Pool.closing | _ | _ = case eq of λ ()
 ... | Pool.closedPool | _ | _ = case eq of λ ()
@@ -286,6 +332,8 @@ step-empty (Pool.fork k) c eq valid with Pool.phase c in phaseEq | Pool.parentFo
 ... | Pool.joinPending pending | _ | _ = case eq of λ ()
 ... | Pool.openPool | just pending | _ = case eq of λ ()
 ... | Pool.openPool | nothing | just old = case eq of λ ()
+step-empty (Pool.forkConcurrent k) c eq valid = concurrent-empty-fork queued k c eq valid
+step-empty (Pool.registerConcurrent k) c eq valid = concurrent-empty-register queued k c eq valid
 step-empty Pool.register c eq valid with Pool.phase c in phaseEq | Pool.parentFork c
 ... | Pool.openPool | just k with Pool.member k (Pool.registered c)
 ...   | false = case just-injective eq of λ { refl → λ closed → case trans (sym phaseEq) closed of λ () }
@@ -337,7 +385,7 @@ step-empty (Pool.publishAsyncResult k) c eq valid with lookup k (Pool.handles c)
 ... | just Pool.bodyUnwinding = case eq of λ ()
 ... | just (Pool.deregisterPending ex) = case eq of λ ()
 ... | just (Pool.resultAvailable ex) = case eq of λ ()
-step-empty (Pool.beginClose order) c eq valid with Pool.phase c | Pool.parentFork c | Pool.sameSnapshot order (Pool.registered c)
+step-empty (Pool.beginClose order) c eq valid with Pool.phase c | Pool.parentFork c | Pool.canSnapshot queued order c
 ... | Pool.openPool | nothing | true = case just-injective eq of λ { refl → λ () }
 ... | Pool.closing | _ | _ = case eq of λ ()
 ... | Pool.closedPool | _ | _ = case eq of λ ()

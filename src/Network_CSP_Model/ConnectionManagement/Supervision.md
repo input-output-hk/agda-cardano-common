@@ -20,10 +20,10 @@ validation and commit status must be checked in the current worktree.
 
 | ID | Scope and required result | Current workstream position |
 | --- | --- | --- |
-| SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Standalone implementation complete and checked in this checkpoint. This is not full shutdown. |
-| SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Implemented and checked within the stated execution profile: real cleanup, captured-frame/supply induction, initialized runs and pool-close certificate. |
-| SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Remaining obligation. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Remaining obligation. |
+| SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
+| SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
+| SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Implemented and checked in this checkpoint after `8c79b9a`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Next obligation. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -74,9 +74,9 @@ cleanup writes. The real initializer discharges both capture runtimes; initial
 shared entry/promise bounds remain explicit. Existing raw Subsystem theorem
 statements have not been changed or silently generalized.
 
-SI3–SI5 remain open. In particular, the actual background-monitor thread registry
-is not `Subsystem.monitors`, which records only currently executing follow-up
-operations. No full shutdown action is derived or added by this integration.
+SI3 now supplies the separate actual background-thread registry described below.
+It is not `Subsystem.monitors`, which records only followup operations. SI4/SI5
+remain open; no full shutdown action is derived or added by this integration.
 
 ## SI2 validation checkpoint (27 October 2026)
 
@@ -147,10 +147,9 @@ local audit covers thirteen files with zero findings. Queue-mode matching used
 explicit helper functions after Agda rejected matching on a module parameter;
 no check was disabled and no theorem weakened.
 
-Next executable obligation: SI3 must record actual background-thread
-creation/registration and the outer provider/Async scopes;
-`Subsystem.monitors` cannot stand in for that thread registry. SI4 and SI5 remain
-outstanding, and no completeShutdown derivation is claimed.
+That SI2 checkpoint was committed as `8c79b9a` before starting SI3 below.
+`Subsystem.monitors` cannot stand in for the actual thread registry. SI4 and SI5
+remain outstanding, and no completeShutdown derivation is claimed.
 
 ## Acquisition cancellation matrix
 
@@ -274,10 +273,9 @@ no new validation, source-refinement, cleanup-liveness or full-shutdown claim.
 
 ## SI3 source-derived integration checklist
 
-SI3 remains open. This subsection is source-verified design guidance, not an
-implemented outer registry or a validation claim. The queue-free kernel
-prerequisite now exists; actual PSA thread capture and outer-scope integration
-still need to be implemented.
+This source-verified checklist guided the SI3 implementation and remains the
+source-to-model scope contract. The executable implementation and validation
+checkpoint follow it; the remaining CM/handler/server scopes are SI4.
 
 - Split background creation, registration and successful establishment return.
   [PSA:836–852][si3-spawn] calls `JobPool.forkJob` before returning the peer
@@ -340,3 +338,88 @@ still need to be implemented.
 [si3-loop]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L709-L775
 [si3-order]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L767-L826
 [si3-providers]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerSelectionActions.hs#L84-L102
+
+
+## SI3 executable integration and validation (27 October 2026)
+
+Commit `8c79b9a` contains SI1/SI2. This SI3 checkpoint was validated on top of it.
+`PeerSupervision` now owns a physical monitor-thread registry, a separate
+WithoutQueue pool, and the outer Async scope coordinator. It routes followups
+through each captured worker and refuses untracked launch, caller substitution,
+or resumption after cancellation. It refines the original atomic launch into
+fork, parent registration, PSA return and governor-job return. A spawning parent's
+own masked gap blocks its cancellation delivery while other parents/children
+continue. Cancellation after insertion but before PSA return restores Cold;
+after successful PSA return it preserves the peer, independently of job return.
+
+`JobPoolKernel` admits concurrent fork/register only in queue-free mode and
+requires every outstanding insertion to settle before the outer snapshot. The
+queued governor specialization keeps its previous single-owner behavior.
+Historical removed children are not re-registered or mistaken for live gaps.
+A child can return before its own insertion, but cannot deregister before it.
+
+Normal monitor exit and its duration-variable clear are distinct from a followup
+operation finishing. An active followup must complete before the physical loop
+exits. Ordinary thrown errors enter a captured demotion wait and write Cold only
+when that wait commits; exit tracing then clears promotion time. Asynchronous
+cancellation bypasses that handler, retains committed peer/control/release effects
+and promotion time, and produces no governor completion. Blocking interruptibility
+in a masked error handler is an explicit observation. `monitorException` is an
+observed synchronous throw, not a proof that every supplied error is reachable.
+
+`Rules/AsyncScope` models churn, governor, local-root provider and ledger-peer
+provider. Its join cursor follows that nesting order, while independent thread
+completion can occur earlier. Governor pool close requires delivered cancellation
+or an explicit independent exception-entry observation. Governor Async body exit
+requires its own pool closed; the outer monitor snapshot requires the Async scope
+joins completed. Thread local-body exit remains an explicit component boundary;
+provider/churn internals and startup before those scopes are entered are outside
+this ordinary-profile coordinator. No eventuality or full Haskell refinement is
+claimed. The four scope statuses are stored as finite fields, avoiding nested
+callback histories while preserving the getter/snapshot-builder interfaces.
+
+`Properties/PeerSupervision` projects every coupled step and finite execution to
+three actual operational traces: the governor pool, physical monitor pool and
+Async scope coordinator. From the real initializer and the three observed closed
+states, its certificate gives terminal Async results for both captured snapshots
+and all four scope joins. Real CM/peer writes remain in the source execution;
+only the separate metadata components are projected. `PeerSupervisionSupply`
+preserves ordinary and detached captures plus shared entry/promise bounds across
+all coupled actions/interleavings, requiring only initial shared bounds.
+
+Validation used Agda 2.8.0 and `+RTS -M2G -RTS`, one process at a time. The new
+rules, component/capture-supply proofs and all acceptance layers passed. The
+maintained endpoint is `Negative/PeerSupervision.agda`, which publicly reexports
+three checked layers: `PeerSupervisionScenarios`, `PeerSupervisionGovernorClose`
+and `PeerSupervisionClosing`. They retain **144 named reflexivity equations**,
+an initialized 44-action monitor spawn, a 26-action empty-scope close and an
+initialized **81-action nonempty close**. The latter actually queues the normal
+governor result while the owner is unwinding, joins that job, joins the provider
+scopes, and cancels/deregisters/joins the captured monitor. It instantiates both
+pool/scope certificates and the capture/supply theorem. A concrete handler remains
+present afterward, an explicit control against calling this full shutdown.
+`Negative/ConcurrentPool` adds 17 equations and an initialized seven-action
+registration-race execution. Conditional snapshot controls remain distinguished
+from initialized model executions and from implementation reachability.
+
+The initial monolithic acceptance check exhausted its 2 GB heap. Explicit
+component snapshots, finite scope fields, and separate checked scenario/governor/
+closing proof layers resolved it without increasing the heap limit, deleting
+cases, changing theorem statements or adding axioms. Earlier elaboration fixes
+covered inaccessible private module aliases, constructor names and store order.
+Final checks produced no warnings. Logs are under
+`/tmp/cm-review-20261027/si3-*.log`; generic component proof logs are also under
+`a6-checks/` at that location. The queued-pool compatibility check passed with
+Checking output. Final regression checks of `Negative/WithoutQueuePool` rechecked;
+`Negative/{GovernorPool,SubsystemSupply,SubsystemOwnership,SubsystemMapUnique}`
+passed with cached interfaces. The twelve-file local proof audit found zero
+findings. Whitespace checks passed. No replay, upstream source/spec edit,
+dependency upgrade or unrelated heavy proof build was run.
+
+Next is SI4: audit and connect actual handler creation and post-handshake mux
+job ownership, callback/pool/buffer unwind, CM finalizers and responder-server
+scope joins. Existing `HandlerLifecycle.jobPoolClosed` and other local completion
+inputs must not be promoted to a whole-scope certificate without their own
+captured job/cleanup evidence. The initialized remaining handler is the concrete
+starting fixture. SI5 will consume the resulting certificates; no full shutdown
+transition has been derived here.
