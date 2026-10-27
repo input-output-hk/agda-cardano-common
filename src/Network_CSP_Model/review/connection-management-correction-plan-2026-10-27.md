@@ -22,7 +22,7 @@ errata. Part C concerns a later snapshot and does not authorize moving the pin.
 | CM-SF3 | A3 | Restore source retry precedence before missing-descriptor failure for started traces: expired idle first, and initial AwakeRemote queue write before descriptor forcing. Preserve transaction atomicity and test expired/full/available cases. Treat completed traces separately according to their source evaluation order. | Integrated after SF1; helper and actual dispatcher controls pass. |
 | CM-SF4 | A4 | Enforce ordinary target bounds and select changed sane values from an overwritable input. Invalid raw writes must not block policy/wakeup; captured selections survive later writes. | Committed as `67a3c69`; checked in the nonnegative ordinary profile. |
 | CM-SF5 | A5 | State model/replay clearing delay 60 versus pinned production 120, and retries 5 in both. Keep this profile's historical witnesses rather than silently changing their policy. | Documentation corrected; no default change. |
-| CM-SF6 | A6 | Distinguish abstract policy choices from production fault classification. Keep delivery acknowledgment separate from supervisor termination. A concrete policy/supervision profile needs explicit fault classes and delivery/cancellation behavior. | Scoped peer-policy wrapper and delivery/local-rethrow boundaries checked; 32 acceptance equations and 16 regressions pass. Full cancellation/join remains open. |
+| CM-SF6 | A6 | Distinguish abstract policy choices from production fault classification. Keep delivery acknowledgment separate from supervisor termination. A concrete policy/supervision profile needs explicit fault classes and delivery/cancellation behavior. | Scoped peer-policy wrapper and delivery/local-rethrow boundaries checked; 32 acceptance equations and 16 regressions pass. Full cancellation/join is separate implementation work tracked in Supervision.md. |
 | CM-SF7 | A7 | State that STM retry rolls back generator splitting and preserves selection on unchanged inputs, while other threads can alter the generator. Preserve abstract admissible selection without claiming a concrete PRNG implementation. | Documentation corrected; concrete PRNG correspondence remains outside scope. |
 | CM-SF8 | A8 | Correct API names and stale comments, while keeping Store admissibility/sampling and inbound/outbound origin-proof scopes distinct. | Documentation/comment corrections implemented; coordinator review completed. |
 | CM-SF9 | A9 | Verify and repair source spans, adding distinct wiring/registry-cleanup references instead of overstating short ranges. | Citation corrections implemented; coordinator review completed. |
@@ -343,6 +343,19 @@ supervision increment must represent scope-owned cancellation and joins before
 replacing the external completed-supervision boundary with a derived one.
 A6 validation was completed on top of `67a3c69`; this checkpoint includes the
 scoped correction and its source/validation reports.
+
+## A6 pool-close continuation
+
+Scope clarification: the standalone pool close and its subsequent CM/scope
+integration are **new implementation coverage**, motivated by A6, rather than
+necessary review corrections. The user explicitly confirmed this distinction and
+then authorized the integration workstream. Its milestone IDs, source matrices,
+validation and next steps are now recorded in
+[Supervision.md](../ConnectionManagement/Supervision.md), SI1–SI5.
+
+The scoped peer-policy review correction is committed as `4f3b159`. Completing
+SI1 or SI2 does not complete full production supervision or close the documented
+limits of the broader subsystem model.
 
 ## Remaining scope
 

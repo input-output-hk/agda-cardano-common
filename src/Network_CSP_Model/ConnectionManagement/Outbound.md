@@ -274,6 +274,59 @@ The [A6 source audit](../review/connection-management-a6-source-audit-2026-10-27
 records policy wiring, exception and supervision scope. Full cancellation,
 unwinding, thread joins and implementation refinement remain open.
 
+### One governor job-pool close
+
+`Rules/JobPoolLifecycle Result` now gives an executable model of one
+single-spawning-owner WithQueue pool. It separates body return, queued outcome,
+registry removal and observable Async result. A child may return and publish
+before the masked parent registers it, but deregistration retries until that
+insertion. The owner cannot begin its lexical close in that fork/register gap.
+Historical Async handles are retained independently of the live registry.
+
+`beginClose order` checks an exact unique permutation of the registered handles
+and captures it once. The supplied order represents the source map traversal;
+no ordering of symbolic `JobId`s is claimed to implement source ThreadId order.
+Close invokes cancellation and awaits the Async result of one captured handle
+before proceeding to the next. Registry deletion cannot retarget that wait.
+Normal completion may outrun pending cancellation. Acknowledged cancellation
+moves a running body into a separate unwind path, which deregisters without
+fabricating a failed governor completion. Already queued outcomes survive close.
+Delivery is refused in the modeled masked normal publication/deregistration gaps.
+
+`Properties/JobPoolClose.from-initial` proves that every member of the captured
+snapshot has an observable Async result whenever a finite execution from the
+empty initializer reaches `closedPool`. Its induction keeps each snapshot member
+on the remaining cursor or certifies its result, while a separate invariant
+ensures a completed close has no remaining cursor. It requires no fairness or
+assumed eventual termination. Arbitrary injected states need the explicit
+`Covered` and `ClosedEmpty` certificates used by the preservation lemmas.
+
+This primitive is now coupled to the source world by
+[`GovernorPool`](GovernorPool.agda), with executable caller cleanup described in
+[Supervision.md](Supervision.md). It does not change raw `Subsystem.advance`. `bodyRunning` abstracts the source body's actual interruptibility;
+`bodyUnwound` is an explicit local unwind-completion input. Neither proves CM
+bracket/socket cleanup or all source mask states. A removed historical child
+outside the snapshot can still expose its Async result after this pool closes.
+The separate background-monitor registry is not the subsystem's `monitors`
+follow-up-operation table. The provider, monitor and server scopes and their
+unwind order remain to be integrated. Detached cleanup capture/supply validity
+is now proved in `Properties/GovernorPoolSupply` for arbitrary finite coupled
+executions, with explicit initial supply bounds. Accordingly the existing production
+profile's external `completeShutdown` boundary is retained until that wider
+certificate can be derived. The
+[pool source audit](../review/connection-management-pool-supervision-source-audit-2026-10-27.md)
+records these source distinctions and dependency limits.
+
+Validation used Agda 2.8.0 with `+RTS -M2G -RTS`, one process at a time:
+`Rules/JobPoolLifecycle`, `Properties/JobPoolClose` and
+`Negative/JobPoolLifecycle` passed with Checking output. The acceptance endpoint
+checks 65 equations, three finite executions and applications of the generic
+snapshot certificate, including a historical non-snapshot child that remains
+nonterminal when close finishes. The unchanged `Negative/ProductionPolicy`
+regression also passed using cached interfaces. The three-file proof audit found
+no holes, postulates or unsafe flags. No Haskell replay or whole-supervisor
+refinement check was run.
+
 ## Invariant extension: captured-entry prerequisite
 
 The inbound `SupplyInvariant.advance-preserves` theorem cannot be copied to
