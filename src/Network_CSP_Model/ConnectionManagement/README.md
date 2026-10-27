@@ -11,7 +11,10 @@ together. It is independent of `Cardano_network`, `GovernorWedge` and
 The current model covers **inbound admission, outbound acquisition/release, an
 ordinary-peer OG, peer jobs/monitoring, handler cleanup, IG batches/registration
 and selected mux/tracer behavior**. [Outbound.md](Outbound.md) describes the new
-combined dispatcher, source mapping and checked lifecycles. The earlier inbound
+combined dispatcher, source mapping and checked lifecycles.
+The [pinned peer-policy wrapper](Outbound.md#exception-policy-and-node-delivery)
+filters acquisition faults and separates exception delivery from an externally
+supplied shutdown-completion boundary; full thread supervision remains open. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite

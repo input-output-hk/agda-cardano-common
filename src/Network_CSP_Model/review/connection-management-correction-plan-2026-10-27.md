@@ -20,9 +20,9 @@ errata. Part C concerns a later snapshot and does not authorize moving the pin.
 | CM-SF1 | A1 | Use one direction-tagged JobPool completion FIFO, preserving separate job outcome and queue publication transactions. Gate monitor consumption by handler phase. Check FIFO priority, initiator clean/error handling, restart before publication, and exactly-once consumption. | Implemented and checked for the current responder-capable profile; broader lifetime limits below remain open. |
 | CM-SF2 | A2 | Represent actual IG tracer attachment. Inbound handlers attach it regardless of flow; outbound handlers require responder mode plus duplex. An absent tracer must emit no IG events or queue backpressure, including mux stop. Keep attachment distinct from counters becoming inactive. | Committed as `4268692`; 44 acceptance equations and 18 final regression endpoints pass. See the A2 execution results below. |
 | CM-SF3 | A3 | Restore source retry precedence before missing-descriptor failure for started traces: expired idle first, and initial AwakeRemote queue write before descriptor forcing. Preserve transaction atomicity and test expired/full/available cases. Treat completed traces separately according to their source evaluation order. | Integrated after SF1; helper and actual dispatcher controls pass. |
-| CM-SF4 | A4 | Enforce ordinary target bounds and select changed sane values from an overwritable input. Invalid raw writes must not block policy/wakeup; captured selections survive later writes. | Implemented and checked in the nonnegative ordinary profile; validated after `4268692`. |
+| CM-SF4 | A4 | Enforce ordinary target bounds and select changed sane values from an overwritable input. Invalid raw writes must not block policy/wakeup; captured selections survive later writes. | Committed as `67a3c69`; checked in the nonnegative ordinary profile. |
 | CM-SF5 | A5 | State model/replay clearing delay 60 versus pinned production 120, and retries 5 in both. Keep this profile's historical witnesses rather than silently changing their policy. | Documentation corrected; no default change. |
-| CM-SF6 | A6 | Distinguish abstract policy choices from production fault classification. Keep delivery acknowledgment separate from supervisor termination. A concrete policy/supervision profile needs explicit fault classes and delivery/cancellation behavior. | Differences documented; concrete production profile remains open. |
+| CM-SF6 | A6 | Distinguish abstract policy choices from production fault classification. Keep delivery acknowledgment separate from supervisor termination. A concrete policy/supervision profile needs explicit fault classes and delivery/cancellation behavior. | Scoped peer-policy wrapper and delivery/local-rethrow boundaries checked; 32 acceptance equations and 16 regressions pass. Full cancellation/join remains open. |
 | CM-SF7 | A7 | State that STM retry rolls back generator splitting and preserves selection on unchanged inputs, while other threads can alter the generator. Preserve abstract admissible selection without claiming a concrete PRNG implementation. | Documentation corrected; concrete PRNG correspondence remains outside scope. |
 | CM-SF8 | A8 | Correct API names and stale comments, while keeping Store admissibility/sampling and inbound/outbound origin-proof scopes distinct. | Documentation/comment corrections implemented; coordinator review completed. |
 | CM-SF9 | A9 | Verify and repair source spans, adding distinct wiring/registry-cleanup references instead of overstating short ranges. | Citation corrections implemented; coordinator review completed. |
@@ -270,18 +270,85 @@ inspected comparison operators; no holes, postulates, unsafe flags or changed
 preservation theorem types. Whitespace checks passed. No Haskell replay, upstream
 spec edit or source-pin change was performed. A4 was validated on top of `4268692`.
 
-Next is CM-SF6: audit concrete production fault classification and the boundary
-between delivery and supervisor cancellation before extending the abstract
-exception-policy profile. Do not equate throwTo acknowledgment with completed
+CM-SF4 was committed as `67a3c69` before starting CM-SF6. Its source audit and
+scoped executable correction are recorded below. Do not equate throwTo acknowledgment with completed
 node shutdown. The fixed replay-policy values and abstract PRNG profile stay as
 already documented.
+
+## A6 executable peer-policy correction
+
+A4 was committed first as `67a3c69`. The
+[A6 source audit](connection-management-a6-source-audit-2026-10-27.md) checks the
+policy and supervision finding against Git objects at the unchanged network pin.
+It distinguishes the base policy supplied to peer-state actions from the
+configurable handler extensions. The broad acquisition `SomeException` boundary
+supports an explicit exception-class input; it does not justify assuming every
+`ioFailure` is an ordinary `IOException`.
+
+`Rules/PeerJobs` now retains the acquired `Fault` in `acquirePolicy`,
+`nodeDelivery` and `nodeRethrow`. Delivery acknowledgment and the sender's local
+rethrow/failed-establishment cleanup are separate actions. The exhaustive generic
+peer-job and subsystem preservation layers cover the added PC/action without
+changing their public preservation statements. Existing failure scenario
+snapshots now name the captured fault.
+
+`Rules/ProductionPolicy.Profile` is an explicit wrapper over the open subsystem.
+Its immutable `ErrorId → Bool` classifier must agree with the original source
+exception. Named CM faults are always peer-only; broad `ioFailure` consults the
+classifier. Both governor-job and background-monitor dispatch enforce the same
+policy, delivery and local-rethrow guards. The first successful fatal delivery
+records its actor and fault. Ordinary interleavings remain possible afterward,
+including before the sender's local rethrow.
+
+A separate `completeShutdown` marks an externally supplied completed-supervision
+boundary and freezes further wrapper actions. It is enabled only after a
+recorded fatal peer-job delivery. It is not a cancellation implementation, a
+resource-cleanup or join certificate, a process-termination result, or an
+eventual-shutdown theorem. Handler-originated fatal exceptions remain outside
+this wrapper's supervision claim. `step-projects` and `exec-projects` retain
+ordinary subsystem actions and erase only the shutdown boundary; `Profile.Lift`
+transfers existing subsystem safety invariants through that projection.
+
+Validation passed sequentially with Agda 2.8.0 and `+RTS -M2G -RTS`:
+
+- `Properties/SubsystemWorldInvariant` rechecked the new local-rethrow cases.
+- `Rules/ProductionPolicy` rechecked the wrapper, projection and generic lift.
+- `Negative/ProductionPolicy` rechecked 32 equations, universal stopped-action
+  refusal, a three-step finite wrapper execution, its raw projection, and an
+  application of the existing map-uniqueness invariant lift. These are conditional
+  model controls, not initial-state source-reachability witnesses.
+- Sixteen final regressions passed: `Properties/SubsystemInvariant`,
+  `Negative/{SubsystemSupply,SubsystemOwnership,SubsystemMapUnique,
+  SubsystemMapReferences,SubsystemResources,SubsystemReferences,TargetInputs,
+  TracerAttachment,InitiatorCompletionFIFO,TracerReadinessIntegration,Subsystem,
+  OutboundGovernor,GovernorOpenFailure,GovernorFailureLimit}` and
+  `CSP/GovernorLifecycle`.
+
+The three core/new endpoint checks emitted Checking output. Twelve final
+regression invocations emitted Checking output; the readiness, subsystem,
+outbound-governor and final lifecycle invocations reused checked interfaces.
+Batch logs and the wrapper log are under `/tmp/cm-review-20261027/a6-checks/`.
+During development, a preservation branch still used the old combined
+failure-cleanup law after delivery was split; the final branch preserves the
+unchanged world, and the separate local-rethrow branch uses the cleanup law.
+Initial wrapper name-shadowing warnings were removed; final checks had no
+warnings. The nine-file local proof audit found six inspected `≤?` comparison
+tokens and no holes, new axioms or unsafe flags. Existing preservation statement
+types are unchanged. Whitespace checks passed. No Haskell replay, upstream spec
+edit, source-pin migration or unrelated heavy build was run.
+
+The scoped peer-policy correction is implemented and checked, but full
+cancellation/join correspondence remains an open part of CM-SF6. The next
+supervision increment must represent scope-owned cancellation and joins before
+replacing the external completed-supervision boundary with a derived one.
+A6 validation was completed on top of `67a3c69`; this checkpoint includes the
+scoped correction and its source/validation reports.
 
 ## Remaining scope
 
 A4 is implemented for the documented ordinary target profile. Root/big-ledger,
-negative-input and custom-target extensions remain separate. A6 production-policy/
-supervision execution is still open; documenting its profile is not equivalent
-to implementing it. Full concrete PRNG correspondence is not
-needed for the present abstract profile. Upstream Part B errata can be drafted
+negative-input and custom-target extensions remain separate. A6 now has a scoped
+executable peer-policy profile; full production cancellation/join and supervision
+correspondence remain open. Full concrete PRNG correspondence is not needed for the present abstract profile. Upstream Part B errata can be drafted
 later, with B12's conditional status and unverified PDF details retained. Part C
 changes remain deferred until an explicit source-pin migration.

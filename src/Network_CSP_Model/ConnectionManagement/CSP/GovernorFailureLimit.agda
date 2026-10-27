@@ -213,7 +213,7 @@ a88 : Action
 a88 = jobStep (ident 2) J.collectAcquire
 c88 : Configuration
 c88 = snapshot (cm3) (promoting3) (g2) (launch []) 15
-  (put (ident 2) (jobAt 30 31 2 (J.acquirePolicy) false false) jobs2) (ident 2 ∷ []) ([]) 3 (nothing) false
+  (put (ident 2) (jobAt 30 31 2 (J.acquirePolicy C.connectionExists) false false) jobs2) (ident 2 ∷ []) ([]) 3 (nothing) false
 
 a89 : Action
 a89 = jobStep (ident 2) J.choosePeerPolicy
@@ -444,7 +444,7 @@ a124 : Action
 a124 = jobStep (ident 3) J.collectAcquire
 c124 : Configuration
 c124 = snapshot (cm4) (promoting4) (g3) (launch []) 35
-  (put (ident 3) (jobAt 40 41 3 (J.acquirePolicy) false false) jobs3) (ident 3 ∷ []) ([]) 4 (nothing) false
+  (put (ident 3) (jobAt 40 41 3 (J.acquirePolicy C.connectionExists) false false) jobs3) (ident 3 ∷ []) ([]) 4 (nothing) false
 
 a125 : Action
 a125 = jobStep (ident 3) J.choosePeerPolicy
@@ -675,7 +675,7 @@ a160 : Action
 a160 = jobStep (ident 4) J.collectAcquire
 c160 : Configuration
 c160 = snapshot (cm5) (promoting5) (g4) (launch []) 75
-  (put (ident 4) (jobAt 50 51 4 (J.acquirePolicy) false false) jobs4) (ident 4 ∷ []) ([]) 5 (nothing) false
+  (put (ident 4) (jobAt 50 51 4 (J.acquirePolicy C.connectionExists) false false) jobs4) (ident 4 ∷ []) ([]) 5 (nothing) false
 
 a161 : Action
 a161 = jobStep (ident 4) J.choosePeerPolicy
@@ -906,7 +906,7 @@ a196 : Action
 a196 = jobStep (ident 5) J.collectAcquire
 c196 : Configuration
 c196 = snapshot (cm6) (promoting6) (g5) (launch []) 155
-  (put (ident 5) (jobAt 60 61 5 (J.acquirePolicy) false false) jobs5) (ident 5 ∷ []) ([]) 6 (nothing) false
+  (put (ident 5) (jobAt 60 61 5 (J.acquirePolicy C.connectionExists) false false) jobs5) (ident 5 ∷ []) ([]) 6 (nothing) false
 
 a197 : Action
 a197 = jobStep (ident 5) J.choosePeerPolicy

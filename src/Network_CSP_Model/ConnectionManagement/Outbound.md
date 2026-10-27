@@ -230,23 +230,49 @@ No production-default claim follows from a witness checked with those parameters
 
 ### Exception policy and node delivery
 
-After any raised acquisition result, `Rules/PeerJobs` offers the abstract
-`choosePeerPolicy` and `chooseNodePolicy` actions. It does not classify faults to
-implement the production policy. The pinned diffusion wiring supplies its
-[`rethrowPolicy`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L286-L293)
-to peer-state actions (`Diffusion.hs:591`): `IOManagerError` is fatal; ordinary CM
-faults do not select `ShutdownNode` under that wiring. The model can select the
-node branch for a broader set of abstract faults, including `ConnectionExists`.
+The open `Rules/PeerJobs` model retains both `choosePeerPolicy` and
+`chooseNodePolicy` after a raised acquisition result. Its policy and delivery PCs
+now capture the returned `OutboundCases.Fault`; later CM result-table writes do
+not replace that exception. The final governor failure outcome still erases it.
+
+`Rules/ProductionPolicy.Profile` adds the pinned **peer-state-action** policy as
+an explicit wrapper around `Subsystem`. Named CM faults are peer-only. For
+`ioFailure e`, an immutable `isIOManagerError : ErrorId → Bool` parameter supplies
+the exception-class projection: only a true classification admits the node
+branch, and only a false classification admits the peer branch. The parameter
+must agree with the source exception represented by that error identity; this
+is an input contract, not a theorem reconstructing Haskell exception types.
+The acquisition boundary tries `SomeException`, so interpreting every opaque
+`ioFailure` as an ordinary `IOException` would lose fatal cases.
+
+The pinned diffusion wiring supplies its local
+[`rethrowPolicy`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L286-L322)
+to peer-state actions (`Diffusion.hs:582–593`): only `IOManagerError` is fatal.
+The connection handler separately receives a configurable policy extension; the
+wrapper does not filter that policy or claim to supervise handler-originated
+fatal exceptions.
 
 The source's
-[`ShutdownNode`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L794-L801)
-performs `throwTo` on the main thread and then rethrows locally. The modeled
-`deliverNodeException` acknowledges delivery and follows the failed-establishment
-path; other jobs and governor actions can continue because supervisor shutdown
-and cancellation are outside the profile. Acknowledgment is not a claim that the
-node has terminated. Replacing it with immediate configuration termination would
-also abstract away the source's delivery/unwinding window. Concrete fault-policy
-classification and node-supervision behavior remain unproved.
+[`ShutdownNode`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L785-L805)
+performs `throwTo` on the diffusion thread (`spsMainThreadId`) and then
+rethrows locally. The wrapper
+records the first successful `deliverNodeException`, including actor and fault,
+while continuing to admit subsystem interleavings. Delivery moves the sender to
+`nodeRethrow fault`; the separate `rethrowNodeException` performs local failure
+cleanup. Supervision may therefore complete before that sender continuation.
+Its separate `completeShutdown` action marks an **externally supplied
+completed-supervision boundary** and then freezes dispatch. This boundary is enabled only after a
+recorded fatal peer-job delivery. It neither implements cancellation/join nor
+asserts that shutdown eventually occurs. It also does not assert that every
+interleaving before this boundary is feasible in Haskell.
+
+Both job and monitor dispatch paths use the same policy guard, including a
+check of the captured fault before delivery. Projection erases the supervision
+boundary to an empty subsystem trace and retains dispatched actions, allowing
+existing subsystem invariants to be reused without broadening their claims.
+The [A6 source audit](../review/connection-management-a6-source-audit-2026-10-27.md)
+records policy wiring, exception and supervision scope. Full cancellation,
+unwinding, thread joins and implementation refinement remain open.
 
 ## Invariant extension: captured-entry prerequisite
 
@@ -828,9 +854,9 @@ results can outlive a stopped snapshot. Those lifetime/order limits remain open.
 Asynchronous handler cancellation can legitimately leave queued results unread
 and retains its separate teardown path.
 
-A2's tracer-attachment correction is integrated below. A4–A7 profile differences
-are documented above; concrete target-input and production-policy/supervision
-execution remain separate extensions. A8/A9 stale names, comments and
+A2's tracer-attachment correction is integrated below. A4 target inputs and
+the A6 peer-policy wrapper are described above; full production supervision
+remains open. A5/A7 retain the documented delay and PRNG abstractions. A8/A9 stale names, comments and
 source ranges are corrected without broadening the existing proof scopes.
 
 ## Mode and flow dependent tracer attachment

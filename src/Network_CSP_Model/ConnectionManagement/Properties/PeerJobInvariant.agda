@@ -98,8 +98,9 @@ module Lift
   step-preserves enter f w v | delayFailure | _ = λ ()
   step-preserves enter f w v | (awaitCold result) | _ = λ ()
   step-preserves enter f w v | (complete result) | _ = λ ()
-  step-preserves enter f w v | acquirePolicy | _ = λ ()
-  step-preserves enter f w v | nodeDelivery | _ = λ ()
+  step-preserves enter f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves enter f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves enter f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves collectAcquire f w v with pc f | lookup (caller f) (CM.acquired (cm w))
   ... | awaitAcquire | just (Cases.connected k flow h) with lookup h (IG.handles (IG.execution (Inbound.inboundGovernor (CM.core (cm w))))) | lookup (connectionRef f) (peers w)
   ...   | just hd | nothing = λ eq → start-preserves ConnectionManagement.IGTypes.warm f (record w { peers = put (connectionRef f) (P.initialPeer k h hd) (peers w) }) eq (v)
@@ -121,8 +122,9 @@ module Lift
   step-preserves collectAcquire f w v | delayFailure | _ = λ ()
   step-preserves collectAcquire f w v | (awaitCold result) | _ = λ ()
   step-preserves collectAcquire f w v | (complete result) | _ = λ ()
-  step-preserves collectAcquire f w v | acquirePolicy | _ = λ ()
-  step-preserves collectAcquire f w v | nodeDelivery | _ = λ ()
+  step-preserves collectAcquire f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves collectAcquire f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves collectAcquire f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves runNext f w v with pc f
   ... | startBundle t [] = λ { refl → v }
   ... | startBundle t (n ∷ ns) with peerStep (P.startProtocol t n) f w in moved
@@ -141,8 +143,9 @@ module Lift
   step-preserves runNext f w v | delayFailure = λ ()
   step-preserves runNext f w v | (awaitCold result) = λ ()
   step-preserves runNext f w v | (complete result) = λ ()
-  step-preserves runNext f w v | acquirePolicy = λ ()
-  step-preserves runNext f w v | nodeDelivery = λ ()
+  step-preserves runNext f w v | (acquirePolicy fault) = λ ()
+  step-preserves runNext f w v | (nodeDelivery fault) = λ ()
+  step-preserves runNext f w v | (nodeRethrow fault) = λ ()
   step-preserves publishStarted f w v with pc f
   ... | publishBundle t with peerStep (P.publishProtocols t) f w in moved
   ...   | nothing = λ ()
@@ -163,8 +166,9 @@ module Lift
   step-preserves publishStarted f w v | delayFailure = λ ()
   step-preserves publishStarted f w v | (awaitCold result) = λ ()
   step-preserves publishStarted f w v | (complete result) = λ ()
-  step-preserves publishStarted f w v | acquirePolicy = λ ()
-  step-preserves publishStarted f w v | nodeDelivery = λ ()
+  step-preserves publishStarted f w v | (acquirePolicy fault) = λ ()
+  step-preserves publishStarted f w v | (nodeDelivery fault) = λ ()
+  step-preserves publishStarted f w v | (nodeRethrow fault) = λ ()
   step-preserves markEstablished f w v with pc f
   ... | markWarm with peerStep P.markWarm f w in moved
   ...   | nothing = λ ()
@@ -182,8 +186,9 @@ module Lift
   step-preserves markEstablished f w v | delayFailure = λ ()
   step-preserves markEstablished f w v | (awaitCold result) = λ ()
   step-preserves markEstablished f w v | (complete result) = λ ()
-  step-preserves markEstablished f w v | acquirePolicy = λ ()
-  step-preserves markEstablished f w v | nodeDelivery = λ ()
+  step-preserves markEstablished f w v | (acquirePolicy fault) = λ ()
+  step-preserves markEstablished f w v | (nodeDelivery fault) = λ ()
+  step-preserves markEstablished f w v | (nodeRethrow fault) = λ ()
   step-preserves launchMonitor f w v with pc f
   ... | forkMonitor with peerStep P.forkMonitor f w in moved
   ...   | nothing = λ ()
@@ -201,8 +206,9 @@ module Lift
   step-preserves launchMonitor f w v | delayFailure = λ ()
   step-preserves launchMonitor f w v | (awaitCold result) = λ ()
   step-preserves launchMonitor f w v | (complete result) = λ ()
-  step-preserves launchMonitor f w v | acquirePolicy = λ ()
-  step-preserves launchMonitor f w v | nodeDelivery = λ ()
+  step-preserves launchMonitor f w v | (acquirePolicy fault) = λ ()
+  step-preserves launchMonitor f w v | (nodeDelivery fault) = λ ()
+  step-preserves launchMonitor f w v | (nodeRethrow fault) = λ ()
   step-preserves (finishHotAt time) f w v with pc f
   ... | finishActivation with peerStep (P.markPromoted time) f w in moved
   ...   | nothing = λ ()
@@ -220,8 +226,9 @@ module Lift
   step-preserves (finishHotAt time) f w v | delayFailure = λ ()
   step-preserves (finishHotAt time) f w v | (awaitCold result) = λ ()
   step-preserves (finishHotAt time) f w v | (complete result) = λ ()
-  step-preserves (finishHotAt time) f w v | acquirePolicy = λ ()
-  step-preserves (finishHotAt time) f w v | nodeDelivery = λ ()
+  step-preserves (finishHotAt time) f w v | (acquirePolicy fault) = λ ()
+  step-preserves (finishHotAt time) f w v | (nodeDelivery fault) = λ ()
+  step-preserves (finishHotAt time) f w v | (nodeRethrow fault) = λ ()
   step-preserves observeHot f w v with pc f | lookup (connectionRef f) (peers w)
   ... | awaitHot | just p with P.all ConnectionManagement.IGTypes.hot (P.runs p) | peerStep P.finishDeactivate f w | peer-preserves P.finishDeactivate f w
   ...   | just clean | just w′ | retained = λ { refl → retained refl v }
@@ -243,8 +250,9 @@ module Lift
   step-preserves observeHot f w v | delayFailure | _ = λ ()
   step-preserves observeHot f w v | (awaitCold result) | _ = λ ()
   step-preserves observeHot f w v | (complete result) | _ = λ ()
-  step-preserves observeHot f w v | acquirePolicy | _ = λ ()
-  step-preserves observeHot f w v | nodeDelivery | _ = λ ()
+  step-preserves observeHot f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves observeHot f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves observeHot f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves observeAll f w v with pc f | lookup (connectionRef f) (peers w)
   ... | awaitAll | just p with P.all ConnectionManagement.IGTypes.hot (P.runs p) | P.all ConnectionManagement.IGTypes.warm (P.runs p) | P.all ConnectionManagement.IGTypes.established (P.runs p)
   ...   | just clean | just clean | just clean = λ { refl → v }
@@ -276,8 +284,9 @@ module Lift
   step-preserves observeAll f w v | delayFailure | _ = λ ()
   step-preserves observeAll f w v | (awaitCold result) | _ = λ ()
   step-preserves observeAll f w v | (complete result) | _ = λ ()
-  step-preserves observeAll f w v | acquirePolicy | _ = λ ()
-  step-preserves observeAll f w v | nodeDelivery | _ = λ ()
+  step-preserves observeAll f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves observeAll f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves observeAll f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves requestRelease f w v with pc f | lookup (connectionRef f) (peers w)
   ... | callRelease | just p with CM.advance (CM.beginRelease (caller f) (P.key p)) (cm w) in advanced
   ...   | nothing = λ ()
@@ -296,8 +305,9 @@ module Lift
   step-preserves requestRelease f w v | delayFailure | _ = λ ()
   step-preserves requestRelease f w v | (awaitCold result) | _ = λ ()
   step-preserves requestRelease f w v | (complete result) | _ = λ ()
-  step-preserves requestRelease f w v | acquirePolicy | _ = λ ()
-  step-preserves requestRelease f w v | nodeDelivery | _ = λ ()
+  step-preserves requestRelease f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves requestRelease f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves requestRelease f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves collectRelease f w v with pc f | lookup (caller f) (CM.released (cm w))
   ... | awaitRelease | just R.assertionFailure = λ { refl → v }
   ... | awaitRelease | just (R.success state) = λ { refl → v }
@@ -316,8 +326,9 @@ module Lift
   step-preserves collectRelease f w v | delayFailure | _ = λ ()
   step-preserves collectRelease f w v | (awaitCold result) | _ = λ ()
   step-preserves collectRelease f w v | (complete result) | _ = λ ()
-  step-preserves collectRelease f w v | acquirePolicy | _ = λ ()
-  step-preserves collectRelease f w v | nodeDelivery | _ = λ ()
+  step-preserves collectRelease f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves collectRelease f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves collectRelease f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves observeCold f w v with pc f | lookup (connectionRef f) (peers w)
   ... | awaitCold result | just p with P.status p
   ...   | P.peerCold = λ { refl → v }
@@ -338,8 +349,9 @@ module Lift
   step-preserves observeCold f w v | awaitRelease | _ = λ ()
   step-preserves observeCold f w v | delayFailure | _ = λ ()
   step-preserves observeCold f w v | (complete result) | _ = λ ()
-  step-preserves observeCold f w v | acquirePolicy | _ = λ ()
-  step-preserves observeCold f w v | nodeDelivery | _ = λ ()
+  step-preserves observeCold f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves observeCold f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves observeCold f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves operationTimeout f w v with pc f
   ... | awaitHot with peerStep P.timeoutDeactivate f w in moved
   ...   | nothing = λ ()
@@ -359,8 +371,9 @@ module Lift
   step-preserves operationTimeout f w v | delayFailure = λ ()
   step-preserves operationTimeout f w v | (awaitCold result) = λ ()
   step-preserves operationTimeout f w v | (complete result) = λ ()
-  step-preserves operationTimeout f w v | acquirePolicy = λ ()
-  step-preserves operationTimeout f w v | nodeDelivery = λ ()
+  step-preserves operationTimeout f w v | (acquirePolicy fault) = λ ()
+  step-preserves operationTimeout f w v | (nodeDelivery fault) = λ ()
+  step-preserves operationTimeout f w v | (nodeRethrow fault) = λ ()
   step-preserves demotionTimeout f w v with pc f
   ... | awaitCold _ = λ { refl → v }
   step-preserves demotionTimeout f w v | begin = λ ()
@@ -376,8 +389,9 @@ module Lift
   step-preserves demotionTimeout f w v | awaitRelease = λ ()
   step-preserves demotionTimeout f w v | delayFailure = λ ()
   step-preserves demotionTimeout f w v | (complete result) = λ ()
-  step-preserves demotionTimeout f w v | acquirePolicy = λ ()
-  step-preserves demotionTimeout f w v | nodeDelivery = λ ()
+  step-preserves demotionTimeout f w v | (acquirePolicy fault) = λ ()
+  step-preserves demotionTimeout f w v | (nodeDelivery fault) = λ ()
+  step-preserves demotionTimeout f w v | (nodeRethrow fault) = λ ()
   step-preserves failureDelayElapsed f w v with pc f
   ... | delayFailure = λ { refl → v }
   step-preserves failureDelayElapsed f w v | begin = λ ()
@@ -393,8 +407,9 @@ module Lift
   step-preserves failureDelayElapsed f w v | awaitRelease = λ ()
   step-preserves failureDelayElapsed f w v | (awaitCold result) = λ ()
   step-preserves failureDelayElapsed f w v | (complete result) = λ ()
-  step-preserves failureDelayElapsed f w v | acquirePolicy = λ ()
-  step-preserves failureDelayElapsed f w v | nodeDelivery = λ ()
+  step-preserves failureDelayElapsed f w v | (acquirePolicy fault) = λ ()
+  step-preserves failureDelayElapsed f w v | (nodeDelivery fault) = λ ()
+  step-preserves failureDelayElapsed f w v | (nodeRethrow fault) = λ ()
   step-preserves (startFailed err) f w v with pc f | G.kind (work f)
   ... | startBundle t (n ∷ _) | G.establish with peerStep (P.startProtocol t n) f w in moved
   ...   | nothing = λ { refl → failed-preserves f w v }
@@ -419,10 +434,11 @@ module Lift
   step-preserves (startFailed err) f w v | delayFailure | _ = λ ()
   step-preserves (startFailed err) f w v | (awaitCold result) | _ = λ ()
   step-preserves (startFailed err) f w v | (complete result) | _ = λ ()
-  step-preserves (startFailed err) f w v | acquirePolicy | _ = λ ()
-  step-preserves (startFailed err) f w v | nodeDelivery | _ = λ ()
+  step-preserves (startFailed err) f w v | (acquirePolicy fault) | _ = λ ()
+  step-preserves (startFailed err) f w v | (nodeDelivery fault) | _ = λ ()
+  step-preserves (startFailed err) f w v | (nodeRethrow fault) | _ = λ ()
   step-preserves choosePeerPolicy f w v with pc f
-  ... | acquirePolicy = λ { refl → failed-preserves f w v }
+  ... | (acquirePolicy fault) = λ { refl → failed-preserves f w v }
   step-preserves choosePeerPolicy f w v | begin = λ ()
   step-preserves choosePeerPolicy f w v | awaitAcquire = λ ()
   step-preserves choosePeerPolicy f w v | (startBundle t ns) = λ ()
@@ -437,9 +453,10 @@ module Lift
   step-preserves choosePeerPolicy f w v | delayFailure = λ ()
   step-preserves choosePeerPolicy f w v | (awaitCold result) = λ ()
   step-preserves choosePeerPolicy f w v | (complete result) = λ ()
-  step-preserves choosePeerPolicy f w v | nodeDelivery = λ ()
+  step-preserves choosePeerPolicy f w v | (nodeDelivery fault) = λ ()
+  step-preserves choosePeerPolicy f w v | (nodeRethrow fault) = λ ()
   step-preserves chooseNodePolicy f w v with pc f
-  ... | acquirePolicy = λ { refl → v }
+  ... | (acquirePolicy fault) = λ { refl → v }
   step-preserves chooseNodePolicy f w v | begin = λ ()
   step-preserves chooseNodePolicy f w v | awaitAcquire = λ ()
   step-preserves chooseNodePolicy f w v | (startBundle t ns) = λ ()
@@ -454,9 +471,10 @@ module Lift
   step-preserves chooseNodePolicy f w v | delayFailure = λ ()
   step-preserves chooseNodePolicy f w v | (awaitCold result) = λ ()
   step-preserves chooseNodePolicy f w v | (complete result) = λ ()
-  step-preserves chooseNodePolicy f w v | nodeDelivery = λ ()
+  step-preserves chooseNodePolicy f w v | (nodeDelivery fault) = λ ()
+  step-preserves chooseNodePolicy f w v | (nodeRethrow fault) = λ ()
   step-preserves deliverNodeException f w v with pc f
-  ... | nodeDelivery = λ { refl → failed-preserves f w v }
+  ... | (nodeDelivery fault) = λ { refl → v }
   step-preserves deliverNodeException f w v | begin = λ ()
   step-preserves deliverNodeException f w v | awaitAcquire = λ ()
   step-preserves deliverNodeException f w v | (startBundle t ns) = λ ()
@@ -471,4 +489,23 @@ module Lift
   step-preserves deliverNodeException f w v | delayFailure = λ ()
   step-preserves deliverNodeException f w v | (awaitCold result) = λ ()
   step-preserves deliverNodeException f w v | (complete result) = λ ()
-  step-preserves deliverNodeException f w v | acquirePolicy = λ ()
+  step-preserves deliverNodeException f w v | (acquirePolicy fault) = λ ()
+  step-preserves deliverNodeException f w v | (nodeRethrow fault) = λ ()
+  step-preserves rethrowNodeException f w v with pc f
+  ... | (nodeRethrow fault) = λ { refl → failed-preserves f w v }
+  step-preserves rethrowNodeException f w v | begin = λ ()
+  step-preserves rethrowNodeException f w v | awaitAcquire = λ ()
+  step-preserves rethrowNodeException f w v | (startBundle t ns) = λ ()
+  step-preserves rethrowNodeException f w v | (publishBundle t) = λ ()
+  step-preserves rethrowNodeException f w v | markWarm = λ ()
+  step-preserves rethrowNodeException f w v | forkMonitor = λ ()
+  step-preserves rethrowNodeException f w v | finishActivation = λ ()
+  step-preserves rethrowNodeException f w v | awaitHot = λ ()
+  step-preserves rethrowNodeException f w v | awaitAll = λ ()
+  step-preserves rethrowNodeException f w v | callRelease = λ ()
+  step-preserves rethrowNodeException f w v | awaitRelease = λ ()
+  step-preserves rethrowNodeException f w v | delayFailure = λ ()
+  step-preserves rethrowNodeException f w v | (awaitCold result) = λ ()
+  step-preserves rethrowNodeException f w v | (complete result) = λ ()
+  step-preserves rethrowNodeException f w v | (acquirePolicy fault) = λ ()
+  step-preserves rethrowNodeException f w v | (nodeDelivery fault) = λ ()

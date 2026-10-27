@@ -82,7 +82,7 @@ a16 = jobStep (ident 0) J.collectAcquire
 c16 : Configuration
 c16 = configuration (J.world (E.returned) []) (L.g1) (L.settings)
   (launch []) 0 (G.targets 1 1 1)
-  ((ident 0 , frame₀ J.acquirePolicy false false) ∷ []) (ident 0 ∷ []) ([]) [] 1 1 5 60 (nothing) false
+  ((ident 0 , frame₀ (J.acquirePolicy (C.ioFailure (errorId 1))) false false) ∷ []) (ident 0 ∷ []) ([]) [] 1 1 5 60 (nothing) false
 step16 : advance a16 c15 ≡ just c16
 step16 = refl
 
@@ -406,7 +406,7 @@ a52 = jobStep (ident 1) J.collectAcquire
 c52 : Configuration
 c52 = configuration (J.world (retryReturned) []) (promotingAgain) (failedState)
   (launch []) 5 (G.targets 1 1 1)
-  (put (ident 1) (frame₁ (J.acquirePolicy) false false) oldJobs) (ident 1 ∷ []) ([]) [] 2 2 5 60 (nothing) false
+  (put (ident 1) (frame₁ (J.acquirePolicy C.connectionExists) false false) oldJobs) (ident 1 ∷ []) ([]) [] 2 2 5 60 (nothing) false
 step52 : advance a52 c51 ≡ just c52
 step52 = refl
 

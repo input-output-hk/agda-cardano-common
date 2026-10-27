@@ -30,7 +30,8 @@ data PC : Set where
   delayFailure : PC
   awaitCold : G.Outcome → PC
   complete : G.Outcome → PC
-  acquirePolicy nodeDelivery : PC
+  -- Retain the returned exception across policy selection and delivery.
+  acquirePolicy nodeDelivery nodeRethrow : Cases.Fault → PC
 record Frame : Set where
   constructor frame
   field work : G.Job
@@ -71,10 +72,10 @@ data Action : Set where
   observeHot observeAll requestRelease collectRelease observeCold : Action
   operationTimeout demotionTimeout failureDelayElapsed : Action
   startFailed : ErrorId → Action
-  choosePeerPolicy chooseNodePolicy deliverNodeException : Action
+  choosePeerPolicy chooseNodePolicy deliverNodeException rethrowNodeException : Action
 
--- A failed establishment's bracket restores PeerCold. Errors are abstracted
--- to the job's failure tag; their source exception identity is not yet traced.
+-- A failed establishment's bracket restores PeerCold. The policy PCs retain
+-- the returned fault; the final governor outcome still erases it to failed.
 failedEstablishment : Frame → World → Frame × World
 failedEstablishment f w with lookup (connectionRef f) (peers w)
 ... | nothing = set f (complete G.failed) w
@@ -110,7 +111,7 @@ step collectAcquire f w with pc f | lookup (caller f) (CM.acquired (cm w))
 ...   | just hd | nothing = start ConnectionManagement.IGTypes.warm f
   (record w { peers = put (connectionRef f) (P.initialPeer k h hd) (peers w) })
 ...   | _ | _ = nothing
-step collectAcquire f w | awaitAcquire | just (Cases.raised _) = just (set f acquirePolicy w)
+step collectAcquire f w | awaitAcquire | just (Cases.raised fault) = just (set f (acquirePolicy fault) w)
 step collectAcquire f w | awaitAcquire | just _ = just (failedEstablishment f w)
 step collectAcquire f w | _ | _ = nothing
 step runNext f w with pc f
@@ -196,11 +197,15 @@ step (startFailed err) f w | startBundle t (n ∷ _) | G.activate with peerStep 
 ... | just _ = nothing
 step (startFailed err) f w | _ | _ = nothing
 step choosePeerPolicy f w with pc f
-... | acquirePolicy = just (failedEstablishment f w)
+... | acquirePolicy fault = just (failedEstablishment f w)
 ... | _ = nothing
 step chooseNodePolicy f w with pc f
-... | acquirePolicy = just (set f nodeDelivery w)
+... | acquirePolicy fault = just (set f (nodeDelivery fault) w)
 ... | _ = nothing
+-- Delivery acknowledgment precedes the sender's local rethrow and bracket cleanup.
 step deliverNodeException f w with pc f
-... | nodeDelivery = just (failedEstablishment f w)
+... | nodeDelivery fault = just (set f (nodeRethrow fault) w)
+... | _ = nothing
+step rethrowNodeException f w with pc f
+... | nodeRethrow fault = just (failedEstablishment f w)
 ... | _ = nothing
