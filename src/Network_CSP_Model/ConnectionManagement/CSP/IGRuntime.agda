@@ -237,7 +237,7 @@ jobFinished = withIG jobRunning (IG.setMux mid
   (record runningMux { protocols = (1 , M.idle) ∷ []; runningJobs = []; finishedJobs = (1 , clean) ∷ [] })
   (inboundGovernor jobRunning)) startMessages
 resultPublished = withIG jobRunning (IG.setMux mid
-  (record runningMux { protocols = (1 , M.idle) ∷ []; runningJobs = []; completions = (1 , clean) ∷ [] })
+  (record runningMux { protocols = (1 , M.idle) ∷ []; runningJobs = []; completions = M.jobResult M.responderJob 1 clean ∷ [] })
   (inboundGovernor jobRunning)) startMessages
 resultConsumed = withIG jobRunning (IG.setMux mid
   (record runningMux { protocols = (1 , M.idle) ∷ []; runningJobs = []; callback = M.readActive (M.completed 1 clean) })

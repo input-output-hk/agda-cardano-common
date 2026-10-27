@@ -82,7 +82,7 @@ deadQueue = errorQueue ++ (muxFinished key₀ ∷ [])
 s₀ s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s₉ s₁₀ s₁₁ : Configuration
 s₀ = tracked L.monitoring jobRunning
 s₁ = withMux L.monitoring failedJob jobRunning
-s₂ = withMux L.monitoring (record failedJob { finishedJobs = []; completions = (1 , errored err) ∷ [] }) jobRunning
+s₂ = withMux L.monitoring (record failedJob { finishedJobs = []; completions = M.jobResult M.responderJob 1 (errored err) ∷ [] }) jobRunning
 s₃ = withMux L.monitoring failedMonitor jobRunning
 s₄ = withMux L.monitoring (record failedMonitor { callback = M.commitTrace true (M.completed 1 (errored err)) }) jobRunning
 s₅ = withQueue errorQueue (withMux L.monitoring (record failedMonitor { callback = M.afterFailure; traceCounters = nothing }) jobRunning)

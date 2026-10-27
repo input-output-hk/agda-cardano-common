@@ -4,7 +4,7 @@
 machine and CSP renderer. It follows network revision
 `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`,
 [Core.hs:1107–1260](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L1107-L1260)
-and [InboundGovernor.hs:529–568](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L529-L568).
+and [InboundGovernor.hs:529–572](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L529-L572).
 Assertions are enabled in this profile. Diagnostic tracers are assumed total and
 nonblocking; their counter read remains an explicit transaction.
 

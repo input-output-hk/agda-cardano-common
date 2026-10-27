@@ -101,23 +101,35 @@ uncertain-chain = chain-step (Sub.core (O.acquire Out.caller (A.closeFailed (err
 removed-chain : Chain L.child Fixture.mid (shared removed) (governor removed)
 removed-chain = chain-step (Sub.core (O.acquire Out.caller A.removeReservation)) closed remove-step closed-chain
 
--- Exercise the subsystem's direct initiator-failure mux write.
+-- Initiator result publication and FIFO consumption are separate transitions.
 peer : P.Peer
 peer = record (P.initialPeer key₀ (ident 0) (M.handleState Fixture.mid (Fixture.proto ∷ []) duplex))
   { status = P.peerHot
-  ; runs = P.protocolRun Fixture.proto (P.returned (T.errored (errorId 7))) P.running ∷ [] }
+  ; runs = P.protocolRun Fixture.proto (P.returned (T.errored (errorId 7))) P.running ∷ []
+  ; pendingResults = (1 , T.errored (errorId 7)) ∷ [] }
 failureBefore : Sub.Configuration
 failureBefore = record L.c23 { world = record (Sub.world L.c23) { peers = (ident 0 , peer) ∷ [] } }
+failureQueued : Sub.Configuration
+failureQueued = record failureBefore { world = record (Sub.world failureBefore)
+  { peers = (ident 0 , record peer { pendingResults = [] }) ∷ []
+  ; cm = record (J.cm (Sub.world failureBefore)) { core = record (O.core (J.cm (Sub.world failureBefore)))
+    { inboundGovernor = IG.setMux Fixture.mid
+      (record Fixture.newMux { completions = M.jobResult M.initiatorJob 1 (T.errored (errorId 7)) ∷ [] })
+      (governor failureBefore) } } } }
 failureAfter : Sub.Configuration
-failureAfter = record failureBefore { world = record (Sub.world failureBefore)
-  { cm = record (J.cm (Sub.world failureBefore)) { core = record (O.core (J.cm (Sub.world failureBefore)))
+failureAfter = record failureQueued { world = record (Sub.world failureQueued)
+  { cm = record (J.cm (Sub.world failureQueued)) { core = record (O.core (J.cm (Sub.world failureQueued)))
     { inboundGovernor = IG.setMux Fixture.mid
       (record Fixture.newMux { status = M.failed (errorId 7); callback = M.readActive M.muxStopped })
-      (governor failureBefore) } } } }
-observe-step : Sub.advance (Sub.observeInitiatorFailure (ident 0)) failureBefore ≡ just failureAfter
+      (governor failureQueued) } } } }
+publish-step : Sub.advance (Sub.publishInitiatorResult (ident 0) 0) failureBefore ≡ just failureQueued
+publish-step = refl
+observe-step : Sub.advance (Sub.observeInitiatorFailure (ident 0)) failureQueued ≡ just failureAfter
 observe-step = refl
+queued-chain : Chain L.child Fixture.mid (shared failureQueued) (governor failureQueued)
+queued-chain = chain-step (Sub.publishInitiatorResult (ident 0) 0) failureBefore publish-step published-chain
 failure-chain : Chain L.child Fixture.mid (shared failureAfter) (governor failureAfter)
-failure-chain = chain-step (Sub.observeInitiatorFailure (ident 0)) failureBefore observe-step published-chain
+failure-chain = chain-step (Sub.observeInitiatorFailure (ident 0)) failureQueued observe-step queued-chain
 
 -- Key and handle/mux identity are real certificate obligations, even though
 -- the executable open model permits injecting inconsistent installations.

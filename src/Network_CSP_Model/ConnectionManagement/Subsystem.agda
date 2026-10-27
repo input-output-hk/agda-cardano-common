@@ -24,6 +24,7 @@ import ConnectionManagement.Rules.PeerJobs as J
 import ConnectionManagement.Rules.OutboundGovernor as G
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 
 data Selected : Set where
   policy : G.Decision → Selected
@@ -111,6 +112,7 @@ data Action : Set where
   enqueueCompletion : JobId → ℕ → Action
   deregisterJob : JobId → Action
   protocolResult : PeerConnectionId → ℕ → RunResult → Action
+  publishInitiatorResult : PeerConnectionId → ℕ → Action
   pollPeer : PeerConnectionId → WorkerId → Action
   monitorStep : PeerConnectionId → J.Action → Action
   monitorFinished observeInitiatorFailure : PeerConnectionId → Action
@@ -254,16 +256,33 @@ advance (protocolResult ref n result) c with lookup ref (J.peers (world c))
 ...   | nothing = nothing
 ...   | just (peer′ , ig′) = just (record c { world = record (world c)
   { peers = put ref peer′ (J.peers (world c)) } })
+-- JobPool publication is separate from the initiator result-cell write.
+-- Choose a pending occurrence by ordinal, independently of its protocol number
+-- and publication order, even after that protocol has restarted.
+advance (publishInitiatorResult ref i) c with lookup ref (J.peers (world c))
+... | nothing = nothing
+... | just peer with P.takePending i (P.pendingResults peer) | lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
+...   | just ((n , result) , retained) | just observedMux with Life.muxAllowed (P.muxRef peer) Life.jobAccess (Inbound.handlerLifecycles (CM.core (J.cm (world c))))
+...     | false = nothing
+...     | true = just (record c { world = record (world c)
+  { peers = put ref (record peer { pendingResults = retained }) (J.peers (world c))
+  ; cm = record (J.cm (world c)) { core = record (CM.core (J.cm (world c)))
+    { inboundGovernor = IG.setMux (P.muxRef peer) (record observedMux
+      { completions = M.completions observedMux ++ (M.jobResult M.initiatorJob n result ∷ []) })
+      (Inbound.inboundGovernor (CM.core (J.cm (world c)))) } } } })
+advance (publishInitiatorResult ref i) c | just peer | _ | _ = nothing
+-- Compatibility observation consumes only an already-queued initiator error at
+-- the FIFO head, through the same phase-gated monitor as responder completions.
 advance (observeInitiatorFailure ref) c with lookup ref (J.peers (world c))
 ... | nothing = nothing
-... | just peer with P.firstFailure (P.runs peer) | lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
-...   | just err | just observedMux with M.status observedMux | M.callback observedMux
-...     | M.ready | M.returned = just (record c { world = record (world c)
-  { cm = record (J.cm (world c)) { core = record (CM.core (J.cm (world c)))
-    { inboundGovernor = IG.setMux (P.muxRef peer) (record observedMux { status = M.failed err; callback = M.readActive M.muxStopped })
-      (Inbound.inboundGovernor (CM.core (J.cm (world c)))) } } } })
-advance (observeInitiatorFailure ref) c | just peer | just err | just observedMux | _ | _ = nothing
-advance (observeInitiatorFailure ref) c | just peer | _ | _ = nothing
+... | just peer with lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
+...   | nothing = nothing
+...   | just observedMux with M.completions observedMux
+...     | M.jobResult M.initiatorJob n (errored err) ∷ rest with CM.advance
+    (CM.inbound (Inbound.igStep (IG.monitorCompletion (P.muxRef peer)))) (J.cm (world c))
+...       | nothing = nothing
+...       | just cm′ = just (record c { world = record (world c) { cm = cm′ } })
+advance (observeInitiatorFailure ref) c | just peer | just observedMux | _ = nothing
 advance (pollPeer ref caller) c with lookup ref (J.peers (world c)) | lookup ref (monitors c)
 ... | just peer | nothing with P.monitorStarted peer | P.status peer
 ...   | true | P.peerCooling with P.step P.monitorCooling peer

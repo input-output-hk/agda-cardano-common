@@ -133,7 +133,7 @@ it must not add a bounded queue to a source-unbounded channel.
 
 | ID | Source | State/effect and continuation boundary | Status |
 |---|---|---|---|
-| `WIRE.START/SUPERVISE` | [Diffusion][diffusion], [Server.with][server] | Initiator/responder wiring; IG public state to OG when enabled; server action/IG/accept-loop failure propagation | Family |
+| `WIRE.START/SUPERVISE` | [Diffusion][diffusion], [CM/peer-action wiring][diffusion-cm], [Server.with][server] | Initiator/responder wiring; IG public state to OG when enabled; server action/IG/accept-loop failure propagation | Family |
 | `SERVER.RATE.READ` | [RateLimiting][rate] | Atomic count read, then decide no delay/soft delay/hard wait | Expanded: read separate from admission |
 | `SERVER.RATE.WAIT` | [RateLimiting][rate] | Hard wait for count below limit, then any remaining minimum delay; soft delay is separate | Family |
 | `SERVER.ACCEPT` | [acceptLoop][accept] | Interruptible accept; socket held after success; aborted-accept delay versus fatal failure | Family |
@@ -185,7 +185,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `ACTION.CLOSE` | [Deactivation and close][actions-close] | All-temperature termination, result wait and CM release/error/timeout paths | Implemented: controls, all-results, real CM release and timeout/error continuations |
 | `PEER.MONITOR` | [Peer monitoring][actions-monitor] | First-result alternatives, concurrent demotion/close, source Cold condition | Implemented: ordered first-result reads, background close/demotion and CM Cold condition |
 | `OG.DEMOTE.ERROR` | [Demotion job][demote-job] | Separate timed wait for Cold; timeout-dependent completion membership changes | Implemented: separate Cold wait and timeout-dependent completion |
-| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry] | Control reads, pending work, blocking, run results and bracket cleanup | Family; initial per-protocol contracts required |
+| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Family; initial per-protocol contracts required |
 
 ## 4. Expanded admission and map-lock boundaries
 
@@ -475,10 +475,11 @@ negative endpoint are model proofs; the Haskell replay still covers CM only.
 [info]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor/InformationChannel.hs#L35-L54
 [mux-api]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs#L121-L180
 [diffusion]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L625-L825
+[diffusion-cm]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L539-L600
 [server]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L134-L180
 [accept]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L188-L254
 [rate]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/Server/RateLimiting.hs#L68-L139
-[include]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L778-L1040
+[include]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L780-L1101
 [acquire]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L1264-L1832
 [release-in]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L1107-L1260
 [release-out]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L1834-L2060
@@ -493,7 +494,7 @@ negative endpoint are model proofs; the Haskell replay still covers CM only.
 [ig-commit]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L529-L598
 [ig-tracer]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L625-L735
 [og]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor.hs#L497-L725
-[og-monitor]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Monitor.hs#L97-L150
+[og-monitor]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Monitor.hs#L97-L320
 [established]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/EstablishedPeers.hs
 [active]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/ActivePeers.hs
 [demote-job]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/ActivePeers.hs#L961-L1080
@@ -505,3 +506,5 @@ negative endpoint are model proofs; the Haskell replay still covers CM only.
 [notify]: https://github.com/IntersectMBO/ouroboros-consensus/blob/585a86117618ff86d7d5b541f9d23b03356d4c3a/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestNotify.hs#L529-L723
 [fetch]: https://github.com/IntersectMBO/ouroboros-consensus/blob/585a86117618ff86d7d5b541f9d23b03356d4c3a/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs#L591-L687
 [registry]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/BlockFetch/ClientRegistry.hs#L75-L193
+[registry-cleanup]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/BlockFetch/ClientRegistry.hs#L196-L207
+[registry-sync]: https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/BlockFetch/ClientRegistry.hs#L217-L257

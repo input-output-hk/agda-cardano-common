@@ -52,8 +52,8 @@ lifetime are different state components.
 
 | Source operation | Executable module | Preserved boundaries |
 | --- | --- | --- |
-| Core `requestOutboundConnection` | `Rules/OutboundCases`, `Rules/OutboundAcquire` | Selection STM, counter read, socket IO, fork, captured promise result, commit and return |
-| Core `unregisterOutboundConnection` | `Rules/OutboundRelease` | Release STM, assertions/counters, pruning, timer choice, later terminating write and cancellation delivery |
+| Core `acquireOutboundConnection` | `Rules/OutboundCases`, `Rules/OutboundAcquire` | Selection STM, counter read, socket IO, fork, captured promise result, commit and return |
+| Core `releaseOutboundConnection` | `Rules/OutboundRelease` | Release STM, assertions/counters, pruning, timer choice, later terminating write and cancellation delivery |
 | Governor main loop | `Subsystem` | Public snapshot, time sample, ordered selection, timer cancellation, timed application, publication/tracing, individual job forks |
 | EstablishedPeers / ActivePeers | `Rules/OutboundGovernor` | Eligibility, quotas, four in-progress sets, captured jobs, current-state completion interpretation |
 | Monitor connections/jobs | `Subsystem`, `Rules/OutboundGovernor` | Async demotion priority, completion FIFO, target updates, cooling exclusions |
@@ -66,6 +66,13 @@ The case table covers every CM state constructor. An unknown-local reservation
 has priority over the concrete entries for the remote address. Otherwise the
 environment selects a member of that remote bucket. Successful selection advances
 a random-generation marker; concrete PRNG state/distribution is abstract.
+In the pinned source, splitting the generator and selecting the bucket member
+occur in the same STM transaction (`Core.hs:1276–1279`). A terminal-state `retry`
+rolls back that split (`Core.hs:1379–1388`), so unchanged transaction inputs select
+the same member on a retry. The model permits a new admissible environment
+selection on every attempt and therefore over-approximates this behavior. Other
+threads can change the source's `stdGenVar`, so a changed selection need not mean
+that the CM map changed.
 
 An absent outbound peer reserves an entry before socket creation. The caller
 allocates a promise, opens/configures/binds/connects the socket, obtains its local
@@ -107,8 +114,11 @@ Timer expiry and delivery remain untimed environment readiness inputs.
 ## OG, peer jobs and monitoring
 
 The ordinary-peer profile executes forgetting, establishment, activation, close
-and hot demotion. Targets must be sane. Selection derives quotas and eligible
-peers from the current known/established/active and in-progress sets. A policy
+and hot demotion. Targets must satisfy the model's ordering predicate
+`active ≤ established ≤ known`; this is weaker than the pinned production
+predicate. The [profile differences](#profile-differences-from-pinned-production)
+below also distinguish target-input updates from the source TVar. Selection
+derives quotas and eligible peers from the current known/established/active and in-progress sets. A policy
 input must select a nonempty, unique subset within the eligible quota; it cannot
 choose an alternative ahead of a ready higher-priority alternative.
 
@@ -154,6 +164,65 @@ Deregistration then retries until that insertion exists. The model keeps complet
 job records for diagnostics and prevents repeated enqueue/deregister actions.
 Asynchronous exceptions across arbitrary job-pool masking/fork windows, pool
 shutdown and full node supervision are not implemented.
+
+## Profile differences from pinned production
+
+The ordinary-peer profile currently retains the following abstractions. The
+source comparisons use the fixed network pin above, not a current-branch default.
+These notes document the existing executable behavior; they do not correct the
+remaining semantic differences.
+
+### Targets and external updates
+
+`Rules/OutboundGovernor.sane` checks only the ordering of the three natural-valued
+targets. The source's
+[`sanePeerSelectionTargets`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Types.hs#L265-L285)
+also bounds active, established and known peers by 100, 1000 and 10000 respectively,
+and checks root and big-ledger targets that this profile does not represent.
+Consequently, satisfying the model predicate does not establish source target
+sanity.
+
+`Subsystem.setTargets` refuses an ordering-invalid input and leaves the previous
+`targetInput` unchanged. The source
+[`targetPeers`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Monitor.hs#L55-L71)
+reads the current, overwritable target TVar and ignores an insane value. Thus a
+sane value overwritten by an insane value before the read need not be applied
+in source, whereas the model does not represent that overwriting action. Source
+bounds and faithful target-input overwrite semantics remain separate corrections.
+
+### Retry policy values
+
+| Setting | Model default and integrated replay | Pinned production policy |
+| --- | --- | --- |
+| Maximum connection retries | 5 | 5 |
+| Failure-count clearing delay | 60 | 120 seconds |
+
+The model values are in `Subsystem.initial`; the replay sets them explicitly in
+[`GovernorCMReplay.patch`](SourceReplay/GovernorCMReplay.patch). The production
+values come from
+[`Diffusion/Policies.hs:170–171`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion/Policies.hs#L170-L171).
+The clearing delay of 60 matches the replay profile, not the production default.
+No production-default claim follows from a witness checked with those parameters.
+
+### Exception policy and node delivery
+
+After any raised acquisition result, `Rules/PeerJobs` offers the abstract
+`choosePeerPolicy` and `chooseNodePolicy` actions. It does not classify faults to
+implement the production policy. The pinned diffusion wiring supplies its
+[`rethrowPolicy`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L286-L293)
+to peer-state actions (`Diffusion.hs:591`): `IOManagerError` is fatal; ordinary CM
+faults do not select `ShutdownNode` under that wiring. The model can select the
+node branch for a broader set of abstract faults, including `ConnectionExists`.
+
+The source's
+[`ShutdownNode`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L794-L801)
+performs `throwTo` on the main thread and then rethrows locally. The modeled
+`deliverNodeException` acknowledges delivery and follows the failed-establishment
+path; other jobs and governor actions can continue because supervisor shutdown
+and cancellation are outside the profile. Acknowledgment is not a claim that the
+node has terminated. Replacing it with immediate configuration termination would
+also abstract away the source's delivery/unwinding window. Concrete fault-policy
+classification and node-supervision behavior remain unproved.
 
 ## Invariant extension: captured-entry prerequisite
 
@@ -566,7 +635,8 @@ this extension. `Rules/Cleanup` writes closed/uncertain socket values and termin
 entry values while retaining stored identities. At network pin
 `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, `Core.hs:1435–1464,1527–1535`
 describes transfer of socket cleanup from `bracketOnError` to the forked handler;
-`Core.hs:625–661` closes the socket and conditionally removes the live CM binding.
+`Core.hs:606–662` conditionally removes the live CM binding (641–653) and closes
+the socket (655–662).
 The model's historical resource records are not a claim about Haskell object
 lifetime. In particular, stored socket presence does not imply an open socket,
 correct socket ownership, current map membership or current IG registration.
@@ -644,9 +714,14 @@ The additional IG writers were inspected explicitly:
 - [`PeerActionRetention`](Properties/PeerActionRetention.agda) covers every peer
   action. Timeout appends a shutdown command to a looked-up mux; other peer actions
   leave IG execution unchanged. The peer-job lift uses this checked effect.
-- `Subsystem.observeInitiatorFailure` changes a looked-up mux's status/callback.
-  The new subsystem lift applies `setMux-preserves` with its actual lookup proof;
-  it does not treat this IG update as an invisible peer-state edit.
+- `Subsystem.publishInitiatorResult` appends a captured pending initiator job to
+  the shared direction-tagged mux completion FIFO. Its ordinal argument selects
+  a pending occurrence, permitting restarted jobs to publish out of actual-result
+  order. The subsystem lift applies `setMux-preserves` to the actual lookup.
+- `Subsystem.observeInitiatorFailure` is a compatibility consume action: it only
+  accepts an already-queued initiator error at the FIFO head and delegates to the
+  same phase-gated monitor as other completions. It does not scan peer-state
+  errors or bypass earlier responder callbacks.
 
 On 19 October 2026 the pinned network checkout was confirmed at
 `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
@@ -661,8 +736,8 @@ limitation recorded above still applies.
 preparation from actual installation through publication and the rest of the
 lifecycle, and chains from actual publication through the lifecycle and delayed
 parent-registration suffix. Separate conditional fixtures exercise successful
-close, throwing close, reservation removal, the direct initiator-failure mux
-write, and a peer-job timeout. Injected wrong-key and wrong-handle/mux fixtures
+close, throwing close, reservation removal, initiator job publication followed
+by FIFO failure consumption, and a peer-job timeout. Injected wrong-key and wrong-handle/mux fixtures
 fail the intended certificates. No transition guard was added to reject them.
 The conditional fixtures are not source-reachability claims.
 
@@ -697,6 +772,42 @@ that separate premise. These results do not prove establishment for every new
 handler/publication, `TrackedChain` preservation over the combined machine,
 tracked phase/cleanup validity, source lifetimes, or liveness. CM-I4c and the
 parent structural milestone therefore remain open.
+
+## Source fidelity correction checkpoint 27 October 2026
+
+The [correction plan](../review/connection-management-correction-plan-2026-10-27.md)
+tracks the verified source/spec review. Two executable corrections are integrated:
+
+- **A1:** initiator and responder job outcomes now share `Mux.completions`, whose
+  `JobResult` carries direction, protocol number and outcome. A peer's actual
+  result-cell write captures a pending outcome separately from its later JobPool
+  publication. Pending occurrences survive restart; ordinal selection permits a
+  later same-number initiator job to publish before a preempted older one.
+  Monitor consumption respects FIFO head order and handler phase gating.
+  Initiator clean/error results do not fabricate responder termination events or
+  counter changes. `Negative/InitiatorCompletionFIFO` checks these branches,
+  command/on-demand priority, counter/event ordering and per-occurrence removal.
+- **A3:** `Rules/TracerReadiness.prefixReady` restores the source start-tracer
+  prefix order before `missingDescriptor`: expired RemoteIdle retries first, then
+  the zero-counter AwakeRemote prefix can retry on capacity. The preflight does
+  not commit its proposed queue; the full final burst/counter write stays atomic.
+  Completed traces retain strict-descriptor-first behavior. The helper controls
+  and `Negative/TracerReadinessIntegration` check actual worker results.
+
+These controls are conditional model fixtures, not new initial-state reachability
+or Haskell-refinement proofs. The acceptance scope is the current responder-capable
+profile. Initiator-only mux-engine driving is still part of A2's planned split
+from IG governor actions. Responder pending results still publish by protocol
+number, restricting repeated same-number responder publication ordering. Normal
+shutdown abstracts the source's job cancellation/join; untracked stored pending
+results can outlive a stopped snapshot. Those lifetime/order limits remain open.
+Asynchronous handler cancellation can legitimately leave queued results unread
+and retains its separate teardown path.
+
+A2's tracer-attachment correction is designed but not implemented. A4–A7 profile
+differences are now documented above; concrete target-input and production-policy/
+supervision execution remain separate extensions. A8/A9 stale names, comments and
+source ranges are corrected without broadening the existing proof scopes.
 
 ## Checked witnesses and their limits
 
@@ -799,8 +910,11 @@ CM failure/retry segment, not the entire 64-action governor trace.
 64-action prefix through four additional establishment attempts, all using fresh
 job/caller identities and the actual CM rejection/completion path. It checks
 211 actions from the original initial configuration to the settled governor
-selection point. The configured `maxRetries = 5` is a model setting, not a claim
-about a protocol-wide or deployment default.
+selection point. The configured `maxRetries = 5` matches the pinned production
+policy's `policyMaxConnectionRetries` and the replay policy. The model/replay's
+`clearFailDelay = 60` differs from production's 120 seconds; see the
+[policy provenance](#profile-differences-from-pinned-production). These values
+remain settings of this fixed profile, not protocol-wide constants.
 
 The pinned `KnownPeers.reportFailures` tests the original `allPeers` count while
 incrementing a separate updated state. For ordinary, forgettable peers, this

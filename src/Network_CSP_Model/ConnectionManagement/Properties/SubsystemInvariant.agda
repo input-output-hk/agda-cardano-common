@@ -23,6 +23,7 @@ import ConnectionManagement.Rules.PeerJobs as J
 import ConnectionManagement.Rules.OutboundGovernor as G
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.HandlerLifecycle as Life
 
 import ConnectionManagement.Rules.OutboundAcquire as A
 import ConnectionManagement.Properties.PeerJobInvariant as Jobs
@@ -331,22 +332,27 @@ module Lift
   ... | just peer with P.step (P.protocolResult n result) peer (Inbound.inboundGovernor (CM.core (J.cm (world c)))) (Inbound.world (CM.core (J.cm (world c))))
   ...   | nothing = λ ()
   ...   | just (peer′ , ig′) = λ { refl v → v }
+  advance-preserves (publishInitiatorResult ref i) c with lookup ref (J.peers (world c))
+  ... | nothing = λ ()
+  ... | just peer with P.takePending i (P.pendingResults peer) | lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
+  ...   | just ((n , result) , retained) | just observedMux with Life.muxAllowed (P.muxRef peer) Life.jobAccess (Inbound.handlerLifecycles (CM.core (J.cm (world c))))
+  ...     | false = λ ()
+  ...     | true = λ { refl v → v }
+  advance-preserves (publishInitiatorResult ref i) c | just peer | nothing | _ = λ ()
+  advance-preserves (publishInitiatorResult ref i) c | just peer | just selected | nothing = λ ()
   advance-preserves (observeInitiatorFailure ref) c with lookup ref (J.peers (world c))
   ... | nothing = λ ()
-  ... | just peer with P.firstFailure (P.runs peer) | lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
-  ...   | just err | just observedMux with M.status observedMux | M.callback observedMux
-  ...     | M.ready | M.returned = λ { refl v → v }
-  ...     | M.ready | (M.readActive tr) = λ ()
-  ...     | M.ready | (M.commitTrace flag tr) = λ ()
-  ...     | M.ready | (M.afterStart n) = λ ()
-  ...     | M.ready | (M.forkPending n) = λ ()
-  ...     | M.ready | M.afterFailure = λ ()
-  ...     | M.ready | (M.tracerFailed n) = λ ()
-  ...     | M.stopping | _ = λ ()
-  ...     | M.stopped | _ = λ ()
-  ...     | (M.failed e) | _ = λ ()
-  advance-preserves (observeInitiatorFailure ref) c | just peer | nothing | _ = λ ()
-  advance-preserves (observeInitiatorFailure ref) c | just peer | just err | nothing = λ ()
+  ... | just peer with lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
+  ...   | nothing = λ ()
+  ...   | just observedMux with M.completions observedMux
+  ...     | M.jobResult M.initiatorJob n (errored err) ∷ rest with CM.advance
+    (CM.inbound (Inbound.igStep (IG.monitorCompletion (P.muxRef peer)))) (J.cm (world c)) in stepped
+  ...       | nothing = λ ()
+  ...       | just cm′ = λ { refl v → preserve
+    (CM.inbound (Inbound.igStep (IG.monitorCompletion (P.muxRef peer)))) (J.cm (world c)) stepped v }
+  advance-preserves (observeInitiatorFailure ref) c | just peer | just observedMux | [] = λ ()
+  advance-preserves (observeInitiatorFailure ref) c | just peer | just observedMux | M.jobResult M.responderJob n outcome ∷ rest = λ ()
+  advance-preserves (observeInitiatorFailure ref) c | just peer | just observedMux | M.jobResult M.initiatorJob n clean ∷ rest = λ ()
   advance-preserves (pollPeer ref caller) c with lookup ref (J.peers (world c)) | lookup ref (monitors c)
   ... | just peer | nothing with P.monitorStarted peer | P.status peer
   ...   | true | P.peerCooling with P.step P.monitorCooling peer (Inbound.inboundGovernor (CM.core (J.cm (world c)))) (Inbound.world (CM.core (J.cm (world c))))

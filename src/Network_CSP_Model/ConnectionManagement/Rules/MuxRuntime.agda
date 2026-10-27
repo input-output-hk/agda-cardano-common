@@ -51,6 +51,17 @@ data Callback : Set where
   tracerFailed : ℕ → Callback
   returned : Callback
 
+-- Both directions publish job results into the same source JobPool FIFO.
+-- Direction separates initiator/responder jobs with the same protocol number.
+data JobDirection : Set where
+  initiatorJob responderJob : JobDirection
+record JobResult : Set where
+  constructor jobResult
+  field jobDirection : JobDirection
+        jobNumber : ℕ
+        jobOutcome : RunResult
+open JobResult public
+
 record Mux : Set where
   constructor muxState
   field
@@ -61,7 +72,7 @@ record Mux : Set where
     waiting : Store ℕ StartMode
     runningJobs : List ℕ
     finishedJobs : List (ℕ × RunResult)
-    completions : List (ℕ × RunResult)
+    completions : List JobResult
     traceCounters : Maybe Counters
     callback : Callback
 open Mux public

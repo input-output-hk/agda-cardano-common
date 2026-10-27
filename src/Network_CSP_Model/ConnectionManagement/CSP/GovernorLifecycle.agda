@@ -963,7 +963,7 @@ step95 : advance a95 c94 ≡ just c95
 step95 = refl
 
 p20 : P.Peer
-p20 = record p19 { runs = P.protocolRun Fixture.proto (P.returned S.clean) P.running ∷ [] }
+p20 = record p19 { runs = P.protocolRun Fixture.proto (P.returned S.clean) P.running ∷ []; pendingResults = (1 , S.clean) ∷ [] }
 
 a96 : Action
 a96 = protocolResult (ident 0) 1 S.clean

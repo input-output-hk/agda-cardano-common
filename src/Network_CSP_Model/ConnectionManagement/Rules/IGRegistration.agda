@@ -19,6 +19,7 @@ open import ConnectionManagement.IGTypes public
 open import ConnectionManagement.Store using (Store; lookup; put; delete)
 import ConnectionManagement.Rules.IGBatch as Batch
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.TracerReadiness as Readiness
 
 -- The default constructor retains the initial RemoteIdle projection.
 data RemoteState : Set where
@@ -334,11 +335,13 @@ stepWorker (commitTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m
 ...   | M.commitTrace false tr = just (setMux mid (record m { callback = afterTrace tr }) r , queue)
-...   | M.commitTrace true tr with missingDescriptor tr (tracerView (M.key m) r) (M.traceCounters m)
-...     | just n = just (setMux mid (record m { callback = M.tracerFailed n }) r , queue)
-...     | nothing with M.traceSTM (M.key m) tr (tracerView (M.key m) r) (M.traceCounters m) queue
-...       | nothing = nothing
-...       | just (rc , q) = just (setMux mid (record m { traceCounters = rc; callback = afterTrace tr }) r , q)
+...   | M.commitTrace true tr with Readiness.prefixReady (M.key m) tr (tracerView (M.key m) r) (M.traceCounters m) queue
+...     | false = nothing
+...     | true with missingDescriptor tr (tracerView (M.key m) r) (M.traceCounters m)
+...       | just n = just (setMux mid (record m { callback = M.tracerFailed n }) r , queue)
+...       | nothing with M.traceSTM (M.key m) tr (tracerView (M.key m) r) (M.traceCounters m) queue
+...         | nothing = nothing
+...         | just (rc , q) = just (setMux mid (record m { traceCounters = rc; callback = afterTrace tr }) r , q)
 stepWorker (commitTracer mid) r queue | just m | _ = nothing
 stepWorker (finishStart mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
@@ -363,13 +366,17 @@ stepWorker (monitorCommand mid) r queue | just m | M.returned | M.ready | [] | M
 stepWorker (monitorCommand mid) r queue | just m | M.afterFailure | _ | _ | _ =
   just (setMux mid (record m { callback = M.readActive M.muxStopped }) r , queue)
 stepWorker (monitorCommand mid) r queue | just m | _ | _ | _ | _ = nothing
--- Monitor source order gives job completion priority over command/traffic.
+-- One FIFO contains both initiator and responder job results. Initiator
+-- traces do not produce responder termination/counter events in the IG tracer.
 stepWorker (monitorCompletion mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m | M.status m | M.completions m
-...   | M.returned | M.ready | (n , outcome) ∷ rest with outcome
+...   | M.returned | M.ready | M.jobResult M.responderJob n outcome ∷ rest with outcome
 ...     | clean = just (setMux mid (record m { completions = rest; callback = M.readActive (M.completed n outcome) }) r , queue)
 ...     | errored err = just (setMux mid (record m { completions = rest; status = M.failed err; callback = M.readActive (M.completed n outcome) }) r , queue)
+stepWorker (monitorCompletion mid) r queue | just m | M.returned | M.ready | M.jobResult M.initiatorJob n outcome ∷ rest with outcome
+... | clean = just (setMux mid (record m { completions = rest }) r , queue)
+... | errored err = just (setMux mid (record m { completions = rest; status = M.failed err; callback = M.readActive M.muxStopped }) r , queue)
 stepWorker (monitorCompletion mid) r queue | just m | _ | _ | _ = nothing
 -- A selected channel has traffic. Ordered selection among simultaneously ready
 -- channels is outside this boundary; fixtures supply one traffic-ready channel.
@@ -397,7 +404,7 @@ stepWorker (publishJobResult mid n) r queue with lookup mid (muxes (execution r)
 ...   | nothing = nothing
 ...   | just outcome = just (setMux mid (record m
       { finishedJobs = delete n (M.finishedJobs m)
-      ; completions = M.completions m ++ ((n , outcome) ∷ []) }) r , queue)
+      ; completions = M.completions m ++ (M.jobResult M.responderJob n outcome ∷ []) }) r , queue)
 -- Completion of cancelGroup/egress drain is still an environment boundary.
 stepWorker (finishStop mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing

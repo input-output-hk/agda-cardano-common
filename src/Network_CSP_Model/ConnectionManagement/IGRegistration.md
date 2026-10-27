@@ -19,7 +19,7 @@ model or a source-conformance proof.
 The source baseline remains network
 `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. The focused recheck used:
 
-- [InboundGovernor.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs): exit deactivation/flush (197–205), batch selection (242–278), registration (280–398), event handling (400–612), synchronous tracer (635–728), maturity (796–804), event payloads (871–944), and peer-commit readiness (949–959).
+- [InboundGovernor.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs): exit deactivation/flush (197–205), batch selection (242–278), registration (280–398), event handling (400–612), synchronous tracer (635–728), maturity (796–804), event payloads (871–944), and peer-commit readiness (945–955).
 - [Network/Mux.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs): stopped/stop (121–180), protocol completion (310–365), monitor selection and callbacks (424–618), and `runMiniProtocolSTM` (749–789).
 - [InboundGovernor/State.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor/State.hs): unregister (201–215), remote states and updates (224–283).
 
@@ -78,8 +78,14 @@ originating mux. The current IG registration,
 looked up by connection key, supplies the protocol descriptor, version data and
 captured mux placed in `MiniProtocolTerminated`. These may belong to a replacement
 connection. The model deliberately preserves that source distinction. Missing
-protocol descriptors become an explicit tracer-exception continuation; they are
-not misreported as queue retry.
+protocol descriptors become an explicit tracer-exception continuation after the
+source operations that can retry first. For a start trace, an expired RemoteIdle
+timer retries before descriptor lookup; with zero counters, a full queue blocks
+the preliminary AwakeRemote write before the descriptor is forced. A successful
+capacity probe does not publish a partial event or counter update. Completed
+traces force their strict descriptor before queue-capacity retry and do not use
+the start-only idle gate. See `Rules/TracerReadiness` and
+`Negative/TracerReadinessIntegration` for the branch order and conditional controls.
 
 Clean last-hot completion atomically writes termination, demotion and idle events
 with the counter decrement. Exceptional completion writes termination and clears

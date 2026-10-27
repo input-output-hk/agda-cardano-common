@@ -18,6 +18,7 @@ open import ConnectionManagement.Machine
 open import ConnectionManagement.Properties.HandlerAnchors using (Anchors; setMux-preserves)
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.TracerReadiness as Readiness
 import ConnectionManagement.Rules.HandlerLifecycle as L
 
 -- Extract effects independently of any handler, promise or lifecycle frame.
@@ -60,11 +61,13 @@ worker-anchors .(IG.commitTracer mid) (trace {mid}) ig queue eq with lookup mid 
 ...   | M.afterFailure = case eq of λ ()
 ...   | M.tracerFailed j = case eq of λ ()
 ...   | M.commitTrace false tr = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
-...   | M.commitTrace true tr with IG.missingDescriptor tr (IG.tracerView (M.key m) ig) (M.traceCounters m)
-...     | just n = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
-...     | nothing with M.traceSTM (M.key m) tr (IG.tracerView (M.key m) ig) (M.traceCounters m) queue
-...       | nothing = case eq of λ ()
-...       | just (rc , output) = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.commitTrace true tr with Readiness.prefixReady (M.key m) tr (IG.tracerView (M.key m) ig) (M.traceCounters m) queue
+...     | false = case eq of λ ()
+...     | true with IG.missingDescriptor tr (IG.tracerView (M.key m) ig) (M.traceCounters m)
+...       | just n = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...       | nothing with M.traceSTM (M.key m) tr (IG.tracerView (M.key m) ig) (M.traceCounters m) queue
+...         | nothing = case eq of λ ()
+...         | just (rc , output) = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 worker-anchors .(IG.finishStart mid) (started {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.callback m
@@ -117,9 +120,12 @@ worker-anchors .(IG.monitorCompletion mid) (completion {mid}) ig queue eq with l
 ...   | M.returned | M.stopped | _ = case eq of λ ()
 ...   | M.returned | M.failed err | _ = case eq of λ ()
 ...   | M.returned | M.ready | [] = case eq of λ ()
-...   | M.returned | M.ready | (n , outcome) ∷ rest with outcome
+...   | M.returned | M.ready | M.jobResult M.responderJob n outcome ∷ rest with outcome
 ...     | clean = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 ...     | errored err = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+worker-anchors .(IG.monitorCompletion mid) (completion {mid}) ig queue eq | just m | M.returned | M.ready | M.jobResult M.initiatorJob n outcome ∷ rest with outcome
+... | clean = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+... | errored err = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 worker-anchors .(IG.startOnDemand mid n) (demand {mid} {n}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.callback m | M.status m | M.commands m | M.completions m | lookup n (M.waiting m)

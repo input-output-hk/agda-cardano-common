@@ -5,7 +5,7 @@
 module ConnectionManagement.Rules.PeerActions where
 
 open import Data.Bool using (Bool; true; false; _∧_)
-open import Data.Nat using (ℕ; _<?_)
+open import Data.Nat using (ℕ; zero; suc; _<?_)
 open import Data.List using (List; []; _∷_; _++_; map; filterᵇ)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
@@ -44,6 +44,9 @@ record Peer : Set where
         runs : List ProtocolRun
         monitorStarted : Bool
         promotedAt : Maybe ℕ
+        -- Captured job outcomes survive protocol restart until the source
+        -- JobPool publication boundary; they are not the current run's result.
+        pendingResults : List (ℕ × RunResult)
 open Peer public
 Runtime = Store PeerConnectionId Peer
 
@@ -108,7 +111,7 @@ cool p with status p
 
 initialPeer : ConnectionKey → HandleId → M.Handle → Peer
 initialPeer k h hd = peerState k h (M.muxRef hd) peerCold terminate continue continue
-  (map (λ protocol → protocolRun protocol notStarted notStarted) (M.bundle hd)) false nothing
+  (map (λ protocol → protocolRun protocol notStarted notStarted) (M.bundle hd)) false nothing []
 
 -- Traversal starts one protocol at a time; publication is a later transaction.
 startRun : Temperature → ℕ → List ProtocolRun → Maybe (List ProtocolRun)
@@ -182,7 +185,7 @@ step (publishProtocols t) p ig s with started t (runs p)
 ... | true = just (record p { runs = publishRuns t (runs p) } , ig)
 step (protocolResult n result) p ig s with finishRun n result (runs p)
 ... | nothing = nothing
-... | just rs = just (record p { runs = rs } , ig)
+... | just rs = just (record p { runs = rs; pendingResults = pendingResults p ++ ((n , result) ∷ []) } , ig)
 step markWarm p ig s = just (record p { status = peerWarm } , ig)
 step forkMonitor p ig s with monitorStarted p
 ... | true = nothing
@@ -203,6 +206,16 @@ step monitorCooling p ig s with status p | demoted (key p) s
 ... | peerCold | _ = just (record p { monitorStarted = false; promotedAt = nothing } , ig)
 ... | _ | _ = nothing
 step monitorError p ig s = just (cool p , ig)
+
+-- Select a pending job occurrence, not its protocol number: a later run of
+-- the same protocol may enqueue before an older preempted job. Removing only
+-- that occurrence preserves both restart outcomes and exactly-once publication.
+takePending : ℕ → List (ℕ × RunResult) → Maybe ((ℕ × RunResult) × List (ℕ × RunResult))
+takePending i [] = nothing
+takePending zero (result ∷ rest) = just (result , rest)
+takePending (suc i) (result ∷ rest) with takePending i rest
+... | nothing = nothing
+... | just (chosen , retained) = just (chosen , result ∷ retained)
 
 -- An initiator error is consumed by the shared mux monitor separately from
 -- publication of its result to peer-state waiters.

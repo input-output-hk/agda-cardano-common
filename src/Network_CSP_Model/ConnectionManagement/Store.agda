@@ -1,7 +1,8 @@
 {-# OPTIONS --guardedness #-}
 
--- Small association stores for the first finite-state slice. No iteration-order
--- claims: source ordered/random remote selection is not implemented here.
+-- Association-store primitives make no source iteration-order claims. Outbound
+-- selection admissibility is checked in Rules.OutboundAcquire; concrete PRNG
+-- sampling and its distribution remain abstract.
 module ConnectionManagement.Store where
 
 open import Data.List using (List; []; _∷_)

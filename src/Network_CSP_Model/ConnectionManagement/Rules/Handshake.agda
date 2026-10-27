@@ -120,8 +120,8 @@ stepWorker mode w a readResultCounters s with pc a | mapCell (cm s)
 ...     | disconnected _ | _ = just (setPC w a (returnHandshake result) s)
 stepWorker mode w a readResultCounters s | _ | _ = nothing
 
--- InformationChannel.hs uses a TBQueue of depth 100; queue-full retries. IG
--- consumption is deliberately absent until the IG batch/registration rules exist.
+-- InformationChannel.hs uses a TBQueue of depth 100; queue-full retries. The
+-- IG batch/registration rules consume this shared queue independently.
 stepWorker mode w a enqueueInbound s with pc a
 ... | notifyInbound info with InfoChannel.writeMessage (newConnection info) (inboundInfo s)
 ...   | nothing = nothing

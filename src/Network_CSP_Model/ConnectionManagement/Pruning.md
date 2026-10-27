@@ -12,7 +12,7 @@ The source pin remains `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
 - [Diffusion/Policies.hs:284–306](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion/Policies.hs#L284-L306): the diffusion pruning policy used here.
 - [Types.hs:239–261](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Types.hs#L239-L261): connection-type ordering.
 - [ConnMap.hs:63–83](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/ConnMap.hs#L63-L83): omission of unknown-local keys.
-- [ConnectionId.hs:43–53](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionId.hs#L43-L53): remote-before-local ordering.
+- [ConnectionId.hs:41–44](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionId.hs#L41-L44): remote-before-local ordering.
 
 ## Policy and transaction
 
