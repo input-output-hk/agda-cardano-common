@@ -19,8 +19,11 @@ A [standalone governor-pool close](Outbound.md#one-governor-job-pool-close) now
 models sequential cancellation/joins and proves result availability for the
 captured snapshot. [Supervision integration](Supervision.md) now couples that
 pool to executable CM caller unwind and a separate physical monitor registry,
-with ordered Async joins and capture/supply preservation. Handler/server scopes
-and full shutdown remain open. The earlier inbound
+with ordered Async joins and capture/supply preservation. The next
+[CM shutdown audit](../review/connection-management-si4-source-audit-2026-10-27.md)
+distinguishes map snapshots, late entry reads, cancellation delivery and the final
+collective result wait. Its standalone coordinator preserves late-admission races;
+physical handler/mux and Server integration, and full shutdown, remain open. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite

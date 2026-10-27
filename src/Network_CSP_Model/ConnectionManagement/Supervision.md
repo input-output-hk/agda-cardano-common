@@ -22,8 +22,8 @@ validation and commit status must be checked in the current worktree.
 | --- | --- | --- |
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
-| SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Implemented and checked in this checkpoint after `8c79b9a`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Next obligation. |
+| SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: source audit and CM snapshot/send-all/wait coordinator; handler/mux and Server integration still open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -423,3 +423,58 @@ inputs must not be promoted to a whole-scope certificate without their own
 captured job/cleanup evidence. The initialized remaining handler is the concrete
 starting fixture. SI5 will consume the resulting certificates; no full shutdown
 transition has been derived here.
+
+
+## SI4 first increment: CM scope traversal
+
+SI3 is committed as `bb11970`. The first SI4 increment adds
+`Rules/CMShutdown`, `Properties/CMShutdown` and `Negative/CMShutdown`.
+The [source audit](../review/connection-management-si4-source-audit-2026-10-27.md)
+records why the CM algorithm differs from JobPool close and why Server listener
+joins cannot establish admission quiescence.
+
+The coordinator snapshots current map entry references once, reads their heap
+cells later, sends cancellations with separate delivery acknowledgments, then
+waits collectively for the collected Async results. Repeated references are
+preserved. Store enumeration abstracts source Map key order; no ordering
+refinement is claimed. Arbitrary shared-store and result-observation inputs may
+interleave with coordinator steps, without a fictitious global closed flag.
+`closed-from-initial` certifies an exhausted traversal and a witness of the actual
+successful final wait, with the exact observation oracle used at that boundary.
+It does not assume future oracle values or certify uncollected handlers.
+
+Physical Async-result observations remain explicit adapter obligations. They
+must ultimately follow actual mux-pool, buffer, CM finalizer and result-publication
+steps; neither delivery acknowledgment nor a historical handler capture suffices.
+This increment does not connect those physical lifetimes or derive full shutdown.
+The source audit describes the remaining mux startup/generation/group-cancel and
+Server/IG scope obligations. SI4 and SI5 remain open.
+
+
+Validation on 27 October 2026: all three new Agda modules passed with fresh
+Checking output, Agda 2.8.0, `+RTS -M2G -RTS`, sequentially and without warnings.
+Acceptance contains 32 named reflexivity controls, a nine-action bulk traversal,
+the generic final-wait certificate application, and a ten-action product
+execution: empty CM capture/traverse/close followed by the seven real inbound
+admission actions from `CSP.Fixtures.start` to `waiting`. A handler and its owned
+socket then exist while the coordinator remains closed with an empty snapshot.
+The fixture starts after accepted-child handoff; this is not a derivation of the
+full Server prefix or a Haskell replay. Other controls cover delayed entry reads,
+Terminated skipping, duplicate references, missing historical handlers,
+map-lock blocking and refusal to finish with only some results available.
+
+The acceptance check initially reported two implicit inference metas in its
+path-lifting helper; explicit source/target/action arguments resolved them.
+The final three-file local proof audit found zero holes, postulates or unsafe
+flags; whitespace passed. Existing theorem files were not modified. No broad
+unrelated proof rebuild, source change or replay was run. Logs are
+`/tmp/cm-review-20261027/si4-cmshutdown-{rules,negative}.log` and
+`/tmp/si4-cmshutdown-properties.log`. This SI4 increment remains uncommitted.
+
+Next executable obligation: track physical handler identity from the real fork
+and bind pre-handshake cancellation, promise catch regions and CM finalizer
+completion to Async result publication. Then build the physical mux startup and
+per-direction/per-generation job pool, with its separate interruptible group
+close and buffer boundary, before supplying post-handshake observations to the
+CM coordinator. Server listener/action/IG ordering and admission quiescence must
+remain explicit before SI5 consumes a whole-scope certificate.
