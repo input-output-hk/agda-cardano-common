@@ -114,10 +114,10 @@ Timer expiry and delivery remain untimed environment readiness inputs.
 ## OG, peer jobs and monitoring
 
 The ordinary-peer profile executes forgetting, establishment, activation, close
-and hot demotion. Targets must satisfy the model's ordering predicate
-`active ≤ established ≤ known`; this is weaker than the pinned production
-predicate. The [profile differences](#profile-differences-from-pinned-production)
-below also distinguish target-input updates from the source TVar. Selection
+and hot demotion. Targets must satisfy `active ≤ established ≤ known` and the
+ordinary-source ceilings of 100 active, 1000 established and 10000 known peers. The
+[ordinary target profile](#ordinary-target-bounds-and-external-updates) below
+states the omitted root/big-ledger and signed-input scope. Selection
 derives quotas and eligible peers from the current known/established/active and in-progress sets. A policy
 input must select a nonempty, unique subset within the eligible quota; it cannot
 choose an alternative ahead of a ready higher-priority alternative.
@@ -172,23 +172,47 @@ source comparisons use the fixed network pin above, not a current-branch default
 These notes document the existing executable behavior; they do not correct the
 remaining semantic differences.
 
-### Targets and external updates
+### Ordinary target bounds and external updates
 
-`Rules/OutboundGovernor.sane` checks only the ordering of the three natural-valued
-targets. The source's
+`Rules/OutboundGovernor.sane` now checks the ordinary-source projection: natural
+nonnegative targets with `active ≤ established ≤ known`, plus ceilings of 100, 1000
+and 10000 respectively. The pinned
 [`sanePeerSelectionTargets`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Types.hs#L265-L285)
-also bounds active, established and known peers by 100, 1000 and 10000 respectively,
-and checks root and big-ledger targets that this profile does not represent.
-Consequently, satisfying the model predicate does not establish source target
-sanity.
+also checks root and big-ledger targets. The ordinary embedding fixes those
+omitted target fields and root sets to zero/empty; the model does not represent
+negative source Int inputs, root clamping or a custom target-action hook.
+This is not a predicate over every full production target configuration.
 
-`Subsystem.setTargets` refuses an ordering-invalid input and leaves the previous
-`targetInput` unchanged. The source
-[`targetPeers`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Monitor.hs#L55-L71)
-reads the current, overwritable target TVar and ignores an insane value. Thus a
-sane value overwritten by an insane value before the read need not be applied
-in source, whereas the model does not represent that overwriting action. Source
-bounds and faithful target-input overwrite semantics remain separate corrections.
+`Subsystem.setTargets` always overwrites the input, including ordering-invalid or
+oversized values. It changes neither private nor public governor targets. The
+source wires
+[`readPeerSelectionTargets` to a TVar](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion.hs#L625-L635).
+Its default
+[`targetPeers`](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Monitor.hs#L55-L95)
+reads the current value and selects it only if changed and sane. Consequently,
+`noTargets` means no *ready* target update, not merely equal values: an invalid
+input disables target selection without blocking otherwise-ready policy or
+wakeup alternatives. Monitor/completion priorities remain unchanged.
+
+A sane input overwritten before selection is not applied. Selection, however,
+captures the chosen target inside the source STM decision; a later overwrite
+does not invalidate that already-selected value, including during wakeup-timer
+cancellation. `applyAt` therefore applies its capture without rereading input.
+`Negative/TargetInputs` checks boundaries, both overwrite orders, actual
+alternative readiness/priority and the before/after-selection distinction.
+These input corrections do not establish private-target sanity from arbitrary
+injected initial states or forged pending target decisions.
+
+A4 was implemented after A2 commit `4268692`. The target-input acceptance
+endpoint passed 31 concrete equations and two finite write traces; fourteen
+governor/failure/structural/A1–A3 regression endpoints also passed sequential
+Agda 2.8.0 checks with the 2 GB heap limit. Final readiness/lifecycle invocations
+reused already checked interfaces; other batch endpoints rechecked affected
+modules. The five-file local audit's 21 findings were inspected comparison
+operators, with no new holes, axioms, unsafe flags or weakened theorem statements.
+Whitespace checks passed. No replay or source-pin change was performed. Detailed
+commands/scope: [A4 execution report](../review/connection-management-correction-plan-2026-10-27.md#a4-execution-results).
+The A4 increment was validated on top of A2 commit `4268692`.
 
 ### Retry policy values
 

@@ -72,9 +72,8 @@ module Lift
   advance-preserves (sampleTime t) c | (launch work) | _ = λ ()
   advance-preserves (sampleTime t) c | (register j rest) | _ = λ ()
   advance-preserves (sampleTime t) c | (completionAssertionFailed result) | _ = λ ()
-  advance-preserves (setTargets t) c with G.sane t
-  ... | true = λ { refl v → v }
-  ... | false = λ ()
+  -- Raw target-input writes do not affect the observed CM/IG predicate.
+  advance-preserves (setTargets t) c = λ { refl v → v }
   advance-preserves (selectMonitor delay) c with pc c | G.monitored (J.peers (world c)) (privateState c)
   ... | selecting | changes@(_ ∷ _) with completeDelays changes delay
   ...   | false = λ ()

@@ -37,8 +37,13 @@ record Targets : Set where
   constructor targets
   field knownTarget establishedTarget activeTarget : ℕ
 open Targets public
+-- Pinned Governor/Types.hs:265-283, projected to the ordinary-peer profile.
+-- Natural numbers enforce nonnegativity; root/big-ledger targets are not modeled.
 sane : Targets → Bool
-sane t = does (activeTarget t ≤? establishedTarget t) ∧ does (establishedTarget t ≤? knownTarget t)
+sane t = does (activeTarget t ≤? establishedTarget t) ∧
+  does (establishedTarget t ≤? knownTarget t) ∧
+  does (activeTarget t ≤? 100) ∧ does (establishedTarget t ≤? 1000) ∧
+  does (knownTarget t ≤? 10000)
 record Known : Set where
   constructor known
   field failures connectAt : ℕ

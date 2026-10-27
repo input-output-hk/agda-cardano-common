@@ -47,9 +47,10 @@ The [27 October correction plan](../review/connection-management-correction-plan
 records the source/spec review response. Shared initiator/responder FIFO ordering
 and start-tracer retry precedence are corrected and checked. Mode/flow-dependent
 tracer attachment and initiator-only shared engine driving are also implemented
-and checked. Target-input, policy/supervision and other documented profile
-differences remain separate workstreams; these checks do not establish source
-refinement.
+and checked. Ordinary target bounds and latest-input selection are also corrected.
+Root/big-ledger targets, negative input values, policy/supervision and other
+documented profile extensions remain separate; these checks do not establish
+source refinement.
 
 The [source replays](SourceReplay/README.md) check governor retries after
 socket-open failure and over-limit outbound release against the exact network

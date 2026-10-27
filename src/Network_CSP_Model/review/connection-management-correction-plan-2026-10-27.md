@@ -18,9 +18,9 @@ errata. Part C concerns a later snapshot and does not authorize moving the pin.
 | ID | Findings | Action and acceptance condition | Status |
 | --- | --- | --- | --- |
 | CM-SF1 | A1 | Use one direction-tagged JobPool completion FIFO, preserving separate job outcome and queue publication transactions. Gate monitor consumption by handler phase. Check FIFO priority, initiator clean/error handling, restart before publication, and exactly-once consumption. | Implemented and checked for the current responder-capable profile; broader lifetime limits below remain open. |
-| CM-SF2 | A2 | Represent actual IG tracer attachment. Inbound handlers attach it regardless of flow; outbound handlers require responder mode plus duplex. An absent tracer must emit no IG events or queue backpressure, including mux stop. Keep attachment distinct from counters becoming inactive. | Implemented and checked after `b8d0081`; 44 acceptance equations and 18 final regression endpoints pass. See the A2 execution results below. |
+| CM-SF2 | A2 | Represent actual IG tracer attachment. Inbound handlers attach it regardless of flow; outbound handlers require responder mode plus duplex. An absent tracer must emit no IG events or queue backpressure, including mux stop. Keep attachment distinct from counters becoming inactive. | Committed as `4268692`; 44 acceptance equations and 18 final regression endpoints pass. See the A2 execution results below. |
 | CM-SF3 | A3 | Restore source retry precedence before missing-descriptor failure for started traces: expired idle first, and initial AwakeRemote queue write before descriptor forcing. Preserve transaction atomicity and test expired/full/available cases. Treat completed traces separately according to their source evaluation order. | Integrated after SF1; helper and actual dispatcher controls pass. |
-| CM-SF4 | A4 | Separate the model's target ordering predicate from production bounds and explicitly document invalid-input filtering. A source-faithful input profile would permit arbitrary overwrites and check the current value at selection. | Differences documented; executable target/input correction remains open. |
+| CM-SF4 | A4 | Enforce ordinary target bounds and select changed sane values from an overwritable input. Invalid raw writes must not block policy/wakeup; captured selections survive later writes. | Implemented and checked in the nonnegative ordinary profile; validated after `4268692`. |
 | CM-SF5 | A5 | State model/replay clearing delay 60 versus pinned production 120, and retries 5 in both. Keep this profile's historical witnesses rather than silently changing their policy. | Documentation corrected; no default change. |
 | CM-SF6 | A6 | Distinguish abstract policy choices from production fault classification. Keep delivery acknowledgment separate from supervisor termination. A concrete policy/supervision profile needs explicit fault classes and delivery/cancellation behavior. | Differences documented; concrete production profile remains open. |
 | CM-SF7 | A7 | State that STM retry rolls back generator splitting and preserves selection on unchanged inputs, while other threads can alter the generator. Preserve abstract admissible selection without claiming a concrete PRNG implementation. | Documentation corrected; concrete PRNG correspondence remains outside scope. |
@@ -142,8 +142,8 @@ CM-SF1 and CM-SF3 are integrated; CM-SF8/9 and profile documentation corrections
 are complete in the worktree. Three delegated workstreams performed FIFO code/
 proof migration, citation/comment fixes, and profile/tracer design and tests.
 Shared semantic edits were sequenced and all Agda checks ran one process at a
-time. The first wave is committed as `b8d0081`; A2 is being implemented on top
-of that checkpoint.
+time. The first wave is committed as `b8d0081`; A2 was subsequently committed
+as `4268692`.
 
 The A1 leaf and proof checks passed Agda 2.8.0 at `+RTS -M2G -RTS`:
 PeerActions, IGRegistration, Subsystem, MuxRetention, both subsystem invariant
@@ -225,18 +225,63 @@ two fixture naming/import errors; those were corrected and all final checks
 exited 0. No Haskell replay, upstream spec edit or source-pin migration was run.
 A2 and its documentation were validated on top of `b8d0081`.
 
-Next is CM-SF4's executable target/input semantics: implement the source bounds
-for the ordinary-peer profile, permit overwriting the input with invalid values,
-and select only a sane current value. Preserve the documented fixed-profile
-policy values and keep CM-SF6 production fault classification/supervision separate.
+CM-SF4 followed this checkpoint; its ordinary-target bounds and overwritable-input
+correction are implemented in the A4 execution results below. The fixed-profile
+policy values remain unchanged; CM-SF6 production fault classification/supervision
+is separate.
 Broader responder publication ordering, shutdown/job lifetime and handler validity
 limits remain open as stated above.
 
+## A4 execution results
+
+A2 was committed as `4268692` before implementing A4. The worktree now checks
+`active ≤ established ≤ known` plus ordinary ceilings of 100/1000/10000. Environment
+`setTargets` writes always overwrite, while target selection reads the latest
+changed sane value. An invalid input disables only the target alternative and
+leaves otherwise-ready policy and wakeup choices available. Selected target
+values remain captured through a later overwrite and wakeup cancellation;
+`applyAt` does not reread or revalidate the external input.
+
+Pinned source verification covers Governor/Types.hs:265–283, Monitor.hs:55–95,
+Diffusion.hs:631 and
+the Governor STM-selection/timed-decision boundary. This is the default-target,
+nonnegative ordinary profile, fixing omitted root/big-ledger targets and root
+sets to zero/empty. Source negative Int values, root clamping and custom target
+hooks are not represented. No global private-target-sanity theorem is asserted
+for arbitrary injected initial states or forged pending decisions.
+
+Agda 2.8.0 checks ran sequentially at `+RTS -M2G -RTS`. The core/world invariant
+check passed. `Negative/TargetInputs.agda` passed 31 concrete equations and two
+finite write traces for upper bounds, ordering, overwrites, ready alternatives,
+priority and captured application/cancellation. The first test compile exposed
+a missing product-constructor import, which was corrected; final checks exited 0.
+
+Fourteen regression endpoints then passed:
+
+- `Negative/{OutboundGovernor,Subsystem,GovernorOpenFailure,GovernorFailureLimit}`.
+- `Negative/{SubsystemSupply,SubsystemOwnership,SubsystemMapUnique,SubsystemMapReferences,SubsystemResources,SubsystemReferences}`.
+- `Negative/{TracerAttachment,InitiatorCompletionFIFO,TracerReadinessIntegration}`.
+- `CSP/GovernorLifecycle`.
+
+All batch endpoints rechecked affected modules except the final readiness and
+lifecycle calls, which reused already checked interfaces. Logs are under
+`/tmp/cm-review-20261027/a4-checks/`. The five-file local proof audit found 21
+inspected comparison operators; no holes, postulates, unsafe flags or changed
+preservation theorem types. Whitespace checks passed. No Haskell replay, upstream
+spec edit or source-pin change was performed. A4 was validated on top of `4268692`.
+
+Next is CM-SF6: audit concrete production fault classification and the boundary
+between delivery and supervisor cancellation before extending the abstract
+exception-policy profile. Do not equate throwTo acknowledgment with completed
+node shutdown. The fixed replay-policy values and abstract PRNG profile stay as
+already documented.
+
 ## Remaining scope
 
-A4 executable input semantics and A6 production-policy/supervision execution are
-separate extensions after the mux corrections; documenting their current profile
-is not equivalent to implementing them. Full concrete PRNG correspondence is not
+A4 is implemented for the documented ordinary target profile. Root/big-ledger,
+negative-input and custom-target extensions remain separate. A6 production-policy/
+supervision execution is still open; documenting its profile is not equivalent
+to implementing it. Full concrete PRNG correspondence is not
 needed for the present abstract profile. Upstream Part B errata can be drafted
 later, with B12's conditional status and unverified PDF details retained. Part C
 changes remain deferred until an explicit source-pin migration.

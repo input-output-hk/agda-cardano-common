@@ -81,8 +81,11 @@ noCompletions : Configuration → Bool
 noCompletions c with completions c
 ... | [] = true
 ... | _ ∷ _ = false
+-- The source reads an overwritable target TVar and ignores unchanged/insane
+-- values at selection. An ignored input must not block other ready alternatives.
 noTargets : Configuration → Bool
-noTargets c = sameTargets (targetInput c) (G.target (privateState c))
+noTargets c = not (not (sameTargets (targetInput c) (G.target (privateState c))) ∧
+  G.sane (targetInput c))
 
 -- Job identity is distinct from caller, child and peer-handle identities.
 workerFree : WorkerId → Configuration → Bool
@@ -155,9 +158,9 @@ advance publishPublicState c with pc c
 advance (sampleTime t) c with pc c | now c ≤? t
 ... | sampleInputs | yes _ = just (record c { now = t; privateState = G.advanceTime t (privateState c); pc = prepareWait })
 ... | _ | _ = nothing
-advance (setTargets t) c with G.sane t
-... | true = just (record c { targetInput = t })
-... | false = nothing
+-- Environment writes are independent of governor readiness and may overwrite
+-- a sane value with an invalid one before the governor reads the TVar.
+advance (setTargets t) c = just (record c { targetInput = t })
 advance (selectMonitor delay) c with pc c | G.monitored (J.peers (world c)) (privateState c)
 ... | selecting | changes@(_ ∷ _) with completeDelays changes delay
 ...   | false = nothing
