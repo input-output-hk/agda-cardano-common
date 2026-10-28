@@ -11,7 +11,7 @@ import tempfile
 def adapter_tests(root):
     """Preserve namespaces, original row numbers, roles and generations."""
     spec = importlib.util.spec_from_file_location(
-        'adapter', Path(__file__).with_name('leiosfetch_adapter.py'))
+        'adapter', Path(__file__).with_name('normalize_logs.py'))
     adapter = importlib.util.module_from_spec(spec)
     sys.dont_write_bytecode = True
     spec.loader.exec_module(adapter)

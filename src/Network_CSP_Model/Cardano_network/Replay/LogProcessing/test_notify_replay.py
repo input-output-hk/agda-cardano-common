@@ -86,7 +86,7 @@ def main(binary):
                             'data': {'peer': {'connectionId': 'a b'}, 'msg': msg}})
         raw.write_text(''.join(json.dumps(r) + '\n' for r in records))
         out = root / 'normalized'
-        subprocess.run([sys.executable, '-I', str(Path(__file__).with_name('leios_adapter.py')),
+        subprocess.run([sys.executable, '-I', str(Path(__file__).with_name('normalize_logs.py')),
                         str(raw), str(out)], check=True, capture_output=True, text=True)
         check((out / 'interleaved.txt').read_text(), 'accepted (6 events, 3 sessions)')
     print('compiled Notify/Fetch CLI integration tests passed')

@@ -55,6 +55,33 @@ Each module defines a small per-protocol event type, its `DecEq`, and the **clie
 | `LeiosNotify.agda` | 255 | LeiosNotify (id 18): from `stIdle` the consumer requests the next notification (`MsgLNRequestNext` → `stBusy`) or terminates (`MsgLNDone`); in `stBusy` the producer replies with exactly one of four notifications (block announcement, block offer, block-txs offer, votes offer) and returns to `stIdle`. Wire events `sendLN`/`receiveLN`; api events `apiLNev`. |
 | `LeiosFetch.agda` | 380 | LeiosFetch (id 19): from `stIdle` the consumer requests an endorser block (`MsgLFBlockRequest`), votes (`MsgLFVotesRequest`) or a block range (`MsgLFBlockRangeRequest`), or terminates (`MsgLFDone`); the producer delivers in the matching busy state. The block-range case **streams**: several `MsgLFNextBlockAndTxsInRange` before a final `MsgLFLastBlockAndTxsInRange`. Wire events `sendLF`/`receiveLF`; api events `apiLFev`. |
 
+Request-pipelined BlockFetch is available separately in `BlockFetchPipe.agda`: a
+depth-parameterised client with FIFO response handling and silent collection,
+paired with the existing sequential server. It is not yet selected by the node
+bundles. Role-selected and interleaved client/server control checkers have
+bidirectional trace bridges to their existing peers (every client depth;
+completeness explicitly takes an inhabited block value). See implementation and scope (source repository: `docs/notes/blockfetch-pipeline.md`)
+for the pinned prototype sources, tests, and transport limitations.
+
+Bounded prototype Notify peers are available separately in
+`LeiosNotifyPipe.agda`. Both roles retain native messages and API handoffs,
+with explicit pending-output, delivery and loop-back phases. Their local
+wire-control language is proved equivalent to bounded Notify replay for any
+Params, depth and endpoint; completeness states native payload-inhabitance
+premises. Depth one has proved observed control-trace equivalence with the
+original peers at the existing concrete replay endpoint. The original
+`LeiosNotifyP` peers and node bundle remain depth one. See the
+Notify pipeline bridge note (source repository: `docs/notes/leiosnotify-pipeline-bridge.md`)
+for proof scope, paired composition and the remaining exact-log obligations.
+
+Exact-field paired Notify correspondence is now proved by
+`Replay/LeiosNotifyPairedBridge.agda` at the separate summary-preserving
+`LeiosNotifyExactParams` instance, for every bound. It covers both exact merged
+traces and the existential merge of two endpoint inputs. The retained fields
+include announcement metadata, sizes and ordered vote summaries. See the
+exact paired bridge note (source repository: `docs/notes/leiosnotify-exact-paired-bridge.md`)
+for the concrete representation boundary and remaining Fetch obligations.
+
 ## Scenario / system — `FourNode/`
 
 | Module | Lines | Purpose |

@@ -10,7 +10,7 @@ import tempfile
 
 def adapter_tests(root, binary):
     """Never infer unlogged blocking style or ID-reply emptiness."""
-    spec = importlib.util.spec_from_file_location('adapter', Path(__file__).with_name('leiosfetch_adapter.py'))
+    spec = importlib.util.spec_from_file_location('adapter', Path(__file__).with_name('normalize_logs.py'))
     a = importlib.util.module_from_spec(spec)
     sys.dont_write_bytecode = True
     spec.loader.exec_module(a)
@@ -73,7 +73,7 @@ def adapter_tests(root, binary):
     # The user-facing mixed adapter enables TxSubmission2 and surfaces missing evidence.
     raw = root / 'raw.jsonl'
     raw.write_text('\n'.join(lines) + '\n')
-    cli = Path(__file__).with_name('leios_adapter.py')
+    cli = Path(__file__).with_name('normalize_logs.py')
     proc = subprocess.run([sys.executable, '-I', str(cli), str(raw), str(root / 'cli')], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     raw.write_text(row('Receive.RequestTxIds') + '\n')

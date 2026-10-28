@@ -1,16 +1,230 @@
 # Trace replay
 
-The executable checks normalized LeiosFetch and LeiosNotifyP events against the first-order
+The executable checks normalized LeiosFetch, LeiosNotifyP, BlockFetch, ChainSync and TxSubmission2 events against the first-order
 session specification. It accepts prefixes, including unfinished sessions at
 EOF. An accepted prefix is not evidence of delivery or successful completion.
 
+Raw-log adapters, pair-manifest normalization and CLI regression scripts live
+in [LogProcessing](LogProcessing/README.md), directly under this replay folder.
+
+Paired ChainSync, LeiosNotifyP and LeiosFetchP replay checks communication consistency between explicitly
+paired opposite endpoints. The implementation note (source repository: `docs/notes/paired-chainsync-replay.md`)
+documents its input grammar, certificates, tracer boundary and limitations;
+the plan (source repository: `docs/specs/paired-trace-replay-plan.md`) tracks remaining work.
+
+## Exact-field paired Notify bridge
+
+`LeiosNotifyPairedBridge` proves soundness, completeness, trace equivalence and
+endpoint-input/witness correspondence for the existing Notify pair checker at
+all depths. Its native peer/FIFO target uses `LeiosNotifyExactParams.exactParams`:
+summary carriers preserve every normalized Notify field, including ordered and
+repeated vote entries. This is a concrete representation of retained summaries,
+not a full-block or signature-validity theorem, nor an arbitrary-Params bridge.
+Fetch's exact-field composed bridge remains open. See the
+exact Notify bridge note (source repository: `docs/notes/leiosnotify-exact-paired-bridge.md`).
+
+## Paired LeiosNotifyP and LeiosFetchP
+
+```sh
+Main --paired-notify PAIR.txt [K_NOTIFY]
+Main --paired-fetch PAIR.txt [K_FETCH]
+python3 -I Cardano_network/Replay/LogProcessing/paired_sessions.py manifest.json PAIR.txt
+```
+
+**Default capacities: Notify 1, Fetch client 4.** Notify uses bounded credits
+at both endpoints; Fetch retains its sequential server. Both use exact parsed
+message equality on two initially empty FIFOs and return source-mapped merge
+witnesses. Headers and manifest protocol names are `LeiosNotifyP` and
+`LeiosFetchP`; tracer namespaces retain their existing names without `P`.
+Both local projection proofs are checked. Fetch's silent serve step is covered
+by an exact weak-language normalization theorem.
+
+**The older coarse local bridges alone do not establish exact-field composed
+correspondence:** they erase some fields checked here, and
+the original Notify peers still alternate at depth one. The new
+`LeiosNotifyPipe` extension now has local kind/direction equivalence at every
+depth, with explicit native payload witnesses for completeness. See the
+bounded Notify bridge note (source repository: `docs/notes/leiosnotify-pipeline-bridge.md`).
+The next layer now supplies actual peer/FIFO PTree compositions using the
+shared `CSP/AsyncPair` library, with proved operational trace correspondence.
+Fetch additionally has a store-backed target and inherited projected server
+legality; a formal counterexample shows why its unconstrained bare server
+cannot be used directly for checker soundness. Those older target scopes still require exact log-observation and joint
+completeness proofs; the separate summary-preserving Notify result above
+provides both for its explicitly stated native instance.
+See the Leios paired note (source repository: `docs/notes/paired-leios-replay.md`) for
+input examples, manifest grammar, exact fields, proofs and validation.
+
+## Paired ChainSync pilot
+
+```sh
+Main --paired-chainsync PAIR.txt [K_CS]
+python3 -I Cardano_network/Replay/LogProcessing/chainsync_pair.py manifest.json PAIR.txt
+```
+
+The manifest explicitly identifies the connection, session and both local
+endpoint generations, and attests fresh capture. Two directional FIFOs match
+receives against sends. The checker searches order-preserving merges, using
+both existing local state machines, with client capacity 300 by default.
+Acceptance prints a source-mapped witness and accepts in-flight messages at EOF.
+Rejection excludes every valid merge under those declared capture assumptions.
+Input/evidence errors are reported separately. No cross-node timestamp sort or
+automatic connection pairing is performed.
+
+`Paired`, `PairedDecide` and `ChainSyncPairedSession` certify the first-order
+machine, merge search and local projections. `ChainSyncPairedBridge` now proves
+both directions against the original client/server PTrees composed through
+explicit full-payload FIFO queues; `inputs-bridge` includes the existential
+merge order. Completeness needs one `Block` inhabitant; soundness does not.
+This product is not the existing node/mux assembly. The existing raw adapter
+skips the server's Serialised
+tracer, so real paired captures need additional explicit server adaptation;
+this pilot accepts normalized sessions and supplied source maps.
+
+## TxSubmission2 submitter and requester
+
+```sh
+Main --txsubmission2 FILE [K_TS]
+Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]
+```
+
+**The client submits; the server requests and pipelines.** `TxSubmission2Session`
+checks Init, a FIFO of nonblocking ID/transaction requests, exclusive blocking
+ID requests, nonempty blocking replies, and client Done only in the blocking
+state. The default requester message capacity is **4**, a configurable replay
+policy, not an asserted prototype-wide pipeline limit. Client consumption is
+sequential and ignores that bound.
+
+Input retains Blocking/NonBlocking and Empty/NonEmpty ID-reply shapes, using
+`TxSubmission.Remote.*` namespaces (`MsgInit` for Init). Tags are
+`txsubmission2:client/server`. Transaction contents, acknowledgements, ID
+membership and byte budgets are outside this control-only checker. Decisions
+are certified against the first-order model. `TxSubmission2ClientBridge` and
+`TxSubmission2ServerBridge` prove exact finite control-trace correspondence with
+the strict `TxSubmission2Pipe.client` and pipelined `.server`, for arbitrary
+parameters, depth and endpoint. Soundness is unconditional; completeness needs
+one `TxHash` inhabitant for nonempty replies. `TxSubmission2BridgeTests` supplies
+inhabited PTree witnesses and negative controls.
+
+**Standard node logs lack required TxSubmission2 control fields.** Mixed
+adaptation now includes this protocol by default and fails precisely when
+blocking or reply-emptiness evidence is missing. An enriched tracer can supply
+those fields. Use `--exclude-txsubmission2` explicitly to normalize only the
+other protocols. See the TxSubmission2 note (source repository: `docs/notes/txsubmission2-replay.md`)
+for the pinned sources, exact grammar, validation and devnet coverage audit.
+
+## ChainSync client and server
+
+```sh
+Main --chainsync FILE [K_CS]
+Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS]]]]
+```
+
+`ChainSyncSession` checks both roles; **only the client pipelines RequestNext**.
+The default client bound is **300**, matching the pinned network high watermark.
+AwaitReply retains the oldest request and must be followed by a roll response;
+FindIntersect and Done require an empty pipeline. The server is sequential and
+ignores the client bound. `chainsync:client` and `chainsync:server` select product
+components; standalone input selects the role with its header.
+
+`ChainSyncParse` accepts kind-only Send/Recv rows and exact
+`ChainSync.Remote.Send.*` / `Receive.*` namespaces. Payloads are outside the
+checked language. The mixed adapter now handles five protocols and devnet
+JSON wrappers, preserving source line numbers. Previous CLI forms remain valid.
+
+**Certification scope:** `ChainSyncClientBridge` and `ChainSyncServerBridge`
+prove both directions between replay and `ChainSyncPipe.client` / the existing
+`ChainSync.CSserverStClient`, for arbitrary parameters, depth and endpoint.
+Completeness needs one `Block` inhabitant; soundness does not.
+`ChainSyncBridgeTests` supplies inhabited PTree runs and a transferred negative
+control. Observation erases payloads and API events, and excludes semantic
+termination; wire Done remains visible. These are standalone-peer results.
+The current adapter still lacks a verified
+boundary for mini-protocol restarts on surviving connections: two supplied
+devnet streams reject a new FindIntersect after an outstanding AwaitReply.
+See the ChainSync note (source repository: `docs/notes/chainsync-replay.md`) for exact source
+pins, transition rules, checks, snapshot hashes and rejection analysis.
+
+## Module naming
+
+Protocol-specific modules use the full `LeiosFetch`, `LeiosNotify`,
+`BlockFetch`, `ChainSync`, or `TxSubmission2` prefix. Role-specific bridge modules include `Client` or `Server`;
+`LeiosNotifyBridge` contains both roles. The `LeiosNotify` prefix here refers to
+**LeiosNotifyP**, not the earlier demo peer. `LeiosFetchServerModel` defines the
+composed server; its proof endpoints are `LeiosFetchServerSound` and
+`LeiosFetchServerComplete`.
+
+Shared infrastructure retains neutral names: `Common`, `Namespaces`,
+`ReplayParams`, `PipelineBounds`, `Sessions`, `ParseSessions`, `SessionReport`, and `Main`.
+`LeiosFetchInterleaved*` and `LeiosFetchParseInterleaved` are the older
+Fetch-only product APIs; `Sessions` is the heterogeneous product.
+
+Some protocol modules also export reusable helpers: `LeiosFetchParse` provides
+parsing utilities, `LeiosFetchServerParts.OutInv` and
+`LeiosFetchServerForward.Fire` provide generic proof helpers, and
+`BlockFetchClientSession` defines the wire alphabet shared with the server.
+`BlockFetchReport` retains its neutral role name because its parser and event
+printer serve both roles, alongside the legacy client reporter.
+
+The naming cleanup changes module paths and imports only; it does not change
+protocol definitions, theorem statements, CLI arguments, or log formats.
+Downstream Agda imports must use the new names; there are no compatibility
+modules at the old paths.
+
+## BlockFetch client and server
+
+```sh
+Main --blockfetch FILE [K_BF]
+Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF]]]
+```
+
+The shared **control-only** BlockFetch mode selects its checker from the
+`role client` or `role server` header. `K_BF` defaults to 100 and applies only
+to clients; supplying it for a server does not alter sequential server behavior.
+Client files contain kind-only rows such as `Send RequestRange`, `Recv StartBatch`,
+`Recv Block`, `Recv BatchDone`, `Recv NoBlocks`, and `Send ClientDone`. Exact
+`BlockFetch.Remote.Send.*` / `Receive.*` namespaces are accepted too. Extra
+payload tokens are rejected rather than silently treated as validated data.
+
+`BlockFetchClientSession` provides certified decisions; `BlockFetchClientBridge` proves
+soundness and completeness against `BlockFetchPipe.client` at every depth and
+endpoint. Completeness explicitly takes an inhabited block value to construct
+erased payloads. The proof hides application handoffs and internal collection;
+it concerns finite wire-control traces, not block validity or whole-node behavior.
+
+A `role server` file uses directions relative to the server. It permits one
+range at a time: Recv RequestRange,
+then Send NoBlocks or Send StartBatch / Block* / BatchDone, returning to idle.
+Recv ClientDone closes an idle session. `BlockFetchServerSession` supplies its
+certified decider, and `BlockFetchServerBridge` proves both directions against
+the existing sequential `BFserverStClient`, including unlogged API handoffs.
+Completeness has the same explicit block-inhabitance premise as the client.
+
+Both modes accept unfinished prefixes. Server input must describe protocol
+receives, not earlier mux ingress. The latest `cardano-node-20261014.log` contains
+no `BlockFetch.Remote.*` observations, so it supplies no live-log validation for
+these modes. The supplied three-node local-devnet logs likewise contain no
+BlockFetch wire events, but all their Fetch/Notify sessions pass replay.
+Raw BlockFetch adaptation is not yet provided.
+
+Mixed manifests accept `blockfetch:client` and `blockfetch:server` alongside
+`fetch:*` and `notify:*`. Bounds are independent (defaults 4, 1, 100). The
+existing one/two-bound forms retain those defaults for omitted arguments.
+`--blockfetch-client FILE [K_BF]` and `--blockfetch-server FILE` remain compatible
+role-specific entry points; the latter still rejects a depth argument.
+
+Each product component is checked independently. Acceptance does not match
+one endpoint's sends to another endpoint's receives. See the BlockFetch implementation note (source repository: `docs/notes/blockfetch-pipeline.md`)
+for source pins, theorem scope and testing commands.
+
 ## One model for interleaved sessions
 
-`LeiosFetchInterleaved.agda` folds the generic heterogeneous product in
+`Sessions.agda` folds the generic heterogeneous product in
 `Semantics/Replay/Interleave.agda` into a finite session model. The manifest
 fixes each session's role and initial state. A tagged event changes only its
-session; a silent step advances one component. Each client has its own FIFO
-queue and bound `K`, and each server has its own outstanding request.
+session; a silent step advances one component. Each component retains its own
+protocol state and applicable bound; no event can consume another session's
+pending request or credit.
 
 The generic `projection-equivalence` theorem proves that a global trace is
 permitted exactly when both component projections are permitted. Recursively,
@@ -23,7 +237,7 @@ The generic product, instance, parser, reporting and tests use `--safe`.
 The generic product permits different event and state types and universes on
 its two sides. Future mini-protocol replay specifications can therefore be
 combined through the same product once their local replay interfaces and
-deciders are provided. The executable combines both protocols through `Sessions.agda` and
+deciders are provided. The executable combines all five protocols through `Sessions.agda` and
 `ParseSessions.agda`; the original Fetch-only modules remain library APIs.
 
 ## Configurable Notify pipeline depth (2026-10-14)
@@ -59,14 +273,18 @@ respective components. `SessionReport.reportWithDepth` and
 `reportNotifyWithDepth` expose them to the CLI. Original `model`, `check`,
 `report`, and `reportNotify` calls retain depth-one Notify defaults.
 
-**Proof scope:** the original `LeiosNotifySession` and `NotifyBridge` remain
+**Proof scope:** the original `LeiosNotifySession` and `LeiosNotifyBridge` remain
 unchanged. `depth-one-step` proves transition agreement under the state embedding;
 `depth-one-traces` proves bidirectional trace equivalence between the original
 machine and the new model at depth one. The decider and heterogeneous product
-are certified for every bound. There is no PTree correspondence theorem for
-larger depths: the existing `LeiosNotifyP` peers still alternate at depth one.
-This extension checks bounded pipelined wire order, not prototype byte budgets,
-shared application state, or the composed node.
+are certified for every bound. `LeiosNotifyPipeBridge` now proves local
+wire-control equivalence for the separate bounded `LeiosNotifyPipe` peers at
+all depths, with explicit native payload witnesses for completeness. The
+existing `LeiosNotifyP` peers and node bundle still alternate at depth one.
+The new depth-one peers have proved kind/direction trace equivalence with the
+originals at the existing concrete replay endpoint. This extension concerns
+bounded wire order, not prototype byte budgets, shared application state or
+the composed node.
 
 Mixed and standalone Notify rejection reports binary-search prefix membership
 using prefix closure, then retrieve the preceding accepted state. This reduces
@@ -74,7 +292,7 @@ the number of repeated prefix decisions from linear to logarithmic in the event
 count; parsing, each decision, and product projection still have their own cost.
 The original Fetch-only reporter retains its sequential scan.
 
-Validation includes `NotifyPipelineTests.agda` for fill/refill/drain, both roles,
+Validation includes `LeiosNotifyPipelineTests.agda` for fill/refill/drain, both roles,
 overflow, underflow, busy Done, closed sessions, zero, prefixes, session isolation,
 independent bounds, and diagnostics. The old bridge tests still check with
 `agda --safe`. Compiled CLI tests cover legacy calls, malformed arguments,
@@ -179,14 +397,16 @@ the same proved projection equivalence as Fetch-only interleaving.
 Compile `Main.agda` as described below, then run:
 
 ```sh
-python3 -I tools/trace-replay/leios_adapter.py LOG /tmp/leios-mixed
+python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py LOG /tmp/leios-mixed
 /tmp/leios-replay-build/Main --interleaved /tmp/leios-mixed/interleaved.txt 4
 /tmp/leios-replay-build/Main --notify /tmp/notify-session.txt
 ```
 
 Standalone Notify input starts with `role client` or `role server` and has
 untagged events. Its report uses the product format with one session. Existing
-`Main FILE [K]` and `leiosfetch_adapter.py` remain Fetch-only entry points.
+`Main FILE [K]` remains the Fetch-only checker mode. The single log adapter,
+`normalize_logs.py`, handles mixed logs by default; use `--fetch-only` for the
+former Fetch-only normalized format.
 The mixed adapter groups by `(connectionId, role, protocol)` and generation,
 assigns ids in first-event order, and preserves raw-file ordering. Done ends
 only its own protocol/role session; NewMux closes **all protocols and roles**
@@ -194,8 +414,8 @@ on that connection. Mux Dead still does not split. Mixed per-session filenames
 include the protocol, and `index.tsv` appends a protocol column. The source-map
 and rejection-index conventions remain unchanged.
 
-**Correspondence with the original peers:** `NotifyBridge.client-bridge` and
-`NotifyBridge.server-bridge` establish both directions for the existing
+**Correspondence with the original peers:** `LeiosNotifyBridge.client-bridge` and
+`LeiosNotifyBridge.server-bridge` establish both directions for the existing
 `LNPclientStClient` and `LNPserverStClient`, at `replayParams`, link 0, direction
 `hi`. They retain wire direction and all six message kinds, while erasing all
 notification payloads and omitting local API/done events. Completeness chooses
@@ -216,30 +436,30 @@ pipelined Notify peers, whereas Agda `LeiosNotifyP` is depth-one. Bounded pipeli
 correspondence proof for the pipelined prototype and an observation model for
 missing requests remain separate work.
 
-Validation includes `NotifyTests.agda` (positive witnesses, negative controls,
-protocol parsing and interleaving), `NotifyBridge.agda` and explicit client/server trace witnesses in
-`NotifyBridgeTests.agda` checked with `--safe`,
+Validation includes `LeiosNotifyTests.agda` (positive witnesses, negative controls,
+protocol parsing and interleaving), `LeiosNotifyBridge.agda` and explicit client/server trace witnesses in
+`LeiosNotifyBridgeTests.agda` checked with `--safe`,
 existing Fetch decision/product tests and both Fetch bridge endpoints, adapter
 selftests, and compiled CLI integration tests:
 
 ```sh
-python3 -I tools/trace-replay/leios_adapter.py --selftest
-python3 -I tools/trace-replay/test_notify_replay.py /tmp/leios-replay-build/Main
+python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
+python3 -I Cardano_network/Replay/LogProcessing/test_notify_replay.py /tmp/leios-replay-build/Main
 ```
 
 ## Run (Fetch-only normalization)
 
-From `src/`, compile outside the repository:
+From the `src/Network_CSP_Model/` library directory, compile outside the repository:
 
 ```sh
 agda --compile --compile-dir=/tmp/leios-replay-build Cardano_network/Replay/Main.agda
 ```
 
-From the repository root, normalize one node's raw log and check the single
+From the library directory, normalize one node's raw log and check the single
 interleaved stream:
 
 ```sh
-python3 -I tools/trace-replay/leiosfetch_adapter.py LOG /tmp/leios-replay-log
+python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py --fetch-only LOG /tmp/leios-replay-log
 /tmp/leios-replay-build/Main --interleaved /tmp/leios-replay-log/interleaved.txt 4
 ```
 
@@ -259,7 +479,7 @@ sessions client server client
 ```
 
 Session ids are zero-based positions in the header. Undeclared ids are parse
-errors. Local event fields use the same syntax as `Parse.agda`, including
+errors. Local event fields use the same syntax as `LeiosFetchParse.agda`, including
 hexadecimal hashes and decimal slots and sizes. An empty log is `sessions`
 with no events.
 
@@ -298,18 +518,18 @@ synchronisation requires a stronger model and additional bridge proofs.
 ## Verification
 
 ```sh
-cd src
-agda Cardano_network/Replay/InterleavedTests.agda
-agda Cardano_network/Replay/NotifyTests.agda
-agda Cardano_network/Replay/NotifyPipelineTests.agda
-agda --safe Cardano_network/Replay/NotifyBridgeTests.agda
+cd src/Network_CSP_Model
+agda Cardano_network/Replay/LeiosFetchInterleavedTests.agda
+agda Cardano_network/Replay/LeiosNotifyTests.agda
+agda Cardano_network/Replay/LeiosNotifyPipelineTests.agda
+agda --safe Cardano_network/Replay/LeiosNotifyBridgeTests.agda
 agda Cardano_network/Replay/Main.agda
 ```
 
-From the repository root:
+From the library directory:
 
 ```sh
-python3 -I tools/trace-replay/leiosfetch_adapter.py --selftest
+python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
 ```
 
 The Agda tests include explicit positive product witnesses and negative

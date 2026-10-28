@@ -1,39 +1,26 @@
 #!/usr/bin/env python3
-"""Split a cardano-node journal into normalized LeiosFetch session files.
+"""Normalize captured mini-protocol logs into replay sessions and source maps.
 
-Trace-replay Phase 6 adapter (stdlib only). For mixed Fetch/Notify replay use
-leios_adapter.py, which shares this implementation with include_notify=True.
- Input: a raw journal, one
-`journalctl` prefix plus one JSON object per line. The log is streamed and
-never modified. Output, into OUTDIR (never into the repository):
+By default, include LeiosFetchP, LeiosNotifyP, BlockFetch, ChainSync and
+TxSubmission2 in one protocol-tagged interleaved stream. --fetch-only retains
+only LeiosFetch and uses the original role-only session format and filenames.
 
-  sNNNN-<role>.txt   one session in the normalized format parsed by
-                     src/Cardano_network/Replay/LeiosFetchParse.agda: a header line
-                     `role client|server`, then one event per line
-  sNNNN-<role>.src   per event (same order): raw log line number and `at`
-  interleaved.txt    `sessions <role> ...`, then `<zero-based id> <event>`
-  interleaved.src    raw line number, timestamp and zero-based id per event
-  index.tsv          session, connectionId, role, events, first at,
-                     last at, end (done | mux | eof)
+Reads raw node JSON, journal-prefixed JSON and supervisor JSON wrappers in file
+order. Writes session .txt/.src files, interleaved.txt, interleaved.src and
+index.tsv. Sessions are keyed by connection, protocol and role; Done closes
+that session and NewMux closes the connection's open sessions. Mux Dead is not
+a boundary. EOF is a prefix boundary, not evidence of successful completion.
 
-Session rule. LeiosFetch lines (`LeiosFetch.Remote.{Send,Receive}.*`) are
-keyed by `data.peer.connectionId` and by role: client = Send.*Request,
-Receive.Block*, Send.Done; server = the converse. A key's stream is cut
-  * after a Done (the Done ends its session), and
-  * at a mux restart for that connectionId: a `Net.Mux.Remote.NewMux` line
-    (key `data.bearer.connectionId`); both roles' open sessions end there.
-    `Net.Mux.Remote.State` `Dead` is NOT a cut: in the Phase 6 log 274
-    LeiosFetch lines follow a `Dead` on their connectionId with no NewMux in
-    between (one connection carries on for 272 events), and `Dead` lines
-    outnumber `NewMux` lines (5826 vs 5727), so some belong to other muxes.
-Sessions still open at end of log end with `eof`. Events keep file order
-(within a connectionId no LeiosFetch line is out of `at` order in the
-Phase 6 log). `--no-mux-split` cuts at Done only.
+BlockFetch, ChainSync and TxSubmission2 retain control observations only.
+TxSubmission2 requires enriched blocking/reply-emptiness evidence; use
+--exclude-txsubmission2 to omit it explicitly if the capture lacks those fields.
+No missing protocol events or control fields are fabricated.
 
-Usage:  python3 -I leiosfetch_adapter.py LOG OUTDIR [--no-mux-split]
-        python3 -I leiosfetch_adapter.py --selftest
+Run with --help for options, or --selftest for embedded regression checks.
 """
+import argparse
 import json
+from pathlib import Path
 import os
 import re
 import sys
@@ -328,7 +315,7 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
     return rows
 
 
-def selftest():
+def selftest_fetch():
     """Split a few embedded lines and check the files."""
     pre = '2026-09-27T14:00:00+00:00 host cardano-node-start[1]: '
     cid = '10.0.0.1:3001 10.0.0.2:3001'
@@ -395,16 +382,158 @@ def selftest():
             '1 Send Done', '0 Recv Block %s 7' % hh]
         rows = split(lines, os.path.join(tmp, 'nomux'), mux_split=False)
         assert [r[3] for r in rows] == [4, 2], rows
-    print('selftest ok')
+    print('Fetch normalization selftest passed')
+
+
+def selftest_mixed():
+    """Exercise all Notify shapes and mixed-protocol lifecycle isolation."""
+    import json
+    import tempfile
+    selftest_fetch()
+    cid = 'local remote'
+    def line(ns, msg=None):
+        data = {'bearer': {'connectionId': cid}} if ns.startswith(MUX) else {
+            'peer': {'connectionId': cid}, 'msg': msg}
+        return json.dumps({'ns': ns, 'at': 't', 'data': data})
+    def ln(suffix, msg):
+        return line(LN + suffix, msg)
+    assert normalize_notify('Recv', 'BlockAnnouncement', {}) == 'Recv BlockAnnouncement -'
+    assert normalize_notify('Recv', 'BlockAnnouncement', {
+        'ebHash': 'AB', 'ebSlot': 3, 'ebBodySize': 20}) == 'Recv BlockAnnouncement ab 3 20'
+    assert normalize_notify('Send', 'Votes', {'votes': [
+        {'rbHash': 'AB', 'voterId': 2}, {'rbHash': 'CD', 'voterId': 4}]}) == 'Send Votes ab:2,cd:4'
+    assert normalize_notify('Send', 'Votes', {'votes': []}) == 'Send Votes -'
+    for kind, msg in [('BlockAnnouncement', {'ebHash': 'ab'}),
+                      ('Votes', {'votes': {}}),
+                      ('Votes', {'votes': [{'rbHash': 'ab', 'voterId': -1}]}),
+                      ('RequestNext', {'kind': 'MsgDone'})]:
+        try:
+            normalize_notify('Send', kind, msg)
+        except (ValueError, KeyError):
+            pass
+        else:
+            raise AssertionError((kind, msg))
+    lines = [
+        ln('Send.RequestNext', {}),
+        line(LF + 'Send.BlockRequest', {'ebHash': 'ab', 'ebSlot': 3}),
+        ln('Receive.BlockOffer', {'ebHash': 'ab', 'ebSlot': 3, 'ebBytesSize': 20}),
+        ln('Send.Done', {}),
+        line(LF + 'Receive.Block', {'ebHash': 'ab', 'ebBytesSize': 20}),
+        ln('Send.NotificationRequestNext', {}),
+        ln('Receive.BlockTxsOffer', {'ebHash': 'ab', 'ebSlot': 3}),
+        ln('Receive.RequestNext', {}),
+        line(MUX + 'State', {'state': 'Dead'}),
+        ln('Send.Votes', {'votes': []}),
+        line(MUX + 'NewMux'),
+        ln('Send.RequestNext', {}),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        rows = split(lines, tmp, include_notify=True)
+        root = Path(tmp)
+        text = (root / 'interleaved.txt').read_text().splitlines()
+        assert text[0] == 'sessions notify:client fetch:client notify:client notify:server notify:client'
+        assert text[1] == '0 LeiosNotify.Remote.Send.RequestNext'
+        assert text[2] == '1 LeiosFetch.Remote.Send.BlockRequest ab 3'
+        assert text[6] == '2 LeiosNotify.Remote.Send.NotificationRequestNext'
+        assert [int(e.split()[0]) for e in text[1:]] == [0, 1, 0, 0, 1, 2, 2, 3, 3, 4]
+        assert [r[6] for r in rows] == ['done', 'mux', 'mux', 'mux', 'eof']
+        assert (root / 'index.tsv').read_text().splitlines()[0].endswith('\tprotocol')
+        for tag, row in enumerate(rows):
+            path = root / ('%s-%s-%s.txt' % (row[0], row[7], row[2]))
+            projection = [e.split(' ', 1)[1] for e in text[1:] if int(e.split()[0]) == tag]
+            assert path.read_text().splitlines()[1:] == projection
+        assert len((root / 'interleaved.src').read_text().splitlines()) == 10
+        # Missing requests stay missing; the adapter never repairs trace evidence.
+        split([ln('Receive.BlockAnnouncement', {})], root / 'missing', include_notify=True)
+        assert (root / 'missing/interleaved.txt').read_text() == 'sessions notify:client\n0 LeiosNotify.Remote.Receive.BlockAnnouncement -\n'
+    print('Mixed Notify/Fetch normalization selftest passed')
+
+
+def selftest_cli():
+    """Check the consolidated entry point, its modes and actionable input errors."""
+    import subprocess
+
+    def row(ns, msg):
+        return json.dumps({'ns': ns, 'at': 't', 'data': {
+            'peer': {'connectionId': 'a b'}, 'msg': msg}}) + '\n'
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        log = root / 'node.jsonl'
+        log.write_text(row(LF + 'Send.BlockRequest', {'ebHash': 'ab', 'ebSlot': 3}) +
+                       row(LN + 'Send.RequestNext', {}) +
+                       row(CS + 'Send.RequestNext', {}) +
+                       row(BF + 'Send.RequestRange', {}))
+        command = [sys.executable, '-I', str(Path(__file__).resolve())]
+
+        def run(name, *options, expected=0):
+            out = root / name
+            result = subprocess.run(command + [str(log), str(out), *options],
+                                    cwd=root, capture_output=True, text=True)
+            assert result.returncode == expected, (options, result.stdout, result.stderr)
+            assert 'Traceback' not in result.stderr, result.stderr
+            return out, result
+
+        out, _ = run('mixed')
+        assert (out / 'interleaved.txt').read_text().splitlines()[0] == (
+            'sessions fetch:client notify:client chainsync:client blockfetch:client')
+        assert (out / 's0001-fetch-client.txt').is_file()
+        out, _ = run('fetch', '--fetch-only')
+        assert (out / 'interleaved.txt').read_text() == (
+            'sessions client\n0 Send BlockRequest ab 3\n')
+        assert (out / 's0001-client.txt').is_file()
+        assert not (out / 's0001-fetch-client.txt').exists()
+        assert not (out / 'index.tsv').read_text().splitlines()[0].endswith('protocol')
+        run('no-mux-split', '--no-mux-split')
+        log.write_text(row(TS + 'Receive.RequestTxIds', {}))
+        _, result = run('missing-evidence', expected=2)
+        assert 'requires a logged boolean blocking field' in result.stderr
+        out, _ = run('excluded', '--exclude-txsubmission2')
+        assert (out / 'interleaved.txt').read_text() == 'sessions\n'
+        run('conflict', '--fetch-only', '--exclude-txsubmission2', expected=2)
+        run('unknown', '--invent-controls', expected=2)
+        run('selftest-conflict', '--selftest', expected=2)
+        result = subprocess.run(command, capture_output=True, text=True)
+        assert result.returncode == 2 and 'LOG and OUTDIR are required' in result.stderr
+        result = subprocess.run(command + ['--help'], capture_output=True, text=True)
+        assert result.returncode == 0 and '--fetch-only' in result.stdout
+        print('Log normalization CLI modes and diagnostics passed')
+
+
+def main(argv=None):
+    """Expose one protocol-neutral CLI, retaining an explicit legacy Fetch mode."""
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('log', nargs='?', metavar='LOG', help='raw node log to read')
+    parser.add_argument('outdir', nargs='?', metavar='OUTDIR', help='directory for normalized sessions and source maps')
+    parser.add_argument('--fetch-only', action='store_true',
+                        help='normalize only Fetch, with legacy role-only headers and filenames')
+    parser.add_argument('--no-mux-split', action='store_true',
+                        help='split after protocol Done only; do not split at NewMux')
+    parser.add_argument('--exclude-txsubmission2', action='store_true',
+                        help='explicitly omit TxSubmission2 when its control evidence is unavailable')
+    parser.add_argument('--selftest', action='store_true', help='run embedded adapter and CLI checks without input files')
+    args = parser.parse_args(argv)
+    if args.selftest:
+        if args.log is not None or args.outdir is not None or args.fetch_only or args.no_mux_split or args.exclude_txsubmission2:
+            parser.error('--selftest cannot be combined with input paths or normalization options')
+        selftest_mixed()
+        selftest_cli()
+        return 0
+    if args.log is None or args.outdir is None:
+        parser.error('LOG and OUTDIR are required unless --selftest is used')
+    if args.fetch_only and args.exclude_txsubmission2:
+        parser.error('--fetch-only already excludes TxSubmission2; choose one option')
+    try:
+        with open(args.log, encoding='utf-8') as log:
+            rows = split(log, args.outdir, mux_split=not args.no_mux_split,
+                         include_notify=not args.fetch_only,
+                         include_control=not args.fetch_only,
+                         include_txsubmission2=not args.fetch_only and not args.exclude_txsubmission2)
+    except (OSError, ValueError) as err:
+        parser.exit(2, f'error: {err}\n')
+    print('%d sessions written to %s' % (len(rows), args.outdir))
+    return 0
 
 
 if __name__ == '__main__':
-    args = sys.argv[1:]
-    if args == ['--selftest']:
-        selftest()
-    elif len(args) in (2, 3) and args[2:] in ([], ['--no-mux-split']):
-        with open(args[0], encoding='utf-8') as log:
-            rows = split(log, args[1], mux_split=not args[2:])
-        print('%d sessions written to %s' % (len(rows), args[1]))
-    else:
-        sys.exit(__doc__)
+    sys.exit(main())
