@@ -99,9 +99,9 @@ data Action : Set where
   forkConcurrent registerConcurrent : JobId → Action
   bodyReturnedWith : JobId → Result → Action
   publishCompletion bodyUnwound deregister publishAsyncResult : JobId → Action
-  resumeAfterUnwindError : JobId → Action
+  resumeAfterUnwindError interruptJob : JobId → Action
   beginClose : List JobId → Action
-  requestCancel deliverCancel join finishClose : Action
+  requestCancel deliverCancel join finishClose consumeCompletion : Action
 
 -- Only a terminal result of the current captured handle advances the close
 -- cursor. Registry membership and queue entries are deliberately irrelevant.
@@ -126,6 +126,13 @@ publishQueued true j s with lookup j (handles s)
   { handles = put j (deregisterPending normalExit) (handles s)
   ; completions = completions s ++ (result ∷ []) })
 ... | _ = nothing
+
+-- Only the open WithQueue owner consumes a captured FIFO head.
+consumeQueued : Bool → State → Maybe State
+consumeQueued false s = nothing
+consumeQueued true s with phase s | completions s
+... | openPool | result ∷ rest = just (record s { completions = rest })
+... | _ | _ = nothing
 
 -- Queue policy is an explicit helper argument so its false specialization can
 -- admit several parents without changing the WithQueue owner's mask protocol.
@@ -167,6 +174,14 @@ step (bodyReturnedWith j result) s with lookup j (handles s)
 ... | just bodyRunning = just (record s { handles = put j (returnedPhase queued result) (handles s) })
 ... | _ = nothing
 step (publishCompletion j) s = publishQueued queued j s
+step consumeCompletion s = consumeQueued queued s
+
+-- Observed cancellation from an external group/owner, while the pool stays
+-- open. The integrating adapter supplies the delivery boundary; whole-scope
+-- close continues to use deliverCancel and its own cursor.
+step (interruptJob j) s with phase s | lookup j (handles s)
+... | openPool | just bodyRunning = just (record s { handles = put j bodyUnwinding (handles s) })
+... | _ | _ = nothing
 
 -- This is an explicit local body-unwind completion boundary. It does not assert
 -- that any unmodeled CM bracket, socket cleanup or exception mask was verified.

@@ -92,6 +92,10 @@ data IGAction : Set where
   startOnDemand : MuxId → ℕ → IGAction
   publishJobResult : MuxId → ℕ → IGAction
   publishJobOccurrence : MuxId → ℕ → IGAction
+  recordMuxFailure : MuxId → ErrorId → IGAction
+  recordMuxStopped traceMuxDead takeShutdownCommand recordMuxStopping completeMuxStopping enqueueMuxStop : MuxId → IGAction
+  discardJobOccurrence : MuxId → ℕ → IGAction
+  recordAsyncMuxFailure : MuxId → ErrorId → IGAction
   finishProtocol : MuxId → ℕ → RunResult → IGAction
 
 Result = Runtime × List IGEvent
@@ -451,6 +455,63 @@ stepWorker (publishJobOccurrence mid i) r queue with lookup mid (muxes (executio
 ...   | just ((n , outcome) , retained) = just (setMux mid (record m
       { finishedJobs = retained
       ; completions = M.completions m ++ (M.jobResult M.responderJob n outcome ∷ []) }) r , queue)
+-- Source monitor writes status before the Dead tracer (Mux.hs:460-488).
+-- Typed adapters capture/consume their physical result separately.
+stepWorker (recordMuxFailure mid err) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m
+...   | M.ready | M.returned = just (setMux mid (record m { status = M.failed err }) r , queue)
+...   | _ | _ = nothing
+stepWorker (recordMuxStopped mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m
+...   | M.ready | M.returned = just (setMux mid (record m { status = M.stopped }) r , queue)
+...   | _ | _ = nothing
+stepWorker (traceMuxDead mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m
+...   | M.stopped | M.returned = just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
+...   | M.failed err | M.returned = just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
+...   | _ | _ = nothing
+-- External Mux.stop merely enqueues CmdShutdown (Mux.hs:178-180), even when
+-- the monitor is held or no physical startup has happened. It is not a monitor
+-- access: HandlerLifecycle.muxAction deliberately leaves it unclassified.
+stepWorker (enqueueMuxStop mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m = just (setMux mid (record m { commands = M.commands m ++ (M.shutdown ∷ []) }) r , queue)
+-- CmdShutdown is selected before TraceStopping and the status write
+-- (Mux.hs:555-558). Its trace is ignored by the IG tracer.
+stepWorker (takeShutdownCommand mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m | M.completions m | M.commands m
+...   | M.ready | M.returned | [] | M.shutdown ∷ rest = just (setMux mid (record m { commands = rest }) r , queue)
+...   | _ | _ | _ | _ = nothing
+stepWorker (recordMuxStopping mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m
+...   | M.ready | M.returned = just (setMux mid (record m { status = M.stopping }) r , queue)
+...   | _ | _ = nothing
+-- Graceful group/drain completion is distinct from the demuxer's ready→Stopped
+-- decision. TraceStopped follows separately and is ignored by the IG tracer.
+stepWorker (completeMuxStopping mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m
+...   | M.stopping | M.returned = just (setMux mid (record m { status = M.stopped }) r , queue)
+...   | _ | _ = nothing
+-- Remove cancelled pending metadata only. Async cancellation produces no
+-- JobPool error result; an adapter must establish that cancellation happened.
+stepWorker (discardJobOccurrence mid i) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with takePending i (M.finishedJobs m)
+...   | nothing = nothing
+...   | just (chosen , retained) = just (setMux mid (record m { finishedJobs = retained }) r , queue)
+-- The source async catch runs after the whole pool scope has unwound
+-- (Mux.hs:275-278). That ordering is an adapter obligation, not this helper.
+stepWorker (recordAsyncMuxFailure mid err) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.callback m
+...   | M.returned = just (setMux mid (record m { status = M.failed err }) r , queue)
+...   | _ = nothing
 -- Completion of cancelGroup/egress drain is still an environment boundary.
 stepWorker (finishStop mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
@@ -466,6 +527,15 @@ runtimeAction (monitorCompletion _) = true
 runtimeAction (sampleTracer _) = true
 runtimeAction (commitTracer _) = true
 runtimeAction (finishStop _) = true
+runtimeAction (recordMuxFailure _ _) = true
+runtimeAction (recordMuxStopped _) = true
+runtimeAction (traceMuxDead _) = true
+runtimeAction (enqueueMuxStop _) = true
+runtimeAction (takeShutdownCommand _) = true
+runtimeAction (recordMuxStopping _) = true
+runtimeAction (completeMuxStopping _) = true
+runtimeAction (discardJobOccurrence _ _) = true
+runtimeAction (recordAsyncMuxFailure _ _) = true
 runtimeAction _ = false
 
 -- In initiator-only mode, the shared monitor may consume initiator results

@@ -38,6 +38,15 @@ data CoveredMux : IG.IGAction → Set where
   jobFinished : ∀ {mid n outcome} → CoveredMux (IG.finishProtocol mid n outcome)
   jobResult : ∀ {mid n} → CoveredMux (IG.publishJobResult mid n)
   jobOccurrence : ∀ {mid i} → CoveredMux (IG.publishJobOccurrence mid i)
+  failureStatus : ∀ {mid err} → CoveredMux (IG.recordMuxFailure mid err)
+  stoppedStatus : ∀ {mid} → CoveredMux (IG.recordMuxStopped mid)
+  deadTrace : ∀ {mid} → CoveredMux (IG.traceMuxDead mid)
+  stopRequest : ∀ {mid} → CoveredMux (IG.enqueueMuxStop mid)
+  shutdownTake : ∀ {mid} → CoveredMux (IG.takeShutdownCommand mid)
+  stoppingStatus : ∀ {mid} → CoveredMux (IG.recordMuxStopping mid)
+  stoppingComplete : ∀ {mid} → CoveredMux (IG.completeMuxStopping mid)
+  discardOccurrence : ∀ {mid i} → CoveredMux (IG.discardJobOccurrence mid i)
+  asyncFailureStatus : ∀ {mid err} → CoveredMux (IG.recordAsyncMuxFailure mid err)
   stopped : ∀ {mid} → CoveredMux (IG.finishStop mid)
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
@@ -180,6 +189,111 @@ worker-anchors .(IG.publishJobOccurrence mid i) (jobOccurrence {mid} {i}) ig que
 ... | just m with IG.takePending i (M.finishedJobs m)
 ...   | nothing = case eq of λ ()
 ...   | just ((n , outcome) , retained) = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+worker-anchors .(IG.recordMuxFailure mid err) (failureStatus {mid} {err}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m
+...   | M.ready | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.ready | M.readActive tr = case eq of λ ()
+...   | M.ready | M.commitTrace active tr = case eq of λ ()
+...   | M.ready | M.afterStart n = case eq of λ ()
+...   | M.ready | M.forkPending n = case eq of λ ()
+...   | M.ready | M.afterFailure = case eq of λ ()
+...   | M.ready | M.tracerFailed n = case eq of λ ()
+...   | M.stopping | _ = case eq of λ ()
+...   | M.stopped | _ = case eq of λ ()
+...   | M.failed e | _ = case eq of λ ()
+worker-anchors .(IG.recordMuxStopped mid) (stoppedStatus {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m
+...   | M.ready | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.ready | M.readActive tr = case eq of λ ()
+...   | M.ready | M.commitTrace active tr = case eq of λ ()
+...   | M.ready | M.afterStart n = case eq of λ ()
+...   | M.ready | M.forkPending n = case eq of λ ()
+...   | M.ready | M.afterFailure = case eq of λ ()
+...   | M.ready | M.tracerFailed n = case eq of λ ()
+...   | M.stopping | _ = case eq of λ ()
+...   | M.stopped | _ = case eq of λ ()
+...   | M.failed e | _ = case eq of λ ()
+worker-anchors .(IG.traceMuxDead mid) (deadTrace {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m
+...   | M.ready | _ = case eq of λ ()
+...   | M.stopping | _ = case eq of λ ()
+...   | M.stopped | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.stopped | M.readActive tr = case eq of λ ()
+...   | M.stopped | M.commitTrace active tr = case eq of λ ()
+...   | M.stopped | M.afterStart n = case eq of λ ()
+...   | M.stopped | M.forkPending n = case eq of λ ()
+...   | M.stopped | M.afterFailure = case eq of λ ()
+...   | M.stopped | M.tracerFailed n = case eq of λ ()
+...   | M.failed e | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.failed e | M.readActive tr = case eq of λ ()
+...   | M.failed e | M.commitTrace active tr = case eq of λ ()
+...   | M.failed e | M.afterStart n = case eq of λ ()
+...   | M.failed e | M.forkPending n = case eq of λ ()
+...   | M.failed e | M.afterFailure = case eq of λ ()
+...   | M.failed e | M.tracerFailed n = case eq of λ ()
+worker-anchors .(IG.takeShutdownCommand mid) (shutdownTake {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m | M.completions m | M.commands m
+...   | M.stopping | _ | _ | _ = case eq of λ ()
+...   | M.stopped | _ | _ | _ = case eq of λ ()
+...   | M.failed e | _ | _ | _ = case eq of λ ()
+...   | M.ready | M.readActive tr | _ | _ = case eq of λ ()
+...   | M.ready | M.commitTrace active tr | _ | _ = case eq of λ ()
+...   | M.ready | M.afterStart n | _ | _ = case eq of λ ()
+...   | M.ready | M.forkPending n | _ | _ = case eq of λ ()
+...   | M.ready | M.afterFailure | _ | _ = case eq of λ ()
+...   | M.ready | M.tracerFailed n | _ | _ = case eq of λ ()
+...   | M.ready | M.returned | _ ∷ _ | _ = case eq of λ ()
+...   | M.ready | M.returned | [] | [] = case eq of λ ()
+...   | M.ready | M.returned | [] | M.startCommand p ∷ rest = case eq of λ ()
+...   | M.ready | M.returned | [] | M.shutdown ∷ rest = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+worker-anchors .(IG.recordMuxStopping mid) (stoppingStatus {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m
+...   | M.stopping | _ = case eq of λ ()
+...   | M.stopped | _ = case eq of λ ()
+...   | M.failed e | _ = case eq of λ ()
+...   | M.ready | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.ready | M.readActive tr = case eq of λ ()
+...   | M.ready | M.commitTrace active tr = case eq of λ ()
+...   | M.ready | M.afterStart n = case eq of λ ()
+...   | M.ready | M.forkPending n = case eq of λ ()
+...   | M.ready | M.afterFailure = case eq of λ ()
+...   | M.ready | M.tracerFailed n = case eq of λ ()
+worker-anchors .(IG.discardJobOccurrence mid i) (discardOccurrence {mid} {i}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with IG.takePending i (M.finishedJobs m)
+...   | nothing = case eq of λ ()
+...   | just (chosen , retained) = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+worker-anchors .(IG.recordAsyncMuxFailure mid err) (asyncFailureStatus {mid} {err}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.callback m
+...   | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.readActive tr = case eq of λ ()
+...   | M.commitTrace active tr = case eq of λ ()
+...   | M.afterStart n = case eq of λ ()
+...   | M.forkPending n = case eq of λ ()
+...   | M.afterFailure = case eq of λ ()
+...   | M.tracerFailed n = case eq of λ ()
+worker-anchors .(IG.completeMuxStopping mid) (stoppingComplete {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m
+...   | M.ready | _ = case eq of λ ()
+...   | M.stopped | _ = case eq of λ ()
+...   | M.failed e | _ = case eq of λ ()
+...   | M.stopping | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.stopping | M.readActive tr = case eq of λ ()
+...   | M.stopping | M.commitTrace active tr = case eq of λ ()
+...   | M.stopping | M.afterStart n = case eq of λ ()
+...   | M.stopping | M.forkPending n = case eq of λ ()
+...   | M.stopping | M.afterFailure = case eq of λ ()
+...   | M.stopping | M.tracerFailed n = case eq of λ ()
+worker-anchors .(IG.enqueueMuxStop mid) (stopRequest {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 worker-anchors .(IG.finishStop mid) (stopped {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.status m | M.callback m
@@ -211,4 +325,13 @@ mode-anchors noResponderMode .(IG.startOnDemand mid n) (demand {mid} {n}) ig que
 mode-anchors noResponderMode .(IG.finishProtocol mid n result) (jobFinished {mid} {n} {result}) ig queue ()
 mode-anchors noResponderMode .(IG.publishJobResult mid n) (jobResult {mid} {n}) ig queue ()
 mode-anchors noResponderMode .(IG.publishJobOccurrence mid i) (jobOccurrence {mid} {i}) ig queue ()
+mode-anchors noResponderMode .(IG.recordMuxFailure mid err) (failureStatus {mid} {err}) ig queue eq = worker-anchors (IG.recordMuxFailure mid err) failureStatus ig queue eq
+mode-anchors noResponderMode .(IG.recordMuxStopped mid) (stoppedStatus {mid}) ig queue eq = worker-anchors (IG.recordMuxStopped mid) stoppedStatus ig queue eq
+mode-anchors noResponderMode .(IG.traceMuxDead mid) (deadTrace {mid}) ig queue eq = worker-anchors (IG.traceMuxDead mid) deadTrace ig queue eq
+mode-anchors noResponderMode .(IG.takeShutdownCommand mid) (shutdownTake {mid}) ig queue eq = worker-anchors (IG.takeShutdownCommand mid) shutdownTake ig queue eq
+mode-anchors noResponderMode .(IG.recordMuxStopping mid) (stoppingStatus {mid}) ig queue eq = worker-anchors (IG.recordMuxStopping mid) stoppingStatus ig queue eq
+mode-anchors noResponderMode .(IG.discardJobOccurrence mid i) (discardOccurrence {mid} {i}) ig queue eq = worker-anchors (IG.discardJobOccurrence mid i) discardOccurrence ig queue eq
+mode-anchors noResponderMode .(IG.recordAsyncMuxFailure mid err) (asyncFailureStatus {mid} {err}) ig queue eq = worker-anchors (IG.recordAsyncMuxFailure mid err) asyncFailureStatus ig queue eq
+mode-anchors noResponderMode .(IG.completeMuxStopping mid) (stoppingComplete {mid}) ig queue eq = worker-anchors (IG.completeMuxStopping mid) stoppingComplete ig queue eq
+mode-anchors noResponderMode .(IG.enqueueMuxStop mid) (stopRequest {mid}) ig queue eq = worker-anchors (IG.enqueueMuxStop mid) stopRequest ig queue eq
 mode-anchors responderMode a covered ig queue eq = worker-anchors a covered ig queue eq

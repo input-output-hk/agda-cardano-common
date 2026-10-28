@@ -215,6 +215,14 @@ muxAction (IG.finishStop mid) = just (mid , monitorAccess)
 muxAction (IG.finishProtocol mid _ _) = just (mid , jobAccess)
 muxAction (IG.publishJobResult mid _) = just (mid , jobAccess)
 muxAction (IG.publishJobOccurrence mid _) = just (mid , jobAccess)
+muxAction (IG.recordMuxFailure mid _) = just (mid , monitorAccess)
+muxAction (IG.recordMuxStopped mid) = just (mid , monitorAccess)
+muxAction (IG.traceMuxDead mid) = just (mid , monitorAccess)
+muxAction (IG.takeShutdownCommand mid) = just (mid , monitorAccess)
+muxAction (IG.recordMuxStopping mid) = just (mid , monitorAccess)
+muxAction (IG.completeMuxStopping mid) = just (mid , monitorAccess)
+muxAction (IG.discardJobOccurrence mid _) = just (mid , jobAccess)
+muxAction (IG.recordAsyncMuxFailure mid _) = just (mid , monitorAccess)
 muxAction _ = nothing
 
 phaseAllows : Phase → Access → Bool

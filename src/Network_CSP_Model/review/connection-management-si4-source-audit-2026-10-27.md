@@ -269,3 +269,142 @@ PeerActions write. Responder forks/completion/publication do couple to the actua
 existing source dispatcher operations, with exact occurrence selection. No
 source-refinement or complete cross-direction command-FIFO theorem follows from
 the standalone initiator observation.
+
+
+## Typed physical result consumption — 28 October 2026
+
+Mux.hs:427–454 dequeues one JobPool result inside STM before entering its
+handling branch. The selected value must therefore be held independently of
+later queue appends or current protocol slots. The responder legacy list is a
+projection; it cannot skip a preceding infrastructure or initiator physical item.
+
+Mux.hs:454–488 orders result handling as follows. Clean protocol completion emits
+its direction-specific clean trace and continues. Protocol exception first writes
+Failed, then emits the exception trace, Dead and DeltaQ before throwing. Muxer
+failure is always Failed followed by Dead. Demuxer handling reads current
+JobPool MiniProtocolJob group size in the same STM as its status write; only
+BearerClosed with size zero writes Stopped and suppresses propagation. Every
+other demuxer outcome writes Failed. Both paths emit Dead afterward.
+
+The group count is read at handling, not at dequeue or body completion. A clean
+job whose slot is already Idle but is still registered counts toward that size.
+A removed historical error job does not count despite its non-Idle/error slot.
+Jobs can deregister between dequeue and handling. A normal demuxer result can
+therefore leave later typed results queued; monitor-local normal finish is not a
+queue-empty, pool-closed, buffer-released or parent-Async-result certificate.
+
+A responder completion trace uses the actual existing IG monitor/tracer path;
+its error trace returns through afterFailure before starting Dead separately.
+Initiator completion traces are ignored by the IG responder tracer, but remain
+explicit local normal-return observations. Clean completion traces precede DeltaQ
+and continuation; an error exception trace precedes Dead, with protocol DeltaQ
+after Dead. The local error finish before Dead covers the exception trace, while
+its later monitor-finish boundary covers the remaining DeltaQ/throw continuation.
+Infrastructure cases have no protocol DeltaQ call. An initiator error writes
+Failed before its exception trace and then Dead. The new
+source status-only writes and Dead helper preserve those boundaries rather than
+using the old fused initiator legacy result branch as a physical consumer.
+Custom tracer errors, async interruption and lexical JobPool unwind remain future
+branches, not obligations discharged by a callback-returned flag.
+
+The monitor uses a fixed classifier parameter mapping abstract ErrorId values to
+the source exception's BearerClosed classification. This contract is explicit;
+exception identity alone does not derive dynamic exception type. Parent insertion
+must have settled before the same monitor can dequeue; independent child returns,
+publication/deregistration and other monitors remain enabled while an item is
+held or its tracer blocks. Group cancellation is still a later, distinct scope.
+
+## Interruptible group shutdown and whole-pool unwind — 28 October 2026
+
+Rechecked exact network objects at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
+`network-mux/src/Network/Mux.hs`,
+`network-mux/src/Control/Concurrent/JobPool.hs`, and
+`ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs`.
+Their `/tmp/cm-review-20261027` exports match these objects byte for byte.
+The checked-out source worktree is not the authority.
+
+Mux.hs:555–570 handles CmdShutdown by tracing Stopping BEFORE its status write,
+then cancelGroup MiniProtocolJob, then a two-second bounded egress drain, Stopped
+write, TraceStopped and monitor return. TraceStopped is ignored by the IG tracer;
+it is not a fabricated Dead callback. Infrastructure jobs are outside the group
+snapshot and may independently return/fail while the group is closing or draining.
+JobPool.hs:213–225 reads the registry once and traverses matching jobs with ordinary
+interruptible cancel (send and wait). It does not close the pool. The separate
+bracket release at JobPool.hs:105–109 snapshots ALL currently registered jobs and
+sequentially performs uninterruptibleCancel. Neither snapshot includes removed
+historical handles or future admissions. A handle deregistered before whole close
+may still lack an Async result and is not recaptured by that close.
+
+JobPool.hs:156–164 excludes asynchronous exceptions from jobHandler. Delivery to
+an unmasked protocol body therefore enters actual unwind without inventing a
+normal/error result or queue entry. In particular, cancellation after the clean
+Idle/result commit but before body return retains that committed metadata; the
+model removes only the exact unpublishable responder ghost occurrence. The
+synchronous error handler and later publication are masked, so their normal
+completion may outrun a cancellation request. An explicitly observed synchronous
+exception replacing cancellation during an uncommitted protocol unwind may enter
+the real error-handler path; cancellation alone cannot create that error result.
+
+Mux.hs:256–279 places the async catch outside withJobPool. Owner cancellation in
+the modeled group/drain stages immediately abandons the graceful cursor, but
+Failed and Dead occur only AFTER the actual whole-pool close. MuxGroupShutdown
+models this observed delivery and ordering. Its normal/failed/async scope outcome
+is not a parent handler Async result or a rethrow-policy decision. In particular,
+ConnectionHandler.hs:377–380 still has the surrounding buffer scope, and its
+non-async classifyExceptions wrapper has separate propagation effects.
+
+The current profile covers post-startup waiting and group/drain cancellation,
+with callback returned and no pending parent insertion. Startup/setup failure,
+custom tracer failure/interruption, infrastructure unwind replacement and the
+post-whole-close return windows are not established by this increment. Drain
+readiness, timeout and synchronous-unwind replacement remain explicit observations;
+no fairness, source refinement or full-shutdown theorem follows. CM shutdown
+send acknowledgement is not yet coupled to this owner-delivery observation.
+
+## Buffer scope, handler outcome and CM finally — 28 October 2026
+
+Rechecked Core.hs and ConnectionHandler.hs exports against the exact network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`; both matched byte for byte.
+ConnectionHandler.hs:378–380,450–452 encloses restored Mx.run in withBuffer.
+Core.hs:118 supplies withBuffer as a callback: the CM model cannot establish a
+concrete provider's memory-release implementation. MuxHandlerExit observes its
+scope exit after the actual group/whole-pool runtime reaches ScopeDone. Successful
+teardown preserves the pending mux outcome; an observed provider exception may
+replace it. Exception preservation and completed provider teardown are explicit
+contracts, not a proof that every supplied higher-order callback behaves that way.
+
+ConnectionHandler.hs:294–309 classifies only non-async exceptions AFTER that scope.
+It chooses runRethrowPolicy in the original inbound/outbound error context, traces
+TrConnectionHandlerError, then either throws ExceptionInHandler to the peer caller
+or delivers that wrapper to main and rethrows the original exception. The adapter
+retains original versus peer-wrapped synchronous errors and async errors separately.
+Policy selection, trace return and main-thread delivery are observations. Main
+receipt is neither node exit nor a join. Custom trace exceptions/interruption and
+additional cancellation windows in classification remain outside this profile.
+
+Core.hs:584–592 places cleanup outside the handler callback in finally. Its
+captured HandlerStart, not a later CM alias, supplies entry, key, socket and promise.
+The adapter compares that original capture with the source handler registration
+before entering or stepping cleanup, then invokes actual handlerExit/cleanupStep
+operations. It preserves the existing map-take, captured entry write, socket-close,
+map-publication/restoration, TIME_WAIT finally and counter-read boundaries.
+
+A cleanup exception replaces the body outcome without re-entering the already
+exited handler classifier. Shared CleanupOutcome alone does not record its dynamic
+exception class. The new frame records the observed throwing operation: this profile interprets
+failSocketClose as ordinary synchronous socket-close failure and interruptTimeWait
+as delivered asynchronous cancellation. That exception-class contract is explicit;
+masking alone is not a dynamic-exception-type theorem. Completion must match the
+recorded error identity. It cannot turn
+TIME_WAIT cancellation into an invented synchronous error. No additional tracer,
+transaction or foreign-call failure coverage follows from those two branches.
+
+CM.shutdown send acknowledgment is coupled to actual group/waiting owner abort,
+or to the actual TIME_WAIT interruption. It is still separate from all joins and
+parent result publication. The final collective wait reads the new handler result
+record for successful mux owners, alongside the existing pre-handshake physical
+history. Direct use of the older pre-handshake final-wait oracle is blocked in
+this layer. Results become available only after the modeled body outcome, actual
+CM cleanup completion and explicit Async-result publication. Remaining buffer/
+policy delivery windows, setup/startup failures, custom tracer unwind and outer
+Server/IG/governor histories still prevent a full shutdown claim.

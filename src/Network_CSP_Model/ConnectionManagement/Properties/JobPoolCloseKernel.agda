@@ -180,6 +180,27 @@ concurrent-empty-register false k c eq valid | Pool.openPool | just state | true
 
 -- Every successful primitive preserves coverage; no scheduling restriction is
 -- imposed on body completion, deregistration or Async result publication.
+-- Consumption changes only the queue; close obligations concern handles/cursor.
+consume-covered : ∀ enabled c {c′} → Pool.consumeQueued enabled c ≡ just c′ → Covered c → Covered c′
+consume-covered false c () valid
+consume-covered true c eq valid with Pool.phase c | Pool.completions c
+... | Pool.openPool | result ∷ rest = case just-injective eq of λ { refl → valid }
+... | Pool.openPool | [] = case eq of λ ()
+... | Pool.closing | _ = case eq of λ ()
+... | Pool.closedPool | _ = case eq of λ ()
+... | Pool.cancelPending j | _ = case eq of λ ()
+... | Pool.joinPending j | _ = case eq of λ ()
+
+consume-empty : ∀ enabled c {c′} → Pool.consumeQueued enabled c ≡ just c′ → ClosedEmpty c → ClosedEmpty c′
+consume-empty false c () valid
+consume-empty true c eq valid with Pool.phase c in phaseEq | Pool.completions c
+... | Pool.openPool | result ∷ rest = case just-injective eq of λ { refl → λ closed → case trans (sym phaseEq) closed of λ () }
+... | Pool.openPool | [] = case eq of λ ()
+... | Pool.closing | _ = case eq of λ ()
+... | Pool.closedPool | _ = case eq of λ ()
+... | Pool.cancelPending j | _ = case eq of λ ()
+... | Pool.joinPending j | _ = case eq of λ ()
+
 step-preserves : ∀ a c {c′} → Pool.step a c ≡ just c′ → Covered c → Covered c′
 step-preserves (Pool.fork k) c eq valid with Pool.phase c | Pool.parentFork c | lookup k (Pool.handles c) in absent
 ... | Pool.openPool | nothing | nothing with just-injective eq
@@ -211,6 +232,20 @@ step-preserves (Pool.bodyReturnedWith k result) c eq valid with lookup k (Pool.h
 ... | just (Pool.deregistered ex) = case eq of λ ()
 ... | just (Pool.resultAvailable ex) = case eq of λ ()
 step-preserves (Pool.publishCompletion k) c eq valid = publish-covered queued k c eq valid
+step-preserves Pool.consumeCompletion c eq valid = consume-covered queued c eq valid
+step-preserves (Pool.interruptJob k) c eq valid with Pool.phase c | lookup k (Pool.handles c) in found
+... | Pool.openPool | just Pool.bodyRunning = case just-injective eq of λ { refl →
+  write-preserves c k Pool.bodyRunning Pool.bodyUnwinding found (λ _ ()) valid }
+... | Pool.closing | _ = case eq of λ ()
+... | Pool.closedPool | _ = case eq of λ ()
+... | Pool.cancelPending j | _ = case eq of λ ()
+... | Pool.joinPending j | _ = case eq of λ ()
+... | Pool.openPool | nothing = case eq of λ ()
+... | Pool.openPool | just (Pool.bodyReturned value) = case eq of λ ()
+... | Pool.openPool | just Pool.bodyUnwinding = case eq of λ ()
+... | Pool.openPool | just (Pool.deregisterPending ex) = case eq of λ ()
+... | Pool.openPool | just (Pool.deregistered ex) = case eq of λ ()
+... | Pool.openPool | just (Pool.resultAvailable ex) = case eq of λ ()
 step-preserves (Pool.bodyUnwound k) c eq valid with lookup k (Pool.handles c) in found
 ... | just Pool.bodyUnwinding = case just-injective eq of λ { refl →
   write-preserves c k Pool.bodyUnwinding (Pool.deregisterPending Pool.cancelledExit) found (λ _ ()) valid }
@@ -352,6 +387,19 @@ step-empty (Pool.bodyReturnedWith k result) c eq valid with lookup k (Pool.handl
 ... | just (Pool.deregistered ex) = case eq of λ ()
 ... | just (Pool.resultAvailable ex) = case eq of λ ()
 step-empty (Pool.publishCompletion k) c eq valid = publish-empty queued k c eq valid
+step-empty Pool.consumeCompletion c eq valid = consume-empty queued c eq valid
+step-empty (Pool.interruptJob k) c eq valid with Pool.phase c in phaseEq | lookup k (Pool.handles c)
+... | Pool.openPool | just Pool.bodyRunning = case just-injective eq of λ { refl → λ closed → case trans (sym phaseEq) closed of λ () }
+... | Pool.closing | _ = case eq of λ ()
+... | Pool.closedPool | _ = case eq of λ ()
+... | Pool.cancelPending j | _ = case eq of λ ()
+... | Pool.joinPending j | _ = case eq of λ ()
+... | Pool.openPool | nothing = case eq of λ ()
+... | Pool.openPool | just (Pool.bodyReturned value) = case eq of λ ()
+... | Pool.openPool | just Pool.bodyUnwinding = case eq of λ ()
+... | Pool.openPool | just (Pool.deregisterPending ex) = case eq of λ ()
+... | Pool.openPool | just (Pool.deregistered ex) = case eq of λ ()
+... | Pool.openPool | just (Pool.resultAvailable ex) = case eq of λ ()
 step-empty (Pool.bodyUnwound k) c eq valid with lookup k (Pool.handles c)
 ... | just Pool.bodyUnwinding = case just-injective eq of λ { refl → valid }
 ... | nothing = case eq of λ ()

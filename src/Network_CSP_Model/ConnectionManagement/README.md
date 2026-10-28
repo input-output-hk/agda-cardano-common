@@ -31,9 +31,16 @@ couples actual successful promise publication to a per-handler `Rules/MuxStartup
 instance, tracks muxer/demuxer forks in the same queued pool and protects the
 post-handshake prefix from old cancellation/cleanup entry points. `MuxProtocolJobs`
 adds direction/generation captures and exact result publication to those same
-pools, with initiator frontend integration still an explicit boundary. Typed
-monitor consumption, post-handshake cleanup, outer scope integration and full
-shutdown remain open. The earlier inbound
+pools, with initiator frontend integration still an explicit boundary.
+`MuxResultMonitor` consumes their typed FIFO and models status/tracer effects
+using current physical group membership; monitor finish does not imply pool or
+handler completion. `MuxGroupShutdown` adds interruptible cancellation/join of a
+current registered protocol-job snapshot, graceful drain, and a separate whole
+pool close. Owner cancellation abandons the graceful cursor before whole-pool
+unwind and the async Failed/Dead path. `MuxHandlerExit` couples observed buffer
+scope exit and typed handler outcomes to captured CM cleanup and the physical CM result wait. Buffer-provider behavior,
+remaining cancellation windows and outer supervision scopes still need coverage
+before full shutdown. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite

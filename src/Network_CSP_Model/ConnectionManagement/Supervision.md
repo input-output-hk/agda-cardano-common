@@ -23,7 +23,7 @@ validation and commit status must be checked in the current worktree.
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: protocol generations and exact publication in the captured pools; typed monitor consumption/unwind, outer and Server integration still open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: typed FIFO monitor effects checked; group/whole-pool unwind, buffer/CM cleanup and outer/Server integration still open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -877,3 +877,281 @@ while producing no queued normal/error JobResult; exact pending-occurrence
 bookkeeping must remain aligned. Synchronous exception-handler and post-return
 masked publication regions also need their correct delivery guards. SI4/SI5,
 outer scope integration and full shutdown remain open.
+
+
+## SI4 sixth increment: typed FIFO monitor handling
+
+The preceding protocol-job increment is committed as `a641636`. The requested
+commit-first phase completed before this new work; its only amendment removed an
+extra blank EOF line and final staged whitespace passed. Prior Agda evidence was
+not rerun solely for that commit.
+
+`JobPoolKernel.consumeCompletion` now removes one actual WithQueue head while
+the pool is open. Empty, queue-free and closing pools refuse it. Existing generic
+close statements are unchanged: queue removal preserves captured-handle and
+closed-registry facts. `IGRegistration` adds status-only failure/stopped writes
+and a separate Dead trace; lifecycle/retention coverage includes those operations
+in both appropriate runtime modes. Old legacy completion actions are unchanged.
+
+`MuxResultMonitor isBearerClosed` consumes the authoritative physical FIFO head
+into a per-handler held state, then handles it in a separate event. The selected
+responder generation/outcome is matched against its captured job and legacy
+responder head before invoking the real source monitor action. While held, that
+responder item remains in the legacy projection until handling; the representation
+relation includes the held item as well as the remaining physical FIFO. Initiator
+and infrastructure heads never consume an unrelated responder projection item.
+
+Status writes precede error/Dead tracing. Responder errors complete their actual
+exception-tracer callback and afterFailure continuation before the separate Dead
+trace. Initiator completion traces ignored by IG are explicit local observations;
+clean traces include DeltaQ before continuation, while error DeltaQ follows Dead.
+Muxer errors always fail. Demux BearerClosed stops normally only when the CURRENT
+registered MiniProtocolJob count is zero at handling. Counting ignores historical
+removed jobs and slot activity; it includes completed/published jobs still in the
+physical registry. The classifier parameter is an explicit source-exception
+contract, not derived from the numeric ErrorId.
+
+The owning monitor cannot resume commands/forks or select another item while
+handling/tracing/finished. Independent child return, publication, insertion and
+removal and other actors retain their original guards. Handling has no queue-empty
+precondition: new results can arrive while the selected item is held. Normal or
+failed monitor finish requires actual Dead callback return and matching mux
+status, and changes only its local PC. It does not certify an empty queue, closed
+pool, released buffer or parent handler Async result.
+
+`Properties/MuxResultMonitor` projects every step/finite execution to real
+OutboundMachine and selected-handler JobPool executions; initialized pool,
+capture and runtime/supply corollaries retain their original premises. Local
+Dequeue evidence retains the exact original head/tail, actual kernel removal and
+stored selected value. Handle evidence retains captured generation matching,
+actual source effects, the current registry/job captures and group count at that
+step, and the classifier/count choice. Finished evidence retains actual callback
+return, matching status and an unchanged underlying runtime.
+
+Validation on 28 October 2026: the new model, property and final acceptance
+endpoints passed with fresh Checking output in Agda 2.8.0, with
+`+RTS -M2G -RTS` and no final warnings. Helper/kernel checks and regressions passed:
+Properties/{JobPoolCloseKernel,HandlerIG,IGRetention,OriginMonitorInvariant},
+new Negative/MuxMonitorEffects (13 named controls and two old close-certificate
+applications), and existing Negative/{JobPoolLifecycle,WithoutQueuePool,
+ConcurrentPool,TracerAttachment}. Kernel/source rule changes were checked
+transitively; the final property/acceptance checks were fresh. One consume test
+attempt was interrupted after process overlap was noticed; the final consume
+check and remaining regressions ran individually and passed. No concurrent Agda
+process remained afterward.
+
+Negative/MuxResultMonitor contains 145 named reflexivity controls and initialized
+main paths for clean/error results in both directions, infrastructure results,
+current-registered count versus inactive/removed history, and the dequeue/count
+race: mini count one at dequeue, child publication/deregistration, count zero at
+handling, normal Stopped/Dead finish with a protocol tail still queued. A new child
+publication during a blocked callback is also an actual initialized execution.
+Wrong projection/generation fixtures are conditional controls. Unrelated-owner
+controls check delegation guards, not successful execution of a nonexistent
+second owner. Six local certificate applications and generic source/pool/capture/
+supply applications passed against those paths.
+
+An initial acceptance check exhausted 2 GB while expanding chained computed
+snapshots. Flat explicit snapshots resolved it without raising the heap limit or
+removing any case. Remaining checker repairs concerned local names, fixture
+parentheses, exhaustive patterns and equality transport, not weakened statements
+or altered model guards. The final thirteen-file local audit had only the three
+known pre-existing Nat ≤?/<? operator false positives in IGRegistration, no actual
+holes or unsafe additions. Tracked and four new files' whitespace checks passed,
+including exactly one EOF newline. Pinned Mux/JobPool exports were verified.
+No replay, source-pin change, unrelated build or second commit was performed.
+Logs: `/tmp/cm-review-20261028/typed-monitor-{close,retention,source-retention,origin,
+consume,queued,queuefree,concurrent,tracer,rules,properties,negative,negative-final}.log`.
+The first chained-fixture failure is historical; final logs retain passing runs.
+New work after `a641636` is uncommitted; `.claude` remains untouched.
+
+Next is the distinct interruptible MiniProtocolJob group cancel/join operation,
+using a one-shot snapshot of CURRENT registered protocol handles. Keep muxer and
+demuxer alive during graceful egress drain, then perform the outer whole-pool
+snapshot/cancel/join before buffer release and captured CM finalization. Async
+cancellation of the owner during group cancellation/drain must abandon that
+cursor and enter whole-pool unwind, immediately disabling its normal continuation
+before the later async Failed write. Preserve committed clean completion without
+fabricating a queue result if delivery precedes body return. Old normal/sync
+masked publication can outrun cancellation. Monitor-local finished remains only
+a prerequisite: actual pool/buffer/body outcome and rethrow-policy effects still
+need coupling before parent Async results, outer scopes and SI5 full shutdown.
+
+## SI4 seventh increment: group shutdown and distinct whole-pool close
+
+`MuxGroupShutdown isBearerClosed` layers over the same captured physical pools
+and typed monitor. Actual stop callers append CmdShutdown without a status or
+tracer-return guard; enqueue remains available before physical startup, while a
+callback is pending, and after monitor return. Selection still requires settled
+parent insertion and the monitor's physical result priority. Stopping trace,
+status write and current-registered MiniProtocolJob snapshot are separate steps.
+The group cursor requests, delivers and joins sequentially while the underlying
+pool remains open. It targets captured protocol jobs only; slot activity and
+historical job tables do not define membership.
+
+Unmasked body cancellation uses a real kernel interruptJob step and actual child
+unwind, deregistration and Async-result boundaries. A clean commit before body
+return can be cancelled without any typed queue result; exact ghost occurrence
+removal preserves the source Idle/result commit. Synchronous jobHandler capture
+refuses ordinary async delivery, allowing normal masked publication to win.
+Explicit observed synchronous unwind replacement can instead enter the actual
+protocol error path before an ordinary result is queued. Delegation guards prevent
+an interrupted body from resuming its old return/commit continuation. Independent
+children, other owners and ordinary source actors keep their existing guards.
+
+Group completion permits observed empty egress or timeout, then Stopped and
+TraceStopped. It does not close the pool or emit IG Dead. Monitor return or
+observed owner abort enables a separate actual Kernel.beginClose snapshot of all
+CURRENT registered jobs, including infrastructure, followed by sequential
+uninterruptible cancellation/joins and actual finishClose. Owner abort seals the
+normal cursor immediately; its Failed write and Dead trace wait for whole-pool
+closure. An abandoned group cursor is not silently completed by that operation.
+Removed history is outside the whole snapshot even when its Async result has not
+arrived. ScopeDone records only this local outcome and pool closure.
+
+`Properties/MuxGroupShutdown` projects every step and finite execution to actual
+OutboundMachine and each selected physical JobPool execution. It lifts initial
+pool, capture and supply facts with unchanged premises. The initialized
+whole-closed-from-initial theorem certifies result availability for precisely the
+actual whole-pool snapshot. Local observation records expose exact group capture,
+eligible delivery, available-result join, actual unwind intermediate, owner-abort
+stuttering, and actual whole-pool begin/finish steps. They do not yet establish a
+separate global all-group-snapshot terminal invariant.
+
+Source mapping and limitations are recorded in the SI4 source audit's
+“Interruptible group shutdown and whole-pool unwind” section. Buffer release,
+captured CM cleanup, proper handler body outcomes/rethrow policy and parent Async
+completion remain the next integration obligations. Startup/tracer interruption
+and remaining Server/IG/outer scope histories remain open. SI4/SI5, CM-I4c and the
+overall G0–G5 objective are still in progress.
+
+Validation on 28 October 2026: the new model and full properties endpoint passed
+fresh Agda 2.8.0 checks using `+RTS -M2G -RTS`, exit zero without warnings. The
+property check includes the appended delivery, join, abort and whole-close local
+observations (`group-shutdown-properties-final.log`). The initial and extended
+flat acceptance matrix and final theorem applications passed fresh at 2 GB
+(`group-shutdown-negative.log`, `group-shutdown-negative-final.log`). No heap
+increase or case deletion was used.
+
+Shared helper changes passed the close/retention/origin endpoints and existing
+Negative/{JobPoolLifecycle,WithoutQueuePool,ConcurrentPool,TracerAttachment}
+regressions. New Negative/MuxGroupEffects has 19 conditional helper controls;
+these require the adapter to supply ordering. External enqueue additions were
+rechecked through affected retention/origin/effects/tracer endpoints. Logs are
+`/tmp/cm-review-20261028/group-shutdown-{rules,properties,properties-final,close,
+retention,igretention,origin,effects,queued,queuefree,concurrent,tracer}.log` and
+`group-shutdown-enqueue-{retention,igretention,origin,effects,tracer}.log`.
+Checks ran one Agda process at a time. No Haskell replay, source-pin change or
+unrelated proof build was performed. All new work after `a641636` remains
+uncommitted; `.claude` is untouched.
+
+
+Negative/MuxGroupShutdown composes actual initialized paths for the 30-step
+normal group/drain/whole-close suffix, committed clean cancellation with timeout,
+masked error publication winning cancellation, explicit synchronous unwind
+replacement, independent infrastructure publication, 25-step group-abort and
+20-step removed-history-abort suffixes, and drain interruption. It checks physical
+FIFO priority, actual stop enqueue before startup and the masked insertion gap.
+The main paths use no injected conditional source worlds; unwind, drain and trace
+observations remain explicit contracts. Generic source/pool/capture/supply results,
+three initialized whole-snapshot terminal certificates and the local observation
+records are applied to these paths. The removed-history example deliberately
+retains a deregistered handle without an Async result after whole close.
+
+Final audit scanned all seventeen pending Agda files: only three inspected
+pre-existing Nat decision operators in IGRegistration were reported, with no
+actual holes or unsafe additions. Tracked/new-file whitespace checks passed,
+including exactly one EOF newline. These are local proof/source checks, not a
+term-level audit of all dependency assumptions or implementation replay.
+
+## SI4 eighth increment: buffer scope, captured CM finally and parent results
+
+`MuxHandlerExit isBearerClosed` extends the same group/monitor/protocol/startup
+state without creating another pool or adopting existing handler records. A
+successful mux owner's physical history stays in the original registry; a new
+exit record carries typed outcomes that the earlier ErrorId-only pre-handshake
+phases cannot represent. Normal return, async exception, original synchronous
+exception and peer-wrapped exception remain distinct.
+
+Exit starts only after actual mux ScopeDone and closedPool, using the original
+startup frame's HandlerStart and matching source registration. Observed buffer
+scope return preserves that mux outcome. An observed provider exception can
+replace it, and cannot be used to turn an exception into normal success. Since
+withBuffer is a supplied callback, these observations are provider contracts,
+not a proof of concrete memory release. Synchronous failures then enter the
+captured-context rethrow-policy boundary and require the error trace to return.
+ShutdownPeer rethrows ExceptionInHandler; ShutdownNode requires observed main
+receipt before rethrowing the original error. Async failures bypass this classifier.
+
+The adapter invokes actual OutboundMachine handlerExit and cleanupStep actions,
+retaining map acquisition, captured entry selection, socket close, prospective
+map publication/restoration, TIME_WAIT finally and counter reads. Each cleanup
+operation checks the original HandlerStart against the source registration.
+Cleanup failure overrides the body outcome outside the already-exited classifier.
+The local frame records whether the actual failure operation was synchronous
+socket close or asynchronous TIME_WAIT interruption, and matches its ErrorId at
+completion. Shared CleanupOutcome alone cannot establish that exception class.
+Parent result availability requires actual cleanupDone, the matching local
+cleanup-completion stage and explicit Async-result publication. resultOf exposes
+the typed value only after that publication.
+
+CM snapshot capture/read/send/collective wait use the same coordinator in the
+physical-handler state. Delivery to a waiting/group/draining mux is coupled to
+actual owner abort before acknowledging throwTo; TIME_WAIT delivery executes the
+actual cleanup interruption before acknowledgment. The result oracle combines
+the new successful-mux exit records with the old pre-handshake physical history.
+The old pre-handshake final-wait bypass is disabled in this adapter. A completed
+pool, send acknowledgment, cleanupDone or removed map entry alone cannot satisfy
+the successful owner's result observation. Independent admissions, source actors,
+children and other owners remain enabled under their existing guards.
+
+`Properties/MuxHandlerExit` projects all steps and finite executions to actual
+OutboundMachine and selected physical JobPool histories, retaining initialized
+capture and supply premises and whole-snapshot terminal certificates. Publication
+observations retain the actual cleanupDone result and local predecessor. Its
+PhysicalWait retains the actual wrapper finishClose call, exact combined result
+oracle and primitive final-wait observations. These local certificates do not
+assert global all-history termination or eventual progress.
+
+The remaining profile gaps include CM delivery in buffer/policy/trace windows,
+setup/startup and custom tracer failure/unwind, plus outer Server/IG/governor
+histories and admission quiescence. Normal error-trace return and node delivery
+are still observations, not a node-exit theorem. SI4/SI5, CM-I4c and G0–G5 remain
+open. Source mapping: the SI4 audit's “Buffer scope, handler outcome and CM finally”
+section. All work after `a641636` remains uncommitted.
+
+Validation on 28 October 2026: Agda 2.8.0 checks passed at `+RTS -M2G -RTS`,
+exit zero without warnings, for the new runtime, Properties/MuxHandlerExit,
+Negative/MuxHandlerExitFixtures and all three acceptance endpoints:
+Negative/{MuxHandlerExit,MuxHandlerExitOutcomes,MuxHandlerExitCM}. The final
+property and acceptance checks have fresh Checking output. The runtime was also explicitly freshly checked after invalidating only its own
+interface (`handler-exit-rules-final.log`);
+source comments and documentation were not used as a reason for unrelated builds.
+No old theorem type, transition or build setting was changed in this increment.
+
+Initialized paths cover normal and async mux outcomes through actual CM cleanup
+and parent Async publication; both peer/node rethrows after an observed buffer
+exception; socket-close failure with map restoration before publication; and the
+combined CM snapshot/read/send/owner-abort/whole-pool-close/CM-finalizer/result-wait
+path. It refuses collective close before result publication, early finalizer or
+result shortcuts, async classification and node rethrow before delivery. Generic
+source/pool/capture/supply results and actual Publication/PhysicalWait certificates
+are applied. The separate TIME_WAIT delivery/finally/counter/result fixture is
+explicitly conditional on an already-entered finalizer, not an initialized trace.
+Buffer, policy, trace-return and node-delivery observations remain contracts.
+
+Several initial checks exhausted the 2 GB heap while elaborating helpers and
+re-exported controller aliases at the concrete classifier. Generic lift helpers,
+shared-state snapshot builders and private internal module aliases resolved that
+cost; acceptance was split by responsibility. No case was removed and no heap or
+safety setting was relaxed. Final logs are in `/tmp/cm-review-20261028/`:
+`handler-exit-{rules-final,properties-final,fixtures,negative-final,outcomes,cm}.log`.
+Scratch probes and earlier checks are historical diagnostic evidence, not final
+acceptance. The final runtime log retains its fresh Checking line.
+
+The final pending-worktree audit scanned 23 Agda files: only the three previously
+inspected Nat decision-operator false positives in IGRegistration were reported;
+all six new exit-layer files had zero findings. No holes or unsafe additions.
+Tracked/new-file whitespace and exactly-one-EOF-newline checks passed. Pinned
+source objects were compared locally; no Haskell replay, source-pin change,
+commit, push or unrelated heavy proof build was performed. `.claude` is unchanged.
