@@ -408,3 +408,104 @@ this layer. Results become available only after the modeled body outcome, actual
 CM cleanup completion and explicit Async-result publication. Remaining buffer/
 policy delivery windows, setup/startup failures, custom tracer unwind and outer
 Server/IG/governor histories still prevent a full shutdown claim.
+
+## Masked post-mux cancellation windows — 28 October 2026
+
+Core.hs:584–592 and ConnectionHandler.hs:294–309,378–380,450–452 were rechecked
+against the pinned network objects; local exports match byte for byte. The
+handler is born under mask_, while its supplied unmask restores Mx.run. Returning
+from that restored action does not make all later pure policy/rethrow code
+arbitrarily interruptible. The new MuxExitCancellation layer requires an observed
+interruptible operation in one of three named windows. It is not a theorem about
+the concrete mask of a caller-supplied buffer provider or arbitrary tracer.
+
+At a blocked buffer-provider operation, cancellation replaces the pending mux
+outcome with an async exception but leaves buffer scope unwind outstanding.
+Only a later provider-return/unwind observation permits body exit and CM cleanup.
+A synchronous provider-finalizer exception may still replace that cancellation
+and enter the outer non-async classifier. A post-Mx.run provider failure does not
+retroactively rewrite mux status or invent an IG Dead callback.
+
+The classifier's TrConnectionHandlerError callback precedes either policy branch.
+Cancellation at an observed blocking operation in that callback escapes its
+catch handler: it does not re-enter classification, peer wrapping or node delivery.
+A synchronous exception thrown from that callback also escapes directly as the
+new original error. It is not wrapped by the interrupted old policy. This is the
+connection-handler error tracer, not the mux/IG tracer; their remaining failure
+and callback windows are distinct obligations.
+
+ShutdownNode calls throwTo before rethrowing the original exception. An observed
+interruptible blocked send may instead propagate cancellation into CM finally.
+The model does not fabricate a successful send-return observation afterward. It
+also does not prove retraction of an in-flight exception, main-thread nonreceipt
+or node termination. Pure classification, peer rethrow, post-send node rethrow,
+body-exit and uninterruptible cleanup stages are not invented delivery points.
+Existing explicit TIME_WAIT delivery and already-finished acknowledgment remain
+in the underlying handler-exit adapter.
+
+Each CM-coupled delivery reads the actual awaitDelivery target, performs that
+same local delivery, then acknowledges the actual coordinator. It does not skip
+provider unwind, captured CM cleanup or physical Async-result publication.
+New generic proofs preserve actual source/per-pool histories and initialized
+capture/supply facts, and expose the exact window, receiver and acknowledgment.
+These are bounded model/source contracts; implementation replay and full shutdown
+remain open at the unchanged source pin.
+
+## Partial startup and synchronous mux-tracer unwind — 28 October 2026
+
+Verified the exact network pin again: Core.hs, ConnectionHandler.hs, Mux.hs and
+JobPool.hs exports match `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` byte for
+byte. Current implementation reading, not the external worktree checkout, is
+the authority for this increment.
+
+ConnectionHandler.hs:377–380,449–452 writes the successful promise before entering
+withBuffer, creating the bearer and restoring Mx.run. A failure observed before
+provider callback invocation has no modeled buffer-body teardown obligation.
+Bearer setup failure inside that callback still requires observed provider unwind.
+The provider's allocation, exception preservation and memory-release semantics
+remain contracts. Normal return from an arbitrary higher-order provider without
+calling its body is not established by this profile.
+
+Mux.hs:248–254 places TraceStarting, egress allocation and labels BEFORE the
+withJobPool expression's async catch. Observed cancellation at those pre-call
+points must not invent a later Failed/Dead catch. JobPool.hs:71–81 brackets pool
+creation before body entry. Synchronous acquisition failure owes no close of an
+unacquired pool; once the bracket body is entered even an empty pool owes actual
+close. MuxStartupUnwind keeps these cases separate and never changes partial
+startup into monitoring or fabricates G.ScopeDone to pass the old exit guard.
+Named helper failures are observed throwing-call boundaries; additional internal
+allocator/timer/provider scopes are not themselves proved by those observations.
+
+JobPool.hs:122–145 masks creation through insertion. The new profile observes
+fork failure BEFORE birth and refuses ordinary async delivery in an existing
+fork/insertion gap. Child result publication may outrun insertion, but removal
+still waits for it. A child deregistered after insertion and before its Async
+result fill is omitted from a later current-registry snapshot. The initialized
+removed-history example closes an empty snapshot while that historical result
+is still unavailable; it also retains the physical queued infrastructure result.
+
+A synchronous startup or tracer exception runs the actual whole-pool release,
+then propagates past Mx.run's ASYNC-only catch. It does not force Failed/Dead or
+pretend the failed callback returned. An entered-pool startup cancellation instead
+runs that release BEFORE actual Failed, Dead and rethrow. The async catch's own
+tracer can throw a new synchronous error which replaces the original async
+exception, without re-entering that same catch or overwriting its Failed value.
+Observed normal/error provider exit and the real captured CM finally remain
+separate prerequisites before parent Async result publication and the CM wait.
+
+ConnectionHandler.hs:363–365,438–440 composes the caller's mux tracer FIRST and
+the IG tracer second. A custom exception at the entry of that call is distinct
+from a later descriptor exception inside the IG STM leg. The new monitor-trace
+fault guard accepts callback entry or actual tracerFailed evidence, not a pending
+commitTrace state alone. Existing IG.commitTracer computes the actual failure
+with TracerReadiness prefix/retry precedence and missingDescriptor checks. The
+conditional successor-registration control executes that interpreter first,
+checks no trace publication committed, then enters unwind with tracerFailed
+preserved. That view is explicitly conditional; it has no initialized second
+handler/registration history and is not a new source-reachability theorem.
+
+Remaining gaps include async delivery during mux/IG callbacks, some ignored and
+DeltaQ tracer windows, post-close catch cancellation, pre-publication negotiation/
+allocation faults, additional child-finalizer failure classes and outer Server/IG/
+governor histories. No source refinement, universal termination, admission
+quiescence or full-shutdown theorem is inferred from these finite model paths.

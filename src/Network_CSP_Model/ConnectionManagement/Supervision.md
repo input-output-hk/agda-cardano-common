@@ -1155,3 +1155,162 @@ all six new exit-layer files had zero findings. No holes or unsafe additions.
 Tracked/new-file whitespace and exactly-one-EOF-newline checks passed. Pinned
 source objects were compared locally; no Haskell replay, source-pin change,
 commit, push or unrelated heavy proof build was performed. `.claude` is unchanged.
+
+## SI4 ninth increment: observed post-mux cancellation windows
+
+Commit-first completed as `a173dd0` (26 files), bundling typed FIFO monitoring,
+group/whole-pool shutdown and handler exit. Prior successful checks were not
+rerun solely for that commit; staged whitespace passed. `.claude` was excluded.
+The following cancellation-window work is uncommitted after that anchor.
+
+`MuxExitCancellation` shares MuxHandlerExit.State directly. It adds observed
+interruptible buffer-provider, classifier error-trace and node-send delivery;
+there is no second registry, JobPool or source configuration. Buffer delivery
+retains the provider-unwind boundary with an async outcome. Classifier-trace/send
+cancellation seals that continuation and exits the handler with the new async
+exception. A separately observed synchronous error-trace exception escapes as
+the new original synchronous error, without reclassification or the old peer
+wrapper. Provider teardown can still replace pending cancellation with a new
+synchronous error. No post-Mx.run cancellation invents a mux Failed/Dead write.
+
+Pure masked policy selection/rethrow and uninterruptible finalizer stages are
+not generalized delivery points. Named windows are operation/mask contracts;
+provider/tracer implementation masks are not derived from a numeric ErrorId or
+from the phase alone. Interrupted node send does not certify main nonreceipt,
+exception retraction or node exit. The old explicit TIME_WAIT interruption and
+finished-target acknowledgment keep their separate source guards.
+
+CM delivery takes the actual awaitDelivery target, records the same observed
+operation delivery, then performs actual coordinator acknowledgment. The sender
+still cannot finish the collective wait until the provider/body/CM finally and
+explicit parent Async-result publication settle. `Properties/MuxExitCancellation`
+projects all steps and finite executions to actual OutboundMachine and selected
+JobPool traces; initialized capture/supply and whole-snapshot facts retain their
+old premises. Delivery and ShutdownDelivery records retain exact predecessor,
+window, receiver, intermediate and acknowledgment. The final wait reuses the
+checked physical-result oracle and its actual wrapper call.
+
+Validation on 28 October 2026: Agda 2.8.0 runtime, properties and acceptance checks
+passed at `+RTS -M2G -RTS`; the final property and expanded acceptance checks were
+fresh, exit zero without warnings. The runtime was also checked transitively
+after its explicit helper type declarations. Logs:
+`/tmp/cm-review-20261028/exit-cancellation-{rules,properties,negative,negative-final}.log`.
+Private internal module aliases keep the concrete proof layer small. No heap or
+safety setting was changed, and no previous theorem statement was weakened.
+
+Negative/MuxExitCancellation has actual initialized paths for buffer cancellation
+through provider return, CM cleanup, Async result and collective close; classifier
+trace and blocked node-send cancellation through actual cleanup/result publication;
+and a synchronous error-tracer exception through cleanup/result publication.
+Actual CM snapshot/read/send/delivery/ack prefixes are also checked for the tracer
+and node-send windows. Refusals cover pure masked stages, wrong windows, stale
+tracer/policy/send continuation, premature finalizer and premature collective wait.
+Generic source/pool/capture/supply, exact delivery and physical-wait certificates
+are applied. A provider-finalizer replacement step uses the initialized buffer
+prefix. Source callbacks and exception-delivery observations remain contracts.
+
+All three new Agda files passed the scoped proof audit with zero findings.
+Tracked/new-file whitespace and exactly one EOF newline passed. Pinned Core and
+ConnectionHandler exports were compared locally. No Haskell replay, source-pin
+change, unrelated proof build, push or second commit was performed.
+
+Next: post-publication setup/startup and mux/IG-tracer failure/unwind, before
+outer Server/IG/governor histories. Keep actual fork/insertion gaps and current
+whole-pool snapshots; no fabricated successful startup or pool/body result may
+bridge a setup failure. Admission quiescence and full shutdown remain separate.
+SI4/SI5, CM-I4c and overall G0–G5 remain open.
+
+## SI4 tenth increment: partial startup and synchronous mux-tracer unwind
+
+`MuxStartupUnwind` layers over the same cancellation/handler state, physical
+handler history and queued pools. It records the original published handler,
+mux identity, partial startup PC, callback at failure, exception class and lexical
+scope route. Its exception type has only synchronous/asynchronous failures;
+there is no fabricated successful-body outcome. The three routes distinguish
+failure before provider callback invocation, failure inside its buffer scope
+before pool acquisition, and failure inside an acquired JobPool bracket.
+
+Named setup sites cover buffer/bearer setup, TraceStarting, egress/label setup,
+pool acquisition, infrastructure forks before birth, Mature and timeout setup.
+The model refuses ordinary async delivery in existing fork/insertion gaps. A
+selected fault immediately seals that owner's startup/monitor controller while
+independent children, other owners and ordinary source actors keep their guards.
+The partial startup PC is retained even after physical parent result publication;
+it is not rewritten into monitoring or G.ScopeDone to reuse an exit gate.
+
+An entered pool closes through actual current-registry beginClose, sequential
+cancellation, child unwind/removal, Async-result joins and finishClose. Synchronous
+failure then leaves the mux's prior status/callback intact and hands a failed
+body to the buffer scope. It does not invent Failed/Dead. Startup async delivery
+inside that bracket instead closes the pool BEFORE actual Failed/Dead/rethrow;
+pre-catch delivery does not enter that later catch. A synchronous exception from
+the catch's own tracer replaces the original async outcome without re-entering
+the catch or rewriting its Failed value. Before buffer callback invocation the
+handoff goes directly to body classification; otherwise provider unwind remains
+outstanding. The existing typed policy/CM-finalizer/parent-result sequence is
+reused, including the actual CM send acknowledgment and collective result wait.
+
+For monitor tracing, caller mux-tracer entry is distinct from IG STM failure.
+The new guard permits the first custom tracer leg or actual tracerFailed evidence,
+plus the existing explicit initiator trace observation. A pending commitTrace
+alone is not an exception certificate. The conditional successor-registration
+control executes real IG.commitTracer, including prefix/retry precedence, before
+observing the descriptor exception. Callback failure is retained rather than
+changed into a successful return. Source audit details are in the SI4 audit's
+“Partial startup and synchronous mux-tracer unwind” section.
+
+`Properties/MuxStartupUnwind` projects every plan, successful action and finite
+execution to actual OutboundMachine and each selected physical JobPool history.
+Initial capture/supply and current whole-snapshot terminal facts keep their
+premises. Selection retains the real owner lookup, settled parent insertion,
+successful publication, exact mux lookup, scope route and original callback.
+PhysicalWait retains the actual nested wrapper finishClose call and the combined
+physical-result oracle. These are operational/source-contract certificates, not
+universal progress or implementation refinement.
+
+Acceptance is split into data-only Fixtures and five acceptance endpoints:
+Negative/MuxStartupUnwind, Branches, Interleavings, CM and Sites. Initialized
+paths cover two-engine Mature failure through actual close, provider exit,
+peer rethrow, CM finally and parent result; pre-buffer and bearer failure;
+zero-engine startup async close/Failed/Dead/finally/result; pre-catch cancellation;
+all named setup and graceful stopping/stopped trace sites; and custom monitor
+tracer failure through the actual pool close. The masked-gap path publishes an
+infrastructure result before insertion, waits to remove it, then closes an empty
+current snapshot while its removed historical Async result is still unavailable.
+A separate initialized CM path captures/reads/sends, acknowledges startup delivery,
+then waits through pool/provider/finalizer/result before collective close. The
+successor-registration descriptor control is conditional, not an initialized
+second-handler history. An initialized exception from async-catch Dead tracing
+retains the original Failed status and hands off the replacement sync error.
+
+Next remains async mux/IG callback delivery, some ignored/DeltaQ tracer windows,
+post-close catch cancellation, earlier allocation/publication gaps and additional
+child-finalizer failure classes, followed by outer Server/IG/governor histories.
+Named helper/provider/trace faults are observations; their unmodeled internal
+resources and mask implementations are not proved by the fault label. Admission
+quiescence, full shutdown, SI4/SI5, CM-I4c and overall G0–G5 remain open.
+
+Validation on 28 October 2026: all eight new modules passed Agda 2.8.0 with
+`+RTS -M2G -RTS`, one process at a time, exit zero without warnings. The runtime
+was freshly rechecked through the tightened-tracer interleavings closure; the
+final properties, fixture and acceptance closures have Checking output. Final
+commands used Properties/MuxStartupUnwind and
+Negative/{MuxStartupUnwind,MuxStartupUnwindBranches,MuxStartupUnwindInterleavings,
+MuxStartupUnwindCM,MuxStartupUnwindSites}. Imports checked the runtime and generic
+fixture transitively. One larger property recheck initially exhausted 2 GB while
+freshly checking the changed runtime; the subsequent serial interleavings check
+completed that runtime/property/fixture/main closure at the same limit. No heap
+increase, scenario removal or safety relaxation was used. Checker repairs were
+local scoping/equality transport and exact wrapper projection, not weakened goals.
+No old model or theorem statement was changed in this increment.
+
+Logs are in `/tmp/cm-review-20261028/`:
+`startup-unwind-{rules,properties,properties-final,fixtures,negative,branches,
+interleavings,interleavings-final,cm,cm-final,sites,sites-final}.log`.
+Earlier logs are historical where a later final log supersedes them. Eight-file
+local proof audit: zero findings. Tracked/new-file whitespace and exactly one EOF
+newline passed. Exact pinned source objects were compared locally; there was no
+Haskell replay, upstream/pin change, unrelated build, commit or push. This and the
+preceding cancellation-window increment remain uncommitted after `a173dd0`;
+`.claude` is untouched. Source-fidelity and finite model evidence remain separate
+from implementation replay and a term-level audit of dependency assumptions.

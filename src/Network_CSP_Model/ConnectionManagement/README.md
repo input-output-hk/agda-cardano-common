@@ -39,8 +39,12 @@ current registered protocol-job snapshot, graceful drain, and a separate whole
 pool close. Owner cancellation abandons the graceful cursor before whole-pool
 unwind and the async Failed/Dead path. `MuxHandlerExit` couples observed buffer
 scope exit and typed handler outcomes to captured CM cleanup and the physical CM result wait. Buffer-provider behavior,
-remaining cancellation windows and outer supervision scopes still need coverage
-before full shutdown. The earlier inbound
+`MuxExitCancellation` adds observed interruptible buffer, classifier-tracer and
+node-send delivery with CM acknowledgment. Provider masks remain contracts;
+`MuxStartupUnwind` adds post-publication setup/startup faults and synchronous
+mux/IG-tracer unwind, retaining incomplete startup and actual current-pool joins.
+Async mux-callback delivery, earlier allocation/publication gaps and outer
+supervision scopes still need coverage before full shutdown. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite
