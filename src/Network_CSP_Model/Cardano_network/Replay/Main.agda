@@ -10,6 +10,9 @@
 --   Main --blockfetch-client FILE [K_BF]  control-only, default 100
 --   Main --blockfetch-server FILE        sequential server, no depth argument
 --   Main --txsubmission2 FILE [K_TS]   server/requester depth default 4
+--   Main --paired-notify FILE [K_NOTIFY]  explicit fresh pair, default 1
+--   Main --paired-fetch FILE [K_FETCH]    explicit fresh pair, default 4
+--   Main --paired-chainsync FILE [K_CS]  explicit fresh pair, default 300
 --   Main --chainsync FILE [K_CS]      role-selected; client depth default 300
 --   Main --notify FILE [K_NOTIFY]   Notify credit bound, default 1
 --   Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   independent bounds
@@ -50,6 +53,9 @@ open import Cardano_network.Replay.LeiosFetchParse
 import Cardano_network.Replay.SessionReport as Interleaved
 import Cardano_network.Replay.BlockFetchReport as BlockFetch
 import Cardano_network.Replay.BlockFetchServerReport as BlockFetchServer
+import Cardano_network.Replay.ChainSyncPairedReport as ChainSyncPaired
+import Cardano_network.Replay.LeiosNotifyPairedReport as LeiosNotifyPaired
+import Cardano_network.Replay.LeiosFetchPairedReport as LeiosFetchPaired
 
 -- Checking with client pipelining bound k.
 module Check (k : ℕ) where
@@ -84,7 +90,7 @@ report k s with parseFile s
 
 -- Usage line.
 usage : String
-usage = "usage: Main FILE [K_FETCH] | Main --blockfetch FILE [K_BF] | Main --blockfetch-client FILE [K_BF] | Main --blockfetch-server FILE | Main --txsubmission2 FILE [K_TS] | Main --chainsync FILE [K_CS] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   (defaults: Fetch 4, Notify 1, BlockFetch 100, ChainSync 300, TxSubmission2 4)"
+usage = "usage: Main FILE [K_FETCH] | Main --paired-notify FILE [K_NOTIFY] | Main --paired-fetch FILE [K_FETCH] | Main --paired-chainsync FILE [K_CS] | Main --blockfetch FILE [K_BF] | Main --blockfetch-client FILE [K_BF] | Main --blockfetch-server FILE | Main --txsubmission2 FILE [K_TS] | Main --chainsync FILE [K_CS] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   (defaults: Fetch 4, Notify 1, BlockFetch 100, ChainSync 300, TxSubmission2 4)"
 
 -- Read, check and print one file.
 checkFile : ℕ → String → IO ⊤
@@ -130,8 +136,33 @@ checkTxSubmission2 depth path = readFiniteFile path >>= λ s → putStrLn (Inter
 checkInterleavedWithProtocolDepths : ℕ → ℕ → ℕ → ℕ → ℕ → String → IO ⊤
 checkInterleavedWithProtocolDepths k n b c t path = readFiniteFile path >>= λ s → putStrLn (Interleaved.reportWithProtocolDepths k n b c t s)
 
+-- Decide compatibility of two explicitly paired fresh ChainSync inputs.
+checkPairedChainSync : ℕ → String → IO ⊤
+checkPairedChainSync depth path = readFiniteFile path >>= λ s → putStrLn (ChainSyncPaired.report depth s)
+
+-- Decide an explicitly declared fresh prototype Notify pair.
+checkPairedNotify : ℕ → String → IO ⊤
+checkPairedNotify depth path = readFiniteFile path >>= λ s → putStrLn (LeiosNotifyPaired.report depth s)
+
+-- Decide an explicitly declared fresh prototype Fetch pair.
+checkPairedFetch : ℕ → String → IO ⊤
+checkPairedFetch depth path = readFiniteFile path >>= λ s → putStrLn (LeiosFetchPaired.report depth s)
+
 -- Dispatch on the command-line arguments.
 dispatch : List String → IO ⊤
+dispatch ("--paired-notify" ∷ f ∷ []) = checkPairedNotify 1 f
+dispatch ("--paired-notify" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkPairedNotify depth f
+... | nothing = putStrLn usage
+dispatch ("--paired-fetch" ∷ f ∷ []) = checkPairedFetch 4 f
+dispatch ("--paired-fetch" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkPairedFetch depth f
+... | nothing = putStrLn usage
+dispatch ("--paired-chainsync" ∷ f ∷ []) = checkPairedChainSync 300 f
+dispatch ("--paired-chainsync" ∷ f ∷ k ∷ []) with readMaybe 10 k
+... | just depth = checkPairedChainSync depth f
+... | nothing = putStrLn usage
+dispatch ("--paired-chainsync" ∷ _) = putStrLn usage
 dispatch ("--txsubmission2" ∷ f ∷ []) = checkTxSubmission2 4 f
 dispatch ("--txsubmission2" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just depth = checkTxSubmission2 depth f
