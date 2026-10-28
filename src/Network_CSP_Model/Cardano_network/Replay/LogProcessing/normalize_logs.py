@@ -8,8 +8,12 @@ only LeiosFetch and uses the original role-only session format and filenames.
 Reads raw node JSON, journal-prefixed JSON and supervisor JSON wrappers in file
 order. Writes session .txt/.src files, interleaved.txt, interleaved.src and
 index.tsv. Sessions are keyed by connection, protocol and role; Done closes
-that session and NewMux closes the connection's open sessions. Mux Dead is not
-a boundary. EOF is a prefix boundary, not evidence of successful completion.
+that session and NewMux closes the connection's open sessions by default.
+For devnet captures without NewMux, --connection-lifecycle instead uses successful
+handshakes and matching handler cleanups. It requires handler/wire thread IDs,
+rejects ambiguous generations, and writes connections.tsv plus generation columns
+in index.tsv. Mux Dead and exception messages alone never create generations.
+EOF is a prefix boundary, not evidence of successful completion.
 
 BlockFetch, ChainSync and TxSubmission2 retain control observations only.
 TxSubmission2 requires enriched blocking/reply-emptiness evidence; use
@@ -20,6 +24,7 @@ Run with --help for options, or --selftest for embedded regression checks.
 """
 import argparse
 import json
+import ipaddress
 from pathlib import Path
 import os
 import re
@@ -32,6 +37,9 @@ CS = 'ChainSync.Remote.'
 BF = 'BlockFetch.Remote.'
 TS = 'TxSubmission.Remote.'
 MUX = 'Net.Mux.Remote.'
+CONNECTION = 'Net.ConnectionManager.Remote.'
+HANDSHAKE = CONNECTION + 'ConnectionHandler.HandshakeSuccess'
+CLEANUP = CONNECTION + 'ConnectionCleanup'
 HEX = re.compile(r'[0-9a-f]+')
 BITMAP = re.compile(r'(\d+):0x([0-9a-fA-F]+)')
 
@@ -205,12 +213,119 @@ def normalize_notify(direction, kind, m):
     return ' '.join([direction, kind] + fields)
 
 
-def split(lines, outdir, mux_split=True, include_notify=False, include_control=False, include_txsubmission2=False):
+def connection_id(value):
+    """Match structured lifecycle socket addresses to textual wire connection IDs."""
+    def endpoint(address, port):
+        if not isinstance(address, str) or not address or isinstance(port, bool):
+            raise ValueError('connection address and port are required')
+        if not isinstance(port, (str, int)) or not str(port).isdigit() or not 0 <= int(port) <= 65535:
+            raise ValueError('connection port must be between 0 and 65535')
+        host = address
+        if host.startswith('[') and host.endswith(']'):
+            host = host[1:-1]
+        if '[' in host or ']' in host:
+            raise ValueError('malformed brackets in connection address')
+        try:
+            host = str(ipaddress.ip_address(host))
+        except ValueError:
+            if not re.fullmatch(r'[A-Za-z0-9_.-]+', host):
+                raise ValueError('unsupported connection address %r' % address)
+        return ('[' + host + ']' if ':' in host else host) + ':' + str(int(port))
+
+    if isinstance(value, str):
+        pair = value.split()
+        if len(pair) != 2 or any(':' not in part for part in pair):
+            raise ValueError('connectionId must contain local and remote socket addresses')
+        return ' '.join(endpoint(*part.rsplit(':', 1)) for part in pair)
+    if isinstance(value, dict):
+        ends = []
+        for name in ('localAddress', 'remoteAddress'):
+            address = value[name]
+            ends.append(endpoint(address.get('address', address.get('addr')), address['port']))
+        return ' '.join(ends)
+    raise ValueError('unsupported connectionId format')
+
+
+def thread_id(record):
+    """Require an observable thread identity instead of guessing a connection epoch."""
+    value = record.get('thread')
+    if isinstance(value, bool) or not isinstance(value, (str, int)) or not str(value).strip():
+        raise ValueError('connection-lifecycle mode requires handler and wire thread IDs')
+    return str(value).strip()
+
+
+class ConnectionLifecycle:
+    """Use successful handshakes and matching handler cleanups as explicit generations.
+
+    Requires ordered, single-process capture evidence. Handler threads identify
+    lifecycle instances; observed mini-protocol threads bind wire rows to them.
+    Neither protocol contents nor mux errors create a generation.
+    """
+    def __init__(self):
+        self.current = {}
+        self.wire_threads = {}
+        self.records = []
+
+    def observe(self, record, line):
+        """Return the address pair to close only for its matching live cleanup."""
+        cid = connection_id(record['data']['connectionId'])
+        handler = thread_id(record)
+        previous = self.current.get(cid)
+        if record['ns'] == HANDSHAKE:
+            if previous and previous['handlerThread'] == handler:
+                if previous['cleanupLine']:
+                    raise ValueError('handshake reuses a cleaned-up handler thread for %s' % cid)
+                return None  # A duplicate notification is not a new generation.
+            if previous and not previous['cleanupLine']:
+                raise ValueError('ambiguous overlapping connection generations for %s: '
+                                 'new handshake before cleanup of handler %s' % (cid, previous['handlerThread']))
+            generation = previous['generation'] + 1 if previous else 0
+            info = dict(connectionId=cid, generation=generation, handlerThread=handler,
+                        handshakeLine=line, handshakeAt=record['at'], cleanupLine='', cleanupAt='')
+            self.current[cid] = info
+            self.records.append(info)
+        elif previous and previous['handlerThread'] == handler and not previous['cleanupLine']:
+            previous['cleanupLine'] = line
+            previous['cleanupAt'] = record['at']
+            return cid
+        return None  # Unobserved/old handler cleanups cannot close a newer instance.
+
+    def wire(self, record, cid, role, protocol):
+        """Bind each wire actor to one live generation and reject known stale actors."""
+        current = self.current.get(cid)
+        if current is None:
+            raise ValueError('wire event for %s has no preceding successful handshake' % cid)
+        if current['cleanupLine']:
+            raise ValueError('wire event for %s follows connection cleanup without a new handshake' % cid)
+        actor = (cid, role, protocol, thread_id(record))
+        generation = current['generation']
+        if actor in self.wire_threads and self.wire_threads[actor] != generation:
+            raise ValueError('wire thread %s belongs to an earlier generation of %s' % (actor[-1], cid))
+        self.wire_threads[actor] = generation
+        return current
+
+    def write(self, outdir):
+        """Retain the raw lifecycle coordinates used for every inferred generation."""
+        fields = ('connectionId', 'generation', 'handlerThread', 'handshakeLine',
+                  'handshakeAt', 'cleanupLine', 'cleanupAt')
+        with open(os.path.join(outdir, 'connections.tsv'), 'w') as stream:
+            stream.write('\t'.join(fields) + '\n')
+            for record in self.records:
+                stream.write('\t'.join(str(record[field]) for field in fields) + '\n')
+
+
+def split(lines, outdir, mux_split=True, include_notify=False, include_control=False, include_txsubmission2=False,
+          connection_lifecycle=False):
     """Stream `lines` and write the session files and index into `outdir`.
     With include_notify, include Notify. With include_control, include control-only
     ChainSync and BlockFetch. include_txsubmission2 requires enriched control
     evidence. Any protocol option enables protocol-tagged output.
-    Returns the index rows."""
+    connection_lifecycle selects explicit handshake/cleanup boundaries instead
+    of NewMux, requiring an observed live generation for every supported wire row.
+    Returns the index rows, with extra generation fields in lifecycle mode."""
+    if connection_lifecycle and not mux_split:
+        raise ValueError('--connection-lifecycle cannot be combined with --no-mux-split')
+    lifecycle = ConnectionLifecycle() if connection_lifecycle else None
     mixed = include_notify or include_control or include_txsubmission2
     os.makedirs(outdir, exist_ok=True)
     open_ = {}   # (cid, role, protocol) -> session generation
@@ -232,14 +347,17 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
             fh.writelines('%d %s\n' % src for src in s['src'])
         rows.append((s['id'], key[0], key[1], len(s['events']),
                      s['src'][0][1], s['src'][-1][1], end) +
-                    ((key[2],) if mixed else ()))
+                    ((key[2],) if mixed else ()) +
+                    ((s['generation']['generation'], s['generation']['handlerThread'],
+                      s['generation']['handshakeLine']) if lifecycle else ()))
 
     for lineno, line in enumerate(lines, 1):
         i = line.find('{')
         if i < 0 or (LF not in line and MUX not in line and
                      (not include_notify or LN not in line) and
                      (not include_control or (CS not in line and BF not in line)) and
-                     (not include_txsubmission2 or TS not in line)):   # cheap pre-filter
+                     (not include_txsubmission2 or TS not in line) and
+                     (not lifecycle or (HANDSHAKE not in line and CLEANUP not in line))):   # cheap pre-filter
             continue
         o = json.loads(line[i:])
         # Local devnet supervisors wrap the node JSON in a message string.
@@ -252,8 +370,18 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
         if 'ns' not in o:
             continue
         ns, d = o['ns'], o['data']
+        if lifecycle and ns in (HANDSHAKE, CLEANUP):
+            try:
+                cid = lifecycle.observe(o, lineno)
+            except (KeyError, ValueError, TypeError, AttributeError) as err:
+                raise ValueError('line %d: %s' % (lineno, err))
+            if cid is not None:
+                for key in list(open_):
+                    if key[0] == cid:
+                        close(key, 'connection')
+            continue
         if ns.startswith(MUX):
-            if mux_split and ns == MUX + 'NewMux':
+            if not lifecycle and mux_split and ns == MUX + 'NewMux':
                 cid = d['bearer']['connectionId']
                 for key in list(open_):
                     if key[0] == cid:
@@ -279,7 +407,9 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
             raise ValueError('line %d: unknown %s namespace %s' % (lineno, protocol, ns))
         role, direction, kind = kinds[suffix]
         try:
-            key = (d['peer']['connectionId'], role, protocol)
+            cid = connection_id(d['peer']['connectionId']) if lifecycle else d['peer']['connectionId']
+            generation = lifecycle.wire(o, cid, role, protocol) if lifecycle else None
+            key = (cid, role, protocol)
             ev = normalizer(direction, kind, d['msg'])
             if mixed:
                 # Keep the exact tracer namespace on each row, including aliases.
@@ -290,7 +420,7 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
         if key not in open_:
             counter[0] += 1
             open_[key] = {'id': 's%04d' % counter[0], 'tag': counter[0] - 1,
-                          'events': [], 'src': []}
+                          'events': [], 'src': [], 'generation': generation}
             session_roles.append(protocol + ':' + role if mixed else role)
         interleaved.append((open_[key]['tag'], ev, lineno, o['at']))
         open_[key]['events'].append(ev)
@@ -310,8 +440,11 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
     rows.sort()
     with open(os.path.join(outdir, 'index.tsv'), 'w') as fh:
         fh.write('session\tconnectionId\trole\tevents\tfirst_at\tlast_at\tend' +
-                 ('\tprotocol' if mixed else '') + '\n')
+                 ('\tprotocol' if mixed else '') +
+                 ('\tconnectionGeneration\thandlerThread\thandshakeLine' if lifecycle else '') + '\n')
         fh.writelines('\t'.join(map(str, r)) + '\n' for r in rows)
+    if lifecycle:
+        lifecycle.write(outdir)
     return rows
 
 
@@ -511,16 +644,20 @@ def main(argv=None):
                         help='split after protocol Done only; do not split at NewMux')
     parser.add_argument('--exclude-txsubmission2', action='store_true',
                         help='explicitly omit TxSubmission2 when its control evidence is unavailable')
+    parser.add_argument('--connection-lifecycle', action='store_true',
+                        help='use explicit handshake/cleanup generations instead of NewMux; requires thread IDs')
     parser.add_argument('--selftest', action='store_true', help='run embedded adapter and CLI checks without input files')
     args = parser.parse_args(argv)
     if args.selftest:
-        if args.log is not None or args.outdir is not None or args.fetch_only or args.no_mux_split or args.exclude_txsubmission2:
+        if args.log is not None or args.outdir is not None or args.fetch_only or args.no_mux_split or args.exclude_txsubmission2 or args.connection_lifecycle:
             parser.error('--selftest cannot be combined with input paths or normalization options')
         selftest_mixed()
         selftest_cli()
         return 0
     if args.log is None or args.outdir is None:
         parser.error('LOG and OUTDIR are required unless --selftest is used')
+    if args.connection_lifecycle and args.no_mux_split:
+        parser.error('--connection-lifecycle cannot be combined with --no-mux-split')
     if args.fetch_only and args.exclude_txsubmission2:
         parser.error('--fetch-only already excludes TxSubmission2; choose one option')
     try:
@@ -528,7 +665,8 @@ def main(argv=None):
             rows = split(log, args.outdir, mux_split=not args.no_mux_split,
                          include_notify=not args.fetch_only,
                          include_control=not args.fetch_only,
-                         include_txsubmission2=not args.fetch_only and not args.exclude_txsubmission2)
+                         include_txsubmission2=not args.fetch_only and not args.exclude_txsubmission2,
+                         connection_lifecycle=args.connection_lifecycle)
     except (OSError, ValueError) as err:
         parser.exit(2, f'error: {err}\n')
     print('%d sessions written to %s' % (len(rows), args.outdir))

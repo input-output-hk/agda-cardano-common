@@ -7,10 +7,17 @@ EOF. An accepted prefix is not evidence of delivery or successful completion.
 Raw-log adapters, pair-manifest normalization and CLI regression scripts live
 in [LogProcessing](LogProcessing/README.md), directly under this replay folder.
 
+For devnet captures without `NewMux`, `normalize_logs.py --connection-lifecycle`
+uses explicit successful handshakes and matching handler cleanups to separate
+connection generations. It preserves source coordinates, writes a lifecycle
+audit and rejects ambiguous generation evidence. The default mux-based mode
+is unchanged. See [LogProcessing](LogProcessing/README.md#devnet-captures-without-newmux)
+for the capture requirements and command.
+
 Paired ChainSync, LeiosNotifyP and LeiosFetchP replay checks communication consistency between explicitly
-paired opposite endpoints. The implementation note (source repository: `docs/notes/paired-chainsync-replay.md`)
+paired opposite endpoints. The [implementation note](../../../docs/notes/paired-chainsync-replay.md)
 documents its input grammar, certificates, tracer boundary and limitations;
-the plan (source repository: `docs/specs/paired-trace-replay-plan.md`) tracks remaining work.
+the [plan](../../../docs/specs/paired-trace-replay-plan.md) tracks remaining work.
 
 ## Exact-field paired Notify bridge
 
@@ -21,14 +28,14 @@ summary carriers preserve every normalized Notify field, including ordered and
 repeated vote entries. This is a concrete representation of retained summaries,
 not a full-block or signature-validity theorem, nor an arbitrary-Params bridge.
 Fetch's exact-field composed bridge remains open. See the
-exact Notify bridge note (source repository: `docs/notes/leiosnotify-exact-paired-bridge.md`).
+[exact Notify bridge note](../../../docs/notes/leiosnotify-exact-paired-bridge.md).
 
 ## Paired LeiosNotifyP and LeiosFetchP
 
 ```sh
 Main --paired-notify PAIR.txt [K_NOTIFY]
 Main --paired-fetch PAIR.txt [K_FETCH]
-python3 -I Cardano_network/Replay/LogProcessing/paired_sessions.py manifest.json PAIR.txt
+python3 -I src/Cardano_network/Replay/LogProcessing/paired_sessions.py manifest.json PAIR.txt
 ```
 
 **Default capacities: Notify 1, Fetch client 4.** Notify uses bounded credits
@@ -44,7 +51,7 @@ correspondence:** they erase some fields checked here, and
 the original Notify peers still alternate at depth one. The new
 `LeiosNotifyPipe` extension now has local kind/direction equivalence at every
 depth, with explicit native payload witnesses for completeness. See the
-bounded Notify bridge note (source repository: `docs/notes/leiosnotify-pipeline-bridge.md`).
+[bounded Notify bridge note](../../../docs/notes/leiosnotify-pipeline-bridge.md).
 The next layer now supplies actual peer/FIFO PTree compositions using the
 shared `CSP/AsyncPair` library, with proved operational trace correspondence.
 Fetch additionally has a store-backed target and inherited projected server
@@ -52,14 +59,14 @@ legality; a formal counterexample shows why its unconstrained bare server
 cannot be used directly for checker soundness. Those older target scopes still require exact log-observation and joint
 completeness proofs; the separate summary-preserving Notify result above
 provides both for its explicitly stated native instance.
-See the Leios paired note (source repository: `docs/notes/paired-leios-replay.md`) for
+See [the Leios paired note](../../../docs/notes/paired-leios-replay.md) for
 input examples, manifest grammar, exact fields, proofs and validation.
 
 ## Paired ChainSync pilot
 
 ```sh
 Main --paired-chainsync PAIR.txt [K_CS]
-python3 -I Cardano_network/Replay/LogProcessing/chainsync_pair.py manifest.json PAIR.txt
+python3 -I src/Cardano_network/Replay/LogProcessing/chainsync_pair.py manifest.json PAIR.txt
 ```
 
 The manifest explicitly identifies the connection, session and both local
@@ -110,7 +117,7 @@ inhabited PTree witnesses and negative controls.
 adaptation now includes this protocol by default and fails precisely when
 blocking or reply-emptiness evidence is missing. An enriched tracer can supply
 those fields. Use `--exclude-txsubmission2` explicitly to normalize only the
-other protocols. See the TxSubmission2 note (source repository: `docs/notes/txsubmission2-replay.md`)
+other protocols. See [the TxSubmission2 note](../../../docs/notes/txsubmission2-replay.md)
 for the pinned sources, exact grammar, validation and devnet coverage audit.
 
 ## ChainSync client and server
@@ -142,7 +149,7 @@ termination; wire Done remains visible. These are standalone-peer results.
 The current adapter still lacks a verified
 boundary for mini-protocol restarts on surviving connections: two supplied
 devnet streams reject a new FindIntersect after an outstanding AwaitReply.
-See the ChainSync note (source repository: `docs/notes/chainsync-replay.md`) for exact source
+See [the ChainSync note](../../../docs/notes/chainsync-replay.md) for exact source
 pins, transition rules, checks, snapshot hashes and rejection analysis.
 
 ## Module naming
@@ -214,7 +221,7 @@ existing one/two-bound forms retain those defaults for omitted arguments.
 role-specific entry points; the latter still rejects a depth argument.
 
 Each product component is checked independently. Acceptance does not match
-one endpoint's sends to another endpoint's receives. See the BlockFetch implementation note (source repository: `docs/notes/blockfetch-pipeline.md`)
+one endpoint's sends to another endpoint's receives. See [the BlockFetch implementation note](../../../docs/notes/blockfetch-pipeline.md)
 for source pins, theorem scope and testing commands.
 
 ## One model for interleaved sessions
@@ -237,7 +244,7 @@ The generic product, instance, parser, reporting and tests use `--safe`.
 The generic product permits different event and state types and universes on
 its two sides. Future mini-protocol replay specifications can therefore be
 combined through the same product once their local replay interfaces and
-deciders are provided. The executable combines all five protocols through `Sessions.agda` and
+deciders are provided. The executable combines all three protocols through `Sessions.agda` and
 `ParseSessions.agda`; the original Fetch-only modules remain library APIs.
 
 ## Configurable Notify pipeline depth (2026-10-14)
@@ -397,7 +404,7 @@ the same proved projection equivalence as Fetch-only interleaving.
 Compile `Main.agda` as described below, then run:
 
 ```sh
-python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py LOG /tmp/leios-mixed
+python3 -I src/Cardano_network/Replay/LogProcessing/normalize_logs.py LOG /tmp/leios-mixed
 /tmp/leios-replay-build/Main --interleaved /tmp/leios-mixed/interleaved.txt 4
 /tmp/leios-replay-build/Main --notify /tmp/notify-session.txt
 ```
@@ -443,23 +450,23 @@ existing Fetch decision/product tests and both Fetch bridge endpoints, adapter
 selftests, and compiled CLI integration tests:
 
 ```sh
-python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
-python3 -I Cardano_network/Replay/LogProcessing/test_notify_replay.py /tmp/leios-replay-build/Main
+python3 -I src/Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
+python3 -I src/Cardano_network/Replay/LogProcessing/test_notify_replay.py /tmp/leios-replay-build/Main
 ```
 
 ## Run (Fetch-only normalization)
 
-From the `src/Network_CSP_Model/` library directory, compile outside the repository:
+From `src/`, compile outside the repository:
 
 ```sh
 agda --compile --compile-dir=/tmp/leios-replay-build Cardano_network/Replay/Main.agda
 ```
 
-From the library directory, normalize one node's raw log and check the single
+From the repository root, normalize one node's raw log and check the single
 interleaved stream:
 
 ```sh
-python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py --fetch-only LOG /tmp/leios-replay-log
+python3 -I src/Cardano_network/Replay/LogProcessing/normalize_logs.py --fetch-only LOG /tmp/leios-replay-log
 /tmp/leios-replay-build/Main --interleaved /tmp/leios-replay-log/interleaved.txt 4
 ```
 
@@ -518,7 +525,7 @@ synchronisation requires a stronger model and additional bridge proofs.
 ## Verification
 
 ```sh
-cd src/Network_CSP_Model
+cd src
 agda Cardano_network/Replay/LeiosFetchInterleavedTests.agda
 agda Cardano_network/Replay/LeiosNotifyTests.agda
 agda Cardano_network/Replay/LeiosNotifyPipelineTests.agda
@@ -526,10 +533,10 @@ agda --safe Cardano_network/Replay/LeiosNotifyBridgeTests.agda
 agda Cardano_network/Replay/Main.agda
 ```
 
-From the library directory:
+From the repository root:
 
 ```sh
-python3 -I Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
+python3 -I src/Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
 ```
 
 The Agda tests include explicit positive product witnesses and negative

@@ -3,7 +3,7 @@
 -- Parsing and printing of normalized LeiosFetch session files
 -- (trace-replay Phase 6). Pure; the IO driver is Cardano_network.Replay.Main.
 --
--- Normalized session file (written by Cardano_network/Replay/LogProcessing/normalize_logs.py --fetch-only):
+-- Normalized session file (written by src/Cardano_network/Replay/LogProcessing/normalize_logs.py --fetch-only):
 --   line 1      : `role client` or `role server`
 --   lines 2 ... : one event per line, fields separated by single spaces
 --     <Dir> BlockRequest    <hash> <slot>
