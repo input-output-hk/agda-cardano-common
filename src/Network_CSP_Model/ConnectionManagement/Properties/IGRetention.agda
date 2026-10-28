@@ -30,6 +30,7 @@ mode-retains mode (IG.monitorCompletion mid) ig queue eq = from-anchors (Mux.mod
 mode-retains mode (IG.startOnDemand mid n) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.startOnDemand mid n) Mux.demand ig queue eq)
 mode-retains mode (IG.finishProtocol mid n outcome) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.finishProtocol mid n outcome) Mux.jobFinished ig queue eq)
 mode-retains mode (IG.publishJobResult mid n) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.publishJobResult mid n) Mux.jobResult ig queue eq)
+mode-retains mode (IG.publishJobOccurrence mid i) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.publishJobOccurrence mid i) Mux.jobOccurrence ig queue eq)
 mode-retains mode (IG.finishStop mid) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.finishStop mid) Mux.stopped ig queue eq)
 mode-retains mode IG.deactivateIG ig queue eq = from-anchors (Loop.mode-anchors mode IG.deactivateIG Loop.deactivate ig queue eq)
 mode-retains mode IG.flushOnExit ig queue eq = from-anchors (Loop.mode-anchors mode IG.flushOnExit Loop.flush ig queue eq)

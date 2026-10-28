@@ -92,6 +92,7 @@ allocation-action t (Open.igStep (IG.forkResponder m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.finishStop m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.startOnDemand m n)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.publishJobResult m n)) mid k ps fl ()
+allocation-action t (Open.igStep (IG.publishJobOccurrence m i)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.finishProtocol m n r)) mid k ps fl ()
 
 -- Existing certificates survive the underlying action independently of phase.

@@ -30,6 +30,7 @@ step-preserves (IG.monitorCompletion mid) = Mux.step-preserves (IG.monitorComple
 step-preserves (IG.startOnDemand mid n) = Mux.step-preserves (IG.startOnDemand mid n) Mux.demand
 step-preserves (IG.finishProtocol mid n outcome) = Mux.step-preserves (IG.finishProtocol mid n outcome) Mux.jobFinished
 step-preserves (IG.publishJobResult mid n) = Mux.step-preserves (IG.publishJobResult mid n) Mux.jobResult
+step-preserves (IG.publishJobOccurrence mid i) = Mux.step-preserves (IG.publishJobOccurrence mid i) Mux.jobOccurrence
 step-preserves (IG.finishStop mid) = Mux.step-preserves (IG.finishStop mid) Mux.stopped
 step-preserves IG.deactivateIG = Loop.step-preserves IG.deactivateIG Loop.deactivate
 step-preserves IG.flushOnExit = Loop.step-preserves IG.flushOnExit Loop.flush

@@ -214,6 +214,7 @@ muxAction (IG.startOnDemand mid _) = just (mid , monitorAccess)
 muxAction (IG.finishStop mid) = just (mid , monitorAccess)
 muxAction (IG.finishProtocol mid _ _) = just (mid , jobAccess)
 muxAction (IG.publishJobResult mid _) = just (mid , jobAccess)
+muxAction (IG.publishJobOccurrence mid _) = just (mid , jobAccess)
 muxAction _ = nothing
 
 phaseAllows : Phase → Access → Bool

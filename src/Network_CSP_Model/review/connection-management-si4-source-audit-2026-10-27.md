@@ -221,3 +221,51 @@ startup does not justify `HandlerLifecycle.jobPoolClosed`, buffer release,
 CM-finalizer entry or Async result publication. Global physical JobId freshness
 across these per-handler pool histories is an explicit adapter check; a per-pool
 distinctness theorem alone cannot establish it.
+
+
+## Protocol jobs in the captured pools — 28 October 2026
+
+At the same network pin, Mux.hs:494–517/600–625 forks mini-protocol jobs into the
+very same JobPool that owns muxer/demuxer. Direction and number identify a source
+protocol slot; a new completionVar identifies each restart. A physical job capture
+therefore needs direction, number and a fresh generation as well as its Async
+identity. PeerActions running cells and legacy responder runningJobs lists are
+not physical registries.
+
+Mux.hs:333–354 returns from the protocol action, traces Terminating, waits for
+that job's Wanton egress to be empty, then atomically sets StatusIdle and writes
+its clean completion before returning the JobResult. JobPool.hs:156–164 publishes
+that returned result to its queue later. Consequently a clean first generation
+can release the protocol slot and be preempted before queue publication; a newer
+generation of the same number can publish first. Selecting a pending result by
+protocol number would incorrectly publish the older occurrence. The new
+publishJobOccurrence operation selects/removes one exact pending occurrence;
+legacy number-based publication remains only for compatibility.
+
+A synchronous job exception (Mux.hs:356–364) bypasses the egress wait and attempts
+the error completion without writing StatusIdle. Error completion must not enable
+a restart. Asynchronous exceptions bypass this jobHandler entirely: no ordinary
+error completion or queued JobResult may be fabricated for cancellation. The
+present normal/synchronous body profile does not implement group cancellation.
+JobPool's masked parent insertion gap remains distinct from child completion:
+children may return and publish before insertion, while deregistration retries
+until insertion. The monitor cannot process another event while its parent fork
+operation is still awaiting that insertion; independent mux parents can proceed.
+
+The new physical queue must carry infrastructure outcomes as well as protocol
+outcomes. Its generation-tagged protocol items are bound to their actual physical
+jobs. The legacy MuxRuntime.completions list is only a responder-side projection
+in this new component: it cannot be treated as the full physical queue or used to
+skip a preceding infrastructure/initiator result. Typed-head monitor consumption
+and the initiator-to-peer result bridge remain later integration obligations.
+
+Initiator creation is an explicit observed miniProtocolJob-fork boundary. The
+adapter checks its captured configured number, slot state, mux readiness and
+known pending work; it does not claim that a PeerActions.startProtocol flag is a
+fork, nor prove the unmodeled initiator caller/command prefix. Initiator result
+cells are captured locally and publish to the authoritative same physical pool.
+This extends the modeled runtime; it is not a fabricated old OutboundMachine or
+PeerActions write. Responder forks/completion/publication do couple to the actual
+existing source dispatcher operations, with exact occurrence selection. No
+source-refinement or complete cross-direction command-FIFO theorem follows from
+the standalone initiator observation.

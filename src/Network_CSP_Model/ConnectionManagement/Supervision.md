@@ -23,7 +23,7 @@ validation and commit status must be checked in the current worktree.
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: successful handler publication coupled to per-handler physical mux startup; protocol jobs/unwind, outer and Server integration still open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: protocol generations and exact publication in the captured pools; typed monitor consumption/unwind, outer and Server integration still open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -755,3 +755,125 @@ buffer release before CM finalizer entry. Masked setup/startup failure and
 interruption branches need their real unwind, too. Preserve independent actors,
 per-parent insertion masks and late admissions while integrating outer scopes.
 SI4/SI5 and full shutdown remain open.
+
+
+## SI4 fifth increment: physical protocol generations in the same pools
+
+`MuxProtocolJobs` instantiates the existing handler/startup wrapper with
+`MuxJobTypes.TypedResult`: muxer and demuxer outcomes plus protocol direction,
+number, generation and outcome. Protocol forks extend each captured frame's
+existing `Startup.pool` through real JobPoolKernel transitions. They do not
+initialize a second pool or reconstruct physical threads from running flags.
+Captured protocol metadata binds JobId to owner handler, mux, direction, number
+and fresh generation. Clean slot completion permits a new generation; error
+completion leaves that slot busy, even after publication/deregistration.
+
+Responder creation requires the actual selected forkPending callback and couples
+`IG.forkResponder` with the physical Pool.fork. Parent insertion is a separate
+step. Initiator creation is an explicit observed source miniProtocolJob fork:
+known configured number, readiness, slot and pending-work guards are checked,
+but the legacy PeerActions running flag is not used as evidence. Initiator
+command selection, directional capability and peer result-action integration are
+still boundary contracts rather than proven frontend histories.
+
+`protocolReturned` records return from the protocol action; `commitClean` is the
+explicit Wanton-drained readiness observation and actual responder completion/
+status commit. The egress byte queue itself is not modeled by that observation.
+Synchronous errors bypass the wait and preserve non-Idle status. Local completion
+commit leaves the physical bodyRunning. `returnProtocol` separately records the
+JobResult return to JobPool, and only then can `publishProtocol` queue its exact
+typed result. Deregistration and Async result publication remain separate. This
+exposes the post-completion unmasked body window for future cancellation; it does
+not assume every committed completion will eventually be queued.
+
+New `IG.publishJobOccurrence mid index` removes one exact finished occurrence.
+The old number-based action remains unchanged for old profiles. The adapter
+tracks responder pending JobIds in append order, locates the selected physical
+job, checks its source number/outcome and typed direction/generation/outcome,
+then couples source occurrence publication with that job's Pool publication.
+A newer run can therefore publish before an older preempted run of the same
+number. Initiator outcomes publish to the authoritative physical pool and local
+completion metadata; they do not fabricate a PeerActions or OutboundMachine
+initiator writer. The legacy mux completion list is only the responder projection
+here, not the complete shared queue.
+
+Infrastructure results also use the same typed pool, including inside their
+parent insertion gaps. Arbitrary inherited child-result input and raw monitor/job
+bypasses are blocked. Typed controls allow command selection, on-demand start and
+tracer continuation only after physical startup, respecting the selected owner's
+parent insertion gap and physical result priority. A previously selected start
+may finish tracing/forking after a result arrives. There is no result-consumption,
+group-cancel, cancellation/unwind, pool-join or handler-finalization shortcut.
+
+`Properties/MuxProtocolJobs` projects every successful step and finite execution
+to actual OutboundMachine executions and actual selected-handler Pool executions.
+New protocol forks cannot be projected through the older startup-only grammar;
+the proof uses JobPoolKernel directly. The selected pool starts empty at the real
+initializer. Existing pending-capture and combined runtime/supply facts lift
+through the actual source trace with their original premises.
+
+
+Local checked observations additionally retain the physical fork metadata/source
+callback (or explicit initiator-fork contract), completion commit and unchanged
+pool/bodyRunning window, actual body return, exact typed publication, and selected
+responder ordinal/source occurrence. They are instantiated in the acceptance
+endpoint together with source/pool execution and capture/supply certificates.
+
+Validation on 28 October 2026 used Agda 2.8.0 and `+RTS -M2G -RTS`, sequentially,
+with no final warnings. The two new runtime/type modules, final property endpoint,
+new occurrence controls and final protocol-job acceptance all had fresh Checking
+output. The modified old proof statements were retained and checked through
+Properties/{HandlerIG,IGRetention,OriginMonitorInvariant}; existing
+Negative/TracerAttachment also passed. It initially failed only because the
+sandbox could not refresh an external csp-ptree interface; an explicitly escalated
+retry succeeded without dependency source edits.
+
+The new Negative/MuxProtocolJobs endpoint contains 142 named reflexivity controls.
+Its initialized 38-action physical birth/publication/caller/IG-queue/startup prefix
+feeds a 13-action fast responder run that commits, returns and queues before
+parent insertion, then inserts/deregisters/publishes its Async result. Other
+initialized model executions cover same-number opposite directions, a clean
+initiator restart before the older body return with newer error publication first,
+mixed infrastructure/protocol outcomes, early infrastructure publication before
+insertion and completion of an already selected start after a result arrives.
+The responder same-number ordinal-overtaking suffix uses an explicitly
+conditional frontend request after a genuine older clean commit; it is not an
+initialized ordinary-IG restart witness. Source IG normally restarts from the mux
+completion trace. Five separate ProtocolJobOccurrence controls check indexed
+publication, retained older data, legacy compatibility and refusal cases.
+
+The first acceptance import closure exhausted 2 GB in CSP/InboundRelease before
+reaching the new scenarios. New data-only Negative/MuxProtocolFixtures removed
+the heavy CSP/old-negative dependency while preserving actual initialized steps
+and all intended controls; no heap increase or case deletion was used. The older
+CSP/InboundRelease endpoint was subsequently checked **in isolation**, freshly at
+the same 2 GB limit, and passed. Final test imports therefore remain cheap rather
+than relying on that whole expensive closure. Compiler repairs were local names,
+nested-with scope and equality transport, not weakened statements or disabled
+checks. The source audit also prompted the clean commit/body-return split before
+final checking, preserving the future cancellation window.
+
+The final thirteen-file local proof audit found three heuristic question-mark
+hits, all inspected pre-existing natural-number decision operators in
+IGRegistration (two ≤? and one <?), and no actual holes or unsafe additions.
+Tracked and all six new files' whitespace checks passed. Mux/JobPool exports were
+compared against the unchanged pin. No Haskell replay, source-pin migration or
+commit was performed. Logs are under `/tmp/cm-review-20261028/`:
+`protocol-occurrence-{handler,retention,origin,negative,tracer}.log`,
+`protocol-jobs-{types,rules,properties,negative,negative-final}.log`, and
+`protocol-jobs-inbound-release-isolated.log`. Earlier failed attempts were
+reported; successful retry logs contain final results. All changes after
+`77cc590` remain uncommitted and `.claude` is untouched.
+
+Next: consume the typed physical FIFO head through a verified mux-monitor bridge,
+including infrastructure failures and the responder projection/initiator result
+bridge. Do not let the legacy responder-only list skip a preceding physical
+infrastructure or initiator item. Group decisions must count the current physical
+registered MiniProtocolJob subset, not historical metadata or protocol slot
+activity. Then implement distinct interruptible group cancel/join, full pool
+shutdown, buffer release and captured CM finalization. Cancellation after clean
+completion but before body return must retain the committed completion/status
+while producing no queued normal/error JobResult; exact pending-occurrence
+bookkeeping must remain aligned. Synchronous exception-handler and post-return
+masked publication regions also need their correct delivery guards. SI4/SI5,
+outer scope integration and full shutdown remain open.

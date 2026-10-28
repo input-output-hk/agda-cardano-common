@@ -29,9 +29,11 @@ and Async result publication to that wait. Their proofs retain actual source
 interleavings and the allocation/capture premises. `MuxHandlerSupervision` now
 couples actual successful promise publication to a per-handler `Rules/MuxStartup`
 instance, tracks muxer/demuxer forks in the same queued pool and protects the
-post-handshake prefix from old cancellation/cleanup entry points. Protocol job
-ownership, post-handshake completion, outer scope integration and full shutdown
-remain open. The earlier inbound
+post-handshake prefix from old cancellation/cleanup entry points. `MuxProtocolJobs`
+adds direction/generation captures and exact result publication to those same
+pools, with initiator frontend integration still an explicit boundary. Typed
+monitor consumption, post-handshake cleanup, outer scope integration and full
+shutdown remain open. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite

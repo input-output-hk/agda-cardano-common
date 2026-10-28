@@ -91,6 +91,7 @@ data IGAction : Set where
   monitorCommand monitorCompletion sampleTracer commitTracer finishStart forkResponder finishStop : MuxId → IGAction
   startOnDemand : MuxId → ℕ → IGAction
   publishJobResult : MuxId → ℕ → IGAction
+  publishJobOccurrence : MuxId → ℕ → IGAction
   finishProtocol : MuxId → ℕ → RunResult → IGAction
 
 Result = Runtime × List IGEvent
@@ -269,6 +270,14 @@ missingDescriptor (M.completed n _) (just v) (just rc) with M.findProtocol n (M.
 ... | nothing = just n
 ... | just _ = nothing
 
+-- Remove exactly the indexed pending occurrence; protocol numbers may repeat.
+takePending : ℕ → List (ℕ × RunResult) → Maybe ((ℕ × RunResult) × List (ℕ × RunResult))
+takePending i [] = nothing
+takePending zero (result ∷ rest) = just (result , rest)
+takePending (suc i) (result ∷ rest) with takePending i rest
+... | nothing = nothing
+... | just (chosen , retained) = just (chosen , result ∷ retained)
+
 stepWorker : IGAction → Runtime → List IGEvent → Maybe Result
 -- IG exit is an environment exception/scope-exit boundary, not a free normal
 -- loop decision. Source catch handler deactivates and then flushes in separate STMs.
@@ -431,6 +440,16 @@ stepWorker (publishJobResult mid n) r queue with lookup mid (muxes (execution r)
 ...   | nothing = nothing
 ...   | just outcome = just (setMux mid (record m
       { finishedJobs = delete n (M.finishedJobs m)
+      ; completions = M.completions m ++ (M.jobResult M.responderJob n outcome ∷ []) }) r , queue)
+-- Select a physical publication occurrence, preserving other runs of the same
+-- protocol. JobPool publishes the particular returning job, not the oldest run
+-- with that protocol number (JobPool.hs:156-164 at the source pin).
+stepWorker (publishJobOccurrence mid i) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with takePending i (M.finishedJobs m)
+...   | nothing = nothing
+...   | just ((n , outcome) , retained) = just (setMux mid (record m
+      { finishedJobs = retained
       ; completions = M.completions m ++ (M.jobResult M.responderJob n outcome ∷ []) }) r , queue)
 -- Completion of cancelGroup/egress drain is still an environment boundary.
 stepWorker (finishStop mid) r queue with lookup mid (muxes (execution r))

@@ -31,7 +31,7 @@ finish ig mid old new s found same refl chain =
 
 -- Re-export the same coverage API; share the source-rule effect proof.
 open import ConnectionManagement.Properties.MuxRetention public using
-  (CoveredMux; sample; trace; started; fork; command; completion; demand; jobFinished; jobResult; stopped)
+  (CoveredMux; sample; trace; started; fork; command; completion; demand; jobFinished; jobResult; jobOccurrence; stopped)
 import ConnectionManagement.Properties.MuxRetention as Retention
 
 worker-chain : ∀ a → CoveredMux a → ∀ ig queue s {ig′ queue′ q mid} →

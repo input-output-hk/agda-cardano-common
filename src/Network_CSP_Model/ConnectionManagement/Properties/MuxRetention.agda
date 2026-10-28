@@ -37,6 +37,7 @@ data CoveredMux : IG.IGAction → Set where
   demand : ∀ {mid n} → CoveredMux (IG.startOnDemand mid n)
   jobFinished : ∀ {mid n outcome} → CoveredMux (IG.finishProtocol mid n outcome)
   jobResult : ∀ {mid n} → CoveredMux (IG.publishJobResult mid n)
+  jobOccurrence : ∀ {mid i} → CoveredMux (IG.publishJobOccurrence mid i)
   stopped : ∀ {mid} → CoveredMux (IG.finishStop mid)
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
@@ -174,6 +175,11 @@ worker-anchors .(IG.publishJobResult mid n) (jobResult {mid} {n}) ig queue eq wi
 ... | just m with lookup n (M.finishedJobs m)
 ...   | nothing = case eq of λ ()
 ...   | just outcome = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+worker-anchors .(IG.publishJobOccurrence mid i) (jobOccurrence {mid} {i}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with IG.takePending i (M.finishedJobs m)
+...   | nothing = case eq of λ ()
+...   | just ((n , outcome) , retained) = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 worker-anchors .(IG.finishStop mid) (stopped {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.status m | M.callback m
@@ -204,4 +210,5 @@ mode-anchors noResponderMode .(IG.forkResponder mid) (fork {mid}) ig queue ()
 mode-anchors noResponderMode .(IG.startOnDemand mid n) (demand {mid} {n}) ig queue ()
 mode-anchors noResponderMode .(IG.finishProtocol mid n result) (jobFinished {mid} {n} {result}) ig queue ()
 mode-anchors noResponderMode .(IG.publishJobResult mid n) (jobResult {mid} {n}) ig queue ()
+mode-anchors noResponderMode .(IG.publishJobOccurrence mid i) (jobOccurrence {mid} {i}) ig queue ()
 mode-anchors responderMode a covered ig queue eq = worker-anchors a covered ig queue eq
