@@ -51,6 +51,16 @@ data Callback : Set where
   tracerFailed : ℕ → Callback
   returned : Callback
 
+-- Explicit async observation points in the unmasked tracer/callback body.
+-- afterStart/afterFailure retain already committed STM effects; forkPending is
+-- outside this profile because fork/registration has its own masking contract.
+interruptibleCallback : Callback → Bool
+interruptibleCallback (readActive _) = true
+interruptibleCallback (commitTrace _ _) = true
+interruptibleCallback (afterStart _) = true
+interruptibleCallback afterFailure = true
+interruptibleCallback _ = false
+
 -- Both directions publish job results into the same source JobPool FIFO.
 -- Direction separates initiator/responder jobs with the same protocol number.
 data JobDirection : Set where

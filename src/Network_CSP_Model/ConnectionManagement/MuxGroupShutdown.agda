@@ -38,7 +38,7 @@ data Outcome : Set where
   failedExit asyncExit : ErrorId → Outcome
 data Phase : Set where
   idle shutdownSelected stoppingTraced stoppingWritten groupClosing draining
-    drainReady stoppedTrace monitorReturnedNormal : Phase
+    drainReady stoppedTrace stoppedTracing monitorReturnedNormal : Phase
   ownerAborting : ErrorId → Phase
   wholeClosing wholeClosed scopeDone : Outcome → Phase
   asyncFailureWritten asyncDeadTracing : ErrorId → Phase
@@ -106,6 +106,7 @@ sameStage groupClosing groupClosing = true
 sameStage draining draining = true
 sameStage drainReady drainReady = true
 sameStage stoppedTrace stoppedTrace = true
+sameStage stoppedTracing stoppedTracing = true
 sameStage monitorReturnedNormal monitorReturnedNormal = true
 sameStage _ _ = false
 fromPhase : WorkerId → Phase → Phase → State → Maybe State
@@ -276,6 +277,7 @@ ordinaryAbortStage groupClosing = true
 ordinaryAbortStage draining = true
 ordinaryAbortStage drainReady = true
 ordinaryAbortStage stoppedTrace = true
+ordinaryAbortStage stoppedTracing = true
 ordinaryAbortStage _ = false
 abortStage : WorkerId → State → Bool
 abortStage w s with phase (frameAt w s)
@@ -324,6 +326,17 @@ finishWhole w s with phase (frameAt w s)
 ...   | nothing = nothing
 ...   | just next = just (setPhase w (wholeClosed outcome) next)
 finishWhole w s | _ = nothing
+
+-- Graceful TraceStopped must actually return before the monitor can leave.
+-- Active sampling and its queue/counter transaction are separate source steps.
+finishStopped : WorkerId → State → Maybe State
+finishStopped w s with sameStage stoppedTracing (phase (frameAt w s)) | ownerContext w s
+... | true | just (f , mid) with P.muxAt mid (protocolState s)
+...   | just m with Mux.status m | Mux.callback m
+...     | Mux.stopped | Mux.returned = just (setPhase w monitorReturnedNormal s)
+...     | _ | _ = nothing
+finishStopped w s | true | just (f , mid) | nothing = nothing
+finishStopped w s | _ | _ = nothing
 
 -- Async catch executes only AFTER the actual whole-pool close, overwriting a
 -- prior Stopping/Stopped/Failed status before tracing Dead and returning here.
@@ -399,7 +412,8 @@ inherit action s with delegateAllowed action s
 data Action : Set where
   run : M.Action → Action
   requestShutdown selectShutdown observeStoppingTrace writeStopping requestGroupCancel deliverGroup
-    joinGroup finishGroup drainEmpty timeout2Elapsed writeStopped observeTraceStopped : WorkerId → Action
+    joinGroup finishGroup drainEmpty timeout2Elapsed writeStopped observeTraceStopped
+    sampleStoppedTracer commitStoppedTracer finishStoppedTrace : WorkerId → Action
   captureGroup : WorkerId → List JobId → Action
   finishChildUnwind : JobId → Action
   unwindReplacedBySync : JobId → ErrorId → Action
@@ -421,7 +435,10 @@ step (finishGroup w) s = finishMini w s
 step (drainEmpty w) s = fromPhase w draining drainReady s
 step (timeout2Elapsed w) s = fromPhase w draining drainReady s
 step (writeStopped w) s = sourcePhase w drainReady stoppedTrace IG.completeMuxStopping s
-step (observeTraceStopped w) s = fromPhase w stoppedTrace monitorReturnedNormal s
+step (observeTraceStopped w) s = sourcePhase w stoppedTrace stoppedTracing IG.traceGracefulMuxStopped s
+step (sampleStoppedTracer w) s = sourcePhase w stoppedTracing stoppedTracing IG.sampleTracer s
+step (commitStoppedTracer w) s = sourcePhase w stoppedTracing stoppedTracing IG.commitTracer s
+step (finishStoppedTrace w) s = finishStopped w s
 step (finishChildUnwind j) s = unwindChild j s
 step (unwindReplacedBySync j err) s = replaceUnwind j err s
 step (abortOwner w err) s = abortMonitor w err s

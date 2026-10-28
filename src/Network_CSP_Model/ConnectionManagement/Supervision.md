@@ -23,7 +23,7 @@ validation and commit status must be checked in the current worktree.
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: typed FIFO monitor effects checked; group/whole-pool unwind, buffer/CM cleanup and outer/Server integration still open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: typed FIFO, group/whole-pool unwind, buffer/CM cleanup, partial startup and async callback paths checked within their profiles. SI4-F1 (graceful TraceStopped/IG callback) is corrected in the worktree; remaining failure windows and outer/Server integration remain open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -1000,7 +1000,11 @@ an interrupted body from resuming its old return/commit continuation. Independen
 children, other owners and ordinary source actors keep their existing guards.
 
 Group completion permits observed empty egress or timeout, then Stopped and
-TraceStopped. It does not close the pool or emit IG Dead. Monitor return or
+TraceStopped. **Correction, 28 October (SI4-F1):** the pinned IG tracer handles
+TraceStopped by publishing MuxFinished and clearing counters. The original
+adapter omitted that callback; the twelfth increment below corrects it and
+updates these initialized graceful witnesses. TraceStopped does not close the pool or emit
+a TraceState Dead event. Monitor return or
 observed owner abort enables a separate actual Kernel.beginClose snapshot of all
 CURRENT registered jobs, including infrastructure, followed by sequential
 uninterruptible cancellation/joins and actual finishClose. Owner abort seals the
@@ -1314,3 +1318,168 @@ Haskell replay, upstream/pin change, unrelated build, commit or push. This and t
 preceding cancellation-window increment remain uncommitted after `a173dd0`;
 `.claude` is untouched. Source-fidelity and finite model evidence remain separate
 from implementation replay and a term-level audit of dependency assumptions.
+
+
+## Eleventh increment: async mux/IG callback interruption (28 October 2026)
+
+`MuxStartupUnwind.unmaskedMuxCallback` observes async delivery at a published,
+monitoring owner with a settled fork/registration gap. Callback read/STM and
+post-commit continuations retain their exact source snapshot. Selection changes
+only fault metadata; `Properties/MuxStartupUnwind.cancellation-keeps-base` proves
+that the source, pool and held monitor state are unchanged. Existing controllers
+are sealed for that owner while physical children and other actors can proceed.
+The original callback is not cleared to Returned to satisfy an exit guard.
+
+The real current-pool snapshot must close before the catch writes Failed.
+Separate `recordInterruptedMuxFailure` and `traceInterruptedMuxDead` operations
+preserve the old successful-return guards. The status write leaves the abandoned
+callback intact; the subsequent operation invokes a new Dead callback, retaining
+the original callback in the fault record. Its queue/counter transaction can retry.
+Provider unwind, the captured CM finally and physical Async-result publication
+remain required. The existing source/pool execution projections, initialized
+capture/supply and snapshot-terminal certificates cover the new actions.
+
+Initialized acceptance paths cover a held responder completion at its pending
+IG STM transaction, and a start tracer after its atomic counter/event burst has
+committed but before a protocol fork. The former does not commit the interrupted
+transaction; the latter does not roll back the already committed burst. Both
+close the actual infrastructure snapshot and invoke Failed/Dead in order.
+`Negative/MuxCallbackCancellationCM` additionally drives the CM snapshot/read/send,
+actual callback delivery acknowledgment, collective wait, buffer exit, original
+CM cleanup and physical parent result. Delivery and pool close cannot shortcut
+the remaining cleanup/result obligations. Queue-full Dead retry controls are
+conditional snapshots, not initialized queue-saturation witnesses.
+
+The exact pinned Mux, JobPool, ConnectionHandler and InboundGovernor source
+objects were byte-compared with the local audit exports. Mux.hs:254–279 places
+the async catch after the pool bracket; InboundGovernor.hs:635–720 uses an active
+read followed by atomic event/counter effects. Delivery observations and provider/
+mask contracts remain explicit. No implementation replay or full-shutdown claim
+follows from these finite model executions.
+
+### Newly verified source-fidelity issue SI4-F1
+
+The earlier audit incorrectly called TraceStopped ignored by IG. At this pin,
+Mux.hs:565 emits TraceStopped; InboundGovernor.hs:719–728 routes it to the same
+MuxFinished/counter-clear STM branch as TraceState Dead. The current
+`MuxGroupShutdown.observeTraceStopped` is only a local phase change and skips
+that effect, retry and interruption boundary. Its initialized graceful examples
+therefore cannot be presented as complete source-faithful graceful shutdown.
+The correction is required before extending those graceful claims: model the
+actual callback invocation, active sample, atomic commit/retry, and return before
+monitor return/whole-pool close. Preserve existing Failed/Dead distinctions.
+This finding changes the next task's priority; the current async-callback paths
+start from non-graceful initialized monitor histories.
+
+
+Validation for the eleventh increment: Agda 2.8.0 checked thirteen targeted
+endpoints serially with `+RTS -M2G -RTS`, all exit zero without warnings:
+`Properties/{SubsystemSupply,SubsystemReferences,OriginMonitorInvariant}`,
+`MuxStartupUnwind`, `Properties/MuxStartupUnwind`,
+`Negative/{MuxCallbackCancellation,MuxCallbackCommitted,MuxCallbackCancellationCM,
+MuxStartupUnwindBranches,MuxStartupUnwindInterleavings,MuxStartupUnwindCM,
+MuxStartupUnwindSites,MuxGroupEffects}`. Each final log contains its Checking
+line. Two aggregate fresh-dependency/property attempts exhausted 2 GB; checking
+the runtime separately and then its property closure succeeded at the same limit.
+No scenario was removed, statement weakened, heap increased or safety disabled.
+
+The thirteen-file static audit flags three existing question-mark comparison
+operators in IGRegistration (≤? and <?), verified unchanged from HEAD, rather
+than proof holes. No new holes, postulates or checker bypasses were introduced.
+Whitespace and one-EOF checks pass for all sixteen changed/new source and
+documentation files. Final logs are `/tmp/cm-review-20261028/callback-final-*.log`;
+`callback-properties-cold-heap.log` preserves the final aggregate heap failure,
+and `callback-proof-audit.log` records the heuristic audit. No checker remains
+running. These changes are uncommitted after `d47f109`; `.claude` is untouched.
+No Haskell replay, source-pin change, full-system shutdown proof, commit or push
+was performed. Next: correct SI4-F1, then resume the remaining callback/failure
+windows and outer Server/IG/governor composition.
+
+
+## Twelfth increment: SI4-F1 graceful TraceStopped correction (28 October 2026)
+
+Rechecked exact pinned Mux.hs and InboundGovernor.hs against the audit exports.
+Mux.hs:555–570 writes Stopped before TraceStopped; InboundGovernor.hs:719–728
+recognizes TraceStopped and TraceState Dead with the same active-gated,
+atomic MuxFinished/counter-clear transaction. This fixes the source-fidelity
+issue identified in the eleventh increment; the network pin is unchanged.
+
+`Rules/IGRegistration.traceGracefulMuxStopped` identifies the real graceful
+source event separately from `traceMuxDead`. `MuxGroupShutdown` now enters
+`stoppedTracing`, samples active, attempts the real tracer transaction, and
+requires its returned callback at Stopped before `finishStoppedTrace` permits
+monitor return. Only then may whole-pool closure start. A full queue retries;
+no callback return, counter clear, notification or normal pool exit is invented.
+The callback itself does not join or close the still-live infrastructure pool.
+No-IG attachment and an attached inactive tracer remain distinct branches.
+
+`Properties/MuxGroupShutdown.StoppedReturn` and `finish-stopped-observation`
+expose the exact owner/mux lookups, Stopped status, returned callback, and next
+phase of every successful graceful return. Generic source/pool execution
+projections cover each new action; initialized capture/supply and snapshot-result
+certificates retain their original statements. Mux retention, handler chains,
+subsystem references and origin classification cover the new source operation.
+
+Initialized normal, clean-cancellation, error-publication-race and unwind-error
+witnesses now include the callback's invocation, active sample, commit and
+return. Their post-callback snapshots retain the notification and cleared
+counters through whole-pool close and downstream CM cleanup. The old acceptance
+claim that source state was unchanged by TraceStopped was false at the pin; it
+is replaced by explicit Stopped-status and MuxFinished-publication checks.
+
+`Negative/MuxStoppedTracer` checks blocked return/closure at each boundary,
+100-slot retry versus 99-slot atomic success, captured-active semantics,
+inactive/no-IG behavior, and the return certificate. Full/inactive/no-IG controls
+are explicitly conditional snapshots, not initialized saturation or attachment
+reachability claims. `MuxStoppedTracerCancellation` supplies an initialized
+history through real graceful group cancellation and pending TraceStopped
+callback, then observed async delivery, actual whole-pool close, Failed/Dead
+and provider handoff. The abandoned graceful notification is not committed;
+the new Dead invocation publishes once. The old callback remains in the fault
+record and its old controllers cannot resume. Returned-callback cancellation
+uses the existing ordinary abort guard and retains already committed effects.
+
+The new cancellation endpoint imports small, data-only MuxPoolCloseFixtures;
+it proves all transitions rather than importing another acceptance endpoint
+solely for its snapshots. Async delivery, buffer/helper masks and custom tracer
+normal/exceptional outcomes remain explicit contracts. There is no Haskell mux
+replay or new universal shutdown/liveness/source-refinement claim.
+
+
+Validation for the twelfth increment: twenty-one targeted Agda 2.8.0 endpoint
+commands passed serially at `+RTS -M2G -RTS`, without warnings. Final logs have
+seventeen own-module Checking lines and four cached successes (group/unwind
+properties and group/startup acceptance); those closures had already passed
+with the current dependencies. Commands checked
+`Properties/{SubsystemSupply,SubsystemReferences,OriginMonitorInvariant,
+MuxGroupShutdown,MuxStartupUnwind}` and
+`Negative/{MuxGroupShutdown,MuxStoppedTracer,MuxStoppedTracerCancellation,
+MuxHandlerExit,MuxHandlerExitOutcomes,MuxHandlerExitCM,MuxExitCancellation,
+MuxStartupUnwind,MuxStartupUnwindBranches,MuxStartupUnwindInterleavings,
+MuxStartupUnwindCM,MuxStartupUnwindSites,MuxCallbackCancellation,
+MuxCallbackCommitted,MuxCallbackCancellationCM,MuxGroupEffects}`.
+The changed source runtime/rules and new pool fixture were also checked during
+incremental development, directly or transitively. No endpoint is described as
+fresh solely from a cached success.
+
+Two initial aggregate callback-cancellation checks exhausted 2 GB while importing
+large acceptance modules only for data. The small data-only fixture layer removed
+that dependency; the same initialized scenario then passed at 2 GB. No statement
+was weakened, scenario removed, safety disabled or heap limit raised. Local
+record-field/import scoping repairs were completed before the final checks.
+Logs: `/tmp/cm-review-20261028/si4f1-final-*.log`; the two heap failures remain in
+`si4f1-tracer-cancellation.log` and
+`si4f1-Negative-MuxStoppedTracerCancellation.log`. Static audit of all twenty
+pending Agda files found only the same three pre-existing comparison-operator
+false positives (≤?/<?) in IGRegistration. No new postulates, holes or unsafe
+options were added. Whitespace/EOF checks pass. These changes and the preceding
+callback increment remain uncommitted after d47f109. No checker is running.
+No source-pin change, Haskell replay, commit or push was performed; `.claude` is untouched.
+
+SI4-F1 is complete within the stated profile. Next: expose the bearer tracer's
+TraceEmitDeltaQ callback after clean protocol completion and after Dead on error,
+with normal/synchronous/asynchronous outcomes. Preserve prior status/notification
+commits and exception replacement; do not infer normal monitor return when that
+callback throws. Remaining ignored callbacks, post-close catch cancellation,
+earlier allocation/publication and child-finalizer failures, followed by outer
+Server/IG/governor composition and admission quiescence, still precede SI5.

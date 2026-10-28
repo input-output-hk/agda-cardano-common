@@ -47,6 +47,9 @@ data CoveredMux : IG.IGAction → Set where
   stoppingComplete : ∀ {mid} → CoveredMux (IG.completeMuxStopping mid)
   discardOccurrence : ∀ {mid i} → CoveredMux (IG.discardJobOccurrence mid i)
   asyncFailureStatus : ∀ {mid err} → CoveredMux (IG.recordAsyncMuxFailure mid err)
+  interruptedFailureStatus : ∀ {mid err} → CoveredMux (IG.recordInterruptedMuxFailure mid err)
+  interruptedDeadTrace : ∀ {mid} → CoveredMux (IG.traceInterruptedMuxDead mid)
+  gracefulStoppedTrace : ∀ {mid} → CoveredMux (IG.traceGracefulMuxStopped mid)
   stopped : ∀ {mid} → CoveredMux (IG.finishStop mid)
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
@@ -278,6 +281,19 @@ worker-anchors .(IG.recordAsyncMuxFailure mid err) (asyncFailureStatus {mid} {er
 ...   | M.forkPending n = case eq of λ ()
 ...   | M.afterFailure = case eq of λ ()
 ...   | M.tracerFailed n = case eq of λ ()
+worker-anchors .(IG.recordInterruptedMuxFailure mid err) (interruptedFailureStatus {mid} {err}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.interruptibleCallback (M.callback m)
+...   | false = case eq of λ ()
+...   | true = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+worker-anchors .(IG.traceInterruptedMuxDead mid) (interruptedDeadTrace {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.interruptibleCallback (M.callback m)
+...   | M.failed err | true = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.failed err | false = case eq of λ ()
+...   | M.ready | _ = case eq of λ ()
+...   | M.stopping | _ = case eq of λ ()
+...   | M.stopped | _ = case eq of λ ()
 worker-anchors .(IG.completeMuxStopping mid) (stoppingComplete {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.status m | M.callback m
@@ -291,6 +307,19 @@ worker-anchors .(IG.completeMuxStopping mid) (stoppingComplete {mid}) ig queue e
 ...   | M.stopping | M.forkPending n = case eq of λ ()
 ...   | M.stopping | M.afterFailure = case eq of λ ()
 ...   | M.stopping | M.tracerFailed n = case eq of λ ()
+worker-anchors .(IG.traceGracefulMuxStopped mid) (gracefulStoppedTrace {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.status m | M.callback m
+...   | M.ready | _ = case eq of λ ()
+...   | M.stopping | _ = case eq of λ ()
+...   | M.failed err | _ = case eq of λ ()
+...   | M.stopped | M.returned = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | M.stopped | M.readActive tr = case eq of λ ()
+...   | M.stopped | M.commitTrace active tr = case eq of λ ()
+...   | M.stopped | M.afterStart n = case eq of λ ()
+...   | M.stopped | M.forkPending n = case eq of λ ()
+...   | M.stopped | M.afterFailure = case eq of λ ()
+...   | M.stopped | M.tracerFailed n = case eq of λ ()
 worker-anchors .(IG.enqueueMuxStop mid) (stopRequest {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
@@ -334,4 +363,7 @@ mode-anchors noResponderMode .(IG.discardJobOccurrence mid i) (discardOccurrence
 mode-anchors noResponderMode .(IG.recordAsyncMuxFailure mid err) (asyncFailureStatus {mid} {err}) ig queue eq = worker-anchors (IG.recordAsyncMuxFailure mid err) asyncFailureStatus ig queue eq
 mode-anchors noResponderMode .(IG.completeMuxStopping mid) (stoppingComplete {mid}) ig queue eq = worker-anchors (IG.completeMuxStopping mid) stoppingComplete ig queue eq
 mode-anchors noResponderMode .(IG.enqueueMuxStop mid) (stopRequest {mid}) ig queue eq = worker-anchors (IG.enqueueMuxStop mid) stopRequest ig queue eq
+mode-anchors noResponderMode .(IG.recordInterruptedMuxFailure mid err) (interruptedFailureStatus {mid} {err}) ig queue eq = worker-anchors (IG.recordInterruptedMuxFailure mid err) interruptedFailureStatus ig queue eq
+mode-anchors noResponderMode .(IG.traceInterruptedMuxDead mid) (interruptedDeadTrace {mid}) ig queue eq = worker-anchors (IG.traceInterruptedMuxDead mid) interruptedDeadTrace ig queue eq
+mode-anchors noResponderMode .(IG.traceGracefulMuxStopped mid) (gracefulStoppedTrace {mid}) ig queue eq = worker-anchors (IG.traceGracefulMuxStopped mid) gracefulStoppedTrace ig queue eq
 mode-anchors responderMode a covered ig queue eq = worker-anchors a covered ig queue eq

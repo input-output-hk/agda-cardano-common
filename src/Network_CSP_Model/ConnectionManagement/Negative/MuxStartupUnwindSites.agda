@@ -153,7 +153,8 @@ abstract
     (Main.wrappedActions (Main.callerActions ++ List.take 11 Old.startupPathActions) ++ (R.observeFailure owner R.timeoutSetup err ∷ [])) timeoutSetupAfter
   initialized-timeoutSetup = Facts.append (Main.liftP (Old.append Main.callerPath timeoutSetupPrefix) refl refl) (R.next timeoutSetup-step R.done)
 
--- The ignored graceful trace sites are inside the acquired pool as well.
+-- Both graceful trace sites are inside the acquired pool. TraceStopped now
+-- also invokes the real IG callback after the caller tracer leg.
 stopBefore stopAfter stoppedBefore stoppedAfter : R.State
 stopBefore = Facts.wrap (W.handlerExitState GF.normal2 [])
 stopAfter = F.mark (W.handlerExitState GF.normal2 []) (S.monitoring Old.j₀ Old.j₁) Mux.returned R.poolBody (R.sync err) R.awaitingClose

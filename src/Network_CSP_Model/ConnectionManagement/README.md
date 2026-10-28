@@ -43,8 +43,13 @@ scope exit and typed handler outcomes to captured CM cleanup and the physical CM
 node-send delivery with CM acknowledgment. Provider masks remain contracts;
 `MuxStartupUnwind` adds post-publication setup/startup faults and synchronous
 mux/IG-tracer unwind, retaining incomplete startup and actual current-pool joins.
-Async mux-callback delivery, earlier allocation/publication gaps and outer
-supervision scopes still need coverage before full shutdown. The earlier inbound
+Async mux/IG callback delivery now preserves the held result and committed effects
+through actual pool close, Failed/Dead and captured CM cleanup. Ignored/DeltaQ
+callbacks, post-close catch cancellation, earlier allocation/publication gaps and
+outer supervision scopes still need coverage before full shutdown. Source rechecking
+identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for
+its actual transaction/return, then permits monitor return and whole-pool close.
+Queue retry and callback interruption are checked; see Supervision.md. The earlier inbound
 dispatcher has lease-ownership, allocation-supply and reference-preservation
 theorems. [Combined capture and supply preservation](Outbound.md#invariant-extension-captured-entry-prerequisite)
 now covers every successful `Subsystem.advance` and arbitrary finite

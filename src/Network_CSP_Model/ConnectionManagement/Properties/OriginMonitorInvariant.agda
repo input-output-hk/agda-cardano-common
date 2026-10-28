@@ -102,6 +102,9 @@ allocation-action t (Open.igStep (IG.completeMuxStopping m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.enqueueMuxStop m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.discardJobOccurrence m i)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.recordAsyncMuxFailure m err)) mid k ps fl ()
+allocation-action t (Open.igStep (IG.recordInterruptedMuxFailure m err)) mid k ps fl ()
+allocation-action t (Open.igStep (IG.traceInterruptedMuxDead m)) mid k ps fl ()
+allocation-action t (Open.igStep (IG.traceGracefulMuxStopped m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.finishProtocol m n r)) mid k ps fl ()
 
 -- Existing certificates survive the underlying action independently of phase.

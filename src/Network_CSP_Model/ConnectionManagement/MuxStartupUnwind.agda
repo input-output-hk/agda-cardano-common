@@ -7,7 +7,7 @@ open import ConnectionManagement.Domain using (ErrorId)
 open import Data.Bool using (Bool)
 module ConnectionManagement.MuxStartupUnwind (isBearerClosed : ErrorId → Bool) where
 
-open import Data.Bool using (true; false; _∧_)
+open import Data.Bool using (true; false; _∧_; _∨_)
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_)
@@ -138,14 +138,17 @@ siteRoute w stoppingTrace f m s with G.phase (G.frameAt w (W.base (base s)))
 ... | _ = nothing
 siteRoute w stoppedTrace f m s with G.phase (G.frameAt w (W.base (base s)))
 ... | G.stoppedTrace = just poolBody
-... | _ = nothing
+... | G.stoppedTracing with traceLive (Mux.callback m)
+...   | true = just poolBody
+...   | false = nothing
+siteRoute w stoppedTrace f m s | _ = nothing
 siteControl : WorkerId → Site → State → Bool
 siteControl w stoppingTrace s = true
 siteControl w stoppedTrace s = true
 siteControl w _ s = normalControl w s
 
 data DeliverySite : Set where
-  blockedBufferAcquire blockedBearer unmaskedStartup : DeliverySite
+  blockedBufferAcquire blockedBearer unmaskedStartup unmaskedMuxCallback : DeliverySite
 asyncRoute : DeliverySite → S.PC → Maybe Route
 asyncRoute blockedBufferAcquire S.published = just beforeBuffer
 asyncRoute blockedBearer S.bufferReady = just bufferOnly
@@ -157,6 +160,11 @@ asyncRoute unmaskedStartup (S.muxerRegistered _) = just poolBody
 asyncRoute unmaskedStartup (S.demuxerRegistered _ _) = just poolBody
 asyncRoute unmaskedStartup (S.matureTraced _ _) = just poolBody
 asyncRoute _ _ = nothing
+deliveryRoute : DeliverySite → U.Frame → Mux.Mux → Maybe Route
+deliveryRoute unmaskedMuxCallback f m with P.monitoring f | Mux.interruptibleCallback (Mux.callback m)
+... | true | true = just poolBody
+... | _ | _ = nothing
+deliveryRoute site f m = asyncRoute site (S.phase (U.startup f))
 routePC : Route → PC
 routePC beforeBuffer = readyBody
 routePC bufferOnly = readyBuffer
@@ -183,9 +191,16 @@ start w result route s | true | just f | nothing | true | U.promisePublished hid
 start w result route s | true | just f | nothing | true | _ = nothing
 start w result route s | _ | _ | _ | _ = nothing
 
+-- The corrected graceful TraceStopped callback is still inside the pool body.
+-- Its pending callback uses the same explicit async observation, not the old
+-- graceful abort helper whose successful-return guard must remain intact.
+deliveryControl : WorkerId → DeliverySite → State → Bool
+deliveryControl w unmaskedMuxCallback s = normalControl w s ∨
+  G.sameStage G.stoppedTracing (G.phase (G.frameAt w (W.base (base s))))
+deliveryControl w _ s = normalControl w s
 cancellationPlan : WorkerId → DeliverySite → ErrorId → State → Maybe Plan
-cancellationPlan w site err s with normalControl w s
-... | true = start w (async err) (λ f m → asyncRoute site (S.phase (U.startup f))) s
+cancellationPlan w site err s with deliveryControl w site s
+... | true = start w (async err) (λ f m → deliveryRoute site f m) s
 ... | false = nothing
 
 -- Once selected, only this owner's controller is sealed; physical children,
@@ -218,6 +233,9 @@ controller (G.drainEmpty w) = just w
 controller (G.timeout2Elapsed w) = just w
 controller (G.writeStopped w) = just w
 controller (G.observeTraceStopped w) = just w
+controller (G.sampleStoppedTracer w) = just w
+controller (G.commitStoppedTracer w) = just w
+controller (G.finishStoppedTrace w) = just w
 controller (G.abortOwner w _) = just w
 controller (G.beginWholeClose w _) = just w
 controller (G.requestWholeCancel w) = just w
@@ -264,6 +282,17 @@ withPool w before action after s with lookup w (faults s) | owner w s
 ...   | false = nothing
 withPool w before action after s | _ | _ = nothing
 
+-- Existing helpers keep their successful-return guards. Only a captured
+-- interrupted callback uses the separate source-catch operations.
+failureAction : Fault → ErrorId → IG.IGAction
+failureAction f err with Mux.interruptibleCallback (callbackAtFailure f)
+... | true = IG.recordInterruptedMuxFailure (mux f) err
+... | false = IG.recordAsyncMuxFailure (mux f) err
+deadAction : Fault → IG.IGAction
+deadAction f with Mux.interruptibleCallback (callbackAtFailure f)
+... | true = IG.traceInterruptedMuxDead (mux f)
+... | false = IG.traceMuxDead (mux f)
+
 data Action : Set where
   run : X.Action → Action
   observeFailure : WorkerId → Site → ErrorId → Action
@@ -302,12 +331,12 @@ choose (continueSync w) s with lookup w (faults s) | Pool.phase (poolAt w s)
 choose (continueSync w) s | _ | _ = nothing
 choose (writeAsyncFailure w) s with lookup w (faults s) | Pool.phase (poolAt w s)
 ... | just f | Pool.closedPool with phase f | outcome f
-...   | poolClosed | async err = just (machine (O.inbound (Machine.igStep (IG.recordAsyncMuxFailure (mux f) err))) (setPhase w f asyncStatus s))
+...   | poolClosed | async err = just (machine (O.inbound (Machine.igStep (failureAction f err))) (setPhase w f asyncStatus s))
 ...   | _ | _ = nothing
 choose (writeAsyncFailure w) s | _ | _ = nothing
 choose (beginDead w) s with lookup w (faults s)
 ... | just f with phase f
-...   | asyncStatus = just (machine (O.inbound (Machine.igStep (IG.traceMuxDead (mux f)))) (setPhase w f asyncDead s))
+...   | asyncStatus = just (machine (O.inbound (Machine.igStep (deadAction f))) (setPhase w f asyncDead s))
 ...   | _ = nothing
 choose (beginDead w) s | nothing = nothing
 choose (sampleDead w) s with lookup w (faults s)

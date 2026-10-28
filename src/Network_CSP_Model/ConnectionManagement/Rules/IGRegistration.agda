@@ -95,7 +95,8 @@ data IGAction : Set where
   recordMuxFailure : MuxId → ErrorId → IGAction
   recordMuxStopped traceMuxDead takeShutdownCommand recordMuxStopping completeMuxStopping enqueueMuxStop : MuxId → IGAction
   discardJobOccurrence : MuxId → ℕ → IGAction
-  recordAsyncMuxFailure : MuxId → ErrorId → IGAction
+  recordAsyncMuxFailure recordInterruptedMuxFailure : MuxId → ErrorId → IGAction
+  traceInterruptedMuxDead traceGracefulMuxStopped : MuxId → IGAction
   finishProtocol : MuxId → ℕ → RunResult → IGAction
 
 Result = Runtime × List IGEvent
@@ -473,6 +474,13 @@ stepWorker (traceMuxDead mid) r queue with lookup mid (muxes (execution r))
 ...   | M.stopped | M.returned = just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
 ...   | M.failed err | M.returned = just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
 ...   | _ | _ = nothing
+-- Source TraceStopped is distinct from TraceState Dead but invokes the same
+-- IG muxStopped branch. Keep an explicit operation for graceful source mapping.
+stepWorker (traceGracefulMuxStopped mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.callback m
+...   | M.stopped | M.returned = just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
+...   | _ | _ = nothing
 -- External Mux.stop merely enqueues CmdShutdown (Mux.hs:178-180), even when
 -- the monitor is held or no physical startup has happened. It is not a monitor
 -- access: HandlerLifecycle.muxAction deliberately leaves it unclassified.
@@ -492,7 +500,7 @@ stepWorker (recordMuxStopping mid) r queue with lookup mid (muxes (execution r))
 ...   | M.ready | M.returned = just (setMux mid (record m { status = M.stopping }) r , queue)
 ...   | _ | _ = nothing
 -- Graceful group/drain completion is distinct from the demuxer's ready→Stopped
--- decision. TraceStopped follows separately and is ignored by the IG tracer.
+-- decision. TraceStopped invokes its own IG callback after the status write.
 stepWorker (completeMuxStopping mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.status m | M.callback m
@@ -512,6 +520,21 @@ stepWorker (recordAsyncMuxFailure mid err) r queue with lookup mid (muxes (execu
 ... | just m with M.callback m
 ...   | M.returned = just (setMux mid (record m { status = M.failed err }) r , queue)
 ...   | _ = nothing
+-- Separate async-catch operations for an abandoned callback. The adapter must
+-- establish observed delivery, seal its old continuation and close the actual
+-- pool first. The status write leaves the abandoned callback intact. A new Dead
+-- invocation replaces it only in the following step; it never returns the old
+-- callback or rolls back its already committed queue/counter effects.
+stepWorker (recordInterruptedMuxFailure mid err) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.interruptibleCallback (M.callback m)
+...   | true = just (setMux mid (record m { status = M.failed err }) r , queue)
+...   | false = nothing
+stepWorker (traceInterruptedMuxDead mid) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.status m | M.interruptibleCallback (M.callback m)
+...   | M.failed err | true = just (setMux mid (record m { callback = traceCallback m M.muxStopped }) r , queue)
+...   | _ | _ = nothing
 -- Completion of cancelGroup/egress drain is still an environment boundary.
 stepWorker (finishStop mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
@@ -536,6 +559,9 @@ runtimeAction (recordMuxStopping _) = true
 runtimeAction (completeMuxStopping _) = true
 runtimeAction (discardJobOccurrence _ _) = true
 runtimeAction (recordAsyncMuxFailure _ _) = true
+runtimeAction (recordInterruptedMuxFailure _ _) = true
+runtimeAction (traceInterruptedMuxDead _) = true
+runtimeAction (traceGracefulMuxStopped _) = true
 runtimeAction _ = false
 
 -- In initiator-only mode, the shared monitor may consume initiator results

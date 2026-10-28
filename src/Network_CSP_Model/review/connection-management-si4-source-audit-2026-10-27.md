@@ -325,8 +325,12 @@ The checked-out source worktree is not the authority.
 
 Mux.hs:555–570 handles CmdShutdown by tracing Stopping BEFORE its status write,
 then cancelGroup MiniProtocolJob, then a two-second bounded egress drain, Stopped
-write, TraceStopped and monitor return. TraceStopped is ignored by the IG tracer;
-it is not a fabricated Dead callback. Infrastructure jobs are outside the group
+write, TraceStopped and monitor return. **Correction, 28 October (SI4-F1):**
+TraceStopped is handled by IG, publishing MuxFinished and clearing counters
+(InboundGovernor.hs:719–728). The original physical graceful adapter skipped that
+callback; the SI4-F1 correction below now implements it. It was a distinct
+source-fidelity gap, not an ignored event or a
+fabricated TraceState Dead callback. Infrastructure jobs are outside the group
 snapshot and may independently return/fail while the group is closing or draining.
 JobPool.hs:213–225 reads the registry once and traverses matching jobs with ordinary
 interruptible cancel (send and wait). It does not close the pool. The separate
@@ -509,3 +513,40 @@ DeltaQ tracer windows, post-close catch cancellation, pre-publication negotiatio
 allocation faults, additional child-finalizer failure classes and outer Server/IG/
 governor histories. No source refinement, universal termination, admission
 quiescence or full-shutdown theorem is inferred from these finite model paths.
+
+
+## Async callback interruption and SI4-F1 recheck (28 October 2026)
+
+Compared the local Mux.hs, JobPool.hs, ConnectionHandler.hs and InboundGovernor.hs
+exports byte-for-byte with network `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+The async catch follows the actual pool bracket (Mux.hs:254–279). Interrupted
+callback transactions cannot be treated as returned; committed counters/events
+must survive. The new opt-in callback-delivery route retains the old callback
+until the catch starts a new Dead invocation, preserving the held monitor state.
+Named delivery sites and provider/helper/mask behavior remain observed contracts.
+
+This recheck also disproved the earlier TraceStopped claim above. **SI4-F1 is
+open:** `MuxGroupShutdown.observeTraceStopped` must run the real IG callback,
+including queue-capacity retry, before monitor return and whole-pool closure.
+The current callback-interruption acceptance paths do not use graceful shutdown.
+Remaining ignored/DeltaQ callbacks, post-close catch interruption, earlier
+allocation/publication and child-finalizer failures remain separate obligations.
+
+
+## SI4-F1 correction implemented (28 October 2026)
+
+Exact-pin Mux and IG exports were rechecked again before changing claims.
+The graceful adapter now invokes the source TraceStopped callback separately
+from Dead, samples active and commits the actual bounded-queue/counter
+transaction before requiring return at Stopped. Generic source/pool projections
+and initialized graceful scenarios include these operations. A completed group
+snapshot or Stopped write alone cannot start the whole-pool close.
+
+Conditional full-queue controls retain the blocked callback and refuse return/
+whole close; inactive and unattached cases preserve the source branch distinction.
+An initialized async interruption inside this pending graceful callback seals
+that continuation, closes the actual current pool and enters Failed/Dead without
+pretending the original notification committed. The original callback snapshot
+is retained. Source mapping, finite model witnesses and actual implementation
+replay remain separate; no new Haskell replay was performed. Validation and
+remaining scope are recorded in Supervision.md's twelfth increment.

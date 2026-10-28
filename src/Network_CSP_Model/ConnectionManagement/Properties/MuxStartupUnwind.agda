@@ -172,3 +172,29 @@ physical-wait : ∀ s {s′} → R.step (R.run (X.run (W.shutdownStep Close.fini
   Base.PhysicalWait (R.base s) (R.base s′)
 physical-wait s eq with inherited-observation (X.run (W.shutdownStep Close.finishClose)) s eq
 ... | x , advanced , refl = Base.physical-wait-observation (R.base s) advanced
+
+-- Observed callback delivery captures the exact pre-interruption owner and
+-- callback. Selection is metadata only: the source, physical pool and held
+-- monitor PC are unchanged until their explicit subsequent operations.
+callback-route-observation : ∀ f m {route} →
+  R.deliveryRoute R.unmaskedMuxCallback f m ≡ just route →
+  P.monitoring f ≡ true × Mux.interruptibleCallback (Mux.callback m) ≡ true × route ≡ R.poolBody
+callback-route-observation f m eq with P.monitoring f in monitoring | Mux.interruptibleCallback (Mux.callback m) in callback
+... | true | true = refl , refl , sym (just-injective eq)
+... | false | _ = case eq of λ ()
+... | true | false = case eq of λ ()
+
+cancellation-selection : ∀ w site err s {plan} →
+  R.cancellationPlan w site err s ≡ just plan →
+  Selection w (R.async err) (λ f m → R.deliveryRoute site f m) s plan
+cancellation-selection w site err s eq with R.deliveryControl w site s
+... | false = case eq of λ ()
+... | true = selection-observation w (R.async err) (λ f m → R.deliveryRoute site f m) s eq
+
+cancellation-keeps-base : ∀ w site err s {s′} →
+  R.step (R.observeCancellation w site err) s ≡ just s′ → R.base s′ ≡ R.base s
+cancellation-keeps-base w site err s eq with R.cancellationPlan w site err s in planned
+... | nothing = case eq of λ ()
+... | just plan with cancellation-selection w site err s planned
+...   | selected rewrite Selection.plan-shape selected =
+  case just-injective eq of λ { refl → refl }
