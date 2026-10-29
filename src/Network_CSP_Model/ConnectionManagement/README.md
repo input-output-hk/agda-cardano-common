@@ -44,8 +44,15 @@ node-send delivery with CM acknowledgment. Provider masks remain contracts;
 `MuxStartupUnwind` adds post-publication setup/startup faults and synchronous
 mux/IG-tracer unwind, retaining incomplete startup and actual current-pool joins.
 Async mux/IG callback delivery now preserves the held result and committed effects
-through actual pool close, Failed/Dead and captured CM cleanup. Ignored/DeltaQ
-callbacks, post-close catch cancellation, earlier allocation/publication gaps and
+through actual pool close, Failed/Dead and captured CM cleanup. `MuxDeltaQ` now
+records actual typed FIFO tickets and exposes normal/sync/async bearer DeltaQ
+callback outcomes, retaining source effects through pool close and CM results.
+The lower monitor keeps its successful-callback observation; the extended adapter
+blocks that shortcut until DeltaQ actually returns. Initiator-direction completion
+traces now have separate invocation, return and exception actions before clean
+DeltaQ or error Dead; full failure-cleanup witnesses for these actions remain open.
+Other ignored callbacks,
+post-close catch cancellation, earlier allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for
 its actual transaction/return, then permits monitor return and whole-pool close.

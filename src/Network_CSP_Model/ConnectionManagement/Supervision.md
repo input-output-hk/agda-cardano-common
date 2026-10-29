@@ -1483,3 +1483,165 @@ commits and exception replacement; do not infer normal monitor return when that
 callback throws. Remaining ignored callbacks, post-close catch cancellation,
 earlier allocation/publication and child-finalizer failures, followed by outer
 Server/IG/governor composition and admission quiescence, still precede SI5.
+
+
+## Thirteenth increment: explicit bearer DeltaQ outcomes (29 October 2026)
+
+The overall objective remains the standalone CM/IG/OG/Server model for source
+bug-finding at the pinned network revision. This increment extends SI4's physical
+handler/mux chain; it does not merge that chain with PeerSupervision/Subsystem or
+Server, complete G1/G2, CM-I4c, or derive SI5/full shutdown.
+
+Re-exported exact-pin Mux, JobPool, ConnectionHandler and InboundGovernor source
+objects into `/tmp/cm-review-20261029/` before extending claims. Mux.hs:454–464
+calls the bearer tracer's TraceEmitDeltaQ after the clean protocol trace, before
+another monitor iteration. For a protocol error it first writes Failed and
+returns from the exception/Dead tracers, then runs DeltaQ before throwing the
+original error. Infrastructure-result branches have no DeltaQ invocation.
+The async catch remains outside the real JobPool bracket at Mux.hs:254–279.
+
+`MuxDeltaQ` extends MuxStartupUnwind with tickets taken only from actual successful
+typed FIFO consumption. Direction, protocol number, RunId and completion outcome
+remain distinct. Entry explicitly requires a monitoring owner and an open
+physical pool; a
+callback PC cannot adopt partial startup or an already closed bracket. Tracked
+IG completion/Dead stages must return at the proper status before entry. Where
+the lower component leaves a caller/ignored mux-tracer leg opaque, DeltaQ entry
+incorporates that leg's observed normal return; it does not prove tracer totality.
+The protocol-error branch reaches DeltaQ only after Dead at the original Failed
+value. Normal return invokes the existing exact lower monitor step. Raw clean
+branch finish and protocol-error final finish are blocked in the extended
+adapter until DeltaQ returns; the intermediate error-trace-to-Dead continuation
+is retained. An invoked owner cannot resume its controller, while
+other owners, child publication/deregistration and external stop retain their
+own guards. The lower MuxResultMonitor is still a component with an observed
+successful trace/DeltaQ-return boundary, not a replacement full-source theorem.
+
+A named sync/async exception from an invoked callback selects the actual captured
+handler and current-pool route, without changing its held result or already
+committed source effects. It retains the complete physical-pool close, buffer
+scope, policy and original CM finally/result gates. Sync failure preserves the
+existing Ready or original Failed status and replaces the body exception. Async
+failure writes the new Failed only after actual pool closure, then invokes a new
+Dead callback. Previously committed notifications remain; an earlier protocol
+error's Dead notification is not deduplicated or retracted.
+
+`Properties/MuxDeltaQ` projects every successful action and finite execution into
+actual shared-source and selected physical-pool histories. Initialized capture,
+entry/promise supply and captured-snapshot terminal certificates retain their
+existing premises. Fault selection reuses the published-owner/current-pool
+certificate; selection/entry do not roll back source effects. The physical CM
+wait certificate observes the actual nested dispatcher and physical-result
+oracle. `MuxDeltaQCapture.consume-captures-head` exposes the precise original
+queue/head, actual pool dequeue, selected monitor state and stored ticket.
+The separate `MuxDeltaQPrefix` layer lifts only tagged protocol-only prefixes,
+without importing the large source-invariant closure solely for prefix proofs.
+
+Acceptance endpoints:
+
+- `Negative/MuxDeltaQ`: initialized normal clean/error paths in both directions;
+  infrastructure exclusion; no skipped, premature, repeated or uninvoked callback;
+  actual-head certificates and initialized source/capture/supply facts.
+- `MuxDeltaQEffects`: initialized sync and async callback exceptions after clean
+  completion and after the error branch's returned Dead. The returned protocol
+  can deregister/publish its Async result independently during DeltaQ. All four
+  combinations close the real current pool, run the captured CM finally and
+  publish the physical parent result. Sync replacement keeps the old mux status;
+  async handling retains old notifications and appends the new Dead event.
+- `MuxDeltaQCM`: actual initialized CM snapshot, late read, send, DeltaQ delivery
+  receipt, collective wait, pool/buffer/CM unwind and physical result publication.
+  Receipt, registry closure and cleanup completion cannot shortcut the final wait.
+- `MuxDeltaQInterleavings`: infrastructure return/publication and external stop
+  during invoked DeltaQ, followed by actual callback return and FIFO consumption.
+  The new physical head replaces the old ticket. A queued result outranks shutdown;
+  with only that backlog removed, the positive shutdown-selection control passes.
+  Forged-PC controls reject partial startup and already closed pools; these
+  conditional controls are not initialized reachability claims.
+
+Tracer return, exception class/identity, async receipt, provider behavior and
+policy choice remain explicit observed contracts. The pinned optional DeltaQ
+transformer (TraceTransformer.hs:42–55) may reset its private statistics and emit
+a sample before forwarding TraceEmitDeltaQ. Those statistics/logger resources
+are not represented by these CM-source preservation statements. No total-tracer,
+full mask, helper-resource cleanup, universal progress, full source refinement or
+Haskell mux replay claim follows from these finite executions.
+
+### Conditional source-profile finding, not a confirmed deployment defect
+
+The initialized clean/synchronous case reaches a physically available handler
+result after pool and CM cleanup while mux status remains Ready. This strengthens
+the earlier conditional tracer-failure boundary with an initialized DeltaQ path;
+it refutes any proposed general invariant that every handler exit must write
+Failed/Stopped under the admitted tracer inputs. The witness has one protocol
+and retains earlier IG events, so it does not establish an IG/PSA deadlock.
+Concrete bearer-tracer contracts, multi-protocol/overlapping-key reachability and
+implementation replay must be checked before presenting it as a source bug.
+Likewise the additional Dead notification after async failure is source-aligned
+behavior, not by itself proof of a key-reuse defect.
+
+
+Validation on 29 October: the current runtime was freshly checked with
+`agda ConnectionManagement/MuxDeltaQ.agda +RTS -M2G -RTS`. After making the
+monitoring/open-pool guard explicit, all ten final endpoint commands passed
+serially without warnings:
+
+```sh
+agda ConnectionManagement/MuxDeltaQ.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/MuxDeltaQPrefix.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/MuxDeltaQ.agda +RTS -M4G -RTS
+agda ConnectionManagement/Properties/MuxDeltaQCapture.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxDeltaQ.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxDeltaQEffects.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxDeltaQCM.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxDeltaQInterleavings.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxResultMonitor.agda +RTS -M2G -RTS
+agda ConnectionManagement/Negative/MuxStoppedTracer.agda +RTS -M4G -RTS
+```
+
+Seven final logs contain their own module Checking line; the already rechecked
+runtime and two unchanged negative controls were cached confirmations. The fresh
+runtime Checking line is in `deltaq-runtime-final.log`. The source-proof closure
+initially exhausted 2 GB, including after separating the cheap prefix layer.
+With resource availability checked, the source/acceptance closure passed at the
+explicit 4 GB heap limit. No proof statement was weakened, scenario removed,
+postulate introduced or safety check disabled. The only warning during development
+was a constructor-shadowing pattern name in an acceptance helper; renaming it
+removed the warning before the final run. Equality-transport, scoping and module
+import repairs were also completed before these final checks.
+
+Logs: `/tmp/cm-review-20261029/deltaq-final-*.log`, with the retained 2 GB failure
+in `deltaq-properties.log`, the fresh-runtime log above and
+`deltaq-proof-audit.log`. Eight-file local proof audit: zero findings; tracked/new
+source/documentation whitespace and EOF checks passed. Dependency assumptions
+have not been replaced by a term-level external axiom audit. No Haskell replay,
+source-pin change, commit, push or unrelated build was performed; `.claude` is
+untouched. This increment is uncommitted after 920c16f.
+
+The initiator-direction completion trace also now has explicit invocation,
+normal return, sync/async exception and CM-delivery actions. IG ignores these
+completion traces, but the caller mux tracer still runs. The initialized clean
+and error normal paths use the new actions and reject legacy return/failure
+shortcuts before invocation. Generic source/pool projection includes the new
+actions. Full initiator-failure cleanup and CM-delivery acceptance witnesses
+remain open; the existing complete failure witnesses above concern DeltaQ.
+
+Next executable obligation: initialized initiator-tracer sync/async failure
+cleanup, including a live responder in the same physical pool and CM delivery.
+Retain the captured completion and already written status without inventing
+first-leg return or labeling that failure as DeltaQ.
+Then post-close catch cancellation, earlier allocation/publication and additional
+child-finalizer/helper scopes remain before outer Server/IG/governor composition
+and admission quiescence. Source-contract and stronger reachability/replay checks
+for the conditional Ready-after-exit path remain bug-finding follow-ups; no
+universal deadlock or full-shutdown claim is made by this increment.
+
+
+Commit validation on 29 October: after adding the explicit initiator-trace
+transitions and normal-path controls, all eight DeltaQ runtime/property/acceptance
+modules listed above passed serially with Agda 2.8.0 at a 4 GB heap limit. Six
+logs contain Checking lines; runtime and generic source properties were cached
+confirmations of their earlier initiator checks. No warnings were reported.
+Eight-file static proof audit again found zero findings, and staged whitespace
+checks passed. Logs: `/tmp/cm-review-20261029/commit-*.agda.log`. The two unchanged
+non-DeltaQ negative controls were not repeated for this commit. No implementation
+replay or full initiator-failure cleanup witness was added during commit work.

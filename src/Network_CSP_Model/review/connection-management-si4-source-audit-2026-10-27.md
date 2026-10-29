@@ -550,3 +550,43 @@ pretending the original notification committed. The original callback snapshot
 is retained. Source mapping, finite model witnesses and actual implementation
 replay remain separate; no new Haskell replay was performed. Validation and
 remaining scope are recorded in Supervision.md's twelfth increment.
+
+
+## Bearer DeltaQ callback source audit (29 October 2026)
+
+Authority remains network 96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d.
+Re-exported exact Git objects for Mux, JobPool, ConnectionHandler and IG before
+changing claims. The monitor's relevant order is:
+
+| Source branch | Before DeltaQ | Normal return | Sync throw from DeltaQ | Async throw from DeltaQ |
+| --- | --- | --- | --- | --- |
+| Protocol clean | CleanExit tracer returned | Next monitor iteration | Pool close; Ready is not forcibly changed; new error escapes | Pool close, then catch writes new Failed and invokes Dead |
+| Protocol error | Failed(original), exception and Dead tracers returned | Pool close and rethrow original | Pool close; retain Failed(original), new error replaces original | Pool close, then catch writes Failed(new) and invokes another Dead |
+| Infrastructure result | Its own Failed/Stopped and Dead branch | No DeltaQ | No DeltaQ site | No DeltaQ site |
+
+Mux.hs:454–464 establishes the protocol ordering; :475–488 excludes DeltaQ from
+infrastructure branches; :254–279 places the async catch outside withJobPool.
+DeltaQ is the bearer tracer, not the IG-injected mux tracer. It does not itself
+write the IG queue/counters. Prior completion/Dead effects remain committed when
+DeltaQ later throws. A new catch's Dead callback may publish a further MuxFinished.
+The optional TraceTransformer.hs:42–55 first updates private stats and emits its
+sample, then forwards TraceEmitDeltaQ; those internal resources remain outside
+this explicit callback-outcome boundary. No concrete tracer totality is assumed.
+
+MuxDeltaQ guards the existing normal-observation component so a protocol ticket
+must invoke and return from DeltaQ before the clean branch re-enters the monitor
+or the error branch finishes. The intermediate error-trace-to-Dead continuation
+remains before DeltaQ. The initiator-direction completion trace now has explicit
+invocation, normal return and sync/async exception actions: IG ignores this
+direction, but the caller mux tracer still runs. Clean return precedes DeltaQ;
+error return precedes Dead. Initialized normal paths and shortcut-rejection
+controls cover that ordering. Full initiator-failure cleanup/CM-delivery witnesses
+remain open. Other opaque caller/ignored tracer legs retain their observed
+normal-return contract; tracer totality is not established.
+Its failure routes use actual captured resources, current-pool closure and CM
+physical-result publication. New generic source/pool, exact-head and physical-wait
+certificates and initialized acceptance paths are detailed in Supervision.md's
+thirteenth increment. A synchronous clean callback failure can retain Ready after
+handler completion under the admitted inputs. This is a conditional model/source
+profile result, not a confirmed deployment bug or deadlock; concrete callback
+contracts and stronger reachability/replay remain to be established.
