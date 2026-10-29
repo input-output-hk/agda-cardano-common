@@ -50,9 +50,15 @@ callback outcomes, retaining source effects through pool close and CM results.
 The lower monitor keeps its successful-callback observation; the extended adapter
 blocks that shortcut until DeltaQ actually returns. Initiator-direction completion
 traces now have separate invocation, return and exception actions before clean
-DeltaQ or error Dead; full failure-cleanup witnesses for these actions remain open.
-Other ignored callbacks,
-post-close catch cancellation, earlier allocation/publication gaps and
+DeltaQ or error Dead. Initialized failure-cleanup witnesses now cancel and join
+a live responder in the same pool; source-profile findings remain conditional
+on tracer/provider/policy inputs. The new CM-delivery acceptance is described in
+[Supervision.md](Supervision.md).
+`MuxCatchUnwind` now retains caught exceptions and pending Dead callbacks
+through observed blocking-tracer/full-queue catch interruption and outer cleanup.
+Its IO profile respects masked-interruptible catch delivery; a GHC boundary
+probe checks that mask and exception escape, without replaying the concrete mux.
+Other ignored callbacks, earlier allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for
 its actual transaction/return, then permits monitor return and whole-pool close.

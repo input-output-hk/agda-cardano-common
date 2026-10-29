@@ -580,8 +580,13 @@ remains before DeltaQ. The initiator-direction completion trace now has explicit
 invocation, normal return and sync/async exception actions: IG ignores this
 direction, but the caller mux tracer still runs. Clean return precedes DeltaQ;
 error return precedes Dead. Initialized normal paths and shortcut-rejection
-controls cover that ordering. Full initiator-failure cleanup/CM-delivery witnesses
-remain open. Other opaque caller/ignored tracer legs retain their observed
+controls cover that ordering. Initiator-failure cleanup witnesses now cover
+clean/error × sync/async with a live responder in the same physical pool, plus
+CM-delivery paths for both origins (Supervision.md fourteenth increment). A clean sync throw
+can preserve Ready and hot-responder trace metadata even after that responder
+and the physical parent complete. This remains conditional on callback/policy
+inputs; no IG/PSA deadlock or deployed defect follows. Other opaque caller/ignored
+tracer legs retain their observed
 normal-return contract; tracer totality is not established.
 Its failure routes use actual captured resources, current-pool closure and CM
 physical-result publication. New generic source/pool, exact-head and physical-wait
@@ -590,3 +595,41 @@ thirteenth increment. A synchronous clean callback failure can retain Ready afte
 handler completion under the admitted inputs. This is a conditional model/source
 profile result, not a confirmed deployment bug or deadlock; concrete callback
 contracts and stronger reachability/replay remain to be established.
+
+
+## Post-close async-catch mask boundary (29 October 2026)
+
+The catch at pinned Mux.hs:275–279 is outside the pool bracket, and exceptions
+from its handler are not recursively handled by that same catch. The caller
+explicitly unmasks Mux.run (ConnectionHandler.hs:378–380,450–452). Locally cached
+io-classes 1.8.0.1 `MonadCatch IO` uses IO.catch; network-mux at the pin requires
+`^>=1.8`. A GHC 9.6.7 / base 4.18.3.0 boundary probe confirms MaskedInterruptible
+in a handler entered from unmasked IO, pool-close before catch, and a replacement
+async exception delivered at an empty MVar escaping to outer finally. This is
+IO semantics evidence, not concrete Mux/IOSim replay or a new dependency lock.
+
+| Catch point | Async delivery in current IO profile | Effect on replacement |
+| --- | --- | --- |
+| Before/after ordinary nonblocking Failed write | Rejected as a free scheduling point | No invented status-write interruption |
+| Caller mux tracer before IG active read | Observed **blocking caller operation** contract | Retain caught Failed/callback; exit outward |
+| IG Dead transaction with captured active=True and full queue | Actual writeMessage retry required | Retain unchanged queue/counters; exit outward |
+| Same transaction with queue room | Rejected as a blocked-STM delivery point | Transaction can commit normally |
+| Returned Dead / immediate original rethrow | Rejected by the pending-trace delivery guard | No fabricated later blocking operation |
+
+`MuxCatchUnwind` requires closed physical pool, pending async Dead, matching
+Failed(caught), and no outer exit frame before selection. It retains the caught
+Fault and actual abandoned callback, replaces only the pending outcome, and does
+not write Failed(replacement), invoke a second Dead or return the abandoned
+callback. Synchronous caller-tracer failure uses the prior throw-point guard.
+Actual CM receipt acknowledges only after successful selection/enactment. Its
+properties preserve source/pool paths, initialized capture/supply and physical
+result waits. Initialized clean/error-origin histories and both CM-delivery paths
+are detailed in Supervision.md's fifteenth increment; the full-queue control is
+explicitly conditional rather than an initialized reachability claim.
+
+Custom tracer operations, provider/mask contracts and enclosing uninterruptible
+masking remain explicit boundaries. The probe and finite model executions do not
+prove total cleanup, all MonadCatch instances, full subsystem shutdown, a new
+source defect or universal deadlock freedom. Earlier allocation/publication,
+other ignored callback and child-finalizer/helper scopes, and outer composition
+still remain open.

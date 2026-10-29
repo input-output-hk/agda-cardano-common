@@ -190,3 +190,38 @@ checked against the clean pin. The test ran in the existing combined replay
 checkout; no broad generated suite or Agda rebuild was needed for this test-only
 addition. These deterministic cases establish finite source behavior, not
 exhaustive schedules or deployment impact.
+
+## IO catch-mask boundary probe (29 October 2026)
+
+`CatchMaskProbe.hs` is a small **GHC IO semantics probe**, not a replay of the
+pinned Network.Mux, an IOSim schedule or the combined subsystem. It verifies the
+exception-boundary assumptions used by `MuxCatchUnwind`:
+
+```sh
+runghc ConnectionManagement/SourceReplay/CatchMaskProbe.hs
+```
+
+Run from the Network_CSP_Model library root with GHC 9.6.7 / base 4.18.3.0. It
+passed with pool-close, catch:MaskedInterruptible, outer-finally in that order;
+the replacement UserInterrupt escaped. The original ThreadKilled enters the
+catch only after the bracket release. The handler then blocks on an empty MVar;
+UserInterrupt is delivered there and escapes to outer finally without entering
+the same catch again. There is a five-second observation timeout.
+
+The locally cached io-classes 1.8.0.1 source's `MonadCatch IO` delegates to
+`Control.Exception.catch`. This version fits the pin's network-mux `^>=1.8`
+constraint; the earlier replay records io-sim 1.8.0.1. This probe exercises
+only the IO boundary and does not establish a new resolved dependency lock.
+Mux.hs:275–279 places the async catch outside the JobPool bracket;
+ConnectionHandler.hs:378–380 and :450–452 explicitly unmask Mux.run. A catch
+entered from unmasked IO runs masked interruptibly: asynchronous delivery needs
+an interruptible operation, such as an actually blocked caller tracer or a
+retrying full IG information queue. An ordinary nonblocking status write is not
+such a delivery site. Enclosing uninterruptible masking would prevent delivery;
+provider/mask implementations and custom tracer behavior remain contracts.
+
+The Agda adapter checks the actual post-close phase/status and retains the
+caught exception and abandoned callback. Queue-retry controls distinguish real
+full-queue retry from a transaction with room. The probe establishes the small
+IO boundary only; it neither runs the concrete tracer nor proves source/model
+refinement, whole-system shutdown or a deployment deadlock.

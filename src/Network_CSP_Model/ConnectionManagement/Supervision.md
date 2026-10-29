@@ -1645,3 +1645,195 @@ Eight-file static proof audit again found zero findings, and staged whitespace
 checks passed. Logs: `/tmp/cm-review-20261029/commit-*.agda.log`. The two unchanged
 non-DeltaQ negative controls were not repeated for this commit. No implementation
 replay or full initiator-failure cleanup witness was added during commit work.
+
+
+## Fourteenth increment: ignored initiator completion tracer failures
+
+The caller mux tracer still runs on initiator-direction clean/exception exit,
+even though IG's `miniProtocolTerminated` ignores that direction. The unchanged
+network pin's Mux.hs:454–464 places the clean trace before bearer DeltaQ; on
+protocol error it first writes Failed(original), then calls the exception trace,
+Dead, DeltaQ and the original throw. The async-only catch at :275–279 is outside
+the physical JobPool bracket (:254–274). JobPool.hs:70–111 closes the captured
+registry by sequential uninterruptible cancellation; :147–163 excludes async
+exceptions from the job result handler. IG.hs:736–748 recognizes only responder
+completion traces. ConnectionHandler.hs:363–365 and :438–440 compose the caller
+tracer before IG. The four local exports were compared byte-for-byte with their
+pinned Git objects again on 29 October before extending these proofs.
+
+`Properties/MuxInitiatorTrace` adds a selection certificate for the existing
+explicit initiator-trace actions: the selected owner/capture, startup PC, callback
+and physical parent-registration facts come from the existing fault selector.
+`throw-keeps-underlying` proves a local observed throw retains the underlying
+source/pool/handler state at selection; cleanup is not manufactured by observation.
+The existing generic MuxDeltaQ source/pool/capture/supply statements retain their
+types and cover these actions.
+
+`Negative/MuxInitiatorTraceEffects` starts from the actual initializer, admits a
+responder, forks an initiator in the same pool, publishes and captures its typed
+physical FIFO head, and invokes the initiator trace. While that callback is held,
+the already returned initiator deregisters and publishes its physical result.
+For each clean/error completion and sync/async tracer exception, the real pool
+snapshot contains **the still-running responder, demuxer and muxer**. Every child
+is cancelled, unwound, deregistered, physically completed and joined. Snapshot
+terminal results follow from `whole-closed-from-initial`; no historical handle
+is deleted and no protocol result is fabricated for async cancellation. A join
+before the responder's physical result is rejected.
+
+All four finite histories continue through provider/buffer exit, exception policy
+where applicable, the original CM finally and physical handler result. Sync
+failure retains Ready or Failed(original); async failure closes the pool first,
+writes Failed(new), then invokes/samples/commits/returns Dead. This appends the
+first new MuxFinished for these initiator branches and clears trace counters.
+Previously queued awake/promote events survive. The captured initiator result is
+retained as throwing; neither a normal first-leg return nor DeltaQ invocation
+is invented. These observations remain conditional tracer/provider/policy inputs.
+
+`Negative/MuxInitiatorTraceCM.Scenario` covers both clean and error origins with
+CM snapshot, late read, cancellation request,
+actual initiator-trace async receipt/acknowledgment, collective wait, actual pool
+close and CM finally/result publication. DeltaQ receipt cannot substitute for
+this first-leg receipt. The collective wait is blocked before pool close, after
+pool close and after cleanup until the handler's physical result is available.
+The final wait is certified by the existing `PhysicalWait` theorem.
+
+The clean synchronous case strengthens the conditional Ready-after-exit finding:
+a real live responder in the same pool is physically cancelled/joined while mux
+status remains Ready and source trace metadata retains one hot responder and its
+running protocol. No new IG completion/Dead notification is emitted on this path;
+the earlier awake/promote queue remains. This refutes an unconditional invariant
+that physical handler completion always clears responder metadata or changes mux
+status under the admitted observations. It is **not a confirmed deployment bug,
+a deadlock witness or a full shutdown theorem**. Concrete tracer/policy contracts,
+IG/PSA recovery, overlapping-key reachability and implementation replay remain
+necessary before claiming a source-code defect. The physical handler adapter
+still has not been integrated with whole PeerSupervision/Subsystem/Server history.
+
+Validation on 29 October: Agda 2.8.0 checked the new selection proof and both
+acceptance endpoints serially at a 4 GB heap limit. The standalone effects check
+passed before adding snapshot-terminal and explicit metadata facts; the later
+CM check freshly rechecked that final effects module transitively. The final CM
+check then passed for the generic clean/error-origin scenario. Final logs have
+Checking lines and no warnings:
+
+```sh
+agda ConnectionManagement/Properties/MuxInitiatorTrace.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxInitiatorTraceEffects.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxInitiatorTraceCM.agda +RTS -M4G -RTS
+```
+
+Evidence: `/tmp/cm-review-20261029/initiator-selection.log`,
+`initiator-effects-2.log`, `initiator-CM.log` (includes final effects Checking)
+and `initiator-CM-both.log`. An initial fixture-type scoping error was corrected
+to the kernel's existing ThreadPhase/ClosePC names before the passing checks.
+No proof statement/scenario was weakened, hole/postulate introduced or safety
+check disabled. Three-file proof audit found zero findings; source/documentation
+whitespace and new-file EOF checks passed. Unchanged baseline endpoints were
+not rebuilt separately; imports were checked transitively. No Haskell replay,
+source-pin change, commit or push. The work remains uncommitted after 43e0e2b;
+`.claude` is untouched.
+
+Next executable obligation: observed cancellation/failure during the post-close
+async catch's Failed/Dead actions. Preserve the closed snapshot and any already
+written status/committed callback effects; a new exception from that catch exits
+to outer cleanup rather than recursively re-entering the same catch or inventing
+a returned Dead trace. Earlier allocation/publication, other ignored callbacks
+and child-finalizer/helper scopes, then outer Server/IG/governor composition and
+admission quiescence still remain. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+
+## Fifteenth increment: interruption of the post-close async catch
+
+Source rechecking refined this obligation before adding transitions. The local
+io-classes 1.8.0.1 archive delegates `MonadCatch IO.catch` to IO.catch. Network-mux
+at the unchanged pin requires io-classes `^>=1.8`; ConnectionHandler.hs:378–380
+and :450–452 explicitly unmask Mux.run. A catch entered from unmasked IO executes
+its handler masked interruptibly. Therefore a new async exception cannot be
+freely delivered between the catch's nonblocking Failed/status/read operations.
+The actual blocking operation or a tracer unmasking contract must justify receipt.
+The current profile covers an observed blocking caller tracer and a full-queue
+retry in the IG Dead transaction. It does not claim every custom tracer blocks.
+
+`MuxCatchUnwind` wraps the existing physical DeltaQ/handler chain. It admits
+replacement only for an async catch's pending Dead callback with the actual pool
+closed, no outer exit frame, and mux status matching the caught async exception.
+A blocking caller-tracer observation is before IG's active read (or the opaque
+caller trace on a no-IG attachment). The retry site requires captured-active
+Dead and failure of the actual bounded `writeMessage`, not an arbitrary pending
+STM. Ordinary status steps, a nonfull queue, and returned Dead reject delivery.
+Synchronous caller-tracer throwing uses the existing throw-point guard.
+
+The interruption record retains the original caught Fault, actual current Dead
+callback, and replacement cause. Selection changes only metadata, keeps the
+closed physical pool/source/queue/counters intact, and goes directly to outer
+buffer exit. The same catch is not recursively entered: it does not rewrite
+Failed(new), invoke another Dead or invent old Dead return. CM receipt executes
+the actual acknowledgment operation. The lower legacy sync observation is blocked
+in this adapter so it cannot discard the new retained catch evidence.
+
+`Properties/MuxCatchUnwind` projects all actions/executions to existing source and
+physical-pool paths, lifts initialized capture/supply, and retains the physical
+CM wait certificate. `select-is-local` and `observe-keeps-underlying` establish
+metadata-only selection without manufacturing cleanup. The generic CM projection
+peels the adapter at an abstract action before specializing the real nested wait,
+keeping the full source dispatcher out of normalization.
+
+`Negative/MuxCatchUnwind` lifts the actual initialized initiator clean/error
+failure prefixes, closes responder/demuxer/muxer, writes the caught async Failed
+status and invokes Dead. A replacement async exception at an observed blocking
+caller tracer exits through the real buffer/provider and original CM finally to
+physical handler completion. Both origins retain Failed(caught), the pending Dead
+callback and old IG queue; the replacement async exception is the handler result.
+Controls reject recursive Failed/Dead, fabricated callback return, delivery at an
+ordinary STM or after return, and queue delivery with room. An injected full-queue
+snapshot proves retry before masked delivery and source retention; that control
+is conditional, not an initialized full-queue reachability claim. A synchronous
+first-leg replacement control also retains the caught/abandoned metadata.
+
+`Negative/MuxCatchUnwindCM` drives CM snapshot/read/send while that catch tracer
+is pending, actual receipt/acknowledgment, outer cleanup and physical result, for
+both completion origins. The collective wait is blocked after receipt and after
+cleanup until the real result is published. Its final `PhysicalWait` certificate
+uses the existing actual coordinator/physical handler boundary.
+
+`SourceReplay/CatchMaskProbe.hs` passed under GHC 9.6.7 / base 4.18.3.0. It checks
+pool-close → MaskedInterruptible catch → outer-finally, with replacement
+UserInterrupt escaping a blocked catch handler. It is an IO semantics probe,
+not a concrete Mux/IOSim replay, source refinement or deadlock witness. See the
+SourceReplay README for reproduction and scope. Enclosing mask/provider behavior,
+custom tracer operations, admission quiescence and outer composition remain
+explicit limitations. This increment adds coverage, not a deployment bug claim.
+
+Validation on 29 October: all four new Agda modules passed serially with Agda
+2.8.0. Each final log contains its own Checking line and no warnings:
+
+```sh
+agda ConnectionManagement/MuxCatchUnwind.agda +RTS -M2G -RTS
+agda ConnectionManagement/Properties/MuxCatchUnwind.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/MuxCatchUnwind.agda -v tc.decl:10 +RTS -M6G -RTS
+agda ConnectionManagement/Negative/MuxCatchUnwindCM.agda +RTS -M6G -RTS
+```
+
+The initial aggregate proof check exhausted 4 GB before the abstract CM
+projection was factored; equality/case-split repairs then preceded the successful
+standalone property check at 4 GB. The initialized acceptance closure exhausted
+4 GB in both aggregate and standalone checks. With 21 GB available, the complete
+unchanged acceptance histories passed at 6 GB, followed by the CM endpoint.
+No scenario or theorem was weakened and no safety option disabled. The failed
+logs are retained alongside the passing logs: `catch-runtime.log`,
+`catch-properties-3.log`, `catch-acceptance-6g.log`, `catch-CM-6g.log` under
+`/tmp/cm-review-20261029/`. Seven-file local proof audit (including the preceding
+uncommitted initiator increment) found zero findings; new-file EOF/whitespace
+and documentation diff checks passed. Dependency assumptions were not replaced
+by a term-level external axiom audit. GHC `-fno-code -Wall` checked the boundary
+probe without warnings, and its execution passed. Unchanged baseline endpoints
+were not rebuilt separately; imports were checked transitively.
+
+No concrete Mux/IOSim replay, source-pin change, commit or push. These changes
+and the preceding initiator-tracer increment remain uncommitted after 43e0e2b.
+`.claude` is untouched. Next: source-audit and model pre-publication failures at
+returnedSuccess/handleAllocated, retaining the real promise/catch/finally order
+and physical handler identity rather than inventing successful publication.
+Other ignored callbacks, child finalizer/helper failures and outer Server/IG/
+governor composition/admission quiescence remain. G0–G5, CM-I4c and SI4/SI5 remain
+open; none of these local paths derives universal/full-system shutdown.
