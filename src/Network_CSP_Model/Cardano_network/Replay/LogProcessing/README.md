@@ -7,16 +7,25 @@ use Python's standard library and support isolated execution with `python3 -I`.
 | Script | Purpose |
 |---|---|
 | `normalize_logs.py` | Normalize raw mini-protocol logs into sessions, an interleaved stream and source maps; use `--fetch-only` for legacy Fetch-only output |
-| `paired_sessions.py` | Assemble an explicitly declared fresh ChainSync, LeiosNotifyP or LeiosFetchP pair from a JSON manifest |
+| `paired_sessions.py` | Assemble an explicitly declared fresh pair for any of the five replay protocols from a JSON manifest |
 | `chainsync_pair.py` | Compatibility entry point for the paired-session normalizer |
 | `test_connection_lifecycle.py` | Raw-log generation, boundary evidence and ambiguity regressions |
-| `test_*_replay.py` | Compiled-checker regressions for standalone/mixed protocols and paired ChainSync/Leios captures |
+| `test_*_replay.py` | Compiled-checker regressions for standalone/mixed protocols and all five paired protocol modes |
 
 The scripts remain siblings because the compatibility entry point
 and tests locate each other relative to `__file__`. They can be invoked from
 any working directory by supplying their paths; no package installation is
 required. Relative paths inside a pair manifest resolve against the manifest's
 directory.
+
+Pair manifests accept `ChainSync`, `LeiosNotifyP`, `LeiosFetchP`, `BlockFetch`
+and `TxSubmission2`. The new CLI modes are `Main --paired-blockfetch PAIR.txt
+[K_BF]` (client bound, default 100) and `Main --paired-txsubmission2 PAIR.txt
+[K_TS]` (server/requester bound, default 4). BlockFetch matches control kinds;
+TxSubmission2 also matches blocking style and ID-reply emptiness. See the
+[paired control note](../../../../docs/notes/paired-control-replay.md) for
+input examples and proof scope. Normalization does not infer these fields
+when the raw tracer omits them.
 
 From this directory:
 
@@ -77,7 +86,7 @@ The default NewMux mode and its legacy output schema remain unchanged.
 
 ## Regression checks
 
-To run all six CLI regression suites, first compile `Replay/Main.agda` as
+To run all seven CLI regression suites, first compile `Replay/Main.agda` as
 explained in the [replay README](../README.md), then run:
 
 ```sh

@@ -7,7 +7,9 @@ only LeiosFetch and uses the original role-only session format and filenames.
 
 Reads raw node JSON, journal-prefixed JSON and supervisor JSON wrappers in file
 order. Writes session .txt/.src files, interleaved.txt, interleaved.src and
-index.tsv. Sessions are keyed by connection, protocol and role; Done closes
+index.tsv into OUTDIR, which must be new or empty and is populated only when the
+whole log normalizes; a protocol row that cannot be read is a line-numbered error,
+never skipped. Sessions are keyed by connection, protocol and role; Done closes
 that session and NewMux closes the connection's open sessions by default.
 For devnet captures without NewMux, --connection-lifecycle instead uses successful
 handshakes and matching handler cleanups. It requires handler/wire thread IDs,
@@ -28,6 +30,7 @@ import ipaddress
 from pathlib import Path
 import os
 import re
+import shutil
 import sys
 import tempfile
 
@@ -314,9 +317,32 @@ class ConnectionLifecycle:
                 stream.write('\t'.join(str(record[field]) for field in fields) + '\n')
 
 
-def split(lines, outdir, mux_split=True, include_notify=False, include_control=False, include_txsubmission2=False,
-          connection_lifecycle=False):
-    """Stream `lines` and write the session files and index into `outdir`.
+def split(lines, outdir, **options):
+    """Normalize into a fresh sibling directory and publish it as `outdir` only on success.
+
+    Refuses an existing non-empty `outdir`, so two runs are never mixed and a
+    failing run leaves no partial output. See `split_into` for the options."""
+    outdir = os.path.realpath(outdir)
+    if os.path.exists(outdir) and (not os.path.isdir(outdir) or os.listdir(outdir)):
+        raise ValueError('output directory %s already exists and is not empty; choose a fresh OUTDIR' % outdir)
+    parent = os.path.dirname(outdir)
+    os.makedirs(parent, exist_ok=True)
+    work = tempfile.mkdtemp(prefix='.' + os.path.basename(outdir) + '.', dir=parent)
+    try:
+        rows = split_into(lines, work, **options)
+        mask = os.umask(0)
+        os.umask(mask)
+        os.chmod(work, 0o777 & ~mask)  # mkdtemp is private; match a plain mkdir
+        os.replace(work, outdir)  # fails rather than merges if OUTDIR gained files meanwhile
+    except BaseException:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
+    return rows
+
+
+def split_into(lines, outdir, mux_split=True, include_notify=False, include_control=False, include_txsubmission2=False,
+               connection_lifecycle=False):
+    """Stream `lines` and write the session files and index into existing `outdir`.
     With include_notify, include Notify. With include_control, include control-only
     ChainSync and BlockFetch. include_txsubmission2 requires enriched control
     evidence. Any protocol option enables protocol-tagged output.
@@ -327,7 +353,6 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
         raise ValueError('--connection-lifecycle cannot be combined with --no-mux-split')
     lifecycle = ConnectionLifecycle() if connection_lifecycle else None
     mixed = include_notify or include_control or include_txsubmission2
-    os.makedirs(outdir, exist_ok=True)
     open_ = {}   # (cid, role, protocol) -> session generation
     rows = []
     counter = [0]
@@ -351,42 +376,45 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
                     ((s['generation']['generation'], s['generation']['handlerThread'],
                       s['generation']['handshakeLine']) if lifecycle else ()))
 
-    for lineno, line in enumerate(lines, 1):
+    def record(lineno, line):
+        """Process one raw line; every malformed protocol row raises, none is skipped."""
         i = line.find('{')
         if i < 0 or (LF not in line and MUX not in line and
                      (not include_notify or LN not in line) and
                      (not include_control or (CS not in line and BF not in line)) and
                      (not include_txsubmission2 or TS not in line) and
                      (not lifecycle or (HANDSHAKE not in line and CLEANUP not in line))):   # cheap pre-filter
-            continue
+            return
         o = json.loads(line[i:])
-        # Local devnet supervisors wrap the node JSON in a message string.
+        # Local devnet supervisors wrap the node JSON in a message string or object,
+        # possibly after whitespace or a journal prefix.
         # Keep the outer line number as the source-map coordinate.
-        if 'ns' not in o and isinstance(o.get('message'), str):
-            nested = o['message']
-            if not nested.startswith('{'):
-                continue
-            o = json.loads(nested)
         if 'ns' not in o:
-            continue
-        ns, d = o['ns'], o['data']
+            nested = o.get('message')
+            if isinstance(nested, str) and '{' in nested:
+                nested = json.loads(nested[nested.find('{'):])
+            if isinstance(nested, dict):
+                o = nested
+        if 'ns' not in o:
+            # The pre-filter saw protocol text; dropping the row could change a verdict.
+            raise ValueError('protocol text without a parseable "ns" record')
+        ns = o['ns']
+        if not isinstance(ns, str):
+            raise ValueError('"ns" must be a string')
         if lifecycle and ns in (HANDSHAKE, CLEANUP):
-            try:
-                cid = lifecycle.observe(o, lineno)
-            except (KeyError, ValueError, TypeError, AttributeError) as err:
-                raise ValueError('line %d: %s' % (lineno, err))
+            cid = lifecycle.observe(o, lineno)
             if cid is not None:
                 for key in list(open_):
                     if key[0] == cid:
                         close(key, 'connection')
-            continue
+            return
         if ns.startswith(MUX):
             if not lifecycle and mux_split and ns == MUX + 'NewMux':
-                cid = d['bearer']['connectionId']
+                cid = o['data']['bearer']['connectionId']
                 for key in list(open_):
                     if key[0] == cid:
                         close(key, 'mux')
-            continue
+            return
         if ns.startswith(LF):
             protocol, prefix, kinds, normalizer = 'fetch', LF, KINDS, normalize
         elif include_notify and ns.startswith(LN):
@@ -398,25 +426,23 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
         elif include_control and ns.startswith(BF):
             protocol, prefix, kinds, normalizer = 'blockfetch', BF, BLOCK_FETCH_KINDS, normalize_control
         else:
-            continue
+            return
         # Serialised tracers are separate observations, not wire-message rows.
         if ns.startswith(prefix + 'Serialised.'):
-            continue
+            return
         suffix = ns[len(prefix):]
         if suffix not in kinds:
-            raise ValueError('line %d: unknown %s namespace %s' % (lineno, protocol, ns))
+            raise ValueError('unknown %s namespace %s' % (protocol, ns))
         role, direction, kind = kinds[suffix]
-        try:
-            cid = connection_id(d['peer']['connectionId']) if lifecycle else d['peer']['connectionId']
-            generation = lifecycle.wire(o, cid, role, protocol) if lifecycle else None
-            key = (cid, role, protocol)
-            ev = normalizer(direction, kind, d['msg'])
-            if mixed:
-                # Keep the exact tracer namespace on each row, including aliases.
-                payload = ev.split(' ', 2)
-                ev = ns + (' ' + payload[2] if len(payload) == 3 else '')
-        except (KeyError, ValueError, TypeError, AttributeError) as err:
-            raise ValueError('line %d: %s' % (lineno, err))
+        d = o['data']
+        cid = connection_id(d['peer']['connectionId']) if lifecycle else d['peer']['connectionId']
+        generation = lifecycle.wire(o, cid, role, protocol) if lifecycle else None
+        key = (cid, role, protocol)
+        ev = normalizer(direction, kind, d['msg'])
+        if mixed:
+            # Keep the exact tracer namespace on each row, including aliases.
+            payload = ev.split(' ', 2)
+            ev = ns + (' ' + payload[2] if len(payload) == 3 else '')
         if key not in open_:
             counter[0] += 1
             open_[key] = {'id': 's%04d' % counter[0], 'tag': counter[0] - 1,
@@ -427,6 +453,12 @@ def split(lines, outdir, mux_split=True, include_notify=False, include_control=F
         open_[key]['src'].append((lineno, o['at']))
         if kind in ('Done', 'ClientDone'):
             close(key, 'done')
+
+    for lineno, line in enumerate(lines, 1):
+        try:
+            record(lineno, line)
+        except (KeyError, ValueError, TypeError, AttributeError) as err:
+            raise ValueError('line %d: %s' % (lineno, 'missing field %s' % err if isinstance(err, KeyError) else err))
     for key in list(open_):
         close(key, 'eof')
 
@@ -630,6 +662,35 @@ def selftest_cli():
         assert result.returncode == 2 and 'LOG and OUTDIR are required' in result.stderr
         result = subprocess.run(command + ['--help'], capture_output=True, text=True)
         assert result.returncode == 0 and '--fetch-only' in result.stdout
+        # Wrapped rows survive leading whitespace, journal prefixes and object messages.
+        record = json.loads(row(LF + 'Send.BlockRequest', {'ebHash': 'ab', 'ebSlot': 3}))
+        log.write_text(''.join(json.dumps({'message': m}) + '\n' for m in
+                               (' ' + json.dumps(record), 'node[1]: ' + json.dumps(record), record)))
+        out, _ = run('wrapped', '--fetch-only')
+        assert (out / 'interleaved.txt').read_text() == 'sessions client\n' + '0 Send BlockRequest ab 3\n' * 3
+        # Rerunning into a used OUTDIR is refused and leaves the earlier run intact.
+        before = {p.name: p.read_bytes() for p in out.iterdir()}
+        _, result = run('wrapped', '--fetch-only', expected=2)
+        assert 'not empty' in result.stderr
+        assert {p.name: p.read_bytes() for p in out.iterdir()} == before
+        # Unreadable protocol rows are line-numbered input errors, never skipped.
+        for bad in ['{"ns": "%sSend.Done", ' % LF,
+                    json.dumps({'message': 'dropped ' + LF + 'Send.Done'}),
+                    json.dumps({'ns': LF + 'Send.Done', 'at': 't'}),
+                    json.dumps({'ns': LF + 'Send.Done', 'data': record['data']}),
+                    json.dumps({'ns': MUX + 'NewMux', 'at': 't', 'data': {}}),
+                    json.dumps({'ns': ['x'], 'note': LF})]:
+            log.write_text('irrelevant\n' + bad + '\n')
+            _, result = run('bad', expected=2)
+            assert result.stderr.startswith('error: line 2:'), (bad, result.stderr)
+        # A failing run publishes nothing, not even session files closed before the error.
+        log.write_text(row(LF + 'Send.Done', {}) + row(LF + 'Send.Bogus', {}))
+        out, _ = run('partial', expected=2)
+        assert not out.exists() and not list(root.glob('.partial*'))
+        (root / 'premade').mkdir()
+        log.write_text(row(LF + 'Send.Done', {}))
+        out, _ = run('premade', '--fetch-only')
+        assert (out / 'index.tsv').is_file()
         print('Log normalization CLI modes and diagnostics passed')
 
 

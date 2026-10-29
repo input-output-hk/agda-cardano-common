@@ -11,6 +11,11 @@ from pathlib import Path
 
 CHAIN_SYNC_KINDS = {'RequestNext', 'AwaitReply', 'RollForward', 'RollBackward',
          'FindIntersect', 'IntersectFound', 'IntersectNotFound', 'Done'}
+BLOCK_FETCH_KINDS = {'RequestRange', 'StartBatch', 'NoBlocks', 'Block',
+                     'BatchDone', 'ClientDone'}
+PROTOCOL_NAMESPACES = {'ChainSync': 'ChainSync', 'LeiosNotifyP': 'LeiosNotify',
+                       'LeiosFetchP': 'LeiosFetch', 'BlockFetch': 'BlockFetch',
+                       'TxSubmission2': 'TxSubmission'}
 
 
 def token(value, label):
@@ -29,8 +34,7 @@ def fields(value, required, optional, label):
 def event(text, protocol):
     """Preserve payload tokens; the Agda parser remains the verdict authority."""
     words = text.split()
-    namespace = {'ChainSync': 'ChainSync', 'LeiosNotifyP': 'LeiosNotify',
-                 'LeiosFetchP': 'LeiosFetch'}[protocol]
+    namespace = PROTOCOL_NAMESPACES[protocol]
     if words and '.' in words[0]:
         parts = words[0].split('.')
         if len(parts) == 4 and parts[:2] == [namespace, 'Remote']:
@@ -38,12 +42,22 @@ def event(text, protocol):
             kind = parts[3]
             if protocol == 'LeiosNotifyP' and kind == 'NotificationRequestNext':
                 kind = 'RequestNext'
+            if protocol == 'TxSubmission2' and kind == 'MsgInit':
+                kind = 'Init'
+            elif protocol == 'TxSubmission2' and kind == 'Init':
+                raise ValueError('TxSubmission2 tracer Init must use MsgInit')
             words = [direction, kind] + words[1:]
     if len(words) < 2 or words[0] not in ('Send', 'Recv'):
         raise ValueError(f'unsupported normalized {protocol} event')
     kind, payload = words[1], words[2:]
     if protocol == 'ChainSync':
         valid = kind in CHAIN_SYNC_KINDS and not payload
+    elif protocol == 'BlockFetch':
+        valid = kind in BLOCK_FETCH_KINDS and not payload
+    elif protocol == 'TxSubmission2':
+        valid = ((kind in {'Init', 'RequestTxs', 'ReplyTxs', 'Done'} and not payload)
+                 or (kind == 'RequestTxIds' and payload in [['Blocking'], ['NonBlocking']])
+                 or (kind == 'ReplyTxIds' and payload in [['Empty'], ['NonEmpty']]))
     else:
         shapes = {
             'LeiosNotifyP': {'RequestNext': [()], 'Done': [()],
@@ -120,8 +134,8 @@ def assemble(manifest_path):
     manifest_path = Path(manifest_path).resolve()
     data = json.loads(manifest_path.read_text(), object_pairs_hook=unique_keys)
     fields(data, {'protocol', 'connection', 'session', 'client', 'server'}, set(), 'manifest')
-    if data['protocol'] not in ('ChainSync', 'LeiosNotifyP', 'LeiosFetchP'):
-        raise ValueError('supported protocols: ChainSync, LeiosNotifyP, LeiosFetchP')
+    if data['protocol'] not in PROTOCOL_NAMESPACES:
+        raise ValueError('supported protocols: ' + ', '.join(PROTOCOL_NAMESPACES))
     connection = token(data['connection'], 'connection')
     session = token(data['session'], 'session')
     client, cs, client_inputs = endpoint(data['client'], 'client', manifest_path.parent, data['protocol'])

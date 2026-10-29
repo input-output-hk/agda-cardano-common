@@ -14,10 +14,58 @@ audit and rejects ambiguous generation evidence. The default mux-based mode
 is unchanged. See [LogProcessing](LogProcessing/README.md#devnet-captures-without-newmux)
 for the capture requirements and command.
 
-Paired ChainSync, LeiosNotifyP and LeiosFetchP replay checks communication consistency between explicitly
+Paired ChainSync, LeiosNotifyP, LeiosFetchP, BlockFetch and TxSubmission2 replay checks communication consistency between explicitly
 paired opposite endpoints. The [implementation note](../../../docs/notes/paired-chainsync-replay.md)
 documents its input grammar, certificates, tracer boundary and limitations;
 the [plan](../../../docs/specs/paired-trace-replay-plan.md) tracks remaining work.
+
+## Paired BlockFetch and TxSubmission2
+
+```sh
+Main --paired-blockfetch PAIR.txt [K_BF]
+Main --paired-txsubmission2 PAIR.txt [K_TS]
+python3 -I src/Cardano_network/Replay/LogProcessing/paired_sessions.py manifest.json PAIR.txt
+```
+
+**Both are certified first-order paired checkers.** BlockFetch bounds the client
+pipeline (default **100**) and preserves sequential server batch processing.
+TxSubmission2 bounds the server/requester pipeline (default **4**); its
+client/submitter remains sequential. The shared fresh-session manifest uses
+protocol `BlockFetch` or `TxSubmission2`. Existing canonical and exact tracer
+namespace grammars are accepted; TxSubmission2 uses `TxSubmission.Remote.*`,
+including `MsgInit`, and requires explicit blocking/ID-reply-emptiness tags.
+
+The checker searches all order-preserving merges of the endpoint inputs. Two
+initially empty, unbounded directional FIFOs match message observations.
+BlockFetch compares message kinds only; TxSubmission2 also compares blocking
+style and ID-reply emptiness. Payloads, hashes, ranges, transaction IDs and
+contents are not compared. EOF accepts unfinished prefixes and can leave
+messages in flight. Zero capacity permits BlockFetch idle ClientDone and
+TxSubmission2 blocking exchanges, while disabling the respective pipelined work.
+
+`BlockFetchPairedSession` and `TxSubmission2PairedSession` prove both projections
+into the existing local replay models. `BlockFetchPairedLocal` proves that its
+state-type adapter preserves every existing client/server transition. The
+shared certified search supplies a merged execution with exact input
+projections, or refutes all such merges.
+
+**Both protocols also have composed PTree/FIFO bridges.**
+`BlockFetchPairedBridge` targets the existing `BlockFetchPipe.client` and
+sequential server; `TxSubmission2PairedBridge` targets the existing strict
+`TxSubmission2Pipe.client` and pipelined server. The shared `CSP/AsyncPair`
+composition forwards complete native payloads through two initially empty
+FIFOs. For arbitrary Params, depth, link and direction, `checker-sound` maps an
+accepted certificate to one joint execution and `checker-complete` maps an
+observed joint execution back to a certificate. `bridge`, `inputs-bridge` and
+`certificate-bridge` express the corresponding equivalences.
+
+The replay-to-PTree construction requires a Block inhabitant for BlockFetch,
+or a TxHash inhabitant for TxSubmission2. The PTree-to-replay direction needs
+neither. The final observation still erases payload contents beyond the
+retained control fields. These are explicit peer/FIFO products, with no claim
+about the existing node/mux assembly or Haskell refinement.
+See [the paired control note](../../../docs/notes/paired-control-replay.md)
+for examples, observation limits and validation.
 
 ## Exact-field paired Notify bridge
 
