@@ -144,6 +144,16 @@ publication.
 
 ## Profile and remaining abstractions
 
+[ServerIGExit](ServerIGExit.agda) now implements the selected outer IG catch:
+retire the exact interrupted caller-run CM frame, deactivate, drain once, read
+the published registry, trace each remote state to Nothing, then rethrow. Final
+tracing does not unregister connections or join their workers. Invocation, return,
+replacement exception, body exit, Async result and IG join are separate steps.
+A tracer callback that already sampled active may enqueue after the drain;
+initialized acceptance preserves that queue through exit. See
+[Supervision increment 21](Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit)
+for masking premises, initialized histories and remaining scope limits.
+
 - The runtime profile supports eager and independent on-demand responders.
   `installHandle` explicitly rejects StartOnDemandAny bundles until grouped
   scheduling is modeled. The startup kernel still represents that status.

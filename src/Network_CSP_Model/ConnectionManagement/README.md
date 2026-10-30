@@ -71,14 +71,38 @@ inbound/outbound sync fault/control cases. A further actual-CM IO replay passes
 shutdown delivery. The five-case inbound initialized Agda endpoint has passed;
 inbound/outbound CM wait endpoints also pass at 8 GB. A six-case actual Server
 replay shows unjoined admission workers after scope return under pre-publication
-faults; physical Server-worker modeling and outer recovery remain open. See [SourceReplay](SourceReplay/README.md#handshake-result-forcing-contract-probe).
+faults; broader Server/governor recovery remains open. See [SourceReplay](SourceReplay/README.md#handshake-result-forcing-contract-probe).
 [ServerAdmission](ServerAdmission.agda) now records raw admission Async birth and
 separate body/close/result phases, with a checked normal single-listener owned
 scope path through IG cleanup and CM shutdown. Its initialized counterexample
 refutes inferring all admission results from Server return, and a checked explicit
 recovery suffix prevents a permanent-blocking interpretation. This post-setup
-profile leaves broader worker failures, new-writer invariants and full outer
+profile leaves broader worker failures and full outer
 composition open; see [Supervision increment 18](Supervision.md#eighteenth-increment-raw-admission-workers-and-owned-server-scope-return).
+[ServerAdmissionPrefix](Negative/ServerAdmissionPrefix.agda) now checks initialized
+hard-limit, pre-birth fork-failure and forbidden-entry exits, including restoration,
+physical close attempts and worker results. Controls cover close retry/exception
+replacement, premature results, lower-close bypass and inconsistent hard limits.
+The forbidden-entry history completes a real modeled handshake and caller first;
+its duplicate-key input remains abstract. See
+[Supervision increment 19](Supervision.md#nineteenth-increment-initialized-server-admission-prefix-exits).
+[ServerAdmissionInvariants](Properties/ServerAdmissionInvariants.agda) now lifts
+the existing outbound capture, entry/promise supply and existing-handler resource
+predicates through every implemented Server action and finite execution. New
+handoff/socket writers have explicit preservation proofs; inherited effects reuse
+checked lower traces. Resources retain the original descriptor and stored entry/
+socket identities, including closed records. Initial supply bounds remain a
+premise. See
+[Supervision increment 20](Supervision.md#twentieth-increment-server-handoff-and-close-invariants).
+[ServerIGExit](ServerIGExit.agda) extends the same selected Server profile with
+receipts at blocked masked CM reads/sends and unmasked demotion boundaries. It
+archives the exact interrupted call, preserves committed state, then models IG
+deactivation, one queue drain, published-state snapshot and individual final
+tracer calls before result publication/join. Initialized histories cover nonempty
+exit, tracer failures and a sampled-active callback enqueue after the drain;
+capture/supply/resource lifts cover every adapter step. Pruning-send coverage is
+conditional. Broader outer composition and other exception windows remain open;
+see [Supervision increment 21](Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit).
 Other ignored callbacks, remaining allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for

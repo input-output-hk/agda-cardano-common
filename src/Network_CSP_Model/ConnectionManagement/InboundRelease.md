@@ -63,7 +63,13 @@ On return, CommitTr prepares unregister, KeepTr prepares RemoteCold and unsuppor
 advances the batch cursor without publication. Successful decisions use the
 captured IG state and are published by `IG.commitDecision`. During the CM call,
 `IG.inCM` prevents the batch from advancing. Existing IG deactivation prevents
-subsequent call steps; full asynchronous masking/unwinding remains unmodeled.
+subsequent call steps. The separate [ServerIGExit](ServerIGExit.agda) adapter now
+models selected cancellation receipts at a genuinely blocked initial/counter
+read or an observed blocked `throwTo`. It archives the whole call frame and
+retires its local cursor without restoring the CM map, undoing writes or stepping
+the target. Initialized pre-commit, post-commit and send histories pass; general
+asynchronous masking/unwinding remains outside this selected profile. See
+[Supervision increment 21](Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit).
 An assertion reaches `assertionRaised`, reported by `CSP.Scope.releaseFrontier`;
 it cannot return nominally. This is an exception frontier, not a source deadlock.
 

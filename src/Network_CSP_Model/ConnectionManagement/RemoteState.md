@@ -50,7 +50,11 @@ failure prevents the counter read; already committed writes are not rolled back.
 Promotion unsupported results can return without a counter read even when the map
 has since been taken. Demotion unsupported and TerminatedConnection results must
 still read counters before return. The source masks promotion but not demotion;
-general asynchronous delivery and masking remain outside this model.
+the separate [ServerIGExit](ServerIGExit.agda) adapter adds selected blocked
+promotion-read/send receipts and unmasked demotion boundaries. Exact interrupted
+frames and committed entry writes survive in the appropriate archive/shared
+state, while the local call cursor is retired. General asynchronous delivery and
+masking remain outside this selected profile.
 
 IG always prepares RemoteWarm after a returning promotion call. Successful demotion
 enters `awaitRemoteIdle`; `registerIdleTimer` allocates the timer and prepares the
@@ -84,6 +88,15 @@ registration and actual mux startup through AwakeRemote promotion and the follow
 hot event. It also supplies a hidden promotion trace. Demotion currently uses an
 explicitly injected WaitIdleRemote fixture after that promotion; its trace is not
 claimed to compose from responder completion yet.
+
+The newer [ServerIGExitProtocolPrefix](Negative/ServerIGExitProtocolPrefix.agda)
+does compose demotion from the real wrapper initializer, admission/handshake,
+registration, mux startup, on-demand notifications, promotion and physical
+responder completion. It consumes the resulting monitor notifications, including
+the explicit DeltaQ callback boundary. Its cancellation suffix interrupts before
+IG publishes the demotion decision: CM retains Idle while final tracing reads the
+published Warm state. This extends the initialized evidence, without changing the
+older CSP witness. See [Supervision increment 21](Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit).
 
 Checks cover CM/IG publication separation, fresh idle-timer allocation, unsupported
 promotion return while the map is taken, terminated demotion counter blocking,

@@ -2213,3 +2213,270 @@ completion from owned scopes alone. Extend physical admission failure coverage,
 new-writer invariants, IG-call/nonempty cleanup and parent PSA/governor composition;
 keep any additional quiescence/fix profile explicit. G0–G5, CM-I4c and SI4/SI5
 remain open. No whole-source or whole-node shutdown/refinement is established.
+
+
+## Nineteenth increment: initialized Server admission prefix exits
+
+Checked 30 October 2026. This completes acceptance of the prefix runtime committed
+in `093cbe5`; the earlier increment's validation predates that runtime extension.
+No runtime rule or prior theorem statement was changed for this acceptance work.
+
+Pinned source was rechecked in the clean network checkout at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: Core.hs:801–891 distinguishes normal
+hard-limit return from forbidden selection and handler-fork exceptions;
+Core.hs:2366–2380 restores the saved map on exception without undoing committed
+entry writes. State.hs:193–200 retains the lazy handler reference for `mfix`.
+Server.hs:239–254 closes Disconnected sockets and uses a separate `onException`
+cleanup close. Failure of the normal close can therefore cause a second attempt;
+failure of the exception-cleanup close replaces the exception and exits.
+
+[Negative/ServerAdmissionPrefix](Negative/ServerAdmissionPrefix.agda) aggregates
+three independently checked branches, backed by data-only flat snapshots and
+small shared trace combinators. Internal adapter aliases are private, following
+the existing fixture convention. Every trace starts from the real wrapper
+initializer with empty raw admission/socket tables and two explicit successful
+handoffs; no old logical worker is adopted as physical history.
+
+| Branch | Initialized evidence |
+| --- | --- |
+| `HardLimit.initialized` | Both requests have hardLimit=1 and are handed off before either CM call. The first installs a real unnegotiated handler; the second counts it, restores/publishes the map, closes once and publishes a normal result. The first entry and physical handler remain, with no second handler birth or promise allocation. |
+| `ForkFailure.initialized` | The first fresh-entry path fails before handler birth. The saved empty map is restored while entry/promise allocations and supplies remain. One successful close precedes the raised synchronous worker result; handler stores/results and the handshake promise remain empty. |
+| `Forbidden.initialized` | Both requests have hardLimit=2 and the same key. The first executes actual modeled negotiation, allocation, publication and caller completion to inboundIdle. The second counts, allocates its promise, rejects selection, restores and closes once before publishing the synchronous exception, preserving the original entry, handler and socket. |
+
+Four additional initialized histories cover a failed hard-limit normal close
+followed by cleanup success or failure, and exception-cleanup close failure for
+the fork/forbidden branches. They distinguish uncertain socket outcome, attempt
+count, body exit and result publication. Cleanup success retains the first close
+exception; cleanup failure publishes the replacement without another retry.
+Negative controls reject close/return observations before restoration, premature
+worker results, the inherited raw lower-close shortcut, and mismatched handoff
+limits. Failed closes do not falsely finish the logical admission.
+
+Validation ran serially with Agda 2.8.0 from the standalone library root. All
+listed commands exited 0, with their own `Checking` lines and no warnings:
+
+```sh
+agda ConnectionManagement/Properties/ServerAdmission.agda +RTS -M4G -RTS
+agda ConnectionManagement/Negative/ServerAdmission.agda +RTS -M8G -RTS
+agda ConnectionManagement/Negative/ServerAdmissionPrefixHardLimit.agda --profile=definitions +RTS -M8G -RTS
+agda ConnectionManagement/Negative/ServerAdmissionPrefixFork.agda +RTS -M8G -RTS
+agda ConnectionManagement/Negative/ServerAdmissionPrefixForbidden.agda +RTS -M8G -RTS
+agda ConnectionManagement/Negative/ServerAdmissionPrefix.agda +RTS -M8G -RTS
+```
+
+Logs are in `/tmp/cm-prefix-20261030/`: `properties.log`, `server-existing.log`,
+`hard-limit-private.log`, `fork.log`, `forbidden.log` and `aggregate.log`.
+The final aggregate freshly rechecked all three branch modules and Support after
+EOF whitespace cleanup; Fixtures had freshly checked in the successful hard-limit
+command. Six-file local proof audit: zero holes, postulates or unsafe-option
+findings. Tracked and new-file whitespace checks pass. This is a local source
+audit, not a term-level audit of all imported assumptions.
+
+Initial syntax/import repairs preceded these successes. An earlier combined
+8 GB run exhausted heap (exit 251). Two subsequent slow checks were stopped
+(exit 130) while flattening snapshots, splitting branches and making the internal
+adapter aliases private. Those runs are not passing evidence; the final split
+checks above establish acceptance. No checker remains running.
+
+Limits: the established owned-infrastructure/single-listener profile remains.
+The same-key transport input is abstract, without OS tuple-reachability evidence.
+Failed-fork unresolved lazy-reference evaluation is outside this profile. Async
+close failures are observed interruptible-close outcomes, not an assertion that
+every masked region admits cancellation. No native replay was changed or rerun,
+and no new prefix replay, production patch, permanent leak or whole-node shutdown
+result is claimed. Broader async lease/tracer unwinds and other scope winners
+remain open. Next: lift capture/supply/resource invariants through the new handoff
+and close writers, then pending IG-call/nonempty-exit handling and shared
+Server/PSA/governor composition. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+
+## Twentieth increment: Server handoff and close invariants
+
+Checked 30 October 2026. No runtime rule, guard or existing theorem statement was
+changed. This extends the existing predicates through the Server admission
+wrapper's new writers and every implemented scope/worker action.
+
+[Properties/ServerAdmissionInvariant](Properties/ServerAdmissionInvariant.agda)
+proves exhaustive step and finite-execution preservation for a source predicate
+given preservation of lower steps, accepted handoffs and socket writes. The
+generic layer is parameterized over lower preservation. The concrete
+[ServerAdmissionInvariants](Properties/ServerAdmissionInvariants.agda) supplies
+all three proofs; no new unproved preservation assumption is left in its public
+capture/supply/resource endpoints. Inherited effects reuse the existing
+publication-to-outbound-machine trace projection; bookkeeping observations keep
+the source unchanged, and successful prefix closes use their actual lower step.
+
+| Public statement | Exact scope and premises |
+| --- | --- |
+| `captures-step`, `captures-exec` | Preserve unchanged `OutboundRuntimeCapture.Captures`, covering all stored pending outbound acquisition captures, from an existing capture certificate. `from-initial-captures` derives it for initialized outbound configurations without a supply premise. |
+| `supply-step`, `supply-exec` | Preserve unchanged `OutboundRuntimeSupply.Valid`, including capture validity and entry/promise allocation bounds. `from-initial-supply` requires only initial shared-world `SupplyBounds`, deriving empty-runtime capture validity from `O.initial`. Bounds alone are not claimed sufficient for arbitrary injected acquisition frames. |
+| `For q captured.{step,exec}-preserves` | Retain the exact original handler descriptor plus existence of its stored entry/socket records. Public `resources-step`/`resources-exec` use unchanged `Resources`; no supply, uniqueness, ownership or scheduling premise is added. Closed/uncertain socket values still count as stored records, not live ownership. |
+
+Handoffs change only admissions and sockets, so acquisition frames and allocation
+bounds are definitionally unchanged. Socket replacement retains stored resource
+identities using the existing `HandlerResourceFacts.socket-write` lemma. Source
+steps use the established outbound capture/supply/resource preservation proofs.
+This includes selected IG deactivation/flush and actual CM shutdown actions; it
+does not widen the runtime's pending-IG-call or nonempty-exit guards.
+
+[Negative/ServerAdmissionInvariants](Negative/ServerAdmissionInvariants.agda)
+applies the theorem to all seven initialized prefix/close histories, the earlier
+initialized Server-return counterexample and its recovery suffix. An additional
+initialized caller-cancellation/close/result history closes the same socket as an
+existing handler while preserving its historical resource records. An explicitly
+conditional fixture carries a nonempty, well-formed outbound acquisition capture
+through enabled handoff/close writers, with capture/supply/resource certificates;
+no initialized outbound history is fabricated for that fixture. An initializer
+with an already unbounded promise list refutes unconditional initial supply,
+retaining the real theorem's initial-bounds premise. These are invariant controls,
+not source-defect or progress claims.
+
+Validation ran serially with Agda 2.8.0 from the standalone library root. These
+commands exited 0 with their own `Checking` lines and no warnings:
+
+```sh
+agda ConnectionManagement/Properties/ServerAdmissionInvariant.agda +RTS -M4G -RTS
+agda ConnectionManagement/Properties/ServerAdmissionInvariants.agda +RTS -M8G -RTS
+agda ConnectionManagement/Negative/ServerAdmissionInvariants.agda +RTS -M8G -RTS
+```
+
+Accepted logs: `/tmp/cm-server-invariants-20261030/{lift-cases,invariants-direct-final,negative}.log`.
+Existing lower resource components also freshly checked transitively. Existing
+`Negative/ServerAdmission.agda` and `Negative/ServerAdmissionPrefix.agda` commands
+with `+RTS -M8G -RTS` exited 0 as cached regressions, with no `Checking` lines;
+logs are `server-existing.log` and `prefix-existing.log` in the same directory.
+Three-file local proof audit: zero holes, postulates or unsafe-option
+findings; tracked/new-file whitespace checks pass. Imported assumptions were not
+given a new term-level axiom audit.
+
+Preliminary results remain distinct: the first broad generic closure exhausted
+its 4 GB heap (exit 251); wildcard rejection proofs produced unsolved constraints
+(exit 42) and were replaced by exhaustive constructor cases. A slow broad
+publication-proof alias instantiation at 8 GB was stopped (exit 130); direct calls
+to the two needed projection/initialization lemmas removed that expansion. One
+implicit projection-parameter error (exit 42) was corrected before final success.
+No native replay or full baseline suite was rerun. The pinned checkout remains
+clean and the source pin unchanged. All checker handles are terminal.
+
+Next: inspect and implement pending IG CM-call cancellation/unwind and nonempty
+IG exit, preserving shared continuations and source cleanup order. Then compose
+Server/PSA/governor scopes on one shared `O.Configuration`. This increment proves
+preservation of stored facts through the implemented adapter; it does not finish
+raw workers or establish whole-node shutdown, source refinement or liveness.
+G0–G5, CM-I4c and SI4/SI5 remain open.
+
+
+## Twenty-first increment: pending IG calls and nonempty exit
+
+Checked 30 October 2026. The separate [ServerIGExit](ServerIGExit.agda) adapter
+extends the normal-action-winner, single-listener, post-setup Server profile.
+`ServerAdmission` and its existing guards/theorem types remain unchanged. This
+increment implements selected caller-run CM interruption and the actual nonempty
+IG catch path; it does not declare complete exception coverage or whole shutdown.
+
+Source was rechecked in the clean network checkout at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
+
+- InboundGovernor.hs:193–207 catches outside the loop, deactivates in STM, drains
+  InfoChannel once, then calls `handleError`. At :225–235 it reads the published
+  state, traverses its public remote-state map with final transition tracers, and
+  rethrows. It neither unregisters those connections nor joins raw workers.
+- InboundGovernor/State.hs:76–82 projects remote states without idle timers.
+  ConnectionId.hs:41–44 orders remote address before local address. The adapter
+  reuses `ConnectionOrder.keyLess` and its explicit family/host/port abstraction;
+  it does not establish OS address-order correspondence.
+- Core.hs:1111 masks release, :2066 masks promotion, and :2257 leaves demotion
+  unmasked. The initial and counter transactions read the map using `readTMVar`;
+  they do not acquire a map lease. Release :1250–1254 and promotion :2233–2247
+  separate tracing, counter reads and captured cancellation sends. Prune
+  :767–777 performs ordered `throwTo` calls without cleanup joins.
+- The real mux tracer samples active before a later queue transaction
+  (InboundGovernor.hs:633–725). A callback that sampled True can therefore commit
+  after deactivation and the final drain.
+
+| Receipt site | Permission and effect |
+| --- | --- |
+| IG loop boundary or batch wait | No active CM call; preserve body/registry state for catch handling. |
+| Release/promotion initial or counter read | Exact call PC, IG inCM, and map actually taken. Initialized controls use a distinct raw worker and check that the ordinary CM read retries. |
+| Release send or promotion pruning send | An observed blocked `throwTo`, before target receipt. A send PC alone is not evidence of blocking or delivery. |
+| Demotion transaction/assertion/counters/return boundary | Unmasked caller boundary; no false blocked-map premise. |
+
+Every receipt archives the whole actual frame, including captured targets and
+remaining pruning victims, then retires only the local call cursors. Already
+committed writes, the shared world and other workers remain unchanged; no map
+restoration, synthetic target step, handler result or cleanup join is generated.
+Dual active frames and masked nonblocking receipt attempts are rejected. The old
+call cannot resume after retirement, while unrelated actors can still progress.
+
+Catch handling performs real IG deactivation/drain before a separate snapshot of
+the published registry. Duplicate snapshot keys are refused; final rows are
+ordered with the existing key comparison. Each final tracer has distinct
+invocation and return observations. Normal body exit requires all callbacks to
+return. A synchronous failure, or observed async interruption of a blocked tracer
+in the MaskedInterruptible catch handler, replaces the original exception and
+leaves the failed row unfinished. Body exit, result publication and IG join stay
+separate. Final tracing does not clear the registry, and a late queue write does
+not imply another drain or prevent the modeled IG exit.
+
+[Properties/ServerIGExit](Properties/ServerIGExit.agda) proves exact active-frame
+capture, exact source change (`clearPending` only), unchanged shared world and
+raw worker table for every successful receipt. Its generic preservation lift
+covers every adapter action and finite execution. The concrete
+[ServerIGExitInvariants](Properties/ServerIGExitInvariants.agda) lifts unchanged
+outbound capture, entry/promise supply and original handler/stored-resource facts.
+Initial supply bounds and existing resource premises remain explicit. This
+does not prove live resource ownership, registry validity or universal progress.
+
+[Negative/ServerIGExit](Negative/ServerIGExit.agda) aggregates the acceptance
+modules. All initialized histories begin at the real wrapper initializer with
+empty admission/socket tables, two actual handoffs, real first-handler birth,
+handshake publication, caller completion and IG registration. Hard limits agree
+at 10; no injected queue is used to fake an initialized event history.
+
+- `ServerIGExitRelease` interrupts the post-write counter read while the second
+  raw worker holds the CM map. Terminating and that worker's lease survive IG join.
+- `ServerIGExitSend` adds initialized release interruption before its first
+  transaction and during an observed blocked captured send, without target result.
+- `ServerIGExitProtocolPrefix` drives real mux startup/on-demand notifications,
+  promotion, responder completion, monitor handling and explicit DeltaQ completion
+  to a demotion call. `ServerIGExitCases` interrupts promotion before/after commit
+  and unmasked demotion after commit. Final tracing reads published Warm while CM
+  already contains Idle. It also checks a real sampled-active callback enqueue
+  after the drain and unrelated handler progress while final tracing is pending.
+- `ServerIGExitControls` checks initialized synchronous/blocked-tracer async
+  replacement outcomes. Pruning-send cursor retention and two-key traversal order
+  are explicitly conditional data controls, not initialized pruning/multiconnection
+  histories. Premature snapshot/result/join, callback shortcuts and whole-Server
+  completion are rejected at their tested frontiers.
+
+Validation used serial Agda 2.8.0 checks from this library root. Runtime passed
+initially at 4 GB; properties, invariants, branch endpoints and final aggregate
+passed at 8 GB with their own `Checking` lines and no final warnings:
+
+```sh
+agda ConnectionManagement/Negative/ServerIGExit.agda +RTS -M8G -RTS
+```
+
+Logs: `/tmp/cm-ig-exit-20261030/`. Accepted individual evidence includes
+`runtime.log`, `properties-final.log`, `invariants.log`, `release-clean.log`,
+`protocol-prefix-check.log`, `cases.log`, `controls-final.log`, `send-final.log`;
+`aggregate.log` freshly rechecks the aggregate and affected proof endpoints after
+EOF cleanup. Data fixtures and remaining properties freshly checked in the
+individual runs. Preliminary missing imports/name clashes and a shadowing warning
+were repaired; no accepted run retains them. The 13-file strict local proof audit
+reports zero findings, and tracked/new-file whitespace checks pass. This is not
+a term-level audit of every imported assumption.
+
+Existing `Negative/{ServerAdmission,ServerAdmissionPrefix,ServerAdmissionInvariants}`
+also passed serial `+RTS -M8G -RTS` regression checks, exit 0, using cached
+interfaces without `Checking` lines. Logs are `regression-*.log` in the same
+directory. All checker processes have exited.
+
+Assertions remain enabled; ordinary CM diagnostic tracers retain their earlier
+total/nonblocking profile. Other receipt windows, initialized pruning-send history, arbitrary tracer
+or finalizer failures, other Server race winners and multiple listeners remain
+open. No native replay, full baseline rebuild, production patch or new deployed
+defect is claimed. Next: compose this Server/handler adapter with
+`PeerSupervision`/`GovernorPool` on one shared `O.Configuration`, preserving both
+adapters' pending calls, actor freshness and scope certificates. G0–G5, CM-I4c and
+SI4/SI5 remain open; raw admission workers are still outside owned scope joins.

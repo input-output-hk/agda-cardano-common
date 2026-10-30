@@ -853,3 +853,71 @@ new-writer invariants, multiple listeners and PSA/governor composition are open.
 No old theorem was weakened or whole-shutdown claim substituted. The three new
 modules have zero local proof-audit findings. Supervision increment 18 records
 commands, logs and next obligations; native replay artifacts are unchanged.
+
+
+Initialized prefix acceptance (30 October, after `093cbe5`):
+[ServerAdmissionPrefix](../ConnectionManagement/Negative/ServerAdmissionPrefix.agda)
+now checks hard-limit return, pre-birth fork failure and forbidden-entry exception
+from the real raw-worker initializer and observed handoffs. The same hard limit
+is retained across each history: 1 for the two-handoff hard-limit race, 2 for the
+same-key forbidden case after a real modeled first handshake/caller completion.
+Map restoration, retained committed allocations, successful/uncertain close
+attempts and physical worker results are separate observations. Four initialized
+close-failure histories check retry and replacement, with no third cleanup retry
+or fabricated handler result. Premature result/close and lower-close bypass
+controls also pass.
+
+The clean pinned source was rechecked at Core.hs:801–891,2366–2380,
+State.hs:193–200 and Server.hs:239–254. The three new branch modules and aggregate
+freshly pass at 8 GB; existing Server properties and negative closure also pass.
+Six-file local proof audit and whitespace checks pass. Exact commands, failed/
+stopped preliminary runs and logs are recorded in Supervision increment 19.
+No old theorem or runtime rule was weakened. New-writer invariant lifts, async
+lease/tracer unwinds and broader Server/governor composition remain open. The
+duplicate-key transport input and unevaluated failed-fork lazy references retain
+their stated limitations. Native source replay artifacts were not changed or
+rerun; this acceptance adds finite model evidence, not a new deployment finding.
+
+
+Server invariant follow-up (30 October):
+[Properties/ServerAdmissionInvariants](../ConnectionManagement/Properties/ServerAdmissionInvariants.agda)
+now proves capture/supply preservation and exact existing-handler descriptor plus
+stored entry/socket retention through every implemented Server action and finite
+execution. Handoff and socket writers have proved local obligations; inherited
+effects reuse checked lower source traces. Initial supply bounds and existing
+resource premises remain explicit, with no new runtime guard or weakened theorem.
+The new negative endpoint instantiates initialized prefix/close, owned-scope and
+recovery histories, tests nonempty conditional acquisition captures, and rejects
+omitting the initial supply premise. A closed socket record remains historical
+presence; no live socket ownership, raw-worker completion or whole-shutdown
+conclusion follows. All three new modules freshly pass; local proof/whitespace
+audits pass. Commands, preliminary failures and limits are in Supervision
+increment 20. Pending IG calls/nonempty exit and full outer composition remain
+open; no production source patch, native replay rerun or new source finding.
+
+
+Pending-IG-call/nonempty-exit follow-up (30 October):
+[ServerIGExit](../ConnectionManagement/ServerIGExit.agda) now implements selected
+masked release/promotion interruption at genuinely blocked reads or observed
+blocked sends, plus unmasked demotion boundaries. It archives the exact frame and
+retires only the local call cursor, preserving committed entries and other actors.
+Core.hs:1111,2066,2257 determine the masking distinction; these readTMVar callers
+have no map lease to restore. Blocked throwTo does not imply target receipt/join.
+
+InboundGovernor.hs:193–235 deactivates, drains once, snapshots the published public
+remote-state map and traces each transition to Nothing before rethrowing. It does
+not unregister the registry. Tracer invocation/return, replacement fault, body
+exit, result publication and IG join are distinct adapter steps. A callback that
+sampled True at :633–725 can enqueue after the drain, as a new initialized model
+history demonstrates. Another history reaches demotion through actual physical
+responder completion and preserves CM Idle while final tracing sees published Warm.
+
+The new aggregate and component proofs pass, including exact receipt observations
+and exhaustive capture/supply/resource lifts with their unchanged premises.
+Initialized release, promotion, demotion, late enqueue and final-tracer failure
+paths are distinguished from conditional pruning/order controls. Thirteen-file
+local proof audit and whitespace checks pass; existing Server/prefix/invariant
+regressions pass from cache. See [Supervision increment 21](../ConnectionManagement/Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit)
+for exact commands/logs, repaired preliminary diagnostics and exclusions. Broader
+Server/PSA/governor composition and other exception windows remain open. No native
+replay rerun, production source patch, source-refinement or whole-shutdown result.
