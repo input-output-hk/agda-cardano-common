@@ -103,6 +103,16 @@ exit, tracer failures and a sampled-active callback enqueue after the drain;
 capture/supply/resource lifts cover every adapter step. Pruning-send coverage is
 conditional. Broader outer composition and other exception windows remain open;
 see [Supervision increment 21](Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit).
+[ServerPeers](ServerPeers.agda) now composes that adapter with PSA/governor
+supervision over one authoritative CM configuration. [PeerContext](PeerContext.agda)
+stores only peer metadata; reconstruction uses the current Server source. Common
+CM steps retain both adapters' permissions and cancellation-region bookkeeping.
+Successful callback return derives the peer pool/scope certificates after an
+initialized shared execution. Checked histories cover map interference during
+detached socket cleanup and a pending IG release across peer-scope closure.
+Physical peer protocol starts/results still need coupling to the mux adapter;
+their raw shortcuts are excluded. See
+[Supervision increment 22](Supervision.md#twenty-second-increment-shared-server-and-peer-supervision).
 Other ignored callbacks, remaining allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for

@@ -921,3 +921,32 @@ regressions pass from cache. See [Supervision increment 21](../ConnectionManagem
 for exact commands/logs, repaired preliminary diagnostics and exclusions. Broader
 Server/PSA/governor composition and other exception windows remain open. No native
 replay rerun, production source patch, source-refinement or whole-shutdown result.
+
+
+Shared Server/peer-supervision follow-up (30 October, after `16bf47c`):
+[ServerPeers](../ConnectionManagement/ServerPeers.agda) now places the existing
+Server/IG/handler and PSA/governor adapters over one authoritative CM source.
+`PeerContext` stores no CM configuration and has checked reconstruction/lens
+laws. Common CM steps retain both permission sets and region bookkeeping; peer
+and Server raw-core aliases are excluded. Identity/socket checks include jobs
+that have reserved a future child or socket before actual allocation.
+
+The ownership mapping was rechecked at Diffusion.hs:739–759,800–826,
+PeerStateActions.hs:620–638, PeerSelectionActions.hs:84–102 and Server.hs:147–186.
+Peer monitor-pool cleanup encloses the provider/governor/churn scopes inside the
+Server callback. An actual successful callback-return step after initialization
+now derives the two peer pool-snapshot result certificates and four inner joins,
+without separately asserted closure gates. It does not certify raw admission
+workers or handlers. Source failure/race outcomes are not represented by the
+retained normal callback-return profile.
+
+Initialized shared histories check detached socket/map cleanup under raw
+admission interference and pending IG release/lease retention across peer-scope
+closure followed by nonempty IG exit. Capture/supply and detached-capture
+preservation cover every implemented shared action/finite execution. The final
+acceptance file, existing peer/IG regressions, six-file local proof audit and whitespace
+checks pass; see [Supervision increment 22](../ConnectionManagement/Supervision.md#twenty-second-increment-shared-server-and-peer-supervision)
+for exact scope, commands, repaired preliminary diagnostics and logs. Physical
+peer bundle-start/result coupling and nonempty PSA monitor integration remain
+open; raw logical protocol shortcuts are explicitly refused. No native replay,
+new deployed defect, source refinement or whole-shutdown conclusion is added.

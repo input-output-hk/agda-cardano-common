@@ -2480,3 +2480,144 @@ defect is claimed. Next: compose this Server/handler adapter with
 `PeerSupervision`/`GovernorPool` on one shared `O.Configuration`, preserving both
 adapters' pending calls, actor freshness and scope certificates. G0–G5, CM-I4c and
 SI4/SI5 remain open; raw admission workers are still outside owned scope joins.
+
+
+## Twenty-second increment: shared Server and peer supervision
+
+Checked 30 October 2026, after `16bf47c`. This is the first shared runtime for
+the selected Server/handler/IG adapter and PSA/governor supervision. It preserves
+the earlier modules and theorem types. Physical peer bundle start/result coupling,
+other Server outcomes and whole shutdown remain open.
+
+The clean network checkout remains at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. Source ownership was rechecked:
+Diffusion.hs:739–759 supplies the combined CM/IG to Server; :800–826 puts
+`withPeerStateActions` inside its callback, around the peer-selection providers,
+governor and churn Async scopes. PeerStateActions.hs:620–638 supplies the outer
+queue-free monitor JobPool. PeerSelectionActions.hs:84–102 encloses local-root
+provider lifetime inside ledger-provider lifetime. Server.hs:147–186 separately
+owns its callback, accept loops and IG race, with the IG/CM nesting already mapped
+in increment 21. Thus peer scopes must finish before that callback body exits;
+their completion cannot certify the raw admission Asyncs created by acceptLoop.
+
+The retained profile starts after scope setup and follows the existing normal
+callback-return Server branch. The production Diffusion `waitAny` failure/IG
+winner outcomes are not silently treated as normal returns. Their exceptions,
+other Server race winners, setup failures and multiple listeners remain separate
+integration obligations. Scope-body exits and cancellation receipt still use
+the existing observed-operation contracts, without eventuality assumptions.
+
+[PeerContext](PeerContext.agda) contains every peer-side subsystem/policy field,
+pool, physical monitor, region, detached cleanup frame and scope state, but no
+`O.Configuration`. Its reconstruction function takes the current Server source.
+`source-exact`, both round-trip laws and `rebase` hold for arbitrary contexts
+without a synchronization premise. [ServerPeers](ServerPeers.agda) stores this
+context alongside one `ServerIGExit.State`, which contains the sole CM copy.
+Peer writes replace that authoritative source while preserving Server physical
+metadata; Server writes keep the peer context and become immediately visible
+through reconstruction. No step restores a saved peer-side world.
+
+Common CM actions execute through the existing physical Server adapter, with
+PSA/governor caller-running, ownership and region permissions checked as well.
+Acquisition region bookkeeping advances with the actual resulting source.
+The separate raw peer-core and Server-outbound aliases are refused. New caller,
+child, monitor and admission identities are checked against both sides' history,
+including requested children and sockets reserved before resource allocation.
+New unowned CM calls and peer-owner actions cannot start after callback exit.
+Unrelated already-running source actors retain their lower permissions.
+
+Protocol starts with nonempty bundles and independent logical protocol-result
+publication cannot stand in for the physical mux/controller lifecycle. The raw
+peer shortcuts for those operations are excluded until their actual coupling is
+implemented. Empty bundle traversal, policy, caller work, control changes and
+the implemented peer cleanup/scope operations retain their existing semantics.
+This selected action profile is explicit; there is no enabled-step completeness
+or full peer-lifecycle claim.
+
+[Properties/ServerPeers](Properties/ServerPeers.agda) establishes exact shared
+source and successful-step observations. Each shared finite execution projects
+to real governor-pool, monitor-pool and inner-scope metadata executions, retaining
+real CM writes in the combined source. This is not a projection to a raw full
+peer execution that pretends Server interference is a source stutter.
+`callback-from-initial` derives terminal results for every handle in the two
+captured pool snapshots, plus all four inner-scope joins, from an initialized
+execution and an actual successful callback-return step. It requires no separate
+externally asserted pool/scope-closure arguments. Those three components alone
+still do not certify admission workers, handlers or whole Server shutdown.
+
+[ServerPeersSupply](Properties/ServerPeersSupply.agda) proves preservation through
+every implemented shared action and arbitrary finite execution of unchanged
+outbound capture/supply validity paired with detached governor-capture validity.
+Initialization requires only the original shared entry/promise supply bounds.
+The new [ServerIGExitEntries](Properties/ServerIGExitEntries.agda) proof retains
+any existing entry through Server interference, using actual lower source traces
+and unchanged handoff/socket effects. This supplies the detached cleanup premise
+without strengthening transition guards to assert capture validity. Broader
+resource/reference/ownership invariants remain distinct CM-I4c obligations.
+
+[Negative/ServerPeers](Negative/ServerPeers.agda) contains the fixtures and two
+initialized histories as nested modules, plus the initialized freshness control:
+
+- `ServerPeers.Interleaving.initialized` has 58 actions. Two actual accepted
+  handoffs precede a real policy-selected establishing job, reservation/promise
+  allocation and socket open through the common CM route. Governor cancellation
+  detaches the exact cleanup frame. A raw admission worker captures the shared
+  map; detached cleanup closes its socket but its removal read genuinely retries.
+  The admission's failed fork restores the map without undoing its entry write.
+  Cleanup then removes its captured reservation and counts before body unwind,
+  deregistration, Async result and join. Peer/provider/monitor scopes finish
+  before callback return. The nonempty governor snapshot has its derived result
+  certificate; both raw admissions remain incomplete. Capture/supply is also
+  instantiated while a detached capture survives the admission's entry write.
+- `ServerPeers.IGExit.initialized` has 81 actions. It reuses the checked real admission,
+  handshake, IG registration and release prefix. Empty peer pools/scopes close
+  while the release's entire pending frame and another worker's map lease remain
+  unchanged. Only afterwards does the Server callback return, followed by the
+  checked selected receipt, deactivation/drain, nonempty final tracing, result
+  publication and IG join. This does not infer CM or whole Server completion.
+- A separate three-action initialized unowned CM request reserves its future
+  child/socket. Controls reject their reuse, peer/raw identity collisions, old
+  caller resumption after detachment, early results/callbacks, both core aliases,
+  logical result publication and a new caller after callback exit.
+
+Validation ran serially with Agda 2.8.0 from the standalone library root. Context
+and initial runtime checks passed at 4 GB. Entry retention, shared supply,
+projection/callback certificates and branch/aggregate checks passed at 8 GB,
+with own `Checking` lines and no final warnings. Final acceptance command:
+
+```sh
+agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M8G -RTS
+```
+
+Logs are in `/tmp/cm-server-peers-20261030/`: `context.log`, `runtime.log`,
+`supply.log`, `properties-final.log`, `interleaving-check.log`, `ig.log`,
+`aggregate.log` and `aggregate-final.log`. The last aggregate freshly rechecks
+the callback certificate and both branch modules after their final edits; the
+earlier aggregate freshly checked the final runtime, supply and fixtures.
+Preliminary import/name-clash errors, one missing random-generation update in an
+expected snapshot, a projection-equality proof error and an implicit-state meta
+were repaired before acceptance. An early fixture import warning was also fixed.
+No old theorem was weakened, no hole or trust assumption introduced, and no
+termination/safety check disabled. The six-file strict local proof audit reports
+zero findings; tracked/new-file whitespace checks pass. This local scan does not
+audit every transitive dependency at term level.
+
+The acceptance fixtures and both histories were subsequently consolidated into
+`Negative/ServerPeers.agda`, under `Fixtures`, `Interleaving` and `IGExit`.
+Their definitions/proofs are unchanged apart from module boundaries and fixture
+aliases. A fresh check of that single file passed at 8 GB, exit 0, no warnings;
+log: `consolidated.log` in the same directory. The six-file audit above covers
+the consolidated layout; the individual/aggregate logs retain the earlier split
+layout's evidence. Runtime and reusable property modules remain separate.
+
+Existing `Negative/PeerSupervision.agda` and `Negative/ServerIGExit.agda` also
+passed serial `+RTS -M8G -RTS` regression checks, exit 0, no warnings. The peer
+endpoint and its affected dependency closure had fresh `Checking` lines; the IG
+endpoint used cached interfaces. Logs: `regression-PeerSupervision.log` and
+`regression-ServerIGExit.log` in the same directory. All checker processes exited.
+
+No native replay, full baseline rebuild, production patch or new deployed source
+finding is claimed. Next: couple peer bundle starts and result observations to
+the actual physical mux/job/controller path on this shared source, then exercise
+nonempty PSA monitor integration and widen callback/race outcomes with their
+exact exception semantics. G0–G5, CM-I4c and SI4/SI5 remain open.
