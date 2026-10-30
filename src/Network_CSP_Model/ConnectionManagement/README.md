@@ -58,7 +58,28 @@ on tracer/provider/policy inputs. The new CM-delivery acceptance is described in
 through observed blocking-tracer/full-queue catch interruption and outer cleanup.
 Its IO profile respects masked-interruptible catch delivery; a GHC boundary
 probe checks that mask and exception escape, without replaying the concrete mux.
-Other ignored callbacks, earlier allocation/publication gaps and
+`MuxPublicationUnwind` now covers selected failures before successful promise
+publication, without inventing a buffer/pool or replacement handler. Corrected
+initialized outbound and CM histories reach physical completion and a genuine
+empty-promise read at awaitResult (after the real counter-read step). CM-PUB1
+remains a conditional candidate pending concrete contracts and pinned replay.
+The 30 October forcing audit rejects the previous strictHandle failure case;
+four tracer cases remain. A separate driver/mux contract probe confirms the
+evaluation boundaries. The production handler-body replay now passes ten
+inbound/outbound sync fault/control cases. A further actual-CM IO replay passes
+18 fault/control cases including blocked-tracer async receipt and CM-owned
+shutdown delivery. The five-case inbound initialized Agda endpoint has passed;
+inbound/outbound CM wait endpoints also pass at 8 GB. A six-case actual Server
+replay shows unjoined admission workers after scope return under pre-publication
+faults; physical Server-worker modeling and outer recovery remain open. See [SourceReplay](SourceReplay/README.md#handshake-result-forcing-contract-probe).
+[ServerAdmission](ServerAdmission.agda) now records raw admission Async birth and
+separate body/close/result phases, with a checked normal single-listener owned
+scope path through IG cleanup and CM shutdown. Its initialized counterexample
+refutes inferring all admission results from Server return, and a checked explicit
+recovery suffix prevents a permanent-blocking interpretation. This post-setup
+profile leaves broader worker failures, new-writer invariants and full outer
+composition open; see [Supervision increment 18](Supervision.md#eighteenth-increment-raw-admission-workers-and-owned-server-scope-return).
+Other ignored callbacks, remaining allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for
 its actual transaction/return, then permits monitor return and whole-pool close.

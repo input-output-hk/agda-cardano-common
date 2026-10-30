@@ -225,3 +225,298 @@ caught exception and abandoned callback. Queue-retry controls distinguish real
 full-queue retry from a transaction with room. The probe establishes the small
 IO boundary only; it neither runs the concrete tracer nor proves source/model
 refinement, whole-system shutdown or a deployment deadlock.
+
+
+## Handshake-result forcing contract probe
+
+Checked 30 October 2026 at the unchanged network pin above, with GHC 9.6.7,
+typed-protocols 1.2.1.0 and io-classes 1.8.0.1.
+[HandshakeForcing.hs](HandshakeForcing.hs) exercises the actual driver Done branch,
+HandshakeResult NFData, Mux.new and strict Handle construction. It is a contract
+probe: no transport, wire negotiation, makeConnectionHandler, CM cleanup,
+IOSim scheduling or deployment tracer is exercised.
+
+From an isolated checkout with the framework test dependencies already built:
+
+```sh
+cabal exec --offline -- runghc /absolute/path/to/HandshakeForcing.hs
+```
+
+The checked run used /tmp/cm-pub1-replay-20261029 and a temporary Cabal config
+via --config-file=/tmp/cm-review-20261029/cabal-writable.config. That config copies
+the existing settings, replacing build-summary and logs-dir with writable /tmp
+paths; the global configuration is unchanged. This avoids the historical
+read-only summary failure. It does not turn that earlier build's exit 1 into a
+successful build. cabal exec and the probe exited 0; no new baseline test suite
+run is claimed.
+
+Expected output:
+
+```text
+version data forced before return: caught BadVersionData
+application forced before return: caught BadApplication
+list spine forced before return: caught BadList
+lazy protocol element survived driver return
+lazy protocol element forced inside Mux.new: caught BadProtocol
+real strict Handle construction returned
+all forcing controls passed
+```
+
+Faults are injected into values, and tests check their identities. The Done
+probe has send/receive sentinels; neither is used. The lazy protocol element
+case also observes TraceNewMux before the allocation failure. The list spine
+itself must be non-bottom because both TemperatureBundle and its temperature
+wrappers have strict fields. No assertion is made that production applications
+actually supply such malformed elements.
+
+This evidence supports rejecting the previous positive strictHandle model case.
+The four tracer cases still require concrete deployment contracts and outer
+recovery composition. Handler-body and CM replay increments are recorded below.
+The separate allocation fault has since been added at returnedSuccess; its
+Agda acceptance is pending (Supervision.md increment 17).
+
+
+## Production handler body replay for CM-PUB1
+
+Checked 30 October 2026 at the same network pin and resolved dependencies.
+[PublicationHandler.hs](PublicationHandler.hs) calls actual makeConnectionHandler
+in initiator/responder mode, for both outbound and inbound roles. The remote side
+runs the corresponding real handshake peer, with the production CBOR codecs and
+queue bearers. Production source is unchanged. This is a handler-body replay;
+CM's surrounding finally, socket/map cleanup, calling governor and Server are
+not included.
+
+Run from the isolated built checkout:
+
+```sh
+cabal exec --offline -- runghc -Wall /absolute/path/to/PublicationHandler.hs
+```
+
+The checked run uses the temporary writable Cabal config described above.
+All ten cases pass, without final compiler warnings. Each role has these five
+synchronous injected-fault cases:
+
+| Failure location | Ordinary promise writes | Observed callback order |
+| --- | --- | --- |
+| TrHandshakeSuccess | None; reader retries | success |
+| TraceNewMux | None; reader retries | success, newMux |
+| Lazy protocol element inside Mux.new | None; reader retries | success, newMux |
+| Application payload forced inside handshake (control) | One Left HandlerError | None |
+| TraceStarting after publication (control) | One Right HandshakeConnectionResult | success, newMux, starting |
+
+The writer wrapper delegates the real PromiseWriter STM operations and records
+writes in the same transaction. All cases observe zero forcePromise calls and
+the exact injected exception at the production classifier tracer. Assertions
+require remote negotiation to succeed and the actual handler action to produce
+an exceptional Async result before inspecting writes/promise. The retry check
+uses the real reader with STM orElse; no writerless synthetic handler is used.
+The harness bounds each case by ten seconds, scopes both Asyncs and joins their
+results. Its rethrow policy is explicitly mempty (ShutdownPeer), with a null IG
+tracer and no real operating-system socket. These are chosen inputs, not audited
+deployed tracer/policy contracts.
+
+Logs: /tmp/cm-review-20261029/publication-handler-both.log. Earlier outbound-only
+versions passed, then exact fault checking and both roles were added; redundant
+imports were removed before the final warning-free run. The saved repository
+artifact is the both-role version.
+
+These results reproduce empty promises at the real production-handler boundary
+under the stated synchronous injections, and validate the lazy allocation fault
+as a distinct location. They do not prove a caller remains blocked permanently,
+CM cleanup/physical scope completion, full diffusion deadlock, deployed fault
+reachability, async blocking-tracer delivery, or universal schedule coverage.
+The next increment below adds the actual CM caller/finally and async tracer
+receipt; outer recovery composition remains open.
+The allocation case and an initialized inbound history are now drafted in Agda;
+full acceptance checks are pending.
+
+
+## Actual CM caller and cleanup replay for CM-PUB1
+
+Checked 30 October 2026 at network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` using GHC 9.6.7/base 4.18.3.0 and
+the resolved dependencies above. [PublicationCM.hs](PublicationCM.hs) runs the
+actual CM and production makeConnectionHandler in **IO**, with encoded handshakes
+over paired queue bearers. It calls acquireOutboundConnection or
+includeInboundConnection from a fresh CM. Production source remains unchanged.
+
+```sh
+cabal exec --offline -- runghc -Wall /absolute/path/to/PublicationCM.hs
+```
+
+The checked command used the writable temporary Cabal configuration described
+above. The original **14 cases** passed (seven per inbound/outbound role); their
+results are below. The saved artifact now passes **18 cases**, adding the four
+CM-owned shutdown cases in the following subsection. Final runghc -Wall exits 0
+without warnings; log /tmp/cm-review-20261029/publication-CM-owned-final.log.
+The earlier 14-case log remains publication-CM-IO.log.
+
+| Injection, for each role | Writer result | Caller at observation | Cleanup before observation |
+| --- | --- | --- | --- |
+| TrHandshakeSuccess sync error | No write | Pending, blocked on STM | Handler finished, map empty, one close |
+| TraceNewMux sync error | No write | Pending, blocked on STM | Same |
+| Lazy protocol element during Mux.new | No write | Pending, blocked on STM | Same |
+| TrHandshakeSuccess blocked tracer + AsyncCancelled | No write | Pending, blocked on STM | Same |
+| TraceNewMux blocked tracer + AsyncCancelled | No write | Pending, blocked on STM | Same |
+| Early application payload error (control) | One Left | Disconnected | Same |
+| TraceStarting error after publication (control) | One Right | Connected or Disconnected | Same |
+
+The table's close is the synthetic Snocket.close callback, not an operating-system
+socket. The entire CM ConnMap must be empty, including remote and local keys.
+The writer wrapper delegates the real writer operations and records ordinary
+writes atomically; all cases require zero forcePromise calls. Sync cases must
+reach the production classifier with the exact injected fault. Async cases
+must bypass that classifier. The blocking tracers check MaskedInterruptible,
+signal entry, and retry in STM; delivery occurs only after GHC reports the
+handler blocked on STM. The sending thread is the external test harness, not
+CM's shutdown snapshot/traversal.
+
+The harness captures the actual handler ThreadId inside its MaskedAction.
+A bounded readiness loop requires GHC threadStatus = ThreadFinished **before**
+caller/map/writer observations; neither elapsed time nor close/map state is used
+as the completion oracle. The pending caller must have ThreadBlocked BlockedOnSTM
+and the expected completed counter callbacks on its own thread: two outbound,
+one inbound. These counts distinguish the earlier outbound reservation callback
+from the callback immediately preceding the actual promise read (Core.hs:1582–1584
+and :895–897). In these fresh branches, zero promise writes prevent reaching any
+later result-consumer action. The controls require caller completion. Late
+publication races deliberately permit Connected or Disconnected; the final run
+observed both across roles.
+
+Each complete CM experiment has a ten-second bound. After observations, the
+harness cancels/joins a pending caller and then leaves the real CM scope. The
+remote handshake also has a scoped Async and must return success. No caller or
+CM API is used after scope closure. The ordinary policy is explicitly mempty
+(ShutdownPeer), IG tracer is null, transport is synthetic, and payload/tracer
+faults are injected. This is a reproduction of **blocked acquisition after handler
+cleanup under those inputs**, not evidence those inputs occur in deployment,
+a permanently blocked job, exhaustive scheduling, full diffusion deadlock or
+universal shutdown.
+
+An earlier IOSim attempt passed both outbound sync tracer cases with an actual
+EventThreadFinished before observation. Its pure lazy-allocation injection then
+failed as a host evaluation error, outside the simulator's monadic exception
+handling. That attempt exited 1; it is not a passing ten-case IOSim replay.
+The saved replay uses actual IO to exercise ordinary Haskell payload faults
+without changing production evaluation. Its earlier compile iterations repaired
+name/API imports; the final run is warning-free. The scratch IOSim traceEvents
+API returned tuples in resolved io-sim 1.8.0.1, converted to SimEvent for checking.
+
+The five-case inbound/outbound and both CM wait endpoints now pass at 8 GB.
+Next: model the raw Server admission-worker lifetime identified by the Server
+replay below, then integrate broader caller/governor/Server recovery. The CM-owned
+replay covers a single handler at each selected tracer; broader scope composition
+remains open. Concrete deployment tracer/payload
+contracts and broader safety/liveness gates remain open.
+
+
+### CM-owned shutdown delivery (four additional cases)
+
+The saved PublicationCM.hs also runs SuccessCMShutdown and NewMuxCMShutdown for
+both inbound/outbound. These cases use **CM's actual finally** at Core.hs:527–548
+to snapshot, read the entry, send AsyncCancelled and wait for its handler.
+The harness sends no exception to that handler in these cases.
+
+Before leaving the CM continuation, the test requires the exact singleton nested
+map at the known local/remote key with UnnegotiatedSt for the right provenance,
+a caller at its promise-read boundary, a handler actually blocked on STM in the
+masked-interruptible tracer, zero writes/force calls and zero closes. It then
+cancels/joins the **caller**, verifies that the exact live CM map and blocked
+handler are unchanged, and returns from the continuation. This keeps all CM API
+use inside its scope.
+
+After Core.with returns, instrumentation must report no promise write, one
+synthetic close, classifier bypass and GHC handler ThreadFinished. The lifecycle
+markers must occur in this order:
+
+```text
+observed-open → caller-cancelled → cm-shutdown → socket-close → after-with
+```
+
+Only thread identities and instrumentation are observed after scope exit; no
+CM API is called then. These cases show CM shutdown can cancel/join the blocked
+handler under this profile. They do **not** leave a caller job running after
+CM closure or prove how a production governor/server cancels its jobs. The
+original 14 cases still observe the pending caller while CM remains open.
+The two observation phases must not be merged into a claim of permanent blocking.
+The final 18-case run also checks the original synchronous/async controls.
+
+The first draft needed the actual ConnMap.LocalAddr constructor; after repair
+and an extra exact-map check following caller cancellation, the repository
+artifact passed all 18 cases with -Wall and no warnings. Source pin and dependency
+versions are unchanged; the isolated network checkout remains clean.
+
+
+## Actual Server admission-worker lifetime replay
+
+[PublicationServer.hs](PublicationServer.hs) runs the actual Server.with,
+InboundGovernor.with, CM and production handler, at the same network pin and
+resolved versions. One synthetic listener accepts one queue-bearer connection;
+the next accept blocks. The remote side runs the actual encoded handshake client.
+Server's own accept loop forks the admission worker; the harness does not replace
+it with a synthetic caller. The production IG tracer is attached normally.
+
+```sh
+cabal exec --offline -- runghc -Wall /absolute/path/to/PublicationServer.hs
+```
+
+The checked repository run used the writable temporary Cabal config, exited 0,
+and emitted no warnings. Six cases passed; log
+/tmp/cm-review-20261029/publication-Server-final.log.
+
+| Injection | Admission status after Server.with returns | Connection/listener close callbacks |
+| --- | --- | --- |
+| TrHandshakeSuccess sync | Blocked on STM | 1 / 1 |
+| TraceNewMux sync | Blocked on STM | 1 / 1 |
+| Lazy allocation payload | Blocked on STM | 1 / 1 |
+| TrHandshakeSuccess blocked tracer + async | Blocked on STM | 1 / 1 |
+| TraceNewMux blocked tracer + async | Blocked on STM | 1 / 1 |
+| Early handshake payload error (control) | Finished | 2 / 1 |
+
+Before the server callback returns, the test requires successful remote
+negotiation, GHC handler ThreadFinished, an empty entire CM map, zero force writes,
+the expected ordinary writer calls, callback order and classifier fault identity.
+The actual admission worker is identified through the CM counter tracer, excluding
+the captured handler. Pending cases require one caller counter callback, placing
+it at Core.hs:895–897's fresh promise read; no promise write occurred. Async
+injections require an actually blocked MaskedInterruptible tracer and bypass the
+sync classifier. The control writes Left, finishes the admission and observes the
+handler cleanup close plus Server's Disconnected close; no OS descriptor reuse or
+double-close safety conclusion is drawn from these synthetic counts.
+
+After actual Server.with returns, the listener has closed but the five fault-case
+admission workers are still blocked in STM. Instrumentation then explicitly
+cancels each such worker and waits for ThreadFinished, so the test leaves no
+orphan behind. No CM API is called outside its scope. A ten-second bound covers
+each complete experiment. The source checkout remains unchanged.
+
+**CM-PUB1 Server consequence:** pinned Server.hs:239–254 uses plain async for
+includeInboundConnection and discards the Async handle. Its withAsync/race tree
+owns the action, IG and accept loops, not those admission workers. The callback
+API comment at :132–133 says all server threads stop when the callback returns;
+the replay demonstrates an exception to that claim under the stated injected
+fault contracts. This is a finite unjoined-admission-worker observation, not a
+universal/permanent thread leak or deployment deadlock.
+
+The instrumentation retains ThreadIds to inspect and clean up the workers;
+those references may affect GHC garbage collection and deadlocked-STM detection.
+It does not retain the original PromiseReader/Writer or test forced-GC recovery.
+BlockedIndefinitelyOnSTM, external shutdown and process termination can change
+later behavior. Concrete deployment tracer/payload contracts remain unverified.
+
+The earlier 18-case CM replay explicitly owns/cancels its callers. Its four
+CM-owned deliveries establish handler cleanup within that chosen caller scope;
+they must not be cited as evidence Server cancels its raw admission workers.
+Model Server admission as independent raw Async actors before deriving SI5;
+remaining logical admission PCs alone do not certify physical thread lifetime.
+
+
+Formal model continuation: ServerAdmission.agda and its properties/negative
+endpoint now check. The initialized post-setup single-listener witness includes
+two explicit handoffs (reusing the old two-admission fixture), actual IG/CM
+cleanup and a separate physical/PC/empty-promise certificate for worker zero.
+It refutes all-worker completion from owned scope return and includes an explicit
+later cancellation/close/result suffix. This differs from the one-accept IO
+fixture; no whole trace-refinement theorem equates them. New-writer invariants,
+remaining admission/owned-scope failures and full outer composition are open.
+See Supervision increment 18. No native replay was rerun for those Agda changes.

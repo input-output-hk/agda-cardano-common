@@ -1837,3 +1837,379 @@ and physical handler identity rather than inventing successful publication.
 Other ignored callbacks, child finalizer/helper failures and outer Server/IG/
 governor composition/admission quiescence remain. G0–G5, CM-I4c and SI4/SI5 remain
 open; none of these local paths derives universal/full-system shutdown.
+
+
+## Sixteenth increment: failures before successful promise publication
+
+**Source-fidelity correction (30 October):** the resolved typed-protocols
+1.2.1.0 driver forces handshake results before return. The pinned HandshakeResult
+NFData instance forces application WHNF and version data NF inside the narrow
+handshake catch; NodeToNodeVersion and NodeToNodeVersionData derive NFData.
+The positive strictHandle/handleSync scenario has been removed. That observation
+site now rejects both sync and async failures, with an actual initialized
+post-allocation prefix retained as a negative control. The four tracer cases
+remain. No generic theorem statement was changed. This corrects the model's
+source profile; historical five-case checks do not validate the removed case.
+See the [forcing contract probe](SourceReplay/HandshakeForcing.hs) and
+[reproduction/scope](SourceReplay/README.md#handshake-result-forcing-contract-probe).
+
+**Uncommitted after 9ecdfb8.** The four corrected initialized tracer-failure
+histories and the CM endpoint now pass. Real readCounters steps and exact
+awaitResult certificates replace the earlier counter-PC refusal control. A
+separate raw-dispatcher lemma establishes the empty-promise read retry at that
+actual PC; physical result availability at the same waits is also proved.
+
+The source audit at the unchanged pin separates restored handshake execution
+from the following masked continuation. ConnectionHandler.hs:337–346 and
+:414–423 catch exceptions from **runHandshake** and write HandlerError. They do
+not cover the successful continuation. TrHandshakeSuccess (:353/:430), control
+TVars/counters, Mux.new (:370/:438), the strict Handle (:371–376/:443–448), and
+successful writePromise (:377/:449) occur afterwards. Mux.hs:140–146 emits
+TraceNewMux before allocating its protocol map/queue/status. Handle fields are
+strict (ConnectionHandler.hs:119–124). The outer classifier (:293–309) traces
+and rethrows according to policy, without writing the handshake promise.
+
+Core.hs:584–592 installs the real CM finally around the whole handler. Cleanup
+terminates/purges the captured entry and closes the socket, but does not fill the
+promise. The fresh inbound and outbound callers readPromise directly at :897
+and :1584; those reads do not race the physical Async result or connVar. Exact
+Mux, ConnectionHandler and Core Git exports were rechecked before extending
+these claims. This source boundary motivates candidate **CM-PUB1** below.
+
+`MuxPublicationUnwind` wraps the current catch/physical-handler chain. It admits
+observed sync failures from TrHandshakeSuccess and TraceNewMux at
+returnedSuccess. Async receipt is admitted only as an observed blocking operation
+in either tracer. The strictHandle site is always rejected: no new payload
+evaluation is justified at that later pure constructor. No ordinary masked allocation/status step is
+invented as a delivery site. Partial private TVar allocations and opaque tracer
+internals are outside this atomic allocation profile.
+
+Selection requires the actual owner/frame, matching current HandlerStart, an
+empty promise, no old fault/outer exit, pre-publication startup and no pool
+handles. It retains the complete original unpublished frame/site/outcome,
+installs the existing outer exit frame, and does not publish success or error,
+enter a buffer/pool, close a fictitious pool, create a handler or attach the
+post-publication async mux catch. Sync exceptions enter the real classifier;
+async exceptions bypass it. The failed owner's old allocation/publication and
+controller actions are sealed while other actors and its real outer cleanup
+remain executable. Successful lower allocation remains an observed normal
+operation, not a theorem that concrete caller tracers cannot throw.
+
+`Properties/MuxPublicationUnwind` projects actions/executions to actual source
+and physical-pool paths, lifts initialized capture/supply and certifies the real
+CM physical-result wait. `Negative/MuxPublicationUnwind` supplies initialized
+outbound histories for both tracer sync/async failures. They use actual
+creation/negotiation. A separate initialized allocation prefix proves rejection
+of both sync and async strictHandle observations. Each continues through policy where applicable, original CM
+finally, socket/map cleanup and physical handler result; no buffer or pool is
+entered. Each then executes the actual counter read, reaches awaitResult, and
+checks the empty-promise read. The captured unpublished frame survives.
+`Negative/MuxPublicationUnwindCM` adds real CM snapshot/read/send, observed
+TraceNewMux blocked-tracer receipt/ack, finally and collective physical wait.
+The promise wait and Async wait remain distinct. The CM history advances the
+caller before final CM completion, rather than inserting a successful API action
+after the CM scope closes. Properties/PromiseWait.outbound-read-retries requires
+the exact captured awaitResult frame and empty promise, and targets O.advance
+directly; the claimed retry is not caused by an adapter's controller guard.
+MuxPublicationFixtures contains data only, avoiding imports of large existing
+negative-control endpoints; all four tracer cases and their actual birth steps remain.
+
+**CM-PUB1 (conditional source-profile candidate):** a pre-publication failure
+outside the handshake catch can leave an empty promise after the real handler
+physically completes and CM cleanup removes its entry. A caller reading that
+promise still blocks. This is a finite initialized model/source-profile finding,
+not a universal deadlock or a confirmed deployment defect. Concrete tracer
+fault contracts, production policy, external governor/Server cancellation and
+an actual pinned implementation replay remain to be checked. The current
+initialized acceptance is outbound; the generic adapter also selects inbound
+frames, but no corresponding inbound initialized execution is claimed here.
+
+Additional source audit: CM Types.hs:289–317 implements readPromise with
+readTMVar, and writePromise with tryPutTMVar/throwSTM; neither the reviewed
+Core finally nor ConnectionHandler uses forcePromise to repair this failure.
+PeerStateActions.hs:784–795 directly tries acquireOutboundConnection, and
+EstablishedPeers.hs:570–574 directly calls establishPeerConnection with an
+explicit timeout TODO. These reviewed functions do not supply an establishment
+timeout. This observation does not exclude external scope cancellation or other
+runtime recovery; concrete replay and full ownership composition remain needed.
+
+Historical validation on 29 October, before the strictHandle correction: the corrected initialized endpoint passed with Agda
+2.8.0 at 6 GB, freshly checking Negative/MuxPublicationUnwind and its new data-only
+MuxPublicationFixtures dependency. The corrected CM endpoint then passed at 6 GB,
+freshly checking itself and Properties/PromiseWait. Both logs have Checking
+lines and no warnings:
+
+```sh
+agda ConnectionManagement/Negative/MuxPublicationUnwind.agda +RTS -M6G -RTS
+agda ConnectionManagement/Negative/MuxPublicationUnwindCM.agda +RTS -M6G -RTS
+```
+
+The unchanged runtime and generic source/pool/capture/supply properties were
+previously checked at 4 GB and 6 GB respectively and confirmed through imports
+here. Their prior logs are publication-runtime-4g.log and
+publication-properties-6g.log. The earlier runtime 2 GB, generic-property 4 GB
+and old aggregate acceptance 6 GB heap failures are retained. Earlier syntax and
+case-splitting repairs preceded these checks. A standalone PromiseWait check
+initially lacked the existing DecEq-Id instance import; after adding that import,
+the lemma passed transitively in the corrected CM check. All checks in this
+continuation were serial. No generic theorem was weakened, case removed,
+postulate/hole added or safety option disabled.
+
+Final evidence is in /tmp/cm-review-20261029/publication-corrected.log,
+publication-CM-corrected.log and publication-final-audit.log. Six-file local proof
+audit found zero findings; source/documentation whitespace and new-file EOF checks
+passed. No unrelated baseline rebuild, concrete implementation replay, full
+source refinement, source-pin change, commit or push. The dated presentation
+remains an unchanged snapshot of the earlier WIP checkpoint.
+
+Next executable obligation: investigate CM-PUB1 using the actual pinned
+ConnectionHandler/CM and concrete tracer/payload/policy contracts; establish a
+corresponding inbound witness and account for caller/governor/Server lifetime
+and recovery before stronger liveness claims. Private allocation and duplicate
+publication failures, other ignored callbacks and child/helper/finalizer scopes
+remain, followed by physical/Subsystem/Server composition, admission quiescence
+and derived full shutdown. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+
+30 October handler-body replay: SourceReplay/PublicationHandler.hs passed ten
+synchronous cases across real inbound/outbound production makeConnectionHandler
+with encoded queue-bearer handshakes. TrHandshakeSuccess, TraceNewMux and lazy
+protocol-element allocation faults leave the real promise empty after handler
+Async result; early handshake payload failure writes Left, late TraceStarting
+failure follows Right. Delegating STM writer observations preserve original
+semantics; exact injected fault is checked at the real classifier. This validates
+the allocation fault location separately from the rejected strictHandle case.
+The allocation fault is not yet a positive Agda scenario. Actual CM finally,
+caller/map/socket cleanup, ThreadFinished ordering, async tracer receipt and
+outer recovery are not included; no stronger liveness claim follows. Scope and
+reproduction: SourceReplay/README.md. Final runghc -Wall exited 0 without warnings.
+
+
+30 October actual-CM follow-up: SourceReplay/PublicationCM.hs passes 14 IO cases
+using the real production handler and both CM entry points. Pre-publication sync
+and observed blocked-tracer async faults leave a pending STM caller after actual
+GHC handler ThreadFinished, empty full CM map and one synthetic socket close.
+Caller counter callbacks (two outbound/one inbound) certify the fresh readPromise
+boundary; the earlier counter-PC control is not reused. Early payload Left and
+late publication Right controls return, with the late cleanup race permitted.
+All writer operations are delegated atomically and force count is zero. Async
+receipt is sent by the harness at an actually blocked MaskedInterruptible tracer;
+CM's shutdown snapshot/send traversal and outer caller recovery remain open.
+Final runghc -Wall exit 0, no warnings. The earlier IOSim attempt exited 1 on the
+pure payload's host evaluation after two sync tracer passes; actual IO avoids
+altering production evaluation. SourceReplay/README.md records precise scope.
+
+Agda correction acceptance update: the first downstream 6 GB run ended with heap
+exhaustion (exit 251), not a type error. Keeping head/frame/action functions split
+by the four constructors restores a neutral case index in generic proofs, avoiding
+eager normalization of the full source fixture. A fresh corrected initialized
+endpoint check is running at 6 GB; final acceptance remains pending until it and
+the downstream CM endpoint finish. No generic theorem type was changed.
+
+
+## Seventeenth increment: allocation failure and initialized inbound history
+
+**30 October, work in progress.** Production-handler and actual-CM IO replays
+validated a lazy protocol-element failure *inside* Mux.new after TraceNewMux and
+before allocation returns. MuxPublicationUnwind now exposes muxAllocation at
+returnedSuccess for sync observations only. It rejects async delivery there and
+rejects retroactive allocation failure after handleAllocated. strictHandle remains
+rejected for both outcomes. This is a distinct source location, not a renamed
+strict-constructor case. Private partial TVar allocation remains abstract.
+
+The outbound acceptance and its CM specialization now range over five cases:
+four tracer outcomes plus allocationSync. The new inbound data-only fixtures and
+Negative/MuxPublicationInbound build an actual nine-step prefix: seven admission
+operations (including fork and real counter read), enterHandshake, and negotiate.
+They retain the actual inbound birth and a one-protocol bundle, then describe all
+five policy/finally/cleanup/result paths. The intended postconditions include
+empty promise, entire map purged, captured socket closed, physical handler result,
+retained unpublished capture, and the exact awaitHandshake caller continuation.
+Properties/PromiseWait.inbound-read-retries checks the raw Machine.advance read,
+without adapter guards. That local retry does not prove permanent blocking.
+
+Validation so far: runtime, new inbound promise lemma and inbound fixtures each
+freshly passed serial Agda 2.8.0 checks at 4 GB. Eight-file proof audit has no
+findings; whitespace checks pass. The previous two corrected outbound acceptance
+runs exhausted 6 GB (both exit 251), not a type diagnostic; preserving neutral
+case indices alone did not make 6 GB sufficient. Resource inspection showed
+20 GB available. The new full inbound endpoint is RUNNING at 8 GB, session 90172;
+/tmp/cm-review-20261029/publication-inbound.log. It rechecks generic properties.
+No full endpoint success is claimed yet. Outbound and CM endpoints must then be
+rechecked serially against the new allocation-aware runtime. No generic theorem
+type was weakened, or axiom/hole/unsafe pragma added. The actual-CM replay remains
+14 passing IO cases; no replay was rerun for these Agda-only changes.
+
+After acceptance, continue CM-owned shutdown delivery and caller/governor/Server
+recovery/ownership integration. Inbound CM snapshot/wait composition is not proved
+by the standalone inbound history. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+
+30 October acceptance/replay update: the full five-case inbound initialized
+endpoint and generic MuxPublicationUnwind properties passed at 8 GB (session
+90172 exit 0, own Checking lines, no warnings). Runtime, PromiseWait and inbound
+fixtures retain their fresh 4 GB passes. The aggregate outbound+CM endpoint is
+now checking serially at 8 GB, session 53625, log publication-allocation-CM.log;
+it must finish before claiming those updated endpoints accepted.
+
+PublicationCM.hs now passes **18** actual-CM IO cases. Four new cases cover
+CM-owned shutdown at either pre-publication blocked tracer for each provenance.
+They require an exact live singleton map, blocked handler and pending caller;
+then cancel/join the caller and verify the map/handler unchanged before CM scope
+exit. The real Core finally performs snapshot/send/wait. After return, zero
+promise writes, one close and GHC handler ThreadFinished are required. Lifecycle
+order is observed-open/caller-cancelled/cm-shutdown/socket-close/after-with.
+No CM API is used after its scope; no harness throwTo targets the handler in
+these four cases. SourceReplay/README.md records the two different observation
+phases. Final repository runghc -Wall exits 0 without warnings; log
+publication-CM-owned-final.log. This establishes finite profile replays, not a
+live escaped caller, permanent stall or full shutdown theorem.
+
+A corresponding inbound CM snapshot/receipt/finally/physical-wait witness is
+prepared in Negative/MuxPublicationInboundCM.agda. It has not been checked yet;
+queue it after the live outbound/CM check. Its retained caller PC is a logical
+capture, not a certificate of a live caller job after CM closure. Outer
+caller/governor/Server cancellation/ownership integration remains open.
+
+
+**New Server fidelity prerequisite (30 October):** source review and actual
+Server replay show that its admission workers are raw async children with
+ignored handles (Server.hs:239–254), outside its scoped action/IG/accept-loop
+join tree. PublicationServer.hs passes six actual Server/IG/CM/handler cases:
+five pre-publication faults leave its admission worker blocked after Server.with
+returns; early payload Left is the finishing control. Handler completion, empty
+CM map, exact caller read boundary and listener closure are checked. The API's
+all-server-threads-stop comment (:132–133) has this injected-contract exception.
+ThreadId instrumentation can affect GC/deadlocked-STM detection; permanent leak,
+production occurrence and universal deadlock are not proved. The harness cleans
+up its observed workers. SourceReplay README and SI4 audit contain exact scope.
+
+The 18-case direct-CM replay's caller cancellation is explicitly harness-owned.
+It must not be transferred to Server as a source fact. Next Server composition
+must model independent raw admission Async actors, their original onException/
+Disconnected close branches and missing join, before SI5 can derive completion.
+Rules/CallerCancellation currently handles outbound acquisition/release only;
+its noCaller branch does not supply physical inbound admission cancellation.
+Do not equate a stored logical awaitHandshake PC with a live physical worker.
+
+
+## Acceptance checkpoint and next Server layer — 30 October
+
+All current pre-publication Agda endpoints now pass with their own Checking lines
+and no warnings. Runtime, PromiseWait and new inbound fixtures passed at 4 GB;
+full initialized inbound and generic properties passed at 8 GB. Then the aggregate
+outbound/CM endpoint freshly checked its five-case outbound endpoint/data fixtures
+and passed at 8 GB (session 53625 exit 0). Finally the new inbound CM witness
+passed at 8 GB (session 46265 exit 0). Commands:
+
+```sh
+agda ConnectionManagement/Negative/MuxPublicationInbound.agda +RTS -M8G -RTS
+agda ConnectionManagement/Negative/MuxPublicationUnwindCM.agda +RTS -M8G -RTS
+agda ConnectionManagement/Negative/MuxPublicationInboundCM.agda +RTS -M8G -RTS
+```
+
+Logs: publication-inbound.log, publication-allocation-CM.log and
+publication-inbound-CM.log in /tmp/cm-review-20261029. The two 6 GB heap failures
+are historical failed runs; neutral-case indexing alone did not suffice there.
+Nine-file local proof audit reports zero findings, and whitespace/EOF checks pass.
+Generic theorem types remain unchanged; no new trust assumption/unsafe option.
+This is model proof evidence, separate from 18 actual-CM and six actual-Server
+IO replay cases. No checker remains running at this checkpoint.
+
+Next SI4 slice must represent Server's **raw admission Async workers**, rather
+than importing the chosen caller scope of the direct-CM harness:
+
+- Observe actual accepted-socket handoff/fork before recording a physical worker;
+  do not adopt existing admission PCs as physical Async history.
+- Keep its includeInbound result/error close branches and physical result separate
+  from handler cleanup. A stored awaitHandshake PC is not a live-thread proof.
+- Close only the owned Server action/IG/accept-loop scopes at their real boundary.
+  The source has no admission registry join; preserve a finite initialized
+  counterexample to deriving all-worker completion from those scope certificates.
+- Use PublicationServer.hs's finite observation as the source check. External
+  cleanup/GC/runtime recovery are separate inputs; production governor/PSA scopes
+  still require composition with the physical handler model before SI5.
+
+This priority follows verified source behavior and prevents an incorrect
+structured-admission-ownership assumption. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+
+## Eighteenth increment: raw admission workers and owned Server scope return
+
+**30 October, uncommitted.** [ServerAdmission](ServerAdmission.agda) wraps the
+physical publication-unwind chain with actual raw admission-worker history.
+`initial` refuses existing admission/socket slots. An observed successful
+accepted-socket handoff/fork inserts both the source continuation and physical
+worker, checking fresh caller, socket and reserved handler identities. Historical
+outbound results and raw-worker identities cannot be recycled as new callers.
+No old logical admission is adopted as an Async birth.
+
+The worker's calling, close, body-exit and result-publication phases are distinct.
+Normal Connected returns need no worker close; Disconnected invokes its captured
+socket close. A later observed exception at awaitHandshake also invokes that
+close. A failed Disconnected close enters the original onException cleanup; a
+cleanup-close failure replaces the propagated exception. Server close attempts
+are counted separately from CM handler cleanup; uncertain close outcomes remain
+explicit. Earlier admission/map-lease/fork-failure physical unwinds are not yet
+covered by this adapter. Exited workers cannot resume old caller operations or
+reuse their identities for outbound calls.
+
+| Source portion | Implemented scope | Still open |
+| --- | --- | --- |
+| Server raw admission async | Explicit successful handoff/fork and immutable captured request; post-handshake return/exception close and result phases | Accept/getLocalAddr/tracer/fork errors before handoff; earlier admission unwind branches |
+| Owned action/accept/IG scopes | One initialized listener, normal action wins; accept receipt, listener close/result/join, stopped trace and returned-action cancel/join | Multiple listeners, other race winners, owned helper/finalizer/tracer failures |
+| IG scope cleanup | Actual deactivateIG/flushOnExit shared transitions, exited/inactive checks, empty published registry | IG CM-call cancellation/unwind and nonempty remote-state exit tracing |
+| CM outer finally | Actual shutdown snapshot/traversal/delivery/result-wait steps after IG join; real finishClose required | Full PSA/governor/Server composition and admission quiescence |
+
+The owned infrastructure is an explicit **post-setup scenario boundary**. This
+is not a whole-node startup/refinement theorem. The first IG-exit profile refuses
+receipt with pending inbound-release/remote-call frames; it does not discard an
+unfinished CM call. Listener close and trace return are observed successful
+operations, with no eventuality claim. Existing raw workers remain independent
+after scope return; no admission registry join or global freeze is invented.
+
+`Properties/ServerAdmission` proves that any finite scope-only execution retains
+the exact raw-worker table, including when scope plans perform actual IG writes.
+Inherited physical steps also retain it; the guarded source path has a checked
+roundtrip. A permission-indexed lift reuses lower physical executions rather
+than normalizing their whole dispatchers again. These statements do not yet lift
+capture/supply/resource invariants through all the new handoff/close writers.
+
+`Negative/ServerAdmission.initialized` performs two explicit handoffs to recreate
+the existing two-admission fixture, then lifts the checked NewMux sync-failure
+path and executes the owned Server/IG/CM cleanup. It proves handler result
+availability and Server return while **worker zero itself** has no result, retains
+its actual physical birth and is at its empty-promise awaitHandshake read. The
+second accepted worker is not the sole reason for the unfinished-worker result.
+`no-universal-all-worker-completion` refutes deriving all raw results from those
+scope certificates in this profile. Map purge, listener close and raw read retry
+are separate observations. No fake result, unread return, new post-close handoff
+or premature Server completion is admitted.
+
+A further checked suffix supplies an observed async exception, closes the raw
+worker's socket and publishes its result. Publication before that close and old
+caller/identity reuse afterwards are rejected. This represents the replay's
+explicit cleanup input and leaves room for runtime recovery; it proves no
+permanent leak, universal deadlock or GC behavior.
+
+Validation: initial runtime and generic properties passed at 4 GB. After actor
+history/IG-exit guard refinements and recovery controls, the final endpoint freshly
+checked all three modules serially at 8 GB, exit 0, no warnings:
+
+```sh
+agda ConnectionManagement/Negative/ServerAdmission.agda +RTS -M8G -RTS
+```
+
+Log: /tmp/cm-review-20261029/server-admission-negative-final.log. Initial syntax
+and missing Bool-import diagnostics were repaired before acceptance. Three-file
+local proof audit: zero findings; whitespace checks pass. No postulates, holes,
+unsafe options or weakened prior theorem types. The earlier pre-publication
+endpoints remain accepted and unchanged. Native CM/Server replay artifacts were
+not changed or rerun for this Agda-only increment. No jobs remain running.
+
+The full SI5 claim is **not** replaced by an easier conditional completion
+statement. This counterexample is an obstruction to inferring all-worker
+completion from owned scopes alone. Extend physical admission failure coverage,
+new-writer invariants, IG-call/nonempty cleanup and parent PSA/governor composition;
+keep any additional quiescence/fix profile explicit. G0–G5, CM-I4c and SI4/SI5
+remain open. No whole-source or whole-node shutdown/refinement is established.
