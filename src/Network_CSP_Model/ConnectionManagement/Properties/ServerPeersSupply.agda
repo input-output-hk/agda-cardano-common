@@ -89,3 +89,61 @@ from-initial-valid {c} {g} initialized bounded path = exec-preserves path (initi
 from-initial : ∀ {c g s as t} → K.initial (O.initial c) g ≡ just s →
   SupplyBounds (I.world c) → K.Executes s as t → Bounded t
 from-initial initialized bounded path = proj₂ (proj₁ (from-initial-valid initialized bounded path))
+
+-- The protocol frontend adds cells/commands/physical pool metadata. Its caller
+-- step is an actual PSA step; completion caches alter only peer result views.
+open import ConnectionManagement.Domain using (HandleId)
+open import Data.Nat using (ℕ)
+module Protocols (canInitiate : HandleId → ℕ → Bool) where
+  open import Data.List using ([]; _∷_)
+  open import Relation.Nullary using (yes; no)
+  open import Class.DecEq using (_≟_)
+  open import ConnectionManagement.Store using (lookup)
+  open import ConnectionManagement.IGTypes using (number)
+  import ConnectionManagement.Rules.PeerActions as Peer
+  private
+    module T = K.Protocols canInitiate
+
+  ProtocolValid : T.Runtime → Set
+  ProtocolValid s = Valid (T.base s)
+  cache-preserves : ∀ rid r result f b → Valid b → Valid (T.cacheResult rid r result f b)
+  cache-preserves rid r result f b valid with T.latest (T.owner r) (number (T.descriptor r)) (T.calls f)
+  ... | nothing = valid
+  ... | just (current , _) with current ≟ rid
+  ...   | no _ = valid
+  ...   | yes _ with lookup (T.peerRef r) (C.SubContext.peers (C.subsystem (K.context b)))
+  ...     | nothing = valid
+  ...     | just peer with Peer.handleRef peer ≟ T.handleRef r | Peer.muxRef peer ≟ T.mux r
+  ...       | yes _ | yes _ with Peer.finishRun (number (T.descriptor r)) result (Peer.runs peer)
+  ...         | nothing = valid
+  ...         | just rs = valid
+  cache-preserves rid r result f b valid | just (current , _) | yes _ | just peer | no _ | _ = valid
+  cache-preserves rid r result f b valid | just (current , _) | yes _ | just peer | yes _ | no _ = valid
+  enact-preserves : ∀ plan s {t} → T.enact plan s ≡ just t → ProtocolValid s → ProtocolValid t
+  enact-preserves (T.inherit a f) s eq valid with K.step a (T.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just b = case just-injective eq of λ { refl → step-preserves a (T.base s) advanced valid }
+  enact-preserves (T.caller a f) s eq valid with PS.step a (K.peers (T.base s)) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just p = case just-injective eq of λ { refl → PeerSupply.step-preserves isIOManagerError a (K.peers (T.base s)) advanced valid }
+  enact-preserves (T.local f) s eq valid = case just-injective eq of λ { refl → valid }
+  enact-preserves (T.reading r) s eq valid = case just-injective eq of λ { refl → valid }
+  enact-preserves (T.traceFault w rid result fs) s eq valid = case just-injective eq of λ { refl → valid }
+  enact-preserves (T.deliverTraceFault w rid result fs coordinator) s eq valid = case just-injective eq of λ { refl → valid }
+  enact-preserves (T.birth w capturedFrame pool j rid r f) s eq valid = case just-injective eq of λ { refl → valid }
+  enact-preserves (T.complete a rid r result) s eq valid with K.step a (T.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just b = case just-injective eq of λ { refl → cache-preserves rid r result (T.front s) b
+    (step-preserves a (T.base s) advanced valid) }
+  advance-preserves : ∀ a s {t} → T.advance a s ≡ just t → ProtocolValid s → ProtocolValid t
+  advance-preserves a s eq valid with T.choose a s
+  ... | nothing = case eq of λ ()
+  ... | just plan = enact-preserves plan s eq valid
+  run-preserves : ∀ {s as t} → T.Runs s as t → ProtocolValid s → ProtocolValid t
+  run-preserves T.stop valid = valid
+  run-preserves (T.more {s = s} {a = a} eq rest) valid = run-preserves rest (advance-preserves a s eq valid)
+  from-initial-protocols : ∀ {c g s as t} → T.initialize (O.initial c) g ≡ just s →
+    SupplyBounds (I.world c) → T.Runs s as t → ProtocolValid t
+  from-initial-protocols {c} {g} initialized bounded path with K.initial (O.initial c) g in started
+  ... | nothing = case initialized of λ ()
+  ... | just b = case just-injective initialized of λ { refl → run-preserves path (initial-valid c g started bounded) }

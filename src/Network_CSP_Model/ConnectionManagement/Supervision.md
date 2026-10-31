@@ -2621,3 +2621,561 @@ finding is claimed. Next: couple peer bundle starts and result observations to
 the actual physical mux/job/controller path on this shared source, then exercise
 nonempty PSA monitor integration and widen callback/race outcomes with their
 exact exception semantics. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+## Twenty-third increment: peer initiator starts and physical results
+
+Checked 30 October 2026, after commit `82f6435`. The selected
+`ServerPeers.Protocols` extension now joins actual PSA bundle calls to the
+physical mux/controller/job lifecycle on the existing single CM source. Runtime,
+properties and supply proofs remain in their existing modules; fixtures and all
+new histories are nested in `Negative/ServerPeers.Protocols` in the existing
+[acceptance file](Negative/ServerPeers.agda). No additional fixture files.
+
+The clean network checkout remains pinned at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. The following branches were
+rechecked in that local checkout:
+
+- PeerStateActions.hs:1149–1195 traverses the requested temperature bundle with
+  eager initiators, then separately publishes the map of completion actions.
+- network-mux Mux.hs:737–809 resolves the protocol and direction, checks mux and
+  per-direction status, marks Running, allocates an empty completion cell and
+  queues the start in one caller transaction. A read retries while Ready; after
+  Stopping/Stopped/Failed, a filled local cell takes precedence over Shutdown.
+- Mux.hs:415–445 selects typed JobPool results before control commands, and
+  commands before on-demand readiness. :491–519 traces an already selected eager
+  command and then physically forks it. Later queue arrivals do not undo selection.
+- Mux.hs:295–361 separates protocol return/egress drain, clean Idle/cell commit,
+  body return and JobPool publication. Its synchronous error handler fills the
+  error cell without resetting Idle; asynchronous cancellation is a separate path.
+  InboundGovernor.hs:633–725 ignores initiator start/completion traces for responder
+  counters and notifications, though the real tracer reads its active variable.
+
+`canInitiate handle protocol` is an immutable initiator-direction capability
+contract. A responder descriptor alone does not establish that capability.
+Each successful caller step advances the real PSA job and allocates a fresh
+RunId/cell plus queued command; it does not invent a physical JobId. Commands
+retain how many legacy commands precede them, preserving their relative FIFO
+order across later appends and successful legacy pops. Selection checks the real
+typed FIFO, current owner/controller permissions and registration gap. Explicit
+normal start-trace invocation/return precedes actual Pool.fork and separate
+registration. Selected starts retain their place while unrelated child results
+or later stop commands arrive.
+
+Every physical job captures direction, owner, mux, protocol number and generation.
+Local completion delegates to the existing physical clean/error transition.
+Only the matching current generation may update the PSA cache; old completion
+cells remain independently readable. Fresh generations are inserted first, so
+lookup cannot mistake an old clean cell for the current running generation.
+The conditional real restart-step control covers this ordering, old-result
+retention and stale-cache rejection. A synchronous-error slot stays busy.
+Legacy independent logical publication and observed raw initiator-fork aliases
+remain refused; initiator results do not enter the old responder pending table.
+
+[Properties/ServerPeers](Properties/ServerPeers.agda) proves actual physical
+fork/job evidence and projects every implemented protocol execution to the real
+peer pool/scope metadata paths. `callback-from-protocols` derives the unchanged
+component certificates from initialization and actual callback return, with no
+externally supplied closure gates. [ServerPeersSupply](Properties/ServerPeersSupply.agda)
+preserves the original outbound capture/supply and detached governor-capture
+predicate through all new steps and finite executions, retaining only the
+original initial supply bounds. These proofs do not assert a new full runtime
+resource invariant or enabled-step completeness.
+
+Acceptance evidence in the nested `Protocols` module:
+
+- An 85-action initialized prefix performs actual accepted handoffs, handshake,
+  IG registration and physical mux startup. A real governor establishment job
+  selects the existing inbound duplex handle through the common CM route,
+  completes its empty warm/established traversal, and physically forks/registers
+  PSA monitor 50. Policy then selects activation and reaches the hot bundle.
+  Governor samples are 10/11/12, after IG registration at 10; absolute activation
+  and promotion metadata are shifted consistently.
+- A 25-action suffix requests protocol 1, processes the older responder command,
+  selects/traces/forks initiator 20, and commits a clean result before parent
+  registration and bundle publication. It then completes the governor job,
+  physical body/FIFO/deregistration/Async result and ignored initiator completion
+  trace/DeltaQ. Assertions distinguish local cell, published peer observation,
+  physical body and Async result, and check no initiator IG counter events.
+- A further 33 actions close the actual inner scopes and governor pool, then
+  capture the nonempty PSA monitor snapshot [50], cancel/unwind/deregister it,
+  publish its Async result and join it before callback return. The complete
+  initialized history has 143 actions and an instantiated monitor certificate.
+  Raw admissions remain incomplete and the physical handler pool remains open.
+- Initialized branches cover a selected start forking after a later shutdown
+  command and infrastructure result (95 actions); mux failure waking an empty
+  queued cell through Shutdown before any job birth (92); a synchronous protocol
+  error retaining its busy slot (94); real same-number initiator/responder
+  coexistence, including actual responder notifications (100); and a committed
+  local clean result winning after later mux failure (99).
+- Controls reject priority violations, uninvoked tracer return, raw physical
+  fork/commit aliases and premature observations. Restart ordering is checked
+  from an explicitly conditional second-activation PC; no second initialized
+  policy cycle is claimed.
+
+Validation ran serially with Agda 2.8.0 from this library root. Runtime initially
+passed at 4 GB; supply/properties and acceptance passed at 8 GB. After generation
+ordering was corrected, `acceptance-generation-order.log` freshly checked the
+runtime, both property modules and acceptance endpoint, exit 0. The extended
+direction/result-priority/restart acceptance also freshly passed at 8 GB, exit 0,
+with its own Checking line and no warnings (`acceptance-directions.log`).
+The final EOF-clean acceptance also freshly passed, exit 0, own Checking line,
+no warnings (`acceptance-final.log`). The command for these acceptance checks was:
+
+```sh
+agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M8G -RTS
+```
+
+Serial regressions for `Negative/PeerSupervision.agda`, `Negative/ServerIGExit.agda`,
+`Negative/MuxProtocolJobs.agda` and `Negative/MuxInitiatorTraceCM.agda`, each with
+`+RTS -M8G -RTS`, passed from cached interfaces, exit 0, no warnings.
+Logs are under `/tmp/cm-peer-protocols-20261030/`, including
+`regression-<endpoint>.log`. All checker processes exited. The four-file strict
+local proof audit reports zero findings and `git diff --check` passes. This is
+a local scan, not a term-level audit of every imported dependency. No full
+baseline rebuild was run.
+
+Preliminary parse/name-clash errors, two shadow warnings, a case-reduction
+proof error and a fork-step equality witness were repaired before acceptance.
+Source review corrected clock alignment and the fresh-generation insertion
+order; both now have executable controls. No old theorem type was weakened,
+no trust assumption or hole introduced, and no safety/termination check disabled.
+
+The start-tracer profile currently admits normal return only; tracer failure/
+cancellation unwind remains open. Caller start failures are observable source
+error frontiers, not executed exception-policy continuations or deadlock claims.
+The Shutdown completion-action observation is modeled, but the old PSA waiters
+still need explicit coupling of that observation to their policy continuation.
+A fully initialized restart, wider Server callback/race outcomes, CM-I4c,
+SI4/SI5 and the overall G0–G5 gates remain open. No native replay, production
+source patch, new deployed defect, source refinement, fairness/delivery theorem
+or whole-shutdown result is claimed by this increment.
+
+## Twenty-fourth increment: physical completion reads in peer waiters
+
+Checked 30 October 2026, on the uncommitted increment 23 work after
+`82f6435`. `ServerPeers.Protocols` now connects the physical completion-action
+observations to the selected PSA monitor/deactivation/close continuations.
+All new runtime/proofs remain in their existing files; new acceptance is nested
+under `Protocols.Waiters` in [Negative/ServerPeers](Negative/ServerPeers.agda).
+
+The network pin remains
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, with its local checkout clean.
+The following source branches were rechecked:
+
+- PeerStateActions.hs:255–278 distinguishes returned/error, NotRunning and
+  NotStarted. :361–423 first reads the published result-action map. First-to-finish
+  folds ascending protocol numbers with orElse, then retries if the selected
+  action returns NotStarted/NotRunning. A live action that retries permits trying
+  later actions. All-to-finish sequences every action before collecting outcomes;
+  an available error cannot bypass another action's retry.
+- PeerStateActions.hs:664–768 checks Cold/Cooling before established, warm and
+  hot first-result alternatives. An error cools the peer; a hot success invokes
+  deactivation and a warm/established success invokes close.
+- PeerStateActions.hs:986–1105 waits for all hot results during deactivation,
+  and all three bundles during close. Clean deactivation retires its result map.
+  Errors take the operation's failure path; close errors do not release outbound
+  ownership.
+- Governor/ActivePeers.hs:979–1045 waits for PeerCold (or its own demotion timeout)
+  in the deactivation job's exception handler, before returning a governor
+  completion. Mux.hs:795–809 still gives a filled local cell priority over
+  Shutdown for Stopping/Stopped/Failed.
+
+The new published-cell view preserves unpublished cells, frozen NotRunning/old
+published values and exact captured peer/handle/mux identities. Reads retain
+`localResult` versus `shutdownResult status`; no synthetic ErrorId or physical
+protocol result is used for Shutdown. First/all views preserve map ordering and
+bundle precedence. The result-action observation remains live rather than being
+memoized into a local completion cell.
+
+`pollResults`, `waitJobResults` and `waitMonitorResults` use the actual physical
+monitor ownership, queued-job flag, governor body-running/parent-gap checks,
+policy stage and callback permissions. Cached logical poll/wait aliases are
+refused in this extension. Successful local-result and Cold/demotion paths reuse
+the original lower steps, retaining their physical body-return bookkeeping.
+Selected error reads update peer status and/or the captured job/followup PC to
+the existing failed-operation boundary. They preserve the authoritative CM,
+mux state, physical protocol cells/jobs/FIFO and all Async pools; they do not
+make a peer Cold or publish a governor completion.
+
+`Properties/ServerPeers.Protocols.reading-source` and `reading-physical` prove
+those source/physical/frontend equalities for the read-update constructor.
+The existing execution projections, callback component certificates and
+capture/supply preservation now cover the new events without new initial
+premises. Their theorem types, and all earlier theorem types, remain unchanged.
+
+Acceptance includes three new initialized histories:
+
+- `initialized-monitor-shutdown` (94 actions): a queued protocol has no physical
+  body when an actual infrastructure result fails its mux. The new read is
+  blocked before bundle publication; after publication it cools the real peer
+  through its actual monitor. No protocol result or FIFO entry is manufactured,
+  and Cold still waits for CM demotion.
+- `initialized-local-continuation` (103): a committed local clean result wins
+  after later mux failure. The real monitor creates a deactivation followup,
+  waits for all hot results, retires the hot result and reaches successful
+  deactivation while the physical protocol Async body is still running.
+- `initialized-job-shutdown` (126): activation returns with its eager command
+  still queued. Actual completion/target/policy steps at times 13/14/15 launch
+  and register governor deactivation job 2. Mux failure then wakes its all-hot
+  wait through Shutdown. The job remains bodyRunning at awaitCold failed,
+  without a governor completion or outbound release; protocol 20 never had
+  a physical body.
+
+Conditional controls cover multi-protocol retry/error combinations, inactive
+first-action behavior, established-before-hot priority and close-all failure
+without release. They also reject reads by a different monitor, interrupted
+monitor/job, completed policy profile, raw logical aliases and a pending close.
+These additional protocol/close snapshots are not claimed to have initialized
+physical histories.
+
+Validation ran serially with Agda 2.8.0 from the standalone library root.
+Runtime passed at 4 GB (`runtime.log`); the initial supply lift passed at 6 GB
+(`supply.log`). The basic aggregate freshly checked runtime, both property
+modules and the acceptance file at 6 GB, exit 0, no warnings
+(`acceptance-basic.log`). The final aggregate with all policy/conditional controls
+freshly checked the acceptance file at 6 GB, exit 0, no warnings
+(`acceptance-clock.log`), retaining the checked dependency interfaces:
+
+```sh
+agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M6G -RTS
+```
+
+Logs are in `/tmp/cm-peer-waiters-20261030/`. An intermediate
+`acceptance-policy.log` failed at an expected-snapshot clock mismatch, after
+freshly checking the final runtime and both property modules: activation at
+13 schedules failure clearing at 73, rather than the reused snapshot's 63.
+The metadata clock conversion now shifts that absolute deadline as well as
+promotion/activation times; the final aggregate checks the corrected history.
+The static audit initially mistook qualified infix `Nat.<?` for a hole; using
+the equivalent qualified prefix spelling makes the scan unambiguous. No proof
+hole was involved. EOF whitespace was also repaired.
+
+The four-file strict local proof audit reports zero findings; `git diff --check`
+passes. Serial `Negative/PeerSupervision.agda` and `Negative/MuxProtocolJobs.agda`
+regressions with `+RTS -M6G -RTS` passed from cached interfaces, exit 0, no warnings;
+logs are `regression-PeerSupervision.log` and `regression-MuxProtocolJobs.log`
+in the same directory. All checker processes exited. No old
+theorem type was weakened, no postulate/trust assumption introduced, and no
+safety or termination check disabled. This local scan does not audit every
+imported dependency at term level.
+
+The selected read/continuation granularity retains the existing normal PSA
+tracer profile. Monitor followup failures still use the existing separately
+observed synchronous exception handler; this increment does not derive a
+concrete `MiniProtocolExceptions` identity or implement its tracer faults.
+Additional close/multi-protocol controls remain conditional, not new initialized
+end-to-end close histories. No native replay, full baseline rebuild, new deployed
+defect, source refinement, fairness/liveness or whole-shutdown theorem is claimed.
+Next: source-check and implement synchronous/asynchronous initiator start-tracer
+failure/unwind at the selected command, retaining its empty completion cell and
+joining actual physical children. A full initialized restart, broader callback/
+race outcomes, CM-I4c, SI4/SI5 and G0–G5 remain open.
+
+## Twenty-fifth increment: selected initiator start-tracer faults
+
+Checked 30 October 2026, on uncommitted increments 23–24 after `82f6435`.
+`ServerPeers.Protocols` now couples observed synchronous/asynchronous exceptions
+from an invoked eager initiator start tracer to the existing physical unwind
+machinery. All acceptance remains in the existing
+[Negative/ServerPeers](Negative/ServerPeers.agda), nested under `Protocols.StartTrace`.
+
+Source was rechecked at network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
+
+- ConnectionHandler.hs:329–380,408–452 explicitly unmasks Mux.run. Mux.hs:242–278
+  runs its monitor in the JobPool body and catches SomeAsyncException outside
+  that pool bracket. Pool closure precedes the asynchronous Failed/Dead catch.
+- Mux.hs:491–519 calls TraceStartEagerly before entering forkJob/forkJobOn.
+  JobPool.hs:70–80,105–137,153–172 supplies the bracket, cancellation snapshot,
+  masked parent birth/registration and restored child bodies. An exception
+  inside the invoked tracer is distinct from the later masked insertion gap.
+- InboundGovernor.hs:633–758 samples its active variable but ignores initiator
+  start traces for responder counters/notifications. The sync throwing input
+  here concerns a supplied custom tracer, not an invented failure of that normal
+  ignored IG branch.
+- The Mux catch handles asynchronous exceptions only. A synchronous start-tracer
+  exception closes the entered pool and propagates without writing Failed;
+  overwriting it with an asynchronous-style status would change the source.
+
+`startTraceSelection` requires an invoked tracer cursor, actual monitoring
+owner/mux, matching captured call, empty cell and no physical thread for that
+call, plus the existing controller/unwind guards. It calls the existing
+`MuxStartupUnwind.start` with the actual frame and pool-body route.
+`failedC` retains the generation and exception, preventing normal tracer return,
+late fork or duplicate receipt. The raw group-abort shortcut is also refused
+while this start owns the controller. Independent children retain their lower
+return/publication/removal guards.
+
+Fault capture changes only the selected unwind record and frontend cursor;
+`start-fault-source` and `start-fault-physical` prove exact preservation of CM,
+physical protocol state and caller cells. The acceptance instantiates the
+existing `MuxStartupUnwind.Selection` certificate from the actual pre-state.
+Generic supply/capture preservation, peer-pool/scope projections and callback
+component certificates cover all added events without new initial premises.
+Earlier theorem types and lower failure-site guards remain unchanged.
+
+`deliverStartTraceShutdown` separately requires the Server's actual closingCM
+stage and the coordinator's pending target. It then uses the guarded
+`W.control acknowledgeDelivery` result after selecting the same actual async
+fault. The raw shutdownStep acknowledgement remains refused; ordinary async
+observation does not acknowledge an unrelated pending CM sender. This receipt
+updates the coordinator and fault metadata, without certifying a handler result.
+
+Initialized acceptance shares the real 90-action prefix through admission,
+handshake, IG/startup, peer activation request, controller selection and actual
+start-tracer invocation:
+
+- A generic 14-action unwind cancels both actual infrastructure handles,
+  observes their body unwind, deregisters/publishes Async results and joins
+  snapshot [1,0]. Closure retains the empty initiator cell and proves that
+  protocol 20 never acquired a physical body or typed completion.
+- `StartTrace.Sync.initialized-outcome` reaches the buffer-unwind boundary in
+  106 actions. Mux status remains Ready and the empty completion action still
+  retries. An explicit subsequent bundle-publication step also leaves the
+  published waiter retrying. This finite boundary is not a universal deadlock
+  or implementation defect claim.
+- `StartTrace.Async.initialized-outcome` has 110 actions: only after pool closure
+  does the real catch write Failed, invoke/sample/commit Dead and finish that
+  callback. The actual IG tracer emits MuxFinished. Two further real peer steps
+  publish the bundle and consume Shutdown to cool the peer (112 actions).
+
+Conditional CM component controls exercise snapshot/read/send, exact receipt,
+the same physical cleanup and catch, and the continuing handler-result wait.
+They assume a closingCM pre-state; neither initialized reachability nor whole
+peer/IG-scope validity of that component snapshot is claimed. The existing
+Server guard prevents starting CM shutdown during the live callback. A complete
+initialized peer/IG scope-exit prefix with this start still pending remains open.
+In particular its real inactive-IG Dead branch must not be replaced by the
+active-IG callback used in the conditional component control.
+
+Other controls reject faults before invocation or in the masked registration
+gap, late fork/return, duplicate receipts, raw acknowledgement/abort, receipt
+during the callback, early join/pool close and early asynchronous Failed writes.
+Receipt and pool closure remain distinct from the handler's Async result.
+
+Validation ran serially with Agda 2.8.0 from this library root. Initial runtime
+and supply checks passed at 4 GB and 6 GB. The final runtime, generic properties
+and supply lift were freshly checked transitively at 6 GB during the guarded
+aggregate attempt; the final acceptance file then freshly passed at 6 GB,
+exit 0, own Checking line and no warnings:
+
+```sh
+agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M6G -RTS
+```
+
+Logs are under `/tmp/cm-start-trace-20261030/`; final success is
+`acceptance-final.log`. Preliminary logs record a repaired parenthesis/coverage
+error and nested acceptance-name clashes. Source review also corrected an
+unusable raw-acknowledgement delegation and retained the Server CM-stage guard;
+the CM component controls are explicitly conditional, rather than asserting an
+unproved initialized scope-exit path. Existing theorem types and guards were not
+weakened. No postulate, proof hole, unsafe option or termination bypass was added.
+Serial `Negative/MuxStartupUnwind.agda` and `Negative/MuxInitiatorTraceCM.agda`
+regressions with `+RTS -M6G -RTS` passed from cached interfaces, exit 0, no
+warnings. Logs are `regression-MuxStartupUnwind.log` and
+`regression-MuxInitiatorTraceCM.log` in the same directory. All checker processes
+exited. The four-file strict local proof audit has zero findings and
+`git diff --check` passes. This is a local scan, not a term-level audit of every
+imported dependency.
+
+No native replay, production patch, deployed finding, source refinement or
+universal progress/shutdown result is claimed. The sync Ready/empty-cell boundary
+is finite model evidence under the supplied tracer contract, not a permanent
+blocking conclusion. Buffer-provider unwind/handler cleanup and concrete tracer
+failures in later callbacks retain their existing explicit boundaries.
+Next: build the actual peer-pool/provider/IG scope-exit prefix while retaining
+this pending start, then check CM-owned receipt and the inactive-IG catch through
+that initialized history. A full initialized restart, wider callback/race
+outcomes, CM-I4c, SI4/SI5 and overall G0–G5 remain open.
+
+## Twenty-sixth increment: initialized scope exit and CM start cancellation
+
+Checked 31 October 2026, after `82f6435`, with increments 23–25 still
+uncommitted. The new `Protocols.StartTrace.ScopedCM` acceptance in the existing
+[Negative/ServerPeers](Negative/ServerPeers.agda) reaches CM-owned start-tracer
+cancellation through actual peer/Server/IG scope exit. It uses the existing
+runtime and proof modules; no runtime guard or theorem type changed.
+
+The source pin remains
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. Diffusion.hs:804–826 and
+PeerStateActions.hs:620–638 locate the nested peer/provider/governor/churn scopes
+inside the Server callback. Server.hs:147–186 orders callback/accept/IG scope
+exit; Core.hs:523–550 supplies CM's snapshot, late read, sequential delivery
+acknowledgement and collective handler-result wait. InboundGovernor.hs:633–728
+makes the later Dead callback conditional on the active variable: after IG
+deactivation it neither enqueues MuxFinished nor clears the counters. The local
+checkout remains clean; no production replay was rerun.
+
+The 173-action initialized history is assembled from independently checked
+finite paths, with shallow expected snapshots and explicit `V.advance` proofs:
+
+- The existing 90-action prefix reaches the real invoked initiator start tracer.
+  Its caller has allocated an empty result cell, advanced to publishBundle, and
+  selected the command, but protocol 20 has no physical body.
+- Thirty-nine actions cancel/join the real inner scopes, nonempty governor pool
+  [1], and PSA monitor pool [50], then return the callback. Governor job 1 is
+  cancelled while its hot-bundle publication is pending. Its actual no-CM-caller
+  unwind, deregistration, Async result and join are separate steps. Monitor 50
+  is likewise cancelled, unwound, deregistered, published and joined.
+- The successful callback step derives both nonempty pool terminal certificates
+  and all four inner joins through `callback-from-protocols`. The abandoned
+  publisher's original PC and the handler's invoked tracer cursor remain stored.
+- Twenty actions publish/join the Server callback/accept scope, receive the real
+  IG loop-boundary cancellation, deactivate/drain IG, snapshot its nonempty
+  published row, invoke/return final tracing, publish/join the IG result and
+  enter closingCM. The pending start survives all these steps.
+- Five actual CM snapshot/read/send/receipt/traversal actions acknowledge delivery
+  to that same handler. No stage assignment from the earlier conditional
+  `CM.withCoordinator` fixture is used as initialization evidence.
+- Fourteen actions cancel, unwind, deregister, publish Async results and join the
+  actual infrastructure handles [1,0]. Only then do five catch actions write
+  Failed and invoke/sample/commit/finish Dead. Sampling observes IG inactive,
+  so the queue stays empty and the old responder counters remain present.
+
+`initialized-scoped-catch` is the complete initialized endpoint;
+`initialized-peer-exit`, `initialized-cm-entry`,
+`initialized-receipt-scoped` and `initialized-physical-close` expose its actual
+intermediate milestones. Generic supply/capture validity is instantiated at the
+milestones and final state, with only the existing initial supply bounds.
+`scope-certificates`, `governor-terminal` and `monitor-terminal` derive
+certificates for the actual nonempty captured snapshots.
+
+Controls reject early callback return or CM entry, publisher resumption after
+cancellation, a PSA poll after exit and late tracer return. Assertions preserve
+the exact empty cell, absence of an initiator job, nonempty IG snapshot and real
+physical joins. Reading the completion action after the catch returns the actual
+Shutdown observation. The handler result is still unavailable, and CM's
+finishClose still refuses: physical pool closure does not complete the buffer/
+handler finalizer or its Async result. The active-IG catch in increment 25's
+conditional component control remains distinct; this initialized history
+supplies the missing inactive-IG branch.
+
+Validation used Agda 2.8.0 serially from this library root. The complete
+acceptance file freshly passed twice with its own Checking line, exit 0 and no
+Agda warnings (`scoped-6g.log`, then EOF-clean `final.log`). All new milestones,
+certificates, source/supply instances and existing acceptance are checked together.
+Logs are in `/tmp/cm-scoped-start-20261030/`; work and final checking crossed
+into 31 October. Earlier checks exhausted 2 GB, 2800 MB and 4 GB heaps without
+reporting a proof error. The sandbox also blocked the user scope bus, so bounded
+scope execution required escalation.
+
+The first successful scope used 5 GB RAM / 2 GB swap with a 6 GB heap. That
+placed the heap above the RAM cap, contrary to the repository's resource
+guidance. Final verification corrects this to a 6 GB heap below a 7 GB RAM cap,
+with swap disabled:
+
+```sh
+systemd-run --user --scope -p MemoryMax=7G -p MemorySwapMax=0 -- \
+  agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M6G -RTS
+```
+
+Final serial verification passed under that corrected scope, exit 0: acceptance
+and the two regressions `Negative/ServerIGExit.agda` and
+`Negative/MuxInitiatorTraceCM.agda` all used cached, current interfaces and emitted
+no warnings. The scope ran `/tmp/cm-scoped-start-20261030/verify.sh`, which stops
+on any failed command. Logs: `accepted-final.log`,
+`regression-ServerIGExit-final.log`, `regression-MuxInitiatorTraceCM-final.log`
+and `final-scope.log`. The 2 GB regression attempts had exhausted their heaps
+while loading cached interfaces; their earlier logs are retained. All checker
+processes exited. The redundant parenthesis and EOF whitespace were repaired before
+acceptance. No runtime, previous theorem type, transition guard or initial
+premise was weakened. The four-file strict local proof audit has zero findings;
+no new postulate, proof hole, unsafe option or termination bypass was added.
+This is a local scan, not a term-level audit of every imported dependency.
+
+This remains the existing selected normal callback-return/observed-cleanup
+profile. Production Diffusion failure/other race outcomes and provider/tracer
+behavior retain their explicit boundaries. No native replay, full baseline
+rebuild, new deployed defect, source refinement or universal shutdown/progress
+theorem is claimed.
+
+Next: continue from `scopedReady` through the real buffer-provider outcome,
+captured handler finalizer/cleanup and Async result publication. Then let CM's
+actual collective result wait finish and check Server return, keeping the raw
+admission-worker obstruction explicit. A full initialized restart, broader
+failure/race profiles, CM-I4c, SI4/SI5 and overall G0–G5 remain open.
+
+## Twenty-seventh increment: initialized handler result, CM wait and Server return
+
+`Negative/ServerPeers.Protocols.StartTrace.ScopedCM.Completion` continues the
+previous initialized history through twelve actual transitions, reaching Server
+return after 185 actions. All acceptance remains in `Negative/ServerPeers.agda`.
+No runtime, prior theorem statement, initializer premise or guard changes in
+this increment.
+
+The source mapping was rechecked at the unchanged clean network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+Core.hs:584–713 places handler cleanup inside `finally`: its OutboundDup branch
+writes Terminated Nothing and purges only the matching map identity, closes the
+captured socket while holding the map, publishes the map, then reads counters.
+This branch has no TIME_WAIT delay. Core.hs:523–550 captures handler Asyncs
+through sequential exception-delivery acknowledgements, then collectively waits
+for their results. Map removal and delivery receipt do not discharge that wait.
+
+The continuation starts at `scopedReady`, after the physical pool and inactive-IG
+Dead callback have actually finished. It hands off the original async outcome,
+observes normal buffer-provider return and the handler body exit, enters its
+captured finalizer, then takes/selects/updates/closes/publishes/counts through the
+actual cleanup rules. Cleanup completion and handler Async result publication
+are separate steps. Only then do actual CM finishClose and Server finishServer
+steps succeed. The published body outcome remains the original async trace
+exception 181. The terminated entry remains in the heap, the map is empty and
+the captured socket is closed; no protocol body is invented for the empty cell.
+
+`initialized-server-finish` composes the complete initialized execution rather
+than installing a terminal stage. `server-finish-supply` instantiates the existing
+generic supply/capture theorem with the original initial bounds.
+`physical-final-wait` retains the actual lower handler result table, captured
+coordinator and successful physical wait observation. Controls reject CM closure
+before result publication, result publication before cleanup completion, a
+TIME_WAIT action on this branch, late tracer return and cancelled peer publication.
+Neither body exit nor cleanup completion alone makes the Async result available.
+
+The final raw-worker table still contains the second admission worker at its
+calling PC. `no-universal-raw-worker-completion` uses this initialized history to
+refute the implication that Server return entails all raw-worker results. This
+preserves the SI5 obstruction already documented by the earlier standalone model
+and native replay; it adds integrated initialized evidence, not a new deployed
+defect or a proof of permanent blocking. SI5 is not weakened to owned-scope
+completion.
+
+The selected normal callback-return, buffer-provider return and cleanup
+observations remain explicit contracts. This finite history does not establish
+universal delivery, shutdown, liveness or source refinement. No native replay,
+full baseline rebuild or term-level dependency audit is part of this increment.
+
+Validation on 31 October used Agda 2.8.0 serially from this library root, with
+a 6 GB heap under a 7 GB RAM / zero-swap scope. The first check produced a new
+interface without diagnostics, but its terminal tool status was lost across
+context compaction. To retain explicit exit evidence, only this endpoint's
+interface was invalidated and the final acceptance freshly checked again:
+
+```sh
+systemd-run --user --scope -p MemoryMax=7G -p MemorySwapMax=0 -- \
+  sh /tmp/cm-handler-finish-20261031/verify.sh
+```
+
+The script stops on any failure and runs these commands, each with
+`+RTS -M6G -RTS`:
+
+- `agda ConnectionManagement/Negative/ServerPeers.agda`: fresh own Checking
+  line, exit 0, no warnings (`acceptance-final.log`).
+- `agda ConnectionManagement/Negative/MuxHandlerExit.agda`: cached regression,
+  exit 0, no warnings (`regression-MuxHandlerExit.log`).
+- `agda ConnectionManagement/Negative/MuxInitiatorTraceCM.agda`: cached
+  regression, exit 0, no warnings (`regression-MuxInitiatorTraceCM.log`).
+
+All logs and recorded command exits are under
+`/tmp/cm-handler-finish-20261031/`; `verification-scope.log` records the scope and
+`results.log` its three successful checker exits. All processes are terminal.
+The four-file strict local proof audit has zero findings and `git diff --check`
+passes. No new postulate, hole, unsafe option or termination bypass was added;
+this scan does not audit every imported term. The source pin, handovers,
+presentation, `.claude` and output remain unchanged. No commit was made.
+
+Next: build a fully initialized second hot activation/protocol generation from
+the serving branch, using actual governor/PSA transitions and the existing
+per-generation physical result cells. Preserve old-result readability and reject
+stale bundle reuse. This is protocol restart while Server is serving; the returned
+Server is not restarted by assigning a new stage. Broader failure/race profiles,
+CM-I4c, SI4/SI5 and the overall G0–G5 objective remain open.

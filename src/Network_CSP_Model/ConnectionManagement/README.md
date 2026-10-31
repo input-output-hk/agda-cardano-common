@@ -31,7 +31,8 @@ couples actual successful promise publication to a per-handler `Rules/MuxStartup
 instance, tracks muxer/demuxer forks in the same queued pool and protects the
 post-handshake prefix from old cancellation/cleanup entry points. `MuxProtocolJobs`
 adds direction/generation captures and exact result publication to those same
-pools, with initiator frontend integration still an explicit boundary.
+pools. `ServerPeers.Protocols` supplies the selected initiator frontend coupling
+described below.
 `MuxResultMonitor` consumes their typed FIFO and models status/tracer effects
 using current physical group membership; monitor finish does not imply pool or
 handler completion. `MuxGroupShutdown` adds interruptible cancellation/join of a
@@ -110,9 +111,39 @@ CM steps retain both adapters' permissions and cancellation-region bookkeeping.
 Successful callback return derives the peer pool/scope certificates after an
 initialized shared execution. Checked histories cover map interference during
 detached socket cleanup and a pending IG release across peer-scope closure.
-Physical peer protocol starts/results still need coupling to the mux adapter;
-their raw shortcuts are excluded. See
-[Supervision increment 22](Supervision.md#twenty-second-increment-shared-server-and-peer-supervision).
+Its `Protocols` extension now couples nonempty peer bundle requests to a mixed
+controller command FIFO, selected start tracing, actual physical fork/registration
+and per-generation completion cells. Clean completion, bundle publication, body
+return, typed FIFO publication and Async results remain separate. Initialized
+histories cover same-number initiator/responder overlap, selection/result races,
+Shutdown observations and nonempty PSA monitor cancellation/join before callback
+return. Capability in the initiator direction is an explicit application contract;
+the selected start tracer now has observed sync/async fault paths through real
+pool cancellation and joins. A synchronous fault preserves Ready; the async catch
+writes Failed and traces Dead only after closure. CM-owned receipt has a separate
+closing-stage guard. An initialized history now closes both nonempty peer pools,
+the inner scopes, accept scope and IG before CM receipt; its inactive-IG catch
+preserves the empty cell and does not enqueue MuxFinished. Its initialized
+continuation now performs buffer return, captured handler cleanup and Async
+result publication before CM's collective wait completes and Server returns.
+The separate raw admission worker remains unfinished at Server return.
+Published physical completion
+reads now drive the selected first/all PSA waiter continuations, preserving local
+result priority, source retry ordering and actual monitor/job permissions.
+Initialized paths cover Shutdown-driven monitor cooling and governor deactivation
+waiting for Cold, plus successful local-result deactivation after mux failure.
+Close-all and additional multi-protocol read controls remain conditional; a fully
+initialized second activation remains open. Raw logical poll/wait/result shortcuts
+stay excluded. See
+[Supervision increment 22](Supervision.md#twenty-second-increment-shared-server-and-peer-supervision)
+and [increment 23](Supervision.md#twenty-third-increment-peer-initiator-starts-and-physical-results),
+then [increment 24](Supervision.md#twenty-fourth-increment-physical-completion-reads-in-peer-waiters).
+Selected start-tracer faults are covered in
+[increment 25](Supervision.md#twenty-fifth-increment-selected-initiator-start-tracer-faults).
+The initialized CM scope-exit history is in
+[increment 26](Supervision.md#twenty-sixth-increment-initialized-scope-exit-and-cm-start-cancellation),
+with handler/CM/Server completion in
+[increment 27](Supervision.md#twenty-seventh-increment-initialized-handler-result-cm-wait-and-server-return).
 Other ignored callbacks, remaining allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for

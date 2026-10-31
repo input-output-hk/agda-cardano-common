@@ -139,3 +139,151 @@ lift-server-step a e k allowed advanced rewrite allowed | advanced = refl
 append : ∀ {s as t bs u} → K.Executes s as t → K.Executes t bs u → K.Executes s (as ++ bs) u
 append K.done rest = rest
 append (K.next eq path) rest = K.next eq (append path rest)
+
+-- The protocol extension keeps the same peer component certificates, even
+-- though successful caller starts are more precise than a raw base execution.
+open import ConnectionManagement.Domain using (HandleId; WorkerId; JobId; RunId)
+open import Data.Nat using (ℕ)
+module Protocols (canInitiate : HandleId → ℕ → Bool) where
+  open import Data.List using ([]; _∷_)
+  open import Relation.Nullary using (yes; no)
+  open import Class.DecEq using (_≟_)
+  open import Relation.Binary.PropositionalEquality using (sym)
+  open import ConnectionManagement.Store using (lookup)
+  open import ConnectionManagement.IGTypes using (number)
+  import ConnectionManagement.Rules.PeerActions as Peer
+  import ConnectionManagement.Rules.MuxJobTypes as Types
+  import ConnectionManagement.Rules.MuxRuntime as Mux
+  import ConnectionManagement.MuxPublicationUnwind as Publication
+  import ConnectionManagement.Properties.MuxProtocolJobs as PhysicalFacts
+  open import ConnectionManagement.Properties.Entries using (lookup-put)
+  private
+    module T = K.Protocols canInitiate
+    module N = Publication isBearerClosed
+    module Jobs = N.P
+    module Pool = Jobs.Pool
+
+  protocol-view : T.Runtime → P.View
+  protocol-view s = view (T.base s)
+  cache-view : ∀ rid r result f b → view (T.cacheResult rid r result f b) ≡ view b
+  cache-view rid r result f b with T.latest (T.owner r) (number (T.descriptor r)) (T.calls f)
+  ... | nothing = refl
+  ... | just (current , _) with current ≟ rid
+  ...   | no _ = refl
+  ...   | yes _ with lookup (T.peerRef r) (C.SubContext.peers (C.subsystem (K.context b)))
+  ...     | nothing = refl
+  ...     | just peer with Peer.handleRef peer ≟ T.handleRef r | Peer.muxRef peer ≟ T.mux r
+  ...       | yes _ | yes _ with Peer.finishRun (number (T.descriptor r)) result (Peer.runs peer)
+  ...         | nothing = refl
+  ...         | just rs = refl
+  cache-view rid r result f b | just (current , _) | yes _ | just peer | no _ | _ = refl
+  cache-view rid r result f b | just (current , _) | yes _ | just peer | yes _ | no _ = refl
+  enact-projects : ∀ plan s {t} → T.enact plan s ≡ just t → P.Paths (protocol-view s) (protocol-view t)
+  enact-projects (T.inherit a f) s eq with K.step a (T.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just b = case just-injective eq of λ { refl → step-projects a (T.base s) advanced }
+  enact-projects (T.caller a f) s eq with PS.step a (K.peers (T.base s)) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just p = case just-injective eq of λ { refl → P.step-projects a (K.peers (T.base s)) advanced }
+  enact-projects (T.local f) s eq = case just-injective eq of λ { refl → P.idle (protocol-view s) }
+  enact-projects (T.reading r) s eq = case just-injective eq of λ { refl → P.idle (protocol-view s) }
+  enact-projects (T.traceFault w rid result fs) s eq = case just-injective eq of λ { refl → P.idle (protocol-view s) }
+  enact-projects (T.deliverTraceFault w rid result fs coordinator) s eq = case just-injective eq of λ { refl → P.idle (protocol-view s) }
+  enact-projects (T.birth w capturedFrame pool j rid r f) s eq = case just-injective eq of λ { refl → P.idle (protocol-view s) }
+  enact-projects (T.complete a rid r result) s eq with K.step a (T.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just b = case just-injective eq of λ { refl → P.right-view
+    (sym (cache-view rid r result (T.front s) b)) (step-projects a (T.base s) advanced) }
+  advance-projects : ∀ a s {t} → T.advance a s ≡ just t → P.Paths (protocol-view s) (protocol-view t)
+  advance-projects a s eq with T.choose a s
+  ... | nothing = case eq of λ ()
+  ... | just plan = enact-projects plan s eq
+  run-projects : ∀ {s as t} → T.Runs s as t → P.Paths (protocol-view s) (protocol-view t)
+  run-projects T.stop = P.idle _
+  run-projects (T.more {s = s} {a = a} eq rest) = P.compose (advance-projects a s eq) (run-projects rest)
+  lift-dispatch : ∀ a b {next} f → T.inheritAllowed a (T.runtime b f) ≡ true → K.step a b ≡ just next →
+    T.advance (T.dispatch a) (T.runtime b f) ≡ just (T.runtime next (T.noteLegacy a f))
+  lift-dispatch a b f allowed advanced rewrite allowed | advanced = refl
+  dispatch-observation : ∀ a s {t} → T.advance (T.dispatch a) s ≡ just t →
+    Σ K.State (λ b → K.step a (T.base s) ≡ just b × T.base t ≡ b)
+  dispatch-observation a s eq with T.inheritAllowed a s
+  ... | false = case eq of λ ()
+  ... | true with K.step a (T.base s)
+  ...   | nothing = case eq of λ ()
+  ...   | just b = case just-injective eq of λ { refl → b , refl , refl }
+  initial-components : ∀ {c g s as t} → T.initialize c g ≡ just s → T.Runs s as t →
+    PS.GP.Pool.phase (C.governorPool (K.context (T.base t))) ≡ PS.GP.Pool.closedPool →
+    PS.Pool.phase (C.monitorPool (K.context (T.base t))) ≡ PS.Pool.closedPool →
+    Scope.cursor (C.scopes (K.context (T.base t))) ≡ Scope.finishedScope → Certificates (T.base t)
+  initial-components {c} {g} initialized path govClosed bgClosed scopesClosed with E.initial c
+  ... | nothing = case initialized of λ ()
+  ... | just e with just-injective initialized
+  ...   | refl with run-projects path
+  ...     | P.paths (ga , gp) (ba , bp) (sa , sp) =
+    GClose.from-initial gp govClosed , BClose.from-initial bp bgClosed , ScopeFacts.from-initial sp scopesClosed
+  callback-from-protocols : ∀ {c g s as before after} → T.initialize c g ≡ just s → T.Runs s as before →
+    T.advance (T.dispatch (K.serverStep (E.run (S.scope S.returnAction)))) before ≡ just after → Certificates (T.base before)
+  callback-from-protocols {before = before} initialized path returned with
+    dispatch-observation (K.serverStep (E.run (S.scope S.returnAction))) before returned
+  ... | next , advanced , same with closure-observation (T.base before) (callback-gate (T.base before) advanced)
+  ...   | gov , bg , scopes = initial-components initialized path gov bg scopes
+
+  -- A selected initiator start forks a real job in the existing physical pool.
+  -- Its source is unchanged, its captured generation is not inferred from a
+  -- mutable peer cell, and no body result is manufactured by physical birth.
+  record Birth (w : WorkerId) (j : JobId) (s t : T.Runtime) : Set where
+    constructor birthEvidence
+    field generation : RunId
+          captured : T.Call
+          nextPool : Pool.State
+          source-same : T.sourceOf t ≡ T.sourceOf s
+          actual-fork : Pool.step (Pool.fork j) (Jobs.poolAt w (T.physical (T.base s))) ≡ just nextPool
+          actual-pool : Jobs.poolAt w (T.physical (T.base t)) ≡ nextPool
+          actual-job : lookup j (Jobs.jobs (T.physical (T.base t))) ≡ just
+            (Types.protocolJob w (T.mux captured) Mux.initiatorJob (number (T.descriptor captured)) generation Types.executing)
+  fork-observation : ∀ w j s {t} → T.advance (T.forkStart w j) s ≡ just t → Birth w j s t
+  fork-observation w j s eq with T.cursor w (T.front s) | T.controllerFree w (T.base s) |
+    lookup w (Jobs.U.frames (Jobs.base (T.physical (T.base s))))
+  ... | T.forkReadyC rid | true | just capturedFrame with lookup rid (T.calls (T.front s)) |
+    Jobs.fresh j rid (T.physical (T.base s)) | Jobs.noParent (Jobs.poolAt w (T.physical (T.base s)))
+  ...   | just r | true | true with T.owner r ≟ w | T.thread r | T.value r | Pool.step (Pool.fork j) (Jobs.poolAt w (T.physical (T.base s))) in forked
+  ...     | yes _ | nothing | nothing | just pool = case just-injective eq of λ { refl →
+    birthEvidence rid r pool refl forked
+      (PhysicalFacts.pool-same w capturedFrame pool (T.physical (T.base s)))
+      (lookup-put j (Types.protocolJob w (T.mux r) Mux.initiatorJob (number (T.descriptor r)) rid Types.executing)
+        (Jobs.jobs (T.physical (T.base s)))) }
+  ...     | no _ | _ | _ | _ = case eq of λ ()
+  ...     | yes _ | just _ | _ | _ = case eq of λ ()
+  ...     | yes _ | nothing | just _ | _ = case eq of λ ()
+  ...     | yes _ | nothing | nothing | nothing = case eq of λ ()
+  fork-observation w j s eq | T.forkReadyC rid | true | just f | nothing | _ | _ = case eq of λ ()
+  fork-observation w j s eq | T.forkReadyC rid | true | just f | just r | false | _ = case eq of λ ()
+  fork-observation w j s eq | T.forkReadyC rid | true | just f | just r | true | false = case eq of λ ()
+  fork-observation w j s eq | T.idleC | _ | _ = case eq of λ ()
+  fork-observation w j s eq | T.selectedC rid | _ | _ = case eq of λ ()
+  fork-observation w j s eq | T.tracingC rid | _ | _ = case eq of λ ()
+  fork-observation w j s eq | T.failedC rid result | _ | _ = case eq of λ ()
+  fork-observation w j s eq | T.registeringC rid old | _ | _ = case eq of λ ()
+  fork-observation w j s eq | T.forkReadyC rid | false | _ = case eq of λ ()
+  fork-observation w j s eq | T.forkReadyC rid | true | nothing = case eq of λ ()
+  append-protocols : ∀ {s as t bs u} → T.Runs s as t → T.Runs t bs u → T.Runs s (as ++ bs) u
+  append-protocols T.stop rest = rest
+  append-protocols (T.more eq path) rest = T.more eq (append-protocols path rest)
+
+  -- Consuming a Shutdown read changes only the peer/continuation view. The
+  -- actual mux, protocol cells, queues, Async pools and authoritative CM source
+  -- remain available for their independent real cleanup/publication steps.
+  reading-source : ∀ r s {t} → T.enact (T.reading r) s ≡ just t → T.sourceOf t ≡ T.sourceOf s
+  reading-source r s eq = case just-injective eq of λ { refl → refl }
+  reading-physical : ∀ r s {t} → T.enact (T.reading r) s ≡ just t →
+    T.physical (T.base t) ≡ T.physical (T.base s) × T.front t ≡ T.front s
+  reading-physical r s eq = case just-injective eq of λ { refl → refl , refl }
+
+  -- Capturing a start-tracer failure does not create a child or fill a result
+  -- cell. Actual close/cancellation/publication keeps its existing lower steps.
+  start-fault-source : ∀ w rid result fs s → T.sourceOf (T.startFaultState w rid result fs s) ≡ T.sourceOf s
+  start-fault-source w rid result fs s = refl
+  start-fault-physical : ∀ w rid result fs s →
+    T.physical (T.base (T.startFaultState w rid result fs s)) ≡ T.physical (T.base s) ×
+    T.calls (T.front (T.startFaultState w rid result fs s)) ≡ T.calls (T.front s)
+  start-fault-physical w rid result fs s = refl , refl

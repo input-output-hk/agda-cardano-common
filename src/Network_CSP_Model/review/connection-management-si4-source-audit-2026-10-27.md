@@ -950,3 +950,116 @@ for exact scope, commands, repaired preliminary diagnostics and logs. Physical
 peer bundle-start/result coupling and nonempty PSA monitor integration remain
 open; raw logical protocol shortcuts are explicitly refused. No native replay,
 new deployed defect, source refinement or whole-shutdown conclusion is added.
+
+Peer initiator coupling follow-up (30 October, after `82f6435`):
+`ServerPeers.Protocols` now couples actual PSA bundle requests to queued mux
+commands, selected normal start tracing, physical fork/registration and
+per-generation completion cells. Pinned source branches were rechecked at
+PeerStateActions.hs:1149–1195, network-mux Mux.hs:295–361,415–445,491–519,737–809
+and InboundGovernor.hs:633–725. Initiator capability remains an explicit
+application contract. New generations retain old result actions; synchronous
+errors retain the busy direction slot. Typed FIFO priority applies at selection,
+while an already selected command can fork after later result/stop arrivals.
+
+An initialized 143-action history includes real establishment on an existing
+duplex handle, a physical nonempty initiator activation, independent result/body/
+publication phases, and nonempty PSA monitor cancellation/join before callback
+return. Separate initialized branches exercise mux Shutdown before physical birth,
+same-number initiator/responder overlap, late queue arrivals and local-result
+priority after mux failure. Generic supply/capture and component-certificate
+proofs cover the extension. Acceptance remains consolidated in the existing
+`Negative/ServerPeers.agda`; see [Supervision increment 23](../ConnectionManagement/Supervision.md#twenty-third-increment-peer-initiator-starts-and-physical-results)
+for checks, controls and exact limits. Shutdown observations still need PSA
+policy continuation coupling; start-tracer faults and a fully initialized restart
+remain open. This adds model evidence and branch mappings, without native replay,
+source refinement, a new deployed finding or a whole-shutdown conclusion.
+
+Physical PSA waiter follow-up (30 October, uncommitted after `82f6435`):
+`ServerPeers.Protocols` now reads published completion actions for monitor
+first-to-finish and deactivation/close all-to-finish continuations. Source
+rechecking covered PeerStateActions.hs:255–278,361–423,664–768,986–1105 and
+Governor/ActivePeers.hs:979–1045, alongside Mux.hs:795–809 at the unchanged pin.
+Shutdown remains distinct from a local protocol error/result. Reads respect
+publication, ascending protocol order, inactive-action retry, bundle precedence
+and physical monitor/job permissions. Error reads change peer/continuation data,
+preserving physical cells, mux/pools and the authoritative CM; raw logical read
+aliases are refused in this extension.
+
+Initialized histories check monitor cooling after pre-birth mux failure,
+successful local-result deactivation after later mux failure, and a real
+policy-launched deactivation job reaching awaitCold failed without a governor
+completion or protocol birth. The latter retains the source handler's wait for
+demotion. Generic supply/component proofs cover these reads; additional close
+and multi-protocol controls are explicitly conditional. See
+[Supervision increment 24](../ConnectionManagement/Supervision.md#twenty-fourth-increment-physical-completion-reads-in-peer-waiters)
+for validation and the repaired absolute-deadline fixture. Start-tracer failure/
+unwind, concrete followup-exception tracing and broader initialized close/restart
+remain open. No native replay, deployed finding, source refinement or whole
+shutdown conclusion is added.
+
+Selected initiator start-tracer fault follow-up (30 October, uncommitted):
+`ServerPeers.Protocols` now records sync/async exceptions from an actually invoked
+start tracer and reuses the real mux-pool unwind. ConnectionHandler.hs:329–380,
+408–452, Mux.hs:242–278,491–519, JobPool.hs:70–80,105–137,153–172 and
+InboundGovernor.hs:633–758 were rechecked at the same pin. The monitor is unmasked;
+fork/registration is a later masked operation. The standard IG initiator start
+leg is ignored for responder counters; a supplied custom tracer supplies the
+sync fault contract. Sync failure closes the pool without Failed; async catch
+writes Failed/Dead only after closure.
+
+Initialized histories cancel, deregister, publish results and join both actual
+infrastructure handles while retaining an empty initiator cell and no protocol
+body. The asynchronous suffix also drives the real PSA Shutdown cooling read.
+Generic capture/supply and component proofs cover the extension. CM receipt
+uses the real pending target and guarded acknowledgement, with the existing
+closingCM stage requirement intact. Its component controls are conditional;
+they do not establish initialized peer/IG scope exit or whole-state validity of
+that assumed CM-stage snapshot. In particular an active-IG conditional catch is
+not substituted for the real inactive-IG catch after scope exit.
+See [Supervision increment 25](../ConnectionManagement/Supervision.md#twenty-fifth-increment-selected-initiator-start-tracer-faults)
+for exact witnesses, validation and remaining work. No native replay, new deployed
+defect, permanent-blocking, source-refinement or whole-shutdown claim is added.
+
+Initialized scoped CM start-cancellation follow-up (31 October, uncommitted):
+`Negative/ServerPeers.Protocols.StartTrace.ScopedCM` now supplies the missing
+initialized peer/Server/IG scope-exit prefix before CM receipt. The real nonempty
+governor [1] and PSA monitor [50] snapshots are cancelled and joined, with their
+component terminal certificates derived at actual callback return. The pending
+bundle publisher is abandoned rather than completed; the handler's invoked
+tracer and empty cell survive the callback, accept scope and nonempty IG exit.
+
+The complete 173-action history reaches closingCM, performs actual snapshot/
+read/send/receipt/traversal, joins the physical pool and then runs Failed/Dead.
+Its IG is actually inactive: the sampled false-active Dead branch leaves both
+the queue empty and the old counters intact. This replaces neither the active-IG
+control nor a stage assignment with initialization evidence. Source nesting and
+callback behavior were rechecked at Diffusion.hs:804–826,
+PeerStateActions.hs:620–638, Server.hs:147–186, Core.hs:523–550 and
+InboundGovernor.hs:633–728 at the unchanged clean pin. Generic supply/capture
+instances and the existing proof layer cover the history without runtime or
+theorem changes. See [Supervision increment 26](../ConnectionManagement/Supervision.md#twenty-sixth-increment-initialized-scope-exit-and-cm-start-cancellation)
+for resource-limited checking, exact claims and exclusions. The handler result
+and CM result wait remain pending after physical pool closure. No native replay,
+deployed finding, source refinement or universal shutdown result is added.
+
+Initialized handler/CM/Server completion follow-up (31 October, uncommitted):
+`ScopedCM.Completion.initialized-server-finish` extends that history to 185
+actions. The original handler's actual buffer return, finalizer, captured cleanup
+and Async result precede CM's collective result wait and Server return. The
+physical wait certificate retains the actual captured coordinator and result
+table. Body exit and cleanup completion alone do not supply the result.
+
+Core.hs:584–713 was rechecked at the same clean pin: OutboundDup cleanup writes
+Terminated Nothing, identity-purges the map, closes the captured socket while
+holding the map, publishes the map and reads counters; it takes no TIME_WAIT
+branch. Core.hs:523–550 still waits for the captured Asyncs even after their
+entries have been purged. The acceptance preserves the empty protocol cell and
+the original async exception, and rejects early result/CM completion.
+
+The integrated returned-Server state retains an unfinished raw admission worker.
+An initialized counterexample explicitly refutes Server return implying all raw
+worker results. This adds evidence for the previously recorded ownership
+obstruction, without weakening SI5 or claiming a new deployment defect or
+permanent block. See [Supervision increment 27](../ConnectionManagement/Supervision.md#twenty-seventh-increment-initialized-handler-result-cm-wait-and-server-return)
+for validation and explicit provider/callback contracts. No runtime/theorem
+change, native replay, universal liveness or source-refinement result is added.
