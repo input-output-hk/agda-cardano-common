@@ -132,9 +132,13 @@ reads now drive the selected first/all PSA waiter continuations, preserving loca
 result priority, source retry ordering and actual monitor/job permissions.
 Initialized paths cover Shutdown-driven monitor cooling and governor deactivation
 waiting for Cold, plus successful local-result deactivation after mux failure.
-Close-all and additional multi-protocol read controls remain conditional; a fully
-initialized second activation remains open. Raw logical poll/wait/result shortcuts
-stay excluded. See
+An initialized 188-action history now drives target-selected deactivation and a
+second hot activation, allocating a fresh result cell and physical initiator job.
+The old generation's delayed physical completion leaves the new cell empty;
+the new published action later reads its own distinct error and cools the peer.
+Old cells remain readable, and stale writes and identity reuse are rejected.
+Close-all and additional multi-protocol read controls remain conditional.
+Raw logical poll/wait/result shortcuts stay excluded. See
 [Supervision increment 22](Supervision.md#twenty-second-increment-shared-server-and-peer-supervision)
 and [increment 23](Supervision.md#twenty-third-increment-peer-initiator-starts-and-physical-results),
 then [increment 24](Supervision.md#twenty-fourth-increment-physical-completion-reads-in-peer-waiters).
@@ -144,6 +148,30 @@ The initialized CM scope-exit history is in
 [increment 26](Supervision.md#twenty-sixth-increment-initialized-scope-exit-and-cm-start-cancellation),
 with handler/CM/Server completion in
 [increment 27](Supervision.md#twenty-seventh-increment-initialized-handler-result-cm-wait-and-server-return).
+The initialized second activation is in
+[increment 28](Supervision.md#twenty-eighth-increment-initialized-second-hot-activation).
+An initialized 273-action continuation now shuts down the restarted initiator
+at the normal mux monitor, joins the actual four-handle snapshot and finishes
+handler cleanup, its Async result, CM's collective wait and Server return.
+The old clean cell survives, the new empty cell observes Shutdown, and the raw
+admission-worker obstruction remains explicit; see
+[increment 29](Supervision.md#twenty-ninth-increment-initialized-restarted-initiator-shutdown).
+A second initialized shutdown history lets the old generation publish normally
+after physical pool capture. It joins that finished handle without cancellation
+delivery and retains its exact typed FIFO through handler/CM/Server completion;
+see [increment 30](Supervision.md#thirtieth-increment-old-publication-racing-captured-pool-close).
+An initialized 275-action race now lets the current generation commit clean
+after cancellation is requested but before child delivery. Its local result
+wins over later actual mux Failed/Shutdown while physical cancellation and
+handler/CM/Server completion remain separate; see
+[increment 31](Supervision.md#thirty-first-increment-current-clean-completion-before-child-cancellation).
+[Generic committed-cell preservation](Properties/ServerPeers.agda) now covers
+every enabled Protocols event and finite execution. The initializer and prefix
+derive unique generation keys; committed call records and their local clean/error
+observations then survive any enabled suffix, independently of mux status.
+Initialized clean/error instances and an unreachable duplicate-key negative
+control check the scope; see
+[increment 32](Supervision.md#thirty-second-increment-generic-committed-generation-cell-preservation).
 Other ignored callbacks, remaining allocation/publication gaps and
 outer supervision scopes still need coverage before full shutdown. Source rechecking
 identified **SI4-F1**, now corrected: graceful TraceStopped invokes IG, waits for
@@ -863,3 +891,22 @@ configured failure limit of five, the sixth failure makes OG forget the peer
 while CM retains the reservation. Its negative controls prove the fifth/sixth
 boundary and reject further ordinary promotion and timer expiry from that
 endpoint. This is a finite fixed-known-peer witness, not global deadlock.
+
+Initialized call-thread capture soundness is proved by
+`Properties.ServerPeers.CaptureIdentity.Frontend.initialized-soundness`: each
+stored thread reference has a historical physical job with the call's captured
+owner, mux, direction, protocol number and generation. The theorem derives
+representation validity from initialization. Clean/error/restart acceptance and
+an unbacked-reference control pass in the existing ServerPeers acceptance file.
+This does not establish live ownership, physical completion or Async availability.
+See [Supervision increment 33](Supervision.md#thirty-third-increment-initialized-call-thread-capture-soundness)
+for validation and scope.
+
+`Properties.ServerPeersResults.Frontend.initialized-agreement` additionally backs
+every committed initialized local cell with a current historical physical row
+whose captured result and generation identity match the call. The generic proof
+and consolidated clean/error/restart acceptance pass; controls reject missing
+physical backing and a mismatched result. This does not infer body return,
+publication or Async availability/outcome. See
+[Supervision increment 34](Supervision.md#thirty-fourth-increment-initialized-local-result-agreement)
+for theorem scope, proof-layer performance repairs and validation.

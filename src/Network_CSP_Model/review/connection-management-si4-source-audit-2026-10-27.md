@@ -1063,3 +1063,121 @@ obstruction, without weakening SI5 or claiming a new deployment defect or
 permanent block. See [Supervision increment 27](../ConnectionManagement/Supervision.md#twenty-seventh-increment-initialized-handler-result-cm-wait-and-server-return)
 for validation and explicit provider/callback contracts. No runtime/theorem
 change, native replay, universal liveness or source-refinement result is added.
+
+Initialized second hot activation follow-up (2 November, uncommitted):
+`Negative/ServerPeers.Protocols.Reactivation.initialized-reactivation` now
+supplies the missing initialized restart history. The 188 actual transitions
+retain the first clean physical job before publication, drive real target/policy
+selection and deactivation, retire its published hot action, then select/fork/
+register a second activation job and allocate generation 21. That generation
+gets a distinct physical initiator job and newly published result action.
+
+Pinned Git objects were re-read in the existing local network repository:
+PeerStateActions.hs:951–1025,1165–1195; ActivePeers.hs:563–596,1045–1078; and
+network-mux/src/Network/Mux.hs:307–355,749–807. Clean completion makes the slot
+idle before physical publication; reactivation allocates a fresh cell rather
+than mutating the earlier one. The late typed generation-20 completion is then
+actually published, consumed and traced while generation 21 remains empty and
+physically running. The latter's subsequent error 177 is separately committed,
+physically published and read by the PSA monitor, which cools the peer.
+
+Controls retain old-result readability, block reads of the unpublished/empty new
+action, reject reused identities and stale cache/cell writes, and distinguish
+both actual Async results and typed completions. The selected single-protocol
+history does not establish arbitrary restart, universal progress or source
+refinement. It leaves the new mux error and second governor completion queued;
+the earlier initialized shutdown branch and SI5 obstruction are unchanged. See
+[Supervision increment 28](../ConnectionManagement/Supervision.md#twenty-eighth-increment-initialized-second-hot-activation)
+for validation and contracts. No runtime/prior theorem change, native replay or
+new deployed defect is claimed.
+
+Initialized restarted shutdown follow-up (2 November, uncommitted):
+`Protocols.Reactivation.Shutdown.initialized-restarted-server-return` now proves
+273 initialized actions through actual peer/IG scope exit, CM receipt at the
+normal mux monitor, cancellation/results/joins of [21,20,1,0], inactive-IG catch,
+captured handler cleanup/Async result, physical CM wait and Server return.
+Generation 20 retains its clean cell; generation 21 stays empty and reads actual
+Shutdown. Cancellation enqueues no typed completion. The raw-worker obstruction
+remains explicit; SI5 is unchanged.
+
+Pinned Git objects were re-read: Server.hs:147–186; Core.hs:523–550,584–676;
+ConnectionHandler.hs:286–309; network-mux Mux.hs:256–279; JobPool.hs:105–109;
+InboundGovernor.hs:665–728. This is the normal-monitor delivery boundary, with
+no selected-tracer fault installed. Actual nonempty physical-result and handler
+wait certificates retain the snapshot and physical result tables. Existing
+body-unwind/provider/tracer and normal scope observations remain explicit.
+
+The complete endpoint freshly passed at 12 GB heap under 15 GB RAM / zero swap;
+two cached lower regressions pass. Initial 6 GB and 8 GB entry-only attempts
+exhausted their heaps without proof diagnostics. See
+[Supervision increment 29](../ConnectionManagement/Supervision.md#twenty-ninth-increment-initialized-restarted-initiator-shutdown)
+for exact validation, source contracts and remaining races. No runtime/prior
+theorem change, native replay, new deployed defect or universal shutdown claim.
+
+Captured-publication race follow-up (2 November, uncommitted):
+`PublicationRace.initialized-publication-race-return` checks a second initialized
+273-action shutdown history. Generation 20 normally returns/publishes/deregisters/
+publishes its Async after physical capture, while generation 21 is still live.
+The captured old handle is then joined without cancellation delivery; its typed
+FIFO survives infrastructure close, catch, handler cleanup and Server return.
+Mixed Async-result certificates distinguish normal old exit from cancelled exits.
+Pinned JobPool.hs:105–109,123–164 was re-read directly from Git objects.
+Old/new cells, the actual CM handler wait and SI5 obstruction remain distinct.
+See [Supervision increment 30](../ConnectionManagement/Supervision.md#thirtieth-increment-old-publication-racing-captured-pool-close)
+for original fresh-check/updated-interface evidence, lost terminal status,
+explicit cached retry exit 0 and two passing cached regressions. No runtime/prior
+theorem change, native replay, universal shutdown or new deployed finding.
+
+Current clean-before-cancellation follow-up (2 November, uncommitted):
+`CurrentClean.initialized-current-clean-return` proves 275 initialized actions.
+After actual CM receipt, physical capture and a current-child cancellation
+request, generation 21 returns from its body and commits clean before delivery.
+The clean cell survives physical cancellation, mux Failed and Server return;
+physical Async results, handler outcome and CM wait remain separate. Controls
+reject fabricated queue publication and premature results/CM completion. SI5
+and its initialized counterexample remain unchanged.
+
+Pinned network-mux Mux.hs:332–373,799–816 was re-read from Git objects: the clean
+STM commit precedes physical publication, async exceptions bypass the sync job
+handler, and completionAction reads the local cell before Shutdown fallback.
+No runtime/prior theorem/guard changes, source refinement or deployed finding.
+Fresh Agda acceptance and two cached regressions pass; strict audit zero findings.
+See [Supervision increment 31](../ConnectionManagement/Supervision.md#thirty-first-increment-current-clean-completion-before-child-cancellation)
+for scope/contracts and validation. No native replay or universal progress claim.
+
+Generic committed-cell preservation follow-up (2 November, uncommitted):
+`Properties.ServerPeers.Protocols.CommittedCells` now proves committed complete
+Call records unchanged across enabled events and finite Runs on unique-key
+tables. Uniqueness is derived from initialize and an enabled prefix, so the
+initialized prefix/suffix record and observation theorems add no representation
+or supply assumption. Clean/error observations remain local results regardless
+of subsequent mux status. Source Mux.hs:774–789,799–816 was re-read at the
+unchanged pin (fresh per-run cell and cell-before-Shutdown preference).
+
+Fresh generic and full downstream acceptance checks pass. Clean/error instances
+use actual initialized histories. A malformed duplicate-key control refutes
+arbitrary-table preservation without uniqueness; its table is proved nonunique
+and is unreachable from the initializer. This is a representation control, not
+a deployed defect. No runtime/prior theorem/guard changes, native replay, source
+refinement or universal progress claim. See
+[Supervision increment 32](../ConnectionManagement/Supervision.md#thirty-second-increment-generic-committed-generation-cell-preservation)
+for exact theorem scope, development repairs, validation and remaining gates.
+
+Increment 33 adds initialized call-thread capture soundness across all enabled
+frontend actions and lower physical wrappers. The historical row matches owner,
+mux, initiator direction, protocol number and generation; no live-thread or
+Async-completion conclusion follows. Generic and full downstream checks passed,
+with one unused-pattern constructor-shadowing warning. Strict local 13-file audit
+found no holes/trust bypasses; this is not a term-level dependency audit or source
+refinement. See [Supervision increment 33](../ConnectionManagement/Supervision.md#thirty-third-increment-initialized-call-thread-capture-soundness).
+
+Increment 34 adds initialized local-result/physical-capture agreement in
+Properties/ServerPeersResults.agda. Every committed local cell has a real handle
+and historical row matching its result and generation identity. Captured-result
+retention and the actual completion writer are proved separately, then lifted
+through initialized finite runs without an added supply/uniqueness premise.
+Clean/error/restart acceptance and missing-row/mismatched-result controls freshly
+pass, with no warnings; strict local 14-file audit is clean. This is neither a
+source refinement nor an identification of local completion with the child's
+final Async outcome. SI4/SI5, CM-I4c and the overall gates remain open. See
+[Supervision increment 34](../ConnectionManagement/Supervision.md#thirty-fourth-increment-initialized-local-result-agreement).

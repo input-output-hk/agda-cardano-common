@@ -113,3 +113,45 @@ lift ((allowed , metadata) All.∷ permissions) (S.next {s = s} {a = a} eq rest)
 append : ∀ {s as t bs u} → E.Executes s as t → E.Executes t bs u → E.Executes s (as ++ bs) u
 append E.done rest = rest
 append (E.next eq path) rest = E.next eq (append path rest)
+
+-- Local IG exit bookkeeping leaves historical physical jobs in place.
+module CaptureIdentity where
+  import ConnectionManagement.Properties.ServerAdmissionInvariant as ServerCapture
+  module Base = ServerCapture.CaptureIdentity isBearerClosed
+  module Physical = Base.CIPhysical
+  jobs : E.State → _
+  jobs s = Base.jobs (S.base (E.base s))
+  Stable : E.State → E.State → Set
+  Stable s t = Physical.Retains (jobs s) (jobs t)
+  enact-stable : ∀ p s {t} → E.enact p s ≡ just t → Stable s t
+  enact-stable (E.delegate a e) s eq with S.step a (E.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just next = case just-injective eq of λ { refl → Base.step-stable a (E.base s) advanced }
+  enact-stable (E.local e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  enact-stable (E.abandon r) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  enact-stable (E.finish e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  step-stable : ∀ a s {t} → E.step a s ≡ just t → Stable s t
+  step-stable a s eq with E.choose a s
+  ... | nothing = case eq of λ ()
+  ... | just p = enact-stable p s eq
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  import ConnectionManagement.Properties.ServerAdmissionInvariant as ServerCapture
+  module Base = ServerCapture.CommittedRows isBearerClosed
+  module Physical = Base.CIPhysical
+  jobs : E.State → _
+  jobs s = Base.jobs (S.base (E.base s))
+  Stable : E.State → E.State → Set
+  Stable s t = Physical.Retains (jobs s) (jobs t)
+  enact-stable : ∀ p s {t} → E.enact p s ≡ just t → Stable s t
+  enact-stable (E.delegate a e) s eq with S.step a (E.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just next = case just-injective eq of λ { refl → Base.step-stable a (E.base s) advanced }
+  enact-stable (E.local e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  enact-stable (E.abandon r) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  enact-stable (E.finish e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  step-stable : ∀ a s {t} → E.step a s ≡ just t → Stable s t
+  step-stable a s eq with E.choose a s
+  ... | nothing = case eq of λ ()
+  ... | just p = enact-stable p s eq

@@ -198,3 +198,107 @@ cancellation-keeps-base w site err s eq with R.cancellationPlan w site err s in 
 ... | just plan with cancellation-selection w site err s planned
 ...   | selected rewrite Selection.plan-shape selected =
   case just-injective eq of λ { refl → refl }
+
+-- Historical job identity survives partial-startup faults and cleanup.
+module CaptureIdentity where
+  private
+    module CIBase = Base.CaptureIdentity
+  private
+    module CICancel = Cancel.CaptureIdentity
+  module CIPhysical = ProtocolFacts.CaptureIdentity
+  jobs : R.State → _
+  jobs s = P.jobs (R.protocols s)
+  record CIPaths (before after : R.State) : Set where
+    constructor ci-path
+    field retention : CIPhysical.Retains (jobs before) (jobs after)
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIPhysical.identity (jobs s))
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path
+    (CIPhysical.compose-retains {xs = jobs p} {ys = jobs q} {zs = jobs r} first second)
+  ci-source-step : ∀ action s {c} → O.advance action (R.source s) ≡ just c → CIPaths s (R.setSource c s)
+  ci-source-step action s eq = ci-path (CIPhysical.identity (jobs s))
+  ci-pool-step : ∀ w u action s {p} → Pool.step action (R.poolAt w s) ≡ just p → CIPaths s (R.setPool w u p s)
+  ci-pool-step w u action s eq = ci-path (CIPhysical.identity (jobs s))
+  ci-metadata : ∀ s fs → CIPaths s (record s { faults = fs })
+  ci-metadata s fs = ci-path (CIPhysical.identity (jobs s))
+  ci-enact-projects : ∀ plan s {s′} → R.enact plan s ≡ just s′ → CIPaths s s′
+  ci-enact-projects (R.local fs) s eq = case just-injective eq of λ { refl → ci-metadata s fs }
+  ci-enact-projects (R.machine action fs) s eq with O.advance action (R.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-compose (ci-source-step action s advanced) (ci-metadata (R.setSource c s) fs) }
+  ci-enact-projects (R.pool w u action fs) s eq with Pool.step action (R.poolAt w s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just p = case just-injective eq of λ { refl → ci-compose (ci-pool-step w u action s advanced) (ci-metadata (R.setPool w u p s) fs) }
+  ci-enact-projects (R.inherited action) s eq with X.step action (R.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just x = case just-injective eq of λ { refl → ci-path (CIBase.CIPaths.retention (CICancel.step-stable action (R.base s) advanced)) }
+  ci-enact-projects (R.transfer w f fs) s eq = case just-injective eq of λ { refl → ci-path (CIPhysical.identity (jobs s)) }
+  ci-enact-projects (R.acknowledge plan) s eq with R.enact plan s in delivered
+  ... | nothing = case eq of λ ()
+  ... | just next with W.control Close.acknowledgeDelivery (R.base next) in acknowledged
+  ...   | nothing = case eq of λ ()
+  ...   | just x = case just-injective eq of λ { refl → ci-compose (ci-enact-projects plan s delivered) (ci-path (CIBase.CIPaths.retention (CIBase.ci-control-projects Close.acknowledgeDelivery (R.base next) acknowledged))) }
+  ci-step-projects : ∀ action s {s′} → R.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects action s eq with R.choose action s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-enact-projects plan s eq
+  ci-exec-projects : ∀ {s actions s′} → R.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects (R.done {s = s}) = ci-idle s
+  ci-exec-projects (R.next {s = s} {a = action} eq tail) = ci-compose (ci-step-projects action s eq) (ci-exec-projects tail)
+  Stable : R.State → R.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → R.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  private
+    module CIBase = Base.CommittedRows
+  private
+    module CICancel = Cancel.CommittedRows
+  module CIPhysical = ProtocolFacts.CommittedRows
+  jobs : R.State → _
+  jobs s = P.jobs (R.protocols s)
+  record CIPaths (before after : R.State) : Set where
+    constructor ci-path
+    field retention : CIPhysical.Retains (jobs before) (jobs after)
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIPhysical.identity (jobs s))
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path
+    (CIPhysical.compose-retains {xs = jobs p} {ys = jobs q} {zs = jobs r} first second)
+  ci-source-step : ∀ action s {c} → O.advance action (R.source s) ≡ just c → CIPaths s (R.setSource c s)
+  ci-source-step action s eq = ci-path (CIPhysical.identity (jobs s))
+  ci-pool-step : ∀ w u action s {p} → Pool.step action (R.poolAt w s) ≡ just p → CIPaths s (R.setPool w u p s)
+  ci-pool-step w u action s eq = ci-path (CIPhysical.identity (jobs s))
+  ci-metadata : ∀ s fs → CIPaths s (record s { faults = fs })
+  ci-metadata s fs = ci-path (CIPhysical.identity (jobs s))
+  ci-enact-projects : ∀ plan s {s′} → R.enact plan s ≡ just s′ → CIPaths s s′
+  ci-enact-projects (R.local fs) s eq = case just-injective eq of λ { refl → ci-metadata s fs }
+  ci-enact-projects (R.machine action fs) s eq with O.advance action (R.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-compose (ci-source-step action s advanced) (ci-metadata (R.setSource c s) fs) }
+  ci-enact-projects (R.pool w u action fs) s eq with Pool.step action (R.poolAt w s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just p = case just-injective eq of λ { refl → ci-compose (ci-pool-step w u action s advanced) (ci-metadata (R.setPool w u p s) fs) }
+  ci-enact-projects (R.inherited action) s eq with X.step action (R.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just x = case just-injective eq of λ { refl → ci-path (CIBase.CIPaths.retention (CICancel.step-stable action (R.base s) advanced)) }
+  ci-enact-projects (R.transfer w f fs) s eq = case just-injective eq of λ { refl → ci-path (CIPhysical.identity (jobs s)) }
+  ci-enact-projects (R.acknowledge plan) s eq with R.enact plan s in delivered
+  ... | nothing = case eq of λ ()
+  ... | just next with W.control Close.acknowledgeDelivery (R.base next) in acknowledged
+  ...   | nothing = case eq of λ ()
+  ...   | just x = case just-injective eq of λ { refl → ci-compose (ci-enact-projects plan s delivered) (ci-path (CIBase.CIPaths.retention (CIBase.ci-control-projects Close.acknowledgeDelivery (R.base next) acknowledged))) }
+  ci-step-projects : ∀ action s {s′} → R.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects action s eq with R.choose action s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-enact-projects plan s eq
+  ci-exec-projects : ∀ {s actions s′} → R.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects (R.done {s = s}) = ci-idle s
+  ci-exec-projects (R.next {s = s} {a = action} eq tail) = ci-compose (ci-step-projects action s eq) (ci-exec-projects tail)
+  Stable : R.State → R.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → R.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects

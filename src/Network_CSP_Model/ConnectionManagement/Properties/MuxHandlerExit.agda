@@ -214,3 +214,119 @@ lift-path (G.next {s = g} {a = a} eq tail) safe with W.delegateAllowed a in allo
 append : ∀ {s as t bs u} → W.Executes s as t → W.Executes t bs u → W.Executes s (as ++ bs) u
 append W.done tail = tail
 append (W.next eq rest) tail = W.next eq (append rest tail)
+
+-- Historical physical captures survive this adapter; phases may change.
+module CaptureIdentity where
+  private
+    module CIBase = Base.CaptureIdentity
+  module CIPhysical = ProtocolFacts.CaptureIdentity
+  jobs : W.State → _
+  jobs s = P.jobs (G.protocolState (W.base s))
+  record CIPaths (before after : W.State) : Set where
+    constructor ci-path
+    field retention : CIPhysical.Retains (jobs before) (jobs after)
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIPhysical.identity (jobs s))
+  ci-from-base : ∀ before after → CIBase.Stable (W.base before) (W.base after) → CIPaths before after
+  ci-from-base before after p = ci-path (CIBase.CIPaths.retention p)
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path
+    (CIPhysical.compose-retains {xs = jobs p} {ys = jobs q} {zs = jobs r} first second)
+  ci-metadata : ∀ s fs → CIPaths s (record s { exits = fs })
+  ci-metadata s fs = ci-path (CIPhysical.identity (jobs s))
+  ci-source-step : ∀ action s {c} → O.advance action (W.source s) ≡ just c → CIPaths s (W.setSource c s)
+  ci-source-step action s eq = ci-path (CIPhysical.identity (jobs s))
+  ci-shutdown-metadata : ∀ s pc → CIPaths s (W.setShutdown pc s)
+  ci-shutdown-metadata s pc = ci-path (CIPhysical.identity (jobs s))
+  ci-control-projects : ∀ action s {s′} → W.control action s ≡ just s′ → CIPaths s s′
+  ci-control-projects action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s) in stepped
+  ... | nothing = case eq of λ ()
+  ... | just pc = case just-injective eq of λ { refl → ci-shutdown-metadata s pc }
+  ci-enact-projects : ∀ plan s {s′} → W.enact plan s ≡ just s′ → CIPaths s s′
+  ci-enact-projects (W.local fs) s eq = case just-injective eq of λ { refl → ci-metadata s fs }
+  ci-enact-projects (W.machine action fs) s eq with O.advance action (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-compose (ci-source-step action s advanced) (ci-metadata (W.setSource c s) fs) }
+  ci-enact-projects (W.inherited action) s eq with G.step action (W.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just g = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.step-stable action (W.base s) advanced) }
+  ci-enact-projects (W.coordinator action) s eq = ci-control-projects action s eq
+  ci-enact-projects (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just g = ci-compose (ci-from-base s (record s { base = g }) (CIBase.step-stable (G.abortOwner w err) (W.base s) advanced))
+    (ci-control-projects Close.acknowledgeDelivery (record s { base = g }) eq)
+  ci-enact-projects (W.timeWaitDelivery w err) s eq with O.advance (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = ci-compose (ci-compose
+    (ci-source-step (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) s advanced)
+    (ci-metadata (W.setSource c s) (W.noteCleanup w (Cleanup.interruptTimeWait err) s)))
+    (ci-control-projects Close.acknowledgeDelivery (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s }) eq)
+  ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects action s eq with W.choose action s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-enact-projects plan s eq
+  ci-exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects W.done = ci-idle _
+  ci-exec-projects (W.next {s = s} {a = action} eq tail) = ci-compose (ci-step-projects action s eq) (ci-exec-projects tail)
+  Stable : W.State → W.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  private
+    module CIBase = Base.CommittedRows
+  module CIPhysical = ProtocolFacts.CommittedRows
+  jobs : W.State → _
+  jobs s = P.jobs (G.protocolState (W.base s))
+  record CIPaths (before after : W.State) : Set where
+    constructor ci-path
+    field retention : CIPhysical.Retains (jobs before) (jobs after)
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIPhysical.identity (jobs s))
+  ci-from-base : ∀ before after → CIBase.Stable (W.base before) (W.base after) → CIPaths before after
+  ci-from-base before after p = ci-path (CIBase.CIPaths.retention p)
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path
+    (CIPhysical.compose-retains {xs = jobs p} {ys = jobs q} {zs = jobs r} first second)
+  ci-metadata : ∀ s fs → CIPaths s (record s { exits = fs })
+  ci-metadata s fs = ci-path (CIPhysical.identity (jobs s))
+  ci-source-step : ∀ action s {c} → O.advance action (W.source s) ≡ just c → CIPaths s (W.setSource c s)
+  ci-source-step action s eq = ci-path (CIPhysical.identity (jobs s))
+  ci-shutdown-metadata : ∀ s pc → CIPaths s (W.setShutdown pc s)
+  ci-shutdown-metadata s pc = ci-path (CIPhysical.identity (jobs s))
+  ci-control-projects : ∀ action s {s′} → W.control action s ≡ just s′ → CIPaths s s′
+  ci-control-projects action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s) in stepped
+  ... | nothing = case eq of λ ()
+  ... | just pc = case just-injective eq of λ { refl → ci-shutdown-metadata s pc }
+  ci-enact-projects : ∀ plan s {s′} → W.enact plan s ≡ just s′ → CIPaths s s′
+  ci-enact-projects (W.local fs) s eq = case just-injective eq of λ { refl → ci-metadata s fs }
+  ci-enact-projects (W.machine action fs) s eq with O.advance action (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-compose (ci-source-step action s advanced) (ci-metadata (W.setSource c s) fs) }
+  ci-enact-projects (W.inherited action) s eq with G.step action (W.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just g = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.step-stable action (W.base s) advanced) }
+  ci-enact-projects (W.coordinator action) s eq = ci-control-projects action s eq
+  ci-enact-projects (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just g = ci-compose (ci-from-base s (record s { base = g }) (CIBase.step-stable (G.abortOwner w err) (W.base s) advanced))
+    (ci-control-projects Close.acknowledgeDelivery (record s { base = g }) eq)
+  ci-enact-projects (W.timeWaitDelivery w err) s eq with O.advance (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = ci-compose (ci-compose
+    (ci-source-step (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) s advanced)
+    (ci-metadata (W.setSource c s) (W.noteCleanup w (Cleanup.interruptTimeWait err) s)))
+    (ci-control-projects Close.acknowledgeDelivery (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s }) eq)
+  ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects action s eq with W.choose action s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-enact-projects plan s eq
+  ci-exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects W.done = ci-idle _
+  ci-exec-projects (W.next {s = s} {a = action} eq tail) = ci-compose (ci-step-projects action s eq) (ci-exec-projects tail)
+  Stable : W.State → W.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects

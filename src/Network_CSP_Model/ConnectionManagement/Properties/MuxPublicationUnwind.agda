@@ -100,3 +100,102 @@ physical-wait : ∀ s {s′} → N.step (N.run (C.run (D.run (R.run (D.X.run (W.
   Exit.PhysicalWait (R.base (N.raw s)) (R.base (N.raw s′))
 physical-wait s eq with inherited-observation (C.run (D.run (R.run (D.X.run (W.shutdownStep Close.finishClose))))) s eq
 ... | c , advanced , refl = F.physical-wait (N.base s) advanced
+
+-- Capture identity through observed unwind and shutdown delivery.
+module CaptureIdentity where
+  private
+    module CIF = F.CaptureIdentity
+  private
+    module CIL = L.CaptureIdentity
+  ci-Paths : N.State → N.State → Set
+  ci-Paths s t = CIF.Stable (N.base s) (N.base t)
+  ci-idle : ∀ s → ci-Paths s s
+  ci-idle s = CIF.ci-idle (N.base s)
+  ci-compose : ∀ {s t u} → ci-Paths s t → ci-Paths t u → ci-Paths s u
+  ci-compose {s} {t} {u} = CIF.ci-compose {s = N.base s} {t = N.base t} {u = N.base u}
+  ci-run-projects : ∀ action s {s′} → N.inherit action s ≡ just s′ → ci-Paths s s′
+  ci-run-projects action s eq with N.allowed action s
+  ... | false = case eq of λ ()
+  ... | true with C.step action (N.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just c = case just-injective eq of λ { refl → CIF.step-stable action (N.base s) advanced }
+  ci-apply-projects : ∀ w p ack s {s′} → N.apply w p ack s ≡ just s′ → ci-Paths s s′
+  ci-apply-projects w p ack s eq with R.enact (D.delivery ack (N.action p)) (N.raw s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just r = case just-injective eq of λ { refl → CIL.ci-enact-projects (D.delivery ack (N.action p)) (N.raw s) advanced }
+  ci-observe-projects : ∀ w site result ack s {s′} → N.observe w site result ack s ≡ just s′ → ci-Paths s s′
+  ci-observe-projects w site result ack s eq with N.select w site result s
+  ... | nothing = case eq of λ ()
+  ... | just p = ci-apply-projects w p ack s eq
+  ci-step-projects : ∀ action s {s′} → N.step action s ≡ just s′ → ci-Paths s s′
+  ci-step-projects (N.run action) s eq = ci-run-projects action s eq
+  ci-step-projects (N.observeFailure w site result) s eq = ci-observe-projects w site result false s eq
+  ci-step-projects (N.deliverShutdown site err) s eq with Close.phase (W.shutdown (R.base (N.raw s)))
+  ... | Close.awaitDelivery _ w = ci-observe-projects w site (R.async err) true s eq
+  ... | Close.initial = case eq of λ ()
+  ... | Close.reading = case eq of λ ()
+  ... | Close.sendReady _ _ = case eq of λ ()
+  ... | Close.awaitResults = case eq of λ ()
+  ... | Close.closed = case eq of λ ()
+  ci-exec-projects : ∀ {s actions t} → N.Executes s actions t → ci-Paths s t
+  ci-exec-projects (N.done {s = s}) = ci-idle s
+  ci-exec-projects (N.next {s = s} {s₁ = t} {s₂ = u} {a = action} eq rest) = ci-compose {s = s} {t = t} {u = u}
+    (ci-step-projects action s eq) (ci-exec-projects rest)
+  Stable : N.State → N.State → Set
+  Stable = ci-Paths
+  step-stable : ∀ a s {t} → N.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+
+  retained-jobs : ∀ {s t} → Stable s t → CIL.CIPhysical.Retains
+    (N.P.jobs (R.protocols (N.raw s))) (N.P.jobs (R.protocols (N.raw t)))
+  retained-jobs = CIL.CIPaths.retention
+
+module CommittedRows where
+  private
+    module CIF = F.CommittedRows
+  private
+    module CIL = L.CommittedRows
+  ci-Paths : N.State → N.State → Set
+  ci-Paths s t = CIF.Stable (N.base s) (N.base t)
+  ci-idle : ∀ s → ci-Paths s s
+  ci-idle s = CIF.ci-idle (N.base s)
+  ci-compose : ∀ {s t u} → ci-Paths s t → ci-Paths t u → ci-Paths s u
+  ci-compose {s} {t} {u} = CIF.ci-compose {s = N.base s} {t = N.base t} {u = N.base u}
+  ci-run-projects : ∀ action s {s′} → N.inherit action s ≡ just s′ → ci-Paths s s′
+  ci-run-projects action s eq with N.allowed action s
+  ... | false = case eq of λ ()
+  ... | true with C.step action (N.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just c = case just-injective eq of λ { refl → CIF.step-stable action (N.base s) advanced }
+  ci-apply-projects : ∀ w p ack s {s′} → N.apply w p ack s ≡ just s′ → ci-Paths s s′
+  ci-apply-projects w p ack s eq with R.enact (D.delivery ack (N.action p)) (N.raw s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just r = case just-injective eq of λ { refl → CIL.ci-enact-projects (D.delivery ack (N.action p)) (N.raw s) advanced }
+  ci-observe-projects : ∀ w site result ack s {s′} → N.observe w site result ack s ≡ just s′ → ci-Paths s s′
+  ci-observe-projects w site result ack s eq with N.select w site result s
+  ... | nothing = case eq of λ ()
+  ... | just p = ci-apply-projects w p ack s eq
+  ci-step-projects : ∀ action s {s′} → N.step action s ≡ just s′ → ci-Paths s s′
+  ci-step-projects (N.run action) s eq = ci-run-projects action s eq
+  ci-step-projects (N.observeFailure w site result) s eq = ci-observe-projects w site result false s eq
+  ci-step-projects (N.deliverShutdown site err) s eq with Close.phase (W.shutdown (R.base (N.raw s)))
+  ... | Close.awaitDelivery _ w = ci-observe-projects w site (R.async err) true s eq
+  ... | Close.initial = case eq of λ ()
+  ... | Close.reading = case eq of λ ()
+  ... | Close.sendReady _ _ = case eq of λ ()
+  ... | Close.awaitResults = case eq of λ ()
+  ... | Close.closed = case eq of λ ()
+  ci-exec-projects : ∀ {s actions t} → N.Executes s actions t → ci-Paths s t
+  ci-exec-projects (N.done {s = s}) = ci-idle s
+  ci-exec-projects (N.next {s = s} {s₁ = t} {s₂ = u} {a = action} eq rest) = ci-compose {s = s} {t = t} {u = u}
+    (ci-step-projects action s eq) (ci-exec-projects rest)
+  Stable : N.State → N.State → Set
+  Stable = ci-Paths
+  step-stable : ∀ a s {t} → N.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+  retained-jobs : ∀ {s t} → Stable s t → CIL.CIPhysical.Retains
+    (N.P.jobs (R.protocols (N.raw s))) (N.P.jobs (R.protocols (N.raw t)))
+  retained-jobs = CIL.CIPaths.retention

@@ -3012,3 +3012,1948 @@ module Protocols where
             S.allResults (S.workers (E.base (K.server (V.base t)))) ≡ true) → ⊥
         no-universal-raw-worker-completion claim =
           false-not-true (claim allFinishedActions initialized-server-finish actual-server-return)
+
+  -- Target-driven hot retirement and a second physical initiator generation.
+  -- All expected snapshots are checked by actual wrapper transitions below.
+  module Reactivation where
+    terminatingPeer retiredPeer secondActivatedPeer secondStartedPeer secondPublishedPeer secondPromotedPeer secondErroredPeer : Peer.Peer
+    terminatingPeer = record cleanPromoted { hotControl = Peer.terminate; warmControl = Peer.continue }
+    retiredPeer = record terminatingPeer
+      { status = Peer.peerWarm; runs = Peer.protocolRun proto (Peer.notRunning clean) (Peer.notRunning clean) ∷ []; promotedAt = nothing }
+    secondActivatedPeer = record retiredPeer { status = Peer.peerHot; hotControl = Peer.continue; warmControl = Peer.quiesce }
+    secondStartedPeer = record secondActivatedPeer
+      { runs = Peer.protocolRun proto Peer.running (Peer.notRunning clean) ∷ [] }
+    secondPublishedPeer = record secondStartedPeer { runs = Peer.protocolRun proto Peer.running Peer.running ∷ [] }
+    secondPromotedPeer = record secondPublishedPeer { promotedAt = just 18 }
+    secondErroredPeer = record secondPromotedPeer { runs = Peer.protocolRun proto (Peer.returned (errored err)) Peer.running ∷ [] }
+    deactivationWork secondWork : G.Job
+    deactivationWork = G.job G.deactivate L.peerAddr (just (ident 0))
+    secondWork = G.job G.activate L.peerAddr (just (ident 0))
+    deactivationFrame activationFrame : J.PC → Bool → Bool → Sub.JobFrame
+    deactivationFrame pc queued removed = Sub.jobFrame
+      (J.frame deactivationWork (ident 14) (ident 15) (ident 14) (ident 0) pc) queued removed
+    activationFrame pc queued removed = Sub.jobFrame
+      (J.frame secondWork (ident 16) (ident 17) (ident 16) (ident 0) pc) queued removed
+    deactivationBody activationBody : GP.Body
+    deactivationBody = GP.body (ident 2) deactivationWork G.succeeded
+    activationBody = GP.body (ident 3) secondWork G.succeeded
+    deactivationCompletion activationCompletion : G.Completion
+    deactivationCompletion = G.completion deactivationWork G.succeeded 0
+    activationCompletion = G.completion secondWork G.succeeded 0
+
+    -- Body return, queue publication, deregistration and Async publication are
+    -- separate observations in both real governor jobs.
+    deactivationReturnedPool deactivationQueuedPool deactivationRemovedPool deactivationDonePool : GP.Pool.State
+    deactivationReturnedPool = record Waiters.deactPool
+      { handles = put (ident 2) (GP.Pool.bodyReturned deactivationBody) (GP.Pool.handles Waiters.deactPool) }
+    deactivationQueuedPool = record deactivationReturnedPool
+      { handles = put (ident 2) (GP.Pool.deregisterPending GP.Pool.normalExit) (GP.Pool.handles deactivationReturnedPool)
+      ; completions = GP.Pool.completions deactivationReturnedPool ++ (deactivationBody ∷ []) }
+    deactivationRemovedPool = record deactivationQueuedPool
+      { handles = put (ident 2) (GP.Pool.deregistered GP.Pool.normalExit) (GP.Pool.handles deactivationQueuedPool); registered = [] }
+    deactivationDonePool = record deactivationRemovedPool
+      { handles = put (ident 2) (GP.Pool.resultAvailable GP.Pool.normalExit) (GP.Pool.handles deactivationRemovedPool) }
+    warmGovernor warmTargetGovernor secondPromotingGovernor : G.State
+    warmGovernor = G.complete 5 60 16 deactivationCompletion (shiftG L.g18)
+    warmTargetGovernor = record warmGovernor { target = G.targets 1 1 1 }
+    secondPromotingGovernor = G.mark G.activate (L.peerAddr ∷ []) warmTargetGovernor
+    activationForkPool activationRegisteredPool activationReturnedPool activationQueuedPool activationRemovedPool activationDonePool : GP.Pool.State
+    activationForkPool = record deactivationDonePool
+      { handles = put (ident 3) GP.Pool.bodyRunning (GP.Pool.handles deactivationDonePool); parentFork = just (ident 3) }
+    activationRegisteredPool = record activationForkPool { registered = ident 3 ∷ []; parentFork = nothing }
+    activationReturnedPool = record activationRegisteredPool
+      { handles = put (ident 3) (GP.Pool.bodyReturned activationBody) (GP.Pool.handles activationRegisteredPool) }
+    activationQueuedPool = record activationReturnedPool
+      { handles = put (ident 3) (GP.Pool.deregisterPending GP.Pool.normalExit) (GP.Pool.handles activationReturnedPool)
+      ; completions = GP.Pool.completions activationReturnedPool ++ (activationBody ∷ []) }
+    activationRemovedPool = record activationQueuedPool
+      { handles = put (ident 3) (GP.Pool.deregistered GP.Pool.normalExit) (GP.Pool.handles activationQueuedPool); registered = [] }
+    activationDonePool = record activationRemovedPool
+      { handles = put (ident 3) (GP.Pool.resultAvailable GP.Pool.normalExit) (GP.Pool.handles activationRemovedPool) }
+
+    secondQueuedFront secondSelectedFront secondTracingFront secondReadyFront secondBornFront secondFreeFront secondErrorFront : V.Front
+    secondQueuedFront = record freeFront
+      { calls = (ident 21 , requested) ∷ V.calls freeFront
+      ; commands = (A.child₀ , V.command (ident 21) 0 ∷ []) ∷ [] }
+    secondSelectedFront = V.setCursor A.child₀ (V.selectedC (ident 21))
+      (record secondQueuedFront { commands = (A.child₀ , []) ∷ [] })
+    secondTracingFront = V.setCursor A.child₀ (V.tracingC (ident 21)) secondSelectedFront
+    secondReadyFront = V.setCursor A.child₀ (V.forkReadyC (ident 21)) secondSelectedFront
+    secondBornFront = record secondReadyFront
+      { calls = put (ident 21) (record requested { thread = just (ident 21) }) (V.calls secondReadyFront)
+      ; cursors = (A.child₀ , V.registeringC (ident 21) (ident 21)) ∷ [] }
+    secondFreeFront = V.setCursor A.child₀ V.idleC secondBornFront
+    secondErrorFront = record secondFreeFront
+      { calls = put (ident 21) (record requested { thread = just (ident 21); value = just (errored err) }) (V.calls secondFreeFront) }
+    secondJob : Types.BodyPhase → Types.ProtocolJob
+    secondJob phase = Types.protocolJob A.child₀ (ident 0) Mux.initiatorJob 1 (ident 21) phase
+    secondPayload : Types.TypedResult
+    secondPayload = Types.protocolCompletion Mux.initiatorJob 1 (ident 21) (errored err)
+    secondPhysicalForkPool secondPhysicalRegisteredPool oldReturnedPool oldQueuedPool oldRemovedPool oldAvailablePool oldConsumedPool : Pool.State
+    secondPhysicalForkPool = record registeredPool
+      { handles = put (ident 21) Pool.bodyRunning (Pool.handles registeredPool); parentFork = just (ident 21) }
+    secondPhysicalRegisteredPool = record secondPhysicalForkPool
+      { registered = ident 21 ∷ Pool.registered registeredPool; parentFork = nothing }
+    oldReturnedPool = record secondPhysicalRegisteredPool
+      { handles = put jid (Pool.bodyReturned payload) (Pool.handles secondPhysicalRegisteredPool) }
+    oldQueuedPool = record oldReturnedPool
+      { handles = put jid (Pool.deregisterPending Pool.normalExit) (Pool.handles oldReturnedPool); completions = payload ∷ [] }
+    oldRemovedPool = record oldQueuedPool
+      { handles = put jid (Pool.deregistered Pool.normalExit) (Pool.handles oldQueuedPool)
+      ; registered = ident 21 ∷ Pool.registered Y.engines }
+    oldAvailablePool = record oldRemovedPool
+      { handles = put jid (Pool.resultAvailable Pool.normalExit) (Pool.handles oldRemovedPool) }
+    oldConsumedPool = record oldAvailablePool { completions = [] }
+    secondBorn secondRegistered oldBodyReturned oldBodyQueued oldBodyRemoved oldBodyAvailable oldCompletionPopped oldCompletionHandled oldTraceInvoked oldTraceReturned oldDeltaInvoked oldCompletionFinished : Y.Model
+    secondBorn = record (withPool secondPhysicalForkPool registered)
+      { jobs = put (ident 21) (secondJob Types.executing) (Y.jobs registered) }
+    secondRegistered = withPool secondPhysicalRegisteredPool secondBorn
+    oldBodyReturned = withPool oldReturnedPool secondRegistered
+    oldBodyQueued = withPool oldQueuedPool secondRegistered
+    oldBodyRemoved = withPool oldRemovedPool secondRegistered
+    oldBodyAvailable = withPool oldAvailablePool secondRegistered
+    oldCompletionPopped = record (withPool oldConsumedPool secondRegistered)
+      { monitors = (A.child₀ , N.M.selected payload) ∷ []
+      ; tickets = (A.child₀ , N.D.ticket payload N.D.captured) ∷ [] }
+    oldCompletionHandled = record oldCompletionPopped { monitors = (A.child₀ , N.M.initiatorTracing clean) ∷ [] }
+    oldTraceInvoked = record oldCompletionHandled { tickets = (A.child₀ , N.D.ticket payload N.D.muxInvoked) ∷ [] }
+    oldTraceReturned = record oldCompletionHandled { tickets = (A.child₀ , N.D.ticket payload N.D.muxReturned) ∷ [] }
+    oldDeltaInvoked = record oldCompletionHandled { tickets = (A.child₀ , N.D.ticket payload N.D.invoked) ∷ [] }
+    oldCompletionFinished = record oldCompletionHandled
+      { monitors = (A.child₀ , N.M.waiting) ∷ []; tickets = (A.child₀ , N.D.ticket payload N.D.returned) ∷ [] }
+    secondErrorCaptured secondBodyReturned secondBodyQueued secondBodyRemoved secondBodyAvailable : Y.Model
+    secondErrorCaptured = record oldCompletionFinished
+      { jobs = put (ident 21) (secondJob (Types.resultCaptured (errored err))) (Y.jobs oldCompletionFinished) }
+    secondReturnedPool secondQueuedPool secondRemovedPool secondAvailablePool : Pool.State
+    secondReturnedPool = record oldConsumedPool
+      { handles = put (ident 21) (Pool.bodyReturned secondPayload) (Pool.handles oldConsumedPool) }
+    secondQueuedPool = record secondReturnedPool
+      { handles = put (ident 21) (Pool.deregisterPending Pool.normalExit) (Pool.handles secondReturnedPool); completions = secondPayload ∷ [] }
+    secondRemovedPool = record secondQueuedPool
+      { handles = put (ident 21) (Pool.deregistered Pool.normalExit) (Pool.handles secondQueuedPool)
+      ; registered = Pool.registered Y.engines }
+    secondAvailablePool = record secondRemovedPool
+      { handles = put (ident 21) (Pool.resultAvailable Pool.normalExit) (Pool.handles secondRemovedPool) }
+    secondBodyReturned = withPool secondReturnedPool secondErrorCaptured
+    secondBodyQueued = withPool secondQueuedPool secondErrorCaptured
+    secondBodyRemoved = withPool secondRemovedPool secondErrorCaptured
+    secondBodyAvailable = withPool secondAvailablePool secondErrorCaptured
+
+    down68 : C.Context
+    down68 = withPeer cleanPromoted Waiters.d68
+    down69 : C.Context
+    down69 = withPeer cleanPromoted Waiters.d69
+    down70 : C.Context
+    down70 = withPeer cleanPromoted Waiters.d70
+    down71 : C.Context
+    down71 = withPeer cleanPromoted Waiters.d71
+    down72 : C.Context
+    down72 = withPeer cleanPromoted Waiters.d72
+    down73 : C.Context
+    down73 = withPeer cleanPromoted Waiters.d73
+    down74 : C.Context
+    down74 = withPeer cleanPromoted Waiters.d74
+    down75 : C.Context
+    down75 = withPeer cleanPromoted Waiters.d75
+    down76 : C.Context
+    down76 = withPeer cleanPromoted Waiters.d76
+    down77 : C.Context
+    down77 = withPeer cleanPromoted Waiters.d77
+    down78 : C.Context
+    down78 = withPeer cleanPromoted Waiters.d78
+    down79 : C.Context
+    down79 = withPeer cleanPromoted Waiters.d79
+    down80 : C.Context
+    down80 = withPeer cleanPromoted Waiters.d80
+    down81 : C.Context
+    down81 = withPeer cleanPromoted Waiters.d81
+    down82 : C.Context
+    down82 = withPeer cleanPromoted Waiters.d82
+    down83 : C.Context
+    down83 = withPeer cleanPromoted Waiters.d83
+    down84 : C.Context
+    down84 = withPeer cleanPromoted Waiters.d84
+    down85 : C.Context
+    down85 = withPeer cleanPromoted Waiters.d85
+    down86 : C.Context
+    down86 = withPeer cleanPromoted Waiters.d86
+    down87 : C.Context
+    down87 = withPeer cleanPromoted Waiters.d87
+    down88 : C.Context
+    down88 = withPeer cleanPromoted Waiters.d88
+    down89 : C.Context
+    down89 = withPeer cleanPromoted Waiters.d89
+    down90 : C.Context
+    down90 = withPeer cleanPromoted Waiters.d90
+    down91 : C.Context
+    down91 = withPeer cleanPromoted Waiters.d91
+    down92 : C.Context
+    down92 = withPeer cleanPromoted Waiters.d92
+    down93 : C.Context
+    down93 = withPeer cleanPromoted Waiters.d93
+    down94 : C.Context
+    down94 = withPeer cleanPromoted Waiters.d94
+    down95 : C.Context
+    down95 = withPeer terminatingPeer Waiters.d95
+    warm1 : C.Context
+    warm1 = record record down95 { subsystem = record (C.subsystem down95) { peers = (ident 0 , retiredPeer) ∷ []; jobs = put (ident 2) (deactivationFrame (J.complete G.succeeded) false false) (C.SubContext.jobs (C.subsystem down95)) } } { governorPool = deactivationReturnedPool }
+    warm2 : C.Context
+    warm2 = record record warm1 { subsystem = record (C.subsystem warm1) { jobs = put (ident 2) (deactivationFrame (J.complete G.succeeded) true false) (C.SubContext.jobs (C.subsystem warm1)); completions = deactivationCompletion ∷ [] } } { governorPool = deactivationQueuedPool }
+    warm3 : C.Context
+    warm3 = record record warm2 { subsystem = record (C.subsystem warm2) { jobs = put (ident 2) (deactivationFrame (J.complete G.succeeded) true true) (C.SubContext.jobs (C.subsystem warm2)); pool = [] } } { governorPool = deactivationRemovedPool }
+    warm4 : C.Context
+    warm4 = record warm3 { governorPool = deactivationDonePool }
+    warm5 : C.Context
+    warm5 = record warm4 { subsystem = record (C.subsystem warm4) { pc = Sub.publishPublic } }
+    warm6 : C.Context
+    warm6 = record warm5 { subsystem = record (C.subsystem warm5) { publicState = C.SubContext.privateState (C.subsystem warm5); pc = Sub.sampleInputs } }
+    warm7 : C.Context
+    warm7 = record warm6 { subsystem = record (C.subsystem warm6) { now = 16; pc = Sub.prepareWait } }
+    warm8 : C.Context
+    warm8 = record warm7 { subsystem = record (C.subsystem warm7) { pc = Sub.selecting } }
+    warm9 : C.Context
+    warm9 = record warm8 { subsystem = record (C.subsystem warm8) { pc = Sub.apply (Sub.completion deactivationCompletion); completions = [] } }
+    warm10 : C.Context
+    warm10 = record warm9 { subsystem = record (C.subsystem warm9) { privateState = warmGovernor; pc = Sub.publishView [] } }
+    warm11 : C.Context
+    warm11 = record warm10 { subsystem = record (C.subsystem warm10) { pc = Sub.traceDecision [] } }
+    warm12 : C.Context
+    warm12 = record warm11 { subsystem = record (C.subsystem warm11) { pc = Sub.launch [] } }
+    warm13 : C.Context
+    warm13 = record warm12 { subsystem = record (C.subsystem warm12) { pc = Sub.publishPublic } }
+    warm14 : C.Context
+    warm14 = record warm13 { subsystem = record (C.subsystem warm13) { targetInput = G.targets 1 1 1 } }
+    warm15 : C.Context
+    warm15 = record warm14 { subsystem = record (C.subsystem warm14) { publicState = warmGovernor; pc = Sub.sampleInputs } }
+    warm16 : C.Context
+    warm16 = record warm15 { subsystem = record (C.subsystem warm15) { now = 17; pc = Sub.prepareWait } }
+    warm17 : C.Context
+    warm17 = record warm16 { subsystem = record (C.subsystem warm16) { pc = Sub.selecting } }
+    warm18 : C.Context
+    warm18 = record warm17 { subsystem = record (C.subsystem warm17) { pc = Sub.apply (Sub.targets (G.targets 1 1 1)) } }
+    warm19 : C.Context
+    warm19 = record warm18 { subsystem = record (C.subsystem warm18) { privateState = warmTargetGovernor; pc = Sub.publishView [] } }
+    warm20 : C.Context
+    warm20 = record warm19 { subsystem = record (C.subsystem warm19) { pc = Sub.traceDecision [] } }
+    warm21 : C.Context
+    warm21 = record warm20 { subsystem = record (C.subsystem warm20) { pc = Sub.launch [] } }
+    warm22 : C.Context
+    warm22 = record warm21 { subsystem = record (C.subsystem warm21) { pc = Sub.publishPublic } }
+    warm23 : C.Context
+    warm23 = record warm22 { subsystem = record (C.subsystem warm22) { publicState = warmTargetGovernor; pc = Sub.sampleInputs } }
+    warm24 : C.Context
+    warm24 = record warm23 { subsystem = record (C.subsystem warm23) { now = 18; pc = Sub.prepareWait } }
+    warm25 : C.Context
+    warm25 = record warm24 { subsystem = record (C.subsystem warm24) { pc = Sub.selecting } }
+    warm26 : C.Context
+    warm26 = record warm25 { subsystem = record (C.subsystem warm25) { pc = Sub.apply (Sub.policy (G.decision secondPromotingGovernor (secondWork ∷ []))) } }
+    warm27 : C.Context
+    warm27 = record warm26 { subsystem = record (C.subsystem warm26) { privateState = secondPromotingGovernor; pc = Sub.publishView (secondWork ∷ []) } }
+    warm28 : C.Context
+    warm28 = record warm27 { subsystem = record (C.subsystem warm27) { pc = Sub.traceDecision (secondWork ∷ []) } }
+    warm29 : C.Context
+    warm29 = record warm28 { subsystem = record (C.subsystem warm28) { pc = Sub.launch (secondWork ∷ []) } }
+    warm30 : C.Context
+    warm30 = record record warm29 { subsystem = record (C.subsystem warm29) { jobs = put (ident 3) (activationFrame (J.begin) false false) (C.SubContext.jobs (C.subsystem warm29)); nextJob = 4; pc = Sub.register (ident 3) [] } } { governorPool = activationForkPool }
+    warm31 : C.Context
+    warm31 = record record warm30 { subsystem = record (C.subsystem warm30) { pool = ident 3 ∷ []; pc = Sub.launch [] } } { governorPool = activationRegisteredPool }
+    warm32 : C.Context
+    warm32 = record warm31 { subsystem = record (C.subsystem warm31) { peers = (ident 0 , secondActivatedPeer) ∷ []; jobs = put (ident 3) (activationFrame (J.startBundle hot (1 ∷ [])) false false) (C.SubContext.jobs (C.subsystem warm31)) } }
+    secondStartedContext : C.Context
+    secondStartedContext = record warm32 { subsystem = record (C.subsystem warm32) { peers = (ident 0 , secondStartedPeer) ∷ []; jobs = put (ident 3) (activationFrame (J.startBundle hot []) false false) (C.SubContext.jobs (C.subsystem warm32)) } }
+    secondTraversalContext : C.Context
+    secondTraversalContext = record secondStartedContext { subsystem = record (C.subsystem secondStartedContext) { jobs = put (ident 3) (activationFrame (J.publishBundle hot) false false) (C.SubContext.jobs (C.subsystem secondStartedContext)) } }
+    secondPublishedContext : C.Context
+    secondPublishedContext = record secondTraversalContext { subsystem = record (C.subsystem secondTraversalContext) { peers = (ident 0 , secondPublishedPeer) ∷ []; jobs = put (ident 3) (activationFrame (J.finishActivation) false false) (C.SubContext.jobs (C.subsystem secondTraversalContext)) } }
+    secondReturnedContext : C.Context
+    secondReturnedContext = record record secondPublishedContext { subsystem = record (C.subsystem secondPublishedContext) { peers = (ident 0 , secondPromotedPeer) ∷ []; jobs = put (ident 3) (activationFrame (J.complete G.succeeded) false false) (C.SubContext.jobs (C.subsystem secondPublishedContext)) } } { governorPool = activationReturnedPool }
+    secondQueuedContext : C.Context
+    secondQueuedContext = record record secondReturnedContext { subsystem = record (C.subsystem secondReturnedContext) { jobs = put (ident 3) (activationFrame (J.complete G.succeeded) true false) (C.SubContext.jobs (C.subsystem secondReturnedContext)); completions = activationCompletion ∷ [] } } { governorPool = activationQueuedPool }
+    secondRemovedContext : C.Context
+    secondRemovedContext = record record secondQueuedContext { subsystem = record (C.subsystem secondQueuedContext) { jobs = put (ident 3) (activationFrame (J.complete G.succeeded) true true) (C.SubContext.jobs (C.subsystem secondQueuedContext)); pool = [] } } { governorPool = activationRemovedPool }
+    secondDoneContext : C.Context
+    secondDoneContext = record secondRemovedContext { governorPool = activationDonePool }
+    secondErrorContext : C.Context
+    secondErrorContext = withPeer secondErroredPeer secondDoneContext
+    secondCooledContext : C.Context
+    secondCooledContext = withPeer (Peer.cool secondErroredPeer) secondErrorContext
+
+    firstCompletedActions : List V.Event
+    firstCompletedActions = (V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ (V.registerStart jid) ∷ (ps L.a64) ∷ (ps (Sub.jobStep (ident 1) (J.finishHotAt 12))) ∷ (ps L.a66) ∷ (ps L.a67) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 1)))) ∷ []
+    abstract
+      first-completed-path : V.Runs (at reused k61 V.empty) firstCompletedActions (at registered kActivationDone freeFront)
+      first-completed-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run8 (V.more run9 (V.more run10 (V.more run11 (V.more run12 (V.more run13 (V.more run14 (V.more run15 (V.stop)))))))))))))))
+      initialized-first-completed : V.Runs initial (prefixActions ++ firstCompletedActions) (at registered kActivationDone freeFront)
+      initialized-first-completed = Facts.append-protocols initialized-to-start first-completed-path
+
+    reactEdge1 : V.advance (ps L.a68) (at registered kActivationDone freeFront) ≡ just (at registered down68 freeFront)
+    reactEdge1 = refl
+
+    reactEdge2 : V.advance (ps L.a69) (at registered down68 freeFront) ≡ just (at registered down69 freeFront)
+    reactEdge2 = refl
+
+    reactEdge3 : V.advance (ps (Sub.sampleTime 13)) (at registered down69 freeFront) ≡ just (at registered down70 freeFront)
+    reactEdge3 = refl
+
+    reactEdge4 : V.advance (ps L.a71) (at registered down70 freeFront) ≡ just (at registered down71 freeFront)
+    reactEdge4 = refl
+
+    reactEdge5 : V.advance (ps L.a72) (at registered down71 freeFront) ≡ just (at registered down72 freeFront)
+    reactEdge5 = refl
+
+    reactEdge6 : V.advance (ps (Sub.applyAt 13)) (at registered down72 freeFront) ≡ just (at registered down73 freeFront)
+    reactEdge6 = refl
+
+    reactEdge7 : V.advance (ps L.a74) (at registered down73 freeFront) ≡ just (at registered down74 freeFront)
+    reactEdge7 = refl
+
+    reactEdge8 : V.advance (ps L.a75) (at registered down74 freeFront) ≡ just (at registered down75 freeFront)
+    reactEdge8 = refl
+
+    reactEdge9 : V.advance (ps L.a76) (at registered down75 freeFront) ≡ just (at registered down76 freeFront)
+    reactEdge9 = refl
+
+    reactEdge10 : V.advance (ps L.a77) (at registered down76 freeFront) ≡ just (at registered down77 freeFront)
+    reactEdge10 = refl
+
+    reactEdge11 : V.advance (ps L.a78) (at registered down77 freeFront) ≡ just (at registered down78 freeFront)
+    reactEdge11 = refl
+
+    reactEdge12 : V.advance (ps (Sub.sampleTime 14)) (at registered down78 freeFront) ≡ just (at registered down79 freeFront)
+    reactEdge12 = refl
+
+    reactEdge13 : V.advance (ps L.a80) (at registered down79 freeFront) ≡ just (at registered down80 freeFront)
+    reactEdge13 = refl
+
+    reactEdge14 : V.advance (ps L.a81) (at registered down80 freeFront) ≡ just (at registered down81 freeFront)
+    reactEdge14 = refl
+
+    reactEdge15 : V.advance (ps (Sub.applyAt 14)) (at registered down81 freeFront) ≡ just (at registered down82 freeFront)
+    reactEdge15 = refl
+
+    reactEdge16 : V.advance (ps L.a83) (at registered down82 freeFront) ≡ just (at registered down83 freeFront)
+    reactEdge16 = refl
+
+    reactEdge17 : V.advance (ps L.a84) (at registered down83 freeFront) ≡ just (at registered down84 freeFront)
+    reactEdge17 = refl
+
+    reactEdge18 : V.advance (ps L.a85) (at registered down84 freeFront) ≡ just (at registered down85 freeFront)
+    reactEdge18 = refl
+
+    reactEdge19 : V.advance (ps L.a86) (at registered down85 freeFront) ≡ just (at registered down86 freeFront)
+    reactEdge19 = refl
+
+    reactEdge20 : V.advance (ps (Sub.sampleTime 15)) (at registered down86 freeFront) ≡ just (at registered down87 freeFront)
+    reactEdge20 = refl
+
+    reactEdge21 : V.advance (ps L.a88) (at registered down87 freeFront) ≡ just (at registered down88 freeFront)
+    reactEdge21 = refl
+
+    reactEdge22 : V.advance (ps L.a89) (at registered down88 freeFront) ≡ just (at registered down89 freeFront)
+    reactEdge22 = refl
+
+    reactEdge23 : V.advance (ps (Sub.applyAt 15)) (at registered down89 freeFront) ≡ just (at registered down90 freeFront)
+    reactEdge23 = refl
+
+    reactEdge24 : V.advance (ps L.a91) (at registered down90 freeFront) ≡ just (at registered down91 freeFront)
+    reactEdge24 = refl
+
+    reactEdge25 : V.advance (ps L.a92) (at registered down91 freeFront) ≡ just (at registered down92 freeFront)
+    reactEdge25 = refl
+
+    reactEdge26 : V.advance (ps L.a93) (at registered down92 freeFront) ≡ just (at registered down93 freeFront)
+    reactEdge26 = refl
+
+    reactEdge27 : V.advance (ps L.a94) (at registered down93 freeFront) ≡ just (at registered down94 freeFront)
+    reactEdge27 = refl
+
+    reactEdge28 : V.advance (ps L.a95) (at registered down94 freeFront) ≡ just (at registered down95 freeFront)
+    reactEdge28 = refl
+
+    reactEdge29 : V.advance (V.waitJobResults (ident 2)) (at registered down95 freeFront) ≡ just (at registered warm1 freeFront)
+    reactEdge29 = refl
+
+    reactEdge30 : V.advance (ps (Sub.enqueueCompletion (ident 2) 0)) (at registered warm1 freeFront) ≡ just (at registered warm2 freeFront)
+    reactEdge30 = refl
+
+    reactEdge31 : V.advance (ps (Sub.deregisterJob (ident 2))) (at registered warm2 freeFront) ≡ just (at registered warm3 freeFront)
+    reactEdge31 = refl
+
+    reactEdge32 : V.advance (peerStep (PS.run (GP.publishAsyncResult (ident 2)))) (at registered warm3 freeFront) ≡ just (at registered warm4 freeFront)
+    reactEdge32 = refl
+
+    reactEdge33 : V.advance (ps Sub.finishLaunch) (at registered warm4 freeFront) ≡ just (at registered warm5 freeFront)
+    reactEdge33 = refl
+
+    reactEdge34 : V.advance (ps Sub.publishPublicState) (at registered warm5 freeFront) ≡ just (at registered warm6 freeFront)
+    reactEdge34 = refl
+
+    reactEdge35 : V.advance (ps (Sub.sampleTime 16)) (at registered warm6 freeFront) ≡ just (at registered warm7 freeFront)
+    reactEdge35 = refl
+
+    reactEdge36 : V.advance (ps Sub.registerWakeup) (at registered warm7 freeFront) ≡ just (at registered warm8 freeFront)
+    reactEdge36 = refl
+
+    reactEdge37 : V.advance (ps Sub.selectCompletion) (at registered warm8 freeFront) ≡ just (at registered warm9 freeFront)
+    reactEdge37 = refl
+
+    reactEdge38 : V.advance (ps (Sub.applyAt 16)) (at registered warm9 freeFront) ≡ just (at registered warm10 freeFront)
+    reactEdge38 = refl
+
+    reactEdge39 : V.advance (ps Sub.publishCounters) (at registered warm10 freeFront) ≡ just (at registered warm11 freeFront)
+    reactEdge39 = refl
+
+    reactEdge40 : V.advance (ps Sub.traceSelection) (at registered warm11 freeFront) ≡ just (at registered warm12 freeFront)
+    reactEdge40 = refl
+
+    reactEdge41 : V.advance (ps Sub.finishLaunch) (at registered warm12 freeFront) ≡ just (at registered warm13 freeFront)
+    reactEdge41 = refl
+
+    reactEdge42 : V.advance (ps (Sub.setTargets (G.targets 1 1 1))) (at registered warm13 freeFront) ≡ just (at registered warm14 freeFront)
+    reactEdge42 = refl
+
+    reactEdge43 : V.advance (ps Sub.publishPublicState) (at registered warm14 freeFront) ≡ just (at registered warm15 freeFront)
+    reactEdge43 = refl
+
+    reactEdge44 : V.advance (ps (Sub.sampleTime 17)) (at registered warm15 freeFront) ≡ just (at registered warm16 freeFront)
+    reactEdge44 = refl
+
+    reactEdge45 : V.advance (ps Sub.registerWakeup) (at registered warm16 freeFront) ≡ just (at registered warm17 freeFront)
+    reactEdge45 = refl
+
+    reactEdge46 : V.advance (ps Sub.selectTargets) (at registered warm17 freeFront) ≡ just (at registered warm18 freeFront)
+    reactEdge46 = refl
+
+    reactEdge47 : V.advance (ps (Sub.applyAt 17)) (at registered warm18 freeFront) ≡ just (at registered warm19 freeFront)
+    reactEdge47 = refl
+
+    reactEdge48 : V.advance (ps Sub.publishCounters) (at registered warm19 freeFront) ≡ just (at registered warm20 freeFront)
+    reactEdge48 = refl
+
+    reactEdge49 : V.advance (ps Sub.traceSelection) (at registered warm20 freeFront) ≡ just (at registered warm21 freeFront)
+    reactEdge49 = refl
+
+    reactEdge50 : V.advance (ps Sub.finishLaunch) (at registered warm21 freeFront) ≡ just (at registered warm22 freeFront)
+    reactEdge50 = refl
+
+    reactEdge51 : V.advance (ps Sub.publishPublicState) (at registered warm22 freeFront) ≡ just (at registered warm23 freeFront)
+    reactEdge51 = refl
+
+    reactEdge52 : V.advance (ps (Sub.sampleTime 18)) (at registered warm23 freeFront) ≡ just (at registered warm24 freeFront)
+    reactEdge52 = refl
+
+    reactEdge53 : V.advance (ps Sub.registerWakeup) (at registered warm24 freeFront) ≡ just (at registered warm25 freeFront)
+    reactEdge53 = refl
+
+    reactEdge54 : V.advance (ps (Sub.selectPolicy (L.peerAddr ∷ []))) (at registered warm25 freeFront) ≡ just (at registered warm26 freeFront)
+    reactEdge54 = refl
+
+    reactEdge55 : V.advance (ps (Sub.applyAt 18)) (at registered warm26 freeFront) ≡ just (at registered warm27 freeFront)
+    reactEdge55 = refl
+
+    reactEdge56 : V.advance (ps Sub.publishCounters) (at registered warm27 freeFront) ≡ just (at registered warm28 freeFront)
+    reactEdge56 = refl
+
+    reactEdge57 : V.advance (ps Sub.traceSelection) (at registered warm28 freeFront) ≡ just (at registered warm29 freeFront)
+    reactEdge57 = refl
+
+    reactEdge58 : V.advance (ps (Sub.forkJob (ident 16) (ident 17) (ident 16))) (at registered warm29 freeFront) ≡ just (at registered warm30 freeFront)
+    reactEdge58 = refl
+
+    reactEdge59 : V.advance (ps Sub.registerJob) (at registered warm30 freeFront) ≡ just (at registered warm31 freeFront)
+    reactEdge59 = refl
+
+    reactEdge60 : V.advance (ps (Sub.jobStep (ident 3) J.enter)) (at registered warm31 freeFront) ≡ just (at registered warm32 freeFront)
+    reactEdge60 = refl
+
+    reactEdge61 : V.advance (V.startNext (ident 3) (ident 21)) (at registered warm32 freeFront) ≡ just (at registered secondStartedContext secondQueuedFront)
+    reactEdge61 = refl
+
+    reactEdge62 : V.advance (ps (Sub.jobStep (ident 3) J.runNext)) (at registered secondStartedContext secondQueuedFront) ≡ just (at registered secondTraversalContext secondQueuedFront)
+    reactEdge62 = refl
+
+    reactEdge63 : V.advance (V.selectStart A.child₀) (at registered secondTraversalContext secondQueuedFront) ≡ just (at registered secondTraversalContext secondSelectedFront)
+    reactEdge63 = refl
+
+    reactEdge64 : V.advance (V.invokeStartTrace A.child₀) (at registered secondTraversalContext secondSelectedFront) ≡ just (at registered secondTraversalContext secondTracingFront)
+    reactEdge64 = refl
+
+    reactEdge65 : V.advance (V.returnStartTrace A.child₀) (at registered secondTraversalContext secondTracingFront) ≡ just (at registered secondTraversalContext secondReadyFront)
+    reactEdge65 = refl
+
+    reactEdge66 : V.advance (V.forkStart A.child₀ (ident 21)) (at registered secondTraversalContext secondReadyFront) ≡ just (at secondBorn secondTraversalContext secondBornFront)
+    reactEdge66 = refl
+
+    reactEdge67 : V.advance (V.registerStart (ident 21)) (at secondBorn secondTraversalContext secondBornFront) ≡ just (at secondRegistered secondTraversalContext secondFreeFront)
+    reactEdge67 = refl
+
+    reactEdge68 : V.advance (ps (Sub.jobStep (ident 3) J.publishStarted)) (at secondRegistered secondTraversalContext secondFreeFront) ≡ just (at secondRegistered secondPublishedContext secondFreeFront)
+    reactEdge68 = refl
+
+    reactEdge69 : V.advance (ps (Sub.jobStep (ident 3) (J.finishHotAt 18))) (at secondRegistered secondPublishedContext secondFreeFront) ≡ just (at secondRegistered secondReturnedContext secondFreeFront)
+    reactEdge69 = refl
+
+    reactEdge70 : V.advance (ps (Sub.enqueueCompletion (ident 3) 0)) (at secondRegistered secondReturnedContext secondFreeFront) ≡ just (at secondRegistered secondQueuedContext secondFreeFront)
+    reactEdge70 = refl
+
+    reactEdge71 : V.advance (ps (Sub.deregisterJob (ident 3))) (at secondRegistered secondQueuedContext secondFreeFront) ≡ just (at secondRegistered secondRemovedContext secondFreeFront)
+    reactEdge71 = refl
+
+    reactEdge72 : V.advance (peerStep (PS.run (GP.publishAsyncResult (ident 3)))) (at secondRegistered secondRemovedContext secondFreeFront) ≡ just (at secondRegistered secondDoneContext secondFreeFront)
+    reactEdge72 = refl
+
+    reactEdge73 : V.advance (physicalStep (P.returnProtocol jid)) (at secondRegistered secondDoneContext secondFreeFront) ≡ just (at oldBodyReturned secondDoneContext secondFreeFront)
+    reactEdge73 = refl
+
+    reactEdge74 : V.advance (physicalStep (P.publishProtocol jid)) (at oldBodyReturned secondDoneContext secondFreeFront) ≡ just (at oldBodyQueued secondDoneContext secondFreeFront)
+    reactEdge74 = refl
+
+    reactEdge75 : V.advance (physicalStep (P.deregisterProtocol jid)) (at oldBodyQueued secondDoneContext secondFreeFront) ≡ just (at oldBodyRemoved secondDoneContext secondFreeFront)
+    reactEdge75 = refl
+
+    reactEdge76 : V.advance (physicalStep (P.asyncProtocolResult jid)) (at oldBodyRemoved secondDoneContext secondFreeFront) ≡ just (at oldBodyAvailable secondDoneContext secondFreeFront)
+    reactEdge76 = refl
+
+    reactEdge77 : V.advance (monitorStep (N.M.consume A.child₀)) (at oldBodyAvailable secondDoneContext secondFreeFront) ≡ just (at oldCompletionPopped secondDoneContext secondFreeFront)
+    reactEdge77 = refl
+
+    reactEdge78 : V.advance (monitorStep (N.M.handleSelected A.child₀)) (at oldCompletionPopped secondDoneContext secondFreeFront) ≡ just (at oldCompletionHandled secondDoneContext secondFreeFront)
+    reactEdge78 = refl
+
+    reactEdge79 : V.advance (deltaStep (N.D.beginInitiatorTrace A.child₀)) (at oldCompletionHandled secondDoneContext secondFreeFront) ≡ just (at oldTraceInvoked secondDoneContext secondFreeFront)
+    reactEdge79 = refl
+
+    reactEdge80 : V.advance (deltaStep (N.D.observeInitiatorReturn A.child₀)) (at oldTraceInvoked secondDoneContext secondFreeFront) ≡ just (at oldTraceReturned secondDoneContext secondFreeFront)
+    reactEdge80 = refl
+
+    reactEdge81 : V.advance (deltaStep (N.D.beginDeltaQ A.child₀)) (at oldTraceReturned secondDoneContext secondFreeFront) ≡ just (at oldDeltaInvoked secondDoneContext secondFreeFront)
+    reactEdge81 = refl
+
+    reactEdge82 : V.advance (deltaStep (N.D.observeReturn A.child₀)) (at oldDeltaInvoked secondDoneContext secondFreeFront) ≡ just (at oldCompletionFinished secondDoneContext secondFreeFront)
+    reactEdge82 = refl
+
+    reactEdge83 : V.advance (V.commitError (ident 21) err) (at oldCompletionFinished secondDoneContext secondFreeFront) ≡ just (at secondErrorCaptured secondErrorContext secondErrorFront)
+    reactEdge83 = refl
+
+    reactEdge84 : V.advance (physicalStep (P.returnProtocol (ident 21))) (at secondErrorCaptured secondErrorContext secondErrorFront) ≡ just (at secondBodyReturned secondErrorContext secondErrorFront)
+    reactEdge84 = refl
+
+    reactEdge85 : V.advance (physicalStep (P.publishProtocol (ident 21))) (at secondBodyReturned secondErrorContext secondErrorFront) ≡ just (at secondBodyQueued secondErrorContext secondErrorFront)
+    reactEdge85 = refl
+
+    reactEdge86 : V.advance (physicalStep (P.deregisterProtocol (ident 21))) (at secondBodyQueued secondErrorContext secondErrorFront) ≡ just (at secondBodyRemoved secondErrorContext secondErrorFront)
+    reactEdge86 = refl
+
+    reactEdge87 : V.advance (physicalStep (P.asyncProtocolResult (ident 21))) (at secondBodyRemoved secondErrorContext secondErrorFront) ≡ just (at secondBodyAvailable secondErrorContext secondErrorFront)
+    reactEdge87 = refl
+
+    reactEdge88 : V.advance (V.pollResults (ident 0) (ident 50)) (at secondBodyAvailable secondErrorContext secondErrorFront) ≡ just (at secondBodyAvailable secondCooledContext secondErrorFront)
+    reactEdge88 = refl
+
+    reactivationActions : List V.Event
+    reactivationActions = (ps L.a68) ∷ (ps L.a69) ∷ (ps (Sub.sampleTime 13)) ∷ (ps L.a71) ∷ (ps L.a72) ∷ (ps (Sub.applyAt 13)) ∷ (ps L.a74) ∷ (ps L.a75) ∷ (ps L.a76) ∷ (ps L.a77) ∷ (ps L.a78) ∷ (ps (Sub.sampleTime 14)) ∷ (ps L.a80) ∷ (ps L.a81) ∷ (ps (Sub.applyAt 14)) ∷ (ps L.a83) ∷ (ps L.a84) ∷ (ps L.a85) ∷ (ps L.a86) ∷ (ps (Sub.sampleTime 15)) ∷ (ps L.a88) ∷ (ps L.a89) ∷ (ps (Sub.applyAt 15)) ∷ (ps L.a91) ∷ (ps L.a92) ∷ (ps L.a93) ∷ (ps L.a94) ∷ (ps L.a95) ∷ (V.waitJobResults (ident 2)) ∷ (ps (Sub.enqueueCompletion (ident 2) 0)) ∷ (ps (Sub.deregisterJob (ident 2))) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 2)))) ∷ (ps Sub.finishLaunch) ∷ (ps Sub.publishPublicState) ∷ (ps (Sub.sampleTime 16)) ∷ (ps Sub.registerWakeup) ∷ (ps Sub.selectCompletion) ∷ (ps (Sub.applyAt 16)) ∷ (ps Sub.publishCounters) ∷ (ps Sub.traceSelection) ∷ (ps Sub.finishLaunch) ∷ (ps (Sub.setTargets (G.targets 1 1 1))) ∷ (ps Sub.publishPublicState) ∷ (ps (Sub.sampleTime 17)) ∷ (ps Sub.registerWakeup) ∷ (ps Sub.selectTargets) ∷ (ps (Sub.applyAt 17)) ∷ (ps Sub.publishCounters) ∷ (ps Sub.traceSelection) ∷ (ps Sub.finishLaunch) ∷ (ps Sub.publishPublicState) ∷ (ps (Sub.sampleTime 18)) ∷ (ps Sub.registerWakeup) ∷ (ps (Sub.selectPolicy (L.peerAddr ∷ []))) ∷ (ps (Sub.applyAt 18)) ∷ (ps Sub.publishCounters) ∷ (ps Sub.traceSelection) ∷ (ps (Sub.forkJob (ident 16) (ident 17) (ident 16))) ∷ (ps Sub.registerJob) ∷ (ps (Sub.jobStep (ident 3) J.enter)) ∷ (V.startNext (ident 3) (ident 21)) ∷ (ps (Sub.jobStep (ident 3) J.runNext)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ (ident 21)) ∷ (V.registerStart (ident 21)) ∷ (ps (Sub.jobStep (ident 3) J.publishStarted)) ∷ (ps (Sub.jobStep (ident 3) (J.finishHotAt 18))) ∷ (ps (Sub.enqueueCompletion (ident 3) 0)) ∷ (ps (Sub.deregisterJob (ident 3))) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 3)))) ∷ (physicalStep (P.returnProtocol jid)) ∷ (physicalStep (P.publishProtocol jid)) ∷ (physicalStep (P.deregisterProtocol jid)) ∷ (physicalStep (P.asyncProtocolResult jid)) ∷ (monitorStep (N.M.consume A.child₀)) ∷ (monitorStep (N.M.handleSelected A.child₀)) ∷ (deltaStep (N.D.beginInitiatorTrace A.child₀)) ∷ (deltaStep (N.D.observeInitiatorReturn A.child₀)) ∷ (deltaStep (N.D.beginDeltaQ A.child₀)) ∷ (deltaStep (N.D.observeReturn A.child₀)) ∷ (V.commitError (ident 21) err) ∷ (physicalStep (P.returnProtocol (ident 21))) ∷ (physicalStep (P.publishProtocol (ident 21))) ∷ (physicalStep (P.deregisterProtocol (ident 21))) ∷ (physicalStep (P.asyncProtocolResult (ident 21))) ∷ (V.pollResults (ident 0) (ident 50)) ∷ []
+    initializedReactivationActions : List V.Event
+    initializedReactivationActions = (prefixActions ++ firstCompletedActions) ++ reactivationActions
+    abstract
+      reactivation-path : V.Runs (at registered kActivationDone freeFront) reactivationActions (at secondBodyAvailable secondCooledContext secondErrorFront)
+      reactivation-path = V.more reactEdge1 (V.more reactEdge2 (V.more reactEdge3 (V.more reactEdge4 (V.more reactEdge5 (V.more reactEdge6 (V.more reactEdge7 (V.more reactEdge8 (V.more reactEdge9 (V.more reactEdge10 (V.more reactEdge11 (V.more reactEdge12 (V.more reactEdge13 (V.more reactEdge14 (V.more reactEdge15 (V.more reactEdge16 (V.more reactEdge17 (V.more reactEdge18 (V.more reactEdge19 (V.more reactEdge20 (V.more reactEdge21 (V.more reactEdge22 (V.more reactEdge23 (V.more reactEdge24 (V.more reactEdge25 (V.more reactEdge26 (V.more reactEdge27 (V.more reactEdge28 (V.more reactEdge29 (V.more reactEdge30 (V.more reactEdge31 (V.more reactEdge32 (V.more reactEdge33 (V.more reactEdge34 (V.more reactEdge35 (V.more reactEdge36 (V.more reactEdge37 (V.more reactEdge38 (V.more reactEdge39 (V.more reactEdge40 (V.more reactEdge41 (V.more reactEdge42 (V.more reactEdge43 (V.more reactEdge44 (V.more reactEdge45 (V.more reactEdge46 (V.more reactEdge47 (V.more reactEdge48 (V.more reactEdge49 (V.more reactEdge50 (V.more reactEdge51 (V.more reactEdge52 (V.more reactEdge53 (V.more reactEdge54 (V.more reactEdge55 (V.more reactEdge56 (V.more reactEdge57 (V.more reactEdge58 (V.more reactEdge59 (V.more reactEdge60 (V.more reactEdge61 (V.more reactEdge62 (V.more reactEdge63 (V.more reactEdge64 (V.more reactEdge65 (V.more reactEdge66 (V.more reactEdge67 (V.more reactEdge68 (V.more reactEdge69 (V.more reactEdge70 (V.more reactEdge71 (V.more reactEdge72 (V.more reactEdge73 (V.more reactEdge74 (V.more reactEdge75 (V.more reactEdge76 (V.more reactEdge77 (V.more reactEdge78 (V.more reactEdge79 (V.more reactEdge80 (V.more reactEdge81 (V.more reactEdge82 (V.more reactEdge83 (V.more reactEdge84 (V.more reactEdge85 (V.more reactEdge86 (V.more reactEdge87 (V.more reactEdge88 (V.stop))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+      initialized-reactivation : V.Runs initial initializedReactivationActions (at secondBodyAvailable secondCooledContext secondErrorFront)
+      initialized-reactivation = Facts.append-protocols initialized-first-completed reactivation-path
+    reactivation-supply : Inv.ProtocolValid (at secondBodyAvailable secondCooledContext secondErrorFront)
+    reactivation-supply = Inv.from-initial-protocols initializer (All.[] , All.[]) initialized-reactivation
+
+    -- These controls use states on the initialized path above, including the
+    -- old physical completion delivered while the second cell is still empty.
+    secondQueuedRuntime secondPublishedRuntime oldDeliveredRuntime secondResultRuntime secondCooledRuntime : V.Runtime
+    secondQueuedRuntime = at registered secondStartedContext secondQueuedFront
+    secondPublishedRuntime = at secondRegistered secondPublishedContext secondFreeFront
+    oldDeliveredRuntime = at oldCompletionFinished secondDoneContext secondFreeFront
+    secondResultRuntime = at secondBodyAvailable secondErrorContext secondErrorFront
+    secondCooledRuntime = at secondBodyAvailable secondCooledContext secondErrorFront
+    current-cell-is-fresh : V.latest A.child₀ 1 (V.calls (V.front secondQueuedRuntime)) ≡ just (ident 21 , requested)
+    current-cell-is-fresh = refl
+    old-result-at-second-call : V.observe rid secondQueuedRuntime ≡ just (V.localResult clean)
+    old-result-at-second-call = refl
+    new-cell-starts-empty : V.observe (ident 21) secondQueuedRuntime ≡ nothing
+    new-cell-starts-empty = refl
+    new-slot-is-busy : V.slotIdle A.child₀ 1 (V.front secondQueuedRuntime) ≡ false
+    new-slot-is-busy = refl
+    no-reused-result-cell : V.advance (V.startNext (ident 3) rid) (at registered warm32 freeFront) ≡ nothing
+    no-reused-result-cell = refl
+    no-reused-physical-job : V.advance (V.forkStart A.child₀ jid)
+      (at registered secondTraversalContext secondReadyFront) ≡ nothing
+    no-reused-physical-job = refl
+    no-physical-birth-at-call-return : lookup (ident 21) (P.jobs (V.physical (V.base secondQueuedRuntime))) ≡ nothing
+    no-physical-birth-at-call-return = refl
+    retirement-blocks-unpublished-result : V.firstPublished hot (ident 0) secondStartedPeer secondQueuedRuntime ≡ nothing
+    retirement-blocks-unpublished-result = refl
+    no-poll-before-new-publication : V.advance (V.pollResults (ident 0) (ident 50)) secondQueuedRuntime ≡ nothing
+    no-poll-before-new-publication = refl
+    new-published-result-retries : V.firstPublished hot (ident 0) secondPublishedPeer secondPublishedRuntime ≡ nothing
+    new-published-result-retries = refl
+    no-old-clean-poll-after-new-publication : V.advance (V.pollResults (ident 0) (ident 50)) secondPublishedRuntime ≡ nothing
+    no-old-clean-poll-after-new-publication = refl
+    stale-cache-cannot-update-second-run :
+      V.cacheResult rid requested (errored err) (V.front secondPublishedRuntime) (V.base secondPublishedRuntime) ≡ V.base secondPublishedRuntime
+    stale-cache-cannot-update-second-run = refl
+    no-second-write-to-old-cell : V.advance (V.commitError jid err) secondPublishedRuntime ≡ nothing
+    no-second-write-to-old-cell = refl
+    late-old-completion-keeps-new-cell-empty : V.observe (ident 21) oldDeliveredRuntime ≡ nothing
+    late-old-completion-keeps-new-cell-empty = refl
+    late-old-completion-keeps-current-published-action :
+      V.firstPublished hot (ident 0) secondPromotedPeer oldDeliveredRuntime ≡ nothing
+    late-old-completion-keeps-current-published-action = refl
+    old-async-is-really-published : lookup jid (Pool.handles (P.poolAt A.child₀ (V.physical (V.base oldDeliveredRuntime)))) ≡
+      just (Pool.resultAvailable Pool.normalExit)
+    old-async-is-really-published = refl
+    new-body-survives-old-completion : lookup (ident 21) (Pool.handles (P.poolAt A.child₀ (V.physical (V.base oldDeliveredRuntime)))) ≡ just Pool.bodyRunning
+    new-body-survives-old-completion = refl
+    distinct-physical-generations : P.jobs (V.physical (V.base oldDeliveredRuntime)) ≡
+      (jid , physicalJob (Types.resultCaptured clean)) ∷ (ident 21 , secondJob Types.executing) ∷ []
+    distinct-physical-generations = refl
+    old-result-after-new-error : V.observe rid secondResultRuntime ≡ just (V.localResult clean)
+    old-result-after-new-error = refl
+    current-result-is-new-error : V.observe (ident 21) secondResultRuntime ≡ just (V.localResult (errored err))
+    current-result-is-new-error = refl
+    published-action-reads-new-result :
+      V.firstPublished hot (ident 0) secondErroredPeer secondResultRuntime ≡ just (1 , V.localResult (errored err))
+    published-action-reads-new-result = refl
+    new-async-is-really-published : lookup (ident 21) (Pool.handles (P.poolAt A.child₀ (V.physical (V.base secondResultRuntime)))) ≡
+      just (Pool.resultAvailable Pool.normalExit)
+    new-async-is-really-published = refl
+    actual-new-typed-completion : Pool.completions (P.poolAt A.child₀ (V.physical (V.base secondResultRuntime))) ≡ secondPayload ∷ []
+    actual-new-typed-completion = refl
+    peer-cools-on-new-result : lookup (ident 0) (C.SubContext.peers (C.subsystem (K.context (V.base secondCooledRuntime)))) ≡
+      just (Peer.cool secondErroredPeer)
+    peer-cools-on-new-result = refl
+    server-still-serving : S.stage (E.base (K.server (V.base secondCooledRuntime))) ≡ S.serving
+    server-still-serving = refl
+    initiator-completions-do-not-notify-ig : Shared.inboundInfo (Machine.world (O.core (V.sourceOf secondCooledRuntime))) ≡ []
+    initiator-completions-do-not-notify-ig = refl
+
+    -- A live restarted initiator and an older clean body share the actual mux
+    -- pool. Scope exit reaches CM's normal monitor-delivery boundary.
+    module Shutdown where
+      import ConnectionManagement.Rules.CMShutdown as Close
+      import ConnectionManagement.Rules.Cleanup as Cleanup
+      import ConnectionManagement.Properties.MuxHandlerExit as HandlerProof
+      private
+        module SC = StartTrace.ScopedCM
+        module Group = N.G
+        module W = N.W
+        module HandlerFacts = HandlerProof I.bearerClosed
+      shutdownError : ErrorId
+      shutdownError = errorId 191
+      liveActivationActions : List V.Event
+      liveActivationActions = (ps L.a68) ∷ (ps L.a69) ∷ (ps (Sub.sampleTime 13)) ∷ (ps L.a71) ∷ (ps L.a72) ∷ (ps (Sub.applyAt 13)) ∷ (ps L.a74) ∷ (ps L.a75) ∷ (ps L.a76) ∷ (ps L.a77) ∷ (ps L.a78) ∷ (ps (Sub.sampleTime 14)) ∷ (ps L.a80) ∷ (ps L.a81) ∷ (ps (Sub.applyAt 14)) ∷ (ps L.a83) ∷ (ps L.a84) ∷ (ps L.a85) ∷ (ps L.a86) ∷ (ps (Sub.sampleTime 15)) ∷ (ps L.a88) ∷ (ps L.a89) ∷ (ps (Sub.applyAt 15)) ∷ (ps L.a91) ∷ (ps L.a92) ∷ (ps L.a93) ∷ (ps L.a94) ∷ (ps L.a95) ∷ (V.waitJobResults (ident 2)) ∷ (ps (Sub.enqueueCompletion (ident 2) 0)) ∷ (ps (Sub.deregisterJob (ident 2))) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 2)))) ∷ (ps Sub.finishLaunch) ∷ (ps Sub.publishPublicState) ∷ (ps (Sub.sampleTime 16)) ∷ (ps Sub.registerWakeup) ∷ (ps Sub.selectCompletion) ∷ (ps (Sub.applyAt 16)) ∷ (ps Sub.publishCounters) ∷ (ps Sub.traceSelection) ∷ (ps Sub.finishLaunch) ∷ (ps (Sub.setTargets (G.targets 1 1 1))) ∷ (ps Sub.publishPublicState) ∷ (ps (Sub.sampleTime 17)) ∷ (ps Sub.registerWakeup) ∷ (ps Sub.selectTargets) ∷ (ps (Sub.applyAt 17)) ∷ (ps Sub.publishCounters) ∷ (ps Sub.traceSelection) ∷ (ps Sub.finishLaunch) ∷ (ps Sub.publishPublicState) ∷ (ps (Sub.sampleTime 18)) ∷ (ps Sub.registerWakeup) ∷ (ps (Sub.selectPolicy (L.peerAddr ∷ []))) ∷ (ps (Sub.applyAt 18)) ∷ (ps Sub.publishCounters) ∷ (ps Sub.traceSelection) ∷ (ps (Sub.forkJob (ident 16) (ident 17) (ident 16))) ∷ (ps Sub.registerJob) ∷ (ps (Sub.jobStep (ident 3) J.enter)) ∷ (V.startNext (ident 3) (ident 21)) ∷ (ps (Sub.jobStep (ident 3) J.runNext)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ (ident 21)) ∷ (V.registerStart (ident 21)) ∷ (ps (Sub.jobStep (ident 3) J.publishStarted)) ∷ (ps (Sub.jobStep (ident 3) (J.finishHotAt 18))) ∷ (ps (Sub.enqueueCompletion (ident 3) 0)) ∷ (ps (Sub.deregisterJob (ident 3))) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 3)))) ∷ []
+      livePrefixActions : List V.Event
+      livePrefixActions = (prefixActions ++ firstCompletedActions) ++ liveActivationActions
+      liveRestart : V.Runtime
+      liveRestart = at secondRegistered secondDoneContext secondFreeFront
+      abstract
+        live-activation-path : V.Runs (at registered kActivationDone freeFront) liveActivationActions liveRestart
+        live-activation-path = V.more reactEdge1 (V.more reactEdge2 (V.more reactEdge3 (V.more reactEdge4 (V.more reactEdge5 (V.more reactEdge6 (V.more reactEdge7 (V.more reactEdge8 (V.more reactEdge9 (V.more reactEdge10 (V.more reactEdge11 (V.more reactEdge12 (V.more reactEdge13 (V.more reactEdge14 (V.more reactEdge15 (V.more reactEdge16 (V.more reactEdge17 (V.more reactEdge18 (V.more reactEdge19 (V.more reactEdge20 (V.more reactEdge21 (V.more reactEdge22 (V.more reactEdge23 (V.more reactEdge24 (V.more reactEdge25 (V.more reactEdge26 (V.more reactEdge27 (V.more reactEdge28 (V.more reactEdge29 (V.more reactEdge30 (V.more reactEdge31 (V.more reactEdge32 (V.more reactEdge33 (V.more reactEdge34 (V.more reactEdge35 (V.more reactEdge36 (V.more reactEdge37 (V.more reactEdge38 (V.more reactEdge39 (V.more reactEdge40 (V.more reactEdge41 (V.more reactEdge42 (V.more reactEdge43 (V.more reactEdge44 (V.more reactEdge45 (V.more reactEdge46 (V.more reactEdge47 (V.more reactEdge48 (V.more reactEdge49 (V.more reactEdge50 (V.more reactEdge51 (V.more reactEdge52 (V.more reactEdge53 (V.more reactEdge54 (V.more reactEdge55 (V.more reactEdge56 (V.more reactEdge57 (V.more reactEdge58 (V.more reactEdge59 (V.more reactEdge60 (V.more reactEdge61 (V.more reactEdge62 (V.more reactEdge63 (V.more reactEdge64 (V.more reactEdge65 (V.more reactEdge66 (V.more reactEdge67 (V.more reactEdge68 (V.more reactEdge69 (V.more reactEdge70 (V.more reactEdge71 (V.more reactEdge72 (V.stop))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+        initialized-live-restart : V.Runs initial livePrefixActions liveRestart
+        initialized-live-restart = Facts.append-protocols initialized-first-completed live-activation-path
+
+      -- Only peer metadata differs from the previous scope-close profile.
+      -- Historical completed governor jobs and the pending completion survive.
+      peerGovClosing peerGovClosed peerScopes : C.Context
+      peerGovClosing = record secondDoneContext
+        { scopes = Fixtures.q8; governorPool = record activationDonePool { phase = GP.Pool.closing } }
+      peerGovClosed = record peerGovClosing
+        { governorPool = record activationDonePool { phase = GP.Pool.closedPool } }
+      peerScopes = atScope Fixtures.q22 peerGovClosed
+      peerMonClosing peerMonRequested peerMonDelivered peerMonUnwound peerMonRemoved peerMonPublished peerMonJoined peerFinished : C.Context
+      peerMonClosing = record peerScopes { monitorPool = monClosing }
+      peerMonRequested = record peerScopes { monitorPool = monRequested }
+      peerMonDelivered = record peerScopes
+        { monitorPool = monDelivered; monitors = (ident 50 , monitorThread PS.cancelling) ∷ [] }
+      peerMonUnwound = withPeer (record secondPromotedPeer { monitorStarted = false })
+        (record peerScopes { monitorPool = monUnwound; monitors = (ident 50 , monitorThread PS.exited) ∷ [] })
+      peerMonRemoved = record peerMonUnwound { monitorPool = monRemoved }
+      peerMonPublished = record peerMonUnwound { monitorPool = monPublished }
+      peerMonJoined = record peerMonUnwound { monitorPool = monJoined }
+      peerFinished = record peerMonUnwound { monitorPool = monClosed }
+      stageScene : S.Stage → Bool → E.Exit → Y.Model → C.Context → V.Front → V.Runtime
+      stageScene = SC.scene
+      innerClosed callbackExited : V.Runtime
+      innerClosed = at secondRegistered peerFinished secondFreeFront
+      callbackExited = stageScene S.actionBodyExited true E.emptyExit secondRegistered peerFinished secondFreeFront
+
+      peerCloseEdge1 : V.advance (scoped (Scope.beginUnwind)) (at secondRegistered secondDoneContext secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q1 secondDoneContext) secondFreeFront)
+      peerCloseEdge1 = refl
+
+      peerCloseEdge2 : V.advance (scoped (Scope.requestCancel)) (at secondRegistered (atScope Fixtures.q1 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q2 secondDoneContext) secondFreeFront)
+      peerCloseEdge2 = refl
+
+      peerCloseEdge3 : V.advance (scoped (Scope.deliverCancel)) (at secondRegistered (atScope Fixtures.q2 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q3 secondDoneContext) secondFreeFront)
+      peerCloseEdge3 = refl
+
+      peerCloseEdge4 : V.advance (scoped (Scope.bodyExit Scope.churn)) (at secondRegistered (atScope Fixtures.q3 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q4 secondDoneContext) secondFreeFront)
+      peerCloseEdge4 = refl
+
+      peerCloseEdge5 : V.advance (scoped (Scope.publishResult Scope.churn)) (at secondRegistered (atScope Fixtures.q4 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q5 secondDoneContext) secondFreeFront)
+      peerCloseEdge5 = refl
+
+      peerCloseEdge6 : V.advance (scoped (Scope.join)) (at secondRegistered (atScope Fixtures.q5 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q6 secondDoneContext) secondFreeFront)
+      peerCloseEdge6 = refl
+
+      peerCloseEdge7 : V.advance (scoped (Scope.requestCancel)) (at secondRegistered (atScope Fixtures.q6 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q7 secondDoneContext) secondFreeFront)
+      peerCloseEdge7 = refl
+
+      peerCloseEdge8 : V.advance (scoped (Scope.deliverCancel)) (at secondRegistered (atScope Fixtures.q7 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q8 secondDoneContext) secondFreeFront)
+      peerCloseEdge8 = refl
+
+      peerCloseEdge9 : V.advance (peerStep (PS.run (GP.beginClose []))) (at secondRegistered (atScope Fixtures.q8 secondDoneContext) secondFreeFront) ≡ just (at secondRegistered peerGovClosing secondFreeFront)
+      peerCloseEdge9 = refl
+
+      peerCloseEdge10 : V.advance (peerStep (PS.run GP.finishClose)) (at secondRegistered peerGovClosing secondFreeFront) ≡ just (at secondRegistered peerGovClosed secondFreeFront)
+      peerCloseEdge10 = refl
+
+      peerCloseEdge11 : V.advance (scoped (Scope.bodyExit Scope.governor)) (at secondRegistered peerGovClosed secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q9 peerGovClosed) secondFreeFront)
+      peerCloseEdge11 = refl
+
+      peerCloseEdge12 : V.advance (scoped (Scope.publishResult Scope.governor)) (at secondRegistered (atScope Fixtures.q9 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q10 peerGovClosed) secondFreeFront)
+      peerCloseEdge12 = refl
+
+      peerCloseEdge13 : V.advance (scoped (Scope.join)) (at secondRegistered (atScope Fixtures.q10 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q11 peerGovClosed) secondFreeFront)
+      peerCloseEdge13 = refl
+
+      peerCloseEdge14 : V.advance (scoped (Scope.requestCancel)) (at secondRegistered (atScope Fixtures.q11 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q12 peerGovClosed) secondFreeFront)
+      peerCloseEdge14 = refl
+
+      peerCloseEdge15 : V.advance (scoped (Scope.deliverCancel)) (at secondRegistered (atScope Fixtures.q12 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q13 peerGovClosed) secondFreeFront)
+      peerCloseEdge15 = refl
+
+      peerCloseEdge16 : V.advance (scoped (Scope.bodyExit Scope.localRoot)) (at secondRegistered (atScope Fixtures.q13 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q14 peerGovClosed) secondFreeFront)
+      peerCloseEdge16 = refl
+
+      peerCloseEdge17 : V.advance (scoped (Scope.publishResult Scope.localRoot)) (at secondRegistered (atScope Fixtures.q14 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q15 peerGovClosed) secondFreeFront)
+      peerCloseEdge17 = refl
+
+      peerCloseEdge18 : V.advance (scoped (Scope.join)) (at secondRegistered (atScope Fixtures.q15 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q16 peerGovClosed) secondFreeFront)
+      peerCloseEdge18 = refl
+
+      peerCloseEdge19 : V.advance (scoped (Scope.requestCancel)) (at secondRegistered (atScope Fixtures.q16 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q17 peerGovClosed) secondFreeFront)
+      peerCloseEdge19 = refl
+
+      peerCloseEdge20 : V.advance (scoped (Scope.deliverCancel)) (at secondRegistered (atScope Fixtures.q17 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q18 peerGovClosed) secondFreeFront)
+      peerCloseEdge20 = refl
+
+      peerCloseEdge21 : V.advance (scoped (Scope.bodyExit Scope.ledger)) (at secondRegistered (atScope Fixtures.q18 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q19 peerGovClosed) secondFreeFront)
+      peerCloseEdge21 = refl
+
+      peerCloseEdge22 : V.advance (scoped (Scope.publishResult Scope.ledger)) (at secondRegistered (atScope Fixtures.q19 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q20 peerGovClosed) secondFreeFront)
+      peerCloseEdge22 = refl
+
+      peerCloseEdge23 : V.advance (scoped (Scope.join)) (at secondRegistered (atScope Fixtures.q20 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q21 peerGovClosed) secondFreeFront)
+      peerCloseEdge23 = refl
+
+      peerCloseEdge24 : V.advance (scoped (Scope.finishClose)) (at secondRegistered (atScope Fixtures.q21 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered (atScope Fixtures.q22 peerGovClosed) secondFreeFront)
+      peerCloseEdge24 = refl
+
+      peerCloseEdge25 : V.advance (peerStep (PS.beginMonitorClose (ident 50 ∷ []))) (at secondRegistered (atScope Fixtures.q22 peerGovClosed) secondFreeFront) ≡ just (at secondRegistered peerMonClosing secondFreeFront)
+      peerCloseEdge25 = refl
+
+      peerCloseEdge26 : V.advance (peerStep (PS.requestMonitorCancel)) (at secondRegistered peerMonClosing secondFreeFront) ≡ just (at secondRegistered peerMonRequested secondFreeFront)
+      peerCloseEdge26 = refl
+
+      peerCloseEdge27 : V.advance (peerStep (PS.deliverMonitorCancellation (errorId 172))) (at secondRegistered peerMonRequested secondFreeFront) ≡ just (at secondRegistered peerMonDelivered secondFreeFront)
+      peerCloseEdge27 = refl
+
+      peerCloseEdge28 : V.advance (peerStep (PS.monitorBodyUnwound (ident 50))) (at secondRegistered peerMonDelivered secondFreeFront) ≡ just (at secondRegistered peerMonUnwound secondFreeFront)
+      peerCloseEdge28 = refl
+
+      peerCloseEdge29 : V.advance (peerStep (PS.deregisterMonitor (ident 50))) (at secondRegistered peerMonUnwound secondFreeFront) ≡ just (at secondRegistered peerMonRemoved secondFreeFront)
+      peerCloseEdge29 = refl
+
+      peerCloseEdge30 : V.advance (peerStep (PS.publishMonitorResult (ident 50))) (at secondRegistered peerMonRemoved secondFreeFront) ≡ just (at secondRegistered peerMonPublished secondFreeFront)
+      peerCloseEdge30 = refl
+
+      peerCloseEdge31 : V.advance (peerStep (PS.joinMonitor)) (at secondRegistered peerMonPublished secondFreeFront) ≡ just (at secondRegistered peerMonJoined secondFreeFront)
+      peerCloseEdge31 = refl
+
+      peerCloseEdge32 : V.advance (peerStep (PS.finishMonitorClose)) (at secondRegistered peerMonJoined secondFreeFront) ≡ just (at secondRegistered peerFinished secondFreeFront)
+      peerCloseEdge32 = refl
+
+      peerCloseEdge33 : V.advance (V.dispatch (K.serverStep (E.run (S.scope S.returnAction)))) (at secondRegistered peerFinished secondFreeFront) ≡ just (callbackExited)
+      peerCloseEdge33 = refl
+
+      peerCloseActions : List V.Event
+      peerCloseActions = ((scoped (Scope.beginUnwind))) ∷ ((scoped (Scope.requestCancel))) ∷ ((scoped (Scope.deliverCancel))) ∷ ((scoped (Scope.bodyExit Scope.churn))) ∷ ((scoped (Scope.publishResult Scope.churn))) ∷ ((scoped (Scope.join))) ∷ ((scoped (Scope.requestCancel))) ∷ ((scoped (Scope.deliverCancel))) ∷ ((peerStep (PS.run (GP.beginClose [])))) ∷ ((peerStep (PS.run GP.finishClose))) ∷ ((scoped (Scope.bodyExit Scope.governor))) ∷ ((scoped (Scope.publishResult Scope.governor))) ∷ ((scoped (Scope.join))) ∷ ((scoped (Scope.requestCancel))) ∷ ((scoped (Scope.deliverCancel))) ∷ ((scoped (Scope.bodyExit Scope.localRoot))) ∷ ((scoped (Scope.publishResult Scope.localRoot))) ∷ ((scoped (Scope.join))) ∷ ((scoped (Scope.requestCancel))) ∷ ((scoped (Scope.deliverCancel))) ∷ ((scoped (Scope.bodyExit Scope.ledger))) ∷ ((scoped (Scope.publishResult Scope.ledger))) ∷ ((scoped (Scope.join))) ∷ ((scoped (Scope.finishClose))) ∷ ((peerStep (PS.beginMonitorClose (ident 50 ∷ [])))) ∷ ((peerStep (PS.requestMonitorCancel))) ∷ ((peerStep (PS.deliverMonitorCancellation (errorId 172)))) ∷ ((peerStep (PS.monitorBodyUnwound (ident 50)))) ∷ ((peerStep (PS.deregisterMonitor (ident 50)))) ∷ ((peerStep (PS.publishMonitorResult (ident 50)))) ∷ ((peerStep (PS.joinMonitor))) ∷ ((peerStep (PS.finishMonitorClose))) ∷ ((V.dispatch (K.serverStep (E.run (S.scope S.returnAction))))) ∷ []
+      abstract
+        peer-close-path : V.Runs liveRestart peerCloseActions callbackExited
+        peer-close-path = V.more peerCloseEdge1 (V.more peerCloseEdge2 (V.more peerCloseEdge3 (V.more peerCloseEdge4 (V.more peerCloseEdge5 (V.more peerCloseEdge6 (V.more peerCloseEdge7 (V.more peerCloseEdge8 (V.more peerCloseEdge9 (V.more peerCloseEdge10 (V.more peerCloseEdge11 (V.more peerCloseEdge12 (V.more peerCloseEdge13 (V.more peerCloseEdge14 (V.more peerCloseEdge15 (V.more peerCloseEdge16 (V.more peerCloseEdge17 (V.more peerCloseEdge18 (V.more peerCloseEdge19 (V.more peerCloseEdge20 (V.more peerCloseEdge21 (V.more peerCloseEdge22 (V.more peerCloseEdge23 (V.more peerCloseEdge24 (V.more peerCloseEdge25 (V.more peerCloseEdge26 (V.more peerCloseEdge27 (V.more peerCloseEdge28 (V.more peerCloseEdge29 (V.more peerCloseEdge30 (V.more peerCloseEdge31 (V.more peerCloseEdge32 (V.more peerCloseEdge33 (V.stop)))))))))))))))))))))))))))))))))
+        initialized-peer-close : V.Runs initial (livePrefixActions ++ peerCloseActions) callbackExited
+        initialized-peer-close = Facts.append-protocols initialized-live-restart peer-close-path
+      open import Data.List using (take)
+      peerBeforeCallbackActions : List V.Event
+      peerBeforeCallbackActions = take 32 peerCloseActions
+      abstract
+        restarted-before-callback : V.Runs initial (livePrefixActions ++ peerBeforeCallbackActions) innerClosed
+        restarted-before-callback = Facts.append-protocols initialized-live-restart (V.more peerCloseEdge1 (V.more peerCloseEdge2 (V.more peerCloseEdge3 (V.more peerCloseEdge4 (V.more peerCloseEdge5 (V.more peerCloseEdge6 (V.more peerCloseEdge7 (V.more peerCloseEdge8 (V.more peerCloseEdge9 (V.more peerCloseEdge10 (V.more peerCloseEdge11 (V.more peerCloseEdge12 (V.more peerCloseEdge13 (V.more peerCloseEdge14 (V.more peerCloseEdge15 (V.more peerCloseEdge16 (V.more peerCloseEdge17 (V.more peerCloseEdge18 (V.more peerCloseEdge19 (V.more peerCloseEdge20 (V.more peerCloseEdge21 (V.more peerCloseEdge22 (V.more peerCloseEdge23 (V.more peerCloseEdge24 (V.more peerCloseEdge25 (V.more peerCloseEdge26 (V.more peerCloseEdge27 (V.more peerCloseEdge28 (V.more peerCloseEdge29 (V.more peerCloseEdge30 (V.more peerCloseEdge31 (V.more peerCloseEdge32 (V.stop)))))))))))))))))))))))))))))))))
+      callback-certificates-restarted : BFacts.Certificates (V.base innerClosed)
+      callback-certificates-restarted = Facts.callback-from-protocols initializer restarted-before-callback peerCloseEdge33
+
+      -- IG exits independently of the two initiator generations. Its actual
+      -- nonempty snapshot and inactive flag are retained through CM cleanup.
+      inactiveModel exitedModel : Y.Model
+      inactiveModel = record secondRegistered { governor = Y.governor SC.dormant }
+      exitedModel = record secondRegistered { governor = Y.governor SC.flushingDone }
+
+      serverCloseEdge1 : V.advance (SC.serverEvent S.publishActionResult) (stageScene S.actionBodyExited true E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge1 = refl
+
+      serverCloseEdge2 : V.advance (SC.serverEvent S.selectActionWinner) (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.closingAccept true E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge2 = refl
+
+      serverCloseEdge3 : V.advance (SC.serverEvent S.requestAcceptCancel) (stageScene S.closingAccept true E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.acceptCancelRequested true E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge3 = refl
+
+      serverCloseEdge4 : V.advance (SC.serverEvent S.deliverAcceptAtWait) (stageScene S.acceptCancelRequested true E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.acceptCancelDelivered true E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge4 = refl
+
+      serverCloseEdge5 : V.advance (SC.serverEvent S.closeListener) (stageScene S.acceptCancelDelivered true E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.acceptBodyExited false E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge5 = refl
+
+      serverCloseEdge6 : V.advance (SC.serverEvent S.publishAcceptResult) (stageScene S.acceptBodyExited false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.acceptResultAvailable false E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge6 = refl
+
+      serverCloseEdge7 : V.advance (SC.serverEvent S.joinAccept) (stageScene S.acceptResultAvailable false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.acceptJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge7 = refl
+
+      serverCloseEdge8 : V.advance (SC.serverEvent S.traceStopped) (stageScene S.acceptJoined false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.serverStopped false E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge8 = refl
+
+      serverCloseEdge9 : V.advance (SC.serverEvent S.cancelJoinReturnedAction) (stageScene S.serverStopped false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge9 = refl
+
+      serverCloseEdge10 : V.advance (SC.serverEvent S.requestIGCancel) (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge10 = refl
+
+      serverCloseEdge11 : V.advance (SC.exitEvent (E.receive E.loopBoundary SC.igError)) (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.igCancelDelivered false SC.caughtIG secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge11 = refl
+
+      serverCloseEdge12 : V.advance (SC.serverEvent S.deactivateIG) (stageScene S.igCancelDelivered false SC.caughtIG secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)
+      serverCloseEdge12 = refl
+
+      serverCloseEdge13 : V.advance (SC.serverEvent S.flushIG) (stageScene S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge13 = refl
+
+      serverCloseEdge14 : V.advance (SC.exitEvent E.captureSnapshot) (stageScene S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge14 = refl
+
+      serverCloseEdge15 : V.advance (SC.exitEvent E.invokeFinal) (stageScene S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge15 = refl
+
+      serverCloseEdge16 : V.advance (SC.exitEvent E.returnFinal) (stageScene S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge16 = refl
+
+      serverCloseEdge17 : V.advance (SC.exitEvent E.finishFinal) (stageScene S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge17 = refl
+
+      serverCloseEdge18 : V.advance (SC.serverEvent S.publishIGResult) (stageScene S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge18 = refl
+
+      serverCloseEdge19 : V.advance (SC.serverEvent S.joinIG) (stageScene S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge19 = refl
+
+      serverCloseEdge20 : V.advance (SC.serverEvent S.beginCM) (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge20 = refl
+
+      cmEntry : V.Runtime
+      cmEntry = stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront
+      serverCloseActions : List V.Event
+      serverCloseActions = ((SC.serverEvent S.publishActionResult)) ∷ ((SC.serverEvent S.selectActionWinner)) ∷ ((SC.serverEvent S.requestAcceptCancel)) ∷ ((SC.serverEvent S.deliverAcceptAtWait)) ∷ ((SC.serverEvent S.closeListener)) ∷ ((SC.serverEvent S.publishAcceptResult)) ∷ ((SC.serverEvent S.joinAccept)) ∷ ((SC.serverEvent S.traceStopped)) ∷ ((SC.serverEvent S.cancelJoinReturnedAction)) ∷ ((SC.serverEvent S.requestIGCancel)) ∷ ((SC.exitEvent (E.receive E.loopBoundary SC.igError))) ∷ ((SC.serverEvent S.deactivateIG)) ∷ ((SC.serverEvent S.flushIG)) ∷ ((SC.exitEvent E.captureSnapshot)) ∷ ((SC.exitEvent E.invokeFinal)) ∷ ((SC.exitEvent E.returnFinal)) ∷ ((SC.exitEvent E.finishFinal)) ∷ ((SC.serverEvent S.publishIGResult)) ∷ ((SC.serverEvent S.joinIG)) ∷ ((SC.serverEvent S.beginCM)) ∷ []
+      abstract
+        server-close-path : V.Runs callbackExited serverCloseActions cmEntry
+        server-close-path = V.more serverCloseEdge1 (V.more serverCloseEdge2 (V.more serverCloseEdge3 (V.more serverCloseEdge4 (V.more serverCloseEdge5 (V.more serverCloseEdge6 (V.more serverCloseEdge7 (V.more serverCloseEdge8 (V.more serverCloseEdge9 (V.more serverCloseEdge10 (V.more serverCloseEdge11 (V.more serverCloseEdge12 (V.more serverCloseEdge13 (V.more serverCloseEdge14 (V.more serverCloseEdge15 (V.more serverCloseEdge16 (V.more serverCloseEdge17 (V.more serverCloseEdge18 (V.more serverCloseEdge19 (V.more serverCloseEdge20 (V.stop))))))))))))))))))))
+        initialized-restarted-cm-entry : V.Runs initial ((livePrefixActions ++ peerCloseActions) ++ serverCloseActions) cmEntry
+        initialized-restarted-cm-entry = Facts.append-protocols initialized-peer-close server-close-path
+      restarted-cm-entry-supply : Inv.ProtocolValid cmEntry
+      restarted-cm-entry-supply = Inv.from-initial-protocols initializer (All.[] , All.[]) initialized-restarted-cm-entry
+
+      -- This renderer changes group/coordinator metadata only; each change is
+      -- justified by its actual CM receipt or group transition below.
+      withGroupPhase : Group.Phase → V.Runtime → V.Runtime
+      withGroupPhase pc original = record original { base = record b
+        { server = record (K.server b) { base = record (E.base (K.server b))
+          { base = record n { base = record c { base = record d { base = record r
+            { base = record w { base = Group.setPhase A.child₀ pc (W.base w) } } } } } } } } }
+        where
+        b = V.base original
+        n = V.publication b
+        c = N.base n
+        d = N.C.base c
+        r = N.D.base d
+        w = N.R.base r
+      handlerAction : W.Action → V.Event
+      handlerAction a = StartTrace.unwindStep (N.R.run (N.D.X.run a))
+      groupAt : Group.Phase → Y.Model → V.Runtime
+      groupAt pc m = withGroupPhase pc (SC.coordinated SC.cmWait
+        (stageScene S.closingCM false SC.publishedIG m peerFinished secondFreeFront))
+      receipt1 receipt2 receipt3 receipt4 receipt5 : V.Runtime
+      receipt1 = SC.coordinated SC.cmCaptured cmEntry
+      receipt2 = SC.coordinated SC.cmRead cmEntry
+      receipt3 = SC.coordinated SC.cmSend cmEntry
+      receipt4 = withGroupPhase (Group.ownerAborting shutdownError) (SC.coordinated SC.cmAcknowledged cmEntry)
+      receipt5 = groupAt (Group.ownerAborting shutdownError) exitedModel
+
+      receiptEdge1 : V.advance (SC.coordinatorEvent Close.captureSnapshot) cmEntry ≡ just receipt1
+      receiptEdge1 = refl
+
+      receiptEdge2 : V.advance (SC.coordinatorEvent Close.readEntry) receipt1 ≡ just receipt2
+      receiptEdge2 = refl
+
+      receiptEdge3 : V.advance (SC.coordinatorEvent Close.requestCancellation) receipt2 ≡ just receipt3
+      receiptEdge3 = refl
+
+      receiptEdge4 : V.advance (handlerAction (W.deliverShutdownMux shutdownError)) receipt3 ≡ just receipt4
+      receiptEdge4 = refl
+
+      receiptEdge5 : V.advance (SC.coordinatorEvent Close.finishTraversal) receipt4 ≡ just receipt5
+      receiptEdge5 = refl
+
+      receiptActions : List V.Event
+      receiptActions = (SC.coordinatorEvent Close.captureSnapshot) ∷ (SC.coordinatorEvent Close.readEntry) ∷ (SC.coordinatorEvent Close.requestCancellation) ∷ (handlerAction (W.deliverShutdownMux shutdownError)) ∷ (SC.coordinatorEvent Close.finishTraversal) ∷ []
+      entryAndReceiptActions : List V.Event
+      entryAndReceiptActions = ((livePrefixActions ++ peerCloseActions) ++ serverCloseActions) ++ receiptActions
+      abstract
+        receipt-path : V.Runs cmEntry receiptActions receipt5
+        receipt-path = V.more receiptEdge1 (V.more receiptEdge2 (V.more receiptEdge3 (V.more receiptEdge4 (V.more receiptEdge5 (V.stop)))))
+        initialized-normal-monitor-receipt : V.Runs initial entryAndReceiptActions receipt5
+        initialized-normal-monitor-receipt = Facts.append-protocols initialized-restarted-cm-entry receipt-path
+
+      -- Both protocol generations and both infrastructure handles are still
+      -- registered. Cancellation never fabricates a typed protocol completion.
+      capturedPhysicalOrder : List JobId
+      capturedPhysicalOrder = ident 21 ∷ jid ∷ ident 1 ∷ ident 0 ∷ []
+      physical0 : Pool.State
+      physical0 = secondPhysicalRegisteredPool
+      physical1 : Pool.State
+      physical1 = record physical0 { phase = Pool.closing; snapshot = capturedPhysicalOrder; remaining = capturedPhysicalOrder }
+      physical2 : Pool.State
+      physical2 = record physical1 { phase = Pool.cancelPending (ident 21) }
+      physical3 : Pool.State
+      physical3 = record physical2 { phase = Pool.joinPending (ident 21); handles = put (ident 21) Pool.bodyUnwinding (Pool.handles physical2) }
+      physical4 : Pool.State
+      physical4 = record physical3 { handles = put (ident 21) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles physical3) }
+      physical5 : Pool.State
+      physical5 = record physical4 { handles = put (ident 21) (Pool.deregistered Pool.cancelledExit) (Pool.handles physical4); registered = ident 20 ∷ ident 1 ∷ ident 0 ∷ [] }
+      physical6 : Pool.State
+      physical6 = record physical5 { handles = put (ident 21) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles physical5) }
+      physical7 : Pool.State
+      physical7 = record physical6 { phase = Pool.closing; remaining = ident 20 ∷ ident 1 ∷ ident 0 ∷ []; joined = ident 21 ∷ [] }
+      physical8 : Pool.State
+      physical8 = record physical7 { phase = Pool.cancelPending (ident 20) }
+      physical9 : Pool.State
+      physical9 = record physical8 { phase = Pool.joinPending (ident 20); handles = put (ident 20) Pool.bodyUnwinding (Pool.handles physical8) }
+      physical10 : Pool.State
+      physical10 = record physical9 { handles = put (ident 20) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles physical9) }
+      physical11 : Pool.State
+      physical11 = record physical10 { handles = put (ident 20) (Pool.deregistered Pool.cancelledExit) (Pool.handles physical10); registered = ident 1 ∷ ident 0 ∷ [] }
+      physical12 : Pool.State
+      physical12 = record physical11 { handles = put (ident 20) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles physical11) }
+      physical13 : Pool.State
+      physical13 = record physical12 { phase = Pool.closing; remaining = ident 1 ∷ ident 0 ∷ []; joined = ident 21 ∷ ident 20 ∷ [] }
+      physical14 : Pool.State
+      physical14 = record physical13 { phase = Pool.cancelPending (ident 1) }
+      physical15 : Pool.State
+      physical15 = record physical14 { phase = Pool.joinPending (ident 1); handles = put (ident 1) Pool.bodyUnwinding (Pool.handles physical14) }
+      physical16 : Pool.State
+      physical16 = record physical15 { handles = put (ident 1) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles physical15) }
+      physical17 : Pool.State
+      physical17 = record physical16 { handles = put (ident 1) (Pool.deregistered Pool.cancelledExit) (Pool.handles physical16); registered = ident 0 ∷ [] }
+      physical18 : Pool.State
+      physical18 = record physical17 { handles = put (ident 1) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles physical17) }
+      physical19 : Pool.State
+      physical19 = record physical18 { phase = Pool.closing; remaining = ident 0 ∷ []; joined = ident 21 ∷ ident 20 ∷ ident 1 ∷ [] }
+      physical20 : Pool.State
+      physical20 = record physical19 { phase = Pool.cancelPending (ident 0) }
+      physical21 : Pool.State
+      physical21 = record physical20 { phase = Pool.joinPending (ident 0); handles = put (ident 0) Pool.bodyUnwinding (Pool.handles physical20) }
+      physical22 : Pool.State
+      physical22 = record physical21 { handles = put (ident 0) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles physical21) }
+      physical23 : Pool.State
+      physical23 = record physical22 { handles = put (ident 0) (Pool.deregistered Pool.cancelledExit) (Pool.handles physical22); registered = [] }
+      physical24 : Pool.State
+      physical24 = record physical23 { handles = put (ident 0) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles physical23) }
+      physical25 : Pool.State
+      physical25 = record physical24 { phase = Pool.closing; remaining = []; joined = ident 21 ∷ ident 20 ∷ ident 1 ∷ ident 0 ∷ [] }
+      physical26 : Pool.State
+      physical26 = record physical25 { phase = Pool.closedPool }
+
+      poolCloseEdge1 : V.advance (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder)) (receipt5) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical1 exitedModel))
+      poolCloseEdge1 = refl
+
+      poolCloseEdge2 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical1 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel))
+      poolCloseEdge2 = refl
+
+      poolCloseEdge3 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel))
+      poolCloseEdge3 = refl
+
+      poolCloseEdge4 : V.advance (shutdownStep (Group.finishChildUnwind (ident 21))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel))
+      poolCloseEdge4 = refl
+
+      poolCloseEdge5 : V.advance (physicalStep (P.deregisterProtocol (ident 21))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel))
+      poolCloseEdge5 = refl
+
+      poolCloseEdge6 : V.advance (physicalStep (P.asyncProtocolResult (ident 21))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel))
+      poolCloseEdge6 = refl
+
+      poolCloseEdge7 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel))
+      poolCloseEdge7 = refl
+
+      poolCloseEdge8 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel))
+      poolCloseEdge8 = refl
+
+      poolCloseEdge9 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel))
+      poolCloseEdge9 = refl
+
+      poolCloseEdge10 : V.advance (shutdownStep (Group.finishChildUnwind (ident 20))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel))
+      poolCloseEdge10 = refl
+
+      poolCloseEdge11 : V.advance (physicalStep (P.deregisterProtocol (ident 20))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel))
+      poolCloseEdge11 = refl
+
+      poolCloseEdge12 : V.advance (physicalStep (P.asyncProtocolResult (ident 20))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel))
+      poolCloseEdge12 = refl
+
+      poolCloseEdge13 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel))
+      poolCloseEdge13 = refl
+
+      poolCloseEdge14 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel))
+      poolCloseEdge14 = refl
+
+      poolCloseEdge15 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel))
+      poolCloseEdge15 = refl
+
+      poolCloseEdge16 : V.advance (shutdownStep (Group.finishChildUnwind (ident 1))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel))
+      poolCloseEdge16 = refl
+
+      poolCloseEdge17 : V.advance (physicalStep (P.deregisterInfra A.child₀ Types.demuxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel))
+      poolCloseEdge17 = refl
+
+      poolCloseEdge18 : V.advance (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel))
+      poolCloseEdge18 = refl
+
+      poolCloseEdge19 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel))
+      poolCloseEdge19 = refl
+
+      poolCloseEdge20 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel))
+      poolCloseEdge20 = refl
+
+      poolCloseEdge21 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel))
+      poolCloseEdge21 = refl
+
+      poolCloseEdge22 : V.advance (shutdownStep (Group.finishChildUnwind (ident 0))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel))
+      poolCloseEdge22 = refl
+
+      poolCloseEdge23 : V.advance (physicalStep (P.deregisterInfra A.child₀ Types.muxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel))
+      poolCloseEdge23 = refl
+
+      poolCloseEdge24 : V.advance (physicalStep (P.asyncInfraResult A.child₀ Types.muxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel))
+      poolCloseEdge24 = refl
+
+      poolCloseEdge25 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel))
+      poolCloseEdge25 = refl
+
+      poolCloseEdge26 : V.advance (shutdownStep (Group.finishWholeClose A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel)) ≡ just (groupAt (Group.wholeClosed (Group.asyncExit shutdownError)) (withPool physical26 exitedModel))
+      poolCloseEdge26 = refl
+
+      wholePoolActions : List V.Event
+      wholePoolActions = (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 21))) ∷ (physicalStep (P.deregisterProtocol (ident 21))) ∷ (physicalStep (P.asyncProtocolResult (ident 21))) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 20))) ∷ (physicalStep (P.deregisterProtocol (ident 20))) ∷ (physicalStep (P.asyncProtocolResult (ident 20))) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 1))) ∷ (physicalStep (P.deregisterInfra A.child₀ Types.demuxer)) ∷ (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 0))) ∷ (physicalStep (P.deregisterInfra A.child₀ Types.muxer)) ∷ (physicalStep (P.asyncInfraResult A.child₀ Types.muxer)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.finishWholeClose A.child₀)) ∷ []
+      wholePoolClosed : V.Runtime
+      wholePoolClosed = groupAt (Group.wholeClosed (Group.asyncExit shutdownError)) (withPool physical26 exitedModel)
+      physicalCloseActions : List V.Event
+      physicalCloseActions = entryAndReceiptActions ++ wholePoolActions
+      abstract
+        whole-pool-path : V.Runs receipt5 wholePoolActions wholePoolClosed
+        whole-pool-path = V.more poolCloseEdge1 (V.more poolCloseEdge2 (V.more poolCloseEdge3 (V.more poolCloseEdge4 (V.more poolCloseEdge5 (V.more poolCloseEdge6 (V.more poolCloseEdge7 (V.more poolCloseEdge8 (V.more poolCloseEdge9 (V.more poolCloseEdge10 (V.more poolCloseEdge11 (V.more poolCloseEdge12 (V.more poolCloseEdge13 (V.more poolCloseEdge14 (V.more poolCloseEdge15 (V.more poolCloseEdge16 (V.more poolCloseEdge17 (V.more poolCloseEdge18 (V.more poolCloseEdge19 (V.more poolCloseEdge20 (V.more poolCloseEdge21 (V.more poolCloseEdge22 (V.more poolCloseEdge23 (V.more poolCloseEdge24 (V.more poolCloseEdge25 (V.more poolCloseEdge26 (V.stop))))))))))))))))))))))))))
+        initialized-restarted-pool-close : V.Runs initial physicalCloseActions wholePoolClosed
+        initialized-restarted-pool-close = Facts.append-protocols initialized-normal-monitor-receipt whole-pool-path
+
+      -- Failed/Dead is after every captured Async result and join. IG has
+      -- already exited, so the tracer takes its real false-active branch.
+      failedAfterClose deadAfterClose sampledAfterClose : Y.Model
+      failedAfterClose = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError }) [] (withPool physical26 exitedModel)
+      deadAfterClose = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.readActive Mux.muxStopped }) [] (withPool physical26 exitedModel)
+      sampledAfterClose = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.commitTrace false Mux.muxStopped }) [] (withPool physical26 exitedModel)
+      failedStatus deadInvoked deadSampled deadCommitted readyForBuffer : V.Runtime
+      failedStatus = groupAt (Group.asyncFailureWritten shutdownError) failedAfterClose
+      deadInvoked = groupAt (Group.asyncDeadTracing shutdownError) deadAfterClose
+      deadSampled = groupAt (Group.asyncDeadTracing shutdownError) sampledAfterClose
+      deadCommitted = groupAt (Group.asyncDeadTracing shutdownError) failedAfterClose
+      readyForBuffer = groupAt (Group.scopeDone (Group.asyncExit shutdownError)) failedAfterClose
+
+      asyncCatchEdge1 : V.advance (shutdownStep (Group.writeAsyncFailure A.child₀)) wholePoolClosed ≡ just failedStatus
+      asyncCatchEdge1 = refl
+
+      asyncCatchEdge2 : V.advance (shutdownStep (Group.beginAsyncDead A.child₀)) failedStatus ≡ just deadInvoked
+      asyncCatchEdge2 = refl
+
+      asyncCatchEdge3 : V.advance (shutdownStep (Group.sampleAsyncTracer A.child₀)) deadInvoked ≡ just deadSampled
+      asyncCatchEdge3 = refl
+
+      asyncCatchEdge4 : V.advance (shutdownStep (Group.commitAsyncTracer A.child₀)) deadSampled ≡ just deadCommitted
+      asyncCatchEdge4 = refl
+
+      asyncCatchEdge5 : V.advance (shutdownStep (Group.finishAsyncDead A.child₀)) deadCommitted ≡ just readyForBuffer
+      asyncCatchEdge5 = refl
+
+      normalCatchActions : List V.Event
+      normalCatchActions = (shutdownStep (Group.writeAsyncFailure A.child₀)) ∷ (shutdownStep (Group.beginAsyncDead A.child₀)) ∷ (shutdownStep (Group.sampleAsyncTracer A.child₀)) ∷ (shutdownStep (Group.commitAsyncTracer A.child₀)) ∷ (shutdownStep (Group.finishAsyncDead A.child₀)) ∷ []
+      catchCompleteActions : List V.Event
+      catchCompleteActions = physicalCloseActions ++ normalCatchActions
+      abstract
+        normal-catch-path : V.Runs wholePoolClosed normalCatchActions readyForBuffer
+        normal-catch-path = V.more asyncCatchEdge1 (V.more asyncCatchEdge2 (V.more asyncCatchEdge3 (V.more asyncCatchEdge4 (V.more asyncCatchEdge5 (V.stop)))))
+        initialized-restarted-catch : V.Runs initial catchCompleteActions readyForBuffer
+        initialized-restarted-catch = Facts.append-protocols initialized-restarted-pool-close normal-catch-path
+
+
+      -- The captured handler's finally is after buffer-provider unwind. Its
+      -- cleanup completion is still distinct from physical Async publication.
+      cleanupWorld0 cleanupWorld1 cleanupWorld2 cleanupWorld3 cleanupWorld4 cleanupWorld5 cleanupWorld6 : Shared.State
+      cleanupWorld0 = Y.world failedAfterClose
+      capturedCleanupLease : Shared.Lease
+      capturedCleanupLease = Shared.lease A.child₀ F.binding
+      cleanupWorld1 = record cleanupWorld0 { cleanups = put A.child₀ Shared.cleanupAcquire (Shared.cleanups cleanupWorld0) }
+      cleanupWorld2 = record cleanupWorld1
+        { cm = record (Shared.cm cleanupWorld1) { mapCell = Shared.taken A.child₀ }
+        ; cleanups = put A.child₀ (Shared.cleanupSelect capturedCleanupLease) (Shared.cleanups cleanupWorld1) }
+      cleanupWorld3 = record cleanupWorld2
+        { cm = record (Shared.cm cleanupWorld2)
+          { entries = put (ident 0) (Shared.terminated nothing) (Shared.entries (Shared.cm cleanupWorld2)) }
+        ; cleanups = put A.child₀ (Shared.cleanupClose capturedCleanupLease [] Shared.countImmediately) (Shared.cleanups cleanupWorld2) }
+      cleanupWorld4 = record cleanupWorld3
+        { sockets = put (Shared.handlerSocket I.captured) Shared.closed (Shared.sockets cleanupWorld3)
+        ; cleanups = put A.child₀ (Shared.cleanupPublish capturedCleanupLease [] Shared.countImmediately) (Shared.cleanups cleanupWorld3) }
+      cleanupWorld5 = record cleanupWorld4
+        { cm = record (Shared.cm cleanupWorld4) { mapCell = Shared.full [] }
+        ; cleanups = put A.child₀ (Shared.cleanupCount Shared.cleanupNormal) (Shared.cleanups cleanupWorld4) }
+      cleanupWorld6 = record cleanupWorld5
+        { cleanups = put A.child₀ (Shared.cleanupDone Shared.cleanupNormal) (Shared.cleanups cleanupWorld5) }
+      handlerAt : W.Phase → Shared.State → V.Runtime
+      handlerAt pc world = SC.Completion.withHandlerExit pc
+        (groupAt (Group.scopeDone (Group.asyncExit shutdownError)) (record failedAfterClose { world = world }))
+      handler1 handler2 handler3 handler4 handler5 handler6 handler7 handler8 handler9 handler10 : V.Runtime
+      handler1 = handlerAt (W.bufferScope (Group.asyncExit shutdownError)) cleanupWorld0
+      handler2 = handlerAt (W.bodyExited (W.asyncException shutdownError)) cleanupWorld0
+      handler3 = handlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld1
+      handler4 = handlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld2
+      handler5 = handlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld3
+      handler6 = handlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld4
+      handler7 = handlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld5
+      handler8 = handlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld6
+      handler9 = handlerAt (W.cleanupComplete (W.asyncException shutdownError) Shared.cleanupNormal) cleanupWorld6
+      handler10 = handlerAt (W.resultAvailable (W.asyncException shutdownError) Shared.cleanupNormal) cleanupWorld6
+      finalCM returnedServer : V.Runtime
+      finalCM = SC.coordinated (Close.shutdownState Close.closed (ident 0 ∷ []) [] (A.child₀ ∷ [])) handler10
+      returnedServer = record finalCM { base = record (V.base finalCM)
+        { server = record (K.server (V.base finalCM))
+          { base = record (E.base (K.server (V.base finalCM))) { stage = S.serverReturned } } } }
+
+      handlerFinishEdge1 : V.advance (handlerAction (W.beginExit A.child₀)) readyForBuffer ≡ just handler1
+      handlerFinishEdge1 = refl
+
+      handlerFinishEdge2 : V.advance (handlerAction (W.observeBufferReturn A.child₀)) handler1 ≡ just handler2
+      handlerFinishEdge2 = refl
+
+      handlerFinishEdge3 : V.advance (handlerAction (W.enterFinalizer A.child₀)) handler2 ≡ just handler3
+      handlerFinishEdge3 = refl
+
+      handlerFinishEdge4 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap)) handler3 ≡ just handler4
+      handlerFinishEdge4 = refl
+
+      handlerFinishEdge5 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) handler4 ≡ just handler5
+      handlerFinishEdge5 = refl
+
+      handlerFinishEdge6 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) handler5 ≡ just handler6
+      handlerFinishEdge6 = refl
+
+      handlerFinishEdge7 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap)) handler6 ≡ just handler7
+      handlerFinishEdge7 = refl
+
+      handlerFinishEdge8 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters)) handler7 ≡ just handler8
+      handlerFinishEdge8 = refl
+
+      handlerFinishEdge9 : V.advance (handlerAction (W.finishCleanup A.child₀)) handler8 ≡ just handler9
+      handlerFinishEdge9 = refl
+
+      handlerFinishEdge10 : V.advance (handlerAction (W.publishAsyncResult A.child₀)) handler9 ≡ just handler10
+      handlerFinishEdge10 = refl
+
+      handlerFinishEdge11 : V.advance (SC.coordinatorEvent Close.finishClose) handler10 ≡ just finalCM
+      handlerFinishEdge11 = refl
+
+      handlerFinishEdge12 : V.advance (SC.serverEvent S.finishServer) finalCM ≡ just returnedServer
+      handlerFinishEdge12 = refl
+
+      handlerFinishActions : List V.Event
+      handlerFinishActions = (handlerAction (W.beginExit A.child₀)) ∷ (handlerAction (W.observeBufferReturn A.child₀)) ∷ (handlerAction (W.enterFinalizer A.child₀)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters)) ∷ (handlerAction (W.finishCleanup A.child₀)) ∷ (handlerAction (W.publishAsyncResult A.child₀)) ∷ (SC.coordinatorEvent Close.finishClose) ∷ (SC.serverEvent S.finishServer) ∷ []
+      restartedShutdownActions : List V.Event
+      restartedShutdownActions = catchCompleteActions ++ handlerFinishActions
+      abstract
+        handler-finish-path : V.Runs readyForBuffer handlerFinishActions returnedServer
+        handler-finish-path = V.more handlerFinishEdge1 (V.more handlerFinishEdge2 (V.more handlerFinishEdge3 (V.more handlerFinishEdge4 (V.more handlerFinishEdge5 (V.more handlerFinishEdge6 (V.more handlerFinishEdge7 (V.more handlerFinishEdge8 (V.more handlerFinishEdge9 (V.more handlerFinishEdge10 (V.more handlerFinishEdge11 (V.more handlerFinishEdge12 (V.stop))))))))))))
+        initialized-restarted-server-return : V.Runs initial restartedShutdownActions returnedServer
+        initialized-restarted-server-return = Facts.append-protocols initialized-restarted-catch handler-finish-path
+      restarted-shutdown-supply : Inv.ProtocolValid returnedServer
+      restarted-shutdown-supply = Inv.from-initial-protocols initializer (All.[] , All.[]) initialized-restarted-server-return
+
+      -- Retain the actual physical result table at CM's successful wait.
+      handlerStateOf : V.Runtime → W.State
+      handlerStateOf s = N.R.base (N.raw (V.publication (V.base s)))
+      captured-handler-wait : HandlerFacts.PhysicalWait (handlerStateOf handler10) (handlerStateOf finalCM)
+      captured-handler-wait = HandlerFacts.physical-wait-observation (handlerStateOf handler10) refl
+
+
+      -- Results certify the actual nonempty physical snapshot. Registry
+      -- absence or a local completion cell is not used as an Async result.
+      import ConnectionManagement.Properties.JobPoolCloseKernel as PoolProof
+      private
+        module PhysicalFacts = PoolProof Types.TypedResult true
+      closedPhysicalPool : Pool.State
+      closedPhysicalPool = P.poolAt A.child₀ (V.physical (V.base wholePoolClosed))
+      four-actual-results : All.All (PhysicalFacts.Terminal closedPhysicalPool) (Pool.snapshot closedPhysicalPool)
+      four-actual-results = (Pool.cancelledExit , refl) All.∷ (Pool.cancelledExit , refl) All.∷
+        (Pool.cancelledExit , refl) All.∷ (Pool.cancelledExit , refl) All.∷ All.[]
+      actual-four-handle-snapshot : Pool.snapshot closedPhysicalPool ≡ capturedPhysicalOrder
+      actual-four-handle-snapshot = refl
+      actual-four-handle-joins : Pool.joined closedPhysicalPool ≡ capturedPhysicalOrder
+      actual-four-handle-joins = refl
+      body-live-at-cm-entry : lookup (ident 21) (Pool.handles (P.poolAt A.child₀ (V.physical (V.base cmEntry)))) ≡ just Pool.bodyRunning
+      body-live-at-cm-entry = refl
+      old-body-unpublished-at-cm-entry : lookup jid (Pool.handles (P.poolAt A.child₀ (V.physical (V.base cmEntry)))) ≡ just Pool.bodyRunning
+      old-body-unpublished-at-cm-entry = refl
+      no-start-tracer-fault-at-receipt : lookup A.child₀ (N.R.faults (N.raw (V.publication (V.base receipt5)))) ≡ nothing
+      no-start-tracer-fault-at-receipt = refl
+      receipt-is-not-physical-close : Pool.phase (P.poolAt A.child₀ (V.physical (V.base receipt5))) ≡ Pool.openPool
+      receipt-is-not-physical-close = refl
+      no-raw-cm-acknowledgement : V.advance (SC.coordinatorEvent Close.acknowledgeDelivery) receipt3 ≡ nothing
+      no-raw-cm-acknowledgement = refl
+      no-cm-before-callback-exit : V.advance (SC.coordinatorEvent Close.captureSnapshot) liveRestart ≡ nothing
+      no-cm-before-callback-exit = refl
+      no-failed-before-physical-close : V.advance (shutdownStep (Group.writeAsyncFailure A.child₀))
+        (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel)) ≡ nothing
+      no-failed-before-physical-close = refl
+      no-early-physical-join : V.advance (shutdownStep (Group.joinWhole A.child₀))
+        (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel)) ≡ nothing
+      no-early-physical-join = refl
+      cancelled-new-body-cannot-commit : V.advance (V.commitError (ident 21) err)
+        (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel)) ≡ nothing
+      cancelled-new-body-cannot-commit = refl
+      cancelled-old-body-cannot-return : V.advance (physicalStep (P.returnProtocol jid))
+        (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel)) ≡ nothing
+      cancelled-old-body-cannot-return = refl
+      cancelled-old-body-cannot-publish : V.advance (physicalStep (P.publishProtocol jid)) wholePoolClosed ≡ nothing
+      cancelled-old-body-cannot-publish = refl
+      no-typed-completion-from-cancellation : Pool.completions closedPhysicalPool ≡ []
+      no-typed-completion-from-cancellation = refl
+      old-clean-cell-survives : V.observe rid returnedServer ≡ just (V.localResult clean)
+      old-clean-cell-survives = refl
+      current-cell-remains-empty : lookup (ident 21) (V.calls (V.front returnedServer)) ≡
+        just (record requested { thread = just (ident 21) })
+      current-cell-remains-empty = refl
+      current-cell-observes-shutdown : V.observe (ident 21) returnedServer ≡ just (V.shutdownResult (Mux.failed shutdownError))
+      current-cell-observes-shutdown = refl
+      shutdown-wakes-current-before-handler-result : V.observe (ident 21) readyForBuffer ≡ just (V.shutdownResult (Mux.failed shutdownError))
+      shutdown-wakes-current-before-handler-result = refl
+      still-no-handler-result-after-catch : W.resultReady A.child₀ (handlerStateOf readyForBuffer) ≡ false
+      still-no-handler-result-after-catch = refl
+      still-no-handler-result-after-cleanup : W.resultReady A.child₀ (handlerStateOf handler9) ≡ false
+      still-no-handler-result-after-cleanup = refl
+      cm-waits-for-actual-handler-result : V.advance (SC.coordinatorEvent Close.finishClose) handler9 ≡ nothing
+      cm-waits-for-actual-handler-result = refl
+      no-early-handler-result-publication : V.advance (handlerAction (W.publishAsyncResult A.child₀)) handler8 ≡ nothing
+      no-early-handler-result-publication = refl
+      actual-handler-async-outcome : W.resultOf A.child₀ (handlerStateOf returnedServer) ≡ just (W.asyncException shutdownError)
+      actual-handler-async-outcome = refl
+      actual-returned-server : S.stage (E.base (K.server (V.base returnedServer))) ≡ S.serverReturned
+      actual-returned-server = refl
+      actual-closed-cm : Close.phase (W.shutdown (handlerStateOf returnedServer)) ≡ Close.closed
+      actual-closed-cm = refl
+      captured-cm-handler-retained : Close.collected (W.shutdown (handlerStateOf returnedServer)) ≡ A.child₀ ∷ []
+      captured-cm-handler-retained = refl
+      captured-map-is-purged : Shared.mapCell (Shared.cm (Machine.world (O.core (V.sourceOf returnedServer)))) ≡ Shared.full []
+      captured-map-is-purged = refl
+      captured-entry-is-terminated : lookup (ident 0) (Shared.entries (Shared.cm (Machine.world (O.core (V.sourceOf returnedServer))))) ≡ just (Shared.terminated nothing)
+      captured-entry-is-terminated = refl
+      captured-socket-is-closed : lookup (Shared.handlerSocket I.captured) (Shared.sockets (Machine.world (O.core (V.sourceOf returnedServer)))) ≡ just Shared.closed
+      captured-socket-is-closed = refl
+      no-time-wait-on-outbound-dup : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.timeWaitElapsed)) handler7 ≡ nothing
+      no-time-wait-on-outbound-dup = refl
+      actual-ig-is-inactive : IG.active (IG.execution (Machine.inboundGovernor (O.core (V.sourceOf returnedServer)))) ≡ false
+      actual-ig-is-inactive = refl
+      actual-nonempty-ig-exit : E.snapshot (E.exit (K.server (V.base returnedServer))) ≡ SC.exitRows
+      actual-nonempty-ig-exit = refl
+      inactive-dead-adds-no-notification : Shared.inboundInfo (Machine.world (O.core (V.sourceOf returnedServer))) ≡ []
+      inactive-dead-adds-no-notification = refl
+      inactive-dead-retains-mux-counters : P.muxAt (ident 0) (V.physical (V.base returnedServer)) ≡ just (record Y.m1 { status = Mux.failed shutdownError })
+      inactive-dead-retains-mux-counters = refl
+      published-activation-completion-retained : C.SubContext.completions (C.subsystem (K.context (V.base returnedServer))) ≡ activationCompletion ∷ []
+      published-activation-completion-retained = refl
+      no-monitor-read-after-scope-exit : V.advance (V.pollResults (ident 0) (ident 50)) returnedServer ≡ nothing
+      no-monitor-read-after-scope-exit = refl
+      unjoined-raw-admission : lookup A.w₁ (S.workers (E.base (K.server (V.base returnedServer)))) ≡ just (S.rawWorker F.r₁ S.calling 0)
+      unjoined-raw-admission = refl
+      not-all-raw-admissions-finished : S.allResults (S.workers (E.base (K.server (V.base returnedServer)))) ≡ false
+      not-all-raw-admissions-finished = refl
+      open import Data.Empty using (⊥)
+      -- This actual initialized Server return does not weaken the SI5 target.
+      restarted-counterexample-to-all-worker-completion :
+        (∀ {t} (as : List V.Event) → V.Runs initial as t →
+          S.stage (E.base (K.server (V.base t))) ≡ S.serverReturned →
+          S.allResults (S.workers (E.base (K.server (V.base t)))) ≡ true) → ⊥
+      restarted-counterexample-to-all-worker-completion claim =
+        SC.Completion.false-not-true (claim restartedShutdownActions initialized-restarted-server-return actual-returned-server)
+
+      -- A captured clean body can publish normally while pool close waits for
+      -- another generation. Its immutable snapshot membership survives removal.
+      module PublicationRace where
+        racePool0 : Pool.State
+        racePool0 = physical1
+        racePool1 : Pool.State
+        racePool1 = record racePool0 { handles = put jid (Pool.bodyReturned payload) (Pool.handles racePool0) }
+        racePool2 : Pool.State
+        racePool2 = record racePool1 { handles = put jid (Pool.deregisterPending Pool.normalExit) (Pool.handles racePool1); completions = payload ∷ [] }
+        racePool3 : Pool.State
+        racePool3 = record racePool2 { handles = put jid (Pool.deregistered Pool.normalExit) (Pool.handles racePool2); registered = ident 21 ∷ ident 1 ∷ ident 0 ∷ [] }
+        racePool4 : Pool.State
+        racePool4 = record racePool3 { handles = put jid (Pool.resultAvailable Pool.normalExit) (Pool.handles racePool3) }
+        racePool5 : Pool.State
+        racePool5 = record racePool4 { phase = Pool.cancelPending (ident 21) }
+        racePool6 : Pool.State
+        racePool6 = record racePool5 { phase = Pool.joinPending (ident 21); handles = put (ident 21) Pool.bodyUnwinding (Pool.handles racePool5) }
+        racePool7 : Pool.State
+        racePool7 = record racePool6 { handles = put (ident 21) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles racePool6) }
+        racePool8 : Pool.State
+        racePool8 = record racePool7 { handles = put (ident 21) (Pool.deregistered Pool.cancelledExit) (Pool.handles racePool7); registered = ident 1 ∷ ident 0 ∷ [] }
+        racePool9 : Pool.State
+        racePool9 = record racePool8 { handles = put (ident 21) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles racePool8) }
+        racePool10 : Pool.State
+        racePool10 = record racePool9 { phase = Pool.closing; remaining = ident 20 ∷ ident 1 ∷ ident 0 ∷ []; joined = ident 21 ∷ [] }
+        racePool11 : Pool.State
+        racePool11 = record racePool10 { phase = Pool.joinPending (ident 20) }
+        racePool12 : Pool.State
+        racePool12 = record racePool11 { phase = Pool.closing; remaining = ident 1 ∷ ident 0 ∷ []; joined = ident 21 ∷ ident 20 ∷ [] }
+        racePool13 : Pool.State
+        racePool13 = record racePool12 { phase = Pool.cancelPending (ident 1) }
+        racePool14 : Pool.State
+        racePool14 = record racePool13 { phase = Pool.joinPending (ident 1); handles = put (ident 1) Pool.bodyUnwinding (Pool.handles racePool13) }
+        racePool15 : Pool.State
+        racePool15 = record racePool14 { handles = put (ident 1) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles racePool14) }
+        racePool16 : Pool.State
+        racePool16 = record racePool15 { handles = put (ident 1) (Pool.deregistered Pool.cancelledExit) (Pool.handles racePool15); registered = ident 0 ∷ [] }
+        racePool17 : Pool.State
+        racePool17 = record racePool16 { handles = put (ident 1) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles racePool16) }
+        racePool18 : Pool.State
+        racePool18 = record racePool17 { phase = Pool.closing; remaining = ident 0 ∷ []; joined = ident 21 ∷ ident 20 ∷ ident 1 ∷ [] }
+        racePool19 : Pool.State
+        racePool19 = record racePool18 { phase = Pool.cancelPending (ident 0) }
+        racePool20 : Pool.State
+        racePool20 = record racePool19 { phase = Pool.joinPending (ident 0); handles = put (ident 0) Pool.bodyUnwinding (Pool.handles racePool19) }
+        racePool21 : Pool.State
+        racePool21 = record racePool20 { handles = put (ident 0) (Pool.deregisterPending Pool.cancelledExit) (Pool.handles racePool20) }
+        racePool22 : Pool.State
+        racePool22 = record racePool21 { handles = put (ident 0) (Pool.deregistered Pool.cancelledExit) (Pool.handles racePool21); registered = [] }
+        racePool23 : Pool.State
+        racePool23 = record racePool22 { handles = put (ident 0) (Pool.resultAvailable Pool.cancelledExit) (Pool.handles racePool22) }
+        racePool24 : Pool.State
+        racePool24 = record racePool23 { phase = Pool.closing; remaining = []; joined = ident 21 ∷ ident 20 ∷ ident 1 ∷ ident 0 ∷ [] }
+        racePool25 : Pool.State
+        racePool25 = record racePool24 { phase = Pool.closedPool }
+        raceClosed : V.Runtime
+        raceClosed = groupAt (Group.wholeClosed (Group.asyncExit shutdownError)) (withPool racePool25 exitedModel)
+
+        raceEdge1 : V.advance (physicalStep (P.returnProtocol jid)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool0 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool1 exitedModel))
+        raceEdge1 = refl
+
+        raceEdge2 : V.advance (physicalStep (P.publishProtocol jid)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool1 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool2 exitedModel))
+        raceEdge2 = refl
+
+        raceEdge3 : V.advance (physicalStep (P.deregisterProtocol jid)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool2 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool3 exitedModel))
+        raceEdge3 = refl
+
+        raceEdge4 : V.advance (physicalStep (P.asyncProtocolResult jid)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool3 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool4 exitedModel))
+        raceEdge4 = refl
+
+        raceEdge5 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool4 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool5 exitedModel))
+        raceEdge5 = refl
+
+        raceEdge6 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool5 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool6 exitedModel))
+        raceEdge6 = refl
+
+        raceEdge7 : V.advance (shutdownStep (Group.finishChildUnwind (ident 21))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool6 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool7 exitedModel))
+        raceEdge7 = refl
+
+        raceEdge8 : V.advance (physicalStep (P.deregisterProtocol (ident 21))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool7 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool8 exitedModel))
+        raceEdge8 = refl
+
+        raceEdge9 : V.advance (physicalStep (P.asyncProtocolResult (ident 21))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool8 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool9 exitedModel))
+        raceEdge9 = refl
+
+        raceEdge10 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool9 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool10 exitedModel))
+        raceEdge10 = refl
+
+        raceEdge11 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool10 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool11 exitedModel))
+        raceEdge11 = refl
+
+        raceEdge12 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool11 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool12 exitedModel))
+        raceEdge12 = refl
+
+        raceEdge13 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool12 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool13 exitedModel))
+        raceEdge13 = refl
+
+        raceEdge14 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool13 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool14 exitedModel))
+        raceEdge14 = refl
+
+        raceEdge15 : V.advance (shutdownStep (Group.finishChildUnwind (ident 1))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool14 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool15 exitedModel))
+        raceEdge15 = refl
+
+        raceEdge16 : V.advance (physicalStep (P.deregisterInfra A.child₀ Types.demuxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool15 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool16 exitedModel))
+        raceEdge16 = refl
+
+        raceEdge17 : V.advance (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool16 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool17 exitedModel))
+        raceEdge17 = refl
+
+        raceEdge18 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool17 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool18 exitedModel))
+        raceEdge18 = refl
+
+        raceEdge19 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool18 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool19 exitedModel))
+        raceEdge19 = refl
+
+        raceEdge20 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool19 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool20 exitedModel))
+        raceEdge20 = refl
+
+        raceEdge21 : V.advance (shutdownStep (Group.finishChildUnwind (ident 0))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool20 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool21 exitedModel))
+        raceEdge21 = refl
+
+        raceEdge22 : V.advance (physicalStep (P.deregisterInfra A.child₀ Types.muxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool21 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool22 exitedModel))
+        raceEdge22 = refl
+
+        raceEdge23 : V.advance (physicalStep (P.asyncInfraResult A.child₀ Types.muxer)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool22 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool23 exitedModel))
+        raceEdge23 = refl
+
+        raceEdge24 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool23 exitedModel)) ≡ just (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool24 exitedModel))
+        raceEdge24 = refl
+
+        raceEdge25 : V.advance (shutdownStep (Group.finishWholeClose A.child₀)) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool24 exitedModel)) ≡ just (raceClosed)
+        raceEdge25 = refl
+
+        raceActions : List V.Event
+        raceActions = (physicalStep (P.returnProtocol jid)) ∷ (physicalStep (P.publishProtocol jid)) ∷ (physicalStep (P.deregisterProtocol jid)) ∷ (physicalStep (P.asyncProtocolResult jid)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 21))) ∷ (physicalStep (P.deregisterProtocol (ident 21))) ∷ (physicalStep (P.asyncProtocolResult (ident 21))) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 1))) ∷ (physicalStep (P.deregisterInfra A.child₀ Types.demuxer)) ∷ (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 0))) ∷ (physicalStep (P.deregisterInfra A.child₀ Types.muxer)) ∷ (physicalStep (P.asyncInfraResult A.child₀ Types.muxer)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.finishWholeClose A.child₀)) ∷ []
+        raceCapturedActions : List V.Event
+        raceCapturedActions = entryAndReceiptActions ++ (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder) ∷ [])
+        raceClosedActions : List V.Event
+        raceClosedActions = raceCapturedActions ++ raceActions
+        abstract
+          initialized-race-capture : V.Runs initial raceCapturedActions (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool0 exitedModel))
+          initialized-race-capture = Facts.append-protocols initialized-normal-monitor-receipt (V.more poolCloseEdge1 V.stop)
+          race-pool-path : V.Runs (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool0 exitedModel)) raceActions raceClosed
+          race-pool-path = V.more raceEdge1 (V.more raceEdge2 (V.more raceEdge3 (V.more raceEdge4 (V.more raceEdge5 (V.more raceEdge6 (V.more raceEdge7 (V.more raceEdge8 (V.more raceEdge9 (V.more raceEdge10 (V.more raceEdge11 (V.more raceEdge12 (V.more raceEdge13 (V.more raceEdge14 (V.more raceEdge15 (V.more raceEdge16 (V.more raceEdge17 (V.more raceEdge18 (V.more raceEdge19 (V.more raceEdge20 (V.more raceEdge21 (V.more raceEdge22 (V.more raceEdge23 (V.more raceEdge24 (V.more raceEdge25 (V.stop)))))))))))))))))))))))))
+          initialized-race-pool-close : V.Runs initial raceClosedActions raceClosed
+          initialized-race-pool-close = Facts.append-protocols initialized-race-capture race-pool-path
+
+        -- Catch and finally retain the old typed FIFO, including after Failed.
+        raceFailed raceDead raceSampled : Y.Model
+        raceFailed = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError }) [] (withPool racePool25 exitedModel)
+        raceDead = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.readActive Mux.muxStopped }) [] (withPool racePool25 exitedModel)
+        raceSampled = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.commitTrace false Mux.muxStopped }) [] (withPool racePool25 exitedModel)
+        raceStatus raceInvoked raceSampledRuntime raceCommitted raceReady : V.Runtime
+        raceStatus = groupAt (Group.asyncFailureWritten shutdownError) raceFailed
+        raceInvoked = groupAt (Group.asyncDeadTracing shutdownError) raceDead
+        raceSampledRuntime = groupAt (Group.asyncDeadTracing shutdownError) raceSampled
+        raceCommitted = groupAt (Group.asyncDeadTracing shutdownError) raceFailed
+        raceReady = groupAt (Group.scopeDone (Group.asyncExit shutdownError)) raceFailed
+        raceCatch1 : V.advance (shutdownStep (Group.writeAsyncFailure A.child₀)) raceClosed ≡ just raceStatus
+        raceCatch1 = refl
+        raceCatch2 : V.advance (shutdownStep (Group.beginAsyncDead A.child₀)) raceStatus ≡ just raceInvoked
+        raceCatch2 = refl
+        raceCatch3 : V.advance (shutdownStep (Group.sampleAsyncTracer A.child₀)) raceInvoked ≡ just raceSampledRuntime
+        raceCatch3 = refl
+        raceCatch4 : V.advance (shutdownStep (Group.commitAsyncTracer A.child₀)) raceSampledRuntime ≡ just raceCommitted
+        raceCatch4 = refl
+        raceCatch5 : V.advance (shutdownStep (Group.finishAsyncDead A.child₀)) raceCommitted ≡ just raceReady
+        raceCatch5 = refl
+        raceCatchActions : List V.Event
+        raceCatchActions = raceClosedActions ++ normalCatchActions
+        abstract
+          initialized-race-catch : V.Runs initial raceCatchActions raceReady
+          initialized-race-catch = Facts.append-protocols initialized-race-pool-close (V.more raceCatch1 (V.more raceCatch2 (V.more raceCatch3 (V.more raceCatch4 (V.more raceCatch5 (V.stop))))))
+        raceHandlerAt : W.Phase → Shared.State → V.Runtime
+        raceHandlerAt pc world = SC.Completion.withHandlerExit pc
+          (groupAt (Group.scopeDone (Group.asyncExit shutdownError)) (record raceFailed { world = world }))
+        raceHandler1 raceHandler2 raceHandler3 raceHandler4 raceHandler5 raceHandler6 raceHandler7 raceHandler8 raceHandler9 raceHandler10 : V.Runtime
+        raceHandler1 = raceHandlerAt (W.bufferScope (Group.asyncExit shutdownError)) cleanupWorld0
+        raceHandler2 = raceHandlerAt (W.bodyExited (W.asyncException shutdownError)) cleanupWorld0
+        raceHandler3 = raceHandlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld1
+        raceHandler4 = raceHandlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld2
+        raceHandler5 = raceHandlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld3
+        raceHandler6 = raceHandlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld4
+        raceHandler7 = raceHandlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld5
+        raceHandler8 = raceHandlerAt (W.finalizing (W.asyncException shutdownError)) cleanupWorld6
+        raceHandler9 = raceHandlerAt (W.cleanupComplete (W.asyncException shutdownError) Shared.cleanupNormal) cleanupWorld6
+        raceHandler10 = raceHandlerAt (W.resultAvailable (W.asyncException shutdownError) Shared.cleanupNormal) cleanupWorld6
+        raceFinalCM raceServer : V.Runtime
+        raceFinalCM = SC.coordinated (Close.shutdownState Close.closed (ident 0 ∷ []) [] (A.child₀ ∷ [])) raceHandler10
+        raceServer = record raceFinalCM { base = record (V.base raceFinalCM)
+          { server = record (K.server (V.base raceFinalCM))
+            { base = record (E.base (K.server (V.base raceFinalCM))) { stage = S.serverReturned } } } }
+
+        raceFinishEdge1 : V.advance (handlerAction (W.beginExit A.child₀)) raceReady ≡ just raceHandler1
+        raceFinishEdge1 = refl
+
+        raceFinishEdge2 : V.advance (handlerAction (W.observeBufferReturn A.child₀)) raceHandler1 ≡ just raceHandler2
+        raceFinishEdge2 = refl
+
+        raceFinishEdge3 : V.advance (handlerAction (W.enterFinalizer A.child₀)) raceHandler2 ≡ just raceHandler3
+        raceFinishEdge3 = refl
+
+        raceFinishEdge4 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap)) raceHandler3 ≡ just raceHandler4
+        raceFinishEdge4 = refl
+
+        raceFinishEdge5 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) raceHandler4 ≡ just raceHandler5
+        raceFinishEdge5 = refl
+
+        raceFinishEdge6 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) raceHandler5 ≡ just raceHandler6
+        raceFinishEdge6 = refl
+
+        raceFinishEdge7 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap)) raceHandler6 ≡ just raceHandler7
+        raceFinishEdge7 = refl
+
+        raceFinishEdge8 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters)) raceHandler7 ≡ just raceHandler8
+        raceFinishEdge8 = refl
+
+        raceFinishEdge9 : V.advance (handlerAction (W.finishCleanup A.child₀)) raceHandler8 ≡ just raceHandler9
+        raceFinishEdge9 = refl
+
+        raceFinishEdge10 : V.advance (handlerAction (W.publishAsyncResult A.child₀)) raceHandler9 ≡ just raceHandler10
+        raceFinishEdge10 = refl
+
+        raceFinishEdge11 : V.advance (SC.coordinatorEvent Close.finishClose) raceHandler10 ≡ just raceFinalCM
+        raceFinishEdge11 = refl
+
+        raceFinishEdge12 : V.advance (SC.serverEvent S.finishServer) raceFinalCM ≡ just raceServer
+        raceFinishEdge12 = refl
+
+        raceFinishActions : List V.Event
+        raceFinishActions = (handlerAction (W.beginExit A.child₀)) ∷ (handlerAction (W.observeBufferReturn A.child₀)) ∷ (handlerAction (W.enterFinalizer A.child₀)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters)) ∷ (handlerAction (W.finishCleanup A.child₀)) ∷ (handlerAction (W.publishAsyncResult A.child₀)) ∷ (SC.coordinatorEvent Close.finishClose) ∷ (SC.serverEvent S.finishServer) ∷ []
+        raceShutdownActions : List V.Event
+        raceShutdownActions = raceCatchActions ++ raceFinishActions
+        abstract
+          race-finish-path : V.Runs raceReady raceFinishActions raceServer
+          race-finish-path = V.more raceFinishEdge1 (V.more raceFinishEdge2 (V.more raceFinishEdge3 (V.more raceFinishEdge4 (V.more raceFinishEdge5 (V.more raceFinishEdge6 (V.more raceFinishEdge7 (V.more raceFinishEdge8 (V.more raceFinishEdge9 (V.more raceFinishEdge10 (V.more raceFinishEdge11 (V.more raceFinishEdge12 (V.stop))))))))))))
+          initialized-publication-race-return : V.Runs initial raceShutdownActions raceServer
+          initialized-publication-race-return = Facts.append-protocols initialized-race-catch race-finish-path
+        race-shutdown-supply : Inv.ProtocolValid raceServer
+        race-shutdown-supply = Inv.from-initial-protocols initializer (All.[] , All.[]) initialized-publication-race-return
+
+        -- Retain the actual physical result table at CM's successful wait.
+        raceHandlerStateOf : V.Runtime → W.State
+        raceHandlerStateOf s = N.R.base (N.raw (V.publication (V.base s)))
+        race-handler-wait : HandlerFacts.PhysicalWait (raceHandlerStateOf raceHandler10) (raceHandlerStateOf raceFinalCM)
+        race-handler-wait = HandlerFacts.physical-wait-observation (raceHandlerStateOf raceHandler10) refl
+
+        -- These observations refer to the actual initialized race states.
+        raceSnapshotRetained : Pool.snapshot racePool25 ≡ capturedPhysicalOrder
+        raceSnapshotRetained = refl
+        raceJoinsRetained : Pool.joined racePool25 ≡ capturedPhysicalOrder
+        raceJoinsRetained = refl
+        raceMixedResults : All.All (PhysicalFacts.Terminal racePool25) (Pool.snapshot racePool25)
+        raceMixedResults = (Pool.cancelledExit , refl) All.∷ (Pool.normalExit , refl) All.∷
+          (Pool.cancelledExit , refl) All.∷ (Pool.cancelledExit , refl) All.∷ All.[]
+        old-normal-result-before-cancel-request : lookup jid (Pool.handles racePool4) ≡ just (Pool.resultAvailable Pool.normalExit)
+        old-normal-result-before-cancel-request = refl
+        removed-old-handle-still-captured : Pool.remaining racePool4 ≡ capturedPhysicalOrder
+        removed-old-handle-still-captured = refl
+        old-request-skips-delivery : Pool.phase racePool11 ≡ Pool.joinPending jid
+        old-request-skips-delivery = refl
+        no-delivery-to-finished-old-child : V.advance (shutdownStep (Group.deliverWhole A.child₀))
+          (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool11 exitedModel)) ≡ nothing
+        no-delivery-to-finished-old-child = refl
+        no-new-result-from-old-publication : V.observe (ident 21)
+          (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool4 exitedModel)) ≡ nothing
+        no-new-result-from-old-publication = refl
+        new-body-still-live-after-old-publication : lookup (ident 21) (Pool.handles racePool4) ≡ just Pool.bodyRunning
+        new-body-still-live-after-old-publication = refl
+        no-pop-during-pool-close : V.advance (monitorStep (N.M.consume A.child₀))
+          (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool racePool4 exitedModel)) ≡ nothing
+        no-pop-during-pool-close = refl
+        exact-old-fifo-after-close : Pool.completions racePool25 ≡ payload ∷ []
+        exact-old-fifo-after-close = refl
+        exact-old-fifo-after-server-return : Pool.completions (P.poolAt A.child₀ (V.physical (V.base raceServer))) ≡ payload ∷ []
+        exact-old-fifo-after-server-return = refl
+        no-late-pop-after-return : V.advance (monitorStep (N.M.consume A.child₀)) raceServer ≡ nothing
+        no-late-pop-after-return = refl
+        old-cell-remains-clean-in-race : V.observe rid raceServer ≡ just (V.localResult clean)
+        old-cell-remains-clean-in-race = refl
+        current-cell-remains-empty-in-race : lookup (ident 21) (V.calls (V.front raceServer)) ≡ just (record requested { thread = just (ident 21) })
+        current-cell-remains-empty-in-race = refl
+        current-cell-observes-real-race-shutdown : V.observe (ident 21) raceServer ≡ just (V.shutdownResult (Mux.failed shutdownError))
+        current-cell-observes-real-race-shutdown = refl
+        race-cm-waits-for-handler-result : V.advance (SC.coordinatorEvent Close.finishClose) raceHandler9 ≡ nothing
+        race-cm-waits-for-handler-result = refl
+        race-handler-async-outcome : W.resultOf A.child₀ (raceHandlerStateOf raceServer) ≡ just (W.asyncException shutdownError)
+        race-handler-async-outcome = refl
+        actual-race-server-return : S.stage (E.base (K.server (V.base raceServer))) ≡ S.serverReturned
+        actual-race-server-return = refl
+        actual-race-cm-closed : Close.phase (W.shutdown (raceHandlerStateOf raceServer)) ≡ Close.closed
+        actual-race-cm-closed = refl
+        race-map-purged : Shared.mapCell (Shared.cm (Machine.world (O.core (V.sourceOf raceServer)))) ≡ Shared.full []
+        race-map-purged = refl
+        race-socket-closed : lookup (Shared.handlerSocket I.captured) (Shared.sockets (Machine.world (O.core (V.sourceOf raceServer)))) ≡ just Shared.closed
+        race-socket-closed = refl
+        race-raw-worker-unjoined : lookup A.w₁ (S.workers (E.base (K.server (V.base raceServer)))) ≡ just (S.rawWorker F.r₁ S.calling 0)
+        race-raw-worker-unjoined = refl
+        race-refutes-all-worker-completion :
+          (∀ {t} (as : List V.Event) → V.Runs initial as t →
+            S.stage (E.base (K.server (V.base t))) ≡ S.serverReturned →
+            S.allResults (S.workers (E.base (K.server (V.base t)))) ≡ true) → ⊥
+        race-refutes-all-worker-completion claim =
+          SC.Completion.false-not-true (claim raceShutdownActions initialized-publication-race-return actual-race-server-return)
+
+      -- A current clean completion can win after cancellation was requested,
+      -- while its physical body still has not received that exception.
+      module CurrentClean where
+        pendingChild : V.Runtime
+        pendingChild = groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)
+        currentBodyReturned : V.Runtime
+        currentBodyReturned = V.runtime (V.setPhysical
+          (record (V.physical (V.base pendingChild))
+            { jobs = put (ident 21) (secondJob Types.waitingEgress) (P.jobs (V.physical (V.base pendingChild))) })
+          (V.base pendingChild)) (V.front pendingChild)
+
+        -- Expected snapshots change only the current job, its result cell and
+        -- the matching peer cache. Successful actual steps justify them below.
+        withCurrentClean : V.Runtime → V.Runtime
+        withCurrentClean original = V.runtime
+          (V.cacheResult (ident 21) requested clean (V.front original)
+            (V.setPhysical (record p { jobs = put (ident 21) (secondJob (Types.resultCaptured clean)) (P.jobs p) }) (V.base original)))
+          (record (V.front original)
+            { calls = put (ident 21) (record requested { thread = just (ident 21); value = just clean }) (V.calls (V.front original)) })
+          where
+          p = V.physical (V.base original)
+        currentCommitted : V.Runtime
+        currentCommitted = withCurrentClean pendingChild
+        cleanRequestActions : List V.Event
+        cleanRequestActions = entryAndReceiptActions ++
+          (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder) ∷
+           shutdownStep (Group.requestWholeCancel A.child₀) ∷ [])
+        abstract
+          initialized-current-cancel-request : V.Runs initial cleanRequestActions pendingChild
+          initialized-current-cancel-request = Facts.append-protocols initialized-normal-monitor-receipt
+            (V.more poolCloseEdge1 (V.more poolCloseEdge2 V.stop))
+        currentReturnEdge : V.advance (physicalStep (P.protocolReturned (ident 21))) pendingChild ≡ just currentBodyReturned
+        currentReturnEdge = refl
+        currentCommitEdge : V.advance (V.commitClean (ident 21)) currentBodyReturned ≡ just currentCommitted
+        currentCommitEdge = refl
+        cleanCommitActions : List V.Event
+        cleanCommitActions = cleanRequestActions ++ (physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ [])
+        abstract
+          initialized-current-clean-commit : V.Runs initial cleanCommitActions currentCommitted
+          initialized-current-clean-commit = Facts.append-protocols initialized-current-cancel-request
+            (V.more currentReturnEdge (V.more currentCommitEdge V.stop))
+
+        cleanEdge1 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel))))
+        cleanEdge1 = refl
+
+        cleanEdge2 : V.advance (shutdownStep (Group.finishChildUnwind (ident 21))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel))))
+        cleanEdge2 = refl
+
+        cleanEdge3 : V.advance (physicalStep (P.deregisterProtocol (ident 21))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel))))
+        cleanEdge3 = refl
+
+        cleanEdge4 : V.advance (physicalStep (P.asyncProtocolResult (ident 21))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel))))
+        cleanEdge4 = refl
+
+        cleanEdge5 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel))))
+        cleanEdge5 = refl
+
+        cleanEdge6 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel))))
+        cleanEdge6 = refl
+
+        cleanEdge7 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel))))
+        cleanEdge7 = refl
+
+        cleanEdge8 : V.advance (shutdownStep (Group.finishChildUnwind (ident 20))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel))))
+        cleanEdge8 = refl
+
+        cleanEdge9 : V.advance (physicalStep (P.deregisterProtocol (ident 20))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel))))
+        cleanEdge9 = refl
+
+        cleanEdge10 : V.advance (physicalStep (P.asyncProtocolResult (ident 20))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel))))
+        cleanEdge10 = refl
+
+        cleanEdge11 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel))))
+        cleanEdge11 = refl
+
+        cleanEdge12 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel))))
+        cleanEdge12 = refl
+
+        cleanEdge13 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel))))
+        cleanEdge13 = refl
+
+        cleanEdge14 : V.advance (shutdownStep (Group.finishChildUnwind (ident 1))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel))))
+        cleanEdge14 = refl
+
+        cleanEdge15 : V.advance (physicalStep (P.deregisterInfra A.child₀ Types.demuxer)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel))))
+        cleanEdge15 = refl
+
+        cleanEdge16 : V.advance (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel))))
+        cleanEdge16 = refl
+
+        cleanEdge17 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel))))
+        cleanEdge17 = refl
+
+        cleanEdge18 : V.advance (shutdownStep (Group.requestWholeCancel A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel))))
+        cleanEdge18 = refl
+
+        cleanEdge19 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel))))
+        cleanEdge19 = refl
+
+        cleanEdge20 : V.advance (shutdownStep (Group.finishChildUnwind (ident 0))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel))))
+        cleanEdge20 = refl
+
+        cleanEdge21 : V.advance (physicalStep (P.deregisterInfra A.child₀ Types.muxer)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel))))
+        cleanEdge21 = refl
+
+        cleanEdge22 : V.advance (physicalStep (P.asyncInfraResult A.child₀ Types.muxer)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel))))
+        cleanEdge22 = refl
+
+        cleanEdge23 : V.advance (shutdownStep (Group.joinWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel))))
+        cleanEdge23 = refl
+
+        cleanEdge24 : V.advance (shutdownStep (Group.finishWholeClose A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosed (Group.asyncExit shutdownError)) (withPool physical26 exitedModel))))
+        cleanEdge24 = refl
+
+        cleanEdge25 : V.advance (shutdownStep (Group.writeAsyncFailure A.child₀)) (withCurrentClean (wholePoolClosed)) ≡ just (withCurrentClean (failedStatus))
+        cleanEdge25 = refl
+
+        cleanEdge26 : V.advance (shutdownStep (Group.beginAsyncDead A.child₀)) (withCurrentClean (failedStatus)) ≡ just (withCurrentClean (deadInvoked))
+        cleanEdge26 = refl
+
+        cleanEdge27 : V.advance (shutdownStep (Group.sampleAsyncTracer A.child₀)) (withCurrentClean (deadInvoked)) ≡ just (withCurrentClean (deadSampled))
+        cleanEdge27 = refl
+
+        cleanEdge28 : V.advance (shutdownStep (Group.commitAsyncTracer A.child₀)) (withCurrentClean (deadSampled)) ≡ just (withCurrentClean (deadCommitted))
+        cleanEdge28 = refl
+
+        cleanEdge29 : V.advance (shutdownStep (Group.finishAsyncDead A.child₀)) (withCurrentClean (deadCommitted)) ≡ just (withCurrentClean (readyForBuffer))
+        cleanEdge29 = refl
+
+        cleanEdge30 : V.advance (handlerAction (W.beginExit A.child₀)) (withCurrentClean (readyForBuffer)) ≡ just (withCurrentClean (handler1))
+        cleanEdge30 = refl
+
+        cleanEdge31 : V.advance (handlerAction (W.observeBufferReturn A.child₀)) (withCurrentClean (handler1)) ≡ just (withCurrentClean (handler2))
+        cleanEdge31 = refl
+
+        cleanEdge32 : V.advance (handlerAction (W.enterFinalizer A.child₀)) (withCurrentClean (handler2)) ≡ just (withCurrentClean (handler3))
+        cleanEdge32 = refl
+
+        cleanEdge33 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap)) (withCurrentClean (handler3)) ≡ just (withCurrentClean (handler4))
+        cleanEdge33 = refl
+
+        cleanEdge34 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) (withCurrentClean (handler4)) ≡ just (withCurrentClean (handler5))
+        cleanEdge34 = refl
+
+        cleanEdge35 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) (withCurrentClean (handler5)) ≡ just (withCurrentClean (handler6))
+        cleanEdge35 = refl
+
+        cleanEdge36 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap)) (withCurrentClean (handler6)) ≡ just (withCurrentClean (handler7))
+        cleanEdge36 = refl
+
+        cleanEdge37 : V.advance (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters)) (withCurrentClean (handler7)) ≡ just (withCurrentClean (handler8))
+        cleanEdge37 = refl
+
+        cleanEdge38 : V.advance (handlerAction (W.finishCleanup A.child₀)) (withCurrentClean (handler8)) ≡ just (withCurrentClean (handler9))
+        cleanEdge38 = refl
+
+        cleanEdge39 : V.advance (handlerAction (W.publishAsyncResult A.child₀)) (withCurrentClean (handler9)) ≡ just (withCurrentClean (handler10))
+        cleanEdge39 = refl
+
+        cleanEdge40 : V.advance (SC.coordinatorEvent Close.finishClose) (withCurrentClean (handler10)) ≡ just (withCurrentClean (finalCM))
+        cleanEdge40 = refl
+
+        cleanEdge41 : V.advance (SC.serverEvent S.finishServer) (withCurrentClean (finalCM)) ≡ just (withCurrentClean (returnedServer))
+        cleanEdge41 = refl
+
+        cleanContinuationActions : List V.Event
+        cleanContinuationActions = (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 21))) ∷ (physicalStep (P.deregisterProtocol (ident 21))) ∷ (physicalStep (P.asyncProtocolResult (ident 21))) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 20))) ∷ (physicalStep (P.deregisterProtocol (ident 20))) ∷ (physicalStep (P.asyncProtocolResult (ident 20))) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 1))) ∷ (physicalStep (P.deregisterInfra A.child₀ Types.demuxer)) ∷ (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.requestWholeCancel A.child₀)) ∷ (shutdownStep (Group.deliverWhole A.child₀)) ∷ (shutdownStep (Group.finishChildUnwind (ident 0))) ∷ (physicalStep (P.deregisterInfra A.child₀ Types.muxer)) ∷ (physicalStep (P.asyncInfraResult A.child₀ Types.muxer)) ∷ (shutdownStep (Group.joinWhole A.child₀)) ∷ (shutdownStep (Group.finishWholeClose A.child₀)) ∷ (shutdownStep (Group.writeAsyncFailure A.child₀)) ∷ (shutdownStep (Group.beginAsyncDead A.child₀)) ∷ (shutdownStep (Group.sampleAsyncTracer A.child₀)) ∷ (shutdownStep (Group.commitAsyncTracer A.child₀)) ∷ (shutdownStep (Group.finishAsyncDead A.child₀)) ∷ (handlerAction (W.beginExit A.child₀)) ∷ (handlerAction (W.observeBufferReturn A.child₀)) ∷ (handlerAction (W.enterFinalizer A.child₀)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap)) ∷ (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters)) ∷ (handlerAction (W.finishCleanup A.child₀)) ∷ (handlerAction (W.publishAsyncResult A.child₀)) ∷ (SC.coordinatorEvent Close.finishClose) ∷ (SC.serverEvent S.finishServer) ∷ []
+        cleanShutdownActions : List V.Event
+        cleanShutdownActions = cleanCommitActions ++ cleanContinuationActions
+        cleanServer : V.Runtime
+        cleanServer = withCurrentClean returnedServer
+        abstract
+          clean-continuation-path : V.Runs currentCommitted cleanContinuationActions cleanServer
+          clean-continuation-path = V.more cleanEdge1 (V.more cleanEdge2 (V.more cleanEdge3 (V.more cleanEdge4 (V.more cleanEdge5 (V.more cleanEdge6 (V.more cleanEdge7 (V.more cleanEdge8 (V.more cleanEdge9 (V.more cleanEdge10 (V.more cleanEdge11 (V.more cleanEdge12 (V.more cleanEdge13 (V.more cleanEdge14 (V.more cleanEdge15 (V.more cleanEdge16 (V.more cleanEdge17 (V.more cleanEdge18 (V.more cleanEdge19 (V.more cleanEdge20 (V.more cleanEdge21 (V.more cleanEdge22 (V.more cleanEdge23 (V.more cleanEdge24 (V.more cleanEdge25 (V.more cleanEdge26 (V.more cleanEdge27 (V.more cleanEdge28 (V.more cleanEdge29 (V.more cleanEdge30 (V.more cleanEdge31 (V.more cleanEdge32 (V.more cleanEdge33 (V.more cleanEdge34 (V.more cleanEdge35 (V.more cleanEdge36 (V.more cleanEdge37 (V.more cleanEdge38 (V.more cleanEdge39 (V.more cleanEdge40 (V.more cleanEdge41 (V.stop)))))))))))))))))))))))))))))))))))))))))
+          initialized-current-clean-return : V.Runs initial cleanShutdownActions cleanServer
+          initialized-current-clean-return = Facts.append-protocols initialized-current-clean-commit clean-continuation-path
+        clean-return-supply : Inv.ProtocolValid cleanServer
+        clean-return-supply = Inv.from-initial-protocols initializer (All.[] , All.[]) initialized-current-clean-return
+
+        -- A local clean cell is neither a typed FIFO publication nor an Async
+        -- result. CM must still wait for the actual captured handler result.
+        clean-handler-wait : HandlerFacts.PhysicalWait
+          (handlerStateOf (withCurrentClean handler10)) (handlerStateOf (withCurrentClean finalCM))
+        clean-handler-wait = HandlerFacts.physical-wait-observation (handlerStateOf (withCurrentClean handler10)) refl
+        clean-four-results : All.All (PhysicalFacts.Terminal
+          (P.poolAt A.child₀ (V.physical (V.base cleanServer)))) capturedPhysicalOrder
+        clean-four-results = (Pool.cancelledExit , refl) All.∷ (Pool.cancelledExit , refl) All.∷
+          (Pool.cancelledExit , refl) All.∷ (Pool.cancelledExit , refl) All.∷ All.[]
+        no-result-before-clean-commit : V.observe (ident 21) currentBodyReturned ≡ nothing
+        no-result-before-clean-commit = refl
+        current-clean-before-delivery : V.observe (ident 21) currentCommitted ≡ just (V.localResult clean)
+        current-clean-before-delivery = refl
+        pending-delivery-after-clean-commit : Pool.phase (P.poolAt A.child₀ (V.physical (V.base currentCommitted))) ≡ Pool.cancelPending (ident 21)
+        pending-delivery-after-clean-commit = refl
+        physical-body-not-yet-finished : lookup (ident 21) (Pool.handles (P.poolAt A.child₀ (V.physical (V.base currentCommitted)))) ≡ just Pool.bodyRunning
+        physical-body-not-yet-finished = refl
+        clean-cell-before-async-result : V.advance (physicalStep (P.asyncProtocolResult (ident 21))) currentCommitted ≡ nothing
+        clean-cell-before-async-result = refl
+        no-invented-physical-publication : V.advance (physicalStep (P.publishProtocol (ident 21))) currentCommitted ≡ nothing
+        no-invented-physical-publication = refl
+        no-second-current-cell-write : V.advance (V.commitError (ident 21) err) currentCommitted ≡ nothing
+        no-second-current-cell-write = refl
+        current-clean-survives-failed : V.observe (ident 21) (withCurrentClean failedStatus) ≡ just (V.localResult clean)
+        current-clean-survives-failed = refl
+        current-clean-survives-return : V.observe (ident 21) cleanServer ≡ just (V.localResult clean)
+        current-clean-survives-return = refl
+        original-clean-survives-current-race : V.observe rid cleanServer ≡ just (V.localResult clean)
+        original-clean-survives-current-race = refl
+        actual-failed-mux-with-clean-cell : P.muxAt (ident 0) (V.physical (V.base cleanServer)) ≡ just (record Y.m1 { status = Mux.failed shutdownError })
+        actual-failed-mux-with-clean-cell = refl
+        no-current-typed-result-invented : Pool.completions (P.poolAt A.child₀ (V.physical (V.base cleanServer))) ≡ []
+        no-current-typed-result-invented = refl
+        physical-current-result-is-cancelled : lookup (ident 21) (Pool.handles (P.poolAt A.child₀ (V.physical (V.base cleanServer)))) ≡ just (Pool.resultAvailable Pool.cancelledExit)
+        physical-current-result-is-cancelled = refl
+        clean-cell-does-not-complete-handler : W.resultReady A.child₀ (handlerStateOf (withCurrentClean readyForBuffer)) ≡ false
+        clean-cell-does-not-complete-handler = refl
+        clean-cell-does-not-close-cm : V.advance (SC.coordinatorEvent Close.finishClose) (withCurrentClean handler9) ≡ nothing
+        clean-cell-does-not-close-cm = refl
+        actual-clean-race-handler-outcome : W.resultOf A.child₀ (handlerStateOf cleanServer) ≡ just (W.asyncException shutdownError)
+        actual-clean-race-handler-outcome = refl
+        actual-clean-race-server-return : S.stage (E.base (K.server (V.base cleanServer))) ≡ S.serverReturned
+        actual-clean-race-server-return = refl
+        clean-race-refutes-all-worker-completion :
+          (∀ {t} (as : List V.Event) → V.Runs initial as t →
+            S.stage (E.base (K.server (V.base t))) ≡ S.serverReturned →
+            S.allResults (S.workers (E.base (K.server (V.base t)))) ≡ true) → ⊥
+        clean-race-refutes-all-worker-completion claim =
+          SC.Completion.false-not-true (claim cleanShutdownActions initialized-current-clean-return actual-clean-race-server-return)
+
+  -- Generic preservation is instantiated on initialized clean/error histories.
+  -- The duplicate-key control is explicitly malformed and unreachable.
+  module CellPreservationChecks where
+    open import Data.Empty using (⊥)
+    import Data.List.Relation.Unary.AllPairs as Pairs
+    import ConnectionManagement.Properties.Stores as Stores
+    private
+      module Cells = Facts.CommittedCells
+      module CC = Reactivation.Shutdown.CurrentClean
+    currentCleanCall : V.Call
+    currentCleanCall = record requested { thread = just (ident 21); value = just clean }
+    generic-current-record-retained : lookup (ident 21) (V.calls (V.front CC.cleanServer)) ≡ just currentCleanCall
+    generic-current-record-retained = Cells.from-initial-keeps initializer CC.initialized-current-clean-commit
+      CC.clean-continuation-path (ident 21) currentCleanCall clean refl refl
+    generic-current-observation-retained : V.observe (ident 21) CC.cleanServer ≡ just (V.localResult clean)
+    generic-current-observation-retained = Cells.from-initial-observe initializer CC.initialized-current-clean-commit
+      CC.clean-continuation-path (ident 21) currentCleanCall clean refl refl
+
+    errorCapturedCall : V.Call
+    errorCapturedCall = record requested { thread = just jid; value = just (errored err) }
+    errorTypedResult : Types.TypedResult
+    errorTypedResult = Types.protocolCompletion Mux.initiatorJob 1 rid (errored err)
+    errorReturnedModel : Y.Model
+    errorReturnedModel = withPool (record bornPool
+      { handles = put jid (Pool.bodyReturned errorTypedResult) (Pool.handles bornPool) }) errorModel
+    errorReturnEdge : V.advance (physicalStep (P.returnProtocol jid)) (at errorModel errorContext errorFront) ≡
+      just (at errorReturnedModel errorContext errorFront)
+    errorReturnEdge = refl
+    generic-error-record-retained : lookup rid (V.calls (V.front (at errorReturnedModel errorContext errorFront))) ≡ just errorCapturedCall
+    generic-error-record-retained = Cells.from-initial-keeps initializer initialized-error
+      (V.more {a = physicalStep (P.returnProtocol jid)} errorReturnEdge V.stop) rid errorCapturedCall (errored err) refl refl
+    generic-error-observation-retained : V.observe rid (at errorReturnedModel errorContext errorFront) ≡ just (V.localResult (errored err))
+    generic-error-observation-retained = Cells.from-initial-observe initializer initialized-error
+      (V.more {a = physicalStep (P.returnProtocol jid)} errorReturnEdge V.stop) rid errorCapturedCall (errored err) refl refl
+
+    -- byThread can reach a later duplicate behind a committed first binding.
+    -- This cannot arise from initialize and the fresh-generation start guard.
+    duplicateCleanCall duplicateEmptyCall : V.Call
+    duplicateCleanCall = record requested { value = just clean }
+    duplicateEmptyCall = record requested { thread = just jid }
+    duplicateFront duplicateAfterFront : V.Front
+    duplicateFront = record bornFront { calls = (rid , duplicateCleanCall) ∷ (rid , duplicateEmptyCall) ∷ [] }
+    duplicateAfterFront = record duplicateFront { calls = (rid , errorCapturedCall) ∷ (rid , duplicateEmptyCall) ∷ [] }
+    duplicateBefore duplicateAfter : V.Runtime
+    duplicateBefore = at waiting k63 duplicateFront
+    duplicateAfter = at errorModel errorContext duplicateAfterFront
+    malformed-duplicate-step : V.advance (V.commitError jid err) duplicateBefore ≡ just duplicateAfter
+    malformed-duplicate-step = refl
+    duplicate-table-not-unique : Stores.UniqueKeys (V.calls duplicateFront) → ⊥
+    duplicate-table-not-unique ((apart All.∷ rest) Pairs.∷ unique) = apart refl
+    changed-duplicate-result : lookup rid (V.calls duplicateAfterFront) ≡ just duplicateCleanCall → ⊥
+    changed-duplicate-result ()
+    no-arbitrary-table-preservation :
+      (∀ a s {t} → V.advance a s ≡ just t → Cells.Keeps (V.calls (V.front s)) (V.calls (V.front t))) → ⊥
+    no-arbitrary-table-preservation claim = changed-duplicate-result
+      (claim (V.commitError jid err) duplicateBefore malformed-duplicate-step rid duplicateCleanCall clean refl refl)
+
+  -- Capture certificates are derived from the actual initialized histories.
+  -- Historical presence does not imply that the child is still executing.
+  module ThreadCaptureChecks where
+    open import Data.Empty using (⊥)
+    private
+      module Capture = BFacts.CaptureIdentity.Frontend capability
+      module CC = Reactivation.Shutdown.CurrentClean
+    initialized-clean-captures : Capture.Valid CC.cleanServer
+    initialized-clean-captures = Capture.initialized-soundness initializer CC.initialized-current-clean-return
+    initialized-error-captures : Capture.Valid (at errorModel errorContext errorFront)
+    initialized-error-captures = Capture.initialized-soundness initializer initialized-error
+    initialized-restart-captures : Capture.Valid
+      (at Reactivation.secondBodyAvailable Reactivation.secondCooledContext Reactivation.secondErrorFront)
+    initialized-restart-captures = Capture.initialized-soundness initializer Reactivation.initialized-reactivation
+
+    -- A fabricated reference with no physical row cannot satisfy the invariant.
+    no-unbacked-reference : Capture.Sound ((rid , record requested { thread = just jid }) ∷ []) [] → ⊥
+    no-unbacked-reference claim with claim rid (record requested { thread = just jid }) jid refl refl
+    ... | job , () , matches
+
+  -- Local cells must agree with the current historical physical result row.
+  module LocalResultChecks where
+    open import Data.Empty using (⊥)
+    import ConnectionManagement.Properties.ServerPeersResults as ResultsProof
+    private
+      module Results = ResultsProof I.bearerClosed Prior.classify
+      module Agreement = Results.Frontend capability
+      module CC = Reactivation.Shutdown.CurrentClean
+    clean-shutdown-agreement : Agreement.Valid CC.cleanServer
+    clean-shutdown-agreement = Agreement.initialized-soundness initializer CC.initialized-current-clean-return
+    error-agreement : Agreement.Valid (at errorModel errorContext errorFront)
+    error-agreement = Agreement.initialized-soundness initializer initialized-error
+    restart-agreement : Agreement.Valid
+      (at Reactivation.secondBodyAvailable Reactivation.secondCooledContext Reactivation.secondErrorFront)
+    restart-agreement = Agreement.initialized-soundness initializer Reactivation.initialized-reactivation
+    current-clean-physical-result : Agreement.Backed CellPreservationChecks.currentCleanCall clean
+      (P.jobs (V.physical (V.base CC.cleanServer)))
+    current-clean-physical-result = clean-shutdown-agreement (ident 21) CellPreservationChecks.currentCleanCall clean refl refl
+
+    -- A fabricated committed cell with no physical job is rejected.
+    no-unbacked-commit : Agreement.Sound ((rid , record requested { thread = just jid; value = just clean }) ∷ []) [] → ⊥
+    no-unbacked-commit claim with claim rid (record requested { thread = just jid; value = just clean }) clean refl refl
+    ... | j , threaded , job , () , phase
+
+    -- Presence of the right handle alone cannot justify a different result.
+    open import Data.Maybe.Properties using (just-injective)
+    cleanPhysical : Types.ProtocolJob
+    cleanPhysical = Types.protocolJob (V.owner requested) (V.mux requested) Mux.initiatorJob 1 rid (Types.resultCaptured clean)
+    errorCell : V.Call
+    errorCell = record requested { thread = just jid; value = just (errored err) }
+    no-clean-row-for-error-cell : Agreement.Sound ((rid , errorCell) ∷ []) ((jid , cleanPhysical) ∷ []) → ⊥
+    no-clean-row-for-error-cell claim with claim rid errorCell (errored err) refl refl
+    ... | j , threaded , job , seen , phase with just-injective threaded
+    ...   | refl with just-injective seen
+    ...     | refl with phase
+    ...       | ()

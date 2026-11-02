@@ -3179,3 +3179,439 @@ per-generation physical result cells. Preserve old-result readability and reject
 stale bundle reuse. This is protocol restart while Server is serving; the returned
 Server is not restarted by assigning a new stage. Broader failure/race profiles,
 CM-I4c, SI4/SI5 and the overall G0–G5 objective remain open.
+
+## Twenty-eighth increment: initialized second hot activation
+
+`Negative/ServerPeers.Protocols.Reactivation` adds the previously missing
+initialized second activation in the same acceptance file. No runtime, prior
+theorem type, transition guard or initializer premise changes. The complete
+`initialized-reactivation` history has 188 actions; its supply/capture instance
+uses the existing generic theorem and original initial bounds.
+
+The source branches were read directly from Git objects at network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, using the existing local network
+repository without changing its checkout. PeerStateActions.hs:951–1025 orders
+HotToWarm controls, awaitAllResults, retirement to constant NotRunning actions,
+and warm-to-hot activation. Its startProtocols traversal at :1165–1195 allocates
+the mux result actions before publishing their bundle. ActivePeers.hs:563–596,
+1045–1078 provides the promotion/demotion completion updates. Network Mux.hs
+:307–355 writes StatusIdle and the clean cell before the physical job returns;
+:749–807 requires idle, allocates a fresh cell and queues the next eager start.
+These are source mappings, not a new trace-refinement or native replay result.
+
+The first 100 initialized actions reach the original clean cell and completed
+activation job, keeping that protocol's physical job at the pre-publication
+boundary. Twenty-eight actual governor steps apply the first activation
+completion, consume the lower active target and select/fork/register/enter the
+deactivation job. Thirty-two steps read the real clean result, retire the hot
+action, publish/deregister/publish the deactivation Async, apply its completion,
+consume the restored target and select/fork/register/enter a second activation.
+Only then is the new caller allowed to allocate RunId 21.
+
+The last twenty-eight steps allocate that cell, finish the start traversal,
+select/invoke/return its tracer, fork/register physical job 21, publish the new
+bundle and finish the actual activation job's body/queue/Async sequence. The old
+physical job 20 then returns, publishes, deregisters and publishes its Async
+result. The mux consumes that exact typed generation-20 completion through the
+initiator tracer and DeltaQ return. Generation 21 remains physically running
+with an empty result cell throughout. Its later local error 177, physical return,
+typed publication, deregistration and Async result remain separate. A final
+actual PSA poll reads the new published error and cools the peer.
+
+Controls on these initialized-path states check both generations' cells and
+physical identities. The original clean result stays readable at the second
+call and after the new error. The old retired action blocks before new bundle
+publication, and the new published action retries while its cell is empty,
+including after the late old completion. Stale cache writes, repeated old-cell
+commits, RunId reuse and physical JobId reuse are rejected. The old Async result
+is available while the new physical body is still running. The new published
+action reads error 177 rather than the old clean result. The exact new typed
+completion stays queued; initiator completions do not fabricate IG notifications.
+Server remains serving throughout this branch.
+
+The existing selected capability, normal tracer/provider observations and
+abstract body outcomes remain explicit. The endpoint covers one hot protocol
+and one selected interleaving; it does not prove arbitrary restarts, universal
+progress or source refinement. The final queued new error has not been processed
+by the mux failure monitor; the second governor completion also remains queued
+for its later application. Earlier shutdown acceptance remains a separate
+initialized branch, with the raw admission-worker obstruction preserved. No
+native replay or full baseline rebuild is part of this increment.
+
+Validation on 2 November used Agda 2.8.0 serially from this library root.
+The initialized history first freshly passed at a 6 GB heap, exit 0, without
+diagnostics (`acceptance.log`, `result.log`). After adding the generation controls,
+the final file freshly passed again, with its own Checking line, exit 0 and no
+warnings (`acceptance-final.log`). Serial cached regressions
+`Negative/MuxProtocolJobs.agda` and `Negative/PeerSupervision.agda` then passed,
+exit 0 without warnings. Each command used `+RTS -M6G -RTS` under a 7 GB RAM,
+zero-swap scope:
+
+```sh
+systemd-run --user --scope -p MemoryMax=7G -p MemorySwapMax=0 -- \
+  sh /tmp/cm-reactivation-20261102/verify.sh
+```
+
+The script stops on a failure; logs, script and the three recorded final checker
+exits are in `/tmp/cm-reactivation-20261102/`. All checker processes exited.
+The strict local proof audit of the changed acceptance file has zero findings;
+`git diff --check` passes. No new postulate, proof hole, unsafe option or
+termination bypass was added, and no prior statement was weakened. This scan
+is not a term-level audit of all dependencies. The handovers, presentation,
+`.claude`, output and external checkouts are preserved. No commit or push.
+
+Next: combine a live restarted initiator and the delayed old-generation
+publication with actual peer/IG scope exit and CM-owned shutdown. Retain both
+generation cells and captured physical handles through cancellation, handler
+cleanup, collective CM wait and Server return. Broader failure/race profiles,
+CM-I4c, SI4/SI5 and overall G0–G5 remain open.
+
+## Twenty-ninth increment: initialized restarted initiator shutdown
+
+`Protocols.Reactivation.Shutdown` remains in `Negative/ServerPeers.agda`.
+`initialized-restarted-server-return` proves the complete 273-action history:
+172 actions initialize the live restart; 33 close the actual peer scopes and
+monitor; 20 exit Server/accept/IG and enter CM; five capture/read/send/receive/
+finish the CM traversal; 26 cancel/unwind/deregister/publish/join the physical
+snapshot [21,20,1,0]; five perform the inactive-IG async catch; twelve finish the
+buffer/handler cleanup, actual Async result, collective CM wait and Server return.
+The callback prefix is explicitly typed and abstract to limit inference cost.
+
+The governor snapshot is empty because jobs 0–3 have already published their
+actual Async results; its queued activation completion remains stored. The PSA
+snapshot [50] is cancelled and joined. Callback certificates are derived from
+the initialized execution. Both protocol bodies are still physically running
+when CM receives cancellation: generation 20 has a committed clean cell but no
+physical publication, and generation 21 has an empty cell. Normal-monitor
+receipt changes group control, without creating a selected-tracer fault.
+
+Each captured physical handle has a separately checked cancellation receipt,
+body unwind, deregistration, Async publication and join. `four-actual-results`
+certifies the actual nonempty physical snapshot. Cancellation enqueues no typed
+completion and does not overwrite either cell. The old clean result remains
+readable; the current cell stays empty and observes the actual Failed status.
+That observation can wake before the handler result exists. Early Failed writes,
+joins, handler publication and CM completion, plus cancelled-body resumption and
+old publication, are rejected. The physical CM wait certificate retains the
+actual captured handler and result table. Captured cleanup terminates entry 0,
+purges the matching map and closes its socket. The raw admission-worker
+counterexample remains explicit; Server return does not establish SI5.
+
+The source was re-read directly from Git objects at unchanged network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: Server.hs:147–186;
+Core.hs:523–550,584–676; ConnectionHandler.hs:286–309;
+network-mux Mux.hs:256–279; JobPool.hs:105–109; and
+InboundGovernor.hs:665–728. Pool close precedes async Failed/Dead; inactive IG
+neither enqueues MuxFinished nor clears old counters. Explicit body-unwind,
+provider/tracer-return and selected normal scope contracts remain in force.
+No runtime, prior theorem statement, guard or source pin changed. No native
+replay, full baseline rebuild, deployed finding, source refinement or universal
+progress/shutdown theorem is claimed.
+
+Agda 2.8.0 freshly accepted the entire final file, own Checking line, exit 0,
+without warnings, with a 12 GB heap below a 15 GB RAM / zero-swap scope:
+
+```sh
+systemd-run --user --scope -p MemoryMax=15G -p MemorySwapMax=0 -- \
+  sh /tmp/cm-restarted-shutdown-20261102/final-check.sh
+```
+
+Logs/scripts are under `/tmp/cm-restarted-shutdown-20261102/`;
+`final.log` and `final-result.log` record acceptance. Initial scope-entry-only
+checks exhausted 6 GB and 8 GB heaps, exit 251, without proof diagnostics.
+The changed-file strict local audit has zero findings and whitespace checks pass;
+no new postulate, hole, unsafe option, termination bypass or weakened old theorem.
+This is not a term-level audit of every dependency. Serial cached Negative/MuxGroupShutdown.agda and Negative/MuxHandlerExit.agda
+regressions passed at an 8 GB heap under a 10 GB RAM / zero-swap scope, exit 0
+without warnings (regression-results.log and individual regression logs).
+All checker processes are terminal. Handovers, presentation, .claude, output and external
+checkouts are preserved; no commit or push.
+
+Next: exercise normal old-generation publication racing the captured CM pool
+close. Preserve the exact typed FIFO/result and distinguish joining an already
+completed Async from delivering cancellation. Retain the live current generation,
+actual handler wait and raw-worker obstruction. Broader race/failure profiles,
+CM-I4c, SI4/SI5 and overall G0–G5 remain open.
+
+## Thirtieth increment: old publication racing captured pool close
+
+`Protocols.Reactivation.Shutdown.PublicationRace` stays in
+`Negative/ServerPeers.agda`. `initialized-publication-race-return` proves a
+273-action initialized history using the real restart/peer/IG/CM prefix and
+physical capture [21,20,1,0]. Only after capture does generation 20 return,
+publish its exact typed completion, deregister and publish its normal Async
+result. Generation 21 remains physically live with an empty cell throughout
+those four steps. It is then cancelled and joined; the old captured handle is
+joined without cancellation delivery, followed by both infrastructure handles.
+
+The mixed-result certificate records normal exit for generation 20 and cancelled
+exit for the other three handles. Removal from the registry leaves the old
+snapshot membership intact. Controls reject delivery to the finished old child,
+popping the result during close or after return, and premature CM completion.
+Catch, handler cleanup, actual Async result, physical CM wait and Server return
+all retain the exact old typed FIFO. The old cell stays clean; the current cell
+stays empty and observes actual Shutdown. The raw-worker counterexample still
+refutes Server return implying all worker results; SI5 is unchanged.
+
+Pinned JobPool.hs:105–109,123–164 was re-read directly from Git objects at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: close retains a handle snapshot;
+normal queued publication precedes deregistration and actual Async completion.
+No runtime, prior theorem, guard or source pin changed. Existing normal scope,
+body/provider/tracer observations remain explicit. This is a selected finite
+race, not universal shutdown, source refinement or a new deployed finding.
+No native replay, full baseline rebuild or term-level dependency audit was run.
+
+Validation used Agda 2.8.0 serially. The original fresh check emitted its own
+Checking line and produced the updated interface, but its terminal session status
+and exit record were lost across the continuation. Its scope was confirmed ended
+before retrying. The retry accepted the current cached interface, exit 0 without
+warnings. Both used a 12 GB heap under 15 GB RAM, swap disabled. Evidence:
+`/tmp/cm-publication-race-20261102/interrupted.log`, `acceptance.log`,
+`result.log`, `scope.log` and `retry-scope.log`; script `check.sh`.
+Do not describe the cached retry as a fresh check or the original as a recorded
+exit-0 run. Final strict local audit has zero findings; whitespace checks pass.
+No postulate, hole, unsafe option, termination bypass or weakened old theorem.
+Cached Negative/MuxProtocolJobs.agda and Negative/MuxGroupShutdown.agda
+regressions passed serially at 8 GB heap under 10 GB RAM / zero swap, exit 0
+without warnings (regression-results.log and individual logs). All processes
+are terminal. No commit or push; handovers,
+presentation, .claude, output and external checkouts remain preserved.
+
+Next: let the current generation commit a clean local result while CM cancellation
+is pending, before its physical cancellation receipt. Check local-result priority
+over later Failed/Shutdown without fabricating a physical publication or handler
+result. Broader races/failures, CM-I4c, SI4/SI5 and overall G0–G5 remain open.
+
+## Thirty-first increment: current clean completion before child cancellation
+
+`Protocols.Reactivation.Shutdown.CurrentClean` adds the initialized 275-action
+`initialized-current-clean-return` in `Negative/ServerPeers.agda`. It reuses the
+actual CM normal-monitor receipt, captures the pool and requests cancellation
+of generation 21. Before delivery to that child, separate actual body-return
+and clean-commit steps fill its local cell. The remaining real cancellation,
+unwind, deregistration, Async publication and joins precede Failed/Dead,
+captured handler cleanup/result, collective CM wait and Server return.
+
+Expected snapshots update only the current physical job, cell and matching peer
+cache. Each successor is checked by an actual V.advance equality; no generic
+commutation assumption or terminal-stage assignment is used. The existing
+capture/supply lift uses the original initial bounds. All four captured physical
+results are cancelled, while both generation cells remain locally clean. No
+typed protocol completion is invented. The physical handler wait certificate
+retains the actual result table and captured handler. The initialized raw-worker
+counterexample preserves the SI5 obstruction.
+
+Controls distinguish a clean cell from a physical publication, child Async
+result or handler result. They reject premature publication, a repeated cell
+write and premature CM completion. The current cell reads clean before child
+delivery, after actual mux Failed and after Server return. The mux really is
+Failed, and the child Async really is cancelled. The handler outcome is still
+the original async exception, independent of the clean protocol result.
+
+Pinned network-mux Mux.hs:332–373,799–816 was re-read directly from Git objects
+at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: the clean STM transaction
+waits for egress, marks the protocol idle and fills its cell before physical
+return/publication. The completion action prefers that cell to Shutdown;
+AsyncCancelled bypasses the synchronous job handler. This is one selected
+finite interleaving under existing body/egress/provider/tracer and normal scope
+contracts, not universal progress or source refinement. No runtime, prior
+theorem, transition guard or initializer premise changed. No native replay,
+full baseline, new deployed finding or term-level dependency audit.
+
+Agda 2.8.0 freshly checked the complete final file, own Checking line, exit 0,
+without warnings, at 12 GB heap below 15 GB RAM / zero swap:
+
+```sh
+systemd-run --user --scope -p MemoryMax=15G -p MemorySwapMax=0 -- \
+  sh /tmp/cm-current-clean-20261102/check.sh
+```
+
+Evidence/scripts are under `/tmp/cm-current-clean-20261102/`; acceptance.log
+and result.log record the fresh check. Strict local changed-file audit has zero
+findings; whitespace checks pass. No new postulate, hole, unsafe option,
+termination bypass or weakened old statement. Cached Negative/MuxProtocolJobs.agda
+and Negative/MuxHandlerExit.agda regressions passed serially at 8 GB heap under
+10 GB RAM / zero swap, exit 0 without warnings (regression-results.log and
+individual logs). All checker processes are terminal.
+Handovers, presentation, .claude, output and external checkouts are preserved;
+no commit or push.
+
+Next: generalize committed per-generation cell preservation to every enabled
+Protocols event and finite initialized execution. Retain fresh allocation and
+existing completion guards; do not infer physical Async or shutdown completion
+from that monotonicity property. Broader races, CM-I4c, SI4/SI5 and G0–G5 remain
+open.
+
+## Thirty-second increment: generic committed-generation cell preservation
+
+`Properties/ServerPeers.Protocols.CommittedCells` strengthens the invariant
+layer beyond the selected race histories. `advance-keeps` preserves the complete
+Call record once its local result is committed, for every enabled Protocols event
+on a unique generation table. `run-keeps` lifts this to arbitrary finite Runs.
+`initial-unique` and `run-unique` derive that representation premise from the
+actual initializer and enabled prefix. Consequently `from-initial-keeps` and
+`from-initial-observe` require only initialization, prefix/suffix executions and
+the observed committed binding/value; they add no initial supply or uniqueness
+assumption. Both clean and error outcomes are covered. Local observation remains
+that committed result regardless of later mux status.
+
+The proof reuses Properties/Stores lookup/put and UniqueKeys lemmas. A byThread
+search on a unique table is related to the actual generation-key lookup. The
+three permitted table changes are unchanged calls, a fresh cons allocation and
+a write to a previously empty call. Every successful executable selector is
+checked, including dispatch/FIFO bookkeeping, starts/tracing/fork/registration,
+completion, PSA reads/waits and tracer/CM receipt faults. Rejected constructor
+cases are explicit. Arbitrary injected Plan values are not assumed enabled.
+No runtime, existing theorem statement, guard or initializer premise changed.
+
+`Negative/ServerPeers.CellPreservationChecks` instantiates the generic theorem
+on the initialized clean-before-cancellation history and an initialized error
+followed by physical body return. It also constructs a deliberately malformed
+duplicate-key table: byThread can find a later empty binding behind a committed
+first binding, and a real commit overwrites that first binding. This refutes
+omitting uniqueness from the arbitrary-state step theorem. The same table is
+proved nonunique and cannot occur in the initialized executions covered above.
+It is a representation-premise control, not a new deployed source defect.
+
+Pinned network-mux Mux.hs:774–789,799–816 was re-read from Git objects at
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: each run allocates a fresh cell,
+and its completion action prefers that cell to Shutdown. This source mapping
+is separate from the generic model theorem; no source-refinement, delivery,
+physical child/handler completion or universal-progress conclusion follows.
+CM-I4c, SI4/SI5 and overall G0–G5 remain open. No native replay, full baseline
+rebuild or term-level dependency audit was run.
+
+Agda 2.8.0 freshly accepted the generic properties module at 8 GB heap below
+10 GB RAM / zero swap, exit 0, own Checking line, no warnings. The complete
+downstream Negative/ServerPeers.agda acceptance freshly passed
+at 12 GB heap below 15 GB RAM / zero swap, exit 0, own Checking line and no
+warnings, covering every existing history plus the new generic instances and
+malformed-table control.
+Logs/scripts: `/tmp/cm-cell-preservation-20261102/`;
+`properties-accepted.log` and `result.log` record the generic acceptance.
+Preliminary proof development repaired explicit imports, dependent guard
+equations, rejected-case coverage and suffix/event inference. No new postulate,
+hole, unsafe option, termination bypass or weakened old statement was added.
+The strict local two-file audit has zero findings and whitespace checks pass.
+`acceptance.log` and `acceptance-result.log` record the final downstream success;
+`acceptance-inference.log` retains the repaired one-step test inference diagnostic.
+All checker processes are terminal. Only this acceptance module directly imports
+the changed proof module in ConnectionManagement; no unrelated lower rebuild was
+needed after these proof-only edits. Handovers, presentation,
+.claude, output and external checkouts are preserved; no commit or push.
+
+Next: prove that initialized call-thread references retain matching historical
+physical job captures (owner, mux, protocol direction/number and generation).
+Keep historical presence distinct from a live thread, current CM map ownership,
+local completion or Async-result availability.
+
+## Thirty-third increment: initialized call-thread capture soundness
+
+`Properties.ServerPeers.CaptureIdentity.Frontend.initialized-soundness` derives
+capture soundness from `Protocols.initialize` and every finite enabled `Runs`.
+A call with `thread = just j` has a historical physical `ProtocolJob` row at j
+whose owner, mux, initiator direction, protocol number and generation match the
+call and its RunId. The theorem adds no initial supply or uniqueness premise:
+call-table uniqueness is derived along the same initialized execution.
+
+`Properties.MuxProtocolJobs.CaptureIdentity` proves immutable capture retention
+for every physical action and finite execution. Separate proof layers carry that
+fact through result monitoring, group/whole-pool close, handler exit, cancellation,
+startup unwind, DeltaQ, catch/publication unwind, Server admission, IG exit and
+shared ServerPeers actions. Existing source/pool projection theorem types and
+runtime definitions/guards remain unchanged. Fresh job insertion and phase-only
+updates preserve older identities. The frontend proof checks its actual guarded
+fork, fresh caller allocation, result commits, legacy dispatch, PSA reads/waits
+and tracer/shutdown events. A small indexed Effect record retains selector-plan
+identity during elaboration.
+
+Historical row presence does not establish a live physical child, current CM map
+binding, local cell completion, Async availability or universal progress. This
+increment is a model invariant; no source-refinement or new deployed defect is
+claimed. Network/consensus pins are unchanged. No native replay, full baseline
+rebuild or term-level dependency audit was run; CM-I4c, SI4/SI5 and G0–G5 remain open.
+
+Generic Agda 2.8.0 acceptance: fresh own Checking line, exit 0, 10 GB heap with
+12 GB virtual-memory limit (`indexed.log`/`indexed-result.log` under
+`/tmp/cm-thread-capture-20261102/`). Earlier all-event attempt exhausted its 8 GB
+heap, exit 251; a naming clash and selector evidence representation were repaired.
+One PatternShadowsConstructor warning concerns the unused `frame` birth pattern.
+The full downstream acceptance freshly passed at 12 GB heap under a 15 GB RAM /
+zero-swap scope, exit 0, own Checking line (acceptance.log/acceptance-result.log).
+Its new `ThreadCaptureChecks` covers initialized clean shutdown, error, restart
+and a fabricated-reference negative control. The constructor-shadowing warning
+was also reported through the import; there were no proof errors. All checkers
+are terminal. Strict local audit of all 13 edited proof
+and acceptance modules found zero issues; whitespace clean. All changes remain
+uncommitted; handovers, presentation and unrelated user files are preserved.
+
+Next: strengthen the initialized invariant so a committed local cell is backed
+by a physical capture of the same generation with the same committed result.
+Keep physical result capture, body return, publication and Async availability
+separate; do not infer any later phase from the local cell alone.
+
+
+## Thirty-fourth increment: initialized local-result agreement
+
+`Properties.ServerPeersResults.Frontend.initialized-agreement` proves that each
+committed local cell in an initialized finite execution has a real thread handle
+and a current historical physical `ProtocolJob` row with the same captured result.
+That row also matches the call's owner, mux, initiator direction, protocol number
+and RunId. `initialized-soundness` supplies the result component; the public
+agreement theorem joins it with increment 33's capture-identity invariant.
+Initializer and enabled prefix derive call-table uniqueness, so the initialized
+statement adds no supply or representation premise.
+
+`Properties.MuxProtocolJobs.CommittedRows` proves exact retention of already
+resultCaptured rows through physical steps and finite executions. Separate
+projections carry this fact through monitoring, shutdown, handler/cancellation/
+unwind layers, Server admission, IG exit and shared ServerPeers. Fresh forks
+cannot reuse an existing row; body-return preparation starts at executing, and
+actual completion input excludes a previously captured result. Frontend writer
+proofs use the actual guarded physical step and capture operation, not an assumed
+successful commit. Allocation/fork, dispatch, reads/waits and tracer/shutdown
+cases preserve the invariant, which is then lifted through finite Runs.
+
+The focused result-proof module keeps repeated checks small; all acceptance
+fixtures remain in the existing `Negative/ServerPeers.agda`. Recursive adapter
+implementation aliases are private, and `MuxPublicationUnwind.retained-jobs`
+provides the needed projection without exposing the nested alias tree. Direct
+inherited-observation calls avoid instantiating complete lower proof modules.
+Old theorem statements, runtime definitions, transition guards and initializers
+are unchanged. This is a model invariant, not implementation refinement.
+
+`Protocols.LocalResultChecks` instantiates initialized clean shutdown, error and
+restart histories and extracts the current generation's clean physical capture.
+Negative controls reject a committed cell with no physical row and an error cell
+backed only by a clean physical row. The theorem concerns captured results. It
+does not identify the local result with a physical body's final Async outcome,
+infer body return/publication/Async availability, prove progress or close SI4/SI5.
+The clean-before-cancellation history deliberately retains those distinctions.
+CM-I4c and overall G0–G5 remain open; network/consensus source pins are unchanged.
+No new source defect, native replay, full baseline or term-level axiom audit is
+claimed.
+
+Agda 2.8.0 freshly accepted the generic result module and the complete downstream
+acceptance file, each with its own Checking line, exit 0, no warnings, 12 GB heap
+under a 15 GB RAM / zero-swap user service. The final acceptance also checks the
+existing earlier witnesses and negative controls. Logs, explicit exits and
+scripts: `/tmp/cm-result-soundness-20261102/` results.log/results-result.log,
+acceptance.log/acceptance-result.log, check-results-generic.sh and check-results.sh.
+All checker processes are terminal. Strict local audit of 14 edited/new proof and
+acceptance modules: zero findings; whitespace clean. No new postulate/hole/unsafe
+option, termination bypass or weakened old statement was introduced. This local
+scan is not a transitive term-level dependency audit. All changes are uncommitted;
+handovers, presentation, .claude, output and external checkouts remain preserved.
+
+Development diagnostics are retained separately: returned-phase/state inference,
+a module-name clash, a with-equation proof term and the final explicit action
+argument were repaired. Earlier long-running namespace-instantiation probes were
+interrupted or terminated and are not reported as successful checks. Profiling
+identified most time outside individual theorem checking; direct lemma calls
+reduced the subsequent generic retry to about three minutes (a measurement, not
+a runtime guarantee).
+
+Next: derive generic PSA poll/wait observation soundness. Any selected localResult
+should belong to the selected call generation and match its captured physical
+result; the Shutdown branch must retain its actual mux-state fallback semantics.
+Reuse initialized-agreement, latest/byThread and existing read-selector evidence.

@@ -872,3 +872,1066 @@ whole-finish-observation w s eq | W.wholeClosed outcome = case eq of λ ()
 whole-finish-observation w s eq | W.asyncFailureWritten err = case eq of λ ()
 whole-finish-observation w s eq | W.asyncDeadTracing err = case eq of λ ()
 whole-finish-observation w s eq | W.scopeDone outcome = case eq of λ ()
+
+-- Independent capture-identity transport through group and whole-pool close.
+-- The previous source/pool projection statements are unchanged.
+module CaptureIdentity where
+  private
+    module CIBase = Base.CaptureIdentity
+  module CIPhysical = ProtocolFacts.CaptureIdentity
+  record CIPaths (before after : W.State) : Set where
+    constructor ci-path
+    field retention : CIPhysical.Retains (P.jobs (W.protocolState before)) (P.jobs (W.protocolState after))
+  ci-from-base : ∀ before after → CIBase.Stable (W.base before) (W.base after) → CIPaths before after
+  ci-from-base before after path = ci-path (CIBase.CIPaths.retention path)
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIPhysical.identity (P.jobs (W.protocolState s)))
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path
+    (CIPhysical.compose-retains {xs = P.jobs (W.protocolState p)}
+      {ys = P.jobs (W.protocolState q)} {zs = P.jobs (W.protocolState r)} first second)
+
+  ci-frame-paths : ∀ w f s → CIPaths s (W.setFrame w f s)
+  ci-frame-paths w f s = ci-from-base s _ (CIBase.ci-idle (W.base s))
+  ci-phase-paths : ∀ w pc s → CIPaths s (W.setPhase w pc s)
+  ci-phase-paths w pc s = ci-frame-paths w _ s
+  ci-phase-after : ∀ w pc {before after} → CIPaths before after → CIPaths before (W.setPhase w pc after)
+  ci-phase-after w pc {after = after} path = ci-compose path (ci-phase-paths w pc after)
+  ci-frame-after : ∀ w f {before after} → CIPaths before after → CIPaths before (W.setFrame w f after)
+  ci-frame-after w f {after = after} path = ci-compose path (ci-frame-paths w f after)
+  ci-from-protocol : ∀ before after → CIPhysical.Stable (W.protocolState before) (W.protocolState after) → CIPaths before after
+  ci-from-protocol before after path = ci-from-base before after (CIBase.ci-from-base (W.base before) (W.base after) path)
+  ci-protocol-projects : ∀ s p → CIPhysical.Stable (W.protocolState s) p → CIPaths s (W.setProtocols p s)
+  ci-protocol-projects s p path = ci-from-protocol s _ path
+  ci-source-step : ∀ action s {c} → O.advance (O.inbound (Machine.igStep action)) (W.source s) ≡ just c → CIPaths s (W.setSource c s)
+  ci-source-step action s eq = ci-from-base s _ (CIBase.ci-source-step action (W.base s) eq)
+  ci-via-source-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
+  ci-via-source-projects action s eq with O.advance (O.inbound (Machine.igStep action)) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-source-step action s advanced }
+  ci-pool-step : ∀ w f action s {p} → Pool.step action (W.poolAt w s) ≡ just p → CIPaths s (W.setPool w f p s)
+  ci-pool-step w f action s eq = ci-path (CIPhysical.identity (P.jobs (W.protocolState s)))
+  ci-via-pool-projects : ∀ w action s {s′} → W.viaPool w action s ≡ just s′ → CIPaths s s′
+  ci-via-pool-projects w action s eq with W.ownerContext w s
+  ... | nothing = case eq of λ ()
+  ... | just (f , mid) with Pool.step action (W.poolAt w s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just p = case just-injective eq of λ { refl → ci-pool-step w f action s advanced }
+  ci-inherit-projects : ∀ action s {s′} → W.inherit action s ≡ just s′ → CIPaths s s′
+  ci-inherit-projects action s eq with W.delegateAllowed action s
+  ... | false = case eq of λ ()
+  ... | true with Monitor.step action (W.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.step-stable action (W.base s) advanced) }
+  ci-from-phase-projects : ∀ w before after s {s′} → W.fromPhase w before after s ≡ just s′ → CIPaths s s′
+  ci-from-phase-projects w before after s eq with W.sameStage before (W.phase (W.frameAt w s))
+  ... | false = case eq of λ ()
+  ... | true = case just-injective eq of λ { refl → ci-phase-paths w after s }
+  ci-source-phase-projects : ∀ w before after action s {s′} → W.sourcePhase w before after action s ≡ just s′ → CIPaths s s′
+  ci-source-phase-projects w before after action s eq with W.sameStage before (W.phase (W.frameAt w s)) | W.ownerContext w s
+  ... | true | just (f , mid) with W.viaSource (action mid) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w after (ci-via-source-projects (action mid) s advanced) }
+  ci-source-phase-projects w before after action s eq | false | _ = case eq of λ ()
+  ci-source-phase-projects w before after action s eq | true | nothing = case eq of λ ()
+  ci-request-projects : ∀ w s {s′} → W.requestStop w s ≡ just s′ → CIPaths s s′
+  ci-request-projects w s eq with lookup w (U.frames (P.base (W.protocolState s)))
+  ... | nothing = case eq of λ ()
+  ... | just f with U.progress f
+  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+  ...   | U.returnedSuccess = case eq of λ ()
+  ...   | U.handleAllocated hid mid = case eq of λ ()
+  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
+  ci-select-projects w s eq with W.phase (W.frameAt w s) | Monitor.pcAt w (W.base s) | W.ownerContext w s
+  ... | W.idle | Monitor.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
+  ...   | true | true with W.viaSource (IG.takeShutdownCommand mid) s in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just next = case just-injective eq of λ { refl → ci-phase-after w W.shutdownSelected (ci-via-source-projects (IG.takeShutdownCommand mid) s advanced) }
+  ci-select-projects w s eq | W.idle | Monitor.waiting | just (f , mid) | false | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.waiting | just (f , mid) | true | false = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.waiting | nothing = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.selected item | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.responderTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.initiatorTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.deadReady outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.deadTracing outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.finished outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-capture-projects : ∀ w order s {s′} → W.captureMini w order s ≡ just s′ → CIPaths s s′
+  ci-capture-projects w order s eq with W.phase (W.frameAt w s) | Pool.sameSnapshot order (W.registeredMini w s) | P.noParent (W.poolAt w s)
+  ... | W.stoppingWritten | true | true = case just-injective eq of λ { refl → ci-frame-paths w _ s }
+  ... | W.stoppingWritten | false | _ = case eq of λ ()
+  ... | W.stoppingWritten | true | false = case eq of λ ()
+  ci-capture-projects w order s eq | W.idle | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.draining | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-request-group-projects : ∀ w s {s′} → W.requestGroup w s ≡ just s′ → CIPaths s s′
+  ci-request-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s) | W.remaining (W.frameAt w s)
+  ... | W.groupClosing | W.ready | j ∷ rest = case just-injective eq of λ { refl → ci-frame-paths w _ s }
+  ... | W.groupClosing | W.ready | [] = case eq of λ ()
+  ... | W.groupClosing | W.requested j | _ = case eq of λ ()
+  ... | W.groupClosing | W.delivered j | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-deliver-group-projects : ∀ w s {s′} → W.deliverMini w s ≡ just s′ → CIPaths s s′
+  ci-deliver-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s) | W.remaining (W.frameAt w s)
+  ... | W.groupClosing | W.requested j | current ∷ rest with j ≟ current | W.miniMember w j s | W.childEligible j s
+  ...   | yes same | true | true with W.viaPool w (Pool.interruptJob j) s in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just next = case just-injective eq of λ { refl → ci-frame-after w _ (ci-via-pool-projects w (Pool.interruptJob j) s advanced) }
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | current ∷ rest | no apart | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | current ∷ rest | yes same | false | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | current ∷ rest | yes same | true | false = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | [] = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.ready | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.delivered j | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-join-head-projects : ∀ w current s {s′} → W.joinMiniHead w current s ≡ just s′ → CIPaths s s′
+  ci-join-head-projects w current s eq with W.remaining (W.frameAt w s) | lookup current (Pool.handles (W.poolAt w s))
+  ... | head ∷ rest | just (Pool.resultAvailable exit) with current ≟ head
+  ...   | yes same = case just-injective eq of λ { refl → ci-frame-paths w _ s }
+  ...   | no apart = case eq of λ ()
+  ci-join-head-projects w current s eq | [] | _ = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | nothing = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just Pool.bodyRunning = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just (Pool.bodyReturned result) = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just Pool.bodyUnwinding = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just (Pool.deregisterPending exit) = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just (Pool.deregistered exit) = case eq of λ ()
+  ci-join-group-projects : ∀ w s {s′} → W.joinMini w s ≡ just s′ → CIPaths s s′
+  ci-join-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s)
+  ... | W.groupClosing | W.requested j = ci-join-head-projects w j s eq
+  ... | W.groupClosing | W.delivered j = ci-join-head-projects w j s eq
+  ... | W.groupClosing | W.ready = case eq of λ ()
+  ci-join-group-projects w s eq | W.idle | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.draining | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.drainReady | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.wholeClosed outcome | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.asyncFailureWritten err | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.asyncDeadTracing err | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-finish-group-projects : ∀ w s {s′} → W.finishMini w s ≡ just s′ → CIPaths s s′
+  ci-finish-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s) | W.remaining (W.frameAt w s)
+  ... | W.groupClosing | W.ready | [] = case just-injective eq of λ { refl → ci-phase-paths w W.draining s }
+  ... | W.groupClosing | W.ready | _ ∷ _ = case eq of λ ()
+  ... | W.groupClosing | W.requested j | _ = case eq of λ ()
+  ... | W.groupClosing | W.delivered j | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-discard-projects : ∀ j job s {s′} → W.discardClean j job s ≡ just s′ → CIPaths s s′
+  ci-discard-projects j job s eq with Types.direction job
+  ... | Mux.initiatorJob = case just-injective eq of λ { refl → ci-idle s }
+  ... | Mux.responderJob with P.locate j (P.pendingAt (Types.owner job) (W.protocolState s)) | P.muxAt (Types.mux job) (W.protocolState s)
+  ...   | just (index , kept) | just m with IG.takePending index (Mux.finishedJobs m)
+  ...     | just ((n , result) , rest) with does (n Data.Nat.≟ Types.protocolNumber job) ∧ P.sameOutcome ConnectionManagement.IGTypes.clean result
+  ...       | true with W.viaSource (IG.discardJobOccurrence (Types.mux job) index) s in advanced
+  ...         | nothing = case eq of λ ()
+  ...         | just next = case just-injective eq of λ { refl → ci-compose
+    (ci-via-source-projects (IG.discardJobOccurrence (Types.mux job) index) s advanced)
+    (ci-protocol-projects next _ (CIPhysical.identity (P.jobs (W.protocolState next)))) }
+  ci-discard-projects j job s eq | Mux.responderJob | just (index , kept) | just m | just ((n , result) , rest) | false = case eq of λ ()
+  ci-discard-projects j job s eq | Mux.responderJob | just (index , kept) | just m | nothing = case eq of λ ()
+  ci-discard-projects j job s eq | Mux.responderJob | nothing | _ = case eq of λ ()
+  ci-discard-projects j job s eq | Mux.responderJob | just pair | nothing = case eq of λ ()
+  ci-prepare-projects : ∀ j w f s {s′} → W.prepareUnwind j w f s ≡ just s′ → CIPaths s s′
+  ci-prepare-projects j w f s eq with lookup j (P.jobs (W.protocolState s))
+  ... | nothing with W.isInfra j f
+  ...   | true = case just-injective eq of λ { refl → ci-idle s }
+  ...   | false = case eq of λ ()
+  ci-prepare-projects j w f s eq | just job with does (w ≟ Types.owner job) | Types.phase job
+  ... | true | Types.executing = case just-injective eq of λ { refl → ci-idle s }
+  ... | true | Types.waitingEgress = case just-injective eq of λ { refl → ci-idle s }
+  ... | true | Types.resultCaptured ConnectionManagement.IGTypes.clean = ci-discard-projects j job s eq
+  ... | true | Types.resultCaptured (ConnectionManagement.IGTypes.errored err) = case eq of λ ()
+  ... | false | _ = case eq of λ ()
+  ci-unwind-projects : ∀ j s {s′} → W.unwindChild j s ≡ just s′ → CIPaths s s′
+  ci-unwind-projects j s eq with W.ownerOf j s
+  ... | nothing = case eq of λ ()
+  ... | just (w , f) with lookup j (Pool.handles (W.poolAt w s))
+  ...   | just Pool.bodyUnwinding with W.prepareUnwind j w f s in prepared
+  ...     | nothing = case eq of λ ()
+  ...     | just next with Pool.step (Pool.bodyUnwound j) (W.poolAt w next) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just p = case just-injective eq of λ { refl → ci-compose (ci-prepare-projects j w f s prepared) (ci-pool-step w f (Pool.bodyUnwound j) next advanced) }
+  ci-unwind-projects j s eq | just (w , f) | nothing = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just Pool.bodyRunning = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.bodyReturned result) = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.deregisterPending exit) = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.deregistered exit) = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.resultAvailable exit) = case eq of λ ()
+  ci-replacement-projects : ∀ j err s {s′} → W.replaceUnwind j err s ≡ just s′ → CIPaths s s′
+  ci-replacement-projects j err s eq with lookup j (P.jobs (W.protocolState s))
+  ... | nothing = case eq of λ ()
+  ... | just job with W.replacementEligible (Types.phase job) | W.ownerOf j s
+  ...   | true | just (w , f) with does (w ≟ Types.owner job) | Pool.step (Pool.resumeAfterUnwindError j) (W.poolAt w s) in advanced
+  ...     | true | just p with P.step (P.protocolException j err) (W.protocolState (W.setPool w f p s)) in captured
+  ...       | nothing = case eq of λ ()
+  ...       | just next = case just-injective eq of λ { refl → ci-compose
+    (ci-pool-step w f (Pool.resumeAfterUnwindError j) s advanced)
+    (ci-protocol-projects (W.setPool w f p s) next (CIPhysical.step-stable (P.protocolException j err) (W.protocolState (W.setPool w f p s)) captured)) }
+  ci-replacement-projects j err s eq | just job | true | just (w , f) | false | _ = case eq of λ ()
+  ci-replacement-projects j err s eq | just job | true | just (w , f) | true | nothing = case eq of λ ()
+  ci-replacement-projects j err s eq | just job | false | _ = case eq of λ ()
+  ci-replacement-projects j err s eq | just job | true | nothing = case eq of λ ()
+  ci-abort-projects : ∀ w err s {s′} → W.abortMonitor w err s ≡ just s′ → CIPaths s s′
+  ci-abort-projects w err s eq with W.abortStage w s | W.ownerContext w s | P.noParent (W.poolAt w s)
+  ... | true | just (f , mid) | true with P.muxAt mid (W.protocolState s)
+  ...   | just m with Mux.callback m
+  ...     | Mux.returned = case just-injective eq of λ { refl → ci-phase-paths w (W.ownerAborting err) s }
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.readActive tr = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.afterStart n = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.forkPending n = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.afterFailure = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | nothing = case eq of λ ()
+  ci-abort-projects w err s eq | false | _ | _ = case eq of λ ()
+  ci-abort-projects w err s eq | true | nothing | _ = case eq of λ ()
+  ci-abort-projects w err s eq | true | just pair | false = case eq of λ ()
+  ci-begin-whole-projects : ∀ w order s {s′} → W.beginWhole w order s ≡ just s′ → CIPaths s s′
+  ci-begin-whole-projects w order s eq with W.wholeOutcome w s
+  ... | nothing = case eq of λ ()
+  ... | just outcome with W.viaPool w (Pool.beginClose order) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.wholeClosing outcome) (ci-via-pool-projects w (Pool.beginClose order) s advanced) }
+  ci-whole-action-projects : ∀ w action s {s′} → W.wholeAction w action s ≡ just s′ → CIPaths s s′
+  ci-whole-action-projects w action s eq with W.phase (W.frameAt w s)
+  ... | W.wholeClosing outcome = ci-via-pool-projects w action s eq
+  ci-whole-action-projects w action s eq | W.idle = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.shutdownSelected = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppingTraced = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppingWritten = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.groupClosing = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.draining = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.drainReady = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppedTrace = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppedTracing = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.monitorReturnedNormal = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.ownerAborting err = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.wholeClosed outcome = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.asyncFailureWritten err = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.asyncDeadTracing err = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.scopeDone outcome = case eq of λ ()
+  ci-whole-delivery-projects : ∀ w s {s′} → W.deliverWholeChild w s ≡ just s′ → CIPaths s s′
+  ci-whole-delivery-projects w s eq with W.phase (W.frameAt w s) | W.ownerContext w s | Pool.phase (W.poolAt w s)
+  ... | W.wholeClosing outcome | just (f , mid) | Pool.cancelPending j with W.wholeDeliverable w j f s
+  ...   | true = ci-via-pool-projects w Pool.deliverCancel s eq
+  ...   | false = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | nothing | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.openPool = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.closing = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.closedPool = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.joinPending j = case eq of λ ()
+  ci-finish-whole-projects : ∀ w s {s′} → W.finishWhole w s ≡ just s′ → CIPaths s s′
+  ci-finish-whole-projects w s eq with W.phase (W.frameAt w s)
+  ... | W.wholeClosing outcome with W.viaPool w Pool.finishClose s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.wholeClosed outcome) (ci-via-pool-projects w Pool.finishClose s advanced) }
+  ci-finish-whole-projects w s eq | W.idle = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.shutdownSelected = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppingTraced = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppingWritten = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.groupClosing = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.draining = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.drainReady = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppedTrace = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppedTracing = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.monitorReturnedNormal = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.ownerAborting err = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.wholeClosed outcome = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.asyncFailureWritten err = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.asyncDeadTracing err = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.scopeDone outcome = case eq of λ ()
+  ci-async-failure-projects : ∀ w s {s′} → W.asyncFailure w s ≡ just s′ → CIPaths s s′
+  ci-async-failure-projects w s eq with W.phase (W.frameAt w s) | Pool.phase (W.poolAt w s) | W.ownerContext w s
+  ... | W.wholeClosed (W.asyncExit err) | Pool.closedPool | just (f , mid) with W.viaSource (IG.recordAsyncMuxFailure mid err) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.asyncFailureWritten err) (ci-via-source-projects (IG.recordAsyncMuxFailure mid err) s advanced) }
+  ci-async-failure-projects w s eq | W.wholeClosed W.normalExit | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.failedExit err) | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.closedPool | nothing = case eq of λ ()
+  ci-async-failure-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.openPool | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.closing | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.cancelPending j | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.joinPending j | _ = case eq of λ ()
+  ci-async-dead-projects : ∀ w s {s′} → W.asyncDead w s ≡ just s′ → CIPaths s s′
+  ci-async-dead-projects w s eq with W.phase (W.frameAt w s) | W.ownerContext w s
+  ... | W.asyncFailureWritten err | just (f , mid) with W.viaSource (IG.traceMuxDead mid) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.asyncDeadTracing err) (ci-via-source-projects (IG.traceMuxDead mid) s advanced) }
+  ci-async-dead-projects w s eq | W.asyncFailureWritten err | nothing = case eq of λ ()
+  ci-async-dead-projects w s eq | W.idle | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.groupClosing | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.draining | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.drainReady | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.wholeClosed outcome | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.asyncDeadTracing err | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-async-trace-projects : ∀ sample w s {s′} → W.asyncTrace sample w s ≡ just s′ → CIPaths s s′
+  ci-async-trace-projects sample w s eq with W.phase (W.frameAt w s) | W.ownerContext w s
+  ... | W.asyncDeadTracing err | just (f , mid) with sample
+  ...   | true = ci-via-source-projects (IG.sampleTracer mid) s eq
+  ...   | false = ci-via-source-projects (IG.commitTracer mid) s eq
+  ci-async-trace-projects sample w s eq | W.asyncDeadTracing err | nothing = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.idle | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.groupClosing | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.draining | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.drainReady | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.wholeClosed outcome | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.asyncFailureWritten err | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-finish-async-projects : ∀ w s {s′} → W.finishAsync w s ≡ just s′ → CIPaths s s′
+  ci-finish-async-projects w s eq with W.phase (W.frameAt w s) | W.ownerContext w s | Pool.phase (W.poolAt w s)
+  ... | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool with P.muxAt mid (W.protocolState s)
+  ...   | just m with Mux.callback m | Monitor.finishMatches (Monitor.failed err) (Mux.status m)
+  ...     | Mux.returned | true = case just-injective eq of λ { refl → ci-phase-paths w (W.scopeDone (W.asyncExit err)) s }
+  ...     | Mux.returned | false = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.readActive tr | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.commitTrace active tr | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.afterStart n | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.forkPending n | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.afterFailure | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.tracerFailed n | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | nothing = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | nothing | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.openPool = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closing = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.cancelPending j = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.joinPending j = case eq of λ ()
+  ci-finish-ordinary-projects : ∀ w s {s′} → W.finishOrdinary w s ≡ just s′ → CIPaths s s′
+  ci-finish-ordinary-projects w s eq with W.phase (W.frameAt w s) | Pool.phase (W.poolAt w s)
+  ... | W.wholeClosed W.normalExit | Pool.closedPool = case just-injective eq of λ { refl → ci-phase-paths w (W.scopeDone W.normalExit) s }
+  ... | W.wholeClosed (W.failedExit err) | Pool.closedPool = case just-injective eq of λ { refl → ci-phase-paths w (W.scopeDone (W.failedExit err)) s }
+  ... | W.wholeClosed (W.asyncExit err) | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.idle | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.groupClosing | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.draining | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.drainReady | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.asyncFailureWritten err | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.asyncDeadTracing err | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.openPool = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.closing = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.cancelPending j = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.joinPending j = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.openPool = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.closing = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.cancelPending j = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.joinPending j = case eq of λ ()
+  ci-finish-stopped-projects : ∀ w s {s′} → W.finishStopped w s ≡ just s′ → CIPaths s s′
+  ci-finish-stopped-projects w s eq = subst (CIPaths s)
+    (sym (StoppedReturn.next-state (finish-stopped-observation w s eq))) (ci-phase-paths w W.monitorReturnedNormal s)
+
+  ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects (W.run action) s eq = ci-inherit-projects action s eq
+  ci-step-projects (W.requestShutdown w) s eq = ci-request-projects w s eq
+  ci-step-projects (W.selectShutdown w) s eq = ci-select-projects w s eq
+  ci-step-projects (W.observeStoppingTrace w) s eq = ci-from-phase-projects w W.shutdownSelected W.stoppingTraced s eq
+  ci-step-projects (W.writeStopping w) s eq = ci-source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq
+  ci-step-projects (W.captureGroup w order) s eq = ci-capture-projects w order s eq
+  ci-step-projects (W.requestGroupCancel w) s eq = ci-request-group-projects w s eq
+  ci-step-projects (W.deliverGroup w) s eq = ci-deliver-group-projects w s eq
+  ci-step-projects (W.joinGroup w) s eq = ci-join-group-projects w s eq
+  ci-step-projects (W.finishGroup w) s eq = ci-finish-group-projects w s eq
+  ci-step-projects (W.drainEmpty w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
+  ci-step-projects (W.timeout2Elapsed w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
+  ci-step-projects (W.writeStopped w) s eq = ci-source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq
+  ci-step-projects (W.observeTraceStopped w) s eq = ci-source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq
+  ci-step-projects (W.sampleStoppedTracer w) s eq = ci-source-phase-projects w W.stoppedTracing W.stoppedTracing IG.sampleTracer s eq
+  ci-step-projects (W.commitStoppedTracer w) s eq = ci-source-phase-projects w W.stoppedTracing W.stoppedTracing IG.commitTracer s eq
+  ci-step-projects (W.finishStoppedTrace w) s eq = ci-finish-stopped-projects w s eq
+  ci-step-projects (W.finishChildUnwind j) s eq = ci-unwind-projects j s eq
+  ci-step-projects (W.unwindReplacedBySync j err) s eq = ci-replacement-projects j err s eq
+  ci-step-projects (W.abortOwner w err) s eq = ci-abort-projects w err s eq
+  ci-step-projects (W.beginWholeClose w order) s eq = ci-begin-whole-projects w order s eq
+  ci-step-projects (W.requestWholeCancel w) s eq = ci-whole-action-projects w Pool.requestCancel s eq
+  ci-step-projects (W.deliverWhole w) s eq = ci-whole-delivery-projects w s eq
+  ci-step-projects (W.joinWhole w) s eq = ci-whole-action-projects w Pool.join s eq
+  ci-step-projects (W.finishWholeClose w) s eq = ci-finish-whole-projects w s eq
+  ci-step-projects (W.finishNormalScope w) s eq = ci-finish-ordinary-projects w s eq
+  ci-step-projects (W.writeAsyncFailure w) s eq = ci-async-failure-projects w s eq
+  ci-step-projects (W.beginAsyncDead w) s eq = ci-async-dead-projects w s eq
+  ci-step-projects (W.sampleAsyncTracer w) s eq = ci-async-trace-projects true w s eq
+  ci-step-projects (W.commitAsyncTracer w) s eq = ci-async-trace-projects false w s eq
+  ci-step-projects (W.finishAsyncDead w) s eq = ci-finish-async-projects w s eq
+  ci-exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects {s = s} W.done = ci-idle s
+  ci-exec-projects (W.next {s = s} {a = action} eq path) = ci-compose (ci-step-projects action s eq) (ci-exec-projects path)
+  Stable : W.State → W.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  private
+    module CIBase = Base.CommittedRows
+  module CIPhysical = ProtocolFacts.CommittedRows
+  record CIPaths (before after : W.State) : Set where
+    constructor ci-path
+    field retention : CIPhysical.Retains (P.jobs (W.protocolState before)) (P.jobs (W.protocolState after))
+  ci-from-base : ∀ before after → CIBase.Stable (W.base before) (W.base after) → CIPaths before after
+  ci-from-base before after path = ci-path (CIBase.CIPaths.retention path)
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIPhysical.identity (P.jobs (W.protocolState s)))
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path
+    (CIPhysical.compose-retains {xs = P.jobs (W.protocolState p)}
+      {ys = P.jobs (W.protocolState q)} {zs = P.jobs (W.protocolState r)} first second)
+
+  ci-frame-paths : ∀ w f s → CIPaths s (W.setFrame w f s)
+  ci-frame-paths w f s = ci-from-base s _ (CIBase.ci-idle (W.base s))
+  ci-phase-paths : ∀ w pc s → CIPaths s (W.setPhase w pc s)
+  ci-phase-paths w pc s = ci-frame-paths w _ s
+  ci-phase-after : ∀ w pc {before after} → CIPaths before after → CIPaths before (W.setPhase w pc after)
+  ci-phase-after w pc {after = after} path = ci-compose path (ci-phase-paths w pc after)
+  ci-frame-after : ∀ w f {before after} → CIPaths before after → CIPaths before (W.setFrame w f after)
+  ci-frame-after w f {after = after} path = ci-compose path (ci-frame-paths w f after)
+  ci-from-protocol : ∀ before after → CIPhysical.Stable (W.protocolState before) (W.protocolState after) → CIPaths before after
+  ci-from-protocol before after path = ci-from-base before after (CIBase.ci-from-base (W.base before) (W.base after) path)
+  ci-protocol-projects : ∀ s p → CIPhysical.Stable (W.protocolState s) p → CIPaths s (W.setProtocols p s)
+  ci-protocol-projects s p path = ci-from-protocol s _ path
+  ci-source-step : ∀ action s {c} → O.advance (O.inbound (Machine.igStep action)) (W.source s) ≡ just c → CIPaths s (W.setSource c s)
+  ci-source-step action s eq = ci-from-base s _ (CIBase.ci-source-step action (W.base s) eq)
+  ci-via-source-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
+  ci-via-source-projects action s eq with O.advance (O.inbound (Machine.igStep action)) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-source-step action s advanced }
+  ci-pool-step : ∀ w f action s {p} → Pool.step action (W.poolAt w s) ≡ just p → CIPaths s (W.setPool w f p s)
+  ci-pool-step w f action s eq = ci-path (CIPhysical.identity (P.jobs (W.protocolState s)))
+  ci-via-pool-projects : ∀ w action s {s′} → W.viaPool w action s ≡ just s′ → CIPaths s s′
+  ci-via-pool-projects w action s eq with W.ownerContext w s
+  ... | nothing = case eq of λ ()
+  ... | just (f , mid) with Pool.step action (W.poolAt w s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just p = case just-injective eq of λ { refl → ci-pool-step w f action s advanced }
+  ci-inherit-projects : ∀ action s {s′} → W.inherit action s ≡ just s′ → CIPaths s s′
+  ci-inherit-projects action s eq with W.delegateAllowed action s
+  ... | false = case eq of λ ()
+  ... | true with Monitor.step action (W.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.step-stable action (W.base s) advanced) }
+  ci-from-phase-projects : ∀ w before after s {s′} → W.fromPhase w before after s ≡ just s′ → CIPaths s s′
+  ci-from-phase-projects w before after s eq with W.sameStage before (W.phase (W.frameAt w s))
+  ... | false = case eq of λ ()
+  ... | true = case just-injective eq of λ { refl → ci-phase-paths w after s }
+  ci-source-phase-projects : ∀ w before after action s {s′} → W.sourcePhase w before after action s ≡ just s′ → CIPaths s s′
+  ci-source-phase-projects w before after action s eq with W.sameStage before (W.phase (W.frameAt w s)) | W.ownerContext w s
+  ... | true | just (f , mid) with W.viaSource (action mid) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w after (ci-via-source-projects (action mid) s advanced) }
+  ci-source-phase-projects w before after action s eq | false | _ = case eq of λ ()
+  ci-source-phase-projects w before after action s eq | true | nothing = case eq of λ ()
+  ci-request-projects : ∀ w s {s′} → W.requestStop w s ≡ just s′ → CIPaths s s′
+  ci-request-projects w s eq with lookup w (U.frames (P.base (W.protocolState s)))
+  ... | nothing = case eq of λ ()
+  ... | just f with U.progress f
+  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+  ...   | U.returnedSuccess = case eq of λ ()
+  ...   | U.handleAllocated hid mid = case eq of λ ()
+  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
+  ci-select-projects w s eq with W.phase (W.frameAt w s) | Monitor.pcAt w (W.base s) | W.ownerContext w s
+  ... | W.idle | Monitor.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
+  ...   | true | true with W.viaSource (IG.takeShutdownCommand mid) s in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just next = case just-injective eq of λ { refl → ci-phase-after w W.shutdownSelected (ci-via-source-projects (IG.takeShutdownCommand mid) s advanced) }
+  ci-select-projects w s eq | W.idle | Monitor.waiting | just (f , mid) | false | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.waiting | just (f , mid) | true | false = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.waiting | nothing = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.selected item | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.responderTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.initiatorTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.deadReady outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.deadTracing outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.idle | Monitor.finished outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-capture-projects : ∀ w order s {s′} → W.captureMini w order s ≡ just s′ → CIPaths s s′
+  ci-capture-projects w order s eq with W.phase (W.frameAt w s) | Pool.sameSnapshot order (W.registeredMini w s) | P.noParent (W.poolAt w s)
+  ... | W.stoppingWritten | true | true = case just-injective eq of λ { refl → ci-frame-paths w _ s }
+  ... | W.stoppingWritten | false | _ = case eq of λ ()
+  ... | W.stoppingWritten | true | false = case eq of λ ()
+  ci-capture-projects w order s eq | W.idle | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.draining | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-capture-projects w order s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-request-group-projects : ∀ w s {s′} → W.requestGroup w s ≡ just s′ → CIPaths s s′
+  ci-request-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s) | W.remaining (W.frameAt w s)
+  ... | W.groupClosing | W.ready | j ∷ rest = case just-injective eq of λ { refl → ci-frame-paths w _ s }
+  ... | W.groupClosing | W.ready | [] = case eq of λ ()
+  ... | W.groupClosing | W.requested j | _ = case eq of λ ()
+  ... | W.groupClosing | W.delivered j | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-request-group-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-deliver-group-projects : ∀ w s {s′} → W.deliverMini w s ≡ just s′ → CIPaths s s′
+  ci-deliver-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s) | W.remaining (W.frameAt w s)
+  ... | W.groupClosing | W.requested j | current ∷ rest with j ≟ current | W.miniMember w j s | W.childEligible j s
+  ...   | yes same | true | true with W.viaPool w (Pool.interruptJob j) s in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just next = case just-injective eq of λ { refl → ci-frame-after w _ (ci-via-pool-projects w (Pool.interruptJob j) s advanced) }
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | current ∷ rest | no apart | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | current ∷ rest | yes same | false | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | current ∷ rest | yes same | true | false = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.requested j | [] = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.ready | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.groupClosing | W.delivered j | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-deliver-group-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-join-head-projects : ∀ w current s {s′} → W.joinMiniHead w current s ≡ just s′ → CIPaths s s′
+  ci-join-head-projects w current s eq with W.remaining (W.frameAt w s) | lookup current (Pool.handles (W.poolAt w s))
+  ... | head ∷ rest | just (Pool.resultAvailable exit) with current ≟ head
+  ...   | yes same = case just-injective eq of λ { refl → ci-frame-paths w _ s }
+  ...   | no apart = case eq of λ ()
+  ci-join-head-projects w current s eq | [] | _ = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | nothing = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just Pool.bodyRunning = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just (Pool.bodyReturned result) = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just Pool.bodyUnwinding = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just (Pool.deregisterPending exit) = case eq of λ ()
+  ci-join-head-projects w current s eq | _ ∷ _ | just (Pool.deregistered exit) = case eq of λ ()
+  ci-join-group-projects : ∀ w s {s′} → W.joinMini w s ≡ just s′ → CIPaths s s′
+  ci-join-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s)
+  ... | W.groupClosing | W.requested j = ci-join-head-projects w j s eq
+  ... | W.groupClosing | W.delivered j = ci-join-head-projects w j s eq
+  ... | W.groupClosing | W.ready = case eq of λ ()
+  ci-join-group-projects w s eq | W.idle | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.draining | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.drainReady | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.wholeClosed outcome | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.asyncFailureWritten err | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.asyncDeadTracing err | _ = case eq of λ ()
+  ci-join-group-projects w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-finish-group-projects : ∀ w s {s′} → W.finishMini w s ≡ just s′ → CIPaths s s′
+  ci-finish-group-projects w s eq with W.phase (W.frameAt w s) | W.cancelPC (W.frameAt w s) | W.remaining (W.frameAt w s)
+  ... | W.groupClosing | W.ready | [] = case just-injective eq of λ { refl → ci-phase-paths w W.draining s }
+  ... | W.groupClosing | W.ready | _ ∷ _ = case eq of λ ()
+  ... | W.groupClosing | W.requested j | _ = case eq of λ ()
+  ... | W.groupClosing | W.delivered j | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-finish-group-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-discard-projects : ∀ j job s {s′} → W.discardClean j job s ≡ just s′ → CIPaths s s′
+  ci-discard-projects j job s eq with Types.direction job
+  ... | Mux.initiatorJob = case just-injective eq of λ { refl → ci-idle s }
+  ... | Mux.responderJob with P.locate j (P.pendingAt (Types.owner job) (W.protocolState s)) | P.muxAt (Types.mux job) (W.protocolState s)
+  ...   | just (index , kept) | just m with IG.takePending index (Mux.finishedJobs m)
+  ...     | just ((n , result) , rest) with does (n Data.Nat.≟ Types.protocolNumber job) ∧ P.sameOutcome ConnectionManagement.IGTypes.clean result
+  ...       | true with W.viaSource (IG.discardJobOccurrence (Types.mux job) index) s in advanced
+  ...         | nothing = case eq of λ ()
+  ...         | just next = case just-injective eq of λ { refl → ci-compose
+    (ci-via-source-projects (IG.discardJobOccurrence (Types.mux job) index) s advanced)
+    (ci-protocol-projects next _ (CIPhysical.identity (P.jobs (W.protocolState next)))) }
+  ci-discard-projects j job s eq | Mux.responderJob | just (index , kept) | just m | just ((n , result) , rest) | false = case eq of λ ()
+  ci-discard-projects j job s eq | Mux.responderJob | just (index , kept) | just m | nothing = case eq of λ ()
+  ci-discard-projects j job s eq | Mux.responderJob | nothing | _ = case eq of λ ()
+  ci-discard-projects j job s eq | Mux.responderJob | just pair | nothing = case eq of λ ()
+  ci-prepare-projects : ∀ j w f s {s′} → W.prepareUnwind j w f s ≡ just s′ → CIPaths s s′
+  ci-prepare-projects j w f s eq with lookup j (P.jobs (W.protocolState s))
+  ... | nothing with W.isInfra j f
+  ...   | true = case just-injective eq of λ { refl → ci-idle s }
+  ...   | false = case eq of λ ()
+  ci-prepare-projects j w f s eq | just job with does (w ≟ Types.owner job) | Types.phase job
+  ... | true | Types.executing = case just-injective eq of λ { refl → ci-idle s }
+  ... | true | Types.waitingEgress = case just-injective eq of λ { refl → ci-idle s }
+  ... | true | Types.resultCaptured ConnectionManagement.IGTypes.clean = ci-discard-projects j job s eq
+  ... | true | Types.resultCaptured (ConnectionManagement.IGTypes.errored err) = case eq of λ ()
+  ... | false | _ = case eq of λ ()
+  ci-unwind-projects : ∀ j s {s′} → W.unwindChild j s ≡ just s′ → CIPaths s s′
+  ci-unwind-projects j s eq with W.ownerOf j s
+  ... | nothing = case eq of λ ()
+  ... | just (w , f) with lookup j (Pool.handles (W.poolAt w s))
+  ...   | just Pool.bodyUnwinding with W.prepareUnwind j w f s in prepared
+  ...     | nothing = case eq of λ ()
+  ...     | just next with Pool.step (Pool.bodyUnwound j) (W.poolAt w next) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just p = case just-injective eq of λ { refl → ci-compose (ci-prepare-projects j w f s prepared) (ci-pool-step w f (Pool.bodyUnwound j) next advanced) }
+  ci-unwind-projects j s eq | just (w , f) | nothing = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just Pool.bodyRunning = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.bodyReturned result) = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.deregisterPending exit) = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.deregistered exit) = case eq of λ ()
+  ci-unwind-projects j s eq | just (w , f) | just (Pool.resultAvailable exit) = case eq of λ ()
+  ci-replacement-projects : ∀ j err s {s′} → W.replaceUnwind j err s ≡ just s′ → CIPaths s s′
+  ci-replacement-projects j err s eq with lookup j (P.jobs (W.protocolState s))
+  ... | nothing = case eq of λ ()
+  ... | just job with W.replacementEligible (Types.phase job) | W.ownerOf j s
+  ...   | true | just (w , f) with does (w ≟ Types.owner job) | Pool.step (Pool.resumeAfterUnwindError j) (W.poolAt w s) in advanced
+  ...     | true | just p with P.step (P.protocolException j err) (W.protocolState (W.setPool w f p s)) in captured
+  ...       | nothing = case eq of λ ()
+  ...       | just next = case just-injective eq of λ { refl → ci-compose
+    (ci-pool-step w f (Pool.resumeAfterUnwindError j) s advanced)
+    (ci-protocol-projects (W.setPool w f p s) next (CIPhysical.step-stable (P.protocolException j err) (W.protocolState (W.setPool w f p s)) captured)) }
+  ci-replacement-projects j err s eq | just job | true | just (w , f) | false | _ = case eq of λ ()
+  ci-replacement-projects j err s eq | just job | true | just (w , f) | true | nothing = case eq of λ ()
+  ci-replacement-projects j err s eq | just job | false | _ = case eq of λ ()
+  ci-replacement-projects j err s eq | just job | true | nothing = case eq of λ ()
+  ci-abort-projects : ∀ w err s {s′} → W.abortMonitor w err s ≡ just s′ → CIPaths s s′
+  ci-abort-projects w err s eq with W.abortStage w s | W.ownerContext w s | P.noParent (W.poolAt w s)
+  ... | true | just (f , mid) | true with P.muxAt mid (W.protocolState s)
+  ...   | just m with Mux.callback m
+  ...     | Mux.returned = case just-injective eq of λ { refl → ci-phase-paths w (W.ownerAborting err) s }
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.readActive tr = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.afterStart n = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.forkPending n = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.afterFailure = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-abort-projects w err s eq | true | just (f , mid) | true | nothing = case eq of λ ()
+  ci-abort-projects w err s eq | false | _ | _ = case eq of λ ()
+  ci-abort-projects w err s eq | true | nothing | _ = case eq of λ ()
+  ci-abort-projects w err s eq | true | just pair | false = case eq of λ ()
+  ci-begin-whole-projects : ∀ w order s {s′} → W.beginWhole w order s ≡ just s′ → CIPaths s s′
+  ci-begin-whole-projects w order s eq with W.wholeOutcome w s
+  ... | nothing = case eq of λ ()
+  ... | just outcome with W.viaPool w (Pool.beginClose order) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.wholeClosing outcome) (ci-via-pool-projects w (Pool.beginClose order) s advanced) }
+  ci-whole-action-projects : ∀ w action s {s′} → W.wholeAction w action s ≡ just s′ → CIPaths s s′
+  ci-whole-action-projects w action s eq with W.phase (W.frameAt w s)
+  ... | W.wholeClosing outcome = ci-via-pool-projects w action s eq
+  ci-whole-action-projects w action s eq | W.idle = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.shutdownSelected = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppingTraced = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppingWritten = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.groupClosing = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.draining = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.drainReady = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppedTrace = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.stoppedTracing = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.monitorReturnedNormal = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.ownerAborting err = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.wholeClosed outcome = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.asyncFailureWritten err = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.asyncDeadTracing err = case eq of λ ()
+  ci-whole-action-projects w action s eq | W.scopeDone outcome = case eq of λ ()
+  ci-whole-delivery-projects : ∀ w s {s′} → W.deliverWholeChild w s ≡ just s′ → CIPaths s s′
+  ci-whole-delivery-projects w s eq with W.phase (W.frameAt w s) | W.ownerContext w s | Pool.phase (W.poolAt w s)
+  ... | W.wholeClosing outcome | just (f , mid) | Pool.cancelPending j with W.wholeDeliverable w j f s
+  ...   | true = ci-via-pool-projects w Pool.deliverCancel s eq
+  ...   | false = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | nothing | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.openPool = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.closing = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.closedPool = case eq of λ ()
+  ci-whole-delivery-projects w s eq | W.wholeClosing outcome | just (f , mid) | Pool.joinPending j = case eq of λ ()
+  ci-finish-whole-projects : ∀ w s {s′} → W.finishWhole w s ≡ just s′ → CIPaths s s′
+  ci-finish-whole-projects w s eq with W.phase (W.frameAt w s)
+  ... | W.wholeClosing outcome with W.viaPool w Pool.finishClose s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.wholeClosed outcome) (ci-via-pool-projects w Pool.finishClose s advanced) }
+  ci-finish-whole-projects w s eq | W.idle = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.shutdownSelected = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppingTraced = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppingWritten = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.groupClosing = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.draining = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.drainReady = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppedTrace = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.stoppedTracing = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.monitorReturnedNormal = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.ownerAborting err = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.wholeClosed outcome = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.asyncFailureWritten err = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.asyncDeadTracing err = case eq of λ ()
+  ci-finish-whole-projects w s eq | W.scopeDone outcome = case eq of λ ()
+  ci-async-failure-projects : ∀ w s {s′} → W.asyncFailure w s ≡ just s′ → CIPaths s s′
+  ci-async-failure-projects w s eq with W.phase (W.frameAt w s) | Pool.phase (W.poolAt w s) | W.ownerContext w s
+  ... | W.wholeClosed (W.asyncExit err) | Pool.closedPool | just (f , mid) with W.viaSource (IG.recordAsyncMuxFailure mid err) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.asyncFailureWritten err) (ci-via-source-projects (IG.recordAsyncMuxFailure mid err) s advanced) }
+  ci-async-failure-projects w s eq | W.wholeClosed W.normalExit | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.failedExit err) | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.closedPool | nothing = case eq of λ ()
+  ci-async-failure-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.asyncDeadTracing err | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.openPool | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.closing | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.cancelPending j | _ = case eq of λ ()
+  ci-async-failure-projects w s eq | W.wholeClosed (W.asyncExit err) | Pool.joinPending j | _ = case eq of λ ()
+  ci-async-dead-projects : ∀ w s {s′} → W.asyncDead w s ≡ just s′ → CIPaths s s′
+  ci-async-dead-projects w s eq with W.phase (W.frameAt w s) | W.ownerContext w s
+  ... | W.asyncFailureWritten err | just (f , mid) with W.viaSource (IG.traceMuxDead mid) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-phase-after w (W.asyncDeadTracing err) (ci-via-source-projects (IG.traceMuxDead mid) s advanced) }
+  ci-async-dead-projects w s eq | W.asyncFailureWritten err | nothing = case eq of λ ()
+  ci-async-dead-projects w s eq | W.idle | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.groupClosing | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.draining | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.drainReady | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.wholeClosed outcome | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.asyncDeadTracing err | _ = case eq of λ ()
+  ci-async-dead-projects w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-async-trace-projects : ∀ sample w s {s′} → W.asyncTrace sample w s ≡ just s′ → CIPaths s s′
+  ci-async-trace-projects sample w s eq with W.phase (W.frameAt w s) | W.ownerContext w s
+  ... | W.asyncDeadTracing err | just (f , mid) with sample
+  ...   | true = ci-via-source-projects (IG.sampleTracer mid) s eq
+  ...   | false = ci-via-source-projects (IG.commitTracer mid) s eq
+  ci-async-trace-projects sample w s eq | W.asyncDeadTracing err | nothing = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.idle | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.groupClosing | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.draining | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.drainReady | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.wholeClosed outcome | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.asyncFailureWritten err | _ = case eq of λ ()
+  ci-async-trace-projects sample w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-finish-async-projects : ∀ w s {s′} → W.finishAsync w s ≡ just s′ → CIPaths s s′
+  ci-finish-async-projects w s eq with W.phase (W.frameAt w s) | W.ownerContext w s | Pool.phase (W.poolAt w s)
+  ... | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool with P.muxAt mid (W.protocolState s)
+  ...   | just m with Mux.callback m | Monitor.finishMatches (Monitor.failed err) (Mux.status m)
+  ...     | Mux.returned | true = case just-injective eq of λ { refl → ci-phase-paths w (W.scopeDone (W.asyncExit err)) s }
+  ...     | Mux.returned | false = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.readActive tr | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.commitTrace active tr | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.afterStart n | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.forkPending n | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.afterFailure | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | just m | Mux.tracerFailed n | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closedPool | nothing = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | nothing | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.idle | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.shutdownSelected | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppingTraced | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppingWritten | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.groupClosing | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.draining | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.drainReady | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppedTrace | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.stoppedTracing | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.monitorReturnedNormal | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.ownerAborting err | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.wholeClosing outcome | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.wholeClosed outcome | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncFailureWritten err | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.scopeDone outcome | _ | _ = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.openPool = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.closing = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.cancelPending j = case eq of λ ()
+  ci-finish-async-projects w s eq | W.asyncDeadTracing err | just (f , mid) | Pool.joinPending j = case eq of λ ()
+  ci-finish-ordinary-projects : ∀ w s {s′} → W.finishOrdinary w s ≡ just s′ → CIPaths s s′
+  ci-finish-ordinary-projects w s eq with W.phase (W.frameAt w s) | Pool.phase (W.poolAt w s)
+  ... | W.wholeClosed W.normalExit | Pool.closedPool = case just-injective eq of λ { refl → ci-phase-paths w (W.scopeDone W.normalExit) s }
+  ... | W.wholeClosed (W.failedExit err) | Pool.closedPool = case just-injective eq of λ { refl → ci-phase-paths w (W.scopeDone (W.failedExit err)) s }
+  ... | W.wholeClosed (W.asyncExit err) | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.idle | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.shutdownSelected | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppingTraced | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppingWritten | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.groupClosing | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.draining | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.drainReady | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppedTrace | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.stoppedTracing | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.monitorReturnedNormal | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.ownerAborting err | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosing outcome | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.asyncFailureWritten err | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.asyncDeadTracing err | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.scopeDone outcome | _ = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.openPool = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.closing = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.cancelPending j = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed W.normalExit | Pool.joinPending j = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.openPool = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.closing = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.cancelPending j = case eq of λ ()
+  ci-finish-ordinary-projects w s eq | W.wholeClosed (W.failedExit err) | Pool.joinPending j = case eq of λ ()
+  ci-finish-stopped-projects : ∀ w s {s′} → W.finishStopped w s ≡ just s′ → CIPaths s s′
+  ci-finish-stopped-projects w s eq = subst (CIPaths s)
+    (sym (StoppedReturn.next-state (finish-stopped-observation w s eq))) (ci-phase-paths w W.monitorReturnedNormal s)
+
+  ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects (W.run action) s eq = ci-inherit-projects action s eq
+  ci-step-projects (W.requestShutdown w) s eq = ci-request-projects w s eq
+  ci-step-projects (W.selectShutdown w) s eq = ci-select-projects w s eq
+  ci-step-projects (W.observeStoppingTrace w) s eq = ci-from-phase-projects w W.shutdownSelected W.stoppingTraced s eq
+  ci-step-projects (W.writeStopping w) s eq = ci-source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq
+  ci-step-projects (W.captureGroup w order) s eq = ci-capture-projects w order s eq
+  ci-step-projects (W.requestGroupCancel w) s eq = ci-request-group-projects w s eq
+  ci-step-projects (W.deliverGroup w) s eq = ci-deliver-group-projects w s eq
+  ci-step-projects (W.joinGroup w) s eq = ci-join-group-projects w s eq
+  ci-step-projects (W.finishGroup w) s eq = ci-finish-group-projects w s eq
+  ci-step-projects (W.drainEmpty w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
+  ci-step-projects (W.timeout2Elapsed w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
+  ci-step-projects (W.writeStopped w) s eq = ci-source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq
+  ci-step-projects (W.observeTraceStopped w) s eq = ci-source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq
+  ci-step-projects (W.sampleStoppedTracer w) s eq = ci-source-phase-projects w W.stoppedTracing W.stoppedTracing IG.sampleTracer s eq
+  ci-step-projects (W.commitStoppedTracer w) s eq = ci-source-phase-projects w W.stoppedTracing W.stoppedTracing IG.commitTracer s eq
+  ci-step-projects (W.finishStoppedTrace w) s eq = ci-finish-stopped-projects w s eq
+  ci-step-projects (W.finishChildUnwind j) s eq = ci-unwind-projects j s eq
+  ci-step-projects (W.unwindReplacedBySync j err) s eq = ci-replacement-projects j err s eq
+  ci-step-projects (W.abortOwner w err) s eq = ci-abort-projects w err s eq
+  ci-step-projects (W.beginWholeClose w order) s eq = ci-begin-whole-projects w order s eq
+  ci-step-projects (W.requestWholeCancel w) s eq = ci-whole-action-projects w Pool.requestCancel s eq
+  ci-step-projects (W.deliverWhole w) s eq = ci-whole-delivery-projects w s eq
+  ci-step-projects (W.joinWhole w) s eq = ci-whole-action-projects w Pool.join s eq
+  ci-step-projects (W.finishWholeClose w) s eq = ci-finish-whole-projects w s eq
+  ci-step-projects (W.finishNormalScope w) s eq = ci-finish-ordinary-projects w s eq
+  ci-step-projects (W.writeAsyncFailure w) s eq = ci-async-failure-projects w s eq
+  ci-step-projects (W.beginAsyncDead w) s eq = ci-async-dead-projects w s eq
+  ci-step-projects (W.sampleAsyncTracer w) s eq = ci-async-trace-projects true w s eq
+  ci-step-projects (W.commitAsyncTracer w) s eq = ci-async-trace-projects false w s eq
+  ci-step-projects (W.finishAsyncDead w) s eq = ci-finish-async-projects w s eq
+  ci-exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects {s = s} W.done = ci-idle s
+  ci-exec-projects (W.next {s = s} {a = action} eq path) = ci-compose (ci-step-projects action s eq) (ci-exec-projects path)
+  Stable : W.State → W.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects

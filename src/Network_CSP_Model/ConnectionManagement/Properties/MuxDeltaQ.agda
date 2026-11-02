@@ -224,3 +224,223 @@ physical-wait s eq with inherited-observation (R.run (X.run (W.shutdownStep Clos
 invoked-blocks-controller : ∀ action s w → D.actor action s ≡ just w → D.free w s ≡ false →
   D.step (D.run action) s ≡ nothing
 invoked-blocks-controller action s w actor busy rewrite actor | busy = refl
+
+-- Historical physical-job identity through DeltaQ and tracer outcomes.
+module CaptureIdentity where
+  private
+    module CIBase = Base.CaptureIdentity
+  ci-Paths : D.State → D.State → Set
+  ci-Paths p q = CIBase.Stable (D.base p) (D.base q)
+  ci-idle : ∀ s → ci-Paths s s
+  ci-idle s = CIBase.ci-idle (D.base s)
+  ci-compose : ∀ {p q r} → ci-Paths p q → ci-Paths q r → ci-Paths p r
+  ci-compose {p} {q} {r} = CIBase.ci-compose {p = D.base p} {q = D.base q} {r = D.base r}
+  ci-mark-projects : ∀ w t pc s → ci-Paths s (D.mark w t pc s)
+  ci-mark-projects w t pc s = ci-idle s
+  ci-inherit-projects : ∀ action s {s′} → D.inherit action s ≡ just s′ → ci-Paths s s′
+  ci-inherit-projects action s eq with D.allowed action s
+  ... | false = case eq of λ ()
+  ... | true with R.step action (D.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just r = case just-injective eq of λ { refl → CIBase.step-stable action (D.base s) advanced }
+  ci-begin-projects : ∀ w s {s′} → D.begin w s ≡ just s′ → ci-Paths s s′
+  ci-begin-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.entryPhase t ∧ D.ready w t s
+  ...   | true = case just-injective eq of λ { refl → ci-idle s }
+  ...   | false = case eq of λ ()
+  ci-complete-projects : ∀ w s {s′} → D.complete w s ≡ just s′ → ci-Paths s s′
+  ci-complete-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.phase t | D.ready w t s
+  ...   | D.invoked | true with R.step (D.finishAction w (D.payload t)) (D.base s) in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just r = case just-injective eq of λ { refl → CIBase.step-stable (D.finishAction w (D.payload t)) (D.base s) advanced }
+  ci-complete-projects w s eq | just t | D.captured | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.muxInvoked | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.muxReturned | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.returned | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.throwing | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.invoked | false = case eq of λ ()
+  ci-apply-fault-projects : ∀ w plan ack s {s′} → D.applyFault w plan ack s ≡ just s′ → ci-Paths s s′
+  ci-apply-fault-projects w plan ack s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with R.enact (D.delivery ack plan) (D.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just r = case just-injective eq of λ { refl → CIBase.ci-enact-projects (D.delivery ack plan) (D.base s) advanced }
+  ci-throw-projects : ∀ w result ack s {s′} → D.throw w result ack s ≡ just s′ → ci-Paths s s′
+  ci-throw-projects w result ack s eq with D.faultPlan w result s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-apply-fault-projects w plan ack s eq
+  ci-begin-initiator-projects : ∀ w s {s′} → D.beginInitiator w s ≡ just s′ → ci-Paths s s′
+  ci-begin-initiator-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.phase t | D.initiatorReady w t s
+  ...   | D.captured | true = case just-injective eq of λ { refl → ci-idle s }
+  ...   | D.captured | false = case eq of λ ()
+  ...   | D.muxInvoked | _ = case eq of λ ()
+  ...   | D.muxReturned | _ = case eq of λ ()
+  ...   | D.invoked | _ = case eq of λ ()
+  ...   | D.returned | _ = case eq of λ ()
+  ...   | D.throwing | _ = case eq of λ ()
+  ci-return-initiator-projects : ∀ w s {s′} → D.returnInitiator w s ≡ just s′ → ci-Paths s s′
+  ci-return-initiator-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.phase t | D.initiatorReady w t s
+  ...   | D.muxInvoked | true with D.payload t
+  ...     | Types.protocolCompletion Mux.initiatorJob n gen clean = case just-injective eq of λ { refl → ci-idle s }
+  ...     | Types.protocolCompletion Mux.initiatorJob n gen (errored err) with R.step (D.wrapMonitor (M.finishProtocolTrace w)) (D.base s) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just r = case just-injective eq of λ { refl → CIBase.step-stable (D.wrapMonitor (M.finishProtocolTrace w)) (D.base s) advanced }
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | true | Types.protocolCompletion Mux.responderJob n gen outcome = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | true | Types.infraMuxer err = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | true | Types.infraDemuxer err = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | false = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.captured | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxReturned | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.invoked | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.returned | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.throwing | _ = case eq of λ ()
+  ci-throw-initiator-projects : ∀ w result ack s {s′} → D.throwInitiator w result ack s ≡ just s′ → ci-Paths s s′
+  ci-throw-initiator-projects w result ack s eq with D.initiatorFaultPlan w result s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-apply-fault-projects w plan ack s eq
+  ci-step-projects : ∀ action s {s′} → D.step action s ≡ just s′ → ci-Paths s s′
+  ci-step-projects (D.run action) s eq = ci-inherit-projects action s eq
+  ci-step-projects (D.beginDeltaQ w) s eq = ci-begin-projects w s eq
+  ci-step-projects (D.observeReturn w) s eq = ci-complete-projects w s eq
+  ci-step-projects (D.observeException w err) s eq = ci-throw-projects w err false s eq
+  ci-step-projects (D.beginInitiatorTrace w) s eq = ci-begin-initiator-projects w s eq
+  ci-step-projects (D.observeInitiatorReturn w) s eq = ci-return-initiator-projects w s eq
+  ci-step-projects (D.observeInitiatorException w err) s eq = ci-throw-initiator-projects w err false s eq
+  ci-step-projects (D.deliverShutdown err) s eq with Close.phase (W.shutdown (R.base (D.base s)))
+  ... | Close.awaitDelivery e w = ci-throw-projects w (R.async err) true s eq
+  ... | Close.initial = case eq of λ ()
+  ... | Close.reading = case eq of λ ()
+  ... | Close.sendReady e w = case eq of λ ()
+  ... | Close.awaitResults = case eq of λ ()
+  ... | Close.closed = case eq of λ ()
+  ci-step-projects (D.deliverInitiatorShutdown err) s eq with Close.phase (W.shutdown (R.base (D.base s)))
+  ... | Close.awaitDelivery e w = ci-throw-initiator-projects w (R.async err) true s eq
+  ... | Close.initial = case eq of λ ()
+  ... | Close.reading = case eq of λ ()
+  ... | Close.sendReady e w = case eq of λ ()
+  ... | Close.awaitResults = case eq of λ ()
+  ... | Close.closed = case eq of λ ()
+  ci-exec-projects : ∀ {s actions s′} → D.Executes s actions s′ → ci-Paths s s′
+  ci-exec-projects (D.done {s = s}) = ci-idle s
+  ci-exec-projects (D.next {s = s} {s₁ = t} {s₂ = u} {a = a} eq tail) = ci-compose {p = s} {q = t} {r = u} (ci-step-projects a s eq) (ci-exec-projects tail)
+  Stable : D.State → D.State → Set
+  Stable = ci-Paths
+  step-stable : ∀ a s {t} → D.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  private
+    module CIBase = Base.CommittedRows
+  ci-Paths : D.State → D.State → Set
+  ci-Paths p q = CIBase.Stable (D.base p) (D.base q)
+  ci-idle : ∀ s → ci-Paths s s
+  ci-idle s = CIBase.ci-idle (D.base s)
+  ci-compose : ∀ {p q r} → ci-Paths p q → ci-Paths q r → ci-Paths p r
+  ci-compose {p} {q} {r} = CIBase.ci-compose {p = D.base p} {q = D.base q} {r = D.base r}
+  ci-mark-projects : ∀ w t pc s → ci-Paths s (D.mark w t pc s)
+  ci-mark-projects w t pc s = ci-idle s
+  ci-inherit-projects : ∀ action s {s′} → D.inherit action s ≡ just s′ → ci-Paths s s′
+  ci-inherit-projects action s eq with D.allowed action s
+  ... | false = case eq of λ ()
+  ... | true with R.step action (D.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just r = case just-injective eq of λ { refl → CIBase.step-stable action (D.base s) advanced }
+  ci-begin-projects : ∀ w s {s′} → D.begin w s ≡ just s′ → ci-Paths s s′
+  ci-begin-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.entryPhase t ∧ D.ready w t s
+  ...   | true = case just-injective eq of λ { refl → ci-idle s }
+  ...   | false = case eq of λ ()
+  ci-complete-projects : ∀ w s {s′} → D.complete w s ≡ just s′ → ci-Paths s s′
+  ci-complete-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.phase t | D.ready w t s
+  ...   | D.invoked | true with R.step (D.finishAction w (D.payload t)) (D.base s) in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just r = case just-injective eq of λ { refl → CIBase.step-stable (D.finishAction w (D.payload t)) (D.base s) advanced }
+  ci-complete-projects w s eq | just t | D.captured | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.muxInvoked | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.muxReturned | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.returned | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.throwing | _ = case eq of λ ()
+  ci-complete-projects w s eq | just t | D.invoked | false = case eq of λ ()
+  ci-apply-fault-projects : ∀ w plan ack s {s′} → D.applyFault w plan ack s ≡ just s′ → ci-Paths s s′
+  ci-apply-fault-projects w plan ack s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with R.enact (D.delivery ack plan) (D.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just r = case just-injective eq of λ { refl → CIBase.ci-enact-projects (D.delivery ack plan) (D.base s) advanced }
+  ci-throw-projects : ∀ w result ack s {s′} → D.throw w result ack s ≡ just s′ → ci-Paths s s′
+  ci-throw-projects w result ack s eq with D.faultPlan w result s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-apply-fault-projects w plan ack s eq
+  ci-begin-initiator-projects : ∀ w s {s′} → D.beginInitiator w s ≡ just s′ → ci-Paths s s′
+  ci-begin-initiator-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.phase t | D.initiatorReady w t s
+  ...   | D.captured | true = case just-injective eq of λ { refl → ci-idle s }
+  ...   | D.captured | false = case eq of λ ()
+  ...   | D.muxInvoked | _ = case eq of λ ()
+  ...   | D.muxReturned | _ = case eq of λ ()
+  ...   | D.invoked | _ = case eq of λ ()
+  ...   | D.returned | _ = case eq of λ ()
+  ...   | D.throwing | _ = case eq of λ ()
+  ci-return-initiator-projects : ∀ w s {s′} → D.returnInitiator w s ≡ just s′ → ci-Paths s s′
+  ci-return-initiator-projects w s eq with lookup w (D.tickets s)
+  ... | nothing = case eq of λ ()
+  ... | just t with D.phase t | D.initiatorReady w t s
+  ...   | D.muxInvoked | true with D.payload t
+  ...     | Types.protocolCompletion Mux.initiatorJob n gen clean = case just-injective eq of λ { refl → ci-idle s }
+  ...     | Types.protocolCompletion Mux.initiatorJob n gen (errored err) with R.step (D.wrapMonitor (M.finishProtocolTrace w)) (D.base s) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just r = case just-injective eq of λ { refl → CIBase.step-stable (D.wrapMonitor (M.finishProtocolTrace w)) (D.base s) advanced }
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | true | Types.protocolCompletion Mux.responderJob n gen outcome = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | true | Types.infraMuxer err = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | true | Types.infraDemuxer err = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxInvoked | false = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.captured | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.muxReturned | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.invoked | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.returned | _ = case eq of λ ()
+  ci-return-initiator-projects w s eq | just t | D.throwing | _ = case eq of λ ()
+  ci-throw-initiator-projects : ∀ w result ack s {s′} → D.throwInitiator w result ack s ≡ just s′ → ci-Paths s s′
+  ci-throw-initiator-projects w result ack s eq with D.initiatorFaultPlan w result s
+  ... | nothing = case eq of λ ()
+  ... | just plan = ci-apply-fault-projects w plan ack s eq
+  ci-step-projects : ∀ action s {s′} → D.step action s ≡ just s′ → ci-Paths s s′
+  ci-step-projects (D.run action) s eq = ci-inherit-projects action s eq
+  ci-step-projects (D.beginDeltaQ w) s eq = ci-begin-projects w s eq
+  ci-step-projects (D.observeReturn w) s eq = ci-complete-projects w s eq
+  ci-step-projects (D.observeException w err) s eq = ci-throw-projects w err false s eq
+  ci-step-projects (D.beginInitiatorTrace w) s eq = ci-begin-initiator-projects w s eq
+  ci-step-projects (D.observeInitiatorReturn w) s eq = ci-return-initiator-projects w s eq
+  ci-step-projects (D.observeInitiatorException w err) s eq = ci-throw-initiator-projects w err false s eq
+  ci-step-projects (D.deliverShutdown err) s eq with Close.phase (W.shutdown (R.base (D.base s)))
+  ... | Close.awaitDelivery e w = ci-throw-projects w (R.async err) true s eq
+  ... | Close.initial = case eq of λ ()
+  ... | Close.reading = case eq of λ ()
+  ... | Close.sendReady e w = case eq of λ ()
+  ... | Close.awaitResults = case eq of λ ()
+  ... | Close.closed = case eq of λ ()
+  ci-step-projects (D.deliverInitiatorShutdown err) s eq with Close.phase (W.shutdown (R.base (D.base s)))
+  ... | Close.awaitDelivery e w = ci-throw-initiator-projects w (R.async err) true s eq
+  ... | Close.initial = case eq of λ ()
+  ... | Close.reading = case eq of λ ()
+  ... | Close.sendReady e w = case eq of λ ()
+  ... | Close.awaitResults = case eq of λ ()
+  ... | Close.closed = case eq of λ ()
+  ci-exec-projects : ∀ {s actions s′} → D.Executes s actions s′ → ci-Paths s s′
+  ci-exec-projects (D.done {s = s}) = ci-idle s
+  ci-exec-projects (D.next {s = s} {s₁ = t} {s₂ = u} {a = a} eq tail) = ci-compose {p = s} {q = t} {r = u} (ci-step-projects a s eq) (ci-exec-projects tail)
+  Stable : D.State → D.State → Set
+  Stable = ci-Paths
+  step-stable : ∀ a s {t} → D.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects

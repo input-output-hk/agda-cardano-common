@@ -133,3 +133,101 @@ append X.done tail = tail
 append (X.next eq rest) tail = X.next eq (append rest tail)
 physical-wait : ∀ s {s′} → X.step (X.run (W.shutdownStep Close.finishClose)) s ≡ just s′ → Base.PhysicalWait s s′
 physical-wait s eq = Base.physical-wait-observation s eq
+
+-- Historical physical captures survive this adapter; phases may change.
+module CaptureIdentity where
+  private
+    module CIBase = Base.CaptureIdentity
+  CIPaths : X.State → X.State → Set
+  CIPaths = CIBase.Stable
+  ci-delivery-projects : ∀ window w err s {s′} → X.deliver window w err s ≡ just s′ → CIPaths s s′
+  ci-delivery-projects window w err s eq with lookup w (W.exits s)
+  ... | nothing = case eq of λ ()
+  ... | just f with X.target window err (W.phase f)
+  ...   | nothing = case eq of λ ()
+  ...   | just pc = case just-injective eq of λ { refl → CIBase.ci-metadata s (W.edit w f pc s) }
+  ci-trace-projects : ∀ w err s {s′} → X.traceThrew w err s ≡ just s′ → CIPaths s s′
+  ci-trace-projects w err s eq with lookup w (W.exits s)
+  ... | nothing = case eq of λ ()
+  ... | just f with W.phase f
+  ...   | W.errorTracing _ _ = case just-injective eq of λ { refl → CIBase.ci-metadata s (W.edit w f (W.bodyExited (W.syncException err)) s) }
+  ...   | W.bufferScope _ = case eq of λ ()
+  ...   | W.classifying _ = case eq of λ ()
+  ...   | W.peerRethrow _ = case eq of λ ()
+  ...   | W.nodeDelivery _ = case eq of λ ()
+  ...   | W.nodeRethrow _ = case eq of λ ()
+  ...   | W.bodyExited _ = case eq of λ ()
+  ...   | W.finalizing _ = case eq of λ ()
+  ...   | W.cleanupComplete _ _ = case eq of λ ()
+  ...   | W.resultAvailable _ _ = case eq of λ ()
+  ci-shutdown-projects : ∀ window err s {s′} → X.shutdownDelivery window err s ≡ just s′ → CIPaths s s′
+  ci-shutdown-projects window err s eq with Close.phase (W.shutdown s)
+  ... | Close.awaitDelivery e w with X.deliver window w err s in delivered
+  ...   | nothing = case eq of λ ()
+  ...   | just next = CIBase.ci-compose (ci-delivery-projects window w err s delivered) (CIBase.ci-control-projects Close.acknowledgeDelivery next eq)
+  ci-shutdown-projects window err s eq | Close.initial = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.reading = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.sendReady _ _ = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.awaitResults = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.closed = case eq of λ ()
+  ci-step-projects : ∀ action s {s′} → X.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects (X.run action) s eq = CIBase.step-stable action s eq
+  ci-step-projects (X.observeCancellation window w err) s eq = ci-delivery-projects window w err s eq
+  ci-step-projects (X.deliverShutdown window err) s eq = ci-shutdown-projects window err s eq
+  ci-step-projects (X.observeErrorTraceException w err) s eq = ci-trace-projects w err s eq
+  ci-exec-projects : ∀ {s actions s′} → X.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects X.done = CIBase.ci-idle _
+  ci-exec-projects (X.next {s = s} {a = action} eq tail) = CIBase.ci-compose (ci-step-projects action s eq) (ci-exec-projects tail)
+  Stable : X.State → X.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → X.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  private
+    module CIBase = Base.CommittedRows
+  CIPaths : X.State → X.State → Set
+  CIPaths = CIBase.Stable
+  ci-delivery-projects : ∀ window w err s {s′} → X.deliver window w err s ≡ just s′ → CIPaths s s′
+  ci-delivery-projects window w err s eq with lookup w (W.exits s)
+  ... | nothing = case eq of λ ()
+  ... | just f with X.target window err (W.phase f)
+  ...   | nothing = case eq of λ ()
+  ...   | just pc = case just-injective eq of λ { refl → CIBase.ci-metadata s (W.edit w f pc s) }
+  ci-trace-projects : ∀ w err s {s′} → X.traceThrew w err s ≡ just s′ → CIPaths s s′
+  ci-trace-projects w err s eq with lookup w (W.exits s)
+  ... | nothing = case eq of λ ()
+  ... | just f with W.phase f
+  ...   | W.errorTracing _ _ = case just-injective eq of λ { refl → CIBase.ci-metadata s (W.edit w f (W.bodyExited (W.syncException err)) s) }
+  ...   | W.bufferScope _ = case eq of λ ()
+  ...   | W.classifying _ = case eq of λ ()
+  ...   | W.peerRethrow _ = case eq of λ ()
+  ...   | W.nodeDelivery _ = case eq of λ ()
+  ...   | W.nodeRethrow _ = case eq of λ ()
+  ...   | W.bodyExited _ = case eq of λ ()
+  ...   | W.finalizing _ = case eq of λ ()
+  ...   | W.cleanupComplete _ _ = case eq of λ ()
+  ...   | W.resultAvailable _ _ = case eq of λ ()
+  ci-shutdown-projects : ∀ window err s {s′} → X.shutdownDelivery window err s ≡ just s′ → CIPaths s s′
+  ci-shutdown-projects window err s eq with Close.phase (W.shutdown s)
+  ... | Close.awaitDelivery e w with X.deliver window w err s in delivered
+  ...   | nothing = case eq of λ ()
+  ...   | just next = CIBase.ci-compose (ci-delivery-projects window w err s delivered) (CIBase.ci-control-projects Close.acknowledgeDelivery next eq)
+  ci-shutdown-projects window err s eq | Close.initial = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.reading = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.sendReady _ _ = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.awaitResults = case eq of λ ()
+  ci-shutdown-projects window err s eq | Close.closed = case eq of λ ()
+  ci-step-projects : ∀ action s {s′} → X.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects (X.run action) s eq = CIBase.step-stable action s eq
+  ci-step-projects (X.observeCancellation window w err) s eq = ci-delivery-projects window w err s eq
+  ci-step-projects (X.deliverShutdown window err) s eq = ci-shutdown-projects window err s eq
+  ci-step-projects (X.observeErrorTraceException w err) s eq = ci-trace-projects w err s eq
+  ci-exec-projects : ∀ {s actions s′} → X.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects X.done = CIBase.ci-idle _
+  ci-exec-projects (X.next {s = s} {a = action} eq tail) = CIBase.ci-compose (ci-step-projects action s eq) (ci-exec-projects tail)
+  Stable : X.State → X.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → X.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects

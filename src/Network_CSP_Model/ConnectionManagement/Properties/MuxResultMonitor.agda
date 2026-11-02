@@ -509,3 +509,440 @@ finish-observation w s eq | W.responderTracing result | _ = case eq of λ ()
 finish-observation w s eq | W.initiatorTracing result | _ = case eq of λ ()
 finish-observation w s eq | W.deadReady outcome | _ = case eq of λ ()
 finish-observation w s eq | W.finished outcome | _ = case eq of λ ()
+
+-- A separate capture projection preserves the earlier source/pool theorem
+-- interfaces. It forgets body phase, but never forgets a captured job identity.
+module CaptureIdentity where
+  private
+    module CIBase = Base.CaptureIdentity
+  record CIPaths (before after : W.State) : Set where
+    constructor ci-path
+    field retention : CIBase.Stable (W.base before) (W.base after)
+  ci-from-base : ∀ before after → CIBase.Stable (W.base before) (W.base after) → CIPaths before after
+  ci-from-base before after path = ci-path path
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIBase.identity (P.jobs (W.base s)))
+  ci-pc-paths : ∀ w pc s → CIPaths s (W.setPC w pc s)
+  ci-pc-paths w pc s = ci-path (CIBase.identity (P.jobs (W.base s)))
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path (CIBase.compose-retains
+    {xs = P.jobs (W.base p)} {ys = P.jobs (W.base q)} {zs = P.jobs (W.base r)} first second)
+  ci-source-step : ∀ action s {c} → O.advance (O.inbound (M.igStep action)) (W.source s) ≡ just c → CIPaths s (W.setSource c s)
+  ci-source-step action s eq = ci-path (CIBase.identity (P.jobs (W.base s)))
+
+  ci-via-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
+  ci-via-projects action s eq with O.advance (O.inbound (M.igStep action)) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-source-step action s advanced }
+  ci-inherit-projects : ∀ action s {s′} → W.inherit action s ≡ just s′ → CIPaths s s′
+  ci-inherit-projects action s eq with W.delegateAllowed action s
+  ... | false = case eq of λ ()
+  ... | true with P.step action (W.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just p = case just-injective eq of λ { refl → ci-from-base s (record s { base = p }) (CIBase.step-stable action (W.base s) advanced) }
+  ci-select-projects : ∀ w s {s′} → W.selectHead w s ≡ just s′ → CIPaths s s′
+  ci-select-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ... | W.waiting | just (f , mid) with W.muxAt mid s | P.noParent (W.poolAt w s) | Pool.completions (W.poolAt w s)
+  ...   | just m | true | item ∷ rest with Mux.status m | Mux.callback m
+  ...     | Mux.ready | Mux.returned with Pool.step Pool.consumeCompletion (W.poolAt w s) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just next = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.identity (P.jobs (W.base s))) }
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.stopping | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.stopped | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.failed err | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.readActive tr = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.commitTrace active tr = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.afterStart n = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.forkPending n = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.afterFailure = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.tracerFailed n = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | nothing | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just _ | false | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just _ | true | [] = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | nothing = case eq of λ ()
+  ci-select-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-select-projects w s eq | W.responderTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.initiatorTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.deadReady outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.deadTracing outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.finished outcome | _ = case eq of λ ()
+
+  ci-pc-after : ∀ w pc {before after} → CIPaths before after → CIPaths before (W.setPC w pc after)
+  ci-pc-after w pc {after = after} path = ci-compose path (ci-pc-paths w pc after)
+  ci-protocol-source-projects : ∀ w mid dir n outcome s {s′} → W.protocolSource w mid dir n outcome s ≡ just s′ → CIPaths s s′
+  ci-protocol-source-projects w mid Mux.responderJob n outcome s eq with W.muxAt mid s
+  ... | nothing = case eq of λ ()
+  ... | just m with W.legacyMatches n outcome (Mux.completions m)
+  ...   | false = case eq of λ ()
+  ...   | true with W.viaSource (IG.monitorCompletion mid) s in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just next = case just-injective eq of λ { refl → ci-pc-after w (W.responderTracing outcome) (ci-via-projects (IG.monitorCompletion mid) s advanced) }
+  ci-protocol-source-projects w mid Mux.initiatorJob n clean s eq = case just-injective eq of λ { refl → ci-pc-paths w (W.initiatorTracing clean) s }
+  ci-protocol-source-projects w mid Mux.initiatorJob n (errored err) s eq with W.viaSource (IG.recordMuxFailure mid err) s in advanced
+  ... | nothing = case eq of λ ()
+  ... | just next = case just-injective eq of λ { refl → ci-pc-after w (W.initiatorTracing (errored err)) (ci-via-projects (IG.recordMuxFailure mid err) s advanced) }
+  ci-handle-protocol-projects : ∀ w dir n gen outcome s {s′} → W.handleProtocol w dir n gen outcome s ≡ just s′ → CIPaths s s′
+  ci-handle-protocol-projects w dir n gen outcome s eq with W.ownerContext w s | W.findCaptured w dir n gen outcome (P.jobs (W.base s))
+  ... | just (f , mid) | just (j , job) with does (Types.mux job ≟ mid) | W.muxAt mid s
+  ...   | true | just m with Mux.status m | Mux.callback m
+  ...     | Mux.ready | Mux.returned = ci-protocol-source-projects w mid dir n outcome s eq
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.stopping | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.stopped | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.failed err | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.readActive tr = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.commitTrace active tr = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.afterStart k = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.forkPending k = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.afterFailure = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.tracerFailed k = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | false | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | nothing = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | nothing | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just _ | nothing = case eq of λ ()
+  ci-record-finish-projects : ∀ w outcome s {s′} → W.recordFinish w outcome s ≡ just s′ → CIPaths s s′
+  ci-record-finish-projects w outcome s eq with W.ownerContext w s
+  ... | nothing = case eq of λ ()
+  ... | just (f , mid) with W.viaSource (W.statusAction outcome mid) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-pc-after w (W.deadReady outcome) (ci-via-projects (W.statusAction outcome mid) s advanced) }
+  ci-handle-projects : ∀ w s {s′} → W.handleHead w s ≡ just s′ → CIPaths s s′
+  ci-handle-projects w s eq with W.pcAt w s
+  ... | W.selected (Types.protocolCompletion dir n gen outcome) = ci-handle-protocol-projects w dir n gen outcome s eq
+  ... | W.selected (Types.infraMuxer err) = ci-record-finish-projects w (W.failed err) s eq
+  ... | W.selected (Types.infraDemuxer err) = ci-record-finish-projects w (W.demuxFinish w err s) s eq
+  ... | W.waiting = case eq of λ ()
+  ... | W.responderTracing _ = case eq of λ ()
+  ... | W.initiatorTracing _ = case eq of λ ()
+  ... | W.deadReady _ = case eq of λ ()
+  ... | W.deadTracing _ = case eq of λ ()
+  ... | W.finished _ = case eq of λ ()
+  ci-trace-projects : ∀ sample w s {s′} → W.traceSource sample w s ≡ just s′ → CIPaths s s′
+  ci-trace-projects sample w s eq with W.tracing (W.pcAt w s) | W.ownerContext w s
+  ... | true | just (f , mid) with sample
+  ...   | true = ci-via-projects (IG.sampleTracer mid) s eq
+  ...   | false = ci-via-projects (IG.commitTracer mid) s eq
+  ci-trace-projects sample w s eq | false | _ = case eq of λ ()
+  ci-trace-projects sample w s eq | true | nothing = case eq of λ ()
+  ci-finish-protocol-projects : ∀ w s {s′} → W.finishProtocol w s ≡ just s′ → CIPaths s s′
+  ci-finish-protocol-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.returned = case just-injective eq of λ { refl → ci-pc-paths w (W.waiting) s }
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.afterFailure = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.afterFailure = case just-injective eq of λ { refl → ci-pc-paths w (W.deadReady (W.failed err)) s }
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.returned = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.returned = case just-injective eq of λ { refl → ci-pc-paths w (W.waiting) s }
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.afterFailure = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.returned = case just-injective eq of λ { refl → ci-pc-paths w (W.deadReady (W.failed err)) s }
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.afterFailure = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing result | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.waiting | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.deadReady outcome | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.deadTracing outcome | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.finished outcome | _ = case eq of λ ()
+
+  ci-start-dead-projects : ∀ w s {s′} → W.startDead w s ≡ just s′ → CIPaths s s′
+  ci-start-dead-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ... | W.deadReady outcome | just (f , mid) with W.muxAt mid s
+  ...   | just m with W.finishMatches outcome (Mux.status m) | W.deadAction outcome (Mux.callback m) mid
+  ...     | true | just action with W.viaSource action s in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just next = case just-injective eq of λ { refl → ci-pc-after w (W.deadTracing outcome) (ci-via-projects action s advanced) }
+  ci-start-dead-projects w s eq | W.deadReady outcome | just (f , mid) | just m | false | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadReady outcome | just (f , mid) | just m | true | nothing = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadReady outcome | just (f , mid) | nothing = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadReady outcome | nothing = case eq of λ ()
+  ci-start-dead-projects w s eq | W.waiting | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.responderTracing result | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.initiatorTracing result | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadTracing outcome | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.finished outcome | _ = case eq of λ ()
+  ci-finish-dead-projects : ∀ w s {s′} → W.finishMux w s ≡ just s′ → CIPaths s s′
+  ci-finish-dead-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ... | W.deadTracing outcome | just (f , mid) with W.muxAt mid s
+  ...   | just m with Mux.callback m | W.finishMatches outcome (Mux.status m)
+  ...     | Mux.returned | true = case just-injective eq of λ { refl → ci-pc-paths w (W.finished outcome) s }
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.readActive tr | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.commitTrace active tr | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.afterStart n | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.forkPending n | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.afterFailure | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.tracerFailed n | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.returned | false = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | nothing = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.waiting | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.responderTracing result | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.initiatorTracing result | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadReady outcome | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.finished outcome | _ = case eq of λ ()
+
+  ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects (W.run action) s eq = ci-inherit-projects action s eq
+  ci-step-projects (W.consume w) s eq = ci-select-projects w s eq
+  ci-step-projects (W.handleSelected w) s eq = ci-handle-projects w s eq
+  ci-step-projects (W.sampleTracer w) s eq = ci-trace-projects true w s eq
+  ci-step-projects (W.commitTracer w) s eq = ci-trace-projects false w s eq
+  ci-step-projects (W.finishProtocolTrace w) s eq = ci-finish-protocol-projects w s eq
+  ci-step-projects (W.beginDead w) s eq = ci-start-dead-projects w s eq
+  ci-step-projects (W.finishDead w) s eq = ci-finish-dead-projects w s eq
+  ci-exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects {s = s} W.done = ci-idle s
+  ci-exec-projects (W.next {s = s} {a = action} eq path) = ci-compose (ci-step-projects action s eq) (ci-exec-projects path)
+  Stable : W.State → W.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects
+
+-- Preserve already captured physical results through this adapter.
+module CommittedRows where
+  private
+    module CIBase = Base.CommittedRows
+  record CIPaths (before after : W.State) : Set where
+    constructor ci-path
+    field retention : CIBase.Stable (W.base before) (W.base after)
+  ci-from-base : ∀ before after → CIBase.Stable (W.base before) (W.base after) → CIPaths before after
+  ci-from-base before after path = ci-path path
+  ci-idle : ∀ s → CIPaths s s
+  ci-idle s = ci-path (CIBase.identity (P.jobs (W.base s)))
+  ci-pc-paths : ∀ w pc s → CIPaths s (W.setPC w pc s)
+  ci-pc-paths w pc s = ci-path (CIBase.identity (P.jobs (W.base s)))
+  ci-compose : ∀ {p q r} → CIPaths p q → CIPaths q r → CIPaths p r
+  ci-compose {p} {q} {r} (ci-path first) (ci-path second) = ci-path (CIBase.compose-retains
+    {xs = P.jobs (W.base p)} {ys = P.jobs (W.base q)} {zs = P.jobs (W.base r)} first second)
+  ci-source-step : ∀ action s {c} → O.advance (O.inbound (M.igStep action)) (W.source s) ≡ just c → CIPaths s (W.setSource c s)
+  ci-source-step action s eq = ci-path (CIBase.identity (P.jobs (W.base s)))
+
+  ci-via-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
+  ci-via-projects action s eq with O.advance (O.inbound (M.igStep action)) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c = case just-injective eq of λ { refl → ci-source-step action s advanced }
+  ci-inherit-projects : ∀ action s {s′} → W.inherit action s ≡ just s′ → CIPaths s s′
+  ci-inherit-projects action s eq with W.delegateAllowed action s
+  ... | false = case eq of λ ()
+  ... | true with P.step action (W.base s) in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just p = case just-injective eq of λ { refl → ci-from-base s (record s { base = p }) (CIBase.step-stable action (W.base s) advanced) }
+  ci-select-projects : ∀ w s {s′} → W.selectHead w s ≡ just s′ → CIPaths s s′
+  ci-select-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ... | W.waiting | just (f , mid) with W.muxAt mid s | P.noParent (W.poolAt w s) | Pool.completions (W.poolAt w s)
+  ...   | just m | true | item ∷ rest with Mux.status m | Mux.callback m
+  ...     | Mux.ready | Mux.returned with Pool.step Pool.consumeCompletion (W.poolAt w s) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just next = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.identity (P.jobs (W.base s))) }
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.stopping | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.stopped | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.failed err | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.readActive tr = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.commitTrace active tr = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.afterStart n = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.forkPending n = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.afterFailure = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just m | true | item ∷ rest | Mux.ready | Mux.tracerFailed n = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | nothing | _ | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just _ | false | _ = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | just (f , mid) | just _ | true | [] = case eq of λ ()
+  ci-select-projects w s eq | W.waiting | nothing = case eq of λ ()
+  ci-select-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-select-projects w s eq | W.responderTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.initiatorTracing result | _ = case eq of λ ()
+  ci-select-projects w s eq | W.deadReady outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.deadTracing outcome | _ = case eq of λ ()
+  ci-select-projects w s eq | W.finished outcome | _ = case eq of λ ()
+
+  ci-pc-after : ∀ w pc {before after} → CIPaths before after → CIPaths before (W.setPC w pc after)
+  ci-pc-after w pc {after = after} path = ci-compose path (ci-pc-paths w pc after)
+  ci-protocol-source-projects : ∀ w mid dir n outcome s {s′} → W.protocolSource w mid dir n outcome s ≡ just s′ → CIPaths s s′
+  ci-protocol-source-projects w mid Mux.responderJob n outcome s eq with W.muxAt mid s
+  ... | nothing = case eq of λ ()
+  ... | just m with W.legacyMatches n outcome (Mux.completions m)
+  ...   | false = case eq of λ ()
+  ...   | true with W.viaSource (IG.monitorCompletion mid) s in advanced
+  ...     | nothing = case eq of λ ()
+  ...     | just next = case just-injective eq of λ { refl → ci-pc-after w (W.responderTracing outcome) (ci-via-projects (IG.monitorCompletion mid) s advanced) }
+  ci-protocol-source-projects w mid Mux.initiatorJob n clean s eq = case just-injective eq of λ { refl → ci-pc-paths w (W.initiatorTracing clean) s }
+  ci-protocol-source-projects w mid Mux.initiatorJob n (errored err) s eq with W.viaSource (IG.recordMuxFailure mid err) s in advanced
+  ... | nothing = case eq of λ ()
+  ... | just next = case just-injective eq of λ { refl → ci-pc-after w (W.initiatorTracing (errored err)) (ci-via-projects (IG.recordMuxFailure mid err) s advanced) }
+  ci-handle-protocol-projects : ∀ w dir n gen outcome s {s′} → W.handleProtocol w dir n gen outcome s ≡ just s′ → CIPaths s s′
+  ci-handle-protocol-projects w dir n gen outcome s eq with W.ownerContext w s | W.findCaptured w dir n gen outcome (P.jobs (W.base s))
+  ... | just (f , mid) | just (j , job) with does (Types.mux job ≟ mid) | W.muxAt mid s
+  ...   | true | just m with Mux.status m | Mux.callback m
+  ...     | Mux.ready | Mux.returned = ci-protocol-source-projects w mid dir n outcome s eq
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.stopping | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.stopped | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.failed err | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.readActive tr = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.commitTrace active tr = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.afterStart k = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.forkPending k = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.afterFailure = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | just m | Mux.ready | Mux.tracerFailed k = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | false | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just (f , mid) | just (j , job) | true | nothing = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | nothing | _ = case eq of λ ()
+  ci-handle-protocol-projects w dir n gen outcome s eq | just _ | nothing = case eq of λ ()
+  ci-record-finish-projects : ∀ w outcome s {s′} → W.recordFinish w outcome s ≡ just s′ → CIPaths s s′
+  ci-record-finish-projects w outcome s eq with W.ownerContext w s
+  ... | nothing = case eq of λ ()
+  ... | just (f , mid) with W.viaSource (W.statusAction outcome mid) s in advanced
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → ci-pc-after w (W.deadReady outcome) (ci-via-projects (W.statusAction outcome mid) s advanced) }
+  ci-handle-projects : ∀ w s {s′} → W.handleHead w s ≡ just s′ → CIPaths s s′
+  ci-handle-projects w s eq with W.pcAt w s
+  ... | W.selected (Types.protocolCompletion dir n gen outcome) = ci-handle-protocol-projects w dir n gen outcome s eq
+  ... | W.selected (Types.infraMuxer err) = ci-record-finish-projects w (W.failed err) s eq
+  ... | W.selected (Types.infraDemuxer err) = ci-record-finish-projects w (W.demuxFinish w err s) s eq
+  ... | W.waiting = case eq of λ ()
+  ... | W.responderTracing _ = case eq of λ ()
+  ... | W.initiatorTracing _ = case eq of λ ()
+  ... | W.deadReady _ = case eq of λ ()
+  ... | W.deadTracing _ = case eq of λ ()
+  ... | W.finished _ = case eq of λ ()
+  ci-trace-projects : ∀ sample w s {s′} → W.traceSource sample w s ≡ just s′ → CIPaths s s′
+  ci-trace-projects sample w s eq with W.tracing (W.pcAt w s) | W.ownerContext w s
+  ... | true | just (f , mid) with sample
+  ...   | true = ci-via-projects (IG.sampleTracer mid) s eq
+  ...   | false = ci-via-projects (IG.commitTracer mid) s eq
+  ci-trace-projects sample w s eq | false | _ = case eq of λ ()
+  ci-trace-projects sample w s eq | true | nothing = case eq of λ ()
+  ci-finish-protocol-projects : ∀ w s {s′} → W.finishProtocol w s ≡ just s′ → CIPaths s s′
+  ci-finish-protocol-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.returned = case just-injective eq of λ { refl → ci-pc-paths w (W.waiting) s }
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.afterFailure = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.afterFailure = case just-injective eq of λ { refl → ci-pc-paths w (W.deadReady (W.failed err)) s }
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | just m | Mux.returned = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.returned = case just-injective eq of λ { refl → ci-pc-paths w (W.waiting) s }
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.afterFailure = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing clean | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) with W.muxAt mid s
+  ... | just m with Mux.callback m
+  ...   | Mux.returned = case just-injective eq of λ { refl → ci-pc-paths w (W.deadReady (W.failed err)) s }
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.readActive tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.commitTrace active tr = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.afterStart n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.forkPending n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.afterFailure = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | just m | Mux.tracerFailed n = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing (errored err) | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing clean | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.responderTracing (errored err) | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.initiatorTracing result | nothing = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.waiting | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.deadReady outcome | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.deadTracing outcome | _ = case eq of λ ()
+  ci-finish-protocol-projects w s eq | W.finished outcome | _ = case eq of λ ()
+
+  ci-start-dead-projects : ∀ w s {s′} → W.startDead w s ≡ just s′ → CIPaths s s′
+  ci-start-dead-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ... | W.deadReady outcome | just (f , mid) with W.muxAt mid s
+  ...   | just m with W.finishMatches outcome (Mux.status m) | W.deadAction outcome (Mux.callback m) mid
+  ...     | true | just action with W.viaSource action s in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just next = case just-injective eq of λ { refl → ci-pc-after w (W.deadTracing outcome) (ci-via-projects action s advanced) }
+  ci-start-dead-projects w s eq | W.deadReady outcome | just (f , mid) | just m | false | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadReady outcome | just (f , mid) | just m | true | nothing = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadReady outcome | just (f , mid) | nothing = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadReady outcome | nothing = case eq of λ ()
+  ci-start-dead-projects w s eq | W.waiting | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.responderTracing result | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.initiatorTracing result | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.deadTracing outcome | _ = case eq of λ ()
+  ci-start-dead-projects w s eq | W.finished outcome | _ = case eq of λ ()
+  ci-finish-dead-projects : ∀ w s {s′} → W.finishMux w s ≡ just s′ → CIPaths s s′
+  ci-finish-dead-projects w s eq with W.pcAt w s | W.ownerContext w s
+  ... | W.deadTracing outcome | just (f , mid) with W.muxAt mid s
+  ...   | just m with Mux.callback m | W.finishMatches outcome (Mux.status m)
+  ...     | Mux.returned | true = case just-injective eq of λ { refl → ci-pc-paths w (W.finished outcome) s }
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.readActive tr | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.commitTrace active tr | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.afterStart n | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.forkPending n | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.afterFailure | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.tracerFailed n | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | just m | Mux.returned | false = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | just (f , mid) | nothing = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadTracing outcome | nothing = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.waiting | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.selected item | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.responderTracing result | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.initiatorTracing result | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.deadReady outcome | _ = case eq of λ ()
+  ci-finish-dead-projects w s eq | W.finished outcome | _ = case eq of λ ()
+
+  ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
+  ci-step-projects (W.run action) s eq = ci-inherit-projects action s eq
+  ci-step-projects (W.consume w) s eq = ci-select-projects w s eq
+  ci-step-projects (W.handleSelected w) s eq = ci-handle-projects w s eq
+  ci-step-projects (W.sampleTracer w) s eq = ci-trace-projects true w s eq
+  ci-step-projects (W.commitTracer w) s eq = ci-trace-projects false w s eq
+  ci-step-projects (W.finishProtocolTrace w) s eq = ci-finish-protocol-projects w s eq
+  ci-step-projects (W.beginDead w) s eq = ci-start-dead-projects w s eq
+  ci-step-projects (W.finishDead w) s eq = ci-finish-dead-projects w s eq
+  ci-exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → CIPaths s s′
+  ci-exec-projects {s = s} W.done = ci-idle s
+  ci-exec-projects (W.next {s = s} {a = action} eq path) = ci-compose (ci-step-projects action s eq) (ci-exec-projects path)
+  Stable : W.State → W.State → Set
+  Stable = CIPaths
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable = ci-step-projects

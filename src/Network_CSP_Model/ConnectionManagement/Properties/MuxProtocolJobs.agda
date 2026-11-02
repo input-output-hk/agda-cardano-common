@@ -603,3 +603,303 @@ initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished h
 initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished hid mid | true | nothing = case eq of λ ()
 initiator-fork-observation w j gen n s eq | nothing | _ = case eq of λ ()
 initiator-fork-observation w j gen n s eq | just _ | false = case eq of λ ()
+
+-- Immutable capture identity is retained even when the physical body phase
+-- changes or the handle is deregistered. This is historical presence only.
+module CaptureIdentity where
+  open import ConnectionManagement.Store using (Store)
+  record Key : Set where
+    constructor key
+    field keyOwner : WorkerId
+          keyMux : MuxId
+          keyDirection : Mux.JobDirection
+          keyNumber : Nat.ℕ
+          keyGeneration : RunId
+  keyOf : Types.ProtocolJob → Key
+  keyOf job = key (Types.owner job) (Types.mux job) (Types.direction job) (Types.protocolNumber job) (Types.generation job)
+  Retains : Store JobId Types.ProtocolJob → Store JobId Types.ProtocolJob → Set
+  Retains before after = ∀ j old → lookup j before ≡ just old →
+    Σ Types.ProtocolJob (λ next → lookup j after ≡ just next × keyOf next ≡ keyOf old)
+  Stable : W.State → W.State → Set
+  Stable before after = Retains (W.jobs before) (W.jobs after)
+  identity : ∀ xs → Retains xs xs
+  identity xs j old found = old , found , refl
+  compose-retains : ∀ {xs ys zs} → Retains xs ys → Retains ys zs → Retains xs zs
+  compose-retains first second j old found with first j old found
+  ... | mid , located , same with second j mid located
+  ...   | next , retained , equal = next , retained , trans equal same
+
+  fresh-put : ∀ k next xs → lookup k xs ≡ nothing → Retains xs (put k next xs)
+  fresh-put k next xs absent j old found with j ≟ k
+  ... | yes refl with trans (sym absent) found
+  ...   | ()
+  fresh-put k next xs absent j old found | no apart = old , trans (lookup-put-other k j next xs apart) found , refl
+  same-key-put : ∀ k old next xs → lookup k xs ≡ just old → keyOf next ≡ keyOf old →
+    Retains xs (put k next xs)
+  same-key-put k old next xs found equal j captured seen with j ≟ k
+  ... | no apart = captured , trans (lookup-put-other k j next xs apart) seen , refl
+  ... | yes refl with just-injective (trans (sym found) seen)
+  ...   | refl = next , lookup-put k next xs , equal
+  fresh-lookup : ∀ j gen s → W.fresh j gen s ≡ Data.Bool.true → lookup j (W.jobs s) ≡ nothing
+  fresh-lookup j gen s eq with lookup j (W.jobs s)
+  ... | nothing = refl
+  ... | just job = case eq of λ ()
+
+  -- Existing exact fork/commit observations retain the actual writer evidence.
+  fork-retains : ∀ w j gen s {t} → Fork w j gen s t → Stable s t
+  fork-retains w j gen s observation rewrite Fork.after-shape observation =
+    fresh-put j _ (W.jobs s) (fresh-lookup j gen s (Fork.globally-fresh observation))
+  pending-jobs : ∀ job j s → W.jobs (W.appendPending job j s) ≡ W.jobs s
+  pending-jobs job j s with Types.direction job
+  ... | Mux.initiatorJob = refl
+  ... | Mux.responderJob = refl
+  removed-jobs : ∀ job kept s → W.jobs (W.removePublished job kept s) ≡ W.jobs s
+  removed-jobs job kept s with Types.direction job
+  ... | Mux.initiatorJob = refl
+  ... | Mux.responderJob = refl
+  commit-retains : ∀ j s {t} → CompletionCommit j s t → Stable s t
+  commit-retains j s {t} observation = subst (Retains (W.jobs s)) (sym after)
+    (same-key-put j captured (record captured { phase = Types.resultCaptured (CompletionCommit.outcome observation) })
+      (W.jobs s) (CompletionCommit.job-before observation) refl)
+    where
+    captured = CompletionCommit.capturedJob observation
+    after = trans (cong W.jobs (CompletionCommit.after-shape observation))
+      (pending-jobs captured j (record (W.setSource (CompletionCommit.sourceAfter observation) s)
+        { jobs = put j (record captured { phase = Types.resultCaptured (CompletionCommit.outcome observation) }) (W.jobs s) }))
+
+  inherited-stable : ∀ a s {t} → W.inherit a s ≡ just t → Stable s t
+  inherited-stable a s eq with W.inheritedAllowed a
+  ... | false = case eq of λ ()
+  ... | true with U.step a (W.base s)
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → identity (W.jobs s) }
+  returned-stable : ∀ j s {t} → W.returned j s ≡ just t → Stable s t
+  returned-stable j s eq with lookup j (W.jobs s) in found
+  ... | nothing = case eq of λ ()
+  ... | just job with Types.phase job
+  ...   | Types.executing = case just-injective eq of λ { refl →
+    same-key-put j job (record job { phase = Types.waitingEgress }) (W.jobs s) found refl }
+  ...   | Types.waitingEgress = case eq of λ ()
+  ...   | Types.resultCaptured result = case eq of λ ()
+  returned-body-stable : ∀ j s {t} → BodyReturn j s t → Stable s t
+  returned-body-stable j s observation rewrite BodyReturn.after-shape observation = identity (W.jobs s)
+  published-stable : ∀ j s {t} → Publication j s t → Stable s t
+  published-stable j s {t} observation = subst (Retains (W.jobs s)) (sym after) (identity (W.jobs s))
+    where
+    after = trans (cong W.jobs (Publication.after-shape observation))
+      (removed-jobs (Publication.capturedJob observation) (Publication.remainingPending observation)
+        (W.setPool (Types.owner (Publication.capturedJob observation)) (Publication.ownerFrame observation)
+          (Publication.poolAfter observation) (W.setSource (Publication.sourceAfter observation) s)))
+
+  registered-stable : ∀ j s {t} → W.register j s ≡ just t → Stable s t
+  registered-stable j s eq with lookup j (W.jobs s)
+  ... | nothing = case eq of λ ()
+  ... | just job with lookup (Types.owner job) (U.frames (W.base s)) | Pool.parentFork (W.poolAt (Types.owner job) s)
+  ...   | just f | just current with j ≟ current
+  ...     | no _ = case eq of λ ()
+  ...     | yes _ with Pool.step Pool.register (W.poolAt (Types.owner job) s)
+  ...       | nothing = case eq of λ ()
+  ...       | just p = case just-injective eq of λ { refl → identity (W.jobs s) }
+  registered-stable j s eq | just job | nothing | _ = case eq of λ ()
+  registered-stable j s eq | just job | just f | nothing = case eq of λ ()
+
+  via-protocol-stable : ∀ j action s {t} → W.viaProtocol j action s ≡ just t → Stable s t
+  via-protocol-stable j action s eq with lookup j (W.jobs s)
+  ... | nothing = case eq of λ ()
+  ... | just job with lookup (Types.owner job) (U.frames (W.base s)) | Pool.step action (W.poolAt (Types.owner job) s)
+  ...   | just f | just p = case just-injective eq of λ { refl → identity (W.jobs s) }
+  ...   | nothing | _ = case eq of λ ()
+  ...   | just f | nothing = case eq of λ ()
+  via-infra-stable : ∀ w role action s {t} → W.viaInfra w role action s ≡ just t → Stable s t
+  via-infra-stable w role action s eq with lookup w (U.frames (W.base s))
+  ... | nothing = case eq of λ ()
+  ... | just f with W.infraId role (S.phase (U.startup f))
+  ...   | nothing = case eq of λ ()
+  ...   | just j with Pool.step (action j) (W.poolAt w s)
+  ...     | nothing = case eq of λ ()
+  ...     | just p = case just-injective eq of λ { refl → identity (W.jobs s) }
+
+  control-stable : ∀ w action s {s′} → W.monitorControl w action s ≡ just s′ → Stable s s′
+  control-stable w action s eq with lookup w (U.frames (W.base s))
+  ... | nothing = case eq of λ ()
+  ... | just f with U.progress f | W.monitoring f | W.noParent (W.poolAt w s)
+  ...   | U.promisePublished hid mid | true | true with W.muxAt mid s
+  ...     | nothing = case eq of λ ()
+  ...     | just m with W.controlReady action m (W.poolAt w s)
+  ...       | false = case eq of λ ()
+  ...       | true with O.advance (O.inbound (M.igStep (W.sourceControl action mid))) (W.source s) in advanced
+  ...         | nothing = case eq of λ ()
+  ...         | just c = case just-injective eq of λ { refl → identity (W.jobs s) }
+  control-stable w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
+  control-stable w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
+  control-stable w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
+  control-stable w action s eq | just f | U.promisePublished hid mid | true | false = case eq of λ ()
+
+  -- Exhaustive physical actions retain every older capture, including phase
+  -- changes, normal publication, cancellation bookkeeping and infrastructure.
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable (W.run a) s eq = inherited-stable a s eq
+  step-stable (W.forkResponder w j gen) s eq = fork-retains w j gen s (responder-fork-observation w j gen s eq)
+  step-stable (W.forkInitiator w j gen n) s eq = fork-retains w j gen s (initiator-fork-observation w j gen n s eq)
+  step-stable (W.registerProtocol j) s eq = registered-stable j s eq
+  step-stable (W.protocolReturned j) s eq = returned-stable j s eq
+  step-stable (W.commitClean j) s eq = commit-retains j s (clean-observation j s eq)
+  step-stable (W.protocolException j err) s eq = commit-retains j s (exception-observation j err s eq)
+  step-stable (W.returnProtocol j) s eq = returned-body-stable j s (return-observation j s eq)
+  step-stable (W.publishProtocol j) s eq = published-stable j s (publication-observation j s eq)
+  step-stable (W.deregisterProtocol j) s eq = via-protocol-stable j (Pool.deregister j) s eq
+  step-stable (W.asyncProtocolResult j) s eq = via-protocol-stable j (Pool.publishAsyncResult j) s eq
+  step-stable (W.infrastructureReturn w role err) s eq = via-infra-stable w role (λ j → Pool.bodyReturnedWith j (Types.infraResult role err)) s eq
+  step-stable (W.publishInfra w role) s eq = via-infra-stable w role Pool.publishCompletion s eq
+  step-stable (W.deregisterInfra w role) s eq = via-infra-stable w role Pool.deregister s eq
+  step-stable (W.asyncInfraResult w role) s eq = via-infra-stable w role Pool.publishAsyncResult s eq
+  step-stable (W.control w a) s eq = control-stable w a s eq
+  exec-stable : ∀ {s as t} → W.Executes s as t → Stable s t
+  exec-stable {s = s} W.done = identity (W.jobs s)
+  exec-stable {t = t} (W.next {s = s} {s₁ = mid} {a = a} eq rest) =
+    compose-retains {xs = W.jobs s} {ys = W.jobs mid} {zs = W.jobs t} (step-stable a s eq) (exec-stable rest)
+
+-- Stable physical results, distinct from capture-identity retention.
+module CommittedRows where
+  open import ConnectionManagement.Store using (Store)
+  -- Once resultCaptured, the entire immutable historical row is retained.
+  Retains : Store JobId Types.ProtocolJob → Store JobId Types.ProtocolJob → Set
+  Retains before after = ∀ j old result → lookup j before ≡ just old →
+    Types.phase old ≡ Types.resultCaptured result → lookup j after ≡ just old
+  Stable : W.State → W.State → Set
+  Stable before after = Retains (W.jobs before) (W.jobs after)
+  identity : ∀ xs → Retains xs xs
+  identity xs j old result found captured = found
+  compose-retains : ∀ {xs ys zs} → Retains xs ys → Retains ys zs → Retains xs zs
+  compose-retains first second j old result found captured = second j old result (first j old result found captured) captured
+  fresh-put : ∀ k next xs → lookup k xs ≡ nothing → Retains xs (put k next xs)
+  fresh-put k next xs absent j old result found captured with j ≟ k
+  ... | yes refl with trans (sym absent) found
+  ...   | ()
+  fresh-put k next xs absent j old result found captured | no apart = trans (lookup-put-other k j next xs apart) found
+  same-key-put : ∀ k old next xs → lookup k xs ≡ just old → W.canCapture (Types.phase old) ≡ true → Retains xs (put k next xs)
+  same-key-put k old next xs found writable j captured result seen finished with j ≟ k
+  ... | no apart = trans (lookup-put-other k j next xs apart) seen
+  ... | yes refl with just-injective (trans (sym found) seen)
+  ...   | refl rewrite finished = case writable of λ ()
+  input-writable : ∀ job result → CompletionInput job result → W.canCapture (Types.phase job) ≡ true
+  input-writable job .clean (normalInput phase) rewrite phase = refl
+  input-writable job .(errored err) (exceptionInput err eligible) = eligible
+  fresh-lookup : ∀ j gen s → W.fresh j gen s ≡ Data.Bool.true → lookup j (W.jobs s) ≡ nothing
+  fresh-lookup j gen s eq with lookup j (W.jobs s)
+  ... | nothing = refl
+  ... | just job = case eq of λ ()
+
+  -- Existing exact fork/commit observations retain the actual writer evidence.
+  fork-retains : ∀ w j gen s {t} → Fork w j gen s t → Stable s t
+  fork-retains w j gen s observation rewrite Fork.after-shape observation =
+    fresh-put j _ (W.jobs s) (fresh-lookup j gen s (Fork.globally-fresh observation))
+  pending-jobs : ∀ job j s → W.jobs (W.appendPending job j s) ≡ W.jobs s
+  pending-jobs job j s with Types.direction job
+  ... | Mux.initiatorJob = refl
+  ... | Mux.responderJob = refl
+  removed-jobs : ∀ job kept s → W.jobs (W.removePublished job kept s) ≡ W.jobs s
+  removed-jobs job kept s with Types.direction job
+  ... | Mux.initiatorJob = refl
+  ... | Mux.responderJob = refl
+  commit-retains : ∀ j s {t} → CompletionCommit j s t → Stable s t
+  commit-retains j s {t} observation = subst (Retains (W.jobs s)) (sym after)
+    (same-key-put j captured (record captured { phase = Types.resultCaptured (CompletionCommit.outcome observation) })
+      (W.jobs s) (CompletionCommit.job-before observation) (input-writable captured _ (CompletionCommit.input-boundary observation)))
+    where
+    captured = CompletionCommit.capturedJob observation
+    after = trans (cong W.jobs (CompletionCommit.after-shape observation))
+      (pending-jobs captured j (record (W.setSource (CompletionCommit.sourceAfter observation) s)
+        { jobs = put j (record captured { phase = Types.resultCaptured (CompletionCommit.outcome observation) }) (W.jobs s) }))
+
+  inherited-stable : ∀ a s {t} → W.inherit a s ≡ just t → Stable s t
+  inherited-stable a s eq with W.inheritedAllowed a
+  ... | false = case eq of λ ()
+  ... | true with U.step a (W.base s)
+  ...   | nothing = case eq of λ ()
+  ...   | just next = case just-injective eq of λ { refl → identity (W.jobs s) }
+  returned-stable : ∀ j s {t} → W.returned j s ≡ just t → Stable s t
+  returned-stable j s eq with lookup j (W.jobs s) in found
+  ... | nothing = case eq of λ ()
+  ... | just job with Types.phase job in observed
+  ...   | Types.executing = case just-injective eq of λ { refl →
+    same-key-put j job (record job { phase = Types.waitingEgress }) (W.jobs s) found (cong W.canCapture observed) }
+  ...   | Types.waitingEgress = case eq of λ ()
+  ...   | Types.resultCaptured result = case eq of λ ()
+  returned-body-stable : ∀ j s {t} → BodyReturn j s t → Stable s t
+  returned-body-stable j s observation rewrite BodyReturn.after-shape observation = identity (W.jobs s)
+  published-stable : ∀ j s {t} → Publication j s t → Stable s t
+  published-stable j s {t} observation = subst (Retains (W.jobs s)) (sym after) (identity (W.jobs s))
+    where
+    after = trans (cong W.jobs (Publication.after-shape observation))
+      (removed-jobs (Publication.capturedJob observation) (Publication.remainingPending observation)
+        (W.setPool (Types.owner (Publication.capturedJob observation)) (Publication.ownerFrame observation)
+          (Publication.poolAfter observation) (W.setSource (Publication.sourceAfter observation) s)))
+
+  registered-stable : ∀ j s {t} → W.register j s ≡ just t → Stable s t
+  registered-stable j s eq with lookup j (W.jobs s)
+  ... | nothing = case eq of λ ()
+  ... | just job with lookup (Types.owner job) (U.frames (W.base s)) | Pool.parentFork (W.poolAt (Types.owner job) s)
+  ...   | just f | just current with j ≟ current
+  ...     | no _ = case eq of λ ()
+  ...     | yes _ with Pool.step Pool.register (W.poolAt (Types.owner job) s)
+  ...       | nothing = case eq of λ ()
+  ...       | just p = case just-injective eq of λ { refl → identity (W.jobs s) }
+  registered-stable j s eq | just job | nothing | _ = case eq of λ ()
+  registered-stable j s eq | just job | just f | nothing = case eq of λ ()
+
+  via-protocol-stable : ∀ j action s {t} → W.viaProtocol j action s ≡ just t → Stable s t
+  via-protocol-stable j action s eq with lookup j (W.jobs s)
+  ... | nothing = case eq of λ ()
+  ... | just job with lookup (Types.owner job) (U.frames (W.base s)) | Pool.step action (W.poolAt (Types.owner job) s)
+  ...   | just f | just p = case just-injective eq of λ { refl → identity (W.jobs s) }
+  ...   | nothing | _ = case eq of λ ()
+  ...   | just f | nothing = case eq of λ ()
+  via-infra-stable : ∀ w role action s {t} → W.viaInfra w role action s ≡ just t → Stable s t
+  via-infra-stable w role action s eq with lookup w (U.frames (W.base s))
+  ... | nothing = case eq of λ ()
+  ... | just f with W.infraId role (S.phase (U.startup f))
+  ...   | nothing = case eq of λ ()
+  ...   | just j with Pool.step (action j) (W.poolAt w s)
+  ...     | nothing = case eq of λ ()
+  ...     | just p = case just-injective eq of λ { refl → identity (W.jobs s) }
+
+  control-stable : ∀ w action s {s′} → W.monitorControl w action s ≡ just s′ → Stable s s′
+  control-stable w action s eq with lookup w (U.frames (W.base s))
+  ... | nothing = case eq of λ ()
+  ... | just f with U.progress f | W.monitoring f | W.noParent (W.poolAt w s)
+  ...   | U.promisePublished hid mid | true | true with W.muxAt mid s
+  ...     | nothing = case eq of λ ()
+  ...     | just m with W.controlReady action m (W.poolAt w s)
+  ...       | false = case eq of λ ()
+  ...       | true with O.advance (O.inbound (M.igStep (W.sourceControl action mid))) (W.source s) in advanced
+  ...         | nothing = case eq of λ ()
+  ...         | just c = case just-injective eq of λ { refl → identity (W.jobs s) }
+  control-stable w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
+  control-stable w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
+  control-stable w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
+  control-stable w action s eq | just f | U.promisePublished hid mid | true | false = case eq of λ ()
+
+  -- Exhaustive physical actions retain every older capture, including phase
+  -- changes, normal publication, cancellation bookkeeping and infrastructure.
+  step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
+  step-stable (W.run a) s eq = inherited-stable a s eq
+  step-stable (W.forkResponder w j gen) s eq = fork-retains w j gen s (responder-fork-observation w j gen s eq)
+  step-stable (W.forkInitiator w j gen n) s eq = fork-retains w j gen s (initiator-fork-observation w j gen n s eq)
+  step-stable (W.registerProtocol j) s eq = registered-stable j s eq
+  step-stable (W.protocolReturned j) s eq = returned-stable j s eq
+  step-stable (W.commitClean j) s eq = commit-retains j s (clean-observation j s eq)
+  step-stable (W.protocolException j err) s eq = commit-retains j s (exception-observation j err s eq)
+  step-stable (W.returnProtocol j) s eq = returned-body-stable j s (return-observation j s eq)
+  step-stable (W.publishProtocol j) s eq = published-stable j s (publication-observation j s eq)
+  step-stable (W.deregisterProtocol j) s eq = via-protocol-stable j (Pool.deregister j) s eq
+  step-stable (W.asyncProtocolResult j) s eq = via-protocol-stable j (Pool.publishAsyncResult j) s eq
+  step-stable (W.infrastructureReturn w role err) s eq = via-infra-stable w role (λ j → Pool.bodyReturnedWith j (Types.infraResult role err)) s eq
+  step-stable (W.publishInfra w role) s eq = via-infra-stable w role Pool.publishCompletion s eq
+  step-stable (W.deregisterInfra w role) s eq = via-infra-stable w role Pool.deregister s eq
+  step-stable (W.asyncInfraResult w role) s eq = via-infra-stable w role Pool.publishAsyncResult s eq
+  step-stable (W.control w a) s eq = control-stable w a s eq
+  exec-stable : ∀ {s as t} → W.Executes s as t → Stable s t
+  exec-stable {s = s} W.done = identity (W.jobs s)
+  exec-stable {t = t} (W.next {s = s} {s₁ = mid} {a = a} eq rest) =
+    compose-retains {xs = W.jobs s} {ys = W.jobs mid} {zs = W.jobs t} (step-stable a s eq) (exec-stable rest)
