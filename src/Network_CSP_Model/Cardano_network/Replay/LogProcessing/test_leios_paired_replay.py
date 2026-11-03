@@ -44,7 +44,8 @@ def run_tests(binary, root):
         notify = protocol == 'LeiosNotifyP'
         request = 'RequestNext' if notify else 'BlockRequest ab 3'
         response = 'BlockOffer ab 3 20' if notify else 'Block ab 20'
-        cs = [f'Send {request}', f'Recv {response}', 'Send Done']
+        closing = ['Send Quit', 'Recv Done'] if notify else ['Send Done']
+        cs = [f'Send {request}', f'Recv {response}'] + closing
         ss = opposite(cs)
         output = check(protocol, cs, ss)
         assert 'in-flight client-to-server 0; server-to-client 0' in output
@@ -62,14 +63,14 @@ def run_tests(binary, root):
                 assert queue and queue.pop(0) == payload, line
         assert not any(queues.values())
         # Printers pad hexadecimal hashes; compare source coordinates separately.
-        assert [p for p, _ in seen['client']] == [20, 27, 34]
-        assert [p for p, _ in seen['server']] == [20, 27, 34]
+        assert [p for p, _ in seen['client']] == [20 + 7*i for i in range(len(cs))]
+        assert [p for p, _ in seen['server']] == [20 + 7*i for i in range(len(cs))]
         # Numeric values, rather than textual zero padding, define message equality.
         if not notify:
             check(protocol, ['Send BlockRequest 00ab 03', 'Recv Block 0ab 020'],
                   ['Recv BlockRequest ab 3', 'Send Block ab 20'])
         check(protocol, [], [])
-        check(protocol, ['Send Done'], ['Recv Done'], 0)
+        check(protocol, closing, opposite(closing), 0)
         check(protocol, [f'Send {request}'], [], 0, 'rejected paired trace:')
         check(protocol, [], [f'Recv {request}'], expected='rejected paired trace:')
         check(protocol, [f'Send {request}', 'Send Done'], [], expected='rejected paired trace:')
@@ -77,8 +78,8 @@ def run_tests(binary, root):
         assert 'in-flight client-to-server 1' in out
         out = check(protocol, [f'Send {request}'], [f'Recv {request}', f'Send {response}'])
         assert 'server-to-client 1' in out
-        piped = [f'Send {request}', f'Send {request}', f'Recv {response}', f'Recv {response}', 'Send Done']
-        serial = [f'Recv {request}', f'Send {response}', f'Recv {request}', f'Send {response}', 'Recv Done']
+        piped = [f'Send {request}', f'Send {request}', f'Recv {response}', f'Recv {response}'] + closing
+        serial = [f'Recv {request}', f'Send {response}', f'Recv {request}', f'Send {response}'] + opposite(closing)
         check(protocol, piped, serial, 2)
         check(protocol, piped, serial, 1, 'rejected paired trace:')
         if notify:
@@ -137,6 +138,17 @@ def run_tests(binary, root):
                   ['Send RequestNext', 'Send RequestNext', 'Recv Votes -', 'Recv Votes ab:2'],
                   ['Recv RequestNext', 'Recv RequestNext', 'Send Votes ab:2', 'Send Votes -'],
                   2, 'rejected paired trace:')
+        if notify:
+            shutdown = ['Send RequestNext', 'Send RequestNext', 'Send Quit',
+                        'Recv Canceled', 'Recv Canceled', 'Recv Done']
+            check(protocol, shutdown, opposite(shutdown), 2)
+            # A notification already in flight is drained after Quit at the client.
+            check(protocol, ['Send RequestNext', 'Send Quit', 'Recv Votes -', 'Recv Done'],
+                  ['Recv RequestNext', 'Send Votes -', 'Recv Quit', 'Send Done'])
+            check(protocol, ['Send RequestNext', 'Send Quit', 'Recv Done'],
+                  ['Recv RequestNext', 'Recv Quit', 'Send Done'], expected='rejected paired trace:')
+            check(protocol, ['Send RequestNext', 'Recv Canceled'],
+                  ['Recv RequestNext', 'Send Votes -'], expected='rejected paired trace:')
         # Exact protocol namespaces, alias expansion and original source maps.
         ns = 'LeiosNotify' if notify else 'LeiosFetch'
         req_kind = 'NotificationRequestNext' if notify else 'BlockRequest ab 3'
@@ -161,6 +173,20 @@ def run_tests(binary, root):
         assert result.returncode == 0, result.stderr
         output = check_text(protocol, pair.read_text())
         assert 'client source-line 301' in output and 'server source-line 109' in output
+        if notify:
+            # Manifest preparation accepts every shutdown message without splitting Quit.
+            paths = [root / (role + suffix) for role in ('client', 'server')
+                     for suffix in ('.txt', '.src')]
+            saved = {p: p.read_text() for p in paths}
+            shutdown = ['Send RequestNext', 'Send Quit', 'Recv Canceled', 'Recv Done']
+            for role, events in [('client', shutdown), ('server', opposite(shutdown))]:
+                (root / (role + '.txt')).write_text('role ' + role + '\n' + '\n'.join(events) + '\n')
+                (root / (role + '.src')).write_text(''.join(f'{i+1} t\n' for i in range(len(events))))
+            assert normalize().returncode == 0
+            check_text(protocol, pair.read_text())
+            for p, contents in saved.items():
+                p.write_text(contents)
+            assert normalize().returncode == 0
         # Normalization retains all payload tokens without timestamps or sorting.
         assert f'client 507 Recv {response}' in pair.read_text()
         overwrite = subprocess.run([sys.executable, '-I', str(normalizer), str(mp),

@@ -10,7 +10,7 @@ open import Data.Maybe using (nothing)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Relation.Nullary.Decidable using (True; False; toWitness; toWitnessFalse)
 open import Relation.Nullary using (¬_)
-open import Cardano_network.Replay.LeiosNotifySession using (RequestNext; Votes; Done; BlockOffer; BlockTxsOffer; BlockAnnouncement)
+open import Cardano_network.Replay.LeiosNotifySession using (RequestNext; Votes; Quit; Canceled; Done; BlockOffer; BlockTxsOffer; BlockAnnouncement)
 open import Cardano_network.Replay.LeiosNotifyPipeline
 open import Cardano_network.Replay.SessionReport using (reportWithDepth; reportNotifyWithDepth)
 
@@ -18,7 +18,7 @@ open import Cardano_network.Replay.SessionReport using (reportWithDepth; reportN
 refill : List E
 refill = (Send , RequestNext) ∷ (Send , RequestNext) ∷ (Recv , Votes [])
        ∷ (Send , RequestNext) ∷ (Recv , BlockOffer 7 2 10)
-       ∷ (Recv , BlockTxsOffer 8 3) ∷ (Send , Done) ∷ []
+       ∷ (Recv , BlockTxsOffer 8 3) ∷ (Send , Quit) ∷ (Recv , Done) ∷ []
 
 -- Acceptance produces an inhabited trace, not just a boolean result.
 refill-run : Spec.HasTrace 2 client idle refill
@@ -37,7 +37,7 @@ server-overflow : False (Spec.check 2 server ((Recv , RequestNext) ∷ (Recv , R
 server-overflow = tt
 
 -- The responder may supply different notification kinds for its credits.
-server-rounds : True (Spec.check 2 server ((Recv , RequestNext) ∷ (Recv , RequestNext) ∷ (Send , BlockAnnouncement nothing) ∷ (Send , Votes []) ∷ (Recv , Done) ∷ []))
+server-rounds : True (Spec.check 2 server ((Recv , RequestNext) ∷ (Recv , RequestNext) ∷ (Send , BlockAnnouncement nothing) ∷ (Send , Votes []) ∷ (Recv , Quit) ∷ (Send , Done) ∷ []))
 server-rounds = tt
 
 -- A notification cannot consume a nonexistent credit.
@@ -57,7 +57,7 @@ zero-request : False (Spec.check 0 client ((Send , RequestNext) ∷ []))
 zero-request = tt
 
 -- Zero still permits closing an empty session.
-zero-done : True (Spec.check 0 client ((Send , Done) ∷ []))
+zero-done : True (Spec.check 0 client ((Send , Quit) ∷ (Recv , Done) ∷ []))
 zero-done = tt
 
 -- EOF may leave the pipe full.
@@ -75,3 +75,47 @@ isolation = refl
 -- Overflow diagnostics expose the actual outstanding count.
 diagnostic : reportNotifyWithDepth 2 "role client\nSend RequestNext\nSend RequestNext\nSend RequestNext\n" ≡ "rejected at index 3 (session 0): Send RequestNext\nmodel session state after 2 events: notify client open, outstanding 2"
 diagnostic = refl
+
+-- Canceled consumes one credit and permits a new request.
+cancel-refill : True (Spec.check 2 client ((Send , RequestNext) ∷ (Recv , Canceled) ∷ (Send , RequestNext) ∷ (Recv , Votes []) ∷ (Send , Quit) ∷ (Recv , Done) ∷ []))
+cancel-refill = tt
+
+-- Quit freezes a full pipe and drains both notifications and cancellation.
+quit-full : True (Spec.check 2 client ((Send , RequestNext) ∷ (Send , RequestNext) ∷ (Send , Quit) ∷ (Recv , Votes []) ∷ (Recv , Canceled) ∷ (Recv , Done) ∷ []))
+quit-full = tt
+
+-- After reading Quit the producer cancels each remaining request.
+server-cancel-drain : True (Spec.check 2 server ((Recv , RequestNext) ∷ (Recv , RequestNext) ∷ (Recv , Quit) ∷ (Send , Canceled) ∷ (Send , Canceled) ∷ (Send , Done) ∷ []))
+server-cancel-drain = tt
+
+-- Done before all owed replies have drained is rejected.
+early-done : False (Spec.check 2 client ((Send , RequestNext) ∷ (Send , Quit) ∷ (Recv , Done) ∷ []))
+early-done = tt
+
+-- Canceled cannot consume a nonexistent credit.
+unsolicited-cancel : False (Spec.check 2 client ((Recv , Canceled) ∷ []))
+unsolicited-cancel = tt
+
+-- Requests are prohibited after Quit.
+after-quit-request : False (Spec.check 2 client ((Send , Quit) ∷ (Send , RequestNext) ∷ []))
+after-quit-request = tt
+
+-- Quit cannot be repeated.
+after-quit-repeat : False (Spec.check 2 client ((Send , Quit) ∷ (Send , Quit) ∷ []))
+after-quit-repeat = tt
+
+-- The consumer cannot send Canceled.
+wrong-cancel-agency : False (Spec.check 2 client ((Send , RequestNext) ∷ (Send , Canceled) ∷ []))
+wrong-cancel-agency = tt
+
+-- Read-ahead shutdown cancels rather than selecting new notifications.
+server-after-quit-notification : False (Spec.check 2 server ((Recv , RequestNext) ∷ (Recv , Quit) ∷ (Send , Votes []) ∷ []))
+server-after-quit-notification = tt
+
+-- Capacity one allows busy Quit, so alternating equivalence is false.
+busy-quit-depth-one : True (Spec.check 1 client ((Send , RequestNext) ∷ (Send , Quit) ∷ []))
+busy-quit-depth-one = tt
+
+-- The same busy-Quit trace has no alternating protocol execution.
+alternating-busy-quit : False (Cardano_network.Replay.LeiosNotifySession.Spec.check client ((Send , RequestNext) ∷ (Send , Quit) ∷ []))
+alternating-busy-quit = tt

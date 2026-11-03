@@ -60,7 +60,7 @@ def event(text, protocol):
                  or (kind == 'ReplyTxIds' and payload in [['Empty'], ['NonEmpty']]))
     else:
         shapes = {
-            'LeiosNotifyP': {'RequestNext': [()], 'Done': [()],
+            'LeiosNotifyP': {'RequestNext': [()], 'Quit': [()], 'Canceled': [()], 'Done': [()],
                 'BlockAnnouncement': [('empty',), ('hex', 'dec', 'dec')],
                 'BlockOffer': [('hex', 'dec', 'dec')],
                 'BlockTxsOffer': [('hex', 'dec')], 'Votes': [('votes',)]},

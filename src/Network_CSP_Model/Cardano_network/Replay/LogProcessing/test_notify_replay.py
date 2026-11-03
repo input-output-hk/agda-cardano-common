@@ -22,14 +22,14 @@ def main(binary):
                   'Send RequestNext\nRecv BlockAnnouncement ab 3 20\n'
                   'Send RequestNext\nRecv BlockOffer cd 4 30\n'
                   'Send RequestNext\nRecv BlockTxsOffer ef 5\n'
-                  'Send RequestNext\nRecv Votes ab:2,cd:4\nSend Done\n')
-        check('role client\n' + rounds, 'accepted (11 events, 1 sessions)', '--notify')
+                  'Send RequestNext\nRecv Votes ab:2,cd:4\nSend Quit\nRecv Done\n')
+        check('role client\n' + rounds, 'accepted (12 events, 1 sessions)', '--notify')
         server = rounds.replace('Send', 'TEMP').replace('Recv', 'Send').replace('TEMP', 'Recv')
-        check('role server\n' + server, 'accepted (11 events, 1 sessions)', '--notify')
+        check('role server\n' + server, 'accepted (12 events, 1 sessions)', '--notify')
         for events, index in [('Recv Votes -\n', 1),
                               ('Send RequestNext\nSend RequestNext\n', 2),
                               ('Send RequestNext\nSend Done\n', 2),
-                              ('Send Done\nSend RequestNext\n', 2)]:
+                              ('Send Quit\nSend RequestNext\n', 2)]:
             check('role client\n' + events, f'rejected at index {index}', '--notify')
         check('role client\nSend RequestNext\n', 'accepted (1 events, 1 sessions)', '--notify')
         check('role client\nRecv BlockAnnouncement ab\n', 'parse error', '--notify')
@@ -49,13 +49,26 @@ def main(binary):
         # Independent numeric bounds, including the audited prototype values.
         piped = ('role client\nSend RequestNext\nSend RequestNext\n'
                  'Recv Votes -\nSend RequestNext\nRecv BlockOffer ab 3 20\n'
-                 'Recv BlockTxsOffer cd 4\nSend Done\n')
-        check(piped, 'accepted (7 events, 1 sessions)', '--notify', (2,))
+                 'Recv BlockTxsOffer cd 4\nSend Quit\nRecv Done\n')
+        check(piped, 'accepted (8 events, 1 sessions)', '--notify', (2,))
         check(piped, 'rejected at index 2', '--notify', (1,))
-        check('role server\nRecv RequestNext\nRecv RequestNext\nSend Votes -\nSend Votes -\nRecv Done\n',
-              'accepted (5 events, 1 sessions)', '--notify', (2,))
+        check('role server\nRecv RequestNext\nRecv RequestNext\nSend Votes -\nSend Votes -\nRecv Quit\nSend Done\n',
+              'accepted (6 events, 1 sessions)', '--notify', (2,))
         check('role client\nSend RequestNext\n', 'rejected at index 1', '--notify', (0,))
-        check('role client\nSend Done\n', 'accepted (1 events, 1 sessions)', '--notify', (0,))
+        check('role client\nSend Quit\nRecv Done\n', 'accepted (2 events, 1 sessions)', '--notify', (0,))
+        # New shutdown messages, agency and request-credit boundaries.
+        check('role client\nSend RequestNext\nRecv Canceled\nSend Quit\nRecv Done\n',
+              'accepted (4 events, 1 sessions)', '--notify')
+        check('role client\nSend RequestNext\nSend RequestNext\nSend Quit\nRecv Votes -\nRecv Canceled\nRecv Done\n',
+              'accepted (6 events, 1 sessions)', '--notify', (2,))
+        check('role server\nRecv RequestNext\nRecv RequestNext\nRecv Quit\nSend Canceled\nSend Canceled\nSend Done\n',
+              'accepted (6 events, 1 sessions)', '--notify', (2,))
+        for events, index in [('Recv Canceled\n', 1),
+                              ('Send RequestNext\nSend Quit\nRecv Done\n', 3),
+                              ('Send Quit\nSend Quit\n', 2),
+                              ('Send RequestNext\nSend Canceled\n', 2),
+                              ('Send Done\n', 1)]:
+            check('role client\n' + events, f'rejected at index {index}', '--notify', (2,))
         full = 'role client\n' + 'LeiosNotify.Remote.Send.RequestNext\n' * 1000
         check(full, 'accepted (1000 events, 1 sessions)', '--notify', (1000,))
         check(full + 'LeiosNotify.Remote.Send.RequestNext\n', 'rejected at index 1001', '--notify', (1000,))
@@ -79,7 +92,8 @@ def main(binary):
             ('LeiosNotify', 'Send.RequestNext', {}),
             ('LeiosFetch', 'Send.BlockRequest', {'ebHash': 'ab', 'ebSlot': 3}),
             ('LeiosNotify', 'Receive.Votes', {'votes': []}),
-            ('LeiosNotify', 'Send.Done', {}),
+            ('LeiosNotify', 'Send.Quit', {'kind': 'MsgQuit'}),
+            ('LeiosNotify', 'Receive.Done', {'kind': 'MsgDone'}),
             ('LeiosFetch', 'Receive.Block', {'ebHash': 'ab', 'ebBytesSize': 20}),
             ('LeiosNotify', 'Send.RequestNext', {})]:
             records.append({'ns': protocol + '.Remote.' + suffix, 'at': 't',
@@ -88,7 +102,7 @@ def main(binary):
         out = root / 'normalized'
         subprocess.run([sys.executable, '-I', str(Path(__file__).with_name('normalize_logs.py')),
                         str(raw), str(out)], check=True, capture_output=True, text=True)
-        check((out / 'interleaved.txt').read_text(), 'accepted (6 events, 3 sessions)')
+        check((out / 'interleaved.txt').read_text(), 'accepted (7 events, 3 sessions)')
     print('compiled Notify/Fetch CLI integration tests passed')
 
 

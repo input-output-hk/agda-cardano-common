@@ -295,6 +295,43 @@ combined through the same product once their local replay interfaces and
 deciders are provided. The executable combines all three protocols through `Sessions.agda` and
 `ParseSessions.agda`; the original Fetch-only modules remain library APIs.
 
+## Quit/Canceled shutdown (2026-11-02)
+
+The protocol update follows the earlier `agda-cardano-common` shutdown work
+(`41e5ed2dba05cbc0d62ef253b9b19e4e4baf3d7a` on
+`kangfeng/leios-notify-graceful-shutdown`) and the consensus prototype at
+`2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b`.
+`lnpSendDone` now requests Quit; Done is a responder message. The new
+`lnpSendCanceled` API cancels one request during normal operation. Quit and
+Canceled do not split sessions: Done, NewMux, or the selected lifecycle boundary
+does. Older Notify traces with initiator Done must be recaptured or explicitly
+versioned; they do not describe this protocol.
+
+For example, save this as `/tmp/notify-shutdown.txt` and run
+`Main --notify /tmp/notify-shutdown.txt 2`:
+
+```text
+role client
+Send RequestNext
+Send RequestNext
+Send Quit
+Recv Votes -
+Recv Canceled
+Recv Done
+```
+
+It accepts six events. An in-flight notification can arrive after Quit; it is
+drained without delivering it to the application. Done before the two owed
+replies is rejected. Tests also construct an exact native paired execution with
+two cancellations and a final Done.
+
+The October 29 capture's Notify messages now normalize, including Quit/Canceled.
+It contains no RequestNext observations, so strict replay from fresh sessions
+still cannot certify it: the first observed announcement has no request credit.
+No requests are synthesized. Fetch replies missing hash/slot/bitmap fields are
+a separate input limitation. See [the shutdown note](../../../docs/notes/leiosnotify-quit-cancel.md) for the
+validation record and capture results.
+
 ## Configurable Notify pipeline depth (2026-10-14)
 
 The executable accepts independent Fetch and Notify bounds:
@@ -311,35 +348,34 @@ Main --interleaved FILE [K_FETCH [K_NOTIFY]]
 
 Defaults remain **Fetch 4, Notify 1**. A single interleaved bound still applies
 to Fetch. Bounds are nonnegative decimal integers; malformed or extra arguments
-print usage. Notify zero disables requests but permits an empty prefix or Done.
+print usage. Notify zero disables requests but permits an empty prefix or Quit/Done shutdown.
 
 `LeiosNotifyPipeline.agda` supplies a safe specification parameterized by depth
-and role. Each session is either `openN n`, counting outstanding requests, or
-closed. RequestNext increments `n` only below the bound. Any of the four
-notification kinds decrements it only when positive. Done requires zero and
-closes permanently. Client commands are Send and responses Recv; server commands
-are Recv and responses Send. All other transitions reject. EOF may leave pending
-requests. Each interleaved session has its own counter, and diagnostics display
-that count. Payload validity is outside this model; RequestNext identifies no
-hash, so credits do not require a hash FIFO.
+and role. Each session is `openN n`, `quitting n`, or closed. RequestNext
+increments the outstanding count only below the bound. A notification or Canceled
+consumes one positive credit. Client Send Quit (server Recv Quit) freezes new
+requests at any count. The client drains owed notifications/Canceled without API
+delivery; after reading Quit the producer emits Canceled for each remaining
+credit. Server Send Done (client Recv Done) requires `quitting 0` and closes
+permanently. EOF can leave requests or shutdown outstanding. Each interleaved
+session has its own counter. RequestNext identifies no hash; this local checker
+does not validate blocks or votes.
 
 `Sessions.modelWithDepth` and `checkWithDepth` pass the two bounds to their
 respective components. `SessionReport.reportWithDepth` and
 `reportNotifyWithDepth` expose them to the CLI. Original `model`, `check`,
 `report`, and `reportNotify` calls retain depth-one Notify defaults.
 
-**Proof scope:** the original `LeiosNotifySession` and `LeiosNotifyBridge` remain
-unchanged. `depth-one-step` proves transition agreement under the state embedding;
-`depth-one-traces` proves bidirectional trace equivalence between the original
-machine and the new model at depth one. The decider and heterogeneous product
-are certified for every bound. `LeiosNotifyPipeBridge` now proves local
-wire-control equivalence for the separate bounded `LeiosNotifyPipe` peers at
-all depths, with explicit native payload witnesses for completeness. The
-existing `LeiosNotifyP` peers and node bundle still alternate at depth one.
-The new depth-one peers have proved kind/direction trace equivalence with the
-originals at the existing concrete replay endpoint. This extension concerns
-bounded wire order, not prototype byte budgets, shared application state or
-the composed node.
+**Proof scope:** `LeiosNotifySession` and `LeiosNotifyBridge` describe the
+updated alternating `LeiosNotifyP` peers. `strict-into-pipeline` and
+`LeiosNotifyPipeDepthOne.old-to-new` embed their observations in capacity one.
+The converse is false: `Send RequestNext; Send Quit` is legal in the pipeline
+and illegal in the alternating peer. The former depth-one equivalence has been
+removed. The decider and heterogeneous product remain certified at every bound.
+`LeiosNotifyPipeBridge` proves local wire-control equivalence for the bounded
+native peers; `LeiosNotifyPairedBridge` retains its exact-field two-FIFO scope,
+including Quit/Canceled/Done. This does not prove Haskell implementation
+refinement, byte budgets, shared application state or composed-node behavior.
 
 Mixed and standalone Notify rejection reports binary-search prefix membership
 using prefix closure, then retrieve the preceding accepted state. This reduces
@@ -380,11 +416,15 @@ The CLI now uses `SessionReport` for interleaved input.
 |---|---|---|---|
 | idle | Send RequestNext | Recv RequestNext | busy |
 | busy | Recv notification | Send notification | idle |
-| idle | Send Done | Recv Done | closed |
+| busy | Recv Canceled | Send Canceled | idle |
+| idle | Send Quit | Recv Quit | quitting |
+| quitting | Recv Done | Send Done | closed |
 
 A notification is one of `BlockAnnouncement`, `BlockOffer`, `BlockTxsOffer`,
 or `Votes`. All other transitions reject. In particular, repeated requests,
-unsolicited notifications, Done while busy, and events after Done reject.
+unsolicited notifications/Canceled, Quit while busy, premature Done, and events
+after Done reject in this alternating reference. The pipelined model permits
+Quit while busy and drains the outstanding responses.
 The machine has no silent transitions; finite successor enumeration and
 trivial τ accessibility give a total trace decider. Empty traces and outstanding
 requests at EOF accept as prefixes. This reference model has exactly one
@@ -422,6 +462,8 @@ notation; namespace-form rows carry exactly the same trailing payload fields:
 <Send|Recv> BlockTxsOffer <ebHash> <ebSlot>
 <Send|Recv> Votes -
 <Send|Recv> Votes <rbHash>:<voterId>,<rbHash>:<voterId>,...
+<Send|Recv> Quit
+<Send|Recv> Canceled
 <Send|Recv> Done
 ```
 
@@ -472,7 +514,7 @@ and rejection-index conventions remain unchanged.
 **Correspondence with the original peers:** `LeiosNotifyBridge.client-bridge` and
 `LeiosNotifyBridge.server-bridge` establish both directions for the existing
 `LNPclientStClient` and `LNPserverStClient`, at `replayParams`, link 0, direction
-`hi`. They retain wire direction and all six message kinds, while erasing all
+`hi`. They retain wire direction and all eight message kinds, while erasing all
 notification payloads and omitting local API/done events. Completeness chooses
 canonical payloads; it does not reconstruct logged hashes, slots, sizes, or
 votes. Unlike the Fetch client bridge, this proof needs no replacement peer.

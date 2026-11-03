@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
 -- Wire-order correspondence with the EXISTING LeiosNotifyP peers at replayParams,
--- link 0 / hi. Both directions forget notification payloads, retain all six
+-- link 0 / hi. Both directions forget notification payloads, retain all eight
 -- message kinds and their wire directions, and exclude only the semantic tick.
 -- API and local done events are unlogged. No NodeLogicL/store claim is made.
 module Cardano_network.Replay.LeiosNotifyBridge where
@@ -16,6 +16,7 @@ open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (Σ-syntax; ∃-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit using (⊤; tt)
+import Data.Unit.Polymorphic as Poly
 open import Function using (case_of_)
 open import Function.Bundles using (_⇔_; mk⇔)
 open import Relation.Nullary using (¬_)
@@ -24,12 +25,14 @@ open import Class.DecEq using (DecEq)
 open import Process_Trees using (PTree; ExtI; react)
 open import Cardano_network.Base using (hi; FromInitiator; FromResponder; Mode)
 open import Cardano_network.Replay.ReplayParams using (replayParams)
-open import Cardano_network.Net replayParams using (Link; ApiLPTag; ApiLPCar; lnpSendRequestNext; lnpSendDone; lnpSendBlockAnnouncement; lnpSendBlockOffer; lnpSendBlockTxsOffer; lnpSendVotes)
+open import Cardano_network.Params using (Params)
+open Params replayParams using (time₀; length₀)
+open import Cardano_network.Net replayParams using (Link; ApiLPTag; ApiLPCar; lnpSendRequestNext; lnpSendDone; lnpSendCanceled; lnpSendBlockAnnouncement; lnpSendBlockOffer; lnpSendBlockTxsOffer; lnpSendVotes)
 open import Cardano_network.Data replayParams
 open import Cardano_network.LeiosNotifyP replayParams
 open import Cardano_network.Parametric.Leios.NoLivelock.PeerLNP replayParams
-  using (Rd; snd; cIdleV; ciNext; ciDone; cBusyV; cbAnn; cbOff; cbTxs; cbVote;
-         sIdleV; siNext; siDone; sBusyV; sbAnn; sbOff; sbTxs; sbVote)
+  using (Rd; snd; cIdleV; ciNext; ciQuit; cBusyV; cbCan; cQuitV; cqDone; cbAnn; cbOff; cbTxs; cbVote;
+         sIdleV; siNext; siQuit; sBusyV; sbCan; sQuitV; sqDone; sbAnn; sbOff; sbTxs; sbVote)
 open import CSP.Operators LNPEv-≟ using (Ret; Output; Prefix₀; ∅t; iter-bind)
 open import CSP.Laws.DivFree.Loop LNPEv-≟ using (iter-τ-elim; iter-ev-elim; itτ; itBack)
 open import CSP.Laws.Bisim.IterCong LNPEv-≟ using (iter-bind-ev)
@@ -45,9 +48,9 @@ open import Semantics.Deadlock {E = LNPEv} {I = ExtI LNPEv}
 import Semantics.Replay.Bridge {E = LNPEv} {I = ExtI LNPEv} as Br
 open import Cardano_network.Replay.LeiosNotifySession
   using (Role; client; server; Direction; Send; Recv; Kind; request; announcement;
-         offer; txsOffer; votes; doneK; St; idle; busy; closed; E; Observed;
+         offer; txsOffer; votes; quit; canceled; doneK; St; idle; busy; quitting; closed; E; Observed;
          forget; nextKind; module Spec; RequestNext; BlockAnnouncement;
-         BlockOffer; BlockTxsOffer; Votes; Done)
+         BlockOffer; BlockTxsOffer; Votes; Quit; Canceled; Done)
 import Cardano_network.Replay.LeiosNotifySession as N
 
 -- The model endpoint, matching the one-link concrete replay parameterization.
@@ -75,7 +78,7 @@ It r t = iter-bind t (step r)
 ctl : LNPState → St
 ctl stIdle = idle
 ctl stBusy = busy
-ctl stDone = closed
+ctl stQuit = quitting
 
 -- Observe message kind while explicitly forgetting payload fields.
 wireKind : MessageLeiosNotifyP → Kind
@@ -84,6 +87,8 @@ wireKind (MsgLNPBlockAnnouncement _) = announcement
 wireKind (MsgLNPBlockOffer _ _) = offer
 wireKind (MsgLNPBlockTxsOffer _) = txsOffer
 wireKind (MsgLNPVotes _) = votes
+wireKind MsgLNPQuit = quit
+wireKind MsgLNPCanceled = canceled
 wireKind MsgLNPDone = doneK
 
 -- Wire directions/kinds are observed; API and local done are not.
@@ -103,6 +108,8 @@ canonical announcement = BlockAnnouncement nothing
 canonical offer = BlockOffer 0 0 0
 canonical txsOffer = BlockTxsOffer 0 0
 canonical votes = Votes []
+canonical quit = Quit
+canonical canceled = Canceled
 canonical doneK = Done
 
 -- Canonical payloads preserve the observable message kind.
@@ -112,6 +119,8 @@ canonical-kind announcement = refl
 canonical-kind offer = refl
 canonical-kind txsOffer = refl
 canonical-kind votes = refl
+canonical-kind quit = refl
+canonical-kind canceled = refl
 canonical-kind doneK = refl
 
 -- Any visible residual step lifts through the original loop.
@@ -165,22 +174,25 @@ data Rel (r : Role) : Proc → St → Set₁ where
             Rel r (It r (snd l d md m a)) s
   delivering : ∀ {tag} {dd : DecEq (ApiLPCar tag)} {v a} →
                Rel r (It r (Output ⦃ dd ⦄ (apiLPev l d tag) v (Ret (inj₁ a)))) (ctl a)
-  doneNotice : Rel r (It r (doneLNP l d ⟶₀ Ret (inj₁ stDone))) closed
+  ending : (r ≡ server) → Rel r (It r (Output (sendLNP l d)
+    (time₀ , FromResponder , length₀ , leiosNotifyP MsgLNPDone) (Ret (inj₂ Poly.tt)))) quitting
+  finished : Rel r (It r (Ret (inj₂ Poly.tt))) closed
 
 -- Model silent steps leave the first-order control state unchanged.
 simτ : ∀ {r P P′ s} → Rel r P s → P ─[ τ ]─► P′ →
        Σ[ s′ ∈ St ] (Spec._⇒⟨_⟩_ r s [] s′ × Rel r P′ s′)
 simτ {client} (head {stIdle}) p = ⊥-elim (noτ {r = client} refl p)
 simτ {client} (head {stBusy}) p = ⊥-elim (noτ {r = client} refl p)
-simτ {client} (head {stDone}) p = ⊥-elim (end-noτ {r = client} p)
+simτ {client} (head {stQuit}) p = ⊥-elim (noτ {r = client} refl p)
 simτ {server} (head {stIdle}) p = ⊥-elim (noτ {r = server} refl p)
 simτ {server} (head {stBusy}) p = ⊥-elim (noτ {r = server} refl p)
-simτ {server} (head {stDone}) p = ⊥-elim (end-noτ {r = server} p)
+simτ {server} (head {stQuit}) p = ⊥-elim (noτ {r = server} refl p)
 simτ {r} loopBack p with back-inv {r = r} p
 ... | refl = _ , Spec.done {role = r} , head
 simτ {r} (sending _) p = ⊥-elim (noτ {r = r} refl p)
 simτ {r} delivering p = ⊥-elim (noτ {r = r} refl p)
-simτ {r} doneNotice p = ⊥-elim (noτ {r = r} refl p)
+simτ {r} (ending _) p = ⊥-elim (noτ {r = r} refl p)
+simτ {r} finished p = ⊥-elim (end-noτ {r = r} p)
 
 -- Match every visible model event with zero or one observed spec steps.
 simEv : ∀ {r P P′ s x} → Rel r P s → P ─[ ev (evl x) ]─► P′ →
@@ -188,34 +200,40 @@ simEv : ∀ {r P P′ s x} → Rel r P s → P ─[ ev (evl x) ]─► P′ →
 simEv {client} (head {stIdle}) p with iter-ev-elim (step client stIdle) (step client) p
 ... | _ , q , refl with cIdleV q
 ...   | ciNext _ = [] , _ , refl , Spec.done {role = client} , sending refl
-...   | ciDone _ = [] , _ , refl , Spec.done {role = client} , sending refl
+...   | ciQuit _ = [] , _ , refl , Spec.done {role = client} , sending refl
 simEv {client} (head {stBusy}) p with iter-ev-elim (step client stBusy) (step client) p
 ... | _ , q , refl with cBusyV q
+...   | cbCan = (Recv , Canceled) ∷ [] , _ , refl , Spec.vis {role = client} refl (Spec.done {role = client}) , loopBack
 ...   | cbAnn h = (Recv , BlockAnnouncement nothing) ∷ [] , _ , refl , Spec.vis {role = client} refl (Spec.done {role = client}) , delivering
 ...   | cbOff pt sz = (Recv , BlockOffer 0 0 0) ∷ [] , _ , refl , Spec.vis {role = client} refl (Spec.done {role = client}) , delivering
 ...   | cbTxs pt = (Recv , BlockTxsOffer 0 0) ∷ [] , _ , refl , Spec.vis {role = client} refl (Spec.done {role = client}) , delivering
 ...   | cbVote vs = (Recv , Votes []) ∷ [] , _ , refl , Spec.vis {role = client} refl (Spec.done {role = client}) , delivering
-simEv {client} (head {stDone}) p = ⊥-elim (ret-noev {r = client} p)
+simEv {client} (head {stQuit}) p with iter-ev-elim (step client stQuit) (step client) p
+... | _ , q , refl with cQuitV q
+...   | cqDone = (Recv , Done) ∷ [] , _ , refl , Spec.vis {role = client} refl (Spec.done {role = client}) , finished
 simEv {server} (head {stIdle}) p with iter-ev-elim (step server stIdle) (step server) p
 ... | _ , q , refl with sIdleV q
 ...   | siNext = (Recv , RequestNext) ∷ [] , _ , refl , Spec.vis {role = server} refl (Spec.done {role = server}) , loopBack
-...   | siDone = (Recv , Done) ∷ [] , _ , refl , Spec.vis {role = server} refl (Spec.done {role = server}) , doneNotice
+...   | siQuit = (Recv , Quit) ∷ [] , _ , refl , Spec.vis {role = server} refl (Spec.done {role = server}) , loopBack
 simEv {server} (head {stBusy}) p with iter-ev-elim (step server stBusy) (step server) p
 ... | _ , q , refl with sBusyV q
+...   | sbCan _ = [] , _ , refl , Spec.done {role = server} , sending refl
 ...   | sbAnn h = [] , _ , refl , Spec.done {role = server} , sending refl
 ...   | sbOff pt sz = [] , _ , refl , Spec.done {role = server} , sending refl
 ...   | sbTxs pt = [] , _ , refl , Spec.done {role = server} , sending refl
 ...   | sbVote vs = [] , _ , refl , Spec.done {role = server} , sending refl
-simEv {server} (head {stDone}) p = ⊥-elim (ret-noev {r = server} p)
+simEv {server} (head {stQuit}) p with iter-ev-elim (step server stQuit) (step server) p
+... | _ , q , refl with sQuitV q
+...   | sqDone _ = [] , _ , refl , Spec.done {role = server} , ending refl
 simEv {r} loopBack p = ⊥-elim (ret-noev {r = r} p)
 simEv {r} (sending {m = m} pr) p with out-inv {r = r} p
 ... | refl , refl = (Send , canonical (wireKind m)) ∷ [] , _ ,
   cong (λ k → (Send , k) ∷ []) (sym (canonical-kind (wireKind m))) , Spec.vis {role = r} pr (Spec.done {role = r}) , loopBack
 simEv {r} delivering p with out-inv {r = r} p
 ... | refl , refl = [] , _ , refl , Spec.done {role = r} , loopBack
-simEv {r} doneNotice p with iter-ev-elim (doneLNP l d ⟶₀ Ret (inj₁ stDone)) (step r) p
-... | _ , q , refl with ⟶₀-ev-inv q
-...   | _ , refl , refl = [] , _ , refl , Spec.done {role = r} , loopBack
+simEv {server} (ending refl) p with out-inv {r = server} p
+... | refl , refl = (Send , Done) ∷ [] , _ , refl , Spec.vis {role = server} refl (Spec.done {role = server}) , finished
+simEv {r} finished p = ⊥-elim (ret-noev {r = r} p)
 
 -- The existing peer is simulated by the first-order session specification.
 simulation : (r : Role) → Br.Sim (Spec.leiosNotify r) cls forget (Rel r)
@@ -240,6 +258,7 @@ sound r run obs with Br.sound (Spec.leiosNotify r) cls forget (simulation r) hea
 -- Co-simulation chooses the original peer at each control-state loop head.
 data CoRel (r : Role) : Proc → St → Set₁ where
   headC : ∀ {a} → CoRel r (It r (step r a)) (ctl a)
+  endC : CoRel r (It r (Ret (inj₂ Poly.tt))) closed
 
 -- There are no first-order silent transitions in the strict wire specification.
 coTau : ∀ {r P s s′} → CoRel r P s → ⊥ →
@@ -259,23 +278,29 @@ coEv {client} {e = Send , (BlockAnnouncement x)} (headC {stIdle}) _ ()
 coEv {client} {e = Send , (BlockOffer h sl z)} (headC {stIdle}) _ ()
 coEv {client} {e = Send , (BlockTxsOffer h sl)} (headC {stIdle}) _ ()
 coEv {client} {e = Send , (Votes vs)} (headC {stIdle}) _ ()
-coEv {client} {e = Send , Done} (headC {stIdle}) _ refl =
+coEv {client} {e = Send , Quit} (headC {stIdle}) _ refl =
   _ , _ ,
   (∖√-ev (fire {r = client} (sVis {at = _ , apiLPev l d lnpSendDone} {a = tt} refl refl))
     (∖√-ev (fire {r = client} out-fire)
     (∖√-τ (back {r = client}) ∖√-refl)))
   , refl , headC
+coEv {client} {e = Send , Canceled} (headC {stIdle}) _ ()
+coEv {client} {e = Send , Done} (headC {stIdle}) _ ()
 coEv {client} {e = Recv , RequestNext} (headC {stIdle}) _ ()
 coEv {client} {e = Recv , (BlockAnnouncement x)} (headC {stIdle}) _ ()
 coEv {client} {e = Recv , (BlockOffer h sl z)} (headC {stIdle}) _ ()
 coEv {client} {e = Recv , (BlockTxsOffer h sl)} (headC {stIdle}) _ ()
 coEv {client} {e = Recv , (Votes vs)} (headC {stIdle}) _ ()
+coEv {client} {e = Recv , Quit} (headC {stIdle}) _ ()
+coEv {client} {e = Recv , Canceled} (headC {stIdle}) _ ()
 coEv {client} {e = Recv , Done} (headC {stIdle}) _ ()
 coEv {client} {e = Send , RequestNext} (headC {stBusy}) _ ()
 coEv {client} {e = Send , (BlockAnnouncement x)} (headC {stBusy}) _ ()
 coEv {client} {e = Send , (BlockOffer h sl z)} (headC {stBusy}) _ ()
 coEv {client} {e = Send , (BlockTxsOffer h sl)} (headC {stBusy}) _ ()
 coEv {client} {e = Send , (Votes vs)} (headC {stBusy}) _ ()
+coEv {client} {e = Send , Quit} (headC {stBusy}) _ ()
+coEv {client} {e = Send , Canceled} (headC {stBusy}) _ ()
 coEv {client} {e = Send , Done} (headC {stBusy}) _ ()
 coEv {client} {e = Recv , RequestNext} (headC {stBusy}) _ ()
 coEv {client} {e = Recv , (BlockAnnouncement x)} (headC {stBusy}) _ refl =
@@ -302,24 +327,35 @@ coEv {client} {e = Recv , (Votes vs)} (headC {stBusy}) _ refl =
     (∖√-ev (fire {r = client} out-fire)
     (∖√-τ (back {r = client}) ∖√-refl)))
   , refl , headC
+coEv {client} {e = Recv , Quit} (headC {stBusy}) _ ()
+coEv {client} {e = Recv , Canceled} (headC {stBusy}) _ refl =
+  _ , _ , ∖√-ev (fire {r = client} (sVis {at = _ , receiveLNP l d} {a = tt , FromResponder , tt , leiosNotifyP MsgLNPCanceled} refl refl))
+    (∖√-τ (back {r = client}) ∖√-refl) , refl , headC
 coEv {client} {e = Recv , Done} (headC {stBusy}) _ ()
-coEv {client} {e = Send , RequestNext} (headC {stDone}) _ ()
-coEv {client} {e = Send , (BlockAnnouncement x)} (headC {stDone}) _ ()
-coEv {client} {e = Send , (BlockOffer h sl z)} (headC {stDone}) _ ()
-coEv {client} {e = Send , (BlockTxsOffer h sl)} (headC {stDone}) _ ()
-coEv {client} {e = Send , (Votes vs)} (headC {stDone}) _ ()
-coEv {client} {e = Send , Done} (headC {stDone}) _ ()
-coEv {client} {e = Recv , RequestNext} (headC {stDone}) _ ()
-coEv {client} {e = Recv , (BlockAnnouncement x)} (headC {stDone}) _ ()
-coEv {client} {e = Recv , (BlockOffer h sl z)} (headC {stDone}) _ ()
-coEv {client} {e = Recv , (BlockTxsOffer h sl)} (headC {stDone}) _ ()
-coEv {client} {e = Recv , (Votes vs)} (headC {stDone}) _ ()
-coEv {client} {e = Recv , Done} (headC {stDone}) _ ()
+coEv {client} {e = Send , RequestNext} (headC {stQuit}) _ ()
+coEv {client} {e = Send , (BlockAnnouncement x)} (headC {stQuit}) _ ()
+coEv {client} {e = Send , (BlockOffer h sl z)} (headC {stQuit}) _ ()
+coEv {client} {e = Send , (BlockTxsOffer h sl)} (headC {stQuit}) _ ()
+coEv {client} {e = Send , (Votes vs)} (headC {stQuit}) _ ()
+coEv {client} {e = Send , Quit} (headC {stQuit}) _ ()
+coEv {client} {e = Send , Canceled} (headC {stQuit}) _ ()
+coEv {client} {e = Send , Done} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , RequestNext} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , (BlockAnnouncement x)} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , (BlockOffer h sl z)} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , (BlockTxsOffer h sl)} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , (Votes vs)} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , Quit} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , Canceled} (headC {stQuit}) _ ()
+coEv {client} {e = Recv , Done} (headC {stQuit}) _ refl =
+  _ , _ , ∖√-ev (fire {r = client} (sVis {at = _ , receiveLNP l d} {a = tt , FromResponder , tt , leiosNotifyP MsgLNPDone} refl refl)) ∖√-refl , refl , endC
 coEv {server} {e = Send , RequestNext} (headC {stIdle}) _ ()
 coEv {server} {e = Send , (BlockAnnouncement x)} (headC {stIdle}) _ ()
 coEv {server} {e = Send , (BlockOffer h sl z)} (headC {stIdle}) _ ()
 coEv {server} {e = Send , (BlockTxsOffer h sl)} (headC {stIdle}) _ ()
 coEv {server} {e = Send , (Votes vs)} (headC {stIdle}) _ ()
+coEv {server} {e = Send , Quit} (headC {stIdle}) _ ()
+coEv {server} {e = Send , Canceled} (headC {stIdle}) _ ()
 coEv {server} {e = Send , Done} (headC {stIdle}) _ ()
 coEv {server} {e = Recv , RequestNext} (headC {stIdle}) _ refl =
   _ , _ ,
@@ -330,12 +366,13 @@ coEv {server} {e = Recv , (BlockAnnouncement x)} (headC {stIdle}) _ ()
 coEv {server} {e = Recv , (BlockOffer h sl z)} (headC {stIdle}) _ ()
 coEv {server} {e = Recv , (BlockTxsOffer h sl)} (headC {stIdle}) _ ()
 coEv {server} {e = Recv , (Votes vs)} (headC {stIdle}) _ ()
-coEv {server} {e = Recv , Done} (headC {stIdle}) _ refl =
+coEv {server} {e = Recv , Quit} (headC {stIdle}) _ refl =
   _ , _ ,
-  (∖√-ev (fire {r = server} (sVis {at = _ , receiveLNP l d} {a = tt , FromInitiator , tt , leiosNotifyP MsgLNPDone} refl refl))
-    (∖√-ev (fire {r = server} (pfx-fire {a = tt}))
-    (∖√-τ (back {r = server}) ∖√-refl)))
+  (∖√-ev (fire {r = server} (sVis {at = _ , receiveLNP l d} {a = tt , FromInitiator , tt , leiosNotifyP MsgLNPQuit} refl refl))
+    (∖√-τ (back {r = server}) ∖√-refl))
   , refl , headC
+coEv {server} {e = Recv , Canceled} (headC {stIdle}) _ ()
+coEv {server} {e = Recv , Done} (headC {stIdle}) _ ()
 coEv {server} {e = Send , RequestNext} (headC {stBusy}) _ ()
 coEv {server} {e = Send , (BlockAnnouncement x)} (headC {stBusy}) _ refl =
   _ , _ ,
@@ -361,25 +398,41 @@ coEv {server} {e = Send , (Votes vs)} (headC {stBusy}) _ refl =
     (∖√-ev (fire {r = server} out-fire)
     (∖√-τ (back {r = server}) ∖√-refl)))
   , refl , headC
+coEv {server} {e = Send , Quit} (headC {stBusy}) _ ()
+coEv {server} {e = Send , Canceled} (headC {stBusy}) _ refl =
+  _ , _ , ∖√-ev (fire {r = server} (sVis {at = _ , apiLPev l d lnpSendCanceled} {a = tt} refl refl))
+    (∖√-ev (fire {r = server} out-fire) (∖√-τ (back {r = server}) ∖√-refl)) , refl , headC
 coEv {server} {e = Send , Done} (headC {stBusy}) _ ()
 coEv {server} {e = Recv , RequestNext} (headC {stBusy}) _ ()
 coEv {server} {e = Recv , (BlockAnnouncement x)} (headC {stBusy}) _ ()
 coEv {server} {e = Recv , (BlockOffer h sl z)} (headC {stBusy}) _ ()
 coEv {server} {e = Recv , (BlockTxsOffer h sl)} (headC {stBusy}) _ ()
 coEv {server} {e = Recv , (Votes vs)} (headC {stBusy}) _ ()
+coEv {server} {e = Recv , Quit} (headC {stBusy}) _ ()
+coEv {server} {e = Recv , Canceled} (headC {stBusy}) _ ()
 coEv {server} {e = Recv , Done} (headC {stBusy}) _ ()
-coEv {server} {e = Send , RequestNext} (headC {stDone}) _ ()
-coEv {server} {e = Send , (BlockAnnouncement x)} (headC {stDone}) _ ()
-coEv {server} {e = Send , (BlockOffer h sl z)} (headC {stDone}) _ ()
-coEv {server} {e = Send , (BlockTxsOffer h sl)} (headC {stDone}) _ ()
-coEv {server} {e = Send , (Votes vs)} (headC {stDone}) _ ()
-coEv {server} {e = Send , Done} (headC {stDone}) _ ()
-coEv {server} {e = Recv , RequestNext} (headC {stDone}) _ ()
-coEv {server} {e = Recv , (BlockAnnouncement x)} (headC {stDone}) _ ()
-coEv {server} {e = Recv , (BlockOffer h sl z)} (headC {stDone}) _ ()
-coEv {server} {e = Recv , (BlockTxsOffer h sl)} (headC {stDone}) _ ()
-coEv {server} {e = Recv , (Votes vs)} (headC {stDone}) _ ()
-coEv {server} {e = Recv , Done} (headC {stDone}) _ ()
+coEv {server} {e = Send , RequestNext} (headC {stQuit}) _ ()
+coEv {server} {e = Send , (BlockAnnouncement x)} (headC {stQuit}) _ ()
+coEv {server} {e = Send , (BlockOffer h sl z)} (headC {stQuit}) _ ()
+coEv {server} {e = Send , (BlockTxsOffer h sl)} (headC {stQuit}) _ ()
+coEv {server} {e = Send , (Votes vs)} (headC {stQuit}) _ ()
+coEv {server} {e = Send , Quit} (headC {stQuit}) _ ()
+coEv {server} {e = Send , Canceled} (headC {stQuit}) _ ()
+coEv {server} {e = Send , Done} (headC {stQuit}) _ refl =
+  _ , _ , ∖√-ev (fire {r = server} (sVis {at = _ , doneLNP l d} {a = tt} refl refl))
+    (∖√-ev (fire {r = server} out-fire) ∖√-refl) , refl , endC
+coEv {server} {e = Recv , RequestNext} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , (BlockAnnouncement x)} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , (BlockOffer h sl z)} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , (BlockTxsOffer h sl)} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , (Votes vs)} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , Quit} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , Canceled} (headC {stQuit}) _ ()
+coEv {server} {e = Recv , Done} (headC {stQuit}) _ ()
+coEv {client} {e = Send , m} endC _ ()
+coEv {client} {e = Recv , m} endC _ ()
+coEv {server} {e = Send , m} endC _ ()
+coEv {server} {e = Recv , m} endC _ ()
 
 -- The local API can supply/deliver the canonical payloads, with no event premise.
 cosimulation : (r : Role) → Br.CoSim (Spec.leiosNotify r) cls forget (CoRel r) (λ _ → ⊤)

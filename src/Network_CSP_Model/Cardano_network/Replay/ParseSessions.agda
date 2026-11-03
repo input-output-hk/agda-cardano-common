@@ -123,6 +123,7 @@ roleName server = "server"
 -- Report the outstanding credit count for a pipelined Notify component.
 showNotifyState : Role → NP.St → String
 showNotifyState r (NP.openN n) = "notify " ++ roleName r ++ " open, outstanding " ++ showℕ n
+showNotifyState r (NP.quitting n) = "notify " ++ roleName r ++ " quitting, outstanding " ++ showℕ n
 showNotifyState _ NP.closed = "notify closed after Done (accepts nothing)"
 
 -- Print a local event with its protocol's canonical syntax.

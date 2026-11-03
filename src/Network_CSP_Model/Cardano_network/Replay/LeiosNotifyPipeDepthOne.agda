@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
--- At depth one, the new peers preserve the old peers' observed wire-control language.
--- This is finite kind/direction trace equivalence, not a payload-level bisimulation.
+-- The alternating peer language embeds in capacity one. The converse is false:
+-- the pipelined peer can Quit with a request outstanding (see PipelineTests).
 module Cardano_network.Replay.LeiosNotifyPipeDepthOne where
 open import Data.Fin using (zero)
 open import Data.List using (List)
@@ -32,26 +32,11 @@ newPeer : Peer → Old.Proc
 newPeer consumer = client 1 zero hi
 newPeer producer = server 1 zero hi
 
--- A concrete witness on the new peer transports to a concrete witness on the old peer.
-new-to-old : ∀ r {es} →
-  (∃[ t ] ∃[ T ] (newPeer r ⟹∖√⟨ t ⟩ T × New.Obs t es)) →
-  (∃[ t ] ∃[ T ] (oldPeer r ⟹∖√⟨ t ⟩ T × Old.Obs t es))
-new-to-old consumer {es} (t , T , run , obs) = Old.complete N.client
-  (Equivalence.from (N.depth-one-traces N.client es) (New.sound consumer run obs))
-new-to-old producer {es} (t , T , run , obs) = Old.complete N.server
-  (Equivalence.from (N.depth-one-traces N.server es) (New.sound producer run obs))
-
--- Conversely every original observed control trace occurs on the new depth-one peer.
+-- Every alternating observed control trace occurs on the capacity-one peer.
 old-to-new : ∀ r {es} →
   (∃[ t ] ∃[ T ] (oldPeer r ⟹∖√⟨ t ⟩ T × Old.Obs t es)) →
   (∃[ t ] ∃[ T ] (newPeer r ⟹∖√⟨ t ⟩ T × New.Obs t es))
 old-to-new consumer {es} (t , T , run , obs) = New.complete witnesses consumer
-  (Equivalence.to (N.depth-one-traces N.client es) (Old.sound N.client run obs))
+  (N.strict-into-pipeline N.client es (Old.sound N.client run obs))
 old-to-new producer {es} (t , T , run , obs) = New.complete witnesses producer
-  (Equivalence.to (N.depth-one-traces N.server es) (Old.sound N.server run obs))
-
--- Both depth-one native peers have exactly the original finite wire-control traces.
-depth-one : ∀ r {es} →
-  (∃[ t ] ∃[ T ] (newPeer r ⟹∖√⟨ t ⟩ T × New.Obs t es)) ⇔
-  (∃[ t ] ∃[ T ] (oldPeer r ⟹∖√⟨ t ⟩ T × Old.Obs t es))
-depth-one r = mk⇔ (new-to-old r) (old-to-new r)
+  (N.strict-into-pipeline N.server es (Old.sound N.server run obs))

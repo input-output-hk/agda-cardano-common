@@ -21,6 +21,8 @@ kind (MsgLNPBlockAnnouncement _) = N.announcement
 kind (MsgLNPBlockOffer _ _) = N.offer
 kind (MsgLNPBlockTxsOffer _) = N.txsOffer
 kind (MsgLNPVotes _) = N.votes
+kind MsgLNPQuit = N.quit
+kind MsgLNPCanceled = N.canceled
 kind MsgLNPDone = N.doneK
 
 -- Recover exactly the optional metadata stored in a native header representative.
@@ -34,6 +36,8 @@ canonical (MsgLNPBlockAnnouncement h) = Log.BlockAnnouncement (headerSummary h)
 canonical (MsgLNPBlockOffer (h , s) z) = Log.BlockOffer h s z
 canonical (MsgLNPBlockTxsOffer (h , s)) = Log.BlockTxsOffer h s
 canonical (MsgLNPVotes vs) = Log.Votes vs
+canonical MsgLNPQuit = Log.Quit
+canonical MsgLNPCanceled = Log.Canceled
 canonical MsgLNPDone = Log.Done
 
 -- Canonical log values retain precisely the native message kind.
@@ -43,6 +47,8 @@ canonical-kind (MsgLNPBlockAnnouncement _) = refl
 canonical-kind (MsgLNPBlockOffer (_ , _) _) = refl
 canonical-kind (MsgLNPBlockTxsOffer (_ , _)) = refl
 canonical-kind (MsgLNPVotes _) = refl
+canonical-kind MsgLNPQuit = refl
+canonical-kind MsgLNPCanceled = refl
 canonical-kind MsgLNPDone = refl
 
 -- Wire directions are observed; native API delivery and local done are erased.

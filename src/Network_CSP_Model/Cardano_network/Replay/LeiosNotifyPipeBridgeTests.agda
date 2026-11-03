@@ -4,7 +4,7 @@
 module Cardano_network.Replay.LeiosNotifyPipeBridgeTests where
 open import Data.Fin using (zero)
 open import Data.List using (List; []; _∷_; map)
-open import Data.Maybe using (nothing)
+open import Data.Maybe using (nothing; just)
 open import Data.Product using (∃-syntax; _×_; _,_)
 open import Data.Unit using (tt)
 open import Level using (lift)
@@ -12,9 +12,9 @@ open import Relation.Nullary using (¬_)
 open import Relation.Nullary.Decidable using (toWitness; toWitnessFalse)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Process_Trees using (ExtI)
-open import Cardano_network.Base using (hi; FromInitiator)
+open import Cardano_network.Base using (hi; FromInitiator; FromResponder)
 open import Cardano_network.Replay.ReplayParams using (replayParams)
-open import Cardano_network.Data replayParams using (header; Payload; leiosNotifyP; MsgLNPRequestNext)
+open import Cardano_network.Data replayParams using (header; Payload; leiosNotifyP; MsgLNPRequestNext; MsgLNPQuit; MsgLNPVotes; MsgLNPCanceled; MsgLNPDone)
 open import Cardano_network.Net replayParams using (lnpSendRequestNext; lnpSendDone; lnpRecvBlockOffer)
 open import Cardano_network.LeiosNotifyP replayParams using (LNPEv; apiLPev; sendLNP; receiveLNP)
 import Cardano_network.LeiosNotifyPipe replayParams as Pipe
@@ -40,7 +40,7 @@ pipelined : List N.E
 pipelined = (N.Send , Log.RequestNext) ∷ (N.Send , Log.RequestNext) ∷
   (N.Recv , Log.Votes []) ∷ (N.Send , Log.RequestNext) ∷
   (N.Recv , Log.BlockOffer 8 3 20) ∷ (N.Recv , Log.BlockTxsOffer 9 4) ∷
-  (N.Send , Log.Done) ∷ []
+  (N.Send , Log.Quit) ∷ (N.Recv , Log.Done) ∷ []
 
 -- Every log field may vary independently at this intentionally kind-only boundary.
 client-spec : N.Spec.HasTrace 2 N.client N.idle pipelined
@@ -75,9 +75,9 @@ all-notifications = B.complete 2 zero hi (witnesses 2) Pipe.consumer
 
 -- Zero capacity still admits the legal Done wire event at the native client.
 zero-client : ∃[ events ] ∃[ T ]
-  (Pipe.client 0 zero hi NT.⟹∖√⟨ events ⟩ T × B.Obs 0 zero hi events ((N.Send , Log.Done) ∷ []))
+  (Pipe.client 0 zero hi NT.⟹∖√⟨ events ⟩ T × B.Obs 0 zero hi events ((N.Send , Log.Quit) ∷ (N.Recv , Log.Done) ∷ []))
 zero-client = B.complete 0 zero hi (witnesses 0) Pipe.consumer
-  (toWitness {a? = N.Spec.check 0 N.client ((N.Send , Log.Done) ∷ [])} tt)
+  (toWitness {a? = N.Spec.check 0 N.client ((N.Send , Log.Quit) ∷ (N.Recv , Log.Done) ∷ [])} tt)
 
 -- The original depth-one trace witnesses transport to the new native extension.
 depth-one-client : ∃[ events ] ∃[ T ]
@@ -85,11 +85,11 @@ depth-one-client : ∃[ events ] ∃[ T ]
 depth-one-client = B.complete 1 zero hi (witnesses 1) Pipe.consumer
   (toWitness {a? = N.Spec.check 1 N.client OldTests.rounds} tt)
 
--- The checked depth-one equivalence recovers an actual original-peer execution.
+-- The alternating run also has an original-peer execution.
 original-client : ∃[ events ] ∃[ T ]
   (One.oldPeer Pipe.consumer NT.⟹∖√⟨ events ⟩ T ×
    Old.Obs events OldTests.rounds)
-original-client = One.new-to-old Pipe.consumer {es = OldTests.rounds} depth-one-client
+original-client = Old.complete N.client OldTests.rounds-run
 
 -- Three unanswered requests have no observed execution at client capacity two.
 capacity-refuted : ¬ (∃[ events ] ∃[ T ]
@@ -106,9 +106,10 @@ output-blocks-api : Pipe.Machine.next 2 zero hi Pipe.consumer
   (Native.evLabel _ (apiLPev zero hi lnpSendRequestNext) tt) ≡ nothing
 output-blocks-api = refl
 
--- An outstanding credit prevents premature Done at the native menu.
+-- Quit is available with an outstanding credit at the native menu.
 busy-done : Pipe.Machine.next 2 zero hi Pipe.consumer (Pipe.head (Pipe.openN 1))
-  (Native.evLabel _ (apiLPev zero hi lnpSendDone) tt) ≡ nothing
+  (Native.evLabel _ (apiLPev zero hi lnpSendDone) tt) ≡
+    just (Pipe.sending FromInitiator MsgLNPQuit (Pipe.quitting 1))
 busy-done = refl
 
 -- Native delivery cannot alter a received offer's point before passing it to the API.
@@ -159,4 +160,22 @@ depth-one-server = B.complete 1 zero hi (witnesses 1) Pipe.producer
 -- Depth-one compatibility covers the original producer, not just the consumer.
 original-server : ∃[ events ] ∃[ T ]
   (One.oldPeer Pipe.producer NT.⟹∖√⟨ events ⟩ T × Old.Obs events (map reverse OldTests.rounds))
-original-server = One.new-to-old Pipe.producer {es = map reverse OldTests.rounds} depth-one-server
+original-server = Old.complete N.server
+  (toWitness {a? = Log.Spec.check N.server (map reverse OldTests.rounds)} tt)
+
+-- An already in-flight response after Quit is discarded without API delivery.
+drain-discards : Pipe.Machine.next 2 zero hi Pipe.consumer (Pipe.head (Pipe.quitting 1))
+  (Native.evLabel _ (receiveLNP zero hi) (tt , FromResponder , tt , leiosNotifyP (MsgLNPVotes []))) ≡
+    just (Pipe.loopBack (Pipe.quitting 0))
+drain-discards = refl
+
+-- The producer emits cancellation directly while draining, with no new API command.
+server-cancels : Pipe.Machine.next 2 zero hi Pipe.producer (Pipe.head (Pipe.quitting 1))
+  (Native.evLabel _ (sendLNP zero hi) (tt , FromResponder , tt , leiosNotifyP MsgLNPCanceled)) ≡
+    just (Pipe.loopBack (Pipe.quitting 0))
+server-cancels = refl
+
+-- The native consumer also rejects premature Done while a reply remains owed.
+no-early-done : Pipe.Machine.next 2 zero hi Pipe.consumer (Pipe.head (Pipe.quitting 1))
+  (Native.evLabel _ (receiveLNP zero hi) (tt , FromResponder , tt , leiosNotifyP MsgLNPDone)) ≡ nothing
+no-early-done = refl

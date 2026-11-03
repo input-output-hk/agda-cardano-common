@@ -28,18 +28,18 @@ open import Cardano_network.Replay.Common public
 Announcement : Set
 Announcement = Maybe (ℕ × ℕ × ℕ)
 
--- Six prototype message forms; votes retain (RB hash, voter id), not signatures.
+-- Eight prototype message forms; votes retain (RB hash, voter id), not signatures.
 data Msg : Set where
   RequestNext : Msg
   BlockAnnouncement : Announcement → Msg
   BlockOffer : (hash slot bytes : ℕ) → Msg
   BlockTxsOffer : (hash slot : ℕ) → Msg
   Votes : List (ℕ × ℕ) → Msg
-  Done : Msg
+  Quit Canceled Done : Msg
 
 -- Observable control shapes used in the PTree bridge's explicit abstraction.
 data Kind : Set where
-  request announcement offer txsOffer votes doneK : Kind
+  request announcement offer txsOffer votes quit canceled doneK : Kind
 
 -- Discard payload fields, which do not affect the peer's wire agency.
 kind : Msg → Kind
@@ -48,6 +48,8 @@ kind (BlockAnnouncement _) = announcement
 kind (BlockOffer _ _ _) = offer
 kind (BlockTxsOffer _ _) = txsOffer
 kind (Votes _) = votes
+kind Quit = quit
+kind Canceled = canceled
 kind Done = doneK
 
 -- Equality on direction tags.
@@ -68,6 +70,8 @@ msgEq (BlockTxsOffer h s) (BlockTxsOffer h′ s′) = map′ (λ { (refl , refl)
   (h ≟ h′ ×-dec s ≟ s′)
 msgEq (Votes vs) (Votes vs′) = map′ (λ { (refl) → refl }) (λ { refl → (refl) })
   (List.≡-dec (Pair.≡-dec _≟_ _≟_) vs vs′)
+msgEq Quit Quit = yes refl
+msgEq Canceled Canceled = yes refl
 msgEq Done Done = yes refl
 msgEq RequestNext (BlockAnnouncement _) = no λ ()
 msgEq RequestNext (BlockOffer _ _ _) = no λ ()
@@ -100,6 +104,33 @@ msgEq Done (BlockOffer _ _ _) = no λ ()
 msgEq Done (BlockTxsOffer _ _) = no λ ()
 msgEq Done (Votes _) = no λ ()
 
+msgEq Quit RequestNext = no λ ()
+msgEq RequestNext Quit = no λ ()
+msgEq Quit (BlockAnnouncement _) = no λ ()
+msgEq (BlockAnnouncement _) Quit = no λ ()
+msgEq Quit (BlockOffer _ _ _) = no λ ()
+msgEq (BlockOffer _ _ _) Quit = no λ ()
+msgEq Quit (BlockTxsOffer _ _) = no λ ()
+msgEq (BlockTxsOffer _ _) Quit = no λ ()
+msgEq Quit (Votes _) = no λ ()
+msgEq (Votes _) Quit = no λ ()
+msgEq Quit Done = no λ ()
+msgEq Done Quit = no λ ()
+msgEq Canceled RequestNext = no λ ()
+msgEq RequestNext Canceled = no λ ()
+msgEq Canceled (BlockAnnouncement _) = no λ ()
+msgEq (BlockAnnouncement _) Canceled = no λ ()
+msgEq Canceled (BlockOffer _ _ _) = no λ ()
+msgEq (BlockOffer _ _ _) Canceled = no λ ()
+msgEq Canceled (BlockTxsOffer _ _) = no λ ()
+msgEq (BlockTxsOffer _ _) Canceled = no λ ()
+msgEq Canceled (Votes _) = no λ ()
+msgEq (Votes _) Canceled = no λ ()
+msgEq Canceled Done = no λ ()
+msgEq Done Canceled = no λ ()
+msgEq Quit Canceled = no λ ()
+msgEq Canceled Quit = no λ ()
+
 -- A log event retains the direction and its typed message.
 E : Set
 E = Direction × Msg
@@ -112,11 +143,11 @@ Observed = Direction × Kind
 forget : E → Observed
 forget (d , m) = d , kind m
 
--- Both roles use three control states, with role-dependent wire agency.
+-- Both roles follow the Idle/Busy/Quit/End table with role-dependent agency.
 data St : Set where
-  idle busy closed : St
+  idle busy quitting closed : St
 
--- The initiating side requests and ends; the responder supplies notifications.
+-- The initiating side requests or quits; the responder answers and sends Done.
 command : Role → Direction
 command client = Send
 command server = Recv
@@ -132,16 +163,19 @@ notification announcement = just idle
 notification offer = just idle
 notification txsOffer = just idle
 notification votes = just idle
+notification canceled = just idle
 notification _ = nothing
 
 -- Control transitions at the explicitly observed abstraction.
 nextKind : Role → St → Observed → Maybe St
 nextKind client idle (Send , request) = just busy
 nextKind server idle (Recv , request) = just busy
-nextKind client idle (Send , doneK) = just closed
-nextKind server idle (Recv , doneK) = just closed
+nextKind client idle (Send , quit) = just quitting
+nextKind server idle (Recv , quit) = just quitting
 nextKind client busy (Recv , k) = notification k
 nextKind server busy (Send , k) = notification k
+nextKind client quitting (Recv , doneK) = just closed
+nextKind server quitting (Send , doneK) = just closed
 nextKind _ _ _ = nothing
 
 -- A per-role replay instance, with no silent steps at this wire abstraction.

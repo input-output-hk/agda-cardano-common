@@ -24,9 +24,9 @@ rounds = (Send , RequestNext) ∷ (Recv , BlockAnnouncement nothing)
        ∷ (Send , RequestNext) ∷ (Recv , BlockOffer 8 3 20)
        ∷ (Send , RequestNext) ∷ (Recv , BlockTxsOffer 9 4)
        ∷ (Send , RequestNext) ∷ (Recv , Votes ((42 , 1) ∷ (43 , 2) ∷ []))
-       ∷ (Send , Done) ∷ []
+       ∷ (Send , Quit) ∷ (Recv , Done) ∷ []
 
--- The decision reduces to yes on all six message forms.
+-- The decision reduces to yes on all eight message forms.
 rounds-ok : True (Spec.check client rounds)
 rounds-ok = tt
 
@@ -46,7 +46,7 @@ unsolicited-refuted = toWitnessFalse {a? = Spec.check client ((Recv , BlockOffer
 pipelined : False (Spec.check client ((Send , RequestNext) ∷ (Send , RequestNext) ∷ []))
 pipelined = tt
 
--- Done is available only from idle, never while awaiting a notification.
+-- Done requires Quit and cannot replace an outstanding reply.
 busy-done : False (Spec.check server ((Recv , RequestNext) ∷ (Recv , Done) ∷ []))
 busy-done = tt
 
@@ -96,7 +96,7 @@ legacy : report 4 "sessions client\n0 Send BlockRequest ab 7\n" ≡ "accepted (1
 legacy = refl
 
 -- Standalone Notify input uses the established role-header format.
-standalone : reportNotify "role client\nSend RequestNext\nRecv Votes -\nSend Done\n" ≡ "accepted (3 events, 1 sessions)"
+standalone : reportNotify "role client\nSend RequestNext\nRecv Votes -\nSend Quit\nRecv Done\n" ≡ "accepted (4 events, 1 sessions)"
 standalone = refl
 
 -- The first rejected GLOBAL event reports its own generation and prior state.
@@ -131,3 +131,7 @@ namespaced-mixed = refl
 -- A namespace cannot contradict the manifest protocol, even for shared Done.
 namespace-mismatch : report 4 "sessions notify:client\n0 LeiosFetch.Remote.Send.Done\n" ≡ "parse error at line 2: 0 LeiosFetch.Remote.Send.Done"
 namespace-mismatch = refl
+
+-- Namespaced shutdown messages parse and replay with the new responder agency.
+shutdown-report : reportNotify "role client\nLeiosNotify.Remote.Send.RequestNext\nLeiosNotify.Remote.Receive.Canceled\nLeiosNotify.Remote.Send.Quit\nLeiosNotify.Remote.Receive.Done\n" ≡ "accepted (4 events, 1 sessions)"
+shutdown-report = refl

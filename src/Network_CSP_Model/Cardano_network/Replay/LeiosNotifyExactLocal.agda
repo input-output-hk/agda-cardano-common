@@ -44,6 +44,7 @@ role producer = N.server
 -- The credit-state correspondence preserves the counter and closure exactly.
 ctl : State → N.St
 ctl (openN n) = N.openN n
+ctl (quitting n) = N.quitting n
 ctl closed = N.closed
 
 open import Cardano_network.Replay.LeiosNotifyExactObservation public
@@ -69,7 +70,6 @@ data PhaseRel (r : Peer) : Phase → N.St → Set where
   output : ∀ {md m s q} → N.Spec.Step k (role r) q (N.Send , canonical m) (ctl s) →
     PhaseRel r (sending md m s) q
   delivery : ∀ {m s} → PhaseRel r (delivering m s) (ctl s)
-  notice : PhaseRel r doneNotice N.closed
 
 -- Wrap the exact native phase rather than relying on coinductive record equality.
 data Rel (r : Peer) : Proc → N.St → Set₁ where
@@ -95,15 +95,28 @@ progress ready (cNotification (votes vs)) = (N.Recv , Log.Votes vs) ∷ [] , _ ,
   refl , one {r = consumer} refl , delivery
 progress ready (sRequest credit) = (N.Recv , Log.RequestNext) ∷ [] , _ , refl ,
   one {r = producer} (request-server credit) , looping
-progress ready sDone = (N.Recv , Log.Done) ∷ [] , _ , refl , one {r = producer} refl , notice
+progress ready sQuit = (N.Recv , Log.Quit) ∷ [] , _ , refl , one {r = producer} refl , looping
+progress ready sDone = [] , _ , refl , N.Spec.done {depth = k} {role = N.server} , output refl
 progress ready sAnnouncement = [] , _ , refl , N.Spec.done {depth = k} {role = N.server} , output refl
 progress ready sOffer = [] , _ , refl , N.Spec.done {depth = k} {role = N.server} , output refl
 progress ready sTxsOffer = [] , _ , refl , N.Spec.done {depth = k} {role = N.server} , output refl
 progress ready sVotes = [] , _ , refl , N.Spec.done {depth = k} {role = N.server} , output refl
+progress ready cCanceled = (N.Recv , Log.Canceled) ∷ [] , _ , refl , one {r = consumer} refl , looping
+progress ready cDrainCanceled = (N.Recv , Log.Canceled) ∷ [] , _ , refl , one {r = consumer} refl , looping
+progress ready cFinished = (N.Recv , Log.Done) ∷ [] , _ , refl , one {r = consumer} refl , looping
+progress ready sCanceled = [] , _ , refl , N.Spec.done {depth = k} {role = N.server} , output refl
+progress ready sDrainCanceled = (N.Send , Log.Canceled) ∷ [] , _ , refl , one {r = producer} refl , looping
+progress ready (cDrainNotification (announcement h)) = (N.Recv , Log.BlockAnnouncement (headerSummary h)) ∷ [] , _ ,
+  refl , one {r = consumer} refl , looping
+progress ready (cDrainNotification (offer (h , sl) sz)) = (N.Recv , Log.BlockOffer h sl sz) ∷ [] , _ ,
+  refl , one {r = consumer} refl , looping
+progress ready (cDrainNotification (txsOffer (h , sl))) = (N.Recv , Log.BlockTxsOffer h sl) ∷ [] , _ ,
+  refl , one {r = consumer} refl , looping
+progress ready (cDrainNotification (votes vs)) = (N.Recv , Log.Votes vs) ∷ [] , _ ,
+  refl , one {r = consumer} refl , looping
 progress {r} (output {m = m} pr) sent = (N.Send , canonical m) ∷ [] , _ ,
   refl , one {r = r} pr , looping
 progress {r} delivery delivered = [] , _ , refl , N.Spec.done {depth = k} {role = role r} , looping
-progress {r} notice noticed = [] , _ , refl , N.Spec.done {depth = k} {role = role r} , looping
 
 -- Actual PTree visible steps invert to the certified native phase rules.
 simEv : ∀ {r T T′ q e} → Rel r T q → T LTS.─[ LTS.ev (LTS.evl e) ]─► T′ →
@@ -161,12 +174,46 @@ request-run : ∀ {n} → (n <ᵇ k) ≡ true → tree producer (head (openN n))
   tree producer (head (openN (suc n)))
 request-run credit = ∖√-ev (fire (sRequest credit)) (∖√-τ (tau-fire back) ∖√-refl)
 
--- Producer closure retains the original peer-local done notification.
-done-run : tree producer (head (openN 0)) ⟹∖√⟨
-  LTS.evLabel _ (receiveLNP l d) (packet FromInitiator MsgLNPDone) ∷
-  LTS.evLabel _ (doneLNP l d) tt ∷ [] ⟩
-  tree producer (head closed)
-done-run = ∖√-ev (fire sDone) (∖√-ev (fire noticed) (∖√-τ (tau-fire back) ∖√-refl))
+-- A single wire transition returns through the explicit loop-back.
+wire-run : ∀ {r s e t} → Step r (head s) e (loopBack t) →
+  tree r (head s) ⟹∖√⟨ e ∷ [] ⟩ tree r (head t)
+wire-run st = ∖√-ev (fire st) (∖√-τ (tau-fire back) ∖√-refl)
+
+-- Read-ahead Quit retains every request still owed by the producer.
+quit-run : ∀ n → tree producer (head (openN n)) ⟹∖√⟨
+  LTS.evLabel _ (receiveLNP l d) (packet FromInitiator MsgLNPQuit) ∷ [] ⟩
+  tree producer (head (quitting n))
+quit-run n = wire-run sQuit
+
+-- Cancellation returns one credit without delivering a notification.
+cancel-run : ∀ n → tree consumer (head (openN (suc n))) ⟹∖√⟨
+  LTS.evLabel _ (receiveLNP l d) (packet FromResponder MsgLNPCanceled) ∷ [] ⟩
+  tree consumer (head (openN n))
+cancel-run n = wire-run cCanceled
+
+-- Once quitting, the consumer discards rather than delivers owed notifications.
+drain-run : ∀ n m → tree consumer (head (quitting (suc n))) ⟹∖√⟨
+  LTS.evLabel _ (receiveLNP l d) (packet FromResponder (message m)) ∷ [] ⟩
+  tree consumer (head (quitting n))
+drain-run n m = wire-run (cDrainNotification m)
+
+-- A canceled response is also drained while waiting for the final Done.
+drain-cancel-run : ∀ n → tree consumer (head (quitting (suc n))) ⟹∖√⟨
+  LTS.evLabel _ (receiveLNP l d) (packet FromResponder MsgLNPCanceled) ∷ [] ⟩
+  tree consumer (head (quitting n))
+drain-cancel-run n = wire-run cDrainCanceled
+
+-- The producer cancels every outstanding read-ahead request before Done.
+server-drain-run : ∀ n → tree producer (head (quitting (suc n))) ⟹∖√⟨
+  LTS.evLabel _ (sendLNP l d) (packet FromResponder MsgLNPCanceled) ∷ [] ⟩
+  tree producer (head (quitting n))
+server-drain-run n = wire-run sDrainCanceled
+
+-- Receiving Done terminates a consumer only after all replies are drained.
+finish-run : tree consumer (head (quitting 0)) ⟹∖√⟨
+  LTS.evLabel _ (receiveLNP l d) (packet FromResponder MsgLNPDone) ∷ [] ⟩
+  tree consumer (head closed)
+finish-run = wire-run cFinished
 
 -- A successful bounded issue exposes the guard and the unique target credit count.
 issue-inv : ∀ n {q} → N.issue k n ≡ just q → (n <ᵇ k) ≡ true × q ≡ N.openN (suc n)
@@ -179,63 +226,155 @@ coEv : ∀ {r T q q′ e} → CoRel r T q → ⊤ → N.Spec.Step k (role r) q e
   ∃[ T′ ] ∃[ events ] (T ⟹∖√⟨ events ⟩ T′ × Obs events (e ∷ []) × CoRel r T′ q′)
 coEv {consumer} {e = N.Send , Log.RequestNext} (headC {openN n}) _ pr with issue-inv n pr
 ... | credit , refl = _ , _ , send-run (cRequest credit) , refl , headC
-coEv {consumer} {e = N.Send , Log.Done} (headC {openN 0}) _ refl =
-  _ , _ , send-run cDone , refl , headC
-coEv {consumer} {e = N.Send , Log.Done} (headC {openN (suc n)}) _ ()
 coEv {producer} {e = N.Recv , Log.RequestNext} (headC {openN n}) _ pr with issue-inv n pr
 ... | credit , refl = _ , _ , request-run credit , refl , headC
-coEv {producer} {e = N.Recv , Log.Done} (headC {openN 0}) _ refl =
-  _ , _ , done-run , refl , headC
-coEv {producer} {e = N.Recv , Log.Done} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Send , Log.Quit} (headC {openN 0}) _ refl =
+  _ , _ , send-run cDone , refl , headC
+coEv {consumer} {e = N.Send , Log.Canceled} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Send , Log.Done} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.Votes vs)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.RequestNext} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.Quit} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.Canceled} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.Done} (headC {openN 0}) _ ()
 coEv {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Recv , (Log.Votes vs)} (headC {openN 0}) _ ()
+coEv {consumer} {e = N.Send , Log.Quit} (headC {openN (suc n)}) _ refl =
+  _ , _ , send-run cDone , refl , headC
+coEv {consumer} {e = N.Send , Log.Canceled} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Send , Log.Done} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.Votes vs)} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , Log.RequestNext} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , Log.Quit} (headC {openN (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , Log.Canceled} (headC {openN (suc n)}) _ refl =
+  _ , _ , cancel-run n , refl , headC
+coEv {consumer} {e = N.Recv , Log.Done} (headC {openN (suc n)}) _ ()
 coEv {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {openN (suc n)}) _ refl =
   _ , _ , delivery-run n (announcement (header x)) , refl , headC
-coEv {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
 coEv {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {openN (suc n)}) _ refl =
   _ , _ , delivery-run n (offer (h , sl) z) , refl , headC
-coEv {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
 coEv {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {openN (suc n)}) _ refl =
   _ , _ , delivery-run n (txsOffer (h , sl)) , refl , headC
-coEv {consumer} {e = N.Recv , (Log.Votes vs)} (headC {openN 0}) _ ()
 coEv {consumer} {e = N.Recv , (Log.Votes vs)} (headC {openN (suc n)}) _ refl =
   _ , _ , delivery-run n (votes vs) , refl , headC
+coEv {consumer} {e = N.Send , Log.RequestNext} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , Log.Quit} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , Log.Canceled} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , Log.Done} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , (Log.Votes vs)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.RequestNext} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.Quit} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.Canceled} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , Log.Done} (headC {quitting 0}) _ refl =
+  _ , _ , finish-run , refl , headC
+coEv {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Recv , (Log.Votes vs)} (headC {quitting 0}) _ ()
+coEv {consumer} {e = N.Send , Log.RequestNext} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , Log.Quit} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , Log.Canceled} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , Log.Done} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Send , (Log.Votes vs)} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , Log.RequestNext} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , Log.Quit} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , Log.Canceled} (headC {quitting (suc n)}) _ refl =
+  _ , _ , drain-cancel-run n , refl , headC
+coEv {consumer} {e = N.Recv , Log.Done} (headC {quitting (suc n)}) _ ()
+coEv {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {quitting (suc n)}) _ refl =
+  _ , _ , drain-run n (announcement (header x)) , refl , headC
+coEv {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {quitting (suc n)}) _ refl =
+  _ , _ , drain-run n (offer (h , sl) z) , refl , headC
+coEv {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {quitting (suc n)}) _ refl =
+  _ , _ , drain-run n (txsOffer (h , sl)) , refl , headC
+coEv {consumer} {e = N.Recv , (Log.Votes vs)} (headC {quitting (suc n)}) _ refl =
+  _ , _ , drain-run n (votes vs) , refl , headC
+coEv {consumer} (headC {closed}) _ ()
+coEv {producer} {e = N.Send , Log.RequestNext} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , Log.Quit} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , Log.Canceled} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , Log.Done} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , (Log.Votes vs)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , Log.Quit} (headC {openN 0}) _ refl =
+  _ , _ , quit-run 0 , refl , headC
+coEv {producer} {e = N.Recv , Log.Canceled} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , Log.Done} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.Votes vs)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Send , Log.RequestNext} (headC {openN (suc n)}) _ ()
+coEv {producer} {e = N.Send , Log.Quit} (headC {openN (suc n)}) _ ()
+coEv {producer} {e = N.Send , Log.Canceled} (headC {openN (suc n)}) _ refl =
+  _ , _ , send-run sCanceled , refl , headC
+coEv {producer} {e = N.Send , Log.Done} (headC {openN (suc n)}) _ ()
 coEv {producer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {openN (suc n)}) _ refl =
   _ , _ , send-run (sAnnouncement {h = header x}) , refl , headC
-coEv {producer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN (suc n)}) _ refl =
   _ , _ , send-run (sOffer {pt = h , sl} {sz = z}) , refl , headC
-coEv {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN (suc n)}) _ refl =
   _ , _ , send-run (sTxsOffer {pt = h , sl}) , refl , headC
-coEv {producer} {e = N.Send , (Log.Votes vs)} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Send , (Log.Votes vs)} (headC {openN (suc n)}) _ refl =
   _ , _ , send-run (sVotes {vs = vs}) , refl , headC
-coEv {consumer} {e = N.Recv , Log.RequestNext} (headC {openN 0}) _ ()
-coEv {consumer} {e = N.Recv , Log.RequestNext} (headC {openN (suc n)}) _ ()
-coEv {consumer} {e = N.Recv , Log.Done} (headC {openN 0}) _ ()
-coEv {consumer} {e = N.Recv , Log.Done} (headC {openN (suc n)}) _ ()
-coEv {producer} {e = N.Send , Log.RequestNext} (headC {openN 0}) _ ()
-coEv {producer} {e = N.Send , Log.RequestNext} (headC {openN (suc n)}) _ ()
-coEv {producer} {e = N.Send , Log.Done} (headC {openN 0}) _ ()
-coEv {producer} {e = N.Send , Log.Done} (headC {openN (suc n)}) _ ()
-coEv {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {openN 0}) _ ()
-coEv {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {openN (suc n)}) _ ()
-coEv {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
-coEv {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {openN (suc n)}) _ ()
-coEv {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
-coEv {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {openN (suc n)}) _ ()
-coEv {consumer} {e = N.Send , (Log.Votes vs)} (headC {openN 0}) _ ()
-coEv {consumer} {e = N.Send , (Log.Votes vs)} (headC {openN (suc n)}) _ ()
-coEv {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {openN 0}) _ ()
+coEv {producer} {e = N.Recv , Log.Quit} (headC {openN (suc n)}) _ refl =
+  _ , _ , quit-run (suc n) , refl , headC
+coEv {producer} {e = N.Recv , Log.Canceled} (headC {openN (suc n)}) _ ()
+coEv {producer} {e = N.Recv , Log.Done} (headC {openN (suc n)}) _ ()
 coEv {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {openN (suc n)}) _ ()
-coEv {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {openN (suc n)}) _ ()
-coEv {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {openN (suc n)}) _ ()
-coEv {producer} {e = N.Recv , (Log.Votes vs)} (headC {openN 0}) _ ()
 coEv {producer} {e = N.Recv , (Log.Votes vs)} (headC {openN (suc n)}) _ ()
-coEv {consumer} (headC {closed}) _ ()
+coEv {producer} {e = N.Send , Log.RequestNext} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , Log.Quit} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , Log.Canceled} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , Log.Done} (headC {quitting 0}) _ refl =
+  _ , _ , send-run sDone , refl , headC
+coEv {producer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , (Log.Votes vs)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , Log.RequestNext} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , Log.Quit} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , Log.Canceled} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , Log.Done} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Recv , (Log.Votes vs)} (headC {quitting 0}) _ ()
+coEv {producer} {e = N.Send , Log.RequestNext} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Send , Log.Quit} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Send , Log.Canceled} (headC {quitting (suc n)}) _ refl =
+  _ , _ , server-drain-run n , refl , headC
+coEv {producer} {e = N.Send , Log.Done} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockAnnouncement x)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockOffer h sl z)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Send , (Log.Votes vs)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , Log.RequestNext} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , Log.Quit} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , Log.Canceled} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , Log.Done} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (headC {quitting (suc n)}) _ ()
+coEv {producer} {e = N.Recv , (Log.Votes vs)} (headC {quitting (suc n)}) _ ()
 coEv {producer} (headC {closed}) _ ()
 
 -- The summary carriers provide witnesses for every normalized event.

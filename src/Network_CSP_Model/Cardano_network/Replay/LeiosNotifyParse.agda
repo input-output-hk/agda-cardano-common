@@ -38,6 +38,8 @@ parseVotes s with splitOn ',' s
 -- Parse exactly one prototype message form.
 msg : List String → Maybe Msg
 msg ("RequestNext" ∷ []) = just RequestNext
+msg ("Quit" ∷ []) = just Quit
+msg ("Canceled" ∷ []) = just Canceled
 msg ("Done" ∷ []) = just Done
 msg ("BlockAnnouncement" ∷ "-" ∷ []) = just (BlockAnnouncement nothing)
 msg ("BlockAnnouncement" ∷ h ∷ s ∷ z ∷ []) =
@@ -58,6 +60,8 @@ parseEvent s with Namespaces.notify (words s)
 -- Display retained payload fields in canonical normalized syntax.
 showMsg : Msg → String
 showMsg RequestNext = "RequestNext"
+showMsg Quit = "Quit"
+showMsg Canceled = "Canceled"
 showMsg Done = "Done"
 showMsg (BlockAnnouncement nothing) = "BlockAnnouncement -"
 showMsg (BlockAnnouncement (just (h , s , z))) = "BlockAnnouncement " ++ hexPad 64 h ++ " " ++ showℕ s ++ " " ++ showℕ z
@@ -72,8 +76,10 @@ showEvent (d , m) = showDir d ++ " " ++ showMsg m
 
 -- Explain the exact agency of a residual session state.
 showSt : Role → St → String
-showSt client idle = "notify client idle (accepts: Send RequestNext or Done)"
-showSt client busy = "notify client busy (accepts: one Recv notification)"
-showSt server idle = "notify server idle (accepts: Recv RequestNext or Done)"
-showSt server busy = "notify server busy (accepts: one Send notification)"
+showSt client idle = "notify client idle (accepts: Send RequestNext or Quit)"
+showSt client busy = "notify client busy (accepts: one Recv notification or Canceled)"
+showSt server idle = "notify server idle (accepts: Recv RequestNext or Quit)"
+showSt server busy = "notify server busy (accepts: one Send notification or Canceled)"
+showSt client quitting = "notify client quitting (accepts: Recv Done)"
+showSt server quitting = "notify server quitting (accepts: Send Done)"
 showSt _ closed = "notify closed after Done (accepts nothing)"

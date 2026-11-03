@@ -20,41 +20,56 @@ open import Semantics.Replay
 open import Semantics.Replay.Decide using (module Decider)
 open import Cardano_network.Replay.LeiosNotifySession public
   using (Role; client; server; Direction; Send; Recv; E; Msg; Kind;
-         request; announcement; offer; txsOffer; votes; doneK;
+         request; announcement; offer; txsOffer; votes; quit; canceled; doneK;
          Observed; forget; dirEq; msgEq)
 import Cardano_network.Replay.LeiosNotifySession as Strict
 
--- An open session counts outstanding requests; a closed session offers nothing.
+-- Open and quitting sessions count outstanding requests; closed offers nothing.
 data St : Set where
   openN : ℕ → St
+  quitting : ℕ → St
   closed : St
 
 -- Every generation begins with no outstanding requests.
 idle : St
 idle = openN 0
 
--- Issue only below the bound; zero disables requests but permits idle Done.
+-- Issue only below the bound; zero disables requests but permits Quit/Done shutdown.
 issue : ℕ → ℕ → Maybe St
 issue depth n with n <ᵇ depth
 ... | true = just (openN (suc n))
 ... | false = nothing
 
--- Any of the four notification kinds consumes exactly one request credit.
+-- A notification or Canceled consumes exactly one request credit.
 reply : ℕ → Kind → Maybe St
 reply (suc n) announcement = just (openN n)
 reply (suc n) offer = just (openN n)
 reply (suc n) txsOffer = just (openN n)
 reply (suc n) votes = just (openN n)
+reply (suc n) canceled = just (openN n)
 reply _ _ = nothing
 
--- Request and Done have initiator agency; notifications have responder agency.
+-- Draining clients discard any owed response; read-ahead servers cancel the rest.
+drain : ℕ → Kind → Maybe St
+drain (suc n) announcement = just (quitting n)
+drain (suc n) offer = just (quitting n)
+drain (suc n) txsOffer = just (quitting n)
+drain (suc n) votes = just (quitting n)
+drain (suc n) canceled = just (quitting n)
+drain _ _ = nothing
+
+-- Quit freezes requests; Done has responder agency and requires a drained pipe.
 nextKind : ℕ → Role → St → Observed → Maybe St
 nextKind depth client (openN n) (Send , request) = issue depth n
 nextKind depth server (openN n) (Recv , request) = issue depth n
-nextKind depth client (openN zero) (Send , doneK) = just closed
-nextKind depth server (openN zero) (Recv , doneK) = just closed
+nextKind depth client (openN n) (Send , quit) = just (quitting n)
+nextKind depth server (openN n) (Recv , quit) = just (quitting n)
 nextKind depth client (openN n) (Recv , k) = reply n k
 nextKind depth server (openN n) (Send , k) = reply n k
+nextKind depth client (quitting 0) (Recv , doneK) = just closed
+nextKind depth server (quitting 0) (Send , doneK) = just closed
+nextKind depth client (quitting n) (Recv , k) = drain n k
+nextKind depth server (quitting (suc n)) (Send , canceled) = just (quitting n)
 nextKind _ _ _ _ = nothing
 
 -- A per-role replay instance, with no silent steps at this wire abstraction.
@@ -104,114 +119,153 @@ module Spec (depth : ℕ) (role : Role) where
   check : (es : List E) → Relation.Nullary.Dec (HasTrace idle es)
   check = hasTrace? (cert idle)
 
--- Embed the original depth-one peer states into the credit-counting model.
+-- Embed the alternating table states into the bounded shutdown machine.
 embed : Strict.St → St
 embed Strict.idle = openN 0
 embed Strict.busy = openN 1
+embed Strict.quitting = quitting 0
 embed Strict.closed = closed
 
--- At depth one, every embedded transition agrees with the original machine.
-depth-one-step : ∀ r s e → nextKind 1 r (embed s) e ≡ map embed (Strict.nextKind r s e)
-depth-one-step client Strict.idle (Send , request) = refl
-depth-one-step client Strict.idle (Send , announcement) = refl
-depth-one-step client Strict.idle (Send , offer) = refl
-depth-one-step client Strict.idle (Send , txsOffer) = refl
-depth-one-step client Strict.idle (Send , votes) = refl
-depth-one-step client Strict.idle (Send , doneK) = refl
-depth-one-step client Strict.idle (Recv , request) = refl
-depth-one-step client Strict.idle (Recv , announcement) = refl
-depth-one-step client Strict.idle (Recv , offer) = refl
-depth-one-step client Strict.idle (Recv , txsOffer) = refl
-depth-one-step client Strict.idle (Recv , votes) = refl
-depth-one-step client Strict.idle (Recv , doneK) = refl
-depth-one-step client Strict.busy (Send , request) = refl
-depth-one-step client Strict.busy (Send , announcement) = refl
-depth-one-step client Strict.busy (Send , offer) = refl
-depth-one-step client Strict.busy (Send , txsOffer) = refl
-depth-one-step client Strict.busy (Send , votes) = refl
-depth-one-step client Strict.busy (Send , doneK) = refl
-depth-one-step client Strict.busy (Recv , request) = refl
-depth-one-step client Strict.busy (Recv , announcement) = refl
-depth-one-step client Strict.busy (Recv , offer) = refl
-depth-one-step client Strict.busy (Recv , txsOffer) = refl
-depth-one-step client Strict.busy (Recv , votes) = refl
-depth-one-step client Strict.busy (Recv , doneK) = refl
-depth-one-step client Strict.closed (Send , request) = refl
-depth-one-step client Strict.closed (Send , announcement) = refl
-depth-one-step client Strict.closed (Send , offer) = refl
-depth-one-step client Strict.closed (Send , txsOffer) = refl
-depth-one-step client Strict.closed (Send , votes) = refl
-depth-one-step client Strict.closed (Send , doneK) = refl
-depth-one-step client Strict.closed (Recv , request) = refl
-depth-one-step client Strict.closed (Recv , announcement) = refl
-depth-one-step client Strict.closed (Recv , offer) = refl
-depth-one-step client Strict.closed (Recv , txsOffer) = refl
-depth-one-step client Strict.closed (Recv , votes) = refl
-depth-one-step client Strict.closed (Recv , doneK) = refl
-depth-one-step server Strict.idle (Send , request) = refl
-depth-one-step server Strict.idle (Send , announcement) = refl
-depth-one-step server Strict.idle (Send , offer) = refl
-depth-one-step server Strict.idle (Send , txsOffer) = refl
-depth-one-step server Strict.idle (Send , votes) = refl
-depth-one-step server Strict.idle (Send , doneK) = refl
-depth-one-step server Strict.idle (Recv , request) = refl
-depth-one-step server Strict.idle (Recv , announcement) = refl
-depth-one-step server Strict.idle (Recv , offer) = refl
-depth-one-step server Strict.idle (Recv , txsOffer) = refl
-depth-one-step server Strict.idle (Recv , votes) = refl
-depth-one-step server Strict.idle (Recv , doneK) = refl
-depth-one-step server Strict.busy (Send , request) = refl
-depth-one-step server Strict.busy (Send , announcement) = refl
-depth-one-step server Strict.busy (Send , offer) = refl
-depth-one-step server Strict.busy (Send , txsOffer) = refl
-depth-one-step server Strict.busy (Send , votes) = refl
-depth-one-step server Strict.busy (Send , doneK) = refl
-depth-one-step server Strict.busy (Recv , request) = refl
-depth-one-step server Strict.busy (Recv , announcement) = refl
-depth-one-step server Strict.busy (Recv , offer) = refl
-depth-one-step server Strict.busy (Recv , txsOffer) = refl
-depth-one-step server Strict.busy (Recv , votes) = refl
-depth-one-step server Strict.busy (Recv , doneK) = refl
-depth-one-step server Strict.closed (Send , request) = refl
-depth-one-step server Strict.closed (Send , announcement) = refl
-depth-one-step server Strict.closed (Send , offer) = refl
-depth-one-step server Strict.closed (Send , txsOffer) = refl
-depth-one-step server Strict.closed (Send , votes) = refl
-depth-one-step server Strict.closed (Send , doneK) = refl
-depth-one-step server Strict.closed (Recv , request) = refl
-depth-one-step server Strict.closed (Recv , announcement) = refl
-depth-one-step server Strict.closed (Recv , offer) = refl
-depth-one-step server Strict.closed (Recv , txsOffer) = refl
-depth-one-step server Strict.closed (Recv , votes) = refl
-depth-one-step server Strict.closed (Recv , doneK) = refl
+-- Every alternating transition is also a depth-one pipelined transition.
+strict-step : ∀ r s e t → Strict.nextKind r s e ≡ just t →
+  nextKind 1 r (embed s) e ≡ just (embed t)
+strict-step client Strict.idle (Send , request) _ refl = refl
+strict-step client Strict.idle (Send , announcement) _ ()
+strict-step client Strict.idle (Send , offer) _ ()
+strict-step client Strict.idle (Send , txsOffer) _ ()
+strict-step client Strict.idle (Send , votes) _ ()
+strict-step client Strict.idle (Send , quit) _ refl = refl
+strict-step client Strict.idle (Send , canceled) _ ()
+strict-step client Strict.idle (Send , doneK) _ ()
+strict-step client Strict.idle (Recv , request) _ ()
+strict-step client Strict.idle (Recv , announcement) _ ()
+strict-step client Strict.idle (Recv , offer) _ ()
+strict-step client Strict.idle (Recv , txsOffer) _ ()
+strict-step client Strict.idle (Recv , votes) _ ()
+strict-step client Strict.idle (Recv , quit) _ ()
+strict-step client Strict.idle (Recv , canceled) _ ()
+strict-step client Strict.idle (Recv , doneK) _ ()
+strict-step client Strict.busy (Send , request) _ ()
+strict-step client Strict.busy (Send , announcement) _ ()
+strict-step client Strict.busy (Send , offer) _ ()
+strict-step client Strict.busy (Send , txsOffer) _ ()
+strict-step client Strict.busy (Send , votes) _ ()
+strict-step client Strict.busy (Send , quit) _ ()
+strict-step client Strict.busy (Send , canceled) _ ()
+strict-step client Strict.busy (Send , doneK) _ ()
+strict-step client Strict.busy (Recv , request) _ ()
+strict-step client Strict.busy (Recv , announcement) _ refl = refl
+strict-step client Strict.busy (Recv , offer) _ refl = refl
+strict-step client Strict.busy (Recv , txsOffer) _ refl = refl
+strict-step client Strict.busy (Recv , votes) _ refl = refl
+strict-step client Strict.busy (Recv , quit) _ ()
+strict-step client Strict.busy (Recv , canceled) _ refl = refl
+strict-step client Strict.busy (Recv , doneK) _ ()
+strict-step client Strict.quitting (Send , request) _ ()
+strict-step client Strict.quitting (Send , announcement) _ ()
+strict-step client Strict.quitting (Send , offer) _ ()
+strict-step client Strict.quitting (Send , txsOffer) _ ()
+strict-step client Strict.quitting (Send , votes) _ ()
+strict-step client Strict.quitting (Send , quit) _ ()
+strict-step client Strict.quitting (Send , canceled) _ ()
+strict-step client Strict.quitting (Send , doneK) _ ()
+strict-step client Strict.quitting (Recv , request) _ ()
+strict-step client Strict.quitting (Recv , announcement) _ ()
+strict-step client Strict.quitting (Recv , offer) _ ()
+strict-step client Strict.quitting (Recv , txsOffer) _ ()
+strict-step client Strict.quitting (Recv , votes) _ ()
+strict-step client Strict.quitting (Recv , quit) _ ()
+strict-step client Strict.quitting (Recv , canceled) _ ()
+strict-step client Strict.quitting (Recv , doneK) _ refl = refl
+strict-step client Strict.closed (Send , request) _ ()
+strict-step client Strict.closed (Send , announcement) _ ()
+strict-step client Strict.closed (Send , offer) _ ()
+strict-step client Strict.closed (Send , txsOffer) _ ()
+strict-step client Strict.closed (Send , votes) _ ()
+strict-step client Strict.closed (Send , quit) _ ()
+strict-step client Strict.closed (Send , canceled) _ ()
+strict-step client Strict.closed (Send , doneK) _ ()
+strict-step client Strict.closed (Recv , request) _ ()
+strict-step client Strict.closed (Recv , announcement) _ ()
+strict-step client Strict.closed (Recv , offer) _ ()
+strict-step client Strict.closed (Recv , txsOffer) _ ()
+strict-step client Strict.closed (Recv , votes) _ ()
+strict-step client Strict.closed (Recv , quit) _ ()
+strict-step client Strict.closed (Recv , canceled) _ ()
+strict-step client Strict.closed (Recv , doneK) _ ()
+strict-step server Strict.idle (Send , request) _ ()
+strict-step server Strict.idle (Send , announcement) _ ()
+strict-step server Strict.idle (Send , offer) _ ()
+strict-step server Strict.idle (Send , txsOffer) _ ()
+strict-step server Strict.idle (Send , votes) _ ()
+strict-step server Strict.idle (Send , quit) _ ()
+strict-step server Strict.idle (Send , canceled) _ ()
+strict-step server Strict.idle (Send , doneK) _ ()
+strict-step server Strict.idle (Recv , request) _ refl = refl
+strict-step server Strict.idle (Recv , announcement) _ ()
+strict-step server Strict.idle (Recv , offer) _ ()
+strict-step server Strict.idle (Recv , txsOffer) _ ()
+strict-step server Strict.idle (Recv , votes) _ ()
+strict-step server Strict.idle (Recv , quit) _ refl = refl
+strict-step server Strict.idle (Recv , canceled) _ ()
+strict-step server Strict.idle (Recv , doneK) _ ()
+strict-step server Strict.busy (Send , request) _ ()
+strict-step server Strict.busy (Send , announcement) _ refl = refl
+strict-step server Strict.busy (Send , offer) _ refl = refl
+strict-step server Strict.busy (Send , txsOffer) _ refl = refl
+strict-step server Strict.busy (Send , votes) _ refl = refl
+strict-step server Strict.busy (Send , quit) _ ()
+strict-step server Strict.busy (Send , canceled) _ refl = refl
+strict-step server Strict.busy (Send , doneK) _ ()
+strict-step server Strict.busy (Recv , request) _ ()
+strict-step server Strict.busy (Recv , announcement) _ ()
+strict-step server Strict.busy (Recv , offer) _ ()
+strict-step server Strict.busy (Recv , txsOffer) _ ()
+strict-step server Strict.busy (Recv , votes) _ ()
+strict-step server Strict.busy (Recv , quit) _ ()
+strict-step server Strict.busy (Recv , canceled) _ ()
+strict-step server Strict.busy (Recv , doneK) _ ()
+strict-step server Strict.quitting (Send , request) _ ()
+strict-step server Strict.quitting (Send , announcement) _ ()
+strict-step server Strict.quitting (Send , offer) _ ()
+strict-step server Strict.quitting (Send , txsOffer) _ ()
+strict-step server Strict.quitting (Send , votes) _ ()
+strict-step server Strict.quitting (Send , quit) _ ()
+strict-step server Strict.quitting (Send , canceled) _ ()
+strict-step server Strict.quitting (Send , doneK) _ refl = refl
+strict-step server Strict.quitting (Recv , request) _ ()
+strict-step server Strict.quitting (Recv , announcement) _ ()
+strict-step server Strict.quitting (Recv , offer) _ ()
+strict-step server Strict.quitting (Recv , txsOffer) _ ()
+strict-step server Strict.quitting (Recv , votes) _ ()
+strict-step server Strict.quitting (Recv , quit) _ ()
+strict-step server Strict.quitting (Recv , canceled) _ ()
+strict-step server Strict.quitting (Recv , doneK) _ ()
+strict-step server Strict.closed (Send , request) _ ()
+strict-step server Strict.closed (Send , announcement) _ ()
+strict-step server Strict.closed (Send , offer) _ ()
+strict-step server Strict.closed (Send , txsOffer) _ ()
+strict-step server Strict.closed (Send , votes) _ ()
+strict-step server Strict.closed (Send , quit) _ ()
+strict-step server Strict.closed (Send , canceled) _ ()
+strict-step server Strict.closed (Send , doneK) _ ()
+strict-step server Strict.closed (Recv , request) _ ()
+strict-step server Strict.closed (Recv , announcement) _ ()
+strict-step server Strict.closed (Recv , offer) _ ()
+strict-step server Strict.closed (Recv , txsOffer) _ ()
+strict-step server Strict.closed (Recv , votes) _ ()
+strict-step server Strict.closed (Recv , quit) _ ()
+strict-step server Strict.closed (Recv , canceled) _ ()
+strict-step server Strict.closed (Recv , doneK) _ ()
 
--- Lift strict depth-one traces through the state embedding.
+-- Lift alternating traces without asserting a converse for busy-state Quit.
 lift-one : ∀ {r s t es} → Strict.Spec._⇒⟨_⟩_ r s es t →
            Spec._⇒⟨_⟩_ 1 r (embed s) es (embed t)
 lift-one {r} Strict.Spec.done = Spec.done {depth = 1} {role = r}
 lift-one (Strict.Spec.tau () _)
-lift-one {r} {s} (Strict.Spec.vis {e = e} st p) =
-  Spec.vis {depth = 1} {role = r}
-    (trans (depth-one-step r s (forget e)) (cong (map embed) st)) (lift-one {r = r} p)
+lift-one {r} {s} (Strict.Spec.vis {s′ = t} {e = e} st p) =
+  Spec.vis {depth = 1} {role = r} (strict-step r s (forget e) t st) (lift-one {r = r} p)
 
--- A successful mapped optional state exposes its strict predecessor state.
-unmap-state : ∀ m {t} → map embed m ≡ just t →
-              Σ[ u ∈ Strict.St ] (m ≡ just u × embed u ≡ t)
-unmap-state nothing ()
-unmap-state (just u) refl = u , refl , refl
-
--- Every depth-one run from an embedded state remains in the strict language.
-lower-one : ∀ {r t es} (s : Strict.St) → Spec._⇒⟨_⟩_ 1 r (embed s) es t →
-            Strict.Spec.HasTrace r s es
-lower-one {r} s Spec.done = s , Strict.Spec.done {role = r}
-lower-one s (Spec.tau () _)
-lower-one {r} s (Spec.vis {e = e} st p)
-  with unmap-state (Strict.nextKind r s (forget e)) (trans (sym (depth-one-step r s (forget e))) st)
-... | u , q , refl with lower-one {r = r} u p
-...   | v , run = v , Strict.Spec.vis {role = r} q run
-
--- Exact trace equivalence preserves the original peer bridge's depth-one scope.
-depth-one-traces : ∀ r es → Strict.Spec.HasTrace r Strict.idle es ⇔ Spec.HasTrace 1 r idle es
-depth-one-traces r es = mk⇔
-  (λ { (t , run) → embed t , lift-one {r = r} run })
-  (λ { (t , run) → lower-one {r = r} Strict.idle run })
+-- Alternating traces are included; pipelined Quit prevents whole-language equality.
+strict-into-pipeline : ∀ r es → Strict.Spec.HasTrace r Strict.idle es → Spec.HasTrace 1 r idle es
+strict-into-pipeline r es (t , run) = embed t , lift-one {r = r} run

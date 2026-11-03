@@ -26,7 +26,7 @@ import Cardano_network.Replay.LeiosNotifyPipeline as N
 import Cardano_network.Replay.LeiosNotifyPairedSession as Paired
 import Cardano_network.Replay.LeiosNotifyExactLocal as LocalBridge
 import Cardano_network.Replay.LeiosNotifyExactObservation as O
-open import Cardano_network.LeiosNotifyPipe p using (consumer; producer; openN; closed)
+open import Cardano_network.LeiosNotifyPipe p using (consumer; producer; openN; quitting; closed)
 import Cardano_network.Replay.LeiosNotifySession as Log
 
 -- Encode each retained field in its corresponding native message carrier.
@@ -36,12 +36,14 @@ message (Log.BlockAnnouncement a) = MsgLNPBlockAnnouncement (header a)
 message (Log.BlockOffer h s z) = MsgLNPBlockOffer (h , s) z
 message (Log.BlockTxsOffer h s) = MsgLNPBlockTxsOffer (h , s)
 message (Log.Votes vs) = MsgLNPVotes vs
+message Log.Quit = MsgLNPQuit
+message Log.Canceled = MsgLNPCanceled
 message Log.Done = MsgLNPDone
 
 -- The native mode is fixed by protocol agency and shared at both endpoints.
 sender : N.Msg → Mode
 sender Log.RequestNext = FromInitiator
-sender Log.Done = FromInitiator
+sender Log.Quit = FromInitiator
 sender _ = FromResponder
 
 -- Full time, mode, length and message payload agree at send and receive.
@@ -97,53 +99,133 @@ module _ (k : ℕ) where
       packets (proj₁ (proj₂ (B.coEv rel tt pr))) ≡ packet e ∷ []
     one-packet {consumer} {e = N.Send , Log.RequestNext} (B.headC {openN n}) pr with B.issue-inv n pr
     ... | credit , refl = refl
-    one-packet {consumer} {e = N.Send , Log.Done} (B.headC {openN 0}) refl = refl
-    one-packet {consumer} {e = N.Send , Log.Done} (B.headC {openN (suc n)}) ()
     one-packet {producer} {e = N.Recv , Log.RequestNext} (B.headC {openN n}) pr with B.issue-inv n pr
     ... | credit , refl = refl
-    one-packet {producer} {e = N.Recv , Log.Done} (B.headC {openN 0}) refl = refl
-    one-packet {producer} {e = N.Recv , Log.Done} (B.headC {openN (suc n)}) ()
-    one-packet {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {consumer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {producer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {producer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {producer} {e = N.Send , (Log.Votes vs)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Send , (Log.Votes vs)} (B.headC {openN (suc n)}) refl = refl
-    one-packet {consumer} {e = N.Recv , Log.RequestNext} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Recv , Log.RequestNext} (B.headC {openN (suc n)}) ()
-    one-packet {consumer} {e = N.Recv , Log.Done} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Recv , Log.Done} (B.headC {openN (suc n)}) ()
-    one-packet {producer} {e = N.Send , Log.RequestNext} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Send , Log.RequestNext} (B.headC {openN (suc n)}) ()
-    one-packet {producer} {e = N.Send , Log.Done} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Send , Log.Done} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Send , Log.Quit} (B.headC {openN 0}) refl = refl
+    one-packet {consumer} {e = N.Send , Log.Canceled} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Send , Log.Done} (B.headC {openN 0}) ()
     one-packet {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) ()
     one-packet {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) ()
     one-packet {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
-    one-packet {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) ()
     one-packet {consumer} {e = N.Send , (Log.Votes vs)} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.RequestNext} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.Quit} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.Canceled} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.Done} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN 0}) ()
+    one-packet {consumer} {e = N.Send , Log.Quit} (B.headC {openN (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Send , Log.Canceled} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Send , Log.Done} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) ()
     one-packet {consumer} {e = N.Send , (Log.Votes vs)} (B.headC {openN (suc n)}) ()
-    one-packet {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) ()
-    one-packet {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) ()
-    one-packet {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) ()
-    one-packet {producer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN 0}) ()
-    one-packet {producer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , Log.RequestNext} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , Log.Quit} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , Log.Canceled} (B.headC {openN (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , Log.Done} (B.headC {openN (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Send , Log.RequestNext} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , Log.Quit} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , Log.Canceled} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , Log.Done} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , (Log.Votes vs)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.RequestNext} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.Quit} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.Canceled} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , Log.Done} (B.headC {quitting 0}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Recv , (Log.Votes vs)} (B.headC {quitting 0}) ()
+    one-packet {consumer} {e = N.Send , Log.RequestNext} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , Log.Quit} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , Log.Canceled} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , Log.Done} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Send , (Log.Votes vs)} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , Log.RequestNext} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , Log.Quit} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , Log.Canceled} (B.headC {quitting (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , Log.Done} (B.headC {quitting (suc n)}) ()
+    one-packet {consumer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {quitting (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {quitting (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {quitting (suc n)}) refl = refl
+    one-packet {consumer} {e = N.Recv , (Log.Votes vs)} (B.headC {quitting (suc n)}) refl = refl
     one-packet {consumer} (B.headC {closed}) ()
+    one-packet {producer} {e = N.Send , Log.RequestNext} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , Log.Quit} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , Log.Canceled} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , Log.Done} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , (Log.Votes vs)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Recv , Log.Quit} (B.headC {openN 0}) refl = refl
+    one-packet {producer} {e = N.Recv , Log.Canceled} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Recv , Log.Done} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN 0}) ()
+    one-packet {producer} {e = N.Send , Log.RequestNext} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Send , Log.Quit} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Send , Log.Canceled} (B.headC {openN (suc n)}) refl = refl
+    one-packet {producer} {e = N.Send , Log.Done} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {producer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {producer} {e = N.Send , (Log.Votes vs)} (B.headC {openN (suc n)}) refl = refl
+    one-packet {producer} {e = N.Recv , Log.Quit} (B.headC {openN (suc n)}) refl = refl
+    one-packet {producer} {e = N.Recv , Log.Canceled} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Recv , Log.Done} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.Votes vs)} (B.headC {openN (suc n)}) ()
+    one-packet {producer} {e = N.Send , Log.RequestNext} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , Log.Quit} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , Log.Canceled} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , Log.Done} (B.headC {quitting 0}) refl = refl
+    one-packet {producer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , (Log.Votes vs)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , Log.RequestNext} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , Log.Quit} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , Log.Canceled} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , Log.Done} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Recv , (Log.Votes vs)} (B.headC {quitting 0}) ()
+    one-packet {producer} {e = N.Send , Log.RequestNext} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Send , Log.Quit} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Send , Log.Canceled} (B.headC {quitting (suc n)}) refl = refl
+    one-packet {producer} {e = N.Send , Log.Done} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockAnnouncement x)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockOffer h sl z)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Send , (Log.BlockTxsOffer h sl)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Send , (Log.Votes vs)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , Log.RequestNext} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , Log.Quit} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , Log.Canceled} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , Log.Done} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockAnnouncement x)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockOffer h sl z)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.BlockTxsOffer h sl)} (B.headC {quitting (suc n)}) ()
+    one-packet {producer} {e = N.Recv , (Log.Votes vs)} (B.headC {quitting (suc n)}) ()
     one-packet {producer} (B.headC {closed}) ()
 
 -- Encoding and observing any parsed message is an exact field-for-field retraction.
@@ -153,4 +235,6 @@ observe-message (Log.BlockAnnouncement a) = refl
 observe-message (Log.BlockOffer h s z) = refl
 observe-message (Log.BlockTxsOffer h s) = refl
 observe-message (Log.Votes vs) = refl
+observe-message Log.Quit = refl
+observe-message Log.Canceled = refl
 observe-message Log.Done = refl

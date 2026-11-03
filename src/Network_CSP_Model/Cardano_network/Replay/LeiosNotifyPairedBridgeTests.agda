@@ -19,7 +19,7 @@ open import Cardano_network.LeiosNotifyP exactParams using (LNPEv; sendLNP; rece
 open import Cardano_network.Net exactParams using (lnpSendRequestNext)
 open import Process_Trees using (ExtI)
 import Cardano_network.Replay.LeiosNotifySession as Log
-open Log using (E; Send; Recv; client; server; RequestNext; BlockAnnouncement; BlockOffer; BlockTxsOffer; Votes; Done)
+open Log using (E; Send; Recv; client; server; RequestNext; BlockAnnouncement; BlockOffer; BlockTxsOffer; Votes; Quit; Canceled; Done)
 import Cardano_network.Replay.LeiosNotifyPipeline as N
 import Cardano_network.Replay.LeiosNotifyPairedSession as R
 import Cardano_network.Replay.LeiosNotifyPairedBridge as B
@@ -43,12 +43,12 @@ clientRows = (Send , RequestNext) ∷ (Send , RequestNext) ∷
   (Send , RequestNext) ∷ (Send , RequestNext) ∷
   (Recv , BlockAnnouncement (just (10 , 11 , 200))) ∷ (Recv , BlockOffer 12 13 300) ∷
   (Recv , BlockTxsOffer 14 15) ∷ (Recv , Votes ((9 , 3) ∷ (7 , 1) ∷ (9 , 3) ∷ [])) ∷
-  (Send , Done) ∷ []
+  (Send , Quit) ∷ (Recv , Done) ∷ []
 serverRows = (Recv , RequestNext) ∷ (Recv , RequestNext) ∷
   (Recv , RequestNext) ∷ (Recv , RequestNext) ∷
   (Send , BlockAnnouncement (just (10 , 11 , 200))) ∷ (Send , BlockOffer 12 13 300) ∷
   (Send , BlockTxsOffer 14 15) ∷ (Send , Votes ((9 , 3) ∷ (7 , 1) ∷ (9 , 3) ∷ [])) ∷
-  (Recv , Done) ∷ []
+  (Recv , Quit) ∷ (Send , Done) ∷ []
 
 -- The executable checker certifies a genuinely depth-four paired history.
 accepted : R.Compatible 4 (R.initial 4) clientRows serverRows
@@ -83,9 +83,9 @@ inflight-system = B.inputs-complete 2 zero zero lo hi
     ((Send , RequestNext) ∷ (Send , RequestNext) ∷ []) []} tt)
 
 -- A depth-zero pair still has a real wire-Done execution at empty credit.
-zero-system : B.Inputs 0 zero zero lo hi ((Send , Done) ∷ []) ((Recv , Done) ∷ [])
+zero-system : B.Inputs 0 zero zero lo hi ((Send , Quit) ∷ (Recv , Done) ∷ []) ((Recv , Quit) ∷ (Send , Done) ∷ [])
 zero-system = B.inputs-complete 0 zero zero lo hi
-  (toWitness {a? = R.compatible? 0 (R.initial 0) ((Send , Done) ∷ []) ((Recv , Done) ∷ [])} tt)
+  (toWitness {a? = R.compatible? 0 (R.initial 0) ((Send , Quit) ∷ (Recv , Done) ∷ []) ((Recv , Quit) ∷ (Send , Done) ∷ [])} tt)
 
 -- The existing locally legal size mismatch has no exact-field composed witness.
 size-mismatch-impossible : ¬ B.Inputs 1 zero zero lo hi Existing.cs Existing.mismatched
@@ -207,3 +207,19 @@ insufficient-depth input = toWitnessFalse
 -- The theorem's target is definitionally the existing native peer/FIFO constructor.
 native-target : B.system 2 zero zero lo hi ≡ M.pipelined-system 2 zero zero lo hi
 native-target = refl
+
+-- Both endpoints agree on early Quit and cancel two outstanding requests.
+shutdownClient shutdownServer : List E
+shutdownClient = (Send , RequestNext) ∷ (Send , RequestNext) ∷ (Send , Quit) ∷
+  (Recv , Canceled) ∷ (Recv , Canceled) ∷ (Recv , Done) ∷ []
+shutdownServer = (Recv , RequestNext) ∷ (Recv , RequestNext) ∷ (Recv , Quit) ∷
+  (Send , Canceled) ∷ (Send , Canceled) ∷ (Send , Done) ∷ []
+
+-- Completeness constructs a native two-FIFO execution of cancellation shutdown.
+shutdown-system : B.Inputs 2 zero zero lo hi shutdownClient shutdownServer
+shutdown-system = B.inputs-complete 2 zero zero lo hi
+  (toWitness {a? = R.compatible? 2 (R.initial 2) shutdownClient shutdownServer} tt)
+
+-- Soundness recovers the exact Quit/Canceled/Done input pair from that execution.
+shutdown-roundtrip : R.Compatible 2 (R.initial 2) shutdownClient shutdownServer
+shutdown-roundtrip = B.inputs-sound 2 zero zero lo hi shutdown-system

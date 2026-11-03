@@ -14,6 +14,7 @@ open import Cardano_network.LeiosNotifyPipe p
 open Machine k l d
 open import Process_Trees using (ExtI)
 open import Cardano_network.Data p
+open import Cardano_network.Base using (FromResponder)
 open import Data.Nat using (_<ᵇ_)
 open import Data.Bool using (true)
 import Data.Bool.Properties as Bool
@@ -65,8 +66,19 @@ next-complete (delivered {m = m}) with tag m ≟ tag m
 ... | no np = ⊥-elim (np refl)
 ... | yes refl = checked-target ((l ≟ l) ×-dec ((d ≟ d) ×-dec (_≟_ ⦃ deliveryEq m ⦄ (value m) (value m))))
   (refl , refl , refl)
-next-complete noticed = checked-target ((l ≟ l) ×-dec (d ≟ d))
-  (refl , refl)
+
+
+next-complete (cCanceled) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (cDrainCanceled) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (cFinished) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (sQuit) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (sCanceled) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (cDrainNotification (announcement h)) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (cDrainNotification (offer pt sz)) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (cDrainNotification (txsOffer pt)) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete (cDrainNotification (votes vs)) = checked-target ((l ≟ l) ×-dec (d ≟ d)) (refl , refl)
+next-complete sDrainCanceled = checked-target ((l ≟ l) ×-dec ((d ≟ d) ×-dec (packet FromResponder MsgLNPCanceled ≟ packet FromResponder MsgLNPCanceled)))
+  (refl , refl , refl)
 
 -- The guarded offer map realizes each successful native target lookup.
 offered : ∀ {r s t X} {ch : LNPEv X} {a} → next r s (LTS.evLabel X ch a) ≡ just t →
@@ -83,7 +95,7 @@ fire {r} {s = s@(sending _ _ _)} {e = LTS.evLabel X ch a} st =
   LTS.sVis refl (offered {r = r} {s = s} {X = X} {ch = ch} {a = a} (next-complete st))
 fire {r} {s = s@(delivering _ _)} {e = LTS.evLabel X ch a} st =
   LTS.sVis refl (offered {r = r} {s = s} {X = X} {ch = ch} {a = a} (next-complete st))
-fire {r} {s = s@(doneNotice)} {e = LTS.evLabel X ch a} st =
+fire {r} {s = s@(head (quitting _))} {e = LTS.evLabel X ch a} st =
   LTS.sVis refl (offered {r = r} {s = s} {X = X} {ch = ch} {a = a} (next-complete st))
 
 -- Lookup inversion supplies both the original phase step and final tree equality.
@@ -101,7 +113,7 @@ visible-inv {s = head closed} (LTS.sVis () _)
 visible-inv {s = loopBack _} (LTS.sVis () _)
 visible-inv {s = sending _ _ _} (LTS.sVis refl pr) = lookup-inv pr
 visible-inv {s = delivering _ _} (LTS.sVis refl pr) = lookup-inv pr
-visible-inv {s = doneNotice} (LTS.sVis refl pr) = lookup-inv pr
+visible-inv {s = head (quitting _)} (LTS.sVis refl pr) = lookup-inv pr
 
 -- Loop-back is the sole native silent transition.
 tau-fire : ∀ {r s t} → Tau s t → tree r s LTS.─[ LTS.τ ]─► tree r t
@@ -120,5 +132,5 @@ tau-inv {s = sending _ _ _} (LTS.sSil ())
 tau-inv {s = sending _ _ _} (LTS.sTau refl ())
 tau-inv {s = delivering _ _} (LTS.sSil ())
 tau-inv {s = delivering _ _} (LTS.sTau refl ())
-tau-inv {s = doneNotice} (LTS.sSil ())
-tau-inv {s = doneNotice} (LTS.sTau refl ())
+tau-inv {s = head (quitting _)} (LTS.sSil ())
+tau-inv {s = head (quitting _)} (LTS.sTau refl ())

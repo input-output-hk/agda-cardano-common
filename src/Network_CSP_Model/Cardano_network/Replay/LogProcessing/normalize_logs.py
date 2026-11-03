@@ -61,13 +61,13 @@ KINDS = {
 }
 
 
-# Prototype Notify agency: RequestNext/Done travel from consumer to producer.
+# Prototype Notify agency: RequestNext/Quit are initiator; Canceled/Done responder.
 NOTIFY_KINDS = {}
-for _name in ('RequestNext', 'NotificationRequestNext', 'Done'):
-    _kind = 'RequestNext' if _name != 'Done' else 'Done'
+for _name in ('RequestNext', 'NotificationRequestNext', 'Quit'):
+    _kind = 'RequestNext' if _name != 'Quit' else 'Quit'
     NOTIFY_KINDS['Send.' + _name] = ('client', 'Send', _kind)
     NOTIFY_KINDS['Receive.' + _name] = ('server', 'Recv', _kind)
-for _name in ('BlockAnnouncement', 'BlockOffer', 'BlockTxsOffer', 'Votes'):
+for _name in ('BlockAnnouncement', 'BlockOffer', 'BlockTxsOffer', 'Votes', 'Canceled', 'Done'):
     NOTIFY_KINDS['Send.' + _name] = ('server', 'Send', _name)
     NOTIFY_KINDS['Receive.' + _name] = ('client', 'Recv', _name)
 
@@ -191,10 +191,10 @@ def normalize_notify(direction, kind, m):
     peer checker requires those records, even if a tracer configuration omits them.
     """
     expected = 'MsgLeiosNotificationRequestNext' if kind == 'RequestNext' else (
-        'MsgDone' if kind == 'Done' else 'MsgLeios' + kind)
+        'Msg' + kind if kind in ('Quit', 'Canceled', 'Done') else 'MsgLeios' + kind)
     if m.get('kind', expected) != expected:
         raise ValueError('Notify namespace disagrees with message kind')
-    if kind in ('RequestNext', 'Done'):
+    if kind in ('RequestNext', 'Quit', 'Canceled', 'Done'):
         fields = []
     elif kind == 'BlockAnnouncement':
         names = ('ebHash', 'ebSlot', 'ebBodySize')
@@ -568,6 +568,10 @@ def selftest_mixed():
     assert normalize_notify('Send', 'Votes', {'votes': [
         {'rbHash': 'AB', 'voterId': 2}, {'rbHash': 'CD', 'voterId': 4}]}) == 'Send Votes ab:2,cd:4'
     assert normalize_notify('Send', 'Votes', {'votes': []}) == 'Send Votes -'
+    assert normalize_notify('Recv', 'Canceled', {'kind': 'MsgCanceled'}) == 'Recv Canceled'
+    assert NOTIFY_KINDS['Send.Quit'] == ('client', 'Send', 'Quit')
+    assert NOTIFY_KINDS['Receive.Done'] == ('client', 'Recv', 'Done')
+    assert NOTIFY_KINDS['Send.Canceled'] == ('server', 'Send', 'Canceled')
     for kind, msg in [('BlockAnnouncement', {'ebHash': 'ab'}),
                       ('Votes', {'votes': {}}),
                       ('Votes', {'votes': [{'rbHash': 'ab', 'voterId': -1}]}),
@@ -582,7 +586,8 @@ def selftest_mixed():
         ln('Send.RequestNext', {}),
         line(LF + 'Send.BlockRequest', {'ebHash': 'ab', 'ebSlot': 3}),
         ln('Receive.BlockOffer', {'ebHash': 'ab', 'ebSlot': 3, 'ebBytesSize': 20}),
-        ln('Send.Done', {}),
+        ln('Send.Quit', {'kind': 'MsgQuit'}),
+        ln('Receive.Done', {'kind': 'MsgDone'}),
         line(LF + 'Receive.Block', {'ebHash': 'ab', 'ebBytesSize': 20}),
         ln('Send.NotificationRequestNext', {}),
         ln('Receive.BlockTxsOffer', {'ebHash': 'ab', 'ebSlot': 3}),
@@ -599,15 +604,29 @@ def selftest_mixed():
         assert text[0] == 'sessions notify:client fetch:client notify:client notify:server notify:client'
         assert text[1] == '0 LeiosNotify.Remote.Send.RequestNext'
         assert text[2] == '1 LeiosFetch.Remote.Send.BlockRequest ab 3'
-        assert text[6] == '2 LeiosNotify.Remote.Send.NotificationRequestNext'
-        assert [int(e.split()[0]) for e in text[1:]] == [0, 1, 0, 0, 1, 2, 2, 3, 3, 4]
+        assert text[7] == '2 LeiosNotify.Remote.Send.NotificationRequestNext'
+        assert [int(e.split()[0]) for e in text[1:]] == [0, 1, 0, 0, 0, 1, 2, 2, 3, 3, 4]
         assert [r[6] for r in rows] == ['done', 'mux', 'mux', 'mux', 'eof']
         assert (root / 'index.tsv').read_text().splitlines()[0].endswith('\tprotocol')
         for tag, row in enumerate(rows):
             path = root / ('%s-%s-%s.txt' % (row[0], row[7], row[2]))
             projection = [e.split(' ', 1)[1] for e in text[1:] if int(e.split()[0]) == tag]
             assert path.read_text().splitlines()[1:] == projection
-        assert len((root / 'interleaved.src').read_text().splitlines()) == 10
+        assert len((root / 'interleaved.src').read_text().splitlines()) == 11
+        # Quit/Canceled retain one generation until responder Done, at both roles.
+        for request_dir, reply_dir, role in [('Send', 'Receive', 'client'),
+                                            ('Receive', 'Send', 'server')]:
+            shutdown = [ln(request_dir + '.RequestNext', {}),
+                        ln(request_dir + '.Quit', {'kind': 'MsgQuit'}),
+                        ln(reply_dir + '.Canceled', {'kind': 'MsgCanceled'}),
+                        ln(reply_dir + '.Done', {'kind': 'MsgDone'}),
+                        ln(request_dir + '.RequestNext', {})]
+            target = root / ('shutdown-' + role)
+            shutdown_rows = split(shutdown, target, include_notify=True)
+            assert [(r[2], r[3], r[6]) for r in shutdown_rows] == [
+                (role, 4, 'done'), (role, 1, 'eof')]
+            assert (target / 'interleaved.txt').read_text().splitlines()[0] == (
+                'sessions notify:' + role + ' notify:' + role)
         # Missing requests stay missing; the adapter never repairs trace evidence.
         split([ln('Receive.BlockAnnouncement', {})], root / 'missing', include_notify=True)
         assert (root / 'missing/interleaved.txt').read_text() == 'sessions notify:client\n0 LeiosNotify.Remote.Receive.BlockAnnouncement -\n'

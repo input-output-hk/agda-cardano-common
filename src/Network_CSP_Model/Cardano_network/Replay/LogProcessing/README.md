@@ -27,6 +27,11 @@ TxSubmission2 also matches blocking style and ID-reply emptiness. See the
 input examples and proof scope. Normalization does not infer these fields
 when the raw tracer omits them.
 
+Notify uses the Quit/Canceled protocol: RequestNext and Quit are initiator
+messages; notifications, Canceled and Done are responder messages. Quit and
+Canceled retain the current session; Done closes it. No missing request
+observations are synthesized. See [shutdown validation](../../../../docs/notes/leiosnotify-quit-cancel.md).
+
 From this directory:
 
 ```sh
