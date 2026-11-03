@@ -214,10 +214,12 @@ ApiLFCar reqLFVotesRequest            = List Vote
 -- (110 measured), and two constructors would cost 220 for no modelling gain.  Layout mirrors
 -- `ApiLNTag`/`ApiLFTag`: the consumer's `…Send…`, the consumer's `…Recv…`, and — for Fetch —
 -- the producer's `…Req…` reports of the request it received off the wire.
+-- `lnpSendCanceled` (carrier ⊤) is the producer's trigger to answer the outstanding
+-- request with `MsgCanceled` (LeiosNotify StBusy → StIdle); no node logic offers it.
 -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
 data ApiLPTag : Set where
   lnpSendRequestNext lnpSendDone
-    lnpSendBlockAnnouncement lnpSendBlockOffer lnpSendBlockTxsOffer lnpSendVotes
+    lnpSendBlockAnnouncement lnpSendBlockOffer lnpSendBlockTxsOffer lnpSendVotes lnpSendCanceled
     lnpRecvBlockAnnouncement lnpRecvBlockOffer lnpRecvBlockTxsOffer lnpRecvVotes
     lfpSendBlockRequest lfpSendBlockTxsRequest lfpSendDone
     lfpSendBlock lfpSendBlockTxs lfpRecvBlock lfpRecvBlockTxs
@@ -233,6 +235,7 @@ ApiLPCar lnpSendBlockAnnouncement = Header
 ApiLPCar lnpSendBlockOffer        = (EBHash × LSlot) × Size
 ApiLPCar lnpSendBlockTxsOffer     = EBHash × LSlot
 ApiLPCar lnpSendVotes             = List VoteBlob
+ApiLPCar lnpSendCanceled          = ⊤
 ApiLPCar lnpRecvBlockAnnouncement = Header
 ApiLPCar lnpRecvBlockOffer        = (EBHash × LSlot) × Size
 ApiLPCar lnpRecvBlockTxsOffer     = EBHash × LSlot
@@ -982,7 +985,7 @@ instance
     go reqLFVotesRequest recvLFRangeBlock = no λ ()
     go reqLFVotesRequest reqLFBlockRequest = no λ ()
 
-  -- the nineteen prototype api channels are distinguishable
+  -- the twenty prototype api channels are distinguishable
   DecEq-ApiLPTag : DecEq ApiLPTag
   DecEq-ApiLPTag ._≟_ = go
     where
@@ -1348,6 +1351,45 @@ instance
     go lfpReqBlockTxsRequest lfpRecvBlock = no λ ()
     go lfpReqBlockTxsRequest lfpRecvBlockTxs = no λ ()
     go lfpReqBlockTxsRequest lfpReqBlockRequest = no λ ()
+    go lnpSendCanceled lnpSendCanceled = yes refl
+    go lnpSendCanceled lnpSendRequestNext = no λ ()
+    go lnpSendRequestNext lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpSendDone = no λ ()
+    go lnpSendDone lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpSendBlockAnnouncement = no λ ()
+    go lnpSendBlockAnnouncement lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpSendBlockOffer = no λ ()
+    go lnpSendBlockOffer lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpSendBlockTxsOffer = no λ ()
+    go lnpSendBlockTxsOffer lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpSendVotes = no λ ()
+    go lnpSendVotes lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpRecvBlockAnnouncement = no λ ()
+    go lnpRecvBlockAnnouncement lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpRecvBlockOffer = no λ ()
+    go lnpRecvBlockOffer lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpRecvBlockTxsOffer = no λ ()
+    go lnpRecvBlockTxsOffer lnpSendCanceled = no λ ()
+    go lnpSendCanceled lnpRecvVotes = no λ ()
+    go lnpRecvVotes lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpSendBlockRequest = no λ ()
+    go lfpSendBlockRequest lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpSendBlockTxsRequest = no λ ()
+    go lfpSendBlockTxsRequest lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpSendDone = no λ ()
+    go lfpSendDone lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpSendBlock = no λ ()
+    go lfpSendBlock lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpSendBlockTxs = no λ ()
+    go lfpSendBlockTxs lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpRecvBlock = no λ ()
+    go lfpRecvBlock lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpRecvBlockTxs = no λ ()
+    go lfpRecvBlockTxs lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpReqBlockRequest = no λ ()
+    go lfpReqBlockRequest lnpSendCanceled = no λ ()
+    go lnpSendCanceled lfpReqBlockTxsRequest = no λ ()
+    go lfpReqBlockTxsRequest lnpSendCanceled = no λ ()
 
   -- the twelve store channels are distinguishable; the four indexed families compare
   -- their index, `stGetBody` its hash

@@ -15,7 +15,7 @@
 -- announces on `apiLN … sendLNBlockAnnouncement`; the LeiosNotify
 -- PROTOTYPE logic `nodeLogicL` announces on `apiLP …
 -- lnpSendBlockAnnouncement` and on nothing else.  The two carry the same
--- `Header` (`Net.agda:169`/`:232`), so `announceOffer` gates them with one
+-- `Header` (`Net.agda:169`/`:234`), so `announceOffer` gates them with one
 -- `announceOK`, and `AnnounceInvariant.AnnEv` is the witness family that
 -- lets `Gated` and its whole congruence layer cover both at once.
 --
@@ -170,9 +170,9 @@ module Generic
           ; sendLNVotesOffer; recvLNBlockAnnouncement; recvLNBlockOffer
           ; recvLNBlockTxsOffer; recvLNVotesOffer
           -- the PROTOTYPE LeiosNotify/LeiosFetch api: `lnpSendBlockAnnouncement` is the
-          -- second gated channel, the other eighteen tags are free and enumerated
+          -- second gated channel, the other nineteen tags are free and enumerated
           ; lnpSendRequestNext; lnpSendDone; lnpSendBlockAnnouncement; lnpSendBlockOffer
-          ; lnpSendBlockTxsOffer; lnpSendVotes; lnpRecvBlockAnnouncement
+          ; lnpSendBlockTxsOffer; lnpSendVotes; lnpSendCanceled; lnpRecvBlockAnnouncement
           ; lnpRecvBlockOffer; lnpRecvBlockTxsOffer; lnpRecvVotes
           ; lfpSendBlockRequest; lfpSendBlockTxsRequest; lfpSendDone; lfpSendBlock
           ; lfpSendBlockTxs; lfpRecvBlock; lfpRecvBlockTxs; lfpReqBlockRequest
@@ -226,7 +226,7 @@ module Generic
   -- other event of every other channel is offered freely and leaves the state alone.
   -- BOTH announce channels are gated, and by the same test: the LeiosNotify api that
   -- `nodeLogic` announces on and the PROTOTYPE api that `nodeLogicL` announces on carry
-  -- the same `Header` (`Net.agda:169`/`:232`), so `announceOK` is reused verbatim.
+  -- the same `Header` (`Net.agda:169`/`:234`), so `announceOK` is reused verbatim.
   announceOffer : Forged → (at : AnyTypes (Net_Api Payload))
                 → ContinueType at
                     (Maybe (PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Forged))
@@ -448,6 +448,7 @@ module Generic
     menu-Ret ms (_ , apiLP _ _ lnpSendBlockOffer)        _ refl = ms , refl
     menu-Ret ms (_ , apiLP _ _ lnpSendBlockTxsOffer)     _ refl = ms , refl
     menu-Ret ms (_ , apiLP _ _ lnpSendVotes)             _ refl = ms , refl
+    menu-Ret ms (_ , apiLP _ _ lnpSendCanceled)          _ refl = ms , refl
     menu-Ret ms (_ , apiLP _ _ lnpRecvBlockAnnouncement) _ refl = ms , refl
     menu-Ret ms (_ , apiLP _ _ lnpRecvBlockOffer)        _ refl = ms , refl
     menu-Ret ms (_ , apiLP _ _ lnpRecvBlockTxsOffer)     _ refl = ms , refl

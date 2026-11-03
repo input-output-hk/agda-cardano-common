@@ -31,9 +31,10 @@ import Semantics.LTS {E = LNPEv} {I = ExtI LNPEv} as LTS
 data Peer : Set where
   consumer producer : Peer
 
--- The credit counter counts requests not yet answered on the wire.
+-- The counter tracks unanswered requests both before Quit and during draining.
 data State : Set where
   openN : ℕ → State
+  quitting : ℕ → State
   closed : State
 
 -- Four native notification payloads, without any log-summary encoding.
@@ -76,7 +77,6 @@ data Phase : Set where
   head loopBack : State → Phase
   sending : Mode → MessageLeiosNotifyP → State → Phase
   delivering : Notification → State → Phase
-  doneNotice : Phase
 
 -- The loop preserves the native alphabet and return type.
 Proc : Set₁
@@ -88,23 +88,39 @@ module Machine (k : ℕ) (l : Link) (d : Dir) where
   packet : Mode → MessageLeiosNotifyP → Payload
   packet md m = time₀ , md , length₀ , leiosNotifyP m
 
-  -- Independent step rules describe API selection, wire agency and delivery.
+  -- Phase rules retain request credits while Quit drains owed replies.
   data Step : Peer → Phase → LTS.Event → Phase → Set₁ where
     cRequest : ∀ {n} → (n <ᵇ k) ≡ true →
       Step consumer (head (openN n)) (LTS.evLabel _ (apiLPev l d lnpSendRequestNext) tt)
         (sending FromInitiator MsgLNPRequestNext (openN (suc n)))
-    cDone : Step consumer (head (openN 0)) (LTS.evLabel _ (apiLPev l d lnpSendDone) tt)
-      (sending FromInitiator MsgLNPDone closed)
+    cDone : ∀ {n} → Step consumer (head (openN n)) (LTS.evLabel _ (apiLPev l d lnpSendDone) tt)
+      (sending FromInitiator MsgLNPQuit (quitting n))
     cNotification : ∀ {n t md len} (m : Notification) →
       Step consumer (head (openN (suc n)))
         (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP (message m)))
         (delivering m (openN n))
+    cCanceled : ∀ {n t md len} → Step consumer (head (openN (suc n)))
+      (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP MsgLNPCanceled))
+      (loopBack (openN n))
+    cDrainNotification : ∀ {n t md len} (m : Notification) →
+      Step consumer (head (quitting (suc n)))
+        (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP (message m)))
+        (loopBack (quitting n))
+    cDrainCanceled : ∀ {n t md len} → Step consumer (head (quitting (suc n)))
+      (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP MsgLNPCanceled))
+      (loopBack (quitting n))
+    cFinished : ∀ {t md len} → Step consumer (head (quitting 0))
+      (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP MsgLNPDone))
+      (loopBack closed)
     sRequest : ∀ {n t md len} → (n <ᵇ k) ≡ true →
       Step producer (head (openN n))
         (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP MsgLNPRequestNext))
         (loopBack (openN (suc n)))
-    sDone : ∀ {t md len} → Step producer (head (openN 0))
-      (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP MsgLNPDone)) doneNotice
+    sQuit : ∀ {n t md len} → Step producer (head (openN n))
+      (LTS.evLabel _ (receiveLNP l d) (t , md , len , leiosNotifyP MsgLNPQuit))
+      (loopBack (quitting n))
+    sDone : Step producer (head (quitting 0)) (LTS.evLabel _ (doneLNP l d) tt)
+      (sending FromResponder MsgLNPDone closed)
     sAnnouncement : ∀ {n h} → Step producer (head (openN (suc n)))
       (LTS.evLabel _ (apiLPev l d lnpSendBlockAnnouncement) h)
       (sending FromResponder (message (announcement h)) (openN n))
@@ -117,11 +133,16 @@ module Machine (k : ℕ) (l : Link) (d : Dir) where
     sVotes : ∀ {n vs} → Step producer (head (openN (suc n)))
       (LTS.evLabel _ (apiLPev l d lnpSendVotes) vs)
       (sending FromResponder (message (votes vs)) (openN n))
+    sCanceled : ∀ {n} → Step producer (head (openN (suc n)))
+      (LTS.evLabel _ (apiLPev l d lnpSendCanceled) tt)
+      (sending FromResponder MsgLNPCanceled (openN n))
+    sDrainCanceled : ∀ {n} → Step producer (head (quitting (suc n)))
+      (LTS.evLabel _ (sendLNP l d) (packet FromResponder MsgLNPCanceled))
+      (loopBack (quitting n))
     sent : ∀ {r md m s} → Step r (sending md m s)
       (LTS.evLabel _ (sendLNP l d) (packet md m)) (loopBack s)
     delivered : ∀ {r m s} → Step r (delivering m s)
       (LTS.evLabel _ (apiLPev l d (tag m)) (value m)) (loopBack s)
-    noticed : ∀ {r} → Step r doneNotice (LTS.evLabel _ (doneLNP l d) tt) (loopBack closed)
 
   -- Only returning to the next menu is silent, as in the original iter peers.
   data Tau : Phase → Phase → Set where
@@ -148,12 +169,10 @@ module Machine (k : ℕ) (l : Link) (d : Dir) where
   ... | no _ = nothing
   ... | yes refl = checked ((l′ ≟ l) ×-dec ((d′ ≟ d) ×-dec (_≟_ ⦃ deliveryEq m ⦄ a (value m))))
     λ { (refl , refl , refl) → delivered }
-  select r doneNotice (LTS.evLabel _ (doneLNP l′ d′) _) =
-    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → noticed }
   select consumer (head (openN n)) (LTS.evLabel _ (apiLPev l′ d′ lnpSendRequestNext) _) =
     checked ((l′ ≟ l) ×-dec ((d′ ≟ d) ×-dec ((n <ᵇ k) Bool.≟ true)))
       λ { (refl , refl , credit) → cRequest credit }
-  select consumer (head (openN 0)) (LTS.evLabel _ (apiLPev l′ d′ lnpSendDone) _) =
+  select consumer (head (openN n)) (LTS.evLabel _ (apiLPev l′ d′ lnpSendDone) _) =
     checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cDone }
   select consumer (head (openN (suc n)))
     (LTS.evLabel _ (receiveLNP l′ d′) (t , md , len , leiosNotifyP (MsgLNPBlockAnnouncement h))) =
@@ -171,9 +190,9 @@ module Machine (k : ℕ) (l : Link) (d : Dir) where
     (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPRequestNext)) =
     checked ((l′ ≟ l) ×-dec ((d′ ≟ d) ×-dec ((n <ᵇ k) Bool.≟ true)))
       λ { (refl , refl , credit) → sRequest credit }
-  select producer (head (openN 0))
-    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPDone)) =
-    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sDone }
+  select producer (head (openN n))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPQuit)) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sQuit }
   select producer (head (openN (suc n))) (LTS.evLabel _ (apiLPev l′ d′ lnpSendBlockAnnouncement) h) =
     checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sAnnouncement }
   select producer (head (openN (suc n))) (LTS.evLabel _ (apiLPev l′ d′ lnpSendBlockOffer) (pt , sz)) =
@@ -182,6 +201,34 @@ module Machine (k : ℕ) (l : Link) (d : Dir) where
     checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sTxsOffer }
   select producer (head (openN (suc n))) (LTS.evLabel _ (apiLPev l′ d′ lnpSendVotes) vs) =
     checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sVotes }
+  select consumer (head (openN (suc n)))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPCanceled)) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cCanceled }
+  select consumer (head (quitting 0))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPDone)) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cFinished }
+  select consumer (head (quitting (suc n)))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP MsgLNPCanceled)) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cDrainCanceled }
+  select consumer (head (quitting (suc n)))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP (MsgLNPBlockAnnouncement h))) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cDrainNotification (announcement h) }
+  select consumer (head (quitting (suc n)))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP (MsgLNPBlockOffer pt sz))) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cDrainNotification (offer pt sz) }
+  select consumer (head (quitting (suc n)))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP (MsgLNPBlockTxsOffer pt))) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cDrainNotification (txsOffer pt) }
+  select consumer (head (quitting (suc n)))
+    (LTS.evLabel _ (receiveLNP l′ d′) (_ , _ , _ , leiosNotifyP (MsgLNPVotes vs))) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → cDrainNotification (votes vs) }
+  select producer (head (openN (suc n))) (LTS.evLabel _ (apiLPev l′ d′ lnpSendCanceled) _) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sCanceled }
+  select producer (head (quitting 0)) (LTS.evLabel _ (doneLNP l′ d′) _) =
+    checked ((l′ ≟ l) ×-dec (d′ ≟ d)) λ { (refl , refl) → sDone }
+  select producer (head (quitting (suc n))) (LTS.evLabel _ (sendLNP l′ d′) a) =
+    checked {t = loopBack (quitting n)} ((l′ ≟ l) ×-dec ((d′ ≟ d) ×-dec (a ≟ packet FromResponder MsgLNPCanceled)))
+      λ { (refl , refl , refl) → sDrainCanceled }
   select _ _ _ = nothing
 
   -- Erase only the carried proof to obtain the exact executable target lookup.
@@ -198,7 +245,7 @@ module Machine (k : ℕ) (l : Link) (d : Dir) where
   PTree.force (tree r s@(head (openN _))) = react (offers r s) (λ _ _ → nothing)
   PTree.force (tree r s@(sending _ _ _)) = react (offers r s) (λ _ _ → nothing)
   PTree.force (tree r s@(delivering _ _)) = react (offers r s) (λ _ _ → nothing)
-  PTree.force (tree r doneNotice) = react (offers r doneNotice) (λ _ _ → nothing)
+  PTree.force (tree r s@(head (quitting _))) = react (offers r s) (λ _ _ → nothing)
 
   -- A visible continuation is offered exactly when its certified phase update succeeds.
   offers r s (X , ch) a with next r s (LTS.evLabel X ch a)

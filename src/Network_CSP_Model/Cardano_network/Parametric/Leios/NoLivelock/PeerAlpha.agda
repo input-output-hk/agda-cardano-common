@@ -375,6 +375,8 @@ CvLF e = ((wI (ww gTQ) e ≡ wIn TxsReq e + ℓIn TxsReq e) × (wO (ww gTQ) e �
 ℓ0v (leiosNotifyP (MsgLNPBlockTxsOffer _))      _ = refl
 ℓ0v (leiosNotifyP (MsgLNPVotes _))              ()
 ℓ0v (leiosNotifyP MsgLNPDone)                   _ = refl
+ℓ0v (leiosNotifyP MsgLNPQuit)                   _ = refl
+ℓ0v (leiosNotifyP MsgLNPCanceled)               _ = refl
 
 -- bitmaps come only with closure requests
 ℓ0q : ∀ m → isK TxsReq m ≡ 0 → ℓK TxsReq m ≡ 0

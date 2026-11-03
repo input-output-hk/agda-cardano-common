@@ -247,7 +247,7 @@ module Generic
   -- THE ANNOUNCEMENT CHANNELS, as a witness family.  `nodeLogic` announces on the
   -- LeiosNotify api (`apiLN … sendLNBlockAnnouncement`); `nodeLogicL` announces on the
   -- PROTOTYPE api (`apiLP … lnpSendBlockAnnouncement`) and on nothing else — it contains
-  -- no `apiLN` at all.  Both channels carry a `Header` (`Net.agda:169`/`:232`), so both
+  -- no `apiLN` at all.  Both channels carry a `Header` (`Net.agda:169`/`:234`), so both
   -- are gated by the same `announceOK` and one family covers them.  Indexing `Gated` by
   -- a witness rather than giving the carrier one field per channel is what keeps the
   -- congruences one clause each: a third announce channel costs one constructor here.

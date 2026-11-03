@@ -81,7 +81,7 @@ module Generic
           ; recvLNBlockTxsOffer; recvLNVotesOffer
           -- the PROTOTYPE api: `lnpSendBlockAnnouncement` is the second gated channel
           ; lnpSendRequestNext; lnpSendDone; lnpSendBlockAnnouncement; lnpSendBlockOffer
-          ; lnpSendBlockTxsOffer; lnpSendVotes; lnpRecvBlockAnnouncement
+          ; lnpSendBlockTxsOffer; lnpSendVotes; lnpSendCanceled; lnpRecvBlockAnnouncement
           ; lnpRecvBlockOffer; lnpRecvBlockTxsOffer; lnpRecvVotes
           ; lfpSendBlockRequest; lfpSendBlockTxsRequest; lfpSendDone; lfpSendBlock
           ; lfpSendBlockTxs; lfpRecvBlock; lfpRecvBlockTxs; lfpReqBlockRequest
@@ -439,6 +439,7 @@ module Generic
   menuStep {ms} s (_ , apiLP _ _ lnpSendBlockOffer)        a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLP _ _ lnpSendBlockTxsOffer)     a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLP _ _ lnpSendVotes)             a st = ms , refl , onOther′ s st tt
+  menuStep {ms} s (_ , apiLP _ _ lnpSendCanceled)          a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLP _ _ lnpRecvBlockAnnouncement) a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLP _ _ lnpRecvBlockOffer)        a st = ms , refl , onOther′ s st tt
   menuStep {ms} s (_ , apiLP _ _ lnpRecvBlockTxsOffer)     a st = ms , refl , onOther′ s st tt

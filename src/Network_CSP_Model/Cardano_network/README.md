@@ -60,7 +60,7 @@ depth-parameterised client with FIFO response handling and silent collection,
 paired with the existing sequential server. It is not yet selected by the node
 bundles. Role-selected and interleaved client/server control checkers have
 bidirectional trace bridges to their existing peers (every client depth;
-completeness explicitly takes an inhabited block value). See implementation and scope (source repository: `docs/notes/blockfetch-pipeline.md`)
+completeness explicitly takes an inhabited block value). See [implementation and scope](../../docs/notes/blockfetch-pipeline.md)
 for the pinned prototype sources, tests, and transport limitations.
 
 Bounded prototype Notify peers are available separately in
@@ -68,10 +68,11 @@ Bounded prototype Notify peers are available separately in
 with explicit pending-output, delivery and loop-back phases. Their local
 wire-control language is proved equivalent to bounded Notify replay for any
 Params, depth and endpoint; completeness states native payload-inhabitance
-premises. Depth one has proved observed control-trace equivalence with the
-original peers at the existing concrete replay endpoint. The original
-`LeiosNotifyP` peers and node bundle remain depth one. See the
-Notify pipeline bridge note (source repository: `docs/notes/leiosnotify-pipeline-bridge.md`)
+premises. With Quit/Canceled, alternating traces embed in capacity one;
+the converse fails because the pipeline permits busy Quit. The original
+`LeiosNotifyP` peers and node bundle remain alternating. Both models now use
+initiator Quit and responder Done, with Canceled consuming one request. See the
+[Notify pipeline bridge note](../../docs/notes/leiosnotify-pipeline-bridge.md)
 for proof scope, paired composition and the remaining exact-log obligations.
 
 Exact-field paired Notify correspondence is now proved by
@@ -79,7 +80,7 @@ Exact-field paired Notify correspondence is now proved by
 `LeiosNotifyExactParams` instance, for every bound. It covers both exact merged
 traces and the existential merge of two endpoint inputs. The retained fields
 include announcement metadata, sizes and ordered vote summaries. See the
-exact paired bridge note (source repository: `docs/notes/leiosnotify-exact-paired-bridge.md`)
+[exact paired bridge note](../../docs/notes/leiosnotify-exact-paired-bridge.md)
 for the concrete representation boundary and remaining Fetch obligations.
 
 ## Scenario / system — `FourNode/`
