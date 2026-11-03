@@ -910,3 +910,25 @@ physical backing and a mismatched result. This does not infer body return,
 publication or Async availability/outcome. See
 [Supervision increment 34](Supervision.md#thirty-fourth-increment-initialized-local-result-agreement)
 for theorem scope, proof-layer performance repairs and validation.
+
+`Properties.ServerPeersResults.Observations` extends this agreement to the PSA
+read selectors and actual initialized poll/job-wait/monitor-wait events. Live
+local reads carry the selected generation's physical result; Shutdown carries
+an empty local cell and the actual non-ready mux status. Cached returned and
+retired actions carry their exact published constant instead. Original run
+membership survives protocol sorting and first/all/temperature selection.
+Physical provenance for initialized cached constants is supplied by the cache
+invariant below. See
+[Supervision increment 35](Supervision.md#thirty-fifth-increment-psa-observation-provenance)
+for theorem scope and validation status.
+
+`Properties.ServerPeersCache.Frontend.initialized-cache` backs every stored
+actual/published result on initialized peers with a retained committed call.
+`initialized-actual` and `initialized-published` join that witness to the exact
+physical capture; `initialized-pick-local` covers both constant and live branches
+of the reader certificates when the peer is the actual before-state peer.
+Restart retains historical witnesses rather than identifying a constant with the
+latest call. Initialization derives the invariant without a cache-coherence or
+supply premise. All acceptance stays in `Negative/ServerPeers.agda`. See
+[Supervision increment 36](Supervision.md#thirty-sixth-increment-initialized-peer-cache-provenance)
+for the theorem scope and validation evidence.

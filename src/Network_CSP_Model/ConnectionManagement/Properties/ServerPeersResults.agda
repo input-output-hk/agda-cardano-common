@@ -511,3 +511,366 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
   ... | j , threaded , job , seen , captured with Identity.initialized-soundness initialized path rid r j found threaded
   ...   | identified , located , matches with just-injective (trans (sym seen) located)
   ...     | refl = j , threaded , job , seen , matches , captured
+
+-- Reader provenance keeps constant published actions separate from live cells.
+-- A live local result has its exact generation's physical capture; Shutdown
+-- instead certifies an empty local cell and the actual non-ready mux status.
+module Observations (canInitiate : HandleId → ℕ → Bool) where
+  open import ConnectionManagement.Domain using (PeerConnectionId)
+  open import ConnectionManagement.Store using (Store; lookup)
+  open import ConnectionManagement.IGTypes using (RunResult; Temperature; hot; warm; established; number)
+  open import Data.List using (List; _++_)
+  open import Data.List.Membership.Propositional using (_∈_)
+  open import Data.List.Relation.Unary.Any using (here; there)
+  open import Data.List.Relation.Unary.All as All using (All)
+  import Data.List.Relation.Unary.All.Properties as AllFacts
+  import Data.List.Relation.Unary.AllPairs as Pairs
+  open import Data.Unit using (⊤; tt)
+  open import Data.Sum using (_⊎_; inj₁; inj₂)
+  open import Relation.Nullary using (yes; no; does)
+  open import Class.DecEq using (_≟_)
+  open import Relation.Binary.PropositionalEquality using (sym; trans; subst)
+  import Data.Nat as Nat
+  import ConnectionManagement.Properties.Stores as Stores
+  import ConnectionManagement.Rules.MuxJobTypes as Types
+  import ConnectionManagement.Rules.MuxRuntime as Mux
+  import ConnectionManagement.Rules.PeerActions as Peer
+  import ConnectionManagement.Rules.PeerJobs as J
+  import ConnectionManagement.Rules.Pruning as Pruning
+  import ConnectionManagement.MuxPublicationUnwind as Publication
+  private
+    module T = K.Protocols canInitiate
+    module N = Publication isBearerClosed
+    module P = N.P
+    module U = N.U
+    module Cells = Facts.Protocols.CommittedCells isBearerClosed isIOManagerError canInitiate
+
+  -- The initializer and enabled prefix derive both premises of live reads.
+  Agreement : T.Runtime → RunId → T.Call → RunResult → Set
+  Agreement s rid r result = Σ JobId (λ j → T.thread r ≡ just j ×
+    Σ Types.ProtocolJob (λ job → lookup j (jobs (T.base s)) ≡ just job ×
+      ResultPhysical.CaptureIdentity.keyOf job ≡ ResultPhysical.CaptureIdentity.key
+        (T.owner r) (T.mux r) Mux.initiatorJob (number (T.descriptor r)) rid ×
+      Types.phase job ≡ Types.resultCaptured result))
+  record Readable (s : T.Runtime) : Set where
+    constructor readable
+    field unique : Stores.UniqueKeys (T.calls (T.front s))
+          sound : ∀ rid r result → lookup rid (T.calls (T.front s)) ≡ just r →
+            T.value r ≡ just result → Agreement s rid r result
+  initialized-readable : ∀ {c g start as s} → T.initialize c g ≡ just start → T.Runs start as s → Readable s
+  initialized-readable {c} {g} initialized path = readable
+    (Cells.run-unique path (Cells.initial-unique c g initialized))
+    (Frontend.initialized-agreement canInitiate initialized path)
+
+  -- latest searches by owner/number, whereas observation uses the selected key.
+  latest-info : ∀ w n (xs : Store RunId T.Call) rid r → Stores.UniqueKeys xs →
+    T.latest w n xs ≡ just (rid , r) →
+    lookup rid xs ≡ just r × T.owner r ≡ w × number (T.descriptor r) ≡ n
+  latest-info w n [] rid r unique eq = case eq of λ ()
+  latest-info w n ((q , head) ∷ xs) rid r (apart Pairs.∷ unique) eq
+    with w ≟ T.owner head | n Nat.≟ number (T.descriptor head)
+  ... | yes owned | yes numbered = case just-injective eq of λ { refl →
+    Stores.lookup-head q head xs , sym owned , sym numbered }
+  ... | yes _ | no _ with latest-info w n xs rid r unique eq
+  ...   | found , owned , numbered = Cells.tail-lookup rid r q head xs (apart Pairs.∷ unique) found , owned , numbered
+  latest-info w n ((q , head) ∷ xs) rid r (apart Pairs.∷ unique) eq | no _ | _
+    with latest-info w n xs rid r unique eq
+  ... | found , owned , numbered = Cells.tail-lookup rid r q head xs (apart Pairs.∷ unique) found , owned , numbered
+
+  data NonReady : Mux.Status → Set where
+    stopping : NonReady Mux.stopping
+    stopped : NonReady Mux.stopped
+    failed : ∀ err → NonReady (Mux.failed err)
+  record Fallback (s : T.Runtime) (r : T.Call) (status : Mux.Status) : Set where
+    constructor fallback
+    field empty : T.value r ≡ nothing
+          actualMux : Mux.Mux
+          foundMux : P.muxAt (T.mux r) (T.physical (T.base s)) ≡ just actualMux
+          actualStatus : Mux.status actualMux ≡ status
+          nonReady : NonReady status
+  data Outcome (s : T.Runtime) (rid : RunId) (r : T.Call) : T.Observation → Set where
+    committed : ∀ result → T.value r ≡ just result → Agreement s rid r result → Outcome s rid r (T.localResult result)
+    shutdown : ∀ status → Fallback s r status → Outcome s rid r (T.shutdownResult status)
+  observe-proof : ∀ rid r s observation → Readable s → lookup rid (T.calls (T.front s)) ≡ just r →
+    T.observe rid s ≡ just observation → Outcome s rid r observation
+  observe-proof rid r s observation valid found eq rewrite found with T.value r in filled
+  ... | just result = case just-injective eq of λ { refl → committed result filled (Readable.sound valid rid r result found filled) }
+  ... | nothing with P.muxAt (T.mux r) (T.physical (T.base s)) in located
+  ...   | nothing = case eq of λ ()
+  ...   | just m with Mux.status m in status
+  ...     | Mux.ready = case eq of λ ()
+  ...     | Mux.stopping = case just-injective eq of λ { refl → shutdown _ (fallback filled m located status stopping) }
+  ...     | Mux.stopped = case just-injective eq of λ { refl → shutdown _ (fallback filled m located status stopped) }
+  ...     | Mux.failed err = case just-injective eq of λ { refl → shutdown _ (fallback filled m located status (failed err)) }
+
+  record Selection (ref : PeerConnectionId) (peer : Peer.Peer) (run : Peer.ProtocolRun)
+    (s : T.Runtime) (rid : RunId) (r : T.Call) : Set where
+    constructor selection
+    field controller : WorkerId
+          published : Peer.published run ≡ Peer.running
+          ownerFound : T.ownerFor peer (U.frames (P.base (T.physical (T.base s)))) ≡ just controller
+          latestFound : T.latest controller (number (Peer.descriptor run)) (T.calls (T.front s)) ≡ just (rid , r)
+          callFound : lookup rid (T.calls (T.front s)) ≡ just r
+          sameOwner : T.owner r ≡ controller
+          sameNumber : number (T.descriptor r) ≡ number (Peer.descriptor run)
+          samePeer : T.peerRef r ≡ ref
+          sameHandle : T.handleRef r ≡ Peer.handleRef peer
+          sameMux : T.mux r ≡ Peer.muxRef peer
+  data Origin (ref : PeerConnectionId) (peer : Peer.Peer) (run : Peer.ProtocolRun) (s : T.Runtime) : T.Observation → Set where
+    cached : ∀ result → Peer.published run ≡ Peer.returned result → Origin ref peer run s (T.localResult result)
+    retired : ∀ result → Peer.published run ≡ Peer.notRunning result → Origin ref peer run s (T.localResult result)
+    generation : ∀ rid r {observation} → Selection ref peer run s rid r → Outcome s rid r observation → Origin ref peer run s observation
+  Certificate : ∀ ref peer run s → T.ReadCell → Set
+  Certificate ref peer run s T.never = Peer.published run ≡ Peer.notStarted
+  Certificate ref peer run s (T.retired result) = Peer.published run ≡ Peer.notRunning result
+  Certificate ref peer run s T.blocked = ⊤
+  Certificate ref peer run s (T.available observation) = Origin ref peer run s observation
+  published-certificate : ∀ ref peer run s → Readable s → Certificate ref peer run s (T.publishedCell ref peer run s)
+  published-certificate ref peer run s valid with Peer.published run in published
+  ... | Peer.notStarted = published
+  ... | Peer.notRunning result = published
+  ... | Peer.returned result = cached result published
+  ... | Peer.running with T.ownerFor peer (U.frames (P.base (T.physical (T.base s)))) in owner
+  ...   | nothing = tt
+  ...   | just w with T.latest w (number (Peer.descriptor run)) (T.calls (T.front s)) in latest
+  ...     | nothing = tt
+  ...     | just (rid , r) with T.peerRef r ≟ ref | T.handleRef r ≟ Peer.handleRef peer | T.mux r ≟ Peer.muxRef peer
+  ...       | yes samePeer | yes sameHandle | yes sameMux with T.observe rid s in observed
+  ...         | nothing = tt
+  ...         | just observation with latest-info w (number (Peer.descriptor run)) (T.calls (T.front s)) rid r (Readable.unique valid) latest
+  ...           | found , sameOwner , sameNumber = generation rid r
+    (selection w published owner latest found sameOwner sameNumber samePeer sameHandle sameMux)
+    (observe-proof rid r s observation valid found observed)
+  published-certificate ref peer run s valid | Peer.running | just w | just (rid , r) | yes _ | yes _ | no _ = tt
+  published-certificate ref peer run s valid | Peer.running | just w | just (rid , r) | yes _ | no _ | _ = tt
+  published-certificate ref peer run s valid | Peer.running | just w | just (rid , r) | no _ | _ | _ = tt
+  available-origin : ∀ ref peer run s observation → Readable s →
+    T.publishedCell ref peer run s ≡ T.available observation → Origin ref peer run s observation
+  available-origin ref peer run s observation valid eq = subst (Certificate ref peer run s) eq (published-certificate ref peer run s valid)
+  retired-origin : ∀ ref peer run s result → Readable s →
+    T.publishedCell ref peer run s ≡ T.retired result → Origin ref peer run s (T.localResult result)
+  retired-origin ref peer run s result valid eq = retired result
+    (subst (Certificate ref peer run s) eq (published-certificate ref peer run s valid))
+
+  -- Every returned pair names an actual run in the selected temperature bundle.
+  record Picked (t : Temperature) (ref : PeerConnectionId) (peer : Peer.Peer)
+    (runs : List Peer.ProtocolRun) (s : T.Runtime) (n : ℕ) (observation : T.Observation) : Set where
+    constructor picked
+    field run : Peer.ProtocolRun
+          member : run ∈ runs
+          belongs : Peer.belongs t run ≡ true
+          numbered : number (Peer.descriptor run) ≡ n
+          origin : Origin ref peer run s observation
+  lift-picked : ∀ {t ref peer xs ys s n observation} → (∀ {run} → run ∈ xs → run ∈ ys) →
+    Picked t ref peer xs s n observation → Picked t ref peer ys s n observation
+  lift-picked lift (picked run member belongs numbered origin) = picked run (lift member) belongs numbered origin
+  first-cells : ∀ t ref peer runs s n observation → Readable s →
+    T.firstCells t ref peer runs s ≡ just (n , observation) → Picked t ref peer runs s n observation
+  first-cells t ref peer [] s n observation valid eq = case eq of λ ()
+  first-cells t ref peer (run ∷ runs) s n observation valid eq with Peer.belongs t run in belongs
+  ... | false = lift-picked there (first-cells t ref peer runs s n observation valid eq)
+  ... | true with T.publishedCell ref peer run s in cell
+  ...   | T.never = case eq of λ ()
+  ...   | T.retired _ = case eq of λ ()
+  ...   | T.blocked = lift-picked there (first-cells t ref peer runs s n observation valid eq)
+  ...   | T.available result = case just-injective eq of λ { refl →
+    picked run (here refl) belongs refl (available-origin ref peer run s result valid cell) }
+  all-cells : ∀ t ref peer runs s results → Readable s → T.allCells t ref peer runs s ≡ just results →
+    All (λ { (n , observation) → Picked t ref peer runs s n observation }) results
+  all-cells t ref peer [] s results valid eq = case just-injective eq of λ { refl → All.[] }
+  all-cells t ref peer (run ∷ runs) s results valid eq with Peer.belongs t run in belongs
+  ... | false = All.map (lift-picked there) (all-cells t ref peer runs s results valid eq)
+  ... | true with T.publishedCell ref peer run s in cell | T.allCells t ref peer runs s in tail
+  ...   | T.never | rest = All.map (lift-picked there) (all-cells t ref peer runs s results valid (trans tail eq))
+  ...   | T.retired result | just rest = case just-injective eq of λ { refl →
+    picked run (here refl) belongs refl (retired-origin ref peer run s result valid cell) All.∷
+    All.map (lift-picked there) (all-cells t ref peer runs s rest valid tail) }
+  ...   | T.available result | just rest = case just-injective eq of λ { refl →
+    picked run (here refl) belongs refl (available-origin ref peer run s result valid cell) All.∷
+    All.map (lift-picked there) (all-cells t ref peer runs s rest valid tail) }
+  ...   | T.retired _ | nothing = case eq of λ ()
+  ...   | T.available _ | nothing = case eq of λ ()
+  ...   | T.blocked | _ = case eq of λ ()
+
+  -- The local insertion sort changes order, never the provenance of a run.
+  insert-member : ∀ {A : Set} less (x : A) xs {r} → r ∈ Pruning.insertBy less x xs → r ≡ x ⊎ r ∈ xs
+  insert-member less x [] (here eq) = inj₁ eq
+  insert-member less x [] (there ())
+  insert-member less x (y ∷ ys) member with less y x
+  ... | false with member
+  ...   | here eq = inj₁ eq
+  ...   | there rest = inj₂ rest
+  insert-member less x (y ∷ ys) member | true with member
+  ... | here eq = inj₂ (here eq)
+  ... | there rest with insert-member less x ys rest
+  ...   | inj₁ eq = inj₁ eq
+  ...   | inj₂ found = inj₂ (there found)
+  sort-member : ∀ {A : Set} less (xs : List A) {r} → r ∈ Pruning.sortBy less xs → r ∈ xs
+  sort-member less [] ()
+  sort-member less (x ∷ xs) member with insert-member less x (Pruning.sortBy less xs) member
+  ... | inj₁ eq = here eq
+  ... | inj₂ found = there (sort-member less xs found)
+  by-number : Peer.ProtocolRun → Peer.ProtocolRun → Bool
+  by-number a b = does (Nat._<?_ (number (Peer.descriptor a)) (number (Peer.descriptor b)))
+  ordered : Peer.Peer → List Peer.ProtocolRun
+  ordered peer = Pruning.sortBy by-number (Peer.runs peer)
+  Pick : Temperature → PeerConnectionId → Peer.Peer → T.Runtime → ℕ → T.Observation → Set
+  Pick t ref peer s = Picked t ref peer (Peer.runs peer) s
+  first-proof : ∀ t ref peer s n observation → Readable s →
+    T.firstPublished t ref peer s ≡ just (n , observation) → Pick t ref peer s n observation
+  first-proof t ref peer s n observation valid eq = lift-picked (sort-member by-number (Peer.runs peer))
+    (first-cells t ref peer (ordered peer) s n observation valid eq)
+  all-proof : ∀ t ref peer s results → Readable s → T.allPublished t ref peer s ≡ just results →
+    All (λ { (n , observation) → Pick t ref peer s n observation }) results
+  all-proof t ref peer s results valid eq = All.map (lift-picked (sort-member by-number (Peer.runs peer)))
+    (all-cells t ref peer (ordered peer) s results valid eq)
+  AnyPick : PeerConnectionId → Peer.Peer → T.Runtime → ℕ → T.Observation → Set
+  AnyPick ref peer s n observation = Σ Temperature (λ t → Pick t ref peer s n observation)
+  peer-proof : ∀ ref peer s kind observation → Readable s → T.firstPeer ref peer s ≡ just (kind , observation) →
+    Σ ℕ (λ n → AnyPick ref peer s n observation)
+  peer-proof ref peer s kind observation valid eq with T.firstPublished established ref peer s in chosen
+  ... | just (n , result) = case just-injective eq of λ { refl → n , established , first-proof established ref peer s n result valid chosen }
+  ... | nothing with T.firstPublished warm ref peer s in chosen
+  ...   | just (n , result) = case just-injective eq of λ { refl → n , warm , first-proof warm ref peer s n result valid chosen }
+  ...   | nothing with T.firstPublished hot ref peer s in chosen
+  ...     | just (n , result) = case just-injective eq of λ { refl → n , hot , first-proof hot ref peer s n result valid chosen }
+  ...     | nothing = case eq of λ ()
+  wait-proof : ∀ f peer s results → Readable s → T.waitResults f peer s ≡ just results →
+    All (λ { (n , observation) → AnyPick (J.connectionRef f) peer s n observation }) results
+  wait-proof f peer s results valid eq with J.pc f
+  ... | J.awaitHot = All.map (λ picked → hot , picked) (all-proof hot (J.connectionRef f) peer s results valid eq)
+  ... | J.awaitAll with T.allPublished hot (J.connectionRef f) peer s in hs |
+    T.allPublished warm (J.connectionRef f) peer s in ws | T.allPublished established (J.connectionRef f) peer s in es
+  ...   | just h | just w | just e = case just-injective eq of λ { refl → AllFacts.++⁺
+    (All.map (λ picked → hot , picked) (all-proof hot (J.connectionRef f) peer s h valid hs))
+    (AllFacts.++⁺ (All.map (λ picked → warm , picked) (all-proof warm (J.connectionRef f) peer s w valid ws))
+      (All.map (λ picked → established , picked) (all-proof established (J.connectionRef f) peer s e valid es))) }
+  ...   | nothing | _ | _ = case eq of λ ()
+  ...   | just _ | nothing | _ = case eq of λ ()
+  ...   | just _ | just _ | nothing = case eq of λ ()
+  wait-proof f peer s results valid eq | J.begin = case eq of λ ()
+  wait-proof f peer s results valid eq | J.awaitAcquire = case eq of λ ()
+  wait-proof f peer s results valid eq | J.startBundle _ _ = case eq of λ ()
+  wait-proof f peer s results valid eq | J.publishBundle _ = case eq of λ ()
+  wait-proof f peer s results valid eq | J.markWarm = case eq of λ ()
+  wait-proof f peer s results valid eq | J.forkMonitor = case eq of λ ()
+  wait-proof f peer s results valid eq | J.finishActivation = case eq of λ ()
+  wait-proof f peer s results valid eq | J.callRelease = case eq of λ ()
+  wait-proof f peer s results valid eq | J.awaitRelease = case eq of λ ()
+  wait-proof f peer s results valid eq | J.delayFailure = case eq of λ ()
+  wait-proof f peer s results valid eq | J.awaitCold _ = case eq of λ ()
+  wait-proof f peer s results valid eq | J.complete _ = case eq of λ ()
+  wait-proof f peer s results valid eq | J.acquirePolicy _ = case eq of λ ()
+  wait-proof f peer s results valid eq | J.nodeDelivery _ = case eq of λ ()
+  wait-proof f peer s results valid eq | J.nodeRethrow _ = case eq of λ ()
+
+  import ConnectionManagement.Subsystem as Sub
+  peerRows : T.Runtime → Peer.Runtime
+  peerRows s = C.SubContext.peers (C.subsystem (K.context (T.base s)))
+  monitorRows : T.Runtime → Store PeerConnectionId J.Frame
+  monitorRows s = C.SubContext.monitors (C.subsystem (K.context (T.base s)))
+  jobRows : T.Runtime → Store JobId Sub.JobFrame
+  jobRows s = C.SubContext.jobs (C.subsystem (K.context (T.base s)))
+
+  -- Cold/demotion and existing-followup polls do not select a new result.
+  data PollSource (ref : PeerConnectionId) (peer : Peer.Peer) (s : T.Runtime) : Set where
+    cold : Peer.status peer ≡ Peer.peerCold → PollSource ref peer s
+    cooling : Peer.status peer ≡ Peer.peerCooling → PollSource ref peer s
+    following : ∀ f → lookup ref (monitorRows s) ≡ just f → PollSource ref peer s
+    observed : ∀ kind observation → lookup ref (monitorRows s) ≡ nothing →
+      T.firstPeer ref peer s ≡ just (kind , observation) →
+      Σ ℕ (λ n → AnyPick ref peer s n observation) → PollSource ref peer s
+  record PollRead (ref : PeerConnectionId) (w : WorkerId) (s : T.Runtime) : Set where
+    constructor pollRead
+    field peer : Peer.Peer
+          foundPeer : lookup ref (peerRows s) ≡ just peer
+          allowed : T.readAllowed (Sub.pollPeer ref w) (T.base s) ≡ true
+          source : PollSource ref peer s
+  poll-plan-proof : ∀ ref w s plan → Readable s → T.pollResultsPlan ref w s ≡ just plan → PollRead ref w s
+  poll-plan-proof ref w s plan valid eq with T.readAllowed (Sub.pollPeer ref w) (T.base s) in allowed |
+    lookup ref (peerRows s) in found | lookup ref (monitorRows s) in monitor
+  ... | true | just peer | nothing with Peer.status peer in status
+  ...   | Peer.peerCold = pollRead peer found allowed (cold status)
+  ...   | Peer.peerCooling = pollRead peer found allowed (cooling status)
+  ...   | Peer.peerWarm with T.firstPeer ref peer s in selected
+  ...     | nothing = case eq of λ ()
+  ...     | just (kind , observation) = pollRead peer found allowed
+    (observed kind observation monitor selected (peer-proof ref peer s kind observation valid selected))
+  poll-plan-proof ref w s plan valid eq | true | just peer | nothing | Peer.peerHot
+    with T.firstPeer ref peer s in selected
+  ... | nothing = case eq of λ ()
+  ... | just (kind , observation) = pollRead peer found allowed
+    (observed kind observation monitor selected (peer-proof ref peer s kind observation valid selected))
+  poll-plan-proof ref w s plan valid eq | true | just peer | just f = pollRead peer found allowed (following f monitor)
+  poll-plan-proof ref w s plan valid eq | false | _ | _ = case eq of λ ()
+  poll-plan-proof ref w s plan valid eq | true | nothing | _ = case eq of λ ()
+
+  -- Both successful and failed continuations consume the same certified read.
+  record JobRead (j : JobId) (s : T.Runtime) : Set where
+    constructor jobRead
+    field frame : Sub.JobFrame
+          foundJob : lookup j (jobRows s) ≡ just frame
+          notQueued : Sub.queued frame ≡ false
+          peer : Peer.Peer
+          foundPeer : lookup (J.connectionRef (Sub.execution frame)) (peerRows s) ≡ just peer
+          allowed : T.readAllowed (Sub.jobStep j (T.waitAction (Sub.execution frame))) (T.base s) ≡ true
+          results : List (ℕ × T.Observation)
+          selected : T.waitResults (Sub.execution frame) peer s ≡ just results
+          provenance : All (λ { (n , observation) → AnyPick (J.connectionRef (Sub.execution frame)) peer s n observation }) results
+  job-plan-proof : ∀ j s plan → Readable s → T.waitJobPlan j s ≡ just plan → JobRead j s
+  job-plan-proof j s plan valid eq with lookup j (jobRows s) in foundJob
+  ... | nothing = case eq of λ ()
+  ... | just jf with Sub.queued jf in queued | lookup (J.connectionRef (Sub.execution jf)) (peerRows s) in foundPeer |
+    T.readAllowed (Sub.jobStep j (T.waitAction (Sub.execution jf))) (T.base s) in allowed
+  ...   | false | just peer | true with T.waitResults (Sub.execution jf) peer s in selected
+  ...     | nothing = case eq of λ ()
+  ...     | just results = jobRead jf foundJob queued peer foundPeer allowed results selected
+    (wait-proof (Sub.execution jf) peer s results valid selected)
+  job-plan-proof j s plan valid eq | just jf | true | _ | _ = case eq of λ ()
+  job-plan-proof j s plan valid eq | just jf | false | nothing | _ = case eq of λ ()
+  job-plan-proof j s plan valid eq | just jf | false | just _ | false = case eq of λ ()
+  record MonitorRead (ref : PeerConnectionId) (s : T.Runtime) : Set where
+    constructor monitorRead
+    field frame : J.Frame
+          foundMonitor : lookup ref (monitorRows s) ≡ just frame
+          peer : Peer.Peer
+          foundPeer : lookup (J.connectionRef frame) (peerRows s) ≡ just peer
+          allowed : T.readAllowed (Sub.monitorStep ref (T.waitAction frame)) (T.base s) ≡ true
+          results : List (ℕ × T.Observation)
+          selected : T.waitResults frame peer s ≡ just results
+          provenance : All (λ { (n , observation) → AnyPick (J.connectionRef frame) peer s n observation }) results
+  monitor-plan-proof : ∀ ref s plan → Readable s → T.waitMonitorPlan ref s ≡ just plan → MonitorRead ref s
+  monitor-plan-proof ref s plan valid eq with lookup ref (monitorRows s) in foundMonitor
+  ... | nothing = case eq of λ ()
+  ... | just f with lookup (J.connectionRef f) (peerRows s) in foundPeer |
+    T.readAllowed (Sub.monitorStep ref (T.waitAction f)) (T.base s) in allowed
+  ...   | just peer | true with T.waitResults f peer s in selected
+  ...     | nothing = case eq of λ ()
+  ...     | just results = monitorRead f foundMonitor peer foundPeer allowed results selected
+    (wait-proof f peer s results valid selected)
+  monitor-plan-proof ref s plan valid eq | just f | nothing | _ = case eq of λ ()
+  monitor-plan-proof ref s plan valid eq | just f | just _ | false = case eq of λ ()
+
+  -- Actual initialized events provide the read gates; no extra representation
+  -- or caller-supplied physical-result premise is added to these statements.
+  poll-advance-proof : ∀ ref w s {t} → Readable s → T.advance (T.pollResults ref w) s ≡ just t → PollRead ref w s
+  poll-advance-proof ref w s valid eq with T.pollResultsPlan ref w s in chosen
+  ... | nothing = case eq of λ ()
+  ... | just plan = poll-plan-proof ref w s plan valid chosen
+  job-advance-proof : ∀ j s {t} → Readable s → T.advance (T.waitJobResults j) s ≡ just t → JobRead j s
+  job-advance-proof j s valid eq with T.waitJobPlan j s in chosen
+  ... | nothing = case eq of λ ()
+  ... | just plan = job-plan-proof j s plan valid chosen
+  monitor-advance-proof : ∀ ref s {t} → Readable s → T.advance (T.waitMonitorResults ref) s ≡ just t → MonitorRead ref s
+  monitor-advance-proof ref s valid eq with T.waitMonitorPlan ref s in chosen
+  ... | nothing = case eq of λ ()
+  ... | just plan = monitor-plan-proof ref s plan valid chosen
+  initialized-poll : ∀ {c g start as s t} ref w → T.initialize c g ≡ just start → T.Runs start as s →
+    T.advance (T.pollResults ref w) s ≡ just t → PollRead ref w s
+  initialized-poll ref w initialized path eq = poll-advance-proof ref w _ (initialized-readable initialized path) eq
+  initialized-job-wait : ∀ {c g start as s t} j → T.initialize c g ≡ just start → T.Runs start as s →
+    T.advance (T.waitJobResults j) s ≡ just t → JobRead j s
+  initialized-job-wait j initialized path eq = job-advance-proof j _ (initialized-readable initialized path) eq
+  initialized-monitor-wait : ∀ {c g start as s t} ref → T.initialize c g ≡ just start → T.Runs start as s →
+    T.advance (T.waitMonitorResults ref) s ≡ just t → MonitorRead ref s
+  initialized-monitor-wait ref initialized path eq = monitor-advance-proof ref _ (initialized-readable initialized path) eq

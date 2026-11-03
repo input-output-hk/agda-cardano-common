@@ -729,7 +729,7 @@ async-delivery replay is included. An initialized Agda allocation-failure case
 is not yet implemented. The subsequent actual-CM replay is recorded below;
 concrete deployment contracts, inbound initialized model history and outer
 caller/governor/Server lifetimes remain open. Reproduction and build limitations
-are recorded in SourceReplay/README.md and HANDOVER-2026-10-29.md.
+are recorded in [SourceReplay/README.md](../ConnectionManagement/SourceReplay/README.md).
 
 
 ### Actual CM replay follow-up — 30 October
@@ -1181,3 +1181,26 @@ pass, with no warnings; strict local 14-file audit is clean. This is neither a
 source refinement nor an identification of local completion with the child's
 final Async outcome. SI4/SI5, CM-I4c and the overall gates remain open. See
 [Supervision increment 34](../ConnectionManagement/Supervision.md#thirty-fourth-increment-initialized-local-result-agreement).
+
+Increment 35 adds model-level provenance for PSA first/all/peer/wait selectors
+and actual initialized poll/job-wait/monitor-wait events. Live reads identify the
+selected generation and its exact captured physical result; Shutdown retains an
+empty local cell and the actual non-ready mux status. Cached returned/retired
+actions instead certify their published constant. Arbitrary peer inputs cannot
+justify a live physical capture for such a constant; initialized cache/publication
+provenance remains a separate obligation. Fresh generic/downstream Agda 2.8.0
+acceptance passed without warnings; the two-file local integrity scan and
+whitespace check passed. This is not a term-level dependency audit. See
+[Supervision increment 35](../ConnectionManagement/Supervision.md#thirty-fifth-increment-psa-observation-provenance).
+No new source replay, deployed defect, source refinement or completion/progress
+claim follows; the source pins and open gates above are unchanged.
+
+Increment 36 derives initialized cache/publication provenance rather than
+assuming it. Actual and published stored values retain matching committed-call
+witnesses; they join to the original generation's exact physical capture.
+Restart does not retarget a constant to the latest call. The initialized second
+start/control checks are consolidated in ServerPeers.agda. Final fresh generic/
+endpoint acceptance passed without warnings on 3 November 2026; local audit
+found only three standard-operator false positives, with no substantive issue. This is model evidence and adds no source-refinement or Async/body
+completion claim. See
+[Supervision increment 36](../ConnectionManagement/Supervision.md#thirty-sixth-increment-initialized-peer-cache-provenance).

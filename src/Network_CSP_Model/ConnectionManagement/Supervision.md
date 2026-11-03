@@ -3615,3 +3615,154 @@ Next: derive generic PSA poll/wait observation soundness. Any selected localResu
 should belong to the selected call generation and match its captured physical
 result; the Shutdown branch must retain its actual mux-state fallback semantics.
 Reuse initialized-agreement, latest/byThread and existing read-selector evidence.
+
+## Thirty-fifth increment: PSA observation provenance
+
+Increment 35 extends the existing
+[result proof module](Properties/ServerPeersResults.agda) with `Observations`.
+The public `initialized-poll`, `initialized-job-wait` and
+`initialized-monitor-wait` statements start with the executable initializer, a
+finite enabled prefix and the actual successful read event. They return the
+before-state peer/frame lookups, read permission and selected-result provenance.
+No uniqueness, supply or physical-result premise is added to those initialized
+statements. Cold/Cooling polls and existing monitor followups are classified
+separately because they do not select a new result.
+
+`initialized-readable` reuses increment 34's exact physical agreement and
+increment 32's call-table uniqueness. `latest-info` connects the owner/number
+search to lookup by RunId in that unique table. A live selection certifies the
+published running action, matching controller, latest generation and captured
+peer/handle/mux/protocol number. Its local result carries the actual historical
+physical row, matching owner/mux/initiator direction/number/RunId and
+`resultCaptured result`. A Shutdown selection instead carries an empty local
+cell, the actual mux lookup and its Stopping/Stopped/Failed status. A filled local
+cell retains priority even after mux failure.
+
+The theorem deliberately distinguishes constant published actions. `returned`
+and `notRunning` store results which can survive later starts; they do not read
+the latest local cell. `Origin.cached` and `Origin.retired` certify those exact
+published constants. An arbitrary supplied peer can have a constant result with
+no local or physical row at all. Attributing that constant to a newer live
+generation would be false. A separate invariant relating initialized peer-cache
+constants to their historical publications remains the next obligation; it is
+not assumed here.
+
+`first-proof`, `all-proof`, `peer-proof` and `wait-proof` follow the actual
+ordered first/all combinators, temperature precedence and wait PCs. Certificates
+include membership in the original peer's runs, preserved through the existing
+insertion sort. Never-started/retired actions still block the first-result choice;
+all-result waits ignore never-started actions and include retired constants.
+Blocked live actions can be skipped by first-result reads and cannot be skipped
+by all-result waits. No runtime, old theorem statement, selector guard or
+initializer is changed.
+
+`Protocols.ObservationChecks` in the existing
+[acceptance file](Negative/ServerPeers.agda) instantiates initialized Shutdown
+polling, the clean monitor wait after mux failure, and the failed deactivation
+job wait. Clean/error/restarted observations instantiate physical certificates.
+Controls distinguish arbitrary constants with no calls, retired all/first
+behavior, wrong-peer live selection and impossibility of Ready as Shutdown.
+The earlier ordered multi-protocol and publication controls remain in the same
+file. No separate fixture module was added.
+
+Agda 2.8.0 accepted the final complete endpoint with fresh Checking lines for
+both the reader proof module and `Negative/ServerPeers.agda`, exit 0 without
+warnings. The command was `agda --profile=definitions
+ConnectionManagement/Negative/ServerPeers.agda +RTS -M12G -RTS`, under a 15 GB
+RAM / zero-swap user service. Only the reader module's own generated interface
+was invalidated for that final run. Scripts, profiles and explicit exits are
+under `/tmp/cm-observation-soundness-20261102/`: check-acceptance.sh,
+acceptance.log and acceptance-result.log. The earlier direct generic check also
+passed; its logs are properties-second.log/properties-second-result.log.
+No checker process remains running. The final two-file local proof-integrity
+scan found zero holes/trust bypasses; `git diff --check` passed. This is a local
+scan, not a term-level audit of external assumptions.
+
+The preliminary all-cells proof needed the saved tail-selection equation after
+dependent case splitting; it was repaired before acceptance. That diagnostic is
+retained in properties-first-error.log. One acceptance attempt was stopped to
+refresh the final reader interface after a small proof cleanup landed during
+checking; acceptance-pre-refresh.log and acceptance-pre-refresh-result.log record
+that interruption, not a successful check. No new postulate, unsafe option, checker bypass or weakened
+previous statement was introduced. All changes remain uncommitted; presentation,
+Makefile/PDF, .claude and external work are preserved.
+
+This is a model provenance theorem, not source refinement, body/Async completion,
+delivery progress or universal shutdown. No new native replay, unrelated full
+baseline or source-pin change is included. CM-I4c, SI4/SI5 and G0–G5 remain open.
+
+Next: prove historical backing of cached/retired results on actual initialized
+peers. Derive that cache/publication invariant from the real writers and retain
+old-generation witnesses across restart; do not equate a stored constant with
+the latest call or add cache coherence as an initializer premise.
+
+## Thirty-sixth increment: initialized peer-cache provenance
+
+Increment 36 closes the cached-constant obligation left by increment 35.
+[ServerPeersCache](Properties/ServerPeersCache.agda) proves `initialized-cache`
+for every enabled finite execution from the unchanged frontend initializer.
+Every returned/notRunning value in either an actual or published peer cell has
+a retained committed call matching the peer reference, handle, mux, protocol
+number and result. The witness can name an older generation; it is not defined
+by the latest call.
+
+`initialized-actual` and `initialized-published` join that call witness to
+increment 34's exact physical agreement: a real thread and historical physical
+row matching the original call owner, mux, initiator direction, protocol number,
+RunId and `resultCaptured result`. `initialized-pick-local` then discharges the
+live, cached and retired branches of increment 35's reader provenance. Its
+supplied peer must be the peer actually looked up in the before-state. Arbitrary
+supplied snapshots still cannot justify physical backing.
+
+The reusable [PeerCache](Properties/PeerCache.agda) layer tracks both actual and
+published cells. Restart can freeze the old observed value; retirement copies
+that observed result into a notRunning constant; publication replaces an action
+without inventing a result. The proof covers peer jobs, subsystem dispatch,
+policy filtering, governor cleanup/cancellation, monitor faults, normal/async
+exit and scope bookkeeping. A raw logical result write has no unconditional
+preservation rule. The shared runtime's existing gate rejects it, while a real
+frontend completion supplies its new committed-call witness before caching.
+Existing committed-call retention transports all earlier witnesses to the final
+table. Initialization derives uniqueness and the empty cache, without adding a
+supply or cache-coherence premise. Runtime transitions, guards, initialization
+and previous theorem statements are unchanged.
+
+All new acceptance is consolidated in `Protocols.CacheChecks` in the existing
+[ServerPeers acceptance file](Negative/ServerPeers.agda). A checked initialized
+prefix reaches the second start: generation 21 is allocated but empty, while
+the published retired clean constant still has historical physical backing.
+A control proves that backing cannot be generation 21. The all-results reader
+certificate is joined to this historical witness while the first-results reader
+still blocks on retirement. Further checks cover the live error read, actual
+error cache, clean shutdown, and a fabricated constant with an empty call table.
+The invariant refutes reaching that fabricated cache from initialization.
+
+Agda 2.8.0 freshly accepted the final complete endpoint on 3 November 2026,
+exit 0 without warnings, including its own Checking line and a fresh shared
+cache-proof rebuild. Command: `agda --profile=definitions
+ConnectionManagement/Negative/ServerPeers.agda +RTS -M12G -RTS`, run by
+check-acceptance.sh with `ulimit -v 15728640` (15 GB virtual memory). The generic
+PeerCache layer also passed freshly; the earlier direct shared pass used a
+15 GB RAM / zero-swap service and had one constructor-shadowing warning, renamed
+before final acceptance. All checker processes for this task are terminal.
+Logs/scripts/explicit exits: `/tmp/cm-peer-cache-20261102/` pure.log,
+pure-result.log, shared.log/shared-result.log and acceptance.log/
+acceptance-result.log. The initial endpoint fixture-name clash is retained in
+acceptance-first-error.log and acceptance-first-error-result.log; two service
+restart requests interrupted before launch are not counted as checks.
+
+The final local three-file integrity scan found no substantive issues: its
+three possible-hole flags at PeerCache.agda:707,847,854 are the standard `≤?`
+operator, inspected individually. `git diff --check` passed. No new postulate,
+unsafe option, checker bypass or weakened previous statement was introduced;
+this is a local scan, not a term-level audit of external assumptions.
+
+These are model provenance theorems. They do not identify a local/cached result
+with final body/Async outcome or availability, establish delivery/progress or
+universal shutdown, close SI4/SI5/CM-I4c, or declare G0–G5 complete. No native
+replay, unrelated full baseline, source-pin change or new source finding is
+claimed. Presentation/Makefile/PDF and unrelated external work are preserved.
+
+Next: package the historical local-result witnesses and actual Shutdown fallback
+into full physical observation certificates for initialized poll/job-wait/
+monitor-wait events, retaining all existing read gates and no-read poll branches.

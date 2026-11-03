@@ -4957,3 +4957,152 @@ module Protocols where
     ...   | refl with just-injective seen
     ...     | refl with phase
     ...       | ()
+
+  -- Generic reader certificates instantiated on actual poll/wait events.
+  module ObservationChecks where
+    open import Data.Empty using (⊥)
+    import ConnectionManagement.Properties.ServerPeersResults as ResultsProof
+    private
+      module Readers = ResultsProof.Observations I.bearerClosed Prior.classify capability
+      module CC = Reactivation.Shutdown.CurrentClean
+    initialized-shutdown-poll : Readers.PollRead (ident 0) (ident 50)
+      (at failedBeforeFork Waiters.livePublished zeroFront)
+    initialized-shutdown-poll = Readers.initialized-poll (ident 0) (ident 50) initializer
+      (Facts.append-protocols initialized-shutdown-observation
+        (V.more {a = ps L.a64} Waiters.published-after-failure V.stop)) Waiters.poll-shutdown
+    initialized-clean-wait : Readers.MonitorRead (ident 0)
+      (at afterCleanFailed (Waiters.followupContext Waiters.cleanWait Waiters.deactivatingClean) freeFront)
+    initialized-clean-wait = Readers.initialized-monitor-wait (ident 0) initializer
+      (Facts.append-protocols initialized-local-priority
+        (V.more {a = ps L.a64} Waiters.clean1
+          (V.more {a = V.pollResults (ident 0) (ident 50)} Waiters.clean2
+            (V.more {a = ps (Sub.monitorStep (ident 0) J.enter)} Waiters.clean3 V.stop)))) Waiters.clean4
+    initialized-shutdown-job : Readers.JobRead (ident 2) (at failedBeforeFork Waiters.d95 zeroFront)
+    initialized-shutdown-job = Readers.initialized-job-wait (ident 2) initializer
+      (Facts.append-protocols
+        (Facts.append-protocols (Facts.append-protocols initialized-to-start before-select-path) Waiters.deactivation-prefix)
+        (V.more {a = physicalStep (P.infrastructureReturn A.child₀ Types.muxer err)} Waiters.fail1
+          (V.more {a = physicalStep (P.publishInfra A.child₀ Types.muxer)} Waiters.fail2
+            (V.more {a = monitorStep (N.M.consume A.child₀)} Waiters.fail3
+              (V.more {a = monitorStep (N.M.handleSelected A.child₀)} Waiters.fail4 V.stop))))) Waiters.wait-deactivation-shutdown
+
+    clean-shutdown-readable : Readers.Readable CC.cleanServer
+    clean-shutdown-readable = Readers.initialized-readable initializer CC.initialized-current-clean-return
+    current-clean-observation : Readers.Outcome CC.cleanServer (ident 21) CellPreservationChecks.currentCleanCall (V.localResult clean)
+    current-clean-observation = Readers.observe-proof (ident 21) CellPreservationChecks.currentCleanCall CC.cleanServer
+      (V.localResult clean) clean-shutdown-readable refl refl
+    error-observation : Readers.Outcome (at errorModel errorContext errorFront) rid
+      CellPreservationChecks.errorCapturedCall (V.localResult (errored err))
+    error-observation = Readers.observe-proof rid CellPreservationChecks.errorCapturedCall (at errorModel errorContext errorFront)
+      (V.localResult (errored err)) (Readers.initialized-readable initializer initialized-error) refl refl
+    restart-readable : Readers.Readable Reactivation.secondCooledRuntime
+    restart-readable = Readers.initialized-readable initializer Reactivation.initialized-reactivation
+    restart-first : Readers.Pick hot (ident 0) Reactivation.secondPromotedPeer Reactivation.secondCooledRuntime 1 (V.localResult (errored err))
+    restart-first = Readers.first-proof hot (ident 0) Reactivation.secondPromotedPeer Reactivation.secondCooledRuntime 1
+      (V.localResult (errored err)) restart-readable refl
+    current-error-call : V.Call
+    current-error-call = record requested { thread = just (ident 21); value = just (errored err) }
+    restarted-observation : Readers.Outcome Reactivation.secondCooledRuntime (ident 21) current-error-call (V.localResult (errored err))
+    restarted-observation = Readers.observe-proof (ident 21) current-error-call Reactivation.secondCooledRuntime
+      (V.localResult (errored err)) restart-readable refl refl
+    actual-shutdown-observation : Readers.Outcome (at failedBeforeFork k63 zeroFront) rid requested (V.shutdownResult (Mux.failed err))
+    actual-shutdown-observation = Readers.observe-proof rid requested (at failedBeforeFork k63 zeroFront)
+      (V.shutdownResult (Mux.failed err)) (Readers.initialized-readable initializer initialized-shutdown-observation) refl refl
+    ready-is-not-shutdown : Readers.NonReady Mux.ready → ⊥
+    ready-is-not-shutdown ()
+
+    -- Arbitrary supplied peers can carry constants without any local call.
+    -- Certify them as constants rather than inventing physical generation rows.
+    cached-run retired-run : Peer.ProtocolRun
+    cached-run = Peer.protocolRun proto (Peer.returned clean) (Peer.returned clean)
+    retired-run = Peer.protocolRun proto (Peer.notRunning clean) (Peer.notRunning clean)
+    cached-peer retired-peer : Peer.Peer
+    cached-peer = record L.p15 { runs = cached-run ∷ [] }
+    retired-peer = record L.p15 { runs = retired-run ∷ [] }
+    constant-first : Readers.Pick hot (ident 0) cached-peer initial 1 (V.localResult clean)
+    constant-first = Readers.first-proof hot (ident 0) cached-peer initial 1 (V.localResult clean)
+      (Readers.initialized-readable initializer V.stop) refl
+    retired-all : All.All (λ { (n , observation) → Readers.Pick hot (ident 0) retired-peer initial n observation })
+      ((1 , V.localResult clean) ∷ [])
+    retired-all = Readers.all-proof hot (ident 0) retired-peer initial ((1 , V.localResult clean) ∷ [])
+      (Readers.initialized-readable initializer V.stop) refl
+    constants-have-no-live-generation : ∀ rid r → Readers.Selection (ident 0) cached-peer cached-run initial rid r → ⊥
+    constants-have-no-live-generation rid r claim with Readers.Selection.published claim
+    ... | ()
+    retired-first-blocks : V.firstPublished hot (ident 0) retired-peer initial ≡ nothing
+    retired-first-blocks = refl
+    wrong-peer-cannot-select-live : V.publishedCell (ident 99) (shiftPeer L.p15)
+      (Peer.protocolRun proto Peer.running Peer.running) (at failedBeforeFork Waiters.livePublished zeroFront) ≡ V.blocked
+    wrong-peer-cannot-select-live = refl
+
+
+  -- Initialized cache constants keep historical backing across a new start.
+  module CacheChecks where
+    open import Data.Empty using (⊥)
+    open import Data.List using (take)
+    open import Data.List.Relation.Unary.Any using (here)
+    open import Data.Maybe.Properties using (just-injective)
+    import ConnectionManagement.Properties.ServerPeersCache as CacheProof
+    import ConnectionManagement.Properties.ServerPeersResults as ResultsProof
+    private
+      module Root = CacheProof I.bearerClosed Prior.classify
+      module Cache = Root.Frontend capability
+      module Readers = ResultsProof.Observations I.bearerClosed Prior.classify capability
+      module CC = Reactivation.Shutdown.CurrentClean
+    secondStartActions : List V.Event
+    secondStartActions = (prefixActions ++ Reactivation.firstCompletedActions) ++ take 61 Reactivation.reactivationActions
+    abstract
+      initialized-second-start : V.Runs initial secondStartActions Reactivation.secondQueuedRuntime
+      initialized-second-start = Facts.append-protocols Reactivation.initialized-first-completed
+        (V.more Reactivation.reactEdge1 (V.more Reactivation.reactEdge2 (V.more Reactivation.reactEdge3 (V.more Reactivation.reactEdge4 (V.more Reactivation.reactEdge5 (V.more Reactivation.reactEdge6 (V.more Reactivation.reactEdge7 (V.more Reactivation.reactEdge8 (V.more Reactivation.reactEdge9 (V.more Reactivation.reactEdge10 (V.more Reactivation.reactEdge11 (V.more Reactivation.reactEdge12 (V.more Reactivation.reactEdge13 (V.more Reactivation.reactEdge14 (V.more Reactivation.reactEdge15 (V.more Reactivation.reactEdge16 (V.more Reactivation.reactEdge17 (V.more Reactivation.reactEdge18 (V.more Reactivation.reactEdge19 (V.more Reactivation.reactEdge20 (V.more Reactivation.reactEdge21 (V.more Reactivation.reactEdge22 (V.more Reactivation.reactEdge23 (V.more Reactivation.reactEdge24 (V.more Reactivation.reactEdge25 (V.more Reactivation.reactEdge26 (V.more Reactivation.reactEdge27 (V.more Reactivation.reactEdge28 (V.more Reactivation.reactEdge29 (V.more Reactivation.reactEdge30 (V.more Reactivation.reactEdge31 (V.more Reactivation.reactEdge32 (V.more Reactivation.reactEdge33 (V.more Reactivation.reactEdge34 (V.more Reactivation.reactEdge35 (V.more Reactivation.reactEdge36 (V.more Reactivation.reactEdge37 (V.more Reactivation.reactEdge38 (V.more Reactivation.reactEdge39 (V.more Reactivation.reactEdge40 (V.more Reactivation.reactEdge41 (V.more Reactivation.reactEdge42 (V.more Reactivation.reactEdge43 (V.more Reactivation.reactEdge44 (V.more Reactivation.reactEdge45 (V.more Reactivation.reactEdge46 (V.more Reactivation.reactEdge47 (V.more Reactivation.reactEdge48 (V.more Reactivation.reactEdge49 (V.more Reactivation.reactEdge50 (V.more Reactivation.reactEdge51 (V.more Reactivation.reactEdge52 (V.more Reactivation.reactEdge53 (V.more Reactivation.reactEdge54 (V.more Reactivation.reactEdge55 (V.more Reactivation.reactEdge56 (V.more Reactivation.reactEdge57 (V.more Reactivation.reactEdge58 (V.more Reactivation.reactEdge59 (V.more Reactivation.reactEdge60 (V.more Reactivation.reactEdge61 (V.stop))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+
+    retiredRun : Peer.ProtocolRun
+    retiredRun = Peer.protocolRun proto Peer.running (Peer.notRunning clean)
+    old-constant-backed : Cache.Historical Reactivation.secondQueuedRuntime (ident 0) (ident 0) (ident 0) 1 clean
+    old-constant-backed = Cache.initialized-published initializer initialized-second-start (ident 0)
+      Reactivation.secondStartedPeer retiredRun clean refl (here refl) Root.retired
+    constant-cannot-be-current : (history : Cache.Historical Reactivation.secondQueuedRuntime (ident 0) (ident 0) (ident 0) 1 clean) →
+      proj₁ history ≡ ident 21 → ⊥
+    constant-cannot-be-current (rid , r , found , filled , rest) refl with just-injective found
+    ... | refl with filled
+    ...   | ()
+    current-cell-still-empty : V.observe (ident 21) Reactivation.secondQueuedRuntime ≡ nothing
+    current-cell-still-empty = refl
+    retired-results : All.All (λ { (n , result) → Readers.Pick hot (ident 0) Reactivation.secondStartedPeer Reactivation.secondQueuedRuntime n result })
+      ((1 , V.localResult clean) ∷ [])
+    retired-results = Readers.all-proof hot (ident 0) Reactivation.secondStartedPeer Reactivation.secondQueuedRuntime
+      ((1 , V.localResult clean) ∷ []) (Readers.initialized-readable initializer initialized-second-start) refl
+    retired-read-backed : Cache.Historical Reactivation.secondQueuedRuntime (ident 0) (ident 0) (ident 0) 1 clean
+    retired-read-backed = Cache.initialized-pick-local initializer initialized-second-start hot (ident 0)
+      Reactivation.secondStartedPeer 1 clean refl (All.head retired-results)
+    retired-first-still-blocks : V.firstPublished hot (ident 0) Reactivation.secondStartedPeer Reactivation.secondQueuedRuntime ≡ nothing
+    retired-first-still-blocks = refl
+    clean-shutdown-cache : Cache.Valid CC.cleanServer
+    clean-shutdown-cache = Cache.initialized-cache initializer CC.initialized-current-clean-return
+    cacheErrorPeer : Peer.Peer
+    cacheErrorPeer = Peer.cool Reactivation.secondErroredPeer
+    cacheErrorRun : Peer.ProtocolRun
+    cacheErrorRun = Peer.protocolRun proto (Peer.returned (errored err)) Peer.running
+    error-actual-backed : Cache.Historical Reactivation.secondCooledRuntime (ident 0) (ident 0) (ident 0) 1 (errored err)
+    error-actual-backed = Cache.initialized-actual initializer Reactivation.initialized-reactivation
+      (ident 0) cacheErrorPeer cacheErrorRun (errored err) refl (here refl) Root.returned
+    live-result : Readers.Pick hot (ident 0) cacheErrorPeer Reactivation.secondCooledRuntime 1 (V.localResult (errored err))
+    live-result = Readers.first-proof hot (ident 0) cacheErrorPeer Reactivation.secondCooledRuntime 1 (V.localResult (errored err))
+      (Readers.initialized-readable initializer Reactivation.initialized-reactivation) refl
+    live-read-backed : Cache.Historical Reactivation.secondCooledRuntime (ident 0) (ident 0) (ident 0) 1 (errored err)
+    live-read-backed = Cache.initialized-pick-local initializer Reactivation.initialized-reactivation
+      hot (ident 0) cacheErrorPeer 1 (errored err) refl live-result
+
+    -- A constant supplied out of thin air cannot satisfy the initialized cache
+    -- invariant, even though the generic pure reader accepts its stored value.
+    forgedContext : C.Context
+    forgedContext = record (K.context (V.base initial))
+      { subsystem = record (C.subsystem (K.context (V.base initial)))
+        { peers = (ident 0 , ObservationChecks.cached-peer) ∷ [] } }
+    forged : V.Runtime
+    forged = record initial { base = record (V.base initial) { context = forgedContext } }
+    no-forged-cache : Cache.Valid forged → ⊥
+    no-forged-cache (((actual , published) All.∷ All.[]) All.∷ All.[]) with published
+    ... | rid , r , () , rest
+    no-initialized-forged-cache : ∀ as → V.Runs initial as forged → ⊥
+    no-initialized-forged-cache as path = no-forged-cache (Cache.initialized-cache initializer path)
