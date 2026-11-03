@@ -5106,3 +5106,1329 @@ module Protocols where
     ... | rid , r , () , rest
     no-initialized-forged-cache : ∀ as → V.Runs initial as forged → ⊥
     no-initialized-forged-cache as path = no-forged-cache (Cache.initialized-cache initializer path)
+
+  -- Full physical certificates for actual initialized result-read events.
+  module PhysicalReadChecks where
+    open import Data.Empty using (⊥)
+    import ConnectionManagement.Properties.ServerPeersCache as CacheProof
+    import ConnectionManagement.Properties.ServerPeersResults as ResultsProof
+    private
+      module Cache = CacheProof.Frontend I.bearerClosed Prior.classify capability
+      module Readers = ResultsProof.Observations I.bearerClosed Prior.classify capability
+    abstract
+      published-shutdown-prefix : V.Runs initial
+        (((prefixActions ++ (V.startNext (ident 1) rid ∷ ps L.a63 ∷ physicalStep (P.control A.child₀ P.selectCommand) ∷ [])) ++ fallbackActions) ++
+          (ps L.a64 ∷ [])) (at failedBeforeFork Waiters.livePublished zeroFront)
+      published-shutdown-prefix = Facts.append-protocols initialized-shutdown-observation
+        (V.more {a = ps L.a64} Waiters.published-after-failure V.stop)
+    shutdown-poll : Cache.PhysicalPoll (ident 0) (ident 50) (at failedBeforeFork Waiters.livePublished zeroFront)
+    shutdown-poll = Cache.initialized-physical-poll (ident 0) (ident 50) initializer published-shutdown-prefix Waiters.poll-shutdown
+    clean-monitor-wait : Cache.PhysicalMonitorWait (ident 0)
+      (at afterCleanFailed (Waiters.followupContext Waiters.cleanWait Waiters.deactivatingClean) freeFront)
+    clean-monitor-wait = Cache.initialized-physical-monitor-wait (ident 0) initializer
+      (Facts.append-protocols initialized-local-priority
+        (V.more {a = ps L.a64} Waiters.clean1
+          (V.more {a = V.pollResults (ident 0) (ident 50)} Waiters.clean2
+            (V.more {a = ps (Sub.monitorStep (ident 0) J.enter)} Waiters.clean3 V.stop)))) Waiters.clean4
+    failed-job-wait : Cache.PhysicalJobWait (ident 2) (at failedBeforeFork Waiters.d95 zeroFront)
+    failed-job-wait = Cache.initialized-physical-job-wait (ident 2) initializer
+      (Facts.append-protocols
+        (Facts.append-protocols (Facts.append-protocols initialized-to-start before-select-path) Waiters.deactivation-prefix)
+        (V.more {a = physicalStep (P.infrastructureReturn A.child₀ Types.muxer err)} Waiters.fail1
+          (V.more {a = physicalStep (P.publishInfra A.child₀ Types.muxer)} Waiters.fail2
+            (V.more {a = monitorStep (N.M.consume A.child₀)} Waiters.fail3
+              (V.more {a = monitorStep (N.M.handleSelected A.child₀)} Waiters.fail4 V.stop))))) Waiters.wait-deactivation-shutdown
+    retired-read-physical : Cache.PhysicalObservation Reactivation.secondQueuedRuntime (ident 0)
+      Reactivation.secondStartedPeer 1 (V.localResult clean)
+    retired-read-physical = Cache.certify-pick initializer CacheChecks.initialized-second-start hot (ident 0)
+      Reactivation.secondStartedPeer 1 (V.localResult clean) refl (All.head CacheChecks.retired-results)
+    live-read-physical : Cache.PhysicalObservation Reactivation.secondCooledRuntime (ident 0)
+      CacheChecks.cacheErrorPeer 1 (V.localResult (errored err))
+    live-read-physical = Cache.certify-pick initializer Reactivation.initialized-reactivation hot (ident 0)
+      CacheChecks.cacheErrorPeer 1 (V.localResult (errored err)) refl CacheChecks.live-result
+    shutdown-read-physical : Cache.PhysicalObservation (at failedBeforeFork Waiters.livePublished zeroFront) (ident 0)
+      (shiftPeer L.p15) 1 (V.shutdownResult (Mux.failed err))
+    shutdown-read-physical = Cache.certify-pick initializer published-shutdown-prefix hot (ident 0) (shiftPeer L.p15) 1
+      (V.shutdownResult (Mux.failed err)) refl (Readers.first-proof hot (ident 0) (shiftPeer L.p15)
+        (at failedBeforeFork Waiters.livePublished zeroFront) 1 (V.shutdownResult (Mux.failed err))
+        (Readers.initialized-readable initializer published-shutdown-prefix) refl)
+    shutdown-before-any-protocol-body : lookup jid (P.jobs (V.physical (V.base (at failedBeforeFork Waiters.livePublished zeroFront)))) ≡ nothing
+    shutdown-before-any-protocol-body = refl
+    ready-cannot-be-certified : ∀ s ref peer n → Cache.PhysicalObservation s ref peer n (V.shutdownResult Mux.ready) → ⊥
+    ready-cannot-be-certified s ref peer n (Cache.shutdown-fallback protocolView genId callRow .Mux.ready inRuns sameNumber selectionProof muxEvidence)
+      with Readers.Fallback.nonReady muxEvidence
+    ... | ()
+    old-certified-generation : Cache.PhysicalObservation Reactivation.secondQueuedRuntime (ident 0)
+      Reactivation.secondStartedPeer 1 (V.localResult clean) → RunId
+    old-certified-generation (Cache.local-capture .clean history) = proj₁ history
+    old-certificate-not-current : ∀ proof → old-certified-generation proof ≡ ident 21 → ⊥
+    old-certificate-not-current (Cache.local-capture .clean history) = CacheChecks.constant-cannot-be-current history
+
+  -- Read-to-continuation agreement, including physical no-write failure effects.
+  module ContinuationChecks where
+    open import Data.Empty using (⊥)
+    open import Data.Sum using (inj₂)
+    open import Function using (case_of_)
+    import ConnectionManagement.Properties.ServerPeersContinuations as Continuations
+    import ConnectionManagement.Properties.ServerPeersCache as Captures
+    import ConnectionManagement.Properties.ServerPeersResults as ReaderProof
+    private
+      module Agreement = Continuations.Frontend I.bearerClosed Prior.classify capability
+      module Read = ReaderProof.Observations I.bearerClosed Prior.classify capability
+      module Root = Continuations I.bearerClosed Prior.classify
+      module Physical = Captures.Frontend I.bearerClosed Prior.classify capability
+    shutdownBefore shutdownAfter cleanWaitBefore cleanWaitAfter jobWaitBefore jobWaitAfter : V.Runtime
+    shutdownBefore = at failedBeforeFork Waiters.livePublished zeroFront
+    shutdownAfter = at failedBeforeFork Waiters.cooledPublished zeroFront
+    cleanWaitBefore = at afterCleanFailed (Waiters.followupContext Waiters.cleanWait Waiters.deactivatingClean) freeFront
+    cleanWaitAfter = at afterCleanFailed (Waiters.followupContext Waiters.cleanReturned Waiters.retiredClean) freeFront
+    jobWaitBefore = at failedBeforeFork Waiters.d95 zeroFront
+    jobWaitAfter = at failedBeforeFork Waiters.deactFailure zeroFront
+    shutdown-agreement : Agreement.PollAgreement (ident 0) (ident 50) shutdownBefore shutdownAfter
+    shutdown-agreement = Agreement.initialized-poll-agreement (ident 0) (ident 50) initializer
+      PhysicalReadChecks.published-shutdown-prefix Waiters.poll-shutdown
+    clean-monitor-agreement : Agreement.MonitorAgreement (ident 0) cleanWaitBefore cleanWaitAfter
+    clean-monitor-agreement = Agreement.initialized-monitor-agreement (ident 0) initializer
+      (Facts.append-protocols initialized-local-priority
+        (V.more {a = ps L.a64} Waiters.clean1
+          (V.more {a = V.pollResults (ident 0) (ident 50)} Waiters.clean2
+            (V.more {a = ps (Sub.monitorStep (ident 0) J.enter)} Waiters.clean3 V.stop)))) Waiters.clean4
+    failed-job-agreement : Agreement.JobAgreement (ident 2) jobWaitBefore jobWaitAfter
+    failed-job-agreement = Agreement.initialized-job-agreement (ident 2) initializer
+      (Facts.append-protocols
+        (Facts.append-protocols (Facts.append-protocols initialized-to-start before-select-path) Waiters.deactivation-prefix)
+        (V.more {a = physicalStep (P.infrastructureReturn A.child₀ Types.muxer err)} Waiters.fail1
+          (V.more {a = physicalStep (P.publishInfra A.child₀ Types.muxer)} Waiters.fail2
+            (V.more {a = monitorStep (N.M.consume A.child₀)} Waiters.fail3
+              (V.more {a = monitorStep (N.M.handleSelected A.child₀)} Waiters.fail4 V.stop))))) Waiters.wait-deactivation-shutdown
+    clean-wait-observations : V.allClean
+      (Read.MonitorRead.results (Agreement.monitor-reader clean-monitor-agreement)) ≡ true
+    clean-wait-observations = Agreement.monitor-success-clean (ident 0) cleanWaitBefore cleanWaitAfter clean-monitor-agreement Waiters.cleanReturned refl refl
+    clean-wait-peer : lookup (ident 0) (C.SubContext.peers (C.subsystem (K.context (V.base cleanWaitAfter)))) ≡ just Waiters.retiredClean
+    clean-wait-peer = Agreement.monitor-success-peer (ident 0) cleanWaitBefore cleanWaitAfter clean-monitor-agreement Waiters.cleanReturned refl refl
+    clean-wait-captures : All.All (λ { (n , observation) → Physical.Historical cleanWaitBefore (ident 0) (ident 0) (ident 0) n clean })
+      ((1 , V.localResult clean) ∷ [])
+    clean-wait-captures = Agreement.monitor-success-captures (ident 0) cleanWaitBefore cleanWaitAfter clean-monitor-agreement Waiters.cleanReturned refl refl
+    failed-job-effects : Agreement.FailureEffects jobWaitBefore jobWaitAfter
+    failed-job-effects = proj₂ (proj₂ (Agreement.job-nonclean (ident 2) jobWaitBefore jobWaitAfter failed-job-agreement refl))
+    failed-job-pool-unchanged : C.governorPool (K.context (V.base jobWaitAfter)) ≡ C.governorPool (K.context (V.base jobWaitBefore))
+    failed-job-pool-unchanged = Agreement.FailureEffects.governorPool failed-job-effects
+    failed-job-physical-unchanged : V.physical (V.base jobWaitAfter) ≡ V.physical (V.base jobWaitBefore)
+    failed-job-physical-unchanged = Agreement.FailureEffects.physical failed-job-effects
+    failed-job-continuation : lookup (ident 2) (C.SubContext.jobs (C.subsystem (K.context (V.base jobWaitAfter)))) ≡ just Waiters.deactFailedFrame
+    failed-job-continuation = proj₁ (Agreement.job-nonclean (ident 2) jobWaitBefore jobWaitAfter failed-job-agreement refl)
+    shutdown-effects : Agreement.FailureEffects shutdownBefore shutdownAfter
+    shutdown-effects = proj₂ (proj₂ (proj₂ (Agreement.poll-nonclean (ident 0) (ident 50) shutdownBefore shutdownAfter shutdown-agreement
+      (shiftPeer L.p15) G.deactivate (V.shutdownResult (Mux.failed err)) refl (inj₂ refl) refl refl refl)))
+    shutdown-does-not-touch-physical : V.physical (V.base shutdownAfter) ≡ V.physical (V.base shutdownBefore)
+    shutdown-does-not-touch-physical = Agreement.FailureEffects.physical shutdown-effects
+    failed-wait-cannot-succeed : Root.finished (J.pc (Sub.execution Waiters.deactFailedFrame)) ≡ true → ⊥
+    failed-wait-cannot-succeed succeeded = case
+      Agreement.job-success-clean (ident 2) jobWaitBefore jobWaitAfter failed-job-agreement Waiters.deactFailedFrame refl succeeded of λ ()
+
+    -- This existing close/followup snapshot is a conditional transition, not a
+    -- newly asserted initialized close history or a CM-release theorem.
+    conditional-close-before conditional-close-after : V.Runtime
+    conditional-close-before = at failedBeforeFork (Waiters.closeContext Waiters.closeFrame) zeroFront
+    conditional-close-after = at failedBeforeFork
+      (Waiters.closeContext (record Waiters.closeFrame { pc = J.awaitCold G.failed })) zeroFront
+    conditional-close-failure : Agreement.MonitorOutcome (ident 0) Waiters.closeFrame Waiters.closingPeer
+      ((1 , V.shutdownResult (Mux.failed err)) ∷ []) conditional-close-before conditional-close-after
+    conditional-close-failure = Agreement.monitor-outcome (ident 0) Waiters.closeFrame Waiters.closingPeer conditional-close-before
+      ((1 , V.shutdownResult (Mux.failed err)) ∷ []) refl refl refl refl Waiters.close-all-shutdown
+    conditional-close-effects : Agreement.FailureEffects conditional-close-before conditional-close-after
+    conditional-close-effects with conditional-close-failure
+    ... | Agreement.monitor-failed bad afterMonitor afterPeer effects = effects
+    ... | Agreement.monitor-forwarded () forwarded
+
+    shutdown-cools-active-peer : lookup (ident 0) (C.SubContext.peers (C.subsystem (K.context (V.base shutdownAfter)))) ≡ just (Peer.cool (shiftPeer L.p15))
+    shutdown-cools-active-peer = proj₁ (Agreement.poll-nonclean (ident 0) (ident 50) shutdownBefore shutdownAfter shutdown-agreement
+      (shiftPeer L.p15) G.deactivate (V.shutdownResult (Mux.failed err)) refl (inj₂ refl) refl refl refl)
+    failed-job-demotes : lookup (ident 0) (C.SubContext.peers (C.subsystem (K.context (V.base jobWaitAfter)))) ≡ just Waiters.deactFailedPeer
+    failed-job-demotes = proj₁ (proj₂ (Agreement.job-nonclean (ident 2) jobWaitBefore jobWaitAfter failed-job-agreement refl))
+    failed-job-server-unchanged : K.server (V.base jobWaitAfter) ≡ K.server (V.base jobWaitBefore)
+    failed-job-server-unchanged = Agreement.FailureEffects.server failed-job-effects
+    failed-job-monitor-threads-unchanged : C.monitors (K.context (V.base jobWaitAfter)) ≡ C.monitors (K.context (V.base jobWaitBefore))
+    failed-job-monitor-threads-unchanged = Agreement.FailureEffects.monitorThreads failed-job-effects
+
+  -- Actual initialized governor body return followed by its separate publication.
+  module CompletionChecks where
+    open import Data.List using (take)
+    open import Data.Product using (Σ)
+    open import Relation.Binary.PropositionalEquality using (cong)
+    import ConnectionManagement.Properties.ServerPeersContinuations as Continuations
+    private
+      module Agreement = Continuations.Frontend I.bearerClosed Prior.classify capability
+      module Root = Continuations I.bearerClosed Prior.classify
+    jobBefore jobReturned jobPublished jobRemoved jobAvailable : V.Runtime
+    jobBefore = at registered Reactivation.down95 freeFront
+    jobReturned = at registered Reactivation.warm1 freeFront
+    jobPublished = at registered Reactivation.warm2 freeFront
+    jobRemoved = at registered Reactivation.warm3 freeFront
+    jobAvailable = at registered Reactivation.warm4 freeFront
+    returnedFrame : Sub.JobFrame
+    returnedFrame = Reactivation.deactivationFrame (J.complete G.succeeded) false false
+    completedPrefix : List V.Event
+    completedPrefix = (prefixActions ++ Reactivation.firstCompletedActions) ++ take 28 Reactivation.reactivationActions
+    abstract
+      initialized-job-before : V.Runs initial completedPrefix jobBefore
+      initialized-job-before = Facts.append-protocols Reactivation.initialized-first-completed
+        (V.more Reactivation.reactEdge1 (V.more Reactivation.reactEdge2 (V.more Reactivation.reactEdge3 (V.more Reactivation.reactEdge4 (V.more Reactivation.reactEdge5 (V.more Reactivation.reactEdge6 (V.more Reactivation.reactEdge7 (V.more Reactivation.reactEdge8 (V.more Reactivation.reactEdge9 (V.more Reactivation.reactEdge10 (V.more Reactivation.reactEdge11 (V.more Reactivation.reactEdge12 (V.more Reactivation.reactEdge13 (V.more Reactivation.reactEdge14 (V.more Reactivation.reactEdge15 (V.more Reactivation.reactEdge16 (V.more Reactivation.reactEdge17 (V.more Reactivation.reactEdge18 (V.more Reactivation.reactEdge19 (V.more Reactivation.reactEdge20 (V.more Reactivation.reactEdge21 (V.more Reactivation.reactEdge22 (V.more Reactivation.reactEdge23 (V.more Reactivation.reactEdge24 (V.more Reactivation.reactEdge25 (V.more Reactivation.reactEdge26 (V.more Reactivation.reactEdge27 (V.more Reactivation.reactEdge28 (V.stop)))))))))))))))))))))))))))))
+      initialized-job-returned : V.Runs initial (completedPrefix ++ (V.waitJobResults (ident 2) ∷ [])) jobReturned
+      initialized-job-returned = Facts.append-protocols initialized-job-before (V.more Reactivation.reactEdge29 V.stop)
+    completionActions : List V.Event
+    completionActions = V.waitJobResults (ident 2) ∷ ps (Sub.enqueueCompletion (ident 2) 0) ∷
+      ps (Sub.deregisterJob (ident 2)) ∷ peerStep (PS.run (GP.publishAsyncResult (ident 2))) ∷ []
+    abstract
+      initialized-completion-lifecycle : V.Runs initial (completedPrefix ++ completionActions) jobAvailable
+      initialized-completion-lifecycle = Facts.append-protocols initialized-job-before
+        (V.more Reactivation.reactEdge29 (V.more Reactivation.reactEdge30
+          (V.more Reactivation.reactEdge31 (V.more Reactivation.reactEdge32 V.stop))))
+    agreement : Agreement.JobAgreement (ident 2) jobBefore jobReturned
+    agreement = Agreement.initialized-job-agreement (ident 2) initializer initialized-job-before Reactivation.reactEdge29
+    exact-body-return : C.governorPool (K.context (V.base jobReturned)) ≡ record (C.governorPool (K.context (V.base jobBefore)))
+      { handles = put (ident 2) (GP.Pool.bodyReturned Reactivation.deactivationBody)
+        (GP.Pool.handles (C.governorPool (K.context (V.base jobBefore)))) }
+    exact-body-return = Agreement.job-success-return (ident 2) jobBefore jobReturned agreement returnedFrame refl refl
+    body-return-keeps-queue : GP.Pool.completions (C.governorPool (K.context (V.base jobReturned))) ≡
+      GP.Pool.completions (C.governorPool (K.context (V.base jobBefore)))
+    body-return-keeps-queue = cong GP.Pool.completions exact-body-return
+    body-return-keeps-registry : GP.Pool.registered (C.governorPool (K.context (V.base jobReturned))) ≡
+      GP.Pool.registered (C.governorPool (K.context (V.base jobBefore)))
+    body-return-keeps-registry = cong GP.Pool.registered exact-body-return
+    unqueued-return : Sub.queued returnedFrame ≡ false
+    unqueued-return = Agreement.job-wait-unqueued (ident 2) jobBefore jobReturned agreement returnedFrame refl
+    publication : Agreement.CompletionPublication (ident 2) 0 returnedFrame G.succeeded jobReturned jobPublished
+    publication = Agreement.publish-completion (ident 2) 0 jobReturned jobPublished returnedFrame G.succeeded refl unqueued-return refl Reactivation.reactEdge30
+    source-completion : C.SubContext.completions (C.subsystem (K.context (V.base jobPublished))) ≡ Reactivation.deactivationCompletion ∷ []
+    source-completion = Agreement.CompletionPublication.sourceQueue publication
+    published-pool : C.governorPool (K.context (V.base jobPublished)) ≡ Reactivation.deactivationQueuedPool
+    published-pool = Agreement.CompletionPublication.pool publication
+    exact-published-body : Agreement.CompletionPublication.captured publication ≡ Reactivation.deactivationBody
+    exact-published-body = Agreement.job-published-body (ident 2) 0 jobBefore jobReturned jobPublished agreement returnedFrame refl refl publication
+    publication-awaits-deregistration : lookup (ident 2) (GP.Pool.handles (C.governorPool (K.context (V.base jobPublished)))) ≡
+      just (GP.Pool.deregisterPending GP.Pool.normalExit)
+    publication-awaits-deregistration = Agreement.publication-handle (ident 2) 0 returnedFrame G.succeeded jobReturned jobPublished publication
+    still-not-protocol-body-return : lookup jid (Pool.handles (P.poolAt A.child₀ (V.physical (V.base jobReturned)))) ≡ just Pool.bodyRunning
+    still-not-protocol-body-return = refl
+
+    -- Each forbidden shortcut is checked at its actual shared frontend event.
+    no-publication-before-return : V.advance (ps (Sub.enqueueCompletion (ident 2) 0)) jobBefore ≡ nothing
+    no-publication-before-return = refl
+    no-publication-from-failed-wait : V.advance (ps (Sub.enqueueCompletion (ident 2) 0)) ContinuationChecks.jobWaitAfter ≡ nothing
+    no-publication-from-failed-wait = refl
+    no-async-at-body-return : V.advance (peerStep (PS.run (GP.publishAsyncResult (ident 2)))) jobReturned ≡ nothing
+    no-async-at-body-return = refl
+    no-deregistration-before-publication : V.advance (ps (Sub.deregisterJob (ident 2))) jobReturned ≡ nothing
+    no-deregistration-before-publication = refl
+    no-async-at-publication : V.advance (peerStep (PS.run (GP.publishAsyncResult (ident 2)))) jobPublished ≡ nothing
+    no-async-at-publication = refl
+    no-double-publication : V.advance (ps (Sub.enqueueCompletion (ident 2) 0)) jobPublished ≡ nothing
+    no-double-publication = refl
+    actual-deregistration : V.advance (ps (Sub.deregisterJob (ident 2))) jobPublished ≡ just jobRemoved
+    actual-deregistration = Reactivation.reactEdge31
+    actual-async-publication : V.advance (peerStep (PS.run (GP.publishAsyncResult (ident 2)))) jobRemoved ≡ just jobAvailable
+    actual-async-publication = Reactivation.reactEdge32
+
+    monitor-effects : Agreement.MonitorWaitEffects ContinuationChecks.cleanWaitBefore ContinuationChecks.cleanWaitAfter
+    monitor-effects = Agreement.monitor-wait-preserves (ident 0) _ _ ContinuationChecks.clean-monitor-agreement
+    monitor-pool-unchanged : C.monitorPool (K.context (V.base ContinuationChecks.cleanWaitAfter)) ≡
+      C.monitorPool (K.context (V.base ContinuationChecks.cleanWaitBefore))
+    monitor-pool-unchanged = Agreement.MonitorWaitEffects.pool monitor-effects
+    monitor-threads-unchanged : C.monitors (K.context (V.base ContinuationChecks.cleanWaitAfter)) ≡
+      C.monitors (K.context (V.base ContinuationChecks.cleanWaitBefore))
+    monitor-threads-unchanged = Agreement.MonitorWaitEffects.threads monitor-effects
+    no-monitor-return-from-followup : V.advance (peerStep (PS.finishMonitor (ident 50))) ContinuationChecks.cleanWaitAfter ≡ nothing
+    no-monitor-return-from-followup = refl
+    no-monitor-async-from-followup : V.advance (peerStep (PS.publishMonitorResult (ident 50))) ContinuationChecks.cleanWaitAfter ≡ nothing
+    no-monitor-async-from-followup = refl
+
+    -- The initialized successful followup can be cleared while its physical
+    -- monitor keeps running; this is a real separate shared bookkeeping step.
+    followupClearedContext : C.Context
+    followupClearedContext = record (Waiters.followupContext Waiters.cleanReturned Waiters.retiredClean)
+      { subsystem = record (C.subsystem (Waiters.followupContext Waiters.cleanReturned Waiters.retiredClean)) { monitors = [] } }
+    followupCleared : V.Runtime
+    followupCleared = at afterCleanFailed followupClearedContext freeFront
+    actual-followup-clear : V.advance (ps (Sub.monitorFinished (ident 0))) ContinuationChecks.cleanWaitAfter ≡ just followupCleared
+    actual-followup-clear = refl
+    initialized-followup-clear : Σ (List V.Event) (λ actions → V.Runs initial actions followupCleared)
+    initialized-followup-clear = _ , Facts.append-protocols Waiters.initialized-local-continuation
+      (V.more {a = ps (Sub.monitorFinished (ident 0))} actual-followup-clear V.stop)
+    no-monitor-body-return-after-clear : V.advance (peerStep (PS.finishMonitor (ident 50))) followupCleared ≡ nothing
+    no-monitor-body-return-after-clear = refl
+    no-monitor-async-after-clear : V.advance (peerStep (PS.publishMonitorResult (ident 50))) followupCleared ≡ nothing
+    no-monitor-async-after-clear = refl
+
+  -- Initialized governor completion consumption/application and public-state lag.
+  module GovernorCompletionChecks where
+    open import Data.List using (take)
+    open import Relation.Binary.PropositionalEquality using (cong)
+    import ConnectionManagement.Properties.ServerPeersContinuations as Continuations
+    private
+      module Root = Continuations I.bearerClosed Prior.classify
+      module GovCompletion = Root.Frontend capability
+    machineOf : V.Runtime → Sub.Configuration
+    machineOf s = Root.machine (V.base s)
+    selectingRuntime selectedRuntime appliedRuntime publicBefore publicAfter : V.Runtime
+    selectingRuntime = at registered Reactivation.warm8 freeFront
+    selectedRuntime = at registered Reactivation.warm9 freeFront
+    appliedRuntime = at registered Reactivation.warm10 freeFront
+    publicBefore = at registered Reactivation.warm14 freeFront
+    publicAfter = at registered Reactivation.warm15 freeFront
+    governorActions : List V.Event
+    governorActions = ps Sub.finishLaunch ∷ ps Sub.publishPublicState ∷ ps (Sub.sampleTime 16) ∷ ps Sub.registerWakeup ∷
+      ps Sub.selectCompletion ∷ ps (Sub.applyAt 16) ∷ ps Sub.publishCounters ∷ ps Sub.traceSelection ∷ ps Sub.finishLaunch ∷
+      ps (Sub.setTargets (G.targets 1 1 1)) ∷ ps Sub.publishPublicState ∷ []
+    completedActions : List V.Event
+    completedActions = CompletionChecks.completedPrefix ++ CompletionChecks.completionActions
+    abstract
+      initialized-selecting : V.Runs initial (completedActions ++ take 4 governorActions) selectingRuntime
+      initialized-selecting = Facts.append-protocols CompletionChecks.initialized-completion-lifecycle
+        (V.more Reactivation.reactEdge33 (V.more Reactivation.reactEdge34 (V.more Reactivation.reactEdge35 (V.more Reactivation.reactEdge36 V.stop))))
+      initialized-public-after : V.Runs initial (completedActions ++ governorActions) publicAfter
+      initialized-public-after = Facts.append-protocols CompletionChecks.initialized-completion-lifecycle
+        (V.more Reactivation.reactEdge33 (V.more Reactivation.reactEdge34 (V.more Reactivation.reactEdge35 (V.more Reactivation.reactEdge36
+          (V.more Reactivation.reactEdge37 (V.more Reactivation.reactEdge38 (V.more Reactivation.reactEdge39 (V.more Reactivation.reactEdge40
+            (V.more Reactivation.reactEdge41 (V.more Reactivation.reactEdge42 (V.more Reactivation.reactEdge43 V.stop)))))))))))
+    selection : Root.CompletionSelection (machineOf selectingRuntime) (machineOf selectedRuntime)
+    selection = proj₁ (GovCompletion.selected-completion selectingRuntime selectedRuntime Reactivation.reactEdge37)
+    selection-effects : GovCompletion.OwnerEffects Sub.selectCompletion selectingRuntime selectedRuntime
+    selection-effects = proj₂ (GovCompletion.selected-completion selectingRuntime selectedRuntime Reactivation.reactEdge37)
+    exact-selected-head : Root.CompletionSelection.result selection ≡ Reactivation.deactivationCompletion
+    exact-selected-head = refl
+    source-queue-consumed : Sub.completions (machineOf selectedRuntime) ≡ []
+    source-queue-consumed = refl
+    selection-retains-private : Sub.privateState (machineOf selectedRuntime) ≡ Sub.privateState (machineOf selectingRuntime)
+    selection-retains-private = cong Sub.privateState (Root.CompletionSelection.state selection)
+    selection-retains-public : Sub.publicState (machineOf selectedRuntime) ≡ Sub.publicState (machineOf selectingRuntime)
+    selection-retains-public = cong Sub.publicState (Root.CompletionSelection.state selection)
+    selection-retains-body-ledger : C.governorPool (K.context (V.base selectedRuntime)) ≡ C.governorPool (K.context (V.base selectingRuntime))
+    selection-retains-body-ledger = GovCompletion.OwnerEffects.ledger selection-effects
+    application : Root.CompletionApplication 16 Reactivation.deactivationCompletion (machineOf selectedRuntime) (machineOf appliedRuntime)
+    application = proj₁ (GovCompletion.applied-completion 16 Reactivation.deactivationCompletion selectedRuntime appliedRuntime refl Reactivation.reactEdge38)
+    exact-current-application : Sub.privateState (machineOf appliedRuntime) ≡ G.complete
+      (Sub.maxRetries (machineOf selectedRuntime)) (Sub.clearFailDelay (machineOf selectedRuntime)) 16
+      Reactivation.deactivationCompletion (Sub.privateState (machineOf selectedRuntime))
+    exact-current-application = Root.application-current 16 Reactivation.deactivationCompletion _ _ application refl
+    application-retains-public : Sub.publicState (machineOf appliedRuntime) ≡ Sub.publicState (machineOf selectedRuntime)
+    application-retains-public = Root.application-public 16 Reactivation.deactivationCompletion _ _ application
+    public-publication : Root.PublicStatePublication (machineOf publicBefore) (machineOf publicAfter)
+    public-publication = proj₁ (GovCompletion.public-governor-state publicBefore publicAfter Reactivation.reactEdge43)
+    public-now-updated : Sub.publicState (machineOf publicAfter) ≡ Sub.privateState (machineOf publicBefore)
+    public-now-updated = cong Sub.publicState (Root.PublicStatePublication.state public-publication)
+    private-active-cleared : G.activePeers (Sub.privateState (machineOf appliedRuntime)) ≡ []
+    private-active-cleared = refl
+    public-active-still-present : G.activePeers (Sub.publicState (machineOf appliedRuntime)) ≡ L.peerAddr ∷ []
+    public-active-still-present = refl
+    source-target-priority : Sub.advance Sub.selectTargets (machineOf selectingRuntime) ≡ nothing
+    source-target-priority = proj₁ (Root.completion-priority (machineOf selectingRuntime) (machineOf selectedRuntime) selection)
+    targets-cannot-overtake-completion : V.advance (ps Sub.selectTargets) selectingRuntime ≡ nothing
+    targets-cannot-overtake-completion = refl
+    policy-cannot-overtake-completion : V.advance (ps (Sub.selectPolicy (L.peerAddr ∷ []))) selectingRuntime ≡ nothing
+    policy-cannot-overtake-completion = refl
+    wakeup-cannot-overtake-completion : V.advance (ps Sub.selectWakeup) selectingRuntime ≡ nothing
+    wakeup-cannot-overtake-completion = refl
+    no-backwards-application-time : V.advance (ps (Sub.applyAt 15)) selectedRuntime ≡ nothing
+    no-backwards-application-time = refl
+    no-public-write-before-loop : V.advance (ps Sub.publishPublicState) appliedRuntime ≡ nothing
+    no-public-write-before-loop = refl
+
+    -- Conditional scheduling controls reuse the existing captured completion;
+    -- they do not assert new initialized assertion-failure or timer histories.
+    monitorPriorityContext : C.Context
+    monitorPriorityContext = record Reactivation.warm8 { subsystem = record (C.subsystem Reactivation.warm8)
+      { privateState = record (C.SubContext.privateState (C.subsystem Reactivation.warm8)) { demotingHot = [] } } }
+    ready-monitor-blocks-completion : V.advance (ps Sub.selectCompletion) (at registered monitorPriorityContext freeFront) ≡ nothing
+    ready-monitor-blocks-completion = refl
+    timerContext timerSelectedContext : C.Context
+    timerContext = record Reactivation.warm8 { subsystem = record (C.subsystem Reactivation.warm8) { wakeupAt = just 20 } }
+    timerSelectedContext = record Reactivation.warm9 { subsystem = record (C.subsystem Reactivation.warm9)
+      { wakeupAt = just 20; pc = Sub.cancelTimer (Sub.completion Reactivation.deactivationCompletion) } }
+    timerBefore timerSelected : V.Runtime
+    timerBefore = at registered timerContext freeFront
+    timerSelected = at registered timerSelectedContext freeFront
+    timer-select : V.advance (ps Sub.selectCompletion) timerBefore ≡ just timerSelected
+    timer-select = refl
+    timer-must-cancel-first : V.advance (ps (Sub.applyAt 16)) timerSelected ≡ nothing
+    timer-must-cancel-first = refl
+    timer-cancel : V.advance (ps Sub.cancelWakeup) timerSelected ≡ just selectedRuntime
+    timer-cancel = refl
+    certified-timer-cancel : machineOf selectedRuntime ≡ record (machineOf timerSelected)
+      { pc = Sub.apply (Sub.completion Reactivation.deactivationCompletion); wakeupAt = nothing; wakeupReady = false }
+    certified-timer-cancel = proj₁ (GovCompletion.cancelled-completion-timer Reactivation.deactivationCompletion timerSelected selectedRuntime refl timer-cancel)
+    assertionContext assertionFailedContext : C.Context
+    assertionContext = record Reactivation.warm9 { subsystem = record (C.subsystem Reactivation.warm9)
+      { privateState = record (C.SubContext.privateState (C.subsystem Reactivation.warm9)) { establishedPeers = [] } } }
+    assertionFailedContext = record assertionContext { subsystem = record (C.subsystem assertionContext)
+      { pc = Sub.completionAssertionFailed Reactivation.deactivationCompletion } }
+    assertionBefore assertionAfter : V.Runtime
+    assertionBefore = at registered assertionContext freeFront
+    assertionAfter = at registered assertionFailedContext freeFront
+    assertion-step : V.advance (ps (Sub.applyAt 16)) assertionBefore ≡ just assertionAfter
+    assertion-step = refl
+    rejected-application : Root.CompletionApplication 16 Reactivation.deactivationCompletion (machineOf assertionBefore) (machineOf assertionAfter)
+    rejected-application = proj₁ (GovCompletion.applied-completion 16 Reactivation.deactivationCompletion assertionBefore assertionAfter refl assertion-step)
+    assertion-retains-private : Sub.privateState (machineOf assertionAfter) ≡ Sub.privateState (machineOf assertionBefore)
+    assertion-retains-private = proj₂ (Root.application-rejection 16 Reactivation.deactivationCompletion _ _ rejected-application refl)
+    assertion-failure-pc : Sub.pc (machineOf assertionAfter) ≡ Sub.completionAssertionFailed Reactivation.deactivationCompletion
+    assertion-failure-pc = proj₁ (Root.application-rejection 16 Reactivation.deactivationCompletion _ _ rejected-application refl)
+    assertion-cannot-publish-counters : V.advance (ps Sub.publishCounters) assertionAfter ≡ nothing
+    assertion-cannot-publish-counters = refl
+    assertion-cannot-publish-public : V.advance (ps Sub.publishPublicState) assertionAfter ≡ nothing
+    assertion-cannot-publish-public = refl
+
+  -- Provenance is derived from initialized executions, including the actual
+  -- queue publication and the separate earlier primitive pool body return.
+  module CompletionProvenanceChecks where
+    open import Data.Empty using (⊥)
+    open import Data.List using (drop)
+    open import Data.List.Relation.Unary.Any using (here)
+    open import Relation.Binary.PropositionalEquality using (sym; trans; subst)
+    open import Function using (case_of_)
+    import ConnectionManagement.Properties.ServerPeersCompletions as CompletionOrigin
+    import ConnectionManagement.Properties.GovernorCompletions as QueueEvidence
+    import ConnectionManagement.Properties.JobPoolReturnHistory as ReturnHistory
+    private
+      module QueueProvenance = CompletionOrigin.Frontend I.bearerClosed Prior.classify capability
+      module Evidence = QueueEvidence Prior.classify
+      module Returns = ReturnHistory GP.Body
+      module GC = GovernorCompletionChecks
+    publishedActions : List V.Event
+    publishedActions = CompletionChecks.completedPrefix ++
+      (V.waitJobResults (ident 2) ∷ ps (Sub.enqueueCompletion (ident 2) 0) ∷ [])
+    abstract
+      initialized-pending : V.Runs initial publishedActions CompletionChecks.jobPublished
+      initialized-pending = Facts.append-protocols CompletionChecks.initialized-job-before
+        (V.more Reactivation.reactEdge29 (V.more Reactivation.reactEdge30 V.stop))
+    pending-history : QueueProvenance.Origin initial CompletionChecks.jobPublished Reactivation.deactivationCompletion
+    pending-history = QueueProvenance.initialized-pending initializer initialized-pending (here refl)
+    pending-return : Returns.Returned GP.Pool.initial
+      (Evidence.Publication.job (QueueProvenance.Origin.published pending-history))
+      (Evidence.Publication.payload (QueueProvenance.Origin.published pending-history))
+      (Evidence.View.pool (QueueProvenance.runtime-view (QueueProvenance.Origin.before pending-history)))
+    pending-return = QueueProvenance.origin-returned initializer pending-history
+    pending-work-matches : GP.work (Evidence.Publication.payload (QueueProvenance.Origin.published pending-history)) ≡ Reactivation.deactivationWork
+    pending-work-matches = proj₁ (proj₂ (QueueProvenance.origin-agreement pending-history))
+    pending-outcome-matches : GP.outcome (Evidence.Publication.payload (QueueProvenance.Origin.published pending-history)) ≡ G.succeeded
+    pending-outcome-matches = proj₂ (proj₂ (QueueProvenance.origin-agreement pending-history))
+    pending-identity-matches : GP.identity (Evidence.Publication.payload (QueueProvenance.Origin.published pending-history)) ≡
+      Evidence.Publication.job (QueueProvenance.Origin.published pending-history)
+    pending-identity-matches = proj₁ (QueueProvenance.origin-agreement pending-history)
+    consumed-history : QueueProvenance.Origin initial GC.selectingRuntime Reactivation.deactivationCompletion
+    consumed-history = subst (QueueProvenance.Origin initial GC.selectingRuntime) GC.exact-selected-head
+      (QueueProvenance.initialized-consumed initializer GC.initialized-selecting Reactivation.reactEdge37)
+    consumed-return : Returns.Returned GP.Pool.initial
+      (Evidence.Publication.job (QueueProvenance.Origin.published consumed-history))
+      (Evidence.Publication.payload (QueueProvenance.Origin.published consumed-history))
+      (Evidence.View.pool (QueueProvenance.runtime-view GC.selectingRuntime))
+    consumed-return = QueueProvenance.origin-returned-current initializer consumed-history
+    remainingActions : List V.Event
+    remainingActions = drop 4 GC.governorActions
+    remaining-path : V.Runs GC.selectingRuntime remainingActions GC.publicAfter
+    remaining-path = V.more Reactivation.reactEdge37 (V.more Reactivation.reactEdge38 (V.more Reactivation.reactEdge39
+      (V.more Reactivation.reactEdge40 (V.more Reactivation.reactEdge41 (V.more Reactivation.reactEdge42 (V.more Reactivation.reactEdge43 V.stop))))))
+    retained-history : QueueProvenance.Origin initial GC.publicAfter Reactivation.deactivationCompletion
+    retained-history = QueueProvenance.extend-through remaining-path consumed-history
+    retained-handle : Returns.Present (Evidence.Publication.job (QueueProvenance.Origin.published retained-history))
+      (Evidence.View.pool (QueueProvenance.runtime-view GC.publicAfter))
+    retained-handle = Returns.returned-present (QueueProvenance.origin-returned-current initializer retained-history)
+    no-wrong-outcome : GP.outcome (Evidence.Publication.payload (QueueProvenance.Origin.published pending-history)) ≡ G.failed → ⊥
+    no-wrong-outcome wrong = case trans (sym pending-outcome-matches) wrong of λ ()
+
+    -- An arbitrary queue can be consumed without a body guard at selection.
+    -- Erasing the historical pool makes this snapshot unreachable from init.
+    forgedContext forgedSelectedContext : C.Context
+    forgedContext = record Reactivation.warm8 { governorPool = GP.Pool.initial }
+    forgedSelectedContext = record Reactivation.warm9 { governorPool = GP.Pool.initial }
+    forgedRuntime forgedSelected : V.Runtime
+    forgedRuntime = at registered forgedContext freeFront
+    forgedSelected = at registered forgedSelectedContext freeFront
+    arbitrary-queue-readable : V.advance (ps Sub.selectCompletion) forgedRuntime ≡ just forgedSelected
+    arbitrary-queue-readable = refl
+    initialized-forged-queue-impossible : ∀ {actions} → V.Runs initial actions forgedRuntime → ⊥
+    initialized-forged-queue-impossible path with Returns.returned-present
+      (QueueProvenance.origin-returned-current initializer
+        (QueueProvenance.initialized-pending initializer path (here refl)))
+    ... | phase , ()
+
+  -- A consumed success has the same historical deactivation body as its
+  -- publication, and its success is derived from initialized frame control.
+  module DeactivationOriginChecks where
+    open import Data.Empty using (⊥)
+    open import Data.List using (take)
+    open import Relation.Binary.PropositionalEquality using (sym; trans; subst)
+    import ConnectionManagement.Properties.ServerPeersContinuations as Continuations
+    import ConnectionManagement.Properties.ServerPeersDeactivation as SuccessOrigins
+    import ConnectionManagement.Properties.ServerPeersCompletions as CompletionOrigin
+    import ConnectionManagement.Properties.GovernorCompletions as QueueEvidence
+    private
+      module Success = SuccessOrigins.Frontend I.bearerClosed Prior.classify capability
+      module QueueProvenance = CompletionOrigin.Frontend I.bearerClosed Prior.classify capability
+      module Evidence = QueueEvidence Prior.classify
+      module CP = CompletionProvenanceChecks
+      module GC = GovernorCompletionChecks
+    consumed-success : Success.History initial GC.selectingRuntime
+      (Evidence.Publication.job (QueueProvenance.Origin.published CP.consumed-history)) Reactivation.deactivationWork
+    consumed-success = Success.origin-success initializer CP.consumed-history refl refl
+    retained-success : Success.History initial GC.publicAfter
+      (Evidence.Publication.job (QueueProvenance.Origin.published CP.consumed-history)) Reactivation.deactivationWork
+    retained-success = Success.extend-through CP.remaining-path consumed-success
+    returned-success : Success.History initial CompletionChecks.jobReturned (ident 2) Reactivation.deactivationWork
+    returned-success = proj₂ (Success.initialized-valid initializer CompletionChecks.initialized-job-returned
+      (ident 2) CompletionChecks.returnedFrame refl refl) refl
+
+    private
+      module Agreement = Continuations.Frontend I.bearerClosed Prior.classify capability
+    cleanPlan : V.Plan
+    cleanPlan = V.inherit (K.peerStep (PS.run (GP.run (Sub.jobStep (ident 2) J.observeHot)))) freeFront
+    actual-clean-selector : V.choose (V.waitJobResults (ident 2)) CompletionChecks.jobBefore ≡ just cleanPlan
+    actual-clean-selector = refl
+    clean-cause : Success.Cause (ident 2) Reactivation.deactivationWork CompletionChecks.jobBefore CompletionChecks.jobReturned
+      (V.waitJobResults (ident 2)) cleanPlan
+    clean-cause = Success.cleanWait (Reactivation.deactivationFrame J.awaitHot false false) CompletionChecks.returnedFrame
+      refl refl refl CompletionChecks.agreement
+      (Agreement.job-success-captures (ident 2) CompletionChecks.jobBefore CompletionChecks.jobReturned
+        CompletionChecks.agreement CompletionChecks.returnedFrame refl refl) refl refl refl
+
+    -- A monitor can finish deactivation between job registration and J.enter.
+    -- That initialized race takes the source's legitimate PeerWarm shortcut.
+    module WarmRace where
+      beforeEntry : V.Runtime
+      beforeEntry = at registered Reactivation.down94 freeFront
+      prefix : List V.Event
+      prefix = (prefixActions ++ Reactivation.firstCompletedActions) ++ take 27 Reactivation.reactivationActions
+      abstract
+        initialized-before : V.Runs initial prefix beforeEntry
+        initialized-before = Facts.append-protocols Reactivation.initialized-first-completed
+          (V.more Reactivation.reactEdge1 (V.more Reactivation.reactEdge2 (V.more Reactivation.reactEdge3 (V.more Reactivation.reactEdge4 (V.more Reactivation.reactEdge5 (V.more Reactivation.reactEdge6 (V.more Reactivation.reactEdge7 (V.more Reactivation.reactEdge8 (V.more Reactivation.reactEdge9 (V.more Reactivation.reactEdge10 (V.more Reactivation.reactEdge11 (V.more Reactivation.reactEdge12 (V.more Reactivation.reactEdge13 (V.more Reactivation.reactEdge14 (V.more Reactivation.reactEdge15 (V.more Reactivation.reactEdge16 (V.more Reactivation.reactEdge17 (V.more Reactivation.reactEdge18 (V.more Reactivation.reactEdge19 (V.more Reactivation.reactEdge20 (V.more Reactivation.reactEdge21 (V.more Reactivation.reactEdge22 (V.more Reactivation.reactEdge23 (V.more Reactivation.reactEdge24 (V.more Reactivation.reactEdge25 (V.more Reactivation.reactEdge26 (V.more Reactivation.reactEdge27 (V.stop))))))))))))))))))))))))))))
+      followup : J.Frame
+      followup = J.frame Reactivation.deactivationWork (ident 50) (ident 50) (ident 0) (ident 0) J.begin
+      contextAt : J.Frame → Peer.Peer → C.Context
+      contextAt f peer = record (withPeer peer Reactivation.down94)
+        { subsystem = record (C.subsystem (withPeer peer Reactivation.down94))
+          { monitors = put (ident 0) f (C.SubContext.monitors (C.subsystem Reactivation.down94)) } }
+      warmPolled warmWaiting warmWarmed : C.Context
+      warmPolled = contextAt followup cleanPromoted
+      warmWaiting = contextAt (record followup { pc = J.awaitHot }) Reactivation.terminatingPeer
+      warmWarmed = contextAt (record followup { pc = J.complete G.succeeded }) Reactivation.retiredPeer
+      warmReturned warmPublished : C.Context
+      warmReturned = record warmWarmed { subsystem = record (C.subsystem warmWarmed)
+        { jobs = put (ident 2) CompletionChecks.returnedFrame (C.SubContext.jobs (C.subsystem warmWarmed)) }
+        ; governorPool = Reactivation.deactivationReturnedPool }
+      warmPublished = record warmReturned { subsystem = record (C.subsystem warmReturned)
+        { jobs = put (ident 2) (Reactivation.deactivationFrame (J.complete G.succeeded) true false) (C.SubContext.jobs (C.subsystem warmReturned))
+        ; completions = Reactivation.deactivationCompletion ∷ [] }
+        ; governorPool = Reactivation.deactivationQueuedPool }
+      poll : V.advance (V.pollResults (ident 0) (ident 50)) beforeEntry ≡ just (at registered warmPolled freeFront)
+      poll = refl
+      enterMonitor : V.advance (ps (Sub.monitorStep (ident 0) J.enter)) (at registered warmPolled freeFront) ≡ just (at registered warmWaiting freeFront)
+      enterMonitor = refl
+      finishMonitor : V.advance (V.waitMonitorResults (ident 0)) (at registered warmWaiting freeFront) ≡ just (at registered warmWarmed freeFront)
+      finishMonitor = refl
+      enterWarm : V.advance (ps (Sub.jobStep (ident 2) J.enter)) (at registered warmWarmed freeFront) ≡ just (at registered warmReturned freeFront)
+      enterWarm = refl
+      earlyPlan : V.Plan
+      earlyPlan = V.inherit (K.peerStep (PS.run (GP.run (Sub.jobStep (ident 2) J.enter)))) freeFront
+      earlyWorld : J.World
+      earlyWorld = Sub.world (PS.machine (K.peers (V.base (at registered warmWarmed freeFront))))
+      actual-early-selector : V.choose (ps (Sub.jobStep (ident 2) J.enter)) (at registered warmWarmed freeFront) ≡ just earlyPlan
+      actual-early-selector = refl
+      early-cause : Success.Cause (ident 2) Reactivation.deactivationWork (at registered warmWarmed freeFront) (at registered warmReturned freeFront)
+        (ps (Sub.jobStep (ident 2) J.enter)) earlyPlan
+      early-cause = Success.alreadyWarm (Reactivation.deactivationFrame J.begin false false)
+        (Sub.execution CompletionChecks.returnedFrame) earlyWorld earlyWorld Reactivation.retiredPeer
+        refl refl refl refl refl refl refl refl refl refl
+      publish : V.advance (ps (Sub.enqueueCompletion (ident 2) 0)) (at registered warmReturned freeFront) ≡ just (at registered warmPublished freeFront)
+      publish = refl
+      actions : List V.Event
+      actions = V.pollResults (ident 0) (ident 50) ∷ ps (Sub.monitorStep (ident 0) J.enter) ∷
+        V.waitMonitorResults (ident 0) ∷ ps (Sub.jobStep (ident 2) J.enter) ∷ ps (Sub.enqueueCompletion (ident 2) 0) ∷ []
+      abstract
+        initialized-publication : V.Runs initial (prefix ++ actions) (at registered warmPublished freeFront)
+        initialized-publication = Facts.append-protocols initialized-before
+          (V.more poll (V.more enterMonitor (V.more finishMonitor (V.more enterWarm (V.more publish V.stop)))))
+      open import Data.List.Relation.Unary.Any using (here)
+      publication-history = QueueProvenance.initialized-pending initializer initialized-publication (here refl)
+      success : Success.History initial (at registered warmPublished freeFront)
+        (Evidence.Publication.job (QueueProvenance.Origin.published publication-history)) Reactivation.deactivationWork
+      success = Success.origin-success initializer publication-history refl refl
+      -- The target governor job did not wait; the monitor did. Separate IDs
+      -- and the before-entry PC exclude attributing its read to this body.
+      actual-warm-peer : Peer.status Reactivation.retiredPeer ≡ Peer.peerWarm
+      actual-warm-peer = refl
+      job-still-at-begin : J.pc (Sub.execution (Reactivation.deactivationFrame J.begin false false)) ≡ J.begin
+      job-still-at-begin = refl
+      no-target-wait : V.advance (V.waitJobResults (ident 2)) (at registered warmWarmed freeFront) ≡ nothing
+      no-target-wait = refl
+
+    -- An arbitrary deactivation row at an activation PC can manufacture a
+    -- success-shaped body. Initialization excludes precisely that control mix.
+    module ForgedControl where
+      import ConnectionManagement.Properties.PeerJobControl as Control
+      forgedFrame : Sub.JobFrame
+      forgedFrame = Reactivation.deactivationFrame J.finishActivation false false
+      forged : V.Runtime
+      forged = at registered (record Reactivation.down94
+        { subsystem = record (C.subsystem Reactivation.down94)
+          { jobs = put (ident 2) forgedFrame (C.SubContext.jobs (C.subsystem Reactivation.down94)) } }) freeFront
+      fabricatedReturn : V.Runtime
+      fabricatedReturn = at registered (record Reactivation.down94
+        { subsystem = record (C.subsystem Reactivation.down94)
+          { jobs = put (ident 2) CompletionChecks.returnedFrame (C.SubContext.jobs (C.subsystem Reactivation.down94))
+          ; peers = (ident 0 , record cleanPromoted { promotedAt = just 19 }) ∷ [] }
+        ; governorPool = Reactivation.deactivationReturnedPool }) freeFront
+      arbitrary-control-return : V.advance (ps (Sub.jobStep (ident 2) (J.finishHotAt 19))) forged ≡ just fabricatedReturn
+      arbitrary-control-return = refl
+      no-control : Control.DeactivatePC J.finishActivation → ⊥
+      no-control ()
+      unreachable : ∀ {actions} → V.Runs initial actions forged → ⊥
+      unreachable path = no-control (proj₁ (Success.initialized-valid initializer path (ident 2) forgedFrame refl refl))
+
+
+  -- Initialized close routes retain physical reads, the real shared CM release,
+  -- Cold observation and completion provenance without conflating Async phases.
+  module CloseOriginChecks where
+    open import Data.Empty using (⊥)
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.List using (take; drop)
+    open import Data.List.Relation.Unary.Any using (here)
+    open import Relation.Binary.PropositionalEquality using (subst; sym)
+    import ConnectionManagement.Rules.OutboundRelease as OutRelease
+    import ConnectionManagement.Properties.ServerPeersDeactivation as DeactivationWitness
+    import ConnectionManagement.Properties.ServerPeersClose as CloseOrigins
+    import ConnectionManagement.Properties.ServerPeersCompletions as CompletionOrigin
+    import ConnectionManagement.Properties.ServerPeersContinuations as Continuations
+    import ConnectionManagement.Properties.GovernorCompletions as QueueEvidence
+    private
+      module Success = CloseOrigins.Frontend I.bearerClosed Prior.classify capability
+      module QueueProvenance = CompletionOrigin.Frontend I.bearerClosed Prior.classify capability
+      module Agreement = Continuations.Frontend I.bearerClosed Prior.classify capability
+      module Root = Continuations I.bearerClosed Prior.classify
+      module Evidence = QueueEvidence Prior.classify
+      module GC = GovernorCompletionChecks
+      module PhysicalReads = DeactivationWitness.Frontend I.bearerClosed Prior.classify capability
+
+    import ConnectionManagement.Properties.ServerPeersMonitorReturns as MonitorReturns
+    private
+      module Monitor = MonitorReturns I.bearerClosed Prior.classify
+      module Monitors = Monitor.Frontend capability
+
+    import ConnectionManagement.Store as Stores
+    -- Transparent fixture data and events; no runtime rule is changed.
+    initialCM : O.Configuration
+    initialCM = O.initial (Machine.initial Shared.responderMode F.empty)
+    sub : V.Runtime → C.SubContext
+    sub state = C.subsystem (K.context (V.base state))
+    withSub : (C.SubContext → C.SubContext) → V.Runtime → V.Runtime
+    withSub update state = record state { base = record (V.base state)
+      { context = record (K.context (V.base state)) { subsystem = update (sub state) } } }
+    withGP : (GP.Pool.State → GP.Pool.State) → V.Runtime → V.Runtime
+    withGP update state = record state { base = record (V.base state)
+      { context = record (K.context (V.base state)) { governorPool = update (C.governorPool (K.context (V.base state))) } } }
+    withCM : O.Configuration → V.Runtime → V.Runtime
+    withCM source state = record state { base = record (V.base state) { server = K.setSource source (K.server (V.base state)) } }
+    background : PS.MonitorPC → Maybe Cancel.Frame → PS.Thread
+    background pc interrupted = PS.thread (ident 0) (ident 50) (ident 0) PS.returned pc interrupted nothing
+    withBackground : PS.MonitorPC → Maybe Cancel.Frame → V.Runtime → V.Runtime
+    withBackground pc interrupted state = record state { base = record (V.base state)
+      { context = record (K.context (V.base state))
+        { monitors = put (ident 50) (background pc interrupted) (C.monitors (K.context (V.base state))) } } }
+    oldDup : Shared.ConnectionState
+    oldDup = Shared.outboundDup A.key₀ A.child₀ (ident 0) ticking
+    beginCM : WorkerId → V.Runtime → V.Runtime
+    beginCM actor state = withCM (record (V.sourceOf state)
+      { releasing = put actor (OutRelease.frame A.key₀ OutRelease.transaction false) (O.releasing (V.sourceOf state))
+      ; released = Stores.delete actor (O.released (V.sourceOf state)) }) state
+    transactCM : WorkerId → V.Runtime → V.Runtime
+    transactCM actor state = withCM (record source
+      { core = record (O.core source) { world = record world
+          { cm = record (Shared.cm world) { entries = put (ident 0) (Shared.inboundIdle A.key₀ A.child₀ (ident 0) duplex) (Shared.entries (Shared.cm world)) } } }
+      ; releasing = put actor (OutRelease.frame A.key₀ (OutRelease.count (OutRelease.complete (OutRelease.success (just oldDup)))) false) (O.releasing source) }) state
+      where
+      source = V.sourceOf state
+      world = Machine.world (O.core source)
+    countCM : WorkerId → V.Runtime → V.Runtime
+    countCM actor state = withCM (record (V.sourceOf state)
+      { releasing = put actor (OutRelease.frame A.key₀ (OutRelease.complete (OutRelease.success (just oldDup))) false) (O.releasing (V.sourceOf state)) }) state
+    returnCM : WorkerId → V.Runtime → V.Runtime
+    returnCM actor state = withCM (record (V.sourceOf state)
+      { releasing = Stores.delete actor (O.releasing (V.sourceOf state))
+      ; released = put actor (OutRelease.success (just oldDup)) (O.released (V.sourceOf state)) }) state
+    stopMux : V.Runtime → V.Runtime
+    stopMux state = withCM (record source { core = record (O.core source)
+      { inboundGovernor = IG.setMux (ident 0) (record Y.m1 { commands = Mux.commands Y.m1 ++ (Mux.shutdown ∷ []) })
+        (Machine.inboundGovernor (O.core source)) } }) state
+      where source = V.sourceOf state
+    closeWork : G.Job
+    closeWork = G.job G.close L.peerAddr (just (ident 0))
+    closeCompletion : G.Completion
+    closeCompletion = G.completion closeWork G.succeeded 0
+    closeFrame : J.PC → Bool → Sub.JobFrame
+    closeFrame pc queued = Sub.jobFrame (J.frame closeWork (ident 18) (ident 19) (ident 18) (ident 0) pc) queued false
+    closeBody : G.Outcome → GP.Body
+    closeBody outcome = GP.body (ident 3) closeWork outcome
+    closePeer : Peer.Peer
+    closePeer = record (Peer.cool Reactivation.retiredPeer)
+      { hotControl = Peer.terminate; warmControl = Peer.terminate; establishedControl = Peer.terminate }
+    frameAt : J.PC → V.Runtime → V.Runtime
+    frameAt pc = withSub (λ c → record c { jobs = put (ident 3) (closeFrame pc false) (C.SubContext.jobs c) })
+    returnBody : G.Outcome → V.Runtime → V.Runtime
+    returnBody outcome state = withGP (λ pool → record pool
+      { handles = put (ident 3) (GP.Pool.bodyReturned (closeBody outcome)) (GP.Pool.handles pool) })
+      (frameAt (J.complete outcome) state)
+    publishBody : V.Runtime → V.Runtime
+    publishBody state = withGP (λ pool → record pool
+      { handles = put (ident 3) (GP.Pool.deregisterPending GP.Pool.normalExit) (GP.Pool.handles pool)
+      ; completions = GP.Pool.completions pool ++ (closeBody G.succeeded ∷ []) })
+      (withSub (λ c → record c { jobs = put (ident 3) (closeFrame (J.complete G.succeeded) true) (C.SubContext.jobs c)
+        ; completions = C.SubContext.completions c ++ (closeCompletion ∷ []) }) state)
+    observeColdPeer : V.Runtime → V.Runtime
+    observeColdPeer state = withBackground PS.normalFinishing nothing
+      (withSub (λ c → record c { peers = (ident 0 , record closePeer { status = Peer.peerCold }) ∷ [] }) state)
+    withMonitorPool : (PS.Pool.State → PS.Pool.State) → V.Runtime → V.Runtime
+    withMonitorPool update state = record state { base = record (V.base state)
+      { context = record (K.context (V.base state)) { monitorPool = update (C.monitorPool (K.context (V.base state))) } } }
+    finishPhysical : Maybe Cancel.Frame → V.Runtime → V.Runtime
+    finishPhysical interrupted state = withMonitorPool (λ pool → record pool
+      { handles = put (ident 50) (PS.Pool.deregisterPending PS.Pool.normalExit) (PS.Pool.handles pool) })
+      (withBackground PS.exited interrupted (withSub (λ c → record c
+        { peers = (ident 0 , record closePeer { status = Peer.peerCold; monitorStarted = false; promotedAt = nothing }) ∷ [] }) state))
+    removePhysical : V.Runtime → V.Runtime
+    removePhysical = withMonitorPool (λ pool → record pool
+      { handles = put (ident 50) (PS.Pool.deregistered PS.Pool.normalExit) (PS.Pool.handles pool)
+      ; registered = PS.Pool.remove (ident 50) (PS.Pool.registered pool) })
+    publishPhysical : V.Runtime → V.Runtime
+    publishPhysical = withMonitorPool (λ pool → record pool
+      { handles = put (ident 50) (PS.Pool.resultAvailable PS.Pool.normalExit) (PS.Pool.handles pool) })
+    removeMonitor publishMonitor : V.Event
+    removeMonitor = peerStep (PS.deregisterMonitor (ident 50))
+    publishMonitor = peerStep (PS.publishMonitorResult (ident 50))
+    normalMonitorActions errorMonitorActions : List V.Event
+    normalMonitorActions = Monitors.event Monitor.normal (ident 50) ∷ removeMonitor ∷ publishMonitor ∷ []
+    errorMonitorActions = Monitors.event Monitor.exceptional (ident 50) ∷ removeMonitor ∷ publishMonitor ∷ []
+    all-before-release : J.pc (Sub.execution (closeFrame J.awaitAll false)) ≡ J.awaitAll
+    all-before-release = refl
+    closeEvent1 : V.Event
+    closeEvent1 = ps (Sub.setTargets (G.targets 1 0 0))
+    closeEvent2 : V.Event
+    closeEvent2 = ps (Sub.sampleTime 17)
+    closeEvent3 : V.Event
+    closeEvent3 = ps Sub.registerWakeup
+    closeEvent4 : V.Event
+    closeEvent4 = ps Sub.selectTargets
+    closeEvent5 : V.Event
+    closeEvent5 = ps (Sub.applyAt 17)
+    closeEvent6 : V.Event
+    closeEvent6 = ps Sub.publishCounters
+    closeEvent7 : V.Event
+    closeEvent7 = ps Sub.traceSelection
+    closeEvent8 : V.Event
+    closeEvent8 = ps Sub.finishLaunch
+    closeEvent9 : V.Event
+    closeEvent9 = ps Sub.publishPublicState
+    closeEvent10 : V.Event
+    closeEvent10 = ps (Sub.sampleTime 18)
+    closeEvent11 : V.Event
+    closeEvent11 = ps Sub.registerWakeup
+    closeEvent12 : V.Event
+    closeEvent12 = ps (Sub.selectPolicy (L.peerAddr ∷ []))
+    closeEvent13 : V.Event
+    closeEvent13 = ps (Sub.applyAt 18)
+    closeEvent14 : V.Event
+    closeEvent14 = ps Sub.publishCounters
+    closeEvent15 : V.Event
+    closeEvent15 = ps Sub.traceSelection
+    closeEvent16 : V.Event
+    closeEvent16 = ps (Sub.forkJob (ident 18) (ident 19) (ident 18))
+    closeEvent17 : V.Event
+    closeEvent17 = ps Sub.registerJob
+    closeEvent18 : V.Event
+    closeEvent18 = ps (Sub.jobStep (ident 3) J.enter)
+    closeEvent19 : V.Event
+    closeEvent19 = V.waitJobResults (ident 3)
+    closeEvent20 : V.Event
+    closeEvent20 = ps (Sub.jobStep (ident 3) J.requestRelease)
+    closeEvent21 : V.Event
+    closeEvent21 = V.dispatch (K.coreStep (O.release (ident 18) OutRelease.transactionStep))
+    closeEvent22 : V.Event
+    closeEvent22 = V.dispatch (K.coreStep (O.release (ident 18) OutRelease.readCounters))
+    closeEvent23 : V.Event
+    closeEvent23 = V.dispatch (K.coreStep (O.release (ident 18) OutRelease.returnResult))
+    closeEvent24 : V.Event
+    closeEvent24 = ps (Sub.jobStep (ident 3) J.collectRelease)
+    closeEvent25 : V.Event
+    closeEvent25 = V.pollResults (ident 0) (ident 50)
+    closeEvent26 : V.Event
+    closeEvent26 = ps (Sub.jobStep (ident 3) J.observeCold)
+    closeEvent27 : V.Event
+    closeEvent27 = ps (Sub.enqueueCompletion (ident 3) 0)
+    closeEvent28 : V.Event
+    closeEvent28 = ps Sub.finishLaunch
+    closeEvent29 : V.Event
+    closeEvent29 = ps Sub.publishPublicState
+    closeEvent30 : V.Event
+    closeEvent30 = ps (Sub.sampleTime 19)
+    closeEvent31 : V.Event
+    closeEvent31 = ps Sub.registerWakeup
+    closeEvent32 : V.Event
+    closeEvent32 = ps Sub.selectCompletion
+    closeEvent33 : V.Event
+    closeEvent33 = ps (Sub.applyAt 19)
+    closeEvent34 : V.Event
+    closeEvent34 = ps Sub.publishCounters
+    closeEvent35 : V.Event
+    closeEvent35 = ps Sub.traceSelection
+    closeEvent36 : V.Event
+    closeEvent36 = ps Sub.finishLaunch
+    closeEvent37 : V.Event
+    closeEvent37 = ps Sub.publishPublicState
+    timeoutEvent1 : V.Event
+    timeoutEvent1 = ps (Sub.jobStep (ident 3) J.operationTimeout)
+    timeoutEvent2 : V.Event
+    timeoutEvent2 = V.dispatch (K.coreStep (O.beginRelease (ident 80) A.key₀))
+    timeoutEvent3 : V.Event
+    timeoutEvent3 = V.dispatch (K.coreStep (O.release (ident 80) OutRelease.transactionStep))
+    timeoutEvent4 : V.Event
+    timeoutEvent4 = V.dispatch (K.coreStep (O.release (ident 80) OutRelease.readCounters))
+    timeoutEvent5 : V.Event
+    timeoutEvent5 = V.dispatch (K.coreStep (O.release (ident 80) OutRelease.returnResult))
+    timeoutEvent6 : V.Event
+    timeoutEvent6 = V.pollResults (ident 0) (ident 50)
+    timeoutEvent7 : V.Event
+    timeoutEvent7 = ps (Sub.jobStep (ident 3) J.observeCold)
+    timeoutEvent8 : V.Event
+    timeoutEvent8 = ps (Sub.enqueueCompletion (ident 3) 0)
+    coldEntryEvent1 : V.Event
+    coldEntryEvent1 = peerStep (PS.monitorException (ident 50) err)
+    coldEntryEvent2 : V.Event
+    coldEntryEvent2 = V.dispatch (K.coreStep (O.beginRelease (ident 80) A.key₀))
+    coldEntryEvent3 : V.Event
+    coldEntryEvent3 = V.dispatch (K.coreStep (O.release (ident 80) OutRelease.transactionStep))
+    coldEntryEvent4 : V.Event
+    coldEntryEvent4 = V.dispatch (K.coreStep (O.release (ident 80) OutRelease.readCounters))
+    coldEntryEvent5 : V.Event
+    coldEntryEvent5 = V.dispatch (K.coreStep (O.release (ident 80) OutRelease.returnResult))
+    coldEntryEvent6 : V.Event
+    coldEntryEvent6 = peerStep (PS.commitMonitorError (ident 50))
+    coldEntryEvent7 : V.Event
+    coldEntryEvent7 = ps (Sub.jobStep (ident 3) J.enter)
+    coldEntryEvent8 : V.Event
+    coldEntryEvent8 = ps (Sub.jobStep (ident 3) J.observeCold)
+    coldEntryEvent9 : V.Event
+    coldEntryEvent9 = ps (Sub.enqueueCompletion (ident 3) 0)
+    closeRouteActions : List V.Event
+    closeRouteActions = closeEvent1 ∷ closeEvent2 ∷ closeEvent3 ∷ closeEvent4 ∷ closeEvent5 ∷ closeEvent6 ∷ closeEvent7 ∷ closeEvent8 ∷ closeEvent9 ∷ closeEvent10 ∷ closeEvent11 ∷ closeEvent12 ∷ closeEvent13 ∷ closeEvent14 ∷ closeEvent15 ∷ closeEvent16 ∷ closeEvent17 ∷ closeEvent18 ∷ closeEvent19 ∷ closeEvent20 ∷ closeEvent21 ∷ closeEvent22 ∷ closeEvent23 ∷ closeEvent24 ∷ closeEvent25 ∷ closeEvent26 ∷ closeEvent27 ∷ closeEvent28 ∷ closeEvent29 ∷ closeEvent30 ∷ closeEvent31 ∷ closeEvent32 ∷ closeEvent33 ∷ closeEvent34 ∷ closeEvent35 ∷ closeEvent36 ∷ closeEvent37 ∷ []
+    successPrefix17 : List V.Event
+    successPrefix17 = (GC.completedActions ++ GC.governorActions) ++ (closeEvent1 ∷ closeEvent2 ∷ closeEvent3 ∷ closeEvent4 ∷ closeEvent5 ∷ closeEvent6 ∷ closeEvent7 ∷ closeEvent8 ∷ closeEvent9 ∷ closeEvent10 ∷ closeEvent11 ∷ closeEvent12 ∷ closeEvent13 ∷ closeEvent14 ∷ closeEvent15 ∷ closeEvent16 ∷ closeEvent17 ∷ [])
+    successPrefix18 : List V.Event
+    successPrefix18 = successPrefix17 ++ (closeEvent18 ∷ [])
+    successPrefix19 : List V.Event
+    successPrefix19 = successPrefix18 ++ (closeEvent19 ∷ [])
+    successPrefix20 : List V.Event
+    successPrefix20 = successPrefix19 ++ (closeEvent20 ∷ [])
+    successPrefix24 : List V.Event
+    successPrefix24 = successPrefix20 ++ (closeEvent21 ∷ closeEvent22 ∷ closeEvent23 ∷ closeEvent24 ∷ [])
+    successPrefix26 : List V.Event
+    successPrefix26 = successPrefix24 ++ (closeEvent25 ∷ closeEvent26 ∷ [])
+    successPrefix27 : List V.Event
+    successPrefix27 = successPrefix26 ++ (closeEvent27 ∷ [])
+    successPrefix31 : List V.Event
+    successPrefix31 = successPrefix27 ++ (closeEvent28 ∷ closeEvent29 ∷ closeEvent30 ∷ closeEvent31 ∷ [])
+    successPrefix37 : List V.Event
+    successPrefix37 = successPrefix31 ++ (closeEvent32 ∷ closeEvent33 ∷ closeEvent34 ∷ closeEvent35 ∷ closeEvent36 ∷ closeEvent37 ∷ [])
+    timeoutActions : List V.Event
+    timeoutActions = timeoutEvent1 ∷ timeoutEvent2 ∷ timeoutEvent3 ∷ timeoutEvent4 ∷ timeoutEvent5 ∷ timeoutEvent6 ∷ timeoutEvent7 ∷ timeoutEvent8 ∷ []
+    coldEntryActions : List V.Event
+    coldEntryActions = coldEntryEvent1 ∷ coldEntryEvent2 ∷ coldEntryEvent3 ∷ coldEntryEvent4 ∷ coldEntryEvent5 ∷ coldEntryEvent6 ∷ coldEntryEvent7 ∷ coldEntryEvent8 ∷ coldEntryEvent9 ∷ []
+    -- These siblings preserve the checked snapshot/edge interface while
+    -- preventing generic proof elaboration from unfolding runtime representations.
+    module Snapshots where
+      abstract
+        success0 : V.Runtime
+        success0 = GC.publicAfter
+        success1 : V.Runtime
+        success1 = withSub (λ c → record c { targetInput = G.targets 1 0 0 }) success0
+        closeEdge1 : V.advance closeEvent1 success0 ≡ just success1
+        closeEdge1 = refl
+        success2 : V.Runtime
+        success2 = withSub (λ c → record c { now = 17; privateState = G.advanceTime 17 (C.SubContext.privateState c); pc = Sub.prepareWait }) success1
+        closeEdge2 : V.advance closeEvent2 success1 ≡ just success2
+        closeEdge2 = refl
+        success3 : V.Runtime
+        success3 = withSub (λ c → record c { pc = Sub.selecting; wakeupAt = nothing; wakeupReady = false }) success2
+        closeEdge3 : V.advance closeEvent3 success2 ≡ just success3
+        closeEdge3 = refl
+        success4 : V.Runtime
+        success4 = withSub (λ c → record c { pc = Sub.apply (Sub.targets (G.targets 1 0 0)) }) success3
+        closeEdge4 : V.advance closeEvent4 success3 ≡ just success4
+        closeEdge4 = refl
+        success5 : V.Runtime
+        success5 = withSub (λ c → record c { now = 17; privateState = record (C.SubContext.privateState c) { target = G.targets 1 0 0 }; pc = Sub.publishView [] }) success4
+        closeEdge5 : V.advance closeEvent5 success4 ≡ just success5
+        closeEdge5 = refl
+        success6 : V.Runtime
+        success6 = withSub (λ c → record c { pc = Sub.traceDecision [] }) success5
+        closeEdge6 : V.advance closeEvent6 success5 ≡ just success6
+        closeEdge6 = refl
+        success7 : V.Runtime
+        success7 = withSub (λ c → record c { pc = Sub.launch [] }) success6
+        closeEdge7 : V.advance closeEvent7 success6 ≡ just success7
+        closeEdge7 = refl
+        success8 : V.Runtime
+        success8 = withSub (λ c → record c { pc = Sub.publishPublic }) success7
+        closeEdge8 : V.advance closeEvent8 success7 ≡ just success8
+        closeEdge8 = refl
+        success9 : V.Runtime
+        success9 = withSub (λ c → record c { publicState = C.SubContext.privateState c; pc = Sub.sampleInputs }) success8
+        closeEdge9 : V.advance closeEvent9 success8 ≡ just success9
+        closeEdge9 = refl
+        success10 : V.Runtime
+        success10 = withSub (λ c → record c { now = 18; privateState = G.advanceTime 18 (C.SubContext.privateState c); pc = Sub.prepareWait }) success9
+        closeEdge10 : V.advance closeEvent10 success9 ≡ just success10
+        closeEdge10 = refl
+        success11 : V.Runtime
+        success11 = withSub (λ c → record c { pc = Sub.selecting; wakeupAt = nothing; wakeupReady = false }) success10
+        closeEdge11 : V.advance closeEvent11 success10 ≡ just success11
+        closeEdge11 = refl
+        success12 : V.Runtime
+        success12 = withSub (λ c → record c { pc = Sub.apply (Sub.policy (G.decision (G.mark G.close (L.peerAddr ∷ []) (C.SubContext.privateState c)) (closeWork ∷ []))) }) success11
+        closeEdge12 : V.advance closeEvent12 success11 ≡ just success12
+        closeEdge12 = refl
+        success13 : V.Runtime
+        success13 = withSub (λ c → record c { now = 18; privateState = G.mark G.close (L.peerAddr ∷ []) (C.SubContext.privateState c); pc = Sub.publishView (closeWork ∷ []) }) success12
+        closeEdge13 : V.advance closeEvent13 success12 ≡ just success13
+        closeEdge13 = refl
+        success14 : V.Runtime
+        success14 = withSub (λ c → record c { pc = Sub.traceDecision (closeWork ∷ []) }) success13
+        closeEdge14 : V.advance closeEvent14 success13 ≡ just success14
+        closeEdge14 = refl
+        success15 : V.Runtime
+        success15 = withSub (λ c → record c { pc = Sub.launch (closeWork ∷ []) }) success14
+        closeEdge15 : V.advance closeEvent15 success14 ≡ just success15
+        closeEdge15 = refl
+        success16 : V.Runtime
+        success16 = withGP (λ pool → record pool { handles = put (ident 3) GP.Pool.bodyRunning (GP.Pool.handles pool); parentFork = just (ident 3) }) (withSub (λ c → record c { jobs = put (ident 3) (closeFrame J.begin false) (C.SubContext.jobs c); nextJob = 4; pc = Sub.register (ident 3) [] }) success15)
+        closeEdge16 : V.advance closeEvent16 success15 ≡ just success16
+        closeEdge16 = refl
+        success17 : V.Runtime
+        success17 = withGP (λ pool → record pool { registered = ident 3 ∷ GP.Pool.registered pool; parentFork = nothing }) (withSub (λ c → record c { pool = ident 3 ∷ C.SubContext.pool c; pc = Sub.launch [] }) success16)
+        closeEdge17 : V.advance closeEvent17 success16 ≡ just success17
+        closeEdge17 = refl
+        success18 : V.Runtime
+        success18 = frameAt J.awaitAll (withSub (λ c → record c { peers = (ident 0 , closePeer) ∷ [] }) success17)
+        closeEdge18 : V.advance closeEvent18 success17 ≡ just success18
+        closeEdge18 = refl
+        success19 : V.Runtime
+        success19 = frameAt J.callRelease success18
+        closeEdge19 : V.advance closeEvent19 success18 ≡ just success19
+        closeEdge19 = refl
+        success20 : V.Runtime
+        success20 = beginCM (ident 18) (frameAt J.awaitRelease success19)
+        closeEdge20 : V.advance closeEvent20 success19 ≡ just success20
+        closeEdge20 = refl
+        success21 : V.Runtime
+        success21 = transactCM (ident 18) success20
+        closeEdge21 : V.advance closeEvent21 success20 ≡ just success21
+        closeEdge21 = refl
+        success22 : V.Runtime
+        success22 = countCM (ident 18) success21
+        closeEdge22 : V.advance closeEvent22 success21 ≡ just success22
+        closeEdge22 = refl
+        success23 : V.Runtime
+        success23 = returnCM (ident 18) success22
+        closeEdge23 : V.advance closeEvent23 success22 ≡ just success23
+        closeEdge23 = refl
+        success24 : V.Runtime
+        success24 = frameAt (J.awaitCold G.succeeded) success23
+        closeEdge24 : V.advance closeEvent24 success23 ≡ just success24
+        closeEdge24 = refl
+        success25 : V.Runtime
+        success25 = observeColdPeer success24
+        closeEdge25 : V.advance closeEvent25 success24 ≡ just success25
+        closeEdge25 = refl
+        success26 : V.Runtime
+        success26 = returnBody G.succeeded success25
+        closeEdge26 : V.advance closeEvent26 success25 ≡ just success26
+        closeEdge26 = refl
+        success27 : V.Runtime
+        success27 = publishBody success26
+        closeEdge27 : V.advance closeEvent27 success26 ≡ just success27
+        closeEdge27 = refl
+        success28 : V.Runtime
+        success28 = withSub (λ c → record c { pc = Sub.publishPublic }) success27
+        closeEdge28 : V.advance closeEvent28 success27 ≡ just success28
+        closeEdge28 = refl
+        success29 : V.Runtime
+        success29 = withSub (λ c → record c { publicState = C.SubContext.privateState c; pc = Sub.sampleInputs }) success28
+        closeEdge29 : V.advance closeEvent29 success28 ≡ just success29
+        closeEdge29 = refl
+        success30 : V.Runtime
+        success30 = withSub (λ c → record c { now = 19; privateState = G.advanceTime 19 (C.SubContext.privateState c); pc = Sub.prepareWait }) success29
+        closeEdge30 : V.advance closeEvent30 success29 ≡ just success30
+        closeEdge30 = refl
+        success31 : V.Runtime
+        success31 = withSub (λ c → record c { pc = Sub.selecting; wakeupAt = nothing; wakeupReady = false }) success30
+        closeEdge31 : V.advance closeEvent31 success30 ≡ just success31
+        closeEdge31 = refl
+        success32 : V.Runtime
+        success32 = withSub (λ c → record c { pc = Sub.apply (Sub.completion closeCompletion); completions = [] }) success31
+        closeEdge32 : V.advance closeEvent32 success31 ≡ just success32
+        closeEdge32 = refl
+        success33 : V.Runtime
+        success33 = withSub (λ c → record c { now = 19; privateState = G.complete (C.SubContext.maxRetries c) (C.SubContext.clearFailDelay c) 19 closeCompletion (C.SubContext.privateState c); pc = Sub.publishView [] }) success32
+        closeEdge33 : V.advance closeEvent33 success32 ≡ just success33
+        closeEdge33 = refl
+        success34 : V.Runtime
+        success34 = withSub (λ c → record c { pc = Sub.traceDecision [] }) success33
+        closeEdge34 : V.advance closeEvent34 success33 ≡ just success34
+        closeEdge34 = refl
+        success35 : V.Runtime
+        success35 = withSub (λ c → record c { pc = Sub.launch [] }) success34
+        closeEdge35 : V.advance closeEvent35 success34 ≡ just success35
+        closeEdge35 = refl
+        success36 : V.Runtime
+        success36 = withSub (λ c → record c { pc = Sub.publishPublic }) success35
+        closeEdge36 : V.advance closeEvent36 success35 ≡ just success36
+        closeEdge36 = refl
+        success37 : V.Runtime
+        success37 = withSub (λ c → record c { publicState = C.SubContext.privateState c; pc = Sub.sampleInputs }) success36
+        closeEdge37 : V.advance closeEvent37 success36 ≡ just success37
+        closeEdge37 = refl
+        actual-await-all : lookup (ident 3) (Success.rows success18) ≡ just (closeFrame J.awaitAll false)
+        actual-await-all = refl
+        actual-call-release : lookup (ident 3) (Success.rows success19) ≡ just (closeFrame J.callRelease false)
+        actual-call-release = refl
+        actual-release-wait : lookup (ident 3) (Success.rows success20) ≡ just (closeFrame J.awaitRelease false)
+        actual-release-wait = refl
+        actual-successful-cold-wait : lookup (ident 3) (Success.rows success24) ≡ just (closeFrame (J.awaitCold G.succeeded) false)
+        actual-successful-cold-wait = refl
+        exact-selected-head : Root.CompletionSelection.result (proj₁ (Agreement.selected-completion success31 success32 closeEdge32)) ≡ closeCompletion
+        exact-selected-head = refl
+        protocol-body-still-running : lookup jid (Pool.handles (P.poolAt A.child₀ (V.physical (V.base success26)))) ≡ just Pool.bodyRunning
+        protocol-body-still-running = refl
+        no-premature-async : V.advance (peerStep (PS.run (GP.publishAsyncResult (ident 3)))) success26 ≡ nothing
+        no-premature-async = refl
+        selected-before-async : lookup (ident 3) (GP.Pool.handles (C.governorPool (K.context (V.base success32)))) ≡
+          just (GP.Pool.deregisterPending GP.Pool.normalExit)
+        selected-before-async = refl
+
+        no-publication-at-clean-wait : V.advance (ps (Sub.enqueueCompletion (ident 3) 0)) success19 ≡ nothing
+        no-publication-at-clean-wait = refl
+        no-publication-before-Cold : V.advance (ps (Sub.enqueueCompletion (ident 3) 0)) success24 ≡ nothing
+        no-publication-before-Cold = refl
+
+        timeout0 : V.Runtime
+        timeout0 = success18
+        timeout1 : V.Runtime
+        timeout1 = frameAt (J.awaitCold G.succeeded) (stopMux timeout0)
+        timeoutEdge1 : V.advance timeoutEvent1 timeout0 ≡ just timeout1
+        timeoutEdge1 = refl
+        timeout2 : V.Runtime
+        timeout2 = beginCM (ident 80) timeout1
+        timeoutEdge2 : V.advance timeoutEvent2 timeout1 ≡ just timeout2
+        timeoutEdge2 = refl
+        timeout3 : V.Runtime
+        timeout3 = transactCM (ident 80) timeout2
+        timeoutEdge3 : V.advance timeoutEvent3 timeout2 ≡ just timeout3
+        timeoutEdge3 = refl
+        timeout4 : V.Runtime
+        timeout4 = countCM (ident 80) timeout3
+        timeoutEdge4 : V.advance timeoutEvent4 timeout3 ≡ just timeout4
+        timeoutEdge4 = refl
+        timeout5 : V.Runtime
+        timeout5 = returnCM (ident 80) timeout4
+        timeoutEdge5 : V.advance timeoutEvent5 timeout4 ≡ just timeout5
+        timeoutEdge5 = refl
+        timeout6 : V.Runtime
+        timeout6 = observeColdPeer timeout5
+        timeoutEdge6 : V.advance timeoutEvent6 timeout5 ≡ just timeout6
+        timeoutEdge6 = refl
+        timeout7 : V.Runtime
+        timeout7 = returnBody G.succeeded timeout6
+        timeoutEdge7 : V.advance timeoutEvent7 timeout6 ≡ just timeout7
+        timeoutEdge7 = refl
+        timeout8 : V.Runtime
+        timeout8 = publishBody timeout7
+        timeoutEdge8 : V.advance timeoutEvent8 timeout7 ≡ just timeout8
+        timeoutEdge8 = refl
+        coldEntry0 : V.Runtime
+        coldEntry0 = success17
+        coldEntry1 : V.Runtime
+        coldEntry1 = withBackground (PS.errorWait err) (just (Cancel.cancellation (ident 50) err Cancel.noCaller (Cancel.finished Cancel.abandoned))) coldEntry0
+        coldEntryEdge1 : V.advance coldEntryEvent1 coldEntry0 ≡ just coldEntry1
+        coldEntryEdge1 = refl
+        coldEntry2 : V.Runtime
+        coldEntry2 = beginCM (ident 80) coldEntry1
+        coldEntryEdge2 : V.advance coldEntryEvent2 coldEntry1 ≡ just coldEntry2
+        coldEntryEdge2 = refl
+        coldEntry3 : V.Runtime
+        coldEntry3 = transactCM (ident 80) coldEntry2
+        coldEntryEdge3 : V.advance coldEntryEvent3 coldEntry2 ≡ just coldEntry3
+        coldEntryEdge3 = refl
+        coldEntry4 : V.Runtime
+        coldEntry4 = countCM (ident 80) coldEntry3
+        coldEntryEdge4 : V.advance coldEntryEvent4 coldEntry3 ≡ just coldEntry4
+        coldEntryEdge4 = refl
+        coldEntry5 : V.Runtime
+        coldEntry5 = returnCM (ident 80) coldEntry4
+        coldEntryEdge5 : V.advance coldEntryEvent5 coldEntry4 ≡ just coldEntry5
+        coldEntryEdge5 = refl
+        coldEntry6 : V.Runtime
+        coldEntry6 = withBackground (PS.errorFinishing err) (just (Cancel.cancellation (ident 50) err Cancel.noCaller (Cancel.finished Cancel.abandoned))) (withSub (λ c → record c { peers = (ident 0 , record Reactivation.retiredPeer { status = Peer.peerCold }) ∷ [] }) coldEntry5)
+        coldEntryEdge6 : V.advance coldEntryEvent6 coldEntry5 ≡ just coldEntry6
+        coldEntryEdge6 = refl
+        coldEntry7 : V.Runtime
+        coldEntry7 = frameAt (J.awaitCold G.succeeded) (withSub (λ c → record c { peers = (ident 0 , record closePeer { status = Peer.peerCold }) ∷ [] }) coldEntry6)
+        coldEntryEdge7 : V.advance coldEntryEvent7 coldEntry6 ≡ just coldEntry7
+        coldEntryEdge7 = refl
+        coldEntry8 : V.Runtime
+        coldEntry8 = returnBody G.succeeded coldEntry7
+        coldEntryEdge8 : V.advance coldEntryEvent8 coldEntry7 ≡ just coldEntry8
+        coldEntryEdge8 = refl
+        coldEntry9 : V.Runtime
+        coldEntry9 = publishBody coldEntry8
+        coldEntryEdge9 : V.advance coldEntryEvent9 coldEntry8 ≡ just coldEntry9
+        coldEntryEdge9 = refl
+        timeout-waits-for-Cold : lookup (ident 3) (Success.rows timeout1) ≡ just (closeFrame (J.awaitCold G.succeeded) false)
+        timeout-waits-for-Cold = refl
+        timeout-did-not-request-release : lookup (ident 18) (O.releasing (V.sourceOf timeout1)) ≡ nothing
+        timeout-did-not-request-release = refl
+        Cold-entry-waits-for-Cold : lookup (ident 3) (Success.rows coldEntry7) ≡ just (closeFrame (J.awaitCold G.succeeded) false)
+        Cold-entry-waits-for-Cold = refl
+        Cold-entry-did-not-request-release : lookup (ident 18) (O.releasing (V.sourceOf coldEntry7)) ≡ nothing
+        Cold-entry-did-not-request-release = refl
+        demotionExpired : V.Runtime
+        demotionExpired = returnBody G.demotionTimedOut success24
+        demotion-timeout-outcome : lookup (ident 3) (Success.rows demotionExpired) ≡ just (closeFrame (J.complete G.demotionTimedOut) false)
+        demotion-timeout-outcome = refl
+        demotion-timeout-not-success : G.demotionTimedOut ≡ G.succeeded → ⊥
+        demotion-timeout-not-success ()
+
+        applied-close-removes-established : G.establishedPeers (C.SubContext.privateState (C.subsystem (K.context (V.base success37)))) ≡ []
+        applied-close-removes-established = refl
+        published-close-removes-established : G.establishedPeers (C.SubContext.publicState (C.subsystem (K.context (V.base success37)))) ≡ []
+        published-close-removes-established = refl
+        initialized-success0 : V.Runs initial (GC.completedActions ++ GC.governorActions) success0
+        initialized-success0 = GC.initialized-public-after
+        actual-complete : lookup (ident 3) (Success.rows success26) ≡ just (closeFrame (J.complete G.succeeded) false)
+        actual-complete = refl
+        pending27 : closeCompletion ∈ Evidence.View.pending (QueueProvenance.runtime-view success27)
+        pending27 = here refl
+        pendingTimeout : closeCompletion ∈ Evidence.View.pending (QueueProvenance.runtime-view timeout8)
+        pendingTimeout = here refl
+        pendingEntry : closeCompletion ∈ Evidence.View.pending (QueueProvenance.runtime-view coldEntry9)
+        pendingEntry = here refl
+        demotion-timeout-step : V.advance (ps (Sub.jobStep (ident 3) J.demotionTimeout)) success24 ≡ just demotionExpired
+        demotion-timeout-step = refl
+
+        timeout-start : timeout0 ≡ success18
+        timeout-start = refl
+        cold-entry-start : coldEntry0 ≡ success17
+        cold-entry-start = refl
+
+        -- Physical exit remains pending after the close result is consumed and
+        -- the governor's public established set has already been cleared.
+        normalReturned normalRemoved normalPublished : V.Runtime
+        normalReturned = finishPhysical nothing success37
+        normalRemoved = removePhysical normalReturned
+        normalPublished = publishPhysical normalRemoved
+        normalReturnEdge : V.advance (Monitors.event Monitor.normal (ident 50)) success37 ≡ just normalReturned
+        normalReturnEdge = refl
+        normalRemoveEdge : V.advance removeMonitor normalReturned ≡ just normalRemoved
+        normalRemoveEdge = refl
+        normalPublishEdge : V.advance publishMonitor normalRemoved ≡ just normalPublished
+        normalPublishEdge = refl
+        errorReturned errorRemoved errorPublished : V.Runtime
+        errorReturned = finishPhysical (just (Cancel.cancellation (ident 50) err Cancel.noCaller (Cancel.finished Cancel.abandoned))) coldEntry9
+        errorRemoved = removePhysical errorReturned
+        errorPublished = publishPhysical errorRemoved
+        errorReturnEdge : V.advance (Monitors.event Monitor.exceptional (ident 50)) coldEntry9 ≡ just errorReturned
+        errorReturnEdge = refl
+        errorRemoveEdge : V.advance removeMonitor errorReturned ≡ just errorRemoved
+        errorRemoveEdge = refl
+        errorPublishEdge : V.advance publishMonitor errorRemoved ≡ just errorPublished
+        errorPublishEdge = refl
+        normal-still-running-after-public-close : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base success37)))) ≡ just PS.Pool.bodyRunning
+        normal-still-running-after-public-close = refl
+        error-still-running-after-governor-return : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base coldEntry9)))) ≡ just PS.Pool.bodyRunning
+        error-still-running-after-governor-return = refl
+        no-normal-early-removal : V.advance (removeMonitor) success37 ≡ nothing
+        no-normal-early-removal = refl
+        no-normal-early-Async : V.advance (publishMonitor) success37 ≡ nothing
+        no-normal-early-Async = refl
+        no-error-early-removal : V.advance (removeMonitor) coldEntry9 ≡ nothing
+        no-error-early-removal = refl
+        no-error-early-Async : V.advance (publishMonitor) coldEntry9 ≡ nothing
+        no-error-early-Async = refl
+        normal-return-is-not-error : V.advance (Monitors.event Monitor.exceptional (ident 50)) success37 ≡ nothing
+        normal-return-is-not-error = refl
+        error-return-is-not-normal : V.advance (Monitors.event Monitor.normal (ident 50)) coldEntry9 ≡ nothing
+        error-return-is-not-normal = refl
+        normal-return-is-not-unwind : V.advance (Monitors.event Monitor.cancelled (ident 50)) success37 ≡ nothing
+        normal-return-is-not-unwind = refl
+        error-return-is-not-unwind : V.advance (Monitors.event Monitor.cancelled (ident 50)) coldEntry9 ≡ nothing
+        error-return-is-not-unwind = refl
+        no-Async-before-removal : V.advance (publishMonitor) normalReturned ≡ nothing
+        no-Async-before-removal = refl
+        no-double-normal-return : V.advance (Monitors.event Monitor.normal (ident 50)) normalReturned ≡ nothing
+        no-double-normal-return = refl
+        normal-returned-phase : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base normalReturned)))) ≡ just (PS.Pool.deregisterPending PS.Pool.normalExit)
+        normal-returned-phase = refl
+        normal-removed-phase : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base normalRemoved)))) ≡ just (PS.Pool.deregistered PS.Pool.normalExit)
+        normal-removed-phase = refl
+        normal-published-phase : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base normalPublished)))) ≡ just (PS.Pool.resultAvailable PS.Pool.normalExit)
+        normal-published-phase = refl
+        normal-returned-registry : PS.Pool.registered (C.monitorPool (K.context (V.base normalReturned))) ≡ (ident 50 ∷ [])
+        normal-returned-registry = refl
+        normal-removed-registry : PS.Pool.registered (C.monitorPool (K.context (V.base normalRemoved))) ≡ ([])
+        normal-removed-registry = refl
+        error-returned-phase : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base errorReturned)))) ≡ just (PS.Pool.deregisterPending PS.Pool.normalExit)
+        error-returned-phase = refl
+        error-removed-phase : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base errorRemoved)))) ≡ just (PS.Pool.deregistered PS.Pool.normalExit)
+        error-removed-phase = refl
+        error-published-phase : lookup (ident 50) (PS.Pool.handles (C.monitorPool (K.context (V.base errorPublished)))) ≡ just (PS.Pool.resultAvailable PS.Pool.normalExit)
+        error-published-phase = refl
+        error-returned-registry : PS.Pool.registered (C.monitorPool (K.context (V.base errorReturned))) ≡ (ident 50 ∷ [])
+        error-returned-registry = refl
+        error-removed-registry : PS.Pool.registered (C.monitorPool (K.context (V.base errorRemoved))) ≡ ([])
+        error-removed-registry = refl
+        handled-error-body-operation : PS.Pool.step (PS.Pool.bodyReturnedWith (ident 50) (just err))
+          (C.monitorPool (K.context (V.base coldEntry9))) ≡ just (C.monitorPool (K.context (V.base errorReturned)))
+        handled-error-body-operation = refl
+        normal-thread-at-return : lookup (ident 50) (PS.monitors (Monitors.peers success37)) ≡ just (background PS.normalFinishing nothing)
+        normal-thread-at-return = refl
+        error-thread-at-return : lookup (ident 50) (PS.monitors (Monitors.peers coldEntry9)) ≡ just (background (PS.errorFinishing err) (just (Cancel.cancellation (ident 50) err Cancel.noCaller (Cancel.finished Cancel.abandoned))))
+        error-thread-at-return = refl
+
+    open Snapshots public
+
+    module Proofs where
+      abstract
+        initialized-success17 : V.Runs initial successPrefix17 success17
+        initialized-success17 = Facts.append-protocols {s = initial} {as = (GC.completedActions ++ GC.governorActions)} {t = success0} {bs = (closeEvent1 ∷ closeEvent2 ∷ closeEvent3 ∷ closeEvent4 ∷ closeEvent5 ∷ closeEvent6 ∷ closeEvent7 ∷ closeEvent8 ∷ closeEvent9 ∷ closeEvent10 ∷ closeEvent11 ∷ closeEvent12 ∷ closeEvent13 ∷ closeEvent14 ∷ closeEvent15 ∷ closeEvent16 ∷ closeEvent17 ∷ [])} {u = success17}
+          initialized-success0 (V.more {s = success0} {t = success1} {u = success17} {a = closeEvent1} closeEdge1 (V.more {s = success1} {t = success2} {u = success17} {a = closeEvent2} closeEdge2 (V.more {s = success2} {t = success3} {u = success17} {a = closeEvent3} closeEdge3 (V.more {s = success3} {t = success4} {u = success17} {a = closeEvent4} closeEdge4 (V.more {s = success4} {t = success5} {u = success17} {a = closeEvent5} closeEdge5 (V.more {s = success5} {t = success6} {u = success17} {a = closeEvent6} closeEdge6 (V.more {s = success6} {t = success7} {u = success17} {a = closeEvent7} closeEdge7 (V.more {s = success7} {t = success8} {u = success17} {a = closeEvent8} closeEdge8 (V.more {s = success8} {t = success9} {u = success17} {a = closeEvent9} closeEdge9 (V.more {s = success9} {t = success10} {u = success17} {a = closeEvent10} closeEdge10 (V.more {s = success10} {t = success11} {u = success17} {a = closeEvent11} closeEdge11 (V.more {s = success11} {t = success12} {u = success17} {a = closeEvent12} closeEdge12 (V.more {s = success12} {t = success13} {u = success17} {a = closeEvent13} closeEdge13 (V.more {s = success13} {t = success14} {u = success17} {a = closeEvent14} closeEdge14 (V.more {s = success14} {t = success15} {u = success17} {a = closeEvent15} closeEdge15 (V.more {s = success15} {t = success16} {u = success17} {a = closeEvent16} closeEdge16 (V.more {s = success16} {t = success17} {u = success17} {a = closeEvent17} closeEdge17 (V.stop {s = success17}))))))))))))))))))
+        initialized-success18 : V.Runs initial successPrefix18 success18
+        initialized-success18 = Facts.append-protocols {s = initial} {as = successPrefix17} {t = success17} {bs = (closeEvent18 ∷ [])} {u = success18}
+          initialized-success17 (V.more {s = success17} {t = success18} {u = success18} {a = closeEvent18} closeEdge18 (V.stop {s = success18}))
+        initialized-success19 : V.Runs initial successPrefix19 success19
+        initialized-success19 = Facts.append-protocols {s = initial} {as = successPrefix18} {t = success18} {bs = (closeEvent19 ∷ [])} {u = success19}
+          initialized-success18 (V.more {s = success18} {t = success19} {u = success19} {a = closeEvent19} closeEdge19 (V.stop {s = success19}))
+        initialized-success20 : V.Runs initial successPrefix20 success20
+        initialized-success20 = Facts.append-protocols {s = initial} {as = successPrefix19} {t = success19} {bs = (closeEvent20 ∷ [])} {u = success20}
+          initialized-success19 (V.more {s = success19} {t = success20} {u = success20} {a = closeEvent20} closeEdge20 (V.stop {s = success20}))
+        initialized-success24 : V.Runs initial successPrefix24 success24
+        initialized-success24 = Facts.append-protocols {s = initial} {as = successPrefix20} {t = success20} {bs = (closeEvent21 ∷ closeEvent22 ∷ closeEvent23 ∷ closeEvent24 ∷ [])} {u = success24}
+          initialized-success20 (V.more {s = success20} {t = success21} {u = success24} {a = closeEvent21} closeEdge21 (V.more {s = success21} {t = success22} {u = success24} {a = closeEvent22} closeEdge22 (V.more {s = success22} {t = success23} {u = success24} {a = closeEvent23} closeEdge23 (V.more {s = success23} {t = success24} {u = success24} {a = closeEvent24} closeEdge24 (V.stop {s = success24})))))
+        initialized-success26 : V.Runs initial successPrefix26 success26
+        initialized-success26 = Facts.append-protocols {s = initial} {as = successPrefix24} {t = success24} {bs = (closeEvent25 ∷ closeEvent26 ∷ [])} {u = success26}
+          initialized-success24 (V.more {s = success24} {t = success25} {u = success26} {a = closeEvent25} closeEdge25 (V.more {s = success25} {t = success26} {u = success26} {a = closeEvent26} closeEdge26 (V.stop {s = success26})))
+        initialized-success27 : V.Runs initial successPrefix27 success27
+        initialized-success27 = Facts.append-protocols {s = initial} {as = successPrefix26} {t = success26} {bs = (closeEvent27 ∷ [])} {u = success27}
+          initialized-success26 (V.more {s = success26} {t = success27} {u = success27} {a = closeEvent27} closeEdge27 (V.stop {s = success27}))
+        initialized-success31 : V.Runs initial successPrefix31 success31
+        initialized-success31 = Facts.append-protocols {s = initial} {as = successPrefix27} {t = success27} {bs = (closeEvent28 ∷ closeEvent29 ∷ closeEvent30 ∷ closeEvent31 ∷ [])} {u = success31}
+          initialized-success27 (V.more {s = success27} {t = success28} {u = success31} {a = closeEvent28} closeEdge28 (V.more {s = success28} {t = success29} {u = success31} {a = closeEvent29} closeEdge29 (V.more {s = success29} {t = success30} {u = success31} {a = closeEvent30} closeEdge30 (V.more {s = success30} {t = success31} {u = success31} {a = closeEvent31} closeEdge31 (V.stop {s = success31})))))
+        initialized-success37 : V.Runs initial successPrefix37 success37
+        initialized-success37 = Facts.append-protocols {s = initial} {as = successPrefix31} {t = success31} {bs = (closeEvent32 ∷ closeEvent33 ∷ closeEvent34 ∷ closeEvent35 ∷ closeEvent36 ∷ closeEvent37 ∷ [])} {u = success37}
+          initialized-success31 (V.more {s = success31} {t = success32} {u = success37} {a = closeEvent32} closeEdge32 (V.more {s = success32} {t = success33} {u = success37} {a = closeEvent33} closeEdge33 (V.more {s = success33} {t = success34} {u = success37} {a = closeEvent34} closeEdge34 (V.more {s = success34} {t = success35} {u = success37} {a = closeEvent35} closeEdge35 (V.more {s = success35} {t = success36} {u = success37} {a = closeEvent36} closeEdge36 (V.more {s = success36} {t = success37} {u = success37} {a = closeEvent37} closeEdge37 (V.stop {s = success37})))))))
+        clean-agreement : Agreement.JobAgreement (ident 3) success18 success19
+        clean-agreement = Agreement.initialized-job-agreement {c = initialCM} {g = L.settings} {start = initial} {as = successPrefix18} {s = success18} {t = success19} (ident 3) initializer initialized-success18 closeEdge19
+        clean-captures : PhysicalReads.CleanReads clean-agreement
+        clean-captures = Agreement.job-success-captures (ident 3) success18 success19 clean-agreement (closeFrame J.callRelease false) actual-call-release refl
+        close-result : Success.History initial success26 (ident 3) closeWork
+        close-result = Success.get-success {start = initial} {current = success26} {j = ident 3} {work = closeWork} {pc = J.complete G.succeeded} (Success.initialized-valid {c = initialCM} {g = L.settings} {start = initial} {actions = successPrefix26} {current = success26} initializer initialized-success26 (ident 3)
+          (closeFrame (J.complete G.succeeded) false) actual-complete refl) refl
+        pending-publication : QueueProvenance.Origin initial success27 closeCompletion
+        pending-publication = QueueProvenance.initialized-pending {c = initialCM} {g = L.settings} {start = initial} {actions = successPrefix27} {s = success27} {result = closeCompletion} initializer initialized-success27 pending27
+        published-result : Success.History initial success27
+          (Evidence.Publication.job (QueueProvenance.Origin.published pending-publication)) closeWork
+        published-result = Success.origin-success {c = initialCM} {g = L.settings} {start = initial} {current = success27} {result = closeCompletion} initializer pending-publication refl refl
+        consumed-publication : QueueProvenance.Origin initial success31 closeCompletion
+        consumed-publication = subst (QueueProvenance.Origin initial success31) exact-selected-head
+          (QueueProvenance.initialized-consumed {c = initialCM} {g = L.settings} {start = initial} {actions = successPrefix31} {s = success31} {t = success32} initializer initialized-success31 closeEdge32)
+        consumed-result : Success.History initial success31
+          (Evidence.Publication.job (QueueProvenance.Origin.published consumed-publication)) closeWork
+        consumed-result = Success.origin-success {c = initialCM} {g = L.settings} {start = initial} {current = success31} {result = closeCompletion} initializer consumed-publication refl refl
+        selected-through-public : V.Runs success31 (drop 31 closeRouteActions) success37
+        selected-through-public = V.more {s = success31} {t = success32} {u = success37} {a = closeEvent32} closeEdge32 (V.more {s = success32} {t = success33} {u = success37} {a = closeEvent33} closeEdge33 (V.more {s = success33} {t = success34} {u = success37} {a = closeEvent34} closeEdge34 (V.more {s = success34} {t = success35} {u = success37} {a = closeEvent35} closeEdge35 (V.more {s = success35} {t = success36} {u = success37} {a = closeEvent36} closeEdge36 (V.more {s = success36} {t = success37} {u = success37} {a = closeEvent37} closeEdge37 (V.stop {s = success37}))))))
+        retained-result : Success.History initial success37
+          (Evidence.Publication.job (QueueProvenance.Origin.published consumed-publication)) closeWork
+        retained-result = Success.extend-through {start = initial} {s = success31} {t = success37} {j = Evidence.Publication.job (QueueProvenance.Origin.published consumed-publication)} {work = closeWork} {actions = drop 31 closeRouteActions} selected-through-public consumed-result
+        initialized-timeout : V.Runs initial (successPrefix18 ++ timeoutActions) timeout8
+        initialized-timeout = Facts.append-protocols {s = initial} {as = successPrefix18} {t = timeout0} {bs = timeoutActions} {u = timeout8}
+          (subst (V.Runs initial successPrefix18) (sym timeout-start) initialized-success18) (V.more {s = timeout0} {t = timeout1} {u = timeout8} {a = timeoutEvent1} timeoutEdge1 (V.more {s = timeout1} {t = timeout2} {u = timeout8} {a = timeoutEvent2} timeoutEdge2 (V.more {s = timeout2} {t = timeout3} {u = timeout8} {a = timeoutEvent3} timeoutEdge3 (V.more {s = timeout3} {t = timeout4} {u = timeout8} {a = timeoutEvent4} timeoutEdge4 (V.more {s = timeout4} {t = timeout5} {u = timeout8} {a = timeoutEvent5} timeoutEdge5 (V.more {s = timeout5} {t = timeout6} {u = timeout8} {a = timeoutEvent6} timeoutEdge6 (V.more {s = timeout6} {t = timeout7} {u = timeout8} {a = timeoutEvent7} timeoutEdge7 (V.more {s = timeout7} {t = timeout8} {u = timeout8} {a = timeoutEvent8} timeoutEdge8 (V.stop {s = timeout8})))))))))
+        timeout-publication : QueueProvenance.Origin initial timeout8 closeCompletion
+        timeout-publication = QueueProvenance.initialized-pending {c = initialCM} {g = L.settings} {start = initial} {actions = (successPrefix18 ++ timeoutActions)} {s = timeout8} {result = closeCompletion} initializer initialized-timeout pendingTimeout
+        timeout-success : Success.History initial timeout8
+          (Evidence.Publication.job (QueueProvenance.Origin.published timeout-publication)) closeWork
+        timeout-success = Success.origin-success {c = initialCM} {g = L.settings} {start = initial} {current = timeout8} {result = closeCompletion} initializer timeout-publication refl refl
+
+        initialized-coldEntry : V.Runs initial (successPrefix17 ++ coldEntryActions) coldEntry9
+        initialized-coldEntry = Facts.append-protocols {s = initial} {as = successPrefix17} {t = coldEntry0} {bs = coldEntryActions} {u = coldEntry9}
+          (subst (V.Runs initial successPrefix17) (sym cold-entry-start) initialized-success17) (V.more {s = coldEntry0} {t = coldEntry1} {u = coldEntry9} {a = coldEntryEvent1} coldEntryEdge1 (V.more {s = coldEntry1} {t = coldEntry2} {u = coldEntry9} {a = coldEntryEvent2} coldEntryEdge2 (V.more {s = coldEntry2} {t = coldEntry3} {u = coldEntry9} {a = coldEntryEvent3} coldEntryEdge3 (V.more {s = coldEntry3} {t = coldEntry4} {u = coldEntry9} {a = coldEntryEvent4} coldEntryEdge4 (V.more {s = coldEntry4} {t = coldEntry5} {u = coldEntry9} {a = coldEntryEvent5} coldEntryEdge5 (V.more {s = coldEntry5} {t = coldEntry6} {u = coldEntry9} {a = coldEntryEvent6} coldEntryEdge6 (V.more {s = coldEntry6} {t = coldEntry7} {u = coldEntry9} {a = coldEntryEvent7} coldEntryEdge7 (V.more {s = coldEntry7} {t = coldEntry8} {u = coldEntry9} {a = coldEntryEvent8} coldEntryEdge8 (V.more {s = coldEntry8} {t = coldEntry9} {u = coldEntry9} {a = coldEntryEvent9} coldEntryEdge9 (V.stop {s = coldEntry9}))))))))))
+        coldEntry-publication : QueueProvenance.Origin initial coldEntry9 closeCompletion
+        coldEntry-publication = QueueProvenance.initialized-pending {c = initialCM} {g = L.settings} {start = initial} {actions = (successPrefix17 ++ coldEntryActions)} {s = coldEntry9} {result = closeCompletion} initializer initialized-coldEntry pendingEntry
+        coldEntry-success : Success.History initial coldEntry9
+          (Evidence.Publication.job (QueueProvenance.Origin.published coldEntry-publication)) closeWork
+        coldEntry-success = Success.origin-success {c = initialCM} {g = L.settings} {start = initial} {current = coldEntry9} {result = closeCompletion} initializer coldEntry-publication refl refl
+        normal-exit-origin : Monitors.Origin initial normalReturned (ident 50) Monitor.normal
+        normal-exit-origin = Monitors.initialized-exit {c = initialCM} {g = L.settings} {start = initial} {before = success37} {after = normalReturned} {prefix = successPrefix37}
+          Monitor.normal (ident 50) initializer initialized-success37 normalReturnEdge
+        error-exit-origin : Monitors.Origin initial errorReturned (ident 50) Monitor.exceptional
+        error-exit-origin = Monitors.initialized-exit {c = initialCM} {g = L.settings} {start = initial} {before = coldEntry9} {after = errorReturned} {prefix = successPrefix17 ++ coldEntryActions}
+          Monitor.exceptional (ident 50) initializer initialized-coldEntry errorReturnEdge
+        normal-removed-origin : Monitors.Removed initial normalRemoved (ident 50) Monitor.normal
+        normal-removed-origin = Monitors.remove-origin {start = initial} {s = normalReturned} {t = normalRemoved} {tid = ident 50} {kind = Monitor.normal} normal-exit-origin normalRemoveEdge
+        normal-published-origin : Monitors.Published initial normalPublished (ident 50) Monitor.normal
+        normal-published-origin = Monitors.publish-origin {start = initial} {s = normalRemoved} {t = normalPublished} {tid = ident 50} {kind = Monitor.normal} normal-removed-origin normalPublishEdge
+        normal-retained-origin : Monitors.Origin initial normalPublished (ident 50) Monitor.normal
+        normal-retained-origin = Monitors.extend {start = initial} {s = normalReturned} {t = normalPublished} {tid = ident 50} {kind = Monitor.normal} {actions = removeMonitor ∷ publishMonitor ∷ []}
+          (V.more {s = normalReturned} {t = normalRemoved} {u = normalPublished} {a = removeMonitor} normalRemoveEdge
+            (V.more {s = normalRemoved} {t = normalPublished} {u = normalPublished} {a = publishMonitor} normalPublishEdge (V.stop {s = normalPublished}))) normal-exit-origin
+        error-removed-origin : Monitors.Removed initial errorRemoved (ident 50) Monitor.exceptional
+        error-removed-origin = Monitors.remove-origin {start = initial} {s = errorReturned} {t = errorRemoved} {tid = ident 50} {kind = Monitor.exceptional} error-exit-origin errorRemoveEdge
+        error-published-origin : Monitors.Published initial errorPublished (ident 50) Monitor.exceptional
+        error-published-origin = Monitors.publish-origin {start = initial} {s = errorRemoved} {t = errorPublished} {tid = ident 50} {kind = Monitor.exceptional} error-removed-origin errorPublishEdge
+        error-retained-origin : Monitors.Origin initial errorPublished (ident 50) Monitor.exceptional
+        error-retained-origin = Monitors.extend {start = initial} {s = errorReturned} {t = errorPublished} {tid = ident 50} {kind = Monitor.exceptional} {actions = removeMonitor ∷ publishMonitor ∷ []}
+          (V.more {s = errorReturned} {t = errorRemoved} {u = errorPublished} {a = removeMonitor} errorRemoveEdge
+            (V.more {s = errorRemoved} {t = errorPublished} {u = errorPublished} {a = publishMonitor} errorPublishEdge (V.stop {s = errorPublished}))) error-exit-origin
+
+    open Proofs public
+
+  module MonitorCancellationChecks where
+    open import Data.List using (take; drop)
+    open import Data.List.Properties using (++-assoc)
+    open import Relation.Binary.PropositionalEquality using (subst; sym)
+    import ConnectionManagement.Properties.ServerPeersMonitorReturns as MonitorReturns
+    private
+      module Monitor = MonitorReturns I.bearerClosed Prior.classify
+      module Monitors = Monitor.Frontend capability
+      module D = Reactivation.Shutdown
+    cancelPrefix cancelSuffix : List V.Event
+    cancelPrefix = D.livePrefixActions ++ take 27 D.peerCloseActions
+    cancelSuffix = drop 30 D.peerCloseActions
+    -- Reuse the earlier initialized cancellation trace, including the separate
+    -- registry/result steps and the later callback exit. No new runtime driver.
+    trace-shape : (D.livePrefixActions ++ D.peerCloseActions) ≡
+      (cancelPrefix ++ (Monitors.event Monitor.cancelled (ident 50) ∷
+        peerStep (PS.deregisterMonitor (ident 50)) ∷ peerStep (PS.publishMonitorResult (ident 50)) ∷ cancelSuffix))
+    trace-shape = sym (++-assoc D.livePrefixActions (take 27 D.peerCloseActions)
+      (Monitors.event Monitor.cancelled (ident 50) ∷ peerStep (PS.deregisterMonitor (ident 50)) ∷
+        peerStep (PS.publishMonitorResult (ident 50)) ∷ cancelSuffix))
+    abstract
+      initialized-cancelled-publication : Monitors.Published initial D.callbackExited (ident 50) Monitor.cancelled
+      initialized-cancelled-publication = Monitors.initialized-lifecycle
+        {c = CloseOriginChecks.initialCM} {g = L.settings} {start = initial} {current = D.callbackExited}
+        Monitor.cancelled (ident 50) cancelPrefix cancelSuffix initializer
+        (subst (λ actions → V.Runs initial actions D.callbackExited) trace-shape D.initialized-peer-close)
+    cancelled-is-not-normal-return : V.advance (Monitors.event Monitor.normal (ident 50))
+      (at Reactivation.secondRegistered D.peerMonDelivered Reactivation.secondFreeFront) ≡ nothing
+    cancelled-is-not-normal-return = refl
+    cancelled-is-not-error-return : V.advance (Monitors.event Monitor.exceptional (ident 50))
+      (at Reactivation.secondRegistered D.peerMonDelivered Reactivation.secondFreeFront) ≡ nothing
+    cancelled-is-not-error-return = refl
+    no-Async-at-unwind : V.advance (peerStep (PS.publishMonitorResult (ident 50)))
+      (at Reactivation.secondRegistered D.peerMonUnwound Reactivation.secondFreeFront) ≡ nothing
+    no-Async-at-unwind = refl

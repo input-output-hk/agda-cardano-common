@@ -932,3 +932,75 @@ latest call. Initialization derives the invariant without a cache-coherence or
 supply premise. All acceptance stays in `Negative/ServerPeers.agda`. See
 [Supervision increment 36](Supervision.md#thirty-sixth-increment-initialized-peer-cache-provenance)
 for the theorem scope and validation evidence.
+
+`initialized-physical-poll`, `initialized-physical-job-wait` and
+`initialized-physical-monitor-wait` in the same cache proof layer retain the
+actual reader gates and attach physical evidence to every observed result.
+Local values carry historical captures; Shutdown carries the selected running
+action, empty cell and actual non-ready mux status. Polls that do not select a
+result make no synthetic completion claim. See
+[Supervision increment 37](Supervision.md#thirty-seventh-increment-physical-certificates-for-initialized-result-reads)
+for the scope, acceptance controls and validation evidence.
+
+`Properties.ServerPeersContinuations` adds initialized read-to-continuation
+agreements. Successful hot waits and all-bundle continuations to release require
+clean certified observations and retain their historical physical captures and exact peer
+updates. Failed reads enter the captured failed/demotion continuation while
+retaining physical state and pools. Inherited paths retain their real guarded
+lower transition; clean observations alone are not a success or progress theorem.
+See [Supervision increment 38](Supervision.md#thirty-eighth-increment-read-to-continuation-safety)
+for scope and validation.
+
+The same continuation layer now derives the exact governor body-return update
+and certifies actual completion publication to both source and pool ledgers.
+Publication leaves the handle pending deregistration; Async availability remains
+a later event. Certified monitor waits preserve physical monitor state, and
+physical monitor return has its own `normalFinishing` boundary. Initialized
+checks and premature-completion controls remain in ServerPeers.agda. See
+[Supervision increment 39](Supervision.md#thirty-ninth-increment-continuation-return-and-completion-publication).
+
+Governor continuation certificates now also expose actual FIFO completion
+selection, branch priority, monotone-time application and both assertion
+outcomes. Application retains public state until its separate loop publication.
+Timer cancellation and pool/monitor bookkeeping remain explicit. The initialized
+path and conditional guard controls stay in ServerPeers.agda. See
+[Supervision increment 40](Supervision.md#fortieth-increment-governor-completion-selection-and-application).
+
+`Properties.ServerPeersCompletions` derives initialized provenance for pending
+and consumed governor completions, including an actual historical publication
+and earlier modeled body return with exact job identity/work/outcome agreement.
+The historical handle remains backed after consumption and later updates. A
+readable queue with erased pool history is proved unreachable from initialization.
+Acceptance remains in ServerPeers.agda. See
+[Supervision increment 41](Supervision.md#forty-first-increment-initialized-completion-provenance)
+for proof scope, validation and the separate source-queue/body-ledger boundary.
+
+`Properties.ServerPeersDeactivation` connects each initialized successfully
+consumed deactivation completion to its exact original job's success history:
+already Warm at entry, or an actual certified clean hot-result wait. The
+before/after frames, work and physical result identities remain historical;
+current peer status and protocol/Async completion are separate. Actual frontend
+selectors derive the frame invariant without extra coherence or supply premises.
+The initialized Warm-entry race and forged-control rejection stay in
+ServerPeers.agda. See
+[Supervision increment 42](Supervision.md#forty-second-increment-initialized-deactivation-success-origins)
+for theorem scope and validation status.
+
+`Properties.ServerPeersClose` derives initialized close-job stage histories and
+joins consumed success to its actual Cold observation. The successful-Cold wait
+retains its route: Cold/Cooling entry, operation timeout, or certified clean
+all-bundle results followed by CM release request and result collection.
+Publication and physical/Async completion remain separate. The initialized
+acceptance cases stay in ServerPeers.agda. See
+[Supervision increment 43](Supervision.md#forty-third-increment-initialized-close-and-release-success-histories)
+for scope and current validation status.
+
+`Properties.ServerPeersMonitorReturns` records the actual physical monitor exit
+in an initialized finite frontend trace. Its captured thread and cause retain
+normal return, handled-error return and cancellation unwind separately. Registry
+removal and Async publication have their own enabled events and primitive pool
+certificates; later execution retains the history. This is event-occurrence
+provenance, not inversion of arbitrary terminal handle lookups or a guarantee
+of eventual shutdown. Acceptance is consolidated in ServerPeers.agda. See
+[Supervision increment 44](Supervision.md#forty-fourth-increment-initialized-physical-monitor-exit-histories)
+for the exact statements and validation status.

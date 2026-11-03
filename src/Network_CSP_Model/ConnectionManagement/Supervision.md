@@ -3766,3 +3766,632 @@ claimed. Presentation/Makefile/PDF and unrelated external work are preserved.
 Next: package the historical local-result witnesses and actual Shutdown fallback
 into full physical observation certificates for initialized poll/job-wait/
 monitor-wait events, retaining all existing read gates and no-read poll branches.
+
+## Thirty-seventh increment: physical certificates for initialized result reads
+
+Increment 37 extends the existing
+[ServerPeersCache](Properties/ServerPeersCache.agda) proof layer with
+`PhysicalObservation`, `PhysicalPoll`, `PhysicalJobWait` and
+`PhysicalMonitorWait`. The public `initialized-physical-poll`,
+`initialized-physical-job-wait` and `initialized-physical-monitor-wait` theorems
+take the unchanged initializer, an enabled finite prefix and the actual successful
+read event. They derive the full certificate without adding supply, uniqueness,
+cache-coherence or physical-result premises.
+
+Each wrapper retains increment 35's original reader certificate: actual peer/
+frame lookups, permissions, selected results and original-run provenance. Every
+local result now carries increment 36's historical committed-call and exact
+physical-capture witness, including cached/retired values from older generations.
+Every Shutdown result retains the selected published running action, current
+owner/latest-call selection, original run membership and number, empty local
+cell, actual mux lookup and non-ready status. Shutdown supplies no fabricated
+protocol result or thread completion. Wait certificates cover every pair in the
+actual result list, preserving all temperature bundles and ordering. Cold/Cooling
+and existing-followup polls require no invented result certificate.
+
+All new acceptance is in `Protocols.PhysicalReadChecks` in the existing
+[ServerPeers file](Negative/ServerPeers.agda). The wrappers are instantiated on
+the actual initialized Shutdown poll, clean monitor wait after mux failure and
+failed job wait. Further certificates cover the live error read, retired clean
+read after restart and Shutdown before any protocol body exists. Controls reject
+Ready as a certified Shutdown and prove that the retired physical witness cannot
+be attributed to the new empty generation 21.
+
+Agda 2.8.0 freshly accepted the final full endpoint on 3 November 2026, with
+own Checking lines for the shared cache proof module and Negative/ServerPeers,
+exit 0 without warnings. Command: `agda --profile=definitions
+ConnectionManagement/Negative/ServerPeers.agda +RTS -M12G -RTS`, run by
+check-acceptance.sh with `ulimit -v 15728640` (15 GB virtual memory). The final
+two-file local integrity scan found zero findings; whitespace checks passed.
+This scan is not a term-level audit of external assumptions. No checker for this
+increment remains running. Logs/scripts/explicit exits are under
+`/tmp/cm-physical-observations-20261103/`: acceptance.log,
+acceptance-result.log and check-acceptance.sh.
+
+A preliminary list-helper inference failure was repaired with its explicit
+result-list type. A fixture pattern that Agda resolved as a constructor, and a
+constructor-shadowing parameter, were renamed before final acceptance. The
+initial diagnostics remain in shared-inference-error.log,
+acceptance-name-error.log and acceptance-name-error-result.log. No new postulate,
+hole, unsafe option, checker bypass or weakened previous theorem was introduced.
+
+No runtime, previous theorem, transition guard or initializer changed. These are
+finite model observation certificates, not body/Async completion or availability,
+delivery/progress, implementation refinement or universal shutdown. No native
+replay, unrelated baseline, source-pin change or new source finding is included.
+CM-I4c, SI4/SI5 and G0–G5 remain open. Increments 35–36 are committed in `55ac872`;
+this increment remains uncommitted, with presentation/Makefile/PDF preserved.
+
+Next: prove generic read-to-continuation agreement. Relate certified observations
+to the actual resulting peer status and job/monitor PC, distinguishing clean
+continuations from failed-operation/demotion waits and retaining the separate
+governor/protocol body, publication and Async boundaries.
+
+## Thirty-eighth increment: read-to-continuation safety
+
+[ServerPeersContinuations](Properties/ServerPeersContinuations.agda) connects the
+physical observation certificates to actual resulting continuations. Public
+`initialized-poll-agreement`, `initialized-job-agreement` and
+`initialized-monitor-agreement` take the unchanged initializer, finite enabled
+prefix and successful read event. They retain increment 37's physical evidence
+and derive postconditions without new initializer or cache-coherence premises.
+
+The safety statement is one-way. `job-success-clean` and `monitor-success-clean`
+prove that a successful hot-wait continuation or an all-bundle release
+continuation requires clean certified observations. The corresponding
+`*-success-captures` theorems attach matching historical physical captures to
+every observed result. `*-success-peer` derives the actual resulting peer:
+successful hot waits retire the hot bundle and clear promotion time, changing
+Hot to Warm while preserving other starting statuses; successful all-bundle
+waits retain the peer and proceed to callRelease. This does not assert CM release
+completion, protocol body termination or Async availability.
+
+An inherited clean branch retains both the actual guarded shared step and its
+logical `J.step`. The logical continuation is classified as hot success, release
+continuation or failed demotion. Clean observations alone are not stated as
+sufficient for success, and no equation between arbitrary logical cache snapshots
+and latest physical cells is assumed. The proof uses existing component-step
+projections and exact returned job/monitor rows rather than constructing a
+desired post-state.
+
+Non-clean waits write the exact captured frame at `awaitCold failed`. Hot-wait
+failures use `Peer.cool`; all-bundle failures retain the peer. Active non-clean
+polls cool their actual looked-up peer and create neither a followup nor a job.
+`FailureEffects` retains the source, full Server state, physical protocol/mux
+state, frontend, physical monitor-thread table, governor/monitor pools and scopes.
+These observations do not fabricate protocol results or physical completions.
+Cold/Cooling/existing-followup polls retain their actual guarded inherited step.
+
+All acceptance remains in `Protocols.ContinuationChecks` in the existing
+[ServerPeers file](Negative/ServerPeers.agda): initialized Shutdown polling,
+clean monitor deactivation after mux failure, failed job waiting, clean physical
+captures and exact peer updates, failure resource preservation, and rejection
+of success from the failed continuation. An existing conditional close/followup
+snapshot checks the failed all-bundle boundary separately; it is not asserted
+to be a new initialized close history.
+
+Final Agda 2.8.0 acceptance passed on 3 November 2026, exit 0 without warnings:
+`agda --profile=definitions ConnectionManagement/Negative/ServerPeers.agda
++RTS -M12G -RTS`, with `ulimit -v 15728640` (15 GB virtual memory).
+Both the final generic proof and complete dependent acceptance have their own
+fresh `Checking` lines. Only the generic proof's own interface was invalidated
+for this final run. The check includes strengthened resource fields, actual
+inherited shared-step witnesses and the conditional close control. Script,
+log and explicit exit: `/tmp/cm-read-continuations-20261103/check-acceptance.sh`,
+`acceptance.log` and `acceptance-result.log`. Earlier passing versions are saved
+separately there. All checker runs for this task are terminal. Early
+with-equation, queued-frame, lookup inference and fixture-scope diagnostics were
+repaired. The three-file local proof audit and whitespace checks passed with
+zero findings; this is not a term-level dependency audit. No runtime, previous
+theorem, guard or initializer is changed; no new postulate, unsafe option,
+checker bypass or weakened previous statement is introduced.
+
+No native replay, unrelated full baseline, source-pin change, new source finding,
+implementation refinement, progress or universal shutdown claim is included.
+CM-I4c, SI4/SI5 and G0–G5 remain open. This increment and 37 remain uncommitted
+after `55ac872`; presentation/Makefile/PDF and unrelated work remain preserved.
+
+Next: connect certified successful operation continuations to the real governor/
+monitor body-return and completion-publication bookkeeping, retaining the
+separate protocol-result, caller-body, queued-completion and Async boundaries.
+
+## Thirty-ninth increment: continuation return and completion publication
+
+The continuation layer now connects certified successful governor waits to the
+real `GovernorPool.noteReturn` boundary. `job-success-return` derives the exact
+pool update to `bodyReturned` with the job's captured work and successful outcome.
+The completion queue, registry, close cursor and other pool fields are retained;
+the job remains unqueued. This return belongs to the governor operation and does
+not return the physical mini-protocol whose local result was read.
+
+`publish-completion` derives its postconditions from the actual enabled shared
+publication step and its original body-agreement and delay guards.
+`CompletionPublication` records the
+selected already-returned body, logical queued job row, exact source-completion
+FIFO append and separate pool FIFO append. The resulting handle is still
+`deregisterPending normalExit`; deregistration and Async publication require
+later events. `job-published-body` joins the immediate publication to the
+certified successful wait and identifies its exact returned body;
+`publication-handle` exposes the pending-deregistration phase. These are model
+theorems about the existing operations, without runtime or initialization changes.
+
+`monitor-wait-preserves` proves that either result of a certified monitor wait
+retains the physical monitor-thread table, monitor pool and governor pool.
+Logical followup completion does not complete the physical loop. The distinct
+`finish-monitor-body` theorem extracts the real looked-up thread at
+`normalFinishing`, its actual WithoutQueue body-return step, exited thread row,
+and exact pending-deregistration pool update. It creates no completion queue
+entry or Async result. This theorem is conditional on an enabled normal finish
+action; this increment adds no new initialized normal physical monitor-exit
+history. Its initialized monitor checks end with a cleared logical followup
+and the physical loop still running.
+
+Acceptance is consolidated in `Protocols.CompletionChecks` in the existing
+ServerPeers.agda. It uses the initialized target-selected deactivation prefix,
+separate actual publication/deregistration/Async steps, and the initialized clean
+monitor followup followed by its real removal. Controls reject publication
+before body return or from the failed wait, duplicate publication, early
+registry removal, early Async results and physical monitor return/Async inferred
+from the completed or cleared followup.
+
+Final Agda 2.8.0 acceptance freshly passed on 3 November 2026, exit 0 without
+warnings: `agda --profile=definitions
+ConnectionManagement/Negative/ServerPeers.agda +RTS -M12G -RTS`, with
+`ulimit -v 15728640` (15 GB virtual memory). Both the final generic proof and
+complete dependent acceptance have their own `Checking` lines. No interface
+invalidation was needed for the final edited sources. Script, log and explicit
+exit: `/tmp/cm-continuation-bookkeeping-20261103/check-acceptance.sh`,
+`acceptance.log`, `acceptance-result.log`. All task checker runs are terminal.
+The three-file local proof audit has zero findings; whitespace checks passed,
+including the new untracked generic proof file. This is not a term-level
+imported-assumption audit. Incremental checks repaired saved with-equations,
+explicit action/state inference, a grouped-prefix application and a local
+constructor-shadowing name. The earlier full failure and generic core pass are
+saved separately in the same directory.
+
+Previous theorem statements, runtime, guards and initializers remain unchanged.
+No new axiom, hole, unsafe option or checker bypass was introduced. Presentation
+artifacts and unrelated work remain untouched. This increment and 37–38 are
+uncommitted after `55ac872`. No native replay, source-pin change, new source
+finding, source refinement or progress claim is included. CM-I4c, SI4/SI5 and G0–G5 remain
+open.
+
+
+Next: certify actual governor completion selection and application, including
+branch priority, time and completion-assertion guards and private/public-state
+boundaries. `Sub.completions` is the consumed source queue;
+`GP.Pool.completions` currently retains the body ledger. Audit their intended
+source mapping before claiming live queue equality or changing either model.
+
+## Fortieth increment: governor completion selection and application
+
+The existing continuation proof layer now certifies actual owner steps through
+the shared frontend. `selected-completion` retains the source selecting PC,
+no-monitor-change guard, exact FIFO head/tail and entire resulting source state.
+`completion-priority` excludes target, policy and wakeup alternatives while that
+completion is ready. This concerns the existing ordinary-peer profile and its
+explicit source permissions, rather than all production extension hooks.
+
+`applied-completion` checks the actual application PC and monotone time.
+`CompletionApplication` keeps both source assertion outcomes. A passing assertion
+applies `G.complete` to the actual current private state and parameters; a failed
+assertion enters `completionAssertionFailed` and retains private state. Both
+outcomes retain public state. `cancelled-completion-timer` proves the separate
+cancellation boundary for a selected live timer. `public-governor-state` certifies
+the actual next-loop write of private state into the model's public state.
+These exact source-state equations retain every other subsystem field.
+
+`OwnerEffects` also retains the full governor pool, physical monitor threads and
+pool, and physical protocol-job table. Source queue consumption does not consume
+the pool component's retained body ledger. It does not expose a child Async
+result or imply physical protocol completion. Pinned `JobPool.hs:208–209`,
+`Governor/Monitor.hs:98–109`, `Governor.hs:588–641,675–678` and
+`Governor/ActivePeers.hs:1043–1079` were re-read using `git show` at the unchanged
+network pin. Production has a destructive completion TQueue, completion
+functions supplied with selected current state, a later time argument, a
+successful hot-demotion assertion and next-loop public-state publication. The
+integration ledger is an observer component; no equality of two live queues or
+new source-refinement theorem is asserted.
+
+`Protocols.GovernorCompletionChecks` stays in existing ServerPeers.agda. The
+initialized deactivation lifecycle now extends through actual completion
+selection/application, counters, tracing, launch completion and public-state
+publication. Checks show the exact selected completion, consumed source queue,
+retained ledger, current private-state update and public active membership
+remaining until the later write. Guard controls reject backwards application
+time, early public publication, and lower-priority branches. Separate conditional
+snapshots check monitor priority, timer cancellation ordering and assertion
+failure without claiming new initialized histories for those branches.
+
+Final Agda 2.8.0 generic and full downstream acceptance checks passed serially
+on 3 November 2026, exit 0 without warnings. Commands:
+`agda --profile=definitions ConnectionManagement/Properties/ServerPeersContinuations.agda
++RTS -M12G -RTS` and
+`agda --profile=definitions ConnectionManagement/Negative/ServerPeers.agda
++RTS -M12G -RTS`, each with `ulimit -v 15728640` (15 GB virtual memory).
+Each target has its own fresh `Checking` line in its respective log. The final
+downstream run reused the already-checked, unchanged generic interface; no
+interface invalidation was needed. Component lemmas were also checked in scratch
+modules outside the maintained import closure. Logs/scripts/explicit exits are
+in `/tmp/cm-governor-completions-20261103/`: `generic.log`, `generic-result.log`,
+`check-generic.sh`, `acceptance.log`, `acceptance-result.log` and
+`check-acceptance.sh`. All task checker runs are terminal. The first downstream
+attempt caught a local module-alias collision; it was renamed, and the diagnostic
+is retained separately in `acceptance-scope-acceptance.log` and its result file.
+
+The local three-file proof audit found no substantive issue: its one inspected
+possible-hole report is the standard natural-number `≤?` decision operator at
+the application-time comparison. Whitespace checks passed, including the
+untracked proof file. Runtime, guards, initializers and previous theorem
+statements are unchanged; no new axiom, hole, unsafe option or checker bypass was
+introduced. Presentation artifacts and unrelated work remain untouched. No
+native replay, source-pin change, deployed defect, term-level imported-assumption
+audit or progress/refinement claim is included.
+CM-I4c, SI4/SI5 and G0–G5 remain open; increments 37–40 remain uncommitted after
+`55ac872`.
+
+
+Next: derive initialized provenance for source completion-queue entries and
+actual consumed heads from real governor body returns and publications, retaining
+historical job identity and work/outcome agreement through interleavings. Use
+the retained ledger as evidence rather than equating it with the live source
+queue; derive the invariant from the initializer without new coherence premises.
+
+## Forty-first increment: initialized completion provenance
+
+[ServerPeersCompletions](Properties/ServerPeersCompletions.agda) derives backing
+for every pending completion and every actually selected queue head after an
+unchanged initializer and finite enabled frontend execution. `initialized-backed`,
+`initialized-pending` and `initialized-consumed` add no coherence, supply,
+uniqueness or returned-body premise to initialization.
+
+Each `Origin` keeps a historical frontend state pair, its actual enabled event,
+a prefix from the initializer and a suffix to the queried state. The actual
+source FIFO append and primitive pool publication step are attached to that
+same state pair. The original source job frame and complete PC, captured body,
+returned-handle lookup and original publication guard remain explicit.
+`origin-agreement` reflects that guard into exact job identity, captured work
+(including its optional peer-incarnation field) and outcome equality. The original completion
+value, including its delay input, is retained; the pool body carries no invented
+delay field. `extend-through` keeps the publication history after consumption
+and through later application/public-state updates.
+
+The proof uses two dependency layers. [GovernorCompletions](Properties/GovernorCompletions.agda)
+classifies every enabled subsystem, governor and physical-monitor operation as
+retaining, consuming or publishing to the source queue. Actual publication is
+coupled to the returned-body guard and exact primitive pool step. It covers the
+original interleavings and exception/cleanup paths without introducing an actor
+whitelist. [JobPoolReturnHistory](Properties/JobPoolReturnHistory.agda) is a generic
+WithQueue proof: a returned handle reached from the empty pool has an actual
+`bodyReturnedWith` step in a primitive execution prefix, with the same handle
+and payload. Its historical handle survives later lifecycle operations.
+
+`origin-returned` joins the publication's returned-cell lookup to that theorem
+through the existing actual shared pool projection. `origin-returned-current`
+then extends the history to the queried state. These establish a historical
+modeled body return, without requiring the current handle still to be in the
+returned phase or asserting an Async result is available. The consumed source
+queue and retained pool body ledger remain distinct; no live queue equality,
+protocol completion, delivery liveness or implementation refinement follows.
+
+All acceptance stays in `Protocols.CompletionProvenanceChecks` in existing
+ServerPeers.agda. The initialized deactivation publication, consumed head and
+later public-state endpoint instantiate exact work/outcome/identity agreement,
+primitive return history and historical handle retention. A wrong-outcome
+control is refuted. Another control erases the pool while retaining a readable
+completion queue: selection is executable on that arbitrary snapshot, but the
+initialized provenance theorem proves the snapshot unreachable. This is a
+representation control, not a new deployed failure finding.
+
+Semantic Agda 2.8.0 checks passed for all three new generic layers and full
+ServerPeers acceptance, exit 0 without warnings. The shared check freshly checked
+its lower dependency as well. Logs/scripts and explicit exits are under
+`/tmp/cm-completion-provenance-20261103/`; passing semantic logs are preserved as
+`*-semantic-pass.log` and `*-semantic-pass-result.log`. A single trailing-space
+blank line was then removed from the lower proof. The final lower recheck and
+complete dependent endpoint both passed, exit 0 without warnings; the endpoint
+freshly checked ServerPeersCompletions and Negative/ServerPeers. No cache purge
+or interface invalidation was used. The first full endpoint alias collision was
+renamed and saved as `acceptance-scope-acceptance.log` with its result file.
+Scratch import/constructor names and index/inference diagnostics were repaired;
+scratch files remain outside maintained import closures.
+
+Final commands, all from the standalone library root: `agda
+ConnectionManagement/Properties/JobPoolReturnHistory.agda +RTS -M6G -RTS`,
+`agda ConnectionManagement/Properties/GovernorCompletions.agda +RTS -M8G -RTS`,
+`agda ConnectionManagement/Properties/ServerPeersCompletions.agda +RTS -M12G -RTS`
+and `agda --profile=definitions ConnectionManagement/Negative/ServerPeers.agda
++RTS -M12G -RTS`. Scripts set `ulimit -v 15728640` (15 GB virtual memory).
+Corresponding scripts are `check-returns.sh`, `check-lower.sh`, `check-shared.sh`
+and `check-acceptance.sh`, with logs and explicit `*-result.log` files alongside.
+All task checker runs are terminal. Final whitespace checks passed for tracked
+changes and all three new proof files.
+
+The four-file local proof audit has no substantive finding. Its three inspected
+possible-hole reports are standard `≤?` operators at sample-time, application-
+time and wakeup-deadline decisions. This is not a term-level imported-assumption
+audit. No new axiom, hole, unsafe option or checker bypass, weakened previous
+statement, runtime/guard/initializer change, native replay or source-pin change
+is included. Presentation artifacts and unrelated work remain untouched.
+CM-I4c, SI4/SI5 and G0–G5 remain open. Increments 37–41 remain uncommitted after
+`55ac872`.
+
+Next: connect a successfully consumed deactivation completion to its specific
+job continuation and certified clean protocol-result wait. Keep operation
+failure, demotion timeout, protocol return, publication and Async availability
+separate when composing those existing proof layers.
+
+## Forty-second increment: initialized deactivation success origins
+
+A successfully consumed deactivation completion now retains its original job's
+actual success continuation. The source-correct split is **already Warm at
+entry**, or **an actual clean hot-result wait**. `Rules.PeerJobs.enter` contains
+that early Warm return, matching the race comment and `PeerWarm` branch in
+`PeerStateActions.hs` at the unchanged network pin. A theorem requiring a fresh
+wait for every successful deactivation would exclude a legitimate source branch.
+
+[ServerPeersDeactivation](Properties/ServerPeersDeactivation.agda) derives
+`initialized-valid` from the unchanged initializer and finite enabled frontend
+runs. Each stored deactivation frame has its own control invariant and every
+successful row has a `History` with the exact job ID and captured work, actual
+frontend event/selected plan, initialized prefix and continuation suffix.
+`origin-success` joins this invariant to increment 41's precise historical
+publication frame; `consumed-success` applies it to the actually selected source
+head. History remains available after consumption and later state updates.
+There is no added coherence, supply, uniqueness, initially-Hot or body-return
+premise. The result is historical; it does not assert a peer is still Warm later.
+
+The `alreadyWarm` cause retains the actual entry transition, before-frame and
+Warm peer lookup, completed after-row and unchanged work. `cleanWait` retains
+the same job's before-frame at `awaitHot`, actual `waitJobResults` event,
+initialized `JobAgreement`, exact completed after-row and `CleanReads`. The last
+contains the historical physical capture for every clean observation, retaining
+peer, handle, mux and protocol identity. This is a certificate of the observed
+results; it does not assert physical protocol-body return or Async availability.
+
+The proof's dependency layers are [PeerJobControl](Properties/PeerJobControl.agda),
+which preserves captured work and classifies deactivation control transitions;
+[PeerJobFrames](Properties/PeerJobFrames.agda), which classifies every enabled
+subsystem/governor/physical-monitor frame write; and
+[ServerPeersJobFrames](Properties/ServerPeersJobFrames.agda), which derives frame
+write/read permissions from actual frontend selectors. A forged arbitrary
+`reading` plan is not assumed safe. Monitor birth restores its original parent
+execution; cancellation flags preserve execution; establishment return and
+failed-read resets are handled explicitly. Failure and timeout cannot supply a
+successful deactivation continuation. No actor whitelist or runtime restriction
+is introduced.
+
+Acceptance remains in `Protocols.DeactivationOriginChecks` in the existing
+ServerPeers.agda. It covers initialized returned, consumed and retained success;
+the actual clean selector and clean-wait cause; and an initialized race where a
+monitor completes deactivation before the already-registered governor job enters.
+The target job then succeeds at Warm entry without a result wait of its own.
+A control mixes a deactivation job with an activation PC: it can execute an
+arbitrary success-shaped return, but `initialized-valid` proves that snapshot
+unreachable. This is a representation control, not a deployed defect finding.
+
+Agda 2.8.0 checked all four new generic layers during development, including
+fresh checks after moving them to maintained paths. The final full endpoint
+`agda --profile=definitions ConnectionManagement/Negative/ServerPeers.agda
++RTS -M12G -RTS` freshly checked ServerPeers, exit 0 without warnings; its generic
+dependencies were cached on that final run. No interface purge was used. The
+serial `check-acceptance.sh` sets `ulimit -v 15728640` (15 GB virtual memory).
+Final log and explicit exit are `acceptance.log` and `acceptance-result.log` under
+`/tmp/cm-deactivation-origins-20261103/`. Scratch import/index inference and
+acceptance scope/name errors were repaired before success; the last scope
+failure is retained as `acceptance-scope-fix.log`.
+
+The five-file local proof audit has three inspected possible-hole reports, all
+standard `≤?` decisions in PeerJobFrames (sample time, application time and wakeup
+deadline). No substantive local audit finding, new axiom, hole, unsafe option,
+checker bypass or weakened earlier statement is present. This is not a term-level
+imported-assumption audit. Tracked and new-file whitespace/EOF checks pass.
+Runtime rules, guards, initializers, source pin and presentation artifacts are
+unchanged. No native replay, source-refinement, delivery-liveness or full-shutdown
+claim is added. Increments 37–42 remain uncommitted after `55ac872`.
+G0–G5, CM-I4c and SI4/SI5 remain open.
+
+Next: develop the initialized close/release success route, retaining the
+Cold/Cooling entry paths directly to a Cold wait and distinguishing clean
+all-bundle results, CM release, Cold observation, publication and physical
+thread/Async completion.
+
+## Forty-third increment: initialized close and release success histories
+
+Close success is now tracked through its actual job stages, rather than inferred
+from a completed row. `Properties.ServerPeersClose.initialized-valid` derives
+`Progress` for every stored close frame from the unchanged initializer and finite
+enabled frontend runs. `origin-success` joins the exact historical publication
+frame to that progress; `consumed-success` applies it to the actually selected
+source queue head. Job identity and the full captured work remain explicit,
+without added coherence, supply, uniqueness or initially-Warm assumptions.
+
+A successful `History` ends in an actual `J.observeCold` with a matching peer
+lookup at `peerCold`. Its `Route` to the successful Cold wait has three cases:
+
+- Cold/Cooling entry through the actual close operation, skipping all-bundle wait
+  and release by this job.
+- An actual operation timeout while awaiting all results. The timeout's guarded
+  stop/cooling step is retained; a later Cold observation can still return
+  `G.succeeded`.
+- A certified clean all-temperature wait, followed by this job's actual release
+  request and collection of a non-asserting CM result. Success and unsupported
+  results remain distinct. The actual released-cell lookup, caller, peer/key,
+  guarded CM request and shared before-world remain attached to their steps.
+
+The last route carries `Waited`, `Requested` and `Released` histories. Every step
+has an actual enabled frontend event and selected plan, before/after frame,
+initialized prefix and suffix to the queried state. Earlier stages' suffixes end
+at the next stage's before-state. The all-bundle `JobAgreement` and `CleanReads`
+retain physical capture certificates for every actual clean observation. Clean
+results alone do not prove release, Cold observation or successful publication.
+Operation timeout is not relabeled as a clean wait or a release; demotion timeout
+keeps its own outcome. Failed reads and release assertion failure cannot supply
+the successful-Cold route.
+
+`Properties.PeerJobCloseControl` classifies every enabled action on the close
+control PCs. The existing frame-effect layer now also retains the actual CM
+before-world. `ServerPeersJobFrames` derives `observeAll` event authorization
+from the physical job-wait selector, alongside the existing hot-read permission.
+The earlier deactivation theorem retains its statement and passes with the
+stronger evidence. No runtime, guard, initializer or actor restriction changes.
+
+The pinned `PeerStateActions.closePeerConnection` was re-read locally at network
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`: Cold/Cooling entry, timeout stop,
+all-temperature results, error throw and clean release remain separate. The
+source discards the release return value. This model theorem does not establish
+implementation refinement or a term-level dependency axiom audit.
+
+Acceptance is consolidated in `Protocols.CloseOriginChecks` in existing
+ServerPeers.agda. Direct expected snapshots, with separately named actual
+guarded-step equalities, follow the existing acceptance style. The cases exercise
+initialized clean wait/request/collection/Cold,
+publication/consumption and retained history; consumption before Async
+publication; protocol-body/Async separation; premature publication rejection;
+initialized timeout and Cold-entry routes where an independent caller releases
+CM; and the distinct demotion-timeout outcome. Cooling entry remains covered by
+the generic control proof; no separate initialized Cooling-entry trace is claimed.
+
+`Snapshots` and `Proofs` are sibling modules inside this same acceptance file.
+Snapshot bodies and actual edge/lookup facts are checked together; abstract
+history proofs use those facts without unfolding the sibling's large runtime
+representations. Prefixes are shared and intermediate states, events and generic
+instantiation parameters are explicit. This follows Agda's
+[scope of abstraction](https://agda.readthedocs.io/en/v2.8.0/language/abstract-definitions.html#scope-of-abstraction),
+without adding a postulate or changing a statement.
+
+Agda 2.8.0 freshly checked the full Negative/ServerPeers endpoint through
+`agda --interaction-json --profile=definitions +RTS -M9G -RTS`, loading the exact
+file through `interaction-input.txt`. Process exit was 0 and final `checked` was
+true; errors, visible/invisible goals and warnings were all empty. The final
+normal CLI confirmation, `agda ConnectionManagement/Negative/ServerPeers.agda
++RTS -M9G -RTS`, passed with exit 0 and empty output; that confirmation was cached.
+The generic layers were checked earlier, including the prior deactivation proof
+with its stronger shared-world evidence. No interface purge was used.
+
+The fresh check ran in transient unit `cm-close-origins-20261103.service`: 9 GB
+RTS heap, 11 GB cgroup limit, zero swap and 15 GB virtual-memory limit. For this
+run systemd reported 6min49.885s CPU, 7min27.792s wall and 6.7G peak memory.
+Earlier computed/transparent fixture attempts hit memory limits; one run was
+killed by systemd-oomd. Diagnostic highlighting exhausted filesystem quota and
+was replaced by compact progress output; only this task's generated diagnostic
+logs were trimmed, retaining diagnostic sections. Scope/index fixes and the two
+sealed branch-start equalities preceded the successful run. An initial CLI
+result-log write also hit quota; generated diagnostic trimming and the final
+CLI repeat completed the record.
+
+Logs/scripts/results are under `/tmp/cm-close-origins-20261103/`, notably
+`check-interaction.py`, `interaction-compact.log`, `interaction-result.json`,
+`final-cli.log`, `final-cli-result.log` and `audit.log`. The six-file local proof
+audit has no substantive finding: three inspected reports are standard `≤?`
+decisions in PeerJobFrames. Tracked and new-file whitespace/EOF checks pass.
+No new axiom, hole, unsafe option, checker bypass or weakened previous statement
+is added. This is not a term-level imported-assumption audit.
+
+Increment 43 is accepted and uncommitted with 37–42 after `55ac872`. Runtime,
+guards, initializers, source pin and presentation artifacts remain unchanged.
+No native replay, implementation-refinement, delivery-liveness or full-shutdown
+claim is added. G0–G5, CM-I4c and SI4/SI5 remain open.
+
+Next: increment 44, initialized physical-monitor return provenance. Reuse the
+normal/error finishing states reached by these Cold paths, then retain actual
+monitor body return through registry removal and Async publication. Preserve
+thread/peer identity and cancellation distinctions; a finishing PC alone is not
+a return or Async-availability certificate.
+
+## Forty-fourth increment: initialized physical monitor exit histories
+
+The overall CM/IG/OG/Server model and G0–G5 gates remain in progress. Increment
+44 connects an actual physical monitor exit occurring in an initialized finite
+frontend trace to separate registry-removal and Async-publication events. The
+new proof layer is `Properties/ServerPeersMonitorReturns.agda`; all acceptance
+stays in `Negative/ServerPeers.agda`.
+
+### Statement and limits
+
+`BodyExit` retains the exact thread row at the enabled exit: peer incarnation,
+worker, spawning parent, parent PC and interrupted/followup frames. `Cause`
+distinguishes `normalFinishing`, `errorFinishing err`, and cancellation with its
+actual abandoned unwind frame. The primitive operation is respectively
+`bodyReturnedWith tid nothing`, `bodyReturnedWith tid (just err)`, or
+`bodyUnwound tid`. The actual error comes from the thread PC, rather than a
+supplied event parameter. Both handled-error and normal returns enter normal
+pending deregistration in the queue-free pool; cancellation uses cancelled exit.
+The historical cause therefore carries information that the terminal handle
+phase deliberately discards.
+
+`physical-exit` derives this certificate from each enabled physical-supervision
+exit. Frontend `finish` lowers the actual dispatch through the unchanged shared
+runtime guards. `initialized-exit` and `initialized-occurrence` retain the exact
+initializer, executed prefix, actual exit and continuing suffix. The latter
+accepts any initialized finite trace containing that exit event. `extend` keeps
+the same historical captured thread through arbitrary later enabled events.
+
+`Removed` and `Published` each retain their own enabled frontend event and actual
+primitive pool step, nested over the earlier history. `initialized-lifecycle`
+derives the three stages from an initialized trace containing consecutive exit,
+deregistration and publication events, with arbitrary prefix and suffix.
+`extend-published` carries the resulting history through later execution.
+These are finite event-occurrence theorems. They do not invert an arbitrary
+terminal handle lookup to discover an exit, prove eventual publication or join,
+relate the captured thread to an independently supplied identity, or claim
+whole-system shutdown. In particular, a finishing PC alone is no return witness.
+
+### Acceptance and source boundary
+
+The existing `CloseOriginChecks.Snapshots`/`Proofs` sibling boundary is retained.
+Normal monitor return starts at the initialized clean-close state after the
+close result has been consumed and the governor's public established set has
+been cleared. The physical monitor is still running at that point. A separate
+normal return, registry removal and Async publication are checked, with
+initialized origins and retained history. The Cold-entry error path supplies a
+second initialized lifecycle: the actual error payload is preserved in the
+body operation, although its pool exit phase is normal.
+
+Controls reject early deregistration/publication on both finishing paths,
+publication between body return and removal, duplicate normal return, normal
+versus error dispatch, and either return substituted for cancellation unwind.
+The returned/removed/published phases and pre-/post-removal registries are
+checked separately. `MonitorCancellationChecks` reuses the earlier initialized
+`Reactivation.Shutdown` cancellation run, deriving its complete publication
+history through the later callback exit; no additional maintained fixture file
+or executable driver is introduced.
+
+Re-read at the unchanged network pin:
+`network-mux/src/Control/Concurrent/JobPool.hs:122–164` and
+`PeerStateActions.hs:836–851`. The queue-free body result is discarded before
+child deregistration, asynchronous exceptions bypass the synchronous handlers,
+and the PSA monitor's handled error returns a `Just` payload through the job
+handler. The local model records symbolic errors and explicit primitive
+boundaries; these proofs do not establish implementation refinement or a new
+replay result. Fetched source snapshots are under the validation folder.
+
+### Validation and continuation
+
+Checked 3 November 2026 with Agda 2.8.0. The generic command
+`agda ConnectionManagement/Properties/ServerPeersMonitorReturns.agda +RTS -M4G -RTS`
+freshly passed, exit 0 with no warnings. An initial generic check's constructor
+shadowing warnings were repaired by renaming pattern variables. The full
+`ConnectionManagement/Negative/ServerPeers.agda` interaction load freshly passed:
+process exit 0, checked=true, errors/goals/warnings empty. Final normal CLI
+`agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M9G -RTS` passed
+cached, exit 0 with empty output. No cache purge. Only one checker was started
+at a time. The compact runner used a 9 GB heap, 11 GB cgroup memory, zero swap
+and 15 GB virtual limit; systemd reported 6.7G peak for this run.
+
+Logs, runner, fetched source snapshots and results are under
+`/tmp/cm-monitor-returns-20261103/`: `generic.log`, `interaction-compact.log`,
+`interaction-result.json`, `final-cli.log`, `final-cli-result.log` and
+`audit.log`. The two-file local proof audit reports zero findings; tracked and
+new-file whitespace/EOF checks pass. No new axiom, hole, unsafe option, proof
+bypass or weakened old statement is added. This is not a term-level audit of
+imported assumptions. No additional native replay was run.
+
+Increment 44 is accepted and uncommitted with 37–43 after `55ac872`.
+
+No runtime, guard, initializer, source pin, presentation or commit is changed.
+After acceptance, the next obligation is initialized terminal-handle backing:
+derive an earlier physical exit from a queried terminal pool phase, retaining
+normal/error/cancellation histories without an extra history/coherence premise.
+That inversion is deliberately separate from this increment's event-occurrence
+statement. CM-I4c and SI4/SI5 remain open alongside G0–G5.

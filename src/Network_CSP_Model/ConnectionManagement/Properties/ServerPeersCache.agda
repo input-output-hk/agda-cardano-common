@@ -13,12 +13,13 @@ open import Data.List.Relation.Unary.All as All using (All; []; _∷_)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.Maybe using (just; nothing)
 open import Data.Maybe.Properties using (just-injective)
+open import Data.Unit using (⊤; tt)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst; sym; trans)
 open import Class.DecEq using (_≟_)
 open import Function using (case_of_)
-open import ConnectionManagement.Domain using (HandleId; RunId; PeerConnectionId; MuxId)
+open import ConnectionManagement.Domain using (HandleId; RunId; PeerConnectionId; MuxId; WorkerId; JobId)
 open import ConnectionManagement.IGTypes using (RunResult; clean; errored; number)
 open import ConnectionManagement.Store using (Store; put) renaming (lookup to find)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
@@ -555,3 +556,80 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
   initialized-pick-local {s = s} initialized path t ref peer n result found witness =
     subst (λ number → Historical s ref (Peer.handleRef peer) (Peer.muxRef peer) number result) (Read.Picked.numbered witness)
       (local-origin initialized path ref peer (Read.Picked.run witness) result found (Read.Picked.member witness) (Read.Picked.origin witness))
+
+  -- Full physical evidence preserves the difference between a captured local
+  -- result and Shutdown on a selected running action with an empty cell.
+  data PhysicalObservation (s : T.Runtime) (ref : PeerConnectionId) (peer : Peer.Peer) (n : ℕ) : T.Observation → Set where
+    local-capture : ∀ result → Historical s ref (Peer.handleRef peer) (Peer.muxRef peer) n result →
+      PhysicalObservation s ref peer n (T.localResult result)
+    shutdown-fallback : ∀ run rid r status → run ∈ Peer.runs peer → number (Peer.descriptor run) ≡ n →
+      Read.Selection ref peer run s rid r → Read.Fallback s r status → PhysicalObservation s ref peer n (T.shutdownResult status)
+  certify-pick : ∀ {c g start as s} → T.initialize c g ≡ just start → T.Runs start as s →
+    ∀ t ref peer n observation → find ref (rows (T.base s)) ≡ just peer → Read.Pick t ref peer s n observation →
+    PhysicalObservation s ref peer n observation
+  certify-pick initialized path t ref peer n (T.localResult result) found witness =
+    local-capture result (initialized-pick-local initialized path t ref peer n result found witness)
+  certify-pick initialized path t ref peer n (T.shutdownResult status) found witness with Read.Picked.origin witness
+  ... | Read.generation rid r selected (Read.shutdown .status muxEvidence) =
+    shutdown-fallback (Read.Picked.run witness) rid r status (Read.Picked.member witness) (Read.Picked.numbered witness) selected muxEvidence
+  certify-all : ∀ {c g start as s} → T.initialize c g ≡ just start → T.Runs start as s →
+    ∀ ref peer (results : List (ℕ × T.Observation)) → find ref (rows (T.base s)) ≡ just peer →
+    All (λ { (n , observation) → Read.AnyPick ref peer s n observation }) results →
+    All (λ { (n , observation) → PhysicalObservation s ref peer n observation }) results
+  certify-all initialized path ref peer [] found [] = []
+  certify-all initialized path ref peer ((n , observation) ∷ results) found ((t , witness) ∷ rest) =
+    certify-pick initialized path t ref peer n observation found witness ∷ certify-all initialized path ref peer results found rest
+
+  -- A Cold/Cooling or existing-followup poll makes no new result observation.
+  PollBacking : ∀ ref peer s → Read.PollSource ref peer s → Set
+  PollBacking ref peer s (Read.cold _) = ⊤
+  PollBacking ref peer s (Read.cooling _) = ⊤
+  PollBacking ref peer s (Read.following _ _) = ⊤
+  PollBacking ref peer s (Read.observed kind observation monitor selected (n , t , witness)) = PhysicalObservation s ref peer n observation
+  certify-poll : ∀ {c g start as s} → T.initialize c g ≡ just start → T.Runs start as s →
+    ∀ ref peer → find ref (rows (T.base s)) ≡ just peer → ∀ source → PollBacking ref peer s source
+  certify-poll initialized path ref peer found (Read.cold _) = tt
+  certify-poll initialized path ref peer found (Read.cooling _) = tt
+  certify-poll initialized path ref peer found (Read.following _ _) = tt
+  certify-poll initialized path ref peer found (Read.observed kind observation monitor selected (n , t , witness)) =
+    certify-pick initialized path t ref peer n observation found witness
+  record PhysicalPoll (ref : PeerConnectionId) (w : WorkerId) (s : T.Runtime) : Set where
+    constructor physicalPoll
+    field
+      reader : Read.PollRead ref w s
+      backing : PollBacking ref (Read.PollRead.peer reader) s (Read.PollRead.source reader)
+  record PhysicalJobWait (j : JobId) (s : T.Runtime) : Set where
+    constructor physicalJobWait
+    field
+      reader : Read.JobRead j s
+      backing : All (λ { (n , observation) → PhysicalObservation s
+        (J.connectionRef (Sub.execution (Read.JobRead.frame reader))) (Read.JobRead.peer reader) n observation }) (Read.JobRead.results reader)
+  record PhysicalMonitorWait (ref : PeerConnectionId) (s : T.Runtime) : Set where
+    constructor physicalMonitorWait
+    field
+      reader : Read.MonitorRead ref s
+      backing : All (λ { (n , observation) → PhysicalObservation s
+        (J.connectionRef (Read.MonitorRead.frame reader)) (Read.MonitorRead.peer reader) n observation }) (Read.MonitorRead.results reader)
+
+  -- Each event retains its original permission/frame/peer/read certificate;
+  -- initialization discharges all physical backing without extra premises.
+  initialized-physical-poll : ∀ {c g start as s t} ref w → T.initialize c g ≡ just start → T.Runs start as s →
+    T.advance (T.pollResults ref w) s ≡ just t → PhysicalPoll ref w s
+  initialized-physical-poll ref w initialized path advanced = physicalPoll reader
+    (certify-poll initialized path ref (Read.PollRead.peer reader) (Read.PollRead.foundPeer reader) (Read.PollRead.source reader))
+    where
+    reader = Read.initialized-poll ref w initialized path advanced
+  initialized-physical-job-wait : ∀ {c g start as s t} j → T.initialize c g ≡ just start → T.Runs start as s →
+    T.advance (T.waitJobResults j) s ≡ just t → PhysicalJobWait j s
+  initialized-physical-job-wait j initialized path advanced = physicalJobWait reader
+    (certify-all initialized path (J.connectionRef (Sub.execution (Read.JobRead.frame reader))) (Read.JobRead.peer reader)
+      (Read.JobRead.results reader) (Read.JobRead.foundPeer reader) (Read.JobRead.provenance reader))
+    where
+    reader = Read.initialized-job-wait j initialized path advanced
+  initialized-physical-monitor-wait : ∀ {c g start as s t} ref → T.initialize c g ≡ just start → T.Runs start as s →
+    T.advance (T.waitMonitorResults ref) s ≡ just t → PhysicalMonitorWait ref s
+  initialized-physical-monitor-wait ref initialized path advanced = physicalMonitorWait reader
+    (certify-all initialized path (J.connectionRef (Read.MonitorRead.frame reader)) (Read.MonitorRead.peer reader)
+      (Read.MonitorRead.results reader) (Read.MonitorRead.foundPeer reader) (Read.MonitorRead.provenance reader))
+    where
+    reader = Read.initialized-monitor-wait ref initialized path advanced

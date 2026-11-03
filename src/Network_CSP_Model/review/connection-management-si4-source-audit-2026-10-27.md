@@ -1204,3 +1204,117 @@ endpoint acceptance passed without warnings on 3 November 2026; local audit
 found only three standard-operator false positives, with no substantive issue. This is model evidence and adds no source-refinement or Async/body
 completion claim. See
 [Supervision increment 36](../ConnectionManagement/Supervision.md#thirty-sixth-increment-initialized-peer-cache-provenance).
+
+
+Increment 37 packages this backing into full physical observation certificates
+for actual initialized PSA poll/job-wait/monitor-wait events. Each retains the
+original reader gates; local observations carry historical captures and Shutdown
+retains the selected running action, empty cell and actual non-ready mux status.
+No-read polls make no completion claim. Fresh generic/dependent endpoint checks
+passed without warnings on 3 November 2026; the local two-file audit is clean.
+This does not infer body/Async completion, availability, progress or source
+refinement. See
+[Supervision increment 37](../ConnectionManagement/Supervision.md#thirty-seventh-increment-physical-certificates-for-initialized-result-reads).
+
+Increment 38 joins these physical certificates to actual resulting poll/wait
+continuations. Successful hot waits and all-bundle continuations to release
+require clean observations backed by matching historical captures; exact peer
+updates and failed-demotion rows are proved. Failed reads preserve physical
+state, Server state, threads, pools and scopes. Clean reads alone do not establish
+success or progress. Initialized acceptance and the explicitly conditional close
+control remain in ServerPeers.agda. Fresh generic/full endpoint Agda 2.8.0
+acceptance passed without warnings on 3 November 2026; three-file local audit
+and whitespace checks passed. No runtime/source-pin change, replay, source
+refinement or body/Async-completion claim is added. See
+[Supervision increment 38](../ConnectionManagement/Supervision.md#thirty-eighth-increment-read-to-continuation-safety).
+
+
+Increment 39 derives the exact governor body-return update from a successful
+certified wait, joins immediate publication to that exact body, and certifies
+publication into the separate source and pool ledgers. Registry removal and
+Async publication remain later operations. Certified monitor waits preserve
+physical monitor state; normal physical return requires its own enabled
+normalFinishing action. Initialized lifecycle/followup-removal acceptance and
+premature-completion controls remain in ServerPeers.agda. Final fresh generic/
+full endpoint Agda 2.8.0 acceptance passed without warnings on 3 November 2026;
+the local three-file proof audit and whitespace checks passed. No runtime,
+source-pin, native replay, deployed-defect or source-refinement claim is added.
+The source queue and retained body ledger are not asserted equal; completion
+selection/application is the next model-level obligation. See
+[Supervision increment 39](../ConnectionManagement/Supervision.md#thirty-ninth-increment-continuation-return-and-completion-publication).
+
+
+Increment 40 certifies shared ordinary-profile completion selection/application,
+including FIFO/priority guards, monotone time, the explicit assertion-failure
+boundary, timer cancellation and next-loop public-state publication. Private
+application retains public state; the pool body ledger remains distinct from
+the consumed source queue. JobPool waitForJob, Monitor.jobs, the governor loop
+and successful demotion assertion were re-read at the unchanged source pin.
+Initialized positive history and conditional guard controls remain consolidated
+in ServerPeers.agda. Generic and full endpoint Agda 2.8.0 checks freshly passed
+without warnings on 3 November 2026. The local three-file audit has no substantive
+finding (one inspected standard ≤? false positive); whitespace passed. Runtime
+and initializers are unchanged. This adds no deployed defect, native replay,
+term-level dependency audit or source-refinement/progress claim. Generic
+initialized completion-queue provenance remains the next obligation. See
+[Supervision increment 40](../ConnectionManagement/Supervision.md#fortieth-increment-governor-completion-selection-and-application).
+
+
+Increment 41 derives initialized historical provenance for pending and consumed
+governor completions. The actual source FIFO append and pool publication step
+retain matching body identity, work/optional peer incarnation and outcome.
+Existing shared pool projection plus the new generic WithQueue return-history
+lemma supplies an actual modeled body-return prefix and historical handle
+retention; it asserts no current returned phase or Async availability. An
+executable arbitrary queue with erased pool history is refuted as initialized
+reachable, rather than treated as a deployed finding. All acceptance remains in
+ServerPeers.agda. Final fresh generic/dependent Agda 2.8.0 checks passed without
+warnings on 3 November 2026; local four-file audit has no substantive finding
+(three inspected standard ≤? false positives), and final whitespace checks
+passed. No runtime/initializer, source-pin, native replay or source-refinement
+claim is added; the source queue and retained ledger remain separate. See
+[Supervision increment 41](../ConnectionManagement/Supervision.md#forty-first-increment-initialized-completion-provenance).
+
+Increment 42 retains both legitimate deactivation success origins: the pinned
+PeerStateActions `PeerWarm` early return, and a successful clean hot-result wait.
+The new initialized frame/history proof joins either cause to the exact original
+published/consumed job and captured work, rather than requiring an extra read on
+the early-return path. Clean waits retain the physical capture certificates for
+their actual observations. An initialized monitor/job race exercises Warm entry;
+a forged activation PC on a deactivation frame is an unreachable representation
+control. Generic layers and the full maintained acceptance endpoint passed
+Agda 2.8.0 checks; the final endpoint freshly checked ServerPeers, exit 0 without
+warnings. The five-file local audit has no substantive finding (three standard
+`≤?` decisions), and whitespace checks pass. See
+[Supervision increment 42](../ConnectionManagement/Supervision.md#forty-second-increment-initialized-deactivation-success-origins).
+There is no runtime, initializer, source-pin or native replay change, and no new
+source-refinement, protocol termination, Async availability or shutdown claim.
+
+Increment 43 extends initialized completion provenance to close/release stages.
+The pinned close action retains Cold/Cooling entry, timeout stop, error throw and
+clean all-temperature-result release branches. A later successful Cold wait can
+follow operation timeout; success alone therefore implies neither clean results
+nor a release call by that job. The model proof keeps actual read certificates,
+release request/result collection, matching Cold observation and original
+published/consumed work separate from physical/Async completion. Initialized
+clean, timeout and Cold-entry acceptance passed the full Agda 2.8.0 check with
+no errors, goals or warnings. The final normal CLI confirmation passed cached,
+exit 0. Snapshot and proof siblings keep representations opaque during history
+composition; the six-file local audit has no substantive finding (three standard
+`≤?` decisions), and whitespace checks pass. No runtime, source pin, replay or
+implementation-refinement claim changes. See
+[Supervision increment 43](../ConnectionManagement/Supervision.md#forty-third-increment-initialized-close-and-release-success-histories).
+
+Increment 44 adds initialized physical-monitor event histories. The queue-free
+pool discards normal/error result payloads before deregistration, so a later
+normal terminal phase alone cannot identify the cause. The new proof retains
+the actual enabled exit, captured thread and error/unwind evidence; registry
+removal and Async publication remain separate events. The pinned JobPool
+body/deregistration boundaries and PSA monitor handlers were re-read. This is
+finite event-occurrence provenance; terminal-state inversion, implementation
+refinement, native replay and whole-system progress remain separate obligations.
+Fresh generic and full maintained Agda 2.8.0 checks passed without warnings;
+final normal CLI confirmation passed cached, exit 0. The two-file local audit
+reports zero findings and whitespace checks pass. No runtime or source pin is
+changed. See [Supervision increment 44](../ConnectionManagement/Supervision.md#forty-fourth-increment-initialized-physical-monitor-exit-histories)
+for the exact statements and acceptance cases.
