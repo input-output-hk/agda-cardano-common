@@ -10,6 +10,9 @@ This folder is its own Agda library, `cardano-network-csp`
 (`cardano-network-csp.agda-lib`), separate from the enclosing `cardano-common`
 library. It does not depend on `cardano-common`.
 
+Use the [documentation index](docs/index.md) to find authoritative topic pages,
+source evidence and open questions across the library.
+
 For the active project's goals, milestones, evidence, and next step, start with
 [PROJECT_STATE.md](PROJECT_STATE.md). The repository's
 [project-continuity skill](skills/project-continuity/SKILL.md) defines how to

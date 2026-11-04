@@ -1,6 +1,7 @@
 # Initial source-to-transition ledger
 
-**Updated 15 October 2026.** Companion to [DESIGN.md](DESIGN.md).
+**Initial ledger: 15 October 2026; coverage status reconciled 4 November 2026.**
+Companion to [DESIGN.md](DESIGN.md).
 
 All network paths and line ranges below refer to
 `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. Consensus protocol contracts use
@@ -10,10 +11,19 @@ about the latest branch heads.
 This is an initial implementation ledger. **Expanded** entries define selected
 operation boundaries checked against the source. **Family** entries locate the
 required behavior but still need per-branch transcription before coding. These design statuses alone do not mean implemented, tested, or proved.
-The implementation coverage below is tracked separately. An unexpanded branch is not implicitly
+The implementation coverage below records successive slices. An unexpanded branch is not implicitly
 unreachable and must never silently become `nothing` in `advance`.
 
 ## Current implementation coverage
+
+**Reading this section:** the paragraphs and rule-family status cells accumulate
+historical implementation checkpoints; they are not a unified inventory at
+today's HEAD. For current initialized Server/supervision coverage, use
+[Supervision's maintained overview](Supervision.md#current-composed-lifecycle-certificates)
+at model commit `6878713`, with [remaining obligations](Supervision.md#open-questions-and-reconciled-status).
+The operation mappings retain the fixed upstream revisions above.
+
+### Initial admission and handshake slices
 
 The [CM primitives](Rules/CM.agda) implement map take/put/restore, captured-entry
 writes and the entry-selection transaction. The [server prefix](Rules/Server.agda)
@@ -25,18 +35,24 @@ also follows `Core.hs:174–215`, which is needed by `Core.hs:557–562`.
 [Map-lock properties](Properties/MapLocks.agda), [prefix witnesses](Scenarios/Admission.agda)
 and [a negative control](Negative/HeapRollback.agda) typecheck. They establish
 primitive guarantees and model-prefix behavior, not source refinement or complete
-coverage of these rule families. Accepted-socket handoff is the fixture boundary;
+coverage of these rule families. At this initial checkpoint, accepted-socket
+handoff was the fixture boundary;
 `SERVER.ACCEPT/HANDOFF`, child body execution and general exception/supervision behavior
-are not implemented. See [scope](README.md).
+were not implemented. The later [ServerAdmission](ServerAdmission.agda) runtime
+models `acceptedFork` and selected raw-worker phases, while complete accept-loop
+and general exception coverage remain separate obligations. See
+[reconciled scope](Supervision.md#open-questions-and-reconciled-status).
 
 [Handshake rules](Rules/Handshake.agda) now transcribe the inbound result consumer
 in `Core.hs:897–1101`: separate read, success update or error/query cleanup, counter
 read, IG enqueue and return. `Types.hs:266–322` supplies non-consuming promise reads
 and duplicate-write exceptions. `InformationChannel.hs:35–54` supplies the queue
 bound of 100. `ConnectionHandler.hs:186–200` supplies the two error classes;
-`401–460` locates the abstract publication boundary. Actual negotiation, handle/mux
-allocation and delayed query shutdown remain unimplemented. Handler cleanup is now
-implemented separately from an abstract exit boundary; see §4.2.
+`401–460` locates the abstract publication boundary. In this original slice,
+actual negotiation, handle/mux allocation and delayed query shutdown were
+unimplemented; handler cleanup was modeled separately from an abstract exit
+boundary (see §4.2). Later selected startup/publication paths are recorded in
+[Supervision](Supervision.md); this paragraph does not describe their coverage.
 
 [Handshake witnesses](Scenarios/Handshake.agda), [local reference lemmas](Properties/Entries.agda),
 [success preservation](Properties/Handshake.agda) and the [stale-result negative

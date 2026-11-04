@@ -12,18 +12,83 @@ reachability witnesses. The detailed source evidence is in
 [the pool audit](../review/connection-management-pool-supervision-source-audit-2026-10-27.md)
 and [the peer-policy audit](../review/connection-management-a6-source-audit-2026-10-27.md).
 
+## Current composed lifecycle certificates
+
+**Confirmed finding — model scope, 4 November 2026.** Model commit `6878713`
+contains increments 45–52, extending the initialized Server/peer frontend to
+ordered monitor histories and actual CM handler-result waits. The upstream
+network pin above is unchanged; this implementation commit is not a new source
+revision or a Haskell refinement result.
+
+| Boundary | Derived evidence and premises |
+| --- | --- |
+| Terminal monitor handle | [Handle backing](Properties/ServerPeersMonitorBacking.agda) and [stage histories](Properties/ServerPeersMonitorStages.agda) use initialization, finite enabled execution and the terminal lookup. The return, removal and result-available phases yield successively longer prefixes of the physical exit/removal/Async-publication history. Normal/handled-error and cancelled-unwind causes remain distinct. |
+| Join and closed snapshot | [Monitor joins](Properties/ServerPeersMonitorJoins.agda) derives prior lifecycle events from an actual inherited join. `initialized-closed` derives the empty cursor, exact snapshot/joined-list equality and histories in that order. [Join-order laws](Properties/JobPoolJoinOrder.agda) supply the snapshot decomposition. |
+| Callback return and CM entry | `initialized-callback` uses the actual enabled return and its closure guard. `initialized-cm-entry-run` carries those certificates through enabled `ServerRuns` to `beginCM`; preservation follows from these steps. |
+| Physical handler publication and CM wait | `physical-publication` and `physical-wait` lower actual guarded frontend events to physical operations. `initialized-cm-result-wait` derives the wait certificate, including the exact pre-wait result oracle, through the inherited Server suffix. Cancellation acknowledgement alone supplies no handler result. |
+| Cache-writing race suffix | `initialized-framed-result-wait` allows classified inherited/completion plans over Server actions. It preserves the governor pool, monitor pool and scope state; it permits peer-cache changes and does not assert whole-context equality. |
+
+These are conditional finite-execution certificates, not guarantees that any
+boundary will eventually be reached. The initialized examples and negative
+controls stay together in [ServerPeers.agda](Negative/ServerPeers.agda), including
+`CMResultLifecycleChecks` and `RaceLifecycleChecks`. Both race paths retain the
+original monitor causes through CM's wait and Server return; raw admission
+workers can remain incomplete. The current-clean path also refutes preservation
+of the whole peer context while preserving the three certified components.
+
+Detailed statements and historical validation are retained in
+[increments 45–52](#forty-fifth-increment-initialized-terminal-monitor-handle-backing).
+For increment 52, the generic module and full ServerPeers endpoint passed fresh
+Agda 2.8.0 interaction loads on 4 November; the final strict batch
+`agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M11G -RTS`
+passed cached. The [acceptance record](#fifty-second-increment-cache-aware-race-lifecycle-certificates)
+preserves resource limits, the repaired initial diagnostic and transient log
+identity `/tmp/cm-race-certificates-20261104/`. Documentation maintenance did
+not rerun Agda, native replays or a term-level imported-assumption audit.
+
+## Open questions and reconciled status
+
+- **Confirmed finding:** the early ledger's statement that accepted-child and
+  supervision behavior were unimplemented describes the initial admission
+  slice. [ServerAdmission](ServerAdmission.agda) now supplies `acceptedFork` and
+  selected raw-worker phases, and the certificates above cover selected
+  initialized paths. This supersedes that blanket coverage statement; it does
+  not supply the entire accept/getLocalAddr/failure loop.
+- **Confirmed finding:** [the actual Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay)
+  observes blocked admission workers after `Server.with` returns in five
+  injected-fault cases, with an early-handshake-error control. This is finite
+  source execution at the pinned revision with synthetic listeners/bearers,
+  not evidence of deployment frequency or universal shutdown failure.
+- **Inference:** the source's discarded admission Async handles, that replay
+  and the initialized model counterexamples expose a quiescence obligation
+  outside listener joins. They do not establish every proposed late-admission
+  race. Preserve the [source audit's scope](../review/connection-management-si4-source-audit-2026-10-27.md#server-joins-do-not-join-accepted-admission-children)
+  rather than treating “Server returned” as “all raw workers completed.”
+- **Open question — handler provenance (increment 53):** connect retained
+  handler descriptors and entry/socket/promise references at publication and
+  CM's wait to actual initialized fork/publication histories, reusing existing
+  resource/capture invariants. Historical presence must remain separate from
+  live ownership.
+- **Open question — SI4/SI5:** identify and discharge remaining admission,
+  handler and outer-scope obligations before deriving whole-supervision
+  completion. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
+  explicitly delivered completion boundary; the new local certificates do not
+  discharge it. Any API-quiescence premise or source change needs its own
+  evidence. G0–G5 and CM-I4c remain open.
+
 ## Milestones and completion criteria
 
 Keep these IDs stable when recording progress or changing implementation scope.
-The descriptions below are the implementation plan as of 27 October 2026;
-validation and commit status must be checked in the current worktree.
+The acceptance criteria originate in the 27 October 2026 plan; positions below
+are reconciled through model commit `6878713` on 4 November. Later work must
+recheck the actual theorem types and worktree.
 
 | ID | Scope and required result | Current workstream position |
 | --- | --- | --- |
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active: typed FIFO, group/whole-pool unwind, buffer/CM cleanup, partial startup and async callback paths checked within their profiles. SI4-F1 (graceful TraceStopped/IG callback) is corrected in the worktree; remaining failure windows and outer/Server integration remain open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths and monitor/physical-wait certificates are committed through `6878713`; handler provenance and full scope/quiescence obligations remain open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -31,6 +96,12 @@ remains a scoped assumption until SI5. No theorem about a smaller component may
 be substituted for those remaining obligations.
 
 ## Current executable integration
+
+This section begins the historical implementation record, starting with SI1/SI2.
+Dated “next,” “current” and “uncommitted” statements below retain their original
+checkpoint meaning. Increments 45–52 were subsequently committed in `6878713`;
+use the [current overview](#current-composed-lifecycle-certificates) for reconciled
+claims and [PROJECT_STATE.md](../PROJECT_STATE.md) for continuation.
 
 `GovernorPool` couples the ordinary `Subsystem` and production peer-policy stage
 to `JobPoolLifecycle Body`. Successful raw fork/register, body-return, queue and

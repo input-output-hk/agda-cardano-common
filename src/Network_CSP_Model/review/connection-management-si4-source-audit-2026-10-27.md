@@ -1,5 +1,13 @@
 # SI4 shutdown source audit — 27 October 2026
 
+This dated audit includes subsequent implementation and replay followups.
+Statements such as “not implemented,” “next” and “uncommitted” retain their
+checkpoint meaning. The [current supervision overview](../ConnectionManagement/Supervision.md#current-composed-lifecycle-certificates)
+reconciles model coverage through `6878713` (4 November), and its
+[open questions](../ConnectionManagement/Supervision.md#open-questions-and-reconciled-status)
+separate the replayed admission-worker result from the broader quiescence
+obligation. The source pin below remains the audit authority.
+
 The overall objective is an executable combined CM/IG/OG/Server model that can
 expose source bugs. SI4 adds the remaining physical resource and supervision
 scopes; SI5 must derive full shutdown from their certificates. This audit records
