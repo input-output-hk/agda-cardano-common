@@ -1318,3 +1318,113 @@ final normal CLI confirmation passed cached, exit 0. The two-file local audit
 reports zero findings and whitespace checks pass. No runtime or source pin is
 changed. See [Supervision increment 44](../ConnectionManagement/Supervision.md#forty-fourth-increment-initialized-physical-monitor-exit-histories)
 for the exact statements and acceptance cases.
+
+Increment 45 derives earlier physical exits from initialized terminal monitor
+handle lookups, rather than requiring the exit history as a premise. Normal
+terminal phases retain the possible normal or handled-error cause; cancelled
+phases require actual unwind. Generic action/handle classification and frontend
+induction retain the actual selector, source step and captured thread without
+changing runtime guards or initializers. The forged-handle control is scoped to
+the fixed initialized prefix; it is not a new source finding. No source pin,
+native replay, source-refinement or progress claim changes. See
+[Supervision increment 45](../ConnectionManagement/Supervision.md#forty-fifth-increment-initialized-terminal-monitor-handle-backing)
+for the exact statement and acceptance controls. Fresh generic and full Agda
+2.8.0 checks passed without warnings on 4 November; the final strict batch
+confirmation passed cached, exit 0. The local three-file proof scan has zero
+findings and whitespace checks pass. Resource-constrained diagnostic failures
+preceded the successful standard-memory run; no native replay was added.
+
+Increment 46 retains the actual registry-removal and Async-publication events
+behind initialized terminal handle queries. Their selected frontend plans and
+source/primitive steps are explicit, and whole-pool matching transports registry
+effects through protocol caching. Publication retains its earlier removal, which
+retains the original exit/thread/cause. Intervening target-input writes exercise
+the generic suffix preservation; cancellation remains distinct from handled
+errors. This is model history provenance, without a new runtime/source-pin,
+native replay, deployed finding or eventual-shutdown claim. See
+[Supervision increment 46](../ConnectionManagement/Supervision.md#forty-sixth-increment-initialized-terminal-stage-event-histories)
+for the exact statements and acceptance cases. Fresh generic and full Agda
+2.8.0 checks passed without warnings on 4 November; final strict batch confirmation
+passed cached, exit 0. The local three-file proof scan has zero findings and
+whitespace checks pass. The increment-45 theorem interfaces remain intact;
+no additional native replay or source finding is claimed.
+
+Increment 47 derives the captured snapshot ID/order and prior publication,
+removal and physical exit for an actual inherited initialized monitor join.
+The terminal lookup is extracted from the enabled join guard. An invariant
+cuts the captured snapshot into its joined prefix and remaining cursor; the
+actual join fixes the append and tail update. No new terminal/history premise
+or runtime/source-pin change. The cancelled frontend witness and primitive
+normal/error races cover both waiting phases and premature/wrong-head controls;
+the latter are not additional full frontend shutdown witnesses. Fresh generic
+and full Agda 2.8.0 checks passed without warnings on 4 November, followed by a
+cached strict batch success. The local proof scan has zero findings. This is
+finite model provenance, without new native replay, deployed finding, eventual
+closure or whole-system shutdown claims. See
+[Supervision increment 47](../ConnectionManagement/Supervision.md#forty-seventh-increment-initialized-monitor-join-provenance).
+
+Increment 48 derives an ordered lifecycle certificate for every captured handle
+of an initialized closed monitor pool. Its only premises are initialization,
+finite enabled execution and the closed observation. Exact snapshot/joined-list
+equality, an empty cursor and terminal/publication/removal/exit histories are
+derived. The actual cancelled frontend snapshot is checked before and after
+callback exit; normal/error and empty primitive closes plus premature/forged
+controls remain separate from full frontend shutdown witnesses. Fresh generic
+and full Agda 2.8.0 checks passed without warnings on 4 November; final strict
+batch confirmation passed cached, exit 0. The two-file local scan has zero
+findings. No new source finding, runtime/pin change, native replay, eventual
+closure or whole-system shutdown claim. See
+[Supervision increment 48](../ConnectionManagement/Supervision.md#forty-eighth-increment-initialized-closed-monitor-snapshot-certificates).
+
+Increment 49 integrates the actual initialized callback return with governor/
+scope certificates and the ordered monitor lifecycle histories. The actual
+guard derives closure; no closed observation or earlier certificate is supplied.
+The unchanged peer context preserves component certificates and extends the same
+monitor histories and causes through return. First-activation/restarted exits,
+early/repeated-return controls and explicit incomplete-handler/admission bounds
+passed fresh generic/full Agda 2.8.0 checks without warnings on 4 November.
+Final strict batch confirmation passed cached, exit 0; the local two-file scan
+has zero findings. This does not establish CM/handler/Server completion, eventual
+shutdown, a new source finding or implementation refinement. No runtime/pin or
+native replay change. See
+[Supervision increment 49](../ConnectionManagement/Supervision.md#forty-ninth-increment-initialized-callback-exit-lifecycle-integration).
+
+Increment 50 carries the callback's ordered monitor lifecycle and governor/scope
+certificates through actual guarded Server/IG actions and `beginCM`. Peer-context
+preservation and the closingCM stage are derived from those steps; actual CM/IG
+source changes remain in the trace. The existing initialized 20-edge shutdown
+prefix supplies acceptance, with early/repeated-entry controls and still-live
+physical bodies at CM entry. This is entry, not CM/handler/Server completion or
+eventual shutdown. Fresh generic/full Agda 2.8.0 checks passed without warnings
+on 4 November; final strict batch confirmation passed cached, exit 0. The local
+two-file scan has zero findings. A stopped diagnostic run preceded acceptance.
+No runtime/pin, new source finding, native replay or refinement claim changes.
+See [Supervision increment 50](../ConnectionManagement/Supervision.md#fiftieth-increment-serverig-to-cm-entry-lifecycle-propagation).
+
+Increment 51 connects the actual frontend CM receipt, physical handler result
+publication and successful collective wait to their physical certificates.
+The receipt retains its awaited entry/worker, owner abort and acknowledgement;
+publication retains real body/cleanup evidence; the wait uses the exact
+pre-wait result oracle and collected workers. Initialized lifecycle/component
+certificates continue through these checked operations and Server return.
+Early-wait controls pass, while raw admission results remain incomplete.
+Fresh generic and full Agda 2.8.0 interaction checks passed without errors,
+goals or warnings on 4 November; final strict batch passed cached, exit 0.
+The local two-file scan has zero findings. Heap/alias/equality diagnostic runs
+preceded acceptance; no runtime/pin, native replay, source-refinement or universal
+shutdown claim changes. See
+[Supervision increment 51](../ConnectionManagement/Supervision.md#fifty-first-increment-cm-cancellation-receipts-and-physical-handler-results).
+
+Increment 52 extends the composed certificates to the existing publication/
+cancellation and current-clean-commit races. The selected inherited/completion
+Server plans preserve governor/monitor pools and scope state through actual
+steps and the existing cache lemma, without asserting whole-context equality.
+The current-cache update is explicitly different, while component and monitor
+histories survive actual physical waits and Server return. The wait retains its
+real pre-wait oracle; local clean does not imply a physical handler result or
+CM completion. Fresh generic/full Agda 2.8.0 checks passed without goals/errors/
+warnings on 4 November; final strict batch passed cached, exit 0. The local
+two-file scan has zero findings. A fixture-import diagnostic was repaired first.
+No runtime/pin, native replay, source-finding, refinement or universal-quiescence
+claim changes. See
+[Supervision increment 52](../ConnectionManagement/Supervision.md#fifty-second-increment-cache-aware-race-lifecycle-certificates).

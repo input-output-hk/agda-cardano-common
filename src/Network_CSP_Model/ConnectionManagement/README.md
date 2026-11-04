@@ -1004,3 +1004,67 @@ provenance, not inversion of arbitrary terminal handle lookups or a guarantee
 of eventual shutdown. Acceptance is consolidated in ServerPeers.agda. See
 [Supervision increment 44](Supervision.md#forty-fourth-increment-initialized-physical-monitor-exit-histories)
 for the exact statements and validation status.
+
+`Properties.MonitorPoolEffects` and `Properties.ServerPeersMonitorBacking` derive
+an actual earlier physical exit from every initialized terminal monitor-handle
+lookup. The three phases retain normal/handled-error or cancelled-unwind causes,
+with the actual frontend selector and captured source thread. No prior return
+history or extra coherence/supply premise is required. Acceptance remains in
+ServerPeers.agda. See
+[Supervision increment 45](Supervision.md#forty-fifth-increment-initialized-terminal-monitor-handle-backing)
+for the exact finite safety statement, representation control and validation.
+
+`Properties.ServerPeersMonitorStages` extends terminal-handle backing to the
+ordered physical exit, registry-removal and Async-publication events. The actual
+selected plans, source/primitive operations, whole-pool matches and registry
+effects remain historical through arbitrary intervening enabled events. Queries
+require initialization, finite execution and the current terminal lookup, with
+no supplied lifecycle history. See
+[Supervision increment 46](Supervision.md#forty-sixth-increment-initialized-terminal-stage-event-histories)
+for the exact statement, interleaved acceptance path and validation status.
+
+`Properties.JobPoolJoinOrder` proves that an initialized close snapshot is the
+joined prefix followed by the remaining cursor. `Properties.ServerPeersMonitorJoins`
+uses an actual inherited frontend join to derive its captured ID, exact cursor
+update and earlier publication/removal/exit chain. No terminal lookup or lifecycle
+history is supplied to that theorem. See
+[Supervision increment 47](Supervision.md#forty-seventh-increment-initialized-monitor-join-provenance)
+for scope, acceptance and validation.
+
+`ServerPeersMonitorJoins.Frontend.initialized-closed` now derives a closed-snapshot
+certificate from initialization, finite enabled execution and the closed-pool
+observation. It contains an empty cursor, exact snapshot/joined-list equality
+and lifecycle histories in that order, including each handle's terminal lookup
+and prior publication/removal/exit. See
+[Supervision increment 48](Supervision.md#forty-eighth-increment-initialized-closed-monitor-snapshot-certificates)
+for acceptance and validation. This is a conditional finite certificate; eventual
+closure and the remaining CM/handler/server completion obligations remain open.
+
+`ServerPeersMonitorJoins.Frontend.initialized-callback` derives callback-exit
+certificates from initialization, finite execution and the actual enabled return.
+The callback guard supplies closure; the unchanged peer context preserves the
+same monitor lifecycle histories and governor/scope certificates after return.
+See [Supervision increment 49](Supervision.md#forty-ninth-increment-initialized-callback-exit-lifecycle-integration).
+Callback exit remains distinct from handler, admission, CM and Server completion.
+
+`ServerPeersMonitorJoins.Frontend.initialized-cm-entry` and
+`initialized-cm-entry-run` carry the callback certificates through actual
+Server/IG steps and an enabled `beginCM`, deriving the `closingCM` stage.
+Peer-context preservation is proved from the steps, while source CM/IG effects
+remain in the execution. See
+[Supervision increment 50](Supervision.md#fiftieth-increment-serverig-to-cm-entry-lifecycle-propagation).
+CM entry remains distinct from cancellation delivery, handler results and CM completion.
+
+The same frontend proof now lowers actual handler events to the guarded physical
+operations. It separates mux cancellation acknowledgement, handler result
+publication and CM's collective wait, retaining the wait's exact result oracle.
+`initialized-cm-result-wait` carries the initialized lifecycle certificates through
+the checked CM/handler suffix without supplied publication or wait certificates.
+See [Supervision increment 51](Supervision.md#fifty-first-increment-cm-cancellation-receipts-and-physical-handler-results).
+
+`FramedRuns` extends the certified suffix to selected inherited and completion
+plans over Server actions. Its preservation theorem concerns governor/monitor
+pools and the scope state, so a genuine peer-cache update is permitted.
+`initialized-framed-result-wait` retains the actual physical wait and lifecycle
+histories on both initialized race paths. See
+[Supervision increment 52](Supervision.md#fifty-second-increment-cache-aware-race-lifecycle-certificates).

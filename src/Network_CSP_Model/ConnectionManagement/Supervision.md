@@ -4395,3 +4395,722 @@ derive an earlier physical exit from a queried terminal pool phase, retaining
 normal/error/cancellation histories without an extra history/coherence premise.
 That inversion is deliberately separate from this increment's event-occurrence
 statement. CM-I4c and SI4/SI5 remain open alongside G0–G5.
+
+## Forty-fifth increment: initialized terminal monitor handle backing
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increments
+37–44 are committed in `29e5607`; this increment extends the physical-monitor
+exit histories from event occurrences to queries of initialized terminal handles.
+Presentation sources, their Makefile and generated output remain uncommitted.
+
+### Statement and proof layers
+
+`Properties/MonitorPoolEffects.agda` classifies every primitive queue-free pool
+transition and every enabled physical-supervision action. A handle write is
+unchanged, active, a terminal-stage transition preserving its exit, or an actual
+new return/unwind. The classifier retains the old lookup on terminal-stage
+transitions and exact writes on every changed key. Its tagged source reflection
+admits a fresh exit only from `finishMonitor`, `finishMonitorError` or
+`monitorBodyUnwound`. `PhysicalExit` records that actual enabled source step and
+the earlier `BodyExit` certificate, including the captured thread and actual
+error/unwind cause. Existing metadata projections discharge governor, CM and
+outer-scope bookkeeping; no runtime rule or guard changes.
+
+`Properties/ServerPeersMonitorBacking.agda` lifts this complete classifier through
+shared Server/CM steps and every frontend plan. Protocol result caching preserves
+the entire monitor pool. `History` retains initialization, the executed prefix,
+actual frontend event and selected plan, its enabled transition, the physical
+source exit, the exact new handle write and the continuing suffix. `SelectedExit`
+explicitly identifies the inherited/caller/completion plan executing that exact
+physical action; `located-change` retains its source-action equality. The lower
+physical state is retained explicitly because later frontend caching can change
+peer cells without changing physical handles.
+
+`initialized-backed` derives a history for every pending-deregistration,
+deregistered or result-available handle after any initialized finite enabled
+`Runs`. `initialized-pending`, `initialized-removed` and
+`initialized-published` require only the initializer, execution and queried
+current lookup. No prior return history, supply, coherence, uniqueness or
+current registry-membership premise is added. Induction transports old histories
+for unrelated keys, rejects active phases at a terminal query, retains the exit
+across deregistration/publication, and creates fresh histories only at the
+source-certified exit. Empty initial handles are derived from the initializer.
+
+A normal pool exit returns an existential normal-or-handled-error cause, with
+its actual error available in the captured source certificate. The result-erased
+handle alone cannot select between those causes. `cancelled-history` eliminates
+the normal alternatives and retains the actual cancellation unwind. This is a
+finite initialized safety/provenance theorem. It does not prove eventual exit,
+publication, join, delivery, source refinement or whole-system shutdown, nor
+creation-to-exit identity invariance. In particular, querying a published handle
+supplies an earlier exit history here; independently recovering its intervening
+removal/publication event histories is the next obligation.
+
+### Acceptance and representation control
+
+All acceptance remains in `Negative/ServerPeers.agda`. The existing opaque
+snapshot/proof siblings are retained. Six direct terminal queries cover all
+three phases on the initialized normal and handled-error paths, using only
+initializer, enabled execution and the already checked current phase lookup.
+The existing initialized cancellation run is queried after publication, join
+and callback exit; its normal alternatives are eliminated to obtain the exact
+cancelled history.
+
+Thirteen existing long shutdown/restart witnesses now supply explicit source,
+intermediate, target and event arguments on their 289 `V.more` steps. Every
+original theorem signature, edge proof and edge order is preserved. This avoids
+repeated inference of large concrete states during memory-limited validation;
+the change is proof elaboration only. The annotation script and manifest are in
+the validation folder.
+
+An arbitrary forged snapshot marks the still-finishing monitor as deregistered
+and can execute Async publication. Its thread PC remains finishing. The control
+proves this snapshot cannot be the endpoint of the fixed initialized clean-close
+prefix, using execution determinism and its actual running-handle lookup. It is
+an executable representation control, not a claim that the snapshot is
+unreachable under every conceivable event schedule or a deployed defect.
+
+### Validation and continuation
+
+Accepted 4 November 2026 with Agda 2.8.0 (threaded GHC 9.6.7). The final generic
+command `agda ConnectionManagement/Properties/ServerPeersMonitorBacking.agda
++RTS -M4G -RTS` freshly checked both new proof layers, exit 0 without warnings.
+The full `ConnectionManagement/Negative/ServerPeers.agda` interaction load
+freshly passed: process exit 0, checked=true, errors/goals/warnings empty.
+It used normal declaration caching and the default collector, 9 GB heap,
+11 GB cgroup, zero swap and a 15 GB virtual limit; systemd reported 7G peak
+for this run. Final strict batch `agda ConnectionManagement/Negative/ServerPeers.agda
++RTS -M9G -RTS` passed cached, exit 0 with empty output.
+
+The three-file local proof audit reports zero findings. Tracked and new-file
+whitespace/EOF checks pass. No new axiom, hole, unsafe option or weakened old
+statement is added. This is not a term-level imported-assumption audit. No
+native replay was rerun. Evidence is under `/tmp/cm-monitor-backing-20261103/`:
+`backing-final-generic.log`, `generic-result.log`, `interaction-compact.log`,
+`interaction-result.json`, `final-cli.log`, `final-cli-result.log`, `audit.log`,
+`annotation-manifest.json` and `service-journal.log`. The work began on
+3 November and resumed on 4 November.
+
+Earlier type/scope diagnostics and pattern-shadowing warnings were repaired
+before the successful generic checks. A first full check exhausted a
+5 GB heap while rebuilding a dependent module. A second used an incorrectly
+ordered 9 GB heap/7 GB cgroup configuration and was killed for memory after
+reaching later acceptance; the attempted stop found the unit already gone.
+A subsequent run corrected this to 6 GB heap below a 7 GB cgroup cap, zero swap,
+15 GB virtual limit and disabled Agda's in-memory declaration cache. That run was
+deliberately stopped while strengthening `History` with the explicit selected
+plan/source-action link; the strengthened generic check freshly passed with no
+warnings. The strengthened unannotated run then exhausted its 6 GB heap in the existing
+72-step restart witness after 27 minutes (4G reported physical peak). Its stop
+request found the unit already terminated. The thirteen witness annotations
+address that inference cost. Both generic layers freshly passed again with no
+warnings. The annotated 6 GB copying-collector run still exhausted its heap
+before the long witness. Non-moving-collector experiments at 4 and 5 GB also
+exhausted their heaps. They changed RTS memory management only; Agda 2.8.0 and
+its threaded GHC 9.6.7 runtime were checked. The relevant official references
+are the [GHC RTS options](https://downloads.haskell.org/ghc/9.6.7/docs/users_guide/runtime_control.html)
+and [memory guide](https://downloads.haskell.org/ghc/9.6.7/docs/users_guide/hints.html#understanding-how-os-memory-usage-corresponds-to-live-data).
+
+Available memory later rose from about 4 GB to 17 GB after other work released
+shared memory, allowing the successful standard-memory check recorded above.
+Earlier failure/interruption logs remain separately named in the evidence
+folder. No disk interface purge, explicit `-c`, or proof-check bypass was used.
+
+Increment 45 is accepted and uncommitted after `29e5607`. No runtime, guard,
+initializer, source pin, presentation or replay is changed. G0–G5, CM-I4c and
+SI4/SI5 remain open. Next: increment 46, derive the actual
+intervening registry-removal and Async-publication histories directly from
+initialized terminal-phase queries, allowing interleaved events and requiring
+no supplied lifecycle history.
+
+## Forty-sixth increment: initialized terminal stage event histories
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 46
+extends terminal exit backing to the actual intervening registry removal and
+Async publication. Increment 45 remains uncommitted after `29e5607`.
+
+### Statement and proof layers
+
+`MonitorPoolEffects.Detailed` retains the movement label and its witness on
+terminal-stage transitions. The primitive and supervision classifiers are shared
+with the earlier API; `forget` projects the detailed classifier into the original
+`Change`, `Raw`, `source-change` and `located-change` interfaces. Their theorem
+statements remain intact. Tags now retain removal/publication identities.
+`PhysicalMove` supplies the actual enabled supervision action, primitive pool
+step and registry effect. Deregistration removes that captured ID from the
+registry; Async publication preserves the registry. No runtime rule changes.
+
+`Properties/ServerPeersMonitorStages.agda` lifts both exits and movements through
+the shared runtime and every frontend plan. `SelectedMove` identifies the exact
+inherited/caller/completion plan executing the source operation. `realized-pool`
+connects the source result to the whole actual frontend pool, explicitly using
+cache preservation on completion plans. The registry equations therefore concern
+the recorded runtime before/after states, not an assumed source snapshot.
+
+`Removal` retains an earlier increment-45 exit history ending at the removal's
+actual before state, together with its event/plan, enabled source/primitive
+steps, actual old lookup, handle write, registry deletion and continuing suffix.
+`Publication` retains an earlier `Removal` ending at the publication's before
+state, plus the corresponding actual event, source/primitive steps, old lookup,
+write, registry preservation and suffix. The same job ID and normal/error/
+cancellation cause index the whole chain. Historical thread/peer/parent/error
+information is retained in the original exit witness.
+
+`initialized-backed`, `initialized-pending`, `initialized-removed` and
+`initialized-published` derive these ledgers from an initializer, finite enabled
+`Runs` and the current terminal lookup. No supplied lifecycle history, extra
+coherence/supply/uniqueness or current registry-membership premise is added.
+One induction creates fresh records at the actual transitions, transports old
+records across unrelated writes and retains the exit classification across
+stages. `extend-removal` and `extend-publication` preserve arbitrary intervening
+suffixes; `removal-exit`/`publication-exit` recover the earlier exit history at
+the queried current state. `cancelled-publication` excludes normal-return causes.
+
+These are finite initialized safety/provenance statements. They do not establish
+eventual return/publication/join, native implementation refinement, permanent
+absence from a whole registry or whole-system shutdown. Registry equations are
+historical effects at the recorded step; later unrelated registrations remain
+possible. The original captured thread is not recomputed from a current peer.
+
+### Acceptance and validation
+
+All acceptance remains in `Negative/ServerPeers.agda`. Six direct queries cover
+pending, removed and result-available phases on the initialized normal and
+handled-error paths. The existing initialized cancellation run supplies the
+complete ordered history after publication, join and callback exit. A further
+initialized path performs real target-input writes before removal, between
+removal/publication and after publication, then queries the published handle.
+Every edge is checked against the actual frontend transition. The earlier
+premature-publication and forged-prefix controls are retained.
+
+Accepted 4 November 2026 with Agda 2.8.0. The generic command
+`agda ConnectionManagement/Properties/ServerPeersMonitorStages.agda +RTS -M4G -RTS`
+freshly passed, exit 0 without warnings. The refined classifier and unchanged
+increment-45 consumer also checked. The full maintained ServerPeers interaction
+load freshly passed: process exit 0, checked=true, errors/goals/warnings empty.
+It used normal caching/default GC, 9 GB heap below 11 GB cgroup, zero swap and
+15 GB virtual limit; systemd reported 6.7G peak for this run. Final strict batch
+`agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M9G -RTS` passed
+cached, exit 0 with empty output. No interface purge or collector experiment.
+
+The local three-file proof scan reports zero findings; tracked/new-file
+whitespace and EOF checks pass. No new axiom, hole, unsafe option or weakened
+old statement. This is not a term-level imported-assumption audit. Earlier local
+diagnostics involved nested-module name clashes, a saved with-expression
+equality, a nested with-clause and explicit implicit-argument inference/order;
+these were repaired before acceptance. Evidence, scripts, logs, results and
+audit are under `/tmp/cm-monitor-stages-20261104/`, notably `stages.log`,
+`generic-result.log`, `interaction-compact.log`, `interaction-result.json`,
+`final-cli.log`, `final-cli-result.log`, `audit.log` and `service-journal.log`.
+
+Increment 46 is accepted and uncommitted alongside 45 after `29e5607`.
+No runtime, guard, initializer, source pin, presentation or native replay changes.
+Next: increment 47, connect initialized monitor joins to these
+full exit/removal/publication histories and their captured close-snapshot IDs.
+Keep enabled-join safety separate from eventual closure and the still-unmodeled
+remaining CM/handler/server completion obligations. G0–G5, CM-I4c and SI4/SI5
+remain open.
+
+## Forty-seventh increment: initialized monitor join provenance
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 47
+connects an actual inherited monitor join to its initialized snapshot and the
+exit/removal/publication chain derived in increments 45–46.
+
+### Statement and proof layers
+
+`Properties/JobPoolJoinOrder.agda` proves the exact invariant
+`snapshot = joined ++ remaining` for every enabled primitive execution from the
+empty initializer, for either queue policy. Beginning close establishes the cut;
+joining consumes its head and appends that ID to the joined prefix. Other actions
+preserve the cut. `inspect-join` extracts the current ID, either `cancelPending`
+or `joinPending`, its terminal lookup, remaining head/tail and exact resulting
+state from the actual enabled primitive join. `captured` derives membership in
+the snapshot from the invariant and that inspected head. No membership or order
+premise is supplied by the client.
+
+`Properties/ServerPeersMonitorJoins.agda` lowers the real frontend event
+`dispatch (peerStep joinMonitor)` through the shared and physical-supervision
+guards to the actual primitive join. The existing background-pool projection
+provides an execution from the empty pool initializer, yielding the invariant.
+`initialized-join` requires only initialization, finite enabled `Runs` and this
+actual join. Its `Joined` record retains the prefix, source/primitive steps,
+inspected shape, derived snapshot membership and earlier `Publication`. The
+terminal lookup needed by increment 46 is extracted from the join guard; it is
+an output rather than an added hypothesis. Publication retains its earlier
+Removal and physical exit, including the original thread, peer, parent and
+normal/handled-error/cancellation cause. `ordered-snapshot` exposes the exact
+joined-prefix/current-ID/tail cut. The inspected state fixes the append, tail,
+closing phase and unchanged snapshot. `publication-after` and `exit-after` extend
+the histories through the actual join. Observation helpers name its derived
+ID and recover the cause-indexed publication without recomputing the history.
+
+The theorem concerns this inherited frontend event; it does not add a classifier
+for arbitrary raw plan aliases. Generic histories retain all three exit causes;
+a normal terminal pool phase alone still cannot distinguish an ordinary return
+from a handled monitor error. No runtime, guard, initializer or source-pin change.
+No new coherence, supply, uniqueness, registry absence, terminal-result or prior
+lifecycle premise. The claim is finite enabled-join safety/provenance, with no
+eventual join/closure, native refinement or whole-system shutdown conclusion.
+
+### Acceptance and validation
+
+All acceptance remains in `Negative/ServerPeers.agda`. `MonitorJoinChecks`
+reuses the actual initialized cancelled shutdown prefix ending immediately before
+join, derives the captured ID 50 and cancelled publication history, and checks
+snapshot retention, joined order, consumed remaining cursor and premature join
+rejections before removal and before publication. The prefix uses the original
+30 checked edges, with explicit intermediate states to bound elaboration.
+`MonitorJoinRace` has actual empty-initializer primitive executions for a normal
+or handled-error payload returning after a cancellation request, before delivery.
+Both pending cancellation and already-available-result waiting phases join only
+a published Async result. Running, pending-removal and removed-only handles do
+not join; return prevents cancellation delivery; a wrong head does not join.
+These primitive cases do not claim additional full frontend normal/error
+shutdown witnesses.
+
+Accepted 4 November 2026 with Agda 2.8.0. Both generic commands freshly
+passed with exit 0 and no warnings:
+`agda ConnectionManagement/Properties/JobPoolJoinOrder.agda +RTS -M4G -RTS`
+and `agda ConnectionManagement/Properties/ServerPeersMonitorJoins.agda +RTS -M4G -RTS`.
+The fresh full maintained ServerPeers interaction load passed: process exit 0,
+checked=true, errors/goals/warnings empty. It used normal caching/default GC,
+9 GB heap below an 11 GB cgroup, zero swap and a 15 GB virtual limit; systemd
+reported 6.9G peak. Final strict batch
+`agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M9G -RTS` passed
+cached, exit 0 with empty output. No interface purge or collector experiment.
+
+The three-file local proof scan reports zero findings; whitespace/EOF checks
+pass. No new axiom, hole, unsafe option or weakened old statement. This is not a
+term-level imported-assumption audit. Local typing/scope diagnostics were repaired;
+the first two full loads rejected a fixture name collision and incorrect named
+primitive-trace constructor arguments. Neither failed load counts as acceptance.
+Evidence: `/tmp/cm-monitor-joins-20261104/`, including generic logs, the successful
+interaction log/result, final batch log/result, audit and service journal.
+
+Increment 47 is accepted and uncommitted alongside 45–46 after `29e5607`.
+No commit, presentation or native replay change. G0–G5, CM-I4c and SI4/SI5 remain
+open. Next: increment 48, an initialized closed-monitor-snapshot certificate,
+combining exact joined order with per-handle lifecycle histories, while keeping
+the remaining CM/handler/server completion obligations explicit. This next
+certificate must derive its premises from initialization, finite enabled Runs
+and the closed-pool observation; it must not assume earlier lifecycle histories
+or assert eventual closure.
+
+## Forty-eighth increment: initialized closed-monitor snapshot certificates
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 48
+combines initialized snapshot order, closed-pool terminal coverage and actual
+lifecycle histories in the existing `ServerPeersMonitorJoins` proof module.
+Acceptance remains consolidated in `Negative/ServerPeers.agda`.
+
+### Statement and proof layers
+
+`Frontend.SnapshotLifecycle` retains a cause-indexed terminal lookup and an
+actual earlier `Publication`, whose `Removal` retains the physical body exit.
+The captured thread, peer, parent and error/unwind information stays in that
+historical chain. A normal terminal phase still permits either an ordinary
+return or a handled-error cause; cancellation requires actual unwind.
+
+`Frontend.ClosedSnapshot` records initialization, the finite enabled prefix,
+the actual closed-pool observation, an empty remaining cursor, exact equality
+of snapshot and joined lists, and `All SnapshotLifecycle snapshot`. The `All`
+witness follows the captured list order. `initialized-closed` derives the entire
+record from just initialization, finite enabled `Runs` and the closed phase.
+It reuses the actual background-pool projection, `JobPoolCloseKernel.exec-empty`
+and `from-initial`, the increment-47 partition invariant and increment-46 stage
+histories. No per-handle terminal lookup, history, snapshot membership, supplied
+order, registry absence or extra coherence/supply/uniqueness premise is added.
+The existing join theorem and runtime interfaces retain their types.
+
+`captured-lifecycle` retrieves a member's derived history;
+`histories-in-join-order` transports the ordered histories to the equal joined
+list, and `joined-lifecycle` retrieves a joined member. `lifecycle-exit` retains
+the earlier physical exit at the current query state. `cancelled-lifecycle`
+uses a concrete cancelled lookup only to specialize an already-derived history;
+that lookup is not a premise of `initialized-closed`.
+
+This is a finite certificate conditional on an actual closed observation. The
+order field identifies the model's joined list; it does not add a frontend event
+history for every join or claim a concrete source ThreadId ordering. Histories
+cover captured handles; excluded historical handles receive no new certificate.
+No eventual closure, native refinement, whole-system shutdown or current whole
+registry-absence claim. No runtime, guard, initializer or source-pin change.
+
+### Acceptance and validation
+
+`MonitorClosedSnapshotChecks` derives the actual initialized nonempty closed
+frontend snapshot before the callback exits and again after its actual exit.
+It retrieves histories through both captured and joined membership, checks their
+order and derives cancelled publication and the original exit for ID 50. ID 51
+is excluded. A published-but-unjoined head still prevents finishing the close;
+the callback remains at the serving stage when the monitor pool closes.
+
+The existing normal/error primitive race modules now execute join and finish
+from their empty initializer, derive exact snapshot/joined equality and terminal
+coverage, and reject premature finish. `MonitorClosedEmptyAndForgedChecks`
+checks an actual empty primitive close. Its forged closed state deliberately
+lacks both order equality and a terminal result, showing why a bare closed bit
+cannot replace initialized execution. These are primitive controls, not new
+full frontend normal/error or empty shutdown witnesses.
+
+Accepted 4 November 2026 with Agda 2.8.0. The generic command
+`agda ConnectionManagement/Properties/ServerPeersMonitorJoins.agda +RTS -M4G -RTS`
+freshly passed, exit 0 without warnings. The fresh full maintained ServerPeers
+interaction load passed: process exit 0, checked=true, errors/goals/warnings
+empty. It used normal caching/default GC, 9 GB heap below an 11 GB cgroup,
+zero swap and a 15 GB virtual limit; systemd reported 6.9G peak. Final strict
+batch `agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M9G -RTS`
+passed cached, exit 0 with empty output. No interface purge or collector change.
+
+The two-file local proof scan reports zero findings; whitespace/EOF checks pass.
+No new axiom, hole, unsafe option, weakened old statement or added history premise.
+This is not a term-level imported-assumption audit. Evidence:
+`/tmp/cm-monitor-closed-20261104/`, including the generic log/result, fresh full
+interaction log/result, final batch log/result, local audit and service journal.
+Increment 48 is accepted and uncommitted alongside 45–47 after `29e5607`.
+Presentations and native replays are untouched.
+
+Next: increment 49, integrate the closed-snapshot lifecycle certificate with an
+actual initialized callback exit and its existing governor/scope certificates,
+deriving the closed observation from the enabled callback guard. Keep this
+separate from remaining CM/handler/server completion and eventual progress.
+G0–G5, CM-I4c and SI4/SI5 remain open.
+
+## Forty-ninth increment: initialized callback-exit lifecycle integration
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 49
+integrates the initialized monitor lifecycle certificate with the actual Server
+callback return and the existing governor/scope certificates, in the existing
+`Properties/ServerPeersMonitorJoins.agda` module.
+
+### Statement and proof layers
+
+`Frontend.CallbackExit` retains initialization, the finite enabled prefix, the
+actual inherited callback event, its real shared step, unchanged peer context,
+callback closure guard, the existing `Shared.Certificates` and the new
+`ClosedSnapshot`. `initialized-callback` requires only initialization, enabled
+`Runs` and the actual `dispatch (serverStep (run (scope returnAction)))` step.
+It lowers that event using the existing dispatch observation and real server
+step. `callback-gate` and `closure-observation` derive governor-pool closure,
+monitor-pool closure and the finished scope. Existing initialized component
+proofs yield governor/scope terminal/join certificates; increment 48 yields the
+ordered monitor histories. The caller supplies no closed-phase observation,
+component certificate, terminal lookup or lifecycle history. No additional
+coherence, supply, uniqueness or registry-absence premise.
+
+`extend-lifecycle` retains the original cause and earlier publication/removal/
+exit history while extending its actual suffix across a run with the same whole
+monitor pool. `extend-closed` applies this to the ordered histories and extends
+the initialized prefix, retaining closure, empty cursor and snapshot/joined
+order. These helpers have explicit run/pool-equality premises; the main callback
+theorem derives those facts from the actual event rather than requiring them.
+`callback-monitors-after` uses that extension on the recorded pre-return
+certificate, preserving its histories instead of making independent post-return
+cause choices. `callback-pool-same` follows from the actual unchanged peer
+context. `callback-components-after` transports the existing certificates across
+that same context equality; those certificates concern its pools/scope, not a
+claim that the whole CM source is unchanged.
+
+This concerns the inherited callback return event. It adds no classifier for
+arbitrary raw plan aliases. The result is finite conditional provenance, without
+an eventual callback/shutdown theorem. Captured pool results and scope joins do
+not establish completion of raw admissions, physical handlers, CM or Server.
+No runtime, guard, initializer, source-pin or previous theorem-type change.
+
+### Acceptance and validation
+
+`Negative/ServerPeers.agda.CallbackLifecycleChecks` derives both the initialized
+first-activation and restarted callback exits. It retrieves all component
+certificates before/after return, nonempty captured monitor histories and actual
+cancelled publication chains after return. The restarted case checks the real
+shared step, retained snapshot/joined lists and the cause-preserving history
+extension. Early return is rejected before peer closure, before monitor join
+and before monitor finish; repeated return is rejected. The actual post-state is
+`actionBodyExited`, not full Server return. The existing open physical-handler
+pool and incomplete raw-admission facts remain explicit acceptance boundaries.
+No new lifecycle driver or split fixture file.
+
+Accepted 4 November 2026 with Agda 2.8.0. The generic command
+`agda ConnectionManagement/Properties/ServerPeersMonitorJoins.agda +RTS -M4G -RTS`
+freshly passed, exit 0 without warnings. An unresolved state-inference meta in
+component transport was repaired with explicit state arguments before acceptance.
+The fresh full maintained endpoint interaction load passed: process exit 0,
+checked=true, errors/goals/warnings empty. It used normal caching/default GC,
+9 GB heap below an 11 GB cgroup, zero swap and a 15 GB virtual limit; systemd reported 6.8G peak. Final
+strict batch `agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M9G -RTS`
+passed cached, exit 0 with empty output. No interface purge or collector change.
+
+The two-file local proof scan reports zero findings; whitespace/EOF checks pass.
+No new axiom, hole, unsafe option, weakened old statement or supplied closure/
+history premise. This is not a term-level imported-assumption audit. Evidence:
+`/tmp/cm-callback-lifecycle-20261104/`, including generic log/result, full
+interaction log/result, final batch log/result, local audit and service journal.
+Increment 49 is accepted and uncommitted alongside 45–48 after `29e5607`;
+presentations and native replays are untouched.
+
+Next: increment 50, propagate these lifecycle certificates through the existing
+initialized Server/IG shutdown prefix into actual CM entry. Retain the captured
+handles and distinguish CM entry from CM completion. Remaining handler/admission
+completion and eventual shutdown stay separate; G0–G5, CM-I4c and SI4/SI5 remain
+open.
+
+## Fiftieth increment: Server/IG-to-CM-entry lifecycle propagation
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 50
+carries the callback's component and captured-monitor lifecycle certificates
+through the existing Server/IG shutdown prefix into the actual `beginCM` event.
+The proof extends `Properties/ServerPeersMonitorJoins.agda`; acceptance stays in
+`Negative/ServerPeers.agda`.
+
+### Statement and proof layers
+
+`Frontend.ServerRuns` records finite enabled inherited Server/IG actions. Every
+edge uses the real frontend `advance (dispatch (serverStep action))` and retains
+its original guards. `server-runs` exposes the ordinary runtime trace;
+`server-runs-from` reuses an existing trace whose events are those actions.
+`server-step-context` lowers each actual event through the shared dispatcher and
+server rule; `server-context` derives equality of the peer contexts across the
+whole suffix. No pool/context-preservation equation is supplied as a premise.
+These steps can change the real CM/IG source; equality of peer metadata does not
+erase those effects or assert that the whole source is unchanged.
+
+The CM-entry action is the actual inherited `run (scope beginCM)`. The stage
+lemmas inspect the real admission/IG/shared/frontend steps and derive its
+`closingCM` result. No stage observation is supplied. `CMEntry` retains the
+callback before/after states and derived `CallbackExit`, the actual Server/IG
+cleanup suffix and its last pre-entry state, enabled entry event and resulting
+stage. `initialized-cm-entry` requires initialization, enabled execution to the
+callback, the callback return, that guarded suffix and the actual entry event.
+`initialized-cm-entry-run` accepts the suffix ending in `beginCM` and extracts
+its actual final predecessor/step. Neither requires a prior lifecycle/component
+certificate, terminal lookup or additional preservation/coherence/supply premise.
+The suffix restriction is explicit; this is not a theorem for arbitrary frontend events after the
+callback or raw plan aliases.
+
+`cm-cleanup` includes the final entry event. `cm-context-same` derives its context
+preservation. `cm-monitors` extends the callback's original ordered lifecycle
+histories and causes across this actual trace; it does not reclassify later
+terminal cells. `cm-components` transports the existing governor/scope
+certificates across the same context equality. Previous theorem interfaces and
+runtime rules retain their types and definitions.
+
+### Acceptance and validation
+
+`ServerCMEntryLifecycleChecks` reuses the existing initialized restarted shutdown
+and its 20 actual Server/IG edges, covering action-result publication, accept
+cancellation/join, TraceStopped, callback join, IG cancellation, deactivation,
+flush, final traversal, result publication/join and `beginCM`. It derives the
+entry certificate without a supplied lifecycle or context-equality premise,
+checks the concrete and recorded context equations, all component certificates,
+ordered monitor histories and the original cancelled exit for ID 50. The
+history-extension control retains the same cause through the concrete suffix.
+
+Entry before the callback, immediately after it, or before the IG join is
+rejected, as is repeated entry. Server finish at CM entry is rejected. In this
+actual witness the CM coordinator has not yet captured its snapshot and both
+current and older physical bodies remain running/unpublished. The certificate
+therefore does not assert CM/handler/raw-admission/Server completion or eventual
+shutdown. It adds no native replay or source-refinement claim and changes no
+runtime, guard, initializer or source pin.
+
+Accepted 4 November 2026 with Agda 2.8.0. The generic command
+`agda ConnectionManagement/Properties/ServerPeersMonitorJoins.agda +RTS -M4G -RTS`
+freshly passed, exit 0 without warnings. The fresh full maintained endpoint
+interaction load passed: process exit 0, checked=true, errors/goals/warnings
+empty. It used normal caching/default GC, 9 GB heap below an 11 GB cgroup,
+zero swap and a 15 GB virtual limit; systemd reported 6.9G peak. Final strict batch
+`agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M9G -RTS` passed
+cached, exit 0 with empty output. No interface purge or collector change.
+
+The two-file local proof scan reports zero findings; whitespace/EOF checks pass.
+No new axiom, hole, unsafe option, weakened old statement or supplied lifecycle/
+preservation premise. This is not a term-level imported-assumption audit. Local
+typing diagnostics were repaired by directly reducing specialized wrapper
+guards. An initial full run was deliberately stopped to correct an opaque-record
+fixture query before acceptance; it does not count as a successful check.
+Evidence: `/tmp/cm-entry-lifecycle-20261104/`, including generic log/result,
+successful interaction log/result, final batch log/result, local audit, stopped
+attempt and service journal. Increment 50 is accepted and uncommitted alongside
+45–49 after `29e5607`; presentations and native replays are untouched.
+
+Next: increment 51, carry these certificates through the existing actual CM
+cancellation-acknowledgement and physical-handler/CM-result-wait path. Retain the
+captured identities and distinguish delivery acknowledgement, physical result
+publication and the collective CM wait. Remaining admission/quiescence and
+eventual-shutdown obligations stay explicit; G0–G5, CM-I4c and SI4/SI5 remain open.
+
+## Fifty-first increment: CM cancellation receipts and physical handler results
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 51
+carries the captured monitor and governor/scope certificates through the actual
+restarted CM acknowledgement, physical-handler finalizer and CM result wait.
+The proof remains in `Properties/ServerPeersMonitorJoins.agda` and all acceptance
+remains in `Negative/ServerPeers.agda`.
+
+### Statement and proof layers
+
+`handler-action`/`handler-event` name the inherited physical-handler operation
+through the real publication/catch/DeltaQ/startup wrappers. `physical-lower`
+lowers its enabled frontend event through the dispatch, shared Server, IG and
+admission guards, then reuses each existing wrapper observation lemma to reach
+the actual `MuxHandlerExit.step`. Individual lemma calls and selected record
+exports avoid instantiating the wrappers' unrelated proof APIs. No alias bypass,
+new runtime permission or guessed physical successor is introduced.
+
+`MuxReceipt` retains the captured entry and worker from `awaitDelivery`, the
+actual owner-abort step and CM acknowledgement against its real intermediate
+state. `physical-receipt` derives it from an enabled frontend mux-delivery event.
+It does not manufacture an Async result. `physical-publication` derives the
+existing physical publication certificate from the actual frontend result
+publication, retaining the body outcome, observed cleanup and completion guard.
+`physical-wait` derives `Handler.PhysicalWait` from the actual frontend
+`finishClose`. That certificate retains the real physical step, primitive wait,
+the exact pre-wait result function and observed results for the collected handles;
+a later closed flag or cleanup heap is not substituted for its oracle.
+
+`follow-monitors` and `follow-components` extend the CM-entry certificates across
+actual guarded inherited Server actions, deriving context preservation from
+those steps. `CMResultWait` retains the earlier CM-entry certificate, exact
+cleanup suffix, enabled frontend wait and derived physical wait. The initializer
+`initialized-cm-result-wait` builds the entire chain from initialization, enabled
+execution to the callback, actual callback return, checked Server/IG entry
+suffix, checked CM/handler suffix and actual successful wait. It requires no
+supplied receipt/publication/wait/lifecycle certificate, terminal lookup or
+preservation equation. `wait-monitors-before/after` and
+`wait-components-after` retain the ordered monitor histories/causes and existing
+governor/scope certificates at the real wait. The suffix restriction to inherited
+Server actions remains explicit; arbitrary frontend cache-writing plans are not
+silently treated as context-preserving.
+
+### Acceptance and validation
+
+`CMResultLifecycleChecks` reuses the existing restarted receipt, 26-edge physical
+pool close, catch and finalizer paths. A ten-edge prefix reuses the original
+checked finalizer edges with explicit intermediate states, ending immediately
+before the wait. Actual CM receipt, physical result publication and collective
+wait each produce their own derived certificate. The captured receipt worker
+is the original child; the wait oracle is exactly `resultReady` at `handler10`.
+The original monitor cancellation history and all component certificates survive
+the wait and the actual subsequent Server return.
+
+Negative controls reject CM completion at receipt, physical-pool close, after
+catch and before physical publication. Receipt and cleanup completion still
+have no handler result. The actual published handler result retains its async
+exception; the collected CM worker is unchanged. CM closes and Server returns
+in this finite profile, while raw admission results remain incomplete. These
+certificates therefore do not establish universal admission quiescence, eventual
+shutdown or source refinement. No runtime, guard, initializer or source-pin change.
+
+Accepted 4 November 2026 with Agda 2.8.0. The generic proof freshly passed
+an interaction load with 9 GB heap under an 11 GB cap: process exit 0,
+checked=true, errors/goals/warnings empty. Its selected exports and direct lemma
+calls reported 3.7G peak. The fresh full maintained endpoint load also passed:
+process exit 0, checked=true, errors/goals/warnings empty. The generic check
+used a 15 GB virtual limit. The full check used an 11 GB heap below a 13 GB
+cap and 17 GB virtual limit; it reported 8G peak. Both used normal
+caching/default GC and zero swap. Final strict batch
+`agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M11G -RTS` passed
+cached, exit 0 with empty output. No interface purge or collector change.
+
+The two-file local proof scan reports zero findings; whitespace/EOF checks pass.
+No new axiom, hole, unsafe option, weakened old statement or supplied physical
+certificate/history/preservation premise. This is not a term-level imported-
+assumption audit. Earlier generic 4 GB and full endpoint 9 GB runs exhausted
+their heaps; a broad alias run was
+stopped before replacing whole proof-module instantiations with direct lemma
+calls. A local equality proof and a fixture alias collision were repaired before
+acceptance. Diagnostic/failed/stopped runs do not count as acceptance.
+Evidence: `/tmp/cm-result-lifecycle-20261104/`, including the separate generic
+check log/result/journal, full endpoint log/result, final batch log/result,
+audit and service journal. Increment 51 is accepted and uncommitted alongside
+45–50 after `29e5607`; presentations and native replays are untouched.
+
+Next: increment 52, apply the composed certificates to the existing
+publication/cancellation and current-clean-commit race paths. Account explicitly
+for frontend cache writes rather than assuming whole-context equality. Keep
+initialized ownership, admission/quiescence and eventual-shutdown boundaries
+explicit; G0–G5, CM-I4c and SI4/SI5 remain open.
+
+## Fifty-second increment: cache-aware race lifecycle certificates
+
+The overall CM/IG/OG/Server objective and G0–G5 remain in progress. Increment 52
+extends the composed lifecycle certificates to the existing initialized
+publication/cancellation and current-clean-commit races. The proof remains in
+`Properties/ServerPeersMonitorJoins.agda`; acceptance remains consolidated in
+`Negative/ServerPeers.agda`.
+
+### Statement and proof layers
+
+`frame-view` is the existing three-component peer-supervision view: governor
+pool, monitor pool and scope state. `server-plan` recognizes inherited and
+completion plans over actual Server actions. `framed` inspects the real frontend
+`choose`, and `advance-frame` uses the actual selected plan and enabled enactment
+to derive equality of those three components. A completion's physical Server
+step retains its context; its later cache write uses the existing total
+`Shared.Protocols.cache-view` lemma. Whole-context equality is not assumed and
+is not concluded for completion plans.
+
+`FramedRuns` records each actual event, its computed plan-classification proof
+and enabled `advance`. `framed-runs` exposes the ordinary runtime trace;
+`framed-view` derives preservation over the whole suffix. `framed-server`
+embeds the earlier `ServerRuns` without changing their statements. The explicit
+selected-plan restriction excludes arbitrary peer/caller/core/local/birth plans;
+this is not a frame claim for every frontend event. No coherence, supply,
+terminal-result, lifecycle-history or preservation equation is added as a premise.
+
+`framed-monitors` extends the original ordered monitor lifecycle histories using
+the derived monitor-pool equation. `framed-components` transports the existing
+governor/scope certificates through the three component equations. These are
+facts about the actual components, not an erasure of source/peer-cache changes.
+`FramedCMResultWait` and `initialized-framed-result-wait` retain initialization,
+actual callback/CM entry, the classified enabled suffix, actual final wait and
+its derived physical certificate. The exact physical oracle remains the real
+pre-wait `resultReady` function. Existing theorem/runtime interfaces are intact.
+
+### Acceptance and validation
+
+The race witnesses reuse original edge facts and exact source/event order, with
+explicit intermediate states. The publication race retains the old normal
+physical publication while current cancellation proceeds. The current-clean
+race contains its actual `commitClean` completion and cache write after the
+cancellation request. `RaceLifecycleChecks` derives both initialized final-wait
+certificates, physical waits, governor/scope certificates and the original
+cancelled monitor history; component certificates continue through actual
+Server return.
+
+The current commit preserves the three-component view, while a separate
+counterexample requires its peer-cache lookup and whole context to differ.
+Existing controls retain the current local clean result even when its physical
+Async result is cancelled; local clean still does not supply a handler result
+or finish CM before physical publication. Raw admissions remain incomplete.
+The result is finite model provenance on these classified executions, without
+universal quiescence, eventual shutdown, native refinement or a new source
+finding. No runtime, guard, initializer or source-pin change.
+
+Accepted 4 November 2026 with Agda 2.8.0. The generic interaction load
+freshly passed: process exit 0, checked=true, errors/goals/warnings empty,
+9 GB heap below an 11 GB cap, zero swap and 15 GB virtual limit; reported
+3.9G peak. The full maintained endpoint interaction load freshly passed with
+process exit 0, checked=true and errors/goals/warnings empty, using 11 GB heap
+below a 13 GB cap, zero swap and 17 GB virtual limit; reported 8G peak.
+Normal caching/default GC.
+Final strict batch `agda ConnectionManagement/Negative/ServerPeers.agda +RTS -M11G -RTS`
+passed cached, exit 0 with empty output. No interface purge or collector change.
+
+The two-file local scan reports zero findings; whitespace/EOF checks pass.
+No new axiom, hole, unsafe option, weakened old statement or supplied frame/
+lifecycle/physical certificate. This is not a term-level imported-assumption
+audit. A misplaced fixture import was repaired after an initial failed full
+load; that diagnostic does not count as acceptance. Evidence:
+`/tmp/cm-race-certificates-20261104/`, including generic check log/result/journal,
+full endpoint log/result, final batch log/result, audit and service journal.
+Increment 52 is accepted and uncommitted alongside 45–51 after `29e5607`;
+presentations and native replays are untouched.
+
+Next: increment 53, initialized handler resource provenance at physical result
+publication and CM's wait. Connect the retained handler descriptor and its
+entry/socket/promise references to their actual initialized fork/publication
+history, reusing existing resource/capture invariants. Keep historical presence
+separate from live ownership and admission quiescence. G0–G5, CM-I4c and SI4/SI5
+remain open.
