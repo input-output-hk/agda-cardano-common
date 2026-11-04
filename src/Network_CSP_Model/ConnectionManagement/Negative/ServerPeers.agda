@@ -7210,3 +7210,947 @@ module Protocols where
     physical-current-result-cancelled = CC.physical-current-result-is-cancelled
     admissions-still-incomplete : S.allResults (S.workers (E.base (K.server (V.base CC.cleanServer)))) ≡ false
     admissions-still-incomplete = refl
+
+
+  -- Original handler references come from an actual initialized promise/select/
+  -- fork prefix and survive all peer/cache/cleanup steps to physical boundaries.
+  module HandlerResourceOriginChecks where
+    open import Data.List using (take; drop)
+    open import Data.List.Relation.Unary.Any using (here)
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Relation.Binary.PropositionalEquality using (sym; trans)
+    open import Data.Empty using (⊥)
+    import ConnectionManagement.Properties.ServerPeersHandlerResources as HandlerResources
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as MonitorJoins
+    import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+    import ConnectionManagement.Rules.CMShutdown as Close
+    import ConnectionManagement.Rules.Cleanup as Cleanup
+    private
+      module Resources = HandlerResources.Frontend I.bearerClosed Prior.classify capability
+      module Joins = MonitorJoins.Frontend I.bearerClosed Prior.classify capability
+      module D = Reactivation.Shutdown
+      module PR = D.PublicationRace
+      module CC = D.CurrentClean
+      module W = N.W
+    beforeAllocation : V.Runs initial (take 4 prefixActions) (wrap (base F.p2))
+    beforeAllocation = V.more p1 (V.more p2 (V.more p3 (V.more p4 V.stop)))
+    forkPrefix : V.Runs initial (take 7 prefixActions) (wrap (base F.p5))
+    forkPrefix = V.more p1 (V.more p2 (V.more p3 (V.more p4 (V.more p5 (V.more p6 (V.more p7 V.stop))))))
+    born-origin : Resources.Origin initial (wrap (base F.p5)) A.child₀
+    born-origin = Resources.initialized-inbound-origin-from-frontend A.w₀ F.r₀ (Shared.lease A.w₀ [])
+      initializer beforeAllocation refl p5 p6 p7 V.stop
+    original-descriptor : Resources.Origin.captured born-origin ≡ I.captured
+    original-descriptor = refl
+    original-promise : Resources.Origin.promise born-origin ≡ Shared.handlerPromise I.captured
+    original-promise = refl
+    original-promise-allocated : Shared.handlerPromise I.captured ∈ Shared.promises (Resources.shared (wrap (base F.p3)))
+    original-promise-allocated = Resources.Origin.promise-allocated born-origin
+    -- These primitive source equations are outputs of the real frontend steps.
+    derived-allocation : Machine.advance (Machine.admissionStep A.w₀ Admission.allocatePromise)
+      (Resources.core (wrap (base F.p2))) ≡ just (Resources.core (wrap (base F.p3)))
+    derived-allocation = Resources.allocation-lower A.w₀ (wrap (base F.p2)) p5
+    derived-selection : Machine.advance (Machine.admissionStep A.w₀ Admission.chooseEntry)
+      (Resources.core (wrap (base F.p3))) ≡ just (Resources.core (wrap (base F.p4)))
+    derived-selection = Resources.selection-lower A.w₀ (wrap (base F.p3)) p6
+    derived-fork : Machine.advance (Machine.admissionStep A.w₀ Admission.fork)
+      (Resources.core (wrap (base F.p4))) ≡ just (Resources.core (wrap (base F.p5)))
+    derived-fork = Resources.fork-lower A.w₀ (wrap (base F.p4)) p7
+    no-allocation-before-admission : V.advance (Resources.event A.w₀ Admission.allocatePromise) initial ≡ nothing
+    no-allocation-before-admission = refl
+    no-selection-before-promise : V.advance (Resources.event A.w₀ Admission.chooseEntry) (wrap (base F.p2)) ≡ nothing
+    no-selection-before-promise = refl
+    no-fork-before-selection : V.advance (Resources.event A.w₀ Admission.fork) (wrap (base F.p3)) ≡ nothing
+    no-fork-before-selection = refl
+    entryPrefix : List V.Event
+    entryPrefix = (D.livePrefixActions ++ D.peerCloseActions) ++
+      map Joins.server-event (ServerCMEntryLifecycleChecks.cleanupActions ++ (E.run (S.scope S.beginCM) ∷ []))
+    abstract
+      initialized-entry : V.Runs initial entryPrefix D.cmEntry
+      initialized-entry = Facts.append-protocols D.initialized-peer-close
+        (Joins.server-runs ServerCMEntryLifecycleChecks.actual-server-suffix)
+      entry-origin : Resources.Origin initial D.cmEntry A.child₀
+      entry-origin = Resources.extend
+        (Resources.discard-prefix {suffix = drop 7 entryPrefix} forkPrefix initialized-entry) born-origin
+      ready-origin : Resources.Origin initial D.readyForBuffer A.child₀
+      ready-origin = Resources.extend (Joins.server-runs (Joins.server-append
+        (Joins.server-append CMResultLifecycleChecks.actual-receipt-path CMResultLifecycleChecks.actual-pool-path)
+        CMResultLifecycleChecks.actual-catch-path)) entry-origin
+      before-publication-path : V.Runs D.readyForBuffer (take 9 D.handlerFinishActions) D.handler9
+      before-publication-path = V.more {s = D.readyForBuffer} {t = D.handler1} {u = D.handler9} {a = Joins.handler-event (W.beginExit A.child₀)} D.handlerFinishEdge1 (V.more {s = D.handler1} {t = D.handler2} {u = D.handler9} {a = Joins.handler-event (W.observeBufferReturn A.child₀)} D.handlerFinishEdge2 (V.more {s = D.handler2} {t = D.handler3} {u = D.handler9} {a = Joins.handler-event (W.enterFinalizer A.child₀)} D.handlerFinishEdge3 (V.more {s = D.handler3} {t = D.handler4} {u = D.handler9} {a = Joins.handler-event (W.cleanup A.child₀ Cleanup.takeCleanupMap)} D.handlerFinishEdge4 (V.more {s = D.handler4} {t = D.handler5} {u = D.handler9} {a = Joins.handler-event (W.cleanup A.child₀ Cleanup.selectCleanupEntry)} D.handlerFinishEdge5 (V.more {s = D.handler5} {t = D.handler6} {u = D.handler9} {a = Joins.handler-event (W.cleanup A.child₀ Cleanup.closeHandlerSocket)} D.handlerFinishEdge6 (V.more {s = D.handler6} {t = D.handler7} {u = D.handler9} {a = Joins.handler-event (W.cleanup A.child₀ Cleanup.publishCleanupMap)} D.handlerFinishEdge7 (V.more {s = D.handler7} {t = D.handler8} {u = D.handler9} {a = Joins.handler-event (W.cleanup A.child₀ Cleanup.readCleanupCounters)} D.handlerFinishEdge8 (V.more {s = D.handler8} {t = D.handler9} {u = D.handler9} {a = Joins.handler-event (W.finishCleanup A.child₀)} D.handlerFinishEdge9 (V.stop)))))))))
+      before-publication-origin : Resources.Origin initial D.handler9 A.child₀
+      before-publication-origin = Resources.extend before-publication-path ready-origin
+      publication-origin : Resources.AtPublication initial D.handler9 D.handler10 A.child₀
+      publication-origin = Resources.publication-origin before-publication-origin D.handlerFinishEdge10
+      wait-origin : Resources.AtWait initial D.handler10 D.finalCM A.child₀
+      wait-origin = Resources.wait-origin (Resources.AtPublication.following publication-origin) D.handlerFinishEdge11 (here refl)
+      return-origin : Resources.Origin initial D.returnedServer A.child₀
+      return-origin = Resources.extend (Joins.server-runs CMResultLifecycleChecks.actual-server-return-path) (Resources.AtWait.following wait-origin)
+      publication-race-origin : Resources.AtWait initial PR.raceHandler10 PR.raceFinalCM A.child₀
+      publication-race-origin = Resources.wait-origin
+        (Resources.extend (Joins.framed-runs RaceLifecycleChecks.race-prefix) entry-origin) PR.raceFinishEdge11 (here refl)
+      clean-race-origin : Resources.AtWait initial (CC.withCurrentClean D.handler10) (CC.withCurrentClean D.finalCM) A.child₀
+      clean-race-origin = Resources.wait-origin
+        (Resources.extend (Joins.framed-runs RaceLifecycleChecks.clean-prefix) entry-origin) CC.cleanEdge40 (here refl)
+      retained-at-publication : ResourceFacts.Facts A.child₀ I.captured (Resources.shared D.handler10)
+      retained-at-publication = Resources.Origin.retained (Resources.AtPublication.following publication-origin)
+      retained-at-wait : ResourceFacts.Facts A.child₀ I.captured (Resources.shared D.finalCM)
+      retained-at-wait = Resources.Origin.retained (Resources.AtWait.following wait-origin)
+      retained-at-server-return : ResourceFacts.Facts A.child₀ I.captured (Resources.shared D.returnedServer)
+      retained-at-server-return = Resources.Origin.retained return-origin
+      retained-at-publication-race-wait : ResourceFacts.Facts A.child₀ I.captured (Resources.shared PR.raceFinalCM)
+      retained-at-publication-race-wait = Resources.Origin.retained (Resources.AtWait.following publication-race-origin)
+      retained-at-clean-race-wait : ResourceFacts.Facts A.child₀ I.captured (Resources.shared (CC.withCurrentClean D.finalCM))
+      retained-at-clean-race-wait = Resources.Origin.retained (Resources.AtWait.following clean-race-origin)
+    -- Socket storage persists after closure; this certificate asserts no live owner.
+    socket-already-closed : lookup (Shared.handlerSocket I.captured) (Shared.sockets (Resources.shared D.handler9)) ≡ just Shared.closed
+    socket-already-closed = refl
+    wrong-worker-has-no-resources : ResourceFacts.Facts (ident 999) I.captured (Resources.shared D.handler10) → ⊥
+    wrong-worker-has-no-resources (() , _)
+    forged-descriptor : lookup A.child₀ (Shared.handlers (Resources.shared D.handler10)) ≡
+      just (Shared.handlerStart (ident 999) (Shared.handlerSocket I.captured) (Shared.handlerPromise I.captured) (Shared.handlerKey I.captured)) → ⊥
+    forged-descriptor ()
+    premature-wait-still-refused : V.advance (StartTrace.ScopedCM.coordinatorEvent Close.finishClose) D.handler9 ≡ nothing
+    premature-wait-still-refused = CMResultLifecycleChecks.no-wait-before-publication
+    resource-raw-admissions-incomplete : S.allResults (S.workers (E.base (K.server (V.base D.returnedServer)))) ≡ false
+    resource-raw-admissions-incomplete = CMResultLifecycleChecks.returned-admissions-incomplete
+
+
+  -- A separate initialized outbound route, retaining the bounded pre-handshake
+  -- coordinator. Expected states omit the old fixture's unused inbound actors;
+  -- every edge below is checked through the unchanged common frontend.
+  module OutboundHandlerResourceOriginChecks where
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.List.Relation.Unary.Any using (here)
+    import ConnectionManagement.Properties.ServerPeersHandlerResources as HandlerResources
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as MonitorJoins
+    import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+    import ConnectionManagement.Negative.OutboundHandlerSupervision as OB
+    import ConnectionManagement.CSP.OutboundAdmission as OA
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.Rules.CMShutdown as Close
+    import ConnectionManagement.Rules.Cleanup as Cleanup
+    private
+      module W = N.W
+      module Resources = HandlerResources.Frontend I.bearerClosed Prior.classify capability
+      module Joins = MonitorJoins.Frontend I.bearerClosed Prior.classify capability
+    keep-socket : Store SocketId Shared.SocketOwner → Store SocketId Shared.SocketOwner
+    keep-socket sockets with lookup OA.sock sockets
+    ... | nothing = []
+    ... | just owner = (OA.sock , owner) ∷ []
+    outbound-state : B.State → B.State
+    outbound-state b = record b { source = record c { core = Machine.replaceWorld (O.core c)
+      (record world { admissions = []; sockets = keep-socket (Shared.sockets world) }) } }
+      where
+      c = B.source b
+      world = Machine.world (O.core c)
+    origins : B.State → Store WorkerId Provenance
+    origins b with B.threads b
+    ... | [] = []
+    ... | _ ∷ _ = (OA.child , outbound) ∷ []
+    render-outbound : B.State → Store WorkerId Cancel.Context → V.Runtime
+    render-outbound b regions = V.runtime (record (V.setPhysical p (V.base initial))
+      { context = record k0 { regions = regions } }) V.empty
+      where
+      old = V.physical (V.base initial)
+      p = record old { base = record (P.base old) { base = outbound-state b; origins = origins b } }
+    ordinary forked : Store WorkerId Cancel.Context
+    ordinary = (OA.caller , Cancel.ordinary) ∷ []
+    forked = (OA.caller , Cancel.forkedBeforeHandoff) ∷ []
+    start : V.Runtime
+    start = render-outbound OB.p₀ []
+    outbound-initialized : V.initialize (O.initial (Machine.initial Shared.responderMode F.empty)) L.settings ≡ just start
+    outbound-initialized = refl
+    outbound1 : V.Runtime
+    outbound1 = render-outbound OB.p1 ordinary
+    outbound2 : V.Runtime
+    outbound2 = render-outbound OB.p2 ordinary
+    outbound3 : V.Runtime
+    outbound3 = render-outbound OB.p3 ordinary
+    outbound4 : V.Runtime
+    outbound4 = render-outbound OB.p4 ordinary
+    outbound5 : V.Runtime
+    outbound5 = render-outbound OB.p5 ordinary
+    outbound6 : V.Runtime
+    outbound6 = render-outbound OB.p6 ordinary
+    outbound7 : V.Runtime
+    outbound7 = render-outbound OB.p7 ordinary
+    outbound8 : V.Runtime
+    outbound8 = render-outbound OB.p8 ordinary
+    outbound9 : V.Runtime
+    outbound9 = render-outbound OB.p9 ordinary
+    outbound10 : V.Runtime
+    outbound10 = render-outbound OB.p10 forked
+    outbound11 : V.Runtime
+    outbound11 = render-outbound OB.p11 forked
+    outbound12 : V.Runtime
+    outbound12 = render-outbound OB.p12 ordinary
+    handed : V.Runtime
+    handed = render-outbound OB.p11 ordinary
+    -- Close the empty peer pools and all four lexical scopes before the
+    -- actual Server callback return. No CM-bearing snapshot is substituted.
+    outbound-context : Scope.State → GP.Pool.ClosePC → PS.Pool.ClosePC → C.Context
+    outbound-context scopes governorPhase monitorPhase = record k0
+      { regions = ordinary; scopes = scopes
+      ; governorPool = record (C.governorPool k0) { phase = governorPhase }
+      ; monitorPool = record (C.monitorPool k0) { phase = monitorPhase } }
+    outbound-peer-at : Scope.State → GP.Pool.ClosePC → PS.Pool.ClosePC → V.Runtime
+    outbound-peer-at scopes governorPhase monitorPhase = record outbound12
+      { base = record (V.base outbound12) { context = outbound-context scopes governorPhase monitorPhase } }
+    outbound-peer-event : PS.Action → V.Event
+    outbound-peer-event action = V.dispatch (K.peerStep action)
+    outbound-peer1 : V.Runtime
+    outbound-peer1 = outbound-peer-at Fixtures.q1 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge1 : V.advance (outbound-peer-event (PS.scope Scope.beginUnwind)) outbound12 ≡ just outbound-peer1
+    outbound-peer-edge1 = refl
+    outbound-peer2 : V.Runtime
+    outbound-peer2 = outbound-peer-at Fixtures.q2 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge2 : V.advance (outbound-peer-event (PS.scope Scope.requestCancel)) outbound-peer1 ≡ just outbound-peer2
+    outbound-peer-edge2 = refl
+    outbound-peer3 : V.Runtime
+    outbound-peer3 = outbound-peer-at Fixtures.q3 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge3 : V.advance (outbound-peer-event (PS.scope Scope.deliverCancel)) outbound-peer2 ≡ just outbound-peer3
+    outbound-peer-edge3 = refl
+    outbound-peer4 : V.Runtime
+    outbound-peer4 = outbound-peer-at Fixtures.q4 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge4 : V.advance (outbound-peer-event (PS.scope (Scope.bodyExit Scope.churn))) outbound-peer3 ≡ just outbound-peer4
+    outbound-peer-edge4 = refl
+    outbound-peer5 : V.Runtime
+    outbound-peer5 = outbound-peer-at Fixtures.q5 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge5 : V.advance (outbound-peer-event (PS.scope (Scope.publishResult Scope.churn))) outbound-peer4 ≡ just outbound-peer5
+    outbound-peer-edge5 = refl
+    outbound-peer6 : V.Runtime
+    outbound-peer6 = outbound-peer-at Fixtures.q6 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge6 : V.advance (outbound-peer-event (PS.scope Scope.join)) outbound-peer5 ≡ just outbound-peer6
+    outbound-peer-edge6 = refl
+    outbound-peer7 : V.Runtime
+    outbound-peer7 = outbound-peer-at Fixtures.q7 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge7 : V.advance (outbound-peer-event (PS.scope Scope.requestCancel)) outbound-peer6 ≡ just outbound-peer7
+    outbound-peer-edge7 = refl
+    outbound-peer8 : V.Runtime
+    outbound-peer8 = outbound-peer-at Fixtures.q8 GP.Pool.openPool PS.Pool.openPool
+    outbound-peer-edge8 : V.advance (outbound-peer-event (PS.scope Scope.deliverCancel)) outbound-peer7 ≡ just outbound-peer8
+    outbound-peer-edge8 = refl
+    outbound-peer9 : V.Runtime
+    outbound-peer9 = outbound-peer-at Fixtures.q8 GP.Pool.closing PS.Pool.openPool
+    outbound-peer-edge9 : V.advance (outbound-peer-event (PS.run (GP.beginClose []))) outbound-peer8 ≡ just outbound-peer9
+    outbound-peer-edge9 = refl
+    outbound-peer10 : V.Runtime
+    outbound-peer10 = outbound-peer-at Fixtures.q8 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge10 : V.advance (outbound-peer-event (PS.run GP.finishClose)) outbound-peer9 ≡ just outbound-peer10
+    outbound-peer-edge10 = refl
+    outbound-peer11 : V.Runtime
+    outbound-peer11 = outbound-peer-at Fixtures.q9 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge11 : V.advance (outbound-peer-event (PS.scope (Scope.bodyExit Scope.governor))) outbound-peer10 ≡ just outbound-peer11
+    outbound-peer-edge11 = refl
+    outbound-peer12 : V.Runtime
+    outbound-peer12 = outbound-peer-at Fixtures.q10 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge12 : V.advance (outbound-peer-event (PS.scope (Scope.publishResult Scope.governor))) outbound-peer11 ≡ just outbound-peer12
+    outbound-peer-edge12 = refl
+    outbound-peer13 : V.Runtime
+    outbound-peer13 = outbound-peer-at Fixtures.q11 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge13 : V.advance (outbound-peer-event (PS.scope Scope.join)) outbound-peer12 ≡ just outbound-peer13
+    outbound-peer-edge13 = refl
+    outbound-peer14 : V.Runtime
+    outbound-peer14 = outbound-peer-at Fixtures.q12 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge14 : V.advance (outbound-peer-event (PS.scope Scope.requestCancel)) outbound-peer13 ≡ just outbound-peer14
+    outbound-peer-edge14 = refl
+    outbound-peer15 : V.Runtime
+    outbound-peer15 = outbound-peer-at Fixtures.q13 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge15 : V.advance (outbound-peer-event (PS.scope Scope.deliverCancel)) outbound-peer14 ≡ just outbound-peer15
+    outbound-peer-edge15 = refl
+    outbound-peer16 : V.Runtime
+    outbound-peer16 = outbound-peer-at Fixtures.q14 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge16 : V.advance (outbound-peer-event (PS.scope (Scope.bodyExit Scope.localRoot))) outbound-peer15 ≡ just outbound-peer16
+    outbound-peer-edge16 = refl
+    outbound-peer17 : V.Runtime
+    outbound-peer17 = outbound-peer-at Fixtures.q15 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge17 : V.advance (outbound-peer-event (PS.scope (Scope.publishResult Scope.localRoot))) outbound-peer16 ≡ just outbound-peer17
+    outbound-peer-edge17 = refl
+    outbound-peer18 : V.Runtime
+    outbound-peer18 = outbound-peer-at Fixtures.q16 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge18 : V.advance (outbound-peer-event (PS.scope Scope.join)) outbound-peer17 ≡ just outbound-peer18
+    outbound-peer-edge18 = refl
+    outbound-peer19 : V.Runtime
+    outbound-peer19 = outbound-peer-at Fixtures.q17 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge19 : V.advance (outbound-peer-event (PS.scope Scope.requestCancel)) outbound-peer18 ≡ just outbound-peer19
+    outbound-peer-edge19 = refl
+    outbound-peer20 : V.Runtime
+    outbound-peer20 = outbound-peer-at Fixtures.q18 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge20 : V.advance (outbound-peer-event (PS.scope Scope.deliverCancel)) outbound-peer19 ≡ just outbound-peer20
+    outbound-peer-edge20 = refl
+    outbound-peer21 : V.Runtime
+    outbound-peer21 = outbound-peer-at Fixtures.q19 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge21 : V.advance (outbound-peer-event (PS.scope (Scope.bodyExit Scope.ledger))) outbound-peer20 ≡ just outbound-peer21
+    outbound-peer-edge21 = refl
+    outbound-peer22 : V.Runtime
+    outbound-peer22 = outbound-peer-at Fixtures.q20 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge22 : V.advance (outbound-peer-event (PS.scope (Scope.publishResult Scope.ledger))) outbound-peer21 ≡ just outbound-peer22
+    outbound-peer-edge22 = refl
+    outbound-peer23 : V.Runtime
+    outbound-peer23 = outbound-peer-at Fixtures.q21 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge23 : V.advance (outbound-peer-event (PS.scope Scope.join)) outbound-peer22 ≡ just outbound-peer23
+    outbound-peer-edge23 = refl
+    outbound-peer24 : V.Runtime
+    outbound-peer24 = outbound-peer-at Fixtures.q22 GP.Pool.closedPool PS.Pool.openPool
+    outbound-peer-edge24 : V.advance (outbound-peer-event (PS.scope Scope.finishClose)) outbound-peer23 ≡ just outbound-peer24
+    outbound-peer-edge24 = refl
+    outbound-peer25 : V.Runtime
+    outbound-peer25 = outbound-peer-at Fixtures.q22 GP.Pool.closedPool PS.Pool.closing
+    outbound-peer-edge25 : V.advance (outbound-peer-event (PS.beginMonitorClose [])) outbound-peer24 ≡ just outbound-peer25
+    outbound-peer-edge25 = refl
+    outbound-peer26 : V.Runtime
+    outbound-peer26 = outbound-peer-at Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
+    outbound-peer-edge26 : V.advance (outbound-peer-event (PS.finishMonitorClose)) outbound-peer25 ≡ just outbound-peer26
+    outbound-peer-edge26 = refl
+    outbound-peer-events : List V.Event
+    outbound-peer-events = outbound-peer-event (PS.scope Scope.beginUnwind) ∷
+      outbound-peer-event (PS.scope Scope.requestCancel) ∷
+      outbound-peer-event (PS.scope Scope.deliverCancel) ∷
+      outbound-peer-event (PS.scope (Scope.bodyExit Scope.churn)) ∷
+      outbound-peer-event (PS.scope (Scope.publishResult Scope.churn)) ∷
+      outbound-peer-event (PS.scope Scope.join) ∷
+      outbound-peer-event (PS.scope Scope.requestCancel) ∷
+      outbound-peer-event (PS.scope Scope.deliverCancel) ∷
+      outbound-peer-event (PS.run (GP.beginClose [])) ∷
+      outbound-peer-event (PS.run GP.finishClose) ∷
+      outbound-peer-event (PS.scope (Scope.bodyExit Scope.governor)) ∷
+      outbound-peer-event (PS.scope (Scope.publishResult Scope.governor)) ∷
+      outbound-peer-event (PS.scope Scope.join) ∷
+      outbound-peer-event (PS.scope Scope.requestCancel) ∷
+      outbound-peer-event (PS.scope Scope.deliverCancel) ∷
+      outbound-peer-event (PS.scope (Scope.bodyExit Scope.localRoot)) ∷
+      outbound-peer-event (PS.scope (Scope.publishResult Scope.localRoot)) ∷
+      outbound-peer-event (PS.scope Scope.join) ∷
+      outbound-peer-event (PS.scope Scope.requestCancel) ∷
+      outbound-peer-event (PS.scope Scope.deliverCancel) ∷
+      outbound-peer-event (PS.scope (Scope.bodyExit Scope.ledger)) ∷
+      outbound-peer-event (PS.scope (Scope.publishResult Scope.ledger)) ∷
+      outbound-peer-event (PS.scope Scope.join) ∷
+      outbound-peer-event (PS.scope Scope.finishClose) ∷
+      outbound-peer-event (PS.beginMonitorClose []) ∷
+      outbound-peer-event (PS.finishMonitorClose) ∷
+      []
+    outbound-peer-path : V.Runs outbound12 outbound-peer-events outbound-peer26
+    outbound-peer-path = V.more {a = outbound-peer-event (PS.scope Scope.beginUnwind)} outbound-peer-edge1
+      (V.more {a = outbound-peer-event (PS.scope Scope.requestCancel)} outbound-peer-edge2
+      (V.more {a = outbound-peer-event (PS.scope Scope.deliverCancel)} outbound-peer-edge3
+      (V.more {a = outbound-peer-event (PS.scope (Scope.bodyExit Scope.churn))} outbound-peer-edge4
+      (V.more {a = outbound-peer-event (PS.scope (Scope.publishResult Scope.churn))} outbound-peer-edge5
+      (V.more {a = outbound-peer-event (PS.scope Scope.join)} outbound-peer-edge6
+      (V.more {a = outbound-peer-event (PS.scope Scope.requestCancel)} outbound-peer-edge7
+      (V.more {a = outbound-peer-event (PS.scope Scope.deliverCancel)} outbound-peer-edge8
+      (V.more {a = outbound-peer-event (PS.run (GP.beginClose []))} outbound-peer-edge9
+      (V.more {a = outbound-peer-event (PS.run GP.finishClose)} outbound-peer-edge10
+      (V.more {a = outbound-peer-event (PS.scope (Scope.bodyExit Scope.governor))} outbound-peer-edge11
+      (V.more {a = outbound-peer-event (PS.scope (Scope.publishResult Scope.governor))} outbound-peer-edge12
+      (V.more {a = outbound-peer-event (PS.scope Scope.join)} outbound-peer-edge13
+      (V.more {a = outbound-peer-event (PS.scope Scope.requestCancel)} outbound-peer-edge14
+      (V.more {a = outbound-peer-event (PS.scope Scope.deliverCancel)} outbound-peer-edge15
+      (V.more {a = outbound-peer-event (PS.scope (Scope.bodyExit Scope.localRoot))} outbound-peer-edge16
+      (V.more {a = outbound-peer-event (PS.scope (Scope.publishResult Scope.localRoot))} outbound-peer-edge17
+      (V.more {a = outbound-peer-event (PS.scope Scope.join)} outbound-peer-edge18
+      (V.more {a = outbound-peer-event (PS.scope Scope.requestCancel)} outbound-peer-edge19
+      (V.more {a = outbound-peer-event (PS.scope Scope.deliverCancel)} outbound-peer-edge20
+      (V.more {a = outbound-peer-event (PS.scope (Scope.bodyExit Scope.ledger))} outbound-peer-edge21
+      (V.more {a = outbound-peer-event (PS.scope (Scope.publishResult Scope.ledger))} outbound-peer-edge22
+      (V.more {a = outbound-peer-event (PS.scope Scope.join)} outbound-peer-edge23
+      (V.more {a = outbound-peer-event (PS.scope Scope.finishClose)} outbound-peer-edge24
+      (V.more {a = outbound-peer-event (PS.beginMonitorClose [])} outbound-peer-edge25
+      (V.more {a = outbound-peer-event (PS.finishMonitorClose)} outbound-peer-edge26 (V.stop))))))))))))))))))))))))))
+    outbound-initial-ig outbound-inactive-ig outbound-exited-ig : IG.Runtime
+    outbound-initial-ig = Machine.inboundGovernor (O.core (K.source (V.base outbound12)))
+    outbound-inactive-ig = record outbound-initial-ig
+      { continuation = IG.exitFlush; execution = record (IG.execution outbound-initial-ig) { active = false } }
+    outbound-exited-ig = record outbound-inactive-ig { continuation = IG.exited }
+    -- Preserve the observed IG exception and its empty final-callback snapshot.
+    outbound-ig-caught outbound-ig-done outbound-ig-published : E.Exit
+    outbound-ig-caught = E.caughtExit (E.receipt E.loopBoundary OB.err nothing)
+    outbound-ig-done = record outbound-ig-caught { phase = E.bodyDone }
+    outbound-ig-published = record outbound-ig-done { result = just (S.async OB.err) }
+    outbound-exit-at : S.Stage → E.Exit
+    outbound-exit-at S.igCancelDelivered = outbound-ig-caught
+    outbound-exit-at S.igInactive = outbound-ig-caught
+    outbound-exit-at S.igFlushed = outbound-ig-caught
+    outbound-exit-at S.igBodyExited = outbound-ig-done
+    outbound-exit-at S.igResultAvailable = outbound-ig-published
+    outbound-exit-at S.igJoined = outbound-ig-published
+    outbound-exit-at S.closingCM = outbound-ig-published
+    outbound-exit-at _ = E.emptyExit
+    outbound-owned-at : B.State → S.Stage → Bool → IG.Runtime → V.Runtime
+    outbound-owned-at b stage listener ig = V.runtime (record ownedBase
+      { server = record (K.server ownedBase) { base = record (E.base (K.server ownedBase)) { stage = stage; listenerOpen = listener }; exit = outbound-exit-at stage } }) V.empty
+      where
+      original = render-outbound b ordinary
+      source = K.source (V.base original)
+      updated = record source { core = record (O.core source) { inboundGovernor = ig } }
+      ownedBase = record (V.base original)
+        { context = outbound-context Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
+        ; server = K.setSource updated (K.server (V.base original)) }
+    outbound-exit-event : E.Action → V.Event
+    outbound-exit-event action = V.dispatch (K.serverStep action)
+    outbound-scope-event : S.ScopeAction → V.Event
+    outbound-scope-event action = V.dispatch (K.serverStep (E.run (S.scope action)))
+    outbound-scope1 : V.Runtime
+    outbound-scope1 = outbound-owned-at OB.p12 S.actionBodyExited true outbound-initial-ig
+    outbound-scope-edge1 : V.advance (outbound-scope-event S.returnAction) outbound-peer26 ≡ just outbound-scope1
+    outbound-scope-edge1 = refl
+    outbound-scope2 : V.Runtime
+    outbound-scope2 = outbound-owned-at OB.p12 S.actionResultAvailable true outbound-initial-ig
+    outbound-scope-edge2 : V.advance (outbound-scope-event S.publishActionResult) outbound-scope1 ≡ just outbound-scope2
+    outbound-scope-edge2 = refl
+    outbound-scope3 : V.Runtime
+    outbound-scope3 = outbound-owned-at OB.p12 S.closingAccept true outbound-initial-ig
+    outbound-scope-edge3 : V.advance (outbound-scope-event S.selectActionWinner) outbound-scope2 ≡ just outbound-scope3
+    outbound-scope-edge3 = refl
+    outbound-scope4 : V.Runtime
+    outbound-scope4 = outbound-owned-at OB.p12 S.acceptCancelRequested true outbound-initial-ig
+    outbound-scope-edge4 : V.advance (outbound-scope-event S.requestAcceptCancel) outbound-scope3 ≡ just outbound-scope4
+    outbound-scope-edge4 = refl
+    outbound-scope5 : V.Runtime
+    outbound-scope5 = outbound-owned-at OB.p12 S.acceptCancelDelivered true outbound-initial-ig
+    outbound-scope-edge5 : V.advance (outbound-scope-event S.deliverAcceptAtWait) outbound-scope4 ≡ just outbound-scope5
+    outbound-scope-edge5 = refl
+    outbound-scope6 : V.Runtime
+    outbound-scope6 = outbound-owned-at OB.p12 S.acceptBodyExited false outbound-initial-ig
+    outbound-scope-edge6 : V.advance (outbound-scope-event S.closeListener) outbound-scope5 ≡ just outbound-scope6
+    outbound-scope-edge6 = refl
+    outbound-scope7 : V.Runtime
+    outbound-scope7 = outbound-owned-at OB.p12 S.acceptResultAvailable false outbound-initial-ig
+    outbound-scope-edge7 : V.advance (outbound-scope-event S.publishAcceptResult) outbound-scope6 ≡ just outbound-scope7
+    outbound-scope-edge7 = refl
+    outbound-scope8 : V.Runtime
+    outbound-scope8 = outbound-owned-at OB.p12 S.acceptJoined false outbound-initial-ig
+    outbound-scope-edge8 : V.advance (outbound-scope-event S.joinAccept) outbound-scope7 ≡ just outbound-scope8
+    outbound-scope-edge8 = refl
+    outbound-scope9 : V.Runtime
+    outbound-scope9 = outbound-owned-at OB.p12 S.serverStopped false outbound-initial-ig
+    outbound-scope-edge9 : V.advance (outbound-scope-event S.traceStopped) outbound-scope8 ≡ just outbound-scope9
+    outbound-scope-edge9 = refl
+    outbound-scope10 : V.Runtime
+    outbound-scope10 = outbound-owned-at OB.p12 S.actionJoined false outbound-initial-ig
+    outbound-scope-edge10 : V.advance (outbound-scope-event S.cancelJoinReturnedAction) outbound-scope9 ≡ just outbound-scope10
+    outbound-scope-edge10 = refl
+    outbound-scope11 : V.Runtime
+    outbound-scope11 = outbound-owned-at OB.p12 S.igCancelRequested false outbound-initial-ig
+    outbound-scope-edge11 : V.advance (outbound-scope-event S.requestIGCancel) outbound-scope10 ≡ just outbound-scope11
+    outbound-scope-edge11 = refl
+    outbound-scope12 : V.Runtime
+    outbound-scope12 = outbound-owned-at OB.p12 S.igCancelDelivered false outbound-initial-ig
+    outbound-scope-edge12 : V.advance (outbound-exit-event (E.receive E.loopBoundary OB.err)) outbound-scope11 ≡ just outbound-scope12
+    outbound-scope-edge12 = refl
+    outbound-scope13 : V.Runtime
+    outbound-scope13 = outbound-owned-at OB.p12 S.igInactive false outbound-inactive-ig
+    outbound-scope-edge13 : V.advance (outbound-scope-event S.deactivateIG) outbound-scope12 ≡ just outbound-scope13
+    outbound-scope-edge13 = refl
+    outbound-scope14 : V.Runtime
+    outbound-scope14 = outbound-owned-at OB.p12 S.igFlushed false outbound-exited-ig
+    outbound-scope-edge14 : V.advance (outbound-scope-event S.flushIG) outbound-scope13 ≡ just outbound-scope14
+    outbound-scope-edge14 = refl
+    outbound-ig-snapshot : V.Runtime
+    outbound-ig-snapshot = record outbound-scope14 { base = record (V.base outbound-scope14)
+      { server = record (K.server (V.base outbound-scope14)) { exit = record outbound-ig-caught { phase = E.traversing } } } }
+    outbound-snapshot-edge : V.advance (outbound-exit-event E.captureSnapshot) outbound-scope14 ≡ just outbound-ig-snapshot
+    outbound-snapshot-edge = refl
+    outbound-scope15 : V.Runtime
+    outbound-scope15 = outbound-owned-at OB.p12 S.igBodyExited false outbound-exited-ig
+    outbound-scope-edge15 : V.advance (outbound-exit-event E.finishFinal) outbound-ig-snapshot ≡ just outbound-scope15
+    outbound-scope-edge15 = refl
+    outbound-scope16 : V.Runtime
+    outbound-scope16 = outbound-owned-at OB.p12 S.igResultAvailable false outbound-exited-ig
+    outbound-scope-edge16 : V.advance (outbound-scope-event S.publishIGResult) outbound-scope15 ≡ just outbound-scope16
+    outbound-scope-edge16 = refl
+    outbound-scope17 : V.Runtime
+    outbound-scope17 = outbound-owned-at OB.p12 S.igJoined false outbound-exited-ig
+    outbound-scope-edge17 : V.advance (outbound-scope-event S.joinIG) outbound-scope16 ≡ just outbound-scope17
+    outbound-scope-edge17 = refl
+    outbound-scope18 : V.Runtime
+    outbound-scope18 = outbound-owned-at OB.p12 S.closingCM false outbound-exited-ig
+    outbound-scope-edge18 : V.advance (outbound-scope-event S.beginCM) outbound-scope17 ≡ just outbound-scope18
+    outbound-scope-edge18 = refl
+    outbound-scope-events : List V.Event
+    outbound-scope-events = outbound-scope-event S.returnAction ∷
+      outbound-scope-event S.publishActionResult ∷
+      outbound-scope-event S.selectActionWinner ∷
+      outbound-scope-event S.requestAcceptCancel ∷
+      outbound-scope-event S.deliverAcceptAtWait ∷
+      outbound-scope-event S.closeListener ∷
+      outbound-scope-event S.publishAcceptResult ∷
+      outbound-scope-event S.joinAccept ∷
+      outbound-scope-event S.traceStopped ∷
+      outbound-scope-event S.cancelJoinReturnedAction ∷
+      outbound-scope-event S.requestIGCancel ∷
+      outbound-exit-event (E.receive E.loopBoundary OB.err) ∷
+      outbound-scope-event S.deactivateIG ∷
+      outbound-scope-event S.flushIG ∷
+      outbound-exit-event E.captureSnapshot ∷
+      outbound-exit-event E.finishFinal ∷
+      outbound-scope-event S.publishIGResult ∷
+      outbound-scope-event S.joinIG ∷
+      outbound-scope-event S.beginCM ∷
+      []
+    outbound-scope-path : V.Runs outbound-peer26 outbound-scope-events outbound-scope18
+    outbound-scope-path = V.more {a = outbound-scope-event S.returnAction} outbound-scope-edge1
+      (V.more {a = outbound-scope-event S.publishActionResult} outbound-scope-edge2
+      (V.more {a = outbound-scope-event S.selectActionWinner} outbound-scope-edge3
+      (V.more {a = outbound-scope-event S.requestAcceptCancel} outbound-scope-edge4
+      (V.more {a = outbound-scope-event S.deliverAcceptAtWait} outbound-scope-edge5
+      (V.more {a = outbound-scope-event S.closeListener} outbound-scope-edge6
+      (V.more {a = outbound-scope-event S.publishAcceptResult} outbound-scope-edge7
+      (V.more {a = outbound-scope-event S.joinAccept} outbound-scope-edge8
+      (V.more {a = outbound-scope-event S.traceStopped} outbound-scope-edge9
+      (V.more {a = outbound-scope-event S.cancelJoinReturnedAction} outbound-scope-edge10
+      (V.more {a = outbound-scope-event S.requestIGCancel} outbound-scope-edge11
+      (V.more {a = outbound-exit-event (E.receive E.loopBoundary OB.err)} outbound-scope-edge12
+      (V.more {a = outbound-scope-event S.deactivateIG} outbound-scope-edge13
+      (V.more {a = outbound-scope-event S.flushIG} outbound-scope-edge14
+      (V.more {a = outbound-exit-event E.captureSnapshot} outbound-snapshot-edge
+      (V.more {a = outbound-exit-event E.finishFinal} outbound-scope-edge15
+      (V.more {a = outbound-scope-event S.publishIGResult} outbound-scope-edge16
+      (V.more {a = outbound-scope-event S.joinIG} outbound-scope-edge17
+      (V.more {a = outbound-scope-event S.beginCM} outbound-scope-edge18 (V.stop)))))))))))))))))))
+    outbound13 : V.Runtime
+    outbound13 = outbound-owned-at OB.p13 S.closingCM false outbound-exited-ig
+    outbound14 : V.Runtime
+    outbound14 = outbound-owned-at OB.p14 S.closingCM false outbound-exited-ig
+    outbound15 : V.Runtime
+    outbound15 = outbound-owned-at OB.p15 S.closingCM false outbound-exited-ig
+    outbound16 : V.Runtime
+    outbound16 = outbound-owned-at OB.p16 S.closingCM false outbound-exited-ig
+    outbound17 : V.Runtime
+    outbound17 = outbound-owned-at OB.p17 S.closingCM false outbound-exited-ig
+    outbound18 : V.Runtime
+    outbound18 = outbound-owned-at OB.p18 S.closingCM false outbound-exited-ig
+    outbound19 : V.Runtime
+    outbound19 = outbound-owned-at OB.p19 S.closingCM false outbound-exited-ig
+    outbound20 : V.Runtime
+    outbound20 = outbound-owned-at OB.p20 S.closingCM false outbound-exited-ig
+    outbound21 : V.Runtime
+    outbound21 = outbound-owned-at OB.p21 S.closingCM false outbound-exited-ig
+    outbound22 : V.Runtime
+    outbound22 = outbound-owned-at OB.p22 S.closingCM false outbound-exited-ig
+    outbound23 : V.Runtime
+    outbound23 = outbound-owned-at OB.p23 S.closingCM false outbound-exited-ig
+    outbound24 : V.Runtime
+    outbound24 = outbound-owned-at OB.p24 S.closingCM false outbound-exited-ig
+    outbound25 : V.Runtime
+    outbound25 = outbound-owned-at OB.p25 S.closingCM false outbound-exited-ig
+    outbound26 : V.Runtime
+    outbound26 = outbound-owned-at OB.p26 S.closingCM false outbound-exited-ig
+    outbound27 : V.Runtime
+    outbound27 = outbound-owned-at OB.p27 S.closingCM false outbound-exited-ig
+    outbound28 : V.Runtime
+    outbound28 = outbound-owned-at OB.p28 S.closingCM false outbound-exited-ig
+    call : Acquire.Action → V.Event
+    call action = Resources.call-event (Resources.acquireCall OA.caller action)
+    edge1 : V.advance (Resources.call-event (Resources.beginCall OA.caller OA.req)) start ≡ just outbound1
+    edge1 = refl
+    edge2 : V.advance (call (Acquire.select nothing)) outbound1 ≡ just outbound2
+    edge2 = refl
+    edge3 : V.advance (call Acquire.readCounters) outbound2 ≡ just outbound3
+    edge3 = refl
+    edge4 : V.advance (call Acquire.newPromise) outbound3 ≡ just outbound4
+    edge4 = refl
+    edge5 : V.advance (call Acquire.openOK) outbound4 ≡ just outbound5
+    edge5 = refl
+    edge6 : V.advance (call Acquire.configureOK) outbound5 ≡ just outbound6
+    edge6 = refl
+    edge7 : V.advance (call Acquire.connectOK) outbound6 ≡ just outbound7
+    edge7 = refl
+    edge8 : V.advance (call (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀))) outbound7 ≡ just outbound8
+    edge8 = refl
+    edge9 : V.advance (call Acquire.updateLocalAddress) outbound8 ≡ just outbound9
+    edge9 = refl
+    edge10 : V.advance (call Acquire.forkOK) outbound9 ≡ just outbound10
+    edge10 = refl
+    child-enters : V.advance (Resources.handler-event (H.enterHandshake OA.child)) outbound10 ≡ just outbound11
+    child-enters = refl
+    handoff : V.advance (V.dispatch (K.peerStep (PS.run (GP.handoff OA.caller)))) outbound11 ≡ just handed
+    handoff = refl
+    commit-connected : V.advance (call Acquire.commitConnected) handed ≡ just outbound12
+    commit-connected = refl
+    edge13 : V.advance (Joins.handler-event (W.shutdownStep Close.captureSnapshot)) outbound-scope18 ≡ just outbound13
+    edge13 = refl
+    edge14 : V.advance (Joins.handler-event (W.shutdownStep Close.readEntry)) outbound13 ≡ just outbound14
+    edge14 = refl
+    edge15 : V.advance (Joins.handler-event (W.shutdownStep Close.requestCancellation)) outbound14 ≡ just outbound15
+    edge15 = refl
+    edge16 : V.advance (Resources.handler-event (H.deliverShutdownHandshake OB.err)) outbound15 ≡ just outbound16
+    edge16 = refl
+    edge17 : V.advance (Resources.handler-event (H.publishCaught OA.child)) outbound16 ≡ just outbound17
+    edge17 = refl
+    edge18 : V.advance (Resources.handler-event (H.rethrowCaught OA.child)) outbound17 ≡ just outbound18
+    edge18 = refl
+    edge19 : V.advance (Resources.handler-event (H.enterFinalizer OA.child)) outbound18 ≡ just outbound19
+    edge19 = refl
+    edge20 : V.advance (Resources.handler-event (H.cleanup OA.child Cleanup.takeCleanupMap)) outbound19 ≡ just outbound20
+    edge20 = refl
+    edge21 : V.advance (Resources.handler-event (H.cleanup OA.child Cleanup.selectCleanupEntry)) outbound20 ≡ just outbound21
+    edge21 = refl
+    edge22 : V.advance (Resources.handler-event (H.cleanup OA.child Cleanup.closeHandlerSocket)) outbound21 ≡ just outbound22
+    edge22 = refl
+    edge23 : V.advance (Resources.handler-event (H.cleanup OA.child Cleanup.publishCleanupMap)) outbound22 ≡ just outbound23
+    edge23 = refl
+    edge24 : V.advance (Resources.handler-event (H.cleanup OA.child Cleanup.readCleanupCounters)) outbound23 ≡ just outbound24
+    edge24 = refl
+    edge25 : V.advance (Resources.handler-event (H.finishCleanup OA.child)) outbound24 ≡ just outbound25
+    edge25 = refl
+    edge26 : V.advance (Resources.handler-event (H.publishAsyncResult OA.child)) outbound25 ≡ just outbound26
+    edge26 = refl
+    edge27 : V.advance (Joins.handler-event (W.shutdownStep Close.finishTraversal)) outbound26 ≡ just outbound27
+    edge27 = refl
+    edge28 : V.advance (Joins.handler-event (W.shutdownStep Close.finishClose)) outbound27 ≡ just outbound28
+    edge28 = refl
+    before-allocation : Resources.AcquisitionRuns start
+      (Resources.beginCall OA.caller OA.req ∷ Resources.acquireCall OA.caller (Acquire.select nothing) ∷ Resources.acquireCall OA.caller Acquire.readCounters ∷ []) outbound3
+    before-allocation = Resources.acquisitionNext {action = Resources.beginCall OA.caller OA.req} edge1
+      (Resources.acquisitionNext {action = Resources.acquireCall OA.caller (Acquire.select nothing)} edge2
+      (Resources.acquisitionNext {action = Resources.acquireCall OA.caller Acquire.readCounters} edge3 Resources.acquisitionDone))
+    before-fork : Resources.AcquisitionRuns outbound4
+      (Resources.acquireCall OA.caller Acquire.openOK ∷ Resources.acquireCall OA.caller Acquire.configureOK ∷ Resources.acquireCall OA.caller Acquire.connectOK ∷ Resources.acquireCall OA.caller (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀)) ∷ Resources.acquireCall OA.caller Acquire.updateLocalAddress ∷ []) outbound9
+    before-fork = Resources.acquisitionNext {action = Resources.acquireCall OA.caller Acquire.openOK} edge5
+      (Resources.acquisitionNext {action = Resources.acquireCall OA.caller Acquire.configureOK} edge6
+      (Resources.acquisitionNext {action = Resources.acquireCall OA.caller Acquire.connectOK} edge7
+      (Resources.acquisitionNext {action = Resources.acquireCall OA.caller (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀))} edge8
+      (Resources.acquisitionNext {action = Resources.acquireCall OA.caller Acquire.updateLocalAddress} edge9 Resources.acquisitionDone))))
+    outbound-born-origin : Resources.OutboundOrigin start outbound10 OA.child
+    outbound-born-origin = Resources.initialized-outbound-origin OA.caller OA.req (ident 0) A.key₀ outbound-initialized
+      before-allocation refl edge4 before-fork refl edge10 V.stop
+    outbound-original-descriptor : Resources.OutboundOrigin.captured outbound-born-origin ≡ OB.captured
+    outbound-original-descriptor = refl
+    outbound-original-promise-allocated : ident 0 ∈ Shared.promises (Resources.shared outbound4)
+    outbound-original-promise-allocated = Resources.OutboundOrigin.promise-allocated outbound-born-origin
+    outbound-connected-events : List V.Event
+    outbound-connected-events = Resources.handler-event (H.enterHandshake OA.child) ∷ V.dispatch (K.peerStep (PS.run (GP.handoff OA.caller))) ∷ call Acquire.commitConnected ∷ []
+    outbound-connected-path : V.Runs outbound10 outbound-connected-events outbound12
+    outbound-connected-path = V.more {a = Resources.handler-event (H.enterHandshake OA.child)} child-enters
+      (V.more {a = V.dispatch (K.peerStep (PS.run (GP.handoff OA.caller)))} handoff
+      (V.more {a = call Acquire.commitConnected} commit-connected (V.stop)))
+    outbound-finalizer-events : List V.Event
+    outbound-finalizer-events = Joins.handler-event (W.shutdownStep Close.captureSnapshot) ∷
+      Joins.handler-event (W.shutdownStep Close.readEntry) ∷
+      Joins.handler-event (W.shutdownStep Close.requestCancellation) ∷
+      Resources.handler-event (H.deliverShutdownHandshake OB.err) ∷
+      Resources.handler-event (H.publishCaught OA.child) ∷
+      Resources.handler-event (H.rethrowCaught OA.child) ∷
+      Resources.handler-event (H.enterFinalizer OA.child) ∷
+      Resources.handler-event (H.cleanup OA.child Cleanup.takeCleanupMap) ∷
+      Resources.handler-event (H.cleanup OA.child Cleanup.selectCleanupEntry) ∷
+      Resources.handler-event (H.cleanup OA.child Cleanup.closeHandlerSocket) ∷
+      Resources.handler-event (H.cleanup OA.child Cleanup.publishCleanupMap) ∷
+      Resources.handler-event (H.cleanup OA.child Cleanup.readCleanupCounters) ∷
+      Resources.handler-event (H.finishCleanup OA.child) ∷
+      []
+    outbound-finalizer-path : V.Runs outbound-scope18 outbound-finalizer-events outbound25
+    outbound-finalizer-path = V.more {a = Joins.handler-event (W.shutdownStep Close.captureSnapshot)} edge13
+      (V.more {a = Joins.handler-event (W.shutdownStep Close.readEntry)} edge14
+      (V.more {a = Joins.handler-event (W.shutdownStep Close.requestCancellation)} edge15
+      (V.more {a = Resources.handler-event (H.deliverShutdownHandshake OB.err)} edge16
+      (V.more {a = Resources.handler-event (H.publishCaught OA.child)} edge17
+      (V.more {a = Resources.handler-event (H.rethrowCaught OA.child)} edge18
+      (V.more {a = Resources.handler-event (H.enterFinalizer OA.child)} edge19
+      (V.more {a = Resources.handler-event (H.cleanup OA.child Cleanup.takeCleanupMap)} edge20
+      (V.more {a = Resources.handler-event (H.cleanup OA.child Cleanup.selectCleanupEntry)} edge21
+      (V.more {a = Resources.handler-event (H.cleanup OA.child Cleanup.closeHandlerSocket)} edge22
+      (V.more {a = Resources.handler-event (H.cleanup OA.child Cleanup.publishCleanupMap)} edge23
+      (V.more {a = Resources.handler-event (H.cleanup OA.child Cleanup.readCleanupCounters)} edge24
+      (V.more {a = Resources.handler-event (H.finishCleanup OA.child)} edge25 (V.stop)))))))))))))
+    cleanup-events : List V.Event
+    cleanup-events = outbound-connected-events ++ (outbound-peer-events ++ (outbound-scope-events ++ outbound-finalizer-events))
+    through-cleanup : V.Runs outbound10 cleanup-events outbound25
+    through-cleanup = Facts.append-protocols outbound-connected-path
+      (Facts.append-protocols outbound-peer-path (Facts.append-protocols outbound-scope-path outbound-finalizer-path))
+    cleanup-origin : Resources.OutboundOrigin start outbound25 OA.child
+    cleanup-origin = Resources.extend-outbound through-cleanup outbound-born-origin
+    published-origin : Resources.OutboundAtPublication start outbound25 outbound26 OA.child
+    published-origin = Resources.outbound-publication-origin cleanup-origin edge26
+    waiting-origin : Resources.OutboundOrigin start outbound27 OA.child
+    waiting-origin = Resources.extend-outbound (V.more {a = Joins.handler-event (W.shutdownStep Close.finishTraversal)} edge27 V.stop)
+      (Resources.OutboundAtPublication.following published-origin)
+    waited-origin : Resources.OutboundAtWait start outbound27 outbound28 OA.child
+    waited-origin = Resources.outbound-wait-origin waiting-origin edge28 (here refl)
+    outbound-retained-at-wait : ResourceFacts.Facts OA.child OB.captured (Resources.shared outbound28)
+    outbound-retained-at-wait = Resources.OutboundOrigin.retained (Resources.OutboundAtWait.following waited-origin)
+    closed-socket-is-still-historical : lookup OA.sock (Shared.sockets (Resources.shared outbound28)) ≡ just Shared.closed
+    closed-socket-is-still-historical = refl
+    early-fork-refused : V.advance (call Acquire.forkOK) outbound3 ≡ nothing
+    early-fork-refused = refl
+    parent-needs-handoff : V.advance (call Acquire.commitConnected) outbound11 ≡ nothing
+    parent-needs-handoff = refl
+    early-publication-refused : V.advance (Resources.handler-event (H.publishAsyncResult OA.child)) outbound24 ≡ nothing
+    early-publication-refused = refl
+    waiting-before-publication : V.Runtime
+    waiting-before-publication = outbound-owned-at (record OB.p25 { shutdown = OB.ownerWaiting }) S.closingCM false outbound-exited-ig
+    traversal-before-publication : V.advance (Joins.handler-event (W.shutdownStep Close.finishTraversal)) outbound25 ≡ just waiting-before-publication
+    traversal-before-publication = refl
+    early-wait-refused : V.advance (Joins.handler-event (W.shutdownStep Close.finishClose)) waiting-before-publication ≡ nothing
+    early-wait-refused = refl
+    duplicate-publication-refused : V.advance (Resources.handler-event (H.publishAsyncResult OA.child)) outbound26 ≡ nothing
+    duplicate-publication-refused = refl
+    cm-wait-is-not-server-return : S.stage (E.base (K.server (V.base outbound28))) ≡ S.closingCM
+    cm-wait-is-not-server-return = refl
+    nested-coordinator-refused : V.advance (Resources.handler-event (H.shutdownStep Close.captureSnapshot)) outbound12 ≡ nothing
+    nested-coordinator-refused = refl
+    owned-coordinator-before-scope-close-refused : V.advance (Joins.handler-event (W.shutdownStep Close.captureSnapshot)) outbound12 ≡ nothing
+    owned-coordinator-before-scope-close-refused = refl
+
+
+    -- An initialized prefix now crosses peer, Server and IG dispatches while
+    -- preserving the outbound caller's actual entry capture and fork identity.
+    module Interference where
+      private
+        module General = Resources.OutboundFrontend
+      public-view : V.Runtime → V.Runtime
+      public-view current = record current { base = record (V.base current)
+        { context = record peerContext { subsystem = record (C.subsystem peerContext) { pc = Sub.sampleInputs } } } }
+        where peerContext = K.context (V.base current)
+      admitted-view : V.Runtime → V.Runtime
+      admitted-view current = record current { base = record (V.base current)
+        { server = record updated { base = record (E.base updated)
+          { workers = (A.w₀ , S.rawWorker F.r₀ S.calling 0) ∷ [] } } } }
+        where
+        source = K.source (V.base current)
+        world = Machine.world (O.core source)
+        changed = record world
+          { admissions = (A.w₀ , Shared.admissionWorker F.r₀ Shared.acquireMap) ∷ Shared.admissions world
+          ; sockets = (Shared.socketRef F.r₀ , Shared.admitting A.w₀) ∷ Shared.sockets world }
+        updated = K.setSource (record source { core = Machine.replaceWorld (O.core source) changed }) (K.server (V.base current))
+      mixed : V.Runtime → V.Runtime
+      mixed current = admitted-view (public-view current)
+      clock-view : V.Runtime → V.Runtime
+      clock-view current = record current { base = record (V.base current)
+        { server = K.setSource (record source { core = record (O.core source) { inboundGovernor = clocked } }) (K.server (V.base current)) } }
+        where
+        source = K.source (V.base current)
+        governor = Machine.inboundGovernor (O.core source)
+        clocked = record governor { continuation = IG.armInactivity 10
+          ; execution = record (IG.execution governor) { lastTime = 10 } }
+      publish-event admission-event clock-event : V.Event
+      publish-event = V.dispatch (K.peerStep (PS.run (GP.run Sub.publishPublicState)))
+      admission-event = V.dispatch (K.serverStep (E.run (S.acceptedFork A.w₀ F.r₀)))
+      clock-event = V.dispatch (K.serverStep (E.run (S.run (S.runMachine (Machine.igStep (IG.captureTime 10))))))
+      published-peer : V.advance publish-event start ≡ just (public-view start)
+      published-peer = refl
+      mixed-edge1 : V.advance (Resources.call-event (Resources.beginCall OA.caller OA.req)) (public-view start) ≡ just (public-view outbound1)
+      mixed-edge1 = refl
+      mixed-edge2 : V.advance (call (Acquire.select nothing)) (public-view outbound1) ≡ just (public-view outbound2)
+      mixed-edge2 = refl
+      mixed-edge3 : V.advance (call Acquire.readCounters) (public-view outbound2) ≡ just (public-view outbound3)
+      mixed-edge3 = refl
+      admitted-during-acquisition : V.advance admission-event (public-view outbound3) ≡ just (mixed outbound3)
+      admitted-during-acquisition = refl
+      mixed-allocation : V.advance (call Acquire.newPromise) (mixed outbound3) ≡ just (mixed outbound4)
+      mixed-allocation = refl
+      mixed-open : V.advance (call Acquire.openOK) (mixed outbound4) ≡ just (mixed outbound5)
+      mixed-open = refl
+      clock-during-acquisition : V.advance clock-event (mixed outbound5) ≡ just (clock-view (mixed outbound5))
+      clock-during-acquisition = refl
+      mixed-edge6 : V.advance (call (Acquire.configureOK)) (clock-view (mixed outbound5)) ≡ just (clock-view (mixed outbound6))
+      mixed-edge6 = refl
+      mixed-edge7 : V.advance (call (Acquire.connectOK)) (clock-view (mixed outbound6)) ≡ just (clock-view (mixed outbound7))
+      mixed-edge7 = refl
+      mixed-edge8 : V.advance (call (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀))) (clock-view (mixed outbound7)) ≡ just (clock-view (mixed outbound8))
+      mixed-edge8 = refl
+      mixed-edge9 : V.advance (call (Acquire.updateLocalAddress)) (clock-view (mixed outbound8)) ≡ just (clock-view (mixed outbound9))
+      mixed-edge9 = refl
+      mixed-edge10 : V.advance (call (Acquire.forkOK)) (clock-view (mixed outbound9)) ≡ just (clock-view (mixed outbound10))
+      mixed-edge10 = refl
+      mixed-prefix-events : List V.Event
+      mixed-prefix-events = publish-event ∷ Resources.call-event (Resources.beginCall OA.caller OA.req) ∷
+        call (Acquire.select nothing) ∷ call Acquire.readCounters ∷ admission-event ∷ []
+      mixed-prefix : V.Runs start mixed-prefix-events (mixed outbound3)
+      mixed-prefix = V.more {a = publish-event} published-peer
+        (V.more {a = Resources.call-event (Resources.beginCall OA.caller OA.req)} mixed-edge1
+        (V.more {a = call (Acquire.select nothing)} mixed-edge2
+        (V.more {a = call Acquire.readCounters} mixed-edge3
+        (V.more {a = admission-event} admitted-during-acquisition V.stop))))
+      mixed-route-events : List V.Event
+      mixed-route-events = call Acquire.openOK ∷ clock-event ∷ call Acquire.configureOK ∷ call Acquire.connectOK ∷
+        call (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀)) ∷ call Acquire.updateLocalAddress ∷ []
+      mixed-route : V.Runs (mixed outbound4) mixed-route-events (clock-view (mixed outbound9))
+      mixed-route = V.more {a = call Acquire.openOK} mixed-open
+        (V.more {a = clock-event} clock-during-acquisition
+        (V.more {a = call Acquire.configureOK} mixed-edge6
+        (V.more {a = call Acquire.connectOK} mixed-edge7
+        (V.more {a = call (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀))} mixed-edge8
+        (V.more {a = call Acquire.updateLocalAddress} mixed-edge9 V.stop)))))
+      mixed-origin : General.History start (clock-view (mixed outbound10)) OA.child
+      mixed-origin = General.initialize-history OA.caller OA.req (ident 0) A.key₀ outbound-initialized
+        mixed-prefix refl mixed-allocation mixed-route refl mixed-edge10 V.stop
+      mixed-original-descriptor : General.History.captured mixed-origin ≡ OB.captured
+      mixed-original-descriptor = refl
+      mixed-resource-facts : ResourceFacts.Facts OA.child OB.captured (Resources.shared (clock-view (mixed outbound10)))
+      mixed-resource-facts = General.History.retained mixed-origin
+      independent-admission-remains : lookup A.w₀ (Shared.admissions (Resources.shared (clock-view (mixed outbound10)))) ≡
+        just (Shared.admissionWorker F.r₀ Shared.acquireMap)
+      independent-admission-remains = refl
+      peer-progress-remains : C.SubContext.pc (C.subsystem (K.context (V.base (clock-view (mixed outbound10))))) ≡ Sub.sampleInputs
+      peer-progress-remains = refl
+      ig-progress-remains : IG.continuation (Machine.inboundGovernor (O.core (K.source (V.base (clock-view (mixed outbound10)))))) ≡ IG.armInactivity 10
+      ig-progress-remains = refl
+      mixed-child-enters : V.advance (Resources.handler-event (H.enterHandshake OA.child))
+        (clock-view (mixed outbound10)) ≡ just (clock-view (mixed outbound11))
+      mixed-child-enters = refl
+      mixed-child-history : General.History start (clock-view (mixed outbound11)) OA.child
+      mixed-child-history = General.extend-history (V.more {a = Resources.handler-event (H.enterHandshake OA.child)} mixed-child-enters V.stop) mixed-origin
+      duplicate-admission-refused : V.advance admission-event (mixed outbound3) ≡ nothing
+      duplicate-admission-refused = refl
+      duplicate-clock-refused : V.advance clock-event (clock-view (mixed outbound5)) ≡ nothing
+      duplicate-clock-refused = refl
+      raw-acquisition-alias-refused : V.advance
+        (Joins.handler-event (Resources.outbound-physical-action (O.acquire OA.caller Acquire.newPromise))) (mixed outbound3) ≡ nothing
+      raw-acquisition-alias-refused = refl
+      premature-mixed-fork-refused : V.advance (call Acquire.forkOK) (mixed outbound3) ≡ nothing
+      premature-mixed-fork-refused = refl
+
+      -- The generalized constructor also retains the already checked owned
+      -- shutdown history through the same physical result and CM-wait APIs.
+      general-cleanup-history : General.History start outbound25 OA.child
+      general-cleanup-history = General.initialize-history OA.caller OA.req (ident 0) A.key₀ outbound-initialized
+        (Resources.acquisition-events before-allocation) refl edge4
+        (Resources.acquisition-events before-fork) refl edge10 through-cleanup
+      general-publication : General.AtResult start outbound25 outbound26 OA.child
+      general-publication = General.publication-history general-cleanup-history edge26
+      general-waiting-history : General.History start outbound27 OA.child
+      general-waiting-history = General.extend-history
+        (V.more {a = Joins.handler-event (W.shutdownStep Close.finishTraversal)} edge27 V.stop)
+        (General.AtResult.following general-publication)
+      general-wait : General.AtCMWait start outbound27 outbound28 OA.child
+      general-wait = General.wait-history general-waiting-history edge28 (here refl)
+      general-wait-resources : ResourceFacts.Facts OA.child OB.captured (Resources.shared outbound28)
+      general-wait-resources = General.History.retained (General.AtCMWait.following general-wait)
+
+  -- Current physical membership now discovers its own earlier fork. These use
+  -- initialized frontend histories, not supplied resource-origin certificates.
+  module HandlerBirthBackingChecks where
+    open import Data.List using (take; _++_)
+    import ConnectionManagement.Properties.HandlerBirthBacking as BirthBacking
+    import ConnectionManagement.Properties.ServerPeersHandlerResources as ResourcesModel
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.CSP.OutboundAdmission as OA
+    import ConnectionManagement.Negative.OutboundHandlerSupervision as OB
+    private
+      module Back = BirthBacking.Frontend I.bearerClosed Prior.classify capability
+      module Resources = ResourcesModel.Frontend I.bearerClosed Prior.classify capability
+      module In = HandlerResourceOriginChecks
+      module Out = OutboundHandlerResourceOriginChecks
+      module W = N.W
+    inbound-current-thread : lookup A.child₀ (B.threads (Back.physical-state (wrap (base F.p5)))) ≡
+      just (H.handlerThread I.captured H.maskedSetup)
+    inbound-current-thread = refl
+    abstract
+      inbound-backing : Back.Backing initial (wrap (base F.p5)) (take 7 prefixActions) A.child₀ I.captured
+      inbound-backing = Back.initialized-birth initializer In.forkPrefix inbound-current-thread
+    -- The public output includes both an actual frontend event and its enabled
+    -- physical operation, tied to the same original descriptor.
+    inbound-physical-capture : lookup A.child₀ (BirthBacking.physical (Back.ForkStep.target (Back.Backing.operation inbound-backing))) ≡ just I.captured
+    inbound-physical-capture = Back.Backing.at-physical-fork inbound-backing
+    outbound-birth-events : List V.Event
+    outbound-birth-events = Resources.call-event (Resources.beginCall OA.caller OA.req) ∷
+      Out.call (Acquire.select nothing) ∷ Out.call Acquire.readCounters ∷ Out.call Acquire.newPromise ∷
+      Out.call Acquire.openOK ∷ Out.call Acquire.configureOK ∷ Out.call Acquire.connectOK ∷
+      Out.call (Acquire.gotLocal (ConnectionManagement.Domain.local A.key₀)) ∷ Out.call Acquire.updateLocalAddress ∷ Out.call Acquire.forkOK ∷ []
+    outbound-birth-path : V.Runs Out.start outbound-birth-events Out.outbound10
+    outbound-birth-path = V.more Out.edge1 (V.more Out.edge2 (V.more Out.edge3 (V.more Out.edge4
+      (V.more Out.edge5 (V.more Out.edge6 (V.more Out.edge7 (V.more Out.edge8 (V.more Out.edge9 (V.more Out.edge10 V.stop)))))))))
+    outbound-through-cleanup-events : List V.Event
+    outbound-through-cleanup-events = outbound-birth-events ++ Out.cleanup-events
+    outbound-through-cleanup : V.Runs Out.start outbound-through-cleanup-events Out.outbound25
+    outbound-through-cleanup = Facts.append-protocols outbound-birth-path Out.through-cleanup
+    outbound-current-thread : lookup OA.child (B.threads (Back.physical-state Out.outbound25)) ≡
+      just (H.handlerThread OB.captured (H.cleanupComplete OB.err Shared.cleanupNormal))
+    outbound-current-thread = refl
+    abstract
+      outbound-backing : Back.Backing Out.start Out.outbound25 outbound-through-cleanup-events OA.child OB.captured
+      outbound-backing = Back.initialized-birth Out.outbound-initialized outbound-through-cleanup outbound-current-thread
+    outbound-physical-capture : lookup OA.child (BirthBacking.physical (Back.ForkStep.target (Back.Backing.operation outbound-backing))) ≡ just OB.captured
+    outbound-physical-capture = Back.Backing.at-physical-fork outbound-backing
+    -- Freshness and refusal controls use actual guards/initializers.
+    repeated-outbound-fork-refused : V.advance (Out.call Acquire.forkOK) Out.outbound10 ≡ nothing
+    repeated-outbound-fork-refused = refl
+    outbound-child-not-fresh : B.freshChild OA.child (Back.physical-state Out.outbound10) ≡ false
+    outbound-child-not-fresh = refl
+    inbound-child-not-fresh : B.freshChild A.child₀ (Back.physical-state (wrap (base F.p5))) ≡ false
+    inbound-child-not-fresh = refl
+    adoption-source : O.Configuration
+    adoption-source = record original { core = Machine.replaceWorld (O.core original)
+      (record world { admissions = []; sockets = [] }) }
+      where
+      original = K.source (V.base Out.outbound10)
+      world = Machine.world (O.core original)
+    raw-handler-adoption-refused : H.initial (O.core adoption-source) ≡ nothing
+    raw-handler-adoption-refused = refl
+    initialized-handler-adoption-refused : V.initialize adoption-source L.settings ≡ nothing
+    initialized-handler-adoption-refused = refl
+
+
+    -- The same discovered birth crosses all three shutdown boundaries. Opaque
+    -- runs and existing observations are reused instead of replaying a system.
+    module ShutdownBatch where
+      open import Data.List using (take; drop; _++_)
+      open import Data.List.Relation.Unary.Any using (here)
+      open import Data.Product using (Σ; _×_)
+      open import Relation.Binary.PropositionalEquality using (subst)
+      import ConnectionManagement.Properties.ServerPeersMonitorJoins as BirthJoins
+      import ConnectionManagement.MuxHandlerExit as HandlerExitModel
+      import ConnectionManagement.Rules.CMShutdown as Close
+      private
+        module Shutdown = ResourcesModel.BackedShutdown I.bearerClosed Prior.classify capability using (InitializedShutdown; birth-command; initialized-handshake-shutdown; result-at-final-wait; same-birth-command; wait-events)
+        module Joins = BirthJoins.Frontend I.bearerClosed Prior.classify capability using (handler-event; physical)
+      before-scope-events : List V.Event
+      before-scope-events = outbound-birth-events ++ (Out.outbound-connected-events ++ (Out.outbound-peer-events ++ Out.outbound-scope-events))
+      acknowledgement-prefix-events : List V.Event
+      acknowledgement-prefix-events = before-scope-events ++ take 3 Out.outbound-finalizer-events
+      cleanup-after-ack-events : List V.Event
+      cleanup-after-ack-events = drop 4 Out.outbound-finalizer-events
+      traversal-events : List V.Event
+      traversal-events = Joins.handler-event (W.shutdownStep Close.finishTraversal) ∷ []
+      abstract
+        before-scope-run : V.Runs Out.start before-scope-events Out.outbound-scope18
+        before-scope-run = Facts.append-protocols outbound-birth-path
+          (Facts.append-protocols Out.outbound-connected-path (Facts.append-protocols Out.outbound-peer-path Out.outbound-scope-path))
+        before-delivery-run : V.Runs Out.outbound-scope18 (take 3 Out.outbound-finalizer-events) Out.outbound15
+        before-delivery-run = V.more {t = Out.outbound13} {a = Joins.handler-event (W.shutdownStep Close.captureSnapshot)} Out.edge13
+          (V.more {t = Out.outbound14} {a = Joins.handler-event (W.shutdownStep Close.readEntry)} Out.edge14
+          (V.more {t = Out.outbound15} {a = Joins.handler-event (W.shutdownStep Close.requestCancellation)} Out.edge15 V.stop))
+        acknowledgement-prefix : V.Runs Out.start acknowledgement-prefix-events Out.outbound15
+        acknowledgement-prefix = Facts.append-protocols before-scope-run before-delivery-run
+        delivered-prefix : V.Runs Out.outbound-scope18 (take 4 Out.outbound-finalizer-events) Out.outbound16
+        delivered-prefix = Facts.append-protocols before-delivery-run
+          (V.more {t = Out.outbound16} {a = Resources.handler-event (H.deliverShutdownHandshake OB.err)} Out.edge16 V.stop)
+        cleanup-after-ack : V.Runs Out.outbound16 cleanup-after-ack-events Out.outbound25
+        cleanup-after-ack = Resources.discard-prefix {suffix = cleanup-after-ack-events} delivered-prefix Out.outbound-finalizer-path
+        traversal-run : V.Runs Out.outbound26 traversal-events Out.outbound27
+        traversal-run = V.more {t = Out.outbound27} {a = Joins.handler-event (W.shutdownStep Close.finishTraversal)} Out.edge27 V.stop
+      physical-before-ack : lookup OA.child (B.threads (Back.physical-state Out.outbound15)) ≡ just (H.handlerThread OB.captured H.handshaking)
+      physical-before-ack = refl
+      awaiting-this-worker : Close.phase (H.shutdown (Resources.raw-view Out.outbound15)) ≡ Close.awaitDelivery (ident 0) OA.child
+      awaiting-this-worker = refl
+      abstract
+        shutdown : Shutdown.InitializedShutdown Out.start Out.outbound28 OA.child OB.captured
+        shutdown = Shutdown.initialized-handshake-shutdown
+          {c = O.initial (Machine.initial Shared.responderMode F.empty)} {g = L.settings}
+          {start = Out.start} {beforeAck = Out.outbound15} {afterAck = Out.outbound16}
+          {beforeResult = Out.outbound25} {afterResult = Out.outbound26} {beforeWait = Out.outbound27} {current = Out.outbound28}
+          {prefix = acknowledgement-prefix-events} {cleanup = cleanup-after-ack-events} {traversal = traversal-events}
+          {entry = ident 0} {w = OA.child} {thread = H.handlerThread OB.captured H.handshaking} {err = OB.err}
+          Out.outbound-initialized acknowledgement-prefix physical-before-ack awaiting-this-worker
+          Out.edge16 cleanup-after-ack Out.edge26 traversal-run Out.edge28 (here refl)
+        shutdown-wait-position : Shutdown.InitializedShutdown.beforeWait shutdown ≡ Out.outbound27
+        shutdown-wait-position = refl
+      -- The final certificate recovers the real current physical thread without
+      -- a new lookup premise at publication or CM's wait.
+      physical-at-final-wait : Σ H.Thread (λ thread → lookup OA.child (B.threads (Back.physical-state Out.outbound28)) ≡ just thread × H.captured thread ≡ OB.captured)
+      physical-at-final-wait = Back.current-thread (Shutdown.InitializedShutdown.at-wait shutdown)
+      same-discovered-fork : Shutdown.birth-command (Shutdown.InitializedShutdown.at-wait shutdown) ≡ Shutdown.birth-command (Shutdown.InitializedShutdown.birth shutdown)
+      same-discovered-fork = Shutdown.same-birth-command shutdown
+      final-prewait-result : HandlerExitModel.resultReady I.bearerClosed OA.child (Joins.physical Out.outbound27) ≡ true
+      final-prewait-result = subst (λ state → HandlerExitModel.resultReady I.bearerClosed OA.child (Joins.physical state) ≡ true)
+        shutdown-wait-position (Shutdown.result-at-final-wait shutdown)
+      acknowledgement-is-not-a-result : HandlerExitModel.resultReady I.bearerClosed OA.child (Joins.physical Out.outbound16) ≡ false
+      acknowledgement-is-not-a-result = refl
+      publication-still-required : V.advance (Joins.handler-event (W.shutdownStep Close.finishClose)) Out.waiting-before-publication ≡ nothing
+      publication-still-required = Out.early-wait-refused
+      duplicate-publication-refused : V.advance (Resources.handler-event (H.publishAsyncResult OA.child)) Out.outbound26 ≡ nothing
+      duplicate-publication-refused = Out.duplicate-publication-refused
+      cm-wait-still-is-not-server-return : S.stage (E.base (K.server (V.base Out.outbound28))) ≡ S.closingCM
+      cm-wait-still-is-not-server-return = Out.cm-wait-is-not-server-return

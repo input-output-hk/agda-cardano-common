@@ -9,6 +9,22 @@ and [open questions](Supervision.md#open-questions-and-reconciled-status) reconc
 the lifecycle claims through model commit `6878713` (4 November 2026); the dated
 increment records retain detailed acceptance evidence.
 
+Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
+adds initialized inbound resource histories at publication and CM's wait;
+[increment 54](Supervision.md#fifty-fourth-increment-primitive-admission-steps-from-frontend-events)
+derives their primitive steps from the frontend events.
+[Increment 55](Supervision.md#fifty-fifth-increment-initialized-outbound-handler-resource-origins)
+adds the initialized outbound acquisition route through pre-handshake publication
+and the guarded outer CM wait.
+[Increment 56](Supervision.md#fifty-sixth-increment-outbound-origins-through-frontend-interference)
+admits arbitrary enabled frontend histories before outbound birth.
+[Increment 57](Supervision.md#fifty-seventh-increment-initialized-physical-handler-birth-backing)
+derives an earlier physical fork from initialized frontend execution and a
+current physical-handler lookup and retains that birth through CM acknowledgement,
+handler result publication and final CM wait. These certificates keep
+historical resources separate from live ownership and
+whole-system shutdown.
+
 This directory develops a source-derived CSP model of CM, IG, OG and Server
 together. It is independent of `Cardano_network`, `GovernorWedge` and
 `HotDemotion`.
