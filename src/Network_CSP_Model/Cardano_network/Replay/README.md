@@ -19,6 +19,17 @@ paired opposite endpoints. The [implementation note](../../../docs/notes/paired-
 documents its input grammar, certificates, tracer boundary and limitations;
 the [plan](../../../docs/specs/paired-trace-replay-plan.md) tracks remaining work.
 
+## Lookahead Notify investigation
+
+[LeiosNotifyPipeLookahead](LeiosNotifyPipeLookahead/README.md) has source-model
+bridges and controlled-schedule certificates for the pinned concurrent server
+and pipelined client. Its [runtime investigation](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
+keeps baseline performance and diagnostic strictness/arithmetic separate.
+The existing Notify CLI modes below retain their bounded peer targets. Proposed
+`--notify-lookahead` and `--paired-notify-lookahead` modes remain T7 in the
+[numbered plan](../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#t7-build-certified-replay-for-the-selected-observation).
+Controlled fixtures do not establish arbitrary-log lookahead acceptance.
+
 ## Paired BlockFetch and TxSubmission2
 
 ```sh

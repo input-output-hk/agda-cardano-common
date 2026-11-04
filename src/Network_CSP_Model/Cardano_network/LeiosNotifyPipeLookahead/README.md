@@ -22,13 +22,14 @@ layer because they define and justify its executable semantics; their use by
 replay does not make them replay-specific definitions.
 
 The directory refactor preserved the then-existing 27 Agda source files modulo
-namespace changes. The latest transitive scan of the native entry point and
-protocol modules found 39 local dependencies and no Replay dependency. This is a module-boundary check;
-the protocol properties retain the scopes documented below.
+namespace changes. The [T4.3.2 dependency scan](../Replay/LeiosNotifyPipeLookahead/tools/results-t432-20261104.json)
+recorded 75 local dependencies and no Replay dependency; the earlier T4.3.1
+scan recorded 70. These are dated module-boundary checks; protocol properties
+retain the scopes documented below.
 
-This is the first implementation stage for the
-[lookahead replay design](../../../docs/specs/leiosnotify-lookahead-replay-design.md).
-It models the server control flow in consensus
+The [lookahead replay design](../../../docs/specs/leiosnotify-lookahead-replay-design.md)
+records the source model and remaining checker work. The model follows the
+server control flow in consensus
 [`2416493`](https://github.com/IntersectMBO/ouroboros-consensus/blob/2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestNotify.hs#L636-L723)
 and the sender/reader scheduling in its pinned
 [typed-protocols driver `9b46272`](https://github.com/IntersectMBO/typed-protocols/blob/9b4627221ae5d649f2303c6926a8dba3f9934658/typed-protocols/src/Network/TypedProtocol/Driver.hs#L427-L555).
@@ -46,8 +47,10 @@ explicit callback erasure. A native endpoint-tagged paired driver product and
 projection to both local native endpoints are now checked. `NodeDriverModel` now
 binds the production client/server policies in that product; its projections,
 resource/failure invariants and one-way native realization are checked. Eight
-controlled pinned Haskell peer/driver schedules now pass, with four wire
-histories matched to checked Agda witnesses. Wider differential coverage, full
+controlled pinned Haskell peer/driver schedules now pass, with all 80 captured
+histories matched to checked Agda witnesses. T4.1.1 additionally proves universal
+server accounting and exact FIFO conservation, including pending hooks, with
+node-policy and native paired endpoints. Wider differential coverage, full
 node-callback validation and certified raw-log search remain outstanding. Immutable
 source URLs and inspected byte checksums are in [`sources.json`](sources.json).
 
@@ -440,6 +443,159 @@ and completed jobs, establish a bound under explicit client/admission policies,
 and compare shutdown work and allocation with a pinned runtime experiment.
 The current model retains the original behavior for that comparison.
 
+## Request/reply and FIFO conservation
+
+`ServerConservation` proves `owed(start) + requests = replies + owed(end)` for
+every finite server run under either callback contract. Normal and Canceled
+replies each count once; Quit, Done and callback readiness do not count as
+request/reply exchanges. Completion tokens stay separate from owed work.
+Fresh sessions cannot emit extra replies; the exact drained closed state has
+equal request and reply counts. Failure prefixes retain unanswered obligations.
+
+`DriverConservation` proves exact packet-list equations for both directions:
+recorded Sends plus a pending Send equal recorded Receives plus a pending
+Receive and the remaining FIFO. Payload, order and multiplicity are preserved.
+The theorem covers Receive-before-Send prefixes. Equality of just the recorded
+histories follows when the direction's FIFO and both hooks are clear.
+`NodeConservation` applies these properties to all fresh production-policy runs
+and retains actual server source/wire accounting. The separate replay
+`ConservationBridge` lifts them to all actual native paired finite traces via
+the existing inverse bridge. Its generic native target keeps its existing scope.
+
+The [conservation note](../../../docs/notes/leiosnotify-pipe-lookahead-conservation.md)
+gives exact statements, reachable controls and remaining T4 tasks. These are
+finite model safety properties; progress, machine arithmetic and client
+marker/completion resource bounds remain separate obligations.
+
+## Shutdown and Done work guarantees
+
+T4.1.2 adds `ClientShutdown` for persistent shutdown from termination acceptance
+onward, and `ServerShutdown` for persistent flag publication and Canceled-only
+new selections afterward. A previously selected normal remains sendable.
+`ClientAccounting` proves the exact inventory equation, correcting `inFlight`
+for registration before Send; zero counter alone does not imply empty work.
+
+`DoneOrigin` links every physical Done packet in the FIFO or hooks to the actual
+drained responder. `DriverShutdown` proves no new client request records or
+commits during shutdown. A fresh client Receive-Done certifies closed client
+control, zero count, a stored return value, empty jobs/results, idle receiver and
+a drained server (`doneReady` or closed). A delayed server Send-Done hook can
+remain. Server Send-Done alone can precede client draining and packet delivery.
+Fresh paired runs witness both distinctions. `NodeShutdown` and the separate
+native `ShutdownBridge` retain the exact guarantees under their existing scopes.
+
+The [shutdown note](../../../docs/notes/leiosnotify-pipe-lookahead-shutdown.md)
+contains precise statements and counterexamples. All nine new modules pass safe
+checking through the two shutdown roots with strict zero-finding audits.
+Eventual progress, trace-hook scheduling and shutdown latency remain separate
+obligations; finite scheduling and operation bounds are now checked below.
+
+## Hidden scheduling and shutdown step budget
+
+`SchedulingArithmetic` supplies shared safely checked polynomial identities;
+`SchedulingCost` assigns potential to queues, source control and pending hooks.
+`SchedulingRank` proves strict decrease for every hidden paired operation,
+including callback choices, channel commits and decodes, and constructs
+accessibility at every state. The original local server rank is preserved.
+Infinite callback data domains do not require a finite-branching assumption for
+this theorem.
+
+`ShutdownWork` additionally proves that remaining wire operations decrease once
+both role-specific shutdown paths hold. Every finite continuation then has at
+most the starting potential's number of internal-plus-wire operations.
+`NodeScheduling` supplies production hidden accessibility and a bound on
+projected driver work; stuttering environment records are not counted as driver
+operations. `SchedulingBridge` proves native hidden accessibility/divergence
+exclusion and bounds actual native shutdown steps through existing inversion.
+
+The computed work view separates owed replies, completion tokens and unretired
+sends. Reachable controls distinguish these quantities and show that potential
+is a conservative budget, not exact work or elapsed time. See the
+[scheduling note](../../../docs/notes/leiosnotify-pipe-lookahead-scheduling.md).
+Conditional completion and its remaining structural premise are described below.
+
+## Conditional shutdown progress
+
+`ShutdownProgress` separates a preserved structural local-progress invariant
+from the decreasing potential. It constructs bounded source completion and
+proves completion of finite maximal runs under that explicit invariant.
+`RuntimeProgress` additionally represents waiting, successful operations,
+failure and terminal observations. Its theorem proves eventual completion of
+the given execution from finite responsiveness, no failure and no premature
+halt, retaining the actual source path and operation bound.
+
+`ServerProgress` supplies constructive local progress after an actual Quit
+without needing a new application `next` result. `DoneProgress` discharges the
+paired structural premise for all seven final Done packet/hook states.
+The replay `ProgressBridge` realizes actual native completion paths; pure and
+native examples construct inhabited runtime premises at fresh reachable handoffs.
+Starvation, exceptions and premature EOF violate separate required conditions.
+
+General fresh paired progress through the earlier reply/marker drain is now
+proved by `PairedDrain` below. The theorem does not infer enabled progress from finite rank alone or
+deduce runtime liveness from a finite accepted log. It preserves the existing
+Haskell, production-policy, native-prefix and CSP-composition boundaries. See
+the [progress note](../../../docs/notes/leiosnotify-pipe-lookahead-progress.md).
+
+The next component results now prove general fresh paired server progress.
+`ServerPhase` retains exact reader/flag shape; `ServerSendSlot` retains pending
+Send payload/control consistency under every interleaving. `ServerDrain` obtains
+both from fresh reachability and constructs bounded server closure, with runtime
+and native endpoints under explicit responsiveness/failure assumptions. No
+structural server-progress premise remains for the caller to discharge.
+
+`ClientPhase` retains fresh return/flag/count guards and proves Await-Done and
+closed client work empty. `ClientReplyAccounting` tracks exact outstanding wire
+replies separately from Quit-marker work and received-but-unpublished results.
+The T4.2.2.3.3 results below connect those facts to actual FIFO/pending-Receive
+packets and final Done order. The earlier fresh twenty-two-operation complete
+example remains distinct from the new universal theorem. See the
+[server-drain note](../../../docs/notes/leiosnotify-pipe-lookahead-server-drain.md).
+
+`CommandFlow` proves physical Quit seals the initiator direction; `ResponseFlow`
+proves unique final Done and exact packet/hook delivery phases. `ReplyLedger`
+connects outstanding client responses to actual server/transport obligations,
+including pending-Send corrections. `ClientDrain` uses these facts to prove
+actual local/packet progress throughout the client reply, handler, marker and
+Done drain. `PairedDrain` supplies the full fresh local-progress contract and
+derives bounded model completion, completion of finite maximal runs and
+given-runtime liveness under the explicit external response/failure/terminal
+premises. No unproved structural-progress parameter remains for fresh states.
+
+The replay `PairedDrainBridge` retains actual native paths and native step
+bounds. Fresh delayed-Quit and held-handler examples instantiate the general
+theorem; missing-Done, dropped-reply and duplicate-Done targets are proved
+unreachable. A full production-policy delayed-Quit schedule has actual native
+and inhabited runtime witnesses. These results retain the previous successful-IO,
+entry-to-shutdown, production-policy and Haskell/CSP-refinement boundaries. See
+the [paired-drain note](../../../docs/notes/leiosnotify-pipe-lookahead-paired-drain.md).
+
+## Completed bookkeeping and exact flush cost
+
+`CompletionAccounting` proves universal completed/retirement/flush accounting
+and total owed-plus-unretired-plus-completed work conservation. Every successful
+close flushes initial work plus newly received requests. After Quit, every
+successful schedule flushes exactly the initial work. Existing completion history
+lower-bounds any later successful closing operation count, even before Quit.
+The older constructed `flushCount` is preserved and proved equal to the new count.
+
+`CompletionDriver` retains these results at the physical commit/decode/trace-hook
+boundary. The replay `CompletionBridge` independently counts actual native
+hidden flushes and proves source-count agreement, exact closure counts and
+operation lower bounds. A fresh modeled native prefix containing server Send-Done
+flushes every decoded historical RequestNext exactly once, without assuming tree
+injectivity or inferring completion from EOF.
+
+`SequentialCompletion` constructs an arbitrary-length family in the combined
+production-policy model, with the actual depth 1000 and explicit eligible inputs
+and normal handlers. Eight natural resource bounds of one hold at every state
+of its normal prefix and shutdown. After n sequential rounds the empty/idle
+client and zero-owed server coexist with n completed tokens. The selected full
+shutdown uses n flushes and exactly n+12 paired/native operations. Source/native
+families and unretired/mixed-work/EOF controls are checked. These are counter and
+model-step results, not measured heap/time or machine-range guarantees. See the
+[completion-cost note](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md).
+
 ## Validation
 
 Agda 2.8.0; run from `src/`:
@@ -513,7 +669,7 @@ checks passed. Logs, the exit-code manifest, audit and dependency scan are under
 `/tmp/leiosnotify-lookahead-node-policy-20261103/`.
 
 T3.2 now has an isolated build of the unchanged pinned peers and drivers in
-[`tools/leiosnotify-lookahead`](../../../tools/leiosnotify-lookahead/README.md).
+[`src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools`](../Replay/LeiosNotifyPipeLookahead/tools/README.md).
 Eight STM-controlled schedules pass five times each at GHC -N1 and -N2. Four
 wire histories are compared to `NodeDriverTests` witnesses by evaluating the
 pure `ExportFixtures.rendered` with Agda's DefaultCompute normalizer; all 40
@@ -531,7 +687,7 @@ in the native paired tree. The synthetic writer's request-1001 fault has a
 server-only node/native certificate. The publication cases also prove reachable
 held-result checkpoints. Combined with the first four cases, all 80 captured
 histories match (70 paired, including interrupted prefixes; 10 server-only).
-The [T3.3 record](../../../tools/leiosnotify-lookahead/results-t33-20261103.json)
+The [T3.3 record](../Replay/LeiosNotifyPipeLookahead/tools/results-t33-20261103.json)
 includes hashes and memory measurements. Its artifacts are under
 `/var/tmp/leiosnotify-t33-20261103/verified/`. The
 fixture callbacks, observer Effects and identity-codec transport are documented;
@@ -542,7 +698,7 @@ No permanent-deadlock or measured-latency claim follows.
 
 The guarded PTree roots use the established command-line safe checking mode.
 The pure model, enumeration, rank and property modules declare `--safe`.
-The targeted audit covers 52 Agda files across the protocol directory, native
+The targeted audit covers 105 Agda files across the protocol directory, native
 entry point and replay directory. Its two `possible-hole` findings
 are the question marks in the standard integer comparison operator `Int.<?`
 in `ClientModel.below` and `positive`; inspection confirms they are operator
@@ -552,3 +708,111 @@ all 1003 generated Agda files also pass strict scans with zero findings.
 Safe typechecking is the compiler check;
 the static scan does not audit all external dependencies. No Haskell source, deployed
 node configuration, existing replay rule, or historical log verdict is changed.
+
+The two new conservation roots safely check all six new property/bridge/test
+modules and have strict zero-finding audits. They can be checked serially with
+the persistent bounded wrapper from the repository root:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/check_agda.py \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/ConservationTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/ConservationNativeTests.agda \
+  --out /var/tmp/leiosnotify-conservation-checks
+```
+
+Final logs and resource records are under
+`/var/tmp/leiosnotify-t4-conservation-20261103/final/`; the
+[compact result](../Replay/LeiosNotifyPipeLookahead/tools/results-t41-20261103.json)
+records exact source hashes and checking budgets.
+
+The nine T4.1.2 modules are checked with the same bounded wrapper:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/check_agda.py \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/ShutdownTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/ShutdownNativeTests.agda \
+  --out /var/tmp/leiosnotify-shutdown-checks
+```
+
+Logs and resources are under `/var/tmp/leiosnotify-t412-20261103/final/`; the
+[T4.1.2 record](../Replay/LeiosNotifyPipeLookahead/tools/results-t412-20261103.json)
+ties them to the exact source hashes and theorem scopes.
+
+The eight T4.2.1 modules pass safe checking through `SchedulingTests.agda` and
+`SchedulingNativeTests.agda` using the same bounded wrapper. Their strict scans
+have zero findings. Final artifacts are under
+`/var/tmp/leiosnotify-t421-20261103/final/`; the
+[result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t421-20261103.json)
+includes exact source and resource hashes.
+
+The seven T4.2.2 modules pass safe checking through `ProgressTests.agda` and
+`ProgressNativeTests.agda`, with strict zero-finding audits and the same bounded
+wrapper. Final artifacts are under `/var/tmp/leiosnotify-t422-20261103/final-v2/`;
+the [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t422-20261103.json)
+records the conditional scope and remaining general structural invariant.
+
+The eight T4.2.2.3 component modules pass safe checking through
+`ServerDrainTests.agda` and `ServerDrainNativeTests.agda`, with strict zero-finding
+audits and the same bounded wrapper. The
+[result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t4223-20261104.json)
+records exact sources, successful root checks and the remaining client/packet
+connection. Existing imported `ShutdownTests` variable-name warnings are retained.
+
+The nine T4.2.2.3.3 modules pass safe checking through `PairedDrainTests.agda`
+and `PairedDrainNativeTests.agda`, with strict zero-finding audits and the same
+bounded wrapper. The [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t42233-20261104.json)
+records exact sources, successful checks, the completed structural theorem and
+retained external runtime/implementation assumptions. T4.3 resource results are recorded below.
+
+T4.3.1's six modules pass safe checking through `CompletionTests.agda` and
+`CompletionNativeTests.agda` with strict zero-finding audits and the same bounded
+wrapper. The [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t431-20261104.json)
+records exact sources, successful checks, universal counts and all-state
+occupancy certificates. T4.3.2 resource and representation results follow below.
+
+T4.3.2 adds `ClientBounds`, `ResourceBounds`, `QueueBudget`, `NodeQueueBounds`
+and `Representation` in the protocol layer, with `ResourceFixtures` and
+`ResourceNativeTests` under Replay. The seven modules pass safe checking and
+strict audits. Every fresh fixed-depth policy run has conservative live-resource
+envelopes; the full-pipe Quit witness needs one extra marker slot. Historical
+server deferred jobs remain unbounded, so depth cannot discharge their finite
+Int-range premise. Signed arrival-counter range remains a separate obligation.
+See the [resource-bounds note](../../../docs/notes/leiosnotify-pipe-lookahead-resource-bounds.md)
+and [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t432-20261104.json).
+
+## Runtime investigation
+
+The [completion-cost topic](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
+maintains T5.1.1 history counts, T5.1.2 quiet baseline profiles and T5.2.1 Nat
+heap/arithmetic diagnostics. T5.2.2's [runtime profiles](../../../docs/notes/leiosnotify-pipe-lookahead-progress.md#pinned-haskell-blocking-and-failure-experiments)
+cover blocking, injected failures and credit/queue accounting. The topics link
+committed records, reproduction commands and source pins, keeping runtime
+outcomes distinct from model guarantees. These finite fixtures do not establish a verified repair, full
+Haskell refinement or production-node severity.
+
+The [source audit](../../../docs/notes/leiosnotify-pipe-lookahead-source-audit.md#remaining-implementation-and-replay-obligations)
+collects the remaining runtime, representation and replay obligations. The
+[numbered plan](../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#t5-investigate-potential-implementation-problems)
+tracks continuation at T6.3.2. The source audit also holds the
+T5.3 classification and resource-candidate decision. Arbitrary-log lookahead checking remains T7;
+source bridges and controlled-schedule certificates do not supply that checker.
+
+The separate [CollectOne candidate design](../../../docs/specs/leiosnotify-collect-one-design.md)
+has compiled type/constructor feasibility and separate safe reference
+[Model/Contract](../../../docs/specs/leiosnotify-collect-one-design.md#t612-behavior-and-observation-contract)
+definitions. Their witness/guard root is
+[CollectOne/ContractTests.agda](../Replay/LeiosNotifyPipeLookahead/CollectOne/ContractTests.agda).
+[T6.2.1 preservation](../../../docs/specs/leiosnotify-collect-one-design.md#t621-finite-source-and-wire-preservation)
+now proves both finite local source-action and exact wire inclusions without
+extra premises. [T6.2.2 conditional resources/progress](../../../docs/specs/leiosnotify-collect-one-design.md#t622-conditional-resources-and-local-progress)
+now prove B+1 registered inventory, exact early/final collection accounting,
+shutdown safety, internal accessibility and finite local completion/operation
+bounds. [T6.2.2.3 paired-policy bounds](../../../docs/specs/leiosnotify-collect-one-design.md#t6223-paired-policy-resource-bounds)
+now discharge that premise for independent candidate driver/node rules. Every
+fresh candidate policy history has an exact baseline policy history, yielding
+≤1005 retained jobs/completions with no extra resource premise. Candidate native,
+converse paired and Haskell correspondence remain open.
+[T6.3.1 actual-driver comparison](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md#collectone-actual-driver-comparison)
+now passes 1224 fresh fixture processes, with matching behavior and lower
+retention/shutdown cost plus a small allocation increase. T6.3.2 patch review
+is next; these are controlled measurements, not a deployed-node result.

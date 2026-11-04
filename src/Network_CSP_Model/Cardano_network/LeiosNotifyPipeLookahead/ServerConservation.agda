@@ -5,10 +5,10 @@ module Cardano_network.LeiosNotifyPipeLookahead.ServerConservation
   (Notification : Set) where
 
 open import Data.List using (List; []; _∷_)
-open import Data.Nat using (ℕ; suc; _+_)
-open import Data.Nat.Properties using (+-assoc; +-identityʳ; +-suc)
+open import Data.Nat using (ℕ; suc; _+_; _≤_)
+open import Data.Nat.Properties using (+-assoc; +-identityʳ; +-suc; m≤m+n)
 open import Data.Bool using (true)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans; subst)
 open import Cardano_network.LeiosNotifyPipeLookahead.Model Notification
 
 -- Only RequestNext adds one unanswered request; Quit does not.
@@ -78,6 +78,11 @@ run-balance (visible {s = s} {t = t} {u = u} {a = a} {es = actions} step run) =
 initial-balance : ∀ {p actions t} → Run p initial actions t →
   requests actions ≡ replies actions + owed t
 initial-balance = run-balance
+
+-- A fresh server cannot emit more reply occurrences than it received requests.
+no-extra-replies : ∀ {p actions t} → Run p initial actions t → replies actions ≤ requests actions
+no-extra-replies {actions = actions} {t = t} run =
+  subst (replies actions ≤_) (sym (initial-balance run)) (m≤m+n (replies actions) (owed t))
 
 -- A genuinely closed server has discharged all requests; EOF alone is not this premise.
 closed-balance : ∀ {p actions} → Run p initial actions (state closed 0 idle 0 true) →

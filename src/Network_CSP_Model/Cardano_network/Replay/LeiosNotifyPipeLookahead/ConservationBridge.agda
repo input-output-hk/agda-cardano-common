@@ -29,14 +29,18 @@ module At (contract : S.Contract) (cl sl : Link) (cd sd : Dir) where
   -- Endpoint extraction retains every server wire record.
   module Endpoint = Projection.For contract
 
-  -- Actual native traces reconstruct matching records, exact FIFO balance and owed work.
-  conservation : ∀ {es P} → Tree.tree D.initial Native.Traces.⟹∖√⟨ es ⟩ P →
+  -- The result binds exact native observation and target to both conservation statements.
+  Accounted : List Native.LTS.Event → Native.Proc → Set₁
+  Accounted es P =
     Σ[ rows ∈ List D.Event ] Σ[ t ∈ D.State ] Σ[ actions ∈ List S.Action ]
       (Proof.Matches es rows × P ≡ Tree.tree t ×
        Transport.Balanced (Transport.observe rows Transport.empty) t ×
        S.Run contract S.initial actions (D.serverState t) ×
        mapMaybe Projection.serverWire actions ≡ Projection.serverRows rows ×
        Server.requests actions ≡ Server.replies actions + S.owed (D.serverState t))
+
+  -- Actual native traces reconstruct matching records, exact FIFO balance and owed work.
+  conservation : ∀ {es P} → Tree.tree D.initial Native.Traces.⟹∖√⟨ es ⟩ P → Accounted es P
   conservation trace with Proof.sound trace
   ... | rows , t , matching , source , same with Endpoint.server source
   ...   | actions , server , wire = rows , t , actions , matching , same ,

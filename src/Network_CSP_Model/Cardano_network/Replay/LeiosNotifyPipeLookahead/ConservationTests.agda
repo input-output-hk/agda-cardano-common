@@ -29,6 +29,11 @@ cancellation-accounted : Server.requests (S.recvRequest ∷ S.recvQuit ∷ S.sen
   Server.replies (S.recvRequest ∷ S.recvQuit ∷ S.sendReply S.canceled ∷ S.sendDone ∷ [])
 cancellation-accounted = Server.closed-balance ServerTests.canceled-drain
 
+-- The global accounting theorem excludes a reply with no preceding wire request.
+no-phantom-reply : ∀ {p t} → S.Run p S.initial (S.sendReply (S.normal true) ∷ []) t → ⊥
+no-phantom-reply run with Server.no-extra-replies run
+... | ()
+
 -- This reachable state has a recorded Receive and a still-pending client Send hook.
 race-state : D.State
 race-state = D.pair (C.client C.writingRequest C.awaiting [] [] 0 (+ 0) false nothing)
@@ -64,7 +69,9 @@ delayed-responses-settled = Transport.responses-settled DriverTests.delayed-send
 
 -- Reversing two different response payloads contradicts conservation even in a prefix.
 no-swapped-responses : ∀ {p t} → D.Run p D.initial
-  (D.serverSend (D.reply (S.normal true)) ∷ D.serverSend (D.reply (S.normal false)) ∷
+  (D.clientSend D.request ∷ D.serverRecv D.request ∷
+   D.clientSend D.request ∷ D.serverRecv D.request ∷
+   D.serverSend (D.reply (S.normal true)) ∷ D.serverSend (D.reply (S.normal false)) ∷
    D.clientRecv (D.reply (S.normal false)) ∷ D.clientRecv (D.reply (S.normal true)) ∷ []) t → ⊥
 no-swapped-responses run with Transport.to-client (Transport.initial-conservation run)
 ... | ()

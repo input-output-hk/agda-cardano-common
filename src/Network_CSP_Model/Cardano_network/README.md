@@ -83,6 +83,15 @@ include announcement metadata, sizes and ordered vote summaries. See the
 [exact paired bridge note](../../docs/notes/leiosnotify-exact-paired-bridge.md)
 for the concrete representation boundary and remaining Fetch obligations.
 
+The separate [LeiosNotifyPipeLookahead source model](LeiosNotifyPipeLookahead/README.md)
+follows the pinned pipelined client and concurrent lookahead server, with channel
+commits and driver records represented separately. Its
+[source audit](../../docs/notes/leiosnotify-pipe-lookahead-source-audit.md)
+records upstream revisions, contracts and remaining obligations;
+[completion-cost analysis](../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
+separates model counts from runtime measurements. Its bridges and controlled
+schedule certificates do not yet provide an arbitrary-log lookahead checker.
+
 ## Scenario / system — `FourNode/`
 
 | Module | Lines | Purpose |
