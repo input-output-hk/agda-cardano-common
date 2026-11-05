@@ -8397,3 +8397,1012 @@ module Protocols where
         Back.Backing Out.start Out.outbound28 outbound-events OA.child captured)
       outbound-derived-birth = CB.initialized-birth Out.outbound-initialized
         outbound-through-final-wait outbound-collected
+
+
+  -- Initializer scope and witnessed resource histories with enabled gaps.
+  module PreloadedAcquisitionForkControl where
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.Empty using (⊥)
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+    import ConnectionManagement.Rules.CMShutdown as Close
+    -- Direct model projection keeps the large birth proof out of this control.
+    controlPhysical : V.Runtime → B.State
+    controlPhysical s = N.W.physical (N.R.base (N.raw (S.base (E.base (K.server (V.base s))))))
+    preCaller preChild : WorkerId
+    preCaller = ident 10
+    preChild = ident 11
+    preSocket : SocketId
+    preSocket = ident 10
+    missingEntry : EntryId
+    missingEntry = ident 99
+    missingPromise : PromiseId
+    missingPromise = ident 88
+    preRequest : Acquire.Request
+    preRequest = Acquire.acquireRequest (remote A.key₀) preChild preSocket outbound nothing
+    preDescriptor : Shared.HandlerStart
+    preDescriptor = Shared.handlerStart missingEntry preSocket missingPromise A.key₀
+
+    -- Entry zero names the fresh child, but is NOT the descriptor's entry99.
+    -- All handler/socket/promise tables remain empty at initialization.
+    seededWorld : Shared.State
+    seededWorld = record F.empty
+      { cm = Shared.cmStore (Shared.full (Shared.insertConnection A.key₀ (ident 0) []))
+        ((ident 0 , Shared.unnegotiated inbound A.key₀ preChild) ∷ []) 1 }
+    seededCore : Machine.Configuration
+    seededCore = Machine.initial Shared.responderMode seededWorld
+    seededConfiguration : O.Configuration
+    seededConfiguration = record (O.initial seededCore)
+      { acquiring = (preCaller , Acquire.frame preRequest (Acquire.forkHandler missingEntry missingPromise A.key₀)) ∷ [] }
+
+    -- Flat physical adapter, source and context snapshots. The post-fork origin
+    -- and forkedBeforeHandoff region are actual dispatch effects, not assumptions.
+    renderPreloaded : B.State → Store WorkerId Provenance → Store WorkerId Cancel.Context → V.Runtime
+    renderPreloaded physical origins regions = V.runtime
+      (K.combined
+        (E.igExitState
+          (S.serverState
+            (F.wrap (P.protocolState (U.supervised physical origins []) [] [])) [] S.serving true)
+          E.emptyExit)
+        (record k0 { regions = regions })) V.empty
+    preloadedStart : V.Runtime
+    preloadedStart = renderPreloaded (B.supervised seededConfiguration [] Close.initialState) [] []
+    preloadedInitializer : V.initialize seededConfiguration L.settings ≡ just preloadedStart
+    preloadedInitializer = refl
+    preloadedForkEvent : V.Event
+    preloadedForkEvent = V.dispatch (K.coreStep (O.acquire preCaller Acquire.forkOK))
+    preloadedCallerAllowed : K.coreAllowed (O.acquire preCaller Acquire.forkOK) (V.base preloadedStart) ≡ true
+    preloadedCallerAllowed = refl
+    preloadedChildFresh : B.freshChild preChild (controlPhysical preloadedStart) ≡ true
+    preloadedChildFresh = refl
+
+    forkedWorld : Shared.State
+    forkedWorld = record seededWorld
+      { handlers = (preChild , preDescriptor) ∷ []
+      ; sockets = (preSocket , Shared.handling preChild) ∷ [] }
+    forkedConfiguration : O.Configuration
+    forkedConfiguration = record seededConfiguration
+      { core = Machine.replaceWorld seededCore forkedWorld
+      ; acquiring = (preCaller , Acquire.frame preRequest (Acquire.connectedCommit missingEntry missingPromise A.key₀)) ∷ [] }
+    preloadedForked : V.Runtime
+    preloadedForked = renderPreloaded
+      (B.supervised forkedConfiguration ((preChild , H.handlerThread preDescriptor H.maskedSetup) ∷ []) Close.initialState)
+      ((preChild , outbound) ∷ []) ((preCaller , Cancel.forkedBeforeHandoff) ∷ [])
+    preloadedActualFork : V.advance preloadedForkEvent preloadedStart ≡ just preloadedForked
+    preloadedActualFork = refl
+    abstract
+      preloadedForkRun : V.Runs preloadedStart (preloadedForkEvent ∷ []) preloadedForked
+      preloadedForkRun = V.more {a = preloadedForkEvent} preloadedActualFork V.stop
+    preloadedPhysicalDescriptor : lookup preChild (B.threads (controlPhysical preloadedForked)) ≡
+      just (H.handlerThread preDescriptor H.maskedSetup)
+    preloadedPhysicalDescriptor = refl
+    missingCapturedEntry : lookup missingEntry (Shared.entries (Shared.cm forkedWorld)) ≡ nothing
+    missingCapturedEntry = refl
+    preloadedResourcesImpossible : ResourceFacts.Facts preChild preDescriptor forkedWorld → ⊥
+    preloadedResourcesImpossible (_ , (_ , ()) , _)
+    missingCapturedPromise : missingPromise ∈ Shared.promises forkedWorld → ⊥
+    missingCapturedPromise ()
+    noPromiseAllocationInWorld : Shared.promises forkedWorld ≡ []
+    noPromiseAllocationInWorld = refl
+    socketCreatedAtActualFork : lookup preSocket (Shared.sockets forkedWorld) ≡ just (Shared.handling preChild)
+    socketCreatedAtActualFork = refl
+    differentEntryStillNamesPhysicalChild : lookup (ident 0) (Shared.entries (Shared.cm forkedWorld)) ≡
+      just (Shared.unnegotiated inbound A.key₀ preChild)
+    differentEntryStillNamesPhysicalChild = refl
+    forkHasNotCollected : Close.collected (B.shutdown (controlPhysical preloadedForked)) ≡ []
+    forkHasNotCollected = refl
+    missingEntryPreventsLowerCommit : O.advance (O.acquire preCaller Acquire.commitConnected) forkedConfiguration ≡ nothing
+    missingEntryPreventsLowerCommit = refl
+
+    -- The established O.initial-core profile erases this injected frame while
+    -- retaining exactly the same core heaps. Its immediate fork must be refused.
+    ordinaryConfiguration : O.Configuration
+    ordinaryConfiguration = O.initial seededCore
+    ordinaryStart : V.Runtime
+    ordinaryStart = renderPreloaded (B.supervised ordinaryConfiguration [] Close.initialState) [] []
+    ordinaryInitializer : V.initialize ordinaryConfiguration L.settings ≡ just ordinaryStart
+    ordinaryInitializer = refl
+    ordinaryImmediateForkRefused : V.advance preloadedForkEvent ordinaryStart ≡ nothing
+    ordinaryImmediateForkRefused = refl
+
+    -- No collected malformed-history suffix is asserted here.
+    -- Do not fake Server's closingCM stage. Missing entry99 also prevents the
+    -- normal captured-entry cleanup from completing; a closed-resource theorem
+    -- cannot be justified by pretending this malformed handler finishes cleanup.
+
+
+  module InboundTwoGapOriginChecks where
+    open import Relation.Binary.PropositionalEquality using (subst)
+    open import Data.List using (take)
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.List.Relation.Unary.Any using (here)
+    open import Data.Empty using (⊥)
+    import ConnectionManagement.Properties.ServerPeersHandlerResources as ResourceModel
+    import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    private
+      module Resource = ResourceModel.Frontend I.bearerClosed Prior.classify capability using (allocation-lower; core; event; fork-lower; selection-lower; shared)
+      module Old = HandlerResourceOriginChecks using (beforeAllocation; born-origin; forkPrefix; entryPrefix; initialized-entry)
+
+    gapPhysical : V.Runtime → B.State
+    gapPhysical s = N.W.physical (N.R.base (N.raw (S.base (E.base (K.server (V.base s))))))
+
+    -- Replace only the genuine shared source's IG runtime. Every surrounding
+    -- physical pool/handler/Server/peer/frontend field retains its old snapshot.
+    withInboundIG : IG.Runtime → V.Runtime → V.Runtime
+    withInboundIG governor state = V.runtime
+      (record (V.base state)
+        { server = K.setSource updated (K.server (V.base state)) }) (V.front state)
+      where
+      previous : O.Configuration
+      previous = K.source (V.base state)
+      updated : O.Configuration
+      updated = record previous { core = record (O.core previous) { inboundGovernor = governor } }
+    sampledIG : IG.Runtime
+    sampledIG = IG.runtimeState IG.emptyPublished 0 (IG.armInactivity 10)
+      (record IG.emptyEngine { lastTime = 10 })
+    registeredIG : IG.Runtime
+    registeredIG = IG.runtimeState IG.emptyPublished 1 (IG.awaitBatch 10 (ident 0))
+      (record IG.emptyEngine { lastTime = 10; timers = (ident 0 , ticking) ∷ [] })
+    gapAllocateEvent gapSelectEvent gapForkEvent clockGapEvent timerGapEvent : V.Event
+    gapAllocateEvent = Resource.event A.w₀ Admission.allocatePromise
+    gapSelectEvent = Resource.event A.w₀ Admission.chooseEntry
+    gapForkEvent = Resource.event A.w₀ Admission.fork
+    clockGapEvent = V.dispatch (K.serverStep (E.run (S.run (S.runMachine (Machine.igStep (IG.captureTime 10))))))
+    timerGapEvent = V.dispatch (K.serverStep (E.run (S.run (S.runMachine (Machine.igStep IG.registerInactivity)))))
+    gapAllocated gapAfterClock gapSelected gapBeforeFork gapBorn : V.Runtime
+    gapAllocated = wrap (base F.p3)
+    gapAfterClock = withInboundIG sampledIG (wrap (base F.p3))
+    gapSelected = withInboundIG sampledIG (wrap (base F.p4))
+    gapBeforeFork = withInboundIG registeredIG (wrap (base F.p4))
+    gapBorn = withInboundIG registeredIG (wrap (base F.p5))
+    gapAllocation : V.advance gapAllocateEvent (wrap (base F.p2)) ≡ just gapAllocated
+    gapAllocation = p5
+    clockBetweenAllocationAndSelection : V.advance clockGapEvent gapAllocated ≡ just gapAfterClock
+    clockBetweenAllocationAndSelection = refl
+    gapSelection : V.advance gapSelectEvent gapAfterClock ≡ just gapSelected
+    gapSelection = refl
+    timerBetweenSelectionAndFork : V.advance timerGapEvent gapSelected ≡ just gapBeforeFork
+    timerBetweenSelectionAndFork = refl
+    gapFork : V.advance gapForkEvent gapBeforeFork ≡ just gapBorn
+    gapFork = refl
+    allocationGap selectionGap : List V.Event
+    allocationGap = clockGapEvent ∷ []
+    selectionGap = timerGapEvent ∷ []
+    allocationGapNonempty : allocationGap ≡ [] → ⊥
+    allocationGapNonempty ()
+    selectionGapNonempty : selectionGap ≡ [] → ⊥
+    selectionGapNonempty ()
+    abstract
+      actualAllocationGap : V.Runs gapAllocated allocationGap gapAfterClock
+      actualAllocationGap = V.more {a = clockGapEvent} clockBetweenAllocationAndSelection V.stop
+      actualSelectionGap : V.Runs gapSelected selectionGap gapBeforeFork
+      actualSelectionGap = V.more {a = timerGapEvent} timerBetweenSelectionAndFork V.stop
+    twoGapEvents : List V.Event
+    twoGapEvents = take 4 prefixActions ++
+      (gapAllocateEvent ∷ clockGapEvent ∷ gapSelectEvent ∷ timerGapEvent ∷ gapForkEvent ∷ [])
+    abstract
+      initializedTwoGapRun : V.Runs initial twoGapEvents gapBorn
+      initializedTwoGapRun = Facts.append-protocols Old.beforeAllocation
+        (V.more {a = gapAllocateEvent} gapAllocation
+          (V.more {a = clockGapEvent} clockBetweenAllocationAndSelection
+            (V.more {a = gapSelectEvent} gapSelection
+              (V.more {a = timerGapEvent} timerBetweenSelectionAndFork
+                (V.more {a = gapForkEvent} gapFork V.stop)))))
+    twoGapPhysicalCapture : lookup A.child₀ (B.threads (gapPhysical gapBorn)) ≡
+      just (H.handlerThread I.captured H.maskedSetup)
+    twoGapPhysicalCapture = refl
+    twoGapPromise : Shared.handlerPromise I.captured ∈ Shared.promises (Resource.shared gapAllocated)
+    twoGapPromise = here refl
+    twoGapResources : ResourceFacts.Facts A.child₀ I.captured (Resource.shared gapBorn)
+    twoGapResources = refl , (Shared.unnegotiated inbound A.key₀ A.child₀ , refl) , (Shared.handling A.child₀ , refl)
+    derivedAllocationAcrossProfile : Machine.advance (Machine.admissionStep A.w₀ Admission.allocatePromise)
+      (Resource.core (wrap (base F.p2))) ≡ just (Resource.core gapAllocated)
+    derivedAllocationAcrossProfile = Resource.allocation-lower A.w₀ (wrap (base F.p2)) gapAllocation
+    derivedSelectionAfterFirstGap : Machine.advance (Machine.admissionStep A.w₀ Admission.chooseEntry)
+      (Resource.core gapAfterClock) ≡ just (Resource.core gapSelected)
+    derivedSelectionAfterFirstGap = Resource.selection-lower A.w₀ gapAfterClock gapSelection
+    derivedForkAfterSecondGap : Machine.advance (Machine.admissionStep A.w₀ Admission.fork)
+      (Resource.core gapBeforeFork) ≡ just (Resource.core gapBorn)
+    derivedForkAfterSecondGap = Resource.fork-lower A.w₀ gapBeforeFork gapFork
+
+    -- Neither action accepts a supplied promise/entry argument. A mismatch is
+    -- therefore a REFUTED DESCRIPTOR/CERTIFICATE, not a new runtime refusal.
+    mismatchedPromiseDescriptor : lookup A.child₀ (Shared.handlers (Resource.shared gapBorn)) ≡
+      just (Shared.handlerStart (ident 0) (ident 0) (ident 88) A.key₀) → ⊥
+    mismatchedPromiseDescriptor ()
+    mismatchedEntryDescriptor : lookup A.child₀ (Shared.handlers (Resource.shared gapBorn)) ≡
+      just (Shared.handlerStart (ident 99) (ident 0) (ident 0) A.key₀) → ⊥
+    mismatchedEntryDescriptor ()
+    mismatchedPromiseSelectionPC : lookup A.w₀ (Shared.admissions (Resource.shared gapAfterClock)) ≡
+      just (Shared.admissionWorker F.r₀ (Shared.selectEntry (Shared.lease A.w₀ []) (ident 88))) → ⊥
+    mismatchedPromiseSelectionPC ()
+    mismatchedDerivedEntryPC : lookup A.w₀ (Shared.admissions (Resource.shared gapSelected)) ≡
+      just (Shared.admissionWorker F.r₀ (Shared.forkHandler (Shared.lease A.w₀ []) (ident 0) (ident 99))) → ⊥
+    mismatchedDerivedEntryPC ()
+    actualSelectedEntry : lookup (ident 0) (Shared.entries (Shared.cm (Resource.shared gapSelected))) ≡
+      just (Shared.unnegotiated inbound A.key₀ A.child₀)
+    actualSelectedEntry = refl
+    unselectedEntryAbsent : lookup (ident 99) (Shared.entries (Shared.cm (Resource.shared gapSelected))) ≡ nothing
+    unselectedEntryAbsent = refl
+
+    -- Empty-gap compatibility retains the existing adjacent origin API.
+    emptyAllocationGap : V.Runs (wrap (base F.p3)) [] (wrap (base F.p3))
+    emptyAllocationGap = V.stop
+    emptySelectionGap : V.Runs (wrap (base F.p4)) [] (wrap (base F.p4))
+    emptySelectionGap = V.stop
+    abstract
+      oldAdjacentBirthRun : V.Runs initial (take 7 prefixActions) (wrap (base F.p5))
+      oldAdjacentBirthRun = Old.forkPrefix
+
+
+    import ConnectionManagement.Properties.HandlerOriginHistory as GapModel
+    import ConnectionManagement.Properties.ServerPeersHandlerResources as OldResourceModel
+    private
+      module Gaps = GapModel.Frontend I.bearerClosed Prior.classify capability using (History; initialize-history; empty-gaps-origin; extend-history; events; execution)
+      module OldResource = OldResourceModel.Frontend I.bearerClosed Prior.classify capability using (Origin)
+    abstract
+      initializedTwoGapOrigin : Gaps.History initial gapBorn A.child₀
+      initializedTwoGapOrigin = Gaps.initialize-history A.w₀ F.r₀ (Shared.lease A.w₀ []) (ident 0)
+        initializer Old.beforeAllocation refl gapAllocation
+        actualAllocationGap refl gapSelection refl actualSelectionGap refl gapFork V.stop
+      -- Keep empty-history construction and its projection equalities in this
+      -- SAME abstract block. Passing refl outside would unfold an opaque value.
+      emptyGapOrigin : Gaps.History initial (wrap (base F.p5)) A.child₀
+      emptyGapOrigin = Gaps.initialize-history A.w₀ F.r₀ (Shared.lease A.w₀ []) (ident 0)
+        initializer Old.beforeAllocation refl p5
+        emptyAllocationGap refl p6 refl emptySelectionGap refl p7 V.stop
+      emptyGapOldOrigin : OldResource.Origin initial (wrap (base F.p5)) A.child₀
+      emptyGapOldOrigin = Gaps.empty-gaps-origin emptyGapOrigin refl refl
+
+      birthAllocationGap : Gaps.History.allocationGap initializedTwoGapOrigin ≡ allocationGap
+      birthAllocationGap = refl
+      birthForkGap : Gaps.History.forkGap initializedTwoGapOrigin ≡ selectionGap
+      birthForkGap = refl
+      birthDescriptor : Gaps.History.captured initializedTwoGapOrigin ≡ I.captured
+      birthDescriptor = refl
+
+    open import Data.List using (take; drop)
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as JoinModel
+    import ConnectionManagement.Rules.CMShutdown as Close
+    private
+      module Joins = JoinModel.Frontend I.bearerClosed Prior.classify capability using (physical; handler-event; server-runs)
+      module OldOrigin = HandlerResourceOriginChecks using (entryPrefix; initialized-entry; forkPrefix)
+      module Wait = CMResultLifecycleChecks using (actual-wait-prefix; waitPrefix)
+      module D = Reactivation.Shutdown using (cmEntry; handler10; finalCM; handlerFinishEdge10; handlerFinishEdge11)
+      module W = N.W using (shutdownStep)
+    -- Remove only the already checked prefix from the opaque initialized run.
+    private module Drop = ResourceModel.Frontend I.bearerClosed Prior.classify capability using (discard-prefix)
+
+    -- Preserve the complete current engine. Overwriting it with registeredIG's
+    -- empty engine after U.allocateHandle would erase the freshly installed mux.
+    overlayEarlyTimer : V.Runtime → V.Runtime
+    overlayEarlyTimer state = withInboundIG (record current
+      { nextTimer = 1
+      ; continuation = IG.awaitBatch 10 (ident 0)
+      ; execution = record (IG.execution current)
+        { lastTime = 10; timers = (ident 0 , ticking) ∷ [] } }) state
+      where
+      current : IG.Runtime
+      current = Machine.inboundGovernor (O.core (K.source (V.base state)))
+    earlyTimerAtBirth : overlayEarlyTimer (wrap (base F.p5)) ≡ gapBorn
+    earlyTimerAtBirth = refl
+    earlyTimerRejoin : overlayEarlyTimer (wrap X.admitted) ≡ wrap X.g2
+    earlyTimerRejoin = refl
+
+
+    early8 : V.advance (V.dispatch (K.serverStep (E.run (admit A.w₀ Admission.putMapBack)))) gapBorn ≡ just (overlayEarlyTimer (wrap (base F.p6)))
+    early8 = refl
+    early9 : V.advance (V.dispatch (K.serverStep (E.run (admit A.w₀ Admission.readCounters)))) (overlayEarlyTimer (wrap (base F.p6))) ≡ just (overlayEarlyTimer (wrap (base F.p7)))
+    early9 = refl
+    early10 : V.advance (V.dispatch (K.serverStep (E.run (handler (H.enterHandshake A.child₀))))) (overlayEarlyTimer (wrap (base F.p7))) ≡ just (overlayEarlyTimer (wrap (base F.s1)))
+    early10 = refl
+    early11 : V.advance (V.dispatch (K.serverStep (E.run (mux (U.negotiate A.child₀ I.ps duplex))))) (overlayEarlyTimer (wrap (base F.s1))) ≡ just (overlayEarlyTimer (wrap (base F.s2)))
+    early11 = refl
+    early12 : V.advance (V.dispatch (K.serverStep (E.run (mux (U.allocateHandle A.child₀ (ident 0) (ident 0)))))) (overlayEarlyTimer (wrap (base F.s2))) ≡ just (overlayEarlyTimer (wrap (base F.s3)))
+    early12 = refl
+    early13 : V.advance (V.dispatch (K.serverStep (E.run (mux (U.publishSuccess A.child₀))))) (overlayEarlyTimer (wrap (base F.s3))) ≡ just (overlayEarlyTimer (wrap (base F.s4)))
+    early13 = refl
+    early14 : V.advance (V.dispatch (K.serverStep (E.run (consume Handshake.readResult)))) (overlayEarlyTimer (wrap (base F.s4))) ≡ just (overlayEarlyTimer (wrap (base F.s5)))
+    early14 = refl
+    early15 : V.advance (V.dispatch (K.serverStep (E.run (consume Handshake.commitResult)))) (overlayEarlyTimer (wrap (base F.s5))) ≡ just (overlayEarlyTimer (wrap (base F.s6)))
+    early15 = refl
+    early16 : V.advance (V.dispatch (K.serverStep (E.run (consume Handshake.readResultCounters)))) (overlayEarlyTimer (wrap (base F.s6))) ≡ just (overlayEarlyTimer (wrap (base F.s7)))
+    early16 = refl
+    early17 : V.advance (V.dispatch (K.serverStep (E.run (consume Handshake.enqueueInbound)))) (overlayEarlyTimer (wrap (base F.s7))) ≡ just (overlayEarlyTimer (wrap (base F.s8)))
+    early17 = refl
+    early18 : V.advance (V.dispatch (K.serverStep (E.run (consume Handshake.returnResult)))) (overlayEarlyTimer (wrap (base F.s8))) ≡ just (overlayEarlyTimer (wrap (base F.s9)))
+    early18 = refl
+    early19 : V.advance (V.dispatch (K.serverStep (E.run (S.workerReturned A.w₀)))) (overlayEarlyTimer (wrap (base F.s9))) ≡ just (overlayEarlyTimer (wrap (base F.s10)))
+    early19 = refl
+    early20 : V.advance (V.dispatch (K.serverStep (E.run (S.workerResult A.w₀)))) (overlayEarlyTimer (wrap (base F.s10))) ≡ just (wrap X.g2)
+    early20 = refl
+
+    earlyBridgeEvents : List V.Event
+    earlyBridgeEvents = take 13 (drop 7 prefixActions)
+    abstract
+      earlyBridge : V.Runs gapBorn earlyBridgeEvents (wrap X.g2)
+      earlyBridge = V.more early8 (V.more early9 (V.more early10 (V.more early11 (V.more early12 (V.more early13 (V.more early14 (V.more early15 (V.more early16 (V.more early17 (V.more early18 (V.more early19 (V.more early20 (V.stop)))))))))))))
+
+    -- Old p21/p22 are already realized in the earlier two origin gaps. Use them
+    -- ONLY to peel the old opaque initialized-entry trace, not in earlyBridge.
+    oldPrefix22Events : List V.Event
+    oldPrefix22Events = take 22 OldOrigin.entryPrefix
+    abstract
+      oldPrefix22 : V.Runs initial oldPrefix22Events (wrap X.g2)
+      oldPrefix22 = V.more p1 (V.more p2 (V.more p3 (V.more p4 (V.more p5 (V.more p6 (V.more p7 (V.more p8 (V.more p9 (V.more p10 (V.more p11 (V.more p12 (V.more p13 (V.more p14 (V.more p15 (V.more p16 (V.more p17 (V.more p18 (V.more p19 (V.more p20 (V.more p21 (V.more p22 (V.stop))))))))))))))))))))))
+      joinedToCMEntry : V.Runs (wrap X.g2) (drop 22 OldOrigin.entryPrefix) D.cmEntry
+      joinedToCMEntry = Drop.discard-prefix {suffix = drop 22 OldOrigin.entryPrefix} oldPrefix22 OldOrigin.initialized-entry
+      gapBirthToCMEntry : V.Runs gapBorn (earlyBridgeEvents ++ drop 22 OldOrigin.entryPrefix) D.cmEntry
+      gapBirthToCMEntry = Facts.append-protocols earlyBridge joinedToCMEntry
+
+    -- Apply to the SAME nonempty-gap History, not a fresh empty-gap occurrence.
+    abstract
+      nonemptyHistoryAtCMEntry : Gaps.History initial D.cmEntry A.child₀
+      nonemptyHistoryAtCMEntry = Gaps.extend-history gapBirthToCMEntry initializedTwoGapOrigin
+      nonemptyHistoryAtPublication : Gaps.History initial D.handler10 A.child₀
+      nonemptyHistoryAtPublication = Gaps.extend-history (Joins.server-runs Wait.actual-wait-prefix) nonemptyHistoryAtCMEntry
+      nonemptyHistoryAtFinalWait : Gaps.History initial D.finalCM A.child₀
+      nonemptyHistoryAtFinalWait = Gaps.extend-history
+        (V.more {a = Joins.handler-event (W.shutdownStep Close.finishClose)} D.handlerFinishEdge11 V.stop)
+        nonemptyHistoryAtPublication
+      -- These resource facts retain exactly the History's original descriptor.
+      nonemptyResourcesAtPublication : ResourceFacts.Facts A.child₀
+        (Gaps.History.captured nonemptyHistoryAtPublication) (Resource.shared D.handler10)
+      nonemptyResourcesAtPublication = Gaps.History.retained nonemptyHistoryAtPublication
+      nonemptyResourcesAtFinalWait : ResourceFacts.Facts A.child₀
+        (Gaps.History.captured nonemptyHistoryAtFinalWait) (Resource.shared D.finalCM)
+      nonemptyResourcesAtFinalWait = Gaps.History.retained nonemptyHistoryAtFinalWait
+
+      finalAllocationGap : Gaps.History.allocationGap nonemptyHistoryAtFinalWait ≡ allocationGap
+      finalAllocationGap = birthAllocationGap
+      finalForkGap : Gaps.History.forkGap nonemptyHistoryAtFinalWait ≡ selectionGap
+      finalForkGap = birthForkGap
+      finalDescriptor : Gaps.History.captured nonemptyHistoryAtFinalWait ≡ I.captured
+      finalDescriptor = birthDescriptor
+      publicationDescriptor : Gaps.History.captured nonemptyHistoryAtPublication ≡ I.captured
+      publicationDescriptor = birthDescriptor
+      fixedResourcesAtPublication : ResourceFacts.Facts A.child₀ I.captured (Resource.shared D.handler10)
+      fixedResourcesAtPublication = subst (λ captured → ResourceFacts.Facts A.child₀ captured (Resource.shared D.handler10))
+        publicationDescriptor nonemptyResourcesAtPublication
+      fixedResourcesAtFinalWait : ResourceFacts.Facts A.child₀ I.captured (Resource.shared D.finalCM)
+      fixedResourcesAtFinalWait = subst (λ captured → ResourceFacts.Facts A.child₀ captured (Resource.shared D.finalCM))
+        finalDescriptor nonemptyResourcesAtFinalWait
+
+    import ConnectionManagement.Properties.CollectedHandlerBirth as CollectedBirth
+    import ConnectionManagement.Properties.HandlerBirthBacking as BirthBacking
+    open import Data.Product using (Σ)
+    open import Relation.Binary.PropositionalEquality using (sym)
+    private
+      module Collected = CollectedBirth.Frontend I.bearerClosed Prior.classify capability using (initialized-birth; initialized-member)
+      module Back = BirthBacking.Frontend I.bearerClosed Prior.classify capability using (Backing; capture-of-found; physical-state)
+    finalGapWorkerCollected : A.child₀ ∈ Close.collected (N.W.shutdown (N.R.base (N.raw (S.base (E.base (K.server (V.base D.finalCM)))))))
+    finalGapWorkerCollected = here refl
+    finalPhysicalDescriptor : lookup A.child₀ (B.threads (Back.physical-state D.finalCM)) ≡ just (H.handlerThread I.captured H.handshaking)
+    finalPhysicalDescriptor = refl
+    abstract
+      gapCollectedBirth : Σ Shared.HandlerStart (λ captured → Back.Backing initial D.finalCM (Gaps.events nonemptyHistoryAtFinalWait) A.child₀ captured)
+      gapCollectedBirth = Collected.initialized-birth initializer (Gaps.execution nonemptyHistoryAtFinalWait) finalGapWorkerCollected
+      gapCollectedPhysical : Σ H.Thread (λ thread → lookup A.child₀ (B.threads (Back.physical-state D.finalCM)) ≡ just thread)
+      gapCollectedPhysical = Collected.initialized-member initializer (Gaps.execution nonemptyHistoryAtFinalWait) finalGapWorkerCollected
+      gapCollectedDescriptor : proj₁ gapCollectedBirth ≡ I.captured
+      gapCollectedDescriptor = sym (Back.capture-of-found (proj₂ gapCollectedBirth) finalPhysicalDescriptor)
+
+
+  -- Recover the actual nonempty-gap origin automatically, then extend the SAME
+  -- reconstructed occurrence through handler publication and CM's final wait.
+  module AutomaticInboundWaitChecks where
+    open import Data.List using (take; drop)
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.Product using (Σ)
+    open import Data.Maybe.Properties using (just-injective)
+    open import Relation.Binary.PropositionalEquality using (sym; cong; subst; trans)
+    import ConnectionManagement.Properties.InboundOriginResources as AutoModel
+    import ConnectionManagement.Properties.InboundOriginRuntime as RuntimeModel
+    import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as JoinModel
+    import ConnectionManagement.Properties.CollectedHandlerBirth as CollectedModel
+    import ConnectionManagement.Properties.HandlerBirthBacking as BackModel
+    import ConnectionManagement.Rules.CMShutdown as Close
+    private
+      module Auto = AutoModel.Frontend I.bearerClosed Prior.classify capability using (RecoveredOrigin; initialize-origin; extend-origin; events; execution; canonicalFork; shared)
+      module Located = RuntimeModel.Frontend.Located I.bearerClosed Prior.classify capability using (ForkOrigin)
+      module FOrigin = RuntimeModel.Frontend.Located.ForkOrigin I.bearerClosed Prior.classify capability using (request; selection)
+      module Selected = RuntimeModel.Frontend.Located.History.SelectedOrigin I.bearerClosed Prior.classify capability using (current-PC; decomposition; prefix; allocationLabel; allocationGap; selectionLabel; forkGap)
+      module Rcv = Auto.RecoveredOrigin using (reconstructed; captured; at-birth; current-facts)
+      module GapCases = InboundTwoGapOriginChecks using (gapAllocateEvent; gapSelectEvent; gapForkEvent; gapAllocated; gapAfterClock; gapSelected; gapBeforeFork; gapBorn; gapAllocation; gapSelection; gapFork; allocationGap; selectionGap; actualAllocationGap; actualSelectionGap; gapBirthToCMEntry; earlyBridgeEvents; finalGapWorkerCollected; finalPhysicalDescriptor)
+      module Old = HandlerResourceOriginChecks using (beforeAllocation; entryPrefix)
+      module Joins = JoinModel.Frontend I.bearerClosed Prior.classify capability using (handler-event; server-event; server-runs)
+      module Wait = CMResultLifecycleChecks using (actual-wait-prefix; waitPrefix)
+      module D = Reactivation.Shutdown using (cmEntry; handler10; finalCM; handlerFinishEdge11)
+      module W = N.W using (shutdownStep)
+      module Collected = CollectedModel.Frontend I.bearerClosed Prior.classify capability using (initialized-birth)
+      module Back = BackModel.Frontend I.bearerClosed Prior.classify capability using (Backing; capture-of-found)
+
+    inputConfig : O.Configuration
+    inputConfig = O.initial (Machine.initial Shared.responderMode F.empty)
+    -- These are the exact old prefix and two genuine gaps, stopping just before
+    -- the fork. No allocation/selection labels or gaps are rebuilt by discovery.
+    beforeForkEvents : List V.Event
+    beforeForkEvents = take 4 prefixActions ++
+      (GapCases.gapAllocateEvent ∷ (GapCases.allocationGap ++ (GapCases.gapSelectEvent ∷ GapCases.selectionGap)))
+    abstract
+      actualBeforeFork : V.Runs initial beforeForkEvents GapCases.gapBeforeFork
+      actualBeforeFork = Facts.append-protocols Old.beforeAllocation
+        (V.more {a = GapCases.gapAllocateEvent} GapCases.gapAllocation
+          (Facts.append-protocols GapCases.actualAllocationGap
+            (V.more {a = GapCases.gapSelectEvent} GapCases.gapSelection GapCases.actualSelectionGap)))
+
+    entrySuffix publicationSuffix finalSuffix : List V.Event
+    entrySuffix = GapCases.earlyBridgeEvents ++ drop 22 Old.entryPrefix
+    publicationSuffix = entrySuffix ++ map Joins.server-event Wait.waitPrefix
+    finalSuffix = publicationSuffix ++
+      (Joins.handler-event (W.shutdownStep Close.finishClose) ∷ [])
+    OriginAt : List V.Event → V.Runtime → Set
+    OriginAt suffix current = Auto.RecoveredOrigin inputConfig L.settings initial beforeForkEvents
+      GapCases.gapBeforeFork GapCases.gapBorn A.w₀ GapCases.gapForkEvent suffix current
+
+    -- The dependent decomposition proof must be transported when its packet
+    -- changes syntactically, even though extension preserves the whole packet.
+    Decomposition : Located.ForkOrigin initial beforeForkEvents GapCases.gapBeforeFork GapCases.gapBorn A.w₀ GapCases.gapForkEvent → Set
+    Decomposition recovered = beforeForkEvents ≡
+      Selected.prefix (FOrigin.selection recovered) ++
+      (Selected.allocationLabel (FOrigin.selection recovered) ∷
+        (Selected.allocationGap (FOrigin.selection recovered) ++
+          (Selected.selectionLabel (FOrigin.selection recovered) ∷ Selected.forkGap (FOrigin.selection recovered))))
+
+    decomposition-preserved :
+      (first second : Located.ForkOrigin initial beforeForkEvents GapCases.gapBeforeFork GapCases.gapBorn A.w₀ GapCases.gapForkEvent) →
+      (same : second ≡ first) →
+      subst Decomposition (sym same) (Selected.decomposition (FOrigin.selection first)) ≡
+      Selected.decomposition (FOrigin.selection second)
+    decomposition-preserved first .first refl = refl
+
+    abstract
+      automaticAtBirth : OriginAt [] GapCases.gapBorn
+      automaticAtBirth = Auto.initialize-origin inputConfig L.settings initializer actualBeforeFork
+        Auto.canonicalFork GapCases.gapFork V.stop
+      automaticAtCMEntry : OriginAt entrySuffix D.cmEntry
+      automaticAtCMEntry = Auto.extend-origin GapCases.gapBirthToCMEntry automaticAtBirth
+      automaticAtPublication : OriginAt publicationSuffix D.handler10
+      automaticAtPublication = Auto.extend-origin (Joins.server-runs Wait.actual-wait-prefix) automaticAtCMEntry
+      automaticAtFinalWait : OriginAt finalSuffix D.finalCM
+      automaticAtFinalWait = Auto.extend-origin
+        (V.more {a = Joins.handler-event (W.shutdownStep Close.finishClose)} D.handlerFinishEdge11 V.stop)
+        automaticAtPublication
+
+      -- Extension copies the whole automatically reconstructed packet, which
+      -- includes its exact original observed-label decomposition and both gaps.
+      sameReconstructionAtPublication : Rcv.reconstructed automaticAtPublication ≡ Rcv.reconstructed automaticAtBirth
+      sameReconstructionAtPublication = refl
+      sameReconstructionAtFinalWait : Rcv.reconstructed automaticAtFinalWait ≡ Rcv.reconstructed automaticAtBirth
+      sameReconstructionAtFinalWait = refl
+      sameCaptureAtPublication : Rcv.captured automaticAtPublication ≡ Rcv.captured automaticAtBirth
+      sameCaptureAtPublication = refl
+      sameCaptureAtFinalWait : Rcv.captured automaticAtFinalWait ≡ Rcv.captured automaticAtBirth
+      sameCaptureAtFinalWait = refl
+    -- Keep the reconstructed origin opaque here. Use the proved projection
+    -- equalities instead of reducing the complete initialized occurrence again.
+    retainedOriginalDecomposition :
+      subst Decomposition (sym sameReconstructionAtFinalWait)
+        (Selected.decomposition (FOrigin.selection (Rcv.reconstructed automaticAtBirth))) ≡
+      Selected.decomposition (FOrigin.selection (Rcv.reconstructed automaticAtFinalWait))
+    retainedOriginalDecomposition = decomposition-preserved
+      (Rcv.reconstructed automaticAtBirth) (Rcv.reconstructed automaticAtFinalWait) sameReconstructionAtFinalWait
+    originalObservedLabels : Auto.events automaticAtFinalWait ≡ beforeForkEvents ++ (GapCases.gapForkEvent ∷ finalSuffix)
+    originalObservedLabels = refl
+
+    -- Identify the fixture only from the recovered terminal PC and logical
+    -- handler fact. No resource/physical-lookup premise enters initialize-origin.
+    recoveredRequest : FOrigin.request (Rcv.reconstructed automaticAtBirth) ≡ F.r₀
+    recoveredRequest = sym (cong Shared.request
+      (just-injective (Selected.current-PC (FOrigin.selection (Rcv.reconstructed automaticAtBirth)))))
+    recoveredChild : Shared.child (FOrigin.request (Rcv.reconstructed automaticAtBirth)) ≡ A.child₀
+    recoveredChild = cong Shared.child recoveredRequest
+    automaticLogicalAtBirth : ResourceFacts.Facts A.child₀ (Rcv.captured automaticAtBirth) (Auto.shared GapCases.gapBorn)
+    automaticLogicalAtBirth = subst
+      (λ worker → ResourceFacts.Facts worker (Rcv.captured automaticAtBirth) (Auto.shared GapCases.gapBorn))
+      recoveredChild (Rcv.at-birth automaticAtBirth)
+    recoveredDescriptor : Rcv.captured automaticAtBirth ≡ I.captured
+    recoveredDescriptor = sym (just-injective (proj₁ automaticLogicalAtBirth))
+    automaticLogicalAtPublication : ResourceFacts.Facts A.child₀ (Rcv.captured automaticAtBirth) (Auto.shared D.handler10)
+    automaticLogicalAtPublication = subst
+      (λ captured → ResourceFacts.Facts A.child₀ captured (Auto.shared D.handler10)) sameCaptureAtPublication
+      (subst (λ worker → ResourceFacts.Facts worker (Rcv.captured automaticAtPublication) (Auto.shared D.handler10))
+        (trans (cong (λ packet → Shared.child (FOrigin.request packet)) sameReconstructionAtPublication) recoveredChild)
+        (Rcv.current-facts automaticAtPublication))
+    automaticLogicalAtFinalWait : ResourceFacts.Facts A.child₀ (Rcv.captured automaticAtBirth) (Auto.shared D.finalCM)
+    automaticLogicalAtFinalWait = subst
+      (λ captured → ResourceFacts.Facts A.child₀ captured (Auto.shared D.finalCM)) sameCaptureAtFinalWait
+      (subst (λ worker → ResourceFacts.Facts worker (Rcv.captured automaticAtFinalWait) (Auto.shared D.finalCM))
+        (trans (cong (λ packet → Shared.child (FOrigin.request packet)) sameReconstructionAtFinalWait) recoveredChild)
+        (Rcv.current-facts automaticAtFinalWait))
+    fixedResourcesAtPublication : ResourceFacts.Facts A.child₀ I.captured (Auto.shared D.handler10)
+    fixedResourcesAtPublication = subst
+      (λ captured → ResourceFacts.Facts A.child₀ captured (Auto.shared D.handler10))
+      recoveredDescriptor automaticLogicalAtPublication
+    fixedResourcesAtFinalWait : ResourceFacts.Facts A.child₀ I.captured (Auto.shared D.finalCM)
+    fixedResourcesAtFinalWait = subst
+      (λ captured → ResourceFacts.Facts A.child₀ captured (Auto.shared D.finalCM))
+      recoveredDescriptor automaticLogicalAtFinalWait
+
+    -- Feed the exact automatic packet's execution into the existing closed
+    -- collected-birth theorem; its physical membership remains derived there.
+    automaticCollectedBirth : Σ Shared.HandlerStart (λ captured →
+      Back.Backing initial D.finalCM (Auto.events automaticAtFinalWait) A.child₀ captured)
+    automaticCollectedBirth = Collected.initialized-birth initializer
+      (Auto.execution automaticAtFinalWait) GapCases.finalGapWorkerCollected
+    automaticCollectedDescriptor : proj₁ automaticCollectedBirth ≡ I.captured
+    automaticCollectedDescriptor = sym (Back.capture-of-found (proj₂ automaticCollectedBirth) GapCases.finalPhysicalDescriptor)
+
+
+-- Independent initialized controls and automatic origin applications.
+module AutomaticInboundChecks where
+  open import Data.Bool using (Bool; true; false)
+  open import Data.Nat using (ℕ)
+  open import Data.List using (List; []; _∷_; _++_; take)
+  open import Data.Maybe using (just; nothing)
+  open import Data.Maybe.Properties using (just-injective)
+  open import Data.Product using (_,_; proj₁)
+  open import Data.Empty using (⊥)
+  open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
+  open import ConnectionManagement.Domain hiding (worker; local; mux; job)
+  open import ConnectionManagement.Store using (Store; lookup; put)
+  open import ConnectionManagement.Properties.HandlerResourceFacts using (Facts)
+  import ConnectionManagement.Properties.InboundOriginResources as Automatic
+  import ConnectionManagement.Properties.InboundOriginRuntime as AutoRuntime
+  import ConnectionManagement.State as Shared
+  import ConnectionManagement.Machine as Machine
+  import ConnectionManagement.OutboundMachine as O
+  import ConnectionManagement.ServerAdmission as Server
+  import ConnectionManagement.ServerIGExit as Exit
+  import ConnectionManagement.ServerPeers as Combined
+  import ConnectionManagement.PeerSupervision as Supervision
+  import ConnectionManagement.PeerContext as Context
+  import ConnectionManagement.Rules.Server as Admission
+  import ConnectionManagement.Rules.Handshake as Handshake
+  import ConnectionManagement.Rules.IGRegistration as IG
+  import ConnectionManagement.Rules.OutboundGovernor as Governor
+  import ConnectionManagement.Subsystem as Sub
+  import ConnectionManagement.HandlerSupervision as H
+  import ConnectionManagement.OutboundHandlerSupervision as B
+  import ConnectionManagement.MuxPublicationUnwind as Publication
+  import ConnectionManagement.MuxProtocolJobs as ProtocolModel
+  import ConnectionManagement.MuxHandlerSupervision as MuxModel
+  import ConnectionManagement.Rules.MuxJobTypes as Types
+  import ConnectionManagement.MuxCatchUnwind as CatchModel
+  import ConnectionManagement.MuxDeltaQ as DeltaModel
+  import ConnectionManagement.MuxStartupUnwind as UnwindModel
+  import ConnectionManagement.MuxExitCancellation as CancellationModel
+  import ConnectionManagement.MuxHandlerExit as ExitModel
+  import ConnectionManagement.MuxGroupShutdown as GroupModel
+  import ConnectionManagement.MuxResultMonitor as MonitorModel
+  import ConnectionManagement.GovernorPool as GovernorPoolModel
+  import ConnectionManagement.Scenarios.Admission as A
+  import ConnectionManagement.Negative.ServerAdmissionPrefixFixtures as DataFixtures
+  import ConnectionManagement.Negative.MuxPublicationInboundFixtures as I
+
+  classify : ErrorId → Bool
+  classify _ = false
+  capability : HandleId → ℕ → Bool
+  capability _ _ = false
+  private
+   module K = Combined I.bearerClosed classify using (combined; coreAllowed; coreStep; peerStep; server; serverStep; setSource; source)
+   module V = Combined.Protocols I.bearerClosed classify capability using (Event; Runs; Runtime; advance; base; dispatch; empty; front; initialize; more; physical; runtime; setPhysical; stop)
+   module S = Server I.bearerClosed using (Action; State; acceptedFork; async; base; calling; closeException; rawWorker; run; runMachine; runOutbound; setWorld; shared; source; workerException; workerResult; workerReturned; workers)
+   module E = Exit I.bearerClosed using (base; emptyExit; igExitState; run)
+   module PS = Supervision classify using (initial; run)
+   module GP = GovernorPoolModel classify using (run)
+   module C = Context classify using (Context; capture)
+   module N = Publication I.bearerClosed using (raw; run)
+   module Catch = CatchModel I.bearerClosed using (run)
+   module Delta = DeltaModel I.bearerClosed using (run)
+   module Unwind = UnwindModel I.bearerClosed using (base; run)
+   module X = CancellationModel I.bearerClosed using (run)
+   module W = ExitModel I.bearerClosed using (physical; run)
+   module G = GroupModel I.bearerClosed using (run)
+   module M = MonitorModel I.bearerClosed using (run)
+   module P = ProtocolModel using (base; run)
+   module U = MuxModel Types.TypedResult using (Action; allocateHandle; negotiate; origins; publishSuccess; run)
+   module F = DataFixtures 10 A.key₀ using (b1; b2; b3; b4; binding; empty; lease₁; live; one; p1; p2; p3; p4; p5; p6; p7; ps₀; r₀; r₁; s1; s10; s11; s2; s3; s4; s5; s6; s7; s8; s9; start; two; unneg)
+
+  settings : Governor.State
+  settings = Governor.governorState (Governor.targets 0 0 0) [] [] [] [] [] [] [] []
+  configuration : O.Configuration
+  configuration = O.initial (Machine.initial Shared.responderMode F.empty)
+  context : C.Context
+  context = C.capture (PS.initial configuration settings)
+  frontendAt : S.State → V.Runtime
+  frontendAt s = V.runtime (K.combined (E.igExitState s E.emptyExit) context) V.empty
+  start : V.Runtime
+  start = frontendAt F.start
+  initialized : V.initialize configuration settings ≡ just start
+  initialized = refl
+  canonical : WorkerId → Admission.AdmissionAction → V.Event
+  canonical w a = V.dispatch (K.serverStep (E.run (S.run (S.runMachine (Machine.admissionStep w a)))))
+  coreAlias : WorkerId → Admission.AdmissionAction → V.Event
+  coreAlias w a = V.dispatch (K.coreStep (O.inbound (Machine.admissionStep w a)))
+  serverEvent : S.Action → V.Event
+  serverEvent a = V.dispatch (K.serverStep (E.run a))
+  handlerEvent : H.Action → V.Event
+  handlerEvent a = serverEvent (S.run (N.run (Catch.run (Delta.run (Unwind.run (X.run
+   (W.run (G.run (M.run (P.run (U.run (B.handler a))))))))))))
+  muxEvent : U.Action → V.Event
+  muxEvent a = serverEvent (S.run (N.run (Catch.run (Delta.run (Unwind.run (X.run
+   (W.run (G.run (M.run (P.run a))))))))))
+  consumeEvent : Handshake.HandshakeAction → V.Event
+  consumeEvent a = serverEvent (S.run (S.runMachine (Machine.handshakeStep A.w₀ a)))
+  physicalAt : V.Runtime → B.State
+  physicalAt s = W.physical (Unwind.base (N.raw (S.base (E.base (K.server (V.base s))))))
+  append : ∀ {s as t bs u} → V.Runs s as t → V.Runs t bs u → V.Runs s (as ++ bs) u
+  append V.stop tail = tail
+  append (V.more actual rest) tail = V.more actual (append rest tail)
+
+  -- Same-key raw admissions are real accepted forks. Only the first acts here.
+
+  c1 : V.advance (serverEvent (S.acceptedFork A.w₀ F.r₀)) (start) ≡ just (frontendAt F.one)
+  c1 = refl
+  c2 : V.advance (serverEvent (S.acceptedFork A.w₁ F.r₁)) (frontendAt F.one) ≡ just (frontendAt F.two)
+  c2 = refl
+  c3 : V.advance (canonical A.w₀ Admission.take) (frontendAt F.two) ≡ just (frontendAt F.p1)
+  c3 = refl
+  c4 : V.advance (canonical A.w₀ Admission.countLimit) (frontendAt F.p1) ≡ just (frontendAt F.p2)
+  c4 = refl
+  c5 : V.advance (canonical A.w₀ Admission.allocatePromise) (frontendAt F.p2) ≡ just (frontendAt F.p3)
+  c5 = refl
+  c6 : V.advance (canonical A.w₀ Admission.chooseEntry) (frontendAt F.p3) ≡ just (frontendAt F.p4)
+  c6 = refl
+  c7 : V.advance (canonical A.w₀ Admission.fork) (frontendAt F.p4) ≡ just (frontendAt F.p5)
+  c7 = refl
+  c8 : V.advance (canonical A.w₀ Admission.putMapBack) (frontendAt F.p5) ≡ just (frontendAt F.p6)
+  c8 = refl
+  c9 : V.advance (canonical A.w₀ Admission.readCounters) (frontendAt F.p6) ≡ just (frontendAt F.p7)
+  c9 = refl
+  c10 : V.advance (handlerEvent (H.enterHandshake A.child₀)) (frontendAt F.p7) ≡ just (frontendAt F.s1)
+  c10 = refl
+  c11 : V.advance (muxEvent (U.negotiate A.child₀ I.ps duplex)) (frontendAt F.s1) ≡ just (frontendAt F.s2)
+  c11 = refl
+  c12 : V.advance (muxEvent (U.allocateHandle A.child₀ (ident 0) (ident 0))) (frontendAt F.s2) ≡ just (frontendAt F.s3)
+  c12 = refl
+  c13 : V.advance (muxEvent (U.publishSuccess A.child₀)) (frontendAt F.s3) ≡ just (frontendAt F.s4)
+  c13 = refl
+  c14 : V.advance (consumeEvent Handshake.readResult) (frontendAt F.s4) ≡ just (frontendAt F.s5)
+  c14 = refl
+  c15 : V.advance (consumeEvent Handshake.commitResult) (frontendAt F.s5) ≡ just (frontendAt F.s6)
+  c15 = refl
+  c16 : V.advance (consumeEvent Handshake.readResultCounters) (frontendAt F.s6) ≡ just (frontendAt F.s7)
+  c16 = refl
+  c17 : V.advance (consumeEvent Handshake.enqueueInbound) (frontendAt F.s7) ≡ just (frontendAt F.s8)
+  c17 = refl
+  c18 : V.advance (consumeEvent Handshake.returnResult) (frontendAt F.s8) ≡ just (frontendAt F.s9)
+  c18 = refl
+  c19 : V.advance (serverEvent (S.workerReturned A.w₀)) (frontendAt F.s9) ≡ just (frontendAt F.s10)
+  c19 = refl
+  c20 : V.advance (serverEvent (S.workerResult A.w₀)) (frontendAt F.s10) ≡ just (frontendAt F.s11)
+  c20 = refl
+
+  prefix4 prefix7 prefix20 : List V.Event
+  prefix4 = (serverEvent (S.acceptedFork A.w₀ F.r₀)) ∷ (serverEvent (S.acceptedFork A.w₁ F.r₁)) ∷ (canonical A.w₀ Admission.take) ∷ (canonical A.w₀ Admission.countLimit) ∷ []
+  prefix7 = (serverEvent (S.acceptedFork A.w₀ F.r₀)) ∷ (serverEvent (S.acceptedFork A.w₁ F.r₁)) ∷ (canonical A.w₀ Admission.take) ∷ (canonical A.w₀ Admission.countLimit) ∷ (canonical A.w₀ Admission.allocatePromise) ∷ (canonical A.w₀ Admission.chooseEntry) ∷ (canonical A.w₀ Admission.fork) ∷ []
+  prefix20 = (serverEvent (S.acceptedFork A.w₀ F.r₀)) ∷ (serverEvent (S.acceptedFork A.w₁ F.r₁)) ∷ (canonical A.w₀ Admission.take) ∷ (canonical A.w₀ Admission.countLimit) ∷ (canonical A.w₀ Admission.allocatePromise) ∷ (canonical A.w₀ Admission.chooseEntry) ∷ (canonical A.w₀ Admission.fork) ∷ (canonical A.w₀ Admission.putMapBack) ∷ (canonical A.w₀ Admission.readCounters) ∷ (handlerEvent (H.enterHandshake A.child₀)) ∷ (muxEvent (U.negotiate A.child₀ I.ps duplex)) ∷ (muxEvent (U.allocateHandle A.child₀ (ident 0) (ident 0))) ∷ (muxEvent (U.publishSuccess A.child₀)) ∷ (consumeEvent Handshake.readResult) ∷ (consumeEvent Handshake.commitResult) ∷ (consumeEvent Handshake.readResultCounters) ∷ (consumeEvent Handshake.enqueueInbound) ∷ (consumeEvent Handshake.returnResult) ∷ (serverEvent (S.workerReturned A.w₀)) ∷ (serverEvent (S.workerResult A.w₀)) ∷ []
+  abstract
+   beforeAllocation : V.Runs start prefix4 (frontendAt F.p2)
+   beforeAllocation = V.more c1 (V.more c2 (V.more c3 (V.more c4 (V.stop))))
+   canonicalEmpty : V.Runs start prefix7 (frontendAt F.p5)
+   canonicalEmpty = V.more c1 (V.more c2 (V.more c3 (V.more c4 (V.more c5 (V.more c6 (V.more c7 (V.stop)))))))
+   firstAdmissionComplete : V.Runs start prefix20 (frontendAt F.s11)
+   firstAdmissionComplete = V.more c1 (V.more c2 (V.more c3 (V.more c4 (V.more c5 (V.more c6 (V.more c7 (V.more c8 (V.more c9 (V.more c10 (V.more c11 (V.more c12 (V.more c13 (V.more c14 (V.more c15 (V.more c16 (V.more c17 (V.more c18 (V.more c19 (V.more c20 (V.stop))))))))))))))))))))
+
+
+  -- Actual core/canonical alias mixture; never relabel this trace.
+  coreAllocationAllowed : K.coreAllowed (O.inbound (Machine.admissionStep A.w₀ Admission.allocatePromise)) (V.base (frontendAt F.p2)) ≡ true
+  coreAllocationAllowed = refl
+  mixedAllocation : V.advance (coreAlias A.w₀ Admission.allocatePromise) (frontendAt F.p2) ≡ just (frontendAt F.p3)
+  mixedAllocation = refl
+  mixedFork : V.advance (coreAlias A.w₀ Admission.fork) (frontendAt F.p4) ≡ just (frontendAt F.p5)
+  mixedFork = refl
+  mixedEvents : List V.Event
+  mixedEvents = prefix4 ++ (coreAlias A.w₀ Admission.allocatePromise ∷ canonical A.w₀ Admission.chooseEntry ∷ coreAlias A.w₀ Admission.fork ∷ [])
+  abstract
+   mixedRun : V.Runs start mixedEvents (frontendAt F.p5)
+   mixedRun = append beforeAllocation (V.more mixedAllocation (V.more c6 (V.more mixedFork V.stop)))
+  coreAndCanonicalDiffer : coreAlias A.w₀ Admission.allocatePromise ≡ canonical A.w₀ Admission.allocatePromise → ⊥
+  coreAndCanonicalDiffer ()
+  peerRawAliasRefused : V.advance (V.dispatch (K.peerStep (PS.run (GP.run (Sub.core
+   (O.inbound (Machine.admissionStep A.w₀ Admission.allocatePromise))))))) (frontendAt F.p2) ≡ nothing
+  peerRawAliasRefused = refl
+  outboundRawAliasRefused : V.advance (serverEvent (S.run (S.runOutbound
+   (O.inbound (Machine.admissionStep A.w₀ Admission.allocatePromise))))) (frontendAt F.p2) ≡ nothing
+  outboundRawAliasRefused = refl
+
+  -- Genuine nonempty gaps, independent of the cached full acceptance module.
+  withIG : IG.Runtime → V.Runtime → V.Runtime
+  withIG governor s = V.runtime (record (V.base s)
+   { server = K.setSource updated (K.server (V.base s)) }) (V.front s)
+   where
+   original = K.source (V.base s)
+   updated = record original { core = record (O.core original) { inboundGovernor = governor } }
+  sampledIG registeredIG : IG.Runtime
+  sampledIG = IG.runtimeState IG.emptyPublished 0 (IG.armInactivity 10) (record IG.emptyEngine { lastTime = 10 })
+  registeredIG = IG.runtimeState IG.emptyPublished 1 (IG.awaitBatch 10 (ident 0))
+   (record IG.emptyEngine { lastTime = 10; timers = (ident 0 , ticking) ∷ [] })
+  clockEvent timerEvent : V.Event
+  clockEvent = serverEvent (S.run (S.runMachine (Machine.igStep (IG.captureTime 10))))
+  timerEvent = serverEvent (S.run (S.runMachine (Machine.igStep IG.registerInactivity)))
+  afterClock selectedWithClock beforeGapFork gapBorn : V.Runtime
+  afterClock = withIG sampledIG (frontendAt F.p3)
+  selectedWithClock = withIG sampledIG (frontendAt F.p4)
+  beforeGapFork = withIG registeredIG (frontendAt F.p4)
+  gapBorn = withIG registeredIG (frontendAt F.p5)
+  gap1 : V.advance clockEvent (frontendAt F.p3) ≡ just afterClock
+  gap1 = refl
+  gapSelect : V.advance (canonical A.w₀ Admission.chooseEntry) afterClock ≡ just selectedWithClock
+  gapSelect = refl
+  gap2 : V.advance timerEvent selectedWithClock ≡ just beforeGapFork
+  gap2 = refl
+  gapFork : V.advance (canonical A.w₀ Admission.fork) beforeGapFork ≡ just gapBorn
+  gapFork = refl
+  gapEvents : List V.Event
+  gapEvents = prefix4 ++ (canonical A.w₀ Admission.allocatePromise ∷ clockEvent ∷ canonical A.w₀ Admission.chooseEntry ∷ timerEvent ∷ canonical A.w₀ Admission.fork ∷ [])
+  abstract
+   canonicalNonempty : V.Runs start gapEvents gapBorn
+   canonicalNonempty = append beforeAllocation (V.more c5 (V.more gap1 (V.more gapSelect (V.more gap2 (V.more gapFork V.stop)))))
+
+  -- Denial is an enabled selection branch; it is NOT a successful fork PC.
+  deniedTake : V.advance (canonical A.w₁ Admission.take) (frontendAt F.s11) ≡ just (frontendAt F.b1)
+  deniedTake = refl
+  deniedCount : V.advance (canonical A.w₁ Admission.countLimit) (frontendAt F.b1) ≡ just (frontendAt F.b2)
+  deniedCount = refl
+  deniedAllocate : V.advance (coreAlias A.w₁ Admission.allocatePromise) (frontendAt F.b2) ≡ just (frontendAt F.b3)
+  deniedAllocate = refl
+  deniedChoose : V.advance (coreAlias A.w₁ Admission.chooseEntry) (frontendAt F.b3) ≡ just (frontendAt F.b4)
+  deniedChoose = refl
+  deniedEvents : List V.Event
+  deniedEvents = prefix20 ++ (canonical A.w₁ Admission.take ∷ canonical A.w₁ Admission.countLimit ∷ coreAlias A.w₁ Admission.allocatePromise ∷ coreAlias A.w₁ Admission.chooseEntry ∷ [])
+  abstract
+   initializedDenied : V.Runs start deniedEvents (frontendAt F.b4)
+   initializedDenied = append firstAdmissionComplete (V.more deniedTake (V.more deniedCount (V.more deniedAllocate (V.more deniedChoose V.stop))))
+  deniedForkRefused : V.advance (coreAlias A.w₁ Admission.fork) (frontendAt F.b4) ≡ nothing
+  deniedForkRefused = refl
+  completedCallerCannotBeAcceptedAgain : V.advance (serverEvent (S.acceptedFork A.w₀ F.r₀)) (frontendAt F.s11) ≡ nothing
+  completedCallerCannotBeAcceptedAgain = refl
+
+  -- Real caller exception observation does not reset its source admission PC.
+  cancelError : ErrorId
+  cancelError = errorId 250
+  cancelledParent : S.State
+  cancelledParent = record F.p7
+   { workers = put A.w₀ (S.rawWorker F.r₀ (S.closeException (S.async cancelError)) 0) (S.workers F.p7) }
+  callerCancellation : V.advance (serverEvent (S.workerException A.w₀ (S.async cancelError))) (frontendAt F.p7) ≡ just (frontendAt cancelledParent)
+  callerCancellation = refl
+  cancelledPCUnchanged : lookup A.w₀ (Shared.admissions (S.shared cancelledParent)) ≡ just (Shared.admissionWorker F.r₀ (Shared.awaitHandshake (ident 0) (ident 0)))
+  cancelledPCUnchanged = refl
+  cancelledAllocationRefused : V.advance (coreAlias A.w₀ Admission.allocatePromise) (frontendAt cancelledParent) ≡ nothing
+  cancelledAllocationRefused = refl
+
+
+
+  -- A real unrelated accepted-fork writes another admission row while the target
+  -- is between allocation and selection. Its own take would be blocked by the map.
+  otherParent otherChild : WorkerId
+  otherParent = ident 20
+  otherChild = ident 21
+  otherRequest : Shared.Admission
+  otherRequest = Shared.admission A.key₁ (ident 20) otherChild 10
+  withOtherParent : S.State → S.State
+  withOtherParent s = record (S.setWorld (record (S.shared s)
+   { admissions = put otherParent (Shared.admissionWorker otherRequest Shared.acquireMap)
+       (Shared.admissions (S.shared s))
+   ; sockets = put (ident 20) (Shared.admitting otherParent) (Shared.sockets (S.shared s)) }) s)
+   { workers = put otherParent (S.rawWorker otherRequest S.calling 0) (S.workers s) }
+  otherAccepted : V.advance (serverEvent (S.acceptedFork otherParent otherRequest))
+   (frontendAt F.p3) ≡ just (frontendAt (withOtherParent F.p3))
+  otherAccepted = refl
+  otherCoreSelection : V.advance (coreAlias A.w₀ Admission.chooseEntry)
+   (frontendAt (withOtherParent F.p3)) ≡ just (frontendAt (withOtherParent F.p4))
+  otherCoreSelection = refl
+  otherCanonicalFork : V.advance (canonical A.w₀ Admission.fork)
+   (frontendAt (withOtherParent F.p4)) ≡ just (frontendAt (withOtherParent F.p5))
+  otherCanonicalFork = refl
+  otherCannotTakeHeldMap : V.advance (canonical otherParent Admission.take)
+   (frontendAt (withOtherParent F.p3)) ≡ nothing
+  otherCannotTakeHeldMap = refl
+  otherEvents : List V.Event
+  otherEvents = prefix4 ++ (canonical A.w₀ Admission.allocatePromise ∷
+   serverEvent (S.acceptedFork otherParent otherRequest) ∷
+   coreAlias A.w₀ Admission.chooseEntry ∷ canonical A.w₀ Admission.fork ∷ [])
+  abstract
+   unrelatedParentGap : V.Runs start otherEvents (frontendAt (withOtherParent F.p5))
+   unrelatedParentGap = append beforeAllocation
+    (V.more c5 (V.more otherAccepted (V.more otherCoreSelection (V.more otherCanonicalFork V.stop))))
+
+  -- Same entry identity is overwritten by a second genuine selection. The two
+  -- origins have distinct parent/request/promise/child; old descriptor is retained.
+  secondPromises : List PromiseId
+  secondPromises = ident 1 ∷ F.ps₀
+  secondAt : Shared.ConnectionState → Shared.MapCell → Shared.AdmissionPC → List PromiseId → ℕ → S.State
+  secondAt st cell pc promises next = F.live st cell
+   (Shared.countPublished (ident 0) (ident 0)) pc promises next [] []
+   (Shared.admitting A.w₁) IG.initial H.maskedSetup []
+  second1 second2 second3 second4 secondFailed secondRestored : S.State
+  second1 = secondAt F.unneg (Shared.taken A.w₁) (Shared.count F.lease₁) F.ps₀ 1
+  second2 = secondAt F.unneg (Shared.taken A.w₁) (Shared.prepare F.lease₁) F.ps₀ 1
+  second3 = secondAt F.unneg (Shared.taken A.w₁) (Shared.selectEntry F.lease₁ (ident 1)) secondPromises 2
+  secondOverwrite : Shared.ConnectionState
+  secondOverwrite = Shared.unnegotiated inbound A.key₀ A.child₁
+  second4 = secondAt secondOverwrite (Shared.taken A.w₁)
+   (Shared.forkHandler F.lease₁ (ident 1) (ident 0)) secondPromises 2
+  secondFailed = secondAt secondOverwrite (Shared.taken A.w₁)
+   (Shared.reject F.lease₁ Shared.forkFailed) secondPromises 2
+  secondRestored = secondAt secondOverwrite (Shared.full F.binding)
+   (Shared.closeSocket Shared.forkFailed) secondPromises 2
+  secondTake : V.advance (canonical A.w₁ Admission.take) (frontendAt F.p6) ≡ just (frontendAt second1)
+  secondTake = refl
+  secondCount : V.advance (canonical A.w₁ Admission.countLimit) (frontendAt second1) ≡ just (frontendAt second2)
+  secondCount = refl
+  secondAllocate : V.advance (coreAlias A.w₁ Admission.allocatePromise) (frontendAt second2) ≡ just (frontendAt second3)
+  secondAllocate = refl
+  secondSelect : V.advance (coreAlias A.w₁ Admission.chooseEntry) (frontendAt second3) ≡ just (frontendAt second4)
+  secondSelect = refl
+  secondBeforeForkEvents : List V.Event
+  secondBeforeForkEvents = prefix7 ++ (canonical A.w₀ Admission.putMapBack ∷
+   canonical A.w₁ Admission.take ∷ canonical A.w₁ Admission.countLimit ∷
+   coreAlias A.w₁ Admission.allocatePromise ∷ coreAlias A.w₁ Admission.chooseEntry ∷ [])
+  abstract
+   secondBeforeFork : V.Runs start secondBeforeForkEvents (frontendAt second4)
+   secondBeforeFork = append canonicalEmpty (V.more c8 (V.more secondTake
+    (V.more secondCount (V.more secondAllocate (V.more secondSelect V.stop)))))
+  secondFailure : V.advance (canonical A.w₁ Admission.failFork) (frontendAt second4) ≡ just (frontendAt secondFailed)
+  secondFailure = refl
+  secondRestore : V.advance (canonical A.w₁ Admission.restore) (frontendAt secondFailed) ≡ just (frontendAt secondRestored)
+  secondRestore = refl
+  secondForkAfterRestoreRefused : V.advance (coreAlias A.w₁ Admission.fork) (frontendAt secondRestored) ≡ nothing
+  secondForkAfterRestoreRefused = refl
+  secondEntryStillOverwritten : lookup (ident 0) (Shared.entries (Shared.cm (S.shared secondRestored))) ≡ just secondOverwrite
+  secondEntryStillOverwritten = refl
+  secondOldCapture : lookup A.child₀ (B.threads (physicalAt (frontendAt secondRestored))) ≡
+   just (H.handlerThread I.captured H.maskedSetup)
+  secondOldCapture = refl
+
+  -- Exact physical expected state after a successful second fork. Do not use only
+  -- S.setWorld: that would omit the actual supervised child and provenance writes.
+  secondDescriptor : Shared.HandlerStart
+  secondDescriptor = Shared.handlerStart (ident 0) (ident 1) (ident 1) A.key₀
+  secondForkWorld : Shared.State
+  secondForkWorld = record (S.shared second4)
+   { admissions = put A.w₁ (Shared.admissionWorker F.r₁ (Shared.publish F.lease₁ (ident 1) (ident 0)))
+       (Shared.admissions (S.shared second4))
+   ; handlers = put A.child₁ secondDescriptor (Shared.handlers (S.shared second4))
+   ; sockets = put (ident 1) (Shared.handling A.child₁) (Shared.sockets (S.shared second4)) }
+  secondForkSource : O.Configuration
+  secondForkSource = record (S.source second4)
+   { core = Machine.replaceWorld (O.core (S.source second4)) secondForkWorld }
+  secondForkPhysical : B.State
+  secondForkPhysical = B.supervised secondForkSource
+   (put A.child₁ (H.handlerThread secondDescriptor H.maskedSetup)
+    (B.threads (physicalAt (frontendAt second4))))
+   (B.shutdown (physicalAt (frontendAt second4)))
+  secondBorn : V.Runtime
+  secondBorn = V.runtime (V.setPhysical
+   (record original { base = record (P.base original)
+     { base = secondForkPhysical
+     ; origins = put A.child₁ inbound (U.origins (P.base original)) } })
+   (V.base (frontendAt second4))) (V.front (frontendAt second4))
+   where original = V.physical (V.base (frontendAt second4))
+  secondFork : V.advance (coreAlias A.w₁ Admission.fork) (frontendAt second4) ≡ just secondBorn
+  secondFork = refl
+  secondBothCaptures :
+   lookup A.child₀ (B.threads (physicalAt secondBorn)) ≡ just (H.handlerThread I.captured H.maskedSetup)
+  secondBothCaptures = refl
+  secondNewCapture :
+   lookup A.child₁ (B.threads (physicalAt secondBorn)) ≡ just (H.handlerThread secondDescriptor H.maskedSetup)
+  secondNewCapture = refl
+  abstract
+   secondSuccessfulRun : V.Runs start (secondBeforeForkEvents ++ (coreAlias A.w₁ Admission.fork ∷ [])) secondBorn
+   secondSuccessfulRun = append secondBeforeFork (V.more secondFork V.stop)
+
+  private
+   module Auto = Automatic.Frontend I.bearerClosed classify capability using (RecoveredOrigin; canonicalFork; coreFork; events; execution; initialize-origin; shared)
+   module Rcv = Auto.RecoveredOrigin using (captured; current-facts; reconstructed)
+   module RecoveredFork = AutoRuntime.Frontend.Located.ForkOrigin I.bearerClosed classify capability using (request; selection)
+   module RecoveredHistory = AutoRuntime.Frontend.Located.History.SelectedOrigin I.bearerClosed classify capability using (current-PC)
+
+  emptyBeforeEvents mixedBeforeEvents gapBeforeEvents unrelatedBeforeEvents : List V.Event
+  emptyBeforeEvents = prefix4 ++ (canonical A.w₀ Admission.allocatePromise ∷ canonical A.w₀ Admission.chooseEntry ∷ [])
+  mixedBeforeEvents = prefix4 ++ (coreAlias A.w₀ Admission.allocatePromise ∷ canonical A.w₀ Admission.chooseEntry ∷ [])
+  gapBeforeEvents = prefix4 ++ (canonical A.w₀ Admission.allocatePromise ∷ clockEvent ∷ canonical A.w₀ Admission.chooseEntry ∷ timerEvent ∷ [])
+  unrelatedBeforeEvents = prefix4 ++ (canonical A.w₀ Admission.allocatePromise ∷
+   serverEvent (S.acceptedFork otherParent otherRequest) ∷ coreAlias A.w₀ Admission.chooseEntry ∷ [])
+  abstract
+   emptyBeforeFork : V.Runs start emptyBeforeEvents (frontendAt F.p4)
+   emptyBeforeFork = append beforeAllocation (V.more c5 (V.more c6 V.stop))
+   mixedBeforeFork : V.Runs start mixedBeforeEvents (frontendAt F.p4)
+   mixedBeforeFork = append beforeAllocation (V.more mixedAllocation (V.more c6 V.stop))
+   gapBeforeFork : V.Runs start gapBeforeEvents beforeGapFork
+   gapBeforeFork = append beforeAllocation (V.more c5 (V.more gap1 (V.more gapSelect (V.more gap2 V.stop))))
+   unrelatedBeforeFork : V.Runs start unrelatedBeforeEvents (frontendAt (withOtherParent F.p4))
+   unrelatedBeforeFork = append beforeAllocation (V.more c5 (V.more otherAccepted (V.more otherCoreSelection V.stop)))
+
+  -- These are the complete API inputs: initialize, actual observed prefix,
+  -- classified actual fork label and actual fork, then an enabled suffix.
+  -- Allocation/selection PCs and resource/physical lookups are not inputs.
+  abstract
+   automaticEmpty : Auto.RecoveredOrigin configuration settings start emptyBeforeEvents
+    (frontendAt F.p4) (frontendAt F.p5) A.w₀ (canonical A.w₀ Admission.fork) [] (frontendAt F.p5)
+   automaticEmpty = Auto.initialize-origin configuration settings initialized emptyBeforeFork Auto.canonicalFork c7 V.stop
+   automaticNonempty : Auto.RecoveredOrigin configuration settings start gapBeforeEvents
+    beforeGapFork gapBorn A.w₀ (canonical A.w₀ Admission.fork) [] gapBorn
+   automaticNonempty = Auto.initialize-origin configuration settings initialized gapBeforeFork Auto.canonicalFork gapFork V.stop
+   automaticMixed : Auto.RecoveredOrigin configuration settings start mixedBeforeEvents
+    (frontendAt F.p4) (frontendAt F.p5) A.w₀ (coreAlias A.w₀ Admission.fork) [] (frontendAt F.p5)
+   automaticMixed = Auto.initialize-origin configuration settings initialized mixedBeforeFork Auto.coreFork mixedFork V.stop
+   automaticUnrelated : Auto.RecoveredOrigin configuration settings start unrelatedBeforeEvents
+    (frontendAt (withOtherParent F.p4)) (frontendAt (withOtherParent F.p5)) A.w₀
+    (canonical A.w₀ Admission.fork) [] (frontendAt (withOtherParent F.p5))
+   automaticUnrelated = Auto.initialize-origin configuration settings initialized unrelatedBeforeFork Auto.canonicalFork otherCanonicalFork V.stop
+   automaticSecond : Auto.RecoveredOrigin configuration settings start secondBeforeForkEvents
+    (frontendAt second4) secondBorn A.w₁ (coreAlias A.w₁ Admission.fork) [] secondBorn
+   automaticSecond = Auto.initialize-origin configuration settings initialized secondBeforeFork Auto.coreFork secondFork V.stop
+
+  -- Event-list indices retain exact observed labels even though the reconstructed
+  -- creator search consumes opaque Runs. No refl on recovered creator labels.
+  emptyObservedExactly : Auto.events automaticEmpty ≡ prefix7
+  emptyObservedExactly = refl
+  nonemptyObservedExactly : Auto.events automaticNonempty ≡ gapEvents
+  nonemptyObservedExactly = refl
+  mixedObservedExactly : Auto.events automaticMixed ≡ mixedEvents
+  mixedObservedExactly = refl
+  unrelatedObservedExactly : Auto.events automaticUnrelated ≡ otherEvents
+  unrelatedObservedExactly = refl
+  secondObservedExactly : Auto.events automaticSecond ≡ (secondBeforeForkEvents ++ (coreAlias A.w₁ Admission.fork ∷ []))
+  secondObservedExactly = refl
+  abstract
+   automaticEmptyExecution : V.Runs start prefix7 (frontendAt F.p5)
+   automaticEmptyExecution = Auto.execution automaticEmpty
+   automaticNonemptyExecution : V.Runs start gapEvents gapBorn
+   automaticNonemptyExecution = Auto.execution automaticNonempty
+   automaticMixedExecution : V.Runs start mixedEvents (frontendAt F.p5)
+   automaticMixedExecution = Auto.execution automaticMixed
+   automaticUnrelatedExecution : V.Runs start otherEvents (frontendAt (withOtherParent F.p5))
+   automaticUnrelatedExecution = Auto.execution automaticUnrelated
+   automaticSecondExecution : V.Runs start (secondBeforeForkEvents ++ (coreAlias A.w₁ Admission.fork ∷ [])) secondBorn
+   automaticSecondExecution = Auto.execution automaticSecond
+
+  -- Read the recovered PC/output facts to check the exact concrete descriptor.
+  -- This does not give the initializer API any operational alignment premise.
+  emptyRequestExact : RecoveredFork.request (Rcv.reconstructed automaticEmpty) ≡ F.r₀
+  emptyRequestExact = sym (cong Shared.request (just-injective
+   (RecoveredHistory.current-PC (RecoveredFork.selection (Rcv.reconstructed automaticEmpty)))))
+  emptyCapturedExact : Rcv.captured automaticEmpty ≡ I.captured
+  emptyCapturedExact = sym (just-injective (subst
+   (λ request → lookup (Shared.child request) (Shared.handlers (Auto.shared (frontendAt F.p5))) ≡
+    just (Rcv.captured automaticEmpty)) emptyRequestExact
+   (proj₁ (Rcv.current-facts automaticEmpty))))
+  secondRequestExact : RecoveredFork.request (Rcv.reconstructed automaticSecond) ≡ F.r₁
+  secondRequestExact = sym (cong Shared.request (just-injective
+   (RecoveredHistory.current-PC (RecoveredFork.selection (Rcv.reconstructed automaticSecond)))))
+  secondCapturedExact : Rcv.captured automaticSecond ≡ secondDescriptor
+  secondCapturedExact = sym (just-injective (subst
+   (λ request → lookup (Shared.child request) (Shared.handlers (Auto.shared secondBorn)) ≡
+    just (Rcv.captured automaticSecond)) secondRequestExact
+   (proj₁ (Rcv.current-facts automaticSecond))))
+
+  -- Derived Facts have the exact expected captured descriptors, even after an
+  -- existing mutable entry is selected for a different parent/promise/child.
+  emptyDerivedFacts : Facts A.child₀ I.captured (Auto.shared (frontendAt F.p5))
+  emptyDerivedFacts = subst (λ captured → Facts A.child₀ captured (Auto.shared (frontendAt F.p5))) emptyCapturedExact
+   (subst (λ request → Facts (Shared.child request) (Rcv.captured automaticEmpty)
+     (Auto.shared (frontendAt F.p5))) emptyRequestExact (Rcv.current-facts automaticEmpty))
+  secondDerivedFacts : Facts A.child₁ secondDescriptor (Auto.shared secondBorn)
+  secondDerivedFacts = subst (λ captured → Facts A.child₁ captured (Auto.shared secondBorn)) secondCapturedExact
+   (subst (λ request → Facts (Shared.child request) (Rcv.captured automaticSecond)
+     (Auto.shared secondBorn)) secondRequestExact (Rcv.current-facts automaticSecond))
+  wrongDescriptor : Shared.HandlerStart
+  wrongDescriptor = record I.captured { handlerPromise = ident 77 }
+  wrongDescriptorRefused : Facts A.child₀ wrongDescriptor (Auto.shared (frontendAt F.p5)) → ⊥
+  wrongDescriptorRefused (() , rest)
+  wrongRecoveredDescriptorRefused : Rcv.captured automaticEmpty ≡ wrongDescriptor → ⊥
+  wrongRecoveredDescriptorRefused equality = wrongCapturedEquality (trans (sym emptyCapturedExact) equality)
+   where
+   wrongCapturedEquality : I.captured ≡ wrongDescriptor → ⊥
+   wrongCapturedEquality ()

@@ -27,9 +27,14 @@ open import ConnectionManagement.Rules.PeerJobs
 import ConnectionManagement.State as S
 
 -- Peer/IG-only edits are invisible to this runtime/world predicate.
-module Lift
+-- Job actions invoke only the two call initializers. Exposing that smaller
+-- interface lets observers of admission PCs reuse these exhaustive cases.
+module BeginLift
   (Predicate : A.Runtime → S.State → Set)
-  (preserve : ∀ a c {c′} → CM.advance a c ≡ just c′ →
+  (begin-acquire : ∀ worker request c {c′} → CM.advance (CM.beginAcquire worker request) c ≡ just c′ →
+    Predicate (CM.acquiring c) (Inbound.world (CM.core c)) →
+    Predicate (CM.acquiring c′) (Inbound.world (CM.core c′)))
+  (begin-release : ∀ worker key c {c′} → CM.advance (CM.beginRelease worker key) c ≡ just c′ →
     Predicate (CM.acquiring c) (Inbound.world (CM.core c)) →
     Predicate (CM.acquiring c′) (Inbound.world (CM.core c′))) where
 
@@ -62,8 +67,8 @@ module Lift
   step-preserves enter f w v with pc f | G.kind (work f)
   ... | begin | G.establish with CM.advance (CM.beginAcquire (caller f) (A.acquireRequest (G.peer (work f)) (child f) (socketRef f) outbound nothing)) (cm w) in advanced
   ...   | nothing = λ ()
-  ...   | just c = λ { refl → preserve (CM.beginAcquire (caller f)
-      (A.acquireRequest (G.peer (work f)) (child f) (socketRef f) outbound nothing)) (cm w) advanced v }
+  ...   | just c = λ { refl → begin-acquire (caller f)
+      (A.acquireRequest (G.peer (work f)) (child f) (socketRef f) outbound nothing) (cm w) advanced v }
   step-preserves enter f w v | begin | G.activate with peerStep P.activate f w in moved
   ... | nothing = λ { refl → v }
   ... | just w′ = λ eq → start-preserves ConnectionManagement.IGTypes.hot f w′ eq (peer-preserves _ f w moved v)
@@ -290,7 +295,7 @@ module Lift
   step-preserves requestRelease f w v with pc f | lookup (connectionRef f) (peers w)
   ... | callRelease | just p with CM.advance (CM.beginRelease (caller f) (P.key p)) (cm w) in advanced
   ...   | nothing = λ ()
-  ...   | just c = λ { refl → preserve (CM.beginRelease (caller f) (P.key p)) (cm w) advanced v }
+  ...   | just c = λ { refl → begin-release (caller f) (P.key p) (cm w) advanced v }
   step-preserves requestRelease f w v | callRelease | nothing = λ ()
   step-preserves requestRelease f w v | begin | _ = λ ()
   step-preserves requestRelease f w v | awaitAcquire | _ = λ ()
@@ -509,3 +514,15 @@ module Lift
   step-preserves rethrowNodeException f w v | (complete result) = λ ()
   step-preserves rethrowNodeException f w v | (acquirePolicy fault) = λ ()
   step-preserves rethrowNodeException f w v | (nodeDelivery fault) = λ ()
+
+
+-- Preserve the original public interface and its source-step premises.
+module Lift
+  (Predicate : A.Runtime → S.State → Set)
+  (preserve : ∀ a c {c′} → CM.advance a c ≡ just c′ →
+    Predicate (CM.acquiring c) (Inbound.world (CM.core c)) →
+    Predicate (CM.acquiring c′) (Inbound.world (CM.core c′))) where
+  open BeginLift Predicate
+    (λ worker request c actual → preserve (CM.beginAcquire worker request) c actual)
+    (λ worker key c actual → preserve (CM.beginRelease worker key) c actual)
+    public using (Valid; peer-preserves; start-preserves; failed-preserves; step-preserves)

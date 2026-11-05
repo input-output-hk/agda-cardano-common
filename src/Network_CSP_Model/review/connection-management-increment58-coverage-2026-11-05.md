@@ -153,17 +153,30 @@ acquisition frames or promise/result heaps. `Rules.OutboundAcquire.forkOK` and
 `OutboundHandlerSupervision.forkOutbound` check the actual fork/child guards,
 but do not establish captured entry/promise allocation history.
 
-**Unperformed next test:** initialize a preloaded caller at
-`forkHandler entry99 promise88 key`, with both resources absent and a different
-CM entry naming its fresh child. Check the actual frontend `forkOK`, retained
-descriptor and missing resources. **Inference, not a checked countertheorem:**
-the real scope/IG-to-CM suffix followed by blocked-setup cancellation could
-collect that child without restoring the missing resources. Check that suffix
-before claiming a collected counterexample.
+**Subsequent model acceptance — 5 November, increment 59:**
+`Protocols.PreloadedAcquisitionForkControl` now checks that exact initialized
+fork, physical descriptor, absent captured entry/promise, and created socket;
+it also refutes `HandlerResourceFacts.Facts` and checks the paired `O.initial core`
+immediate-fork refusal. See the
+[accepted result and validation](../ConnectionManagement/Supervision.md#fifty-ninth-increment-initializer-boundary-and-gap-aware-resource-histories).
+This supersedes the planning-stage “unperformed” status of the short control.
+
+**Open question, not a checked countertheorem:** the inferred real
+scope/IG-to-CM collected suffix remains unperformed. Missing captured-entry
+cleanup can block completion; no final wait for this malformed case is asserted.
+Do not substitute a data-only Server-stage change for the actual suffix.
 
 Existing outbound-origin APIs explicitly use `initialize (OutboundMachine.initial core)`.
-Increment 59 should justify its origin profile after this control; increment
-58's arbitrary initializer remains unchanged. Preloaded promise/result heaps
+Increment 59 now makes the witnessed inbound occurrence/alignment premises explicit;
+increment 58's arbitrary initializer remains unchanged. Preloaded promise/result heaps
 also prevent inferring global freshness from allocation-event existence alone.
 This model audit retains network pin `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`;
 no new source replay or Haskell defect is claimed.
+
+
+**Subsequent inbound result — increment 60:**
+[Automatic inbound reconstruction](../ConnectionManagement/Supervision.md#sixtieth-increment-automatic-inbound-occurrence-reconstruction)
+uses the successful Server initializer's empty admissions table and actual enabled
+inbound fork to derive the earlier allocation/selection and resource facts.
+The preloaded **outbound acquisition** control above remains valid; this inbound
+result does not remove that profile boundary or prove a malformed collected suffix.

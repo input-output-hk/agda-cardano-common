@@ -8,6 +8,7 @@ open import Data.Bool using (Bool; true; false)
 module ConnectionManagement.Properties.PeerSupervisionSupply (isIOManagerError : ErrorId → Bool) where
 
 open import Data.List using ([])
+open import Data.Unit using (⊤; tt)
 open import Data.Maybe using (just; nothing)
 open import Data.Maybe.Properties using (just-injective)
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
@@ -178,9 +179,13 @@ note-governor-observe (GP.publishAsyncResult j) before after = refl
 -- precise observer; only real governor steps need a caller-supplied writer law.
 governor-observe : GP.State → View
 governor-observe s = CM.acquiring (GP.cm s) , Supply.shared s , GP.unwinding s
-module Lift (Q : View → Set)
-  (governor-preserves : ∀ action s {t} → GP.step action s ≡ just t →
+-- Per-action permission exposes the existing run guard to restricted observers.
+module StepLift (Q : View → Set) (PermitGovernor : GP.Action → Set)
+  (governor-preserves : ∀ action s {t} → PermitGovernor action → GP.step action s ≡ just t →
     Q (governor-observe s) → Q (governor-observe t)) where
+  Allowed : PS.Action → Set
+  Allowed (PS.run action) = PermitGovernor action
+  Allowed _ = ⊤
   Holds : PS.State → Set
   Holds s = Q (observe s)
   carry : ∀ before after → observe after ≡ observe before → Holds before → Holds after
@@ -242,194 +247,227 @@ module Lift (Q : View → Set)
   delivery-preserves blocked err s eq valid | Pool.closedPool = case eq of λ ()
   delivery-preserves blocked err s eq valid | (Pool.joinPending j) = case eq of λ ()
 
-  step-preserves : ∀ action s {s′} → PS.step action s ≡ just s′ → Holds s → Holds s′
-  step-preserves (PS.run action) s eq valid with PS.governorAllowed action s
+  step-preserves : ∀ action s {s′} → Allowed action → PS.step action s ≡ just s′ → Holds s → Holds s′
+  step-preserves (PS.run action) s permission eq valid with PS.governorAllowed action s
   ... | false = case eq of λ ()
   ... | true with GP.step action (PS.governor s) in advanced
   ...   | nothing = case eq of λ ()
   ...   | just g′ = case just-injective eq of λ { refl →
     carry (record s { governor = g′ }) (PS.noteGovernor action s (record s { governor = g′ }))
       (note-governor-observe action s (record s { governor = g′ }))
-      (governor-preserves action (PS.governor s) advanced valid) }
-  step-preserves (PS.forkMonitor j w) s eq valid = fork-preserves j w s eq valid
-  step-preserves (PS.registerMonitor tid) s eq valid with lookup tid (PS.monitors s)
+      (governor-preserves action (PS.governor s) permission advanced valid) }
+  step-preserves (PS.forkMonitor j w) s permission eq valid = fork-preserves j w s eq valid
+  step-preserves (PS.registerMonitor tid) s permission eq valid with lookup tid (PS.monitors s)
   ... | nothing = case eq of λ ()
   ... | just t with PS.parentPC t | Pool.step (Pool.registerConcurrent tid) (PS.monitorPool s)
   ...   | PS.created | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.registerMonitor tid) s eq valid | just t | PS.registered | any = case eq of λ ()
-  step-preserves (PS.registerMonitor tid) s eq valid | just t | PS.returned | any = case eq of λ ()
-  step-preserves (PS.registerMonitor tid) s eq valid | just t | PS.created | nothing = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid with PS.byParent j (PS.monitors s) | lookup j (Sub.jobs (PS.machine s))
+  step-preserves (PS.registerMonitor tid) s permission eq valid | just t | PS.registered | any = case eq of λ ()
+  step-preserves (PS.registerMonitor tid) s permission eq valid | just t | PS.returned | any = case eq of λ ()
+  step-preserves (PS.registerMonitor tid) s permission eq valid | just t | PS.created | nothing = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid with PS.byParent j (PS.monitors s) | lookup j (Sub.jobs (PS.machine s))
   ... | just (tid , t) | just jf with PS.parentPC t | J.pc (Sub.execution jf) | GP.running j (GP.pool (PS.governor s))
   ...   | PS.registered | J.forkMonitor | true = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.begin | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.awaitAcquire | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.startBundle temp ns) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.publishBundle temp) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.markWarm | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.finishActivation | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.awaitHot | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.awaitAll | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.callRelease | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.awaitRelease | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.delayFailure | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.awaitCold result) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.complete result) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.acquirePolicy fault) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.nodeDelivery fault) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | (J.nodeRethrow fault) | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.created | pc | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.returned | pc | running = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just (tid , t) | just jf | PS.registered | J.forkMonitor | false = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | nothing | any = case eq of λ ()
-  step-preserves (PS.returnEstablishment j) s eq valid | just pair | nothing = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid with PS.byParent j (PS.monitors s) | lookup j (Sub.jobs (PS.machine s))
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.begin | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.awaitAcquire | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.startBundle temp ns) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.publishBundle temp) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.markWarm | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.finishActivation | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.awaitHot | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.awaitAll | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.callRelease | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.awaitRelease | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.delayFailure | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.awaitCold result) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.complete result) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.acquirePolicy fault) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.nodeDelivery fault) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | (J.nodeRethrow fault) | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.created | pc | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.returned | pc | running = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just (tid , t) | just jf | PS.registered | J.forkMonitor | false = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | nothing | any = case eq of λ ()
+  step-preserves (PS.returnEstablishment j) s permission eq valid | just pair | nothing = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid with PS.byParent j (PS.monitors s) | lookup j (Sub.jobs (PS.machine s))
   ... | just pair | just jf with PS.parentPC (proj₂ pair) | J.pc (Sub.execution jf)
   ...   | PS.returned | J.complete result with GP.Pool.step
     (GP.Pool.bodyReturnedWith j (GP.body j (J.work (Sub.execution jf)) result)) (GP.pool (PS.governor s))
   ...     | nothing = case eq of λ ()
   ...     | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.begin = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.awaitAcquire = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | (J.startBundle temp ns) = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | (J.publishBundle temp) = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.markWarm = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.finishActivation = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.awaitHot = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.awaitAll = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.callRelease = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.awaitRelease = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.delayFailure = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | (J.awaitCold result) = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | (J.acquirePolicy fault) = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | (J.nodeDelivery fault) = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | (J.nodeRethrow fault) = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.returned | J.forkMonitor = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.created | pc = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | just jf | PS.registered | pc = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | nothing | any = case eq of λ ()
-  step-preserves (PS.finishEstablishment j) s eq valid | just pair | nothing = case eq of λ ()
-  step-preserves (PS.monitorException tid err) s eq valid with lookup tid (PS.monitors s)
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.begin = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.awaitAcquire = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | (J.startBundle temp ns) = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | (J.publishBundle temp) = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.markWarm = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.finishActivation = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.awaitHot = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.awaitAll = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.callRelease = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.awaitRelease = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.delayFailure = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | (J.awaitCold result) = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | (J.acquirePolicy fault) = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | (J.nodeDelivery fault) = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | (J.nodeRethrow fault) = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.returned | J.forkMonitor = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.created | pc = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | just jf | PS.registered | pc = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | nothing | any = case eq of λ ()
+  step-preserves (PS.finishEstablishment j) s permission eq valid | just pair | nothing = case eq of λ ()
+  step-preserves (PS.monitorException tid err) s permission eq valid with lookup tid (PS.monitors s)
   ... | nothing = case eq of λ ()
   ... | just t with PS.bodyActive tid t s | PS.detach err t s in detached
   ...   | true | just (f , s′) = case just-injective eq of λ { refl → carry s s′ (detach-observe err t s detached) valid }
-  step-preserves (PS.monitorException tid err) s eq valid | just t | false | any = case eq of λ ()
-  step-preserves (PS.monitorException tid err) s eq valid | just t | true | nothing = case eq of λ ()
-  step-preserves (PS.commitMonitorError tid) s eq valid with lookup tid (PS.monitors s)
+  step-preserves (PS.monitorException tid err) s permission eq valid | just t | false | any = case eq of λ ()
+  step-preserves (PS.monitorException tid err) s permission eq valid | just t | true | nothing = case eq of λ ()
+  step-preserves (PS.commitMonitorError tid) s permission eq valid with lookup tid (PS.monitors s)
   ... | nothing = case eq of λ ()
   ... | just t with PS.pc t | lookup (PS.peerRef t) (J.peers (Sub.world (PS.machine s)))
   ...   | PS.errorWait err | just peer with Peer.demoted (Peer.key peer) (PS.shared s)
   ...     | false = case eq of λ ()
   ...     | true = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.commitMonitorError tid) s eq valid | just t | PS.observing | peer = case eq of λ ()
-  step-preserves (PS.commitMonitorError tid) s eq valid | just t | PS.normalFinishing | peer = case eq of λ ()
-  step-preserves (PS.commitMonitorError tid) s eq valid | just t | PS.cancelling | peer = case eq of λ ()
-  step-preserves (PS.commitMonitorError tid) s eq valid | just t | PS.exited | peer = case eq of λ ()
-  step-preserves (PS.commitMonitorError tid) s eq valid | just t | (PS.errorFinishing err) | peer = case eq of λ ()
-  step-preserves (PS.commitMonitorError tid) s eq valid | just t | PS.errorWait err | nothing = case eq of λ ()
-  step-preserves (PS.finishMonitor tid) s eq valid with lookup tid (PS.monitors s)
+  step-preserves (PS.commitMonitorError tid) s permission eq valid | just t | PS.observing | peer = case eq of λ ()
+  step-preserves (PS.commitMonitorError tid) s permission eq valid | just t | PS.normalFinishing | peer = case eq of λ ()
+  step-preserves (PS.commitMonitorError tid) s permission eq valid | just t | PS.cancelling | peer = case eq of λ ()
+  step-preserves (PS.commitMonitorError tid) s permission eq valid | just t | PS.exited | peer = case eq of λ ()
+  step-preserves (PS.commitMonitorError tid) s permission eq valid | just t | (PS.errorFinishing err) | peer = case eq of λ ()
+  step-preserves (PS.commitMonitorError tid) s permission eq valid | just t | PS.errorWait err | nothing = case eq of λ ()
+  step-preserves (PS.finishMonitor tid) s permission eq valid with lookup tid (PS.monitors s)
   ... | nothing = case eq of λ ()
   ... | just t with PS.pc t | Pool.step (Pool.bodyReturnedWith tid nothing) (PS.monitorPool s)
   ...   | PS.normalFinishing | just p′ = case just-injective eq of λ { refl → carry s (PS.finishPeer true (PS.peerRef t) s) (finish-observe true (PS.peerRef t) s) valid }
-  step-preserves (PS.finishMonitor tid) s eq valid | just t | PS.observing | pool = case eq of λ ()
-  step-preserves (PS.finishMonitor tid) s eq valid | just t | PS.cancelling | pool = case eq of λ ()
-  step-preserves (PS.finishMonitor tid) s eq valid | just t | PS.exited | pool = case eq of λ ()
-  step-preserves (PS.finishMonitor tid) s eq valid | just t | (PS.errorWait err) | pool = case eq of λ ()
-  step-preserves (PS.finishMonitor tid) s eq valid | just t | (PS.errorFinishing err) | pool = case eq of λ ()
-  step-preserves (PS.finishMonitor tid) s eq valid | just t | PS.normalFinishing | nothing = case eq of λ ()
-  step-preserves (PS.finishMonitorError tid) s eq valid with lookup tid (PS.monitors s)
+  step-preserves (PS.finishMonitor tid) s permission eq valid | just t | PS.observing | pool = case eq of λ ()
+  step-preserves (PS.finishMonitor tid) s permission eq valid | just t | PS.cancelling | pool = case eq of λ ()
+  step-preserves (PS.finishMonitor tid) s permission eq valid | just t | PS.exited | pool = case eq of λ ()
+  step-preserves (PS.finishMonitor tid) s permission eq valid | just t | (PS.errorWait err) | pool = case eq of λ ()
+  step-preserves (PS.finishMonitor tid) s permission eq valid | just t | (PS.errorFinishing err) | pool = case eq of λ ()
+  step-preserves (PS.finishMonitor tid) s permission eq valid | just t | PS.normalFinishing | nothing = case eq of λ ()
+  step-preserves (PS.finishMonitorError tid) s permission eq valid with lookup tid (PS.monitors s)
   ... | nothing = case eq of λ ()
   ... | just t with PS.pc t
   ...   | PS.errorFinishing err with Pool.step (Pool.bodyReturnedWith tid (just err)) (PS.monitorPool s)
   ...     | nothing = case eq of λ ()
   ...     | just p′ = case just-injective eq of λ { refl → carry s (PS.finishPeer true (PS.peerRef t) s) (finish-observe true (PS.peerRef t) s) valid }
-  step-preserves (PS.finishMonitorError tid) s eq valid | just t | PS.observing = case eq of λ ()
-  step-preserves (PS.finishMonitorError tid) s eq valid | just t | PS.normalFinishing = case eq of λ ()
-  step-preserves (PS.finishMonitorError tid) s eq valid | just t | PS.cancelling = case eq of λ ()
-  step-preserves (PS.finishMonitorError tid) s eq valid | just t | PS.exited = case eq of λ ()
-  step-preserves (PS.finishMonitorError tid) s eq valid | just t | (PS.errorWait err) = case eq of λ ()
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid with Scope.cursor (PS.scopes s) | GP.Pool.parentFork (GP.pool (PS.governor s))
+  step-preserves (PS.finishMonitorError tid) s permission eq valid | just t | PS.observing = case eq of λ ()
+  step-preserves (PS.finishMonitorError tid) s permission eq valid | just t | PS.normalFinishing = case eq of λ ()
+  step-preserves (PS.finishMonitorError tid) s permission eq valid | just t | PS.cancelling = case eq of λ ()
+  step-preserves (PS.finishMonitorError tid) s permission eq valid | just t | PS.exited = case eq of λ ()
+  step-preserves (PS.finishMonitorError tid) s permission eq valid | just t | (PS.errorWait err) = case eq of λ ()
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid with Scope.cursor (PS.scopes s) | GP.Pool.parentFork (GP.pool (PS.governor s))
   ... | Scope.closing Scope.governor | just j = case eq of λ ()
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.closing Scope.governor | nothing with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.closing Scope.governor | nothing with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.openScope | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.openScope | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.readyToFinish | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.readyToFinish | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.finishedScope | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.finishedScope | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.closing Scope.churn | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.closing Scope.churn | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.closing Scope.localRoot | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.closing Scope.localRoot | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.deliverCancel) s eq valid | Scope.closing Scope.ledger | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.deliverCancel) s permission eq valid | Scope.closing Scope.ledger | any with Scope.step (PS.governorPoolClosed s) Scope.deliverCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.beginUnwind) s eq valid with Scope.step (PS.governorPoolClosed s) Scope.beginUnwind (PS.scopes s)
+  step-preserves (PS.scope Scope.beginUnwind) s permission eq valid with Scope.step (PS.governorPoolClosed s) Scope.beginUnwind (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.requestCancel) s eq valid with Scope.step (PS.governorPoolClosed s) Scope.requestCancel (PS.scopes s)
+  step-preserves (PS.scope Scope.requestCancel) s permission eq valid with Scope.step (PS.governorPoolClosed s) Scope.requestCancel (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.join) s eq valid with Scope.step (PS.governorPoolClosed s) Scope.join (PS.scopes s)
+  step-preserves (PS.scope Scope.join) s permission eq valid with Scope.step (PS.governorPoolClosed s) Scope.join (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope Scope.finishClose) s eq valid with Scope.step (PS.governorPoolClosed s) Scope.finishClose (PS.scopes s)
+  step-preserves (PS.scope Scope.finishClose) s permission eq valid with Scope.step (PS.governorPoolClosed s) Scope.finishClose (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope (Scope.bodyExit actor)) s eq valid with Scope.step (PS.governorPoolClosed s) (Scope.bodyExit actor) (PS.scopes s)
+  step-preserves (PS.scope (Scope.bodyExit actor)) s permission eq valid with Scope.step (PS.governorPoolClosed s) (Scope.bodyExit actor) (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope (Scope.publishResult actor)) s eq valid with Scope.step (PS.governorPoolClosed s) (Scope.publishResult actor) (PS.scopes s)
+  step-preserves (PS.scope (Scope.publishResult actor)) s permission eq valid with Scope.step (PS.governorPoolClosed s) (Scope.publishResult actor) (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.scope (Scope.beginFailure actor)) s eq valid with Scope.step (PS.governorPoolClosed s) (Scope.beginFailure actor) (PS.scopes s)
+  step-preserves (PS.scope (Scope.beginFailure actor)) s permission eq valid with Scope.step (PS.governorPoolClosed s) (Scope.beginFailure actor) (PS.scopes s)
   ... | nothing = case eq of λ ()
   ... | just next = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.beginMonitorClose order) s eq valid with Scope.closed (PS.scopes s)
+  step-preserves (PS.beginMonitorClose order) s permission eq valid with Scope.closed (PS.scopes s)
   ... | false = case eq of λ ()
   ... | true with Pool.step (Pool.beginClose order) (PS.monitorPool s)
   ...   | nothing = case eq of λ ()
   ...   | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves PS.requestMonitorCancel s eq valid with Pool.step Pool.requestCancel (PS.monitorPool s)
+  step-preserves PS.requestMonitorCancel s permission eq valid with Pool.step Pool.requestCancel (PS.monitorPool s)
   ... | nothing = case eq of λ ()
   ... | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves PS.joinMonitor s eq valid with Pool.step Pool.join (PS.monitorPool s)
+  step-preserves PS.joinMonitor s permission eq valid with Pool.step Pool.join (PS.monitorPool s)
   ... | nothing = case eq of λ ()
   ... | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves PS.finishMonitorClose s eq valid with Pool.step Pool.finishClose (PS.monitorPool s)
+  step-preserves PS.finishMonitorClose s permission eq valid with Pool.step Pool.finishClose (PS.monitorPool s)
   ... | nothing = case eq of λ ()
   ... | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.deregisterMonitor tid) s eq valid with Pool.step (Pool.deregister tid) (PS.monitorPool s)
+  step-preserves (PS.deregisterMonitor tid) s permission eq valid with Pool.step (Pool.deregister tid) (PS.monitorPool s)
   ... | nothing = case eq of λ ()
   ... | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.publishMonitorResult tid) s eq valid with Pool.step (Pool.publishAsyncResult tid) (PS.monitorPool s)
+  step-preserves (PS.publishMonitorResult tid) s permission eq valid with Pool.step (Pool.publishAsyncResult tid) (PS.monitorPool s)
   ... | nothing = case eq of λ ()
   ... | just p′ = case just-injective eq of λ { refl → valid }
-  step-preserves (PS.deliverMonitorCancellation err) s eq valid = delivery-preserves false err s eq valid
-  step-preserves (PS.deliverBlockedMonitorCancellation err) s eq valid = delivery-preserves true err s eq valid
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid with lookup tid (PS.monitors s)
+  step-preserves (PS.deliverMonitorCancellation err) s permission eq valid = delivery-preserves false err s eq valid
+  step-preserves (PS.deliverBlockedMonitorCancellation err) s permission eq valid = delivery-preserves true err s eq valid
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid with lookup tid (PS.monitors s)
   ... | nothing = case eq of λ ()
   ... | just t with PS.pc t | PS.interrupted t
   ...   | PS.cancelling | just f with Cancel.pc f
   ...     | Cancel.finished Cancel.abandoned with Pool.step (Pool.bodyUnwound tid) (PS.monitorPool s)
   ...       | nothing = case eq of λ ()
   ...       | just p′ = case just-injective eq of λ { refl → carry s (PS.finishPeer false (PS.peerRef t) s) (finish-observe false (PS.peerRef t) s) valid }
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.cancelling | just f | Cancel.cleaning active = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.cancelling | just f | Cancel.finished Cancel.cleanupComplete = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.cancelling | just f | Cancel.finished (Cancel.socketCloseFailed err) = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.observing | interrupted = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.normalFinishing | interrupted = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.exited | interrupted = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | (PS.errorWait err) | interrupted = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | (PS.errorFinishing err) | interrupted = case eq of λ ()
-  step-preserves (PS.monitorBodyUnwound tid) s eq valid | just t | PS.cancelling | nothing = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.cancelling | just f | Cancel.cleaning active = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.cancelling | just f | Cancel.finished Cancel.cleanupComplete = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.cancelling | just f | Cancel.finished (Cancel.socketCloseFailed err) = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.observing | interrupted = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.normalFinishing | interrupted = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.exited | interrupted = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | (PS.errorWait err) | interrupted = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | (PS.errorFinishing err) | interrupted = case eq of λ ()
+  step-preserves (PS.monitorBodyUnwound tid) s permission eq valid | just t | PS.cancelling | nothing = case eq of λ ()
+
+
+-- Existing callers retain the unrestricted interface and all old premises.
+module Lift (Q : View → Set)
+  (governor-preserves : ∀ action s {t} → GP.step action s ≡ just t →
+    Q (governor-observe s) → Q (governor-observe t)) where
+  private
+    module Steps = StepLift Q (λ _ → ⊤)
+      (λ action s _ actual → governor-preserves action s actual)
+  open Steps public using (Holds; carry; fork-preserves; delivery-preserves)
+  step-preserves : ∀ action s {s′} → PS.step action s ≡ just s′ → Holds s → Holds s′
+  private
+    all-allowed : ∀ action → Steps.Allowed action
+    all-allowed (PS.run _) = tt
+    all-allowed (PS.forkMonitor _ _) = tt
+    all-allowed (PS.registerMonitor _) = tt
+    all-allowed (PS.returnEstablishment _) = tt
+    all-allowed (PS.finishEstablishment _) = tt
+    all-allowed (PS.monitorException _ _) = tt
+    all-allowed (PS.commitMonitorError _) = tt
+    all-allowed (PS.finishMonitorError _) = tt
+    all-allowed (PS.finishMonitor _) = tt
+    all-allowed (PS.scope _) = tt
+    all-allowed (PS.beginMonitorClose _) = tt
+    all-allowed PS.requestMonitorCancel = tt
+    all-allowed PS.joinMonitor = tt
+    all-allowed PS.finishMonitorClose = tt
+    all-allowed (PS.deliverMonitorCancellation _) = tt
+    all-allowed (PS.deliverBlockedMonitorCancellation _) = tt
+    all-allowed (PS.monitorBodyUnwound _) = tt
+    all-allowed (PS.deregisterMonitor _) = tt
+    all-allowed (PS.publishMonitorResult _) = tt
+  step-preserves action s = Steps.step-preserves action s (all-allowed action)
 
   exec-preserves : ∀ {s actions s′} → PS.Executes s actions s′ → Holds s → Holds s′
   exec-preserves PS.done valid = valid

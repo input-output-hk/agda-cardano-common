@@ -8,6 +8,7 @@ open import Data.Nat using (ℕ; suc; _≤?_)
 open import Data.List using (List; []; _∷_; _++_; map; filterᵇ)
 open import Data.Bool.ListAction using (any)
 open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Unit using (⊤; tt)
 open import Data.Product using (_×_; _,_)
 open import Relation.Nullary using (yes; no; does)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
@@ -29,159 +30,169 @@ import ConnectionManagement.Rules.OutboundAcquire as A
 import ConnectionManagement.Properties.PeerJobInvariant as Jobs
 open import ConnectionManagement.Subsystem
 
--- Parameterise only the reusable outbound preservation fact.
-module Lift
+-- A restricted source observer reuses every non-core subsystem case.
+-- The old unrestricted interface remains available below.
+module StepLift
   (Predicate : A.Runtime → S.State → Set)
-  (preserve : ∀ a c {c′} → CM.advance a c ≡ just c′ →
+  (job-preserve : ∀ a f w → Predicate (CM.acquiring (J.cm w)) (Inbound.world (CM.core (J.cm w))) →
+    ∀ {out} → J.step a f w ≡ just out →
+    Predicate (CM.acquiring (J.cm (Data.Product.proj₂ out))) (Inbound.world (CM.core (J.cm (Data.Product.proj₂ out)))))
+  (monitor-preserve : ∀ mid c {c′} → CM.advance (CM.inbound (Inbound.igStep (IG.monitorCompletion mid))) c ≡ just c′ →
+    Predicate (CM.acquiring c) (Inbound.world (CM.core c)) →
+    Predicate (CM.acquiring c′) (Inbound.world (CM.core c′)))
+  (PermitCore : CM.Action → Set)
+  (core-preserve : ∀ a c {c′} → PermitCore a → CM.advance a c ≡ just c′ →
     Predicate (CM.acquiring c) (Inbound.world (CM.core c)) →
     Predicate (CM.acquiring c′) (Inbound.world (CM.core c′))) where
 
-  module Job = Jobs.Lift Predicate preserve
+  -- Only the raw core constructor needs an explicit source permission.
+  Allowed : Action → Set
+  Allowed (core action) = PermitCore action
+  Allowed _ = ⊤
 
-  -- The governor adds no fields to the invariant's observed runtime/world.
   Valid : Configuration → Set
-  Valid c = Job.Valid (world c)
+  Valid c = Predicate (CM.acquiring (J.cm (world c))) (Inbound.world (CM.core (J.cm (world c))))
 
   -- All enabled actions are covered; unavailable attempts provide no transition.
-  advance-preserves : ∀ a c {c′} → advance a c ≡ just c′ → Valid c → Valid c′
-  advance-preserves (core action) c with CM.advance action (J.cm (world c)) in stepped
+  advance-preserves : ∀ a c {c′} → Allowed a → advance a c ≡ just c′ → Valid c → Valid c′
+  advance-preserves (core action) c permission with CM.advance action (J.cm (world c)) in stepped
   ... | nothing = λ ()
-  ... | just cm′ = λ { refl v → preserve action (J.cm (world c)) stepped v }
-  advance-preserves publishPublicState c with pc c
+  ... | just cm′ = λ { refl v → core-preserve action (J.cm (world c)) permission stepped v }
+  advance-preserves publishPublicState c permission with pc c
   ... | publishPublic = λ { refl v → v }
-  advance-preserves publishPublicState c | sampleInputs = λ ()
-  advance-preserves publishPublicState c | prepareWait = λ ()
-  advance-preserves publishPublicState c | selecting = λ ()
-  advance-preserves publishPublicState c | (cancelTimer selected) = λ ()
-  advance-preserves publishPublicState c | (apply selected) = λ ()
-  advance-preserves publishPublicState c | (publishView work) = λ ()
-  advance-preserves publishPublicState c | (traceDecision work) = λ ()
-  advance-preserves publishPublicState c | (launch work) = λ ()
-  advance-preserves publishPublicState c | (register j rest) = λ ()
-  advance-preserves publishPublicState c | (completionAssertionFailed result) = λ ()
-  advance-preserves (sampleTime t) c with pc c | now c ≤? t
+  advance-preserves publishPublicState c permission | sampleInputs = λ ()
+  advance-preserves publishPublicState c permission | prepareWait = λ ()
+  advance-preserves publishPublicState c permission | selecting = λ ()
+  advance-preserves publishPublicState c permission | (cancelTimer selected) = λ ()
+  advance-preserves publishPublicState c permission | (apply selected) = λ ()
+  advance-preserves publishPublicState c permission | (publishView work) = λ ()
+  advance-preserves publishPublicState c permission | (traceDecision work) = λ ()
+  advance-preserves publishPublicState c permission | (launch work) = λ ()
+  advance-preserves publishPublicState c permission | (register j rest) = λ ()
+  advance-preserves publishPublicState c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves (sampleTime t) c permission with pc c | now c ≤? t
   ... | sampleInputs | yes _ = λ { refl v → v }
   ... | sampleInputs | no _ = λ ()
-  advance-preserves (sampleTime t) c | publishPublic | _ = λ ()
-  advance-preserves (sampleTime t) c | prepareWait | _ = λ ()
-  advance-preserves (sampleTime t) c | selecting | _ = λ ()
-  advance-preserves (sampleTime t) c | (cancelTimer selected) | _ = λ ()
-  advance-preserves (sampleTime t) c | (apply selected) | _ = λ ()
-  advance-preserves (sampleTime t) c | (publishView work) | _ = λ ()
-  advance-preserves (sampleTime t) c | (traceDecision work) | _ = λ ()
-  advance-preserves (sampleTime t) c | (launch work) | _ = λ ()
-  advance-preserves (sampleTime t) c | (register j rest) | _ = λ ()
-  advance-preserves (sampleTime t) c | (completionAssertionFailed result) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | publishPublic | _ = λ ()
+  advance-preserves (sampleTime t) c permission | prepareWait | _ = λ ()
+  advance-preserves (sampleTime t) c permission | selecting | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (cancelTimer selected) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (apply selected) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (publishView work) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (traceDecision work) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (launch work) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (register j rest) | _ = λ ()
+  advance-preserves (sampleTime t) c permission | (completionAssertionFailed result) | _ = λ ()
   -- Raw target-input writes do not affect the observed CM/IG predicate.
-  advance-preserves (setTargets t) c = λ { refl v → v }
-  advance-preserves (selectMonitor delay) c with pc c | G.monitored (J.peers (world c)) (privateState c)
+  advance-preserves (setTargets t) c permission = λ { refl v → v }
+  advance-preserves (selectMonitor delay) c permission with pc c | G.monitored (J.peers (world c)) (privateState c)
   ... | selecting | changes@(_ ∷ _) with completeDelays changes delay
   ...   | false = λ ()
   ...   | true = λ { refl v → v }
-  advance-preserves (selectMonitor delay) c | selecting | [] = λ ()
-  advance-preserves (selectMonitor delay) c | publishPublic | _ = λ ()
-  advance-preserves (selectMonitor delay) c | sampleInputs | _ = λ ()
-  advance-preserves (selectMonitor delay) c | prepareWait | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (cancelTimer selected) | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (apply selected) | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (publishView work) | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (traceDecision work) | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (launch work) | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (register j rest) | _ = λ ()
-  advance-preserves (selectMonitor delay) c | (completionAssertionFailed result) | _ = λ ()
-  advance-preserves selectCompletion c with pc c | noMonitor c | completions c
+  advance-preserves (selectMonitor delay) c permission | selecting | [] = λ ()
+  advance-preserves (selectMonitor delay) c permission | publishPublic | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | sampleInputs | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | prepareWait | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (cancelTimer selected) | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (apply selected) | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (publishView work) | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (traceDecision work) | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (launch work) | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (register j rest) | _ = λ ()
+  advance-preserves (selectMonitor delay) c permission | (completionAssertionFailed result) | _ = λ ()
+  advance-preserves selectCompletion c permission with pc c | noMonitor c | completions c
   ... | selecting | true | x ∷ xs = λ { refl v → v }
   ... | selecting | true | [] = λ ()
   ... | selecting | false | _ = λ ()
-  advance-preserves selectCompletion c | publishPublic | _ | _ = λ ()
-  advance-preserves selectCompletion c | sampleInputs | _ | _ = λ ()
-  advance-preserves selectCompletion c | prepareWait | _ | _ = λ ()
-  advance-preserves selectCompletion c | (cancelTimer selected) | _ | _ = λ ()
-  advance-preserves selectCompletion c | (apply selected) | _ | _ = λ ()
-  advance-preserves selectCompletion c | (publishView work) | _ | _ = λ ()
-  advance-preserves selectCompletion c | (traceDecision work) | _ | _ = λ ()
-  advance-preserves selectCompletion c | (launch work) | _ | _ = λ ()
-  advance-preserves selectCompletion c | (register j rest) | _ | _ = λ ()
-  advance-preserves selectCompletion c | (completionAssertionFailed result) | _ | _ = λ ()
-  advance-preserves selectTargets c with pc c | noMonitor c | noCompletions c | noTargets c
+  advance-preserves selectCompletion c permission | publishPublic | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | sampleInputs | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | prepareWait | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (cancelTimer selected) | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (apply selected) | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (publishView work) | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (traceDecision work) | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (launch work) | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (register j rest) | _ | _ = λ ()
+  advance-preserves selectCompletion c permission | (completionAssertionFailed result) | _ | _ = λ ()
+  advance-preserves selectTargets c permission with pc c | noMonitor c | noCompletions c | noTargets c
   ... | selecting | true | true | false = λ { refl v → v }
-  advance-preserves selectTargets c | selecting | true | true | true = λ ()
-  advance-preserves selectTargets c | selecting | true | false | true = λ ()
-  advance-preserves selectTargets c | selecting | true | false | false = λ ()
-  advance-preserves selectTargets c | selecting | false | true | true = λ ()
-  advance-preserves selectTargets c | selecting | false | true | false = λ ()
-  advance-preserves selectTargets c | selecting | false | false | true = λ ()
-  advance-preserves selectTargets c | selecting | false | false | false = λ ()
-  advance-preserves selectTargets c | publishPublic | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | sampleInputs | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | prepareWait | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (cancelTimer selected) | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (apply selected) | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (publishView work) | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (traceDecision work) | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (launch work) | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (register j rest) | _ | _ | _ = λ ()
-  advance-preserves selectTargets c | (completionAssertionFailed result) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c with pc c | noMonitor c | noCompletions c | noTargets c
+  advance-preserves selectTargets c permission | selecting | true | true | true = λ ()
+  advance-preserves selectTargets c permission | selecting | true | false | true = λ ()
+  advance-preserves selectTargets c permission | selecting | true | false | false = λ ()
+  advance-preserves selectTargets c permission | selecting | false | true | true = λ ()
+  advance-preserves selectTargets c permission | selecting | false | true | false = λ ()
+  advance-preserves selectTargets c permission | selecting | false | false | true = λ ()
+  advance-preserves selectTargets c permission | selecting | false | false | false = λ ()
+  advance-preserves selectTargets c permission | publishPublic | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | sampleInputs | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | prepareWait | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (cancelTimer selected) | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (apply selected) | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (publishView work) | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (traceDecision work) | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (launch work) | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (register j rest) | _ | _ | _ = λ ()
+  advance-preserves selectTargets c permission | (completionAssertionFailed result) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission with pc c | noMonitor c | noCompletions c | noTargets c
   ... | selecting | true | true | true with G.choose (now c) picked (privateState c)
   ...   | nothing = λ ()
   ...   | just d = λ { refl v → v }
-  advance-preserves (selectPolicy picked) c | selecting | true | true | false = λ ()
-  advance-preserves (selectPolicy picked) c | selecting | true | false | true = λ ()
-  advance-preserves (selectPolicy picked) c | selecting | true | false | false = λ ()
-  advance-preserves (selectPolicy picked) c | selecting | false | true | true = λ ()
-  advance-preserves (selectPolicy picked) c | selecting | false | true | false = λ ()
-  advance-preserves (selectPolicy picked) c | selecting | false | false | true = λ ()
-  advance-preserves (selectPolicy picked) c | selecting | false | false | false = λ ()
-  advance-preserves (selectPolicy picked) c | publishPublic | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | sampleInputs | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | prepareWait | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (cancelTimer selected) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (apply selected) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (publishView work) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (traceDecision work) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (launch work) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (register j rest) | _ | _ | _ = λ ()
-  advance-preserves (selectPolicy picked) c | (completionAssertionFailed result) | _ | _ | _ = λ ()
-  advance-preserves registerWakeup c with pc c
+  advance-preserves (selectPolicy picked) c permission | selecting | true | true | false = λ ()
+  advance-preserves (selectPolicy picked) c permission | selecting | true | false | true = λ ()
+  advance-preserves (selectPolicy picked) c permission | selecting | true | false | false = λ ()
+  advance-preserves (selectPolicy picked) c permission | selecting | false | true | true = λ ()
+  advance-preserves (selectPolicy picked) c permission | selecting | false | true | false = λ ()
+  advance-preserves (selectPolicy picked) c permission | selecting | false | false | true = λ ()
+  advance-preserves (selectPolicy picked) c permission | selecting | false | false | false = λ ()
+  advance-preserves (selectPolicy picked) c permission | publishPublic | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | sampleInputs | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | prepareWait | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (cancelTimer selected) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (apply selected) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (publishView work) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (traceDecision work) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (launch work) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (register j rest) | _ | _ | _ = λ ()
+  advance-preserves (selectPolicy picked) c permission | (completionAssertionFailed result) | _ | _ | _ = λ ()
+  advance-preserves registerWakeup c permission with pc c
   ... | prepareWait = λ { refl v → v }
-  advance-preserves registerWakeup c | publishPublic = λ ()
-  advance-preserves registerWakeup c | sampleInputs = λ ()
-  advance-preserves registerWakeup c | selecting = λ ()
-  advance-preserves registerWakeup c | (cancelTimer selected) = λ ()
-  advance-preserves registerWakeup c | (apply selected) = λ ()
-  advance-preserves registerWakeup c | (publishView work) = λ ()
-  advance-preserves registerWakeup c | (traceDecision work) = λ ()
-  advance-preserves registerWakeup c | (launch work) = λ ()
-  advance-preserves registerWakeup c | (register j rest) = λ ()
-  advance-preserves registerWakeup c | (completionAssertionFailed result) = λ ()
-  advance-preserves expireWakeup c with pc c | wakeupAt c | wakeupReady c
+  advance-preserves registerWakeup c permission | publishPublic = λ ()
+  advance-preserves registerWakeup c permission | sampleInputs = λ ()
+  advance-preserves registerWakeup c permission | selecting = λ ()
+  advance-preserves registerWakeup c permission | (cancelTimer selected) = λ ()
+  advance-preserves registerWakeup c permission | (apply selected) = λ ()
+  advance-preserves registerWakeup c permission | (publishView work) = λ ()
+  advance-preserves registerWakeup c permission | (traceDecision work) = λ ()
+  advance-preserves registerWakeup c permission | (launch work) = λ ()
+  advance-preserves registerWakeup c permission | (register j rest) = λ ()
+  advance-preserves registerWakeup c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves expireWakeup c permission with pc c | wakeupAt c | wakeupReady c
   ... | selecting | just _ | false = λ { refl v → v }
   ... | selecting | just _ | true = λ ()
   ... | selecting | nothing | _ = λ ()
-  advance-preserves expireWakeup c | publishPublic | _ | _ = λ ()
-  advance-preserves expireWakeup c | sampleInputs | _ | _ = λ ()
-  advance-preserves expireWakeup c | prepareWait | _ | _ = λ ()
-  advance-preserves expireWakeup c | (cancelTimer selected) | _ | _ = λ ()
-  advance-preserves expireWakeup c | (apply selected) | _ | _ = λ ()
-  advance-preserves expireWakeup c | (publishView work) | _ | _ = λ ()
-  advance-preserves expireWakeup c | (traceDecision work) | _ | _ = λ ()
-  advance-preserves expireWakeup c | (launch work) | _ | _ = λ ()
-  advance-preserves expireWakeup c | (register j rest) | _ | _ = λ ()
-  advance-preserves expireWakeup c | (completionAssertionFailed result) | _ | _ = λ ()
-  advance-preserves cancelWakeup c with pc c
+  advance-preserves expireWakeup c permission | publishPublic | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | sampleInputs | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | prepareWait | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (cancelTimer selected) | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (apply selected) | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (publishView work) | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (traceDecision work) | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (launch work) | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (register j rest) | _ | _ = λ ()
+  advance-preserves expireWakeup c permission | (completionAssertionFailed result) | _ | _ = λ ()
+  advance-preserves cancelWakeup c permission with pc c
   ... | cancelTimer selected = λ { refl v → v }
-  advance-preserves cancelWakeup c | publishPublic = λ ()
-  advance-preserves cancelWakeup c | sampleInputs = λ ()
-  advance-preserves cancelWakeup c | prepareWait = λ ()
-  advance-preserves cancelWakeup c | selecting = λ ()
-  advance-preserves cancelWakeup c | (apply selected) = λ ()
-  advance-preserves cancelWakeup c | (publishView work) = λ ()
-  advance-preserves cancelWakeup c | (traceDecision work) = λ ()
-  advance-preserves cancelWakeup c | (launch work) = λ ()
-  advance-preserves cancelWakeup c | (register j rest) = λ ()
-  advance-preserves cancelWakeup c | (completionAssertionFailed result) = λ ()
-  advance-preserves selectWakeup c with pc c | noMonitor c | noCompletions c | noTargets c | wakeupReady c | wakeupAt c | G.firstReady (now c) (privateState c)
+  advance-preserves cancelWakeup c permission | publishPublic = λ ()
+  advance-preserves cancelWakeup c permission | sampleInputs = λ ()
+  advance-preserves cancelWakeup c permission | prepareWait = λ ()
+  advance-preserves cancelWakeup c permission | selecting = λ ()
+  advance-preserves cancelWakeup c permission | (apply selected) = λ ()
+  advance-preserves cancelWakeup c permission | (publishView work) = λ ()
+  advance-preserves cancelWakeup c permission | (traceDecision work) = λ ()
+  advance-preserves cancelWakeup c permission | (launch work) = λ ()
+  advance-preserves cancelWakeup c permission | (register j rest) = λ ()
+  advance-preserves cancelWakeup c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves selectWakeup c permission with pc c | noMonitor c | noCompletions c | noTargets c | wakeupReady c | wakeupAt c | G.firstReady (now c) (privateState c)
   ... | selecting | true | true | true | true | just deadline | nothing = λ { refl v → v }
   ... | selecting | false | _ | _ | _ | _ | _ = λ ()
   ... | selecting | true | false | _ | _ | _ | _ = λ ()
@@ -189,134 +200,134 @@ module Lift
   ... | selecting | true | true | true | false | _ | _ = λ ()
   ... | selecting | true | true | true | true | nothing | _ = λ ()
   ... | selecting | true | true | true | true | just deadline | just ready = λ ()
-  advance-preserves selectWakeup c | publishPublic | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | sampleInputs | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | prepareWait | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (cancelTimer selected) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (apply selected) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (publishView work) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (traceDecision work) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (launch work) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (register j rest) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves selectWakeup c | (completionAssertionFailed result) | _ | _ | _ | _ | _ | _ = λ ()
-  advance-preserves (applyAt t) c with pc c | now c ≤? t
+  advance-preserves selectWakeup c permission | publishPublic | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | sampleInputs | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | prepareWait | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (cancelTimer selected) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (apply selected) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (publishView work) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (traceDecision work) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (launch work) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (register j rest) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves selectWakeup c permission | (completionAssertionFailed result) | _ | _ | _ | _ | _ | _ = λ ()
+  advance-preserves (applyAt t) c permission with pc c | now c ≤? t
   ... | apply (policy d) | yes _ = λ { refl v → v }
   ... | apply (completion result) | yes _ with G.completionAssertion result (privateState c)
   ...   | false = λ { refl v → v }
   ...   | true = λ { refl v → v }
-  advance-preserves (applyAt t) c | apply (monitor changes delay) | yes _ = λ { refl v → v }
-  advance-preserves (applyAt t) c | apply (targets t′) | yes _ = λ { refl v → v }
-  advance-preserves (applyAt t) c | apply (wakeup deadline) | yes _ with deadline ≤? t
+  advance-preserves (applyAt t) c permission | apply (monitor changes delay) | yes _ = λ { refl v → v }
+  advance-preserves (applyAt t) c permission | apply (targets t′) | yes _ = λ { refl v → v }
+  advance-preserves (applyAt t) c permission | apply (wakeup deadline) | yes _ with deadline ≤? t
   ...   | yes _ = λ { refl v → v }
   ...   | no _ = λ ()
-  advance-preserves (applyAt t) c | apply (policy d) | no _ = λ ()
-  advance-preserves (applyAt t) c | apply (completion result) | no _ = λ ()
-  advance-preserves (applyAt t) c | apply (monitor changes delay) | no _ = λ ()
-  advance-preserves (applyAt t) c | apply (targets t′) | no _ = λ ()
-  advance-preserves (applyAt t) c | apply (wakeup deadline) | no _ = λ ()
-  advance-preserves (applyAt t) c | publishPublic | _ = λ ()
-  advance-preserves (applyAt t) c | sampleInputs | _ = λ ()
-  advance-preserves (applyAt t) c | prepareWait | _ = λ ()
-  advance-preserves (applyAt t) c | selecting | _ = λ ()
-  advance-preserves (applyAt t) c | (cancelTimer selected) | _ = λ ()
-  advance-preserves (applyAt t) c | (publishView work) | _ = λ ()
-  advance-preserves (applyAt t) c | (traceDecision work) | _ = λ ()
-  advance-preserves (applyAt t) c | (launch work) | _ = λ ()
-  advance-preserves (applyAt t) c | (register j rest) | _ = λ ()
-  advance-preserves (applyAt t) c | (completionAssertionFailed result) | _ = λ ()
-  advance-preserves publishCounters c with pc c
+  advance-preserves (applyAt t) c permission | apply (policy d) | no _ = λ ()
+  advance-preserves (applyAt t) c permission | apply (completion result) | no _ = λ ()
+  advance-preserves (applyAt t) c permission | apply (monitor changes delay) | no _ = λ ()
+  advance-preserves (applyAt t) c permission | apply (targets t′) | no _ = λ ()
+  advance-preserves (applyAt t) c permission | apply (wakeup deadline) | no _ = λ ()
+  advance-preserves (applyAt t) c permission | publishPublic | _ = λ ()
+  advance-preserves (applyAt t) c permission | sampleInputs | _ = λ ()
+  advance-preserves (applyAt t) c permission | prepareWait | _ = λ ()
+  advance-preserves (applyAt t) c permission | selecting | _ = λ ()
+  advance-preserves (applyAt t) c permission | (cancelTimer selected) | _ = λ ()
+  advance-preserves (applyAt t) c permission | (publishView work) | _ = λ ()
+  advance-preserves (applyAt t) c permission | (traceDecision work) | _ = λ ()
+  advance-preserves (applyAt t) c permission | (launch work) | _ = λ ()
+  advance-preserves (applyAt t) c permission | (register j rest) | _ = λ ()
+  advance-preserves (applyAt t) c permission | (completionAssertionFailed result) | _ = λ ()
+  advance-preserves publishCounters c permission with pc c
   ... | publishView work = λ { refl v → v }
-  advance-preserves publishCounters c | publishPublic = λ ()
-  advance-preserves publishCounters c | sampleInputs = λ ()
-  advance-preserves publishCounters c | prepareWait = λ ()
-  advance-preserves publishCounters c | selecting = λ ()
-  advance-preserves publishCounters c | (cancelTimer selected) = λ ()
-  advance-preserves publishCounters c | (apply selected) = λ ()
-  advance-preserves publishCounters c | (traceDecision work) = λ ()
-  advance-preserves publishCounters c | (launch work) = λ ()
-  advance-preserves publishCounters c | (register j rest) = λ ()
-  advance-preserves publishCounters c | (completionAssertionFailed result) = λ ()
-  advance-preserves traceSelection c with pc c
+  advance-preserves publishCounters c permission | publishPublic = λ ()
+  advance-preserves publishCounters c permission | sampleInputs = λ ()
+  advance-preserves publishCounters c permission | prepareWait = λ ()
+  advance-preserves publishCounters c permission | selecting = λ ()
+  advance-preserves publishCounters c permission | (cancelTimer selected) = λ ()
+  advance-preserves publishCounters c permission | (apply selected) = λ ()
+  advance-preserves publishCounters c permission | (traceDecision work) = λ ()
+  advance-preserves publishCounters c permission | (launch work) = λ ()
+  advance-preserves publishCounters c permission | (register j rest) = λ ()
+  advance-preserves publishCounters c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves traceSelection c permission with pc c
   ... | traceDecision work = λ { refl v → v }
-  advance-preserves traceSelection c | publishPublic = λ ()
-  advance-preserves traceSelection c | sampleInputs = λ ()
-  advance-preserves traceSelection c | prepareWait = λ ()
-  advance-preserves traceSelection c | selecting = λ ()
-  advance-preserves traceSelection c | (cancelTimer selected) = λ ()
-  advance-preserves traceSelection c | (apply selected) = λ ()
-  advance-preserves traceSelection c | (publishView work) = λ ()
-  advance-preserves traceSelection c | (launch work) = λ ()
-  advance-preserves traceSelection c | (register j rest) = λ ()
-  advance-preserves traceSelection c | (completionAssertionFailed result) = λ ()
-  advance-preserves registerJob c with pc c
+  advance-preserves traceSelection c permission | publishPublic = λ ()
+  advance-preserves traceSelection c permission | sampleInputs = λ ()
+  advance-preserves traceSelection c permission | prepareWait = λ ()
+  advance-preserves traceSelection c permission | selecting = λ ()
+  advance-preserves traceSelection c permission | (cancelTimer selected) = λ ()
+  advance-preserves traceSelection c permission | (apply selected) = λ ()
+  advance-preserves traceSelection c permission | (publishView work) = λ ()
+  advance-preserves traceSelection c permission | (launch work) = λ ()
+  advance-preserves traceSelection c permission | (register j rest) = λ ()
+  advance-preserves traceSelection c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves registerJob c permission with pc c
   ... | register j rest = λ { refl v → v }
-  advance-preserves registerJob c | publishPublic = λ ()
-  advance-preserves registerJob c | sampleInputs = λ ()
-  advance-preserves registerJob c | prepareWait = λ ()
-  advance-preserves registerJob c | selecting = λ ()
-  advance-preserves registerJob c | (cancelTimer selected) = λ ()
-  advance-preserves registerJob c | (apply selected) = λ ()
-  advance-preserves registerJob c | (publishView work) = λ ()
-  advance-preserves registerJob c | (traceDecision work) = λ ()
-  advance-preserves registerJob c | (launch work) = λ ()
-  advance-preserves registerJob c | (completionAssertionFailed result) = λ ()
-  advance-preserves (forkJob caller child sock) c with pc c | workerFree caller c
+  advance-preserves registerJob c permission | publishPublic = λ ()
+  advance-preserves registerJob c permission | sampleInputs = λ ()
+  advance-preserves registerJob c permission | prepareWait = λ ()
+  advance-preserves registerJob c permission | selecting = λ ()
+  advance-preserves registerJob c permission | (cancelTimer selected) = λ ()
+  advance-preserves registerJob c permission | (apply selected) = λ ()
+  advance-preserves registerJob c permission | (publishView work) = λ ()
+  advance-preserves registerJob c permission | (traceDecision work) = λ ()
+  advance-preserves registerJob c permission | (launch work) = λ ()
+  advance-preserves registerJob c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves (forkJob caller child sock) c permission with pc c | workerFree caller c
   ... | launch [] | _ = λ ()
   ... | launch (work ∷ rest) | true = λ { refl v → v }
   ... | launch (work ∷ rest) | false = λ ()
-  advance-preserves (forkJob caller child sock) c | publishPublic | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | sampleInputs | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | prepareWait | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | selecting | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | (cancelTimer selected) | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | (apply selected) | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | (publishView work) | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | (traceDecision work) | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | (register j rest) | _ = λ ()
-  advance-preserves (forkJob caller child sock) c | (completionAssertionFailed result) | _ = λ ()
-  advance-preserves finishLaunch c with pc c
+  advance-preserves (forkJob caller child sock) c permission | publishPublic | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | sampleInputs | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | prepareWait | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | selecting | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | (cancelTimer selected) | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | (apply selected) | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | (publishView work) | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | (traceDecision work) | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | (register j rest) | _ = λ ()
+  advance-preserves (forkJob caller child sock) c permission | (completionAssertionFailed result) | _ = λ ()
+  advance-preserves finishLaunch c permission with pc c
   ... | launch [] = λ { refl v → v }
   ... | launch (work ∷ rest) = λ ()
-  advance-preserves finishLaunch c | publishPublic = λ ()
-  advance-preserves finishLaunch c | sampleInputs = λ ()
-  advance-preserves finishLaunch c | prepareWait = λ ()
-  advance-preserves finishLaunch c | selecting = λ ()
-  advance-preserves finishLaunch c | (cancelTimer selected) = λ ()
-  advance-preserves finishLaunch c | (apply selected) = λ ()
-  advance-preserves finishLaunch c | (publishView work) = λ ()
-  advance-preserves finishLaunch c | (traceDecision work) = λ ()
-  advance-preserves finishLaunch c | (register j rest) = λ ()
-  advance-preserves finishLaunch c | (completionAssertionFailed result) = λ ()
-  advance-preserves (jobStep j action) c with lookup j (jobs c)
+  advance-preserves finishLaunch c permission | publishPublic = λ ()
+  advance-preserves finishLaunch c permission | sampleInputs = λ ()
+  advance-preserves finishLaunch c permission | prepareWait = λ ()
+  advance-preserves finishLaunch c permission | selecting = λ ()
+  advance-preserves finishLaunch c permission | (cancelTimer selected) = λ ()
+  advance-preserves finishLaunch c permission | (apply selected) = λ ()
+  advance-preserves finishLaunch c permission | (publishView work) = λ ()
+  advance-preserves finishLaunch c permission | (traceDecision work) = λ ()
+  advance-preserves finishLaunch c permission | (register j rest) = λ ()
+  advance-preserves finishLaunch c permission | (completionAssertionFailed result) = λ ()
+  advance-preserves (jobStep j action) c permission with lookup j (jobs c)
   ... | nothing = λ ()
   ... | just frame with queued frame | J.step action (execution frame) (world c) in stepped
-  ...   | false | just (f′ , w′) = λ { refl v → Job.step-preserves action (execution frame) (world c) v stepped }
+  ...   | false | just (f′ , w′) = λ { refl v → job-preserve action (execution frame) (world c) v stepped }
   ...   | true | _ = λ ()
   ...   | false | nothing = λ ()
-  advance-preserves (enqueueCompletion j delay) c with lookup j (jobs c)
+  advance-preserves (enqueueCompletion j delay) c permission with lookup j (jobs c)
   ... | nothing = λ ()
   ... | just frame with queued frame | J.pc (execution frame)
   ...   | false | J.complete result with validCompletionDelay (J.work (execution frame)) result delay
   ...     | false = λ ()
   ...     | true = λ { refl v → v }
-  advance-preserves (enqueueCompletion j delay) c | just frame | true | _ = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.begin = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.awaitAcquire = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | (J.startBundle t ns) = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | (J.publishBundle t) = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.markWarm = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.forkMonitor = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.finishActivation = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.awaitHot = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.awaitAll = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.callRelease = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.awaitRelease = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | J.delayFailure = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | (J.awaitCold result) = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | (J.acquirePolicy fault) = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | (J.nodeDelivery fault) = λ ()
-  advance-preserves (enqueueCompletion j delay) c | just frame | false | (J.nodeRethrow fault) = λ ()
-  advance-preserves (deregisterJob j) c with lookup j (jobs c)
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | true | _ = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.begin = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.awaitAcquire = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | (J.startBundle t ns) = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | (J.publishBundle t) = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.markWarm = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.forkMonitor = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.finishActivation = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.awaitHot = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.awaitAll = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.callRelease = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.awaitRelease = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | J.delayFailure = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | (J.awaitCold result) = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | (J.acquirePolicy fault) = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | (J.nodeDelivery fault) = λ ()
+  advance-preserves (enqueueCompletion j delay) c permission | just frame | false | (J.nodeRethrow fault) = λ ()
+  advance-preserves (deregisterJob j) c permission with lookup j (jobs c)
   ... | nothing = λ ()
   ... | just frame with queued frame | deregistered frame | any (λ x → does (x ≟ j)) (pool c)
   ...   | true | true | true = λ ()
@@ -327,20 +338,20 @@ module Lift
   ...   | false | true | false = λ ()
   ...   | false | false | true = λ ()
   ...   | false | false | false = λ ()
-  advance-preserves (protocolResult ref n result) c with lookup ref (J.peers (world c))
+  advance-preserves (protocolResult ref n result) c permission with lookup ref (J.peers (world c))
   ... | nothing = λ ()
   ... | just peer with P.step (P.protocolResult n result) peer (Inbound.inboundGovernor (CM.core (J.cm (world c)))) (Inbound.world (CM.core (J.cm (world c))))
   ...   | nothing = λ ()
   ...   | just (peer′ , ig′) = λ { refl v → v }
-  advance-preserves (publishInitiatorResult ref i) c with lookup ref (J.peers (world c))
+  advance-preserves (publishInitiatorResult ref i) c permission with lookup ref (J.peers (world c))
   ... | nothing = λ ()
   ... | just peer with P.takePending i (P.pendingResults peer) | lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
   ...   | just ((n , result) , retained) | just observedMux with Life.muxAllowed (P.muxRef peer) Life.jobAccess (Inbound.handlerLifecycles (CM.core (J.cm (world c))))
   ...     | false = λ ()
   ...     | true = λ { refl v → v }
-  advance-preserves (publishInitiatorResult ref i) c | just peer | nothing | _ = λ ()
-  advance-preserves (publishInitiatorResult ref i) c | just peer | just selected | nothing = λ ()
-  advance-preserves (observeInitiatorFailure ref) c with lookup ref (J.peers (world c))
+  advance-preserves (publishInitiatorResult ref i) c permission | just peer | nothing | _ = λ ()
+  advance-preserves (publishInitiatorResult ref i) c permission | just peer | just selected | nothing = λ ()
+  advance-preserves (observeInitiatorFailure ref) c permission with lookup ref (J.peers (world c))
   ... | nothing = λ ()
   ... | just peer with lookup (P.muxRef peer) (IG.muxes (IG.execution (Inbound.inboundGovernor (CM.core (J.cm (world c))))))
   ...   | nothing = λ ()
@@ -348,57 +359,56 @@ module Lift
   ...     | M.jobResult M.initiatorJob n (errored err) ∷ rest with CM.advance
     (CM.inbound (Inbound.igStep (IG.monitorCompletion (P.muxRef peer)))) (J.cm (world c)) in stepped
   ...       | nothing = λ ()
-  ...       | just cm′ = λ { refl v → preserve
-    (CM.inbound (Inbound.igStep (IG.monitorCompletion (P.muxRef peer)))) (J.cm (world c)) stepped v }
-  advance-preserves (observeInitiatorFailure ref) c | just peer | just observedMux | [] = λ ()
-  advance-preserves (observeInitiatorFailure ref) c | just peer | just observedMux | M.jobResult M.responderJob n outcome ∷ rest = λ ()
-  advance-preserves (observeInitiatorFailure ref) c | just peer | just observedMux | M.jobResult M.initiatorJob n clean ∷ rest = λ ()
-  advance-preserves (pollPeer ref caller) c with lookup ref (J.peers (world c)) | lookup ref (monitors c)
+  ...       | just cm′ = λ { refl v → monitor-preserve (P.muxRef peer) (J.cm (world c)) stepped v }
+  advance-preserves (observeInitiatorFailure ref) c permission | just peer | just observedMux | [] = λ ()
+  advance-preserves (observeInitiatorFailure ref) c permission | just peer | just observedMux | M.jobResult M.responderJob n outcome ∷ rest = λ ()
+  advance-preserves (observeInitiatorFailure ref) c permission | just peer | just observedMux | M.jobResult M.initiatorJob n clean ∷ rest = λ ()
+  advance-preserves (pollPeer ref caller) c permission with lookup ref (J.peers (world c)) | lookup ref (monitors c)
   ... | just peer | nothing with P.monitorStarted peer | P.status peer
   ...   | true | P.peerCooling with P.step P.monitorCooling peer (Inbound.inboundGovernor (CM.core (J.cm (world c)))) (Inbound.world (CM.core (J.cm (world c))))
   ...     | nothing = λ ()
   ...     | just (peer′ , _) = λ { refl v → v }
-  advance-preserves (pollPeer ref caller) c | just peer | nothing | true | P.peerCold = λ { refl v → v }
-  advance-preserves (pollPeer ref caller) c | just peer | nothing | true | P.peerWarm with firstResult peer
+  advance-preserves (pollPeer ref caller) c permission | just peer | nothing | true | P.peerCold = λ { refl v → v }
+  advance-preserves (pollPeer ref caller) c permission | just peer | nothing | true | P.peerWarm with firstResult peer
   ... | nothing = λ ()
   ... | just (_ , errored _) = λ { refl v → v }
   ... | just (kind , clean) with workerFree caller c
   ...   | false = λ ()
   ...   | true = λ { refl v → v }
-  advance-preserves (pollPeer ref caller) c | just peer | nothing | true | P.peerHot with firstResult peer
+  advance-preserves (pollPeer ref caller) c permission | just peer | nothing | true | P.peerHot with firstResult peer
   ... | nothing = λ ()
   ... | just (_ , errored _) = λ { refl v → v }
   ... | just (kind , clean) with workerFree caller c
   ...   | false = λ ()
   ...   | true = λ { refl v → v }
-  advance-preserves (pollPeer ref caller) c | just peer | nothing | false | _ = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f with J.pc f
+  advance-preserves (pollPeer ref caller) c permission | just peer | nothing | false | _ = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f with J.pc f
   ... | J.awaitCold _ with P.step P.monitorCooling peer (Inbound.inboundGovernor (CM.core (J.cm (world c)))) (Inbound.world (CM.core (J.cm (world c))))
   ...   | nothing = λ ()
   ...   | just (peer′ , _) = λ { refl v → v }
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.begin = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.awaitAcquire = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | (J.startBundle t ns) = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | (J.publishBundle t) = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.markWarm = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.forkMonitor = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.finishActivation = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.awaitHot = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.awaitAll = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.callRelease = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.awaitRelease = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | J.delayFailure = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | (J.complete result) = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | (J.acquirePolicy fault) = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | (J.nodeDelivery fault) = λ ()
-  advance-preserves (pollPeer ref caller) c | just peer | just f | (J.nodeRethrow fault) = λ ()
-  advance-preserves (pollPeer ref caller) c | nothing | _ = λ ()
-  advance-preserves (monitorStep ref action) c with lookup ref (monitors c)
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.begin = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.awaitAcquire = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | (J.startBundle t ns) = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | (J.publishBundle t) = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.markWarm = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.forkMonitor = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.finishActivation = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.awaitHot = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.awaitAll = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.callRelease = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.awaitRelease = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | J.delayFailure = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | (J.complete result) = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | (J.acquirePolicy fault) = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | (J.nodeDelivery fault) = λ ()
+  advance-preserves (pollPeer ref caller) c permission | just peer | just f | (J.nodeRethrow fault) = λ ()
+  advance-preserves (pollPeer ref caller) c permission | nothing | _ = λ ()
+  advance-preserves (monitorStep ref action) c permission with lookup ref (monitors c)
   ... | nothing = λ ()
   ... | just f with J.step action f (world c) in stepped
   ...   | nothing = λ ()
-  ...   | just (f′ , w′) = λ { refl v → Job.step-preserves action f (world c) v stepped }
-  advance-preserves (monitorFinished ref) c with lookup ref (monitors c)
+  ...   | just (f′ , w′) = λ { refl v → job-preserve action f (world c) v stepped }
+  advance-preserves (monitorFinished ref) c permission with lookup ref (monitors c)
   ... | nothing = λ ()
   ... | just f with J.pc f
   ...   | J.complete _ = λ { refl v → v }
@@ -419,6 +429,52 @@ module Lift
   ...   | (J.nodeDelivery fault) = λ ()
   ...   | (J.nodeRethrow fault) = λ ()
   -- No restriction on which jobs, monitors or core callers interleave.
+
+-- Preserve all existing unrestricted statements and their original premises.
+module Lift
+  (Predicate : A.Runtime → S.State → Set)
+  (preserve : ∀ a c {c′} → CM.advance a c ≡ just c′ →
+    Predicate (CM.acquiring c) (Inbound.world (CM.core c)) →
+    Predicate (CM.acquiring c′) (Inbound.world (CM.core c′))) where
+  module Job = Jobs.Lift Predicate preserve
+  private
+    module Steps = StepLift Predicate Job.step-preserves
+      (λ mid c actual → preserve (CM.inbound (Inbound.igStep (IG.monitorCompletion mid))) c actual)
+      (λ _ → ⊤) (λ a c _ actual → preserve a c actual)
+  open Steps public using (Valid)
+
+  advance-preserves : ∀ a c {c′} → advance a c ≡ just c′ → Valid c → Valid c′
+  private
+    all-allowed : ∀ a → Steps.Allowed a
+    all-allowed (core _) = tt
+    all-allowed publishPublicState = tt
+    all-allowed (sampleTime _) = tt
+    all-allowed (applyAt _) = tt
+    all-allowed (setTargets _) = tt
+    all-allowed (selectMonitor _) = tt
+    all-allowed selectCompletion = tt
+    all-allowed selectTargets = tt
+    all-allowed selectWakeup = tt
+    all-allowed registerWakeup = tt
+    all-allowed expireWakeup = tt
+    all-allowed cancelWakeup = tt
+    all-allowed publishCounters = tt
+    all-allowed traceSelection = tt
+    all-allowed (selectPolicy _) = tt
+    all-allowed (forkJob _ _ _) = tt
+    all-allowed registerJob = tt
+    all-allowed finishLaunch = tt
+    all-allowed (jobStep _ _) = tt
+    all-allowed (enqueueCompletion _ _) = tt
+    all-allowed (deregisterJob _) = tt
+    all-allowed (protocolResult _ _ _) = tt
+    all-allowed (publishInitiatorResult _ _) = tt
+    all-allowed (pollPeer _ _) = tt
+    all-allowed (monitorStep _ _) = tt
+    all-allowed (monitorFinished _) = tt
+    all-allowed (observeInitiatorFailure _) = tt
+  advance-preserves a c = Steps.advance-preserves a c (all-allowed a)
+
   exec-preserves : ∀ {c actions c′} → Valid c → Executes c actions c′ → Valid c′
   exec-preserves valid done = valid
   exec-preserves valid (next {c = c} {a = a} eq rest) =

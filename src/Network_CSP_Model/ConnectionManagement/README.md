@@ -6,7 +6,7 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `1e332cd` and accepted increment 58 (5 November 2026);
+the lifecycle claims through model commit `3822a47` and accepted, uncommitted increment 60 (5 November 2026);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -26,7 +26,16 @@ historical resources separate from live ownership and whole-system shutdown.
 [Increment 58](Supervision.md#fifty-eighth-increment-acknowledged-collected-handler-birth-backing) derives physical membership and
 an earlier actual fork for acknowledged CM-collected workers directly from
 initialization and enabled frontend history. Entry/pending targets remain
-separate. The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
+separate.
+[Increment 59](Supervision.md#fifty-ninth-increment-initializer-boundary-and-gap-aware-resource-histories)
+adds witnessed inbound histories with enabled gaps through publication/final wait
+and a formal preloaded-acquisition initializer control. Operational alignment
+premises remain explicit; automatic collected resource origins are still open.
+[Increment 60](Supervision.md#sixtieth-increment-automatic-inbound-occurrence-reconstruction)
+automatically derives the matching inbound allocation/selection history and resource
+facts from an actual enabled fork, preserving original labels and gaps. Automatic
+composition with discovered collected births and the outbound origin profile remain open.
+The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 
 This directory develops a source-derived CSP model of CM, IG, OG and Server
