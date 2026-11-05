@@ -8154,3 +8154,246 @@ module Protocols where
       duplicate-publication-refused = Out.duplicate-publication-refused
       cm-wait-still-is-not-server-return : S.stage (E.base (K.server (V.base Out.outbound28))) ≡ S.closingCM
       cm-wait-still-is-not-server-return = Out.cm-wait-is-not-server-return
+
+
+  -- Initialized countercontrols keep entry targets distinct from collection.
+  module SameEntryFailedForkControl where
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.Product using (Σ; _×_)
+    open import Data.List.Relation.Unary.Any using (here)
+    import ConnectionManagement.Negative.ServerAdmissionPrefixFixtures as PrefixFixtures
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.Properties.HandlerBirthBacking as Birth
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as MonitorJoins
+    import ConnectionManagement.Rules.CMShutdown as Close
+    private
+      module Same = PrefixFixtures 10 A.key₀ using (binding; empty; err; lease₁; live; one; p1; p2; p3; p4; p5; p6; ps₀; r₀; r₁; start; two; unneg)
+      module Back = Birth.Frontend I.bearerClosed Prior.classify capability using (physical-state)
+      module Joins = MonitorJoins.Frontend I.bearerClosed Prior.classify capability using (physical)
+      module W = N.W using (State; acknowledgeFinished; deliverShutdownMux; physical; setShutdown; shutdown; shutdownStep; step)
+    -- SAME key, distinct caller/child/socket tokens, fixed hard limit ten.
+    -- Same.start is empty, so initialization does not assume an old map entry.
+    frontendAt : S.State → V.Runtime
+    frontendAt s = V.runtime (K.combined (E.igExitState s E.emptyExit) k0) V.empty
+    reuseStart : V.Runtime
+    reuseStart = frontendAt Same.start
+    reuseInitialized : V.initialize (O.initial (Machine.initial Shared.responderMode Same.empty)) L.settings ≡ just reuseStart
+    reuseInitialized = refl
+    event : S.Action → V.Event
+    event a = V.dispatch (K.serverStep (E.run a))
+    step1 : V.advance (event (S.acceptedFork A.w₀ Same.r₀)) reuseStart ≡ just (frontendAt Same.one)
+    step1 = refl
+    step2 : V.advance (event (S.acceptedFork A.w₁ Same.r₁)) (frontendAt Same.one) ≡ just (frontendAt Same.two)
+    step2 = refl
+    step3 : V.advance (event (admit A.w₀ Admission.take)) (frontendAt Same.two) ≡ just (frontendAt Same.p1)
+    step3 = refl
+    step4 : V.advance (event (admit A.w₀ Admission.countLimit)) (frontendAt Same.p1) ≡ just (frontendAt Same.p2)
+    step4 = refl
+    step5 : V.advance (event (admit A.w₀ Admission.allocatePromise)) (frontendAt Same.p2) ≡ just (frontendAt Same.p3)
+    step5 = refl
+    step6 : V.advance (event (admit A.w₀ Admission.chooseEntry)) (frontendAt Same.p3) ≡ just (frontendAt Same.p4)
+    step6 = refl
+    step7 : V.advance (event (admit A.w₀ Admission.fork)) (frontendAt Same.p4) ≡ just (frontendAt Same.p5)
+    step7 = refl
+    step8 : V.advance (event (admit A.w₀ Admission.putMapBack)) (frontendAt Same.p5) ≡ just (frontendAt Same.p6)
+    step8 = refl
+    -- Keep the first caller at its post-publication counter read. The second
+    -- caller locks the SAME binding and overwrites that mutable EntryId.
+    originalPC : Shared.AdmissionPC
+    originalPC = Shared.countPublished (ident 0) (ident 0)
+    reuseAfter : Shared.ConnectionState → Shared.MapCell → Shared.AdmissionPC →
+      List PromiseId → Nat.ℕ → S.State
+    reuseAfter st cell pc ps n = Same.live st cell originalPC pc ps n [] []
+      (Shared.admitting A.w₁) IG.initial H.maskedSetup []
+    secondPromises : List PromiseId
+    secondPromises = ident 1 ∷ Same.ps₀
+    b1 b2 b3 b4 f1 f2 : S.State
+    b1 = reuseAfter Same.unneg (Shared.taken A.w₁) (Shared.count Same.lease₁) Same.ps₀ 1
+    b2 = reuseAfter Same.unneg (Shared.taken A.w₁) (Shared.prepare Same.lease₁) Same.ps₀ 1
+    b3 = reuseAfter Same.unneg (Shared.taken A.w₁) (Shared.selectEntry Same.lease₁ (ident 1)) secondPromises 2
+    overwritten : Shared.ConnectionState
+    overwritten = Shared.unnegotiated inbound A.key₀ A.child₁
+    b4 = reuseAfter overwritten (Shared.taken A.w₁) (Shared.forkHandler Same.lease₁ (ident 1) (ident 0)) secondPromises 2
+    f1 = reuseAfter overwritten (Shared.taken A.w₁) (Shared.reject Same.lease₁ Shared.forkFailed) secondPromises 2
+    f2 = reuseAfter overwritten (Shared.full Same.binding) (Shared.closeSocket Shared.forkFailed) secondPromises 2
+    step9 : V.advance (event (admit A.w₁ Admission.take)) (frontendAt Same.p6) ≡ just (frontendAt b1)
+    step9 = refl
+    step10 : V.advance (event (admit A.w₁ Admission.countLimit)) (frontendAt b1) ≡ just (frontendAt b2)
+    step10 = refl
+    step11 : V.advance (event (admit A.w₁ Admission.allocatePromise)) (frontendAt b2) ≡ just (frontendAt b3)
+    step11 = refl
+    step12 : V.advance (event (admit A.w₁ Admission.chooseEntry)) (frontendAt b3) ≡ just (frontendAt b4)
+    step12 = refl
+    step13 : V.advance (event (admit A.w₁ Admission.failFork)) (frontendAt b4) ≡ just (frontendAt f1)
+    step13 = refl
+    step14 : V.advance (event (admit A.w₁ Admission.restore)) (frontendAt f1) ≡ just (frontendAt f2)
+    step14 = refl
+    prefix : List V.Event
+    prefix = event (S.acceptedFork A.w₀ Same.r₀) ∷ event (S.acceptedFork A.w₁ Same.r₁) ∷
+      event (admit A.w₀ Admission.take) ∷ event (admit A.w₀ Admission.countLimit) ∷
+      event (admit A.w₀ Admission.allocatePromise) ∷ event (admit A.w₀ Admission.chooseEntry) ∷
+      event (admit A.w₀ Admission.fork) ∷ event (admit A.w₀ Admission.putMapBack) ∷
+      event (admit A.w₁ Admission.take) ∷ event (admit A.w₁ Admission.countLimit) ∷
+      event (admit A.w₁ Admission.allocatePromise) ∷ event (admit A.w₁ Admission.chooseEntry) ∷
+      event (admit A.w₁ Admission.failFork) ∷ event (admit A.w₁ Admission.restore) ∷ []
+    abstract
+      same-entry-failed-fork-restored : V.Runs reuseStart prefix (frontendAt f2)
+      same-entry-failed-fork-restored = V.more step1 (V.more step2 (V.more step3 (V.more step4
+        (V.more step5 (V.more step6 (V.more step7 (V.more step8 (V.more step9 (V.more step10
+        (V.more step11 (V.more step12 (V.more step13 (V.more step14 V.stop)))))))))))))
+    restored-map-still-names-the-same-entry : Shared.lookupConnection A.key₀ (Shared.savedMap Same.lease₁) ≡ just (ident 0)
+    restored-map-still-names-the-same-entry = refl
+    restored-actual-map : Shared.mapCell (Shared.cm (S.shared f2)) ≡ Shared.full Same.binding
+    restored-actual-map = refl
+    restore-retains-overwrite : lookup (ident 0) (Shared.entries (Shared.cm (S.shared f2))) ≡ just overwritten
+    restore-retains-overwrite = refl
+    old-handler-still-physical : lookup A.child₀ (B.threads (Back.physical-state (frontendAt f2))) ≡ just (H.handlerThread I.captured H.maskedSetup)
+    old-handler-still-physical = refl
+    failed-new-child-not-physical : lookup A.child₁ (B.threads (Back.physical-state (frontendAt f2))) ≡ nothing
+    failed-new-child-not-physical = refl
+    failed-new-child-not-in-handler-heap : lookup A.child₁ (Shared.handlers (S.shared f2)) ≡ nothing
+    failed-new-child-not-in-handler-heap = refl
+    entry-target-is-unforked-child : Close.getConnThread overwritten ≡ just A.child₁
+    entry-target-is-unforked-child = refl
+    -- Pending fork b4 has exactly the same unbacked entry target. Its map is
+    -- taken, so snapshot capture cannot yet proceed; failed restore exposes it.
+    pending-new-child-not-physical : lookup A.child₁ (B.threads (Back.physical-state (frontendAt b4))) ≡ nothing
+    pending-new-child-not-physical = refl
+    -- Keep raw-coordinator checks separate: frontend capture remains gated on
+    -- actual Server closingCM, which this finite prefix has not reached.
+    raw : W.State
+    raw = Joins.physical (frontendAt f2)
+    snapshot read rawRequested : W.State
+    snapshot = W.setShutdown (Close.shutdownState Close.reading (ident 0 ∷ []) (ident 0 ∷ []) []) raw
+    read = W.setShutdown (Close.shutdownState (Close.sendReady (ident 0) A.child₁) (ident 0 ∷ []) [] []) raw
+    rawRequested = W.setShutdown (Close.shutdownState (Close.awaitDelivery (ident 0) A.child₁) (ident 0 ∷ []) [] []) raw
+    raw-capture : W.step (W.shutdownStep Close.captureSnapshot) raw ≡ just snapshot
+    raw-capture = refl
+    raw-read : W.step (W.shutdownStep Close.readEntry) snapshot ≡ just read
+    raw-read = refl
+    raw-request : W.step (W.shutdownStep Close.requestCancellation) read ≡ just rawRequested
+    raw-request = refl
+    no-fabricated-ack : W.step (W.shutdownStep Close.acknowledgeDelivery) rawRequested ≡ nothing
+    no-fabricated-ack = refl
+    no-finished-ack : W.step W.acknowledgeFinished rawRequested ≡ nothing
+    no-finished-ack = refl
+    no-prehandshake-delivery : H.step (H.deliverShutdownHandshake Same.err) (B.view (W.physical rawRequested)) ≡ nothing
+    no-prehandshake-delivery = refl
+    no-blocked-setup-delivery : H.step (H.deliverShutdownBlockedSetup Same.err) (B.view (W.physical rawRequested)) ≡ nothing
+    no-blocked-setup-delivery = refl
+    no-mux-delivery : W.step (W.deliverShutdownMux Same.err) rawRequested ≡ nothing
+    no-mux-delivery = refl
+    raw-selected-is-not-collected : Close.collected (W.shutdown rawRequested) ≡ []
+    raw-selected-is-not-collected = refl
+    -- Expected additional raw H delivery controls all refuse child₁ because its
+    -- physical lookup is absent. Do not bypass frontend closingCM via a record
+    -- stage update and call that an initialized frontend shutdown witness.
+
+
+  module PreloadedEntryCountercontrol where
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.Properties.HandlerBirthBacking as Birth
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as MonitorJoins
+    import ConnectionManagement.Rules.CMShutdown as Close
+    private
+      module Back = Birth.Frontend I.bearerClosed Prior.classify capability using (physical-state)
+      module Joins = MonitorJoins.Frontend I.bearerClosed Prior.classify capability using (handler-event; physical)
+      module W = N.W using (shutdown; shutdownStep)
+    named : WorkerId
+    named = ident 999
+    seeded : Shared.State
+    seeded = record F.empty { cm = Shared.cmStore
+      (Shared.full (Shared.insertConnection A.key₀ (ident 0) []))
+      ((ident 0 , Shared.unnegotiated inbound A.key₀ named) ∷ []) 1 }
+    configuration : O.Configuration
+    configuration = O.initial (Machine.initial Shared.responderMode seeded)
+    preloaded : V.Runtime
+    preloaded = V.runtime (K.combined
+      (E.igExitState (S.serverState (F.wrap (I.pre (Machine.initial Shared.responderMode seeded))) [] S.serving true) E.emptyExit)
+      k0) V.empty
+    accepts-unbacked-entry : V.initialize configuration L.settings ≡ just preloaded
+    accepts-unbacked-entry = refl
+    named-worker-not-physical : lookup named (B.threads (Back.physical-state preloaded)) ≡ nothing
+    named-worker-not-physical = refl
+    -- Successful initialization is NOT whole-CM-entry coverage. It starts the
+    -- coordinator empty and permits no direct acknowledgment alias.
+    initialized-collected-empty : Close.collected (W.shutdown (Joins.physical preloaded)) ≡ []
+    initialized-collected-empty = refl
+    no-early-frontend-capture : V.advance (Joins.handler-event (W.shutdownStep Close.captureSnapshot)) preloaded ≡ nothing
+    no-early-frontend-capture = refl
+    -- Optional raw-local suffix to show why selected/awaited is weaker than
+    -- collected: use SameEntryFailedForkControl's snapshot/read/request shape
+    -- with named = ident 999. It must still fail delivery/result guards.
+
+
+  -- Collected membership discovers a physical thread and its original fork.
+  module InitializedCollectedExamples where
+    open import Data.Product using (Σ; _×_)
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.List.Relation.Unary.Any using (here)
+    import ConnectionManagement.Properties.ServerPeersHandlerResources as ResourceModel
+    import ConnectionManagement.Properties.CollectedHandlerBirth as CombinedBacking
+    import ConnectionManagement.Properties.HandlerBirthBacking as Birth
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as MonitorJoins
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.CSP.OutboundAdmission as OA
+    import ConnectionManagement.Rules.CMShutdown as Close
+    private
+      module Resources = ResourceModel.Frontend I.bearerClosed Prior.classify capability using (handler-event)
+      module CB = CombinedBacking.Frontend I.bearerClosed Prior.classify capability using (initialized-member; initialized-birth)
+      module Back = Birth.Frontend I.bearerClosed Prior.classify capability using (Backing; physical-state)
+      module Joins = MonitorJoins.Frontend I.bearerClosed Prior.classify capability using (handler-event; physical; server-event; server-runs)
+      module D = Reactivation.Shutdown using (finalCM; handlerFinishEdge11)
+      module In = HandlerResourceOriginChecks using (entryPrefix; initialized-entry)
+      module Wait = CMResultLifecycleChecks using (actual-wait-prefix; waitPrefix)
+      module Out = OutboundHandlerResourceOriginChecks using (edge26; edge27; edge28; outbound-initialized; outbound25; outbound28; start)
+      module OldBirth = HandlerBirthBackingChecks using (outbound-through-cleanup; outbound-through-cleanup-events)
+      module W = N.W using (shutdown; shutdownStep)
+    -- The old inbound history reaches CM entry through actual initialized
+    -- monitor/scopes/callback/Server cleanup; then reuse its opaque finalizer path.
+    inbound-events : List V.Event
+    inbound-events = In.entryPrefix ++ (map Joins.server-event Wait.waitPrefix ++
+      (Joins.handler-event (W.shutdownStep Close.finishClose) ∷ []))
+    abstract
+      inbound-through-final-wait : V.Runs initial inbound-events D.finalCM
+      inbound-through-final-wait = Facts.append-protocols In.initialized-entry
+        (Facts.append-protocols (Joins.server-runs Wait.actual-wait-prefix)
+          (V.more {a = Joins.handler-event (W.shutdownStep Close.finishClose)}
+            D.handlerFinishEdge11 V.stop))
+    inbound-collected : A.child₀ ∈ Close.collected (W.shutdown (Joins.physical D.finalCM))
+    inbound-collected = here refl
+    abstract
+      inbound-derived-membership : Σ H.Thread (λ thread →
+        lookup A.child₀ (B.threads (Back.physical-state D.finalCM)) ≡ just thread)
+      inbound-derived-membership = CB.initialized-member initializer
+        inbound-through-final-wait inbound-collected
+      inbound-derived-birth : Σ Shared.HandlerStart (λ captured →
+        Back.Backing initial D.finalCM inbound-events A.child₀ captured)
+      inbound-derived-birth = CB.initialized-birth initializer
+        inbound-through-final-wait inbound-collected
+    -- The backing records its actual selected fork and descriptor; neither
+    -- application supplies a physical lookup or a resource-origin certificate.
+
+    outbound-final-events : List V.Event
+    outbound-final-events =
+      Resources.handler-event (H.publishAsyncResult OA.child) ∷
+      Joins.handler-event (W.shutdownStep Close.finishTraversal) ∷
+      Joins.handler-event (W.shutdownStep Close.finishClose) ∷ []
+    outbound-events : List V.Event
+    outbound-events = OldBirth.outbound-through-cleanup-events ++ outbound-final-events
+    abstract
+      outbound-final-run : V.Runs Out.outbound25 outbound-final-events Out.outbound28
+      outbound-final-run = V.more Out.edge26 (V.more Out.edge27 (V.more Out.edge28 V.stop))
+      outbound-through-final-wait : V.Runs Out.start outbound-events Out.outbound28
+      outbound-through-final-wait = Facts.append-protocols OldBirth.outbound-through-cleanup outbound-final-run
+    outbound-collected : OA.child ∈ Close.collected (W.shutdown (Joins.physical Out.outbound28))
+    outbound-collected = here refl
+    abstract
+      outbound-derived-membership : Σ H.Thread (λ thread →
+        lookup OA.child (B.threads (Back.physical-state Out.outbound28)) ≡ just thread)
+      outbound-derived-membership = CB.initialized-member Out.outbound-initialized
+        outbound-through-final-wait outbound-collected
+      outbound-derived-birth : Σ Shared.HandlerStart (λ captured →
+        Back.Backing Out.start Out.outbound28 outbound-events OA.child captured)
+      outbound-derived-birth = CB.initialized-birth Out.outbound-initialized
+        outbound-through-final-wait outbound-collected

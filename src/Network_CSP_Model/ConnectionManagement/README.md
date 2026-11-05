@@ -6,8 +6,8 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `6878713` (4 November 2026); the dated
-increment records retain detailed acceptance evidence.
+the lifecycle claims through model commit `1e332cd` and accepted increment 58 (5 November 2026);
+the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
 adds initialized inbound resource histories at publication and CM's wait;
@@ -22,8 +22,12 @@ admits arbitrary enabled frontend histories before outbound birth.
 derives an earlier physical fork from initialized frontend execution and a
 current physical-handler lookup and retains that birth through CM acknowledgement,
 handler result publication and final CM wait. These certificates keep
-historical resources separate from live ownership and
-whole-system shutdown.
+historical resources separate from live ownership and whole-system shutdown.
+[Increment 58](Supervision.md#fifty-eighth-increment-acknowledged-collected-handler-birth-backing) derives physical membership and
+an earlier actual fork for acknowledged CM-collected workers directly from
+initialization and enabled frontend history. Entry/pending targets remain
+separate. The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
+sets the next proof contract, independent workstreams and acceptance gates.
 
 This directory develops a source-derived CSP model of CM, IG, OG and Server
 together. It is independent of `Cardano_network`, `GovernorWedge` and
@@ -663,8 +667,9 @@ of rendered processes.
   explorer and cutoff handling described in the design are not implemented.
 - Raw step/finite-trace correspondence is proved between the machine and its
   `PTree` rendering. This is not source correspondence or equivalence with a
-  separate parallel architecture. No exporter, FDR search, Haskell replay or
-  hidden-process divergence proof has been added. G2 is not complete.
+  separate parallel architecture. This layer supplies no exporter, FDR search or
+  hidden-process divergence proof. Finite [Haskell replays](SourceReplay/README.md)
+  are recorded separately and do not establish source correspondence. G2 is not complete.
 - `CSP.Scope` reports selected incomplete continuations without adding tick or
   self-loop events. An empty offer set in this partial process is not evidence of
   a source deadlock. Absence of a scope diagnostic does not establish completeness.
