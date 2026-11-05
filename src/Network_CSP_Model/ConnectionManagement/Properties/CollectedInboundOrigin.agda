@@ -206,3 +206,11 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
    InboundOrigin input governor start current events worker captured → T.Runs start events current
  execution {start = start} {current = current} origin = subst (λ events → T.Runs start events current) (sym (InboundOrigin.decomposition origin))
    (append (InboundOrigin.prefix-run origin) (T.more (F.fork-event (InboundOrigin.reconstructed origin)) (InboundOrigin.suffix-run origin)))
+
+ -- Reuse the inbound consequence in a richer discovered-birth classifier.
+ from-inbound-occurrence : ∀ input governor {start current events worker captured} →
+   T.initialize input governor ≡ just start →
+   (occurrence : Label.Decomposition start current events worker captured) →
+   Label.Inbound (D.before occurrence) (D.born occurrence) worker captured →
+   InboundOrigin input governor start current events worker captured
+ from-inbound-occurrence = recover

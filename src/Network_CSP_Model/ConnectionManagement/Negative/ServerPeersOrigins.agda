@@ -385,3 +385,345 @@ module CollectedInboundOriginChecks where
   noUnconditionalPreloadedResources = Pre.preloadedResourcesImpossible
   preloadedRemainsUncollected : Close.collected (coordinator Pre.preloadedForked) ≡ []
   preloadedRemainsUncollected = Pre.forkHasNotCollected
+
+-- Increment62: the explicit O.initial profile closes outbound origins.
+module CollectedOutboundOriginChecks where
+  open import ConnectionManagement.Negative.ServerPeers using (module Protocols)
+  open import Data.List using (List; []; _∷_; _++_; take; drop)
+  open import Data.Maybe using (just; nothing)
+  open import Data.Product using (_,_)
+  open import Data.Empty using (⊥)
+  open import Data.Sum using (_⊎_; inj₁; inj₂)
+  open import Data.Unit using (⊤; tt)
+  open import Data.List.Membership.Propositional using (_∈_)
+  open import Data.List.Relation.Unary.Any using (here)
+  open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans)
+  open import ConnectionManagement.Domain using (WorkerId; ident; local)
+  open import ConnectionManagement.Store using (lookup)
+  import ConnectionManagement.State as Shared
+  import ConnectionManagement.Machine as Machine
+  import ConnectionManagement.OutboundMachine as O
+  import ConnectionManagement.HandlerSupervision as H
+  import ConnectionManagement.OutboundHandlerSupervision as B
+  import ConnectionManagement.ServerPeers as Combined
+  import ConnectionManagement.MuxHandlerExit as Physical
+  import ConnectionManagement.Rules.OutboundAcquire as Acquire
+  import ConnectionManagement.Rules.CMShutdown as Close
+  import ConnectionManagement.Rules.IGRegistration as IG
+  import ConnectionManagement.Scenarios.Admission as A
+  import ConnectionManagement.CSP.GovernorLifecycle as L
+  import ConnectionManagement.CSP.OutboundAdmission as OA
+  import ConnectionManagement.Negative.OutboundHandlerSupervision as OB
+  import ConnectionManagement.Negative.GovernorPool as Prior
+  import ConnectionManagement.Negative.ServerAdmissionPrefixFixtures as Prefix
+  import ConnectionManagement.Negative.MuxPublicationInboundFixtures as I
+  import ConnectionManagement.Properties.ServerPeersHandlerResources as Resources
+  import ConnectionManagement.Properties.ServerPeersMonitorJoins as Joins
+  import ConnectionManagement.Properties.HandlerBirthBacking as Birth
+  import ConnectionManagement.Properties.HandlerBirthEffects as BirthEffects
+  import ConnectionManagement.Properties.HandlerResourceFacts as Facts
+  import ConnectionManagement.Properties.CollectedOutboundOrigin as OriginModel
+  import ConnectionManagement.Properties.CollectedInboundOrigin as InboundModel
+
+  private
+    module Parent = Protocols using (capability)
+    module Out = Protocols.OutboundHandlerResourceOriginChecks using (start; outbound-initialized; outbound3; outbound4; outbound5; outbound6; outbound7; outbound8; outbound9; outbound10; outbound11; outbound15; outbound16; outbound24; outbound25; outbound26; outbound27; outbound28; outbound-scope18; outbound-finalizer-events; call; edge1; edge2; edge3; edge4; edge5; edge6; edge7; edge8; edge9; edge10; child-enters; edge16; edge26; edge27; edge28; through-cleanup; cleanup-events; waiting-before-publication; early-fork-refused; early-publication-refused; early-wait-refused; duplicate-publication-refused)
+    module Mixed = Protocols.OutboundHandlerResourceOriginChecks.Interference using (mixed; clock-view; mixed-prefix-events; mixed-route-events; mixed-prefix; mixed-allocation; mixed-route; mixed-edge10; mixed-child-enters; mixed-open; mixed-edge6; mixed-edge7; mixed-edge8; mixed-edge9; raw-acquisition-alias-refused; premature-mixed-fork-refused)
+    module Known = Protocols.HandlerBirthBackingChecks using (outbound-birth-events; outbound-birth-path)
+    module Shutdown = Protocols.HandlerBirthBackingChecks.ShutdownBatch using (before-scope-events; before-scope-run; delivered-prefix; cleanup-after-ack-events; cleanup-after-ack)
+    module Pre = Protocols.PreloadedAcquisitionForkControl using (seededConfiguration; seededCore; ordinaryConfiguration; ordinaryImmediateForkRefused; preloadedStart; preloadedForked; preloadedForkEvent; preloadedActualFork; preloadedInitializer; ordinaryStart; ordinaryInitializer; forkedWorld; preChild; preDescriptor; preloadedResourcesImpossible; forkHasNotCollected; missingEntryPreventsLowerCommit)
+    module K = Combined I.bearerClosed Prior.classify using (coreStep)
+    module V = Combined.Protocols I.bearerClosed Prior.classify Parent.capability using (Runtime; Event; Runs; advance; more; stop; initialize; dispatch)
+    module W = Physical I.bearerClosed using (shutdown; shutdownStep)
+    module F = Prefix 10 A.key₁ using (empty)
+    module Resource = Resources.Frontend I.bearerClosed Prior.classify Parent.capability using (call-event; acquireCall; handler-event; outbound-physical-action; discard-prefix; shared)
+    module Join = Joins.Frontend I.bearerClosed Prior.classify Parent.capability using (physical; handler-event)
+    module Back = Birth.Frontend I.bearerClosed Prior.classify Parent.capability using (Backing; ForkStep; Selected; chosen-birth; inherited-birth; actual-fork; execution; view; physical-state; capture-of-found)
+    module Origin = OriginModel.Frontend I.bearerClosed Prior.classify Parent.capability using (OutboundOrigin; Discovery; BirthPacket; from-backing; initialize-origin; extend-outbound; extend-packet; execution; shared)
+    module Inbound = InboundModel.Frontend I.bearerClosed Prior.classify Parent.capability using (InboundOrigin)
+    module Found = OriginModel.Frontend.Discovery using (captured; backing; origin)
+    module Outbound = OriginModel.Frontend.OutboundOrigin using (packet; retained)
+    module Packet = OriginModel.Frontend.BirthPacket using (label; prefix; reconstructed; promise-allocated; at-birth)
+
+
+  inputCore : Machine.Configuration
+  inputCore = Machine.initial Shared.responderMode F.empty
+  ordinaryInitialized : V.initialize (O.initial inputCore) L.settings ≡ just Out.start
+  ordinaryInitialized = Out.outbound-initialized
+
+  -- Empty/nonempty here refer to unrelated interference, not omission of the
+  -- mandatory open/configure/connect/address operations between allocation/fork.
+  data Route : Set where
+    ordinary interfering coreGap : Route
+  beforeFork bornAt : Route → V.Runtime
+  beforeFork ordinary = Out.outbound9
+  beforeFork interfering = Mixed.clock-view (Mixed.mixed Out.outbound9)
+  beforeFork coreGap = beforeFork interfering
+  bornAt ordinary = Out.outbound10
+  bornAt interfering = Mixed.clock-view (Mixed.mixed Out.outbound10)
+  bornAt coreGap = bornAt interfering
+  forkEvent : V.Event
+  forkEvent = Out.call Acquire.forkOK
+  coreClockEvent : V.Event
+  coreClockEvent = V.dispatch (K.coreStep (O.inbound (Machine.igStep (IG.captureTime 10))))
+  coreClock : V.advance coreClockEvent (Mixed.mixed Out.outbound5) ≡
+    just (Mixed.clock-view (Mixed.mixed Out.outbound5))
+  coreClock = refl
+  coreRouteEvents : List V.Event
+  coreRouteEvents = Out.call Acquire.openOK ∷ coreClockEvent ∷ Out.call Acquire.configureOK ∷
+    Out.call Acquire.connectOK ∷ Out.call (Acquire.gotLocal (local A.key₀)) ∷
+    Out.call Acquire.updateLocalAddress ∷ []
+  abstract
+    coreRoute : V.Runs (Mixed.mixed Out.outbound4) coreRouteEvents (beforeFork coreGap)
+    coreRoute = V.more Mixed.mixed-open (V.more coreClock (V.more Mixed.mixed-edge6
+      (V.more Mixed.mixed-edge7 (V.more Mixed.mixed-edge8 (V.more Mixed.mixed-edge9 V.stop)))))
+  observed : Route → List V.Event
+  observed ordinary = take 9 Known.outbound-birth-events
+  observed interfering = Mixed.mixed-prefix-events ++
+    (Out.call Acquire.newPromise ∷ Mixed.mixed-route-events)
+  observed coreGap = Mixed.mixed-prefix-events ++ (Out.call Acquire.newPromise ∷ coreRouteEvents)
+  birthEvents : Route → List V.Event
+  birthEvents route = observed route ++ (forkEvent ∷ [])
+  actualFork : ∀ route → V.advance forkEvent (beforeFork route) ≡ just (bornAt route)
+  actualFork ordinary = Out.edge10
+  actualFork interfering = Mixed.mixed-edge10
+  actualFork coreGap = Mixed.mixed-edge10
+  -- A small local append keeps the future packet tests independent of proof
+  -- namespace aliases and never replays or renames an observed event.
+  append : ∀ {s t u left right} → V.Runs s left t → V.Runs t right u → V.Runs s (left ++ right) u
+  append V.stop right = right
+  append (V.more edge left) right = V.more edge (append left right)
+  abstract
+    prefixRun : ∀ route → V.Runs Out.start (observed route) (beforeFork route)
+    prefixRun ordinary = V.more Out.edge1 (V.more Out.edge2 (V.more Out.edge3
+      (V.more Out.edge4 (V.more Out.edge5 (V.more Out.edge6 (V.more Out.edge7
+      (V.more Out.edge8 (V.more Out.edge9 V.stop))))))))
+    prefixRun interfering = append Mixed.mixed-prefix (V.more Mixed.mixed-allocation Mixed.mixed-route)
+    prefixRun coreGap = append Mixed.mixed-prefix (V.more Mixed.mixed-allocation coreRoute)
+
+  abstract
+    actualBirth : ∀ route → V.Runs Out.start (birthEvents route) (bornAt route)
+    actualBirth route = append (prefixRun route) (V.more (actualFork route) V.stop)
+
+  receiptTail : List V.Event
+  receiptTail = drop 10 Shutdown.before-scope-events ++ take 4 Out.outbound-finalizer-events
+  publicationTail : List V.Event
+  publicationTail = Shutdown.cleanup-after-ack-events ++ (Resource.handler-event (H.publishAsyncResult OA.child) ∷ [])
+  waitTail : List V.Event
+  waitTail = Join.handler-event (W.shutdownStep Close.finishTraversal) ∷
+    Join.handler-event (W.shutdownStep Close.finishClose) ∷ []
+  abstract
+    birthToReceipt : V.Runs Out.outbound10 receiptTail Out.outbound16
+    birthToReceipt = append
+      (Resource.discard-prefix {suffix = drop 10 Shutdown.before-scope-events}
+        Known.outbound-birth-path Shutdown.before-scope-run) Shutdown.delivered-prefix
+    receiptToPublication : V.Runs Out.outbound16 publicationTail Out.outbound26
+    receiptToPublication = append Shutdown.cleanup-after-ack (V.more Out.edge26 V.stop)
+    publicationToWait : V.Runs Out.outbound26 waitTail Out.outbound28
+    publicationToWait = V.more Out.edge27 (V.more Out.edge28 V.stop)
+
+  capturedAtReceipt : lookup OA.child (B.threads (Back.physical-state Out.outbound16)) ≡
+    just (H.handlerThread OB.captured (H.caughtCancellation OB.err))
+  capturedAtReceipt = refl
+  capturedAtPublication : lookup OA.child (B.threads (Back.physical-state Out.outbound26)) ≡
+    just (H.handlerThread OB.captured (H.resultAvailable OB.err Shared.cleanupNormal))
+  capturedAtPublication = refl
+  capturedAtWait : lookup OA.child (B.threads (Back.physical-state Out.outbound28)) ≡
+    just (H.handlerThread OB.captured (H.resultAvailable OB.err Shared.cleanupNormal))
+  capturedAtWait = refl
+  collectedAtReceipt : OA.child ∈ Close.collected (W.shutdown (Join.physical Out.outbound16))
+  collectedAtReceipt = here refl
+  collectedAtPublication : OA.child ∈ Close.collected (W.shutdown (Join.physical Out.outbound26))
+  collectedAtPublication = here refl
+  collectedAtWait : OA.child ∈ Close.collected (W.shutdown (Join.physical Out.outbound28))
+  collectedAtWait = here refl
+
+  -- The malformed initializer is accepted by the open runtime, but is outside
+  -- every O.initial-core profile. This does not invent a collected cleanup suffix.
+  preloadedExcluded : ∀ core → Pre.seededConfiguration ≡ O.initial core → ⊥
+  preloadedExcluded core equality with cong O.acquiring equality
+  ... | ()
+  noUnconditionalResources : Facts.Facts Pre.preChild Pre.preDescriptor Pre.forkedWorld → ⊥
+  noUnconditionalResources = Pre.preloadedResourcesImpossible
+  preloadedUncollected : Close.collected (W.shutdown (Join.physical Pre.preloadedForked)) ≡ []
+  preloadedUncollected = Pre.forkHasNotCollected
+  sameCoreImmediateForkRefused : V.advance Pre.preloadedForkEvent
+    (Protocols.PreloadedAcquisitionForkControl.ordinaryStart) ≡ nothing
+  sameCoreImmediateForkRefused = Pre.ordinaryImmediateForkRefused
+
+  prematureFork : V.advance forkEvent Out.outbound3 ≡ nothing
+  prematureFork = Out.early-fork-refused
+  prematurePublication : V.advance (Resource.handler-event (H.publishAsyncResult OA.child)) Out.outbound24 ≡ nothing
+  prematurePublication = Out.early-publication-refused
+  prematureWait : V.advance (Join.handler-event (W.shutdownStep Close.finishClose)) Out.waiting-before-publication ≡ nothing
+  prematureWait = Out.early-wait-refused
+  duplicatePublication : V.advance (Resource.handler-event (H.publishAsyncResult OA.child)) Out.outbound26 ≡ nothing
+  duplicatePublication = Out.duplicate-publication-refused
+  duplicateReceipt : V.advance (Resource.handler-event (H.deliverShutdownHandshake OB.err)) Out.outbound16 ≡ nothing
+  duplicateReceipt = refl
+  rawOutboundAliasRefused : V.advance
+    (Join.handler-event (Resource.outbound-physical-action (O.acquire OA.caller Acquire.newPromise)))
+    (Mixed.mixed Out.outbound3) ≡ nothing
+  rawOutboundAliasRefused = Mixed.raw-acquisition-alias-refused
+
+  -- Selection tags certify only the actual chosen wrappers. No source PC or
+  -- allocation/resource certificate is supplied to the new recovery API.
+  private
+    module MuxTag = BirthEffects.MuxLayer using (inherited-birth)
+    module JobTag = BirthEffects.ProtocolLayer using (inherited-birth)
+    module MonitorTag = BirthEffects.MonitorLayer I.bearerClosed using (inherited-birth)
+    module GroupTag = BirthEffects.GroupLayer I.bearerClosed using (inherited-birth)
+    module ExitTag = BirthEffects.ExitLayer I.bearerClosed using (chosen-birth; inherited-plan)
+    module CancelTag = BirthEffects.CancellationLayer I.bearerClosed using (inherited-birth)
+    module UnwindTag = BirthEffects.UnwindLayer I.bearerClosed using (chosen-birth; inherited-plan)
+    module DeltaTag = BirthEffects.DeltaQLayer I.bearerClosed using (inherited-birth)
+    module CatchTag = BirthEffects.CatchLayer I.bearerClosed using (inherited-birth)
+    module PublicationTag = BirthEffects.PublicationLayer I.bearerClosed using (inherited-birth)
+    module ServerTag = BirthEffects.ServerLayer I.bearerClosed using (inherited-birth)
+    module IGTag = BirthEffects.IGExitLayer I.bearerClosed using (chosen-birth; delegated-birth)
+    module SharedTag = BirthEffects.SharedLayer I.bearerClosed Prior.classify using (server-birth; core-birth)
+  selectedFork : ∀ route → Back.Selected forkEvent (beforeFork route)
+  selectedFork ordinary = Back.chosen-birth refl (Back.inherited-birth (SharedTag.core-birth (IGTag.chosen-birth refl (IGTag.delegated-birth (ServerTag.inherited-birth (PublicationTag.inherited-birth (CatchTag.inherited-birth (DeltaTag.inherited-birth (UnwindTag.chosen-birth refl (UnwindTag.inherited-plan (CancelTag.inherited-birth (ExitTag.chosen-birth refl (ExitTag.inherited-plan (GroupTag.inherited-birth (MonitorTag.inherited-birth (JobTag.inherited-birth (MuxTag.inherited-birth (BirthEffects.outbound-physical OA.caller))))))))))))))))))
+  selectedFork interfering = Back.chosen-birth refl (Back.inherited-birth (SharedTag.core-birth (IGTag.chosen-birth refl (IGTag.delegated-birth (ServerTag.inherited-birth (PublicationTag.inherited-birth (CatchTag.inherited-birth (DeltaTag.inherited-birth (UnwindTag.chosen-birth refl (UnwindTag.inherited-plan (CancelTag.inherited-birth (ExitTag.chosen-birth refl (ExitTag.inherited-plan (GroupTag.inherited-birth (MonitorTag.inherited-birth (JobTag.inherited-birth (MuxTag.inherited-birth (BirthEffects.outbound-physical OA.caller))))))))))))))))))
+  selectedFork coreGap = Back.chosen-birth refl (Back.inherited-birth (SharedTag.core-birth (IGTag.chosen-birth refl (IGTag.delegated-birth (ServerTag.inherited-birth (PublicationTag.inherited-birth (CatchTag.inherited-birth (DeltaTag.inherited-birth (UnwindTag.chosen-birth refl (UnwindTag.inherited-plan (CancelTag.inherited-birth (ExitTag.chosen-birth refl (ExitTag.inherited-plan (GroupTag.inherited-birth (MonitorTag.inherited-birth (JobTag.inherited-birth (MuxTag.inherited-birth (BirthEffects.outbound-physical OA.caller))))))))))))))))))
+
+  absentBeforeFork : ∀ route → lookup OA.child (Back.view (beforeFork route)) ≡ nothing
+  absentBeforeFork ordinary = refl
+  absentBeforeFork interfering = refl
+  absentBeforeFork coreGap = refl
+  captureAtBirth : ∀ route → lookup OA.child (Back.view (bornAt route)) ≡ just OB.captured
+  captureAtBirth ordinary = refl
+  captureAtBirth interfering = refl
+  captureAtBirth coreGap = refl
+
+  IsOutbound : ∀ {X Y : Set} → X ⊎ Y → Set
+  IsOutbound (inj₁ value) = ⊥
+  IsOutbound (inj₂ value) = ⊤
+  takeOutbound : ∀ {X Y : Set} (choice : X ⊎ Y) → IsOutbound choice → Y
+  takeOutbound (inj₁ value) ()
+  takeOutbound (inj₂ value) proof = value
+
+  -- Name the child boundary so later abstract extension laws cannot unfold
+  -- this birth reconstruction. Its input is the genuine original selected step.
+  module BirthPackets where
+    abstract
+      explicitBacking : ∀ route → Back.Backing Out.start (bornAt route) (birthEvents route) OA.child OB.captured
+      explicitBacking route = record
+        { location = record
+          { before = beforeFork route; after = bornAt route; action = forkEvent
+          ; prefix = observed route; suffix = []; decomposition = refl
+          ; prefix-run = Back.execution (prefixRun route); actual = actualFork route; selected = selectedFork route
+          ; absent-before = absentBeforeFork route; at-birth = captureAtBirth route
+          ; suffix-run = Back.execution V.stop; retained-descriptor = captureAtBirth route }
+        ; operation = Back.actual-fork forkEvent (beforeFork route) (actualFork route) (selectedFork route)
+        ; selected-operation = refl
+        ; at-physical-fork = trans
+          (cong (lookup OA.child) (Back.ForkStep.captures-after
+            (Back.actual-fork forkEvent (beforeFork route) (actualFork route) (selectedFork route))))
+          (captureAtBirth route) }
+      classifiedAtBirth : ∀ route →
+        Inbound.InboundOrigin (O.initial inputCore) L.settings Out.start (bornAt route) (birthEvents route) OA.child OB.captured ⊎
+        Origin.OutboundOrigin inputCore L.settings Out.start (bornAt route) (birthEvents route) OA.child OB.captured
+      classifiedAtBirth route = Origin.from-backing inputCore L.settings ordinaryInitialized (explicitBacking route)
+      outboundBranchAtBirth : ∀ route → IsOutbound (classifiedAtBirth route)
+      outboundBranchAtBirth ordinary = tt
+      outboundBranchAtBirth interfering = tt
+      outboundBranchAtBirth coreGap = tt
+      sameOutboundAtBirth : ∀ route → Origin.OutboundOrigin inputCore L.settings Out.start
+        (bornAt route) (birthEvents route) OA.child OB.captured
+      sameOutboundAtBirth route = takeOutbound (classifiedAtBirth route) (outboundBranchAtBirth route)
+      originalBirthLabel : ∀ route → Packet.label (Outbound.packet (sameOutboundAtBirth route)) ≡ forkEvent
+      originalBirthLabel ordinary = refl
+      originalBirthLabel interfering = refl
+      originalBirthLabel coreGap = refl
+      originalBirthPrefix : ∀ route → Packet.prefix (Outbound.packet (sameOutboundAtBirth route)) ≡ observed route
+      originalBirthPrefix ordinary = refl
+      originalBirthPrefix interfering = refl
+      originalBirthPrefix coreGap = refl
+  open BirthPackets public using (explicitBacking; classifiedAtBirth; outboundBranchAtBirth; sameOutboundAtBirth; originalBirthLabel; originalBirthPrefix)
+
+  -- Closed queries retain the complete resource-bearing inbound/outbound sum.
+  -- Their opaque discoveries need not compute a selected branch by reflexivity.
+  receiptIndex publicationIndex finalIndex : List V.Event
+  receiptIndex = birthEvents ordinary ++ receiptTail
+  publicationIndex = receiptIndex ++ publicationTail
+  finalIndex = publicationIndex ++ waitTail
+  abstract
+    atReceiptRun : V.Runs Out.start receiptIndex Out.outbound16
+    atReceiptRun = append (actualBirth ordinary) birthToReceipt
+    atPublicationRun : V.Runs Out.start publicationIndex Out.outbound26
+    atPublicationRun = append atReceiptRun receiptToPublication
+    atWaitRun : V.Runs Out.start finalIndex Out.outbound28
+    atWaitRun = append atPublicationRun publicationToWait
+    closedAtReceipt : Origin.Discovery inputCore L.settings Out.start Out.outbound16 receiptIndex OA.child
+    closedAtReceipt = Origin.initialize-origin ordinaryInitialized atReceiptRun collectedAtReceipt
+    closedAtPublication : Origin.Discovery inputCore L.settings Out.start Out.outbound26 publicationIndex OA.child
+    closedAtPublication = Origin.initialize-origin ordinaryInitialized atPublicationRun collectedAtPublication
+    closedAtWait : Origin.Discovery inputCore L.settings Out.start Out.outbound28 finalIndex OA.child
+    closedAtWait = Origin.initialize-origin ordinaryInitialized atWaitRun collectedAtWait
+
+  descriptorAtReceipt : Found.captured closedAtReceipt ≡ OB.captured
+  descriptorAtReceipt = sym (Back.capture-of-found (Found.backing closedAtReceipt) capturedAtReceipt)
+  descriptorAtPublication : Found.captured closedAtPublication ≡ OB.captured
+  descriptorAtPublication = sym (Back.capture-of-found (Found.backing closedAtPublication) capturedAtPublication)
+  descriptorAtWait : Found.captured closedAtWait ≡ OB.captured
+  descriptorAtWait = sym (Back.capture-of-found (Found.backing closedAtWait) capturedAtWait)
+
+  -- Each suffix extends the SAME immutable original packet. The generic copy
+  -- theorem avoids comparing materialized history-search terms by reduction.
+  abstract
+    sameOutboundAtReceipt : Origin.OutboundOrigin inputCore L.settings Out.start Out.outbound16 receiptIndex OA.child OB.captured
+    sameOutboundAtReceipt = Origin.extend-outbound birthToReceipt (sameOutboundAtBirth ordinary)
+    sameOutboundAtPublication : Origin.OutboundOrigin inputCore L.settings Out.start Out.outbound26 publicationIndex OA.child OB.captured
+    sameOutboundAtPublication = Origin.extend-outbound receiptToPublication sameOutboundAtReceipt
+    sameOutboundAtWait : Origin.OutboundOrigin inputCore L.settings Out.start Out.outbound28 finalIndex OA.child OB.captured
+    sameOutboundAtWait = Origin.extend-outbound publicationToWait sameOutboundAtPublication
+    samePacketAtReceipt : Outbound.packet sameOutboundAtReceipt ≡ Outbound.packet (sameOutboundAtBirth ordinary)
+    samePacketAtReceipt = Origin.extend-packet birthToReceipt (sameOutboundAtBirth ordinary)
+    samePacketAtPublication : Outbound.packet sameOutboundAtPublication ≡ Outbound.packet (sameOutboundAtBirth ordinary)
+    samePacketAtPublication = trans (Origin.extend-packet receiptToPublication sameOutboundAtReceipt) samePacketAtReceipt
+    samePacketAtWait : Outbound.packet sameOutboundAtWait ≡ Outbound.packet (sameOutboundAtBirth ordinary)
+    samePacketAtWait = trans (Origin.extend-packet publicationToWait sameOutboundAtPublication) samePacketAtPublication
+    sameOriginalLabel : Packet.label (Outbound.packet sameOutboundAtWait) ≡ forkEvent
+    sameOriginalLabel = trans (cong Packet.label samePacketAtWait) (originalBirthLabel ordinary)
+    sameOriginalPrefix : Packet.prefix (Outbound.packet sameOutboundAtWait) ≡ observed ordinary
+    sameOriginalPrefix = trans (cong Packet.prefix samePacketAtWait) (originalBirthPrefix ordinary)
+
+  fixedResourcesAtBirth : ∀ route → Facts.Facts OA.child OB.captured (Origin.shared (bornAt route))
+  fixedResourcesAtBirth route = Outbound.retained (sameOutboundAtBirth route)
+  fixedResourcesAtReceipt : Facts.Facts OA.child OB.captured (Origin.shared Out.outbound16)
+  fixedResourcesAtReceipt = Outbound.retained sameOutboundAtReceipt
+  fixedResourcesAtPublication : Facts.Facts OA.child OB.captured (Origin.shared Out.outbound26)
+  fixedResourcesAtPublication = Outbound.retained sameOutboundAtPublication
+  fixedResourcesAtWait : Facts.Facts OA.child OB.captured (Origin.shared Out.outbound28)
+  fixedResourcesAtWait = Outbound.retained sameOutboundAtWait
+  exactSameExecution : V.Runs Out.start finalIndex Out.outbound28
+  exactSameExecution = Origin.execution sameOutboundAtWait
+
+  -- Interference examples stop at the actual restored child handshake. No old
+  -- shutdown suffix is pasted onto their distinct admission/IG source state.
+  restoredAt : Route → V.Runtime
+  restoredAt ordinary = Out.outbound11
+  restoredAt interfering = Mixed.clock-view (Mixed.mixed Out.outbound11)
+  restoredAt coreGap = restoredAt interfering
+  childEvent : V.Event
+  childEvent = Resource.handler-event (H.enterHandshake OA.child)
+  childActual : ∀ route → V.advance childEvent (bornAt route) ≡ just (restoredAt route)
+  childActual ordinary = Out.child-enters
+  childActual interfering = Mixed.mixed-child-enters
+  childActual coreGap = Mixed.mixed-child-enters
+  abstract
+    restoredOrigin : ∀ route → Origin.OutboundOrigin inputCore L.settings Out.start (restoredAt route)
+      (birthEvents route ++ (childEvent ∷ [])) OA.child OB.captured
+    restoredOrigin route = Origin.extend-outbound (V.more {a = childEvent} (childActual route) V.stop) (sameOutboundAtBirth route)
+    restoredPacket : ∀ route → Outbound.packet (restoredOrigin route) ≡ Outbound.packet (sameOutboundAtBirth route)
+    restoredPacket route = Origin.extend-packet (V.more {a = childEvent} (childActual route) V.stop) (sameOutboundAtBirth route)
+  restoredResources : ∀ route → Facts.Facts OA.child OB.captured (Origin.shared (restoredAt route))
+  restoredResources route = Outbound.retained (restoredOrigin route)
+
+  permissivePreloadedInitialization : V.initialize Pre.seededConfiguration L.settings ≡ just Pre.preloadedStart
+  permissivePreloadedInitialization = Pre.preloadedInitializer
+  malformedActualFork : V.advance Pre.preloadedForkEvent Pre.preloadedStart ≡ just Pre.preloadedForked
+  malformedActualFork = Pre.preloadedActualFork
+  sameCoreProfileInitialization : V.initialize (O.initial Pre.seededCore) L.settings ≡ just Pre.ordinaryStart
+  sameCoreProfileInitialization = Pre.ordinaryInitializer

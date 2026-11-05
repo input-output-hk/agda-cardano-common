@@ -188,3 +188,13 @@ derives the birth internally and returns automatic inbound resources or the actu
 outbound birth. It preserves original labels and the queried descriptor. The
 preloaded outbound control remains uncollected; no missing-resource collected
 suffix or general outbound resource theorem is asserted.
+
+
+**Subsequent profiled outbound result — increment 62:**
+[The profiled collected adapter](../ConnectionManagement/Supervision.md#sixty-second-increment-automatic-outbound-collected-resource-origins)
+now derives the outbound acquisition history and resource consequence from
+`O.initial core`; focused checks and fresh full acceptance passed, with validation
+recorded in that topic. This leaves the permissive initializer and the preloaded malformed
+fork above unchanged. It supplies neither a malformed collected suffix nor global
+promise freshness, live ownership or a resource claim for arbitrary preloaded
+acquisitions.

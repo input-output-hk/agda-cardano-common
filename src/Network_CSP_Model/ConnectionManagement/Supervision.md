@@ -38,9 +38,12 @@ CM collection without a caller lookup. Committed in `db743c2`,
 [increment 59](#fifty-ninth-increment-initializer-boundary-and-gap-aware-resource-histories) adds witnessed inbound resource histories with enabled allocation/selection/fork
 gaps and checks the initializer boundary. Also committed in `db743c2`,
 [increment 60](#sixtieth-increment-automatic-inbound-occurrence-reconstruction) reconstructs those inbound occurrences from an actual enabled fork,
-without supplied continuation or resource certificates. Accepted, uncommitted
+without supplied continuation or resource certificates. Committed in `898a02d`,
 [increment 61](#sixty-first-increment-collected-inbound-resource-origins) now connects discovered collected births to that
 inbound evidence, returning actual outbound births as an explicit alternative.
+The accepted worktree result for [increment 62](#sixty-second-increment-automatic-outbound-collected-resource-origins)
+now derives the outbound branch under an explicit `O.initial core` profile;
+its validation record below includes fresh full acceptance.
 
 | Boundary | Derived evidence and premises |
 | --- | --- |
@@ -55,6 +58,7 @@ inbound evidence, returning actual outbound births as an explicit alternative.
 | Physical handler birth backing | [HandlerBirthBacking](Properties/HandlerBirthBacking.agda) derives an earlier actual inbound/outbound physical fork, its captured descriptor and the frontend prefix/event/suffix from successful initialization, an enabled finite frontend run and current physical-thread lookup. It takes no supplied birth or resource-validity certificate. |
 | Acknowledged collected workers | [Membership](Properties/HandlerAuxFrontend.agda) and the thin [birth corollary](Properties/CollectedHandlerBirth.agda) derive a physical lookup and actual earlier fork from successful initialization, enabled finite frontend execution and current `Close.collected` membership. No supplied lookup or empty-CM premise; entry/snapshot targets and live resource ownership remain separate. |
 | Collected inbound resource origins | [CollectedInboundOrigin](Properties/CollectedInboundOrigin.agda), `Frontend.initialize-origin`, takes successful initialization, enabled frontend execution and queried `Close.collected` membership. It returns the discovered descriptor/backing and either its automatic inbound allocation/selection/resource history or the actual outbound birth. The inbound branch preserves original labels and derives historical promise membership and stored handler/entry/socket facts; `extend-inbound` retains the same occurrence. No supplied physical lookup, PC or resource facts. |
+| Profiled outbound collected resources | [CollectedOutboundOrigin](Properties/CollectedOutboundOrigin.agda), `Frontend.initialize-origin`, takes successful initialization from `O.initial core`, an enabled frontend run and queried collection membership. It returns the same discovered descriptor/backing with either the existing inbound origin or automatic outbound reservation/allocation history and stored resource facts. The actual labels and original event-list decomposition remain intact; `extend-outbound` copies the immutable birth packet. Fresh full acceptance is recorded in [increment 62](#sixty-second-increment-automatic-outbound-collected-resource-origins). |
 
 These are conditional finite-execution certificates, not guarantees that any
 boundary will eventually be reached. The initialized examples and negative
@@ -131,10 +135,18 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   the actual wrapper, preserving the event, descriptor and enabled gaps. The
   alternative retains an actual outbound birth without asserting its resources.
   See the [accepted contract](#sixty-first-increment-collected-inbound-resource-origins).
-- **Open question — outbound resource origins:** derive acquisition history under
-  a justified initializer/profile. The preloaded-acquisition control refutes blanket
-  resource claims for arbitrary initialized forks; it has no malformed collected
-  suffix. General outbound collected resources, freshness and ownership remain open.
+- **Confirmed model finding — increment 62:** the explicit `O.initial core`
+  profile now supplies outbound reservation/promise history and stored resource
+  facts from discovered collected births, with the existing inbound branch retained.
+  The [milestone record](#sixty-second-increment-automatic-outbound-collected-resource-origins)
+  records fresh full acceptance. The permissive
+  preloaded-acquisition counterexample remains outside that profile.
+- **Open question — remaining shutdown routes:** integrate the already-finished,
+  mux and TIME_WAIT receipt/finalizer routes using actual initialized histories.
+  Resource origins outside the justified profile, receipt/birth multiplicity,
+  global freshness and live ownership are not established. The malformed preloaded
+  fork has no collected suffix; it does not refute every possible stronger
+  theorem about collected workers.
 - **Open question — SI4/SI5:** identify and discharge remaining admission,
   handler and outer-scope obligations before deriving whole-supervision
   completion. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
@@ -146,8 +158,8 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
 
 Keep these IDs stable when recording progress or changing implementation scope.
 The acceptance criteria originate in the 27 October 2026 plan; positions below
-are reconciled through model commit `db743c2` and accepted, uncommitted increment
-61 on 5 November. Later work must
+are reconciled through model commit `898a02d` (accepted increment 61), with
+accepted, uncommitted increment 62 recorded on 5 November. Later work must
 recheck the actual theorem types and worktree.
 
 | ID | Scope and required result | Current workstream position |
@@ -155,7 +167,7 @@ recheck the actual theorem types and worktree.
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are accepted through increment 61. General outbound resource origins and full scope/quiescence obligations remain open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are committed in `898a02d`. Increment 62 adds accepted outbound resource proofs under `O.initial core`, uncommitted with fresh full acceptance recorded below. Remaining shutdown routes and full scope/quiescence obligations remain open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -164,8 +176,10 @@ be substituted for those remaining obligations.
 
 ## Remaining work and parallel execution
 
-**Implementation checkpoint — 5 November 2026, HEAD `db743c2`.** Four concurrent
-roles completed increment 61; increments 59–60 are committed in `db743c2` and 61 remains uncommitted. The
+**Implementation checkpoint — 5 November 2026, HEAD `898a02d`.** Increments 59–60
+are committed in `db743c2` and 61 in `898a02d`. Four concurrent roles implemented
+increment 62; focused checks and fresh full acceptance passed, as recorded in its
+[milestone entry](#sixty-second-increment-automatic-outbound-collected-resource-origins). The
 [G0–G5 acceptance criteria](DESIGN.md#9-implementation-gates-and-validation)
 and overall objective remain unchanged.
 
@@ -199,27 +213,31 @@ assumes two-label exhaustiveness nor claims a newly found enabled label.
 
 ### Next batch: outbound origin profile and history (increment 62)
 
-Audit the existing initialized outbound origin/profile and the actual acquisition
-writers. State a justified profile, such as initialization from `O.initial core`,
-and derive the acquisition allocation/selection history from a discovered actual
-outbound birth. Reuse existing capture/trace lifts and keep the generic observer
-free of birth-inversion imports. Preserve arbitrary enabled interference and
-original labels. Do not strengthen the runtime initializer or silently apply the
-profile to arbitrary preloaded acquisition frames.
+**Completed, accepted and uncommitted.** The
+[profiled collected adapter](#sixty-second-increment-automatic-outbound-collected-resource-origins)
+recovers actual reservation and promise-allocation history from the discovered
+outbound birth under `O.initial core`. Existing capture/resource lifts supply
+stored facts; generic prefix observation remains independent of birth inversion.
+The ordinary lifecycle and interference-only birth cases retain their distinct
+scope. No runtime initializer or preloaded-acquisition control was changed.
 
-Compose the justified outbound branch with collected discovery. Check ordinary
-outbound histories through acknowledgement, publication and final CM wait, plus
-the explicit preloaded profile countercontrol. That control has no malformed
-collected suffix; do not invent one or claim it refutes every possible stronger
-collected theorem. Remaining mux/TIME_WAIT/already-finished routes, quiescence,
-tracked validity and derived whole-supervision completion remain separate.
-This is the next planned contract, not an accepted general outbound theorem.
+### Next batch: already-finished target acknowledgement (increment 63)
+
+**Planned, not implemented.** Capture a live target through CM `readEntry`, then
+let its handler genuinely finish and publish its Async result before CM requests
+cancellation. Follow the actual `acknowledgeFinished` branch through traversal
+completion and final CM wait, preserving the same increment 62 origin/resource
+packet and increment 58 backing. Distinguish a late read of an already terminated
+entry, which is skipped, from this captured-before-finish route. Keep refusal
+controls for unavailable results, duplicate receipts and premature waits. Audit
+the pinned source boundary before extending its claim. Mux and TIME_WAIT routes
+remain separate; this batch would not establish quiescence or eventual completion.
 
 ### Remaining dependency order
 
 | Work | Dependency and completion evidence |
 | --- | --- |
-| Collected-worker resource origins and remaining shutdown routes | After collected inbound reconstruction, derive supported outbound resource evidence under an explicit justified profile and integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
+| Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
 | Admission/API quiescence | Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
@@ -234,14 +252,14 @@ intended semantic model and available tools; no FDR run is assumed. Extend
 [existing replay artifacts](SourceReplay/README.md) selectively, preserving source
 pins, injected contracts, IO/IOSim distinctions and their finite evidence limits.
 
-### Four-agent execution protocol
+### Four-agent execution protocol used for increment 62
 
-| Owner | Exclusive next-batch work and handoff |
+| Owner | Completed increment 62 work and handoff |
 | --- | --- |
 | Agent A — acquisition profile | Audit initialized outbound acquisition profiles/writers and expose a small actual-event origin interface; keep prefix/effect proofs independent of birth inversion. |
 | Agent B — thin composition | Compose the justified outbound branch with automatic reconstruction, retaining the actual prefix, fork and suffix and the explicit profile boundary. |
 | Agent C — controls/evidence | Prepare concrete outbound/interference controls under `/tmp`; preserve the preloaded acquisition control and scope source claims to their pinned evidence. |
-| Coordinator — integration/checks | Own shared APIs, `Negative/ServerPeers.agda`, docs/index and `PROJECT_STATE.md`; serialize checks and integrate the batch. |
+| Coordinator — integration/checks | Own shared APIs, the dependent `Negative/ServerPeersOrigins.agda` endpoint, docs/index and `PROJECT_STATE.md`; serialize checks and integrate the batch. |
 
 Parallelize disjoint proof editing, source reading and lightweight evidence work.
 **Run one Agda process at a time** from this library root with bounded heap/cgroup
@@ -5996,7 +6014,8 @@ SI4/SI5 remain open.
 
 ## Sixty-first increment: collected inbound resource origins
 
-**Accepted model result, 5 November 2026; uncommitted over `db743c2`.**
+**Accepted model result, 5 November 2026; initially uncommitted over `db743c2`,
+subsequently committed in `898a02d`.**
 [CollectedInboundOrigin](Properties/CollectedInboundOrigin.agda),
 `Frontend.initialize-origin`, takes successful initialization, an actual enabled
 frontend run and queried CM-collected membership. It derives the physical birth
@@ -6074,3 +6093,115 @@ Haskell-defect claim, presentation edit or commit was performed for this wave.
 General outbound resources, global freshness, live ownership, admission/API
 quiescence, progress and full shutdown remain open. The overall G0–G5 program,
 CM-I4c and SI4/SI5 remain in progress.
+
+
+## Sixty-second increment: automatic outbound collected resource origins
+
+**Accepted model result, 5 November 2026; uncommitted over `898a02d`.**
+[CollectedOutboundOrigin](Properties/CollectedOutboundOrigin.agda),
+`Frontend.initialize-origin`, takes successful initialization from `O.initial core`,
+an actual enabled frontend run and queried `Close.collected` membership. It derives
+physical membership and the actual earlier fork internally. The result retains
+that descriptor/backing and returns either the existing inbound resource origin
+or automatic outbound acquisition history and resource facts. No caller supplies
+a physical lookup, fork PC, primitive equation or resource certificate. The
+existing arbitrary-initializer inbound API is unchanged; its small appended
+`from-inbound-occurrence` wrapper reuses the same private recovery proof.
+
+**Confirmed proof scope:** `O.initial core` is a sufficient, explicit profile,
+not a new runtime guard. It clears outbound acquisition/release and returned-result
+tables, preserving the supplied core. The generic history engine needs only an
+empty initial acquisition store; no empty CM map, entry/promise heap or global
+identity-freshness premise is added. Arbitrary preloaded acquisition frames are
+not covered by this new outbound conclusion.
+
+[OutboundOriginCore](Properties/OutboundOriginCore.agda) classifies actual active
+acquisition writes. Its promise/entry marks follow pre-fork continuations through
+counter wrappers. Marks range over **all stored rows**, not merely the visible
+lookup, so deleting the first duplicate key cannot silently expose an untracked
+row. The noncreator `Backwards` relation composes through permitted peer and
+cancellation bookkeeping without creating either mark; an actual acquisition
+source step must account for each creator.
+[OutboundOriginHistory](Properties/OutboundOriginHistory.agda) then locates the
+positive `select nothing` reservation before `newPromise`, retaining matching
+requests, entry/promise IDs, primitive source evidence, original outer labels,
+enabled gaps and exact event-list decomposition. Its final fork PC is derived
+from the selected physical birth, not supplied to the closed API.
+
+[OutboundOriginFrontend](Properties/OutboundOriginFrontend.agda) closes this search
+over actual frontend events and proves the initializer projection. Its generic
+observer/search closure excludes physical birth inversion.
+[OutboundBirthResources](Properties/OutboundBirthResources.agda) derives the queried
+child and descriptor from the real physical fork and absent-before capture; the
+existing initialized acquisition-capture invariant supplies entry presence.
+The thin adapter reuses the increment 55/56 resource-retention lifts. Historical
+promise membership is proved at the actual allocating write; it is not a claim
+of global promise freshness or current ownership.
+
+`OutboundOrigin` separates an immutable `BirthPacket` from its later suffix.
+`extend-outbound` copies that exact packet while appending enabled runs and
+retaining fixed-worker/fixed-descriptor facts. `extend-packet` is a uniform copy
+law, and `execution` recovers the exact original event list. Neither this API nor
+collection establishes uniqueness, a receipt/birth bijection or an eventual exit.
+
+**Confirmed acceptance scope:**
+`Negative/ServerPeersOrigins.CollectedOutboundOriginChecks` contains an ordinary
+outbound route through acknowledgement, physical publication and final CM wait.
+It also contains genuine peer/Server interference and an alternate core-dispatch
+IG clock gap, checked as birth/restored-handshake routes. Their independent state
+changes do not rejoin the ordinary shutdown suffix; no such suffix is asserted.
+Explicit genuine backing exposes each positive outbound branch without forcing
+an opaque prefix to normalize. Closed collected discovery retains its full sum
+at the ordinary checkpoints, with exact descriptors and same-packet/resource
+checks. Premature/duplicate controls remain. The permissive preloaded malformed
+fork, missing-resource and uncollected controls are retained; `preloadedExcluded`
+separately refutes its membership in any `O.initial core` profile, with the
+same-core immediate-fork refusal. No malformed collected suffix is fabricated.
+
+Agda 2.8.0 focused checks passed fresh without warnings, using 11 GiB heaps and
+13 GiB scopes with swap disabled. The final logs in
+`/tmp/cm-outbound-collected-origins-20261105/` are `core-07`, `history-01`,
+`quiet-01`, `peers-01`, `birth-02`, `inbound-bridge-01`, `upper-01`, `frontend-02`
+and `collected-01` (all `.log`). Upper checked its effect/lower imports
+transitively; its profile total was 11,960 ms, frontend 16,237 ms and the thin
+collected endpoint 27,666 ms. Representative command:
+`agda --profile=definitions ConnectionManagement/Properties/CollectedOutboundOrigin.agda +RTS -M11G -RTS`.
+`b-verification.json` and `audit-b-final.log` retain the focused command/result,
+source hashes and six-file zero-finding static scan. This is not an imported
+term-level axiom audit.
+
+Fresh full acceptance of `ConnectionManagement/Negative/ServerPeersOrigins.agda`
+passed under the strict JSON driver with a 13 GiB RTS heap, 15 GiB scope and swap
+disabled, using the normal cache and default GC without an interface purge. The
+endpoint emitted its own `Checking` entry and 6,463 declaration entries; exit 0,
+`checked: true`, `DoneExiting`, and empty error, warning and goal reports were all
+confirmed. The profile total was 39,641 ms (40.354 s elapsed). Evidence is in
+`acceptance-03.log` and `acceptance-result-03.json` in the same scratch directory.
+A subsequent ordinary CLI check,
+`agda ConnectionManagement/Negative/ServerPeersOrigins.agda +RTS -M13G -RTS`,
+passed from cache with exit 0 (`acceptance-cli-01.log`); it is not another fresh check.
+
+Two integration diagnostics were repaired before that pass without weakening any
+assertion. The first attempt compared an opaque packet's birth-state facts with
+the known current state; using its retained-facts projection supplies the original
+assertion type. The second reached EOF with an unsolved event implicit in the
+restored-packet application; both applications now specify
+`V.more {a = childEvent}`. Neither failure involved heap exhaustion or changed
+cache/GC settings.
+
+The final targeted proof audit covered all ten new layers, the appended inbound
+wrapper and acceptance endpoint: 12 files, zero findings. The old proof bodies
+remain exact prefixes; existing resource proofs and `Negative/ServerPeers` are
+unchanged. `verification.json` and `audit-final-review.md` retain final hashes,
+commands, reviewed dependency boundaries and failed attempts. Affected topic,
+README, index, review and state links passed: five pages, 444 local targets,
+zero errors or fragment/URI review notes. Whitespace passed; both existing Mermaid
+blocks and nine unrelated presentation/output/issue-summary hashes are unchanged.
+External URLs were not fetched and unchanged diagrams were not re-rendered.
+
+The [source ledger](SourceLedger.md) retains network pin
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` and consensus pin
+`585a86117618ff86d7d5b541f9d23b03356d4c3a`. These are model proofs, not a new
+pinned-source audit, native replay, Haskell-defect or implementation-refinement
+claim. Remaining mux/TIME_WAIT/already-finished shutdown routes, CM-I4c tracked
+validity, admission/API quiescence, SI4/SI5 completion and G0–G5 remain open.

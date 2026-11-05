@@ -6,7 +6,8 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `db743c2` and accepted, uncommitted increment 61 (5 November 2026);
+the lifecycle claims through model commit `898a02d` (increment 61), with the
+accepted, uncommitted increment 62 worktree result and its validation record (5 November 2026);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -38,7 +39,10 @@ facts from an actual enabled fork, preserving original labels and gaps.
 births with automatic inbound resources, preserving actual events and returning
 outbound births explicitly. Its [dependent acceptance endpoint](Negative/ServerPeersOrigins.agda)
 imports the complete existing ServerPeers suite through its checked interface to
-bound elaboration memory. General outbound resource origins remain open.
+bound elaboration memory.
+[Increment 62](Supervision.md#sixty-second-increment-automatic-outbound-collected-resource-origins)
+adds automatic outbound collected origins under the explicit `O.initial core`
+profile; its topic records the exact scope and fresh full acceptance.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 
