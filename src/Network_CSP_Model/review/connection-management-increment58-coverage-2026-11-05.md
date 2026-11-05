@@ -180,3 +180,11 @@ uses the successful Server initializer's empty admissions table and actual enabl
 inbound fork to derive the earlier allocation/selection and resource facts.
 The preloaded **outbound acquisition** control above remains valid; this inbound
 result does not remove that profile boundary or prove a malformed collected suffix.
+
+
+**Subsequent collected inbound result — increment 61:**
+[The thin collected adapter](../ConnectionManagement/Supervision.md#sixty-first-increment-collected-inbound-resource-origins)
+derives the birth internally and returns automatic inbound resources or the actual
+outbound birth. It preserves original labels and the queried descriptor. The
+preloaded outbound control remains uncollected; no missing-resource collected
+suffix or general outbound resource theorem is asserted.

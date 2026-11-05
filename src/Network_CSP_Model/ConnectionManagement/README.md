@@ -6,7 +6,7 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `3822a47` and accepted, uncommitted increment 60 (5 November 2026);
+the lifecycle claims through model commit `db743c2` and accepted, uncommitted increment 61 (5 November 2026);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -30,11 +30,15 @@ separate.
 [Increment 59](Supervision.md#fifty-ninth-increment-initializer-boundary-and-gap-aware-resource-histories)
 adds witnessed inbound histories with enabled gaps through publication/final wait
 and a formal preloaded-acquisition initializer control. Operational alignment
-premises remain explicit; automatic collected resource origins are still open.
+premises remain explicit in that witnessed constructor.
 [Increment 60](Supervision.md#sixtieth-increment-automatic-inbound-occurrence-reconstruction)
 automatically derives the matching inbound allocation/selection history and resource
-facts from an actual enabled fork, preserving original labels and gaps. Automatic
-composition with discovered collected births and the outbound origin profile remain open.
+facts from an actual enabled fork, preserving original labels and gaps.
+[Increment 61](Supervision.md#sixty-first-increment-collected-inbound-resource-origins) composes discovered collected
+births with automatic inbound resources, preserving actual events and returning
+outbound births explicitly. Its [dependent acceptance endpoint](Negative/ServerPeersOrigins.agda)
+imports the complete existing ServerPeers suite through its checked interface to
+bound elaboration memory. General outbound resource origins remain open.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 
