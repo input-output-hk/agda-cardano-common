@@ -6,8 +6,8 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `898a02d` (increment 61), with the
-accepted, uncommitted increment 62 worktree result and its validation record (5 November 2026);
+the lifecycle claims through model commit `8636e88` (increment 62), with
+accepted, uncommitted increment 63 finished-target integration (5 November 2026);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -43,6 +43,10 @@ bound elaboration memory.
 [Increment 62](Supervision.md#sixty-second-increment-automatic-outbound-collected-resource-origins)
 adds automatic outbound collected origins under the explicit `O.initial core`
 profile; its topic records the exact scope and fresh full acceptance.
+[Increment 63](Supervision.md#sixty-third-increment-initialized-finished-target-acknowledgement)
+adds actual finished-target receipt discovery and same-origin retention after
+independent cancellation; fresh full acceptance passed. The late-read control
+skips the terminated entry, keeping this route distinct from normal return.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 

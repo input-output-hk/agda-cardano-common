@@ -41,9 +41,11 @@ gaps and checks the initializer boundary. Also committed in `db743c2`,
 without supplied continuation or resource certificates. Committed in `898a02d`,
 [increment 61](#sixty-first-increment-collected-inbound-resource-origins) now connects discovered collected births to that
 inbound evidence, returning actual outbound births as an explicit alternative.
-The accepted worktree result for [increment 62](#sixty-second-increment-automatic-outbound-collected-resource-origins)
+Committed in `8636e88`, [increment 62](#sixty-second-increment-automatic-outbound-collected-resource-origins)
 now derives the outbound branch under an explicit `O.initial core` profile;
 its validation record below includes fresh full acceptance.
+[Increment 63](#sixty-third-increment-initialized-finished-target-acknowledgement)
+derives the finished-target receipt path; fresh full acceptance is recorded below.
 
 | Boundary | Derived evidence and premises |
 | --- | --- |
@@ -59,6 +61,7 @@ its validation record below includes fresh full acceptance.
 | Acknowledged collected workers | [Membership](Properties/HandlerAuxFrontend.agda) and the thin [birth corollary](Properties/CollectedHandlerBirth.agda) derive a physical lookup and actual earlier fork from successful initialization, enabled finite frontend execution and current `Close.collected` membership. No supplied lookup or empty-CM premise; entry/snapshot targets and live resource ownership remain separate. |
 | Collected inbound resource origins | [CollectedInboundOrigin](Properties/CollectedInboundOrigin.agda), `Frontend.initialize-origin`, takes successful initialization, enabled frontend execution and queried `Close.collected` membership. It returns the discovered descriptor/backing and either its automatic inbound allocation/selection/resource history or the actual outbound birth. The inbound branch preserves original labels and derives historical promise membership and stored handler/entry/socket facts; `extend-inbound` retains the same occurrence. No supplied physical lookup, PC or resource facts. |
 | Profiled outbound collected resources | [CollectedOutboundOrigin](Properties/CollectedOutboundOrigin.agda), `Frontend.initialize-origin`, takes successful initialization from `O.initial core`, an enabled frontend run and queried collection membership. It returns the same discovered descriptor/backing with either the existing inbound origin or automatic outbound reservation/allocation history and stored resource facts. The actual labels and original event-list decomposition remain intact; `extend-outbound` copies the immutable birth packet. Fresh full acceptance is recorded in [increment 62](#sixty-second-increment-automatic-outbound-collected-resource-origins). |
+| Finished-target receipt | [ServerPeersFinishedReceipt](Properties/ServerPeersFinishedReceipt.agda) derives the actual awaited entry/worker and physical Async-result branch from the enabled acknowledgement. [Profiled discovery](Properties/CollectedOutboundOrigin.agda), `initialize-finished`, additionally derives collected membership and the birth/resource sum from initialization, the original prefix and that event. Fresh full acceptance is recorded in [increment 63](#sixty-third-increment-initialized-finished-target-acknowledgement). |
 
 These are conditional finite-execution certificates, not guarantees that any
 boundary will eventually be reached. The initialized examples and negative
@@ -141,8 +144,10 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   The [milestone record](#sixty-second-increment-automatic-outbound-collected-resource-origins)
   records fresh full acceptance. The permissive
   preloaded-acquisition counterexample remains outside that profile.
-- **Open question — remaining shutdown routes:** integrate the already-finished,
-  mux and TIME_WAIT receipt/finalizer routes using actual initialized histories.
+- **Open question — remaining shutdown routes:** the accepted
+  [finished-target route](#sixty-third-increment-initialized-finished-target-acknowledgement)
+  covers independent cancellation before CM request. Outbound negotiated-mux and
+  TIME_WAIT receipt routes still need their own combined initialized histories.
   Resource origins outside the justified profile, receipt/birth multiplicity,
   global freshness and live ownership are not established. The malformed preloaded
   fork has no collected suffix; it does not refute every possible stronger
@@ -167,7 +172,7 @@ recheck the actual theorem types and worktree.
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
-| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are committed in `898a02d`. Increment 62 adds accepted outbound resource proofs under `O.initial core`, uncommitted with fresh full acceptance recorded below. Remaining shutdown routes and full scope/quiescence obligations remain open. |
+| SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are committed in `898a02d`. Increment 62 is committed in `8636e88`, with outbound resource proofs under `O.initial core` and fresh full acceptance. Increment 63 finished-target integration is accepted and uncommitted with fresh full acceptance recorded below. Remaining shutdown routes and full scope/quiescence obligations remain open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
@@ -176,11 +181,10 @@ be substituted for those remaining obligations.
 
 ## Remaining work and parallel execution
 
-**Implementation checkpoint — 5 November 2026, HEAD `898a02d`.** Increments 59–60
-are committed in `db743c2` and 61 in `898a02d`. Four concurrent roles implemented
-increment 62; focused checks and fresh full acceptance passed, as recorded in its
-[milestone entry](#sixty-second-increment-automatic-outbound-collected-resource-origins). The
-[G0–G5 acceptance criteria](DESIGN.md#9-implementation-gates-and-validation)
+**Implementation checkpoint — 5 November 2026, HEAD `8636e88`.** Increments 59–60
+are committed in `db743c2`, 61 in `898a02d` and 62 in `8636e88`. Increment 63
+finished-target receipts are accepted and uncommitted, with fresh full acceptance
+recorded in the [milestone entry](#sixty-third-increment-initialized-finished-target-acknowledgement). The [G0–G5 acceptance criteria](DESIGN.md#9-implementation-gates-and-validation)
 and overall objective remain unchanged.
 
 ### Next batch: origin profile and resource histories (increment 59)
@@ -213,7 +217,7 @@ assumes two-label exhaustiveness nor claims a newly found enabled label.
 
 ### Next batch: outbound origin profile and history (increment 62)
 
-**Completed, accepted and uncommitted.** The
+**Completed and committed in `8636e88`.** The
 [profiled collected adapter](#sixty-second-increment-automatic-outbound-collected-resource-origins)
 recovers actual reservation and promise-allocation history from the discovered
 outbound birth under `O.initial core`. Existing capture/resource lifts supply
@@ -223,15 +227,29 @@ scope. No runtime initializer or preloaded-acquisition control was changed.
 
 ### Next batch: already-finished target acknowledgement (increment 63)
 
-**Planned, not implemented.** Capture a live target through CM `readEntry`, then
-let its handler genuinely finish and publish its Async result before CM requests
-cancellation. Follow the actual `acknowledgeFinished` branch through traversal
-completion and final CM wait, preserving the same increment 62 origin/resource
-packet and increment 58 backing. Distinguish a late read of an already terminated
-entry, which is skipped, from this captured-before-finish route. Keep refusal
-controls for unavailable results, duplicate receipts and premature waits. Audit
-the pinned source boundary before extending its claim. Mux and TIME_WAIT routes
-remain separate; this batch would not establish quiescence or eventual completion.
+**Completed, accepted and uncommitted.** The
+[authoritative increment 63 record](#sixty-third-increment-initialized-finished-target-acknowledgement)
+distinguishes a live target captured before independently cancelled completion
+from a late read of its terminated entry. The actual receipt derives collection
+membership and preserves the same origin packet through the final CM wait.
+
+### Next batch: outbound mux receipt and final wait (increment 64)
+
+**Planned, not implemented.** The initialized inbound mux receipt, full drain
+and final wait are already covered by `CMResultLifecycleChecks` and the four
+increment-61 packet routes. The missing candidate is the **outbound negotiated
+mux** under the increment-62 profile, coupled to an actual CM receipt.
+
+Reuse [MuxProtocolJobs](Negative/MuxProtocolJobs.agda)'s `initialized-start`,
+[MuxGroupShutdown](Negative/MuxGroupShutdown.agda)'s `initialized-abortGroup` and
+`abortGroupPath`, and [MuxHandlerExit](Negative/MuxHandlerExit.agda)'s
+`initialized-async`/`asyncPath`. Lift their original component prefix to the
+combined frontend, reach actual CM capture/read/request, and replace the
+standalone owner abort with `W.deliverShutdownMux`. Carry the real pool/group,
+buffer/finalizer, publication and physical final-wait suffix while preserving
+the same outbound packet. Source/masking audit and combined enabledness remain
+acceptance obligations; no rejoin to the old handshake suffix is assumed.
+TIME_WAIT is separate, requiring actual `Terminating` and cleanup-wait states.
 
 ### Remaining dependency order
 
@@ -6097,7 +6115,8 @@ CM-I4c and SI4/SI5 remain in progress.
 
 ## Sixty-second increment: automatic outbound collected resource origins
 
-**Accepted model result, 5 November 2026; uncommitted over `898a02d`.**
+**Accepted model result, 5 November 2026; initially uncommitted over `898a02d`,
+subsequently committed in `8636e88`.**
 [CollectedOutboundOrigin](Properties/CollectedOutboundOrigin.agda),
 `Frontend.initialize-origin`, takes successful initialization from `O.initial core`,
 an actual enabled frontend run and queried `Close.collected` membership. It derives
@@ -6205,3 +6224,83 @@ The [source ledger](SourceLedger.md) retains network pin
 pinned-source audit, native replay, Haskell-defect or implementation-refinement
 claim. Remaining mux/TIME_WAIT/already-finished shutdown routes, CM-I4c tracked
 validity, admission/API quiescence, SI4/SI5 completion and G0–G5 remain open.
+
+
+## Sixty-third increment: initialized finished-target acknowledgement
+
+**Accepted model result, 5 November 2026; uncommitted over `8636e88`.**
+The actual initialized outbound path captures a live worker at CM `readEntry`,
+then holds the coordinator at `sendReady` while an **independent handshake
+cancellation** runs through caught-error publication, rethrow, outer finalizer,
+real cleanup and physical Async-result publication. CM only then requests
+cancellation, takes the guarded `acknowledgeFinished` branch, completes traversal
+and performs its collective result wait. The independent delivery is neither
+this CM receipt nor normal handler return.
+
+[ServerPeersFinishedReceipt](Properties/ServerPeersFinishedReceipt.agda) is a small
+observer of the actual physical acknowledgement. `Receipt` retains the awaited
+entry/worker, real enabled step, ready result branch and coordinator control
+certificate; collection appends that worker. The result branch distinguishes a
+mux exit frame from the physical handshake fallback, including its no-mux-frame
+guard. This local observer alone supplies no initialized history or final wait.
+
+The appended [CollectedOutboundOrigin](Properties/CollectedOutboundOrigin.agda)
+`Frontend.initialize-finished` takes successful `O.initial core` initialization,
+the original enabled prefix and the actual acknowledgement. It derives the
+worker and collection membership internally, then returns `FinishedDiscovery`
+with the existing full inbound/outbound resource sum for exactly
+`prefix ++ [acknowledgement]`. No caller supplies a worker, membership, physical
+lookup, fork PC or result/resource oracle. The existing APIs and runtime guards
+are unchanged.
+
+`Negative/ServerPeersOrigins.FinishedTargetChecks` retains the same increment-62
+immutable resource packet and increment-58 physical birth command through the
+new receipt and final wait. Descriptor equalities, retained resources, exact
+execution and the physical pre-wait result oracle are checked separately. Its
+companion late-read path holds the captured snapshot in `reading` while the
+same independent completion runs: `getConnThread` then skips the terminated
+entry and collects nothing. Refusals cover acknowledgement before request or
+Async publication, cleanup-only readiness, direct raw receipt, premature and
+duplicate publication/receipt/wait. No phase or result is injected.
+
+**Confirmed source boundary.** The
+[dated addendum](../review/connection-management-si4-source-audit-2026-10-27.md#increment-63-captured-before-completion-versus-late-read-5-november-2026)
+records the pinned Core/traversal/wait source and separately versioned backend
+inspection. `resultReady` means **Async result available**, not a literal
+scheduler `ThreadFinished` observation. Masking the sender does not freeze the
+target or guarantee prompt receipt. Source pins are unchanged; no GHC RTS
+dead-target audit or new native replay was performed.
+
+Focused Agda 2.8.0 checks passed fresh without warnings: `receipt-04.log`
+(19,916 ms), the exact trace harness `trace-01.log` (42,053 ms) and appended
+collected API `collected-02.log` (28,007 ms), under the coordinator's serialized
+queue. Earlier receipt parse/with-abstraction diagnostics
+and a constructor-shadow warning were repaired before the final focused check.
+The first collected-API attempt found a missing `[]` import, repaired before
+its focused pass.
+
+Fresh full strict interaction acceptance of
+`ConnectionManagement/Negative/ServerPeersOrigins.agda` passed on its first
+attempt: own `Checking` entry, 9,748 typechecking entries, exit 0, `checked: true`,
+`DoneExiting`, and empty error, goal and warning reports. The profile total was
+40,973 ms (41.965 s elapsed), with a 13 GiB RTS heap, 15 GiB scope and swap
+disabled; normal cache/default GC, no interface purge. `acceptance-01.log` and
+`acceptance-result-01.json` retain that fresh result. The subsequent ordinary CLI
+`agda ConnectionManagement/Negative/ServerPeersOrigins.agda +RTS -M13G -RTS`
+passed from cache, exit 0 (`acceptance-cli-01.log`); this is not another fresh
+check. The three-file targeted scan found no new holes, postulates or unsafe
+pragmas; an imported term-level axiom audit was not performed. Evidence, focused logs,
+pinned source excerpts and package/blob hashes are in
+`/tmp/cm-finished-target-20261105/`.
+
+Final local checks covered five affected pages and 482 local targets, with zero
+errors or fragment/URI review notes. Whitespace passed; both Mermaid blocks and
+nine unrelated presentation/output/issue-summary hashes are unchanged. External
+URLs were not fetched and unchanged diagrams were not re-rendered. Exact commands,
+final source hashes, audits and check identities are retained in
+`/tmp/cm-finished-target-20261105/verification.json`.
+
+This finite independently cancelled path proves no normal-return route, whole
+thread census, API/admission quiescence, eventual completion, RTS correspondence
+or implementation refinement. Remaining mux/TIME_WAIT routes, CM-I4c validity,
+SI4/SI5 and G0–G5 obligations remain separate.

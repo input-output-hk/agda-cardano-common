@@ -3,7 +3,7 @@
 This dated audit includes subsequent implementation and replay followups.
 Statements such as “not implemented,” “next” and “uncommitted” retain their
 checkpoint meaning. The [current supervision overview](../ConnectionManagement/Supervision.md#current-composed-lifecycle-certificates)
-reconciles model coverage through `6878713` (4 November), and its
+reconciles current accepted model coverage, and its
 [open questions](../ConnectionManagement/Supervision.md#open-questions-and-reconciled-status)
 separate the replayed admission-worker result from the broader quiescence
 obligation. The source pin below remains the audit authority.
@@ -1436,3 +1436,35 @@ two-file scan has zero findings. A fixture-import diagnostic was repaired first.
 No runtime/pin, native replay, source-finding, refinement or universal-quiescence
 claim changes. See
 [Supervision increment 52](../ConnectionManagement/Supervision.md#fifty-second-increment-cache-aware-race-lifecycle-certificates).
+
+### Increment 63: captured-before-completion versus late read (5 November 2026)
+
+**Confirmed source.** Re-read local Git objects at network
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`; consensus
+`585a86117618ff86d7d5b541f9d23b03356d4c3a:cabal.project:100–104` retains that tag.
+[`ConnectionManager/Core.hs:523–549`][cm-close] (`with`) snapshots mutable map entries,
+reads each `connVar` late, calls `throwTo`, retains the captured Async, then
+collectively waits using `waitCatchSTM`. `getConnThread:225–236` skips
+`TerminatedState`, whereas a handle read before completion remains captured.
+`ConnMap.hs:251–264` supplies traversal; `Data/Monoid/Synchronisation.hs:99–123`
+supplies the all-results applicative wait. Sender `uninterruptibleMask_` does
+not freeze target execution or imply prompt completion.
+
+**Backend boundary.** Cached CHaP `io-classes`/`io-sim` 1.8.0.1 sources were
+inspected; the network’s `^>=1.8` bound permits this version, without proving a
+unique dependency solve. IO delegates to GHC/`async`; local GHC 9.6.7/base
+4.18.3.0 docs describe synchronous receipt. IOSim explicitly avoids blocking on
+a done target. Its Async wrapper publishes the result cell before its terminal
+scheduler step: model `resultReady` means Async result availability, not a
+literal `ThreadFinished` observation. GHC RTS dead-target internals were not
+audited.
+
+**Model scope.** The checked initialized controls complete a genuinely
+independently cancelled handler while CM retains its previously read target,
+then request/acknowledge and wait. Companion late-read controls skip the same
+terminated entry. Independent cancellation is neither CM receipt nor normal
+return. Fresh full Agda acceptance passed; no new native replay, source defect,
+RTS correspondence, progress, admission/API quiescence or whole-node shutdown
+claim follows. Source excerpts and hashes: `/tmp/cm-finished-target-20261105/`.
+
+The maintained [increment 63 topic](../ConnectionManagement/Supervision.md#sixty-third-increment-initialized-finished-target-acknowledgement) records the exact API and acceptance status.

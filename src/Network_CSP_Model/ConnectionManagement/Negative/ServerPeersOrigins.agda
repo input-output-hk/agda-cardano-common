@@ -727,3 +727,340 @@ module CollectedOutboundOriginChecks where
   malformedActualFork = Pre.preloadedActualFork
   sameCoreProfileInitialization : V.initialize (O.initial Pre.seededCore) L.settings ≡ just Pre.ordinaryStart
   sameCoreProfileInitialization = Pre.ordinaryInitializer
+
+module FinishedTargetChecks where
+  open import ConnectionManagement.Negative.ServerPeers using (module Protocols)
+  open import Data.Bool using (true; false)
+  open import Data.List using (List; []; _∷_; _++_)
+  open import Data.List.Membership.Propositional using (_∈_)
+  open import Data.List.Relation.Unary.Any using (here)
+  open import Data.Maybe using (just; nothing)
+  open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+  open import ConnectionManagement.Domain using (ident)
+  open import ConnectionManagement.Store using (lookup)
+  import ConnectionManagement.State as Shared
+  import ConnectionManagement.ServerPeers as Combined
+  import ConnectionManagement.ServerAdmission as Server
+  import ConnectionManagement.HandlerSupervision as H
+  import ConnectionManagement.OutboundHandlerSupervision as B
+  import ConnectionManagement.MuxHandlerExit as Physical
+  import ConnectionManagement.Rules.Cleanup as Cleanup
+  import ConnectionManagement.Rules.CMShutdown as Close
+  import ConnectionManagement.CSP.OutboundAdmission as OA
+  import ConnectionManagement.Negative.OutboundHandlerSupervision as OB
+  import ConnectionManagement.Negative.GovernorPool as Prior
+  import ConnectionManagement.Negative.MuxPublicationInboundFixtures as I
+  import ConnectionManagement.Properties.ServerPeersHandlerResources as Resources
+  import ConnectionManagement.Properties.ServerPeersMonitorJoins as Joins
+
+  private
+    module Parent = Protocols using (capability)
+    module Out = Protocols.OutboundHandlerResourceOriginChecks using (start; outbound10; outbound12; outbound13; outbound14; outbound15; outbound26; outbound27; outbound28; outbound-initialized; outbound-owned-at; outbound-exited-ig; outbound-scope18; outbound-connected-events; outbound-connected-path; outbound-peer-events; outbound-peer-path; outbound-scope-events; outbound-scope-path; edge13; edge14; edge27; edge28)
+    module V = Combined.Protocols I.bearerClosed Prior.classify Parent.capability using (Runtime; Event; Runs; advance; more; stop)
+    module W = Physical I.bearerClosed using (shutdown; physical; resultReady; shutdownStep; acknowledgeFinished)
+    module Resource = Resources.Frontend I.bearerClosed Prior.classify Parent.capability using (handler-event; shared)
+    module Join = Joins.Frontend I.bearerClosed Prior.classify Parent.capability using (handler-event; physical)
+    module S = Server I.bearerClosed using (closingCM)
+
+  -- Expected states preserve one coordinator continuation while independent
+  -- physical actions run. Every edge below is an actual guarded frontend step;
+  -- this renderer is not an executable reset or an injected Async result.
+  held : B.State → Close.State → V.Runtime
+  held physical coordinator = Out.outbound-owned-at (record physical { shutdown = coordinator }) S.closingCM false Out.outbound-exited-ig
+
+  liveTarget finishedTarget finishedPending : V.Runtime
+  liveTarget = Out.outbound14
+  finishedTarget = held OB.p26 OB.ownerRead
+  finishedPending = held OB.p26 OB.ownerSending
+
+  -- The bounded pre-handshake profile has no normal-return action. An
+  -- independent handshake cancellation supplies a real body exit here;
+  -- it does not acknowledge this CM coordinator's later throwTo request.
+  independentDelivery : V.Event
+  independentDelivery = Resource.handler-event (H.deliverHandshakeCancellation OA.child OB.err)
+  completionEvents : List V.Event
+  completionEvents = Resource.handler-event (H.deliverHandshakeCancellation OA.child OB.err) ∷
+    Resource.handler-event (H.publishCaught OA.child) ∷
+    Resource.handler-event (H.rethrowCaught OA.child) ∷
+    Resource.handler-event (H.enterFinalizer OA.child) ∷
+    Resource.handler-event (H.cleanup OA.child Cleanup.takeCleanupMap) ∷
+    Resource.handler-event (H.cleanup OA.child Cleanup.selectCleanupEntry) ∷
+    Resource.handler-event (H.cleanup OA.child Cleanup.closeHandlerSocket) ∷
+    Resource.handler-event (H.cleanup OA.child Cleanup.publishCleanupMap) ∷
+    Resource.handler-event (H.cleanup OA.child Cleanup.readCleanupCounters) ∷
+    Resource.handler-event (H.finishCleanup OA.child) ∷
+    Resource.handler-event (H.publishAsyncResult OA.child) ∷ []
+
+  finish1 : ∀ coordinator → V.advance (Resource.handler-event (H.deliverHandshakeCancellation OA.child OB.err)) (held OB.p14 coordinator) ≡ just (held OB.p16 coordinator)
+  finish1 coordinator = refl
+  finish2 : ∀ coordinator → V.advance (Resource.handler-event (H.publishCaught OA.child)) (held OB.p16 coordinator) ≡ just (held OB.p17 coordinator)
+  finish2 coordinator = refl
+  finish3 : ∀ coordinator → V.advance (Resource.handler-event (H.rethrowCaught OA.child)) (held OB.p17 coordinator) ≡ just (held OB.p18 coordinator)
+  finish3 coordinator = refl
+  finish4 : ∀ coordinator → V.advance (Resource.handler-event (H.enterFinalizer OA.child)) (held OB.p18 coordinator) ≡ just (held OB.p19 coordinator)
+  finish4 coordinator = refl
+  finish5 : ∀ coordinator → V.advance (Resource.handler-event (H.cleanup OA.child Cleanup.takeCleanupMap)) (held OB.p19 coordinator) ≡ just (held OB.p20 coordinator)
+  finish5 coordinator = refl
+  finish6 : ∀ coordinator → V.advance (Resource.handler-event (H.cleanup OA.child Cleanup.selectCleanupEntry)) (held OB.p20 coordinator) ≡ just (held OB.p21 coordinator)
+  finish6 coordinator = refl
+  finish7 : ∀ coordinator → V.advance (Resource.handler-event (H.cleanup OA.child Cleanup.closeHandlerSocket)) (held OB.p21 coordinator) ≡ just (held OB.p22 coordinator)
+  finish7 coordinator = refl
+  finish8 : ∀ coordinator → V.advance (Resource.handler-event (H.cleanup OA.child Cleanup.publishCleanupMap)) (held OB.p22 coordinator) ≡ just (held OB.p23 coordinator)
+  finish8 coordinator = refl
+  finish9 : ∀ coordinator → V.advance (Resource.handler-event (H.cleanup OA.child Cleanup.readCleanupCounters)) (held OB.p23 coordinator) ≡ just (held OB.p24 coordinator)
+  finish9 coordinator = refl
+  finish10 : ∀ coordinator → V.advance (Resource.handler-event (H.finishCleanup OA.child)) (held OB.p24 coordinator) ≡ just (held OB.p25 coordinator)
+  finish10 coordinator = refl
+  finish11 : ∀ coordinator → V.advance (Resource.handler-event (H.publishAsyncResult OA.child)) (held OB.p25 coordinator) ≡ just (held OB.p26 coordinator)
+  finish11 coordinator = refl
+
+  append : ∀ {start middle current first last} → V.Runs start first middle → V.Runs middle last current → V.Runs start (first ++ last) current
+  append V.stop rest = rest
+  append (V.more actual path) rest = V.more actual (append path rest)
+
+  abstract
+    actualIndependentCompletion : ∀ coordinator → V.Runs (held OB.p14 coordinator) completionEvents (held OB.p26 coordinator)
+    actualIndependentCompletion coordinator = V.more {a = Resource.handler-event (H.deliverHandshakeCancellation OA.child OB.err)} (finish1 coordinator) (V.more {a = Resource.handler-event (H.publishCaught OA.child)} (finish2 coordinator) (V.more {a = Resource.handler-event (H.rethrowCaught OA.child)} (finish3 coordinator) (V.more {a = Resource.handler-event (H.enterFinalizer OA.child)} (finish4 coordinator) (V.more {a = Resource.handler-event (H.cleanup OA.child Cleanup.takeCleanupMap)} (finish5 coordinator) (V.more {a = Resource.handler-event (H.cleanup OA.child Cleanup.selectCleanupEntry)} (finish6 coordinator) (V.more {a = Resource.handler-event (H.cleanup OA.child Cleanup.closeHandlerSocket)} (finish7 coordinator) (V.more {a = Resource.handler-event (H.cleanup OA.child Cleanup.publishCleanupMap)} (finish8 coordinator) (V.more {a = Resource.handler-event (H.cleanup OA.child Cleanup.readCleanupCounters)} (finish9 coordinator) (V.more {a = Resource.handler-event (H.finishCleanup OA.child)} (finish10 coordinator) (V.more {a = Resource.handler-event (H.publishAsyncResult OA.child)} (finish11 coordinator) (V.stop)))))))))))
+
+  beforeCMEvents : List V.Event
+  beforeCMEvents = Out.outbound-connected-events ++ (Out.outbound-peer-events ++ Out.outbound-scope-events)
+  captureReadEvents : List V.Event
+  captureReadEvents = Join.handler-event (W.shutdownStep Close.captureSnapshot) ∷ Join.handler-event (W.shutdownStep Close.readEntry) ∷ []
+  receiptEvents : List V.Event
+  receiptEvents = Join.handler-event (W.shutdownStep Close.requestCancellation) ∷ Join.handler-event W.acknowledgeFinished ∷ []
+  waitEvents : List V.Event
+  waitEvents = Join.handler-event (W.shutdownStep Close.finishTraversal) ∷ Join.handler-event (W.shutdownStep Close.finishClose) ∷ []
+  requestFinished : V.advance (Join.handler-event (W.shutdownStep Close.requestCancellation)) finishedTarget ≡ just finishedPending
+  requestFinished = refl
+  acknowledgeFinished : V.advance (Join.handler-event W.acknowledgeFinished) finishedPending ≡ just Out.outbound26
+  acknowledgeFinished = refl
+  abstract
+    actualBeforeCM : V.Runs Out.outbound10 beforeCMEvents Out.outbound-scope18
+    actualBeforeCM = append Out.outbound-connected-path (append Out.outbound-peer-path Out.outbound-scope-path)
+    actualCaptureRead : V.Runs Out.outbound-scope18 captureReadEvents liveTarget
+    actualCaptureRead = V.more {a = Join.handler-event (W.shutdownStep Close.captureSnapshot)} Out.edge13
+      (V.more {a = Join.handler-event (W.shutdownStep Close.readEntry)} Out.edge14 V.stop)
+    actualFinishCaptured : V.Runs liveTarget completionEvents finishedTarget
+    actualFinishCaptured = actualIndependentCompletion OB.ownerRead
+    actualReceipt : V.Runs finishedTarget receiptEvents Out.outbound26
+    actualReceipt = V.more {a = Join.handler-event (W.shutdownStep Close.requestCancellation)} requestFinished
+      (V.more {a = Join.handler-event W.acknowledgeFinished} acknowledgeFinished V.stop)
+    actualFinalWait : V.Runs Out.outbound26 waitEvents Out.outbound28
+    actualFinalWait = V.more {a = Join.handler-event (W.shutdownStep Close.finishTraversal)} Out.edge27
+      (V.more {a = Join.handler-event (W.shutdownStep Close.finishClose)} Out.edge28 V.stop)
+
+  throughReceiptEvents : List V.Event
+  throughReceiptEvents = beforeCMEvents ++ (captureReadEvents ++ (completionEvents ++ receiptEvents))
+  throughFinalEvents : List V.Event
+  throughFinalEvents = throughReceiptEvents ++ waitEvents
+  abstract
+    actualThroughReceipt : V.Runs Out.outbound10 throughReceiptEvents Out.outbound26
+    actualThroughReceipt = append actualBeforeCM (append actualCaptureRead (append actualFinishCaptured actualReceipt))
+    actualThroughFinal : V.Runs Out.outbound10 throughFinalEvents Out.outbound28
+    actualThroughFinal = append actualThroughReceipt actualFinalWait
+
+  capturedStillSendReady : Close.phase (W.shutdown (Join.physical finishedTarget)) ≡ Close.sendReady (ident 0) OA.child
+  capturedStillSendReady = refl
+  noReceiptDuringCompletion : Close.collected (W.shutdown (Join.physical finishedTarget)) ≡ []
+  noReceiptDuringCompletion = refl
+  actualPhysicalResult : lookup OA.child (B.threads (W.physical (Join.physical finishedTarget))) ≡ just (H.handlerThread OB.captured (H.resultAvailable OB.err Shared.cleanupNormal))
+  actualPhysicalResult = refl
+  resultReadyBeforeRequest : W.resultReady OA.child (Join.physical finishedTarget) ≡ true
+  resultReadyBeforeRequest = refl
+  capturedEntryNowTerminated : lookup (ident 0) (Shared.entries (Shared.cm (Resource.shared finishedTarget))) ≡ just (Shared.terminated nothing)
+  capturedEntryNowTerminated = refl
+  actualCollectedAtReceipt : OA.child ∈ Close.collected (W.shutdown (Join.physical Out.outbound26))
+  actualCollectedAtReceipt = here refl
+  actualClosed : Close.phase (W.shutdown (Join.physical Out.outbound28)) ≡ Close.closed
+  actualClosed = refl
+
+  -- The same captured entry is late-read only after the same genuine completion.
+  -- Its finalizer removed map aliases, but the original snapshot is retained.
+  lateFinished lateSkipped lateAwaiting lateClosed : V.Runtime
+  lateFinished = held OB.p26 OB.ownerCaptured
+  lateSkipped = held OB.p26 (record OB.ownerCaptured { remaining = [] })
+  lateAwaiting = held OB.p26 (record OB.ownerCaptured { remaining = []; phase = Close.awaitResults })
+  lateClosed = held OB.p26 (record OB.ownerCaptured { remaining = []; phase = Close.closed })
+  lateRead : V.advance (Join.handler-event (W.shutdownStep Close.readEntry)) lateFinished ≡ just lateSkipped
+  lateRead = refl
+  lateTraverse : V.advance (Join.handler-event (W.shutdownStep Close.finishTraversal)) lateSkipped ≡ just lateAwaiting
+  lateTraverse = refl
+  lateWait : V.advance (Join.handler-event (W.shutdownStep Close.finishClose)) lateAwaiting ≡ just lateClosed
+  lateWait = refl
+  lateEvents : List V.Event
+  lateEvents = Join.handler-event (W.shutdownStep Close.captureSnapshot) ∷
+    (completionEvents ++ (Join.handler-event (W.shutdownStep Close.readEntry) ∷
+      Join.handler-event (W.shutdownStep Close.finishTraversal) ∷ Join.handler-event (W.shutdownStep Close.finishClose) ∷ []))
+  abstract
+    actualLateReadControl : V.Runs Out.outbound-scope18 lateEvents lateClosed
+    actualLateReadControl = V.more {a = Join.handler-event (W.shutdownStep Close.captureSnapshot)} Out.edge13
+      (append (actualIndependentCompletion OB.ownerCaptured)
+        (V.more {a = Join.handler-event (W.shutdownStep Close.readEntry)} lateRead
+          (V.more {a = Join.handler-event (W.shutdownStep Close.finishTraversal)} lateTraverse
+            (V.more {a = Join.handler-event (W.shutdownStep Close.finishClose)} lateWait V.stop))))
+  lateSnapshotPreserved : Close.snapshot (W.shutdown (Join.physical lateFinished)) ≡ (ident 0) ∷ []
+  lateSnapshotPreserved = refl
+  lateTerminatedReadSkips : Close.collected (W.shutdown (Join.physical lateClosed)) ≡ []
+  lateTerminatedReadSkips = refl
+  lateReadCannotRequest : V.advance (Join.handler-event (W.shutdownStep Close.requestCancellation)) lateSkipped ≡ nothing
+  lateReadCannotRequest = refl
+  lateReadCannotAcknowledge : V.advance (Join.handler-event W.acknowledgeFinished) lateSkipped ≡ nothing
+  lateReadCannotAcknowledge = refl
+
+  -- Refusal controls retain the actual publication and coordinator boundaries.
+  finishedNotRequestedCannotAcknowledge : V.advance (Join.handler-event W.acknowledgeFinished) finishedTarget ≡ nothing
+  finishedNotRequestedCannotAcknowledge = refl
+  unavailableResultCannotAcknowledge : V.advance (Join.handler-event W.acknowledgeFinished) Out.outbound15 ≡ nothing
+  unavailableResultCannotAcknowledge = refl
+  beforeAsyncPending : V.Runtime
+  beforeAsyncPending = held OB.p25 OB.ownerSending
+  requestBeforeAsync : V.advance (Join.handler-event (W.shutdownStep Close.requestCancellation)) (held OB.p25 OB.ownerRead) ≡ just beforeAsyncPending
+  requestBeforeAsync = refl
+  cleanupIsNotAsyncResult : V.advance (Join.handler-event W.acknowledgeFinished) beforeAsyncPending ≡ nothing
+  cleanupIsNotAsyncResult = refl
+  prematureAsyncPublication : V.advance (Resource.handler-event (H.publishAsyncResult OA.child)) (held OB.p24 OB.ownerRead) ≡ nothing
+  prematureAsyncPublication = refl
+  duplicateAsyncPublication : V.advance (Resource.handler-event (H.publishAsyncResult OA.child)) finishedTarget ≡ nothing
+  duplicateAsyncPublication = refl
+  duplicateReceipt : V.advance (Join.handler-event W.acknowledgeFinished) Out.outbound26 ≡ nothing
+  duplicateReceipt = refl
+  noTraversalBeforeReceipt : V.advance (Join.handler-event (W.shutdownStep Close.finishTraversal)) finishedPending ≡ nothing
+  noTraversalBeforeReceipt = refl
+  noWaitBeforeTraversal : V.advance (Join.handler-event (W.shutdownStep Close.finishClose)) Out.outbound26 ≡ nothing
+  noWaitBeforeTraversal = refl
+  duplicateWait : V.advance (Join.handler-event (W.shutdownStep Close.finishClose)) Out.outbound28 ≡ nothing
+  duplicateWait = refl
+  directReceiptAliasRefused : V.advance (Join.handler-event (W.shutdownStep Close.acknowledgeDelivery)) finishedPending ≡ nothing
+  directReceiptAliasRefused = refl
+
+  open import Data.Product using (Σ; _×_; _,_)
+  open import Relation.Binary.PropositionalEquality using (sym; trans; cong; subst)
+  import Data.List.Relation.Unary.All as All
+  import ConnectionManagement.Properties.CollectedOutboundOrigin as OriginModel
+  import ConnectionManagement.Properties.HandlerBirthBacking as Birth
+  import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+  import ConnectionManagement.Properties.ServerPeersFinishedReceipt as FinishedFacts
+  import ConnectionManagement.Properties.MuxHandlerExit as WaitModel
+  import ConnectionManagement.CSP.GovernorLifecycle as L
+  private
+    module Previous = CollectedOutboundOriginChecks using
+      (inputCore; ordinaryInitialized; ordinary; birthEvents; actualBirth;
+       sameOutboundAtBirth; explicitBacking; originalBirthLabel; originalBirthPrefix;
+       capturedAtPublication; capturedAtWait; forkEvent; observed)
+    module Origin = OriginModel.Frontend I.bearerClosed Prior.classify Parent.capability using
+      (OutboundOrigin; BirthPacket; Discovery; FinishedDiscovery; initialize-origin;
+       initialize-finished; extend-outbound; extend-packet; execution; shared)
+    module Outbound = OriginModel.Frontend.OutboundOrigin using (packet; retained)
+    module Packet = OriginModel.Frontend.BirthPacket using (label; prefix)
+    module Found = OriginModel.Frontend.Discovery using (captured; backing)
+    module FinishedFound = OriginModel.Frontend.FinishedDiscovery using (receipt; discovered)
+    module Finished = FinishedFacts I.bearerClosed Prior.classify using
+      (Receipt; observed-worker; observed-entry; receipt-member; Ready)
+    module Receipt = FinishedFacts.Receipt using (worker; entry; ready; result)
+    module Back = Birth.Frontend I.bearerClosed Prior.classify Parent.capability using
+      (Backing; ForkStep; follow; follow-operation; capture-of-found; current-thread; physical-state)
+    module Wait = Joins.Frontend I.bearerClosed Prior.classify Parent.capability using (physical-wait)
+    module WaitFacts = WaitModel I.bearerClosed using (PhysicalWait)
+    module ObservedWait = WaitModel.PhysicalWait using (observed-results)
+
+  -- Initialization and exact original events precede the real guarded receipt.
+  -- No worker, physical lookup, resource fact or collected membership is passed
+  -- to initialize-finished.
+  finishedTail : List V.Event
+  finishedTail = beforeCMEvents ++ (captureReadEvents ++ completionEvents)
+  pendingTail : List V.Event
+  pendingTail = finishedTail ++ (Join.handler-event (W.shutdownStep Close.requestCancellation) ∷ [])
+  pendingIndex : List V.Event
+  pendingIndex = Previous.birthEvents Previous.ordinary ++ pendingTail
+  receiptIndex : List V.Event
+  receiptIndex = pendingIndex ++ (Join.handler-event W.acknowledgeFinished ∷ [])
+  finalIndex : List V.Event
+  finalIndex = receiptIndex ++ waitEvents
+  abstract
+    birthToFinished : V.Runs Out.outbound10 finishedTail finishedTarget
+    birthToFinished = append actualBeforeCM (append actualCaptureRead actualFinishCaptured)
+    birthToPending : V.Runs Out.outbound10 pendingTail finishedPending
+    birthToPending = append birthToFinished
+      (V.more {a = Join.handler-event (W.shutdownStep Close.requestCancellation)} requestFinished V.stop)
+    initializedPending : V.Runs Out.start pendingIndex finishedPending
+    initializedPending = append (Previous.actualBirth Previous.ordinary) birthToPending
+    initializedReceipt : V.Runs Out.start receiptIndex Out.outbound26
+    initializedReceipt = append initializedPending
+      (V.more {a = Join.handler-event W.acknowledgeFinished} acknowledgeFinished V.stop)
+    initializedWait : V.Runs Out.start finalIndex Out.outbound28
+    initializedWait = append initializedReceipt actualFinalWait
+
+    closedReceipt : Origin.FinishedDiscovery Previous.inputCore L.settings Out.start finishedPending Out.outbound26 pendingIndex
+    closedReceipt = Origin.initialize-finished Previous.ordinaryInitialized initializedPending acknowledgeFinished
+    receiptWorker : Receipt.worker (FinishedFound.receipt closedReceipt) ≡ OA.child
+    receiptWorker = Finished.observed-worker (FinishedFound.receipt closedReceipt) refl
+    receiptEntry : Receipt.entry (FinishedFound.receipt closedReceipt) ≡ ident 0
+    receiptEntry = Finished.observed-entry (FinishedFound.receipt closedReceipt) refl
+    discoveredAtReceipt : Origin.Discovery Previous.inputCore L.settings Out.start Out.outbound26 receiptIndex OA.child
+    discoveredAtReceipt = subst
+      (λ worker → Origin.Discovery Previous.inputCore L.settings Out.start Out.outbound26 receiptIndex worker)
+      receiptWorker (FinishedFound.discovered closedReceipt)
+    discoveredAtWait : Origin.Discovery Previous.inputCore L.settings Out.start Out.outbound28 finalIndex OA.child
+    discoveredAtWait = Origin.initialize-origin Previous.ordinaryInitialized initializedWait (here refl)
+
+  originalDescriptorAtReceipt : Found.captured discoveredAtReceipt ≡ OB.captured
+  originalDescriptorAtReceipt = sym (Back.capture-of-found (Found.backing discoveredAtReceipt) Previous.capturedAtPublication)
+  originalDescriptorAtWait : Found.captured discoveredAtWait ≡ OB.captured
+  originalDescriptorAtWait = sym (Back.capture-of-found (Found.backing discoveredAtWait) Previous.capturedAtWait)
+
+  -- Existing generic copy laws keep the same opaque origin and actual physical
+  -- fork through the new receipt path; no old delivery suffix is substituted.
+  abstract
+    sameOriginPending : Origin.OutboundOrigin Previous.inputCore L.settings Out.start finishedPending pendingIndex OA.child OB.captured
+    sameOriginPending = Origin.extend-outbound birthToPending (Previous.sameOutboundAtBirth Previous.ordinary)
+    sameOriginReceipt : Origin.OutboundOrigin Previous.inputCore L.settings Out.start Out.outbound26 receiptIndex OA.child OB.captured
+    sameOriginReceipt = Origin.extend-outbound
+      (V.more {a = Join.handler-event W.acknowledgeFinished} acknowledgeFinished V.stop) sameOriginPending
+    sameOriginWait : Origin.OutboundOrigin Previous.inputCore L.settings Out.start Out.outbound28 finalIndex OA.child OB.captured
+    sameOriginWait = Origin.extend-outbound actualFinalWait sameOriginReceipt
+    packetPending : Outbound.packet sameOriginPending ≡ Outbound.packet (Previous.sameOutboundAtBirth Previous.ordinary)
+    packetPending = Origin.extend-packet birthToPending (Previous.sameOutboundAtBirth Previous.ordinary)
+    packetReceipt : Outbound.packet sameOriginReceipt ≡ Outbound.packet (Previous.sameOutboundAtBirth Previous.ordinary)
+    packetReceipt = trans
+      (Origin.extend-packet (V.more {a = Join.handler-event W.acknowledgeFinished} acknowledgeFinished V.stop) sameOriginPending) packetPending
+    packetWait : Outbound.packet sameOriginWait ≡ Outbound.packet (Previous.sameOutboundAtBirth Previous.ordinary)
+    packetWait = trans (Origin.extend-packet actualFinalWait sameOriginReceipt) packetReceipt
+    sameBirthLabel : Packet.label (Outbound.packet sameOriginWait) ≡ Previous.forkEvent
+    sameBirthLabel = trans (cong Packet.label packetWait) (Previous.originalBirthLabel Previous.ordinary)
+    sameBirthPrefix : Packet.prefix (Outbound.packet sameOriginWait) ≡ Previous.observed Previous.ordinary
+    sameBirthPrefix = trans (cong Packet.prefix packetWait) (Previous.originalBirthPrefix Previous.ordinary)
+
+    backedPending : Back.Backing Out.start finishedPending pendingIndex OA.child OB.captured
+    backedPending = Back.follow birthToPending (Previous.explicitBacking Previous.ordinary)
+    backedReceipt : Back.Backing Out.start Out.outbound26 receiptIndex OA.child OB.captured
+    backedReceipt = Back.follow (V.more {a = Join.handler-event W.acknowledgeFinished} acknowledgeFinished V.stop) backedPending
+    backedWait : Back.Backing Out.start Out.outbound28 finalIndex OA.child OB.captured
+    backedWait = Back.follow actualFinalWait backedReceipt
+
+  -- Project to an unindexed command before composing equalities, since the
+  -- location parameters of opaque Backing values retain their own indices.
+  birthCommand : ∀ {start current events worker captured} → Back.Backing start current events worker captured → B.Action
+  birthCommand history = Back.ForkStep.command (Birth.Frontend.Backing.operation history)
+  commandCopy : ∀ {start before after events tail worker captured}
+    (path : V.Runs before tail after) (history : Back.Backing start before events worker captured) →
+    birthCommand (Back.follow path history) ≡ birthCommand history
+  commandCopy path history = cong Back.ForkStep.command (Back.follow-operation path history)
+  abstract
+    commandPending : birthCommand backedPending ≡ birthCommand (Previous.explicitBacking Previous.ordinary)
+    commandPending = commandCopy birthToPending (Previous.explicitBacking Previous.ordinary)
+    commandReceipt : birthCommand backedReceipt ≡ birthCommand (Previous.explicitBacking Previous.ordinary)
+    commandReceipt = trans
+      (commandCopy (V.more {a = Join.handler-event W.acknowledgeFinished} acknowledgeFinished V.stop) backedPending) commandPending
+    commandWait : birthCommand backedWait ≡ birthCommand (Previous.explicitBacking Previous.ordinary)
+    commandWait = trans (commandCopy actualFinalWait backedReceipt) commandReceipt
+
+  resourcesAtReceipt : ResourceFacts.Facts OA.child OB.captured (Origin.shared Out.outbound26)
+  resourcesAtReceipt = Outbound.retained sameOriginReceipt
+  resourcesAtWait : ResourceFacts.Facts OA.child OB.captured (Origin.shared Out.outbound28)
+  resourcesAtWait = Outbound.retained sameOriginWait
+  exactSameExecution : V.Runs Out.start finalIndex Out.outbound28
+  exactSameExecution = Origin.execution sameOriginWait
+  physicalFinalWait : WaitFacts.PhysicalWait (Join.physical Out.outbound27) (Join.physical Out.outbound28)
+  physicalFinalWait = Wait.physical-wait Out.outbound27 Out.edge28
+  actualFinalResultOracle : W.resultReady OA.child (Join.physical Out.outbound27) ≡ true
+  actualFinalResultOracle = All.lookup (ObservedWait.observed-results physicalFinalWait) (here refl)

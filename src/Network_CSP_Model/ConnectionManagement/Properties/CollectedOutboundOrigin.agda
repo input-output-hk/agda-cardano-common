@@ -176,3 +176,30 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
    (sym (OutboundOrigin.decomposition origin))
    (append (BirthPacket.prefix-run (OutboundOrigin.packet origin))
      (T.more (BirthPacket.actual (OutboundOrigin.packet origin)) (OutboundOrigin.suffix-run origin)))
+
+ open import Data.List using ([])
+
+ private
+  import ConnectionManagement.Properties.ServerPeersFinishedReceipt as FinishedFacts
+  module Finished = FinishedFacts b io using (Receipt; receipt-member)
+  module Receipt = FinishedFacts.Receipt using (worker)
+  module FinishedFront = FinishedFacts.Frontend b io capability using (event; physical-receipt)
+
+ -- The actual finished-target acknowledgement supplies collection membership.
+ -- The caller provides neither a worker lookup nor a resource certificate.
+ record FinishedDiscovery (input : M.Configuration) (governor : Governor.State)
+   (start before after : T.Runtime) (events : List T.Event) : Set where
+  field
+   receipt : Finished.Receipt (R.base (Member.unwind before)) (R.base (Member.unwind after))
+   discovered : Discovery input governor start after (events ++ (FinishedFront.event ∷ [])) (Receipt.worker receipt)
+
+ initialize-finished : ∀ {input governor start before after events} →
+   T.initialize (O.initial input) governor ≡ just start → T.Runs start events before →
+   T.advance FinishedFront.event before ≡ just after →
+   FinishedDiscovery input governor start before after events
+ initialize-finished {before = before} initialized path actual = record
+   { receipt = receipt
+   ; discovered = initialize-origin initialized
+       (append path (T.more {a = FinishedFront.event} actual T.stop)) (Finished.receipt-member receipt) }
+   where
+   receipt = FinishedFront.physical-receipt before actual
