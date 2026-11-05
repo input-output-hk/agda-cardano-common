@@ -612,7 +612,7 @@ spurious polling, consuming the current request, premature Done and false succes
 No candidate Haskell run/rebuild, native PTree bridge, search/CLI or baseline
 preservation/resource theorem is supplied here. Those remain separate from
 reference-contract typechecking. The subsequent T6.2.1 proof follows below;
-T6.2.2 local/paired-policy results and T6.3.1 runtime comparison follow after it; T6.3.2 is next.
+T6.2.2 local/paired-policy results and T6.3.1 runtime comparison follow after it; T6.3.2 is packaged below.
 
 
 ## CollectOne finite source/wire preservation
@@ -646,7 +646,7 @@ artifacts are under `/var/tmp/leiosnotify-t621-20261104/preservation-v2/`.
 Peak stage sampled RSS is about 552 MiB under the existing serial heap/RSS/time
 guards. Unchanged imports/external interfaces are reused; no earlier source or
 result identity is changed. The subsequent T6.2.2 local conditional results follow below;
-T6.2.2.3 premise discharge and T6.3.1 comparison are checked below; T6.3.2 is next.
+T6.2.2.3 premise discharge and T6.3.1 comparison are checked below; T6.3.2 is packaged below.
 
 ## CollectOne conditional resources and local progress
 
@@ -682,7 +682,7 @@ audit has zero findings and protocol layering has no Replay dependency.
 primary artifacts are under `/tmp/leiosnotify-t622-20261104/final/`.
 Earlier sources and result identities are unchanged; no Haskell experiment is
 run. The subsequent **T6.2.2.3** proof below discharges the unfinished-work
-premise for the candidate paired-policy model. **T6.3.1** runtime comparison follows it; T6.3.2 is next.
+premise for the candidate paired-policy model. **T6.3.1** runtime comparison follows it; T6.3.2 is packaged below.
 
 ## CollectOne paired-policy premise discharge
 
@@ -728,7 +728,7 @@ contain no Replay dependency. Primary logs are under
 `/tmp/leiosnotify-t6223-20261104/final/`; identities and summaries are retained
 in the result record. No earlier source/result identity changes and no Haskell
 experiment runs in T6.2.2.3. The subsequent **T6.3.1** actual-driver comparison
-is recorded below; **T6.3.2** patch review is next.
+is recorded below; **T6.3.2** review packaging is recorded below.
 
 ## CollectOne actual-driver comparison
 
@@ -769,4 +769,479 @@ in the record. All guarded commands passed with peak sampled process RSS about
 451 MiB and no resource-budget failures. Prior proof/fixture/helper/result
 sources are unchanged. Upstream node wiring, socket/mux/CBOR behavior, arithmetic
 refinement, general liveness and deployed impact remain outside these fixtures.
-**Next is T6.3.2:** package the minimal patch and scoped recommendation.
+**T6.3.2** now packages the minimal review proposal below.
+
+
+## CollectOne review patch
+
+The [minimal patch bundle](patches/collect-one/README.md) contains the in-place
+upstream proposal, source/apply validation record and scoped recommendation.
+`collect_one_patch.py` independently reconstructs the candidate used by the
+T6.3.1 builds and verifies the bundled patch in an isolated export. It does not
+change an upstream checkout or publish anything. Reproduce with a fresh output:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/collect_one_patch.py \
+  --consensus /path/to/ouroboros-consensus \
+  --out /tmp/leiosnotify-collect-one-patch-check
+```
+
+## Server wire proofs and capture preparation
+
+The [replay guide](../README.md#exact-server-wire-replay) gives the safe regression
+command for the exact standalone server quotient and native wire decision.
+The [parallel integration record](results-parallel-20261105.json) retains the
+final checks, source identities and separate task scopes. Heavy Agda/GHC work
+remains serial even when source, proof development and capture auditing use
+separate agents.
+
+The streaming [capture auditor](capture_audit.py) inventories raw evidence;
+it is not a protocol checker. Its [four-file report and capture recipe](capture-audit/README.md)
+show missing Notify RequestNext observations and unknown build provenance in the
+requested logs. Reproduce the bounded scan using that report's `command_argv`
+and a new `--out` path. Its bookkeeping selftests are lightweight:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/capture_audit.py --selftest
+```
+
+No raw input repair, normalized Msg adapter, client/paired lookahead CLI, fresh
+node capture or real-log replay verdict is added by these tools.
+
+## Further parallel replay proofs
+
+The next wave completes the generic client source-language quotient, lossless
+normalized server adapter, physical commit/decode/FIFO prefix bounds and finite
+unit-return client callback targets. The
+[replay guide](../README.md#generic-client-source-replay) and
+[numbered plan](../../../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#remaining-work-and-parallel-waves-after-2eeb5111)
+state each scope and the remaining native/profile, packet-adequacy and paired
+search work. These are model proof prerequisites, not new raw-log CLI modes.
+
+Reproduce the five combined safe roots serially with a fresh output directory:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/check_agda.py \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/Wire/ClientTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/Wire/ServerAdapterTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/Wire/ServerAdapterNativeTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverPrefixBoundsTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/ClientCallbackBasisTests.agda \
+  --out /tmp/leiosnotify-replay-wave-check
+```
+
+The [combined record](results-replay-wave2-20261105.json) retains all 14 new
+source hashes, final fresh checks, strict audit and scope. Detailed subtask
+records cover the [client quotient](../Wire/result-client-20261105.json),
+[server adapter](../Wire/result-server-adapter-20261105.json) and
+[prefix bounds](result-prefix-bounds-20261105.json). Final peak sampled process
+RSS is about 1007 MiB with no resource-budget failure. Unchanged dependency
+interfaces are reused; external libraries are not rebuilt. Heavy builds remain
+serialized despite concurrent proof development.
+
+## Typed paired search wave
+
+After `8800bc51`, three workers developed input-relative packet adequacy,
+complete restricted hidden menus and the generic ranked two-list engine.
+Integration adds typed endpoint merges, exhaustive original-model source
+decision and native paired realization/refutation. The
+[paired guide](../README.md#typed-paired-driver-replay) states the explicit
+unit-return/generic-callback profile and the remaining raw/CLI work.
+
+Reproduce the combined safe roots serially, using a fresh output directory:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/check_agda.py \
+  Semantics/Replay/Examples/TwoListTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/BasisAdequacyTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverBasisExecutionTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverDecideTests.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverDecideNativeTests.agda \
+  --out /tmp/leiosnotify-paired-search-check
+```
+
+The [combined record](results-replay-wave3-20261105.json) retains all 15 new
+source hashes, fresh checks, memory limits and reviewed audit findings.
+Subtask records cover [packet adequacy](result-basis-20261105.json),
+[menus](result-menu-20261105.json) and [two-list search](result-two-list-20261105.json).
+Computed examples are deliberately small; larger delayed-Send examples use
+independent source witnesses and proof transport, not a large search benchmark.
+Final peak sampled RSS is about 1092 MiB. No node capture, raw input repair,
+CLI dispatch, production-policy certificate or Haskell refinement is added.
+
+## Normalized lookahead CLI and manifest runner
+
+The wave after `1f5d4eb7` adds standalone native client transport, exact
+normalized client/paired adapters, a dedicated CLI and explicit profile
+manifests. [The replay guide](../README.md#normalized-input-and-cli-delivery)
+states the generic successful-client/unit-return scope, prefix semantics and
+raw-fidelity limitations. Existing `Replay/Main.agda` is unchanged.
+
+Build `LookaheadMain` separately. Use a fresh disk-backed output directory;
+splitting generation and GHC avoids holding both heaps simultaneously. From
+the repository root:
+
+```sh
+LOOKAHEAD_BUILD=/var/tmp/leiosnotify-lookahead-build
+agda --compile --ghc-dont-call-ghc -i src \
+  --compile-dir="$LOOKAHEAD_BUILD" \
+  --ghc-flag=-O0 --ghc-flag=-threaded --ghc-flag=-rtsopts \
+  src/Cardano_network/Replay/LeiosNotifyPipeLookahead/LookaheadMain.agda \
+  +RTS -M2G -RTS
+ghc --make -O0 -threaded -rtsopts -i"$LOOKAHEAD_BUILD" \
+  -main-is MAlonzo.Code.Cardano_network.Replay.LeiosNotifyPipeLookahead.LookaheadMain \
+  "$LOOKAHEAD_BUILD/MAlonzo/Code/Cardano_network/Replay/LeiosNotifyPipeLookahead/LookaheadMain.hs" \
+  -o "$LOOKAHEAD_BUILD/LookaheadMain" +RTS -M2G -RTS
+```
+
+`LookaheadMain` is the new ordinary IO/environment/exit boundary; it is not a
+safe theorem module. Its proof/report dependencies are checked separately with
+`--safe`. Build evidence records the actual generated GHC command and toolchain;
+the commands above reproduce the same two-stage method. Installed library
+interface caches may need to be generated on first use of stdlib exit bindings.
+
+Copy a [profile example](profiles/README.md), replace its illustrative capture
+assertions/paths with actual declarations, and supply normalized local or paired
+input in the existing grammar. Then use the bounded runner:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/replay_lookahead.py \
+  --checker "$LOOKAHEAD_BUILD/LookaheadMain" --manifest /path/to/manifest.json
+```
+
+Default runtime limits are 60 seconds, 512M checker heap and 16 MiB aggregate
+normalized input/source-map bytes. Raw source hashes stream. The runner validates
+declared artifacts, preserves each role's order/coordinates and checks the
+binary's verdict tag against its exit code. Output is JSON. Exit classes are
+0 accepted prefix, 1 protocol rejected, 2 invalid input, 3 missing capture
+assertions, and 4 inconclusive/resource/checker failure. Untagged direct CLI IO
+exceptions are inconclusive, never a rejection proof. The validator alone
+neither opens captures nor executes the checker.
+
+Lightweight isolated checks and the compiled-CLI regression suite are:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/lookahead_manifest.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/replay_lookahead.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/test_lookahead_cli.py \
+  --binary "$LOOKAHEAD_BUILD/LookaheadMain" --out /tmp/new-lookahead-cli-regressions
+```
+
+The [wave record](results-replay-wave4-20261105.json) retains 12 fresh safe
+modules, the separately typechecked/compiled IO entry point, 93 manifest
+selftests, 27 fake-checker runner controls, 62 real compiled CLI regressions
+and 10 real-binary manifest smoke cases. The compiled CLI cases complete with
+no runtime budget failure, and legacy Main hashes match. One intentionally
+tiny runner timeout is classified inconclusive. These synthetic tests do not
+establish raw-log fidelity, source-map authenticity, whole-node completion,
+large-capture performance or deployed implementation refinement.
+
+## Raw capture preparation and correspondence
+
+Start with the [capture preflight guide](capture-preflight/README.md). The
+inspected local testnet config silences RequestNext and Votes in both directions;
+the [example overlay](capture-preflight/notify-debug-overlay.example.json) is an
+unapplied fragment for review against the actual deployed configuration. The
+strict October 29 rescan confirms the old missing-request diagnosis, without
+attributing that capture to the inspected config or rejecting the protocol.
+
+The [raw helper guide](raw-input/README.md) specifies the accepted envelope,
+selectors, canonical maps and limits. Normalize each explicitly selected endpoint
+into a new output directory, retaining raw originals:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/raw-input/lookahead_raw.py \
+  normalize --raw /captures/client.log --selector /work/client-selector.json \
+  --out /work/client
+```
+
+The outputs are `local.txt`, `local.src`, `map.jsonl` and `selector.json`.
+Repeat for the server when checking a pair. The selector names exact `host`,
+`connection`, `role`, `observedMuxGeneration` and `segmentAfterDone`; generation
+zero means no NewMux was observed. No freshness or peer identity is inferred.
+
+Prepare an existing [profile manifest](profiles/README.md), naming each endpoint's
+`local.txt` as `file`, original log as `source`, and `local.src` as `sourceMap`.
+For local mode, `checkerInput.file` can name that same `local.txt`. For paired
+mode, assemble `pair.txt` with the existing
+[paired session helper](../../LogProcessing/paired_sessions.py) and its existing
+manifest format; it takes the endpoint fields `node`, `connection`, `generation`,
+`capture`, `file`, `source` and `sourceMap`, rather than the entire new profile
+manifest. Pairing and fresh/ordered/lossless assertions must have an operator's
+stated basis. Keep unknown deployed revisions unknown.
+
+Copy the [raw bindings example](raw-replay-bindings.example.json), retain exactly
+the roles in the replay manifest, and replace selectors/maps with the actual
+selection. Detailed-map paths resolve relative to this bindings file. Then run:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/replay_raw_lookahead.py \
+  --checker "$LOOKAHEAD_BUILD/LookaheadMain" \
+  --manifest /work/replay-manifest.json --raw-bindings /work/raw-bindings.json
+```
+
+This opt-in coordinator rederives every selected normalized event and canonical
+line/byte/thread-map row before invoking the unchanged normalized runner. Selected
+event omission, payload/coordinate tampering and extra rows fail distinctly from
+model rejection. Exit classes remain 0 accepted prefix, 1 completed model
+rejection, 2 invalid input, 3 missing declarations and 4 inconclusive. File
+mutation/deletion and allocation failures remain inconclusive. The checker still
+requires a matching verdict tag and exit code.
+
+The default raw limits apply per endpoint scan: 16 GiB, ten million lines and
+300 seconds, with the raw helper's bounded line/lifecycle state. The default
+16 MiB aggregate metadata budget here includes the manifests, checker input,
+local traces and both map formats. `--max-raw-bytes`, `--max-raw-records`,
+`--max-raw-seconds` and `--max-input-bytes` override these explicitly; the
+checker's separate `--timeout` defaults to 60 seconds and `--heap` to 512M.
+Repeated scans of a shared raw file are deliberate, bounded and not an event
+deduplication strategy. This is executable correspondence to supplied bytes,
+not a formal proof about Python, a lossless logger or the deployed implementation.
+
+Run the new controls with:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/capture_preflight.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/raw-input/test_lookahead_raw.py
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/test_replay_raw_lookahead.py
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/test_replay_raw_lookahead.py \
+  --binary "$LOOKAHEAD_BUILD/LookaheadMain"
+```
+
+The [cost guide](replay-cost/README.md) records severe observed schedule-order
+sensitivity in paired search. It recommends local-first checks and explicit
+paired limits, preserving the full trace and inconclusive results. It adds no
+checker optimization. The [wave record](results-replay-wave5-20261105.json)
+consolidates the new validation; no Agda source or existing binary is changed.
+
+## Input-dependent paired search ordering
+
+The [search-order study](search-order/README.md) continues the local work after
+the wave-5 baseline study. It introduces a safely checked input-dependent
+ordering and rebuilds `LookaheadMain`; no CLI flags or capture declarations are
+changed. The driver still decides the original unrestricted source language.
+Sorting changes which hidden candidates are explored first and retains every
+candidate. Neither a global state graph nor a unique-successor assumption is
+introduced. The original generic two-list decider keeps its previous order.
+
+Using identical full-history bytes, profile and five-second budgets, the retained
+normal closed one-exchange pair and four-request cancellation case move from
+timeouts to approximately 15 ms acceptance. All 84 original scale workloads and
+21 original follow-up cases complete through 64 exchanges. The study reports
+small open-prefix slowdowns as well as gains, and makes no universal cost bound.
+Some negative comparisons are completed rejection; a timeout remains
+inconclusive. Quit/Done is never removed from the full-history cases.
+
+The existing two-stage build command above builds the ordered checker from the
+current source. Reproduce the same-fixture comparison with two explicit binaries:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/search-order/compare_search.py \
+  --baseline /path/to/baseline/LookaheadMain \
+  --candidate "$LOOKAHEAD_BUILD/LookaheadMain" --out /tmp/new-search-order-comparison
+```
+
+The [wave-6 record](results-replay-wave6-20261105.json) retains the safe checks,
+source audit resolutions, exact codegen/GHC/binary identities, runtime comparison
+and regressions. No node or deployed configuration is changed. Acquisition is
+excluded from this active local work at the user's request; logger fidelity and
+stronger implementation claims remain separate.
+
+## Unique callback basis and rejection robustness
+
+The paired checker now uses
+[UniqueBasisAdequacy](../UniqueBasisAdequacy.agda), which wraps the unchanged
+occurrence-based adequacy proof with standard-library deduplication. Membership
+equivalence, representative retention, uniqueness and both all-state step/run
+transports are proved. The old retraction and source predicate are unchanged.
+This removes repeated whole callback candidates; it preserves every visible
+record and every duplicate or ordered entry inside a Votes payload.
+
+The [exact-value regressions](basis-regressions/README.md) construct actual
+repeated source/native witnesses and independently refute internal Votes
+trimming/reordering. All 18 runtime fixtures have identical bytes and expected
+outcomes on both binaries. The original 105 positive scale/follow-up cases,
+62 CLI regressions and three raw-input smokes also pass on the rebuilt checker.
+
+The [unique-basis rejection-cost study](rejection-cost/README.md) recorded a negative result
+about practical search cost: each 72-case matrix completes nine controls,
+times out at two seconds on all nine size-one closed-negative series, and does
+not run 54 larger cases. The timed-out series represent six distinct byte
+sequences. The two builds have the same limits and fixture hashes, and neither
+produces an unexpected completed verdict. Exit zero from the measurement
+harness means its reporting completed; it does not mean all protocol decisions
+completed. Do not interpret either timeouts or unrun cases as rejection.
+
+Reproduce lightweight checks and the candidate-only correctness suite with:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/rejection-cost/rejection_cost.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/basis-regressions/regressions.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/basis-regressions/regressions.py \
+  --binary "$LOOKAHEAD_BUILD/LookaheadMain" --out /tmp/new-unique-basis-regressions
+```
+
+The existing two-stage build method and CLI flags are unchanged. The
+[wave-7 record](results-replay-wave7-20261105.json) retains exact source/build
+identities, safe checks, zero direct audit findings and bounded measurements.
+No new protocol restriction is implemented. The later proved necessary
+prechecks below address those retained cases in the same source model.
+
+## Proved prechecks before complete paired search
+
+The three-guard baseline reuses existing exact local replay, packet-prefix conservation
+and a pending-Send count theorem before entering the original complete search.
+The [source guide](../README.md#proved-necessary-prechecks) links all three
+necessity proofs and kernel regressions. Every original source witness passes;
+failure supplies a refutation of the unchanged source predicate. Success still
+calls the identical complete-search module. No local acceptance, matching packet
+prefix or count check is substituted for a paired witness.
+
+The [274-case study](precheck/README.md) preserves both stages of development.
+The first local/prefix version resolved all 72 earlier rejection fixtures but
+timed out on an extra count-deficit case. Its nonzero report and exact harness
+snapshot remain intact. The final count theorem permits one extra recorded
+Receive per direction, corresponding to its single unrecorded Send hook; it
+does not require equal recorded lengths or constrain excess queued Sends.
+That same count-deficit fixture now rejects in about 13 ms. All 274 unchanged
+expected outcomes match in about 4.85 seconds, including normal-after-Quit,
+both callback contracts, valid Lead races and exact inner Votes. The deliberate
+missing-file CLI result remains inconclusive; no unexpected timeout or skipped
+case occurs. These are bounded synthetic measurements, not a universal runtime
+or deployment theorem.
+
+Rebuild with the existing two-stage method, then reproduce the full matrix:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/precheck/precheck_regressions.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/precheck/precheck_regressions.py \
+  --binary "$LOOKAHEAD_BUILD/LookaheadMain" --out /tmp/new-precheck-regressions \
+  --timeout 2 --total-timeout 180
+```
+
+The matrix reuses 177 immutable rejection/positive fixture hashes and the exact
+prior CLI/exact-value producers. Additional guard cases have source-reviewed
+rationales; root kernel gates independently show that all three guards can pass
+an impossible unsolicited-reply trace that full search must reject. Flags,
+normalized/raw interfaces, native assumptions and legacy `Replay/Main.agda`
+retain their meanings. The [wave-8 record](results-replay-wave8-20261105.json)
+retains exact safe checks, resolved audit findings, prototype/final build hashes,
+the intermediate timeout and final resource limits. Operational exhaustion
+remains inconclusive at every stage.
+
+## Request credit, larger stress inputs and typed logger observation
+
+The [request-credit theorem](../CreditPrecheck.agda) adds a fourth necessary
+check: recorded client normal/Canceled reply receives cannot exceed recorded
+server Request receives, even when a server Send hook is pending. The earlier
+three predicates remain available; `DriverDecide.FullPrechecks` combines all
+four. Guard success still invokes the unchanged complete backend. A separate
+kernel orphan-Done control passes all four and is rejected by that backend.
+
+The [stress guide](search-stress/README.md) freezes 83 named cases/77 distinct
+inputs, extends positive workloads to 4096 exchanges, and separates orphan Reply
+from orphan Done. Its three-guard baseline retains 11 two-second timeouts and
+39 skipped larger series members. Expected verdicts are never relaxed to make
+resource exhaustion count as rejection; the same inventory is used for the
+request-credit comparison.
+All 26 orphan-reply cases through size 128 now reject, while orphan Done at size
+one remains inconclusive. The candidate completes 28 positives/27 rejections,
+with 9 timeouts/19 skipped cases; two baseline positives cross the same fixed
+two-second ceiling. The guide preserves this qualification and separate matched
+probes rather than treating skipped cases as protocol decisions.
+All 12 matched probes of the two borderline positive fixtures accept below two
+seconds, with a separate five-second ceiling. This supports deadline sensitivity
+in these samples; the original two timeouts remain in the two-second study.
+
+[The typed logger-schema guide](../README.md#typed-logger-schema-observation)
+describes an independent proof boundary: selected hooks with decoded fields are
+validated for tag/direction agreement, exact summary values and endpoint agency,
+then transported to existing adapters. Invalid selected positions are retained.
+This does not verify Python/JSON lexical parsing, coordinates or physical logging.
+
+The [wave-9 record](results-replay-wave9-20261105.json) retains proof/source/build
+identities and the bounded comparisons. No capture acquisition or source-policy
+change is part of this wave.
+
+## Recorded shutdown origin and ordering-cycle probes
+
+The fifth [necessary check](../ShutdownPrecheck.agda) requires a server Quit
+Receive record whenever the client records Done. Its proof reuses physical
+Done origin and the pre-Quit reader phase. A client Done Receive may precede the
+server's Send-Done record: an explicit source witness retains that pending hook
+under both callback contracts. The original four-guard API remains available;
+`DriverDecide.AllPrechecks` adds shutdown origin and still calls the unchanged
+complete backend when every condition passes.
+
+The [shutdown comparison](shutdown-stress/README.md) reuses all 83 previous
+stress fixtures and their original two-second budgets without rerunning or
+rewriting the committed baseline. The 274 existing regression expectations are
+also checked on the new binary. A separate two/three/four-round probe investigates
+an ordering cycle. Its three-round abstract kernel gate proves only all-five
+precheck success. Incompatibility was initially source-reviewed; the later kernel
+prefix proof below supplies the general refutation. Runtime exhaustion remains
+inconclusive.
+The fixed comparison now completes all 35 negatives: 30 positive prefixes also
+accept, while seven positive cases time out and 11 larger ones are skipped.
+The separate cycle probe accepts two rounds and rejects three/four rounds in
+about one second each. These are concrete compiled model verdicts; the later
+prefix theorem supplies the general family proof. No asymptotic cost conclusion
+follows from these samples.
+
+The [wave-10 record](results-replay-wave10-20261105.json) retains source and build
+identities, checked necessity/non-vacuity, the independent review, exact runtime
+comparisons and unresolved limits. Existing timing samples do not isolate cheap
+guard scans as the dominant cost, so this wave changes no guard ordering,
+successor menus or protocol policy.
+
+## Kernel prefix obstruction and stage-cost diagnostic
+
+The [prefix source proof](../PrefixTransport.agda) retains exact events and the
+receive-lead bound after every visible prefix. The
+[ordering theorem](../CycleObstruction.agda) now refutes the whole n ≥ 3 cycle
+family for arbitrary payloads/Return and both contracts, using a finite prefix
+cut rather than source-search normalization. The
+[native corollary](../CycleObstructionNative.agda) reuses the existing sound bridge
+for arbitrary matching native witnesses; no canonical-encoding premise is added.
+
+The [separate cost probe](cost-profile/README.md) measures the existing parser,
+adapters, five guards and complete backend in explicit diagnostic modes. Guard
+success is `preconditions-passed`, never `accepted-prefix`. Every mode performs
+the same complete-field forcing pass. Measurements include common work and
+process startup; marker-arrival timestamps and additive stage subtraction are
+not used. Production source and the existing CLI executable retain their bytes.
+
+All 20 positive inputs pass the real prechecks. At serial/distinct 256, the
+precheck process takes about 54 ms and allocates 157 MB cumulatively; the unchanged
+backend takes about 906 ms and allocates 2.571 GB cumulatively. At 512, decode and
+prechecks finish around 106 ms while backend/public/CLI runs time out at two
+seconds. Cumulative allocation is distinct from peak RSS. The study retains six
+full-verification timeouts and one deliberately unrun guard-fail backend control;
+no completed outcome is unexpected. This supports investigation inside complete
+search, without attributing the cost to a particular internal operation yet.
+
+The [wave-11 record](results-replay-wave11-20261105.json) retains safe-check/audit
+evidence, the diagnostic build, direct generated-function associations and exact
+bounded results. No runtime guard or search optimization is installed by this
+wave.
+
+## Exact readiness gate and internal menu measurements
+
+The [menu study](menu-profile/README.md) measures actual unique-basis, raw
+readiness and ordered-menu functions. The gate has an exact dependent-list
+equality proof for every state, contract and basis; it skips only scans whose
+old lookups are all absent. Five source anchors, arbitrary perturbations and
+the reader-inactive delegation control have separate claims. Diagnostic
+completion is never protocol acceptance. The initial compiler-sharing defect
+was caught before runtime and is retained beside the repaired build evidence.
+
+Production adopts the gate through one `DriverDecide` import. Eight downstream
+safe roots pass; all 274 regression expectations match. All 20 fixed positive
+CLI inputs now accept, including both historical distinct-512 timeouts. The
+stress counts and three ordering-cycle outcomes are unchanged; two deadline
+crossings cause two further run/skip changes. Seven positive stress timeouts
+and 11 skips remain. Old certificate extraction can
+still reconstruct original menus; no exact whole-backend cost share or general
+OOM/runtime bound is claimed. The
+[wave-12 record](results-replay-wave12-20261105.json) binds the proof,
+source/build identities, independent reviews and exact bounded comparisons.

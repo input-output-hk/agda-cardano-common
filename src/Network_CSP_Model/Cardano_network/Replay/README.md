@@ -25,10 +25,45 @@ the [plan](../../../docs/specs/paired-trace-replay-plan.md) tracks remaining wor
 bridges and controlled-schedule certificates for the pinned concurrent server
 and pipelined client. Its [runtime investigation](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
 keeps baseline performance and diagnostic strictness/arithmetic separate.
-The existing Notify CLI modes below retain their bounded peer targets. Proposed
-`--notify-lookahead` and `--paired-notify-lookahead` modes remain T7 in the
-[numbered plan](../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#t7-build-certified-replay-for-the-selected-observation).
-Controlled fixtures do not establish arbitrary-log lookahead acceptance.
+The existing Notify CLI modes below retain their bounded peer targets. A
+separate [lookahead CLI and manifest runner](LeiosNotifyPipeLookahead/README.md#normalized-input-and-cli-delivery)
+now checks normalized local/paired driver-log prefixes using the proved
+generic successful-callback/unit-return model. It retains exact summary fields
+and delayed Send hooks; fresh capture assumptions and unknown deployed
+provenance stay explicit. Fixed node policy and raw-log observation correctness
+remain separate. An opt-in
+[raw correspondence and capture preflight workflow](LeiosNotifyPipeLookahead/README.md#raw-input-correspondence-and-capture-preflight)
+now checks artifacts against original JSON and diagnoses missing observations.
+Its baseline synthetic study retains paired timeouts as inconclusive. A
+[certified ordering improvement](LeiosNotifyPipeLookahead/tools/search-order/README.md)
+now resolves the retained full-history reproducers with the same source
+predicate and completes the original scale matrix; arbitrary inputs still need
+explicit resource limits. The
+subsequent [unique-basis and rejection study](LeiosNotifyPipeLookahead/README.md#unique-payload-basis-and-rejection-limits)
+preserves the same source language and exact repeated payloads, but found
+closed-negative timeouts. The later
+[proved necessary prechecks](LeiosNotifyPipeLookahead/README.md#proved-necessary-prechecks)
+resolve the retained cases while preserving the same source/native predicates
+and complete-search fallback. Arbitrary inputs still need resource limits. The
+[larger stress study](LeiosNotifyPipeLookahead/tools/search-stress/README.md)
+investigates those limits; a fourth proved guard requires recorded server Request
+credit for client reply receives. The
+[shutdown-origin guard](LeiosNotifyPipeLookahead/ShutdownPrecheck.agda)
+additionally requires a recorded server Quit for client Done, preserving delayed
+Send-Done. All five conditions remain necessary checks before full replay. The
+[prefix obstruction](LeiosNotifyPipeLookahead/README.md#prefix-transport-and-kernel-cycle-obstruction)
+now proves the general n-at-least-three ordering-cycle rejection and its native
+corollary. A separate [diagnostic entry point](LeiosNotifyPipeLookahead/CostProbeMain.agda)
+separates guard-only outcomes from complete decisions when measuring cost. The
+[menu diagnostic](LeiosNotifyPipeLookahead/tools/menu-profile/README.md)
+measures actual basis and successor functions; its exact readiness-gate proof
+preserves dependent successor lists, duplicate occurrences and ordering for every
+state. Diagnostic completion never supplies a protocol acceptance verdict. The
+[typed logger-schema observation](LeiosNotifyPipeLookahead/README.md#typed-logger-schema-observation)
+transports selected decoded hooks through the existing adapters, keeping lexical
+parsing and physical logging outside the theorem. The
+[numbered plan](../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#t7-build-certified-replay-for-the-selected-observation)
+tracks those gaps; no new real-log acceptance follows from fixture tests.
 
 ## Paired BlockFetch and TxSubmission2
 

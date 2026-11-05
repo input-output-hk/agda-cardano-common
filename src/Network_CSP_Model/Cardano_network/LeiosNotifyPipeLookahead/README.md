@@ -27,6 +27,15 @@ recorded 75 local dependencies and no Replay dependency; the earlier T4.3.1
 scan recorded 70. These are dated module-boundary checks; protocol properties
 retain the scopes documented below.
 
+The later [DriverSearchOrder](DriverSearchOrder.agda) and its
+[tests](DriverSearchOrderTests.agda) provide complete input-dependent enumeration
+of the existing hidden driver moves. They introduce no protocol policy or Replay
+dependency: stable sorting retains every source alternative. The replay layer
+uses those all-state soundness/completeness facts in the generic ordered search;
+the [comparison guide](../Replay/LeiosNotifyPipeLookahead/tools/search-order/README.md)
+records practical improvements for the retained full shutdown histories and
+the limits of those measurements.
+
 The [lookahead replay design](../../../docs/specs/leiosnotify-lookahead-replay-design.md)
 records the source model and remaining checker work. The model follows the
 server control flow in consensus
@@ -267,12 +276,35 @@ assumption on coinductive trees. Finite-trace transport excludes the CSP
 termination tick; `return-elim` separately distinguishes success and excessive
 request failure.
 
-Readiness APIs are retained in this bridge. Erasing them to obtain a wire-only
-checker remains T7. `nodeNext` restricts callback reply kinds, while admission
+Readiness APIs are retained in this bridge. The standalone server wire checker
+below now erases them through a proved observation. `nodeNext` restricts callback reply kinds, while admission
 outcomes remain abstract in this server model. The actual credit/queue binding
 in `NodeModel` is a separate target; the initial admission-failure witness does
 not claim that the pinned node rejects its first request. These results do not
 establish Haskell refinement, store validity, codec behavior or infinite liveness.
+
+### Exact server wire checker
+
+[Wire/Server.agda](Wire/Server.agda) implements an exact unbounded standalone
+server quotient with complete lookup and certified decision for both contracts.
+It tracks requests still owed and the Open/QuitSeen/CancelOnly/Closed phases.
+Protocol code imports no Replay modules. The
+[replay proof and native bridge](../Replay/LeiosNotifyPipeLookahead/README.md#exact-server-wire-replay)
+prove both detailed source/wire inclusions and decide the native wire prefix
+language. Thus server checking need not enumerate internal interleavings.
+This is the abstract-callback baseline; credits, node queue policy, client/paired
+logs, raw fields and optional wire-cap policies need their own support.
+
+### Generic client source wire checker
+
+[Wire/Client.agda](Wire/Client.agda) adds a distinct unbounded generic client
+quotient. Its `Lead` state permits one extra received reply before the delayed
+RequestNext Send record, without permitting another reply or Quit first.
+The [source-language proofs](../Replay/LeiosNotifyPipeLookahead/README.md#generic-client-source-replay)
+preserve arbitrary schedules and exact payloads; completeness explicitly takes
+a return-value inhabitant. Native wire transport is now checked through
+`Replay/LeiosNotifyPipeLookahead/WireClientNative`; fixed node policy remains
+separate, and the paired checker below supplies its own composition result.
 
 ## Native client observation and callback scope
 
@@ -303,7 +335,9 @@ can carry arbitrary callback values. The paired product below now supplies a
 joint wire-observation target and endpoint projection certificates, including
 channel commits before delayed Send records. These local driver-observation trees do
 not by themselves justify the old Send-record-as-enqueue medium. Infinite
-callback domains also require T7's finite-basis proof before exhaustive replay.
+callback domains are handled by the now-checked finite target/basis proofs at
+the explicit unit-return paired-checker profile. The standalone native wire
+bridge retains generic Return with an explicit inhabitant for decision.
 
 ## Native paired driver product
 
@@ -330,6 +364,42 @@ need their capture/normalization correspondence. The product preserves finite
 prefixes and keeps endpoint return values in state without a global return tick.
 Generic successful client callbacks and abstract admission remain this generic
 tree's contracts. The node model below supplies a checked restriction of its runs.
+
+### Replay prefix bounds and finite callbacks
+
+[DriverPrefixBounds](DriverPrefixBounds.agda) proves exact physical-operation
+versus visible-hook tallies on arbitrary driver runs. From a fresh state, each
+directional commit count is at most its Send-row count plus one pending Send.
+[DriverPrefixBoundsQueues](DriverPrefixBoundsQueues.agda) adds exact commit/
+decode/FIFO accounting and bounds pending Receive plus queued packets by those
+Send rows plus one. Reachable prefixes require the additive one; no queue cap
+is guessed and delayed Send hooks remain permitted.
+
+[ClientCallbackBasis](ClientCallbackBasis.agda) gives a finite exact successor
+menu for erased successful client callbacks at unit return. Arbitrary signed
+depths reduce to their tested comparison cases without changing the target
+state; exact handler payloads and concurrent alternatives remain. This covers
+one hidden rule family per state, not all payload choices or a finite overall
+state graph. The
+[design](../../../docs/specs/leiosnotify-lookahead-replay-design.md#checked-prefix-bounds-and-callback-targets)
+states the theorems, regressions and remaining packet/state/search obligations.
+
+### Input-relative paired replay model
+
+[DriverBasis](DriverBasis.agda) restricts only new normal callback selections
+to a declared finite list. [DriverBasisExecution](DriverBasisExecution.agda)
+enumerates all eight hidden rule families completely for that relation;
+[DriverBasisExecutionReplay](DriverBasisExecutionReplay.agda) exports its Replay
+interface and inherited hidden accessibility. [DriverPayloadMap](DriverPayloadMap.agda)
+preserves every generic source rule under payload renaming. Exact endpoint
+alphabets and order-preserving merges live in [DriverRows](DriverRows.agda).
+All protocol modules remain independent of Cardano-network Replay modules.
+
+The [paired checker](../Replay/LeiosNotifyPipeLookahead/README.md#typed-paired-driver-replay)
+uses whole-input adequacy to turn those finite menus into a decision about the
+unrestricted original driver model, then transports it to native paired trees.
+The checker has unit return and successful generic client callbacks; it does
+not invert the fixed node-policy restriction or validate raw capture fields.
 
 ## Combined production node policy
 
@@ -793,9 +863,12 @@ Haskell refinement or production-node severity.
 The [source audit](../../../docs/notes/leiosnotify-pipe-lookahead-source-audit.md#remaining-implementation-and-replay-obligations)
 collects the remaining runtime, representation and replay obligations. The
 [numbered plan](../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#t5-investigate-potential-implementation-problems)
-tracks continuation at T6.3.2. The source audit also holds the
-T5.3 classification and resource-candidate decision. Arbitrary-log lookahead checking remains T7;
-source bridges and controlled-schedule certificates do not supply that checker.
+tracks raw observation/capture evidence and stronger node-profile work.
+The source audit also holds the T5.3 classification and resource-candidate
+decision. The typed paired checker now completes its generic search scope;
+Normalized profile/CLI delivery is implemented in the
+[replay guide](../Replay/LeiosNotifyPipeLookahead/README.md#normalized-input-and-cli-delivery);
+raw fidelity and complete captures remain open.
 
 The separate [CollectOne candidate design](../../../docs/specs/leiosnotify-collect-one-design.md)
 has compiled type/constructor feasibility and separate safe reference
@@ -814,5 +887,7 @@ fresh candidate policy history has an exact baseline policy history, yielding
 converse paired and Haskell correspondence remain open.
 [T6.3.1 actual-driver comparison](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md#collectone-actual-driver-comparison)
 now passes 1224 fresh fixture processes, with matching behavior and lower
-retention/shutdown cost plus a small allocation increase. T6.3.2 patch review
-is next; these are controlled measurements, not a deployed-node result.
+retention/shutdown cost plus a small allocation increase. The
+[T6.3.2 review bundle](../Replay/LeiosNotifyPipeLookahead/tools/patches/collect-one/README.md)
+is now source/apply checked; these are controlled measurements and a proposal,
+not a deployed-node result.
