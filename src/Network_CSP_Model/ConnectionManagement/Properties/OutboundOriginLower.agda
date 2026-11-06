@@ -17,6 +17,7 @@ import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.OutboundHandlerSupervision as B
+import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.MuxJobTypes as Types
@@ -157,12 +158,25 @@ module Group (b : ErrorId → Bool) where
 
 
 module Exit (b : ErrorId → Bool) where
- private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; noteCleanup; step; choose)
- private module G = GroupModel b using (step; abortOwner)
+ private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; noteCleanup; step; choose)
+ private module G = GroupModel b using (step; abortOwner; source)
  control-source : ∀ action s {t} → W.control action s ≡ just t → W.source t ≡ W.source s
  control-source action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s)
  ... | nothing = case eq of λ ()
  ... | just next = case just-injective eq of λ { refl → refl }
+ -- The real release acknowledgement changes caller/lifecycle bookkeeping,
+ -- never the acquisition frames used by automatic outbound origin recovery.
+ ack-acquiring : ∀ caller worker before {after} →
+  O.advance (O.release caller (Release.cancellationDelivered worker)) before ≡ just after →
+  O.acquiring after ≡ O.acquiring before
+ ack-acquiring caller worker before actual with lookup caller (O.releasing before) |
+  O.canDeliver (Release.cancellationDelivered worker) before
+ ... | nothing | _ = case actual of λ ()
+ ... | just saved | false = case actual of λ ()
+ ... | just saved | true with Release.step (Machine.promotionHardLimit (O.core before))
+  (Release.cancellationDelivered worker) saved (Machine.world (O.core before))
+ ...   | nothing = case actual of λ ()
+ ...   | just (next , world) = case just-injective actual of λ { refl → refl }
  enact-effect : ∀ plan s {t} → W.enact plan s ≡ just t → Effect (W.source s) (W.source t)
  enact-effect (W.local fs) s eq = case just-injective eq of λ { refl → same refl }
  enact-effect (W.machine action fs) s eq with O.advance action (W.source s) in actual
@@ -180,6 +194,13 @@ module Exit (b : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just c = reframe refl (control-source Close.acknowledgeDelivery (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s }) eq)
    (outbound-effect (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) (W.source s) actual)
+ enact-effect (W.releaseDelivery caller worker err) s eq with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.release caller (Release.cancellationDelivered worker)) (G.source g) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → same (trans
+   (ack-acquiring caller worker (G.source g) acknowledged)
+   (Quiet.Group.direct-same b (G.abortOwner worker err) (W.base s) aborted tt)) }
  effect : ∀ action s {t} → W.step action s ≡ just t → Effect (W.source s) (W.source t)
  effect action s eq with W.choose action s
  ... | nothing = case eq of λ ()

@@ -20,6 +20,8 @@ open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
 open import ConnectionManagement.Domain using (HandleId; JobId; WorkerId; EntryId)
 import ConnectionManagement.Store
+import ConnectionManagement.OutboundMachine as O
+import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.ServerPeers as Combined
 import ConnectionManagement.ServerIGExit as Exit
 import ConnectionManagement.ServerAdmission as Admission
@@ -532,17 +534,45 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
  ... | nothing = case safe of λ ()
  ... | just plan = enact-frame plan s safe eq
 
+ -- Canonical release operations preserve the complete peer context. Their
+ -- source writes and caller permissions are still checked by the real step.
+ core-release-context : ∀ caller action s {t} →
+   K.step (K.coreStep (O.release caller action)) s ≡ just t → K.context t ≡ K.context s
+ core-release-context caller action s eq with K.coreAllowed (O.release caller action) s
+ ... | false = case eq of λ ()
+ ... | true with E.step (K.coreAction (O.release caller action)) (K.server s)
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → refl }
+ core-release-view : ∀ caller action s {t} →
+   T.advance (T.dispatch (K.coreStep (O.release caller action))) s ≡ just t →
+   frame-view t ≡ frame-view s
+ core-release-view caller action s {t} actual with
+   Shared.Protocols.dispatch-observation isBearerClosed isIOManagerError canInitiate
+     (K.coreStep (O.release caller action)) s actual
+ ... | next , advanced , same = view-context s t
+   (trans (cong K.context same) (core-release-context caller action (T.base s) advanced))
+
  -- Every edge retains its actual event/guard and selected-plan restriction.
  data FramedRuns : T.Runtime → List T.Event → T.Runtime → Set where
   frameDone : ∀ {s} → FramedRuns s [] s
   frameNext : ∀ {s t u event events} → framed event s ≡ true → T.advance event s ≡ just t →
     FramedRuns t events u → FramedRuns s (event ∷ events) u
+  -- A core release retains its own canonical label; it is not relabelled as
+  -- an inherited Server action merely to obtain a closure certificate.
+  frameRelease : ∀ {s t u caller action events} →
+    T.advance (T.dispatch (K.coreStep (O.release caller action))) s ≡ just t →
+    FramedRuns t events u →
+    FramedRuns s (T.dispatch (K.coreStep (O.release caller action)) ∷ events) u
  framed-runs : ∀ {s events t} → FramedRuns s events t → T.Runs s events t
  framed-runs frameDone = T.stop
  framed-runs (frameNext {event = event} safe actual rest) = T.more {a = event} actual (framed-runs rest)
+ framed-runs (frameRelease {caller = caller} {action = action} actual rest) =
+   T.more {a = T.dispatch (K.coreStep (O.release caller action))} actual (framed-runs rest)
  framed-view : ∀ {s events t} → FramedRuns s events t → frame-view t ≡ frame-view s
  framed-view frameDone = refl
  framed-view (frameNext {s = s} {event = event} safe actual rest) = trans (framed-view rest) (advance-frame event s safe actual)
+ framed-view (frameRelease {s = s} {caller = caller} {action = action} actual rest) =
+   trans (framed-view rest) (core-release-view caller action s actual)
  server-framed : ∀ a s {t} → T.advance (server-event a) s ≡ just t → framed (server-event a) s ≡ true
  server-framed a s actual with T.inheritAllowed (K.serverStep a) s
  ... | false = case actual of λ ()
@@ -553,6 +583,7 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
  framed-append : ∀ {s as t bs u} → FramedRuns s as t → FramedRuns t bs u → FramedRuns s (as ++ bs) u
  framed-append frameDone tail = tail
  framed-append (frameNext safe actual rest) tail = frameNext safe actual (framed-append rest tail)
+ framed-append (frameRelease actual rest) tail = frameRelease actual (framed-append rest tail)
  transport-frame-components : ∀ {s t} → frame-view t ≡ frame-view s →
    Shared.Certificates isBearerClosed isIOManagerError (T.base s) → Shared.Certificates isBearerClosed isIOManagerError (T.base t)
  transport-frame-components same certificates rewrite cong P.gov same | cong P.bg same | cong P.scopes same = certificates

@@ -1604,3 +1604,88 @@ Its independent release caller therefore remains pending. The
 requires a source/guard audit, an actual request and observed receipt (or real
 finished-target branch), followed by that caller's genuine return. It is planned,
 not implemented, and supplies no current quiescence or whole-shutdown claim.
+
+
+### Increment 66: outbound release receipt audit (6 November 2026)
+
+**Confirmed source finding; selected model milestone accepted, uncommitted.** Network
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` and consensus
+`585a86117618ff86d7d5b541f9d23b03356d4c3a` were re-read as local Git objects.
+The pinned consensus `cabal.project:97–103` explicitly identifies its selected
+network source as `leios-prototype` with `matchedBlock` and the network 1.3.0.0
+merge. The network commit subject independently identifies that prototype merge.
+This establishes the documented dependency's provenance, not correspondence to
+all later branch heads or the full prototype node. The Core blob remains
+`8fd696c052e26ae47f061b715c8ea8ad2cd01e34`; the consensus cabal blob is
+`d1e5a948c0246ebaee2b4d961b56759e0c20d82e`.
+
+`ConnectionManager/Core.hs:1834–1841,1999–2037` retains the handler Async in the
+outbound release continuation. After the timer wins, a separate transaction
+writes `TerminatingState`; trace/counter operations precede throwTo of
+`AsyncCancelled`, and the caller then returns success using that captured
+Terminating value. Current CM map replacement/deletion does not retarget the
+stored handler. The release function has no local mask/unmask and inherits
+ambient masking; only CM's distinct finalizer explicitly uses
+`uninterruptibleMask_` at `523–549`. The source does not wait for handler cleanup
+or its physical Async result before release returns.
+
+The source rule separates request, acknowledgement and return. Before this
+increment, the physical outbound wrapper refused raw `cancellationDelivered`
+without supplying the framed-mux adapter. The [accepted milestone](../ConnectionManagement/Supervision.md#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
+now supplies coupled live/available-result observations derived from the actual
+caller frame, preserving `OutboundMachine`'s `mayDeliver` guard and delivery note.
+[Generic receipt inversions](../ConnectionManagement/Properties/ServerPeersReleaseReceipt.agda)
+derive the real target operation/source acknowledgement and outer permission;
+CM coordinator preservation remains separate from caller return. Live receipt, completed
+target observation, source return, handler completion and CM result wait remain
+different boundaries; no new implementation defect follows from the model gap.
+
+**Backend limits.** Cached `io-classes`/`io-sim` 1.8.0.1 fits the permitted package
+range without proving a unique dependency solve. Its IO fork class delegates
+throwTo to the IO backend; IOSim blocks on noninterruptible targets and wakes
+pending senders on termination. Async result-cell publication precedes scheduler
+termination, so result availability is not literal `ThreadFinished` or an
+instantaneous/universal throwTo-return theorem. No native replay, GHC RTS audit,
+backend correspondence or new global quiescence result was performed.
+
+Exact seven network blobs, consensus object, separately qualified cache hashes,
+extracts and control obligations are under
+`/tmp/cm-release-mux-20261106/{source-evidence.json,source-audit.md,control-matrix.md}`.
+The pins are unchanged; G0–G5 and the full modeling/verification objective remain
+open.
+
+### Local prototype baseline audit (6 November 2026)
+
+**Confirmed local finding; network comparison incomplete.** Consensus
+`2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b` (1 November) is available locally;
+`merge-base --is-ancestor` confirms it descends from
+`585a86117618ff86d7d5b541f9d23b03356d4c3a`, and `rev-list --count old..new`
+returns 44, including merged commits. Its `cabal.project` blob
+`74d8b0c207637f378a5e564a9d517ef683be1dd3` explicitly selects network
+`2f1c154f248659b89523d5679ca532f442e7ed2a` with the egress scheduler.
+This confirms the declared pair, not its full source availability or behavior.
+
+Selected exact consensus diffs confirm new `freshBytes`/`freshMaxBytes` diffusion
+inputs, fresh-byte state/watchers, `txTierRng`/registry integration and a local-root
+membership input read from the public governor state. LeiosFetch block-transaction
+replies now carry only transactions, with a two-element outer CBOR list and
+bounded definite/indefinite payload decoding; transaction encoding uses nested
+CBOR bytes and block-inclusion serialization. These changes concern source/API
+and wire correspondence; they do not establish a CM defect or new proof scope.
+
+**Open comparison.** The selected network commit is missing from the known
+network repository and all 37 discovered local Git databases checked under the
+workspace repository root and Cabal package cache. Candidate blobs for the 56
+inventoried CM/IG/OG/Server/handler/JobPool/mux source files are therefore unknown;
+none may be declared unchanged. The checkout's older local network HEAD was not
+substituted. Today's remote HEAD is unknown; no fetch, repin or source/model
+migration was performed.
+
+Commands, exact selected old/new consensus blobs and hashes, the old network
+blob inventory, object-lookup failures and bounded-search scope are retained in
+`/tmp/cm-release-mux-20261106/baseline-audit/{report.md,summary.json,commands.json,consensus-selected-blobs.json,network-scope-blobs.json,additional-object-search.json}`.
+This is local source evidence, not replay or semantic acceptance. Per the user's
+newer steering, finish increment 66 then continue this baseline assessment;
+release TIME_WAIT/post-mux proof work is deferred. Existing proof claims retain
+network `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` and consensus
+`585a86117618ff86d7d5b541f9d23b03356d4c3a` until an explicit migration decision.

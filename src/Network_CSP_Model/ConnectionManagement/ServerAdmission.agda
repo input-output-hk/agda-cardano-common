@@ -156,6 +156,12 @@ machineAction (N.run (C.run (D.run (R.run (X.run (W.run (G.run (M.run (P.run (U.
 machineAction _ = nothing
 runOutbound : O.Action → N.Action
 runOutbound a = N.run (C.run (D.run (R.run (X.run (W.run (G.run (M.run (P.run (U.run (B.outbound a))))))))))
+-- Coupled physical release receipts still belong to their source caller.
+-- Keep caller-role and outer governor cancellation checks on these new labels.
+releaseReceiptCaller : N.Action → Maybe WorkerId
+releaseReceiptCaller (N.run (C.run (D.run (R.run (X.run (W.deliverReleaseMux caller err)))))) = just caller
+releaseReceiptCaller (N.run (C.run (D.run (R.run (X.run (W.acknowledgeReleaseFinished caller)))))) = just caller
+releaseReceiptCaller _ = nothing
 outboundCaller : N.Action → Maybe WorkerId
 outboundCaller (N.run (C.run (D.run (R.run (X.run (W.run (G.run (M.run (P.run (U.run (B.outbound a))))))))))) = caller a
   where
@@ -165,7 +171,7 @@ outboundCaller (N.run (C.run (D.run (R.run (X.run (W.run (G.run (M.run (P.run (U
   caller (O.beginRelease w _) = just w
   caller (O.release w _) = just w
   caller (O.inbound _) = nothing
-outboundCaller _ = nothing
+outboundCaller a = releaseReceiptCaller a
 
 -- Raw admission workers have one role and historical identities. An unrelated
 -- outbound caller cannot reuse that identity after the admission body exits.

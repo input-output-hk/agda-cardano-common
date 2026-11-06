@@ -620,7 +620,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
 -- Post-mux coordinator acknowledgment is available only through its guarded
 -- physical delivery routes, or the exact physical-result observation.
 module Exit (isBearerClosed : ErrorId → Bool) where
- private module W = ExitModel isBearerClosed using (State; acknowledgeFinished; base; beginExit; bodyExited; bufferScope; choosePolicy; classifying; cleanup; cleanupComplete; control; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; initial; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; publishAsyncResult; resultAvailable; resultReady; rethrow; run; setSource; shared; shutdown; shutdownStep; source; step)
+ private module W = ExitModel isBearerClosed using (State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; base; beginExit; bodyExited; bufferScope; choosePolicy; classifying; cleanup; cleanupComplete; control; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; initial; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; publishAsyncResult; resultAvailable; resultReady; rethrow; run; setSource; shared; shutdown; shutdownStep; source; step)
  private module G = GroupModel isBearerClosed using (abortOwner; abortStage; base; initial; ownerContext; poolAt; step)
  private module MonitorModelAt = MonitorModel isBearerClosed using (base)
  private module U = MuxModel Types.TypedResult using (frames)
@@ -682,6 +682,8 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  step-preserves W.acknowledgeFinished s eq aux valid | Close.sendReady e w = case eq of λ ()
  step-preserves W.acknowledgeFinished s eq aux valid | Close.awaitResults = case eq of λ ()
  step-preserves W.acknowledgeFinished s eq aux valid | Close.closed = case eq of λ ()
+ step-preserves (W.deliverReleaseMux caller err) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.deliverReleaseMux caller err) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.deliverReleaseMux caller err) s eq tt)) valid)
+ step-preserves (W.acknowledgeReleaseFinished caller) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.acknowledgeReleaseFinished caller) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.acknowledgeReleaseFinished caller) s eq tt)) valid)
  step-preserves (W.beginExit w) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.beginExit w) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.beginExit w) s eq tt)) valid)
  step-preserves (W.observeBufferReturn w) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.observeBufferReturn w) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.observeBufferReturn w) s eq tt)) valid)
  step-preserves (W.observeBufferException w result) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.observeBufferException w result) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.observeBufferException w result) s eq tt)) valid)

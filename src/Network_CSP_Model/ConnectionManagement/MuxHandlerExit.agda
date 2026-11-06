@@ -26,6 +26,7 @@ import ConnectionManagement.HandlerSupervision as H
 import ConnectionManagement.OutboundHandlerSupervision as B
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.CMShutdown as Close
+import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 import ConnectionManagement.MuxGroupShutdown as Group
 module G = Group isBearerClosed
@@ -133,6 +134,16 @@ data Plan : Set where
   coordinator : Close.Action → Plan
   muxDelivery : WorkerId → ErrorId → Plan
   timeWaitDelivery : WorkerId → ErrorId → Plan
+  releaseDelivery : WorkerId → WorkerId → ErrorId → Plan
+
+-- A release keeps its originally captured target even after map replacement
+-- or cleanup. Only the actual delivering caller frame supplies that target.
+releaseTarget : WorkerId → State → Maybe WorkerId
+releaseTarget caller s with lookup caller (O.releasing (source s))
+... | nothing = nothing
+... | just savedFrame with Release.pc savedFrame
+...   | Release.delivering target next = just target
+...   | _ = nothing
 edit : WorkerId → Frame → Phase → State → Store WorkerId Frame
 edit w f pc s = put w (record f { phase = pc }) (exits s)
 -- Preserve the class of the ACTUAL cleanup fault: finally is outside the
@@ -163,6 +174,8 @@ data Action : Set where
   shutdownStep : Close.Action → Action
   deliverShutdownMux deliverShutdownTimeWait : ErrorId → Action
   acknowledgeFinished : Action
+  deliverReleaseMux : WorkerId → ErrorId → Action
+  acknowledgeReleaseFinished : WorkerId → Action
 
 choose : Action → State → Maybe Plan
 choose (run action) s with delegateAllowed action
@@ -257,6 +270,14 @@ choose acknowledgeFinished s with Close.phase (shutdown s)
 ...   | true = just (coordinator Close.acknowledgeDelivery)
 ...   | false = nothing
 choose acknowledgeFinished s | _ = nothing
+choose (deliverReleaseMux caller err) s with releaseTarget caller s
+... | nothing = nothing
+... | just target = just (releaseDelivery caller target err)
+choose (acknowledgeReleaseFinished caller) s with releaseTarget caller s
+... | nothing = nothing
+... | just target with resultReady target s
+...   | false = nothing
+...   | true = just (machine (O.release caller (Release.cancellationDelivered target)) (exits s))
 
 control : Close.Action → State → Maybe State
 control action s with Close.step (Shared.cm (shared s)) (λ w → resultReady w s) action (shutdown s)
@@ -277,6 +298,13 @@ enact (muxDelivery w err) s with G.step (G.abortOwner w err) (base s)
 enact (timeWaitDelivery w err) s with O.advance (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) (source s)
 ... | nothing = nothing
 ... | just c = control Close.acknowledgeDelivery (record (setSource c s) { exits = noteCleanup w (Cleanup.interruptTimeWait err) s })
+-- Delivery and the caller's real source acknowledgement are coupled. Neither
+-- branch acknowledges CM, publishes a handler result, or returns the caller.
+enact (releaseDelivery caller target err) s with G.step (G.abortOwner target err) (base s)
+... | nothing = nothing
+... | just g with O.advance (O.release caller (Release.cancellationDelivered target)) (G.source g)
+...   | nothing = nothing
+...   | just c = just (setSource c (record s { base = g }))
 step : Action → State → Maybe State
 step action s with choose action s
 ... | nothing = nothing

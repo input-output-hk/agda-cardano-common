@@ -28,6 +28,7 @@ import ConnectionManagement.PeerContext as Context
 import ConnectionManagement.Rules.PeerJobs as J
 import ConnectionManagement.Rules.OutboundGovernor as G
 import ConnectionManagement.Rules.OutboundAcquire as A
+import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.AsyncScope as Scope
 private
   module S = Server isBearerClosed
@@ -123,12 +124,23 @@ peerAllowed : PS.Action → State → Bool
 peerAllowed (PS.run (GP.run a)) s = rawPeerAllowed a s
 peerAllowed (PS.forkMonitor _ w) s = fresh w s
 peerAllowed _ _ = true
+-- Receipt labels use the same caller permissions as the underlying source
+-- acknowledgement; they cannot evade a governor-owned caller's cancellation.
+coreAllowed : O.Action → State → Bool
+releaseCallerAllowed : WorkerId → State → Bool
+releaseCallerAllowed caller s with lookup caller (O.releasing (source s))
+... | nothing = false
+... | just saved with Release.pc saved
+...   | Release.delivering worker next = coreAllowed (O.release caller (Release.cancellationDelivered worker)) s
+...   | _ = false
 serverAllowed : E.Action → State → Bool
 serverAllowed (E.run (S.acceptedFork w req)) s = newActors w (Shared.child req) (Shared.socketRef req) s
 serverAllowed (E.run (S.scope S.returnAction)) s = peerClosed s
-serverAllowed (E.run (S.run a)) s with S.outboundCaller a
-... | just _ = false
-... | nothing = true
+serverAllowed (E.run (S.run a)) s with S.releaseReceiptCaller a
+... | just caller = releaseCallerAllowed caller s
+... | nothing with S.outboundCaller a
+...   | just _ = false
+...   | nothing = true
 serverAllowed _ _ = true
 
 -- Common outbound steps retain both physical Server permissions and peer-caller
@@ -136,7 +148,6 @@ serverAllowed _ _ = true
 coreAction : O.Action → E.Action
 coreAction (O.inbound a) = E.run (S.run (S.runMachine a))
 coreAction a = E.run (S.run (S.runOutbound a))
-coreAllowed : O.Action → State → Bool
 coreAllowed (O.beginAcquire w req) s = peerOpen s ∧ newActors w (A.child req) (A.socketRef req) s ∧
   PS.governorAllowed (GP.run (Sub.core (O.beginAcquire w req))) (peers s) ∧
   GP.coreAllowed (O.beginAcquire w req) (PS.governor (peers s))

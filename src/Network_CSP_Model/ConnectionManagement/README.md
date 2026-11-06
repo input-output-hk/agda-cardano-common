@@ -6,8 +6,8 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `eef9971` (increment 64), with
-accepted, uncommitted increment 65 TIME_WAIT integration (6 November 2026);
+the lifecycle claims through model commit `a54d4fd` (increment 65), with
+active outbound-release receipt integration (6 November 2026), pending acceptance;
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -55,8 +55,18 @@ acceptance passed; it is committed in `eef9971`.
 [Increment 65](Supervision.md#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
 now follows the audited TIME_WAIT route from genuine idle expiry and release
 timeout through elapsed/interrupted finally, publication and both same-origin CM
-waits; fresh full acceptance passed. Its independent release caller remains
-pending; the next planned slice is its coupled framed-mux receipt and return.
+waits; fresh full acceptance passed and is committed in `a54d4fd`. That accepted
+profile retains its independent release caller.
+[Increment 66](Supervision.md#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
+now connects that caller to an actual coupled mux or available-result receipt and
+separate source return, retaining the same birth/resources through final CM wait.
+Fresh full acceptance passed; it remains uncommitted over `a54d4fd`. The generic
+[release receipt properties](Properties/ServerPeersReleaseReceipt.agda) derive
+captured-target, source acknowledgement, permission and coordinator evidence.
+The next task is the [source-baseline audit](Supervision.md#next-task-source-baseline-audit);
+the newer local consensus pin is confirmed but its selected network object is
+unavailable locally. Existing proof pins remain unchanged; no next proof wave
+starts, and release TIME_WAIT/post-mux coverage remains deferred.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 

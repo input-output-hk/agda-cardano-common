@@ -29,6 +29,7 @@ import ConnectionManagement.MuxHandlerSupervision as MuxModel
 import ConnectionManagement.Rules.MuxJobTypes as Types
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.CMShutdown as Close
+import ConnectionManagement.Rules.OutboundRelease as OutboundRelease
 
 -- Projected captures keep the presence predicate independent of mutable phases.
 Present : WorkerId → Birth.Registry → Set
@@ -1261,12 +1262,12 @@ import ConnectionManagement.MuxHandlerExit as ExitModel
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 module Exit (isBearerClosed : ErrorId → Bool) where
- private module W = ExitModel isBearerClosed using (Action; Frame; Plan; State; acknowledgeFinished; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery)
+ private module W = ExitModel isBearerClosed using (Action; Frame; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; releaseTarget; releaseDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery)
  private module G = GroupModel isBearerClosed using (abortOwner; asyncDeadTracing; asyncExit; asyncFailureWritten; drainReady; draining; failedExit; frameAt; groupClosing; idle; initial; monitorReturnedNormal; normalExit; ownerAborting; phase; protocolState; scopeDone; setPool; shutdownSelected; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; wholeClosed; wholeClosing)
  private module P = ProtocolModel using (module Pool; module U; base)
  private module U = P.U using (captured; frames)
  private module Pool = P.Pool using (cancelPending; closedPool; closing; joinPending; openPool; phase)
- private module Lower = Group isBearerClosed using (Valid; initialized-valid; step-preserves)
+ private module Lower = Group isBearerClosed using (Valid; initialized-valid; step-preserves; direct-shutdown-same)
  view : W.State → Birth.Registry
  view = Birth.ExitLayer.view isBearerClosed
  Valid : W.State → Set
@@ -1303,6 +1304,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
   safe-coordinator : ∀ {a s} → PlanSafe (W.coordinator a) s
   safe-muxDelivery : ∀ {w err s} → PlanSafe (W.muxDelivery w err) s
   safe-timeWaitDelivery : ∀ {w err s} → PlanSafe (W.timeWaitDelivery w err) s
+  safe-releaseDelivery : ∀ {caller worker err s} → PlanSafe (W.releaseDelivery caller worker err) s
  enact-preserves : ∀ p s {t} → W.enact p s ≡ just t → Valid s → PlanSafe p s → Valid t
  enact-preserves (W.local fs) s eq valid (safe-local cover) = case just-injective eq of λ { refl → local-valid fs s cover valid }
  enact-preserves (W.machine a fs) s eq valid (safe-machine cover) with O.advance a (W.source s)
@@ -1326,6 +1328,14 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  ... | just c = control-preserves Close.acknowledgeDelivery
    (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s }) eq
    (proj₁ valid , note-covers w (Cleanup.interruptTimeWait err) s valid)
+ enact-preserves (W.releaseDelivery caller worker err) s eq valid safe-releaseDelivery with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.release caller (OutboundRelease.cancellationDelivered worker)) (W.source (record s { base = g })) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just c = case just-injective eq of λ { refl → source-valid c (record s { base = g })
+   (Lower.step-preserves (G.abortOwner worker err) (W.base s) aborted (proj₁ valid) ,
+    covers-retained {rows = W.exits s} {before = view s} {after = Birth.GroupLayer.view isBearerClosed g}
+      (change-retains (Birth.GroupLayer.change isBearerClosed (G.abortOwner worker err) (W.base s) aborted)) (proj₂ valid)) }
  choose-safe : ∀ a s {p} → W.choose a s ≡ just p → Valid s → PlanSafe p s
  choose-safe (W.run a) s eq valid with W.delegateAllowed a
  ... | true = case just-injective eq of λ { refl → safe-inherited }
@@ -1579,6 +1589,15 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  choose-safe W.acknowledgeFinished s eq valid | Close.awaitResults = case eq of λ ()
  choose-safe W.acknowledgeFinished s eq valid | Close.closed = case eq of λ ()
 
+ choose-safe (W.deliverReleaseMux caller err) s eq valid with W.releaseTarget caller s
+ ... | nothing = case eq of λ ()
+ ... | just worker = case just-injective eq of λ { refl → safe-releaseDelivery }
+ choose-safe (W.acknowledgeReleaseFinished caller) s eq valid with W.releaseTarget caller s
+ ... | nothing = case eq of λ ()
+ ... | just worker with W.resultReady worker s
+ ...   | false = case eq of λ ()
+ ...   | true = case just-injective eq of λ { refl → safe-machine (proj₂ valid) }
+
  step-preserves : ∀ a s {t} → W.step a s ≡ just t → Valid s → Valid t
  step-preserves a s eq valid with W.choose a s in chosen
  ... | nothing = case eq of λ ()
@@ -1605,6 +1624,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  PlainPlan : W.Plan → Set
  PlainPlan (W.local fs) = ⊤
  PlainPlan (W.machine a fs) = ⊤
+ PlainPlan (W.releaseDelivery caller worker err) = ⊤
  PlainPlan _ = ⊥
  choose-plain : ∀ a s {p} → W.choose a s ≡ just p → IsPlain a → PlainPlan p
  choose-plain (W.run a) s eq ()
@@ -1612,6 +1632,14 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  choose-plain (W.deliverShutdownMux err) s eq ()
  choose-plain (W.deliverShutdownTimeWait err) s eq ()
  choose-plain W.acknowledgeFinished s eq ()
+ choose-plain (W.deliverReleaseMux caller err) s eq plain with W.releaseTarget caller s
+ ... | nothing = case eq of λ ()
+ ... | just worker = case just-injective eq of λ { refl → tt }
+ choose-plain (W.acknowledgeReleaseFinished caller) s eq plain with W.releaseTarget caller s
+ ... | nothing = case eq of λ ()
+ ... | just worker with W.resultReady worker s
+ ...   | false = case eq of λ ()
+ ...   | true = case just-injective eq of λ { refl → tt }
  choose-plain (W.beginExit w) s eq plain with lookup w (W.exits s) | lookup w (U.frames (P.base (G.protocolState (W.base s)))) in found |
    G.phase (G.frameAt w (W.base s)) | Pool.phase (W.poolAt w s)
  ... | nothing | just f | G.scopeDone outcome | Pool.closedPool with lookup w (S.handlers (W.shared s))
@@ -1819,6 +1847,11 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  enact-shutdown-same (W.coordinator a) s eq ()
  enact-shutdown-same (W.muxDelivery w err) s eq ()
  enact-shutdown-same (W.timeWaitDelivery w err) s eq ()
+ enact-shutdown-same (W.releaseDelivery caller worker err) s eq plain with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.release caller (OutboundRelease.cancellationDelivered worker)) (W.source (record s { base = g })) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just c = case just-injective eq of λ { refl → Lower.direct-shutdown-same (G.abortOwner worker err) (W.base s) aborted tt }
  plain-shutdown-same : ∀ a s {t} → W.step a s ≡ just t → IsPlain a → W.shutdown t ≡ W.shutdown s
  plain-shutdown-same a s eq plain with W.choose a s in chosen
  ... | nothing = case eq of λ ()

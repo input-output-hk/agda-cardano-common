@@ -16,6 +16,7 @@ import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.OutboundHandlerSupervision as B
+import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.MuxJobTypes as Types
@@ -28,6 +29,7 @@ import ConnectionManagement.MuxExitCancellation as CancellationModel
 import ConnectionManagement.MuxStartupUnwind as UnwindModel
 import ConnectionManagement.Properties.InboundOriginQuiet as Quiet
 import ConnectionManagement.Properties.InboundOriginRaw as Raw
+import ConnectionManagement.Properties.InboundOriginCore as Core
 open import ConnectionManagement.Properties.InboundOriginEffect using (Effect; same; reframe; outbound-effect)
 
 module Mux where
@@ -130,8 +132,8 @@ module Group (b : ErrorId → Bool) where
 
 
 module Exit (b : ErrorId → Bool) where
- private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; noteCleanup; step; choose)
- private module G = GroupModel b using (step; abortOwner)
+ private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; noteCleanup; step; choose)
+ private module G = GroupModel b using (step; abortOwner; source)
  control-source : ∀ action s {t} → W.control action s ≡ just t → W.source t ≡ W.source s
  control-source action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s)
  ... | nothing = case eq of λ ()
@@ -153,6 +155,14 @@ module Exit (b : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just c = reframe refl (cong O.core (control-source Close.acknowledgeDelivery (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s }) eq))
    (outbound-effect (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) (W.source s) actual)
+ -- Both coupled operations are quiet for inbound admission history.
+ enact-effect (W.releaseDelivery caller worker err) s eq with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.release caller (Release.cancellationDelivered worker)) (G.source g) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → same (trans
+   (Core.outbound-same (O.release caller (Release.cancellationDelivered worker)) (G.source g) acknowledged tt)
+   (Quiet.Group.direct-same b (G.abortOwner worker err) (W.base s) aborted tt)) }
  effect : ∀ action s {t} → W.step action s ≡ just t → Effect (O.core (W.source s)) (O.core (W.source t))
  effect action s eq with W.choose action s
  ... | nothing = case eq of λ ()

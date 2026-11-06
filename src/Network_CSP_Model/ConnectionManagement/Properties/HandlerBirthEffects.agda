@@ -25,6 +25,7 @@ import ConnectionManagement.HandlerSupervision as H
 import ConnectionManagement.OutboundHandlerSupervision as B
 import ConnectionManagement.Rules.Server as Server
 import ConnectionManagement.Rules.OutboundAcquire as A
+import ConnectionManagement.Rules.OutboundRelease as OutboundRelease
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
 import ConnectionManagement.Rules.Cleanup as Cleanup
@@ -1459,6 +1460,12 @@ module ExitLayer (isBearerClosed : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just c = followed (stable refl)
    (control-change Close.acknowledgeDelivery (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s }) eq)
+ enact-change (W.releaseDelivery caller worker err) s eq with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.release caller (OutboundRelease.cancellationDelivered worker)) (G.source g) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just c = case just-injective eq of λ { refl → stable
+   (Lower.CIPaths.retention (Lower.no-growth (G.abortOwner worker err) (W.base s) aborted (λ ()))) }
  change : ∀ a s {t} → W.step a s ≡ just t → Change (Selected a s) (view s) (view t)
  change a s eq with W.choose a s in chosen
  ... | nothing = case eq of λ ()

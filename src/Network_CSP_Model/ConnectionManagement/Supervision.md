@@ -49,7 +49,11 @@ derives the finished-target receipt path and is committed in `8dd2452`; fresh fu
 acceptance is recorded below. [Increment 64](#sixty-fourth-increment-outbound-negotiated-mux-receipt-and-final-wait)
 is committed in `eef9971`, with fresh full acceptance recorded below.
 [Increment 65](#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
-is accepted and uncommitted over `eef9971`, with fresh full acceptance recorded below.
+is committed in `a54d4fd`, with fresh full acceptance recorded below.
+[Increment 66](#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
+is accepted and uncommitted over that revision. The next task is a
+[source-baseline audit](#next-task-source-baseline-audit); no next proof wave
+starts under the user’s newer steering.
 
 | Boundary | Derived evidence and premises |
 | --- | --- |
@@ -57,6 +61,7 @@ is accepted and uncommitted over `eef9971`, with fresh full acceptance recorded 
 | Join and closed snapshot | [Monitor joins](Properties/ServerPeersMonitorJoins.agda) derives prior lifecycle events from an actual inherited join. `initialized-closed` derives the empty cursor, exact snapshot/joined-list equality and histories in that order. [Join-order laws](Properties/JobPoolJoinOrder.agda) supply the snapshot decomposition. |
 | Callback return and CM entry | `initialized-callback` uses the actual enabled return and its closure guard. `initialized-cm-entry-run` carries those certificates through enabled `ServerRuns` to `beginCM`; preservation follows from these steps. |
 | Physical handler publication and CM wait | `physical-publication` and `physical-wait` lower actual guarded frontend events to physical operations. `initialized-cm-result-wait` derives the wait certificate, including the exact pre-wait result oracle, through the inherited Server suffix. Cancellation acknowledgement alone supplies no handler result. |
+| Independent release receipt | [Release receipt properties](Properties/ServerPeersReleaseReceipt.agda) invert the actual live/available-result frontend events: captured caller frame, actual target operation, actual source acknowledgement, outer caller permission and unchanged CM coordinator. Separate canonical request/return steps use `FramedRuns.frameRelease`; finite initialized histories retain birth/resources through the final CM wait. |
 | Cache-writing race suffix | `initialized-framed-result-wait` allows classified inherited/completion plans over Server actions. It preserves the governor pool, monitor pool and scope state; it permits peer-cache changes and does not assert whole-context equality. |
 | Initialized handler resources | [Handler resource origins](Properties/ServerPeersHandlerResources.agda) derives primitive allocation/selection/fork steps from their actual frontend events, tying the occurrence to a fixed descriptor, allocated promise and stored entry/socket identities. It retains them through arbitrary enabled frontend suffixes; `AtPublication` and `AtWait` derive the inbound physical certificates. `OutboundOrigin` additionally derives resources from initialized acquisition prefixes; `OutboundFrontend.History` admits arbitrary enabled frontend prefixes/routes through the capture-only lift. The pre-handshake publication and guarded outer CM wait retain that descriptor, without claiming admission quiescence. |
 | Inbound histories with enabled gaps | [HandlerOriginHistory](Properties/HandlerOriginHistory.agda) links actual allocation, positive selection and fork across two arbitrary enabled gaps, with explicit matching operational PCs. Entry presence follows from selection and [retention](Properties/HandlerOriginRetention.agda); existing resource retention handles post-birth suffixes. Empty gaps recover the old adjacent `Origin`. This constructor takes occurrence witnesses, not just collected membership. |
@@ -256,7 +261,7 @@ for the corrected initial profile, inactive tracer effects and controls.
 
 ### Next batch: TIME_WAIT receipt and finalizer route (candidate increment 65)
 
-**Completed, accepted and uncommitted over `eef9971`.** The
+**Completed, accepted and committed in `a54d4fd`.** The
 [source audit](../review/connection-management-si4-source-audit-2026-10-27.md#increment-65-time_wait-entry-and-finalizer-audit-6-november-2026)
 supports real IG idle expiry, outbound release timeout and genuine cleanup entry.
 The [milestone contract](#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
@@ -267,20 +272,33 @@ bypass those operations; pending release-caller completion remains explicit.
 
 ### Next batch: framed-mux outbound release receipt and return (candidate increment 66)
 
-**Planned; not implemented.** Increment 65 retains an independent outbound
-release caller at `cancel`, before its cancellation request. Audit the pinned
-`Core.hs:2027–2037` throwTo/return boundary and current physical wrapper guards
-before extending that route. Execute the real request, derive its target from
-the pending caller, and couple the supported framed-mux receipt (or genuinely
-finished-target observation) to that caller's actual acknowledgement and return.
-Do not enable raw `cancellationDelivered` as an unobserved shortcut.
+**Completed and accepted; uncommitted over `a54d4fd`.** The
+[authoritative milestone record](#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
+connects the genuine pending caller to a coupled mux receipt or available-result
+acknowledgement, then its separate source return. It retains original
+birth/resources and the actual final CM wait, with raw bypass, premature,
+duplicate and local permission/target controls. Global API quiescence and the
+remaining delivery windows are not established.
 
-Retain the same initialized physical fork/resource packet and later CM result
-wait. Check failed/premature/duplicate receipt and return, wrong captured target
-and raw bypass controls; receipt still must not imply handler cleanup or result
-publication. Reuse small opaque proofs, run focused checks and full acceptance,
-and update the source/profile evidence. Completing this selected caller does not
-establish global release/API quiescence or whole shutdown; G0–G5 remain open.
+### Next task: source-baseline audit
+
+**Source work only; no next proof wave.** The
+[local audit](../review/connection-management-si4-source-audit-2026-10-27.md#local-prototype-baseline-audit-6-november-2026)
+confirms newer consensus `2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b` is 44 commits
+beyond the existing consensus pin and declares network
+`2f1c154f248659b89523d5679ca532f442e7ed2a`. Fresh-byte/tier integration and
+LeiosFetch encoding changes are confirmed in consensus. The selected network
+object is absent from the 37 local Git databases checked; today's remote HEAD
+is unknown. No source pin was changed.
+
+Obtain the exact missing network objects and compare the declared pair with
+`585a861…`/`96ee6e0…` across CM/IG/OG/Server, handler, JobPool and mux/scheduler.
+Separate unchanged source, changed modeled contracts and behavior outside the
+model before deciding a baseline migration. Existing proof evidence remains
+scoped to the original pins. Release-caller TIME_WAIT and post-mux delivery
+work is deferred: any later resumption must preserve actual source
+acknowledgement, `mayDeliver`/caller guards, the captured target/reply and real
+cleanup/publication/wait history. Missing adapters remain coverage gaps.
 
 ### Remaining dependency order
 
@@ -6546,3 +6564,111 @@ audit, presentation refresh or commit was performed. The next planned
 [candidate increment 66](#next-batch-framed-mux-outbound-release-receipt-and-return-candidate-increment-66)
 addresses genuine framed-mux release receipt/return. SI4/SI5, CM-I4c and G0–G5
 remain open.
+
+
+## Sixty-sixth increment: framed-mux outbound release receipt and return
+
+**Accepted, 6 November 2026; uncommitted over `a54d4fd`.** Increment 65 is
+committed in that revision. The broader CM/IG/OG/Server objective remains open.
+
+**Confirmed source contract.** The
+[pinned release audit](../review/connection-management-si4-source-audit-2026-10-27.md#increment-66-outbound-release-receipt-audit-6-november-2026)
+confirms that consensus `585a86117618ff86d7d5b541f9d23b03356d4c3a` selects network
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, explicitly identified as the
+`leios-prototype` merge. `Core.hs:2021–2037` retains the original handler Async,
+writes `Terminating`, traces and reads counters, then sends `AsyncCancelled`
+before returning the captured success value. The ordinary release function has
+no local mask/unmask and inherits ambient caller masking; it is distinct from
+CM's explicitly uninterruptible finalizer.
+
+`MuxHandlerExit.deliverReleaseMux caller err` derives its target exclusively from
+the caller's actual `Release.delivering` frame, performs the real mux owner abort
+and executes the real source `cancellationDelivered` acknowledgement.
+`acknowledgeReleaseFinished caller` requires genuine physical result availability
+before executing that same source operation. Both retain `O.advance` and its
+`mayDeliver`/`noteDelivery` behavior. Raw delivery remains refused; caller return,
+handler publication and CM acknowledgement are separate operations. Server
+wrappers preserve admission-role restrictions and governor-owned caller guards.
+
+The generic
+[release receipt properties](Properties/ServerPeersReleaseReceipt.agda) derive
+`CapturedTarget`, `LiveReceipt` and `FinishedReceipt` by inverting actual enabled
+steps. Their fields retain the stored frame, real target operation and real
+source acknowledgement; frontend projections also derive caller permission.
+`live-shutdown`/`finished-shutdown` preserve the CM coordinator and collection.
+[Monitor joins](Properties/ServerPeersMonitorJoins.agda)'s `frameRelease` carries
+genuine canonical core release labels through the existing context-preservation
+proof. The previous inherited-server/framed predicates remain unchanged.
+
+`Negative/ServerPeersOrigins.ReleaseMuxChecks` reuses the accepted opaque birth
+and TIME_WAIT prefixes. Its `Live.actual` executes request → coupled mux receipt
+→ separate `returnResult` before pool close, handler cleanup or Async publication,
+then follows the real suffix to CM wait. `Finished.actual` starts from genuinely
+published handler completion after entry termination/map purge, executes request
+→ finished-target acknowledgement → return, and retains the earlier captured
+`success(Terminating)` value. A new map lookup cannot retarget either send or
+rewrite that reply. This establishes completion of the modeled release API call,
+not physical exit of the caller's worker, Async or governor job.
+
+`Histories` and `Retention` preserve the same original fork/resource packet
+through live receipt, caller return and final CM wait, and through the finished
+branch. `ScopeCertificates.liveCMWait`, `liveComponents` and `finishedComponents`
+reuse actual guarded wait/closed-component evidence. `ReceiptObservations`
+derives both typed receipt records, outer permissions and unchanged coordinator
+from those actual frontend events; these are not supplied receipt assumptions.
+
+Premature, duplicate, missing-caller, inappropriate-window and raw-bypass controls
+pass. An independent owner abort leaves the caller pending and return refused.
+The wrong-target altered-frame fixture and owned-unwinding-caller context checks
+are local guard controls, not initialized reachable interference witnesses.
+Receipt alone supplies no future physical result. Result availability remains a
+supported modeled observation, not literal RTS `ThreadFinished` or a guarantee
+of instantaneous/universal throwTo return.
+
+Focused Agda 2.8.0 checks passed sequentially. Clean fresh runtime/exit-property
+profiles were 8,599/14,166 ms; birth-effect checking included a 469,681 ms
+transitive rebuild. Fresh root checks covered both origin lowerings, collected
+backing, joins (947.754 s) and generic receipts (25.749 s). Auxiliary backing's
+original terminal output was lost; its separate cached confirmation passed with
+exit 0 in 19.964 s. The complete scratch acceptance passed fresh in 50.345 s,
+exit 0 without warnings, at 13 GiB heap/15 GiB scope/swap disabled, with a host
+memory guard; its maximum RSS was 6.50 GiB. Exact commands and hashes are in
+`/tmp/cm-release-mux-20261106/`, including `A-checks.json`, `B-final-handoff.md`
+and `acceptance-08.json`.
+
+Fresh strict interaction acceptance of
+`ConnectionManagement/Negative/ServerPeersOrigins.agda` passed in
+`full-strict.json`/`full-strict.log`: `agda --interaction-json
+--profile=definitions --interaction-exit-on-error +RTS -M20G -RTS`, using
+`Cmd_load_no_metas`, `Cmd_metas AsIs` and normal exit. It recorded the endpoint's
+own `Checking`, exit 0, `checked: true`, `DoneExiting`, empty visible/invisible
+goals, warnings and errors, and unchanged source hash `4c5284d90d22145b…`.
+Elapsed time was 130.423 s (profile 126,085 ms), with a 20 GiB heap/25 GiB scope,
+swap disabled and normal host-memory guard completion.
+
+Ordinary CLI confirmation, `agda
+ConnectionManagement/Negative/ServerPeersOrigins.agda +RTS -M11G -RTS`, passed
+cached with exit 0 and no warnings in 40.881 s at 11 GiB heap/13 GiB scope,
+swap disabled (`final-cli.json`/`final-cli.log`). This confirms the same unchanged
+source; it is not another fresh check.
+
+Earlier lexical errors, a constructor-shadowing warning, one generic equality
+error and resource-limited aggregate attempts supplied no acceptance. Proof-only repairs removed expensive
+concrete aliases, made transport endpoints explicit and reused generic
+trace-edge/frame/observation adapters. All original statement types, actual
+state/event/guard definitions and the 48 original trace edges are preserved;
+the previous accepted endpoint prefix is byte-identical. Failed/interrupted
+attempts and independent transformation reviews remain in the evidence directory.
+No theorem was weakened to fit the memory bound. The targeted static scan of
+12 maintained proof files found zero issues; it is not an imported term-level
+axiom audit.
+
+Live framed-mux and available-result routes do not cover release interruption
+at cleanup TIME_WAIT, buffer-provider continuations, classifier tracing or a
+blocked node-directed send. Those are model coverage gaps, not automatically
+Haskell defects. Diagnostic tracer/provider contracts remain explicit. Global
+API/admission quiescence, source refinement, universal progress, SI4/SI5,
+CM-I4c and G0–G5 remain open. No native replay, backend/RTS or imported term-level
+axiom audit, presentation refresh or commit was performed. Per the user's newer
+steering, no next proof wave starts; the next task is the
+[source-baseline audit](#next-task-source-baseline-audit).
