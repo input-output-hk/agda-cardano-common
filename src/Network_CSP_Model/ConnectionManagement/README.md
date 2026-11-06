@@ -6,8 +6,8 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `8636e88` (increment 62), with
-accepted, uncommitted increment 63 finished-target integration (5 November 2026);
+the lifecycle claims through model commit `8dd2452` (increment 63), with
+accepted, uncommitted increment 64 outbound mux integration (6 November 2026);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -47,6 +47,12 @@ profile; its topic records the exact scope and fresh full acceptance.
 adds actual finished-target receipt discovery and same-origin retention after
 independent cancellation; fresh full acceptance passed. The late-read control
 skips the terminated entry, keeping this route distinct from normal return.
+[Increment 64](Supervision.md#sixty-fourth-increment-outbound-negotiated-mux-receipt-and-final-wait)
+adds the outbound negotiated-mux route through actual Server/nonempty-IG
+closure, coupled receipt, interrupted-group unwind and handler result wait.
+Its supported initialization and inactive-tracer effects are explicit; fresh full
+acceptance passed. The next candidate is TIME_WAIT, beginning with a separate
+source/control audit.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 

@@ -1468,3 +1468,68 @@ RTS correspondence, progress, admission/API quiescence or whole-node shutdown
 claim follows. Source excerpts and hashes: `/tmp/cm-finished-target-20261105/`.
 
 The maintained [increment 63 topic](../ConnectionManagement/Supervision.md#sixty-third-increment-initialized-finished-target-acknowledgement) records the exact API and acceptance status.
+
+### Increment 64: outbound mux receipt and inactive IG (6 November 2026)
+
+**Confirmed source finding.** Local Git objects at network
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` were re-read independently of the
+checkout's different HEAD. Consensus
+`585a86117618ff86d7d5b541f9d23b03356d4c3a:cabal.project:100–104` retains that tag.
+Recovery verification matched eleven network extracts, the consensus object and
+both cached backend tarballs. The principal immutable blob identities are:
+
+| Source path within the pinned network repository | Git blob |
+| --- | --- |
+| `ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs` | `8fd696c052e26ae47f061b715c8ea8ad2cd01e34` |
+| `ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs` | `b4b9354411471f5e759319f0efe7c0030e1747f7` |
+| `network-mux/src/Network/Mux.hs` | `94450d7103dd71e5d1663360ee7d8c7d7f2eb63f` |
+| `network-mux/src/Control/Concurrent/JobPool.hs` | `3a75a5e526ad10516cf2bad3b442707a48812ba8` |
+| `ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs` | `81b40f852ac7636c099811746bb39ae60dba0bcd` |
+
+`ConnectionHandler.hs:330–380` executes outbound negotiation, successful handle
+publication, the buffer-provider scope and restored mux execution. In
+`network-mux/src/Network/Mux.hs:555–567`, interrupting graceful `cancelGroup`
+abandons that group's cursor and later drain/`Stopped`/`TraceStopped` continuation.
+`JobPool.hs:70–80,108–110,217–223` still closes the whole current registry on the
+outer bracket path. Only then does `Network/Mux.hs:256–278` write `Failed`, trace
+`Dead` and rethrow the original async error. A completed graceful drain must not
+be inferred from this interrupted-group route. CM's snapshot/read/throwTo/retained
+Async/final wait remain separate operations at [Core:523–549][cm-close].
+
+`InboundGovernor.hs:172–238` deactivates its tracer, flushes its queue, reads the
+published remote map and emits each final transition trace to `Nothing`.
+These callbacks neither release CM entries nor stop muxes; the published
+registrations remain. At `638–642,719–732`, an inactive tracer skips the
+queue/counter transaction. Consequently the selected exited-IG mux suffix keeps
+its existing `(+1, 0)` counters and queues no new `MuxFinished`; stored counters
+do not assert live responders or progress.
+
+**Model correction and accepted witness.** Canonical coordinator operations
+require actual Server `closingCM`. The outbound witness therefore executes real
+peer/Server/nonempty-IG closure before receipt and carries that exit footprint
+through later mux execution. The initial inspection incorrectly described the
+legacy component fixture's admission/socket tables as empty. They contain unused
+admissions and sockets 0/1, which the unchanged outer initializer rejects. A
+supported `O.initial core` input removes these unrelated rows before initialization
+and retains actual outbound socket 10. Its original component operation order
+and data are reused, but each transformed edge was freshly checked; old raw
+transition proofs are not assumed to survive this projection.
+
+Generic standalone `G.abortOwner` may remain enabled, but leaves CM's pending
+delivery and collection unchanged. Coupled `deliverShutdownMux` supplies the
+acknowledgement. Framed raw handshake cleanup/publication and raw coordinator
+acknowledgement cannot replace that receipt. Pool close and cleanup still do not
+make an Async result available before actual publication. The
+[maintained increment 64 topic](../ConnectionManagement/Supervision.md#sixty-fourth-increment-outbound-negotiated-mux-receipt-and-final-wait)
+records the model contract and fresh full acceptance, including actual CM-entry
+and final result-wait certificates.
+
+**Evidence limits.** `/tmp/cm-outbound-mux-20261106/source-evidence.json` records
+all extracted-file SHA-256 values and the separate backend cache hashes;
+`source-audit.md` and `control-matrix.md` retain the investigation/control notes.
+Cached `io-classes`/`io-sim` 1.8.0.1 fits the permitted dependency range, without
+proving a unique dependency solve. Async result-cell availability remains distinct
+from literal scheduler `ThreadFinished`. No backend execution, native replay,
+GHC RTS dead-target audit, imported term-level axiom audit or source refinement
+was performed. Whole-scope completion, admission/API quiescence and universal
+progress remain open.

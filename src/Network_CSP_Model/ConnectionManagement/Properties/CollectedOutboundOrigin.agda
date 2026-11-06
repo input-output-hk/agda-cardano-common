@@ -203,3 +203,29 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
        (append path (T.more {a = FinishedFront.event} actual T.stop)) (Finished.receipt-member receipt) }
    where
    receipt = FinishedFront.physical-receipt before actual
+
+ private
+  import ConnectionManagement.Properties.ServerPeersMuxReceipt as MuxReceiptFacts
+  import ConnectionManagement.Properties.ServerPeersMonitorJoins as MuxJoins
+  module MuxReceipt = MuxReceiptFacts.Frontend b io capability using (Receipt; event; physical-receipt; receipt-member)
+  module MuxFields = MuxJoins.Frontend.MuxReceipt using (worker)
+
+ -- A real mux cancellation receipt derives its collected worker internally.
+ -- It records interruption and acknowledgement, leaving result publication and
+ -- the physical final wait to their own later enabled events.
+ record MuxDiscovery (input : M.Configuration) (governor : Governor.State)
+   (start before after : T.Runtime) (events : List T.Event) (err : ErrorId) : Set where
+  field
+   receipt : MuxReceipt.Receipt err (R.base (Member.unwind before)) (R.base (Member.unwind after))
+   discovered : Discovery input governor start after (events ++ (MuxReceipt.event err ∷ [])) (MuxFields.worker receipt)
+
+ initialize-mux : ∀ {input governor start before after events err} →
+   T.initialize (O.initial input) governor ≡ just start → T.Runs start events before →
+   T.advance (MuxReceipt.event err) before ≡ just after →
+   MuxDiscovery input governor start before after events err
+ initialize-mux {before = before} {err = err} initialized path actual = record
+   { receipt = receipt
+   ; discovered = initialize-origin initialized
+       (append path (T.more {a = MuxReceipt.event err} actual T.stop)) (MuxReceipt.receipt-member receipt) }
+   where
+   receipt = MuxReceipt.physical-receipt err before actual
