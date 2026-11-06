@@ -1533,3 +1533,74 @@ from literal scheduler `ThreadFinished`. No backend execution, native replay,
 GHC RTS dead-target audit, imported term-level axiom audit or source refinement
 was performed. Whole-scope completion, admission/API quiescence and universal
 progress remain open.
+
+
+### Increment 65: TIME_WAIT entry and finalizer audit (6 November 2026)
+
+**Confirmed source finding; initialized model integration accepted.** Local Git objects at
+network `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` and consensus
+`585a86117618ff86d7d5b541f9d23b03356d4c3a:cabal.project` were re-read.
+`/tmp/cm-timewait-20261106/source-evidence.json` records five extracted network
+blobs and hashes, including the same Core/handler/state/IG identities retained
+above; the checkout's different HEAD was not source authority.
+
+The checked route has two real timer boundaries. `ConnectionManager/Core.hs:1142–1165`
+changes outbound duplex `Ticking` to `Expired` during inbound release, returning
+`KeepTr`; `InboundGovernor.hs:529–572` then publishes `RemoteCold`. Outbound release
+of expired duplex writes `OutboundIdle` (`Core:1891–1907`), then its selected idle
+timeout separately writes `TerminatingState` before cancellation (`2021–2037`).
+Existing `Rules.OutboundRelease.commitTimeout` already models that writer.
+The fresh aggregate acceptance now checks initialized combined enabledness;
+the old conditional TIME_WAIT fixture did not supply that history.
+
+**Investigation correction.** The reused mux startup already queued
+`AwakeRemote` and `RemotePromotedToHot`. The initial prefix expected an empty
+batch tail after `KeepTr`; its actual guarded check refused that `finishBatch`.
+The corrected interleaving consumes the notifications rather than flushing or
+erasing them. After the independent outbound timeout writes `Terminating`,
+`Core.hs:2222–2227` returns unsupported for remote promotion without editing the
+entry or asserting. Nevertheless `InboundGovernor.hs:502–513` publishes
+`RemoteWarm` after that call, regardless of its result, and `515–520` publishes
+`RemoteHot`. These historical IG publications do not assert CM Hot state or a
+live handler. Those actual FIFO steps are now part of the accepted initialized
+history.
+
+`Core.hs:585–604` attaches handler cleanup as `finally` under
+`uninterruptibleMask_`. On the actual `TerminatingState` branch (`637–665`), cleanup
+keeps the captured state and binding while closing the socket and republishing
+the map. Only then does `unmask (threadDelay timeWaitTimeout)` run (`667–668`).
+Its finally continuation (`669–713`) writes the captured entry to
+`TerminatedState Nothing` and deletes the current map binding only if it still
+refers to that captured mutable entry, in one STM transaction. Counter tracing
+follows. `Rules.Cleanup` already separates readiness/interruption, final STM and
+counter read; no runtime branch or fabricated cleanup state is needed.
+
+CM snapshot/late-read/request/acknowledgement remains distinct from its later
+Async-result wait (`Core:523–549`). The coupled mux exit adapter's TIME_WAIT
+receipt interrupts the real waiting cleanup and acknowledges CM together;
+its recorded async cleanup error supersedes the original body result only at
+physical publication. It does not finish the finally transaction or publish a
+result itself. The pending outbound release caller is not thereby completed.
+
+**Inference and limits.** Existing total diagnostic-tracer assumptions matter:
+`TrConnectionTimeWaitDone` precedes the finally STM, so arbitrary synchronous
+tracer failure could prevent that write. Untimed elapsed/delivery events prove
+no wall-clock deadline, scheduler progress or GHC masking correspondence.
+Failed close follows restoration/error cleanup instead of TIME_WAIT. No native
+replay, backend execution, imported term-level axiom audit, implementation
+refinement, API quiescence or full shutdown is established here. The
+[maintained increment 65 topic](../ConnectionManagement/Supervision.md#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
+records the proof contract and fresh full acceptance separately from this
+source finding. Investigation notes and control
+obligations are in `source-audit.md` and `control-matrix.md` beside the evidence.
+
+
+**Open follow-up — framed-mux release receipt.** `Core.hs:2027–2037` performs a
+cancellation send before returning the release result. The current physical
+outbound wrapper deliberately refuses raw `O.release (cancellationDelivered ...)`;
+no coupled framed-mux release receipt has been established by increment 65.
+Its independent release caller therefore remains pending. The
+[candidate increment 66 contract](../ConnectionManagement/Supervision.md#next-batch-framed-mux-outbound-release-receipt-and-return-candidate-increment-66)
+requires a source/guard audit, an actual request and observed receipt (or real
+finished-target branch), followed by that caller's genuine return. It is planned,
+not implemented, and supplies no current quiescence or whole-shutdown claim.

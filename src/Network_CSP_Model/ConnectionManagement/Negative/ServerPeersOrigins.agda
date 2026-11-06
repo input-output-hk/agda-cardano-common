@@ -2777,3 +2777,1807 @@ module OutboundMuxChecks where
 
   handoffRequired : T.advance (P.call Acquire.commitConnected) P.entered ≡ nothing
   handoffRequired = refl
+
+-- Initialized TIME_WAIT paths retain the accepted opaque outbound birth.
+module TimeWaitChecks where
+
+  module TerminatingPrefix where
+    open import Data.Bool using (true; false)
+    open import Data.List using (List; []; _∷_; _++_)
+    open import Data.Maybe using (Maybe; just; nothing)
+    open import Data.Product using (_,_)
+    open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+    open import ConnectionManagement.Domain using (ident; duplex; ticking; expired)
+    open import ConnectionManagement.Scenarios.Admission using (key₀)
+    open import ConnectionManagement.Store using (lookup; put)
+    open import ConnectionManagement.Negative.ServerPeers using (module Protocols)
+    import ConnectionManagement.State as Shared
+    import ConnectionManagement.Machine as Machine
+    import ConnectionManagement.OutboundMachine as O
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.HandlerSupervision as H
+    import ConnectionManagement.MuxProtocolJobs as P
+    import ConnectionManagement.MuxHandlerExit as Exit
+    import ConnectionManagement.Rules.InboundRelease as InboundRelease
+    import ConnectionManagement.Rules.OutboundRelease as Release
+    import ConnectionManagement.Rules.RemoteState as Remote
+    import ConnectionManagement.Rules.IGRegistration as IG
+    import ConnectionManagement.Rules.MuxRuntime as Mux
+    import ConnectionManagement.ServerPeers as Combined
+    import ConnectionManagement.ServerAdmission as Server
+    import ConnectionManagement.ServerIGExit as IGExit
+    import ConnectionManagement.Properties.ServerPeersMuxEmbedding as Embedding
+    import ConnectionManagement.Negative.MuxProtocolJobs as Old
+    import ConnectionManagement.Negative.MuxResultMonitor as RF
+    import ConnectionManagement.Negative.GovernorPool as Prior
+    module Physical = OutboundMuxChecks.PhysicalPrefix using (beforeAbort; clean; runP)
+    module Prefix = OutboundMuxChecks.ServingPrefix using (beforeAbort; context0; coreEvent; ordinary; preparedFront)
+    module T = Combined.Protocols RF.bearerClosed Prior.classify Protocols.capability using (Event; Front; Runs; Runtime; advance; more; stop)
+    module W = Exit RF.bearerClosed using (Action; State; setSource; shared; source; step)
+    module U = P.U using (run)
+    module Emb = Embedding.Frontend RF.bearerClosed Prior.classify Protocols.capability using (embed; event; lift-step)
+    module S = Server RF.bearerClosed using (serving)
+    module E = IGExit RF.bearerClosed using (emptyExit)
+    context = record Prefix.context0 { regions = Prefix.ordinary }
+    at : W.State → T.Runtime
+    at physical = Emb.embed physical context Prefix.preparedFront S.serving true E.emptyExit
+    ig : IG.IGAction → W.Action
+    ig action = Physical.runP (P.run (U.run (B.handler (H.run (Machine.igStep action)))))
+    inboundRelease : InboundRelease.Action → W.Action
+    inboundRelease action = Physical.runP (P.run (U.run (B.handler (H.run (Machine.releaseStep action)))))
+    remote : Remote.Action → W.Action
+    remote action = Physical.runP (P.run (U.run (B.handler (H.run (Machine.remoteStep action)))))
+
+    s0 : W.State
+    s0 = Physical.clean Physical.beforeAbort
+    start : T.Runtime
+    start = Prefix.beforeAbort
+    startShape : start ≡ at s0
+    startShape = refl
+
+    -- Flat snapshots retain only the actual primitive edits. Every operation
+    -- below still discharges its own guarded equation; these are no reset laws.
+    baseSource = W.source s0
+    baseCore = O.core baseSource
+    baseWorld = Machine.world baseCore
+    baseGovernor = Machine.inboundGovernor baseCore
+    basePublished = IG.publishedState baseGovernor
+    messages : List Shared.IGEvent
+    messages = Shared.awakeRemote key₀ ∷ Shared.remotePromotedToHot key₀ ∷ []
+    hotMessage : List Shared.IGEvent
+    hotMessage = Shared.remotePromotedToHot key₀ ∷ []
+    tickEntry = Shared.outboundDup key₀ Old.owner (ident 0) ticking
+    expiredEntry = Shared.outboundDup key₀ Old.owner (ident 0) expired
+    idleEntry = Shared.outboundIdle key₀ Old.owner (ident 0) duplex
+    termEntry = Shared.terminating key₀ Old.owner nothing
+    coldPublished = IG.setRemote key₀ IG.remoteCold basePublished
+    warmPublished = IG.setRemote key₀ IG.remoteWarm coldPublished
+    hotPublished = IG.setRemote key₀ IG.remoteHot warmPublished
+    expiredTimers = put (ident 1) expired
+     (put (ident 2) ticking (IG.timers (IG.execution baseGovernor)))
+    g1 = record baseGovernor { continuation = IG.sampleTime }
+    g2 = record baseGovernor { continuation = IG.armInactivity 0 }
+    g3 = record baseGovernor
+     { nextTimer = 3; continuation = IG.awaitBatch 0 (ident 2)
+     ; execution = record (IG.execution baseGovernor)
+       { timers = put (ident 2) ticking (IG.timers (IG.execution baseGovernor)) } }
+    -- Later governor snapshots share one flat engine and timer table.
+    gov : IG.PC → IG.Published → IG.Runtime
+    gov pc published = record baseGovernor
+     { nextTimer = 3; continuation = pc; publishedState = published
+     ; execution = record (IG.execution baseGovernor) { timers = expiredTimers } }
+    g4 = gov (IG.awaitBatch 0 (ident 2)) basePublished
+    g5 = gov (IG.readNext 0 (Shared.commitRemote key₀ ∷ messages)) basePublished
+    g6 = gov (IG.needsCM 0 messages (Shared.commitRemote key₀) basePublished) basePublished
+    g7 = gov IG.inCM basePublished
+    g12 = gov (IG.publishDecision 0 messages coldPublished) basePublished
+    g13 = gov (IG.readNext 0 messages) coldPublished
+    g22 = gov (IG.needsCM 0 hotMessage (Shared.awakeRemote key₀) coldPublished) coldPublished
+    g23 = gov IG.inCM coldPublished
+    g26 = gov (IG.publishDecision 0 hotMessage warmPublished) coldPublished
+    g27 = gov (IG.readNext 0 hotMessage) warmPublished
+    g28 = gov (IG.publishDecision 0 [] hotPublished) warmPublished
+    g29 = gov (IG.readNext 0 []) hotPublished
+    g30 = gov IG.sampleTime hotPublished
+    inboundFrame : InboundRelease.PC → InboundRelease.Outcome → Maybe InboundRelease.Frame
+    inboundFrame pc outcome = just (InboundRelease.frame key₀ 0 messages basePublished pc outcome nothing false)
+    releaseFrame : Release.PC → Data.Bool.Bool → Release.Runtime
+    releaseFrame pc ready = (Old.Fixture.caller , Release.frame key₀ pc ready) ∷ []
+    releaseDone = Release.complete (Release.success (just termEntry))
+    remoteFrame : Remote.PC → Remote.Outcome → Maybe Remote.Frame
+    remoteFrame pc outcome = just (Remote.frame Remote.promote key₀ 0 hotMessage coldPublished pc outcome false [])
+    flat : IG.Runtime → List Shared.IGEvent → Shared.ConnectionState → Release.Runtime →
+     Maybe InboundRelease.Frame → Maybe Remote.Frame → W.State
+    flat governor queue entry releasing inbound remote = W.setSource
+     (record baseSource
+      { core = record baseCore
+        { world = record baseWorld
+          { cm = record (Shared.cm baseWorld)
+            { entries = put (ident 0) entry (Shared.entries (Shared.cm baseWorld)) }
+          ; inboundInfo = queue }
+        ; inboundGovernor = governor; inboundRelease = inbound; remoteCall = remote }
+      ; releasing = releasing }) s0
+
+    s1 : W.State
+    s1 = flat g1 messages tickEntry [] nothing nothing
+    physical1 : W.step (ig IG.finishBatch) s0 ≡ just s1
+    physical1 = refl
+    edge1 : T.advance (Emb.event (ig IG.finishBatch)) (at s0) ≡ just (at s1)
+    edge1 = Emb.lift-step (ig IG.finishBatch) s0 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical1
+
+    s2 : W.State
+    s2 = flat g2 messages tickEntry [] nothing nothing
+    physical2 : W.step (ig (IG.captureTime 0)) s1 ≡ just s2
+    physical2 = refl
+    edge2 : T.advance (Emb.event (ig (IG.captureTime 0))) (at s1) ≡ just (at s2)
+    edge2 = Emb.lift-step (ig (IG.captureTime 0)) s1 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical2
+
+    s3 : W.State
+    s3 = flat g3 messages tickEntry [] nothing nothing
+    physical3 : W.step (ig IG.registerInactivity) s2 ≡ just s3
+    physical3 = refl
+    edge3 : T.advance (Emb.event (ig IG.registerInactivity)) (at s2) ≡ just (at s3)
+    edge3 = Emb.lift-step (ig IG.registerInactivity) s2 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical3
+
+    s4 : W.State
+    s4 = flat g4 messages tickEntry [] nothing nothing
+    physical4 : W.step (ig (IG.expireTimer (ident 1))) s3 ≡ just s4
+    physical4 = refl
+    edge4 : T.advance (Emb.event (ig (IG.expireTimer (ident 1)))) (at s3) ≡ just (at s4)
+    edge4 = Emb.lift-step (ig (IG.expireTimer (ident 1))) s3 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical4
+
+    s5 : W.State
+    s5 = flat g5 [] tickEntry [] nothing nothing
+    physical5 : W.step (ig IG.selectBatch) s4 ≡ just s5
+    physical5 = refl
+    edge5 : T.advance (Emb.event (ig IG.selectBatch)) (at s4) ≡ just (at s5)
+    edge5 = Emb.lift-step (ig IG.selectBatch) s4 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical5
+
+    s6 : W.State
+    s6 = flat g6 [] tickEntry [] nothing nothing
+    physical6 : W.step (ig IG.readEvent) s5 ≡ just s6
+    physical6 = refl
+    edge6 : T.advance (Emb.event (ig IG.readEvent)) (at s5) ≡ just (at s6)
+    edge6 = Emb.lift-step (ig IG.readEvent) s5 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical6
+
+    s7 : W.State
+    s7 = flat g7 [] tickEntry [] (inboundFrame InboundRelease.transaction InboundRelease.commit) nothing
+    physical7 : W.step (inboundRelease InboundRelease.enter) s6 ≡ just s7
+    physical7 = refl
+    edge7 : T.advance (Emb.event (inboundRelease InboundRelease.enter)) (at s6) ≡ just (at s7)
+    edge7 = Emb.lift-step (inboundRelease InboundRelease.enter) s6 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical7
+
+    s8 : W.State
+    s8 = flat g7 [] expiredEntry [] (inboundFrame InboundRelease.counters InboundRelease.keep) nothing
+    physical8 : W.step (inboundRelease InboundRelease.transact) s7 ≡ just s8
+    physical8 = refl
+    edge8 : T.advance (Emb.event (inboundRelease InboundRelease.transact)) (at s7) ≡ just (at s8)
+    edge8 = Emb.lift-step (inboundRelease InboundRelease.transact) s7 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical8
+
+    s9 : W.State
+    s9 = flat g7 [] expiredEntry [] (inboundFrame InboundRelease.cancellation InboundRelease.keep) nothing
+    physical9 : W.step (inboundRelease InboundRelease.readCounters) s8 ≡ just s9
+    physical9 = refl
+    edge9 : T.advance (Emb.event (inboundRelease InboundRelease.readCounters)) (at s8) ≡ just (at s9)
+    edge9 = Emb.lift-step (inboundRelease InboundRelease.readCounters) s8 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical9
+
+    s10 : W.State
+    s10 = flat g7 [] expiredEntry [] (inboundFrame InboundRelease.assertion InboundRelease.keep) nothing
+    physical10 : W.step (inboundRelease InboundRelease.requestCancellation) s9 ≡ just s10
+    physical10 = refl
+    edge10 : T.advance (Emb.event (inboundRelease InboundRelease.requestCancellation)) (at s9) ≡ just (at s10)
+    edge10 = Emb.lift-step (inboundRelease InboundRelease.requestCancellation) s9 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical10
+
+    s11 : W.State
+    s11 = flat g7 [] expiredEntry [] (inboundFrame InboundRelease.returning InboundRelease.keep) nothing
+    physical11 : W.step (inboundRelease InboundRelease.checkAssertion) s10 ≡ just s11
+    physical11 = refl
+    edge11 : T.advance (Emb.event (inboundRelease InboundRelease.checkAssertion)) (at s10) ≡ just (at s11)
+    edge11 = Emb.lift-step (inboundRelease InboundRelease.checkAssertion) s10 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical11
+
+    s12 : W.State
+    s12 = flat g12 [] expiredEntry [] nothing nothing
+    physical12 : W.step (inboundRelease InboundRelease.returnToIG) s11 ≡ just s12
+    physical12 = refl
+    edge12 : T.advance (Emb.event (inboundRelease InboundRelease.returnToIG)) (at s11) ≡ just (at s12)
+    edge12 = Emb.lift-step (inboundRelease InboundRelease.returnToIG) s11 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical12
+
+    s13 : W.State
+    s13 = flat g13 [] expiredEntry [] nothing nothing
+    physical13 : W.step (ig IG.commitDecision) s12 ≡ just s13
+    physical13 = refl
+    edge13 : T.advance (Emb.event (ig IG.commitDecision)) (at s12) ≡ just (at s13)
+    edge13 = Emb.lift-step (ig IG.commitDecision) s12 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical13
+
+    s14 : W.State
+    s14 = flat g13 [] expiredEntry (releaseFrame Release.transaction false) nothing nothing
+    edge14 : T.advance (Prefix.coreEvent (O.beginRelease Old.Fixture.caller key₀)) (at s13) ≡ just (at s14)
+    edge14 = refl
+
+    s15 : W.State
+    s15 = flat g13 [] idleEntry (releaseFrame (Release.count (Release.armTimer (ident 0) Old.owner)) false) nothing nothing
+    edge15 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.transactionStep)) (at s14) ≡ just (at s15)
+    edge15 = refl
+
+    s16 : W.State
+    s16 = flat g13 [] idleEntry (releaseFrame (Release.armTimer (ident 0) Old.owner) false) nothing nothing
+    edge16 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.readCounters)) (at s15) ≡ just (at s16)
+    edge16 = refl
+
+    s17 : W.State
+    s17 = flat g13 [] idleEntry (releaseFrame (Release.waitIdle (ident 0) Old.owner) false) nothing nothing
+    edge17 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.registerTimer)) (at s16) ≡ just (at s17)
+    edge17 = refl
+
+    s18 : W.State
+    s18 = flat g13 [] idleEntry (releaseFrame (Release.waitIdle (ident 0) Old.owner) true) nothing nothing
+    edge18 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.expireTimer)) (at s17) ≡ just (at s18)
+    edge18 = refl
+
+    s19 : W.State
+    s19 = flat g13 [] idleEntry (releaseFrame (Release.timeoutWrite (ident 0) Old.owner) true) nothing nothing
+    edge19 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.selectWakeup)) (at s18) ≡ just (at s19)
+    edge19 = refl
+
+    s20 : W.State
+    s20 = flat g13 [] termEntry (releaseFrame (Release.count (Release.cancel Old.owner releaseDone)) true) nothing nothing
+    edge20 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.commitTimeout)) (at s19) ≡ just (at s20)
+    edge20 = refl
+
+    s21 : W.State
+    s21 = flat g13 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    edge21 : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.readCounters)) (at s20) ≡ just (at s21)
+    edge21 = refl
+
+    s22 : W.State
+    s22 = flat g22 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    physical22 : W.step (ig IG.readEvent) s21 ≡ just s22
+    physical22 = refl
+    edge22 : T.advance (Emb.event (ig IG.readEvent)) (at s21) ≡ just (at s22)
+    edge22 = Emb.lift-step (ig IG.readEvent) s21 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical22
+
+    s23 : W.State
+    s23 = flat g23 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing (remoteFrame Remote.transaction (Remote.unsupported nothing))
+    physical23 : W.step (remote Remote.enter) s22 ≡ just s23
+    physical23 = refl
+    edge23 : T.advance (Emb.event (remote Remote.enter)) (at s22) ≡ just (at s23)
+    edge23 = Emb.lift-step (remote Remote.enter) s22 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical23
+
+    s24 : W.State
+    s24 = flat g23 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing (remoteFrame Remote.assertion (Remote.unsupported (just termEntry)))
+    physical24 : W.step (remote Remote.transact) s23 ≡ just s24
+    physical24 = refl
+    edge24 : T.advance (Emb.event (remote Remote.transact)) (at s23) ≡ just (at s24)
+    edge24 = Emb.lift-step (remote Remote.transact) s23 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical24
+
+    s25 : W.State
+    s25 = flat g23 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing (remoteFrame Remote.returning (Remote.unsupported (just termEntry)))
+    physical25 : W.step (remote Remote.checkAssertion) s24 ≡ just s25
+    physical25 = refl
+    edge25 : T.advance (Emb.event (remote Remote.checkAssertion)) (at s24) ≡ just (at s25)
+    edge25 = Emb.lift-step (remote Remote.checkAssertion) s24 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical25
+
+    s26 : W.State
+    s26 = flat g26 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    physical26 : W.step (remote Remote.returnToIG) s25 ≡ just s26
+    physical26 = refl
+    edge26 : T.advance (Emb.event (remote Remote.returnToIG)) (at s25) ≡ just (at s26)
+    edge26 = Emb.lift-step (remote Remote.returnToIG) s25 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical26
+
+    s27 : W.State
+    s27 = flat g27 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    physical27 : W.step (ig IG.commitDecision) s26 ≡ just s27
+    physical27 = refl
+    edge27 : T.advance (Emb.event (ig IG.commitDecision)) (at s26) ≡ just (at s27)
+    edge27 = Emb.lift-step (ig IG.commitDecision) s26 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical27
+
+    s28 : W.State
+    s28 = flat g28 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    physical28 : W.step (ig IG.readEvent) s27 ≡ just s28
+    physical28 = refl
+    edge28 : T.advance (Emb.event (ig IG.readEvent)) (at s27) ≡ just (at s28)
+    edge28 = Emb.lift-step (ig IG.readEvent) s27 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical28
+
+    s29 : W.State
+    s29 = flat g29 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    physical29 : W.step (ig IG.commitDecision) s28 ≡ just s29
+    physical29 = refl
+    edge29 : T.advance (Emb.event (ig IG.commitDecision)) (at s28) ≡ just (at s29)
+    edge29 = Emb.lift-step (ig IG.commitDecision) s28 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical29
+
+    s30 : W.State
+    s30 = flat g30 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing
+    physical30 : W.step (ig IG.finishBatch) s29 ≡ just s30
+    physical30 = refl
+    edge30 : T.advance (Emb.event (ig IG.finishBatch)) (at s29) ≡ just (at s30)
+    edge30 = Emb.lift-step (ig IG.finishBatch) s29 context Prefix.preparedFront S.serving true E.emptyExit
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) physical30
+
+    terminatingPhysical : W.State
+    terminatingPhysical = s30
+    terminatingRuntime : T.Runtime
+    terminatingRuntime = at terminatingPhysical
+
+    events : List T.Event
+    events = Emb.event (ig IG.finishBatch) ∷
+     Emb.event (ig (IG.captureTime 0)) ∷
+     Emb.event (ig IG.registerInactivity) ∷
+     Emb.event (ig (IG.expireTimer (ident 1))) ∷
+     Emb.event (ig IG.selectBatch) ∷
+     Emb.event (ig IG.readEvent) ∷
+     Emb.event (inboundRelease InboundRelease.enter) ∷
+     Emb.event (inboundRelease InboundRelease.transact) ∷
+     Emb.event (inboundRelease InboundRelease.readCounters) ∷
+     Emb.event (inboundRelease InboundRelease.requestCancellation) ∷
+     Emb.event (inboundRelease InboundRelease.checkAssertion) ∷
+     Emb.event (inboundRelease InboundRelease.returnToIG) ∷
+     Emb.event (ig IG.commitDecision) ∷
+     Prefix.coreEvent (O.beginRelease Old.Fixture.caller key₀) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.transactionStep) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.readCounters) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.registerTimer) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.expireTimer) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.selectWakeup) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.commitTimeout) ∷
+     Prefix.coreEvent (O.release Old.Fixture.caller Release.readCounters) ∷
+     Emb.event (ig IG.readEvent) ∷
+     Emb.event (remote Remote.enter) ∷
+     Emb.event (remote Remote.transact) ∷
+     Emb.event (remote Remote.checkAssertion) ∷
+     Emb.event (remote Remote.returnToIG) ∷
+     Emb.event (ig IG.commitDecision) ∷
+     Emb.event (ig IG.readEvent) ∷
+     Emb.event (ig IG.commitDecision) ∷
+     Emb.event (ig IG.finishBatch) ∷ []
+
+    abstract
+     actualPrefix : T.Runs start events terminatingRuntime
+     actualPrefix = T.more {a = Emb.event (ig IG.finishBatch)} edge1 ( T.more {a = Emb.event (ig (IG.captureTime 0))} edge2 ( T.more {a = Emb.event (ig IG.registerInactivity)} edge3 ( T.more {a = Emb.event (ig (IG.expireTimer (ident 1)))} edge4 ( T.more {a = Emb.event (ig IG.selectBatch)} edge5 ( T.more {a = Emb.event (ig IG.readEvent)} edge6 ( T.more {a = Emb.event (inboundRelease InboundRelease.enter)} edge7 ( T.more {a = Emb.event (inboundRelease InboundRelease.transact)} edge8 ( T.more {a = Emb.event (inboundRelease InboundRelease.readCounters)} edge9 ( T.more {a = Emb.event (inboundRelease InboundRelease.requestCancellation)} edge10 ( T.more {a = Emb.event (inboundRelease InboundRelease.checkAssertion)} edge11 ( T.more {a = Emb.event (inboundRelease InboundRelease.returnToIG)} edge12 ( T.more {a = Emb.event (ig IG.commitDecision)} edge13 ( T.more {a = Prefix.coreEvent (O.beginRelease Old.Fixture.caller key₀)} edge14 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.transactionStep)} edge15 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.readCounters)} edge16 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.registerTimer)} edge17 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.expireTimer)} edge18 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.selectWakeup)} edge19 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.commitTimeout)} edge20 ( T.more {a = Prefix.coreEvent (O.release Old.Fixture.caller Release.readCounters)} edge21 ( T.more {a = Emb.event (ig IG.readEvent)} edge22 ( T.more {a = Emb.event (remote Remote.enter)} edge23 ( T.more {a = Emb.event (remote Remote.transact)} edge24 ( T.more {a = Emb.event (remote Remote.checkAssertion)} edge25 ( T.more {a = Emb.event (remote Remote.returnToIG)} edge26 ( T.more {a = Emb.event (ig IG.commitDecision)} edge27 ( T.more {a = Emb.event (ig IG.readEvent)} edge28 ( T.more {a = Emb.event (ig IG.commitDecision)} edge29 ( T.more {a = Emb.event (ig IG.finishBatch)} edge30 (T.stop))))))))))))))))))))))))))))))
+
+    -- The CM writer is the actual selected timeout, after real inbound idle expiry.
+    actualExpired : lookup (ident 0) (Shared.entries (Shared.cm (W.shared s8))) ≡
+     just (Shared.outboundDup key₀ Old.owner (ident 0) expired)
+    actualExpired = refl
+    actualIdle : lookup (ident 0) (Shared.entries (Shared.cm (W.shared s19))) ≡
+     just (Shared.outboundIdle key₀ Old.owner (ident 0) duplex)
+    actualIdle = refl
+    actualTerminating : lookup (ident 0) (Shared.entries (Shared.cm (W.shared terminatingPhysical))) ≡
+     just (Shared.terminating key₀ Old.owner nothing)
+    actualTerminating = refl
+    releaseStillPending : lookup Old.Fixture.caller (O.releasing (W.source terminatingPhysical)) ≡
+     just (Release.frame key₀ (Release.cancel Old.owner (Release.complete (Release.success (just (Shared.terminating key₀ Old.owner nothing))))) true)
+    releaseStillPending = refl
+    notYetCleanup : lookup Old.owner (Shared.cleanups (W.shared terminatingPhysical)) ≡ nothing
+    notYetCleanup = refl
+    prematureTimeout : T.advance (Prefix.coreEvent (O.release Old.Fixture.caller Release.commitTimeout)) (at s17) ≡ nothing
+    prematureTimeout = refl
+
+    -- A snapshot transformation carries only this prefix's actual persistent edits.
+    -- It preserves the supplied old continuation, active flag and physical groups.
+    -- Its users must prove every transformed operation afresh.
+    stamp : W.State → W.State
+    stamp physical = W.setSource stampedSource physical
+     where
+     terminal = W.source (flat g30 [] termEntry (releaseFrame (Release.cancel Old.owner releaseDone) true) nothing nothing)
+     original = W.source physical
+     core = O.core original
+     world = Machine.world core
+     governor = Machine.inboundGovernor core
+     terminalGovernor = Machine.inboundGovernor (O.core terminal)
+     stampedGovernor = record governor
+      { nextTimer = IG.nextTimer terminalGovernor
+      ; publishedState = IG.publishedState terminalGovernor
+      ; execution = record (IG.execution governor) { timers = IG.timers (IG.execution terminalGovernor) } }
+     stampedWorld = record world
+      { cm = record (Shared.cm world)
+        { entries = put (ident 0) (Shared.terminating key₀ Old.owner nothing) (Shared.entries (Shared.cm world)) } }
+     stampedSource = record original
+      { core = record core { world = stampedWorld; inboundGovernor = stampedGovernor }
+      ; releasing = O.releasing terminal }
+
+    context0 = Prefix.context0
+    ordinary = Prefix.ordinary
+    preparedFront : T.Front
+    preparedFront = Prefix.preparedFront
+
+  module ScopeClose where
+    open import Data.Bool using (Bool; true; false)
+    open import Data.List using (List; []; _∷_; _++_)
+    open import Data.Maybe using (just; nothing)
+    open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+    import ConnectionManagement.OutboundMachine as O
+    import ConnectionManagement.Machine as Machine
+    import ConnectionManagement.Rules.IGRegistration as IG
+    import ConnectionManagement.Rules.AsyncScope as Scope
+    import ConnectionManagement.PeerContext as Context
+    import ConnectionManagement.PeerSupervision as Supervision
+    import ConnectionManagement.GovernorPool as Governor
+    import ConnectionManagement.Properties.ServerPeersMonitorJoins as Joins
+    import ConnectionManagement.ServerPeers as Combined
+    import ConnectionManagement.ServerAdmission as Server
+    import ConnectionManagement.ServerIGExit as IGExit
+    import ConnectionManagement.MuxHandlerExit as Exit
+    import ConnectionManagement.Properties.ServerPeersMuxEmbedding as Embedding
+    import ConnectionManagement.Negative.MuxProtocolJobs as Old
+    import ConnectionManagement.Negative.MuxResultMonitor as RF
+    import ConnectionManagement.Negative.GovernorPool as Prior
+    import ConnectionManagement.Negative.ServerPeers as PriorServer
+    import ConnectionManagement.CSP.GovernorLifecycle as L
+    module Prefix = TerminatingPrefix using (context; preparedFront; stamp; terminatingPhysical; terminatingRuntime)
+    module Physical = OutboundMuxChecks.PhysicalPrefix using (beforeAbort)
+    module Suffix = OutboundMuxChecks.PhysicalSuffix using (beforeCM; exited)
+    import ConnectionManagement.HandlerSupervision as H
+    import ConnectionManagement.OutboundHandlerSupervision as B
+    import ConnectionManagement.MuxProtocolJobs as P
+
+    private
+     module C = Context Prior.classify using (Context; governorPool; monitorPool)
+     module PS = Supervision Prior.classify using (Action; module Pool; beginMonitorClose; finishMonitorClose; run; scope)
+     module GP = Governor Prior.classify using (module Pool; beginClose; finishClose)
+     module S = Server RF.bearerClosed using (ScopeAction; Stage; acceptBodyExited; acceptCancelDelivered; acceptCancelRequested; acceptJoined; acceptResultAvailable; actionBodyExited; actionJoined; actionResultAvailable; async; beginCM; cancelJoinReturnedAction; closeListener; closingAccept; closingCM; deactivateIG; deliverAcceptAtWait; flushIG; igBodyExited; igCancelDelivered; igCancelRequested; igFlushed; igInactive; igJoined; igResultAvailable; joinAccept; joinIG; publishAcceptResult; publishActionResult; publishIGResult; requestAcceptCancel; requestIGCancel; returnAction; scope; selectActionWinner; serverStopped; serving; stage; traceStopped)
+     module E = IGExit RF.bearerClosed using (Action; Exit; Row; base; bodyDone; captureSnapshot; caughtExit; emptyExit; finishFinal; invokeFinal; invoked; loopBoundary; receipt; receive; returnFinal; run; snapshotRows; traversing)
+     module W = Exit RF.bearerClosed using (State; setSource; source)
+     module K = Combined RF.bearerClosed Prior.classify using (peerStep; server; serverStep)
+     module T = Combined.Protocols RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (Event; Runs; Runtime; advance; base; dispatch; more; stop)
+     module Embed = Embedding.Frontend RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (embed)
+     module J = Joins.Frontend RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (ServerRuns; serverDone; serverNext)
+     module Fixtures = PriorServer.Fixtures using (q1; q10; q11; q12; q13; q14; q15; q16; q17; q18; q19; q2; q20; q21; q22; q3; q4; q5; q6; q7; q8; q9)
+
+
+    -- The TIME_WAIT prefix itself returned the completed IG idle batch. The
+    -- following context and state are its actual terminal values.
+    readySource : O.Configuration
+    readySource = W.source Prefix.terminatingPhysical
+    readyPhysical : W.State
+    readyPhysical = Prefix.terminatingPhysical
+    ordinaryContext : C.Context
+    ordinaryContext = Prefix.context
+    ready : T.Runtime
+    ready = Prefix.terminatingRuntime
+
+    -- Reuse the original empty pool/scopes snapshots with the current CM-free
+    -- context. The current mux/source is never copied from an older fixture.
+    peerContext : Scope.State → GP.Pool.ClosePC → PS.Pool.ClosePC → C.Context
+    peerContext scopes governorPhase monitorPhase = record ordinaryContext
+     { scopes = scopes
+     ; governorPool = record (C.governorPool ordinaryContext) { phase = governorPhase }
+     ; monitorPool = record (C.monitorPool ordinaryContext) { phase = monitorPhase } }
+    peerAt : Scope.State → GP.Pool.ClosePC → PS.Pool.ClosePC → T.Runtime
+    peerAt scopes governorPhase monitorPhase = Embed.embed readyPhysical
+     (peerContext scopes governorPhase monitorPhase) Prefix.preparedFront S.serving true E.emptyExit
+    peerEvent : PS.Action → T.Event
+    peerEvent action = T.dispatch (K.peerStep action)
+
+    peer1 : T.Runtime
+    peer1 = peerAt Fixtures.q1 GP.Pool.openPool PS.Pool.openPool
+    peerStep1 : T.advance (peerEvent (PS.scope Scope.beginUnwind)) ready ≡ just peer1
+    peerStep1 = refl
+
+    peer2 : T.Runtime
+    peer2 = peerAt Fixtures.q2 GP.Pool.openPool PS.Pool.openPool
+    peerStep2 : T.advance (peerEvent (PS.scope Scope.requestCancel)) peer1 ≡ just peer2
+    peerStep2 = refl
+
+    peer3 : T.Runtime
+    peer3 = peerAt Fixtures.q3 GP.Pool.openPool PS.Pool.openPool
+    peerStep3 : T.advance (peerEvent (PS.scope Scope.deliverCancel)) peer2 ≡ just peer3
+    peerStep3 = refl
+
+    peer4 : T.Runtime
+    peer4 = peerAt Fixtures.q4 GP.Pool.openPool PS.Pool.openPool
+    peerStep4 : T.advance (peerEvent (PS.scope (Scope.bodyExit Scope.churn))) peer3 ≡ just peer4
+    peerStep4 = refl
+
+    peer5 : T.Runtime
+    peer5 = peerAt Fixtures.q5 GP.Pool.openPool PS.Pool.openPool
+    peerStep5 : T.advance (peerEvent (PS.scope (Scope.publishResult Scope.churn))) peer4 ≡ just peer5
+    peerStep5 = refl
+
+    peer6 : T.Runtime
+    peer6 = peerAt Fixtures.q6 GP.Pool.openPool PS.Pool.openPool
+    peerStep6 : T.advance (peerEvent (PS.scope Scope.join)) peer5 ≡ just peer6
+    peerStep6 = refl
+
+    peer7 : T.Runtime
+    peer7 = peerAt Fixtures.q7 GP.Pool.openPool PS.Pool.openPool
+    peerStep7 : T.advance (peerEvent (PS.scope Scope.requestCancel)) peer6 ≡ just peer7
+    peerStep7 = refl
+
+    peer8 : T.Runtime
+    peer8 = peerAt Fixtures.q8 GP.Pool.openPool PS.Pool.openPool
+    peerStep8 : T.advance (peerEvent (PS.scope Scope.deliverCancel)) peer7 ≡ just peer8
+    peerStep8 = refl
+
+    peer9 : T.Runtime
+    peer9 = peerAt Fixtures.q8 GP.Pool.closing PS.Pool.openPool
+    peerStep9 : T.advance (peerEvent (PS.run (GP.beginClose []))) peer8 ≡ just peer9
+    peerStep9 = refl
+
+    peer10 : T.Runtime
+    peer10 = peerAt Fixtures.q8 GP.Pool.closedPool PS.Pool.openPool
+    peerStep10 : T.advance (peerEvent (PS.run GP.finishClose)) peer9 ≡ just peer10
+    peerStep10 = refl
+
+    peer11 : T.Runtime
+    peer11 = peerAt Fixtures.q9 GP.Pool.closedPool PS.Pool.openPool
+    peerStep11 : T.advance (peerEvent (PS.scope (Scope.bodyExit Scope.governor))) peer10 ≡ just peer11
+    peerStep11 = refl
+
+    peer12 : T.Runtime
+    peer12 = peerAt Fixtures.q10 GP.Pool.closedPool PS.Pool.openPool
+    peerStep12 : T.advance (peerEvent (PS.scope (Scope.publishResult Scope.governor))) peer11 ≡ just peer12
+    peerStep12 = refl
+
+    peer13 : T.Runtime
+    peer13 = peerAt Fixtures.q11 GP.Pool.closedPool PS.Pool.openPool
+    peerStep13 : T.advance (peerEvent (PS.scope Scope.join)) peer12 ≡ just peer13
+    peerStep13 = refl
+
+    peer14 : T.Runtime
+    peer14 = peerAt Fixtures.q12 GP.Pool.closedPool PS.Pool.openPool
+    peerStep14 : T.advance (peerEvent (PS.scope Scope.requestCancel)) peer13 ≡ just peer14
+    peerStep14 = refl
+
+    peer15 : T.Runtime
+    peer15 = peerAt Fixtures.q13 GP.Pool.closedPool PS.Pool.openPool
+    peerStep15 : T.advance (peerEvent (PS.scope Scope.deliverCancel)) peer14 ≡ just peer15
+    peerStep15 = refl
+
+    peer16 : T.Runtime
+    peer16 = peerAt Fixtures.q14 GP.Pool.closedPool PS.Pool.openPool
+    peerStep16 : T.advance (peerEvent (PS.scope (Scope.bodyExit Scope.localRoot))) peer15 ≡ just peer16
+    peerStep16 = refl
+
+    peer17 : T.Runtime
+    peer17 = peerAt Fixtures.q15 GP.Pool.closedPool PS.Pool.openPool
+    peerStep17 : T.advance (peerEvent (PS.scope (Scope.publishResult Scope.localRoot))) peer16 ≡ just peer17
+    peerStep17 = refl
+
+    peer18 : T.Runtime
+    peer18 = peerAt Fixtures.q16 GP.Pool.closedPool PS.Pool.openPool
+    peerStep18 : T.advance (peerEvent (PS.scope Scope.join)) peer17 ≡ just peer18
+    peerStep18 = refl
+
+    peer19 : T.Runtime
+    peer19 = peerAt Fixtures.q17 GP.Pool.closedPool PS.Pool.openPool
+    peerStep19 : T.advance (peerEvent (PS.scope Scope.requestCancel)) peer18 ≡ just peer19
+    peerStep19 = refl
+
+    peer20 : T.Runtime
+    peer20 = peerAt Fixtures.q18 GP.Pool.closedPool PS.Pool.openPool
+    peerStep20 : T.advance (peerEvent (PS.scope Scope.deliverCancel)) peer19 ≡ just peer20
+    peerStep20 = refl
+
+    peer21 : T.Runtime
+    peer21 = peerAt Fixtures.q19 GP.Pool.closedPool PS.Pool.openPool
+    peerStep21 : T.advance (peerEvent (PS.scope (Scope.bodyExit Scope.ledger))) peer20 ≡ just peer21
+    peerStep21 = refl
+
+    peer22 : T.Runtime
+    peer22 = peerAt Fixtures.q20 GP.Pool.closedPool PS.Pool.openPool
+    peerStep22 : T.advance (peerEvent (PS.scope (Scope.publishResult Scope.ledger))) peer21 ≡ just peer22
+    peerStep22 = refl
+
+    peer23 : T.Runtime
+    peer23 = peerAt Fixtures.q21 GP.Pool.closedPool PS.Pool.openPool
+    peerStep23 : T.advance (peerEvent (PS.scope Scope.join)) peer22 ≡ just peer23
+    peerStep23 = refl
+
+    peer24 : T.Runtime
+    peer24 = peerAt Fixtures.q22 GP.Pool.closedPool PS.Pool.openPool
+    peerStep24 : T.advance (peerEvent (PS.scope Scope.finishClose)) peer23 ≡ just peer24
+    peerStep24 = refl
+
+    peer25 : T.Runtime
+    peer25 = peerAt Fixtures.q22 GP.Pool.closedPool PS.Pool.closing
+    peerStep25 : T.advance (peerEvent (PS.beginMonitorClose [])) peer24 ≡ just peer25
+    peerStep25 = refl
+
+    peer26 : T.Runtime
+    peer26 = peerAt Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
+    peerStep26 : T.advance (peerEvent (PS.finishMonitorClose)) peer25 ≡ just peer26
+    peerStep26 = refl
+
+    peerEvents : List T.Event
+    peerEvents =
+      peerEvent (PS.scope Scope.beginUnwind) ∷
+      peerEvent (PS.scope Scope.requestCancel) ∷
+      peerEvent (PS.scope Scope.deliverCancel) ∷
+      peerEvent (PS.scope (Scope.bodyExit Scope.churn)) ∷
+      peerEvent (PS.scope (Scope.publishResult Scope.churn)) ∷
+      peerEvent (PS.scope Scope.join) ∷
+      peerEvent (PS.scope Scope.requestCancel) ∷
+      peerEvent (PS.scope Scope.deliverCancel) ∷
+      peerEvent (PS.run (GP.beginClose [])) ∷
+      peerEvent (PS.run GP.finishClose) ∷
+      peerEvent (PS.scope (Scope.bodyExit Scope.governor)) ∷
+      peerEvent (PS.scope (Scope.publishResult Scope.governor)) ∷
+      peerEvent (PS.scope Scope.join) ∷
+      peerEvent (PS.scope Scope.requestCancel) ∷
+      peerEvent (PS.scope Scope.deliverCancel) ∷
+      peerEvent (PS.scope (Scope.bodyExit Scope.localRoot)) ∷
+      peerEvent (PS.scope (Scope.publishResult Scope.localRoot)) ∷
+      peerEvent (PS.scope Scope.join) ∷
+      peerEvent (PS.scope Scope.requestCancel) ∷
+      peerEvent (PS.scope Scope.deliverCancel) ∷
+      peerEvent (PS.scope (Scope.bodyExit Scope.ledger)) ∷
+      peerEvent (PS.scope (Scope.publishResult Scope.ledger)) ∷
+      peerEvent (PS.scope Scope.join) ∷
+      peerEvent (PS.scope Scope.finishClose) ∷
+      peerEvent (PS.beginMonitorClose []) ∷
+      peerEvent (PS.finishMonitorClose) ∷ []
+
+    abstract
+      peerPath : T.Runs ready peerEvents peer26
+      peerPath = T.more {a = peerEvent (PS.scope Scope.beginUnwind)} peerStep1 (T.more {a = peerEvent (PS.scope Scope.requestCancel)} peerStep2 (T.more {a = peerEvent (PS.scope Scope.deliverCancel)} peerStep3 (T.more {a = peerEvent (PS.scope (Scope.bodyExit Scope.churn))} peerStep4 (T.more {a = peerEvent (PS.scope (Scope.publishResult Scope.churn))} peerStep5 (T.more {a = peerEvent (PS.scope Scope.join)} peerStep6 (T.more {a = peerEvent (PS.scope Scope.requestCancel)} peerStep7 (T.more {a = peerEvent (PS.scope Scope.deliverCancel)} peerStep8 (T.more {a = peerEvent (PS.run (GP.beginClose []))} peerStep9 (T.more {a = peerEvent (PS.run GP.finishClose)} peerStep10 (T.more {a = peerEvent (PS.scope (Scope.bodyExit Scope.governor))} peerStep11 (T.more {a = peerEvent (PS.scope (Scope.publishResult Scope.governor))} peerStep12 (T.more {a = peerEvent (PS.scope Scope.join)} peerStep13 (T.more {a = peerEvent (PS.scope Scope.requestCancel)} peerStep14 (T.more {a = peerEvent (PS.scope Scope.deliverCancel)} peerStep15 (T.more {a = peerEvent (PS.scope (Scope.bodyExit Scope.localRoot))} peerStep16 (T.more {a = peerEvent (PS.scope (Scope.publishResult Scope.localRoot))} peerStep17 (T.more {a = peerEvent (PS.scope Scope.join)} peerStep18 (T.more {a = peerEvent (PS.scope Scope.requestCancel)} peerStep19 (T.more {a = peerEvent (PS.scope Scope.deliverCancel)} peerStep20 (T.more {a = peerEvent (PS.scope (Scope.bodyExit Scope.ledger))} peerStep21 (T.more {a = peerEvent (PS.scope (Scope.publishResult Scope.ledger))} peerStep22 (T.more {a = peerEvent (PS.scope Scope.join)} peerStep23 (T.more {a = peerEvent (PS.scope Scope.finishClose)} peerStep24 (T.more {a = peerEvent (PS.beginMonitorClose [])} peerStep25 (T.more {a = peerEvent (PS.finishMonitorClose)} peerStep26 (T.stop))))))))))))))))))))))))))
+
+    closedContext : C.Context
+    closedContext = peerContext Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
+    scopeAt : W.State → S.Stage → Bool → E.Exit → T.Runtime
+    scopeAt physical stage listener exit = Embed.embed physical closedContext Prefix.preparedFront stage listener exit
+    scopeEvent : S.ScopeAction → T.Event
+    scopeEvent action = T.dispatch (K.serverStep (E.run (S.scope action)))
+    exitEvent : E.Action → T.Event
+    exitEvent action = T.dispatch (K.serverStep action)
+
+    -- Deactivation and flush preserve the nonempty published registration while
+    -- changing the real active flag, continuation and pending information channel.
+    inactiveSource : O.Configuration
+    inactiveSource = record readySource { core = record core
+     { inboundGovernor = record governor
+      { continuation = IG.exitFlush
+      ; execution = record (IG.execution governor) { active = false } } } }
+     where
+     core = O.core readySource
+     governor = Machine.inboundGovernor core
+    inactivePhysical : W.State
+    inactivePhysical = W.setSource inactiveSource readyPhysical
+    exitedPhysical : W.State
+    exitedPhysical = Prefix.stamp (Suffix.exited Physical.beforeAbort)
+    caught : E.Exit
+    caught = E.caughtExit (E.receipt E.loopBoundary Old.err nothing)
+    rows : List E.Row
+    rows = E.snapshotRows (IG.connections (IG.publishedState (Machine.inboundGovernor (O.core (W.source exitedPhysical)))))
+    snapshotExit : E.Exit
+    snapshotExit = record caught { phase = E.traversing; snapshot = rows; remaining = rows; returned = [] }
+    invokedExit : E.Exit
+    invokedExit = record snapshotExit { phase = E.invoked }
+    returnedExit : E.Exit
+    returnedExit = record snapshotExit { remaining = []; returned = rows }
+    doneExit : E.Exit
+    doneExit = record returnedExit { phase = E.bodyDone }
+    publishedExit : E.Exit
+    publishedExit = record doneExit { result = just (S.async Old.err) }
+
+    scope1 : T.Runtime
+    scope1 = scopeAt readyPhysical S.actionBodyExited true E.emptyExit
+    scopeStep1 : T.advance (scopeEvent S.returnAction) peer26 ≡ just scope1
+    scopeStep1 = refl
+
+    scope2 : T.Runtime
+    scope2 = scopeAt readyPhysical S.actionResultAvailable true E.emptyExit
+    scopeStep2 : T.advance (scopeEvent S.publishActionResult) scope1 ≡ just scope2
+    scopeStep2 = refl
+
+    scope3 : T.Runtime
+    scope3 = scopeAt readyPhysical S.closingAccept true E.emptyExit
+    scopeStep3 : T.advance (scopeEvent S.selectActionWinner) scope2 ≡ just scope3
+    scopeStep3 = refl
+
+    scope4 : T.Runtime
+    scope4 = scopeAt readyPhysical S.acceptCancelRequested true E.emptyExit
+    scopeStep4 : T.advance (scopeEvent S.requestAcceptCancel) scope3 ≡ just scope4
+    scopeStep4 = refl
+
+    scope5 : T.Runtime
+    scope5 = scopeAt readyPhysical S.acceptCancelDelivered true E.emptyExit
+    scopeStep5 : T.advance (scopeEvent S.deliverAcceptAtWait) scope4 ≡ just scope5
+    scopeStep5 = refl
+
+    scope6 : T.Runtime
+    scope6 = scopeAt readyPhysical S.acceptBodyExited false E.emptyExit
+    scopeStep6 : T.advance (scopeEvent S.closeListener) scope5 ≡ just scope6
+    scopeStep6 = refl
+
+    scope7 : T.Runtime
+    scope7 = scopeAt readyPhysical S.acceptResultAvailable false E.emptyExit
+    scopeStep7 : T.advance (scopeEvent S.publishAcceptResult) scope6 ≡ just scope7
+    scopeStep7 = refl
+
+    scope8 : T.Runtime
+    scope8 = scopeAt readyPhysical S.acceptJoined false E.emptyExit
+    scopeStep8 : T.advance (scopeEvent S.joinAccept) scope7 ≡ just scope8
+    scopeStep8 = refl
+
+    scope9 : T.Runtime
+    scope9 = scopeAt readyPhysical S.serverStopped false E.emptyExit
+    scopeStep9 : T.advance (scopeEvent S.traceStopped) scope8 ≡ just scope9
+    scopeStep9 = refl
+
+    scope10 : T.Runtime
+    scope10 = scopeAt readyPhysical S.actionJoined false E.emptyExit
+    scopeStep10 : T.advance (scopeEvent S.cancelJoinReturnedAction) scope9 ≡ just scope10
+    scopeStep10 = refl
+
+    scope11 : T.Runtime
+    scope11 = scopeAt readyPhysical S.igCancelRequested false E.emptyExit
+    scopeStep11 : T.advance (scopeEvent S.requestIGCancel) scope10 ≡ just scope11
+    scopeStep11 = refl
+
+    scope12 : T.Runtime
+    scope12 = scopeAt readyPhysical S.igCancelDelivered false caught
+    scopeStep12 : T.advance (exitEvent (E.receive E.loopBoundary Old.err)) scope11 ≡ just scope12
+    scopeStep12 = refl
+
+    scope13 : T.Runtime
+    scope13 = scopeAt inactivePhysical S.igInactive false caught
+    scopeStep13 : T.advance (scopeEvent S.deactivateIG) scope12 ≡ just scope13
+    scopeStep13 = refl
+
+    scope14 : T.Runtime
+    scope14 = scopeAt exitedPhysical S.igFlushed false caught
+    scopeStep14 : T.advance (scopeEvent S.flushIG) scope13 ≡ just scope14
+    scopeStep14 = refl
+
+    scope15 : T.Runtime
+    scope15 = scopeAt exitedPhysical S.igFlushed false snapshotExit
+    scopeStep15 : T.advance (exitEvent (E.captureSnapshot)) scope14 ≡ just scope15
+    scopeStep15 = refl
+
+    scope16 : T.Runtime
+    scope16 = scopeAt exitedPhysical S.igFlushed false invokedExit
+    scopeStep16 : T.advance (exitEvent (E.invokeFinal)) scope15 ≡ just scope16
+    scopeStep16 = refl
+
+    scope17 : T.Runtime
+    scope17 = scopeAt exitedPhysical S.igFlushed false returnedExit
+    scopeStep17 : T.advance (exitEvent (E.returnFinal)) scope16 ≡ just scope17
+    scopeStep17 = refl
+
+    scope18 : T.Runtime
+    scope18 = scopeAt exitedPhysical S.igBodyExited false doneExit
+    scopeStep18 : T.advance (exitEvent (E.finishFinal)) scope17 ≡ just scope18
+    scopeStep18 = refl
+
+    scope19 : T.Runtime
+    scope19 = scopeAt exitedPhysical S.igResultAvailable false publishedExit
+    scopeStep19 : T.advance (scopeEvent S.publishIGResult) scope18 ≡ just scope19
+    scopeStep19 = refl
+
+    scope20 : T.Runtime
+    scope20 = scopeAt exitedPhysical S.igJoined false publishedExit
+    scopeStep20 : T.advance (scopeEvent S.joinIG) scope19 ≡ just scope20
+    scopeStep20 = refl
+
+    scope21 : T.Runtime
+    scope21 = scopeAt exitedPhysical S.closingCM false publishedExit
+    scopeStep21 : T.advance (scopeEvent S.beginCM) scope20 ≡ just scope21
+    scopeStep21 = refl
+
+    scopeEvents : List T.Event
+    scopeEvents =
+      scopeEvent S.returnAction ∷
+      scopeEvent S.publishActionResult ∷
+      scopeEvent S.selectActionWinner ∷
+      scopeEvent S.requestAcceptCancel ∷
+      scopeEvent S.deliverAcceptAtWait ∷
+      scopeEvent S.closeListener ∷
+      scopeEvent S.publishAcceptResult ∷
+      scopeEvent S.joinAccept ∷
+      scopeEvent S.traceStopped ∷
+      scopeEvent S.cancelJoinReturnedAction ∷
+      scopeEvent S.requestIGCancel ∷
+      exitEvent (E.receive E.loopBoundary Old.err) ∷
+      scopeEvent S.deactivateIG ∷
+      scopeEvent S.flushIG ∷
+      exitEvent (E.captureSnapshot) ∷
+      exitEvent (E.invokeFinal) ∷
+      exitEvent (E.returnFinal) ∷
+      exitEvent (E.finishFinal) ∷
+      scopeEvent S.publishIGResult ∷
+      scopeEvent S.joinIG ∷
+      scopeEvent S.beginCM ∷ []
+
+    abstract
+      scopePath : T.Runs peer26 scopeEvents scope21
+      scopePath = T.more {a = scopeEvent S.returnAction} scopeStep1 (T.more {a = scopeEvent S.publishActionResult} scopeStep2 (T.more {a = scopeEvent S.selectActionWinner} scopeStep3 (T.more {a = scopeEvent S.requestAcceptCancel} scopeStep4 (T.more {a = scopeEvent S.deliverAcceptAtWait} scopeStep5 (T.more {a = scopeEvent S.closeListener} scopeStep6 (T.more {a = scopeEvent S.publishAcceptResult} scopeStep7 (T.more {a = scopeEvent S.joinAccept} scopeStep8 (T.more {a = scopeEvent S.traceStopped} scopeStep9 (T.more {a = scopeEvent S.cancelJoinReturnedAction} scopeStep10 (T.more {a = scopeEvent S.requestIGCancel} scopeStep11 (T.more {a = exitEvent (E.receive E.loopBoundary Old.err)} scopeStep12 (T.more {a = scopeEvent S.deactivateIG} scopeStep13 (T.more {a = scopeEvent S.flushIG} scopeStep14 (T.more {a = exitEvent (E.captureSnapshot)} scopeStep15 (T.more {a = exitEvent (E.invokeFinal)} scopeStep16 (T.more {a = exitEvent (E.returnFinal)} scopeStep17 (T.more {a = exitEvent (E.finishFinal)} scopeStep18 (T.more {a = scopeEvent S.publishIGResult} scopeStep19 (T.more {a = scopeEvent S.joinIG} scopeStep20 (T.more {a = scopeEvent S.beginCM} scopeStep21 (T.stop)))))))))))))))))))))
+
+    append : ∀ {start middle current first last} → T.Runs start first middle → T.Runs middle last current → T.Runs start (first ++ last) current
+    append T.stop rest = rest
+    append (T.more actual path) rest = T.more actual (append path rest)
+    closeEvents : List T.Event
+    closeEvents = peerEvents ++ scopeEvents
+    closed : T.Runtime
+    closed = scope21
+    abstract
+      actualClose : T.Runs Prefix.terminatingRuntime closeEvents closed
+      actualClose = append peerPath scopePath
+
+    -- These are consequences of the actual preceding path, not adopted input PCs.
+    closedStage : S.stage (E.base (K.server (T.base closed))) ≡ S.closingCM
+    closedStage = refl
+    closedPhysical : Prefix.stamp Suffix.beforeCM ≡ exitedPhysical
+    closedPhysical = refl
+
+    -- The callback and following inherited Server actions also inhabit the
+    -- existing CM-entry certificate route, retaining its closed peer scopes.
+    beforeEntryActions : List E.Action
+    beforeEntryActions =
+      (E.run (S.scope S.publishActionResult)) ∷
+      (E.run (S.scope S.selectActionWinner)) ∷
+      (E.run (S.scope S.requestAcceptCancel)) ∷
+      (E.run (S.scope S.deliverAcceptAtWait)) ∷
+      (E.run (S.scope S.closeListener)) ∷
+      (E.run (S.scope S.publishAcceptResult)) ∷
+      (E.run (S.scope S.joinAccept)) ∷
+      (E.run (S.scope S.traceStopped)) ∷
+      (E.run (S.scope S.cancelJoinReturnedAction)) ∷
+      (E.run (S.scope S.requestIGCancel)) ∷
+      (E.receive E.loopBoundary Old.err) ∷
+      (E.run (S.scope S.deactivateIG)) ∷
+      (E.run (S.scope S.flushIG)) ∷
+      (E.captureSnapshot) ∷
+      (E.invokeFinal) ∷
+      (E.returnFinal) ∷
+      (E.finishFinal) ∷
+      (E.run (S.scope S.publishIGResult)) ∷
+      (E.run (S.scope S.joinIG)) ∷ []
+    afterCallbackActions : List E.Action
+    afterCallbackActions = beforeEntryActions ++ (E.run (S.scope S.beginCM) ∷ [])
+    abstract
+      afterCallbackServerRuns : J.ServerRuns scope1 afterCallbackActions closed
+      afterCallbackServerRuns = J.serverNext {a = E.run (S.scope S.publishActionResult)} scopeStep2 (J.serverNext {a = E.run (S.scope S.selectActionWinner)} scopeStep3 (J.serverNext {a = E.run (S.scope S.requestAcceptCancel)} scopeStep4 (J.serverNext {a = E.run (S.scope S.deliverAcceptAtWait)} scopeStep5 (J.serverNext {a = E.run (S.scope S.closeListener)} scopeStep6 (J.serverNext {a = E.run (S.scope S.publishAcceptResult)} scopeStep7 (J.serverNext {a = E.run (S.scope S.joinAccept)} scopeStep8 (J.serverNext {a = E.run (S.scope S.traceStopped)} scopeStep9 (J.serverNext {a = E.run (S.scope S.cancelJoinReturnedAction)} scopeStep10 (J.serverNext {a = E.run (S.scope S.requestIGCancel)} scopeStep11 (J.serverNext {a = E.receive E.loopBoundary Old.err} scopeStep12 (J.serverNext {a = E.run (S.scope S.deactivateIG)} scopeStep13 (J.serverNext {a = E.run (S.scope S.flushIG)} scopeStep14 (J.serverNext {a = E.captureSnapshot} scopeStep15 (J.serverNext {a = E.invokeFinal} scopeStep16 (J.serverNext {a = E.returnFinal} scopeStep17 (J.serverNext {a = E.finishFinal} scopeStep18 (J.serverNext {a = E.run (S.scope S.publishIGResult)} scopeStep19 (J.serverNext {a = E.run (S.scope S.joinIG)} scopeStep20 (J.serverNext {a = E.run (S.scope S.beginCM)} scopeStep21 (J.serverDone))))))))))))))))))))
+
+  module WaitingPrefix where
+    open import Data.Bool using (true; false)
+    open import Data.List using (List; []; _∷_; _++_; map; drop)
+    open import Data.Maybe using (just; nothing)
+    open import Data.Product using (_,_)
+    open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans; cong)
+    open import ConnectionManagement.Domain using (ident)
+    open import ConnectionManagement.Store using (put; lookup)
+    import ConnectionManagement.State as Shared
+    import ConnectionManagement.Machine as Machine
+    import ConnectionManagement.OutboundMachine as O
+    import ConnectionManagement.Rules.Cleanup as Cleanup
+    import ConnectionManagement.Rules.CMShutdown as Close
+    import ConnectionManagement.Rules.MuxJobTypes as Types
+    import ConnectionManagement.MuxProtocolJobs as P
+    import ConnectionManagement.Negative.MuxProtocolJobs as Old
+    import ConnectionManagement.Negative.MuxGroupShutdown as GF
+    import ConnectionManagement.Negative.MuxHandlerExit as EF
+    import ConnectionManagement.Negative.MuxResultMonitor as RF
+    import ConnectionManagement.Negative.GovernorPool as Prior
+    import ConnectionManagement.Negative.ServerPeers as PriorServer
+    import ConnectionManagement.ServerPeers as Combined
+    import ConnectionManagement.ServerAdmission as Server
+    import ConnectionManagement.Properties.ServerPeersMuxEmbedding as Embedding
+    module Prefix = TerminatingPrefix using (preparedFront; stamp)
+    module Scope = ScopeClose using (closed; closedContext; publishedExit)
+
+    module W = OutboundMuxChecks.PhysicalSuffix.W using (Action; Executes; Phase; State; acknowledgeFinished; asyncException; beginExit; cleanup; cleanupComplete; deliverShutdownTimeWait; done; enterFinalizer; exitFrame; finalizing; finishCleanup; next; observeBufferReturn; publishAsyncResult; resultAvailable; resultOf; resultReady; run; setShutdown; setSource; shared; shutdown; shutdownStep; source; step)
+    module G = OutboundMuxChecks.PhysicalSuffix.G using (Outcome; abortOwner; asyncExit; beginAsyncDead; beginWholeClose; commitAsyncTracer; deliverWhole; finishAsyncDead; finishChildUnwind; finishWholeClose; joinWhole; requestWholeCancel; run; sampleAsyncTracer; writeAsyncFailure)
+    module M = OutboundMuxChecks.PhysicalSuffix.M using (run)
+    private
+     module T = Combined.Protocols RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (Event; Runs; Runtime; advance; more; stop)
+     module S = Server RF.bearerClosed using (closingCM)
+     module Emb = Embedding.Frontend RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (Allowed; embed; event; lift-step; nextFront)
+
+    owner = Old.owner
+    err = Old.err
+    captured = Old.Prior.captured
+    term = Shared.terminating (Shared.handlerKey captured) owner nothing
+    wrap = OutboundMuxChecks.PhysicalSuffix.wrap
+    post : W.State → W.State
+    post original = Prefix.stamp (OutboundMuxChecks.PhysicalSuffix.exited original)
+    hold : Close.State → W.State → W.State
+    hold coordinator original = W.setShutdown coordinator (post original)
+    at : W.State → T.Runtime
+    at physical = Emb.embed physical Scope.closedContext Prefix.preparedFront S.closingCM false Scope.publishedExit
+    event : W.Action → T.Event
+    event = Emb.event
+    up : ∀ action before {after} →
+     Emb.Allowed action before after Scope.closedContext Prefix.preparedFront S.closingCM false Scope.publishedExit →
+     Emb.nextFront action Prefix.preparedFront ≡ Prefix.preparedFront →
+     W.step action before ≡ just after → T.advance (event action) (at before) ≡ just (at after)
+    up action before {after} permitted copied actual = trans
+     (Emb.lift-step action before Scope.closedContext Prefix.preparedFront S.closingCM false Scope.publishedExit permitted actual)
+     (cong just (cong (λ front → Emb.embed after Scope.closedContext front S.closingCM false Scope.publishedExit) copied))
+
+    startPhysical = hold Close.initialState (wrap GF.abortGroup0)
+    start = at startPhysical
+    closedMatches : Scope.closed ≡ start
+    closedMatches = refl
+
+    -- This owner interruption is independent; CM has not captured or acknowledged it.
+    abort : ∀ coordinator → W.step (W.run (G.abortOwner owner err))
+     (hold coordinator (wrap GF.abortGroup0)) ≡ just (hold coordinator (wrap GF.abortGroup1))
+    abort coordinator = refl
+    group2 : ∀ coordinator → W.step (W.run (G.beginWholeClose owner (Old.j₁₀ ∷ Old.j₁ ∷ Old.j₀ ∷ []))) (hold coordinator (wrap GF.abortGroup1)) ≡ just (hold coordinator (wrap GF.abortGroup2))
+    group2 coordinator = refl
+
+    group3 : ∀ coordinator → W.step (W.run (G.requestWholeCancel owner)) (hold coordinator (wrap GF.abortGroup2)) ≡ just (hold coordinator (wrap GF.abortGroup3))
+    group3 coordinator = refl
+
+    group4 : ∀ coordinator → W.step (W.run (G.finishChildUnwind Old.j₁₀)) (hold coordinator (wrap GF.abortGroup3)) ≡ just (hold coordinator (wrap GF.abortGroup4))
+    group4 coordinator = refl
+
+    group5 : ∀ coordinator → W.step (W.run (G.run (M.run (P.deregisterProtocol Old.j₁₀)))) (hold coordinator (wrap GF.abortGroup4)) ≡ just (hold coordinator (wrap GF.abortGroup5))
+    group5 coordinator = refl
+
+    group6 : ∀ coordinator → W.step (W.run (G.run (M.run (P.asyncProtocolResult Old.j₁₀)))) (hold coordinator (wrap GF.abortGroup5)) ≡ just (hold coordinator (wrap GF.abortGroup6))
+    group6 coordinator = refl
+
+    group7 : ∀ coordinator → W.step (W.run (G.joinWhole owner)) (hold coordinator (wrap GF.abortGroup6)) ≡ just (hold coordinator (wrap GF.abortGroup7))
+    group7 coordinator = refl
+
+    group8 : ∀ coordinator → W.step (W.run (G.requestWholeCancel owner)) (hold coordinator (wrap GF.abortGroup7)) ≡ just (hold coordinator (wrap GF.abortGroup8))
+    group8 coordinator = refl
+
+    group9 : ∀ coordinator → W.step (W.run (G.deliverWhole owner)) (hold coordinator (wrap GF.abortGroup8)) ≡ just (hold coordinator (wrap GF.abortGroup9))
+    group9 coordinator = refl
+
+    group10 : ∀ coordinator → W.step (W.run (G.finishChildUnwind Old.j₁)) (hold coordinator (wrap GF.abortGroup9)) ≡ just (hold coordinator (wrap GF.abortGroup10))
+    group10 coordinator = refl
+
+    group11 : ∀ coordinator → W.step (W.run (G.run (M.run (P.deregisterInfra owner Types.demuxer)))) (hold coordinator (wrap GF.abortGroup10)) ≡ just (hold coordinator (wrap GF.abortGroup11))
+    group11 coordinator = refl
+
+    group12 : ∀ coordinator → W.step (W.run (G.run (M.run (P.asyncInfraResult owner Types.demuxer)))) (hold coordinator (wrap GF.abortGroup11)) ≡ just (hold coordinator (wrap GF.abortGroup12))
+    group12 coordinator = refl
+
+    group13 : ∀ coordinator → W.step (W.run (G.joinWhole owner)) (hold coordinator (wrap GF.abortGroup12)) ≡ just (hold coordinator (wrap GF.abortGroup13))
+    group13 coordinator = refl
+
+    group14 : ∀ coordinator → W.step (W.run (G.requestWholeCancel owner)) (hold coordinator (wrap GF.abortGroup13)) ≡ just (hold coordinator (wrap GF.abortGroup14))
+    group14 coordinator = refl
+
+    group15 : ∀ coordinator → W.step (W.run (G.deliverWhole owner)) (hold coordinator (wrap GF.abortGroup14)) ≡ just (hold coordinator (wrap GF.abortGroup15))
+    group15 coordinator = refl
+
+    group16 : ∀ coordinator → W.step (W.run (G.finishChildUnwind Old.j₀)) (hold coordinator (wrap GF.abortGroup15)) ≡ just (hold coordinator (wrap GF.abortGroup16))
+    group16 coordinator = refl
+
+    group17 : ∀ coordinator → W.step (W.run (G.run (M.run (P.deregisterInfra owner Types.muxer)))) (hold coordinator (wrap GF.abortGroup16)) ≡ just (hold coordinator (wrap GF.abortGroup17))
+    group17 coordinator = refl
+
+    group18 : ∀ coordinator → W.step (W.run (G.run (M.run (P.asyncInfraResult owner Types.muxer)))) (hold coordinator (wrap GF.abortGroup17)) ≡ just (hold coordinator (wrap GF.abortGroup18))
+    group18 coordinator = refl
+
+    group19 : ∀ coordinator → W.step (W.run (G.joinWhole owner)) (hold coordinator (wrap GF.abortGroup18)) ≡ just (hold coordinator (wrap GF.abortGroup19))
+    group19 coordinator = refl
+
+    group20 : ∀ coordinator → W.step (W.run (G.finishWholeClose owner)) (hold coordinator (wrap GF.abortGroup19)) ≡ just (hold coordinator (wrap GF.abortGroup20))
+    group20 coordinator = refl
+
+    group21 : ∀ coordinator → W.step (W.run (G.writeAsyncFailure owner)) (hold coordinator (wrap GF.abortGroup20)) ≡ just (hold coordinator (wrap GF.abortGroup21))
+    group21 coordinator = refl
+
+    group22 : ∀ coordinator → W.step (W.run (G.beginAsyncDead owner)) (hold coordinator (wrap GF.abortGroup21)) ≡ just (hold coordinator (wrap GF.abortGroup22))
+    group22 coordinator = refl
+
+    group23 : ∀ coordinator → W.step (W.run (G.sampleAsyncTracer owner)) (hold coordinator (wrap GF.abortGroup22)) ≡ just (hold coordinator (wrap GF.abortGroup23))
+    group23 coordinator = refl
+
+    group24 : ∀ coordinator → W.step (W.run (G.commitAsyncTracer owner)) (hold coordinator (wrap GF.abortGroup23)) ≡ just (hold coordinator (wrap GF.abortGroup24))
+    group24 coordinator = refl
+
+    group25 : ∀ coordinator → W.step (W.run (G.finishAsyncDead owner)) (hold coordinator (wrap GF.abortGroup24)) ≡ just (hold coordinator (wrap GF.abortGroup25))
+    group25 coordinator = refl
+
+
+    abortTailActions : List W.Action
+    abortTailActions = map W.run (drop 1 GF.abortGroupActions)
+
+    abstract
+     abortTail : ∀ coordinator → W.Executes (hold coordinator (wrap GF.abortGroup1)) abortTailActions (hold coordinator EF.async0)
+     abortTail coordinator = W.next {a = W.run (G.beginWholeClose owner (Old.j₁₀ ∷ Old.j₁ ∷ Old.j₀ ∷ []))} (group2 coordinator) (W.next {a = W.run (G.requestWholeCancel owner)} (group3 coordinator) (W.next {a = W.run (G.finishChildUnwind Old.j₁₀)} (group4 coordinator) (W.next {a = W.run (G.run (M.run (P.deregisterProtocol Old.j₁₀)))} (group5 coordinator) (W.next {a = W.run (G.run (M.run (P.asyncProtocolResult Old.j₁₀)))} (group6 coordinator) (W.next {a = W.run (G.joinWhole owner)} (group7 coordinator) (W.next {a = W.run (G.requestWholeCancel owner)} (group8 coordinator) (W.next {a = W.run (G.deliverWhole owner)} (group9 coordinator) (W.next {a = W.run (G.finishChildUnwind Old.j₁)} (group10 coordinator) (W.next {a = W.run (G.run (M.run (P.deregisterInfra owner Types.demuxer)))} (group11 coordinator) (W.next {a = W.run (G.run (M.run (P.asyncInfraResult owner Types.demuxer)))} (group12 coordinator) (W.next {a = W.run (G.joinWhole owner)} (group13 coordinator) (W.next {a = W.run (G.requestWholeCancel owner)} (group14 coordinator) (W.next {a = W.run (G.deliverWhole owner)} (group15 coordinator) (W.next {a = W.run (G.finishChildUnwind Old.j₀)} (group16 coordinator) (W.next {a = W.run (G.run (M.run (P.deregisterInfra owner Types.muxer)))} (group17 coordinator) (W.next {a = W.run (G.run (M.run (P.asyncInfraResult owner Types.muxer)))} (group18 coordinator) (W.next {a = W.run (G.joinWhole owner)} (group19 coordinator) (W.next {a = W.run (G.finishWholeClose owner)} (group20 coordinator) (W.next {a = W.run (G.writeAsyncFailure owner)} (group21 coordinator) (W.next {a = W.run (G.beginAsyncDead owner)} (group22 coordinator) (W.next {a = W.run (G.sampleAsyncTracer owner)} (group23 coordinator) (W.next {a = W.run (G.commitAsyncTracer owner)} (group24 coordinator) (W.next {a = W.run (G.finishAsyncDead owner)} (group25 coordinator) (W.done))))))))))))))))))))))))
+
+    -- Expected cleanup states retain the committed Terminating entry and binding
+    -- until readiness is observed and the separate finally transaction executes.
+    setWorld : Shared.State → W.State → W.State
+    setWorld world physical = W.setSource (record source { core = Machine.replaceWorld (O.core source) world }) physical
+     where source = W.source physical
+    world0 : Shared.State
+    world0 = W.shared (post EF.async2)
+    world1 world2 world3 world4 world5 : Shared.State
+    world1 = record world0 { cleanups = (owner , Shared.cleanupAcquire) ∷ [] }
+    world2 = record world1
+     { cm = record (Shared.cm world1) { mapCell = Shared.taken owner }
+     ; cleanups = (owner , Shared.cleanupSelect EF.lease) ∷ [] }
+    world3 = record world2
+     { cleanups = (owner , Shared.cleanupClose EF.lease EF.table (Shared.timeWait term)) ∷ [] }
+    world4 = record world3
+     { sockets = put (Shared.handlerSocket captured) Shared.closed (Shared.sockets world3)
+     ; cleanups = (owner , Shared.cleanupPublish EF.lease EF.table (Shared.timeWait term)) ∷ [] }
+    world5 = record world4
+     { cm = record (Shared.cm world4) { mapCell = Shared.full EF.table }
+     ; cleanups = (owner , Shared.cleanupWaiting term) ∷ [] }
+
+    finalizer : Close.State → Shared.State → W.State
+    finalizer coordinator world = W.setShutdown coordinator
+     (record (setWorld world (post EF.async2))
+      { exits = (owner , W.exitFrame captured (W.finalizing (W.asyncException err)) nothing) ∷ [] })
+    waitingPhysical : Close.State → W.State
+    waitingPhysical coordinator = finalizer coordinator world5
+    waiting : T.Runtime
+    waiting = at (waitingPhysical Close.initialState)
+
+    beginExit : ∀ coordinator → W.step (W.beginExit owner) (hold coordinator EF.async0) ≡ just (hold coordinator EF.async1)
+    beginExit coordinator = refl
+
+    bufferReturn : ∀ coordinator → W.step (W.observeBufferReturn owner) (hold coordinator EF.async1) ≡ just (hold coordinator EF.async2)
+    bufferReturn coordinator = refl
+
+    enterFinally : ∀ coordinator → W.step (W.enterFinalizer owner) (hold coordinator EF.async2) ≡ just (finalizer coordinator world1)
+    enterFinally coordinator = refl
+
+    takeMap : ∀ coordinator → W.step (W.cleanup owner Cleanup.takeCleanupMap) (finalizer coordinator world1) ≡ just (finalizer coordinator world2)
+    takeMap coordinator = refl
+
+    selectEntry : ∀ coordinator → W.step (W.cleanup owner Cleanup.selectCleanupEntry) (finalizer coordinator world2) ≡ just (finalizer coordinator world3)
+    selectEntry coordinator = refl
+
+    closeSocket : ∀ coordinator → W.step (W.cleanup owner Cleanup.closeHandlerSocket) (finalizer coordinator world3) ≡ just (finalizer coordinator world4)
+    closeSocket coordinator = refl
+
+    publishMap : ∀ coordinator → W.step (W.cleanup owner Cleanup.publishCleanupMap) (finalizer coordinator world4) ≡ just (waitingPhysical coordinator)
+    publishMap coordinator = refl
+
+    bodyActions : List W.Action
+    bodyActions = W.beginExit owner ∷ W.observeBufferReturn owner ∷ W.enterFinalizer owner ∷
+     W.cleanup owner Cleanup.takeCleanupMap ∷ W.cleanup owner Cleanup.selectCleanupEntry ∷
+     W.cleanup owner Cleanup.closeHandlerSocket ∷ W.cleanup owner Cleanup.publishCleanupMap ∷ []
+    abstract
+     bodyPath : ∀ coordinator → W.Executes (hold coordinator EF.async0) bodyActions (waitingPhysical coordinator)
+     bodyPath coordinator = W.next {a = W.beginExit owner} (beginExit coordinator) (W.next {a = W.observeBufferReturn owner} (bufferReturn coordinator) (W.next {a = W.enterFinalizer owner} (enterFinally coordinator) (W.next {a = W.cleanup owner Cleanup.takeCleanupMap} (takeMap coordinator) (W.next {a = W.cleanup owner Cleanup.selectCleanupEntry} (selectEntry coordinator) (W.next {a = W.cleanup owner Cleanup.closeHandlerSocket} (closeSocket coordinator) (W.next {a = W.cleanup owner Cleanup.publishCleanupMap} (publishMap coordinator) (W.done)))))))
+
+    independentAbort : ∀ coordinator → T.advance (event (W.run (G.abortOwner owner err))) (at (hold coordinator (wrap GF.abortGroup0))) ≡ just (at (hold coordinator (wrap GF.abortGroup1)))
+    independentAbort coordinator = up (W.run (G.abortOwner owner err)) (hold coordinator (wrap GF.abortGroup0)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (abort coordinator)
+
+    liftGroup2 : ∀ coordinator → T.advance (event (W.run (G.beginWholeClose owner (Old.j₁₀ ∷ Old.j₁ ∷ Old.j₀ ∷ [])))) (at (hold coordinator (wrap GF.abortGroup1))) ≡ just (at (hold coordinator (wrap GF.abortGroup2)))
+    liftGroup2 coordinator = up (W.run (G.beginWholeClose owner (Old.j₁₀ ∷ Old.j₁ ∷ Old.j₀ ∷ []))) (hold coordinator (wrap GF.abortGroup1)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group2 coordinator)
+
+    liftGroup3 : ∀ coordinator → T.advance (event (W.run (G.requestWholeCancel owner))) (at (hold coordinator (wrap GF.abortGroup2))) ≡ just (at (hold coordinator (wrap GF.abortGroup3)))
+    liftGroup3 coordinator = up (W.run (G.requestWholeCancel owner)) (hold coordinator (wrap GF.abortGroup2)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group3 coordinator)
+
+    liftGroup4 : ∀ coordinator → T.advance (event (W.run (G.finishChildUnwind Old.j₁₀))) (at (hold coordinator (wrap GF.abortGroup3))) ≡ just (at (hold coordinator (wrap GF.abortGroup4)))
+    liftGroup4 coordinator = up (W.run (G.finishChildUnwind Old.j₁₀)) (hold coordinator (wrap GF.abortGroup3)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group4 coordinator)
+
+    liftGroup5 : ∀ coordinator → T.advance (event (W.run (G.run (M.run (P.deregisterProtocol Old.j₁₀))))) (at (hold coordinator (wrap GF.abortGroup4))) ≡ just (at (hold coordinator (wrap GF.abortGroup5)))
+    liftGroup5 coordinator = up (W.run (G.run (M.run (P.deregisterProtocol Old.j₁₀)))) (hold coordinator (wrap GF.abortGroup4)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group5 coordinator)
+
+    liftGroup6 : ∀ coordinator → T.advance (event (W.run (G.run (M.run (P.asyncProtocolResult Old.j₁₀))))) (at (hold coordinator (wrap GF.abortGroup5))) ≡ just (at (hold coordinator (wrap GF.abortGroup6)))
+    liftGroup6 coordinator = up (W.run (G.run (M.run (P.asyncProtocolResult Old.j₁₀)))) (hold coordinator (wrap GF.abortGroup5)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group6 coordinator)
+
+    liftGroup7 : ∀ coordinator → T.advance (event (W.run (G.joinWhole owner))) (at (hold coordinator (wrap GF.abortGroup6))) ≡ just (at (hold coordinator (wrap GF.abortGroup7)))
+    liftGroup7 coordinator = up (W.run (G.joinWhole owner)) (hold coordinator (wrap GF.abortGroup6)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group7 coordinator)
+
+    liftGroup8 : ∀ coordinator → T.advance (event (W.run (G.requestWholeCancel owner))) (at (hold coordinator (wrap GF.abortGroup7))) ≡ just (at (hold coordinator (wrap GF.abortGroup8)))
+    liftGroup8 coordinator = up (W.run (G.requestWholeCancel owner)) (hold coordinator (wrap GF.abortGroup7)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group8 coordinator)
+
+    liftGroup9 : ∀ coordinator → T.advance (event (W.run (G.deliverWhole owner))) (at (hold coordinator (wrap GF.abortGroup8))) ≡ just (at (hold coordinator (wrap GF.abortGroup9)))
+    liftGroup9 coordinator = up (W.run (G.deliverWhole owner)) (hold coordinator (wrap GF.abortGroup8)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group9 coordinator)
+
+    liftGroup10 : ∀ coordinator → T.advance (event (W.run (G.finishChildUnwind Old.j₁))) (at (hold coordinator (wrap GF.abortGroup9))) ≡ just (at (hold coordinator (wrap GF.abortGroup10)))
+    liftGroup10 coordinator = up (W.run (G.finishChildUnwind Old.j₁)) (hold coordinator (wrap GF.abortGroup9)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group10 coordinator)
+
+    liftGroup11 : ∀ coordinator → T.advance (event (W.run (G.run (M.run (P.deregisterInfra owner Types.demuxer))))) (at (hold coordinator (wrap GF.abortGroup10))) ≡ just (at (hold coordinator (wrap GF.abortGroup11)))
+    liftGroup11 coordinator = up (W.run (G.run (M.run (P.deregisterInfra owner Types.demuxer)))) (hold coordinator (wrap GF.abortGroup10)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group11 coordinator)
+
+    liftGroup12 : ∀ coordinator → T.advance (event (W.run (G.run (M.run (P.asyncInfraResult owner Types.demuxer))))) (at (hold coordinator (wrap GF.abortGroup11))) ≡ just (at (hold coordinator (wrap GF.abortGroup12)))
+    liftGroup12 coordinator = up (W.run (G.run (M.run (P.asyncInfraResult owner Types.demuxer)))) (hold coordinator (wrap GF.abortGroup11)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group12 coordinator)
+
+    liftGroup13 : ∀ coordinator → T.advance (event (W.run (G.joinWhole owner))) (at (hold coordinator (wrap GF.abortGroup12))) ≡ just (at (hold coordinator (wrap GF.abortGroup13)))
+    liftGroup13 coordinator = up (W.run (G.joinWhole owner)) (hold coordinator (wrap GF.abortGroup12)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group13 coordinator)
+
+    liftGroup14 : ∀ coordinator → T.advance (event (W.run (G.requestWholeCancel owner))) (at (hold coordinator (wrap GF.abortGroup13))) ≡ just (at (hold coordinator (wrap GF.abortGroup14)))
+    liftGroup14 coordinator = up (W.run (G.requestWholeCancel owner)) (hold coordinator (wrap GF.abortGroup13)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group14 coordinator)
+
+    liftGroup15 : ∀ coordinator → T.advance (event (W.run (G.deliverWhole owner))) (at (hold coordinator (wrap GF.abortGroup14))) ≡ just (at (hold coordinator (wrap GF.abortGroup15)))
+    liftGroup15 coordinator = up (W.run (G.deliverWhole owner)) (hold coordinator (wrap GF.abortGroup14)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group15 coordinator)
+
+    liftGroup16 : ∀ coordinator → T.advance (event (W.run (G.finishChildUnwind Old.j₀))) (at (hold coordinator (wrap GF.abortGroup15))) ≡ just (at (hold coordinator (wrap GF.abortGroup16)))
+    liftGroup16 coordinator = up (W.run (G.finishChildUnwind Old.j₀)) (hold coordinator (wrap GF.abortGroup15)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group16 coordinator)
+
+    liftGroup17 : ∀ coordinator → T.advance (event (W.run (G.run (M.run (P.deregisterInfra owner Types.muxer))))) (at (hold coordinator (wrap GF.abortGroup16))) ≡ just (at (hold coordinator (wrap GF.abortGroup17)))
+    liftGroup17 coordinator = up (W.run (G.run (M.run (P.deregisterInfra owner Types.muxer)))) (hold coordinator (wrap GF.abortGroup16)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group17 coordinator)
+
+    liftGroup18 : ∀ coordinator → T.advance (event (W.run (G.run (M.run (P.asyncInfraResult owner Types.muxer))))) (at (hold coordinator (wrap GF.abortGroup17))) ≡ just (at (hold coordinator (wrap GF.abortGroup18)))
+    liftGroup18 coordinator = up (W.run (G.run (M.run (P.asyncInfraResult owner Types.muxer)))) (hold coordinator (wrap GF.abortGroup17)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group18 coordinator)
+
+    liftGroup19 : ∀ coordinator → T.advance (event (W.run (G.joinWhole owner))) (at (hold coordinator (wrap GF.abortGroup18))) ≡ just (at (hold coordinator (wrap GF.abortGroup19)))
+    liftGroup19 coordinator = up (W.run (G.joinWhole owner)) (hold coordinator (wrap GF.abortGroup18)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group19 coordinator)
+
+    liftGroup20 : ∀ coordinator → T.advance (event (W.run (G.finishWholeClose owner))) (at (hold coordinator (wrap GF.abortGroup19))) ≡ just (at (hold coordinator (wrap GF.abortGroup20)))
+    liftGroup20 coordinator = up (W.run (G.finishWholeClose owner)) (hold coordinator (wrap GF.abortGroup19)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group20 coordinator)
+
+    liftGroup21 : ∀ coordinator → T.advance (event (W.run (G.writeAsyncFailure owner))) (at (hold coordinator (wrap GF.abortGroup20))) ≡ just (at (hold coordinator (wrap GF.abortGroup21)))
+    liftGroup21 coordinator = up (W.run (G.writeAsyncFailure owner)) (hold coordinator (wrap GF.abortGroup20)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group21 coordinator)
+
+    liftGroup22 : ∀ coordinator → T.advance (event (W.run (G.beginAsyncDead owner))) (at (hold coordinator (wrap GF.abortGroup21))) ≡ just (at (hold coordinator (wrap GF.abortGroup22)))
+    liftGroup22 coordinator = up (W.run (G.beginAsyncDead owner)) (hold coordinator (wrap GF.abortGroup21)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group22 coordinator)
+
+    liftGroup23 : ∀ coordinator → T.advance (event (W.run (G.sampleAsyncTracer owner))) (at (hold coordinator (wrap GF.abortGroup22))) ≡ just (at (hold coordinator (wrap GF.abortGroup23)))
+    liftGroup23 coordinator = up (W.run (G.sampleAsyncTracer owner)) (hold coordinator (wrap GF.abortGroup22)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group23 coordinator)
+
+    liftGroup24 : ∀ coordinator → T.advance (event (W.run (G.commitAsyncTracer owner))) (at (hold coordinator (wrap GF.abortGroup23))) ≡ just (at (hold coordinator (wrap GF.abortGroup24)))
+    liftGroup24 coordinator = up (W.run (G.commitAsyncTracer owner)) (hold coordinator (wrap GF.abortGroup23)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group24 coordinator)
+
+    liftGroup25 : ∀ coordinator → T.advance (event (W.run (G.finishAsyncDead owner))) (at (hold coordinator (wrap GF.abortGroup24))) ≡ just (at (hold coordinator (wrap GF.abortGroup25)))
+    liftGroup25 coordinator = up (W.run (G.finishAsyncDead owner)) (hold coordinator (wrap GF.abortGroup24)) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (group25 coordinator)
+
+    liftbeginExit : ∀ coordinator → T.advance (event (W.beginExit owner)) (at (hold coordinator EF.async0)) ≡ just (at (hold coordinator EF.async1))
+    liftbeginExit coordinator = up (W.beginExit owner) (hold coordinator EF.async0) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (beginExit coordinator)
+
+    liftbufferReturn : ∀ coordinator → T.advance (event (W.observeBufferReturn owner)) (at (hold coordinator EF.async1)) ≡ just (at (hold coordinator EF.async2))
+    liftbufferReturn coordinator = up (W.observeBufferReturn owner) (hold coordinator EF.async1) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (bufferReturn coordinator)
+
+    liftenterFinally : ∀ coordinator → T.advance (event (W.enterFinalizer owner)) (at (hold coordinator EF.async2)) ≡ just (at (finalizer coordinator world1))
+    liftenterFinally coordinator = up (W.enterFinalizer owner) (hold coordinator EF.async2) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (enterFinally coordinator)
+
+    lifttakeMap : ∀ coordinator → T.advance (event (W.cleanup owner Cleanup.takeCleanupMap)) (at (finalizer coordinator world1)) ≡ just (at (finalizer coordinator world2))
+    lifttakeMap coordinator = up (W.cleanup owner Cleanup.takeCleanupMap) (finalizer coordinator world1) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (takeMap coordinator)
+
+    liftselectEntry : ∀ coordinator → T.advance (event (W.cleanup owner Cleanup.selectCleanupEntry)) (at (finalizer coordinator world2)) ≡ just (at (finalizer coordinator world3))
+    liftselectEntry coordinator = up (W.cleanup owner Cleanup.selectCleanupEntry) (finalizer coordinator world2) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (selectEntry coordinator)
+
+    liftcloseSocket : ∀ coordinator → T.advance (event (W.cleanup owner Cleanup.closeHandlerSocket)) (at (finalizer coordinator world3)) ≡ just (at (finalizer coordinator world4))
+    liftcloseSocket coordinator = up (W.cleanup owner Cleanup.closeHandlerSocket) (finalizer coordinator world3) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (closeSocket coordinator)
+
+    liftpublishMap : ∀ coordinator → T.advance (event (W.cleanup owner Cleanup.publishCleanupMap)) (at (finalizer coordinator world4)) ≡ just (at (waitingPhysical coordinator))
+    liftpublishMap coordinator = up (W.cleanup owner Cleanup.publishCleanupMap) (finalizer coordinator world4) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl (publishMap coordinator)
+
+    waitingActions : List W.Action
+    waitingActions = W.run (G.abortOwner owner err) ∷ (abortTailActions ++ bodyActions)
+    waitingEvents : List T.Event
+    waitingEvents = map event waitingActions
+    abstract
+     actualWaiting : T.Runs start waitingEvents waiting
+     actualWaiting = T.more {a = event (W.run (G.abortOwner owner err))} (independentAbort Close.initialState) (T.more {a = event (W.run (G.beginWholeClose owner (Old.j₁₀ ∷ Old.j₁ ∷ Old.j₀ ∷ [])))} (liftGroup2 Close.initialState) (T.more {a = event (W.run (G.requestWholeCancel owner))} (liftGroup3 Close.initialState) (T.more {a = event (W.run (G.finishChildUnwind Old.j₁₀))} (liftGroup4 Close.initialState) (T.more {a = event (W.run (G.run (M.run (P.deregisterProtocol Old.j₁₀))))} (liftGroup5 Close.initialState) (T.more {a = event (W.run (G.run (M.run (P.asyncProtocolResult Old.j₁₀))))} (liftGroup6 Close.initialState) (T.more {a = event (W.run (G.joinWhole owner))} (liftGroup7 Close.initialState) (T.more {a = event (W.run (G.requestWholeCancel owner))} (liftGroup8 Close.initialState) (T.more {a = event (W.run (G.deliverWhole owner))} (liftGroup9 Close.initialState) (T.more {a = event (W.run (G.finishChildUnwind Old.j₁))} (liftGroup10 Close.initialState) (T.more {a = event (W.run (G.run (M.run (P.deregisterInfra owner Types.demuxer))))} (liftGroup11 Close.initialState) (T.more {a = event (W.run (G.run (M.run (P.asyncInfraResult owner Types.demuxer))))} (liftGroup12 Close.initialState) (T.more {a = event (W.run (G.joinWhole owner))} (liftGroup13 Close.initialState) (T.more {a = event (W.run (G.requestWholeCancel owner))} (liftGroup14 Close.initialState) (T.more {a = event (W.run (G.deliverWhole owner))} (liftGroup15 Close.initialState) (T.more {a = event (W.run (G.finishChildUnwind Old.j₀))} (liftGroup16 Close.initialState) (T.more {a = event (W.run (G.run (M.run (P.deregisterInfra owner Types.muxer))))} (liftGroup17 Close.initialState) (T.more {a = event (W.run (G.run (M.run (P.asyncInfraResult owner Types.muxer))))} (liftGroup18 Close.initialState) (T.more {a = event (W.run (G.joinWhole owner))} (liftGroup19 Close.initialState) (T.more {a = event (W.run (G.finishWholeClose owner))} (liftGroup20 Close.initialState) (T.more {a = event (W.run (G.writeAsyncFailure owner))} (liftGroup21 Close.initialState) (T.more {a = event (W.run (G.beginAsyncDead owner))} (liftGroup22 Close.initialState) (T.more {a = event (W.run (G.sampleAsyncTracer owner))} (liftGroup23 Close.initialState) (T.more {a = event (W.run (G.commitAsyncTracer owner))} (liftGroup24 Close.initialState) (T.more {a = event (W.run (G.finishAsyncDead owner))} (liftGroup25 Close.initialState) (T.more {a = event (W.beginExit owner)} (liftbeginExit Close.initialState) (T.more {a = event (W.observeBufferReturn owner)} (liftbufferReturn Close.initialState) (T.more {a = event (W.enterFinalizer owner)} (liftenterFinally Close.initialState) (T.more {a = event (W.cleanup owner Cleanup.takeCleanupMap)} (lifttakeMap Close.initialState) (T.more {a = event (W.cleanup owner Cleanup.selectCleanupEntry)} (liftselectEntry Close.initialState) (T.more {a = event (W.cleanup owner Cleanup.closeHandlerSocket)} (liftcloseSocket Close.initialState) (T.more {a = event (W.cleanup owner Cleanup.publishCleanupMap)} (liftpublishMap Close.initialState) (T.stop))))))))))))))))))))))))))))))))
+
+    waitingEntry : lookup (ident 0) (Shared.entries (Shared.cm (W.shared (waitingPhysical Close.initialState)))) ≡ just term
+    waitingEntry = refl
+    waitingBinding : Shared.mapCell (Shared.cm (W.shared (waitingPhysical Close.initialState))) ≡ Shared.full EF.table
+    waitingBinding = refl
+    waitingSocketClosed : lookup (Shared.handlerSocket captured) (Shared.sockets (W.shared (waitingPhysical Close.initialState))) ≡ just Shared.closed
+    waitingSocketClosed = refl
+    waitingNoResult : W.resultReady owner (waitingPhysical Close.initialState) ≡ false
+    waitingNoResult = refl
+    independentStillUncollected : Close.collected (W.shutdown (waitingPhysical Close.initialState)) ≡ []
+    independentStillUncollected = refl
+
+  module Suffix where
+    open import Data.Bool using (true; false)
+    open import Data.List using (List; []; _∷_; _++_; map)
+    open import Data.List.Membership.Propositional using (_∈_)
+    open import Data.List.Relation.Unary.Any using (here)
+    open import Data.Maybe using (Maybe; just; nothing)
+    open import Data.Product using (_,_)
+    open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans)
+    open import ConnectionManagement.Domain using (ident; errorId)
+    open import ConnectionManagement.Store using (lookup)
+    import ConnectionManagement.State as Shared
+    import ConnectionManagement.Negative.MuxHandlerExit as EF
+    import ConnectionManagement.Negative.MuxResultMonitor as RF
+    import ConnectionManagement.Negative.GovernorPool as Prior
+    import ConnectionManagement.Negative.ServerPeers as PriorServer
+    import ConnectionManagement.ServerPeers as Combined
+    import ConnectionManagement.Rules.Cleanup as Cleanup
+    import ConnectionManagement.Rules.CMShutdown as Close
+    module Waiting = WaitingPrefix using (module G; module W; actualWaiting; at; captured; err; event; owner; post; setWorld; start; term; up; waiting; waitingActions; waitingPhysical; world5)
+
+    module W = Waiting.W using (Action; Phase; State; acknowledgeFinished; asyncException; cleanup; cleanupComplete; deliverShutdownTimeWait; exitFrame; finalizing; finishCleanup; publishAsyncResult; resultAvailable; resultOf; setShutdown; shared; shutdown; shutdownStep; step)
+    module G = Waiting.G using (Outcome; asyncExit)
+    private module T = Combined.Protocols RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (Event; Runs; advance; more; stop)
+    owner = Waiting.owner
+    bodyError = Waiting.err
+    receiptError = errorId 99
+    term = Waiting.term
+    captured = Waiting.captured
+    module OldCM = OutboundMuxChecks.PhysicalSuffix using (acknowledged; awaiting; captured; closed; requested; selected)
+    at = Waiting.at
+    event = Waiting.event
+    up = Waiting.up
+
+    beforeCapture = Waiting.waiting
+    capturedState = at (Waiting.waitingPhysical OldCM.captured)
+    branchpoint = at (Waiting.waitingPhysical OldCM.selected)
+    requested = at (Waiting.waitingPhysical OldCM.requested)
+
+    -- Expected successors preserve the real original source and captured handler.
+    worldFinalize : Shared.CleanupOutcome → Shared.State
+    worldFinalize outcome = record Waiting.world5
+     { cleanups = (owner , Shared.cleanupFinalize term outcome) ∷ [] }
+    worldCount : Shared.CleanupOutcome → Shared.State
+    worldCount outcome = record (worldFinalize outcome)
+     { cm = record (Shared.cm Waiting.world5)
+       { mapCell = Shared.full []; entries = (ident 0 , Shared.terminated nothing) ∷ [] }
+     ; cleanups = (owner , Shared.cleanupCount outcome) ∷ [] }
+    worldDone : Shared.CleanupOutcome → Shared.State
+    worldDone outcome = record (worldCount outcome)
+     { cleanups = (owner , Shared.cleanupDone outcome) ∷ [] }
+
+    -- Body and finally outcomes are retained independently until publication.
+    state : Close.State → W.Phase → Maybe G.Outcome → Shared.State → W.State
+    state coordinator phase fault world = W.setShutdown coordinator
+     (record (Waiting.setWorld world (Waiting.post EF.async2))
+      { exits = (owner , W.exitFrame captured phase fault) ∷ [] })
+    finalizing = W.finalizing (W.asyncException bodyError)
+    interruptedPhysical = state OldCM.acknowledged finalizing (just (G.asyncExit receiptError)) (worldFinalize (Shared.cleanupError receiptError))
+    interruptedCountPhysical = state OldCM.acknowledged finalizing (just (G.asyncExit receiptError)) (worldCount (Shared.cleanupError receiptError))
+    interruptedDonePhysical = state OldCM.acknowledged finalizing (just (G.asyncExit receiptError)) (worldDone (Shared.cleanupError receiptError))
+    interruptedCleanedPhysical = state OldCM.acknowledged
+     (W.cleanupComplete (W.asyncException bodyError) (Shared.cleanupError receiptError))
+     (just (G.asyncExit receiptError)) (worldDone (Shared.cleanupError receiptError))
+    interruptedPublishedPhysical = state OldCM.acknowledged
+     (W.resultAvailable (W.asyncException bodyError) (Shared.cleanupError receiptError))
+     (just (G.asyncExit receiptError)) (worldDone (Shared.cleanupError receiptError))
+    interruptedBeforeWaitPhysical = W.setShutdown OldCM.awaiting interruptedPublishedPhysical
+    interruptedFinalPhysical = W.setShutdown OldCM.closed interruptedPublishedPhysical
+    interrupted = at interruptedPhysical
+    interruptedCount = at interruptedCountPhysical
+    interruptedDone = at interruptedDonePhysical
+    interruptedCleaned = at interruptedCleanedPhysical
+    interruptedPublished = at interruptedPublishedPhysical
+    interruptedBeforeWait = at interruptedBeforeWaitPhysical
+    interruptedFinal = at interruptedFinalPhysical
+
+    elapsedPhysical = state OldCM.selected finalizing nothing (worldFinalize Shared.cleanupNormal)
+    elapsedCountPhysical = state OldCM.selected finalizing nothing (worldCount Shared.cleanupNormal)
+    elapsedDonePhysical = state OldCM.selected finalizing nothing (worldDone Shared.cleanupNormal)
+    elapsedCleanedPhysical = state OldCM.selected
+     (W.cleanupComplete (W.asyncException bodyError) Shared.cleanupNormal) nothing (worldDone Shared.cleanupNormal)
+    elapsedPublishedPhysical = state OldCM.selected
+     (W.resultAvailable (W.asyncException bodyError) Shared.cleanupNormal) nothing (worldDone Shared.cleanupNormal)
+    elapsedRequestedPhysical = W.setShutdown OldCM.requested elapsedPublishedPhysical
+    elapsedAcknowledgedPhysical = W.setShutdown OldCM.acknowledged elapsedPublishedPhysical
+    elapsedBeforeWaitPhysical = W.setShutdown OldCM.awaiting elapsedPublishedPhysical
+    elapsedFinalPhysical = W.setShutdown OldCM.closed elapsedPublishedPhysical
+    elapsed = at elapsedPhysical
+    elapsedCount = at elapsedCountPhysical
+    elapsedDone = at elapsedDonePhysical
+    elapsedCleaned = at elapsedCleanedPhysical
+    elapsedPublished = at elapsedPublishedPhysical
+    elapsedRequested = at elapsedRequestedPhysical
+    elapsedAcknowledged = at elapsedAcknowledgedPhysical
+    elapsedBeforeWait = at elapsedBeforeWaitPhysical
+    elapsedFinal = at elapsedFinalPhysical
+
+    -- Generated actual edge equations. Each has its own physical and guard proof.
+
+    physicalcapture : W.step (W.shutdownStep Close.captureSnapshot) (Waiting.waitingPhysical Close.initialState) ≡ just (Waiting.waitingPhysical OldCM.captured)
+    physicalcapture = refl
+    capture : T.advance (event (W.shutdownStep Close.captureSnapshot)) (at (Waiting.waitingPhysical Close.initialState)) ≡ just (at (Waiting.waitingPhysical OldCM.captured))
+    capture = up (W.shutdownStep Close.captureSnapshot) (Waiting.waitingPhysical Close.initialState) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalcapture
+
+    physicalread : W.step (W.shutdownStep Close.readEntry) (Waiting.waitingPhysical OldCM.captured) ≡ just (Waiting.waitingPhysical OldCM.selected)
+    physicalread = refl
+    read : T.advance (event (W.shutdownStep Close.readEntry)) (at (Waiting.waitingPhysical OldCM.captured)) ≡ just (at (Waiting.waitingPhysical OldCM.selected))
+    read = up (W.shutdownStep Close.readEntry) (Waiting.waitingPhysical OldCM.captured) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalread
+
+    physicalrequest : W.step (W.shutdownStep Close.requestCancellation) (Waiting.waitingPhysical OldCM.selected) ≡ just (Waiting.waitingPhysical OldCM.requested)
+    physicalrequest = refl
+    request : T.advance (event (W.shutdownStep Close.requestCancellation)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ just (at (Waiting.waitingPhysical OldCM.requested))
+    request = up (W.shutdownStep Close.requestCancellation) (Waiting.waitingPhysical OldCM.selected) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalrequest
+
+    physicalreceipt : W.step (W.deliverShutdownTimeWait receiptError) (Waiting.waitingPhysical OldCM.requested) ≡ just (interruptedPhysical)
+    physicalreceipt = refl
+    receipt : T.advance (event (W.deliverShutdownTimeWait receiptError)) (at (Waiting.waitingPhysical OldCM.requested)) ≡ just (at (interruptedPhysical))
+    receipt = up (W.deliverShutdownTimeWait receiptError) (Waiting.waitingPhysical OldCM.requested) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalreceipt
+
+    physicalinterruptedFinally : W.step (W.cleanup owner Cleanup.finishTimeWait) (interruptedPhysical) ≡ just (interruptedCountPhysical)
+    physicalinterruptedFinally = refl
+    interruptedFinally : T.advance (event (W.cleanup owner Cleanup.finishTimeWait)) (at (interruptedPhysical)) ≡ just (at (interruptedCountPhysical))
+    interruptedFinally = up (W.cleanup owner Cleanup.finishTimeWait) (interruptedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalinterruptedFinally
+
+    physicalinterruptedCounters : W.step (W.cleanup owner Cleanup.readCleanupCounters) (interruptedCountPhysical) ≡ just (interruptedDonePhysical)
+    physicalinterruptedCounters = refl
+    interruptedCounters : T.advance (event (W.cleanup owner Cleanup.readCleanupCounters)) (at (interruptedCountPhysical)) ≡ just (at (interruptedDonePhysical))
+    interruptedCounters = up (W.cleanup owner Cleanup.readCleanupCounters) (interruptedCountPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalinterruptedCounters
+
+    physicalinterruptedFinish : W.step (W.finishCleanup owner) (interruptedDonePhysical) ≡ just (interruptedCleanedPhysical)
+    physicalinterruptedFinish = refl
+    interruptedFinish : T.advance (event (W.finishCleanup owner)) (at (interruptedDonePhysical)) ≡ just (at (interruptedCleanedPhysical))
+    interruptedFinish = up (W.finishCleanup owner) (interruptedDonePhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalinterruptedFinish
+
+    physicalinterruptedPublication : W.step (W.publishAsyncResult owner) (interruptedCleanedPhysical) ≡ just (interruptedPublishedPhysical)
+    physicalinterruptedPublication = refl
+    interruptedPublication : T.advance (event (W.publishAsyncResult owner)) (at (interruptedCleanedPhysical)) ≡ just (at (interruptedPublishedPhysical))
+    interruptedPublication = up (W.publishAsyncResult owner) (interruptedCleanedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalinterruptedPublication
+
+    physicalinterruptedTraverse : W.step (W.shutdownStep Close.finishTraversal) (interruptedPublishedPhysical) ≡ just (interruptedBeforeWaitPhysical)
+    physicalinterruptedTraverse = refl
+    interruptedTraverse : T.advance (event (W.shutdownStep Close.finishTraversal)) (at (interruptedPublishedPhysical)) ≡ just (at (interruptedBeforeWaitPhysical))
+    interruptedTraverse = up (W.shutdownStep Close.finishTraversal) (interruptedPublishedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalinterruptedTraverse
+
+    physicalinterruptedWait : W.step (W.shutdownStep Close.finishClose) (interruptedBeforeWaitPhysical) ≡ just (interruptedFinalPhysical)
+    physicalinterruptedWait = refl
+    interruptedWait : T.advance (event (W.shutdownStep Close.finishClose)) (at (interruptedBeforeWaitPhysical)) ≡ just (at (interruptedFinalPhysical))
+    interruptedWait = up (W.shutdownStep Close.finishClose) (interruptedBeforeWaitPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalinterruptedWait
+
+    physicalexpiry : W.step (W.cleanup owner Cleanup.timeWaitElapsed) (Waiting.waitingPhysical OldCM.selected) ≡ just (elapsedPhysical)
+    physicalexpiry = refl
+    expiry : T.advance (event (W.cleanup owner Cleanup.timeWaitElapsed)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ just (at (elapsedPhysical))
+    expiry = up (W.cleanup owner Cleanup.timeWaitElapsed) (Waiting.waitingPhysical OldCM.selected) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalexpiry
+
+    physicalelapsedFinally : W.step (W.cleanup owner Cleanup.finishTimeWait) (elapsedPhysical) ≡ just (elapsedCountPhysical)
+    physicalelapsedFinally = refl
+    elapsedFinally : T.advance (event (W.cleanup owner Cleanup.finishTimeWait)) (at (elapsedPhysical)) ≡ just (at (elapsedCountPhysical))
+    elapsedFinally = up (W.cleanup owner Cleanup.finishTimeWait) (elapsedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedFinally
+
+    physicalelapsedCounters : W.step (W.cleanup owner Cleanup.readCleanupCounters) (elapsedCountPhysical) ≡ just (elapsedDonePhysical)
+    physicalelapsedCounters = refl
+    elapsedCounters : T.advance (event (W.cleanup owner Cleanup.readCleanupCounters)) (at (elapsedCountPhysical)) ≡ just (at (elapsedDonePhysical))
+    elapsedCounters = up (W.cleanup owner Cleanup.readCleanupCounters) (elapsedCountPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedCounters
+
+    physicalelapsedFinish : W.step (W.finishCleanup owner) (elapsedDonePhysical) ≡ just (elapsedCleanedPhysical)
+    physicalelapsedFinish = refl
+    elapsedFinish : T.advance (event (W.finishCleanup owner)) (at (elapsedDonePhysical)) ≡ just (at (elapsedCleanedPhysical))
+    elapsedFinish = up (W.finishCleanup owner) (elapsedDonePhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedFinish
+
+    physicalelapsedPublication : W.step (W.publishAsyncResult owner) (elapsedCleanedPhysical) ≡ just (elapsedPublishedPhysical)
+    physicalelapsedPublication = refl
+    elapsedPublication : T.advance (event (W.publishAsyncResult owner)) (at (elapsedCleanedPhysical)) ≡ just (at (elapsedPublishedPhysical))
+    elapsedPublication = up (W.publishAsyncResult owner) (elapsedCleanedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedPublication
+
+    physicalelapsedRequest : W.step (W.shutdownStep Close.requestCancellation) (elapsedPublishedPhysical) ≡ just (elapsedRequestedPhysical)
+    physicalelapsedRequest = refl
+    elapsedRequest : T.advance (event (W.shutdownStep Close.requestCancellation)) (at (elapsedPublishedPhysical)) ≡ just (at (elapsedRequestedPhysical))
+    elapsedRequest = up (W.shutdownStep Close.requestCancellation) (elapsedPublishedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedRequest
+
+    physicalelapsedReceipt : W.step (W.acknowledgeFinished) (elapsedRequestedPhysical) ≡ just (elapsedAcknowledgedPhysical)
+    physicalelapsedReceipt = refl
+    elapsedReceipt : T.advance (event (W.acknowledgeFinished)) (at (elapsedRequestedPhysical)) ≡ just (at (elapsedAcknowledgedPhysical))
+    elapsedReceipt = up (W.acknowledgeFinished) (elapsedRequestedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedReceipt
+
+    physicalelapsedTraverse : W.step (W.shutdownStep Close.finishTraversal) (elapsedAcknowledgedPhysical) ≡ just (elapsedBeforeWaitPhysical)
+    physicalelapsedTraverse = refl
+    elapsedTraverse : T.advance (event (W.shutdownStep Close.finishTraversal)) (at (elapsedAcknowledgedPhysical)) ≡ just (at (elapsedBeforeWaitPhysical))
+    elapsedTraverse = up (W.shutdownStep Close.finishTraversal) (elapsedAcknowledgedPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedTraverse
+
+    physicalelapsedWait : W.step (W.shutdownStep Close.finishClose) (elapsedBeforeWaitPhysical) ≡ just (elapsedFinalPhysical)
+    physicalelapsedWait = refl
+    elapsedWait : T.advance (event (W.shutdownStep Close.finishClose)) (at (elapsedBeforeWaitPhysical)) ≡ just (at (elapsedFinalPhysical))
+    elapsedWait = up (W.shutdownStep Close.finishClose) (elapsedBeforeWaitPhysical) (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl physicalelapsedWait
+
+    actualSelectedActions : List W.Action
+    actualSelectedActions = (W.shutdownStep Close.captureSnapshot) ∷ (W.shutdownStep Close.readEntry) ∷ []
+    actualSelectedEvents : List T.Event
+    actualSelectedEvents = map event actualSelectedActions
+    abstract
+     actualSelected : T.Runs beforeCapture actualSelectedEvents branchpoint
+     actualSelected = T.more {a = event (W.shutdownStep Close.captureSnapshot)} capture (T.more {a = event (W.shutdownStep Close.readEntry)} read (T.stop))
+
+    actualInterruptReceiptActions : List W.Action
+    actualInterruptReceiptActions = (W.shutdownStep Close.requestCancellation) ∷ (W.deliverShutdownTimeWait receiptError) ∷ []
+    actualInterruptReceiptEvents : List T.Event
+    actualInterruptReceiptEvents = map event actualInterruptReceiptActions
+    abstract
+     actualInterruptReceipt : T.Runs branchpoint actualInterruptReceiptEvents interrupted
+     actualInterruptReceipt = T.more {a = event (W.shutdownStep Close.requestCancellation)} request (T.more {a = event (W.deliverShutdownTimeWait receiptError)} receipt (T.stop))
+
+    actualInterruptPublicationActions : List W.Action
+    actualInterruptPublicationActions = (W.cleanup owner Cleanup.finishTimeWait) ∷ (W.cleanup owner Cleanup.readCleanupCounters) ∷ (W.finishCleanup owner) ∷ (W.publishAsyncResult owner) ∷ []
+    actualInterruptPublicationEvents : List T.Event
+    actualInterruptPublicationEvents = map event actualInterruptPublicationActions
+    abstract
+     actualInterruptPublication : T.Runs interrupted actualInterruptPublicationEvents interruptedPublished
+     actualInterruptPublication = T.more {a = event (W.cleanup owner Cleanup.finishTimeWait)} interruptedFinally (T.more {a = event (W.cleanup owner Cleanup.readCleanupCounters)} interruptedCounters (T.more {a = event (W.finishCleanup owner)} interruptedFinish (T.more {a = event (W.publishAsyncResult owner)} interruptedPublication (T.stop))))
+
+    actualInterruptWaitActions : List W.Action
+    actualInterruptWaitActions = (W.shutdownStep Close.finishTraversal) ∷ (W.shutdownStep Close.finishClose) ∷ []
+    actualInterruptWaitEvents : List T.Event
+    actualInterruptWaitEvents = map event actualInterruptWaitActions
+    abstract
+     actualInterruptWait : T.Runs interruptedPublished actualInterruptWaitEvents interruptedFinal
+     actualInterruptWait = T.more {a = event (W.shutdownStep Close.finishTraversal)} interruptedTraverse (T.more {a = event (W.shutdownStep Close.finishClose)} interruptedWait (T.stop))
+
+    actualExpiryPublicationActions : List W.Action
+    actualExpiryPublicationActions = (W.cleanup owner Cleanup.timeWaitElapsed) ∷ (W.cleanup owner Cleanup.finishTimeWait) ∷ (W.cleanup owner Cleanup.readCleanupCounters) ∷ (W.finishCleanup owner) ∷ (W.publishAsyncResult owner) ∷ []
+    actualExpiryPublicationEvents : List T.Event
+    actualExpiryPublicationEvents = map event actualExpiryPublicationActions
+    abstract
+     actualExpiryPublication : T.Runs branchpoint actualExpiryPublicationEvents elapsedPublished
+     actualExpiryPublication = T.more {a = event (W.cleanup owner Cleanup.timeWaitElapsed)} expiry (T.more {a = event (W.cleanup owner Cleanup.finishTimeWait)} elapsedFinally (T.more {a = event (W.cleanup owner Cleanup.readCleanupCounters)} elapsedCounters (T.more {a = event (W.finishCleanup owner)} elapsedFinish (T.more {a = event (W.publishAsyncResult owner)} elapsedPublication (T.stop)))))
+
+    actualElapsedReceiptActions : List W.Action
+    actualElapsedReceiptActions = (W.shutdownStep Close.requestCancellation) ∷ (W.acknowledgeFinished) ∷ []
+    actualElapsedReceiptEvents : List T.Event
+    actualElapsedReceiptEvents = map event actualElapsedReceiptActions
+    abstract
+     actualElapsedReceipt : T.Runs elapsedPublished actualElapsedReceiptEvents elapsedAcknowledged
+     actualElapsedReceipt = T.more {a = event (W.shutdownStep Close.requestCancellation)} elapsedRequest (T.more {a = event (W.acknowledgeFinished)} elapsedReceipt (T.stop))
+
+    actualElapsedWaitActions : List W.Action
+    actualElapsedWaitActions = (W.shutdownStep Close.finishTraversal) ∷ (W.shutdownStep Close.finishClose) ∷ []
+    actualElapsedWaitEvents : List T.Event
+    actualElapsedWaitEvents = map event actualElapsedWaitActions
+    abstract
+     actualElapsedWait : T.Runs elapsedAcknowledged actualElapsedWaitEvents elapsedFinal
+     actualElapsedWait = T.more {a = event (W.shutdownStep Close.finishTraversal)} elapsedTraverse (T.more {a = event (W.shutdownStep Close.finishClose)} elapsedWait (T.stop))
+
+    append : ∀ {start middle current first last} → T.Runs start first middle → T.Runs middle last current → T.Runs start (first ++ last) current
+    append T.stop rest = rest
+    append (T.more actual path) rest = T.more actual (append path rest)
+
+    interruptBeforeWaitActions : List W.Action
+    interruptBeforeWaitActions = Waiting.waitingActions ++ (actualSelectedActions ++ (actualInterruptReceiptActions ++ (actualInterruptPublicationActions ++ (W.shutdownStep Close.finishTraversal ∷ []))))
+    elapsedBeforeWaitActions : List W.Action
+    elapsedBeforeWaitActions = Waiting.waitingActions ++ (actualSelectedActions ++ (actualExpiryPublicationActions ++ (actualElapsedReceiptActions ++ (W.shutdownStep Close.finishTraversal ∷ []))))
+    abstract
+     actualInterruptBeforeWait : T.Runs Waiting.start (map event interruptBeforeWaitActions) interruptedBeforeWait
+     actualInterruptBeforeWait = append Waiting.actualWaiting (append actualSelected
+      (append actualInterruptReceipt (append actualInterruptPublication
+       (T.more {a = event (W.shutdownStep Close.finishTraversal)} interruptedTraverse T.stop))))
+     actualElapsedBeforeWait : T.Runs Waiting.start (map event elapsedBeforeWaitActions) elapsedBeforeWait
+     actualElapsedBeforeWait = append Waiting.actualWaiting (append actualSelected
+      (append actualExpiryPublication (append actualElapsedReceipt
+       (T.more {a = event (W.shutdownStep Close.finishTraversal)} elapsedTraverse T.stop))))
+
+    -- Primitive consequences at the actual receipt and finally boundaries.
+    receiptRetainsTerminating : lookup (ident 0) (Shared.entries (Shared.cm (W.shared interruptedPhysical))) ≡ just term
+    receiptRetainsTerminating = refl
+    receiptRetainsBinding : Shared.mapCell (Shared.cm (W.shared interruptedPhysical)) ≡ Shared.full EF.table
+    receiptRetainsBinding = refl
+    interruptedFinallyTerminates : lookup (ident 0) (Shared.entries (Shared.cm (W.shared interruptedCountPhysical))) ≡ just (Shared.terminated nothing)
+    interruptedFinallyTerminates = refl
+    interruptedFinallyPurges : Shared.mapCell (Shared.cm (W.shared interruptedCountPhysical)) ≡ Shared.full []
+    interruptedFinallyPurges = refl
+    elapsedFinallyTerminates : lookup (ident 0) (Shared.entries (Shared.cm (W.shared elapsedCountPhysical))) ≡ just (Shared.terminated nothing)
+    elapsedFinallyTerminates = refl
+    elapsedFinallyPurges : Shared.mapCell (Shared.cm (W.shared elapsedCountPhysical)) ≡ Shared.full []
+    elapsedFinallyPurges = refl
+    interruptedEffectiveResult : W.resultOf owner interruptedFinalPhysical ≡ just (W.asyncException receiptError)
+    interruptedEffectiveResult = refl
+    elapsedEffectiveResult : W.resultOf owner elapsedFinalPhysical ≡ just (W.asyncException bodyError)
+    elapsedEffectiveResult = refl
+    interruptedMember : owner ∈ Close.collected (W.shutdown interruptedFinalPhysical)
+    interruptedMember = here refl
+    elapsedMember : owner ∈ Close.collected (W.shutdown elapsedFinalPhysical)
+    elapsedMember = here refl
+
+    -- Actual refusal controls.
+
+    waitingCannotFinalize : T.advance (event (W.cleanup owner Cleanup.finishTimeWait)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ nothing
+    waitingCannotFinalize = refl
+
+    waitingCannotCount : T.advance (event (W.cleanup owner Cleanup.readCleanupCounters)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ nothing
+    waitingCannotCount = refl
+
+    waitingCannotFinish : T.advance (event (W.finishCleanup owner)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ nothing
+    waitingCannotFinish = refl
+
+    waitingCannotPublish : T.advance (event (W.publishAsyncResult owner)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ nothing
+    waitingCannotPublish = refl
+
+    prematureReceipt : T.advance (event (W.deliverShutdownTimeWait receiptError)) (at (Waiting.waitingPhysical OldCM.selected)) ≡ nothing
+    prematureReceipt = refl
+
+    rawAckBypass : T.advance (event (W.shutdownStep Close.acknowledgeDelivery)) (at (Waiting.waitingPhysical OldCM.requested)) ≡ nothing
+    rawAckBypass = refl
+
+    finishedAckNeedsResult : T.advance (event (W.acknowledgeFinished)) (at (Waiting.waitingPhysical OldCM.requested)) ≡ nothing
+    finishedAckNeedsResult = refl
+
+    receiptCannotPublish : T.advance (event (W.publishAsyncResult owner)) (at (interruptedPhysical)) ≡ nothing
+    receiptCannotPublish = refl
+
+    receiptCannotCount : T.advance (event (W.cleanup owner Cleanup.readCleanupCounters)) (at (interruptedPhysical)) ≡ nothing
+    receiptCannotCount = refl
+
+    expiryCannotPublish : T.advance (event (W.publishAsyncResult owner)) (at (elapsedPhysical)) ≡ nothing
+    expiryCannotPublish = refl
+
+    expiryCannotCount : T.advance (event (W.cleanup owner Cleanup.readCleanupCounters)) (at (elapsedPhysical)) ≡ nothing
+    expiryCannotCount = refl
+
+    duplicateReceipt : T.advance (event (W.deliverShutdownTimeWait receiptError)) (at (interruptedPhysical)) ≡ nothing
+    duplicateReceipt = refl
+
+    duplicateExpiry : T.advance (event (W.cleanup owner Cleanup.timeWaitElapsed)) (at (elapsedPhysical)) ≡ nothing
+    duplicateExpiry = refl
+
+    duplicateInterruption : T.advance (event (W.cleanup owner (Cleanup.interruptTimeWait receiptError))) (at (interruptedPhysical)) ≡ nothing
+    duplicateInterruption = refl
+
+    duplicateInterruptedFinally : T.advance (event (W.cleanup owner Cleanup.finishTimeWait)) (at (interruptedCountPhysical)) ≡ nothing
+    duplicateInterruptedFinally = refl
+
+    duplicateElapsedFinally : T.advance (event (W.cleanup owner Cleanup.finishTimeWait)) (at (elapsedCountPhysical)) ≡ nothing
+    duplicateElapsedFinally = refl
+
+    duplicateInterruptedPublication : T.advance (event (W.publishAsyncResult owner)) (at (interruptedPublishedPhysical)) ≡ nothing
+    duplicateInterruptedPublication = refl
+
+    duplicateElapsedPublication : T.advance (event (W.publishAsyncResult owner)) (at (elapsedPublishedPhysical)) ≡ nothing
+    duplicateElapsedPublication = refl
+
+    duplicateInterruptedWait : T.advance (event (W.shutdownStep Close.finishClose)) (at (interruptedFinalPhysical)) ≡ nothing
+    duplicateInterruptedWait = refl
+
+    duplicateElapsedWait : T.advance (event (W.shutdownStep Close.finishClose)) (at (elapsedFinalPhysical)) ≡ nothing
+    duplicateElapsedWait = refl
+
+    -- Early traversal is itself enabled after receipt. Its actual successor still
+    -- refuses collective waiting until Async publication, even after cleanupDone.
+    interruptedEarlyWaitingPhysical = W.setShutdown OldCM.awaiting interruptedCleanedPhysical
+    interruptedEarlyTraversal : T.advance (event (W.shutdownStep Close.finishTraversal)) interruptedCleaned ≡ just (at interruptedEarlyWaitingPhysical)
+    interruptedEarlyTraversal = up (W.shutdownStep Close.finishTraversal) interruptedCleanedPhysical
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl refl
+    interruptedEarlyWaitRefused : T.advance (event (W.shutdownStep Close.finishClose)) (at interruptedEarlyWaitingPhysical) ≡ nothing
+    interruptedEarlyWaitRefused = refl
+
+    -- An early expiry-branch CM request is real, but cannot acknowledgeFinished
+    -- before physical publication even when cleanup has completed.
+    elapsedEarlyRequestedPhysical = W.setShutdown OldCM.requested elapsedCleanedPhysical
+    elapsedEarlyRequest : T.advance (event (W.shutdownStep Close.requestCancellation)) elapsedCleaned ≡ just (at elapsedEarlyRequestedPhysical)
+    elapsedEarlyRequest = up (W.shutdownStep Close.requestCancellation) elapsedCleanedPhysical
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl refl
+    elapsedEarlyAckRefused : T.advance (event W.acknowledgeFinished) (at elapsedEarlyRequestedPhysical) ≡ nothing
+    elapsedEarlyAckRefused = refl
+
+    -- Independent cleanup cancellation may be enabled but is not CM receipt.
+    rawInterruptedPhysical = state OldCM.requested finalizing (just (G.asyncExit receiptError)) (worldFinalize (Shared.cleanupError receiptError))
+    standaloneInterrupt : T.advance (event (W.cleanup owner (Cleanup.interruptTimeWait receiptError))) requested ≡ just (at rawInterruptedPhysical)
+    standaloneInterrupt = up (W.cleanup owner (Cleanup.interruptTimeWait receiptError)) (Waiting.waitingPhysical OldCM.requested)
+     (record { delta-permission = refl; delta-tickets = refl; server-permission = refl; ig-permission = refl; shared-permission = refl; front-permission = refl }) refl refl
+    standaloneUnacknowledged : Close.phase (W.shutdown rawInterruptedPhysical) ≡ Close.awaitDelivery (ident 0) owner
+    standaloneUnacknowledged = refl
+    standaloneUncollected : Close.collected (W.shutdown rawInterruptedPhysical) ≡ []
+    standaloneUncollected = refl
+
+  open import Data.Bool using (true; false)
+  open import Data.List using (List; []; _∷_; _++_; map)
+  open import Data.List.Relation.Unary.Any using (here)
+  import Data.List.Relation.Unary.All as All
+  open import Data.Maybe using (just; nothing)
+  open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
+  open import ConnectionManagement.Domain using (ident)
+  open import ConnectionManagement.Store using (lookup)
+  import ConnectionManagement.OutboundMachine as O
+  import ConnectionManagement.State as Shared
+  import ConnectionManagement.OutboundHandlerSupervision as B
+  import ConnectionManagement.HandlerSupervision as H
+  import ConnectionManagement.ServerPeers as Model
+  import ConnectionManagement.MuxHandlerExit as ExitModel
+  import ConnectionManagement.Rules.OutboundAcquire as Acquire
+  import ConnectionManagement.Rules.CMShutdown as Close
+  import ConnectionManagement.CSP.GovernorLifecycle as L
+  import ConnectionManagement.Negative.GovernorPool as Prior
+  import ConnectionManagement.Negative.MuxProtocolJobs as Old
+  import ConnectionManagement.Negative.MuxResultMonitor as RF
+  import ConnectionManagement.Negative.ServerPeers as Parent
+  import ConnectionManagement.Properties.ServerPeersMuxEmbedding as Embedding
+  import ConnectionManagement.Properties.ServerPeersMonitorJoins as JoinModel
+  import ConnectionManagement.Properties.ServerPeersTimeWaitReceipt as TimeWaitModel
+  import ConnectionManagement.Properties.ServerPeersFinishedReceipt as FinishedModel
+  import ConnectionManagement.Properties.CollectedOutboundOrigin as OriginModel
+  import ConnectionManagement.Properties.HandlerBirthBacking as BirthModel
+  import ConnectionManagement.Properties.HandlerResourceFacts as ResourceFacts
+  import ConnectionManagement.Properties.MuxHandlerExit as WaitModel
+  private
+    module P = OutboundMuxChecks.ServingPrefix using (actualAfterBirth; actualPrefix; afterBirthEvents; beforeForkEvents; birthEvents; born; call; initialized; prefixEvents; start)
+    module Birth = OutboundMuxChecks.BirthPackets using (backing; origin; originalLabel; originalPrefix)
+    module Input = OutboundMuxChecks.PhysicalPrefix using (inputCore)
+    module A = TerminatingPrefix using (actualPrefix; events)
+    module C = ScopeClose using (actualClose; afterCallbackServerRuns; beforeEntryActions; closeEvents; closed; peer26; peerEvents; peerPath; scopeStep1)
+    module F = Suffix using (actualElapsedBeforeWait; actualElapsedWait; actualElapsedWaitEvents; actualExpiryPublication; actualExpiryPublicationEvents; actualInterruptBeforeWait; actualInterruptPublication; actualInterruptPublicationEvents; actualInterruptWait; actualInterruptWaitEvents; actualSelected; actualSelectedEvents; branchpoint; elapsedAcknowledged; elapsedBeforeWait; elapsedBeforeWaitActions; elapsedCleaned; elapsedFinal; elapsedPublication; elapsedPublished; elapsedReceipt; elapsedRequest; elapsedRequested; elapsedWait; interruptBeforeWaitActions; interrupted; interruptedBeforeWait; interruptedCleaned; interruptedFinal; interruptedPublication; interruptedPublished; interruptedWait; receipt; receiptError; request; requested)
+    module T = Model.Protocols RF.bearerClosed Prior.classify Parent.Protocols.capability using
+      (Runtime; Event; Runs; advance; more; stop)
+    module W = ExitModel RF.bearerClosed using
+      (State; Action; shutdown; resultReady; resultOf; asyncException; publishAsyncResult; shutdownStep)
+    module Emb = Embedding.Frontend RF.bearerClosed Prior.classify Parent.Protocols.capability using (event)
+    module Joins = JoinModel.Frontend RF.bearerClosed Prior.classify Parent.Protocols.capability using
+      (physical; CMEntry; initialized-cm-entry-run; CMResultWait; result-wait; physical-publication; physical-wait)
+    module TW = TimeWaitModel RF.bearerClosed Prior.classify using (Receipt; observed-worker; observed-entry)
+    module TWFront = TimeWaitModel.Frontend RF.bearerClosed Prior.classify Parent.Protocols.capability using (event)
+    module TWFields = TimeWaitModel.Receipt using (worker; entry)
+    module Finished = FinishedModel RF.bearerClosed Prior.classify using (observed-worker)
+    module FinishedFields = FinishedModel.Receipt using (worker)
+    module FinishedFront = FinishedModel.Frontend RF.bearerClosed Prior.classify Parent.Protocols.capability using (event)
+    module Origin = OriginModel.Frontend RF.bearerClosed Prior.classify Parent.Protocols.capability using
+      (Discovery; TimeWaitDiscovery; FinishedDiscovery; OutboundOrigin; BirthPacket;
+       initialize-origin; initialize-timewait; initialize-finished; extend-outbound; extend-packet; execution; shared)
+    module Outbound = OriginModel.Frontend.OutboundOrigin using (packet; retained)
+    module Packet = OriginModel.Frontend.BirthPacket using (label; prefix)
+    module Found = OriginModel.Frontend.Discovery using (captured; backing)
+    module TWFound = OriginModel.Frontend.TimeWaitDiscovery using (receipt; discovered)
+    module FinishedFound = OriginModel.Frontend.FinishedDiscovery using (receipt; discovered)
+    module Back = BirthModel.Frontend RF.bearerClosed Prior.classify Parent.Protocols.capability using
+      (Backing; ForkStep; physical-state; follow; follow-operation; capture-of-found)
+    module WaitFacts = WaitModel RF.bearerClosed using (Publication; PhysicalWait)
+    module ObservedWait = WaitModel.PhysicalWait using (observed-results)
+
+  append : ∀ {start middle current first last} → T.Runs start first middle → T.Runs middle last current → T.Runs start (first ++ last) current
+  append T.stop rest = rest
+  append (T.more actual path) rest = T.more actual (append path rest)
+
+  -- Reuse the accepted opaque physical birth instead of reconstructing it.
+  -- Both branches copy its exact packet and enabled physical fork command.
+  module Retention where
+    birthCommand : ∀ {start current events worker captured} → Back.Backing start current events worker captured → B.Action
+    birthCommand history = Back.ForkStep.command (BirthModel.Frontend.Backing.operation history)
+    record Retained (current : T.Runtime) (events : List T.Event) : Set where
+      field
+        origin : Origin.OutboundOrigin Input.inputCore L.settings P.start current events Old.owner Old.Prior.captured
+        same-packet : Outbound.packet origin ≡ Outbound.packet Birth.origin
+        backing : Back.Backing P.start current events Old.owner Old.Prior.captured
+        same-command : birthCommand backing ≡ birthCommand Birth.backing
+    original : Retained P.born P.birthEvents
+    original = record { origin = Birth.origin; same-packet = refl; backing = Birth.backing; same-command = refl }
+    abstract
+      retain : ∀ {before after events tail} → T.Runs before tail after → Retained before events → Retained after (events ++ tail)
+      retain path history = record
+        { origin = Origin.extend-outbound path (Retained.origin history)
+        ; same-packet = trans (Origin.extend-packet path (Retained.origin history)) (Retained.same-packet history)
+        ; backing = Back.follow path (Retained.backing history)
+        ; same-command = trans (cong Back.ForkStep.command (Back.follow-operation path (Retained.backing history))) (Retained.same-command history) }
+    resources : ∀ {current events} → Retained current events → ResourceFacts.Facts Old.owner Old.Prior.captured (Origin.shared current)
+    resources history = Outbound.retained (Retained.origin history)
+  open Retention public using (birthCommand; Retained; original; retain; resources)
+
+  toBranchTail : List T.Event
+  toBranchTail = P.afterBirthEvents ++ (A.events ++ (C.closeEvents ++ (WaitingPrefix.waitingEvents ++ F.actualSelectedEvents)))
+  branchIndex : List T.Event
+  branchIndex = P.birthEvents ++ toBranchTail
+  requestedEvents : List T.Event
+  requestedEvents = Emb.event (W.shutdownStep Close.requestCancellation) ∷ []
+  requestedIndex : List T.Event
+  requestedIndex = branchIndex ++ requestedEvents
+  receiptEvents : List T.Event
+  receiptEvents = TWFront.event F.receiptError ∷ []
+  receiptIndex : List T.Event
+  receiptIndex = requestedIndex ++ receiptEvents
+  interruptPublicationIndex : List T.Event
+  interruptPublicationIndex = receiptIndex ++ F.actualInterruptPublicationEvents
+  interruptFinalIndex : List T.Event
+  interruptFinalIndex = interruptPublicationIndex ++ F.actualInterruptWaitEvents
+  elapsedPublicationIndex : List T.Event
+  elapsedPublicationIndex = branchIndex ++ F.actualExpiryPublicationEvents
+  elapsedRequestedIndex : List T.Event
+  elapsedRequestedIndex = elapsedPublicationIndex ++ requestedEvents
+  finishedEvents : List T.Event
+  finishedEvents = FinishedFront.event ∷ []
+  elapsedReceiptIndex : List T.Event
+  elapsedReceiptIndex = elapsedRequestedIndex ++ finishedEvents
+  elapsedFinalIndex : List T.Event
+  elapsedFinalIndex = elapsedReceiptIndex ++ F.actualElapsedWaitEvents
+
+  -- Reuse the checked closing-state equality at each composition boundary.
+  -- No guarded transition is reconstructed by normalizing the whole runtime.
+  module Glue where
+    abstract
+      waitingFromScope : T.Runs C.closed WaitingPrefix.waitingEvents WaitingPrefix.waiting
+      waitingFromScope = subst (λ start → T.Runs start WaitingPrefix.waitingEvents WaitingPrefix.waiting)
+        (sym WaitingPrefix.closedMatches) WaitingPrefix.actualWaiting
+      interruptFromScope : T.Runs C.closed (map Emb.event F.interruptBeforeWaitActions) F.interruptedBeforeWait
+      interruptFromScope = subst (λ start → T.Runs start (map Emb.event F.interruptBeforeWaitActions) F.interruptedBeforeWait)
+        (sym WaitingPrefix.closedMatches) F.actualInterruptBeforeWait
+      elapsedFromScope : T.Runs C.closed (map Emb.event F.elapsedBeforeWaitActions) F.elapsedBeforeWait
+      elapsedFromScope = subst (λ start → T.Runs start (map Emb.event F.elapsedBeforeWaitActions) F.elapsedBeforeWait)
+        (sym WaitingPrefix.closedMatches) F.actualElapsedBeforeWait
+
+  module Histories where
+    abstract
+      birthToBranch : T.Runs P.born toBranchTail F.branchpoint
+      birthToBranch = append P.actualAfterBirth (append A.actualPrefix (append C.actualClose (append Glue.waitingFromScope F.actualSelected)))
+      branch : Retained F.branchpoint branchIndex
+      branch = retain birthToBranch original
+      initializedBranch : T.Runs P.start branchIndex F.branchpoint
+      initializedBranch = Origin.execution (Retained.origin branch)
+      beforeReceipt : Retained F.requested requestedIndex
+      beforeReceipt = retain (T.more {a = Emb.event (W.shutdownStep Close.requestCancellation)} F.request T.stop) branch
+      atReceipt : Retained F.interrupted receiptIndex
+      atReceipt = retain (T.more {a = TWFront.event F.receiptError} F.receipt T.stop) beforeReceipt
+      interruptPublication : Retained F.interruptedPublished interruptPublicationIndex
+      interruptPublication = retain F.actualInterruptPublication atReceipt
+      interruptFinal : Retained F.interruptedFinal interruptFinalIndex
+      interruptFinal = retain F.actualInterruptWait interruptPublication
+      elapsedPublication : Retained F.elapsedPublished elapsedPublicationIndex
+      elapsedPublication = retain F.actualExpiryPublication branch
+      elapsedRequested : Retained F.elapsedRequested elapsedRequestedIndex
+      elapsedRequested = retain (T.more {a = Emb.event (W.shutdownStep Close.requestCancellation)} F.elapsedRequest T.stop) elapsedPublication
+      elapsedReceipt : Retained F.elapsedAcknowledged elapsedReceiptIndex
+      elapsedReceipt = retain (T.more {a = FinishedFront.event} F.elapsedReceipt T.stop) elapsedRequested
+      elapsedFinal : Retained F.elapsedFinal elapsedFinalIndex
+      elapsedFinal = retain F.actualElapsedWait elapsedReceipt
+  open Histories public using (birthToBranch; branch; initializedBranch; beforeReceipt; atReceipt; interruptPublication; interruptFinal; elapsedPublication; elapsedRequested; elapsedReceipt; elapsedFinal)
+
+  abstract
+    -- The closed constructors derive both receipt identity and membership.
+    interruption : Origin.TimeWaitDiscovery Input.inputCore L.settings P.start F.requested F.interrupted requestedIndex F.receiptError
+    interruption = Origin.initialize-timewait P.initialized (Origin.execution (Retained.origin beforeReceipt)) F.receipt
+    receiptWorker : TWFields.worker (TWFound.receipt interruption) ≡ Old.owner
+    receiptWorker = TW.observed-worker (TWFound.receipt interruption) refl
+    receiptEntry : TWFields.entry (TWFound.receipt interruption) ≡ ident 0
+    receiptEntry = TW.observed-entry (TWFound.receipt interruption) refl
+    discoveredInterruption : Origin.Discovery Input.inputCore L.settings P.start F.interrupted receiptIndex Old.owner
+    discoveredInterruption = subst (Origin.Discovery Input.inputCore L.settings P.start F.interrupted receiptIndex)
+      receiptWorker (TWFound.discovered interruption)
+    finished : Origin.FinishedDiscovery Input.inputCore L.settings P.start F.elapsedRequested F.elapsedAcknowledged elapsedRequestedIndex
+    finished = Origin.initialize-finished P.initialized (Origin.execution (Retained.origin elapsedRequested)) F.elapsedReceipt
+    discoveredExpiry : Origin.Discovery Input.inputCore L.settings P.start F.elapsedAcknowledged elapsedReceiptIndex Old.owner
+    discoveredExpiry = subst (Origin.Discovery Input.inputCore L.settings P.start F.elapsedAcknowledged elapsedReceiptIndex)
+      (Finished.observed-worker (FinishedFound.receipt finished) refl) (FinishedFound.discovered finished)
+    discoveredInterruptFinal : Origin.Discovery Input.inputCore L.settings P.start F.interruptedFinal interruptFinalIndex Old.owner
+    discoveredInterruptFinal = Origin.initialize-origin P.initialized (Origin.execution (Retained.origin interruptFinal)) (here refl)
+    discoveredElapsedFinal : Origin.Discovery Input.inputCore L.settings P.start F.elapsedFinal elapsedFinalIndex Old.owner
+    discoveredElapsedFinal = Origin.initialize-origin P.initialized (Origin.execution (Retained.origin elapsedFinal)) (here refl)
+
+  -- Raw registry phases are historical beneath the effective mux exit frame.
+  capturedAfterInterrupt : lookup Old.owner (B.threads (Back.physical-state F.interruptedFinal)) ≡ just (H.handlerThread Old.Prior.captured H.handshaking)
+  capturedAfterInterrupt = refl
+  capturedAfterExpiry : lookup Old.owner (B.threads (Back.physical-state F.elapsedFinal)) ≡ just (H.handlerThread Old.Prior.captured H.handshaking)
+  capturedAfterExpiry = refl
+  descriptorInterrupt : Found.captured discoveredInterruptFinal ≡ Old.Prior.captured
+  descriptorInterrupt = sym (Back.capture-of-found (Found.backing discoveredInterruptFinal) capturedAfterInterrupt)
+  descriptorExpiry : Found.captured discoveredElapsedFinal ≡ Old.Prior.captured
+  descriptorExpiry = sym (Back.capture-of-found (Found.backing discoveredElapsedFinal) capturedAfterExpiry)
+  resourcesInterrupt : ResourceFacts.Facts Old.owner Old.Prior.captured (Origin.shared F.interruptedFinal)
+  resourcesInterrupt = resources interruptFinal
+  resourcesExpiry : ResourceFacts.Facts Old.owner Old.Prior.captured (Origin.shared F.elapsedFinal)
+  resourcesExpiry = resources elapsedFinal
+  sameBirthLabelInterrupt : Packet.label (Outbound.packet (Retained.origin interruptFinal)) ≡ P.call Acquire.forkOK
+  sameBirthLabelInterrupt = trans (cong Packet.label (Retained.same-packet interruptFinal)) Birth.originalLabel
+  sameBirthLabelExpiry : Packet.label (Outbound.packet (Retained.origin elapsedFinal)) ≡ P.call Acquire.forkOK
+  sameBirthLabelExpiry = trans (cong Packet.label (Retained.same-packet elapsedFinal)) Birth.originalLabel
+  sameBirthPrefixInterrupt : Packet.prefix (Outbound.packet (Retained.origin interruptFinal)) ≡ P.beforeForkEvents
+  sameBirthPrefixInterrupt = trans (cong Packet.prefix (Retained.same-packet interruptFinal)) Birth.originalPrefix
+  sameBirthPrefixExpiry : Packet.prefix (Outbound.packet (Retained.origin elapsedFinal)) ≡ P.beforeForkEvents
+  sameBirthPrefixExpiry = trans (cong Packet.prefix (Retained.same-packet elapsedFinal)) Birth.originalPrefix
+
+  interruptPhysicalPublication : WaitFacts.Publication Old.owner (Joins.physical F.interruptedCleaned) (Joins.physical F.interruptedPublished)
+  interruptPhysicalPublication = Joins.physical-publication Old.owner F.interruptedCleaned F.interruptedPublication
+  elapsedPhysicalPublication : WaitFacts.Publication Old.owner (Joins.physical F.elapsedCleaned) (Joins.physical F.elapsedPublished)
+  elapsedPhysicalPublication = Joins.physical-publication Old.owner F.elapsedCleaned F.elapsedPublication
+  interruptPhysicalWait : WaitFacts.PhysicalWait (Joins.physical F.interruptedBeforeWait) (Joins.physical F.interruptedFinal)
+  interruptPhysicalWait = Joins.physical-wait F.interruptedBeforeWait F.interruptedWait
+  elapsedPhysicalWait : WaitFacts.PhysicalWait (Joins.physical F.elapsedBeforeWait) (Joins.physical F.elapsedFinal)
+  elapsedPhysicalWait = Joins.physical-wait F.elapsedBeforeWait F.elapsedWait
+  interruptResultOracle : W.resultReady Old.owner (Joins.physical F.interruptedBeforeWait) ≡ true
+  interruptResultOracle = All.lookup (ObservedWait.observed-results interruptPhysicalWait) (here refl)
+  elapsedResultOracle : W.resultReady Old.owner (Joins.physical F.elapsedBeforeWait) ≡ true
+  elapsedResultOracle = All.lookup (ObservedWait.observed-results elapsedPhysicalWait) (here refl)
+
+  -- Scope certificates use actual returnAction/beginCM and the same later
+  -- handler events. There is no invented CM entry or supplied result oracle.
+  callbackEvents : List T.Event
+  callbackEvents = P.prefixEvents ++ (A.events ++ C.peerEvents)
+  abstract
+    initializedCallbackPrefix : T.Runs P.start callbackEvents C.peer26
+    initializedCallbackPrefix = append P.actualPrefix (append A.actualPrefix C.peerPath)
+    cmEntry : Joins.CMEntry P.start C.closed
+    cmEntry = Joins.initialized-cm-entry-run {actions = C.beforeEntryActions}
+      P.initialized initializedCallbackPrefix C.scopeStep1 C.afterCallbackServerRuns
+    interruptedCMWait : Joins.CMResultWait P.start F.interruptedBeforeWait F.interruptedFinal
+    interruptedCMWait = Joins.result-wait {start = P.start} {entry = C.closed}
+      {before = F.interruptedBeforeWait} {after = F.interruptedFinal} cmEntry
+      (OutboundMuxChecks.handlerRuns {start = C.closed} {current = F.interruptedBeforeWait}
+        F.interruptBeforeWaitActions Glue.interruptFromScope) F.interruptedWait
+    elapsedCMWait : Joins.CMResultWait P.start F.elapsedBeforeWait F.elapsedFinal
+    elapsedCMWait = Joins.result-wait {start = P.start} {entry = C.closed}
+      {before = F.elapsedBeforeWait} {after = F.elapsedFinal} cmEntry
+      (OutboundMuxChecks.handlerRuns {start = C.closed} {current = F.elapsedBeforeWait}
+        F.elapsedBeforeWaitActions Glue.elapsedFromScope) F.elapsedWait

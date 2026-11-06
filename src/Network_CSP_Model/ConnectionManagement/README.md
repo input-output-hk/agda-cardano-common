@@ -6,8 +6,8 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `8dd2452` (increment 63), with
-accepted, uncommitted increment 64 outbound mux integration (6 November 2026);
+the lifecycle claims through model commit `eef9971` (increment 64), with
+accepted, uncommitted increment 65 TIME_WAIT integration (6 November 2026);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -51,8 +51,12 @@ skips the terminated entry, keeping this route distinct from normal return.
 adds the outbound negotiated-mux route through actual Server/nonempty-IG
 closure, coupled receipt, interrupted-group unwind and handler result wait.
 Its supported initialization and inactive-tracer effects are explicit; fresh full
-acceptance passed. The next candidate is TIME_WAIT, beginning with a separate
-source/control audit.
+acceptance passed; it is committed in `eef9971`.
+[Increment 65](Supervision.md#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
+now follows the audited TIME_WAIT route from genuine idle expiry and release
+timeout through elapsed/interrupted finally, publication and both same-origin CM
+waits; fresh full acceptance passed. Its independent release caller remains
+pending; the next planned slice is its coupled framed-mux receipt and return.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 

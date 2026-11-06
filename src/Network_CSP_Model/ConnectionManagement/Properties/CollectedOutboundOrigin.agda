@@ -229,3 +229,28 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
        (append path (T.more {a = MuxReceipt.event err} actual T.stop)) (MuxReceipt.receipt-member receipt) }
    where
    receipt = MuxReceipt.physical-receipt err before actual
+
+ private
+  import ConnectionManagement.Properties.ServerPeersTimeWaitReceipt as TimeWaitFacts
+  module TimeWait = TimeWaitFacts b io using (Receipt; receipt-member)
+  module TimeWaitFront = TimeWaitFacts.Frontend b io capability using (event; physical-receipt)
+  module TimeWaitFields = TimeWaitFacts.Receipt using (worker)
+
+ -- A real TIME_WAIT interruption determines the collected identity. The
+ -- finally transaction and physical result remain later enabled obligations.
+ record TimeWaitDiscovery (input : M.Configuration) (governor : Governor.State)
+   (start before after : T.Runtime) (events : List T.Event) (err : ErrorId) : Set where
+  field
+   receipt : TimeWait.Receipt err (R.base (Member.unwind before)) (R.base (Member.unwind after))
+   discovered : Discovery input governor start after (events ++ (TimeWaitFront.event err ∷ [])) (TimeWaitFields.worker receipt)
+
+ initialize-timewait : ∀ {input governor start before after events err} →
+   T.initialize (O.initial input) governor ≡ just start → T.Runs start events before →
+   T.advance (TimeWaitFront.event err) before ≡ just after →
+   TimeWaitDiscovery input governor start before after events err
+ initialize-timewait {before = before} {err = err} initialized path actual = record
+   { receipt = receipt
+   ; discovered = initialize-origin initialized
+       (append path (T.more {a = TimeWaitFront.event err} actual T.stop)) (TimeWait.receipt-member receipt) }
+   where
+   receipt = TimeWaitFront.physical-receipt err before actual
