@@ -503,7 +503,7 @@ module Mux where
  ... | [] | [] | nothing = case eq of λ ()
 
 module Protocol where
- private module P = ProtocolModel using (State; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step)
+ private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; State; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step)
  private module U = MuxModel Types.TypedResult using (base; initial; step)
  view : P.State → Effects.Registry
  view = Effects.ProtocolLayer.view
@@ -520,6 +520,9 @@ module Protocol where
  step-preserves (P.forkResponder w j gen) s eq valid = transport (Effects.ProtocolLayer.change (P.forkResponder w j gen) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.forkResponder w j gen) s eq tt)) valid)
  step-preserves (P.forkInitiator w j gen n) s eq valid = transport (Effects.ProtocolLayer.change (P.forkInitiator w j gen n) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.forkInitiator w j gen n) s eq tt)) valid)
  step-preserves (P.registerProtocol j) s eq valid = transport (Effects.ProtocolLayer.change (P.registerProtocol j) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.registerProtocol j) s eq tt)) valid)
+ step-preserves (P.enterProtocolBody j) s eq valid = transport (Effects.ProtocolLayer.change (P.enterProtocolBody j) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.enterProtocolBody j) s eq tt)) valid)
+ step-preserves (P.appendProtocolPayload j bytes) s eq valid = transport (Effects.ProtocolLayer.change (P.appendProtocolPayload j bytes) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.appendProtocolPayload j bytes) s eq tt)) valid)
+ step-preserves (P.egressMuxer w action) s eq valid = transport (Effects.ProtocolLayer.change (P.egressMuxer w action) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.egressMuxer w action) s eq tt)) valid)
  step-preserves (P.protocolReturned j) s eq valid = transport (Effects.ProtocolLayer.change (P.protocolReturned j) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.protocolReturned j) s eq tt)) valid)
  step-preserves (P.commitClean j) s eq valid = transport (Effects.ProtocolLayer.change (P.commitClean j) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.commitClean j) s eq tt)) valid)
  step-preserves (P.protocolException j err) s eq valid = transport (Effects.ProtocolLayer.change (P.protocolException j err) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.protocolException j err) s eq tt)) valid)
@@ -540,7 +543,7 @@ module Protocol where
 
 module Monitor (isBearerClosed : ErrorId → Bool) where
  private module M = MonitorModel isBearerClosed using (State; base; beginDead; commitTracer; consume; delegateAllowed; finishDead; finishProtocolTrace; handleSelected; initial; run; sampleTracer; step)
- private module P = ProtocolModel using (initial; step)
+ private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; initial; step)
  view : M.State → Effects.Registry
  view = Effects.MonitorLayer.view isBearerClosed
  shutdown : M.State → Close.State
@@ -624,7 +627,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  private module G = GroupModel isBearerClosed using (abortOwner; abortStage; base; initial; ownerContext; poolAt; step)
  private module MonitorModelAt = MonitorModel isBearerClosed using (base)
  private module U = MuxModel Types.TypedResult using (frames)
- private module P = ProtocolModel using (base; noParent)
+ private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; base; noParent)
  private module A = Aux.Exit isBearerClosed using (Valid; exits-present; lower-valid; plain-shutdown-same; resultReady-present)
  view : W.State → Effects.Registry
  view = Effects.ExitLayer.view isBearerClosed
@@ -791,7 +794,7 @@ module Unwind (isBearerClosed : ErrorId → Bool) where
  private module X = CancellationModel isBearerClosed using (initial; step)
  private module W = ExitModel isBearerClosed using (control; exits; shutdown)
  private module U = MuxModel Types.TypedResult using (handleAllocated; progress; promisePublished; returnedSuccess)
- private module P = ProtocolModel using (muxAt; noParent)
+ private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; muxAt; noParent)
  private module A = Aux.Unwind isBearerClosed using (Valid; chosen-nonack; frames-present; lower-valid)
  private module Pool = ProtocolModel.Pool using (step)
  view : R.State → Effects.Registry

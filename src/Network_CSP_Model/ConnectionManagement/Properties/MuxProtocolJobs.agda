@@ -25,6 +25,7 @@ module S = W.Startup
 module Pool = W.Pool
 import ConnectionManagement.Rules.MuxJobTypes as Types
 import ConnectionManagement.Rules.MuxRuntime as Mux
+import ConnectionManagement.Rules.MuxEgress as EgressKernel
 import Data.Nat as Nat
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundMachine as O
@@ -65,6 +66,75 @@ metadata : ∀ s jobs pending → Paths s (record s { jobs = jobs; pending = pen
 metadata s jobs pending = paths ([] , O.done) (λ selected → [] , Pool.done)
 source-step : ∀ action s {c} → O.advance action (W.source s) ≡ just c → Paths s (W.setSource c s)
 source-step action s eq = paths (action ∷ [] , O.next eq O.done) (λ selected → [] , Pool.done)
+
+-- Egress is a genuine source write; physical capture and pool metadata stay
+-- fixed. This small observation is shared by the higher backing proofs.
+record EgressChange (before after : W.State) : Set where
+  constructor egress-change
+  field capturedMux : MuxId
+        operation : Mux.Egress.Action
+        sourceAfter : O.Configuration
+        actual-source : O.advance (O.inbound (M.igStep (IG.egressStep capturedMux operation)))
+          (W.source before) ≡ just sourceAfter
+        after-shape : after ≡ W.setSource sourceAfter before
+
+protocol-egress-observation : ∀ j action s {t} → W.protocolEgress j action s ≡ just t → EgressChange s t
+protocol-egress-observation j action s eq with lookup j (W.jobs s)
+... | nothing = case eq of λ ()
+... | just job with Types.phase job | lookup (Types.owner job) (U.frames (W.base s)) |
+  lookup j (Pool.handles (W.poolAt (Types.owner job) s))
+...   | Types.executing | just f | just Pool.bodyRunning with O.advance
+  (O.inbound (M.igStep (IG.egressStep (Types.mux job) (action job)))) (W.source s) in advanced
+...     | nothing = case eq of λ ()
+...     | just c = case just-injective eq of λ { refl → egress-change (Types.mux job) (action job) c advanced refl }
+protocol-egress-observation j action s eq | just job | Types.waitingEgress | _ | _ = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.resultCaptured result | _ | _ = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | nothing | _ = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | just f | nothing = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | just f | just (Pool.bodyReturned value) = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | just f | just Pool.bodyUnwinding = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | just f | just (Pool.deregisterPending value) = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | just f | just (Pool.deregistered value) = case eq of λ ()
+protocol-egress-observation j action s eq | just job | Types.executing | just f | just (Pool.resultAvailable value) = case eq of λ ()
+
+enter-observation : ∀ j s {t} → W.step (W.enterProtocolBody j) s ≡ just t → EgressChange s t
+enter-observation j s = protocol-egress-observation j (λ job → Mux.Egress.createWanton (serial j) (W.jobKey job)) s
+send-observation : ∀ j bytes s {t} → W.step (W.appendProtocolPayload j bytes) s ≡ just t → EgressChange s t
+send-observation j bytes s eq with lookup j (W.jobs s)
+... | nothing = case eq of λ ()
+... | just job with W.hasWanton j job s
+...   | false = case eq of λ ()
+...   | true = protocol-egress-observation j (λ _ → Mux.Egress.appendPayload (serial j) bytes) s eq
+
+muxer-egress-observation : ∀ w action s {t} → W.step (W.egressMuxer w action) s ≡ just t → EgressChange s t
+muxer-egress-observation w action s eq with lookup w (U.frames (W.base s))
+... | nothing = case eq of λ ()
+... | just f with U.progress f | W.infraId Types.muxer (S.phase (U.startup f))
+...   | U.promisePublished hid mid | just j with W.muxAt mid s | lookup j (Pool.handles (W.poolAt w s))
+...     | just m | just Pool.bodyRunning with Mux.Egress.layout (Mux.egress m) | W.egressLane action (Mux.egress m)
+...       | EgressKernel.plainLayout | just EgressKernel.scheduledLane with O.advance
+  (O.inbound (M.igStep (IG.egressStep mid action))) (W.source s) in advanced
+...         | nothing = case eq of λ ()
+...         | just c = case just-injective eq of λ { refl → egress-change mid action c advanced refl }
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.plainLayout | nothing = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.plainLayout | just EgressKernel.directLane = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.plainLayout | just EgressKernel.sliceLane = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.scheduledLayout enabled | _ = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | nothing | _ = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | nothing = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.bodyReturned value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyUnwinding = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.deregisterPending value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.deregistered value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.resultAvailable value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.returnedSuccess | _ = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.handleAllocated hid mid | _ = case eq of λ ()
+muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | nothing = case eq of λ ()
+
+egress-projects : ∀ s {t} → EgressChange s t → Paths s t
+egress-projects s observation rewrite EgressChange.after-shape observation =
+  source-step (O.inbound (M.igStep (IG.egressStep (EgressChange.capturedMux observation)
+    (EgressChange.operation observation)))) s (EgressChange.actual-source observation)
 pool-same : ∀ owner f pool s → W.poolAt owner (W.setPool owner f pool s) ≡ pool
 pool-same owner f pool s = cong S.pool (Base.put-same owner
   (record f { startup = record (U.startup f) { pool = pool } }) (W.base s))
@@ -113,7 +183,7 @@ responder-projects w j gen s eq with lookup w (U.frames (W.base s)) | W.fresh j 
 ... | just f | true with U.progress f | W.monitoring f
 ...   | U.promisePublished hid mid | true with W.muxAt mid s
 ...     | just m with Mux.callback m
-...       | Mux.forkPending n with W.active w Mux.responderJob n (W.jobs s)
+...       | Mux.forkPending n with W.forkBlocked w Mux.responderJob n (W.jobs s) m
 ...         | false with O.advance (O.inbound (M.igStep (IG.forkResponder mid))) (W.source s) in sourceAdvanced |
   Pool.step (Pool.fork j) (W.poolAt w s) in poolAdvanced
 ...           | just c | just p = case just-injective eq of λ { refl →
@@ -139,7 +209,7 @@ initiator-projects : ∀ w j gen n s {s′} → W.initiatorFork w j gen n s ≡ 
 initiator-projects w j gen n s eq with lookup w (U.frames (W.base s)) | W.fresh j gen s
 ... | just f | true with U.progress f | W.monitoring f | Mux.findProtocol n (U.bundle f)
 ...   | U.promisePublished hid mid | true | just descriptor with W.muxAt mid s
-...     | just m with Mux.status m | Mux.callback m | Mux.commands m | W.noResults (W.poolAt w s) | W.active w Mux.initiatorJob n (W.jobs s)
+...     | just m with Mux.status m | Mux.callback m | Mux.commands m | W.noResults (W.poolAt w s) | W.forkBlocked w Mux.initiatorJob n (W.jobs s) m
 ...       | Mux.ready | Mux.returned | [] | true | false with Pool.step (Pool.fork j) (W.poolAt w s) in advanced
 ...         | just p = case just-injective eq of λ { refl → compose (pool-step w f (Pool.fork j) s advanced)
   (metadata (W.setPool w f p s) (put j (Types.protocolJob w mid Mux.initiatorJob n gen Types.executing) (W.jobs s)) (W.pending s)) }
@@ -178,9 +248,11 @@ register-projects j s eq | just job | just _ | nothing = case eq of λ ()
 returned-projects : ∀ j s {s′} → W.returned j s ≡ just s′ → Paths s s′
 returned-projects j s eq with lookup j (W.jobs s)
 ... | just job with Types.phase job
-...   | Types.executing = case just-injective eq of λ { refl → metadata s _ _ }
-...   | Types.waitingEgress = case eq of λ ()
-...   | Types.resultCaptured _ = case eq of λ ()
+...   | Types.executing with W.hasWanton j job s
+...     | false = case eq of λ ()
+...     | true = case just-injective eq of λ { refl → metadata s _ _ }
+returned-projects j s eq | just job | Types.waitingEgress = case eq of λ ()
+returned-projects j s eq | just job | Types.resultCaptured _ = case eq of λ ()
 returned-projects j s eq | nothing = case eq of λ ()
 
 body-source-trace : ∀ job result s {c} → W.bodySource job result s ≡ just c → OTrace (W.source s) c
@@ -206,9 +278,11 @@ capture-projects j job result s eq | just _ | just (Pool.resultAvailable _) = ca
 clean-projects : ∀ j s {s′} → W.cleanCommit j s ≡ just s′ → Paths s s′
 clean-projects j s eq with lookup j (W.jobs s)
 ... | just job with Types.phase job
-...   | Types.waitingEgress = capture-projects j job clean s eq
-...   | Types.executing = case eq of λ ()
-...   | Types.resultCaptured _ = case eq of λ ()
+...   | Types.waitingEgress with W.cleanReady j job s
+...     | false = case eq of λ ()
+...     | true = capture-projects j job clean s eq
+clean-projects j s eq | just job | Types.executing = case eq of λ ()
+clean-projects j s eq | just job | Types.resultCaptured _ = case eq of λ ()
 clean-projects j s eq | nothing = case eq of λ ()
 error-projects : ∀ j err s {s′} → W.syncError j err s ≡ just s′ → Paths s s′
 error-projects j err s eq with lookup j (W.jobs s)
@@ -304,6 +378,9 @@ step-projects (W.run a) s eq = inherit-projects a s eq
 step-projects (W.forkResponder w j gen) s eq = responder-projects w j gen s eq
 step-projects (W.forkInitiator w j gen n) s eq = initiator-projects w j gen n s eq
 step-projects (W.registerProtocol j) s eq = register-projects j s eq
+step-projects (W.enterProtocolBody j) s eq = egress-projects s (enter-observation j s eq)
+step-projects (W.appendProtocolPayload j bytes) s eq = egress-projects s (send-observation j bytes s eq)
+step-projects (W.egressMuxer w action) s eq = egress-projects s (muxer-egress-observation w action s eq)
 step-projects (W.protocolReturned j) s eq = returned-projects j s eq
 step-projects (W.commitClean j) s eq = clean-projects j s eq
 step-projects (W.protocolException j err) s eq = error-projects j err s eq
@@ -512,9 +589,11 @@ clean-observation : ∀ j s {s′} → W.step (W.commitClean j) s ≡ just s′ 
 clean-observation j s eq with lookup j (W.jobs s) in found
 ... | nothing = case eq of λ ()
 ... | just job with Types.phase job in phaseFound
-...   | Types.waitingEgress = capture-observation j job clean s found (normalInput phaseFound) eq
-...   | Types.executing = case eq of λ ()
-...   | Types.resultCaptured _ = case eq of λ ()
+...   | Types.waitingEgress with W.cleanReady j job s
+...     | false = case eq of λ ()
+...     | true = capture-observation j job clean s found (normalInput phaseFound) eq
+clean-observation j s eq | just job | Types.executing = case eq of λ ()
+clean-observation j s eq | just job | Types.resultCaptured _ = case eq of λ ()
 exception-observation : ∀ j err s {s′} → W.step (W.protocolException j err) s ≡ just s′ → CompletionCommit j s s′
 exception-observation j err s eq with lookup j (W.jobs s) in found
 ... | nothing = case eq of λ ()
@@ -553,7 +632,7 @@ responder-fork-observation w j gen s eq with lookup w (U.frames (W.base s)) in f
 ... | just f | true with U.progress f in progressFound | W.monitoring f
 ...   | U.promisePublished hid mid | true with W.muxAt mid s in muxFound
 ...     | just m with Mux.callback m in callbackFound
-...       | Mux.forkPending n with W.active w Mux.responderJob n (W.jobs s)
+...       | Mux.forkPending n with W.forkBlocked w Mux.responderJob n (W.jobs s) m
 ...         | false with O.advance (O.inbound (M.igStep (IG.forkResponder mid))) (W.source s) in sourceAdvanced |
   Pool.step (Pool.fork j) (W.poolAt w s) in poolAdvanced
 ...           | just c | just p = case just-injective eq of λ { refl →
@@ -579,7 +658,7 @@ initiator-fork-observation : ∀ w j gen n s {s′} → W.step (W.forkInitiator 
 initiator-fork-observation w j gen n s eq with lookup w (U.frames (W.base s)) in frameFound | W.fresh j gen s in freshFound
 ... | just f | true with U.progress f in progressFound | W.monitoring f | Mux.findProtocol n (U.bundle f) in descriptorFound
 ...   | U.promisePublished hid mid | true | just descriptor with W.muxAt mid s in muxFound
-...     | just m with Mux.status m | Mux.callback m | Mux.commands m | W.noResults (W.poolAt w s) | W.active w Mux.initiatorJob n (W.jobs s)
+...     | just m with Mux.status m | Mux.callback m | Mux.commands m | W.noResults (W.poolAt w s) | W.forkBlocked w Mux.initiatorJob n (W.jobs s) m
 ...       | Mux.ready | Mux.returned | [] | true | false with Pool.step (Pool.fork j) (W.poolAt w s) in advanced
 ...         | just p = case just-injective eq of λ { refl → physicalFork f hid mid n Mux.initiatorJob (W.source s) p frameFound progressFound freshFound
     (initiatorSource descriptor descriptorFound refl) advanced refl }
@@ -677,10 +756,12 @@ module CaptureIdentity where
   returned-stable j s eq with lookup j (W.jobs s) in found
   ... | nothing = case eq of λ ()
   ... | just job with Types.phase job
-  ...   | Types.executing = case just-injective eq of λ { refl →
+  ...   | Types.executing with W.hasWanton j job s
+  ...     | false = case eq of λ ()
+  ...     | true = case just-injective eq of λ { refl →
     same-key-put j job (record job { phase = Types.waitingEgress }) (W.jobs s) found refl }
-  ...   | Types.waitingEgress = case eq of λ ()
-  ...   | Types.resultCaptured result = case eq of λ ()
+  returned-stable j s eq | just job | Types.waitingEgress = case eq of λ ()
+  returned-stable j s eq | just job | Types.resultCaptured result = case eq of λ ()
   returned-body-stable : ∀ j s {t} → BodyReturn j s t → Stable s t
   returned-body-stable j s observation rewrite BodyReturn.after-shape observation = identity (W.jobs s)
   published-stable : ∀ j s {t} → Publication j s t → Stable s t
@@ -735,6 +816,10 @@ module CaptureIdentity where
   control-stable w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
   control-stable w action s eq | just f | U.promisePublished hid mid | true | false = case eq of λ ()
 
+  -- A real egress write changes neither historical job identity nor its phase.
+  egress-stable : ∀ s {t} → EgressChange s t → Stable s t
+  egress-stable s observation rewrite EgressChange.after-shape observation = identity (W.jobs s)
+
   -- Exhaustive physical actions retain every older capture, including phase
   -- changes, normal publication, cancellation bookkeeping and infrastructure.
   step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
@@ -742,6 +827,9 @@ module CaptureIdentity where
   step-stable (W.forkResponder w j gen) s eq = fork-retains w j gen s (responder-fork-observation w j gen s eq)
   step-stable (W.forkInitiator w j gen n) s eq = fork-retains w j gen s (initiator-fork-observation w j gen n s eq)
   step-stable (W.registerProtocol j) s eq = registered-stable j s eq
+  step-stable (W.enterProtocolBody j) s eq = egress-stable s (enter-observation j s eq)
+  step-stable (W.appendProtocolPayload j bytes) s eq = egress-stable s (send-observation j bytes s eq)
+  step-stable (W.egressMuxer w action) s eq = egress-stable s (muxer-egress-observation w action s eq)
   step-stable (W.protocolReturned j) s eq = returned-stable j s eq
   step-stable (W.commitClean j) s eq = commit-retains j s (clean-observation j s eq)
   step-stable (W.protocolException j err) s eq = commit-retains j s (exception-observation j err s eq)
@@ -822,10 +910,12 @@ module CommittedRows where
   returned-stable j s eq with lookup j (W.jobs s) in found
   ... | nothing = case eq of λ ()
   ... | just job with Types.phase job in observed
-  ...   | Types.executing = case just-injective eq of λ { refl →
+  ...   | Types.executing with W.hasWanton j job s
+  ...     | false = case eq of λ ()
+  ...     | true = case just-injective eq of λ { refl →
     same-key-put j job (record job { phase = Types.waitingEgress }) (W.jobs s) found (cong W.canCapture observed) }
-  ...   | Types.waitingEgress = case eq of λ ()
-  ...   | Types.resultCaptured result = case eq of λ ()
+  returned-stable j s eq | just job | Types.waitingEgress = case eq of λ ()
+  returned-stable j s eq | just job | Types.resultCaptured result = case eq of λ ()
   returned-body-stable : ∀ j s {t} → BodyReturn j s t → Stable s t
   returned-body-stable j s observation rewrite BodyReturn.after-shape observation = identity (W.jobs s)
   published-stable : ∀ j s {t} → Publication j s t → Stable s t
@@ -880,6 +970,10 @@ module CommittedRows where
   control-stable w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
   control-stable w action s eq | just f | U.promisePublished hid mid | true | false = case eq of λ ()
 
+  -- A real egress write changes neither historical job identity nor its phase.
+  egress-stable : ∀ s {t} → EgressChange s t → Stable s t
+  egress-stable s observation rewrite EgressChange.after-shape observation = identity (W.jobs s)
+
   -- Exhaustive physical actions retain every older capture, including phase
   -- changes, normal publication, cancellation bookkeeping and infrastructure.
   step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
@@ -887,6 +981,9 @@ module CommittedRows where
   step-stable (W.forkResponder w j gen) s eq = fork-retains w j gen s (responder-fork-observation w j gen s eq)
   step-stable (W.forkInitiator w j gen n) s eq = fork-retains w j gen s (initiator-fork-observation w j gen n s eq)
   step-stable (W.registerProtocol j) s eq = registered-stable j s eq
+  step-stable (W.enterProtocolBody j) s eq = egress-stable s (enter-observation j s eq)
+  step-stable (W.appendProtocolPayload j bytes) s eq = egress-stable s (send-observation j bytes s eq)
+  step-stable (W.egressMuxer w action) s eq = egress-stable s (muxer-egress-observation w action s eq)
   step-stable (W.protocolReturned j) s eq = returned-stable j s eq
   step-stable (W.commitClean j) s eq = commit-retains j s (clean-observation j s eq)
   step-stable (W.protocolException j err) s eq = commit-retains j s (exception-observation j err s eq)

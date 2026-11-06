@@ -601,10 +601,12 @@ module ProtocolLayer where
  returned-same j s eq with lookup j (P.jobs s) in found
  ... | nothing = case eq of λ ()
  ... | just job with Types.phase job
- ...   | Types.executing = case just-injective eq of λ { refl →
+ ...   | Types.executing with P.hasWanton j job s
+ ...     | false = case eq of λ ()
+ ...     | true = case just-injective eq of λ { refl →
    refl }
- ...   | Types.waitingEgress = case eq of λ ()
- ...   | Types.resultCaptured result = case eq of λ ()
+ returned-same j s eq | just job | Types.waitingEgress = case eq of λ ()
+ returned-same j s eq | just job | Types.resultCaptured result = case eq of λ ()
  registered-same : ∀ j s {t} → P.register j s ≡ just t → view t ≡ view s
  registered-same j s eq with lookup j (P.jobs s)
  ... | nothing = case eq of λ ()
@@ -649,11 +651,17 @@ module ProtocolLayer where
  control-same w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
  control-same w action s eq | just f | U.promisePublished hid mid | true | false = case eq of λ ()
 
+ -- Source egress updates retain the original physical birth registry.
+ egress-same : ∀ s {t} → Old.EgressChange s t → view t ≡ view s
+ egress-same s observation rewrite Old.EgressChange.after-shape observation = refl
  change : ∀ a s {t} → P.step a s ≡ just t → Change (Selected a) (view s) (view t)
  change (P.run a) s eq = inherited-change a s eq
  change (P.forkResponder w j gen) s eq = stable (fork-same w j gen s (Old.responder-fork-observation w j gen s eq))
  change (P.forkInitiator w j gen n) s eq = stable (fork-same w j gen s (Old.initiator-fork-observation w j gen n s eq))
  change (P.registerProtocol j) s eq = stable (registered-same j s eq)
+ change (P.enterProtocolBody j) s eq = stable (egress-same s (Old.enter-observation j s eq))
+ change (P.appendProtocolPayload j bytes) s eq = stable (egress-same s (Old.send-observation j bytes s eq))
+ change (P.egressMuxer w action) s eq = stable (egress-same s (Old.muxer-egress-observation w action s eq))
  change (P.protocolReturned j) s eq = stable (returned-same j s eq)
  change (P.commitClean j) s eq = stable (commit-same j s (Old.clean-observation j s eq))
  change (P.protocolException j err) s eq = stable (commit-same j s (Old.exception-observation j err s eq))
@@ -1396,7 +1404,7 @@ module GroupLayer (isBearerClosed : ErrorId → Bool) where
  change (W.deliverGroup w) s eq = stable (CIPaths.retention (ci-deliver-group-projects w s eq))
  change (W.joinGroup w) s eq = stable (CIPaths.retention (ci-join-group-projects w s eq))
  change (W.finishGroup w) s eq = stable (CIPaths.retention (ci-finish-group-projects w s eq))
- change (W.drainEmpty w) s eq = stable (CIPaths.retention (ci-from-phase-projects w W.draining W.drainReady s eq))
+ change (W.drainEmpty w) s eq = stable (CIPaths.retention (ci-from-phase-projects w W.draining W.drainReady s (Old.drain-phase w s eq)))
  change (W.timeout2Elapsed w) s eq = stable (CIPaths.retention (ci-from-phase-projects w W.draining W.drainReady s eq))
  change (W.writeStopped w) s eq = stable (CIPaths.retention (ci-source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq))
  change (W.observeTraceStopped w) s eq = stable (CIPaths.retention (ci-source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq))
@@ -1882,7 +1890,7 @@ module InheritedRoutes (isBearerClosed : ErrorId → Bool) where
 
 
  private module Monitor = MonitorModel isBearerClosed using (base; delegateAllowed; run; step)
- private module P = ProtocolModel using (base; inheritedAllowed; run; step)
+ private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; base; inheritedAllowed; run; step)
  private module U = MuxModel Types.TypedResult using (base; baseAllowed; birth; birthFresh; origins; run; step)
  group-inherited = (UnwindLayer.group-run-lower isBearerClosed)
  monitor-inherited : ∀ a s {t} → Monitor.step (Monitor.run a) s ≡ just t → P.step a (Monitor.base s) ≡ just (Monitor.base t)
@@ -1909,7 +1917,7 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
  private module W = ExitModel isBearerClosed using (run)
  private module G = GroupModel isBearerClosed using (Action; run)
  private module Monitor = MonitorModel isBearerClosed using (run)
- private module P = ProtocolModel using (run)
+ private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; run)
  private module U = MuxModel Types.TypedResult using (run)
  view : SA.State → Registry
  view s = (PublicationLayer.view isBearerClosed) (SA.base s)

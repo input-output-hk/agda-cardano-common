@@ -55,6 +55,18 @@ module Monitor = W.M
 module P = W.P
 module U = W.U
 
+-- Forget only the successful drain guard, retaining the identical phase step.
+-- The timeout path does not pass through this observation.
+drain-phase : ∀ w s {t} → W.step (W.drainEmpty w) s ≡ just t →
+  W.fromPhase w W.draining W.drainReady s ≡ just t
+drain-phase w s eq with W.ownerContext w s
+... | nothing = case eq of λ ()
+... | just (f , mid) with P.muxAt mid (W.protocolState s)
+...   | nothing = case eq of λ ()
+...   | just m with Mux.Egress.drainReady (Mux.egress m)
+...     | false = case eq of λ ()
+...     | true = eq
+
 frame-paths : ∀ w f s → Paths s (W.setFrame w f s)
 frame-paths w f s = from-base s _ (Base.idle (W.base s))
 phase-paths : ∀ w pc s → Paths s (W.setPhase w pc s)
@@ -571,7 +583,7 @@ step-projects (W.requestGroupCancel w) s eq = request-group-projects w s eq
 step-projects (W.deliverGroup w) s eq = deliver-group-projects w s eq
 step-projects (W.joinGroup w) s eq = join-group-projects w s eq
 step-projects (W.finishGroup w) s eq = finish-group-projects w s eq
-step-projects (W.drainEmpty w) s eq = from-phase-projects w W.draining W.drainReady s eq
+step-projects (W.drainEmpty w) s eq = from-phase-projects w W.draining W.drainReady s (drain-phase w s eq)
 step-projects (W.timeout2Elapsed w) s eq = from-phase-projects w W.draining W.drainReady s eq
 step-projects (W.writeStopped w) s eq = source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq
 step-projects (W.observeTraceStopped w) s eq = source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq
@@ -1376,7 +1388,7 @@ module CaptureIdentity where
   ci-step-projects (W.deliverGroup w) s eq = ci-deliver-group-projects w s eq
   ci-step-projects (W.joinGroup w) s eq = ci-join-group-projects w s eq
   ci-step-projects (W.finishGroup w) s eq = ci-finish-group-projects w s eq
-  ci-step-projects (W.drainEmpty w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
+  ci-step-projects (W.drainEmpty w) s eq = ci-from-phase-projects w W.draining W.drainReady s (drain-phase w s eq)
   ci-step-projects (W.timeout2Elapsed w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
   ci-step-projects (W.writeStopped w) s eq = ci-source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq
   ci-step-projects (W.observeTraceStopped w) s eq = ci-source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq
@@ -1907,7 +1919,7 @@ module CommittedRows where
   ci-step-projects (W.deliverGroup w) s eq = ci-deliver-group-projects w s eq
   ci-step-projects (W.joinGroup w) s eq = ci-join-group-projects w s eq
   ci-step-projects (W.finishGroup w) s eq = ci-finish-group-projects w s eq
-  ci-step-projects (W.drainEmpty w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
+  ci-step-projects (W.drainEmpty w) s eq = ci-from-phase-projects w W.draining W.drainReady s (drain-phase w s eq)
   ci-step-projects (W.timeout2Elapsed w) s eq = ci-from-phase-projects w W.draining W.drainReady s eq
   ci-step-projects (W.writeStopped w) s eq = ci-source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq
   ci-step-projects (W.observeTraceStopped w) s eq = ci-source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq

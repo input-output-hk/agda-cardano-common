@@ -51,9 +51,17 @@ data CoveredMux : IG.IGAction → Set where
   interruptedDeadTrace : ∀ {mid} → CoveredMux (IG.traceInterruptedMuxDead mid)
   gracefulStoppedTrace : ∀ {mid} → CoveredMux (IG.traceGracefulMuxStopped mid)
   stopped : ∀ {mid} → CoveredMux (IG.finishStop mid)
+  egress : ∀ {mid action} → CoveredMux (IG.egressStep mid action)
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
+-- Accounting updates the actual mux while retaining its connection identity.
+worker-anchors .(IG.egressStep mid action) (egress {mid} {action}) ig queue eq
+  with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with M.Egress.step action (M.egress m)
+...   | nothing = case eq of λ ()
+...   | just updatedEgress = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 worker-anchors .(IG.sampleTracer mid) (sample {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.tracerAttachment m | M.callback m
@@ -339,6 +347,7 @@ worker-anchors .(IG.finishStop mid) (stopped {mid}) ig queue eq with lookup mid 
 
 mode-anchors : ∀ mode a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
+mode-anchors noResponderMode .(IG.egressStep mid action) (egress {mid} {action}) ig queue eq = worker-anchors (IG.egressStep mid action) egress ig queue eq
 mode-anchors noResponderMode .(IG.monitorCommand mid) (command {mid}) ig queue eq with IG.runtimeAllowed (IG.monitorCommand mid) ig
 ... | false = case eq of λ ()
 ... | true = worker-anchors (IG.monitorCommand mid) command ig queue eq

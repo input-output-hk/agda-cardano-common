@@ -1656,6 +1656,13 @@ open.
 
 ### Local prototype baseline audit (6 November 2026)
 
+**Historical local-only checkpoint, superseded by the [later fetched-source
+audit](connection-management-source-baseline-audit-2026-11-06.md).** The missing
+object and unknown-head statements below describe the earlier observation.
+The later audit retrieved the object and verified `2e44d98…` / `2f1c154…`;
+model source pins remain unchanged for the stated contract-migration reasons.
+
+
 **Confirmed local finding; network comparison incomplete.** Consensus
 `2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b` (1 November) is available locally;
 `merge-base --is-ancestor` confirms it descends from

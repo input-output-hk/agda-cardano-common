@@ -6,8 +6,7 @@ the authority for scope and source mappings.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through model commit `a54d4fd` (increment 65), with
-active outbound-release receipt integration (6 November 2026), pending acceptance;
+the lifecycle claims through accepted model commit `daf111d` (increment 66);
 the dated increment records retain detailed acceptance evidence.
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
@@ -60,13 +59,13 @@ profile retains its independent release caller.
 [Increment 66](Supervision.md#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
 now connects that caller to an actual coupled mux or available-result receipt and
 separate source return, retaining the same birth/resources through final CM wait.
-Fresh full acceptance passed; it remains uncommitted over `a54d4fd`. The generic
+Fresh full acceptance passed; it is committed in `daf111d`. The generic
 [release receipt properties](Properties/ServerPeersReleaseReceipt.agda) derive
 captured-target, source acknowledgement, permission and coordinator evidence.
-The next task is the [source-baseline audit](Supervision.md#next-task-source-baseline-audit);
-the newer local consensus pin is confirmed but its selected network object is
-unavailable locally. Existing proof pins remain unchanged; no next proof wave
-starts, and release TIME_WAIT/post-mux coverage remains deferred.
+The [latest-source audit](../review/connection-management-source-baseline-audit-2026-11-06.md)
+verified the observed `2e44d98…` / `2f1c154…` pair. Existing model pins remain:
+changed held-batch readiness, setup and worker-lifetime contracts need explicit
+migration first. No new proof wave or repin was performed for the audit.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 

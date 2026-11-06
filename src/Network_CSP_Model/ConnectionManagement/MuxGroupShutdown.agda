@@ -137,6 +137,17 @@ selectStop w s with phase (frameAt w s) | M.pcAt w (base s) | ownerContext w s
 selectStop w s | idle | M.waiting | just (f , mid) | _ | _ = nothing
 selectStop w s | _ | _ | _ = nothing
 
+-- Successful drain observes the actual configured queues AND shared held
+-- batch count. Timeout remains a distinct observation with no data-ready claim.
+observeDrain : WorkerId → State → Maybe State
+observeDrain w s with ownerContext w s
+... | nothing = nothing
+... | just (f , mid) with P.muxAt mid (protocolState s)
+...   | nothing = nothing
+...   | just m with Mux.Egress.drainReady (Mux.egress m)
+...     | false = nothing
+...     | true = fromPhase w draining drainReady s
+
 -- Read the MiniProtocolJob subset of CURRENT registration, not mutable local
 -- activity flags, queued outcomes, or all historical handles. Order is supplied
 -- as an exact unique permutation of that map traversal snapshot.
@@ -387,6 +398,8 @@ protocolAllowed : P.Action → State → Bool
 protocolAllowed (P.control w _) s = controllerOpen w s
 protocolAllowed (P.forkResponder w _ _) s = controllerOpen w s
 protocolAllowed (P.forkInitiator w _ _ _) s = controllerOpen w s
+protocolAllowed (P.enterProtocolBody j) s = bodyRunning j s
+protocolAllowed (P.appendProtocolPayload j _) s = bodyRunning j s
 protocolAllowed (P.protocolReturned j) s = bodyRunning j s
 protocolAllowed (P.commitClean j) s = bodyRunning j s
 protocolAllowed (P.protocolException j _) s = bodyRunning j s
@@ -432,7 +445,7 @@ step (requestGroupCancel w) s = requestGroup w s
 step (deliverGroup w) s = deliverMini w s
 step (joinGroup w) s = joinMini w s
 step (finishGroup w) s = finishMini w s
-step (drainEmpty w) s = fromPhase w draining drainReady s
+step (drainEmpty w) s = observeDrain w s
 step (timeout2Elapsed w) s = fromPhase w draining drainReady s
 step (writeStopped w) s = sourcePhase w drainReady stoppedTrace IG.completeMuxStopping s
 step (observeTraceStopped w) s = sourcePhase w stoppedTrace stoppedTracing IG.traceGracefulMuxStopped s

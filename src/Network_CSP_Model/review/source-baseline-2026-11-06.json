@@ -1,0 +1,2094 @@
+{
+  "date": "2026-11-06",
+  "decision": "retain current model pins pending explicit contract migration",
+  "accepted_model_commit": "daf111d9d90f5edf950a42e7bdc025e0c207fcf0",
+  "network": {
+    "date_utc": "2026-11-06T16:41:31.780613+00:00",
+    "repository_url": "https://github.com/IntersectMBO/ouroboros-network",
+    "old_revision": "96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d",
+    "candidate_revision": "2f1c154f248659b89523d5679ca532f442e7ed2a",
+    "scope": "Selected model library/API/tracing/tests plus diffusion, tier and package integration; not all source files",
+    "files": [
+      {
+        "category": "package",
+        "path": "cardano-diffusion/cardano-diffusion.cabal",
+        "layer": "package",
+        "old_blob": "62b02a0e0c88c1d9959b3429b90bcd301ab01e4a",
+        "candidate_blob": "62b02a0e0c88c1d9959b3429b90bcd301ab01e4a",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/lib/Cardano/Network/Diffusion.hs",
+        "layer": "library",
+        "old_blob": "a47de1475a102aeb9640c3990b9014925ca3fc65",
+        "candidate_blob": "5ef5fdc859b5a622a0b89da4df8b27e45a6e51ab",
+        "status": "changed",
+        "old_sha256": "15cffbe0a9c2580fa31c07d444035b8f887c236fb3c4683db40283b470899ee4",
+        "candidate_sha256": "7831b64a1d8365b52c0ae1e397a7506d066dcd63cd537007f7227f4f8a82fcb5"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/lib/Cardano/Network/Diffusion/Configuration.hs",
+        "layer": "library",
+        "old_blob": "127cc1ed190f5607b85a094727c18f9ec1d3d9f4",
+        "candidate_blob": "2460171d9309ef45b0c79be22699b6440af05b64",
+        "status": "changed",
+        "old_sha256": "f1ee729c76f7733092396db4bf080dba70446ce66dd40bfdfc23b2b88dde4ee3",
+        "candidate_sha256": "eddb73546711fc580ba5686163d9a64089413e86481bde12052b5ee4f97bbfd8"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/lib/Cardano/Network/Diffusion/Handlers.hs",
+        "layer": "library",
+        "old_blob": "f37d7f4686d11b195e303f6e4ea08d9be171f26f",
+        "candidate_blob": "f37d7f4686d11b195e303f6e4ea08d9be171f26f",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/lib/Cardano/Network/Diffusion/Policies.hs",
+        "layer": "library",
+        "old_blob": "8a0e64d0b6574a70757ec61f637f7ee7227ea3d0",
+        "candidate_blob": "8a0e64d0b6574a70757ec61f637f7ee7227ea3d0",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/lib/Cardano/Network/Diffusion/Topology.hs",
+        "layer": "library",
+        "old_blob": "caefdf2b7ba24dc6421350eff8e15397c069fa58",
+        "candidate_blob": "caefdf2b7ba24dc6421350eff8e15397c069fa58",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/lib/Cardano/Network/Diffusion/Types.hs",
+        "layer": "library",
+        "old_blob": "56b5404ae88146a255db9163e91c266a2d5d3c43",
+        "candidate_blob": "2e02e918cf576a90ef8739dfdccfb94f14da6aa5",
+        "status": "changed",
+        "old_sha256": "1c87c92d4cae8d2f7cd88259c2e8a2c9d951e097ed8e1785528fb73603f28a0d",
+        "candidate_sha256": "e2fa38f56ff08a4cc6ecbf22ce5ca573aebac75ddfa891c00a5586d86610bd3a"
+      },
+      {
+        "category": "OG",
+        "path": "cardano-diffusion/lib/Cardano/Network/PeerSelection/Governor/Monitor.hs",
+        "layer": "library",
+        "old_blob": "0e3eea3cebcda60b3847c87d743af6762de09469",
+        "candidate_blob": "0e3eea3cebcda60b3847c87d743af6762de09469",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "cardano-diffusion/lib/Cardano/Network/PeerSelection/Governor/PeerSelectionActions.hs",
+        "layer": "library",
+        "old_blob": "0522353ee2ec194da1f2655455b4210b4a5814c0",
+        "candidate_blob": "0522353ee2ec194da1f2655455b4210b4a5814c0",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "cardano-diffusion/lib/Cardano/Network/PeerSelection/Governor/PeerSelectionState.hs",
+        "layer": "library",
+        "old_blob": "07636bd8fc444dd073487f6d2ad450458c31db22",
+        "candidate_blob": "07636bd8fc444dd073487f6d2ad450458c31db22",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "cardano-diffusion/lib/Cardano/Network/PeerSelection/Governor/Types.hs",
+        "layer": "library",
+        "old_blob": "483de4daec5d921f6649d4c59d21ff30b1cd3417",
+        "candidate_blob": "483de4daec5d921f6649d4c59d21ff30b1cd3417",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/tests/lib/Test/Cardano/Network/Diffusion/Policies.hs",
+        "layer": "tests",
+        "old_blob": "0af605022e789676d92e7f0d4a002a8f5d0ba49a",
+        "candidate_blob": "0af605022e789676d92e7f0d4a002a8f5d0ba49a",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/tests/lib/Test/Cardano/Network/Diffusion/Testnet.hs",
+        "layer": "tests",
+        "old_blob": "19172bfbf1ba2dcce9f38713cfc1bb8336ee2cc3",
+        "candidate_blob": "b7b25623ba0addbc1bd6948d895aae4b1c9ab147",
+        "status": "changed",
+        "old_sha256": "f2656e7499821a6b01634461a8e5b1a2ebc736a4fa293d6dfcf43e83feb3b55f",
+        "candidate_sha256": "45d5926d430e16824eefad0b5eb5a7698e7fa57ab4464c63be8e95a5f64308c4"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/tests/lib/Test/Cardano/Network/Diffusion/Testnet/ChainedTxs.hs",
+        "layer": "tests",
+        "old_blob": "1cdedf129f8e06814067b798ce50158bbb940dea",
+        "candidate_blob": "1cdedf129f8e06814067b798ce50158bbb940dea",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/tests/lib/Test/Cardano/Network/Diffusion/Testnet/MiniProtocols.hs",
+        "layer": "tests",
+        "old_blob": "fb1b231ef7c70a69ea570b7a2776c1501ab72ad7",
+        "candidate_blob": "874108e9b08853bd0bcbfb497cd9f375cddd2cbb",
+        "status": "changed",
+        "old_sha256": "b122ecaa2a8345eab2f61ba3d99e9a846521812f5508d23e4e3b07c804c49e22",
+        "candidate_sha256": "628b5f19b23769f485e4f664670832ee22487643883b44cee04add71ad7b3239"
+      },
+      {
+        "category": "diffusion",
+        "path": "cardano-diffusion/tests/lib/Test/Cardano/Network/Diffusion/Testnet/Simulation.hs",
+        "layer": "tests",
+        "old_blob": "6d0a6de8469e3de860e4d556a51dfd4a23ee555f",
+        "candidate_blob": "381cbb4bd7d5952e92f5c0de849631c2e1c4e491",
+        "status": "changed",
+        "old_sha256": "6d35bb46af445fb52127eac0a28c5daa9640cd00f316646848cb87c647b4e560",
+        "candidate_sha256": "a58be9211d6a3c31c0d7c1fab62d193633f0118a046447e664efe30d53d3307e"
+      },
+      {
+        "category": "package",
+        "path": "network-mux/network-mux.cabal",
+        "layer": "package",
+        "old_blob": "ca5f6dc65a5c468a1cf8424d51ebc9e8d4ccddee",
+        "candidate_blob": "c5972046ddc8864be9da29feb55555204585cbb0",
+        "status": "changed",
+        "old_sha256": "69c4b334ec772bcfb5099865ff7d8370e2588831f94bd68fcaf77b7c8b815668",
+        "candidate_sha256": "331bc64f78538e275000c122ee394d0a97b63a9d9a08b6c24413441ce5e50c4c"
+      },
+      {
+        "category": "JobPool",
+        "path": "network-mux/src/Control/Concurrent/JobPool.hs",
+        "layer": "library",
+        "old_blob": "3a75a5e526ad10516cf2bad3b442707a48812ba8",
+        "candidate_blob": "3a75a5e526ad10516cf2bad3b442707a48812ba8",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux.hs",
+        "layer": "library",
+        "old_blob": "94450d7103dd71e5d1663360ee7d8c7d7f2eb63f",
+        "candidate_blob": "78a0045a143bd76895c99ad4eeb9f307f5028fa8",
+        "status": "changed",
+        "old_sha256": "a380a36eae73052bbea03c365571c25751a39fda91dca19052a63f47d695915f",
+        "candidate_sha256": "bf0e4086e37377bc8d76a9874aef212d83f422bef8b486295316827eca10775f"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Bearer.hs",
+        "layer": "library",
+        "old_blob": "ad90074400fea1ba88a905557275cf4033d6d19d",
+        "candidate_blob": "54bad20080fefd85e9c85a8f86f742bb41442f99",
+        "status": "changed",
+        "old_sha256": "9e4d75981b133b81e8417330857e4cfa3154cf28ec73cd5e415f6276a51476ca",
+        "candidate_sha256": "293ea9a90579002e49de8e17c7875d951caf6e2742ea9bb73e75639b66cd6840"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Bearer/AttenuatedChannel.hs",
+        "layer": "library",
+        "old_blob": "d407fddf2c49cf5858df6aa1eab895dfb75a43a8",
+        "candidate_blob": "45923fad335899fdfd5a8a68c4abeba01f732bc6",
+        "status": "changed",
+        "old_sha256": "1345a5ecaa50a723648a9b4cabb4fcb9be43def994ce47ca9708e2fc2f7366bd",
+        "candidate_sha256": "064193f1f580349bf2318bd981112bb68b98015c0cc73b62b036059ad4e73327"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Bearer/NamedPipe.hs",
+        "layer": "library",
+        "old_blob": "74b4c79317bbdbf58401a9038ba007b7b73ebda8",
+        "candidate_blob": "6aac38a4fce92afe186549c831c2c4df9e330a02",
+        "status": "changed",
+        "old_sha256": "6476580c563bb536b68805744d6f8577a7488f7dafc7038a0582533d0c754b0c",
+        "candidate_sha256": "7f9601562411d6041b9e6a9432f576555289be927afb7c6c2a55bcc47f1d147c"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Bearer/Pipe.hs",
+        "layer": "library",
+        "old_blob": "92d111a183d87533dff202ca625ad6bdf71ba433",
+        "candidate_blob": "44bfcc3ab0f3474a8bc6fc5b6fe4f52675ddea85",
+        "status": "changed",
+        "old_sha256": "65d864a5ca42c6e5bf0efccb2c988405d077174a171fad01c1d6784efad852c7",
+        "candidate_sha256": "aab4e7c4617a9781ceaf0869bb2ced626b63fece9a99a098c2ede5d14d0e6e6d"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Bearer/Queues.hs",
+        "layer": "library",
+        "old_blob": "b80916bc3a00a6877a40551fd88f267d1b09889b",
+        "candidate_blob": "a755f3805f7119e552033e992bc040da4109c3f7",
+        "status": "changed",
+        "old_sha256": "56c61757033c0f5621a705e6e5bd0fd291b3784693f9b54d75b358651da9c022",
+        "candidate_sha256": "bb6e25e087cd2d93a6a5f7ad23eddf7c11b57be4e1a7b936d380da8c0740f09b"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Bearer/Socket.hs",
+        "layer": "library",
+        "old_blob": "b33cc8bd7fbe3f87b8042264b696fdaac8a0f7ca",
+        "candidate_blob": "262304bc6ee0f0e6a113abfb2c21330abe26b008",
+        "status": "changed",
+        "old_sha256": "4a57a5eaef5046da01ebc1b6017577d67a09dd17e083ba4c2a562215746d8601",
+        "candidate_sha256": "32c2035158ae19fa4b02da6e76b1da1f9763dc7b1d0d29d8e812ac03023d5e5d"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Channel.hs",
+        "layer": "library",
+        "old_blob": "23dd1a59d3a1801c78e106b40cfa117663f5364f",
+        "candidate_blob": "23dd1a59d3a1801c78e106b40cfa117663f5364f",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Codec.hs",
+        "layer": "library",
+        "old_blob": "d616e7e14295429593190fd3e2824786b3cd484f",
+        "candidate_blob": "d616e7e14295429593190fd3e2824786b3cd484f",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Counters.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "71012fa658bfb808d0797257db12c624eb154b8f",
+        "status": "added",
+        "candidate_sha256": "b0ed477f9156aed29f16cb9d7e744947131fc0e9a315a55a350deedbd4e6a03c"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/DeltaQ/TraceStats.hs",
+        "layer": "library",
+        "old_blob": "f6ddb7cbd82baf90b34a3174c81e907dba6fe428",
+        "candidate_blob": "f6ddb7cbd82baf90b34a3174c81e907dba6fe428",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/DeltaQ/TraceStatsSupport.hs",
+        "layer": "library",
+        "old_blob": "ab904ebbc2e53991a5eae6a04e0271ca5f3d6da0",
+        "candidate_blob": "ab904ebbc2e53991a5eae6a04e0271ca5f3d6da0",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/DeltaQ/TraceTransformer.hs",
+        "layer": "library",
+        "old_blob": "381c67012d485875a2a8cdd779cc4e416e907bc0",
+        "candidate_blob": "381c67012d485875a2a8cdd779cc4e416e907bc0",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/DeltaQ/TraceTypes.hs",
+        "layer": "library",
+        "old_blob": "fce0737c909e76dad62b3996fee5e8c8d0907510",
+        "candidate_blob": "fce0737c909e76dad62b3996fee5e8c8d0907510",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Egress.hs",
+        "layer": "library",
+        "old_blob": "ef8fcd5b7693410db4186a7104eae573ba7abac0",
+        "candidate_blob": "d31b01fe30b3a133cd215aeb9f5b2c0856fdc060",
+        "status": "changed",
+        "old_sha256": "d1ceea7811708bb22362be7ecc0256ae205a2e6c601e162c8b67521d30d51ead",
+        "candidate_sha256": "38ed1a6a2c62debddc7cb2e36a3bd48bedeb7e763f7b95ff16a7da0f8b60b99c"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Egress/Bucket.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "ee14102ccfcc502a52a37ac357a1c94329e38d2a",
+        "status": "added",
+        "candidate_sha256": "3d878122c9e02cfe70b739e639311ddedde4a42dbba13ebaa3c7692f66141de0"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Egress/Burst.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "3a1447c49c9e8947d7e56c050f8f410980d440c3",
+        "status": "added",
+        "candidate_sha256": "9e801b30cc32e6f2624d32c4f1e06f862f6dfd036564354a3bc0803f67199f73"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Egress/Floor.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "e894d7ff1b5f7c49b9cdf7b454c531683e24a725",
+        "status": "added",
+        "candidate_sha256": "afc581113f40437e3c8db8e30d77de9cbe65455e35f6d6c13469bfa9f757a893"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Ingress.hs",
+        "layer": "library",
+        "old_blob": "b1eb30d4d49df8d437144e1103af14c629f07949",
+        "candidate_blob": "d89bc4760edacc515612568c9750bfdbe94096b4",
+        "status": "changed",
+        "old_sha256": "d5b4c3706161834ba405d36e050ae46f8bc1ef86ff0a8db01a46a59103a7ea76",
+        "candidate_sha256": "800d8358591e6911599cbc2049f124e24136682f7f9720a5f2c1dd5b5eb1ddaa"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/TCPInfo.hs",
+        "layer": "library",
+        "old_blob": "ab16f06b44f3e0f8868cadf2362413535f61e41e",
+        "candidate_blob": "ab16f06b44f3e0f8868cadf2362413535f61e41e",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Time.hs",
+        "layer": "library",
+        "old_blob": "a743b813af90eea614920c94b1e32d6ba3aa2bea",
+        "candidate_blob": "a743b813af90eea614920c94b1e32d6ba3aa2bea",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Timeout.hs",
+        "layer": "library",
+        "old_blob": "5f7c4634a355d729a90b6f65142c7e2c4b87761b",
+        "candidate_blob": "5f7c4634a355d729a90b6f65142c7e2c4b87761b",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Trace.hs",
+        "layer": "library",
+        "old_blob": "43e83ba181309f3f77cc3894a6977d08b5400b67",
+        "candidate_blob": "fd7640cf96bf5a8ad0205603eb82eeedae354e76",
+        "status": "changed",
+        "old_sha256": "89eb93ac33c739b630642b07a0dfc9f51df6ceb18764ce952321a41c39a5db0d",
+        "candidate_sha256": "f3658dd4161358f0b46b8ead6ff186ee0a5fc82c7fd42604164e1c5efaca4e6a"
+      },
+      {
+        "category": "mux",
+        "path": "network-mux/src/Network/Mux/Types.hs",
+        "layer": "library",
+        "old_blob": "496b30c6a2d190c146b7e771ece1d7e16de14c5c",
+        "candidate_blob": "a63e8c9865f81b1cbd4b5bfb30bbb6dea7be21c4",
+        "status": "changed",
+        "old_sha256": "18b86464f9a5cafbcc2fb11c24aa5800993181bca365d1a97c4a12431fc00b1a",
+        "candidate_sha256": "3abcda04444622dbd184456926842a7c548ad13e0d87c28bc73eae2bd85616d8"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/api/lib/Ouroboros/Network/DiffusionMode.hs",
+        "layer": "library",
+        "old_blob": "24e264d5919ee4a0fb5e3e850037c2908a7887b6",
+        "candidate_blob": "24e264d5919ee4a0fb5e3e850037c2908a7887b6",
+        "status": "unchanged"
+      },
+      {
+        "category": "handler",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs",
+        "layer": "library",
+        "old_blob": "b4b9354411471f5e759319f0efe7c0030e1747f7",
+        "candidate_blob": "f10c29c90ddd2a973eab66157fb694e4eefd0269",
+        "status": "changed",
+        "old_sha256": "4cb3b27ef8b783b6352ce986c5b04989127fc7e356e0a7eddaa48d7336292487",
+        "candidate_sha256": "33582fa84b0cc7115d4ac6eefbc0039caa66db9bec541b276820890a17ba9705"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/ConnMap.hs",
+        "layer": "library",
+        "old_blob": "9aaa5ff6101e98a15256f271135bb8f3d4485bf9",
+        "candidate_blob": "9aaa5ff6101e98a15256f271135bb8f3d4485bf9",
+        "status": "unchanged"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs",
+        "layer": "library",
+        "old_blob": "8fd696c052e26ae47f061b715c8ea8ad2cd01e34",
+        "candidate_blob": "8fd696c052e26ae47f061b715c8ea8ad2cd01e34",
+        "status": "unchanged"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/State.hs",
+        "layer": "library",
+        "old_blob": "9bf65e5d70b78f6bcbdd6ddfe432ff7ae83aa59b",
+        "candidate_blob": "9bf65e5d70b78f6bcbdd6ddfe432ff7ae83aa59b",
+        "status": "unchanged"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Types.hs",
+        "layer": "library",
+        "old_blob": "695f6aa723e4a8285073eaf33b41b48ab2f1b043",
+        "candidate_blob": "695f6aa723e4a8285073eaf33b41b48ab2f1b043",
+        "status": "unchanged"
+      },
+      {
+        "category": "IG",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs",
+        "layer": "library",
+        "old_blob": "81b40f852ac7636c099811746bb39ae60dba0bcd",
+        "candidate_blob": "81b40f852ac7636c099811746bb39ae60dba0bcd",
+        "status": "unchanged"
+      },
+      {
+        "category": "IG",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor/InformationChannel.hs",
+        "layer": "library",
+        "old_blob": "ae59d1df60696a0f7f730b2407b920898c7e1166",
+        "candidate_blob": "ae59d1df60696a0f7f730b2407b920898c7e1166",
+        "status": "unchanged"
+      },
+      {
+        "category": "IG",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor/State.hs",
+        "layer": "library",
+        "old_blob": "7aa2985eac79697fbb1f00e614e86fd1c5483f0a",
+        "candidate_blob": "7aa2985eac79697fbb1f00e614e86fd1c5483f0a",
+        "status": "unchanged"
+      },
+      {
+        "category": "mux-framework",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/Mux.hs",
+        "layer": "library",
+        "old_blob": "1af56f80c35520038411441e5d7a506409ef0694",
+        "candidate_blob": "1af56f80c35520038411441e5d7a506409ef0694",
+        "status": "unchanged"
+      },
+      {
+        "category": "Server",
+        "path": "ouroboros-network/framework/lib/Ouroboros/Network/Server.hs",
+        "layer": "library",
+        "old_blob": "5e0c10bcb04fcc059644abfded34252d12fa0fc2",
+        "candidate_blob": "5e0c10bcb04fcc059644abfded34252d12fa0fc2",
+        "status": "unchanged"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ConnectionManager.hs",
+        "layer": "tests",
+        "old_blob": "71ca7ec9517ada1794293fb211994c25ffd4ea00",
+        "candidate_blob": "4b9ffb71e836c16ac0ea9d9169eeee20a750da56",
+        "status": "changed",
+        "old_sha256": "96a003e8842d3a073d7d209ecd193e5cc8f8c4d220f6a4b586e4175e28386594",
+        "candidate_sha256": "0f96e45b9036491865a66e732bd27250ce1e2a87bf8b4aeb12d5f94b867c0954"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/tests-lib/Test/Ouroboros/Network/ConnectionManager/Experiments.hs",
+        "layer": "tests",
+        "old_blob": "a84730c83c8407cffd36ad2591f25daf6c066025",
+        "candidate_blob": "6889efe2db1e104343c2b8d6b683a475c348b17c",
+        "status": "changed",
+        "old_sha256": "112c5cd2366ebc57d3ccb561116fe7475d79f1ca5c5076119ec53bdffe1dd5c4",
+        "candidate_sha256": "9e4de3e4b366c9d472338ac63b97ed82feeaf38a92a1b7c4ebbb8937a5e3d3e9"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/tests-lib/Test/Ouroboros/Network/ConnectionManager/Timeouts.hs",
+        "layer": "tests",
+        "old_blob": "847b1940f59d759a7ae4f474d26e91bd6639df2b",
+        "candidate_blob": "847b1940f59d759a7ae4f474d26e91bd6639df2b",
+        "status": "unchanged"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/framework/tests-lib/Test/Ouroboros/Network/ConnectionManager/Utils.hs",
+        "layer": "tests",
+        "old_blob": "4f37071012fbce2beb9e6be18117d4b832c0eda3",
+        "candidate_blob": "4f37071012fbce2beb9e6be18117d4b832c0eda3",
+        "status": "unchanged"
+      },
+      {
+        "category": "IG",
+        "path": "ouroboros-network/framework/tests-lib/Test/Ouroboros/Network/InboundGovernor/Utils.hs",
+        "layer": "tests",
+        "old_blob": "d9ad578bf191d5fe09e493233b0a94133ac5aa74",
+        "candidate_blob": "d9ad578bf191d5fe09e493233b0a94133ac5aa74",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion.hs",
+        "layer": "library",
+        "old_blob": "a430f6c4c971d392dca79d62796ea0233a112826",
+        "candidate_blob": "d23d213c1c96c6fa2e0f734d879440047e17fe94",
+        "status": "changed",
+        "old_sha256": "21f838b7fa70eb6799cdfd908e8fd52cbf9c6f8a503e1266b153c184d82d9862",
+        "candidate_sha256": "59e1de2ff4edec48b129bd3a0bb26d8d98fee42905b2f014f46273f7a8a27a49"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/Configuration.hs",
+        "layer": "library",
+        "old_blob": "3813d9a373781ac62c15bf6b72bae3f6898101b1",
+        "candidate_blob": "bce49945006ebf3b3fcff0223f1751d6de7007c5",
+        "status": "changed",
+        "old_sha256": "b6f6540cb108dbee3764884904d870a11de51343370ccebcc2ae2fa418231902",
+        "candidate_sha256": "2315f9de691dfbc96948ea62256f239ceb1348076e3a48dea358b045c704e268"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/Policies.hs",
+        "layer": "library",
+        "old_blob": "dd40700a89aa1300f5f86840c9dc29da1894bfea",
+        "candidate_blob": "dd40700a89aa1300f5f86840c9dc29da1894bfea",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/PoolAllowances.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "ca022c84cef8fe6dae8e787b33b61f6866e71f43",
+        "status": "added",
+        "candidate_sha256": "f045a447fa0a219e09e197086064dcf01389aac074e7cc9ffb2f8b3bf0ad3a72"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/PoolRelays.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "9928c37353164c736e35534a51b6aa410e2cd5a0",
+        "status": "added",
+        "candidate_sha256": "6bb0a68ef458d3d51ca8de5def28c7c6c17baa68e68946b2636a471a7e5e3187"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/Topology.hs",
+        "layer": "library",
+        "old_blob": "0618691b1e8196de36d23ed82870b2b6245b2b60",
+        "candidate_blob": "0618691b1e8196de36d23ed82870b2b6245b2b60",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/Types.hs",
+        "layer": "library",
+        "old_blob": "8e81ecb13c6a7eedb672192bb6f1d2ce06ff022d",
+        "candidate_blob": "00853902a099b40740124ec4f306e7e5d988e7e9",
+        "status": "changed",
+        "old_sha256": "cb17e6549ac48ac898cdfb95109e00c3c3bc6e90c1e91e49ca3b53c7084187c5",
+        "candidate_sha256": "3394677db554327994ee5828e5019d130b3611ca728c942ffda43188108c51dd"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/lib/Ouroboros/Network/Diffusion/Utils.hs",
+        "layer": "library",
+        "old_blob": "f4b54bd9c1c3940e22ea99abf29ba8b118084945",
+        "candidate_blob": "f4b54bd9c1c3940e22ea99abf29ba8b118084945",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor.hs",
+        "layer": "library",
+        "old_blob": "2b115778121d26c6d3d4bfcf2cae428ad468f0ca",
+        "candidate_blob": "2b115778121d26c6d3d4bfcf2cae428ad468f0ca",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/ActivePeers.hs",
+        "layer": "library",
+        "old_blob": "2c7a4548147332b284cb954aa5243d13a1390767",
+        "candidate_blob": "270d312c867875ba3f7ef7277b4cab8f999e8bec",
+        "status": "changed",
+        "old_sha256": "5e269ffe853be9921744a9c75b26d4f0a61c0d472a842f8af0b03f12cef5e942",
+        "candidate_sha256": "347b8a4cd72ba737ef24ac0aba2a8ddd8283836d15a32fa89c4452cf5287f791"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/BigLedgerPeers.hs",
+        "layer": "library",
+        "old_blob": "2d814e4c30938d93c1546e6ae11d94be69b287df",
+        "candidate_blob": "2d814e4c30938d93c1546e6ae11d94be69b287df",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/EstablishedPeers.hs",
+        "layer": "library",
+        "old_blob": "28d06bcb01a69fdfd522e147cac9ff49af4779c9",
+        "candidate_blob": "28d06bcb01a69fdfd522e147cac9ff49af4779c9",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/KnownPeers.hs",
+        "layer": "library",
+        "old_blob": "e00ea4c4b36dd76c000a47dbf9af96550e66ac41",
+        "candidate_blob": "fa4f644e6a57898e2a9eb3cf61af5fc3a85d745a",
+        "status": "changed",
+        "old_sha256": "bb1359d906639105be8e8fba9615064617e3d1c497f29d484fafe593a537dcc1",
+        "candidate_sha256": "0e8cb3eee4b6c1e9fdba4b9369adaab81888ca7b29d98c523f10f42a9414825f"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Monitor.hs",
+        "layer": "library",
+        "old_blob": "7b458992937c5d8a75b8786c7118d448100cb1df",
+        "candidate_blob": "fb18a03606ecd426791d28b2f955f7bcf31eaebf",
+        "status": "changed",
+        "old_sha256": "474f767891652d2a91e7c1defcdabf74059c0045ae6f044052292683de4658d9",
+        "candidate_sha256": "96005d2388807b4ae2f25dc94e2089553c545cd79a695d1f4fed6b1141cb4b5d"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/RootPeers.hs",
+        "layer": "library",
+        "old_blob": "65ed16b048b393ea619a8d4f1ab2199b4819d58e",
+        "candidate_blob": "65ed16b048b393ea619a8d4f1ab2199b4819d58e",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Types.hs",
+        "layer": "library",
+        "old_blob": "b6a996812201682290eb35b3012d32253aec8674",
+        "candidate_blob": "8be61e706f871cd7041e0bb49317133e6a8a5873",
+        "status": "changed",
+        "old_sha256": "33a945f2cb6f75ef5903e1268512b5863c521d18d1b45a886536f25df887138b",
+        "candidate_sha256": "4ed22d44abf316041132434ef250e643b6c0617dff120cbb430f857cc222e3c9"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs",
+        "layer": "library",
+        "old_blob": "140fc9eb42b8915e6b67ac22e7bed282517aefca",
+        "candidate_blob": "140fc9eb42b8915e6b67ac22e7bed282517aefca",
+        "status": "unchanged"
+      },
+      {
+        "category": "root-dns",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/RootPeersDNS/DNSActions.hs",
+        "layer": "library",
+        "old_blob": "d27ad00fc7d20bb3e6808b819d2944e556ebd07f",
+        "candidate_blob": "8c06538274b937ed515320681f2292b32f9c1da7",
+        "status": "changed",
+        "old_sha256": "14b66a06721f62a284024e2b91495cfabba4ec51719e929581c102f8b0f750cd",
+        "candidate_sha256": "eb059d21aedb51b4bb08dc4bac1aa73f086525a4fb412ef5165024fb1dfb2c46"
+      },
+      {
+        "category": "root-dns",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/RootPeersDNS/DNSSemaphore.hs",
+        "layer": "library",
+        "old_blob": "55e04c54a389053c8ab12d7cd9d22125e7b30f15",
+        "candidate_blob": "ec003cbaa328fe3eb91306456bae5888b75dc20f",
+        "status": "changed",
+        "old_sha256": "f6ba56278ee2a437c4811033ea7130d82a195a64984a16a05d1c533dd6bd8fa8",
+        "candidate_sha256": "0c415aeae362f748b9c652dacf8a3f9852bd64d05bf261beec10e1b0ea778a2d"
+      },
+      {
+        "category": "root-dns",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/RootPeersDNS/LedgerPeers.hs",
+        "layer": "library",
+        "old_blob": "f2b8fa92c390b3722fe3ba28b59024cae1e9d7f1",
+        "candidate_blob": "b9ffe39dae8e87c9f03ea245c396246af5203073",
+        "status": "changed",
+        "old_sha256": "32a4d91db4d2f53d9d0cc817e4a9b5a92e6835b5649b33969da0bcdca1ba8f19",
+        "candidate_sha256": "b01afc1de11371d392f2217fe099f13b161dd53d3927a5909f5f972b0f4fc9c5"
+      },
+      {
+        "category": "root-dns",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/RootPeersDNS/LocalRootPeers.hs",
+        "layer": "library",
+        "old_blob": "30cca2ab36867ad3193b3f0ba8a65b36ec16451e",
+        "candidate_blob": "4fcbe405ebaead5f3c46f1ef7036f031791143d6",
+        "status": "changed",
+        "old_sha256": "e6920843879e0ce85a4ba0dff788ade47fad10a1e831025f66302a666b054fa9",
+        "candidate_sha256": "017c9c7bfd2de7047af7bc29c4782320546e7b9d4ec0e67e43d7560ecbb773bb"
+      },
+      {
+        "category": "root-dns",
+        "path": "ouroboros-network/lib/Ouroboros/Network/PeerSelection/RootPeersDNS/PublicRootPeers.hs",
+        "layer": "library",
+        "old_blob": "c0c1484b6fc5d76ef6ba75f34ae33f7e721a9891",
+        "candidate_blob": "c0c1484b6fc5d76ef6ba75f34ae33f7e721a9891",
+        "status": "unchanged"
+      },
+      {
+        "category": "txsub-tier",
+        "path": "ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2.hs",
+        "layer": "library",
+        "old_blob": "510e3cfcf151fc2d0c32fdf6fe6f379476c4e166",
+        "candidate_blob": "baaf2c3492088bf414011e6b57a94596829ff160",
+        "status": "changed",
+        "old_sha256": "d54f9eaa3f142ee2c0d00f28c227e8a6fae9ac09ae181c7de13c23f77471c457",
+        "candidate_sha256": "3e49fa44d4b7a80e259fb6adb04a32d608e8a8a482c5ceaa0ea082247a45847e"
+      },
+      {
+        "category": "txsub-tier",
+        "path": "ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2/Policy.hs",
+        "layer": "library",
+        "old_blob": "9295e11489cf5725f8fbaecbc1bf65cbb323fb82",
+        "candidate_blob": "43f67f2e566c990b7b3e810869c5e9a8549494a6",
+        "status": "changed",
+        "old_sha256": "1b530702a87d831fcab41203750becb691f204cc16e2b158cd6347663a15c203",
+        "candidate_sha256": "042ce5ebf59fe4c7dfee2abe5ae2d3a624a98ff43df1a16a41e8e15c46105e56"
+      },
+      {
+        "category": "txsub-tier",
+        "path": "ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2/Registry.hs",
+        "layer": "library",
+        "old_blob": "4dac7f9722428177e04aec692c70be48019ea1b8",
+        "candidate_blob": "948092f8e0c6dbaadd061bafbd467d3005273cf4",
+        "status": "changed",
+        "old_sha256": "16c6abdf6e62b368ce4d96ad2520ab94d0b1dcfcf608b8621bf34a3e6d0e2dd0",
+        "candidate_sha256": "2b073741fe5510568a72fcdc5215f8a9847bd393483fcf8d3d087d7d68d7e0d7"
+      },
+      {
+        "category": "txsub-tier",
+        "path": "ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2/State.hs",
+        "layer": "library",
+        "old_blob": "53aea4a002191053020646e14a70b8a18b087cf2",
+        "candidate_blob": "84a145dafdadc481c3b192485c902f720787c195",
+        "status": "changed",
+        "old_sha256": "87bbdaef85e9c3a685d4465770e203dd9190e27dbb4946869d64fc59f6aca9de",
+        "candidate_sha256": "e0ec22eb482bf308d33492c97f0fa5c2f343da8e072a60f6287955dfa032e38c"
+      },
+      {
+        "category": "txsub-tier",
+        "path": "ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2/Tier.hs",
+        "layer": "library",
+        "old_blob": null,
+        "candidate_blob": "02caf3c6d641c7adadc3e8a42bddd88be1ae85d7",
+        "status": "added",
+        "candidate_sha256": "ddc4916a8662cda15695dd689f99c9bda811dbb6a3dbe9b3a406376f4c83a428"
+      },
+      {
+        "category": "txsub-tier",
+        "path": "ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2/Types.hs",
+        "layer": "library",
+        "old_blob": "a446450198196c7f4e2962d12b8c4588ef79922f",
+        "candidate_blob": "c12650034ea6395bfa3b458f55841767b9b84e91",
+        "status": "changed",
+        "old_sha256": "9e70d8797610cfd21e46301e43f9d9843345638bad8df7ababcee2598a972889",
+        "candidate_sha256": "7e0d027031e024193373fdf0f0fae33598358db4096cc3b39e36370fcfd4e537"
+      },
+      {
+        "category": "package",
+        "path": "ouroboros-network/ouroboros-network.cabal",
+        "layer": "package",
+        "old_blob": "90e72d26ff6e041086d84a7461878688f71c2deb",
+        "candidate_blob": "249b8c54383d7568af61780b3d9b819c49dfea17",
+        "status": "changed",
+        "old_sha256": "f2f97e1a2c94db9c41546b43136273246e02aff4e5ebeb06a2f38032b349a322",
+        "candidate_sha256": "3f848b350d5eb69b149a5359e25f6714b8adbb9ff836ec92278be64c70b1563c"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/tests/lib/Test/Ouroboros/Network/Diffusion/EgressRule.hs",
+        "layer": "tests",
+        "old_blob": null,
+        "candidate_blob": "bafd5f201e46228052995ef5452ab9a295d394bc",
+        "status": "added",
+        "candidate_sha256": "9d183e7f4e55f86da4e6b378487f4eb51deb0fd6b5aeebbab522ac27cf498bbf"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/tests/lib/Test/Ouroboros/Network/Diffusion/Node.hs",
+        "layer": "tests",
+        "old_blob": "f0e82105393f4f5464fc065da1c467d837b5b85b",
+        "candidate_blob": "7e1e295f12897a06379f369616a982299e73852c",
+        "status": "changed",
+        "old_sha256": "d1e10bf2fdeea034bf257cd06df8ca5690d4ccc4c8a21973cc9035d25e6c793b",
+        "candidate_sha256": "2a5a9239bd1253189a1e8c245b3aa89e40f1bb60b16c92da7071d46954e8d1dd"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/tests/lib/Test/Ouroboros/Network/Diffusion/Node/ChainDB.hs",
+        "layer": "tests",
+        "old_blob": "c4606e8d52461ca1f75f8b7bc7d5e33f120152de",
+        "candidate_blob": "c4606e8d52461ca1f75f8b7bc7d5e33f120152de",
+        "status": "unchanged"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/tests/lib/Test/Ouroboros/Network/Diffusion/Node/Kernel.hs",
+        "layer": "tests",
+        "old_blob": "0ba45675e9d22ee8673783a89a65e3d2f4bbbf39",
+        "candidate_blob": "8920bfa32aab64eaf19017bb66e87b52950cc91a",
+        "status": "changed",
+        "old_sha256": "fa8f5b827418721de3172a8351c797e2a0be8a1fa460c721dba7a6ff44b117c9",
+        "candidate_sha256": "fe74c9941f096714aacd0fe56048362b9fb2445f9590627fe4bedaa7b3fd11c6"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/tests/lib/Test/Ouroboros/Network/Diffusion/PoolAllowances.hs",
+        "layer": "tests",
+        "old_blob": null,
+        "candidate_blob": "6c76b091ae771b4e7a2858fb208205175572eba9",
+        "status": "added",
+        "candidate_sha256": "7b4bd0d26d3299bb73a2aa624216020a61c0e5d4c363e45fbdaee9867f3fcbd7"
+      },
+      {
+        "category": "diffusion",
+        "path": "ouroboros-network/tests/lib/Test/Ouroboros/Network/Diffusion/PoolRelays.hs",
+        "layer": "tests",
+        "old_blob": null,
+        "candidate_blob": "9e7547b556ab148f242c5b2d4ceced0942908d4d",
+        "status": "added",
+        "candidate_sha256": "791ac6c127246053f0563e0d0fe5971b628e4ff5a12bb93e4cbd82b124ce3cd9"
+      },
+      {
+        "category": "CM",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/ConnectionManager.hs",
+        "layer": "tracing",
+        "old_blob": "4c462553a5452bf92fbd5be0b93b6f39d24bcba4",
+        "candidate_blob": "4c462553a5452bf92fbd5be0b93b6f39d24bcba4",
+        "status": "unchanged"
+      },
+      {
+        "category": "IG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/InboundGovernor.hs",
+        "layer": "tracing",
+        "old_blob": "91a300c84e3e358c0ab1eea4b868a78b81eba735",
+        "candidate_blob": "91a300c84e3e358c0ab1eea4b868a78b81eba735",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/PeerSelection/Governor.hs",
+        "layer": "tracing",
+        "old_blob": "f8bda7a65daaa2891ff3fec6b402cec040474db0",
+        "candidate_blob": "f8bda7a65daaa2891ff3fec6b402cec040474db0",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/PeerSelection/Governor/DebugPeerSelection.hs",
+        "layer": "tracing",
+        "old_blob": "7ca6548b836d3fe2442b8ebff2667d4b7bfae593",
+        "candidate_blob": "7ca6548b836d3fe2442b8ebff2667d4b7bfae593",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/PeerSelection/Governor/PeerSelectionCounters.hs",
+        "layer": "tracing",
+        "old_blob": "26d04a8bd88f79e4fee94ecb35dfdf0ea39b0253",
+        "candidate_blob": "26d04a8bd88f79e4fee94ecb35dfdf0ea39b0253",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/PeerSelection/Governor/TracePeerSelection.hs",
+        "layer": "tracing",
+        "old_blob": "dd235624397505259db64c5aa419314c5851112c",
+        "candidate_blob": "dd235624397505259db64c5aa419314c5851112c",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/PeerSelection/Governor/Utils.hs",
+        "layer": "tracing",
+        "old_blob": "682d373d28762dec10888de3959d5288c96464ad",
+        "candidate_blob": "682d373d28762dec10888de3959d5288c96464ad",
+        "status": "unchanged"
+      },
+      {
+        "category": "OG",
+        "path": "ouroboros-network/tracing/Ouroboros/Network/Tracing/PeerSelection/PeerStateActions.hs",
+        "layer": "tracing",
+        "old_blob": "5e0451feb2c889ddfeee25579338413279b9fda6",
+        "candidate_blob": "5e0451feb2c889ddfeee25579338413279b9fda6",
+        "status": "unchanged"
+      }
+    ],
+    "summary": {
+      "CM": {
+        "unchanged": 7,
+        "changed": 2,
+        "added": 0,
+        "deleted": 0
+      },
+      "IG": {
+        "unchanged": 5,
+        "changed": 0,
+        "added": 0,
+        "deleted": 0
+      },
+      "JobPool": {
+        "unchanged": 1,
+        "changed": 0,
+        "added": 0,
+        "deleted": 0
+      },
+      "OG": {
+        "unchanged": 15,
+        "changed": 4,
+        "added": 0,
+        "deleted": 0
+      },
+      "Server": {
+        "unchanged": 1,
+        "changed": 0,
+        "added": 0,
+        "deleted": 0
+      },
+      "diffusion": {
+        "unchanged": 10,
+        "changed": 11,
+        "added": 5,
+        "deleted": 0
+      },
+      "handler": {
+        "unchanged": 0,
+        "changed": 1,
+        "added": 0,
+        "deleted": 0
+      },
+      "mux": {
+        "unchanged": 9,
+        "changed": 11,
+        "added": 4,
+        "deleted": 0
+      },
+      "mux-framework": {
+        "unchanged": 1,
+        "changed": 0,
+        "added": 0,
+        "deleted": 0
+      },
+      "package": {
+        "unchanged": 1,
+        "changed": 2,
+        "added": 0,
+        "deleted": 0
+      },
+      "root-dns": {
+        "unchanged": 1,
+        "changed": 4,
+        "added": 0,
+        "deleted": 0
+      },
+      "txsub-tier": {
+        "unchanged": 0,
+        "changed": 5,
+        "added": 1,
+        "deleted": 0
+      }
+    }
+  },
+  "consensus": {
+    "date": "2026-11-06",
+    "mode": "read-only source audit, no repin",
+    "old_consensus": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+    "local_candidate_consensus": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+    "candidate_network_declared": "2f1c154f248659b89523d5679ca532f442e7ed2a",
+    "remote_candidate_not_substituted": true,
+    "old_is_ancestor": true,
+    "commits_ahead_including_merges": 44,
+    "changed_files": 106,
+    "diff_insertions": 4881,
+    "diff_deletions": 2053,
+    "selected_sources": [
+      {
+        "path": "cabal.project",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "d1e5a948c0246ebaee2b4d961b56759e0c20d82e",
+          "sha256": "a8420151a160535732e81bda1374a56c1d7fe6932988ad5ea80cc017a8fa95d5"
+        },
+        "new": {
+          "blob": "74d8b0c207637f378a5e564a9d517ef683be1dd3",
+          "sha256": "d7bff38e70f1db6736101ce3b679ad0897e16c0a2050b49f21038ebde551ba12"
+        }
+      },
+      {
+        "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Network/NodeToNode.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "ed74e6ecf7d62f973713d492ad382cd88518f7bb",
+          "sha256": "e6247924b1fad6efbe6da39cfd3555a573cadc6347c64098f93eb10e73525062"
+        },
+        "new": {
+          "blob": "b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3",
+          "sha256": "2a86376ba6da92313ba7ddf09bc21ca8ef0725e54d01185e27805487c4d9e11e"
+        }
+      },
+      {
+        "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Node.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "1a5a3a468160c0e59c04272be7187ecae0f4d32b",
+          "sha256": "5ff8e79874bb715bd52856f0f64fbdba703434c32f4b7aa2042ea27bfffb5e30"
+        },
+        "new": {
+          "blob": "160e40f1bca5999b2a0a6898f143ccb88840a12f",
+          "sha256": "84dd9014dc710829f792afd4af5bcaaa0a9708d2fc60a5156c398ac4a17ab4aa"
+        }
+      },
+      {
+        "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+          "sha256": "5d23971a041e54d751519ca7c5cb0539768930e5aec0c4d8f9bf6acdd6868300"
+        },
+        "new": {
+          "blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+          "sha256": "75497980bf53ec38936c14f08ec7f48211ae13408f3eb31a457811cac94d5d82"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosFreshBytes.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": null,
+        "new": {
+          "blob": "f343c4707e4e62ce302bbcd04df654644ef18e85",
+          "sha256": "263aa7867d8e2cdfd675e498d59b0ad5917ef14d72bd3d9310c4015e2abacb64"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "d488000ae548538409e8b9c4e0a78bf71dcd3209",
+          "sha256": "e1ae7e033e16c3047dff0308b4cc2cd5d2e2a666f507aa98522dae95fa501638"
+        },
+        "new": {
+          "blob": "1a403a4b636f5b40576e8b030aca729a7fc808b6",
+          "sha256": "751843fe2ad2971761a5b8e3b3ca9dd4bb6128cdcc6bf40af9ce4e8a9d75a404"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoTypes.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "047445d725ea382f356580dd5889a81c4069eb08",
+          "sha256": "440a61b1747945631581f1db6dfd4a15ce23e39a94fc1e08f7c929f6efbd9828"
+        },
+        "new": {
+          "blob": "8fc8894990b2aaed2fa8397bf8ce29aaeadda777",
+          "sha256": "fae25af4fdd2af9e528ec816fbf73f2e1e28e8a2e48c31133f21fc8fea21cb9b"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "8259ef48bd7f16a33cf3b6c623c325206e5e24ba",
+          "sha256": "5355ee8993918c4995317dcc9e3a4c8703d58da8b489707f0316beda1ebc6c72"
+        },
+        "new": {
+          "blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+          "sha256": "1ff6966e1de05d1684e6439417073b9eb10f172f6c8147af6cbfd71d2d12ae92"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Leios/Types.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "fd89b2b4b2b3422ef9a3b07eaee4d5f5d69cf2e4",
+          "sha256": "051ef6b8c5fd389fb5e28edb9d9ec7386ce570ac0d14677de952b1c6fe0ff77c"
+        },
+        "new": {
+          "blob": "b3af126bbe8fe2a4e6a340d20f2b51f2521de077",
+          "sha256": "49bb887190d9d0f319f3f1cee979ef322f43c5b2530550680ff2038589e7ca3b"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LedgerDB/Forker.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "276a560b62bed3b18b40df89ed284305048037b1",
+          "sha256": "37362e57615de609e27b15273e77527af7b2da3286c2fdb61714b3d3cae4bc2b"
+        },
+        "new": {
+          "blob": "63f04311cf29caed8cd117224b5408a5cffdd3f1",
+          "sha256": "e425460faf8d878df6a65554b00a3db67551674543d344a21cdbadd2e6b957c6"
+        }
+      },
+      {
+        "path": "ouroboros-consensus-cardano/src/shelley/Ouroboros/Consensus/Shelley/Ledger/Leios.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "6eb598df8840110de4032b8e7f0c1a0cfb0e5a93",
+          "sha256": "7ed53a1ae5d0745f5a21cf8b2a3fac4444ccafe1a332272cc8765b5910e96089"
+        },
+        "new": {
+          "blob": "5f9fcf1fdd85e9ef8e264cfa2fef3f66acee19f8",
+          "sha256": "aff1f19709feb89e51873564b123346ceaf94da40f2d7ce9d9cda7891ec49dac"
+        }
+      },
+      {
+        "path": "ouroboros-consensus-cardano/src/ouroboros-consensus-cardano/Ouroboros/Consensus/Cardano/Block.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "4cbb44fdef739ace281b2be779596d8693ab8378",
+          "sha256": "0f78843552d4ce38ac66faa1a114899ce58dd1d21285883c59ce3580f80ca3c3"
+        },
+        "new": {
+          "blob": "20c7a063604bf1e0640370ddab65f029c37812b0",
+          "sha256": "7dbcbd55dfaf4cd6fedcba15a9ddbb8db438d42132f1ab7d2fc5191248163efa"
+        }
+      },
+      {
+        "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/MiniProtocol/ChainSync/Server.hs",
+        "old_revision": "585a86117618ff86d7d5b541f9d23b03356d4c3a",
+        "new_revision": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+        "old": {
+          "blob": "01179e265f31d8022bf359b5731a1023ad55b73d",
+          "sha256": "7bc636ac2a59e8dd0b91ee6f9c8bead36c9fc2a833be742e949da2803078bbc8"
+        },
+        "new": {
+          "blob": "213cc9bb6ddb9184b58aa797a331e62166a8012b",
+          "sha256": "44b9c4eff5feb877f8292a307da1998c50bec2af6b50927d46031c6966048086"
+        }
+      }
+    ],
+    "confirmed_findings": [
+      {
+        "id": "dependency-pair",
+        "classification": "confirmed",
+        "finding": "Candidate cabal.project declares network 2f1c154f248659b89523d5679ca532f442e7ed2a (including network-mux/cardano-diffusion) and ledger 9df9f98cce86c5f2195142b2c02dd9b39dd9dc7c; prior network pin was96ee and ledger505f. This is a declared coherent source dependency pair, not a successful build.",
+        "evidence": [
+          {
+            "path": "cabal.project",
+            "symbol": "source-repository-package",
+            "old_blob": "d1e5a948c0246ebaee2b4d961b56759e0c20d82e",
+            "new_blob": "74d8b0c207637f378a5e564a9d517ef683be1dd3",
+            "new_lines": [
+              70,
+              108
+            ],
+            "new_source_artifact": "consensus-evidence/00-new-cabal.project"
+          }
+        ],
+        "impact": "Do not combine candidate consensus API with old network96ee as a claimed tested baseline. No model repin is authorized by this audit."
+      },
+      {
+        "id": "egress-credit",
+        "classification": "confirmed",
+        "finding": "Node.runWith supplies freshBytes and freshMaxBytes STM actions to Cardano.Diffusion. NodeKernel initializes them and adds registry-linked freshBytes/freshMaxBytes watchers. Fresh adoption bytes are counted above the startup/last-considered slot while fresh; closure credit occurs only when the body claim changes not-held to held. Capacity is recomputed from the ledger forecast one slot past its tip; failed forecast returns0.",
+        "evidence": [
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Node.hs",
+            "symbol": "runWith",
+            "old_blob": "1a5a3a468160c0e59c04272be7187ecae0f4d32b",
+            "new_blob": "160e40f1bca5999b2a0a6898f143ccb88840a12f",
+            "new_lines": [
+              681,
+              688
+            ],
+            "new_source_artifact": "consensus-evidence/02-new-Node.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+            "symbol": "NodeKernel.freshBytes / NodeKernel.freshMaxBytes",
+            "old_blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+            "new_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+            "new_lines": [
+              672,
+              711
+            ],
+            "new_source_artifact": "consensus-evidence/03-new-NodeKernel.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+            "symbol": "initInternalState",
+            "old_blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+            "new_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+            "new_lines": [
+              951,
+              958
+            ],
+            "new_source_artifact": "consensus-evidence/03-new-NodeKernel.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+            "symbol": "freshMaxBytesOf",
+            "old_blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+            "new_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+            "new_lines": [
+              1070,
+              1088
+            ],
+            "new_source_artifact": "consensus-evidence/03-new-NodeKernel.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosFreshBytes.hs",
+            "symbol": "FreshBytes / addAdopted / addFresh",
+            "old_blob": null,
+            "new_blob": "f343c4707e4e62ce302bbcd04df654644ef18e85",
+            "new_lines": [
+              37,
+              104
+            ],
+            "new_source_artifact": "consensus-evidence/04-new-LeiosFreshBytes.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+            "symbol": "processLeiosBlock settle",
+            "old_blob": "8259ef48bd7f16a33cf3b6c623c325206e5e24ba",
+            "new_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+            "new_lines": [
+              1108,
+              1133
+            ],
+            "new_source_artifact": "consensus-evidence/07-new-LeiosDemoLogic.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LedgerDB/Forker.hs",
+            "symbol": "getFreshMaxBytesFromView",
+            "old_blob": "276a560b62bed3b18b40df89ed284305048037b1",
+            "new_blob": "63f04311cf29caed8cd117224b5408a5cffdd3f1",
+            "new_lines": [
+              988,
+              1001
+            ],
+            "new_source_artifact": "consensus-evidence/09-new-Forker.hs"
+          },
+          {
+            "path": "ouroboros-consensus-cardano/src/shelley/Ouroboros/Consensus/Shelley/Ledger/Leios.hs",
+            "symbol": "tpraosFreshMaxBytes / praosFreshMaxBytes",
+            "old_blob": "6eb598df8840110de4032b8e7f0c1a0cfb0e5a93",
+            "new_blob": "5f9fcf1fdd85e9ef8e264cfa2fef3f66acee19f8",
+            "new_lines": [
+              123,
+              165
+            ],
+            "new_source_artifact": "consensus-evidence/10-new-Leios.hs"
+          }
+        ],
+        "impact": "New scheduler inputs, STM read dependencies, wall-clock/ledger assumptions and node-registry jobs. Inference: app progress/backpressure windows can differ. No direct CM cancellation/cleanup change follows from these consensus edits; exact egress enforcement belongs to network audit."
+      },
+      {
+        "id": "tier-standing",
+        "classification": "confirmed",
+        "finding": "Node.mkNodeKernelArgs splits independent txTierRng; NodeKernel passes it to newPeerTxRegistry. In NodeToNode.aTxSubmission2Server, the new-server Right branch passes withPeer an STM predicate testing remoteAddress membership in localRootAddrs from psPublicPeerSelectionStateVar at each decision. Legacy Left branch remains unchanged.",
+        "evidence": [
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Node.hs",
+            "symbol": "mkNodeKernelArgs",
+            "old_blob": "1a5a3a468160c0e59c04272be7187ecae0f4d32b",
+            "new_blob": "160e40f1bca5999b2a0a6898f143ccb88840a12f",
+            "new_lines": [
+              996,
+              1037
+            ],
+            "new_source_artifact": "consensus-evidence/02-new-Node.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+            "symbol": "txTierRng",
+            "old_blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+            "new_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+            "new_lines": [
+              339,
+              345
+            ],
+            "new_source_artifact": "consensus-evidence/03-new-NodeKernel.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+            "symbol": "newPeerTxRegistry",
+            "old_blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+            "new_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+            "new_lines": [
+              529,
+              531
+            ],
+            "new_source_artifact": "consensus-evidence/03-new-NodeKernel.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Network/NodeToNode.hs",
+            "symbol": "aTxSubmission2Server / withPeer",
+            "old_blob": "ed74e6ecf7d62f973713d492ad382cd88518f7bb",
+            "new_blob": "b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3",
+            "new_lines": [
+              1604,
+              1635
+            ],
+            "new_source_artifact": "consensus-evidence/01-new-NodeToNode.hs"
+          }
+        ],
+        "impact": "Dynamic OG-public-state\u2192TxSubmission V2 scheduling dependency and random tier/jitter input. This is local-root standing, not static trust/admission, peerSharing activation, or a CM permission to cancel. Tier algorithm/blocking semantics require exact network2f audit."
+      },
+      {
+        "id": "fetch-reply",
+        "classification": "confirmed",
+        "finding": "MsgLeiosBlockTxs now carries only Vector tx: echoed point+bitmaps removed; outer CBOR arity4\u21922. Decoder accepts definite or indefinite bounded tx lists and enforces maxTxs, leaving request matching to the client. The pipelined callback retains its captured req; processLeiosBlockTxs checks union-offset count and every covered job byte count, and checks pending job root hashes before ingest.",
+        "evidence": [
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs",
+            "symbol": "MsgLeiosBlockTxs",
+            "old_blob": "d488000ae548538409e8b9c4e0a78bf71dcd3209",
+            "new_blob": "1a403a4b636f5b40576e8b030aca729a7fc808b6",
+            "new_lines": [
+              164,
+              171
+            ],
+            "new_source_artifact": "consensus-evidence/05-new-LeiosDemoOnlyTestFetch.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs",
+            "symbol": "encodeLeiosFetch",
+            "old_blob": "d488000ae548538409e8b9c4e0a78bf71dcd3209",
+            "new_blob": "1a403a4b636f5b40576e8b030aca729a7fc808b6",
+            "new_lines": [
+              315,
+              325
+            ],
+            "new_source_artifact": "consensus-evidence/05-new-LeiosDemoOnlyTestFetch.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs",
+            "symbol": "decodeLeiosFetch",
+            "old_blob": "d488000ae548538409e8b9c4e0a78bf71dcd3209",
+            "new_blob": "1a403a4b636f5b40576e8b030aca729a7fc808b6",
+            "new_lines": [
+              364,
+              383
+            ],
+            "new_source_artifact": "consensus-evidence/05-new-LeiosDemoOnlyTestFetch.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+            "symbol": "nextLeiosFetchClientCommand",
+            "old_blob": "8259ef48bd7f16a33cf3b6c623c325206e5e24ba",
+            "new_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+            "new_lines": [
+              796,
+              813
+            ],
+            "new_source_artifact": "consensus-evidence/07-new-LeiosDemoLogic.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+            "symbol": "checkJobSize / ingestJob",
+            "old_blob": "8259ef48bd7f16a33cf3b6c623c325206e5e24ba",
+            "new_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+            "new_lines": [
+              1350,
+              1390
+            ],
+            "new_source_artifact": "consensus-evidence/07-new-LeiosDemoLogic.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+            "symbol": "processLeiosBlockTxs",
+            "old_blob": "8259ef48bd7f16a33cf3b6c623c325206e5e24ba",
+            "new_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+            "new_lines": [
+              1438,
+              1475
+            ],
+            "new_source_artifact": "consensus-evidence/07-new-LeiosDemoLogic.hs"
+          }
+        ],
+        "impact": "Real incompatible prototype wire-shape/validation-placement drift. Request correlation is not removed: it lives in captured local continuation/jobs. Invalid replies may still produce actual app exceptions; no new model theorem or codec correspondence is established."
+      },
+      {
+        "id": "tx-encoding",
+        "classification": "confirmed",
+        "finding": "LeiosTx encode/decode now uses CBOR-in-CBOR tag24. Forged tx bytes switch to Dijkstra block-inclusion serialization (retaining is_valid), with matching deserialization and hashTxBytes (Blake2b_256 over those bytes). The cache carries protocol-version parity instead of unit.",
+        "evidence": [
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoTypes.hs",
+            "symbol": "encodeLeiosTx / decodeLeiosTx / serializeTxForLeios / ProtVerParity",
+            "old_blob": "047445d725ea382f356580dd5889a81c4069eb08",
+            "new_blob": "8fc8894990b2aaed2fa8397bf8ce29aaeadda777",
+            "new_lines": [
+              1220,
+              1260
+            ],
+            "new_source_artifact": "consensus-evidence/06-new-LeiosDemoTypes.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Leios/Types.hs",
+            "symbol": "hashTxBytes",
+            "old_blob": "fd89b2b4b2b3422ef9a3b07eaee4d5f5d69cf2e4",
+            "new_blob": "b3af126bbe8fe2a4e6a340d20f2b51f2521de077",
+            "new_lines": [
+              158,
+              165
+            ],
+            "new_source_artifact": "consensus-evidence/08-new-Types.hs"
+          },
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+            "symbol": "getLeiosTxCache",
+            "old_blob": "22ae2a8172bffefb475267768f14611f37eb1d93",
+            "new_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+            "new_lines": [
+              286,
+              287
+            ],
+            "new_source_artifact": "consensus-evidence/03-new-NodeKernel.hs"
+          }
+        ],
+        "impact": "Payload identity, sizes, hashes and validation-cache assumptions change. CM lifecycle profile abstracts these payload/codec details; prototype protocol correspondence and replay inputs need separate migration review."
+      },
+      {
+        "id": "unchanged-consensus-lifecycle-layout",
+        "classification": "confirmed",
+        "finding": "The exact NodeToNode suffix beginning aPerasCertDiffusionClient is byte-identical: oldline1628 and newline1637,550lines, SHA256 7d34081ae5ac7d36a5edc4c94ff34eb8beb25bde4e822c87bf6b3b4889a5585a. This includes bracketLeiosPeer get-or-create/delete/refund cleanup, Leios client/server runners, and initiator/initiatorAndResponder protocol numbers/start strategy.",
+        "evidence": [
+          {
+            "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Network/NodeToNode.hs",
+            "symbol": "aPerasCertDiffusionClient through EOF",
+            "old_blob": "ed74e6ecf7d62f973713d492ad382cd88518f7bb",
+            "new_blob": "b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3",
+            "new_lines": [
+              1637,
+              2186
+            ],
+            "new_source_artifact": "consensus-evidence/01-new-NodeToNode.hs"
+          }
+        ],
+        "impact": "Carry-forward source evidence for these consensus-side blocks only. Calls into network mux/handler and changed Leios logic are separate; no source equivalence of the whole pair or cancellation correctness follows."
+      },
+      {
+        "id": "n2c-exception",
+        "classification": "confirmed",
+        "finding": "chainSyncBlocksServer now calls inlineCertifiedEbTxs, throwing CertRbWithoutEbTxs for missing announcement/undecodable block/unavailable closure instead of serving an incomplete raw CertRB fallback.",
+        "evidence": [
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/MiniProtocol/ChainSync/Server.hs",
+            "symbol": "chainSyncBlocksServer",
+            "old_blob": "01179e265f31d8022bf359b5731a1023ad55b73d",
+            "new_blob": "213cc9bb6ddb9184b58aa797a331e62166a8012b",
+            "new_lines": [
+              108,
+              171
+            ],
+            "new_source_artifact": "consensus-evidence/12-new-Server.hs"
+          },
+          {
+            "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/MiniProtocol/ChainSync/Server.hs",
+            "symbol": "inlineCertifiedEbTxs",
+            "old_blob": "01179e265f31d8022bf359b5731a1023ad55b73d",
+            "new_blob": "213cc9bb6ddb9184b58aa797a331e62166a8012b",
+            "new_lines": [
+              180,
+              216
+            ],
+            "new_source_artifact": "consensus-evidence/12-new-Server.hs"
+          }
+        ],
+        "impact": "Concrete block-serving/N2C result-error behavior changes. It is outside the selected NtN five-hot-protocol CM profile; do not mistake it for a ConnectionManager.Server ownership change."
+      }
+    ],
+    "inferences": [
+      {
+        "classification": "inference",
+        "finding": "Scheduling/data-path assumptions require migration review, while the finite old-pin CM lifecycle theorems are not invalidated merely by another source revision existing."
+      }
+    ],
+    "unknowns": [
+      "Exact network2f lifecycle implementation and remote-network evidence are owned by parallel network audit; combine with it before any repin.",
+      "Declared pair has not been built/tested/replayed here. No Haskell or Agda check, codec roundtrip, scheduler fairness, cancellation responsiveness, watcher shutdown, or full-node resource theorem was run/proved.",
+      "Whether added egress waits share the existing cancellation-safe primitive boundaries requires network scheduler/backend inspection. Consensus wiring alone cannot establish it.",
+      "Current CM DESIGN\u00a73 profile abstracts payload/codecs and full Leios behavior; no byte-credit/tier algorithm is modeled. Existing accepted model proofs remain at old585/96ee. Source correspondence for the candidate requires explicit assumption review even where core lifecycle source is unchanged.",
+      "Adaptive endorsements, ledger/mempool/storage work can alter offered workload and node-owned jobs; these are not all106files semantically audited here. Metadata covers all106changed paths; semantic review is focused on13listed source files and their immediate integration.",
+      "Latest DB-await cancellation outcomes depend on actual ambient masking, STM backend, queue/writer state, and callback unwinding. No cancellation replay or joined-writer/quiescence proof was run.",
+      "Current commit was fetched shallow; exact tree comparisons are complete, but no241\u2192current ancestry/count is asserted. Old585\u2192local241 ancestry/44commit count remains separately confirmed."
+    ],
+    "unchanged_suffix": {
+      "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Network/NodeToNode.hs",
+      "marker": "  aPerasCertDiffusionClient ::",
+      "old_start_line": 1628,
+      "new_start_line": 1637,
+      "suffix_lines": 550,
+      "byte_identical": true,
+      "sha256": "7d34081ae5ac7d36a5edc4c94ff34eb8beb25bde4e822c87bf6b3b4889a5585a",
+      "contains": [
+        "bracketLeiosPeer",
+        "aLeiosNotifyClient",
+        "aLeiosFetchClient",
+        "aLeiosFetchServer",
+        "initiator",
+        "initiatorAndResponder"
+      ]
+    },
+    "maintained_edits": false,
+    "agda_run": false,
+    "haskell_build_or_replay_run": false,
+    "network_fetch_run": false,
+    "model_repinned": false,
+    "model_head_observed": "daf111d9d90f5edf950a42e7bdc025e0c207fcf0",
+    "current_consensus": "2e44d98a843168ba3b189e305820b79943ac7d1e",
+    "current_network_declared": "2f1c154f248659b89523d5679ca532f442e7ed2a",
+    "remote_observation": {
+      "authority": "parent-captured git ls-remote exact immutable output",
+      "ended_utc": "2026-11-06T16:39:35.372283+00:00",
+      "stdout": "2e44d98a843168ba3b189e305820b79943ac7d1e\trefs/heads/leios-prototype\n"
+    },
+    "latest_comparison": {
+      "local": "2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b",
+      "current": "2e44d98a843168ba3b189e305820b79943ac7d1e",
+      "changed_files": 21,
+      "insertions": 468,
+      "deletions": 587,
+      "shallow_current_commit": true,
+      "ancestry_or_commits_ahead_not_claimed": true,
+      "selected_sources": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "local": {
+            "blob": "23198bcf17defdb611b511ee69cca6e06761dd6f",
+            "sha256": "597ddc6f3cc270d93e50ce2287c4e698f8fd9f0d443ba6bdc25ff377ee24719e"
+          },
+          "current": {
+            "blob": "85a67535b1ce04dacef949a3ea7c40b8b1a914fe",
+            "sha256": "099d2af034cca2d6838134d318528cecbf76ffc68aa50cc97bef89f95085793b"
+          }
+        },
+        {
+          "path": "ouroboros-consensus-cardano/src/shelley/Ouroboros/Consensus/Shelley/Ledger/Mempool.hs",
+          "local": {
+            "blob": "098f56db2d88c70d2924c8dd2ada971e3061fb21",
+            "sha256": "c88d779ffafff885dea0353ac04e46d9db0a797cd02a2f3bc54f5dcc8aa8530b"
+          },
+          "current": {
+            "blob": "7d32063632d3a5f4a2f118aa192adb7193e7200b",
+            "sha256": "bb4bc5bb0e6198312bc6d6ee61fc0db66887d0762abf32e228a9da531c1048d2"
+          }
+        },
+        {
+          "path": "ouroboros-consensus-cardano/test/cardano-test/Test/Consensus/Cardano/Capacity.hs",
+          "local": {
+            "blob": "755dee999fb2a7cc1b5cce7296a4b8d980cf40a8",
+            "sha256": "ed92e4159b0d049bd16acf573d119e1cd427738bb027fbbe5983ac33909129d8"
+          },
+          "current": {
+            "blob": "666b0f11f2dbeebbd2022edc49d0d893a3a186d5",
+            "sha256": "ba3e92cecf440538a251049782966c6463b6fcda16b1a659479c1ce9b42a5632"
+          }
+        },
+        {
+          "path": "ouroboros-consensus-cardano/test/cardano-test/Test/ThreadNet/Leios.hs",
+          "local": {
+            "blob": "cb60f98fb49a9ecfee96490ae23cc46d59aa8532",
+            "sha256": "d9cddf2c0eafa1f60921327136114efc3a89d47ccd689f1ef6ad59ebf38d763d"
+          },
+          "current": {
+            "blob": "413586e8e6bb49fd48414426993a98b73ee50231",
+            "sha256": "06a71daccadd5f67401f32c8ba230a804931c1d0a99f0710784e0743053c4ae8"
+          }
+        },
+        {
+          "path": "ouroboros-consensus-cardano/test/shelley-test/Test/Consensus/Shelley/Dijkstra.hs",
+          "local": {
+            "blob": "fb1b13a9367278d3ce59453d1c97cebf1c7498be",
+            "sha256": "c570779d1e40d47e18e7cc2dbad57bf443308ea4cf3a4655ec5c6ac513a89f10"
+          },
+          "current": {
+            "blob": "ef0f2fd35d4096ca718dc0a2c8aa2f73c37d32b9",
+            "sha256": "ffee597a7560fc3cfd0e81c0afd114171429a9e8d4aa9a7278a5e506c4a8e4ad"
+          }
+        },
+        {
+          "path": "ouroboros-consensus.cabal",
+          "local": {
+            "blob": "fbd9e1d6b6d9359378640bd7bba15a7e135c8b8e",
+            "sha256": "debabda00908ca70dd4384a59fe422f025910f0f015c18a2ec287f675b0fc55a"
+          },
+          "current": {
+            "blob": "056cd83aa3e6e2c6b450ec69dd3c8842ed6598ca",
+            "sha256": "ebe95591e82299cac11a3ccb537389f8505f4756c0e48ffbfe6b6218200ebb7a"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/bench/leios-txcache-bench/LeiosTxCache/Bench/SQLite.hs",
+          "local": {
+            "blob": "024c2dc1e356ce1434d428e752ea64fa71c30aff",
+            "sha256": "c088c80626f7db7c5e0c3b6ace86a26a69513d708a6bdefd66d6b5fa351a7185"
+          },
+          "current": {
+            "blob": "cc61032bfc362ba7ea811f3d33e4ce7abf151333",
+            "sha256": "07ea3ccb2328b654f6fbcaad2e077b1ef67937b324a1c54c78cb72fb77cd52a7"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/bench/leios-txcache-bench/Main.hs",
+          "local": {
+            "blob": "968a296523766134a20b91e06499082614e97af3",
+            "sha256": "95e01d97f6133c249fd80001d35e1afdcbb14d0363b3faf37a3929063d9ac5e6"
+          },
+          "current": {
+            "blob": "f8c1ea7f7771b96476c914392baf0c7f9cd17d5a",
+            "sha256": "34bb35a8b68adacb73f5f44ba1feec9a58bf90d6261d49c3e4f2d4bd792b3c07"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosAdaptiveEndorsements.hs",
+          "local": {
+            "blob": "89c11a0ea0b482f214498f09b68686169d370a46",
+            "sha256": "5a780052c2e9b6ed7f930f1e77f75bc73530cd2dd45f615aa9dd869fb8c7a04b"
+          },
+          "current": {
+            "blob": "3d6e9b37a101593f556543acf2297b6a7e19d875",
+            "sha256": "d990bc26aaff35bfd266e9db2bfaacfc9d21069edc4becc74f67d859965a2d42"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+          "local": {
+            "blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+            "sha256": "1ff6966e1de05d1684e6439417073b9eb10f172f6c8147af6cbfd71d2d12ae92"
+          },
+          "current": {
+            "blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+            "sha256": "64387ccd0835962e38492262fbd62cbc3bb922773c11677cdace30d1d3a7c0c6"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoTypes.hs",
+          "local": {
+            "blob": "8fc8894990b2aaed2fa8397bf8ce29aaeadda777",
+            "sha256": "fae25af4fdd2af9e528ec816fbf73f2e1e28e8a2e48c31133f21fc8fea21cb9b"
+          },
+          "current": {
+            "blob": "709583e3f0efdaec80ed3700e8e91c200def0746",
+            "sha256": "a4b804e4e9a85b16032762543b84ffdc296055714406d5eaf7b9d64dfa3ff1dd"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosTxCache.hs",
+          "local": {
+            "blob": "79255fee32e9143db12b1e6d2147907b2ca402c8",
+            "sha256": "216199d52e334bee02fb85bd9508914fe04a9c969a751e829fa3683fe607792e"
+          },
+          "current": {
+            "blob": "f76672bba7c75e2ad53f6192c04a230c0c3a993d",
+            "sha256": "18b9d128f75adee4e1a46de527a068e0b9bb5d19cde113e22c1ee9fd4dc49f2e"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosTxCache/API.hs",
+          "local": {
+            "blob": "a2811c54a75d6d9a2be271f3fceef0d6c3ab2013",
+            "sha256": "73b24e5fe035b7673f5957f974ba3fb1bfc1fcdf57ba7ae5c6e1973ec4ee05ef"
+          },
+          "current": {
+            "blob": "cdab1fa2f5f4f2f4722e3e7d6fc27a959e40f14b",
+            "sha256": "99b066793982b99f933244062400f860255d41a212ca962d8faee550e9f5099e"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosTxCache/Optimized.hs",
+          "local": {
+            "blob": "68493d3380572e1db50b1b31251ef5952380d6be",
+            "sha256": "2ddc7916f225d04e248b47e021e00f3a32641ff111d35c326f33eae6646ddc69"
+          },
+          "current": {
+            "blob": "7a236b929d988277e17a3fe48f2a8594076004c8",
+            "sha256": "460e62e0d985a20dba61f9df2d64dd54e38e5fe7ec8b66a9aa60dc3d17d75df5"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosTxCache/Reference.hs",
+          "local": {
+            "blob": "554dcf3901995c173c2b9ca2640648958ac207dd",
+            "sha256": "640aa5942f3518a1363fb5ad8b0f960d367705887575a8f2ab11cbbac6d3c160"
+          },
+          "current": {
+            "blob": "1d13c63b993618b4a991ac197bbd1a5381a2b3d5",
+            "sha256": "50939c898f5a68aab9c9b12d2d2a67fa72a41268381c0c88982435750bce8acc"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/test/consensus-test/Test/LeiosAdaptiveEndorsements.hs",
+          "local": {
+            "blob": "48b12c5efcb5bd417b7cc28c8db5b0ef65cbc260",
+            "sha256": "1cd8208e8a6e6c5a3ca2926adf0097e772e0ef250b0402224b9cf4a3bf45d06b"
+          },
+          "current": {
+            "blob": "55e1d9aac7da1c671d4da3a3ac0ebdbea90a1b09",
+            "sha256": "5f07376ea445c013c023e8cca7f2fb07c121063350368e792b0d1cb2752dbfa6"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/test/consensus-test/Test/LeiosDemoLogic.hs",
+          "local": {
+            "blob": "cb68ac1c34bc888e6946ff4c6e14eacf54b95615",
+            "sha256": "1e9dd60cfa75034f00f6cc3119275e4b19d846cb929cdac990bce49207f05f4d"
+          },
+          "current": {
+            "blob": "72fb515aff5ce7de5273c1c298a46bb6da6402a8",
+            "sha256": "51bbf7b8cc51a1694cf74adf0d86ff30442afaaed303254928dcc250b3230d0a"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/test/consensus-test/Test/LeiosDemoLogic/Invariants.hs",
+          "local": {
+            "blob": "274e98513834c0638ae47b4f96b82dae0502432f",
+            "sha256": "d1513cc7b6e4566b5a6d85aee61741f8768571789ee4da69ef3dbba6978753cc"
+          },
+          "current": {
+            "blob": "4586aa10ec6f9e1a781ec0a6539542d22dc71283",
+            "sha256": "8150ee232f4beb038dadc359a0aee84f92ff7a328eef0b43f042442247106b1c"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/test/consensus-test/Test/LeiosTxCache/Optimized.hs",
+          "local": {
+            "blob": "2359c7c3b5d4ae62842aeaac68f8384d2a140cd6",
+            "sha256": "f256d0e2c4411122684e9fcb2862f2b8890ad3effbb1955bf25a7a7d0511e2d1"
+          },
+          "current": {
+            "blob": "caabc4be6af2c17f2f55e7a0bcb42fad95bbf1a1",
+            "sha256": "9df378a6299e3d50cfbd3d762639eb9ba156fc52a673a22f4e4d2045bfaf39d4"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/test/consensus-test/Test/LeiosTxCache/Reference.hs",
+          "local": {
+            "blob": "296e5f2370a4ed2522ecbfaec4d995d52ddf59ae",
+            "sha256": "13b147f4e853677822400d2546bb7098a4a5d3628ddae5a7b2d95c2b0612225c"
+          },
+          "current": {
+            "blob": "1047d9da721c8bd478d5ba5675cde0b269c65a30",
+            "sha256": "18c2228e6270fd9de2aa5a063d4cd69739db5269450a9b1e8ed811a63183cc9b"
+          }
+        },
+        {
+          "path": "ouroboros-consensus/test/consensus-test/Test/LeiosVoting.hs",
+          "local": {
+            "blob": "ed8449736fe9b05d56d0ce77289d4904fe7c246b",
+            "sha256": "b24a159dee3a7e492af668ae3b0ab527b3519c4cf60e4b88cdadc83c0eb82adb"
+          },
+          "current": {
+            "blob": "f946653d3f569cdac6afcc29f753a8d948b9318f",
+            "sha256": "85ff24c98fa0800fcbd4c95c5e1ac7ae751529408da14b37a996078054e488ed"
+          }
+        }
+      ],
+      "db_contracts": [
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/API.hs",
+          "local_blob": "2efa560dfe9d9b7979fc2bff74c6df04253ba62f",
+          "current_blob": "2efa560dfe9d9b7979fc2bff74c6df04253ba62f",
+          "unchanged": true,
+          "sha256": "fb1edfb81e9477f8e43e5b7457928961b5b07028c2efb445a7f638c1092ddfd0"
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite.hs",
+          "local_blob": "d5f10344d0bfb8dde22b28068c15569ff6b5b2c9",
+          "current_blob": "d5f10344d0bfb8dde22b28068c15569ff6b5b2c9",
+          "unchanged": true,
+          "sha256": "ffe1d69e5341982d2d95a0bf79ea03685a1b861218797bb30d6d7b2c8f81d304"
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite/WriteQueue.hs",
+          "local_blob": "b1856d1a91c592ba16d4d9435ebe5371fa386a5f",
+          "current_blob": "b1856d1a91c592ba16d4d9435ebe5371fa386a5f",
+          "unchanged": true,
+          "sha256": "94bf2b005fc362b887d6136aa2754b7ce68ee4c53fc8dfffd0b50db55ccd2400"
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite/Completion.hs",
+          "local_blob": "6c7f4531010d620d20d26a496115a0d43bc2eaa0",
+          "current_blob": "6c7f4531010d620d20d26a496115a0d43bc2eaa0",
+          "unchanged": true,
+          "sha256": "607d60470e02cc6e89d4a6228059232c8a79e784d771d8bff5a9ddd2145c0004"
+        }
+      ],
+      "carryforward": [
+        {
+          "path": "cabal.project",
+          "local_blob": "74d8b0c207637f378a5e564a9d517ef683be1dd3",
+          "current_blob": "74d8b0c207637f378a5e564a9d517ef683be1dd3",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Network/NodeToNode.hs",
+          "local_blob": "b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3",
+          "current_blob": "b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Node.hs",
+          "local_blob": "160e40f1bca5999b2a0a6898f143ccb88840a12f",
+          "current_blob": "160e40f1bca5999b2a0a6898f143ccb88840a12f",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs",
+          "local_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+          "current_blob": "3ee89fddf8ce329eb193bbe6300e67976ab04e9f",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosFreshBytes.hs",
+          "local_blob": "f343c4707e4e62ce302bbcd04df654644ef18e85",
+          "current_blob": "f343c4707e4e62ce302bbcd04df654644ef18e85",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs",
+          "local_blob": "1a403a4b636f5b40576e8b030aca729a7fc808b6",
+          "current_blob": "1a403a4b636f5b40576e8b030aca729a7fc808b6",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoTypes.hs",
+          "local_blob": "8fc8894990b2aaed2fa8397bf8ce29aaeadda777",
+          "current_blob": "709583e3f0efdaec80ed3700e8e91c200def0746",
+          "unchanged": false
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+          "local_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+          "current_blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+          "unchanged": false
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Leios/Types.hs",
+          "local_blob": "b3af126bbe8fe2a4e6a340d20f2b51f2521de077",
+          "current_blob": "b3af126bbe8fe2a4e6a340d20f2b51f2521de077",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LedgerDB/Forker.hs",
+          "local_blob": "63f04311cf29caed8cd117224b5408a5cffdd3f1",
+          "current_blob": "63f04311cf29caed8cd117224b5408a5cffdd3f1",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus-cardano/src/shelley/Ouroboros/Consensus/Shelley/Ledger/Leios.hs",
+          "local_blob": "5f9fcf1fdd85e9ef8e264cfa2fef3f66acee19f8",
+          "current_blob": "5f9fcf1fdd85e9ef8e264cfa2fef3f66acee19f8",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus-cardano/src/ouroboros-consensus-cardano/Ouroboros/Consensus/Cardano/Block.hs",
+          "local_blob": "20c7a063604bf1e0640370ddab65f029c37812b0",
+          "current_blob": "20c7a063604bf1e0640370ddab65f029c37812b0",
+          "unchanged": true
+        },
+        {
+          "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/MiniProtocol/ChainSync/Server.hs",
+          "local_blob": "213cc9bb6ddb9184b58aa797a331e62166a8012b",
+          "current_blob": "213cc9bb6ddb9184b58aa797a331e62166a8012b",
+          "unchanged": true
+        }
+      ],
+      "findings": [
+        {
+          "id": "current-synchronous-callbacks",
+          "classification": "confirmed",
+          "finding": "Received body and tx durability completion no longer forks linked Async continuations. processLeiosBlock synchronously awaits point then body writes, and only afterward inserts body cache/claims acquired state/credits fresh bytes; ingestAcquiredTxs synchronously awaits writeTxs before onDurable request completion and cache/location updates. DB waits are outside the outstandingVar critical section. No local mask/restore wrapper is added; ambient masking is inherited.",
+          "evidence": [
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+              "symbol": "processLeiosBlock",
+              "local_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+              "current_blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+              "current_lines": [
+                1004,
+                1036
+              ],
+              "source_artifact": "current-consensus-evidence/09-current-LeiosDemoLogic.hs"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+              "symbol": "ingestAcquiredTxs",
+              "local_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+              "current_blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+              "current_lines": [
+                1450,
+                1485
+              ],
+              "source_artifact": "current-consensus-evidence/09-current-LeiosDemoLogic.hs"
+            }
+          ],
+          "impact": "Actual protocol collector may now remain blocked on DB durability and may receive cancellation or errors there. The prior separate linked completion-worker lifetime is removed at these sites, but physical worker exit/DB-job completion/CM result publication remain separate facts."
+        },
+        {
+          "id": "current-forged-claim",
+          "classification": "confirmed",
+          "finding": "BodyImminent and markBodyImminent are removed. ForgedLocally announcement does not register fetch work; after durable body write acquireForgedEbBody installs BodyAcquired empty job pool even if a peer copy had pending jobs.",
+          "evidence": [
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+              "symbol": "processAnnouncementCentrally",
+              "local_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+              "current_blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+              "current_lines": [
+                1718,
+                1742
+              ],
+              "source_artifact": "current-consensus-evidence/09-current-LeiosDemoLogic.hs"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+              "symbol": "processLeiosBlock",
+              "local_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+              "current_blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+              "current_lines": [
+                1020,
+                1027
+              ],
+              "source_artifact": "current-consensus-evidence/09-current-LeiosDemoLogic.hs"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoTypes.hs",
+              "symbol": "acquireForgedEbBody",
+              "local_blob": "8fc8894990b2aaed2fa8397bf8ce29aaeadda777",
+              "current_blob": "709583e3f0efdaec80ed3700e8e91c200def0746",
+              "current_lines": [
+                805,
+                816
+              ],
+              "source_artifact": "current-consensus-evidence/10-current-LeiosDemoTypes.hs"
+            }
+          ],
+          "impact": "Different legal body-fetch/state transitions; prevents the modeled source self-fetch window described by the patch, but no universal end-to-end proof or replay was run."
+        },
+        {
+          "id": "current-cache-publication",
+          "classification": "confirmed",
+          "finding": "LeiosTxCache.insertBody loses caller accumulator/location lookup; separate lookupTxLocations read obtains fill sources before the write, and insertBody occurs after the write. Optimized backend uses withMVar for location lookup and modifyMVar for insert; stale locations remain guarded by DB fill logic.",
+          "evidence": [
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosTxCache/API.hs",
+              "symbol": "insertBody / lookupTxLocations",
+              "local_blob": "a2811c54a75d6d9a2be271f3fceef0d6c3ab2013",
+              "current_blob": "cdab1fa2f5f4f2f4722e3e7d6fc27a959e40f14b",
+              "current_lines": [
+                73,
+                91
+              ],
+              "source_artifact": "current-consensus-evidence/12-current-API.hs"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosTxCache/Optimized.hs",
+              "symbol": "insertBody / lookupTxLocations",
+              "local_blob": "68493d3380572e1db50b1b31251ef5952380d6be",
+              "current_blob": "7a236b929d988277e17a3fe48f2a8594076004c8",
+              "current_lines": [
+                110,
+                158
+              ],
+              "source_artifact": "current-consensus-evidence/13-current-Optimized.hs"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs",
+              "symbol": "processLeiosBlock",
+              "local_blob": "397190d3e8ca96c16a8946a9d3c56c03a260063b",
+              "current_blob": "2f3f4b5a926df486309b1f7099faeeef1547b899",
+              "current_lines": [
+                985,
+                1022
+              ],
+              "source_artifact": "current-consensus-evidence/09-current-LeiosDemoLogic.hs"
+            }
+          ],
+          "impact": "Cache possession follows durability rather than preceding it; app wait/state/error schedules change. Exact callback/storage correspondence must reflect this order."
+        },
+        {
+          "id": "current-node-owned-db-contract",
+          "classification": "confirmed",
+          "finding": "SQLite LeiosDB API/writer/queue/Completion sources are byte-identical241\u2192current. Promise wraps await; submitJob atomically enqueues then returns a Promise waiting on resultTMVar or queue seal. That await has no removal/cancel-job operation. startWriter runs in node ResourceRegistry and seals/rethrows failures.",
+          "evidence": [
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/API.hs",
+              "local_blob": "2efa560dfe9d9b7979fc2bff74c6df04253ba62f",
+              "current_blob": "2efa560dfe9d9b7979fc2bff74c6df04253ba62f",
+              "unchanged": true,
+              "sha256": "fb1edfb81e9477f8e43e5b7457928961b5b07028c2efb445a7f638c1092ddfd0"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite.hs",
+              "local_blob": "d5f10344d0bfb8dde22b28068c15569ff6b5b2c9",
+              "current_blob": "d5f10344d0bfb8dde22b28068c15569ff6b5b2c9",
+              "unchanged": true,
+              "sha256": "ffe1d69e5341982d2d95a0bf79ea03685a1b861218797bb30d6d7b2c8f81d304"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite/WriteQueue.hs",
+              "local_blob": "b1856d1a91c592ba16d4d9435ebe5371fa386a5f",
+              "current_blob": "b1856d1a91c592ba16d4d9435ebe5371fa386a5f",
+              "unchanged": true,
+              "sha256": "94bf2b005fc362b887d6136aa2754b7ce68ee4c53fc8dfffd0b50db55ccd2400"
+            },
+            {
+              "path": "ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite/Completion.hs",
+              "local_blob": "6c7f4531010d620d20d26a496115a0d43bc2eaa0",
+              "current_blob": "6c7f4531010d620d20d26a496115a0d43bc2eaa0",
+              "unchanged": true,
+              "sha256": "607d60470e02cc6e89d4a6228059232c8a79e784d771d8bff5a9ddd2145c0004"
+            }
+          ],
+          "impact": "Inference: after successful submission, cancellation of the awaiting protocol worker alone does not remove its queued DB job; independent writer work may continue. Synchronous callbacks do not establish whole-node/API quiescence or change CM ownership."
+        }
+      ]
+    },
+    "old_to_current_changed_files": 113,
+    "old_to_current_insertions": 5160,
+    "old_to_current_deletions": 2451
+  },
+  "consensus_remote_observation": {
+    "command": [
+      "git",
+      "ls-remote",
+      "https://github.com/IntersectMBO/ouroboros-consensus",
+      "refs/heads/leios-prototype"
+    ],
+    "started_utc": "2026-11-06T16:39:34.795392+00:00",
+    "ended_utc": "2026-11-06T16:39:35.372283+00:00",
+    "exit_code": 0,
+    "stdout": "2e44d98a843168ba3b189e305820b79943ac7d1e\trefs/heads/leios-prototype\n",
+    "stderr": ""
+  },
+  "network_remote_observation": {
+    "started_utc": "2026-11-06T16:39:33.180128+00:00",
+    "finished_utc": "2026-11-06T16:39:33.853077+00:00",
+    "argv": [
+      "git",
+      "-c",
+      "credential.interactive=false",
+      "-c",
+      "credential.helper=",
+      "ls-remote",
+      "https://github.com/IntersectMBO/ouroboros-network",
+      "refs/heads/leios-prototype"
+    ],
+    "exit_code": 0,
+    "stdout": "2f1c154f248659b89523d5679ca532f442e7ed2a\trefs/heads/leios-prototype\n",
+    "stderr": ""
+  },
+  "current_cabal_sha256": "d7bff38e70f1db6736101ce3b679ad0897e16c0a2050b49f21038ebde551ba12",
+  "detailed_command_and_diff_directory": "/tmp/cm-baseline-wave-20261106",
+  "unperformed": [
+    "Agda run for audit",
+    "Haskell build",
+    "native replay",
+    "backend/RTS conformance",
+    "model repin"
+  ],
+  "reports_sha256": {
+    "network-source-report.md": "ad39fd46af11b1a86a4c892b42d4f71d1686f15fd78ebedd14359c6de53bb9c2",
+    "consensus-impact.md": "24380ce1d6d758ff6b89cefdf3fc752333778258c36c06d8e5d873e6b3f122ef",
+    "proof-scope-map.md": "a0e563cec68d8032605bea465e4d44424d03ff56ecaabaee68e8541789caae9d"
+  }
+}

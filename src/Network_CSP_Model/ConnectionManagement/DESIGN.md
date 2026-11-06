@@ -428,3 +428,7 @@ Retain the existing invariants as regression checks while extending behavior.
 Neither G1 nor the first combined lifecycle gate G2 is complete. The
 [progress review](../review/connection-management-progress-review.md) records
 coverage, remaining abstractions and the revised implementation priorities.
+
+## 11. Audited source-baseline migration
+
+The [migration plan](BASELINE_MIGRATION_PLAN.md) orders the held/in-flight, lane ownership, setup, scheduling and DB-wait changes required for the audited `2e44d98…` / `2f1c154…` target. Existing model pins remain until its acceptance and source-validation gates pass.

@@ -4,7 +4,8 @@
 -- Scheduling/traffic/termination inputs are explicit runtime boundaries.
 module ConnectionManagement.Rules.MuxRuntime where
 
-open import Class.DecEq.Instances using (DecEq-ℕ)
+open import Class.DecEq using (DecEq)
+open import Class.DecEq.Instances using (DecEq-ℕ; DecEq-×)
 open import Data.Nat using (ℕ; zero; _≟_)
 open import Data.Integer using (ℤ; +_)
 import Data.Integer as Z
@@ -13,10 +14,12 @@ open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Bool using (Bool; true; false)
 open import Data.Product using (_×_; _,_)
 open import Relation.Nullary using (yes; no)
+open import Relation.Binary.PropositionalEquality using (refl)
 open import ConnectionManagement.Domain
 open import ConnectionManagement.IGTypes
 open import ConnectionManagement.Store using (Store; lookup; put)
 import ConnectionManagement.Rules.InformationChannel as Channel
+import ConnectionManagement.Rules.MuxEgress as EgressKernel
 
 -- Ready remains the mux status while the monitor runs.
 data Status : Set where
@@ -65,6 +68,22 @@ interruptibleCallback _ = false
 -- Direction separates initiator/responder jobs with the same protocol number.
 data JobDirection : Set where
   initiatorJob responderJob : JobDirection
+instance
+  DecEq-JobDirection : DecEq JobDirection
+  DecEq-JobDirection .DecEq._≟_ initiatorJob initiatorJob = yes refl
+  DecEq-JobDirection .DecEq._≟_ initiatorJob responderJob = no (λ ())
+  DecEq-JobDirection .DecEq._≟_ responderJob initiatorJob = no (λ ())
+  DecEq-JobDirection .DecEq._≟_ responderJob responderJob = yes refl
+
+-- The persistent source cell is indexed by the registered number/direction,
+-- while each physical child gets its own separately allocated Wanton.
+ProtocolKey : Set
+ProtocolKey = ℕ × JobDirection
+instance
+  DecEq-ProtocolKey : DecEq ProtocolKey
+  DecEq-ProtocolKey = DecEq-×
+module Egress = EgressKernel.Kernel ProtocolKey
+
 record JobResult : Set where
   constructor jobResult
   field jobDirection : JobDirection
@@ -77,7 +96,7 @@ data TracerAttachment : Set where
   noIGTracer igTracer : TracerAttachment
 
 record Mux : Set where
-  constructor muxState
+  constructor muxStateWithEgress
   field
     key : ConnectionKey
     status : Status
@@ -90,7 +109,35 @@ record Mux : Set where
     traceCounters : Maybe Counters
     callback : Callback
     tracerAttachment : TracerAttachment
+    egress : Egress.State
 open Mux public
+
+-- Compatibility profile: the listed protocol numbers are explicitly configured
+-- in both directions, with one plain lane and a Word16-sized fragment limit.
+-- This is a selected bidirectional bundle, not registration of unknown keys.
+-- Full/configured construction supplies its exact directional cells instead.
+plainCells : Store ℕ ProtocolStatus → Store ProtocolKey Egress.Cell
+plainCells [] = []
+plainCells ((n , _) ∷ rest) =
+  ((n , initiatorJob) , Egress.cell EgressKernel.scheduledLane (+ 0) 0) ∷
+  ((n , responderJob) , Egress.cell EgressKernel.scheduledLane (+ 0) 0) ∷ plainCells rest
+plainEgress : Store ℕ ProtocolStatus → Egress.State
+plainEgress ps = Egress.state EgressKernel.plainLayout 65535 65535 (plainCells ps) []
+  ((EgressKernel.scheduledLane , []) ∷ []) [] (+ 0) 0
+plainInitiatorCells : Store ℕ ProtocolStatus → Store ProtocolKey Egress.Cell
+plainInitiatorCells [] = []
+plainInitiatorCells ((n , _) ∷ rest) =
+  ((n , initiatorJob) , Egress.cell EgressKernel.scheduledLane (+ 0) 0) ∷ plainInitiatorCells rest
+plainInitiatorEgress : Store ℕ ProtocolStatus → Egress.State
+plainInitiatorEgress ps = record (plainEgress ps) { cells = plainInitiatorCells ps }
+
+-- Retain the previous constructor arity for existing plain, empty-traffic
+-- histories. Every real Wanton allocation remains an explicit child action.
+muxState : ConnectionKey → Status → Store ℕ ProtocolStatus → List Command →
+  Store ℕ StartMode → List ℕ → List (ℕ × RunResult) → List JobResult →
+  Maybe Counters → Callback → TracerAttachment → Mux
+muxState k st ps cmds wait activeJobs finished outcomes rc cb attachment =
+  muxStateWithEgress k st ps cmds wait activeJobs finished outcomes rc cb attachment (plainEgress ps)
 
 record Handle : Set where
   constructor handleState

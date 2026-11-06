@@ -40,6 +40,18 @@ install-retains attachment hid mid k ps flow ig queue eq
 ... | nothing | nothing | true | true with just-injective eq
 ...   | refl = extend-retains hid _ mid _ ig absentHandle absentMux
 
+-- Initiator-only allocation has the same fresh-table effect with exact keys.
+install-initiator-retains : ∀ hid mid k ps flow ig queue {ig′ queue′} →
+  IG.installInitiatorWith hid mid k ps flow ig queue ≡ just (ig′ , queue′) → Retains ig ig′
+install-initiator-retains hid mid k ps flow ig queue eq
+  with lookup hid (IG.handles (IG.execution ig)) in absentHandle | lookup mid (IG.muxes (IG.execution ig)) in absentMux | IG.ordered ps | IG.supported ps
+... | just _ | _ | _ | _ = case eq of λ ()
+... | nothing | just _ | _ | _ = case eq of λ ()
+... | nothing | nothing | false | _ = case eq of λ ()
+... | nothing | nothing | true | false = case eq of λ ()
+... | nothing | nothing | true | true with just-injective eq
+...   | refl = extend-retains hid _ mid _ ig absentHandle absentMux
+
 worker-retains : ∀ a → CoveredIG a → ∀ ig queue {ig′ queue′} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Retains ig ig′
 worker-retains .IG.commitDecision decision ig queue eq with IG.continuation ig
@@ -69,5 +81,5 @@ mode-retains : ∀ mode a → CoveredIG a → ∀ ig queue {ig′ queue′} →
 mode-retains noResponderMode .IG.commitDecision decision ig queue ()
 mode-retains noResponderMode .(IG.installHandle hid mid k ps flow) (install {hid} {mid} {k} {ps} {flow}) ig queue ()
 mode-retains noResponderMode .(IG.installOutboundHandle hid mid k ps flow) (installOutbound {hid} {mid} {k} {ps} {flow}) ig queue eq =
-  install-retains M.noIGTracer hid mid k ps flow ig queue eq
+  install-initiator-retains hid mid k ps flow ig queue eq
 mode-retains responderMode a covered ig queue eq = worker-retains a covered ig queue eq

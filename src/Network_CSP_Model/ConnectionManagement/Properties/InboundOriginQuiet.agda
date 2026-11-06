@@ -106,11 +106,11 @@ import ConnectionManagement.Rules.MuxRuntime as WireMux
 import Data.Nat as Nat
 
 module Protocol where
- private module P = ProtocolModel using (bodySource; publicationSource; locate; pendingAt; sameOutcome; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol)
+ private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; bodySource; publicationSource; locate; pendingAt; sameOutcome; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol)
  private module U = P.U using (base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
  private module Pool = P.Pool using (bodyReturnedWith; deregister; parentFork; publishAsyncResult; publishCompletion; register; step)
  private module Startup = P.Startup using (phase)
- private module Old = ProtocolProperties using (ForkSource; responderSource; initiatorSource; BodyReturn; CompletionCommit; Fork; Publication; clean-observation; exception-observation; initiator-fork-observation; publication-observation; responder-fork-observation; return-observation)
+ private module Old = ProtocolProperties using (EgressChange; enter-observation; send-observation; muxer-egress-observation; ForkSource; responderSource; initiatorSource; BodyReturn; CompletionCommit; Fork; Publication; clean-observation; exception-observation; initiator-fork-observation; publication-observation; responder-fork-observation; return-observation)
  table : P.State → Store WorkerId S.AdmissionWorker
  table s = S.admissions (Machine.world (O.core (P.source s)))
  fork-same : ∀ w j gen s {t} → Old.Fork w j gen s t → table t ≡ table s
@@ -156,10 +156,12 @@ module Protocol where
  returned-same j s eq with lookup j (P.jobs s) in found
  ... | nothing = case eq of λ ()
  ... | just job with Types.phase job
- ...   | Types.executing = case just-injective eq of λ { refl →
+ ...   | Types.executing with P.hasWanton j job s
+ ...     | false = case eq of λ ()
+ ...     | true = case just-injective eq of λ { refl →
    refl }
- ...   | Types.waitingEgress = case eq of λ ()
- ...   | Types.resultCaptured result = case eq of λ ()
+ returned-same j s eq | just job | Types.waitingEgress = case eq of λ ()
+ returned-same j s eq | just job | Types.resultCaptured result = case eq of λ ()
  registered-same : ∀ j s {t} → P.register j s ≡ just t → table t ≡ table s
  registered-same j s eq with lookup j (P.jobs s)
  ... | nothing = case eq of λ ()
@@ -204,6 +206,11 @@ module Protocol where
  control-same w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
  control-same w action s eq | just f | U.promisePublished hid mid | true | false = case eq of λ ()
 
+ -- Preserve the actual source step while observing the unchanged caller table.
+ egress-same : ∀ s {t} → Old.EgressChange s t → table t ≡ table s
+ egress-same s observation rewrite Old.EgressChange.after-shape observation =
+  inbound-same (Machine.igStep (IG.egressStep (Old.EgressChange.capturedMux observation)
+    (Old.EgressChange.operation observation))) (P.source s) (Old.EgressChange.actual-source observation) tt
  IsDirect : P.Action → Set
  IsDirect (P.run a) = ⊥
  IsDirect _ = ⊤
@@ -212,6 +219,9 @@ module Protocol where
  direct-same (P.forkResponder w j gen) s eq direct = fork-same w j gen s (Old.responder-fork-observation w j gen s eq)
  direct-same (P.forkInitiator w j gen n) s eq direct = fork-same w j gen s (Old.initiator-fork-observation w j gen n s eq)
  direct-same (P.registerProtocol j) s eq direct = registered-same j s eq
+ direct-same (P.enterProtocolBody j) s eq direct = egress-same s (Old.enter-observation j s eq)
+ direct-same (P.appendProtocolPayload j bytes) s eq direct = egress-same s (Old.send-observation j bytes s eq)
+ direct-same (P.egressMuxer w action) s eq direct = egress-same s (Old.muxer-egress-observation w action s eq)
  direct-same (P.protocolReturned j) s eq direct = returned-same j s eq
  direct-same (P.commitClean j) s eq direct = commit-same j s (Old.clean-observation j s eq)
  direct-same (P.protocolException j err) s eq direct = commit-same j s (Old.exception-observation j err s eq)
@@ -228,11 +238,12 @@ module Protocol where
 
 import ConnectionManagement.MuxResultMonitor as MonitorModel
 import ConnectionManagement.MuxGroupShutdown as GroupModel
+import ConnectionManagement.Properties.MuxGroupShutdown as GroupProperties
 open import ConnectionManagement.IGTypes using (clean; errored)
 
 module Monitor (isBearerClosed : ErrorId → Bool) where
  private module W = MonitorModel isBearerClosed using (Action; State; base; beginDead; commitTracer; consume; deadAction; deadReady; deadTracing; demuxFinish; failed; findCaptured; finishDead; finishMatches; finishMux; finishProtocol; finishProtocolTrace; finished; handleHead; handleProtocol; handleSelected; initiatorTracing; legacyMatches; muxAt; ownerContext; pcAt; poolAt; protocolSource; recordFinish; responderTracing; run; sampleTracer; selectHead; selected; setPC; setSource; source; startDead; statusAction; step; traceSource; tracing; viaSource; waiting)
- private module P = ProtocolModel using (module Pool; module U; jobs; noParent)
+ private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; jobs; noParent)
  private module Pool = P.Pool using (completions; consumeCompletion; step)
  table : W.State → Store WorkerId S.AdmissionWorker
  table s = S.admissions (Machine.world (O.core (W.source s)))
@@ -439,7 +450,7 @@ module Monitor (isBearerClosed : ErrorId → Bool) where
 module Group (isBearerClosed : ErrorId → Bool) where
  private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; isInfra; joined; joinGroup; joinMini; joinMiniHead; joinWhole; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
  private module M = W.M using (deadReady; deadTracing; failed; finishMatches; finished; initiatorTracing; pcAt; responderTracing; selected; waiting)
- private module P = ProtocolModel using (module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; source; protocolException; sameOutcome; step)
+ private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; source; protocolException; sameOutcome; step)
  private module U = P.U using (module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess)
  private module Pool = P.Pool using (beginClose; bodyReturned; bodyRunning; bodyUnwinding; bodyUnwound; cancelPending; closedPool; closing; deliverCancel; deregisterPending; deregistered; finishClose; handles; interruptJob; join; joinPending; openPool; phase; requestCancel; resultAvailable; resumeAfterUnwindError; sameSnapshot; step)
  open W using (remaining; joined; cancelPC)
@@ -951,7 +962,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  direct-same (W.deliverGroup w) s eq direct = CIPaths.same-admissions (ci-deliver-group-projects w s eq)
  direct-same (W.joinGroup w) s eq direct = CIPaths.same-admissions (ci-join-group-projects w s eq)
  direct-same (W.finishGroup w) s eq direct = CIPaths.same-admissions (ci-finish-group-projects w s eq)
- direct-same (W.drainEmpty w) s eq direct = CIPaths.same-admissions (ci-from-phase-projects w W.draining W.drainReady s eq)
+ direct-same (W.drainEmpty w) s eq direct = CIPaths.same-admissions (ci-from-phase-projects w W.draining W.drainReady s (GroupProperties.drain-phase isBearerClosed w s eq))
  direct-same (W.timeout2Elapsed w) s eq direct = CIPaths.same-admissions (ci-from-phase-projects w W.draining W.drainReady s eq)
  direct-same (W.writeStopped w) s eq direct = CIPaths.same-admissions (ci-source-phase-projects w W.drainReady W.stoppedTrace IG.completeMuxStopping s eq)
  direct-same (W.observeTraceStopped w) s eq direct = CIPaths.same-admissions (ci-source-phase-projects w W.stoppedTrace W.stoppedTracing IG.traceGracefulMuxStopped s eq)

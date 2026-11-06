@@ -6,7 +6,7 @@
 -- and typed pool are new components, not a claim about the old PSA frontend.
 module ConnectionManagement.MuxProtocolJobs where
 
-open import Data.Bool using (Bool; true; false; not; _∧_)
+open import Data.Bool using (Bool; true; false; not; _∧_; _∨_)
 open import Data.Nat using (ℕ; zero; suc)
 import Data.Nat as Nat
 open import Data.List using (List; []; _∷_; _++_)
@@ -25,6 +25,7 @@ import ConnectionManagement.OutboundHandlerSupervision as B
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.MuxEgress as EgressKernel
 import ConnectionManagement.Rules.MuxJobTypes as Types
 open Types using (TypedResult; Role; ProtocolJob)
 import ConnectionManagement.MuxHandlerSupervision as Handler
@@ -56,6 +57,47 @@ initial c with U.initial c
 
 muxAt : MuxId → State → Maybe M.Mux
 muxAt mid s = lookup mid (IG.muxes (IG.execution (Machine.inboundGovernor (O.core (source s)))))
+-- Physical JobId supplies the particular child buffer identity. Freshness of
+-- that child is checked by the real pool fork; shared key cells are not reset.
+jobKey : ProtocolJob → M.ProtocolKey
+jobKey job = Types.protocolNumber job , Types.direction job
+wantonMatches : JobId → ProtocolJob → M.Mux → Bool
+wantonMatches j job m with lookup (serial j) (M.Egress.wantons (M.egress m))
+... | nothing = false
+... | just want with M.Egress.key want ≟ jobKey job
+...   | yes _ = true
+...   | no _ = false
+hasWanton : JobId → ProtocolJob → State → Bool
+hasWanton j job s with muxAt (Types.mux job) s
+... | nothing = false
+... | just m = wantonMatches j job m
+cleanReady : JobId → ProtocolJob → State → Bool
+cleanReady j job s with muxAt (Types.mux job) s
+... | nothing = false
+... | just m = wantonMatches j job m ∧ M.Egress.protocolReady (serial j) (M.egress m)
+
+-- Allocation is the first child jobAction operation, after actual birth but
+-- independent of the masked parent's registry insertion. A cancelled child
+-- cannot allocate or send after its Pool.bodyRunning observation is lost.
+protocolEgress : JobId → (ProtocolJob → M.Egress.Action) → State → Maybe State
+protocolEgress j action s with lookup j (jobs s)
+... | nothing = nothing
+... | just job with Types.phase job | lookup (Types.owner job) (U.frames (base s)) |
+  lookup j (Pool.handles (poolAt (Types.owner job) s))
+...   | Types.executing | just f | just Pool.bodyRunning with O.advance
+  (O.inbound (Machine.igStep (IG.egressStep (Types.mux job) (action job)))) (source s)
+...     | nothing = nothing
+...     | just next = just (setSource next s)
+protocolEgress j action s | just job | _ | _ | _ = nothing
+enterProtocol : JobId → State → Maybe State
+enterProtocol j = protocolEgress j (λ job → M.Egress.createWanton (serial j) (jobKey job))
+sendProtocol : JobId → ℕ → State → Maybe State
+sendProtocol j bytes s with lookup j (jobs s)
+... | nothing = nothing
+... | just job with hasWanton j job s
+...   | false = nothing
+...   | true = protocolEgress j (λ _ → M.Egress.appendPayload (serial j) bytes) s
+
 monitoring : U.Frame → Bool
 monitoring f with Startup.phase (U.startup f)
 ... | Startup.monitoring _ _ = true
@@ -86,6 +128,14 @@ active w dir n ((_ , job) ∷ rest) with w ≟ Types.owner job
 ... | yes _ with sameDirection dir (Types.direction job) ∧ does (n Nat.≟ Types.protocolNumber job) ∧ isActive (Types.phase job)
 ...   | true = true
 ...   | false = active w dir n rest
+-- Source runMiniProtocolSTM selects an existing number/direction state;
+-- lack of support prevents the physical child fork, not only its later send.
+configuredKey : M.JobDirection → ℕ → M.Mux → Bool
+configuredKey dir n m with lookup (n , dir) (M.Egress.cells (M.egress m))
+... | nothing = false
+... | just _ = true
+forkBlocked : WorkerId → M.JobDirection → ℕ → Store JobId ProtocolJob → M.Mux → Bool
+forkBlocked w dir n js m = active w dir n js ∨ not (configuredKey dir n m)
 generationFresh : RunId → Store JobId ProtocolJob → Bool
 generationFresh gen [] = true
 generationFresh gen ((_ , job) ∷ rest) with gen ≟ Types.generation job
@@ -120,7 +170,7 @@ responderFork w j gen s with lookup w (U.frames (base s)) | fresh j gen s
 ... | just f | true with U.progress f | monitoring f
 ...   | U.promisePublished hid mid | true with muxAt mid s
 ...     | just m with M.callback m
-...       | M.forkPending n with active w M.responderJob n (jobs s)
+...       | M.forkPending n with forkBlocked w M.responderJob n (jobs s) m
 ...         | false with O.advance (O.inbound (Machine.igStep (IG.forkResponder mid))) (source s) |
   Pool.step (Pool.fork j) (poolAt w s)
 ...           | just c | just p = just (record (setPool w f p (setSource c s))
@@ -140,7 +190,7 @@ initiatorFork : WorkerId → JobId → RunId → ℕ → State → Maybe State
 initiatorFork w j gen n s with lookup w (U.frames (base s)) | fresh j gen s
 ... | just f | true with U.progress f | monitoring f | M.findProtocol n (U.bundle f)
 ...   | U.promisePublished hid mid | true | just descriptor with muxAt mid s
-...     | just m with M.status m | M.callback m | M.commands m | noResults (poolAt w s) | active w M.initiatorJob n (jobs s)
+...     | just m with M.status m | M.callback m | M.commands m | noResults (poolAt w s) | forkBlocked w M.initiatorJob n (jobs s) m
 ...       | M.ready | M.returned | [] | true | false with Pool.step (Pool.fork j) (poolAt w s)
 ...         | just p = just (record (setPool w f p s)
   { jobs = put j (Types.protocolJob w mid M.initiatorJob n gen Types.executing) (jobs s) })
@@ -172,8 +222,10 @@ appendPending job j s with Types.direction job
 returned : JobId → State → Maybe State
 returned j s with lookup j (jobs s)
 ... | just job with Types.phase job
-...   | Types.executing = just (record s { jobs = put j (record job { phase = Types.waitingEgress }) (jobs s) })
-...   | _ = nothing
+...   | Types.executing with hasWanton j job s
+...     | false = nothing
+...     | true = just (record s { jobs = put j (record job { phase = Types.waitingEgress }) (jobs s) })
+returned j s | just job | _ = nothing
 returned j s | nothing = nothing
 canCapture : Types.BodyPhase → Bool
 canCapture Types.executing = true
@@ -201,8 +253,10 @@ capture j job result s | _ | _ = nothing
 cleanCommit : JobId → State → Maybe State
 cleanCommit j s with lookup j (jobs s)
 ... | just job with Types.phase job
-...   | Types.waitingEgress = capture j job clean s
-...   | _ = nothing
+...   | Types.waitingEgress with cleanReady j job s
+...     | false = nothing
+...     | true = capture j job clean s
+cleanCommit j s | just job | _ = nothing
 cleanCommit j s | nothing = nothing
 syncError : JobId → ErrorId → State → Maybe State
 syncError j err s with lookup j (jobs s)
@@ -303,6 +357,36 @@ viaInfra w role action s with lookup w (U.frames (base s))
 ...     | nothing = nothing
 ...     | just p = just (setPool w f p s)
 
+-- Only the actual lane muxer can consume/build/write its batch. Create/send
+-- actions belong to protocol children and have no infrastructure alias here.
+-- M2 extends this plain role lookup to the immutable configured lane bindings.
+batchLane : ℕ → M.Egress.State → Maybe EgressKernel.Lane
+batchLane id e with lookup id (M.Egress.batches e)
+... | nothing = nothing
+... | just b = just (M.Egress.lane b)
+egressLane : M.Egress.Action → M.Egress.State → Maybe EgressKernel.Lane
+egressLane (M.Egress.createWanton _ _) _ = nothing
+egressLane (M.Egress.appendPayload _ _) _ = nothing
+egressLane (M.Egress.takeFirst lane) _ = just lane
+egressLane (M.Egress.selectDemand id) e = batchLane id e
+egressLane (M.Egress.takeFragment id) e = batchLane id e
+egressLane (M.Egress.finishBatch id) e = batchLane id e
+egressLane (M.Egress.writeAccount id) e = batchLane id e
+egressLane (M.Egress.writeFailed id) e = batchLane id e
+muxerEgress : WorkerId → M.Egress.Action → State → Maybe State
+muxerEgress w action s with lookup w (U.frames (base s))
+... | nothing = nothing
+... | just f with U.progress f | infraId Types.muxer (Startup.phase (U.startup f))
+...   | U.promisePublished hid mid | just j with muxAt mid s | lookup j (Pool.handles (poolAt w s))
+...     | just m | just Pool.bodyRunning with M.Egress.layout (M.egress m) | egressLane action (M.egress m)
+...       | EgressKernel.plainLayout | just EgressKernel.scheduledLane with O.advance
+  (O.inbound (Machine.igStep (IG.egressStep mid action))) (source s)
+...         | nothing = nothing
+...         | just next = just (setSource next s)
+muxerEgress w action s | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | _ | _ = nothing
+muxerEgress w action s | just f | U.promisePublished hid mid | just j | _ | _ = nothing
+muxerEgress w action s | just f | _ | _ = nothing
+
 -- These are the only permitted source-monitor controls in this prefix. Once a
 -- start command is selected, its tracer/fork continuation may finish despite a
 -- newly queued result; selecting a new command/demand must respect that queue.
@@ -338,6 +422,9 @@ data Action : Set where
   run : U.Action → Action
   forkResponder : WorkerId → JobId → RunId → Action
   forkInitiator : WorkerId → JobId → RunId → ℕ → Action
+  enterProtocolBody : JobId → Action
+  appendProtocolPayload : JobId → ℕ → Action
+  egressMuxer : WorkerId → M.Egress.Action → Action
   registerProtocol protocolReturned commitClean returnProtocol publishProtocol deregisterProtocol asyncProtocolResult : JobId → Action
   protocolException : JobId → ErrorId → Action
   infrastructureReturn : WorkerId → Role → ErrorId → Action
@@ -347,6 +434,9 @@ step : Action → State → Maybe State
 step (run action) s = inherit action s
 step (forkResponder w j gen) s = responderFork w j gen s
 step (forkInitiator w j gen n) s = initiatorFork w j gen n s
+step (enterProtocolBody j) s = enterProtocol j s
+step (appendProtocolPayload j bytes) s = sendProtocol j bytes s
+step (egressMuxer w action) s = muxerEgress w action s
 step (registerProtocol j) s = register j s
 step (protocolReturned j) s = returned j s
 step (commitClean j) s = cleanCommit j s

@@ -98,6 +98,8 @@ data IGAction : Set where
   recordAsyncMuxFailure recordInterruptedMuxFailure : MuxId → ErrorId → IGAction
   traceInterruptedMuxDead traceGracefulMuxStopped : MuxId → IGAction
   finishProtocol : MuxId → ℕ → RunResult → IGAction
+  -- Actual child/egress writes share the one source mux accounting state.
+  egressStep : MuxId → M.Egress.Action → IGAction
 
 Result = Runtime × List IGEvent
 
@@ -240,6 +242,9 @@ initialCounters : M.TracerAttachment → Maybe M.Counters
 initialCounters M.noIGTracer = nothing
 initialCounters M.igTracer = just (M.counters (+ 0) (+ 0))
 
+-- Selected IR allocation profile: every listed protocol number is configured
+-- in both directions, independently of negotiated DataFlow/tracer attachment.
+-- Initiator-only mode uses its separate exact inventory below.
 -- Allocation retains the original freshness and protocol-bundle guards.
 installWith : M.TracerAttachment → HandleId → MuxId → ConnectionKey → List Protocol → DataFlow →
   Runtime → List IGEvent → Maybe Result
@@ -249,6 +254,19 @@ installWith attachment hid mid k ps flow r queue
       { handles = put hid (M.handleState mid ps flow) (handles (execution r))
       ; muxes = put mid (M.muxState k M.ready (map (λ p → number p , M.idle) ps) [] [] [] [] []
           (initialCounters attachment) M.returned attachment) (muxes (execution r)) } } , queue)
+... | _ | _ | _ | _ = nothing
+
+-- WithInitiatorMode has no responder key cells. Tracer absence alone cannot
+-- select this profile: an IR unidirectional connection may also have no tracer.
+installInitiatorWith : HandleId → MuxId → ConnectionKey → List Protocol → DataFlow →
+  Runtime → List IGEvent → Maybe Result
+installInitiatorWith hid mid k ps flow r queue
+  with lookup hid (handles (execution r)) | lookup mid (muxes (execution r)) | ordered ps | supported ps
+... | nothing | nothing | true | true = just (record r { execution = record (execution r)
+      { handles = put hid (M.handleState mid ps flow) (handles (execution r))
+      ; muxes = put mid (M.muxStateWithEgress k M.ready (map (λ p → number p , M.idle) ps) [] [] [] [] []
+          nothing M.returned M.noIGTracer (M.plainInitiatorEgress (map (λ p → number p , M.idle) ps)))
+          (muxes (execution r)) } } , queue)
 ... | _ | _ | _ | _ = nothing
 
 hasJob : ℕ → List ℕ → Bool
@@ -365,6 +383,11 @@ stepWorker (expireTimer t) r queue with lookup t (timers (execution r))
 stepWorker (installHandle hid mid k ps flow) r queue = installWith M.igTracer hid mid k ps flow r queue
 stepWorker (installOutboundHandle hid mid k ps flow) r queue =
   installWith (outboundTracer responderMode flow) hid mid k ps flow r queue
+stepWorker (egressStep mid action) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with M.Egress.step action (M.egress m)
+...   | nothing = nothing
+...   | just next = just (setMux mid (record m { egress = next }) r , queue)
 stepWorker (sampleTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.tracerAttachment m | M.callback m
@@ -545,6 +568,7 @@ stepWorker (finishStop mid) r queue with lookup mid (muxes (execution r))
 -- Mux execution exists without an IG governor. Only these engine actions are
 -- admitted in initiator-only mode; batch/registration/timer actions stay absent.
 runtimeAction : IGAction → Bool
+runtimeAction (egressStep _ _) = true
 runtimeAction (monitorCommand _) = true
 runtimeAction (monitorCompletion _) = true
 runtimeAction (sampleTracer _) = true
@@ -584,7 +608,7 @@ runtimeAllowed a r = runtimeAction a
 
 step : ResponderMode → IGAction → Runtime → List IGEvent → Maybe Result
 step noResponderMode (installOutboundHandle hid mid k ps flow) ig queue =
-  installWith M.noIGTracer hid mid k ps flow ig queue
+  installInitiatorWith hid mid k ps flow ig queue
 step noResponderMode a ig queue with runtimeAllowed a ig
 ... | true = stepWorker a ig queue
 ... | false = nothing

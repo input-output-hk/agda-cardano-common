@@ -106,6 +106,7 @@ allocation-action t (Open.igStep (IG.recordInterruptedMuxFailure m err)) mid k p
 allocation-action t (Open.igStep (IG.traceInterruptedMuxDead m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.traceGracefulMuxStopped m)) mid k ps fl ()
 allocation-action t (Open.igStep (IG.finishProtocol m n r)) mid k ps fl ()
+allocation-action t (Open.igStep (IG.egressStep m action)) mid k ps fl ()
 
 -- Existing certificates survive the underlying action independently of phase.
 transport-ticket : ∀ t a c {c′} ph → Open.advance a c ≡ just c′ →

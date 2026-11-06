@@ -51,9 +51,9 @@ is committed in `eef9971`, with fresh full acceptance recorded below.
 [Increment 65](#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
 is committed in `a54d4fd`, with fresh full acceptance recorded below.
 [Increment 66](#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
-is accepted and uncommitted over that revision. The next task is a
-[source-baseline audit](#next-task-source-baseline-audit); no next proof wave
-starts under the user’s newer steering.
+is accepted and committed in `daf111d`. The
+[source-baseline assessment](#next-task-source-baseline-audit) records changed
+source contracts to reconcile before any repin or further proof expansion.
 
 | Boundary | Derived evidence and premises |
 | --- | --- |
@@ -282,23 +282,16 @@ remaining delivery windows are not established.
 
 ### Next task: source-baseline audit
 
-**Source work only; no next proof wave.** The
-[local audit](../review/connection-management-si4-source-audit-2026-10-27.md#local-prototype-baseline-audit-6-november-2026)
-confirms newer consensus `2416493bfdbe93b761b3a4bb1ccf2b4a913e5e4b` is 44 commits
-beyond the existing consensus pin and declares network
-`2f1c154f248659b89523d5679ca532f442e7ed2a`. Fresh-byte/tier integration and
-LeiosFetch encoding changes are confirmed in consensus. The selected network
-object is absent from the 37 local Git databases checked; today's remote HEAD
-is unknown. No source pin was changed.
-
-Obtain the exact missing network objects and compare the declared pair with
-`585a861…`/`96ee6e0…` across CM/IG/OG/Server, handler, JobPool and mux/scheduler.
-Separate unchanged source, changed modeled contracts and behavior outside the
-model before deciding a baseline migration. Existing proof evidence remains
-scoped to the original pins. Release-caller TIME_WAIT and post-mux delivery
-work is deferred: any later resumption must preserve actual source
-acknowledgement, `mayDeliver`/caller guards, the captured target/reply and real
-cleanup/publication/wait history. Missing adapters remain coverage gaps.
+**Audit completed; model pins retained.** The
+[current-source audit](../review/connection-management-source-baseline-audit-2026-11-06.md)
+verified the timestamped consensus/network pair `2e44d98…` / `2f1c154…`, obtained
+the previously missing objects and compared the relevant lifecycle contracts.
+CM/IG/Server/JobPool code is identical; changed mux held-batch readiness, handler
+setup, egress ownership and synchronous DB waits require explicit mapping.
+The linked report and [ledger](SourceLedger.md#latest-prototype-audit-6-november-2026)
+record the decision and migration gates. Existing proofs retain their old-pin
+scope. Caller-specific TIME_WAIT/post-mux expansion remains deferred; no guard,
+statement or acceptance requirement may be relaxed during migration.
 
 ### Remaining dependency order
 
@@ -6568,8 +6561,8 @@ remain open.
 
 ## Sixty-sixth increment: framed-mux outbound release receipt and return
 
-**Accepted, 6 November 2026; uncommitted over `a54d4fd`.** Increment 65 is
-committed in that revision. The broader CM/IG/OG/Server objective remains open.
+**Accepted, 6 November 2026; committed in `daf111d`.** Increment 65 is
+committed in `a54d4fd`. The broader CM/IG/OG/Server objective remains open.
 
 **Confirmed source contract.** The
 [pinned release audit](../review/connection-management-si4-source-audit-2026-10-27.md#increment-66-outbound-release-receipt-audit-6-november-2026)

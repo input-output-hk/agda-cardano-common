@@ -14,13 +14,24 @@ required behavior but still need per-branch transcription before coding. These d
 The implementation coverage below records successive slices. An unexpanded branch is not implicitly
 unreachable and must never silently become `nothing` in `advance`.
 
+## Latest prototype audit (6 November 2026)
+
+The [current-source audit](../review/connection-management-source-baseline-audit-2026-11-06.md)
+verified the observed consensus/network pair `2e44d98…` / `2f1c154…` from live
+refs and exact fetched objects. CM/IG/Server/JobPool source is unchanged, but mux
+held-batch readiness, handler setup, egress ownership, governor observations and
+synchronous DB completion waits require source-contract reconciliation.
+**The model pins above are retained; this is not a repin or source-refinement
+claim.** Old proof evidence through model commit `daf111d` is preserved. The
+linked audit records the migration gates and remaining checks.
+
 ## Current implementation coverage
 
 **Reading this section:** the paragraphs and rule-family status cells accumulate
 historical implementation checkpoints; they are not a unified inventory at
 today's HEAD. For current initialized Server/supervision coverage, use
 [Supervision's maintained overview](Supervision.md#current-composed-lifecycle-certificates)
-at model commit `6878713`, with [remaining obligations](Supervision.md#open-questions-and-reconciled-status).
+through model commit `daf111d`, with [remaining obligations](Supervision.md#open-questions-and-reconciled-status).
 The operation mappings retain the fixed upstream revisions above.
 
 ### Initial admission and handshake slices
