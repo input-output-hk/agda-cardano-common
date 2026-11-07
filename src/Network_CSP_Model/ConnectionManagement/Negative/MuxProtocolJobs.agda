@@ -5,6 +5,7 @@
 -- the new component contract, not an old PeerActions.startProtocol trace claim.
 module ConnectionManagement.Negative.MuxProtocolJobs where
 
+open import Class.DecEq.Instances using (DecEq-ℕ)
 open import Data.Bool using (true; false)
 open import Data.Nat using (ℕ)
 open import Data.Integer using (+_)
@@ -280,14 +281,21 @@ sourceMux m queue = record (Old.U.source Old.c11) { core = record (O.core (Old.U
   ; world = record (M.world (O.core (Old.U.source Old.c11))) { inboundInfo = queue } } }
 messages : List Shared.IGEvent
 messages = awakeRemote key₀ ∷ remotePromotedToHot key₀ ∷ []
-m1 m2 m3 m4 m5 m6 cleanMux publishedMux : Mux.Mux
+-- Explicit source snapshots are certified by the genuine child-entry steps
+-- below; this builder alone does not assert allocation or reachability.
+withWanton : JobId → Mux.JobDirection → Mux.Mux → Mux.Mux
+withWanton j dir m = record m { egress = record (Mux.egress m)
+  { wantons = put (serial j) (Mux.Egress.wanton (1 , dir) 0)
+      (Mux.Egress.wantons (Mux.egress m)) } }
+m1 m2 m3 m4 m5 m6 enteredMux cleanMux publishedMux : Mux.Mux
 m1 = record G.armedMux { commands = []; waiting = (1 , onDemand) ∷ [] }
 m2 = record G.armedMux { commands = []; callback = Mux.readActive (Mux.started 1) }
 m3 = record m2 { callback = Mux.commitTrace true (Mux.started 1) }
 m4 = record G.armedMux { commands = []; traceCounters = just (Mux.counters (+ 1) (+ 0)); callback = Mux.afterStart 1 }
 m5 = record m4 { protocols = (1 , Mux.running) ∷ []; callback = Mux.forkPending 1 }
 m6 = record m5 { runningJobs = 1 ∷ []; callback = Mux.returned }
-cleanMux = record m6 { protocols = (1 , Mux.idle) ∷ []; runningJobs = []; finishedJobs = (1 , clean) ∷ [] }
+enteredMux = withWanton j₁₀ Mux.responderJob m6
+cleanMux = record enteredMux { protocols = (1 , Mux.idle) ∷ []; runningJobs = []; finishedJobs = (1 , clean) ∷ [] }
 publishedMux = record cleanMux { finishedJobs = []; completions = Mux.jobResult Mux.responderJob 1 clean ∷ [] }
 rJob : T.BodyPhase → T.ProtocolJob
 rJob phase = T.protocolJob owner mid Mux.responderJob 1 r₀ phase
@@ -307,13 +315,17 @@ r3 = snapshot (sourceMux m3 []) engines [] []
 r4 = snapshot (sourceMux m4 messages) engines [] []
 r5 = snapshot (sourceMux m5 messages) engines [] []
 r6 = snapshot (sourceMux m6 messages) rFork ((j₁₀ , rJob T.executing) ∷ []) []
-r7 = snapshot (sourceMux m6 messages) rFork ((j₁₀ , rJob T.waitingEgress) ∷ []) []
+r7 = snapshot (sourceMux enteredMux messages) rFork ((j₁₀ , rJob T.waitingEgress) ∷ []) []
 r8 = snapshot (sourceMux cleanMux messages) rFork ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , j₁₀ ∷ []) ∷ [])
 r9 = snapshot (sourceMux cleanMux messages) rReturned ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , j₁₀ ∷ []) ∷ [])
 r10 = snapshot (sourceMux publishedMux messages) rPublished ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , []) ∷ [])
 r11 = snapshot (sourceMux publishedMux messages) rInserted ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , []) ∷ [])
 r12 = snapshot (sourceMux publishedMux messages) rRemoved ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , []) ∷ [])
 r13 = snapshot (sourceMux publishedMux messages) rTerminal ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , []) ∷ [])
+r6Entered : W.State
+r6Entered = snapshot (sourceMux enteredMux messages) rFork ((j₁₀ , rJob T.executing) ∷ []) []
+responderEntry : W.step (W.enterProtocolBody j₁₀) r6 ≡ just r6Entered
+responderEntry = refl
 responder1 : W.step (W.control owner W.selectCommand) z12 ≡ just r1
 responder1 = refl
 responder2 : W.step (W.control owner (W.demand 1)) r1 ≡ just r2
@@ -326,7 +338,7 @@ responder5 : W.step (W.control owner W.finishStart) r4 ≡ just r5
 responder5 = refl
 responder6 : W.step (W.forkResponder owner j₁₀ r₀) r5 ≡ just r6
 responder6 = refl
-responder7 : W.step (W.protocolReturned j₁₀) r6 ≡ just r7
+responder7 : W.step (W.protocolReturned j₁₀) r6Entered ≡ just r7
 responder7 = refl
 responder8 : W.step (W.commitClean j₁₀) r7 ≡ just r8
 responder8 = refl
@@ -341,9 +353,9 @@ responder12 = refl
 responder13 : W.step (W.asyncProtocolResult j₁₀) r12 ≡ just r13
 responder13 = refl
 responderPathActions : List W.Action
-responderPathActions = (W.control owner W.selectCommand) ∷ (W.control owner (W.demand 1)) ∷ (W.control owner W.sampleTracer) ∷ (W.control owner W.commitTracer) ∷ (W.control owner W.finishStart) ∷ (W.forkResponder owner j₁₀ r₀) ∷ (W.protocolReturned j₁₀) ∷ (W.commitClean j₁₀) ∷ (W.returnProtocol j₁₀) ∷ (W.publishProtocol j₁₀) ∷ (W.registerProtocol j₁₀) ∷ (W.deregisterProtocol j₁₀) ∷ (W.asyncProtocolResult j₁₀) ∷ []
+responderPathActions = (W.control owner W.selectCommand) ∷ (W.control owner (W.demand 1)) ∷ (W.control owner W.sampleTracer) ∷ (W.control owner W.commitTracer) ∷ (W.control owner W.finishStart) ∷ (W.forkResponder owner j₁₀ r₀) ∷ (W.enterProtocolBody j₁₀) ∷ (W.protocolReturned j₁₀) ∷ (W.commitClean j₁₀) ∷ (W.returnProtocol j₁₀) ∷ (W.publishProtocol j₁₀) ∷ (W.registerProtocol j₁₀) ∷ (W.deregisterProtocol j₁₀) ∷ (W.asyncProtocolResult j₁₀) ∷ []
 responderPath : W.Executes z12 responderPathActions r13
-responderPath = W.next responder1 (W.next responder2 (W.next responder3 (W.next responder4 (W.next responder5 (W.next responder6 (W.next responder7 (W.next responder8 (W.next responder9 (W.next responder10 (W.next responder11 (W.next responder12 (W.next responder13 (W.done)))))))))))))
+responderPath = W.next responder1 (W.next responder2 (W.next responder3 (W.next responder4 (W.next responder5 (W.next responder6 (W.next responderEntry (W.next responder7 (W.next responder8 (W.next responder9 (W.next responder10 (W.next responder11 (W.next responder12 (W.next responder13 (W.done))))))))))))))
 abstract
   initialized-fast-responder : W.Executes b0 (startActions ++ responderPathActions) r13
   initialized-fast-responder = append initialized-start responderPath
@@ -431,28 +443,38 @@ iWait = put j₁₁ (iJob r₁ T.waitingEgress) rJobs
 iClean = put j₁₁ (iJob r₁ (T.resultCaptured clean)) rJobs
 newJobs = put j₁₂ (iJob r₂ T.executing) iClean
 newError = put j₁₂ (iJob r₂ (T.resultCaptured (errored err))) iClean
+iEnteredMux iNewEnteredMux : Mux.Mux
+iEnteredMux = withWanton j₁₁ Mux.initiatorJob m6
+iNewEnteredMux = withWanton j₁₂ Mux.initiatorJob iEnteredMux
 x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : W.State
 x0 = snapshot (sourceMux m6 messages) rRegistered rJobs []
 x1 = snapshot (sourceMux m6 messages) iFork iJobs []
 x2 = snapshot (sourceMux m6 messages) iRegistered iJobs []
-x3 = snapshot (sourceMux m6 messages) iRegistered iWait []
-x4 = snapshot (sourceMux m6 messages) iRegistered iClean []
-x5 = snapshot (sourceMux m6 messages) nFork newJobs []
-x6 = snapshot (sourceMux m6 messages) nRegistered newJobs []
-x7 = snapshot (sourceMux m6 messages) nRegistered newError []
-x8 = snapshot (sourceMux m6 messages) nReturned newError []
-x9 = snapshot (sourceMux m6 messages) nPublished newError []
-x10 = snapshot (sourceMux m6 messages) oldReturned newError []
-x11 = snapshot (sourceMux m6 messages) oldPublished newError []
-x12 = snapshot (sourceMux m6 messages) mixedReturned newError []
-x13 = snapshot (sourceMux m6 messages) mixedPublished newError []
+x3 = snapshot (sourceMux iEnteredMux messages) iRegistered iWait []
+x4 = snapshot (sourceMux iEnteredMux messages) iRegistered iClean []
+x5 = snapshot (sourceMux iEnteredMux messages) nFork newJobs []
+x6 = snapshot (sourceMux iEnteredMux messages) nRegistered newJobs []
+x7 = snapshot (sourceMux iNewEnteredMux messages) nRegistered newError []
+x8 = snapshot (sourceMux iNewEnteredMux messages) nReturned newError []
+x9 = snapshot (sourceMux iNewEnteredMux messages) nPublished newError []
+x10 = snapshot (sourceMux iNewEnteredMux messages) oldReturned newError []
+x11 = snapshot (sourceMux iNewEnteredMux messages) oldPublished newError []
+x12 = snapshot (sourceMux iNewEnteredMux messages) mixedReturned newError []
+x13 = snapshot (sourceMux iNewEnteredMux messages) mixedPublished newError []
+x2Entered x6Entered : W.State
+x2Entered = snapshot (sourceMux iEnteredMux messages) iRegistered iJobs []
+x6Entered = snapshot (sourceMux iNewEnteredMux messages) nRegistered newJobs []
+crossEntryOld : W.step (W.enterProtocolBody j₁₁) x2 ≡ just x2Entered
+crossEntryOld = refl
+crossEntryNew : W.step (W.enterProtocolBody j₁₂) x6 ≡ just x6Entered
+crossEntryNew = refl
 cross0 : W.step (W.registerProtocol j₁₀) r6 ≡ just x0
 cross0 = refl
 cross1 : W.step (W.forkInitiator owner j₁₁ r₁ 1) x0 ≡ just x1
 cross1 = refl
 cross2 : W.step (W.registerProtocol j₁₁) x1 ≡ just x2
 cross2 = refl
-cross3 : W.step (W.protocolReturned j₁₁) x2 ≡ just x3
+cross3 : W.step (W.protocolReturned j₁₁) x2Entered ≡ just x3
 cross3 = refl
 cross4 : W.step (W.commitClean j₁₁) x3 ≡ just x4
 cross4 = refl
@@ -460,7 +482,7 @@ cross5 : W.step (W.forkInitiator owner j₁₂ r₂ 1) x4 ≡ just x5
 cross5 = refl
 cross6 : W.step (W.registerProtocol j₁₂) x5 ≡ just x6
 cross6 = refl
-cross7 : W.step (W.protocolException j₁₂ err) x6 ≡ just x7
+cross7 : W.step (W.protocolException j₁₂ err) x6Entered ≡ just x7
 cross7 = refl
 cross8 : W.step (W.returnProtocol j₁₂) x7 ≡ just x8
 cross8 = refl
@@ -475,9 +497,9 @@ cross12 = refl
 cross13 : W.step (W.publishInfra owner T.muxer) x12 ≡ just x13
 cross13 = refl
 crossPathActions : List W.Action
-crossPathActions = (W.registerProtocol j₁₀) ∷ (W.forkInitiator owner j₁₁ r₁ 1) ∷ (W.registerProtocol j₁₁) ∷ (W.protocolReturned j₁₁) ∷ (W.commitClean j₁₁) ∷ (W.forkInitiator owner j₁₂ r₂ 1) ∷ (W.registerProtocol j₁₂) ∷ (W.protocolException j₁₂ err) ∷ (W.returnProtocol j₁₂) ∷ (W.publishProtocol j₁₂) ∷ (W.returnProtocol j₁₁) ∷ (W.publishProtocol j₁₁) ∷ (W.infrastructureReturn owner T.muxer (errorId 88)) ∷ (W.publishInfra owner T.muxer) ∷ []
+crossPathActions = (W.registerProtocol j₁₀) ∷ (W.forkInitiator owner j₁₁ r₁ 1) ∷ (W.registerProtocol j₁₁) ∷ (W.enterProtocolBody j₁₁) ∷ (W.protocolReturned j₁₁) ∷ (W.commitClean j₁₁) ∷ (W.forkInitiator owner j₁₂ r₂ 1) ∷ (W.registerProtocol j₁₂) ∷ (W.enterProtocolBody j₁₂) ∷ (W.protocolException j₁₂ err) ∷ (W.returnProtocol j₁₂) ∷ (W.publishProtocol j₁₂) ∷ (W.returnProtocol j₁₁) ∷ (W.publishProtocol j₁₁) ∷ (W.infrastructureReturn owner T.muxer (errorId 88)) ∷ (W.publishInfra owner T.muxer) ∷ []
 crossPath : W.Executes r6 crossPathActions x13
-crossPath = W.next cross0 (W.next cross1 (W.next cross2 (W.next cross3 (W.next cross4 (W.next cross5 (W.next cross6 (W.next cross7 (W.next cross8 (W.next cross9 (W.next cross10 (W.next cross11 (W.next cross12 (W.next cross13 (W.done))))))))))))))
+crossPath = W.next cross0 (W.next cross1 (W.next cross2 (W.next crossEntryOld (W.next cross3 (W.next cross4 (W.next cross5 (W.next cross6 (W.next crossEntryNew (W.next cross7 (W.next cross8 (W.next cross9 (W.next cross10 (W.next cross11 (W.next cross12 (W.next cross13 (W.done))))))))))))))))
 firstForkPathActions : List W.Action
 firstForkPathActions = (W.control owner W.selectCommand) ∷ (W.control owner (W.demand 1)) ∷ (W.control owner W.sampleTracer) ∷ (W.control owner W.commitTracer) ∷ (W.control owner W.finishStart) ∷ (W.forkResponder owner j₁₀ r₀) ∷ []
 firstForkPath : W.Executes z12 firstForkPathActions r6
@@ -497,7 +519,7 @@ error-slot-stays-busy-after-publication : W.active owner Mux.initiatorJob 1 (W.j
 error-slot-stays-busy-after-publication = refl
 newer-init-publishes-before-older : Pool.completions (W.poolAt owner x11) ≡ iNew (errored err) ∷ iOld clean ∷ []
 newer-init-publishes-before-older = refl
-initiator-publication-source-stutters : W.source x11 ≡ W.source x2
+initiator-publication-source-stutters : W.source x11 ≡ W.source x6Entered
 initiator-publication-source-stutters = refl
 initiator-does-not-populate-responder-pending : W.pending x11 ≡ []
 initiator-does-not-populate-responder-pending = refl
@@ -596,7 +618,7 @@ olderRegistered = snapshot (sourceMux cleanMux messages) rRegistered
   ((j₁₀ , rJob (T.resultCaptured clean)) ∷ []) ((owner , j₁₀ ∷ []) ∷ [])
 older-registers-after-commit : W.step (W.registerProtocol j₁₀) r8 ≡ just olderRegistered
 older-registers-after-commit = refl
-again aMux1 aMux2 aMux3 aMux4 aMux5 aMux6 errorMux newPublishedMux allPublishedMux : Mux.Mux
+again aMux1 aMux2 aMux3 aMux4 aMux5 aMux6 aEnteredMux errorMux newPublishedMux allPublishedMux : Mux.Mux
 again = record cleanMux { protocols = (1 , Mux.demand) ∷ []; commands = Mux.startCommand G.proto ∷ [] }
 aMux1 = record again { commands = []; waiting = (1 , onDemand) ∷ [] }
 aMux2 = record again { commands = []; callback = Mux.readActive (Mux.started 1) }
@@ -604,7 +626,8 @@ aMux3 = record aMux2 { callback = Mux.commitTrace true (Mux.started 1) }
 aMux4 = record again { commands = []; traceCounters = just (Mux.counters (+ 2) (+ 0)); callback = Mux.afterStart 1 }
 aMux5 = record aMux4 { protocols = (1 , Mux.running) ∷ []; callback = Mux.forkPending 1 }
 aMux6 = record aMux5 { runningJobs = 1 ∷ []; callback = Mux.returned }
-errorMux = record aMux6 { runningJobs = []; finishedJobs = (1 , clean) ∷ (1 , errored err) ∷ [] }
+aEnteredMux = withWanton j₂₀ Mux.responderJob aMux6
+errorMux = record aEnteredMux { runningJobs = []; finishedJobs = (1 , clean) ∷ (1 , errored err) ∷ [] }
 newPublishedMux = record errorMux { finishedJobs = (1 , clean) ∷ []; completions = Mux.jobResult Mux.responderJob 1 (errored err) ∷ [] }
 allPublishedMux = record newPublishedMux { finishedJobs = []; completions = Mux.jobResult Mux.responderJob 1 (errored err) ∷ Mux.jobResult Mux.responderJob 1 clean ∷ [] }
 newRJob : T.BodyPhase → T.ProtocolJob
@@ -636,6 +659,10 @@ y9 = snapshot (sourceMux errorMux messages) secondRReturn bothCaptured ((owner ,
 y10 = snapshot (sourceMux newPublishedMux messages) secondRPub bothCaptured ((owner , j₁₀ ∷ []) ∷ [])
 y11 = snapshot (sourceMux newPublishedMux messages) firstRReturn bothCaptured ((owner , j₁₀ ∷ []) ∷ [])
 y12 = snapshot (sourceMux allPublishedMux messages) firstRPub bothCaptured ((owner , []) ∷ [])
+y7Entered : W.State
+y7Entered = snapshot (sourceMux aEnteredMux messages) secondRReg newRJobs ((owner , j₁₀ ∷ []) ∷ [])
+occurrenceEntry : W.step (W.enterProtocolBody j₂₀) y7 ≡ just y7Entered
+occurrenceEntry = refl
 occurrence1 : W.step (W.control owner W.selectCommand) y0 ≡ just y1
 occurrence1 = refl
 occurrence2 : W.step (W.control owner (W.demand 1)) y1 ≡ just y2
@@ -650,7 +677,7 @@ occurrence6 : W.step (W.forkResponder owner j₂₀ r₃) y5 ≡ just y6
 occurrence6 = refl
 occurrence7 : W.step (W.registerProtocol j₂₀) y6 ≡ just y7
 occurrence7 = refl
-occurrence8 : W.step (W.protocolException j₂₀ err) y7 ≡ just y8
+occurrence8 : W.step (W.protocolException j₂₀ err) y7Entered ≡ just y8
 occurrence8 = refl
 occurrence9 : W.step (W.returnProtocol j₂₀) y8 ≡ just y9
 occurrence9 = refl
@@ -661,9 +688,9 @@ occurrence11 = refl
 occurrence12 : W.step (W.publishProtocol j₁₀) y11 ≡ just y12
 occurrence12 = refl
 conditionalOccurrencePathActions : List W.Action
-conditionalOccurrencePathActions = (W.control owner W.selectCommand) ∷ (W.control owner (W.demand 1)) ∷ (W.control owner W.sampleTracer) ∷ (W.control owner W.commitTracer) ∷ (W.control owner W.finishStart) ∷ (W.forkResponder owner j₂₀ r₃) ∷ (W.registerProtocol j₂₀) ∷ (W.protocolException j₂₀ err) ∷ (W.returnProtocol j₂₀) ∷ (W.publishProtocol j₂₀) ∷ (W.returnProtocol j₁₀) ∷ (W.publishProtocol j₁₀) ∷ []
+conditionalOccurrencePathActions = (W.control owner W.selectCommand) ∷ (W.control owner (W.demand 1)) ∷ (W.control owner W.sampleTracer) ∷ (W.control owner W.commitTracer) ∷ (W.control owner W.finishStart) ∷ (W.forkResponder owner j₂₀ r₃) ∷ (W.registerProtocol j₂₀) ∷ (W.enterProtocolBody j₂₀) ∷ (W.protocolException j₂₀ err) ∷ (W.returnProtocol j₂₀) ∷ (W.publishProtocol j₂₀) ∷ (W.returnProtocol j₁₀) ∷ (W.publishProtocol j₁₀) ∷ []
 conditionalOccurrencePath : W.Executes y0 conditionalOccurrencePathActions y12
-conditionalOccurrencePath = W.next occurrence1 (W.next occurrence2 (W.next occurrence3 (W.next occurrence4 (W.next occurrence5 (W.next occurrence6 (W.next occurrence7 (W.next occurrence8 (W.next occurrence9 (W.next occurrence10 (W.next occurrence11 (W.next occurrence12 (W.done))))))))))))
+conditionalOccurrencePath = W.next occurrence1 (W.next occurrence2 (W.next occurrence3 (W.next occurrence4 (W.next occurrence5 (W.next occurrence6 (W.next occurrence7 (W.next occurrenceEntry (W.next occurrence8 (W.next occurrence9 (W.next occurrence10 (W.next occurrence11 (W.next occurrence12 (W.done)))))))))))))
 conditional-source-and-pool-paths : Facts.Paths y0 y12
 conditional-source-and-pool-paths = Facts.exec-projects conditionalOccurrencePath
 older-body-running-at-newer-source-commit : lookup j₁₀ (Pool.handles (W.poolAt owner y8)) ≡ just Pool.bodyRunning
@@ -693,8 +720,8 @@ observed-initiator-fork-witness : Facts.Fork owner j₁₁ r₁ x0 x1
 observed-initiator-fork-witness = Facts.initiator-fork-observation owner j₁₁ r₁ 1 x0 cross1
 actual-clean-commit-witness : Facts.CompletionCommit j₁₀ r7 r8
 actual-clean-commit-witness = Facts.clean-observation j₁₀ r7 responder8
-actual-initiator-error-witness : Facts.CompletionCommit j₁₂ x6 x7
-actual-initiator-error-witness = Facts.exception-observation j₁₂ err x6 cross7
+actual-initiator-error-witness : Facts.CompletionCommit j₁₂ x6Entered x7
+actual-initiator-error-witness = Facts.exception-observation j₁₂ err x6Entered cross7
 conditional-newer-source-occurrence : Facts.ResponderOccurrence j₂₀
   (newRJob (T.resultCaptured (errored err))) (errored err) y9 (sourceMux newPublishedMux messages) (j₁₀ ∷ [])
 conditional-newer-source-occurrence = Facts.responder-occurrence-observation j₂₀
@@ -753,3 +780,11 @@ abstract
   initialized-selected-late-result = append (append initialized-start selectedPath) selectedLatePath
 initialized-selected-late-pool : Facts.PTrace Pool.initial (W.poolAt owner l4)
 initialized-selected-late-pool = Facts.pool-from-initial actual-initializer initialized-selected-late-result owner
+
+-- A real physical child has not entered jobAction merely because it was forked.
+no-return-before-real-wanton-entry : W.step (W.protocolReturned j₁₀) r6 ≡ nothing
+no-return-before-real-wanton-entry = refl
+no-second-wanton-entry : W.step (W.enterProtocolBody j₁₀) r6Entered ≡ nothing
+no-second-wanton-entry = refl
+entry-keeps-key-counters : Mux.Egress.cells (Mux.egress enteredMux) ≡ Mux.Egress.cells (Mux.egress m6)
+entry-keeps-key-counters = refl

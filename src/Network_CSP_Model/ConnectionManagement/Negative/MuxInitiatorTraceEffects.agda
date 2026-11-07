@@ -115,8 +115,13 @@ status cleanCompletion = Mux.ready
 status errorCompletion = Mux.failed Old.err
 counters : Origin → Maybe Mux.Counters
 counters _ = Mux.traceCounters Old.m6
+-- Only the egress field differs: a clean initiator entered its body and owns
+-- an empty source wanton; the error origin raised before entry.
+egressOf : Origin → Mux.Egress.State
+egressOf cleanCompletion = Mux.egress Old.iEnteredMux
+egressOf errorCompletion = Mux.egress Old.m6
 mux : Origin → Mux.Mux
-mux origin = record Old.m6 { status = status origin }
+mux origin = record Old.m6 { status = status origin; egress = egressOf origin }
 queue : Origin → List Shared.IGEvent
 queue _ = Old.messages
 pc : Origin → M.PC
@@ -139,8 +144,8 @@ selected origin result stage m q pool = withTicket origin D.throwing (record (ra
   { faults = (owner , R.fault Old.Prior.captured Old.mid (S.monitoring Old.j₀ Old.j₁)
       Mux.returned R.poolBody result stage) ∷ [] })
 
-initiatorCleanUntil : D.Executes Base.initiatorClean0 (take 9 Base.initiatorCleanActions) Base.initiatorCleanTraceInvoked
-initiatorCleanUntil = D.next Base.initiatorClean-edge1 (D.next Base.initiatorClean-edge2 (D.next Base.initiatorClean-edge3 (D.next Base.initiatorClean-edge4 (D.next Base.initiatorClean-edge5 (D.next Base.initiatorClean-edge6 (D.next Base.initiatorClean-edge7 (D.next Base.initiatorClean-edge8 (D.next Base.initiatorClean-mux-invoke (D.done)))))))))
+initiatorCleanUntil : D.Executes Base.initiatorClean0 (take 10 Base.initiatorCleanActions) Base.initiatorCleanTraceInvoked
+initiatorCleanUntil = D.next Base.initiatorClean-edge1 (D.next Base.initiatorClean-edge2 (D.next Base.initiatorClean-entry (D.next Base.initiatorClean-edge3 (D.next Base.initiatorClean-edge4 (D.next Base.initiatorClean-edge5 (D.next Base.initiatorClean-edge6 (D.next Base.initiatorClean-edge7 (D.next Base.initiatorClean-edge8 (D.next Base.initiatorClean-mux-invoke (D.done))))))))))
 initiatorErrorUntil : D.Executes Base.initiatorError0 (take 8 Base.initiatorErrorActions) Base.initiatorError7a
 initiatorErrorUntil = D.next Base.initiatorError-edge1 (D.next Base.initiatorError-edge2 (D.next Base.initiatorError-edge3 (D.next Base.initiatorError-edge4 (D.next Base.initiatorError-edge5 (D.next Base.initiatorError-edge6 (D.next Base.initiatorError-edge7 (D.next Base.initiatorError-mux-invoke (D.done))))))))
 invoked : Origin → D.State
@@ -158,7 +163,7 @@ reap2 origin = refl
 reapActions : List D.Action
 reapActions = Base.runM (M.run (P.deregisterProtocol Old.j₁₁)) ∷ Base.runM (M.run (P.asyncProtocolResult Old.j₁₁)) ∷ []
 headActions : Origin → List D.Action
-headActions cleanCompletion = take 9 Base.initiatorCleanActions
+headActions cleanCompletion = take 10 Base.initiatorCleanActions
 headActions errorCompletion = take 8 Base.initiatorErrorActions
 readyActions : Origin → List D.Action
 readyActions origin = Base.errorPrefixActions ++ (headActions origin ++ reapActions)

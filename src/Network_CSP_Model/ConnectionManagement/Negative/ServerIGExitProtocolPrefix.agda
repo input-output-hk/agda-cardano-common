@@ -177,7 +177,9 @@ completion2 : E.step (protocol (P.forkResponder A.child₀ (ident 10) (ident 0))
 completion2 = refl
 completion3 : E.step (protocol (P.registerProtocol (ident 10))) (Y.render Y.j2) ≡ just (Y.render Y.j3)
 completion3 = refl
-completion4 : E.step (protocol (P.protocolReturned (ident 10))) (Y.render Y.j3) ≡ just (Y.render Y.j4)
+completionEntry : E.step (protocol (P.enterProtocolBody (ident 10))) (Y.render Y.j3) ≡ just (Y.render Y.j3Entered)
+completionEntry = refl
+completion4 : E.step (protocol (P.protocolReturned (ident 10))) (Y.render Y.j3Entered) ≡ just (Y.render Y.j4)
 completion4 = refl
 completion5 : E.step (protocol (P.commitClean (ident 10))) (Y.render Y.j4) ≡ just (Y.render Y.j5)
 completion5 = refl
@@ -202,6 +204,7 @@ completionActions =
   (protocol (P.control A.child₀ P.finishStart)) ∷
   (protocol (P.forkResponder A.child₀ (ident 10) (ident 0))) ∷
   (protocol (P.registerProtocol (ident 10))) ∷
+  (protocol (P.enterProtocolBody (ident 10))) ∷
   (protocol (P.protocolReturned (ident 10))) ∷
   (protocol (P.commitClean (ident 10))) ∷
   (protocol (P.returnProtocol (ident 10))) ∷
@@ -214,7 +217,7 @@ completionActions =
   (delta (D.observeReturn A.child₀)) ∷ []
 abstract
   completionPath : E.Executes (Y.render Y.g13) completionActions (Y.render Y.j13)
-  completionPath = E.next completion1 (E.next completion2 (E.next completion3 (E.next completion4 (E.next completion5 (E.next completion6 (E.next completion7 (E.next completion8 (E.next completion9 (E.next completion10 (E.next completion11 (E.next completion12 (E.next completion13 (E.done)))))))))))))
+  completionPath = E.next completion1 (E.next completion2 (E.next completion3 (E.next completionEntry (E.next completion4 (E.next completion5 (E.next completion6 (E.next completion7 (E.next completion8 (E.next completion9 (E.next completion10 (E.next completion11 (E.next completion12 (E.next completion13 (E.done))))))))))))))
 
 demotion1 : E.step (ig (IG.captureTime 12)) (Y.render Y.j13) ≡ just (Y.render Y.d1)
 demotion1 = refl

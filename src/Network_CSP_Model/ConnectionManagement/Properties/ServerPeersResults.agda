@@ -259,9 +259,11 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
   physical-phase j clean p eq with lookup j (Jobs.jobs p)
   ... | nothing = case eq of λ ()
   ... | just job with Types.phase job
-  ...   | Types.waitingEgress = capture-phase j job clean p eq
-  ...   | Types.executing = case eq of λ ()
-  ...   | Types.resultCaptured _ = case eq of λ ()
+  ...   | Types.waitingEgress with Jobs.cleanReady j job p
+  ...     | false = case eq of λ ()
+  ...     | true = capture-phase j job clean p eq
+  physical-phase j clean p eq | just job | Types.executing = case eq of λ ()
+  physical-phase j clean p eq | just job | Types.resultCaptured _ = case eq of λ ()
   physical-phase j (errored err) p eq with lookup j (Jobs.jobs p)
   ... | nothing = case eq of λ ()
   ... | just job with Jobs.canCapture (Types.phase job)

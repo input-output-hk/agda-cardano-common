@@ -1248,12 +1248,19 @@ module Protocols where
   consumedPool = record availablePool { completions = [] }
   physicalJob : Types.BodyPhase → Types.ProtocolJob
   physicalJob phase = Types.protocolJob A.child₀ (ident 0) Mux.initiatorJob 1 rid phase
-  withPhysical : Types.BodyPhase → Pool.State → Y.Model
-  withPhysical phase pool = record legacy
+  -- After its actual child entry the initiator owns one empty source wanton;
+  -- later snapshots retain it. The pre-entry born state has none.
+  enteredLegacy : Y.Model
+  enteredLegacy = record legacy { governor = IG.setMux (ident 0) (Y.withWanton jid Mux.initiatorJob Y.m1) (Y.governor reused) }
+  withPhysicalOn : Y.Model → Types.BodyPhase → Pool.State → Y.Model
+  withPhysicalOn base phase pool = record base
     { startup = T.startupState (T.monitoring (ident 0) (ident 1)) pool
     ; jobs = (jid , physicalJob phase) ∷ [] }
-  born waiting localClean registered : Y.Model
-  born = withPhysical Types.executing bornPool
+  withPhysical : Types.BodyPhase → Pool.State → Y.Model
+  withPhysical = withPhysicalOn enteredLegacy
+  born entered waiting localClean registered : Y.Model
+  born = withPhysicalOn legacy Types.executing bornPool
+  entered = withPhysical Types.executing bornPool
   waiting = withPhysical Types.waitingEgress bornPool
   localClean = withPhysical (Types.resultCaptured clean) bornPool
   registered = withPhysical (Types.resultCaptured clean) registeredPool
@@ -1304,7 +1311,9 @@ module Protocols where
   run6 = refl
   run7 : V.advance (V.forkStart A.child₀ jid) (at legacy k63 readyFront) ≡ just (at born k63 bornFront)
   run7 = refl
-  run8 : V.advance (physicalStep (P.protocolReturned jid)) (at born k63 bornFront) ≡ just (at waiting k63 bornFront)
+  run7a : V.advance (physicalStep (P.enterProtocolBody jid)) (at born k63 bornFront) ≡ just (at entered k63 bornFront)
+  run7a = refl
+  run8 : V.advance (physicalStep (P.protocolReturned jid)) (at entered k63 bornFront) ≡ just (at waiting k63 bornFront)
   run8 = refl
   run9 : V.advance (V.commitClean jid) (at waiting k63 bornFront) ≡ just (at localClean kc63 cleanFront)
   run9 = refl
@@ -1341,18 +1350,18 @@ module Protocols where
   run25 : V.advance (deltaStep (N.D.observeReturn A.child₀)) (at deltaBegun kActivationDone freeFront) ≡ just (at monitorDone kActivationDone freeFront)
   run25 = refl
   protocolActions : List V.Event
-  protocolActions = (V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ (V.registerStart jid) ∷ (ps L.a64) ∷ (ps (Sub.jobStep (ident 1) (J.finishHotAt 12))) ∷ (ps L.a66) ∷ (ps L.a67) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 1)))) ∷ (physicalStep (P.returnProtocol jid)) ∷ (physicalStep (P.publishProtocol jid)) ∷ (physicalStep (P.deregisterProtocol jid)) ∷ (physicalStep (P.asyncProtocolResult jid)) ∷ (monitorStep (N.M.consume A.child₀)) ∷ (monitorStep (N.M.handleSelected A.child₀)) ∷ (deltaStep (N.D.beginInitiatorTrace A.child₀)) ∷ (deltaStep (N.D.observeInitiatorReturn A.child₀)) ∷ (deltaStep (N.D.beginDeltaQ A.child₀)) ∷ (deltaStep (N.D.observeReturn A.child₀)) ∷ []
+  protocolActions = (V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.enterProtocolBody jid)) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ (V.registerStart jid) ∷ (ps L.a64) ∷ (ps (Sub.jobStep (ident 1) (J.finishHotAt 12))) ∷ (ps L.a66) ∷ (ps L.a67) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 1)))) ∷ (physicalStep (P.returnProtocol jid)) ∷ (physicalStep (P.publishProtocol jid)) ∷ (physicalStep (P.deregisterProtocol jid)) ∷ (physicalStep (P.asyncProtocolResult jid)) ∷ (monitorStep (N.M.consume A.child₀)) ∷ (monitorStep (N.M.handleSelected A.child₀)) ∷ (deltaStep (N.D.beginInitiatorTrace A.child₀)) ∷ (deltaStep (N.D.observeInitiatorReturn A.child₀)) ∷ (deltaStep (N.D.beginDeltaQ A.child₀)) ∷ (deltaStep (N.D.observeReturn A.child₀)) ∷ []
   abstract
     protocol-path : V.Runs (at reused k61 V.empty) protocolActions (at monitorDone kActivationDone freeFront)
-    protocol-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run8 (V.more run9 (V.more run10 (V.more run11 (V.more run12 (V.more run13 (V.more run14 (V.more run15 (V.more run16 (V.more run17 (V.more run18 (V.more run19 (V.more run20 (V.more run21 (V.more run22 (V.more run23 (V.more run24 (V.more run25 (V.stop)))))))))))))))))))))))))
+    protocol-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run7a (V.more run8 (V.more run9 (V.more run10 (V.more run11 (V.more run12 (V.more run13 (V.more run14 (V.more run15 (V.more run16 (V.more run17 (V.more run18 (V.more run19 (V.more run20 (V.more run21 (V.more run22 (V.more run23 (V.more run24 (V.more run25 (V.stop))))))))))))))))))))))))))
     selected-path : V.Runs (at reused k61 V.empty) ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ []) (at legacy k63 selectedFront)
     selected-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.stop))))
     before-select-path : V.Runs (at reused k61 V.empty) ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ []) (at legacy k63 zeroFront)
     before-select-path = V.more run1 (V.more run2 (V.more run3 (V.stop)))
-    waiting-path : V.Runs (at reused k61 V.empty) ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.protocolReturned jid)) ∷ []) (at waiting k63 bornFront)
-    waiting-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run8 (V.stop))))))))
-    clean-path : V.Runs (at reused k61 V.empty) ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ []) (at localClean kc63 cleanFront)
-    clean-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run8 (V.more run9 (V.stop)))))))))
+    waiting-path : V.Runs (at reused k61 V.empty) ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.enterProtocolBody jid)) ∷ (physicalStep (P.protocolReturned jid)) ∷ []) (at waiting k63 bornFront)
+    waiting-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run7a (V.more run8 (V.stop)))))))))
+    clean-path : V.Runs (at reused k61 V.empty) ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.enterProtocolBody jid)) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ []) (at localClean kc63 cleanFront)
+    clean-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run7a (V.more run8 (V.more run9 (V.stop))))))))))
   allProtocolActions : List V.Event
   allProtocolActions = prefixActions ++ protocolActions
   abstract
@@ -1542,6 +1551,11 @@ module Protocols where
     { handles = put (ident 0) (Pool.deregisterPending Pool.normalExit) (Pool.handles Y.engines); completions = infraPayload ∷ [] }
   withPool : Pool.State → Y.Model → Y.Model
   withPool pool m = record m { startup = record (Y.startup m) { pool = pool } }
+  -- Child entry adds the job's empty initiator wanton to the actual mux snapshot.
+  enterIn : JobId → Y.Model → Y.Model
+  enterIn j m = record m { governor = IG.setMux (ident 0)
+    (Y.withWanton j Mux.initiatorJob (Data.Maybe.fromMaybe Y.m1 (lookup (ident 0) (IG.Engine.muxes (IG.execution (Y.governor m))))))
+    (Y.governor m) }
   stoppedCommand : Y.Model
   stoppedCommand = record legacy { governor = IG.setMux (ident 0) (record Y.m1 { commands = Mux.shutdown ∷ [] }) (Y.governor legacy) }
   lateReturned lateQueued lateBorn : Y.Model
@@ -1629,7 +1643,7 @@ module Protocols where
   error-step : V.advance (V.commitError jid err) (at waiting k63 bornFront) ≡ just (at errorModel errorContext errorFront)
   error-step = refl
   abstract
-    initialized-error : V.Runs initial ((prefixActions ++ ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.protocolReturned jid)) ∷ [])) ++ (V.commitError jid err ∷ [])) (at errorModel errorContext errorFront)
+    initialized-error : V.Runs initial ((prefixActions ++ ((V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.enterProtocolBody jid)) ∷ (physicalStep (P.protocolReturned jid)) ∷ [])) ++ (V.commitError jid err ∷ [])) (at errorModel errorContext errorFront)
     initialized-error = Facts.append-protocols (Facts.append-protocols initialized-to-start waiting-path) (V.more error-step V.stop)
   error-supply : Inv.ProtocolValid (at errorModel errorContext errorFront)
   error-supply = Inv.from-initial-protocols initializer (All.[] , All.[]) initialized-error
@@ -1682,17 +1696,17 @@ module Protocols where
   overlapFront = V.setCursor A.child₀ V.idleC bornFront
   overlapRegistered overlapDemand overlapSampled overlapTraced overlapReady overlapBorn overlapBoth : Y.Model
   overlapRegistered = withPhysical Types.waitingEgress registeredPool
-  overlapDemand = Y.sourceMux Y.m2 [] overlapRegistered
-  overlapSampled = Y.sourceMux Y.m3 [] overlapRegistered
-  overlapTraced = Y.sourceMux Y.m4 Y.messages overlapRegistered
-  overlapReady = Y.sourceMux Y.m5 Y.messages overlapRegistered
+  overlapDemand = Y.sourceMux (Y.withWanton jid Mux.initiatorJob Y.m2) [] overlapRegistered
+  overlapSampled = Y.sourceMux (Y.withWanton jid Mux.initiatorJob Y.m3) [] overlapRegistered
+  overlapTraced = Y.sourceMux (Y.withWanton jid Mux.initiatorJob Y.m4) Y.messages overlapRegistered
+  overlapReady = Y.sourceMux (Y.withWanton jid Mux.initiatorJob Y.m5) Y.messages overlapRegistered
   responderPool bothPool : Pool.State
   responderPool = record registeredPool
     { handles = put (ident 21) Pool.bodyRunning (Pool.handles registeredPool); parentFork = just (ident 21) }
   bothPool = record responderPool { registered = ident 21 ∷ Pool.registered registeredPool; parentFork = nothing }
   responder21 : Types.ProtocolJob
   responder21 = Types.protocolJob A.child₀ (ident 0) Mux.responderJob 1 (ident 21) Types.executing
-  overlapBorn = record (withPool responderPool (Y.sourceMux Y.m6 Y.messages overlapRegistered))
+  overlapBorn = record (withPool responderPool (Y.sourceMux (Y.withWanton jid Mux.initiatorJob Y.m6) Y.messages overlapRegistered))
     { jobs = (jid , physicalJob Types.waitingEgress) ∷ (ident 21 , responder21) ∷ [] }
   overlapBoth = withPool bothPool overlapBorn
   overlap1 : V.advance (V.registerStart jid) (at waiting k63 bornFront) ≡ just (at overlapRegistered k63 overlapFront)
@@ -1718,7 +1732,7 @@ module Protocols where
     initialized-directions : V.Runs initial ((prefixActions ++
       (V.startNext (ident 1) rid ∷ ps L.a63 ∷ physicalStep (P.control A.child₀ P.selectCommand) ∷
        V.selectStart A.child₀ ∷ V.invokeStartTrace A.child₀ ∷ V.returnStartTrace A.child₀ ∷
-       V.forkStart A.child₀ jid ∷ physicalStep (P.protocolReturned jid) ∷ [])) ++ overlapActions)
+       V.forkStart A.child₀ jid ∷ physicalStep (P.enterProtocolBody jid) ∷ physicalStep (P.protocolReturned jid) ∷ [])) ++ overlapActions)
       (at overlapBoth k63 overlapFront)
     initialized-directions = Facts.append-protocols (Facts.append-protocols initialized-to-start waiting-path)
       (V.more overlap1 (V.more overlap2 (V.more overlap3 (V.more overlap4 (V.more overlap5 (V.more overlap6 (V.more overlap7 V.stop)))))))
@@ -1743,7 +1757,7 @@ module Protocols where
     { monitors = (A.child₀ , N.M.selected infraPayload) ∷ []
     ; tickets = (A.child₀ , N.D.ticket infraPayload N.D.captured) ∷ [] }
   afterCleanFailed = record afterCleanInfraPopped
-    { governor = IG.setMux (ident 0) (record Y.m1 { status = Mux.failed err }) (Y.governor afterCleanInfraPopped)
+    { governor = IG.setMux (ident 0) (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed err }) (Y.governor afterCleanInfraPopped)
     ; monitors = (A.child₀ , N.M.deadReady (N.M.failed err)) ∷ [] }
   priority1 : V.advance (physicalStep (P.infrastructureReturn A.child₀ Types.muxer err)) (at registered kc63 freeFront) ≡ just (at afterCleanInfraReturned kc63 freeFront)
   priority1 = refl
@@ -1757,7 +1771,7 @@ module Protocols where
     initialized-local-priority : V.Runs initial ((prefixActions ++
       (V.startNext (ident 1) rid ∷ ps L.a63 ∷ physicalStep (P.control A.child₀ P.selectCommand) ∷
        V.selectStart A.child₀ ∷ V.invokeStartTrace A.child₀ ∷ V.returnStartTrace A.child₀ ∷
-       V.forkStart A.child₀ jid ∷ physicalStep (P.protocolReturned jid) ∷ V.commitClean jid ∷ [])) ++
+       V.forkStart A.child₀ jid ∷ physicalStep (P.enterProtocolBody jid) ∷ physicalStep (P.protocolReturned jid) ∷ V.commitClean jid ∷ [])) ++
       (V.registerStart jid ∷ physicalStep (P.infrastructureReturn A.child₀ Types.muxer err) ∷
        physicalStep (P.publishInfra A.child₀ Types.muxer) ∷ monitorStep (N.M.consume A.child₀) ∷
        monitorStep (N.M.handleSelected A.child₀) ∷ [])) (at afterCleanFailed kc63 freeFront)
@@ -1846,7 +1860,7 @@ module Protocols where
       initialized-local-continuation : V.Runs initial
         (((prefixActions ++ (V.startNext (ident 1) rid ∷ ps L.a63 ∷ physicalStep (P.control A.child₀ P.selectCommand) ∷
           V.selectStart A.child₀ ∷ V.invokeStartTrace A.child₀ ∷ V.returnStartTrace A.child₀ ∷
-          V.forkStart A.child₀ jid ∷ physicalStep (P.protocolReturned jid) ∷ V.commitClean jid ∷ [])) ++
+          V.forkStart A.child₀ jid ∷ physicalStep (P.enterProtocolBody jid) ∷ physicalStep (P.protocolReturned jid) ∷ V.commitClean jid ∷ [])) ++
           (V.registerStart jid ∷ physicalStep (P.infrastructureReturn A.child₀ Types.muxer err) ∷
           physicalStep (P.publishInfra A.child₀ Types.muxer) ∷ monitorStep (N.M.consume A.child₀) ∷
           monitorStep (N.M.handleSelected A.child₀) ∷ [])) ++ cleanReadActions)
@@ -3279,10 +3293,10 @@ module Protocols where
     secondCooledContext = withPeer (Peer.cool secondErroredPeer) secondErrorContext
 
     firstCompletedActions : List V.Event
-    firstCompletedActions = (V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ (V.registerStart jid) ∷ (ps L.a64) ∷ (ps (Sub.jobStep (ident 1) (J.finishHotAt 12))) ∷ (ps L.a66) ∷ (ps L.a67) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 1)))) ∷ []
+    firstCompletedActions = (V.startNext (ident 1) rid) ∷ (ps L.a63) ∷ (physicalStep (P.control A.child₀ P.selectCommand)) ∷ (V.selectStart A.child₀) ∷ (V.invokeStartTrace A.child₀) ∷ (V.returnStartTrace A.child₀) ∷ (V.forkStart A.child₀ jid) ∷ (physicalStep (P.enterProtocolBody jid)) ∷ (physicalStep (P.protocolReturned jid)) ∷ (V.commitClean jid) ∷ (V.registerStart jid) ∷ (ps L.a64) ∷ (ps (Sub.jobStep (ident 1) (J.finishHotAt 12))) ∷ (ps L.a66) ∷ (ps L.a67) ∷ (peerStep (PS.run (GP.publishAsyncResult (ident 1)))) ∷ []
     abstract
       first-completed-path : V.Runs (at reused k61 V.empty) firstCompletedActions (at registered kActivationDone freeFront)
-      first-completed-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run8 (V.more run9 (V.more run10 (V.more run11 (V.more run12 (V.more run13 (V.more run14 (V.more run15 (V.stop)))))))))))))))
+      first-completed-path = V.more run1 (V.more run2 (V.more run3 (V.more run4 (V.more run5 (V.more run6 (V.more run7 (V.more run7a (V.more run8 (V.more run9 (V.more run10 (V.more run11 (V.more run12 (V.more run13 (V.more run14 (V.more run15 (V.stop))))))))))))))))
       initialized-first-completed : V.Runs initial (prefixActions ++ firstCompletedActions) (at registered kActivationDone freeFront)
       initialized-first-completed = Facts.append-protocols initialized-to-start first-completed-path
 
@@ -3813,8 +3827,11 @@ module Protocols where
       -- IG exits independently of the two initiator generations. Its actual
       -- nonempty snapshot and inactive flag are retained through CM cleanup.
       inactiveModel exitedModel : Y.Model
-      inactiveModel = record secondRegistered { governor = Y.governor SC.dormant }
-      exitedModel = record secondRegistered { governor = Y.governor SC.flushingDone }
+      -- Keep the actual governor (including mux egress); change only the IG
+      -- continuation/activity fields written by deactivation and flush.
+      inactiveModel = record secondRegistered { governor = record (Y.governor secondRegistered)
+        { continuation = IG.exitFlush; execution = record (IG.execution (Y.governor secondRegistered)) { active = false } } }
+      exitedModel = record inactiveModel { governor = record (Y.governor inactiveModel) { continuation = IG.exited } }
 
       serverCloseEdge1 : V.advance (SC.serverEvent S.publishActionResult) (stageScene S.actionBodyExited true E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront)
       serverCloseEdge1 = refl
@@ -4091,9 +4108,9 @@ module Protocols where
       -- Failed/Dead is after every captured Async result and join. IG has
       -- already exited, so the tracer takes its real false-active branch.
       failedAfterClose deadAfterClose sampledAfterClose : Y.Model
-      failedAfterClose = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError }) [] (withPool physical26 exitedModel)
-      deadAfterClose = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.readActive Mux.muxStopped }) [] (withPool physical26 exitedModel)
-      sampledAfterClose = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.commitTrace false Mux.muxStopped }) [] (withPool physical26 exitedModel)
+      failedAfterClose = Y.sourceMux (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError }) [] (withPool physical26 exitedModel)
+      deadAfterClose = Y.sourceMux (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError; callback = Mux.readActive Mux.muxStopped }) [] (withPool physical26 exitedModel)
+      sampledAfterClose = Y.sourceMux (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError; callback = Mux.commitTrace false Mux.muxStopped }) [] (withPool physical26 exitedModel)
       failedStatus deadInvoked deadSampled deadCommitted readyForBuffer : V.Runtime
       failedStatus = groupAt (Group.asyncFailureWritten shutdownError) failedAfterClose
       deadInvoked = groupAt (Group.asyncDeadTracing shutdownError) deadAfterClose
@@ -4308,7 +4325,7 @@ module Protocols where
       actual-nonempty-ig-exit = refl
       inactive-dead-adds-no-notification : Shared.inboundInfo (Machine.world (O.core (V.sourceOf returnedServer))) ≡ []
       inactive-dead-adds-no-notification = refl
-      inactive-dead-retains-mux-counters : P.muxAt (ident 0) (V.physical (V.base returnedServer)) ≡ just (record Y.m1 { status = Mux.failed shutdownError })
+      inactive-dead-retains-mux-counters : P.muxAt (ident 0) (V.physical (V.base returnedServer)) ≡ just (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError })
       inactive-dead-retains-mux-counters = refl
       published-activation-completion-retained : C.SubContext.completions (C.subsystem (K.context (V.base returnedServer))) ≡ activationCompletion ∷ []
       published-activation-completion-retained = refl
@@ -4476,9 +4493,9 @@ module Protocols where
 
         -- Catch and finally retain the old typed FIFO, including after Failed.
         raceFailed raceDead raceSampled : Y.Model
-        raceFailed = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError }) [] (withPool racePool25 exitedModel)
-        raceDead = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.readActive Mux.muxStopped }) [] (withPool racePool25 exitedModel)
-        raceSampled = Y.sourceMux (record Y.m1 { status = Mux.failed shutdownError; callback = Mux.commitTrace false Mux.muxStopped }) [] (withPool racePool25 exitedModel)
+        raceFailed = Y.sourceMux (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError }) [] (withPool racePool25 exitedModel)
+        raceDead = Y.sourceMux (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError; callback = Mux.readActive Mux.muxStopped }) [] (withPool racePool25 exitedModel)
+        raceSampled = Y.sourceMux (record (Y.withWanton jid Mux.initiatorJob Y.m1) { status = Mux.failed shutdownError; callback = Mux.commitTrace false Mux.muxStopped }) [] (withPool racePool25 exitedModel)
         raceStatus raceInvoked raceSampledRuntime raceCommitted raceReady : V.Runtime
         raceStatus = groupAt (Group.asyncFailureWritten shutdownError) raceFailed
         raceInvoked = groupAt (Group.asyncDeadTracing shutdownError) raceDead
@@ -4652,24 +4669,37 @@ module Protocols where
       module CurrentClean where
         pendingChild : V.Runtime
         pendingChild = groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)
+        -- The current child's actual entry allocates its own empty wanton.
+        exitedModel21 : Y.Model
+        exitedModel21 = enterIn (ident 21) exitedModel
+        pendingEntered : V.Runtime
+        pendingEntered = groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel21)
         currentBodyReturned : V.Runtime
         currentBodyReturned = V.runtime (V.setPhysical
-          (record (V.physical (V.base pendingChild))
-            { jobs = put (ident 21) (secondJob Types.waitingEgress) (P.jobs (V.physical (V.base pendingChild))) })
-          (V.base pendingChild)) (V.front pendingChild)
+          (record (V.physical (V.base pendingEntered))
+            { jobs = put (ident 21) (secondJob Types.waitingEgress) (P.jobs (V.physical (V.base pendingEntered))) })
+          (V.base pendingEntered)) (V.front pendingEntered)
 
         -- Expected snapshots change only the current job, its result cell and
         -- the matching peer cache. Successful actual steps justify them below.
+        -- Every snapshot after the current child's actual entry retains its
+        -- empty wanton in the one source mux; put makes this idempotent.
+        withEntry : P.State → P.State
+        withEntry p with P.muxAt (ident 0) p
+        ... | nothing = p
+        ... | just m = P.setSource (record (P.source p) { core = record (O.core (P.source p))
+          { inboundGovernor = IG.setMux (ident 0) (Y.withWanton (ident 21) Mux.initiatorJob m)
+              (Machine.inboundGovernor (O.core (P.source p))) } }) p
         withCurrentClean : V.Runtime → V.Runtime
         withCurrentClean original = V.runtime
           (V.cacheResult (ident 21) requested clean (V.front original)
-            (V.setPhysical (record p { jobs = put (ident 21) (secondJob (Types.resultCaptured clean)) (P.jobs p) }) (V.base original)))
+            (V.setPhysical (record (withEntry p) { jobs = put (ident 21) (secondJob (Types.resultCaptured clean)) (P.jobs p) }) (V.base original)))
           (record (V.front original)
             { calls = put (ident 21) (record requested { thread = just (ident 21); value = just clean }) (V.calls (V.front original)) })
           where
           p = V.physical (V.base original)
         currentCommitted : V.Runtime
-        currentCommitted = withCurrentClean pendingChild
+        currentCommitted = withCurrentClean pendingEntered
         cleanRequestActions : List V.Event
         cleanRequestActions = entryAndReceiptActions ++
           (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder) ∷
@@ -4678,16 +4708,18 @@ module Protocols where
           initialized-current-cancel-request : V.Runs initial cleanRequestActions pendingChild
           initialized-current-cancel-request = Facts.append-protocols initialized-normal-monitor-receipt
             (V.more poolCloseEdge1 (V.more poolCloseEdge2 V.stop))
-        currentReturnEdge : V.advance (physicalStep (P.protocolReturned (ident 21))) pendingChild ≡ just currentBodyReturned
+        currentEntryEdge : V.advance (physicalStep (P.enterProtocolBody (ident 21))) pendingChild ≡ just pendingEntered
+        currentEntryEdge = refl
+        currentReturnEdge : V.advance (physicalStep (P.protocolReturned (ident 21))) pendingEntered ≡ just currentBodyReturned
         currentReturnEdge = refl
         currentCommitEdge : V.advance (V.commitClean (ident 21)) currentBodyReturned ≡ just currentCommitted
         currentCommitEdge = refl
         cleanCommitActions : List V.Event
-        cleanCommitActions = cleanRequestActions ++ (physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ [])
+        cleanCommitActions = cleanRequestActions ++ (physicalStep (P.enterProtocolBody (ident 21)) ∷ physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ [])
         abstract
           initialized-current-clean-commit : V.Runs initial cleanCommitActions currentCommitted
           initialized-current-clean-commit = Facts.append-protocols initialized-current-cancel-request
-            (V.more currentReturnEdge (V.more currentCommitEdge V.stop))
+            (V.more currentEntryEdge (V.more currentReturnEdge (V.more currentCommitEdge V.stop)))
 
         cleanEdge1 : V.advance (shutdownStep (Group.deliverWhole A.child₀)) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)))) ≡ just (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel))))
         cleanEdge1 = refl
@@ -4855,7 +4887,7 @@ module Protocols where
         current-clean-survives-return = refl
         original-clean-survives-current-race : V.observe rid cleanServer ≡ just (V.localResult clean)
         original-clean-survives-current-race = refl
-        actual-failed-mux-with-clean-cell : P.muxAt (ident 0) (V.physical (V.base cleanServer)) ≡ just (record Y.m1 { status = Mux.failed shutdownError })
+        actual-failed-mux-with-clean-cell : P.muxAt (ident 0) (V.physical (V.base cleanServer)) ≡ just (record (Y.withWanton (ident 21) Mux.initiatorJob (Y.withWanton jid Mux.initiatorJob Y.m1)) { status = Mux.failed shutdownError })
         actual-failed-mux-with-clean-cell = refl
         no-current-typed-result-invented : Pool.completions (P.poolAt A.child₀ (V.physical (V.base cleanServer))) ≡ []
         no-current-typed-result-invented = refl
@@ -4882,8 +4914,8 @@ module Protocols where
           clean-request-frame : Lifecycle52.FramedRuns (receipt5) (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder) ∷ shutdownStep (Group.requestWholeCancel A.child₀) ∷ []) pendingChild
           clean-request-frame = Lifecycle52.frameNext {s = (receipt5)} {t = (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical1 exitedModel))} {u = pendingChild} {event = (shutdownStep (Group.beginWholeClose A.child₀ capturedPhysicalOrder))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.beginWholeClose A.child₀ capturedPhysicalOrder))) (receipt5) poolCloseEdge1) poolCloseEdge1 (Lifecycle52.frameNext {s = (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical1 exitedModel))} {t = (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel))} {u = pendingChild} {event = (shutdownStep (Group.requestWholeCancel A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.requestWholeCancel A.child₀))) (groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical1 exitedModel)) poolCloseEdge2) poolCloseEdge2 (Lifecycle52.frameDone {s = pendingChild}))
         abstract
-          clean-commit-frame : Lifecycle52.FramedRuns pendingChild (physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ []) currentCommitted
-          clean-commit-frame = Lifecycle52.frameNext {s = pendingChild} {t = currentBodyReturned} {u = currentCommitted} {event = (physicalStep (P.protocolReturned (ident 21)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.protocolReturned (ident 21))))))))) pendingChild currentReturnEdge) currentReturnEdge (Lifecycle52.frameNext {s = currentBodyReturned} {t = currentCommitted} {u = currentCommitted} {event = (V.commitClean (ident 21))} refl currentCommitEdge (Lifecycle52.frameDone {s = currentCommitted}))
+          clean-commit-frame : Lifecycle52.FramedRuns pendingChild (physicalStep (P.enterProtocolBody (ident 21)) ∷ physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ []) currentCommitted
+          clean-commit-frame = Lifecycle52.frameNext {s = pendingChild} {t = pendingEntered} {u = currentCommitted} {event = (physicalStep (P.enterProtocolBody (ident 21)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.enterProtocolBody (ident 21))))))))) pendingChild currentEntryEdge) currentEntryEdge (Lifecycle52.frameNext {s = pendingEntered} {t = currentBodyReturned} {u = currentCommitted} {event = (physicalStep (P.protocolReturned (ident 21)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.protocolReturned (ident 21))))))))) pendingEntered currentReturnEdge) currentReturnEdge (Lifecycle52.frameNext {s = currentBodyReturned} {t = currentCommitted} {u = currentCommitted} {event = (V.commitClean (ident 21))} refl currentCommitEdge (Lifecycle52.frameDone {s = currentCommitted})))
         abstract
           clean-finalizer-frame : Lifecycle52.FramedRuns (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)))) (take 39 cleanContinuationActions) (withCurrentClean (handler10))
           clean-finalizer-frame = Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.deliverWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.deliverWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical2 exitedModel)))) cleanEdge1) cleanEdge1 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.finishChildUnwind (ident 21)))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.finishChildUnwind (ident 21)))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical3 exitedModel)))) cleanEdge2) cleanEdge2 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.deregisterProtocol (ident 21)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.deregisterProtocol (ident 21))))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical4 exitedModel)))) cleanEdge3) cleanEdge3 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.asyncProtocolResult (ident 21)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.asyncProtocolResult (ident 21))))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical5 exitedModel)))) cleanEdge4) cleanEdge4 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.joinWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.joinWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical6 exitedModel)))) cleanEdge5) cleanEdge5 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.requestWholeCancel A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.requestWholeCancel A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical7 exitedModel)))) cleanEdge6) cleanEdge6 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.deliverWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.deliverWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical8 exitedModel)))) cleanEdge7) cleanEdge7 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.finishChildUnwind (ident 20)))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.finishChildUnwind (ident 20)))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical9 exitedModel)))) cleanEdge8) cleanEdge8 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.deregisterProtocol (ident 20)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.deregisterProtocol (ident 20))))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical10 exitedModel)))) cleanEdge9) cleanEdge9 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.asyncProtocolResult (ident 20)))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.asyncProtocolResult (ident 20))))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical11 exitedModel)))) cleanEdge10) cleanEdge10 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.joinWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.joinWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical12 exitedModel)))) cleanEdge11) cleanEdge11 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.requestWholeCancel A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.requestWholeCancel A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical13 exitedModel)))) cleanEdge12) cleanEdge12 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.deliverWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.deliverWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical14 exitedModel)))) cleanEdge13) cleanEdge13 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.finishChildUnwind (ident 1)))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.finishChildUnwind (ident 1)))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical15 exitedModel)))) cleanEdge14) cleanEdge14 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.deregisterInfra A.child₀ Types.demuxer))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.deregisterInfra A.child₀ Types.demuxer)))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical16 exitedModel)))) cleanEdge15) cleanEdge15 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.asyncInfraResult A.child₀ Types.demuxer))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.asyncInfraResult A.child₀ Types.demuxer)))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical17 exitedModel)))) cleanEdge16) cleanEdge16 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.joinWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.joinWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical18 exitedModel)))) cleanEdge17) cleanEdge17 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.requestWholeCancel A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.requestWholeCancel A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical19 exitedModel)))) cleanEdge18) cleanEdge18 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.deliverWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.deliverWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical20 exitedModel)))) cleanEdge19) cleanEdge19 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.finishChildUnwind (ident 0)))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.finishChildUnwind (ident 0)))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical21 exitedModel)))) cleanEdge20) cleanEdge20 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.deregisterInfra A.child₀ Types.muxer))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.deregisterInfra A.child₀ Types.muxer)))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical22 exitedModel)))) cleanEdge21) cleanEdge21 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (physicalStep (P.asyncInfraResult A.child₀ Types.muxer))} (Lifecycle52.server-framed (E.run (S.run (N.run (N.C.run (N.D.run (N.D.wrapMonitor (N.M.run (P.asyncInfraResult A.child₀ Types.muxer)))))))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical23 exitedModel)))) cleanEdge22) cleanEdge22 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.joinWhole A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.joinWhole A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical24 exitedModel)))) cleanEdge23) cleanEdge23 (Lifecycle52.frameNext {s = (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel))))} {t = (withCurrentClean ((groupAt (Group.wholeClosed (Group.asyncExit shutdownError)) (withPool physical26 exitedModel))))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.finishWholeClose A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.finishWholeClose A.child₀))) (withCurrentClean ((groupAt (Group.wholeClosing (Group.asyncExit shutdownError)) (withPool physical25 exitedModel)))) cleanEdge24) cleanEdge24 (Lifecycle52.frameNext {s = (withCurrentClean (wholePoolClosed))} {t = (withCurrentClean (failedStatus))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.writeAsyncFailure A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.writeAsyncFailure A.child₀))) (withCurrentClean (wholePoolClosed)) cleanEdge25) cleanEdge25 (Lifecycle52.frameNext {s = (withCurrentClean (failedStatus))} {t = (withCurrentClean (deadInvoked))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.beginAsyncDead A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.beginAsyncDead A.child₀))) (withCurrentClean (failedStatus)) cleanEdge26) cleanEdge26 (Lifecycle52.frameNext {s = (withCurrentClean (deadInvoked))} {t = (withCurrentClean (deadSampled))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.sampleAsyncTracer A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.sampleAsyncTracer A.child₀))) (withCurrentClean (deadInvoked)) cleanEdge27) cleanEdge27 (Lifecycle52.frameNext {s = (withCurrentClean (deadSampled))} {t = (withCurrentClean (deadCommitted))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.commitAsyncTracer A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.commitAsyncTracer A.child₀))) (withCurrentClean (deadSampled)) cleanEdge28) cleanEdge28 (Lifecycle52.frameNext {s = (withCurrentClean (deadCommitted))} {t = (withCurrentClean (readyForBuffer))} {u = (withCurrentClean (handler10))} {event = (shutdownStep (Group.finishAsyncDead A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.run (Group.finishAsyncDead A.child₀))) (withCurrentClean (deadCommitted)) cleanEdge29) cleanEdge29 (Lifecycle52.frameNext {s = (withCurrentClean (readyForBuffer))} {t = (withCurrentClean (handler1))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.beginExit A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.beginExit A.child₀)) (withCurrentClean (readyForBuffer)) cleanEdge30) cleanEdge30 (Lifecycle52.frameNext {s = (withCurrentClean (handler1))} {t = (withCurrentClean (handler2))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.observeBufferReturn A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.observeBufferReturn A.child₀)) (withCurrentClean (handler1)) cleanEdge31) cleanEdge31 (Lifecycle52.frameNext {s = (withCurrentClean (handler2))} {t = (withCurrentClean (handler3))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.enterFinalizer A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.enterFinalizer A.child₀)) (withCurrentClean (handler2)) cleanEdge32) cleanEdge32 (Lifecycle52.frameNext {s = (withCurrentClean (handler3))} {t = (withCurrentClean (handler4))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.cleanup A.child₀ Cleanup.takeCleanupMap))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.cleanup A.child₀ Cleanup.takeCleanupMap)) (withCurrentClean (handler3)) cleanEdge33) cleanEdge33 (Lifecycle52.frameNext {s = (withCurrentClean (handler4))} {t = (withCurrentClean (handler5))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.cleanup A.child₀ Cleanup.selectCleanupEntry))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.cleanup A.child₀ Cleanup.selectCleanupEntry)) (withCurrentClean (handler4)) cleanEdge34) cleanEdge34 (Lifecycle52.frameNext {s = (withCurrentClean (handler5))} {t = (withCurrentClean (handler6))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.cleanup A.child₀ Cleanup.closeHandlerSocket))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.cleanup A.child₀ Cleanup.closeHandlerSocket)) (withCurrentClean (handler5)) cleanEdge35) cleanEdge35 (Lifecycle52.frameNext {s = (withCurrentClean (handler6))} {t = (withCurrentClean (handler7))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.cleanup A.child₀ Cleanup.publishCleanupMap))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.cleanup A.child₀ Cleanup.publishCleanupMap)) (withCurrentClean (handler6)) cleanEdge36) cleanEdge36 (Lifecycle52.frameNext {s = (withCurrentClean (handler7))} {t = (withCurrentClean (handler8))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.cleanup A.child₀ Cleanup.readCleanupCounters))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.cleanup A.child₀ Cleanup.readCleanupCounters)) (withCurrentClean (handler7)) cleanEdge37) cleanEdge37 (Lifecycle52.frameNext {s = (withCurrentClean (handler8))} {t = (withCurrentClean (handler9))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.finishCleanup A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.finishCleanup A.child₀)) (withCurrentClean (handler8)) cleanEdge38) cleanEdge38 (Lifecycle52.frameNext {s = (withCurrentClean (handler9))} {t = (withCurrentClean (handler10))} {u = (withCurrentClean (handler10))} {event = (handlerAction (W.publishAsyncResult A.child₀))} (Lifecycle52.server-framed (Lifecycle52.handler-action (W.publishAsyncResult A.child₀)) (withCurrentClean (handler9)) cleanEdge39) cleanEdge39 (Lifecycle52.frameDone {s = (withCurrentClean (handler10))})))))))))))))))))))))))))))))))))))))))
@@ -5806,7 +5838,7 @@ module Protocols where
       ; released = put actor (OutRelease.success (just oldDup)) (O.released (V.sourceOf state)) }) state
     stopMux : V.Runtime → V.Runtime
     stopMux state = withCM (record source { core = record (O.core source)
-      { inboundGovernor = IG.setMux (ident 0) (record Y.m1 { commands = Mux.commands Y.m1 ++ (Mux.shutdown ∷ []) })
+      { inboundGovernor = IG.setMux (ident 0) (record (Y.withWanton jid Mux.initiatorJob Y.m1) { commands = Mux.commands Y.m1 ++ (Mux.shutdown ∷ []) })
         (Machine.inboundGovernor (O.core source)) } }) state
       where source = V.sourceOf state
     closeWork : G.Job
@@ -7146,7 +7178,7 @@ module Protocols where
     racePrefix cleanPrefix : List V.Event
     racePrefix = (((D.receiptActions ++ (shutdownStep (N.G.beginWholeClose A.child₀ D.capturedPhysicalOrder) ∷ [])) ++ PR.raceActions) ++ D.normalCatchActions) ++ take 10 PR.raceFinishActions
     cleanPrefix = ((D.receiptActions ++ (shutdownStep (N.G.beginWholeClose A.child₀ D.capturedPhysicalOrder) ∷ shutdownStep (N.G.requestWholeCancel A.child₀) ∷ [])) ++
-      (physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ [])) ++ take 39 CC.cleanContinuationActions
+      (physicalStep (P.enterProtocolBody (ident 21)) ∷ physicalStep (P.protocolReturned (ident 21)) ∷ V.commitClean (ident 21) ∷ [])) ++ take 39 CC.cleanContinuationActions
     abstract
       receipt-frame : Joins.FramedRuns D.cmEntry D.receiptActions D.receipt5
       receipt-frame = Joins.framed-server CMResultLifecycleChecks.actual-receipt-path

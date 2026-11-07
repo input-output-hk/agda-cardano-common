@@ -66,9 +66,14 @@ counters errorCompletion = nothing
 protocols : Origin → Store ℕ Mux.ProtocolStatus
 protocols cleanCompletion = Mux.protocols Old.publishedMux
 protocols errorCompletion = Mux.protocols Old.m6
+-- Only the egress field differs: the clean responder entered its body and
+-- retains its empty source wanton; the error origin raised before entry.
+egressOf : Origin → Mux.Egress.State
+egressOf cleanCompletion = Mux.egress Old.enteredMux
+egressOf errorCompletion = Mux.egress Old.m6
 mux : Origin → Mux.Mux
 mux origin = record Old.m6
-  { protocols = protocols origin; runningJobs = []; finishedJobs = []; completions = []
+  { egress = egressOf origin; protocols = protocols origin; runningJobs = []; finishedJobs = []; completions = []
   ; callback = Mux.returned; status = status origin; traceCounters = counters origin }
 queue : Origin → List Shared.IGEvent
 queue cleanCompletion = Shared.inboundInfo (Machine.world (O.core (M.source RF.clean4)))

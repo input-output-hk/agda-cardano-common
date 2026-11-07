@@ -178,7 +178,11 @@ initiatorClean-edge2 : D.step (runM (M.run (P.registerProtocol Old.j₁₁))) in
 initiatorClean-edge2 = refl
 initiatorClean3 : D.State
 initiatorClean3 = empty RF.initiatorClean3
-initiatorClean-edge3 : D.step (runM (M.run (P.protocolReturned Old.j₁₁))) initiatorClean2 ≡ just initiatorClean3
+initiatorClean2Entered : D.State
+initiatorClean2Entered = empty RF.initiatorClean2Entered
+initiatorClean-entry : D.step (runM (M.run (P.enterProtocolBody Old.j₁₁))) initiatorClean2 ≡ just initiatorClean2Entered
+initiatorClean-entry = refl
+initiatorClean-edge3 : D.step (runM (M.run (P.protocolReturned Old.j₁₁))) initiatorClean2Entered ≡ just initiatorClean3
 initiatorClean-edge3 = refl
 initiatorClean4 : D.State
 initiatorClean4 = empty RF.initiatorClean4
@@ -215,9 +219,9 @@ initiatorClean-invoke = refl
 initiatorClean-return : D.step (D.observeReturn owner) initiatorCleanInvoked ≡ just initiatorCleanReturned
 initiatorClean-return = refl
 initiatorCleanActions : List D.Action
-initiatorCleanActions = (runM (M.run (P.forkInitiator owner Old.j₁₁ Old.r₁ 1))) ∷ (runM (M.run (P.registerProtocol Old.j₁₁))) ∷ (runM (M.run (P.protocolReturned Old.j₁₁))) ∷ (runM (M.run (P.commitClean Old.j₁₁))) ∷ (runM (M.run (P.returnProtocol Old.j₁₁))) ∷ (runM (M.run (P.publishProtocol Old.j₁₁))) ∷ (runM (M.consume owner)) ∷ (runM (M.handleSelected owner)) ∷ D.beginInitiatorTrace owner ∷ D.observeInitiatorReturn owner ∷ (D.beginDeltaQ owner) ∷ (D.observeReturn owner) ∷ []
+initiatorCleanActions = (runM (M.run (P.forkInitiator owner Old.j₁₁ Old.r₁ 1))) ∷ (runM (M.run (P.registerProtocol Old.j₁₁))) ∷ (runM (M.run (P.enterProtocolBody Old.j₁₁))) ∷ (runM (M.run (P.protocolReturned Old.j₁₁))) ∷ (runM (M.run (P.commitClean Old.j₁₁))) ∷ (runM (M.run (P.returnProtocol Old.j₁₁))) ∷ (runM (M.run (P.publishProtocol Old.j₁₁))) ∷ (runM (M.consume owner)) ∷ (runM (M.handleSelected owner)) ∷ D.beginInitiatorTrace owner ∷ D.observeInitiatorReturn owner ∷ (D.beginDeltaQ owner) ∷ (D.observeReturn owner) ∷ []
 initiatorCleanPath : D.Executes initiatorClean0 initiatorCleanActions initiatorCleanReturned
-initiatorCleanPath = D.next initiatorClean-edge1 (D.next initiatorClean-edge2 (D.next initiatorClean-edge3 (D.next initiatorClean-edge4 (D.next initiatorClean-edge5 (D.next initiatorClean-edge6 (D.next initiatorClean-edge7 (D.next initiatorClean-edge8 (D.next initiatorClean-mux-invoke (D.next initiatorClean-mux-return (D.next initiatorClean-invoke (D.next initiatorClean-return (D.done))))))))))))
+initiatorCleanPath = D.next initiatorClean-edge1 (D.next initiatorClean-edge2 (D.next initiatorClean-entry (D.next initiatorClean-edge3 (D.next initiatorClean-edge4 (D.next initiatorClean-edge5 (D.next initiatorClean-edge6 (D.next initiatorClean-edge7 (D.next initiatorClean-edge8 (D.next initiatorClean-mux-invoke (D.next initiatorClean-mux-return (D.next initiatorClean-invoke (D.next initiatorClean-return (D.done)))))))))))))
 initiatorError0 : D.State
 initiatorError0 = empty RF.initiatorError0
 initiatorError1 : D.State

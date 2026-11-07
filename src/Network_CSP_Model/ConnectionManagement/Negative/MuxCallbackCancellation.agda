@@ -80,7 +80,9 @@ prefix5 : R.step (wrapP (P.control owner P.finishStart)) (F.wrapP Old.r4) ≡ ju
 prefix5 = refl
 prefix6 : R.step (wrapP (P.forkResponder owner Old.j₁₀ Old.r₀)) (F.wrapP Old.r5) ≡ just (F.wrapP Old.r6)
 prefix6 = refl
-prefix7 : R.step (wrapP (P.protocolReturned Old.j₁₀)) (F.wrapP Old.r6) ≡ just (F.wrapP Old.r7)
+prefixEntry : R.step (wrapP (P.enterProtocolBody Old.j₁₀)) (F.wrapP Old.r6) ≡ just (F.wrapP Old.r6Entered)
+prefixEntry = refl
+prefix7 : R.step (wrapP (P.protocolReturned Old.j₁₀)) (F.wrapP Old.r6Entered) ≡ just (F.wrapP Old.r7)
 prefix7 = refl
 prefix8 : R.step (wrapP (P.commitClean Old.j₁₀)) (F.wrapP Old.r7) ≡ just (F.wrapP Old.r8)
 prefix8 = refl
@@ -95,9 +97,9 @@ prefix12 = refl
 prefix13 : R.step (wrapP (P.asyncProtocolResult Old.j₁₀)) (F.wrapP Old.r12) ≡ just (F.wrapP Old.r13)
 prefix13 = refl
 prefixActions : List R.Action
-prefixActions = wrapP (P.control owner P.selectCommand) ∷ wrapP (P.control owner (P.demand 1)) ∷ wrapP (P.control owner P.sampleTracer) ∷ wrapP (P.control owner P.commitTracer) ∷ wrapP (P.control owner P.finishStart) ∷ wrapP (P.forkResponder owner Old.j₁₀ Old.r₀) ∷ wrapP (P.protocolReturned Old.j₁₀) ∷ wrapP (P.commitClean Old.j₁₀) ∷ wrapP (P.returnProtocol Old.j₁₀) ∷ wrapP (P.publishProtocol Old.j₁₀) ∷ wrapP (P.registerProtocol Old.j₁₀) ∷ wrapP (P.deregisterProtocol Old.j₁₀) ∷ wrapP (P.asyncProtocolResult Old.j₁₀) ∷ []
+prefixActions = wrapP (P.control owner P.selectCommand) ∷ wrapP (P.control owner (P.demand 1)) ∷ wrapP (P.control owner P.sampleTracer) ∷ wrapP (P.control owner P.commitTracer) ∷ wrapP (P.control owner P.finishStart) ∷ wrapP (P.forkResponder owner Old.j₁₀ Old.r₀) ∷ wrapP (P.enterProtocolBody Old.j₁₀) ∷ wrapP (P.protocolReturned Old.j₁₀) ∷ wrapP (P.commitClean Old.j₁₀) ∷ wrapP (P.returnProtocol Old.j₁₀) ∷ wrapP (P.publishProtocol Old.j₁₀) ∷ wrapP (P.registerProtocol Old.j₁₀) ∷ wrapP (P.deregisterProtocol Old.j₁₀) ∷ wrapP (P.asyncProtocolResult Old.j₁₀) ∷ []
 prefixPath : R.Executes (F.wrapP Old.z12) prefixActions (wrapM RF.clean0)
-prefixPath = R.next prefix1 (R.next prefix2 (R.next prefix3 (R.next prefix4 (R.next prefix5 (R.next prefix6 (R.next prefix7 (R.next prefix8 (R.next prefix9 (R.next prefix10 (R.next prefix11 (R.next prefix12 (R.next prefix13 (R.done)))))))))))))
+prefixPath = R.next prefix1 (R.next prefix2 (R.next prefix3 (R.next prefix4 (R.next prefix5 (R.next prefix6 (R.next prefixEntry (R.next prefix7 (R.next prefix8 (R.next prefix9 (R.next prefix10 (R.next prefix11 (R.next prefix12 (R.next prefix13 (R.done))))))))))))))
 abstract
   initialized-result : R.Executes Prior.start (Prior.wrappedActions Old.startActions ++ prefixActions) (wrapM RF.clean0)
   initialized-result = Facts.append initialized-monitor prefixPath

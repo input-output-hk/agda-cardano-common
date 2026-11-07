@@ -5,6 +5,7 @@
 module ConnectionManagement.Negative.ServerIGExitProtocolFixtures where
 
 open import Data.Bool using (true; false)
+open import Class.DecEq.Instances using (DecEq-ℕ)
 open import Data.Integer using (+_)
 open import Data.List using (List; []; _∷_; _++_)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -105,13 +106,19 @@ sourceMux : Mux.Mux → List Shared.IGEvent → Model → Model
 sourceMux mux queue m = record m { world = record (world m) { inboundInfo = queue }; governor = withMux mux (governor m) }
 messages : List Shared.IGEvent
 messages = Shared.awakeRemote A.key₀ ∷ Shared.remotePromotedToHot A.key₀ ∷ []
-m1 m2 m3 m4 m5 m6 : Mux.Mux
+-- The responder child's first source operation allocates its empty wanton;
+-- this snapshot is certified by the actual enterProtocolBody step.
+withWanton : JobId → Mux.JobDirection → Mux.Mux → Mux.Mux
+withWanton j dir m = record m { egress = record (Mux.egress m)
+  { wantons = put (serial j) (Mux.Egress.wanton (1 , dir) 0) (Mux.Egress.wantons (Mux.egress m)) } }
+m1 m2 m3 m4 m5 m6 enteredMux : Mux.Mux
 m1 = record X.armedMux { commands = []; waiting = (1 , IG.onDemand) ∷ [] }
 m2 = record X.armedMux { commands = []; callback = Mux.readActive (Mux.started 1) }
 m3 = record m2 { callback = Mux.commitTrace true (Mux.started 1) }
 m4 = record X.armedMux { commands = []; traceCounters = just (Mux.counters (+ 1) (+ 0)); callback = Mux.afterStart 1 }
 m5 = record m4 { protocols = (1 , Mux.running) ∷ []; callback = Mux.forkPending 1 }
 m6 = record m5 { runningJobs = 1 ∷ []; callback = Mux.returned }
+enteredMux = withWanton (ident 10) Mux.responderJob m6
 a1 a2 a3 a4 : Model
 a1 = sourceMux m1 [] s12
 a2 = sourceMux m2 [] s12
@@ -161,7 +168,7 @@ consumedPool = record publishedPool { completions = [] }
 poolAt : Pool.State → Model → Model
 poolAt pool m = record m { startup = T.startupState (T.monitoring (ident 0) (ident 1)) pool }
 cleanMux resultMux selectedMux sampledMux completedMux restartedMux : Mux.Mux
-cleanMux = record m6 { protocols = (1 , Mux.idle) ∷ []; runningJobs = []; finishedJobs = (1 , IG.clean) ∷ [] }
+cleanMux = record enteredMux { protocols = (1 , Mux.idle) ∷ []; runningJobs = []; finishedJobs = (1 , IG.clean) ∷ [] }
 resultMux = record cleanMux { finishedJobs = []; completions = Mux.jobResult Mux.responderJob 1 IG.clean ∷ [] }
 selectedMux = record cleanMux { finishedJobs = []; callback = Mux.readActive (Mux.completed 1 IG.clean) }
 sampledMux = record selectedMux { callback = Mux.commitTrace true (Mux.completed 1 IG.clean) }
@@ -171,11 +178,12 @@ terminated : Shared.Terminated
 terminated = Shared.terminatedProtocol A.key₀ (ident 0) (IG.protocol 1 IG.hot IG.onDemand) duplex IG.clean
 completionMessages : List Shared.IGEvent
 completionMessages = Shared.miniProtocolTerminated terminated ∷ Shared.remoteDemotedToWarm A.key₀ ∷ Shared.waitIdleRemote A.key₀ ∷ []
-j1 j2 j3 j4 j5 j6 j7 j8 j9 j10 j11 j12 j13 : Model
+j1 j2 j3 j3Entered j4 j5 j6 j7 j8 j9 j10 j11 j12 j13 : Model
 j1 = sourceMux m5 [] g13
 j2 = record (poolAt forkPool (sourceMux m6 [] g13)) { jobs = (ident 10 , job Types.executing) ∷ [] }
 j3 = record (poolAt registeredPool j2) { jobs = (ident 10 , job Types.executing) ∷ [] }
-j4 = record j3 { jobs = (ident 10 , job Types.waitingEgress) ∷ [] }
+j3Entered = sourceMux enteredMux [] j3
+j4 = record j3Entered { jobs = (ident 10 , job Types.waitingEgress) ∷ [] }
 j5 = record (sourceMux cleanMux [] j3) { jobs = (ident 10 , job (Types.resultCaptured IG.clean)) ∷ []; pending = (A.child₀ , ident 10 ∷ []) ∷ [] }
 j6 = poolAt returnedPool j5
 j7 = record (poolAt publishedPool (sourceMux resultMux [] j5)) { pending = (A.child₀ , []) ∷ [] }

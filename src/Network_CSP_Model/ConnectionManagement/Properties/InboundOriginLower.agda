@@ -49,7 +49,7 @@ module Mux where
  effect (U.startupStep w action) s eq = same (Quiet.Mux.direct-same (U.startupStep w action) s eq tt)
 
 module Protocol where
- private module P = ProtocolModel using (Action; source; State; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step)
+ private module P = ProtocolModel using (Action; source; State; enterProtocolBody; appendProtocolPayload; egressMuxer; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step)
  private module U = MuxModel Types.TypedResult using (step)
  effect : ∀ a s {t} → P.step a s ≡ just t → Effect (O.core (P.source s)) (O.core (P.source t))
  effect (P.run a) s eq with P.inheritedAllowed a
@@ -60,6 +60,10 @@ module Protocol where
  effect (P.forkResponder w j gen) s eq = same (Quiet.Protocol.direct-same (P.forkResponder w j gen) s eq tt)
  effect (P.forkInitiator w j gen n) s eq = same (Quiet.Protocol.direct-same (P.forkInitiator w j gen n) s eq tt)
  effect (P.registerProtocol j) s eq = same (Quiet.Protocol.direct-same (P.registerProtocol j) s eq tt)
+ -- M1 egress writers update only the actual IG mux egress cell.
+ effect (P.enterProtocolBody j) s eq = same (Quiet.Protocol.direct-same (P.enterProtocolBody j) s eq tt)
+ effect (P.appendProtocolPayload j bytes) s eq = same (Quiet.Protocol.direct-same (P.appendProtocolPayload j bytes) s eq tt)
+ effect (P.egressMuxer w action) s eq = same (Quiet.Protocol.direct-same (P.egressMuxer w action) s eq tt)
  effect (P.protocolReturned j) s eq = same (Quiet.Protocol.direct-same (P.protocolReturned j) s eq tt)
  effect (P.commitClean j) s eq = same (Quiet.Protocol.direct-same (P.commitClean j) s eq tt)
  effect (P.protocolException j err) s eq = same (Quiet.Protocol.direct-same (P.protocolException j err) s eq tt)
