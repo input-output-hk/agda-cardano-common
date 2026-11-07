@@ -20,8 +20,10 @@ structural validator reports `ready`.
 
 The structural schema is [manifest-v1.schema.json](manifest-v1.schema.json).
 Examples are provided for [local client](manifest-localclient.example.json),
-[local server](manifest-localserver.example.json), and
-[paired](manifest-paired.example.json) inputs. The Python validator additionally
+[local server](manifest-localserver.example.json),
+[paired](manifest-paired.example.json), and explicit
+[node-client control](manifest-nodeclient.example.json) and
+[full-node paired](manifest-full-node.example.json) inputs. The Python validator additionally
 checks distinct paired node identity declarations and classifies missing capture
 assertions. JSON Schema validation alone is not the complete readiness check.
 
@@ -34,10 +36,37 @@ Every profile explicitly records:
 |---|---|
 | `mode` | `localclient`, `localserver`, or `paired` |
 | `observation` | `driver-log` |
-| `clientCallbacks` | `generic-successful` |
+| `clientCallbacks` | `generic-successful`, or `node-client-control` with `localclient` or explicit paired `nodePolicy: full-node` |
+| `nodePolicy` | Optional; if supplied it must be `full-node` with paired mode, node-client-control and node-next |
 | `return` | `unit` |
 | `serverContract` | Explicit `generic-next` or `node-next` |
 | `eof` | `prefix` |
+
+`node-client-control` selects the standalone `NodeClientModel` source language:
+fixed depth 1000, unit return, successful normal handlers and an explicit
+unexpected-Canceled failure state. Forecast/stop decisions remain existential
+source inputs. This does not establish actual forecast/governor truth, the
+combined `NodeDriverModel` credit/FIFO policy, observed exceptions or deployed
+implementation conformance. A Canceled Receive before its Quit Send hook is not
+alone a policy violation: inspection can wait until the stop flag is published.
+EOF remains a prefix, including prefixes compatible with an unobserved fault.
+
+Without `nodePolicy`, this local selection is supported only with
+`mode: "localclient"`; paired and local-server requests are rejected rather than
+routed to the generic checker. The legacy
+`serverContract` field remains required and validated, but is unused by this
+local policy. The report marks `serverContractUsed: false` and emits
+`--client-policy node-client-control` without `--next-contract`.
+
+The distinct `nodePolicy: "full-node"` profile requires `mode: "paired"`,
+`clientCallbacks: "node-client-control"` and `serverContract: "node-next"`.
+It selects the unchanged full `NodeDriverModel` including the depth-1000 client,
+credit/FIFO application queue and Cancel-handler fault. Its report marks
+`serverContractUsed: true`, preserves existential external inputs, and emits
+`--paired-notify-lookahead FILE --node-policy full-node --observation driver-log --assume-fresh`.
+It has no local-server/client fallback. See the
+proofs, build and checked CLI/coordinator evidence (historical development evidence removed).
+Actual input truth and capture/deployment correspondence remain external.
 
 The generic client profile does not select a fixed depth or the deployed node's
 credit/queue policy. `node-next` identifies the server callback contract only.
@@ -138,6 +167,7 @@ Arguments for the dedicated executable are returned without an executable name:
 ```text
 --notify-lookahead FILE --role client|server --next-contract generic-next|node-next --observation driver-log --assume-fresh
 --paired-notify-lookahead PAIR --next-contract generic-next|node-next --observation driver-log --assume-fresh
+--notify-lookahead FILE --role client --client-policy node-client-control --observation driver-log --assume-fresh
 ```
 
 The runner must use the argument list directly, validate input/header/coordinate
@@ -145,3 +175,7 @@ and optional checksum consistency, retain declared assumptions and unknown
 provenance in its report, and keep input/evidence failures separate from actual
 protocol rejection. This manifest validator is operational input checking, not
 an Agda proof or a replacement for the certified checker.
+
+The node-client manifest extension record (historical development evidence removed)
+retains 108 pure controls and 36 exact legacy-report comparisons. It records no
+checker invocation or protocol verdict; example input files may remain absent.

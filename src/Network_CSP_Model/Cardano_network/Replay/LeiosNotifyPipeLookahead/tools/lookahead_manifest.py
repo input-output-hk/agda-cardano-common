@@ -18,6 +18,10 @@ MODES = {'localclient': {'client'}, 'localserver': {'server'}, 'paired': {'clien
 FIXED_PROFILE = {'observation': 'driver-log', 'clientCallbacks': 'generic-successful',
                  'return': 'unit', 'eof': 'prefix'}
 CONTRACTS = {'generic-next', 'node-next'}
+# Logger-silenced observation: RequestNext/Votes rows are absent; generic-successful client only.
+SILENCED_OBSERVATION = 'driver-log-no-request-votes'
+NODE_CLIENT_POLICY = 'node-client-control'
+FULL_NODE_POLICY = 'full-node'
 SHA256 = re.compile(r'[0-9a-fA-F]{64}\Z')
 REVISION = re.compile(r'[0-9a-fA-F]{40}\Z')
 
@@ -80,10 +84,10 @@ def validate_manifest(data, base_dir):
               'model': {'consensusRevision': MODEL_CONSENSUS_PIN, 'repositoryRevision': None},
               'limitations': ['Capture paths are resolved but capture files and checksums are not read or verified.',
                   'Fresh/ordered/lossless statements and endpoint pairing are declarations, not established facts.',
-                  'No protocol decision, complete-node policy, deployment revision or successful completion is inferred.']}
+                  'No protocol decision, deployed conformance, deployment revision or successful completion is inferred.']}
     required = {'schema', 'protocol', 'mode', 'observation', 'clientCallbacks', 'return',
                 'serverContract', 'eof', 'connection', 'session', 'endpoints', 'checkerInput'}
-    if not fields(data, required, {'model', 'note'}, '$'):
+    if not fields(data, required, {'model', 'note', 'nodePolicy'}, '$'):
         return report
     if data.get('schema') != SCHEMA:
         issue(errors, '$.schema', 'unsupported-schema', 'expected ' + SCHEMA)
@@ -92,13 +96,42 @@ def validate_manifest(data, base_dir):
     mode = data.get('mode')
     if not isinstance(mode, str) or mode not in MODES:
         issue(errors, '$.mode', 'unsupported-mode', 'expected localclient, localserver or paired')
+    node_client_policy = data.get('clientCallbacks') == NODE_CLIENT_POLICY
+    full_node_policy = data.get('nodePolicy') == FULL_NODE_POLICY
+    if 'nodePolicy' in data and not full_node_policy:
+        issue(errors, '$.nodePolicy', 'unsupported-profile', 'supported explicit nodePolicy is full-node')
+    if full_node_policy and (mode != 'paired' or not node_client_policy or data.get('serverContract') != 'node-next'):
+        issue(errors, '$.nodePolicy', 'unsupported-profile',
+              'full-node requires mode paired, clientCallbacks node-client-control and serverContract node-next')
+    silenced = data.get('observation') == SILENCED_OBSERVATION
+    if silenced and (node_client_policy or 'nodePolicy' in data):
+        issue(errors, '$.observation', 'unsupported-profile',
+              SILENCED_OBSERVATION + ' requires clientCallbacks generic-successful and no nodePolicy')
     for key, supported in FIXED_PROFILE.items():
-        if data.get(key) != supported:
+        if key == 'observation' and silenced:
+            continue
+        if key == 'clientCallbacks' and node_client_policy:
+            if mode != 'localclient' and not full_node_policy:
+                issue(errors, '$.clientCallbacks', 'unsupported-profile',
+                      'node-client-control requires localclient or an explicit paired full-node profile')
+        elif data.get(key) != supported:
             issue(errors, '$.' + key, 'unsupported-profile', 'supported value is ' + supported)
     contract = data.get('serverContract')
     if not isinstance(contract, str) or contract not in CONTRACTS:
         issue(errors, '$.serverContract', 'unsupported-contract', 'explicit generic-next or node-next is required')
     report['profile'] = {key: data.get(key) for key in ['protocol', 'mode', *FIXED_PROFILE, 'serverContract']}
+    if full_node_policy:
+        report['profile']['nodePolicy'] = FULL_NODE_POLICY
+        report['profile']['serverContractUsed'] = True
+        report['profile']['clientPolicyScope'] = 'full NodeDriverModel; fixed depth1000; credit FIFO; existential policy inputs'
+        report['limitations'].append('Full-node acceptance establishes an existential original node-policy wire run; actual forecast/governor/eligibility/handler truth remains external.')
+    elif node_client_policy:
+        report['profile']['serverContractUsed'] = False
+        report['profile']['clientPolicyScope'] = 'local NodeClientModel; fixed depth1000; existential policy inputs'
+        report['limitations'].append('This local client policy does not check NodeDriver forecast/governor inputs, server credit/FIFO policy or actual exception outcomes.')
+    if silenced:
+        report['limitations'].append('Silenced acceptance concerns the RequestNext/Votes-erased observation, not full-observation '
+                                     'acceptance; undetermined is a failed canonical reconstruction, never a rejection.')
     checker_input = data.get('checkerInput')
     report['checkerInput'] = None
     report['checkerArguments'] = None
@@ -184,7 +217,14 @@ def validate_manifest(data, base_dir):
     if report['status'] == 'ready':
         argv = (['--paired-notify-lookahead', report['checkerInput']['file']] if mode == 'paired' else
                 ['--notify-lookahead', report['checkerInput']['file'], '--role', next(iter(roles))])
-        report['checkerArguments'] = argv + ['--next-contract', contract, '--observation', 'driver-log', '--assume-fresh']
+        if full_node_policy:
+            report['checkerArguments'] = argv + ['--node-policy', FULL_NODE_POLICY,
+                                                  '--observation', 'driver-log', '--assume-fresh']
+        elif node_client_policy:
+            report['checkerArguments'] = argv + ['--client-policy', NODE_CLIENT_POLICY,
+                                                  '--observation', 'driver-log', '--assume-fresh']
+        else:
+            report['checkerArguments'] = argv + ['--next-contract', contract, '--observation', data['observation'], '--assume-fresh']
     return report
 
 
@@ -218,6 +258,13 @@ def example_manifest(mode='paired'):
     return result
 
 
+def example_full_node_manifest():
+    """Select the full policy explicitly while retaining honest unknown deployed provenance."""
+    result = example_manifest('paired')
+    result.update(nodePolicy=FULL_NODE_POLICY, clientCallbacks=NODE_CLIENT_POLICY)
+    return result
+
+
 def selftest():
     """Exercise supported profiles, explicit evidence failures and provenance separation without a node."""
     cases = 0
@@ -234,6 +281,71 @@ def selftest():
                 assert all(ep['provenance']['sourceRevision'] is None for ep in report['endpoints'].values())
                 assert not any(Path(ep['file']).exists() for ep in report['endpoints'].values())
                 cases += 1
+        # The new policy is an explicit local-client branch; old examples stay generic.
+        for contract in CONTRACTS:
+            data = example_manifest('localclient')
+            data.update(clientCallbacks=NODE_CLIENT_POLICY, serverContract=contract)
+            report = validate_manifest(data, base)
+            assert report['status'] == 'ready' and report['profile']['serverContractUsed'] is False
+            assert report['checkerArguments'] == ['--notify-lookahead', str(base/'client.txt'),
+                '--role', 'client', '--client-policy', NODE_CLIENT_POLICY,
+                '--observation', 'driver-log', '--assume-fresh']
+            assert report['protocolVerdict'] is None
+            cases += 1
+        for mode in ('localserver', 'paired'):
+            data = example_manifest(mode)
+            data['clientCallbacks'] = NODE_CLIENT_POLICY
+            report = validate_manifest(data, base)
+            assert report['status'] == 'invalid-input' and report['checkerArguments'] is None
+            cases += 1
+        data = example_full_node_manifest()
+        report = validate_manifest(data, base)
+        assert report['status'] == 'ready' and report['profile']['serverContractUsed'] is True
+        assert report['checkerArguments'] == ['--paired-notify-lookahead', str(base/'pair.txt'),
+            '--node-policy', FULL_NODE_POLICY, '--observation', 'driver-log', '--assume-fresh']
+        assert report['protocolVerdict'] is None
+        cases += 1
+        def check_full(change, status):
+            nonlocal cases
+            data = example_full_node_manifest()
+            change(data)
+            report = validate_manifest(data, base)
+            assert report['status'] == status and report['protocolVerdict'] is None, report
+            if status != 'ready':
+                assert report['checkerArguments'] is None
+            cases += 1
+        check_full(lambda d: d.pop('nodePolicy'), 'invalid-input')
+        check_full(lambda d: d.update(nodePolicy='node-next'), 'invalid-input')
+        check_full(lambda d: d.update(nodePolicy=None), 'invalid-input')
+        check_full(lambda d: d.update(clientCallbacks='generic-successful'), 'invalid-input')
+        check_full(lambda d: d.update(serverContract='generic-next'), 'invalid-input')
+        check_full(lambda d: d.update(mode='localclient'), 'invalid-input')
+        check_full(lambda d: d.update(mode='localserver'), 'invalid-input')
+        check_full(lambda d: d['checkerInput'].update(format='local-v1'), 'invalid-input')
+        check_full(lambda d: d['endpoints']['server'].update(capture='partial'), 'missing-capture-evidence')
+        check_full(lambda d: d['endpoints']['client']['captureEvidence'].update(lossless=False), 'missing-capture-evidence')
+        check_full(lambda d: d['endpoints']['server']['provenance'].update(sourceRevision=None), 'ready')
+        def check_node(change, status):
+            nonlocal cases
+            data = example_manifest('localclient')
+            data['clientCallbacks'] = NODE_CLIENT_POLICY
+            change(data)
+            report = validate_manifest(data, base)
+            assert report['status'] == status and report['protocolVerdict'] is None, report
+            if status != 'ready':
+                assert report['checkerArguments'] is None
+            cases += 1
+        check_node(lambda d: d.update(clientCallbacks='fixed-depth-1000'), 'invalid-input')
+        check_node(lambda d: d.pop('clientCallbacks'), 'invalid-input')
+        check_node(lambda d: d.update(returnValue='unit'), 'invalid-input')
+        check_node(lambda d: d.update({'return': 'arbitrary'}), 'invalid-input')
+        check_node(lambda d: d.update(eof='success'), 'invalid-input')
+        check_node(lambda d: d.update(observation='source-operations'), 'invalid-input')
+        check_node(lambda d: d.update(serverContract='unused'), 'invalid-input')
+        check_node(lambda d: d['checkerInput'].update(format='paired-v1'), 'invalid-input')
+        check_node(lambda d: d['endpoints']['client'].update(capture='unknown'), 'missing-capture-evidence')
+        check_node(lambda d: d['endpoints']['client']['captureEvidence'].update(lossless=False), 'missing-capture-evidence')
+        check_node(lambda d: d['endpoints']['client']['captureEvidence'].pop('basis'), 'missing-capture-evidence')
         def check(change, status):
             nonlocal cases
             data = example_manifest()
@@ -242,6 +354,21 @@ def selftest():
             assert report['status'] == status, report
             assert report['protocolVerdict'] is None
             cases += 1
+        # The silenced observation is an explicit generic-successful profile in every mode.
+        for mode in MODES:
+            data = example_manifest(mode)
+            data['observation'] = SILENCED_OBSERVATION
+            report = validate_manifest(data, base)
+            assert report['status'] == 'ready' and report['profile']['observation'] == SILENCED_OBSERVATION, report
+            assert report['checkerArguments'][-3:] == ['--observation', SILENCED_OBSERVATION, '--assume-fresh']
+            assert report['protocolVerdict'] is None
+            cases += 1
+        check(lambda d: d.update(observation=SILENCED_OBSERVATION, nodePolicy=FULL_NODE_POLICY,
+                                 clientCallbacks=NODE_CLIENT_POLICY), 'invalid-input')
+        check_node(lambda d: d.update(observation=SILENCED_OBSERVATION), 'invalid-input')
+        check(lambda d: d.update(observation=SILENCED_OBSERVATION, eof='success'), 'invalid-input')
+        check(lambda d: d.update(observation=SILENCED_OBSERVATION) or d['endpoints']['client'].pop('capture'),
+              'missing-capture-evidence')
         check(lambda d: d.update(mode='fixed-node'), 'invalid-input')
         check(lambda d: d.update(clientCallbacks='fixed-depth-1000'), 'invalid-input')
         check(lambda d: d.update(depth=1000), 'invalid-input')
@@ -286,7 +413,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest', nargs='?', type=Path)
     parser.add_argument('--selftest', action='store_true')
-    parser.add_argument('--example', choices=sorted(MODES))
+    parser.add_argument('--example', choices=[*sorted(MODES), FULL_NODE_POLICY])
     args = parser.parse_args()
     if sum([bool(args.manifest), args.selftest, bool(args.example)]) != 1:
         parser.error('choose one manifest, --selftest or --example MODE')
@@ -294,7 +421,7 @@ def main():
         print(json.dumps(selftest(), indent=2))
         return
     if args.example:
-        print(json.dumps(example_manifest(args.example), indent=2))
+        print(json.dumps(example_full_node_manifest() if args.example == FULL_NODE_POLICY else example_manifest(args.example), indent=2))
         return
     report = load_manifest(args.manifest)
     print(json.dumps(report, indent=2))

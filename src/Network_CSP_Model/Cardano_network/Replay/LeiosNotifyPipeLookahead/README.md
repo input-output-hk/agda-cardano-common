@@ -37,20 +37,25 @@ experiment results.
 | `ShutdownPrecheck.agda`, `ShutdownPrecheckTests.agda` | Recorded client Done requires server Quit Receive, preserving a pending Send-Done hook |
 | `DriverPrecheckTests.agda`, `DriverCreditPrecheckTests.agda` | Guard-specific refutations, actual Lead witnesses and histories passing necessary guards but requiring complete search |
 | `DriverShutdownPrecheckTests.agda` | Fifth-guard integration, explicit pending Send-Done source witness and a five-guard ordering-cycle gate |
-| `PrefixTransport.agda`, `PrefixTransportTests.agda` | Exact conservation-derived receive bounds at every visible source prefix, with cut lemmas |
-| `CycleObstruction.agda`, `CycleObstructionTests.agda` | Kernel prefix-cut obstruction and source refutation for the whole n-at-least-three cycle family |
-| `CycleObstructionNative.agda`, `CycleObstructionNativeTests.agda` | Existing native soundness transports the generic obstruction to all matching native PTree traces |
-| `CostProbe.agda`, `CostProbeTests.agda`, `CostProbeMain.agda` | Separate diagnostic stages reuse production parsing/decisions, with common field forcing and distinct guard-only tags |
 | `ReadyGateOrder.agda`, `ReadyGateOrderTests.agda` | Exact callback-enumeration fast path preserving proof-bearing menus, duplicates, priorities and target order |
-| `MenuProbe.agda`, `MenuProbeTests.agda`, `MenuProbeMain.agda` | Internal basis/readiness/menu/order diagnostic with source anchors and explicitly arbitrary nonce states |
 | `DriverBasisExecutionTests.agda` | All restricted hidden families, exact existing payloads and delayed-hook menu regressions |
 | `DriverDecide.agda`, `DriverDecideTests.agda` | Exhaustive unrestricted source compatibility for two typed endpoint prefixes and all their merges |
 | `DriverDecideNative.agda`, `DriverDecideNativeTests.agda` | Native paired realization/refutation, exact decoded rows and local endpoint witnesses |
 | `WireClientNative.agda`, `WireClientNativeTests.agda` | Generic Params/Return standalone client wire transport for every actual native path |
 | `Wire/ClientAdapter*.agda`, `Wire/PairedAdapter*.agda` | Lossless normalized client/paired source/native decisions and regression witnesses |
+| `Cardano_network.LeiosNotifyPipeLookahead.NodeClientExecution`, `NodeClientExecutionTests.agda` | Exact existing node-policy selectors and finite scheduling menus; fixed depth and Cancel fault guards |
+| `Wire/NodeClientPolicy.agda`, `Wire/NodeClientPolicyTests.agda` | Finite adequate hidden callbacks, inherited accessibility, exact independent source-language equivalence and exhaustive local policy decision |
+| `Wire/NodeClientAdapter.agda`, `NodeClientReport.agda`, `NodeClientReportTests.agda` | Existing lossless normalized fields/agency validation with a separate policy witness, explicit local profile and located errors |
 | `Wire/LoggerObservation.agda`, `Wire/LoggerObservationTests.agda` | Typed post-lexical logger tags/fields, lossless selected-row observation and exact adapter transport |
-| `LookaheadReport.agda`, `LookaheadReportTests.agda` | Tagged normalized-input reports, parser/agency failures and original source-line diagnostics |
+| `LookaheadReport.agda`, `LookaheadReportTests.agda` | Tagged normalized-input reports, parser/agency failures and original source-line diagnostics; silenced local/paired reports and the `undetermined` status |
 | `LookaheadMain.agda` | Dedicated stdlib IO CLI; typechecked/compiled separately from safe proof roots |
+| `Wire/ServerSilencedTests.agda`, `Wire/ClientSilencedTests.agda` | Concrete decisions of the protocol-layer silenced server/client languages, including hidden-row rejection and the client `Lead` abstraction |
+| `Silenced.agda` | The `driver-log-no-request-votes` hidden predicates `isVotes` and `hiddenKind` (RequestNext/Votes in either direction) |
+| `WireSilencedNative.agda` | Server/client `equivalence` between each silenced local language and native traces with the same hidden full rows; `decide-native` |
+| `Wire/SilencedAdapter.agda`, `Wire/SilencedAdapterTests.agda` | Normalized silenced local adapter: a present hidden-kind row is `invalid`, never erased; verdict rows carry their input-translation evidence |
+| `PairedSilenced.agda`, `PairedSilencedTests.agda` | Paired silenced `check`: certified `accepted`/`rejected`, and evidence-carrying `undetermined` when only the canonical reconstruction fails |
+| `PairedSilencedNative.agda` | `At.equivalence` between the paired silenced source predicate and native paired traces; `At.check-native` transports `check` |
+| `BoundedRelation.agda`, `BoundedRelationTests.agda` | Inclusions of the bounded `LeiosNotifyPipeline` languages in the lookahead wire languages and four counterexamples to the converses or to `nodeNext` |
 | `DriverSearchTests.agda` | Computed full normal/cancellation shutdown, delayed Send and exact payload rejection under the ordered search |
 | `ClientEventsBridge.agda` | Explicit visible/erased action partition and exact retained-payload realization |
 | `ClientNetworkBridge.agda` | Both native client step/trace directions with declared callback erasure and exact return value |
@@ -60,9 +65,15 @@ experiment results.
 | `DriverEndpointBridge.agda` | Actual local native client/server executions and matching wire projections for each product run |
 | `DriverNetworkTests.agda` | Delayed Sends, Canceled/normal-after-Quit shutdown, endpoint witnesses and FIFO/pending-record controls |
 | `NodeDriverBridge.agda` | One-way native paired/endpoint realization of combined production node-policy runs |
+| `NodeDriverNetworkBridge.agda`, `NodeDriverNetworkTests.agda` | Exact full-policy native step/path inversion, explicit input witnesses, wire-language equivalence and fault/guard controls |
+| `NodeDriverWireCoreNative.agda`, `NodeDriverWireCoreTests.agda` | Cycle-eliminating wire core with all-state source/native language equivalence and hidden accessibility |
+| `NodeBasisAdequacy.agda`, `NodeBasisAdequacyTests.agda` | Fresh full-node whole-input eligible-offer basis adequacy; exact observed values/duplicates and explicit nonfresh fixing premise |
+| `NodeDriverWireReplay.agda`, `NodeDriverDecide.agda`, `NodeDriverDecideTests.agda` | Complete full node-policy menus/accessibility instantiate the shared one-list/two-list engines, with original source witnesses and exhaustive rejection |
+| `NodeDriverDecideNative.agda`, `Wire/NodePairedAdapter.agda`, `NodeDriverReport.agda` | Actual full-policy native paired decisions, lossless normalized adaptation and distinct full-node reports |
+| `Wire/NodePolicyObservation.agda`, `Wire/NodePolicyObservationTests.agda` | Reusable universe-polymorphic ordered mapping/recovery, full-node typed observations and actual native transport/decisions; exact malformed/payload controls |
 | `NodeDriverTests.agda` | Fresh node-policy schedules with forecast/termination inputs, exact credit/queue transactions and shutdown |
 | `ExportFixtures.agda` | Pure TSV rendering of four checked node wire histories, evaluated by Agda DefaultCompute for controlled Haskell comparison |
-| `RuntimeCheck.agda` | Sound interpretation of supplied finite schedules at the independent node-policy rules; no exhaustive search claim |
+| `RuntimeCheck.agda` | Sound supplied-schedule interpretation and instruction existence for every finite full-policy run; no exhaustive wire-only search claim |
 | `RuntimeCheckTests.agda` | Seven negative controls for forecast, callback bypass, admission, empty queue, commit, selector and FIFO guards |
 | `RuntimeCertificates.agda` | Concatenation of checked runs with exact wire equalities, plus server-only policy-to-core projection |
 | `RuntimeInstance.agda` | Shared exact model and native bridge instance for generated runtime certificates |
@@ -85,11 +96,8 @@ experiment results.
 | `RunRuntime.agda` | Constructed successful runtime schedules and inhabited response/no-failure/maximality witnesses for supplied finite example paths; no production fairness inference |
 | `PairedDrainTests.agda` | General full completion/runtime/maximal endpoints, fresh delayed-Quit and held-handler examples, and unreachable missing-Done/dropped-reply/duplicate-Done controls |
 | `PairedDrainNativeTests.agda` | Actual production-policy delayed Send-Quit/Send-Done ordering with full clean native/runtime closure |
-| `CompletionBridge.agda` | Independently counted native hidden flushes, exact source-count correspondence, work conservation, successful-close/recorded-Done counts and native operation lower bounds |
-| `CompletionTests.agda` | Universal idle/mixed/unretired counts, finite EOF control, all-state production-policy occupancy bounds and unbounded retained completions |
-| `CompletionNativeTests.agda` | Arbitrarily long occupancy-one policy/native histories, exact n-flush and n+12-native-operation shutdowns, and closure from observed Send-Done |
 | `Tests.agda`, `ClientTests.agda`, `DriverTests.agda`, `NodeTests.agda` | Inhabited source schedules and negative controls |
-| `NativeTests.agda`, `NativeReachability.agda` | Native server PTree steps and constructive completed-bookkeeping reachability |
+| `NativeTests.agda` | Native server PTree steps |
 | `ClientNativeTests.agda`, `DriverNativeTests.agda` | Source-operation PTree witnesses and executable negative controls |
 
 The source models, assumptions, findings and full validation record are documented
@@ -107,16 +115,19 @@ both trace directions and endpoint projection certificates. `NodeDriverModel`
 now binds both node-policy components in the paired product and proves a one-way
 native realization. The generic native target remains broader: its acceptance
 alone does not certify a node-policy witness or the node's abnormal-exit outcome.
-An exact policy PTree/inversion theorem, ordinary CSP/legacy-medium composition
-equivalence, wider Haskell differential coverage/full node-callback validation
-and certified wire/raw-log search remain separate
+The [exact full-policy native tree](../../LeiosNotifyPipeLookahead/README.md#exact-full-policy-native-tree)
+now has both step/finite-trace directions, wire-observation equivalence and
+complete shared selectors, including Cancel failure. Its explicit input channel
+retains the queue, fault flag and external witnesses. Ordinary CSP/legacy-medium
+composition equivalence,
+wider Haskell differential coverage/full node-callback validation
+and formal raw/lexical logger correspondence remain separate
 tasks in the [numbered plan](../../../../docs/specs/leiosnotify-pipe-lookahead-plan.md).
 
 Run the validation roots from `src/`:
 
 ```sh
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/NativeTests.agda
-agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/NativeReachability.agda
 agda --safe Cardano_network/LeiosNotifyPipeLookahead/Rank.agda
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/ClientTests.agda
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverTests.agda
@@ -153,12 +164,11 @@ small parts using `agda --safe`, proves their concatenation, and realizes the
 exact original rows in the native paired or local-server tree. Its Python
 planner is untrusted. Failure to find or check a supplied schedule is
 inconclusive. It is not the proposed exhaustive wire-only/raw-log checker.
-The [OOM diagnosis](../../../../docs/notes/leiosnotify-pipe-lookahead-oom.md)
-describes the shared instance, abstract parts and bounded execution. Generated
+Generated
 sources and logs stay outside the repository.
 All 40 additional captured histories passed through 22 distinct safely checked
 certificates, bringing the total to 80: 70 paired histories and 10 server-only
-adversarial histories. The [T3.3 result record](tools/results-t33-20261103.json)
+adversarial histories. The T3.3 result record (historical development evidence removed)
 ties the batch to its sources and artifacts under
 `/var/tmp/leiosnotify-t33-20261103/verified/`. Peak sampled RSS was 1.15 GiB;
 there were zero batch budget failures. The four helpers and all 1003 generated
@@ -206,32 +216,11 @@ the protocol layer. Its nine modules pass safe checking through
 The [paired-drain note](../../../../docs/notes/leiosnotify-pipe-lookahead-paired-drain.md)
 states exact endpoints and retained runtime/implementation assumptions. General
 structural progress is proved; external responsiveness/failure conditions still
-cannot be inferred from accepted finite logs. T4.3 resource results are recorded below.
-
-T4.3.1 now completes exact bookkeeping/flush counts with six safely checked and
-strictly audited modules. `CompletionAccounting`, `CompletionDriver` and
-`SequentialCompletion` are in the protocol layer; `CompletionTests.agda` and
-`CompletionNativeTests.agda` are the checking roots. The
-[completion-cost note](../../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
-distinguishes universal counts and actual native step bounds from the selected
-low-occupancy policy family, machine representation and measured runtime cost.
-T4.3.2 resource and representation results follow below.
-
-T4.3.2 adds `ClientBounds`, `ResourceBounds`, `QueueBudget`, `NodeQueueBounds`
-and `Representation` in the protocol layer, with `ResourceFixtures` and
-`ResourceNativeTests` under Replay. The seven modules pass safe checking and
-strict audits. Every fresh fixed-depth policy run has conservative live-resource
-envelopes; the full-pipe Quit witness needs one extra marker slot. Historical
-server deferred jobs remain unbounded, so depth cannot discharge their finite
-Int-range premise. Signed arrival-counter range remains a separate obligation.
-See the [resource-bounds note](../../../../docs/notes/leiosnotify-pipe-lookahead-resource-bounds.md)
-and [result record](tools/results-t432-20261104.json).
+cannot be inferred from accepted finite logs.
 
 ## Runtime investigation
 
-The [completion-cost topic](../../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
-maintains T5.1.1 history counts, T5.1.2 quiet baseline profiles and T5.2.1 Nat
-heap/arithmetic diagnostics. T5.2.2's [runtime profiles](../../../../docs/notes/leiosnotify-pipe-lookahead-progress.md#pinned-haskell-blocking-and-failure-experiments)
+T5.2.2's [runtime profiles](../../../../docs/notes/leiosnotify-pipe-lookahead-progress.md#pinned-haskell-blocking-and-failure-experiments)
 cover blocking, injected failures and credit/queue accounting. The topics link
 committed records, reproduction commands and source pins, keeping runtime
 outcomes distinct from model guarantees. These finite fixtures do not establish a verified repair, full
@@ -244,30 +233,6 @@ tracks raw observation/capture evidence and stronger node-profile work.
 The source audit also holds the T5.3 classification and resource-candidate
 decision. The typed paired engine below completes its generic search scope;
 Normalized profile/CLI delivery is implemented below; raw fidelity remains open.
-
-The separate [CollectOne candidate design](../../../../docs/specs/leiosnotify-collect-one-design.md)
-has compiled type/constructor feasibility and separate safe reference
-[Model/Contract](../../../../docs/specs/leiosnotify-collect-one-design.md#t612-behavior-and-observation-contract)
-definitions. Their witness/guard root is
-[CollectOne/ContractTests.agda](CollectOne/ContractTests.agda).
-[T6.2.1 preservation](../../../../docs/specs/leiosnotify-collect-one-design.md#t621-finite-source-and-wire-preservation)
-now proves both finite local source-action and exact wire inclusions without
-extra premises. [T6.2.2 conditional resources/progress](../../../../docs/specs/leiosnotify-collect-one-design.md#t622-conditional-resources-and-local-progress)
-now prove B+1 registered inventory, exact early/final collection accounting,
-shutdown safety, internal accessibility and finite local completion/operation
-bounds. [CollectOne/ResourceTests.agda](CollectOne/ResourceTests.agda) has fresh
-sequential, burst, selected-send and empty-Notification examples. The unfinished-work
-premise is now discharged by [T6.2.2.3](../../../../docs/specs/leiosnotify-collect-one-design.md#t6223-paired-policy-resource-bounds)
-for the independent candidate paired node model: ≤1005 registered/completed jobs.
-[CollectOne/NodeResourceTests.agda](CollectOne/NodeResourceTests.agda) constructs
-honest arbitrary-length paired histories, real hits/misses, delayed hooks and
-full endpoint closure. Candidate native/converse paired/Haskell correspondence
-remain open. [T6.3.1 actual-driver comparison](../../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md#collectone-actual-driver-comparison)
-now passes fresh baseline/candidate schedules, histories and quiet profiles
-(1224 processes), with reduced retention/shutdown cost and a small allocation
-increase. The [T6.3.2 review bundle](tools/patches/collect-one/README.md) is now
-source/apply checked. No new runtime capture realization, arbitrary-log CLI mode
-or raw-node-log verdict is added by that proposal.
 
 ## Exact server wire replay
 
@@ -292,7 +257,7 @@ separate results. Optional wire bounds and raw observation correctness remain op
 The normalized server adapter below now implements its own validation.
 Unsupported or malformed raw rows must not be silently erased. See the
 [implemented design scope](../../../../docs/specs/leiosnotify-lookahead-replay-design.md#implemented-server-wire-checking)
-and [integration record](tools/results-parallel-20261105.json).
+and integration record (historical development evidence removed).
 
 Reproduce the safe regression roots serially from the repository root:
 
@@ -309,7 +274,7 @@ finds no holes/unsafe additions. Peak sampled process RSS is about 1.1 GiB,
 under the existing serial resource guards; this does not prove every future
 Agda workload stays within memory.
 
-The [capture audit](tools/capture-audit/README.md) finds zero Notify RequestNext
+The capture audit (historical investigation tooling removed) found zero Notify RequestNext
 records in both requested logs and two nearby alternatives. Build provenance
 is unknown. This is missing evidence for fresh replay, not a protocol rejection;
 no fresh capture or T8.2 replay verdict is claimed.
@@ -356,15 +321,14 @@ node-policy witness. [WireClientNative](WireClientNative.agda) now lifts this
 quotient to every actual native path, allowing arbitrary final trees and
 explicitly erasing callback/API observations. Params and Return stay generic;
 decision takes a real Return inhabitant. Normalized adapters below use unit.
-See the [client source record](Wire/result-client-20261105.json) and
-[native record](tools/result-client-native-20261105.json).
+See the client source and native records (historical development evidence removed).
 
 ## Parallel replay prerequisites
 
 The [input-prefix bounds and callback-target design](../../../../docs/specs/leiosnotify-lookahead-replay-design.md#checked-prefix-bounds-and-callback-targets)
 links exact physical hook/FIFO count proofs and finite unit-return callback
 enumeration. These support future paired search without assuming unique hidden
-successors. The [wave record](tools/results-replay-wave2-20261105.json) retains
+successors. The wave record (historical development evidence removed) retains
 the combined fresh checks of 14 new modules, strict audit and scoped remaining
 work. The following wave supplies packet adequacy, complete menus and their
 paired decision integration; no raw-log verdict follows from those proofs alone.
@@ -399,7 +363,7 @@ credit/queue/client policy. Normalized adapters, manifests and the dedicated CLI
 now implement the delivery path below; raw fidelity remains separate.
 
 The [maintained design](../../../../docs/specs/leiosnotify-lookahead-replay-design.md#certified-paired-source-and-native-decision)
-and [wave record](tools/results-replay-wave3-20261105.json) retain exact theorem
+and wave record (historical development evidence removed) retain exact theorem
 scopes, computed small decisions, delayed-Send witness roundtrips and final
 checks. No new real capture or raw-log verdict is claimed.
 
@@ -454,7 +418,7 @@ timeouts or heap exhaustion inconclusive. Successful EOF is always a prefix,
 not proof of closure. Whole-prefix rejection reports no invented minimal index.
 
 The [build/run guide](tools/README.md#normalized-lookahead-cli-and-manifest-runner)
-and [wave record](tools/results-replay-wave4-20261105.json) retain commands,
+and wave record (historical development evidence removed) retain commands,
 12 fresh safe proof/report checks, the separate IO entry-point build, 62 real
 CLI regressions and 10 real-binary manifest smoke cases. Tests use synthetic
 normalized inputs; no complete real capture or deployment-conformance verdict
@@ -520,13 +484,13 @@ or resource exhaustion is inconclusive. These checks are not authentication or
 a filesystem transaction. Python and physical logger correspondence remain
 trust boundaries; no new Agda raw-parser or implementation theorem is claimed.
 
-The [cost measurements](tools/replay-cost/README.md) reuse the existing compiled
+The cost measurements (historical investigation tooling removed) reuse the existing compiled
 baseline checker on synthetic schedules: 86 cases accepted, three paired cases timed out
 and 16 larger cases were explicitly not run. Local checks through 64 exchanges
 were inexpensive, but even some one-exchange normal closed pairs exceeded five
 seconds. Run local checks first and retain limits for paired search. An accepted
 shorter prefix never substitutes for an inconclusive full history. The
-[wave record](tools/results-replay-wave5-20261105.json) retains source identities,
+wave record (historical development evidence removed) retains source identities,
 runtime controls, real-binary synthetic smoke checks and the strict original-log
 preflight; it contains no new complete-testnet replay verdict.
 
@@ -549,7 +513,7 @@ unrestricted `SourceTrace`. Acceptance still constructs one original execution;
 rejection still refutes every source schedule and permitted merge. Native
 transport and normalized/raw interfaces keep the same premises and meanings.
 
-The [comparison and scale record](tools/search-order/README.md) supersedes the
+The comparison and scale record (historical investigation tooling removed) supersedes the
 baseline timeout findings for its retained fixtures. Full normal closed one-
 exchange and four-request cancellation histories change from five-second
 timeouts to approximately 15 ms acceptance. All 84 original scale cases and
@@ -557,7 +521,7 @@ timeouts to approximately 15 ms acceptance. All 84 original scale cases and
 measurement is slightly slower, so there is no universal improvement claim.
 Quit/Done, exact payloads, negative controls and EOF races remain checked. Six
 changed/new Agda sources have safe checks and a resolved source audit; the
-[wave-6 record](tools/results-replay-wave6-20261105.json) retains build identities,
+wave-6 record (historical development evidence removed) retains build identities,
 62 CLI regressions and three raw-input real-binary smokes. Fresh acquisition is
 outside the active work at the user's request.
 
@@ -574,7 +538,7 @@ source adequacy reuses the unchanged old retraction and its computation gates.
 
 This deduplicates whole callback candidate values. Repeated log rows and duplicate
 Votes inside a single payload remain exact. The
-[independent regression guide](tools/basis-regressions/README.md) links a
+independent regression guide (historical investigation tooling removed) links a
 parametric actual two-exchange source witness under both contracts, retaining
 eight visible records and native realization. It demonstrates five candidates
 becoming one when the representative equals that repeated whole payload. Direct
@@ -582,7 +546,7 @@ packet-conservation proofs exclude trimming or reordering its internal Votes,
 independently of the search result. All 18 identical runtime fixtures match on
 the old and new binaries: 14 accepted prefixes and four completed rejections.
 
-The [unique-basis baseline study](tools/rejection-cost/README.md) deliberately separates
+The unique-basis baseline study (historical investigation tooling removed) deliberately separates
 completed controls from resource limits. Of 72 prepared cases per binary, nine
 controls complete as expected, nine negative series stop at size one with a
 two-second timeout, and 54 larger cases are not run. Those nine timeouts contain
@@ -594,7 +558,7 @@ checks, 62 CLI regressions and three raw-input smoke cases. A repeated normal
 64-exchange pair takes about 44 ms in this run versus about 125 ms in the prior
 ordered-binary run; cancellation remains about 34 ms. These are single synthetic
 measurements, not universal speedup or deployment claims. The
-[wave-7 record](tools/results-replay-wave7-20261105.json) retains source/build
+wave-7 record (historical development evidence removed) retains source/build
 identities, proof checks and limits. The subsequent proved necessary prechecks
 below resolve the retained negative cases without changing the source language.
 
@@ -654,15 +618,14 @@ the client alternates three early reply Receives with Request Sends, while the
 server records all three Request Receives before its first Reply Send. A
 source-reviewed ordering-cycle argument first identified this incompatibility:
 single pending Send slots create mutually dependent operations.
-The original kernel gate proves guard success; the later general
-[prefix obstruction](#prefix-transport-and-kernel-cycle-obstruction) now refutes
+The original kernel gate proves guard success; a later general
+prefix obstruction (historical investigation tooling removed) refuted
 the source family at every size at least three. A separate compiled probe accepts the feasible
 two-round control and exhaustively rejects the three/four-round inputs in about
-one second each. The general theorem is supplied by the later prefix proof,
-independently of those concrete runtime results. The public checker still calls complete search after all five
+one second each. The public checker still calls complete search after all five
 guards pass, and guard success never replaces a paired source witness.
 
-The [regression guide](tools/precheck/README.md) retains an initial prefix-only
+The regression guide (historical development evidence removed) retains an initial prefix-only
 274-case run with one unexpected count-deficit timeout, its exact source snapshot
 and nonzero result. After adding the proved count guard, the same 274 input bytes,
 checker flags, expected statuses and diagnostics all match. The 72-case rejection
@@ -671,11 +634,11 @@ The extra three-Receives/one-Send case changes from a two-second timeout to abou
 13 ms rejection. Valid one-pending-Send races in both directions, normal after
 Quit, both callback contracts, exact inner Votes and all prior positive/CLI
 controls remain checked. The deliberately missing-file CLI case remains
-inconclusive. The [wave-8 record](tools/results-replay-wave8-20261105.json) retains
+inconclusive. The wave-8 record (historical development evidence removed) retains
 proof/build/source identities and operational bounds. These synthetic results
 are not universal tractability, logger fidelity or implementation refinement.
 
-The subsequent [83-case stress comparison](tools/search-stress/README.md) fixes
+The subsequent 83-case stress comparison (historical investigation tooling removed) fixes
 77 distinct inputs before measuring the three-guard and request-credit binaries.
 All 26 orphan-reply negatives through 128 preceding exchanges now reject in
 about 13–44 ms; 24 were previously timed out or unrun. The one-exchange orphan
@@ -685,11 +648,11 @@ the study retains that performance qualification. All 274 original regression
 expectations still match on the new binary. Separate matched probes of those
 two large positives accept in all 12 runs below two seconds, using an explicit
 five-second ceiling; they do not replace the original two timeouts. The
-[wave-9 record](tools/results-replay-wave9-20261105.json) retains the safe checks,
+wave-9 record (historical development evidence removed) retains the safe checks,
 typed logger-schema evidence, build and bounded runtime identities. This is
 additional necessary refutation, not a general tractability result.
 
-The [shutdown continuation](tools/shutdown-stress/README.md) preserves the same
+The shutdown continuation (historical investigation tooling removed) preserves the same
 83 stress inputs and budgets. All 35 negative cases now complete, including all
 nine orphan-Done sizes through 128 preceding exchanges; eight were previously
 inconclusive or unrun. The full result is 30 accepted prefixes, 35 rejections,
@@ -697,47 +660,9 @@ seven positive timeouts and 11 skipped larger positives. No completed verdict
 disagrees with its expectation, and all 274 original regressions still match.
 The separate cycle probe preserves the distinction between the kernel guard
 gate, reviewed causal explanation and concrete compiled refutations. The
-[wave-10 record](tools/results-replay-wave10-20261105.json) retains proof/build
+wave-10 record (historical development evidence removed) retains proof/build
 identities, independent review and exact operational limits. No changes to guard
 order or successor menus are justified by the earlier matched timing evidence.
-
-## Prefix transport and kernel cycle obstruction
-
-[PrefixTransport](PrefixTransport.agda) derives the receive-lead bounds at every
-visible prefix of an original fresh run, retaining exact events and both packet
-histories. Hidden steps preserve conservation without adding log rows. Its
-`Bounded` certificate, `cut` and `source-prefix-bounds` reuse the existing packet
-balance and one-pending-Send arithmetic; excess Sends remain unrestricted.
-
-[CycleObstruction](CycleObstruction.agda) proves a stronger cut: a client prefix
-`Recv, Send, Recv` cannot coexist with three initial server command Receives,
-regardless of the message values or remaining tails. Before the first server
-Send, a second client Receive would violate its one-packet lead. The server's
-third Receive needs a second recorded client Send, which is beyond that blocked
-client Receive. The proof checks the finite frontier cases rather than reducing
-complete replay.
-
-For client `(Recv normal a, Send RequestNext)^n` and server
-`(Recv RequestNext)^n ++ (Send normal a)^n`, `no-source` therefore excludes every
-matching original run whenever `3 ≤ n`. Notification, Return, payload and
-callback contract remain generic. The tests combine this refutation with the
-existing all-five-guard success controls at three/four rounds. The two-round
-abstract prefix certificate is a boundary control, not a claim that prefix
-bounds alone construct a source execution.
-
-[CycleObstructionNative](CycleObstructionNative.agda) composes this theorem with
-the existing native-to-source sound bridge. It excludes every matching actual
-native PTree trace at the supplied Params/contract/link/direction coordinates;
-no canonical-event-encoding premise is added. This remains a result about the
-formal native model and its declared observation, not deployed Haskell fidelity.
-
-The production verifier continues to use its five guards and complete backend.
-The separate [cost diagnostic](tools/cost-profile/README.md) invokes its actual
-parser, adapters, guard and decision functions in explicit stages. A common
-forcing pass visits all retained fields before each stage; guard success has a
-distinct diagnostic tag and is never reported as protocol acceptance. Timings
-include shared decoding/forcing/startup and do not give exact additive stage
-CPU times.
 
 ## Exact readiness enumeration
 
@@ -755,7 +680,7 @@ same eight-family concatenation and old stable score/sort to
 `orderedTargets-exact`. Existing soundness and completeness transport along that
 equality, with no new protocol or capture premise.
 
-The [internal diagnostic](tools/menu-profile/README.md) compares actual raw and
+The internal diagnostic (historical investigation tooling removed) compares actual raw and
 gated readiness, menus and ordered targets on one forced production basis. Five
 anchor states have explicit source witnesses; the reader-inactive/claimed
 control and positive completed-counter perturbations are labeled arbitrary.
@@ -772,7 +697,199 @@ Stress counts remain 35 rejections, 30 acceptances, seven timeouts and
 11 skips; two deadline crossings cause two further run/skip changes. The three
 cycle outcomes are unchanged. These are bounded samples,
 not a universal search-time or OOM result. The
-[wave-12 record](tools/results-replay-wave12-20261105.json) retains build,
+wave-12 record (historical development evidence removed) retains build,
 proof, independent review and comparison evidence. Certificate extraction still
 delegates to old `target-sound`, so this gate does not eliminate every possible
 original-menu reconstruction.
+
+## Certificate consumption and compiled demand
+
+The [compiled-demand account](../../../../docs/specs/leiosnotify-lookahead-replay-design.md#certificate-demand-versus-ordinary-verdicts)
+resolves the preceding runtime question for the retained wave-12 build: the
+ordinary report discards accepted witnesses, and accessibility is erased.
+Later `target-sound` reconstruction is not demanded by its status/text/exit
+path. Certificates already inspected to score menu choices are a different
+operation. Several textual basis applications also do not establish repeated
+ordinary preparation; the live ordered-target closure shares one basis thunk.
+
+The separate diagnostic (historical investigation tooling removed) deliberately
+forces every outer `B.Tau` constructor alongside its target state. Its sums
+are not proof identities, protocol verdicts or a complete-witness normalization.
+Source anchors, arbitrary nonce perturbations and whole-input ranking contexts
+retain their previous scope. This experiment cannot establish a speedup of the
+ordinary CLI, which does not demand the measured extraction.
+
+The fixed 108-slot diagnostic completes 100 cases, with two claimed/distinct-64
+timeouts and six larger skips; all 50 completed old/direct comparisons agree.
+Some forced-consumer allocations fall, while observed timings vary in both
+directions. Direct extraction still reconstructs the gated sorted menu, rather
+than reusing a physically cached target list. The
+wave-13 record (historical development evidence removed) retains safe checks,
+source/generated review, bounded build and original checkpointed monitor rows.
+All existing production sources and the prior CLI executable retain their bytes;
+earlier replay regressions are historical evidence and were not rerun here.
+
+## Fixed node-client control replay
+
+The explicit `node-client-control` profile checks
+[`NodeClientModel`](../../LeiosNotifyPipeLookahead/NodeClientModel.agda) with unit
+return. It retains depth 1000, forecast/stop source actions, normal handling and
+the abnormal unexpected-Canceled state. It does not infer the actual truth of
+unlogged forecast/governor inputs or restrict the existing generic paired model.
+The source audit (historical development evidence removed) and
+dependency audit (historical development evidence removed)
+find the latest inspected consensus files and dependency pins unchanged from the
+user's reference revision; the model pin stays intact.
+
+`Wire/NodeClientPolicy` instantiates `Semantics.Replay.Decide` with finite sound
+and complete source menus. Existing client potential proves hidden accessibility
+on every state. Both trace directions retain the target and all erased source
+choices; rejection excludes every matching initial source execution. No finite
+global state graph, guessed fuel, payload representative or extra reachable-state
+premise is used. All new proof roots pass bounded `--safe` checks, with zero
+integrity-audit findings.
+
+```sh
+LookaheadMain --notify-lookahead client.txt --role client --client-policy node-client-control --observation driver-log --assume-fresh
+```
+
+Select `clientCallbacks: "node-client-control"` in a `localclient` manifest for
+the same route. This standalone local selection is unsupported for server/paired
+mode; the distinct full-node paired profile (historical development evidence removed)
+requires explicit `nodePolicy: "full-node"` in a paired manifest. Existing
+`--next-contract` forms remain generic; `node-next` is a server callback contract,
+not an implicit node-client selection. Invalid role/agency/parsing remains
+separate from exhaustive policy rejection. EOF is a finite prefix and can retain
+a pending handler or fault; it does not prove successful termination.
+
+All 80 CLI expectations pass, including 62 unchanged legacy cases and the one
+intentional missing-file inconclusive. Two genuine public-coordinator runs then
+accept `RequestNext, Quit, Canceled, Done` and reject the local-policy separation
+`RequestNext, RequestNext, Canceled, normal, RequestNext`. That separation is
+accepted by the generic client; it is not asserted as a fresh honest paired
+nodeNext execution. See the workflow and evidence (historical development evidence removed)
+and record (historical development evidence removed). Capture fidelity,
+formal raw lexical transport and full NodeDriver/native policy inversion remain
+outside this local control theorem.
+
+## Silenced observation replay
+
+The `driver-log-no-request-votes` observation is for logs whose configuration
+silences RequestNext and Votes in both directions. The protocol-layer
+[ServerSilenced](../../LeiosNotifyPipeLookahead/Wire/ServerSilenced.agda) and
+[ClientSilenced](../../LeiosNotifyPipeLookahead/Wire/ClientSilenced.agda)
+define `Silenced` as the erasure (`erase`) of some full wire trace of the exact
+server or client language. `decide-silenced` decides it exactly: acceptance
+goes through `fill-sound`, which supplies a concrete full trace, and rejection
+goes through `erase-complete`. [WireSilencedNative](WireSilencedNative.agda)
+transports both directions to native traces with the same hidden rows
+(`Server.equivalence`, `Client.equivalence`, `decide-native`).
+
+[Wire/SilencedAdapter](Wire/SilencedAdapter.agda) reuses the existing
+normalized translations. A RequestNext or Votes row that is present is reported
+as `invalid` at its position (`silenced kind present: RequestNext/Votes`),
+unless an earlier translation failure takes precedence. Such a row is never
+erased by the checker. [PairedSilenced](PairedSilenced.agda) `check` returns:
+
+- `accepted`, with a `SilencedSourceTrace` built from the canonical
+  reconstruction (`reconstruct-erases`);
+- `rejected`, only when a local silenced check fails (`local-necessary`). This
+  refutes every hidden schedule;
+- `undetermined`, when both local checks pass but the exact paired decider
+  refutes the canonical hidden-request reconstruction. This is **not a
+  refutation**: another hidden schedule may exist.
+
+`SilencedAdapter.paired` lifts this to the two normalized inputs: its
+`checked` result carries `Client.Rows`/`Server.Rows` for both inputs and the
+`check` outcome on their translations, and `SilencedAdapter.exclude` turns a
+rejection into a refutation of `PairedAccepted` over every valid translation.
+[PairedSilencedNative](PairedSilencedNative.agda) gives `At.equivalence` with
+native paired traces and `At.check-native`. `LookaheadReport.localSilenced` and
+`pairedSilenced` (which matches on `SilencedAdapter.paired`) expose the forms through `LookaheadMain`; checker exit 3 is `undetermined`. The
+[tools guide](tools/README.md#silenced-observation-and-capture-batch-replay)
+gives the CLI, the coordinator mapping (`model-undetermined`, exit class 4, no
+protocol verdict) and the `capture_batch.py` multi-host runner.
+
+Claim boundary. Silenced acceptance is not full-observation acceptance, and
+prefix acceptance is not completion. Acceptance constrains only the order of
+Quit, Canceled and Done: at most one Quit, Done only after Quit, nothing after
+Done; under `node-next` also no Canceled before Quit and no visible notification
+after the first post-Quit Canceled; and in paired mode FIFO consistency of the
+visible replies. It cannot check request credit, pipelining depth,
+notification/request counts, Votes or payload-level request/reply matching.
+
+The [October 29 replay note](../../../../docs/notes/leiosnotify-silenced-capture-replay.md)
+records one capture: all 2,221 local sessions and all 159 literal pairs are
+`accepted-prefix` under both server contracts. That uniform acceptance is weak
+conformance evidence; only the constructed controls in the note demonstrate
+discrimination. The capture contains neither Canceled before Quit nor a
+notification after a post-Quit Canceled, so it does not exercise the
+generic/node distinction. Plan Task 8 (fresh captures under full observation)
+is pending; when captures are supplied it runs with
+`capture_batch.py --observation driver-log`.
+
+### Silenced replay validation
+
+Run 7 November 2026 at `7b1c0099`, serially from `src/`, with the sandbox
+disabled. The interfaces of the 15 modules these roots check were deleted first (13 new;
+`LookaheadReport` and `LookaheadReportTests` modified; the also-modified
+`LookaheadMain` is compiled by the build below, not by these roots), and each
+root printed literal `Checking` lines for its new modules:
+
+```sh
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/Wire/ServerSilencedTests.agda
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/Wire/ClientSilencedTests.agda
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/Wire/SilencedAdapterTests.agda
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/PairedSilencedTests.agda
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/PairedSilencedNative.agda
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/LookaheadReportTests.agda
+systemd-run --user --scope -q -p MemoryMax=25G -- agda +RTS -M20G -RTS --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/BoundedRelationTests.agda
+```
+
+All seven exited 0, in 2 to 10 seconds each. The `LookaheadMain` build in
+`/var/tmp/leiosnotify-silenced-build` was regenerated with the
+[two-stage build](tools/README.md#normalized-lookahead-cli-and-manifest-runner);
+GHC found every module up to date, so the binary is unchanged. Then, from the
+repository root:
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/test_lookahead_cli.py \
+  --binary /var/tmp/leiosnotify-silenced-build/LookaheadMain --out /var/tmp/leiosnotify-silenced-task10-cli
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/capture_batch.py --selftest
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/capture_batch.py --selftest \
+  --checker /var/tmp/leiosnotify-silenced-build/LookaheadMain --out /var/tmp/leiosnotify-silenced-task10-smoke
+```
+
+The CLI suite passed 66 of 66 cases (62 earlier cases and 4 silenced cases),
+with the one expected operational inconclusive. Both `capture_batch.py`
+self-tests passed, with the fake checker and with the real binary.
+
+## Bounded and lookahead wire languages
+
+[BoundedRelation](BoundedRelation.agda) relates the bounded
+[`LeiosNotifyPipeline`](../LeiosNotifyPipeline.agda) specification to the
+lookahead wire languages. Both sides read the same rows through the existing
+`ServerAdapter.decode` and `ClientAdapter.decode`, so no new encoding is
+introduced. The results hold for every depth:
+
+- `server-included-generic`: every bounded server trace is in the lookahead
+  server language under `genericNext`.
+- `client-included`: every bounded client trace is in the lookahead client
+  language.
+- `node-canceled-open`: there is **no** server inclusion under `nodeNext`. The
+  bounded server may send Canceled while the session is open, and `nodeNext`
+  rejects that.
+- The converses fail:
+  - `normal-after-quit`: the lookahead server under `nodeNext` sends a normal
+    reply after Quit, which the bounded server rejects.
+  - `over-depth` and `over-depth-lookahead`: `depth + 1` requests are rejected
+    by the bounded server but accepted by the lookahead server under both
+    contracts.
+  - `client-lead`: the lookahead client receives a reply before its delayed
+    request Send (the `Lead` state), which the bounded client rejects.
+
+These are language relations over wire rows. They do not relate the two
+models' internal states, and they say nothing about the deployed node.
+`BoundedRelationTests` checks the translations by `refl` and runs both
+deciders on every counterexample. It computes the inclusions at depths 2 and
+1000, and it applies the counterexamples at depths 1 and 1000.

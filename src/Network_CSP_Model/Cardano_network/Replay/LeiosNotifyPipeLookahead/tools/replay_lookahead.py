@@ -275,9 +275,12 @@ def run_replay(checker, manifest, timeout=60, heap='512M', max_input_bytes=16777
             if signature(Path(item['path'])) != item['signature']:
                 raise BudgetFailure(item['path'] + ': input changed during the run')
         first = execution['stdout'].splitlines()
-        matched = re.match(r'^(accepted-prefix|protocol-rejected|invalid-input)(?=$|[:\s])', first[0]) if first else None
+        matched = re.match(r'^(accepted-prefix|protocol-rejected|invalid-input|undetermined)(?=$|[:\s])', first[0]) if first else None
         tag = matched.group(1) if matched else None
         expected = {0: 'accepted-prefix', 1: 'protocol-rejected', 2: 'invalid-input'}
+        if validation['profile']['observation'] == MANIFEST.SILENCED_OBSERVATION:
+            # Only the silenced paired checker may be undetermined; it is inconclusive, never a rejection.
+            expected[3] = 'undetermined'
         if expected.get(execution['code']) != tag or execution['code'] not in expected:
             result.update(status='checker-inconclusive', exitCode=4)
             result['errors'].append('checker exit code and first-line verdict tag do not agree')
@@ -285,6 +288,8 @@ def run_replay(checker, manifest, timeout=60, heap='512M', max_input_bytes=16777
             result.update(status='accepted-prefix', protocolVerdict='accepted-prefix', exitCode=0)
         elif execution['code'] == 1:
             result.update(status='protocol-rejected', protocolVerdict='protocol-rejected', exitCode=1)
+        elif execution['code'] == 3:
+            result.update(status='model-undetermined', exitCode=4)
         else:
             result.update(status='invalid-input', exitCode=2)
     except BudgetFailure as exc:
@@ -382,6 +387,19 @@ def selftest():
         prepare(); binary.write_text('#!' + sys.executable + '\nimport time\ntime.sleep(30)\n'); binary.chmod(0o700); run(4, timeout=0.1)
         prepare(); fake('accepted-prefix: fake-only'); run(2, heap='512M -RTS')
         prepare(); binary.chmod(0o600); run(2)
+        # The undetermined tag is accepted only for the silenced observation, and only as exit class 4.
+        prepare(); fake('undetermined: fake-only', 3); r = run(4)
+        assert r['status'] == 'checker-inconclusive', r
+        for mode in ['localclient', 'localserver', 'paired']:
+            data = prepare(mode); data['observation'] = MANIFEST.SILENCED_OBSERVATION; manifest.write_text(json.dumps(data))
+            fake('accepted-prefix: fake-only'); r = run(0)
+            assert r['checker']['arguments'][-6:-4] == ['--observation', MANIFEST.SILENCED_OBSERVATION], r
+        fake('undetermined: fake-only', 3); r = run(4)
+        assert r['status'] == 'model-undetermined' and r['protocolVerdict'] is None, r
+        fake('undetermined: mismatched code', 1); r = run(4)
+        assert r['status'] == 'checker-inconclusive', r
+        fake('protocol-rejected: fake-only', 3); r = run(4)
+        assert r['status'] == 'checker-inconclusive', r
     return {'selftest':'passed','cases':cases,'checker':'explicit fake executables only; no actual Agda replay or binary smoke test'}
 
 

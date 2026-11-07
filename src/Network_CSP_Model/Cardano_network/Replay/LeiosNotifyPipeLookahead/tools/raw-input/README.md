@@ -153,7 +153,7 @@ The synthetic regressions cover all eight kinds, both agencies, optional
 announcement metadata, ordered duplicate Votes, duplicate complete events,
 byte-exact UTF-8 coordinates, wrappers, explicit generation reuse, unknown and
 malformed selected rows, payload/thread/artifact tampering, strict JSON and
-resource controls. The [result record](result-raw-input-20261105.json) retains
+resource controls. The result record (historical development evidence removed) retains
 source identities and validation evidence.
 
 No original logger emission or log shipping fidelity is proved. Missing

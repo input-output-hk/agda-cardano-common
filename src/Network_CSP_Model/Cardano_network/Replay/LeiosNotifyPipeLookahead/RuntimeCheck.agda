@@ -9,14 +9,14 @@ open import Data.Bool using (true; false)
 import Data.Bool.Properties as Bool
 open import Data.Integer using (+_)
 open import Data.List using (List; []; _∷_; _∷ʳ_)
-open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Maybe using (Maybe; just; nothing; map)
 open import Data.Maybe.Properties using (just-injective)
 open import Data.Nat using (ℕ; zero; suc)
 import Data.Nat.Properties as Nat
-open import Data.Product using (Σ-syntax; _,_)
+open import Data.Product using (Σ-syntax; _×_; _,_; proj₁)
 open import Data.Unit using (⊤; tt)
 open import Relation.Nullary using (yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
 import Cardano_network.LeiosNotifyPipeLookahead.Model Notification as S
 import Cardano_network.LeiosNotifyPipeLookahead.ClientModel Notification ⊤ as C
 import Cardano_network.LeiosNotifyPipeLookahead.DriverModel Notification ⊤ as D
@@ -29,84 +29,14 @@ open import Cardano_network.LeiosNotifyPipeLookahead.NodeDriverModel Notificatio
 open import Cardano_network.LeiosNotifyPipeLookahead.Selection using (select)
 module SX = S.Executable notificationEq
 
--- Schedule data name permitted operations without supplying their proof evidence.
-data Choice : Set where
-  client server : ℕ → Choice
-  accept excessive queued continue terminate : Choice
-  transport : DE.Choice → Choice
+-- Protocol selectors are shared with the full node operational tree.
+open import Cardano_network.LeiosNotifyPipeLookahead.NodeDriverExecution Notification notificationEq public using
+  (Choice; client; server; accept; excessive; queued; continue; terminate; transport; hidden-step; visible-step; visible-complete; hidden-complete)
 
 -- Supplied instructions retain every visible policy input and wire record.
 data Instruction : Set where
   hidden : Choice → Instruction
   action : Action → Instruction
-
--- Internal interpretation reconstructs the independent node transition certificate.
-hidden-step : (s : State) → Choice → Maybe (Σ[ t ∈ State ] Tau s t)
-hidden-step (nodeDriver raw@(D.pair c s cs sc pc ps rc rs) q true forecast halt) (client n)
-  with select (CE.internalMoves c) n
-... | nothing = nothing
-... | just (c′ , pr) = just (_ , clientSchedule (Client.schedule pr))
-hidden-step (nodeDriver raw@(D.pair c s cs sc pc ps rc rs) q live forecast halt) (server n)
-  with select (S.internalMoves s) n
-... | nothing = nothing
-... | just (s′ , pr) with Server.routine pr Bool.≟ true
-...   | no _ = nothing
-...   | yes allowed = just (_ , serverSchedule (Server.schedule pr allowed))
-hidden-step (nodeDriver (D.pair c (S.state S.admit w sender completed flag) cs sc pc ps rc rs)
-    (Q.credits free messages) live forecast halt) accept with free Nat.≟ 1000
-... | yes _ = nothing
-... | no unequal = just (_ , serverSchedule (Server.admitAccepted (Q.admitted unequal)))
-hidden-step (nodeDriver (D.pair c (S.state S.admit w sender completed flag) cs sc pc ps rc rs)
-    (Q.credits free messages) live forecast halt) excessive with free Nat.≟ 1000
-... | no _ = nothing
-... | yes equal = just (_ , serverSchedule (Server.admitExcessive (Q.excessive equal)))
-hidden-step (nodeDriver (D.pair c s cs sc pc ps rc rs) (Q.credits free (msg ∷ messages)) live forecast halt) queued
-  with SX.lookup S.nodeNext s (S.nextReply (S.normal msg))
-... | nothing = nothing
-... | just (s′ , pr) = just (_ , serverSchedule (Server.nextQueued Q.dequeued pr))
-hidden-step (nodeDriver (D.pair c s cs sc pc ps rc rs) q true true false) continue
-  with CE.lookup (C.continue (+ 1000)) c
-... | nothing = nothing
-... | just (c′ , pr) = just (_ , continueReady (Client.continueAtDepth pr))
-hidden-step (nodeDriver (D.pair c s cs sc pc ps rc rs) q true forecast true) terminate
-  with CE.lookup (C.terminate tt) c
-... | nothing = nothing
-... | just (c′ , pr) = just (_ , terminateReady (Client.terminate pr))
-hidden-step (nodeDriver raw q live forecast halt) (transport choice)
-  with DE.hidden S.nodeNext raw choice
-... | nothing = nothing
-... | just (raw′ , pr) with transportAllowed live pr Bool.≟ true
-...   | no _ = nothing
-...   | yes allowed = just (_ , Tau.transport pr allowed)
-hidden-step _ _ = nothing
-
--- Visible interpretation checks exact wire packets, environment inputs and normal handlers.
-visible-step : (s : State) (a : Action) → Maybe (Σ[ t ∈ State ] Step s a t)
-visible-step (nodeDriver raw q true forecast halt) (wire row@(D.clientSend _)) with DE.lookup S.nodeNext row raw
-... | nothing = nothing
-... | just (raw′ , pr) = just (_ , clientRecord sent pr)
-visible-step (nodeDriver raw q true forecast halt) (wire row@(D.clientRecv _)) with DE.lookup S.nodeNext row raw
-... | nothing = nothing
-... | just (raw′ , pr) = just (_ , clientRecord received pr)
-visible-step (nodeDriver raw q live forecast halt) (wire row@(D.serverSend _)) with DE.lookup S.nodeNext row raw
-... | nothing = nothing
-... | just (raw′ , pr) = just (_ , serverRecord sent pr)
-visible-step (nodeDriver raw q live forecast halt) (wire row@(D.serverRecv _)) with DE.lookup S.nodeNext row raw
-... | nothing = nothing
-... | just (raw′ , pr) = just (_ , serverRecord received pr)
-visible-step (nodeDriver raw q live forecast halt) (setForecast ready) = just (_ , forecastInput)
-visible-step (nodeDriver raw q live forecast halt) (setTerminate requested) = just (_ , terminateInput)
-visible-step (nodeDriver raw (Q.credits free messages) live forecast halt) (eligible msg)
-  with S.active (S.reader (D.serverState raw)) Bool.≟ true
-... | no _ = nothing
-... | yes active with free
-...   | zero = just (_ , applicationInput (Server.applicationOffer active Q.dropped))
-...   | suc n = just (_ , applicationInput (Server.applicationOffer active Q.enqueued))
-visible-step (nodeDriver (D.pair c s cs sc pc ps rc rs) q true forecast halt) (handledNormal msg)
-  with CE.lookup (C.handled (S.normal msg)) c
-... | nothing = nothing
-... | just (c′ , pr) = just (_ , normalHandler (Client.handled pr))
-visible-step _ _ = nothing
 
 -- Erasure removes only supplied hidden instructions; no visible record is dropped.
 actions : List Instruction → List Action
@@ -138,3 +68,30 @@ sound {s} {action a ∷ instructions} equal with visible-step s a
 ...   | ()
 sound {s} {action a ∷ instructions} equal | just (t , pr) =
   Run.visible pr (sound {s = t} {instructions = instructions} equal)
+
+-- A chosen hidden target prefixes an existing successful supplied-instruction evaluation.
+evaluate-hidden : ∀ {s middle target choice instructions} →
+  map proj₁ (hidden-step s choice) ≡ just middle → evaluate middle instructions ≡ just target →
+  evaluate s (hidden choice ∷ instructions) ≡ just target
+evaluate-hidden {s} {choice = choice} chosen finished with hidden-step s choice | chosen
+... | just (_ , _) | refl = finished
+
+-- The corresponding visible instruction retains its exact source action and target.
+evaluate-action : ∀ {s middle target a instructions} →
+  map proj₁ (visible-step s a) ≡ just middle → evaluate middle instructions ≡ just target →
+  evaluate s (action a ∷ instructions) ≡ just target
+evaluate-action {s} {a = a} chosen finished with visible-step s a | chosen
+... | just (_ , _) | refl = finished
+
+-- Every finite full-policy run has supplied instructions preserving all original actions and its target.
+complete : ∀ {s sourceActions target} → Run s sourceActions target →
+  Σ[ instructions ∈ List Instruction ] (actions instructions ≡ sourceActions × evaluate s instructions ≡ just target)
+complete Run.stop = [] , refl , refl
+complete {s = s} {target = target} (Run.internal {t = middle} step rest) with hidden-complete step | complete rest
+... | choice , chosen | instructions , same , finished =
+  hidden choice ∷ instructions , same ,
+  evaluate-hidden {s = s} {middle = middle} {target = target} {choice = choice} {instructions = instructions} chosen finished
+complete {s = s} {target = target} (Run.visible {t = middle} {a = a} step rest) with complete rest
+... | instructions , same , finished =
+  action a ∷ instructions , cong (a ∷_) same ,
+  evaluate-action {s = s} {middle = middle} {target = target} {a = a} {instructions = instructions} (visible-complete step) finished

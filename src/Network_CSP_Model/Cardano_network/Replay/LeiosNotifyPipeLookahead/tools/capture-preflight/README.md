@@ -2,7 +2,7 @@
 
 This prepares T8.1. It does not start nodes, change deployed configurations or
 decide protocol compatibility. The original four captures and their historical
-[audit](../capture-audit/README.md) remain unchanged.
+audit (removed) remain unchanged.
 
 ## A concrete configuration finding
 
@@ -48,11 +48,11 @@ The message's ultimate privacy default and the complete node-to-backend runtime
 wiring were not established from these files. The available main `cardano-node`
 checkout at `97036a66bcf8c89f687ae57a048eecc0389977ef` has no Leios tracing matches,
 so it must not be treated as the deployed Leios node source. The
-[source evidence](source-evidence-20261105.json) retains exact paths, SHA-256,
+source evidence (historical development evidence removed) retains exact paths, SHA-256,
 HEAD blob comparisons and attribution limits. No public URL was fetched to
 establish these local-source findings.
 
-The previous [exporter audit](../capture-audit/README.md#nearby-exporter-risks-with-attribution-limits)
+The previous exporter audit (removed)
 also remains relevant: a nearby example query omits RequestNext/Votes/Quit/Canceled,
 and timestamp-only page advancement can lose ties. Those scripts' use for the
 old captures is unproven. Prefer untouched per-node structured output for this
@@ -139,7 +139,7 @@ Run the isolated controls with:
 python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/capture_preflight.py --selftest
 ```
 
-The [result record](result-preflight-20261105.json) retains actual validation and
+The result record (historical development evidence removed) retains actual validation and
 source identities. Twenty embedded controls and five CLI controls pass. A final
 guarded strict scan of `cardano-node-20261029.log` rereads all 2680000 records
 and 292073 Notify rows, retaining the original raw SHA-256 from the old audit.

@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import importlib.util
 import signal
 import subprocess
 import time
@@ -18,7 +19,8 @@ import time
 HERE = Path(__file__).resolve().parent
 ROOT = next(parent for parent in HERE.parents if (parent / 'src/csp-ptree.agda-lib').is_file())
 LEGACY = ROOT / 'src/Cardano_network/Replay/Main.agda'
-STATUS_CODES = {'accepted-prefix': 0, 'protocol-rejected': 1, 'invalid-input': 2}
+STATUS_CODES = {'accepted-prefix': 0, 'protocol-rejected': 1, 'invalid-input': 2, 'undetermined': 3}
+SILENCED = 'driver-log-no-request-votes'
 RTS = ['+RTS', '-M512M', '-RTS']
 OUTPUT_LIMIT = 65536
 
@@ -71,18 +73,19 @@ def fixtures():
     """Keep cases small; larger concurrency witnesses belong in the checked Agda regressions."""
     cases = []
 
-    def local(name, rows, status, role='client', contract='generic-next', contains=(), header=None):
+    def local(name, rows, status, role='client', contract='generic-next', contains=(), header=None,
+              observation='driver-log'):
         args = ['--notify-lookahead', '{input}', '--role', role, '--next-contract', contract,
-                '--observation', 'driver-log', '--assume-fresh']
+                '--observation', observation, '--assume-fresh']
         case = {'name': name, 'input': local_text(header or role, rows), 'args': args,
                 'expected': status, 'contains': list(contains)}
         cases.append(case)
         return case
 
-    def paired(name, client, server, status, contract='generic-next', contains=()):
+    def paired(name, client, server, status, contract='generic-next', contains=(), observation='driver-log'):
         case = {'name': name, 'input': pair_text(client, server),
                 'args': ['--paired-notify-lookahead', '{input}', '--next-contract', contract,
-                         '--observation', 'driver-log', '--assume-fresh'],
+                         '--observation', observation, '--assume-fresh'],
                 'expected': status, 'contains': list(contains)}
         cases.append(case)
         return case
@@ -181,6 +184,21 @@ def fixtures():
     case['args'][0] = '--leiosnotify'
     case = local('missing_input_is_inconclusive', [], 'inconclusive')
     case['input'] = None
+
+    # Silenced observation: RequestNext/Votes rows are erased by the logger, never by the checker.
+    graceful = ['Send BlockAnnouncement -', 'Recv Quit', 'Send Canceled', 'Send Done']
+    local('silenced-local-server-graceful', graceful, accept, role='server', contract='node-next',
+          observation=SILENCED, contains=('observation=' + SILENCED, 'silenced local server prefix (4 events)'))
+    local('silenced-local-request-present', ['Recv RequestNext', *graceful], invalid, role='server',
+          contract='node-next', observation=SILENCED,
+          contains=('input line 2: silenced kind present: RequestNext/Votes',))
+    swap_client = [(11, 'Recv BlockAnnouncement -'), (13, 'Recv Canceled')]
+    swap_server = [(17, 'Send Canceled'), (19, 'Send BlockAnnouncement -')]
+    paired('silenced-paired-fifo-swap', swap_client, swap_server, 'undetermined', observation=SILENCED,
+           contains=('observation=' + SILENCED,))
+    cases.append({'name': 'silenced-manifest-runner', 'manifest': True, 'input': None, 'args': [],
+                  'client': [event for _, event in swap_client], 'server': [event for _, event in swap_server],
+                  'expected': 'model-undetermined', 'contains': []})
     return cases
 
 
@@ -237,6 +255,41 @@ def execute(binary, case, out, timeout):
             'fixture': str(fixture), 'fixture_sha256': sha256(fixture) if fixture.is_file() else None}
 
 
+def module_at(name, path):
+    """Load a repository-owned sibling tool, never a module named by a fixture."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def execute_manifest(binary, case, out, timeout):
+    """Run the manifest coordinator end to end on a silenced paired fixture with the real binary."""
+    runner = module_at('lookahead_replay_runner', HERE / 'replay_lookahead.py')
+    base = out / 'fixtures' / case['name']
+    base.mkdir()
+    data = runner.MANIFEST.example_manifest('paired')
+    data.update(observation=SILENCED, serverContract='generic-next')
+    declarations, rows = [], []
+    for role in ['client', 'server']:
+        (base / (role + '.txt')).write_text('\n'.join(['role ' + role, *case[role]]) + '\n')
+        endpoint = data['endpoints'][role]
+        legacy = {key: endpoint[key] for key in ['node', 'connection', 'generation', 'capture', 'file']}
+        declaration, events, _ = runner.PAIR.endpoint(legacy, role, base, 'LeiosNotifyP')
+        declarations.append(declaration)
+        rows.extend(events)
+    (base / 'pair.txt').write_text('\n'.join(['pair LeiosNotifyP example-AB example-0', *declarations, *rows]) + '\n')
+    manifest = base / 'manifest.json'
+    manifest.write_text(json.dumps(data))
+    start = time.monotonic()
+    report, code = runner.run_replay(binary, manifest, timeout=timeout, heap='512M')
+    (out / (case['name'] + '.json')).write_text(json.dumps(report, indent=2) + '\n')
+    return {'name': case['name'], 'manifest': str(manifest), 'expected': case['expected'],
+            'actual': report['status'], 'exit_code': code,
+            'passed': report['status'] == case['expected'] and code == 4 and report['protocolVerdict'] is None,
+            'seconds': round(time.monotonic() - start, 3), 'report': str(out / (case['name'] + '.json'))}
+
+
 def legacy_hashes():
     """Compare the actual legacy Main to HEAD without compiling or changing it."""
     result = subprocess.run(['git', 'show', 'HEAD:src/Cardano_network/Replay/Main.agda'],
@@ -249,6 +302,8 @@ def selftest():
     """Exercise verdict classification and fixture coverage without starting any checker process."""
     examples = [(0, 'accepted-prefix\nmodel', '', 'accepted-prefix'),
                 (1, 'protocol-rejected\nmodel', '', 'protocol-rejected'),
+                (3, 'undetermined\nmodel', '', 'undetermined'),
+                (1, 'undetermined\nmodel', '', 'inconclusive'),
                 (2, 'invalid-input\nusage', '', 'invalid-input'),
                 (1, '', 'file not found', 'inconclusive'),
                 (-9, '', '', 'inconclusive'),
@@ -261,9 +316,10 @@ def selftest():
     assert classify(0, 'accepted-prefix', '', truncated=True)[0] == 'inconclusive'
     cases = fixtures()
     assert len({case['name'] for case in cases}) == len(cases)
-    assert all(case['expected'] in {*STATUS_CODES, 'inconclusive'} for case in cases)
+    assert all(case['expected'] in {*STATUS_CODES, 'inconclusive'} for case in cases if not case.get('manifest'))
+    assert [case['expected'] for case in cases if case.get('manifest')] == ['model-undetermined']
     assert any('line 123' in detail for case in cases for detail in case['contains'])
-    assert sum(case['input'] is None for case in cases) == 1
+    assert sum(case['input'] is None and not case.get('manifest') for case in cases) == 1
     return {'selftest': 'passed', 'classification_cases': len(examples) + 2,
             'compiled_cli_cases_prepared': len(cases), 'checker_processes_launched': 0,
             'scope': 'Python classifier/fixture tests, not compiled checker or raw-log validation'}
@@ -306,7 +362,7 @@ def main():
     prepared = fixtures()
     report['prepared_case_count'] = len(prepared)
     for case in prepared:
-        result = execute(binary, case, out, args.timeout)
+        result = (execute_manifest if case.get('manifest') else execute)(binary, case, out, args.timeout)
         report['cases'].append(result)
         destination.write_text(json.dumps(report, indent=2) + '\n')
         print(case['name'] + ': ' + result['actual'] + (' PASS' if result['passed'] else ' FAIL'), flush=True)

@@ -22,7 +22,7 @@ layer because they define and justify its executable semantics; their use by
 replay does not make them replay-specific definitions.
 
 The directory refactor preserved the then-existing 27 Agda source files modulo
-namespace changes. The [T4.3.2 dependency scan](../Replay/LeiosNotifyPipeLookahead/tools/results-t432-20261104.json)
+namespace changes. The T4.3.2 dependency scan (historical development evidence removed)
 recorded 75 local dependencies and no Replay dependency; the earlier T4.3.1
 scan recorded 70. These are dated module-boundary checks; protocol properties
 retain the scopes documented below.
@@ -32,7 +32,7 @@ The later [DriverSearchOrder](DriverSearchOrder.agda) and its
 of the existing hidden driver moves. They introduce no protocol policy or Replay
 dependency: stable sorting retains every source alternative. The replay layer
 uses those all-state soundness/completeness facts in the generic ordered search;
-the [comparison guide](../Replay/LeiosNotifyPipeLookahead/tools/search-order/README.md)
+the comparison guide (historical investigation tooling removed)
 records practical improvements for the retained full shutdown histories and
 the limits of those measurements.
 
@@ -60,7 +60,7 @@ controlled pinned Haskell peer/driver schedules now pass, with all 80 captured
 histories matched to checked Agda witnesses. T4.1.1 additionally proves universal
 server accounting and exact FIFO conservation, including pending hooks, with
 node-policy and native paired endpoints. Wider differential coverage, full
-node-callback validation and certified raw-log search remain outstanding. Immutable
+node-callback validation and formal raw lexical/deployment correspondence remain outstanding. Immutable
 source URLs and inspected byte checksums are in [`sources.json`](sources.json).
 
 The next stages are numbered in the
@@ -119,8 +119,14 @@ call. The current producer must therefore not be connected to the old
 TraceSend-as-enqueue paired checker and described as a complete raw-log model.
 `DriverModel` now provides those explicit channel-commit and pending-record
 relations, but native correspondence and certified search remain required for
-that claim. Existing CLI modes and bridge targets
-are unchanged; no new log-verifier CLI mode is installed by this stage.
+that claim. Those were model-stage obligations. The generic native paired bridges and
+certified typed/normalized replay are now delivered in the
+[replay layer](../Replay/LeiosNotifyPipeLookahead/README.md). An explicit local
+`node-client-control` profile additionally checks the fixed-depth control rules.
+The [full-policy native tree](#exact-full-policy-native-tree) now has exact
+inversion. Exhaustive fresh full node-policy wire-only search and a distinct
+paired CLI are now delivered; raw lexical/deployment correspondence remains
+separate. Existing generic CLI modes retain their original meanings.
 
 Counters in Agda are mathematical naturals. The pinned driver uses Natural for
 its waiting/completion counters, but
@@ -132,6 +138,15 @@ integer boundaries and elapsed time require runtime evidence beyond these
 step-count results.
 
 ## Implemented results
+
+- `NodeClientExecution.agda` implements every existing `NodeClientModel.Step`
+  with exact target completeness, plus sound/complete finite source scheduling
+  menus. Fixed depth, selected normal payloads, callback return values and
+  absorbing Cancel faults remain exact. A selected Canceled handler can still
+  fail after the stop flag changes; the selector does not repair this race.
+  The replay layer separately hides the supported unit-return callbacks and
+  proves exact local-policy trace equivalence. Forecast/stop source inputs are
+  witnesses, not validated ledger/governor facts.
 
 - `Model.agda` specifies independent `Step` and `Tau` relations, payload-retaining
   states, finite operational runs, callback contracts and proof-carrying lookup.
@@ -149,8 +164,6 @@ step-count results.
   cancellation drain and admission failure, plus negative controls.
 - `NativeTests.agda` exhibits actual PTree receive/Quit, flag publication and
   post-Quit normal-send steps, and distinguishes failure from successful return.
-- `NativeReachability.agda` constructs arbitrarily long finite executions of
-  the actual native PTree reaching completed-bookkeeping states with zero owed.
 - `ClientModel.agda` separates sender control, receiver jobs, completed results,
   signed `arrived`, the stop flag and the retained return value. `ClientTests`
   covers the Zero branch, full-pipe termination, publication/collection races,
@@ -303,8 +316,43 @@ RequestNext Send record, without permitting another reply or Quit first.
 The [source-language proofs](../Replay/LeiosNotifyPipeLookahead/README.md#generic-client-source-replay)
 preserve arbitrary schedules and exact payloads; completeness explicitly takes
 a return-value inhabitant. Native wire transport is now checked through
-`Replay/LeiosNotifyPipeLookahead/WireClientNative`; fixed node policy remains
-separate, and the paired checker below supplies its own composition result.
+`Replay/LeiosNotifyPipeLookahead/WireClientNative`. The separate local
+`node-client-control` profile now checks existing fixed-depth node-control
+source runs. Full NodeDriver input/native policy remains separate; the generic
+paired checker below supplies its own composition result.
+
+### Silenced server and client wire languages
+
+[Wire/ServerSilenced](Wire/ServerSilenced.agda) and
+[Wire/ClientSilenced](Wire/ClientSilenced.agda) are the server and client
+languages observed when RequestNext and Votes are silenced. Each is
+parameterized by a `hidden` predicate on notifications, and each imports only
+its exact wire language. `Silenced` is the `erase` image of the full exact
+language. `decide-silenced` decides it through a finite abstract machine:
+`fill-sound` rebuilds a concrete full trace, and `erase-complete` refutes. The
+abstract server phases are `opened`, `quitSeen`, `cancelOnly` and `closed`; the
+client's are `opened`, `quitSeen` and `closed`, and the client's `Lead` state
+abstracts to `opened`.
+
+Because requests are hidden and freely filled, an accepted row list is
+constrained only in the order of Quit, Canceled and Done. Under `nodeNext` it is
+also constrained not to contain Canceled before Quit or a visible notification
+after the first post-Quit Canceled. Request credit, pipelining depth, counts,
+Votes and payload matching are not checked. The
+[replay guide](../Replay/LeiosNotifyPipeLookahead/README.md#silenced-observation-replay)
+covers native transport, adapters, paired checking, the `undetermined` status
+and validation.
+
+### Relation to the bounded Notify language
+
+[`BoundedRelation`](../Replay/LeiosNotifyPipeLookahead/BoundedRelation.agda)
+compares these exact languages with the bounded
+[`LeiosNotifyPipeline`](../Replay/LeiosNotifyPipeline.agda) language. Bounded
+server traces are included under `genericNext` (`server-included-generic`), but
+not under `nodeNext` (`node-canceled-open`). Bounded client traces are included
+(`client-included`). None of the converses hold (`normal-after-quit`,
+`over-depth`/`over-depth-lookahead`, `client-lead`). See the
+[replay guide](../Replay/LeiosNotifyPipeLookahead/README.md#bounded-and-lookahead-wire-languages).
 
 ## Native client observation and callback scope
 
@@ -440,8 +488,97 @@ Node.Run (policy inputs + wire rows)
 This is a **one-way inclusion**. An arbitrary generic native trace is not a
 certificate of the production node policy. Policy inputs and the abnormal-exit
 tag remain in `Node.Run`; the wire-only generic tree erases them and does not
-classify the node's exception outcome. An exact policy PTree/inversion theorem
-and certified search for a node-policy witness remain future work.
+classify the node's exception outcome. The distinct exact policy tree below now
+retains them. The full-policy paired checker below now decides the fresh
+wire-only language independently of this broader generic inclusion.
+
+### Exact full-policy native tree
+
+[`NodeDriverExecution`](NodeDriverExecution.agda) implements every existing
+`NodeDriverModel.Step` and `Tau` rule, with complete target selectors. The
+selectors moved from the supplied-schedule interpreter into this protocol layer;
+the interpreter reexports the same operations. Its previously missing
+`rejectedCancel` action now reconstructs the real local failure rule. Existing
+`Instruction`, `actions`, `evaluate` and `sound` definitions retain their bodies.
+`RuntimeCheck.complete` proves every finite full-policy run has instructions
+with identical actions and the same target. It does not search a wire log.
+
+[`NodeDriverNetwork`](NodeDriverNetwork.agda) keeps the full node state, wraps
+the existing endpoint-tagged native `LNPEv` wire channels, and adds a distinct
+typed policy-input channel for forecast/termination updates, eligible offers,
+normal handler outcomes and Cancel failure. These input values are explicit
+model witnesses; their truth is not certified by wire observations. Local
+client failure leaves server progress enabled and creates no global return.
+
+[`NodeDriverNetworkBridge`](../Replay/LeiosNotifyPipeLookahead/NodeDriverNetworkBridge.agda)
+proves step introduction/inversion and both finite-trace directions, including
+arbitrary actual final PTrees. Inversion reconstructs the original source run
+and final-tree equality without assuming tree injectivity. `wire-equivalence`
+relates independent full-policy source wire witnesses to actual paths of this
+exact policy tree after erasing explicit inputs. Actual hidden transitions
+inherit `NodeScheduling` accessibility. The older generic native target and
+its one-way node inclusion retain their meanings.
+
+The [tests](../Replay/LeiosNotifyPipeLookahead/NodeDriverNetworkTests.agda)
+reuse inhabited forecast-blocked termination, delayed Sends, Canceled drain,
+normal-after-Quit and handler witnesses. Partial-state controls check actual
+Cancel failure, its supplied instruction, blocked failed-client records and
+surviving server progress. A native forecast-update cycle erases to no wire
+records: hiding inputs changes the silent relation, so the internal-scheduling
+accessibility theorem does not establish termination of wire-only search.
+Seven safe roots/checks and proof integrity are recorded in the
+workflow (historical development evidence removed).
+Full node-policy wire-only search, actual input/ledger truth, exception/channel
+cleanup, deployed Haskell refinement and CSP/legacy-medium composition remain
+separate obligations.
+
+### Cycle-free core for finite wire replay
+
+[`NodeDriverWireCore`](NodeDriverWireCore.agda) now removes external
+`forecastReady`/`terminateRequested` snapshots from the search state and dropped
+zero-credit offers from hidden transitions. It retains the entire driver, including the client's
+actual `stopFlag`, both packet FIFOs and pending hooks, the exact queue/credits
+and the client-alive flag. Productive offers, normal handling, Cancel failure
+and all guarded source scheduling remain hidden transitions.
+
+[`NodeDriverWireCoreBridge`](NodeDriverWireCoreBridge.agda) proves both directions
+of the unchanged full node's finite wire language for **all original endpoints**.
+Lifting restores arbitrary chosen external snapshots at both endpoints through
+actual original input actions. The false/false representative does not restrict
+which wire traces are admitted. Queue payloads and wire order are preserved;
+no packet representative or finite wire cap is introduced here.
+
+[`NodeDriverWireCoreScheduling`](NodeDriverWireCoreScheduling.agda) proves strict
+lexicographic descent in `(existing driver potential, free credits, alive bit)`.
+Scheduling and normal handling decrease the first component, positive offers
+spend a free credit, and Cancel failure consumes the last alive bit. Existing
+natural well-foundedness then establishes hidden accessibility at every core
+state, without a finite global state graph or a guessed fuel cutoff.
+
+The [native transport](../Replay/LeiosNotifyPipeLookahead/NodeDriverWireCoreNative.agda)
+relates this core to actual paths of the unchanged full-policy native tree.
+The [controls](../Replay/LeiosNotifyPipeLookahead/NodeDriverWireCoreTests.agda)
+preserve graceful/race/fault witnesses, arbitrary endpoint flags, positive queue
+offers and the client stop flag, while the old forecast cycle and dropped-offer
+self-loop normalize to `stop`. Five modules pass bounded `--safe` checks; see
+the workflow (historical development evidence removed).
+
+This is **finite wire-trace equivalence**. Erased environment loops can diverge
+in the original hidden-input process; no divergence/failures equivalence or
+liveness transfer follows.
+
+### Full node-policy finite menus and paired replay
+
+[`NodeDriverPayloadMap`](NodeDriverPayloadMap.agda) now reuses generic driver
+payload mapping and preserves all node rules under arbitrary total renaming,
+including the exact queue and its credits. [`NodeDriverWireCoreBasis`](NodeDriverWireCoreBasis.agda)
+restricts only newly eligible offers; existing selected/queued/handler values
+remain available even outside that basis. The replay-layer
+[basis adequacy theorem](../Replay/LeiosNotifyPipeLookahead/NodeBasisAdequacy.agda)
+fixes every recorded payload and proves the fresh full-node wire language
+unchanged for every endpoint merge. Nonfresh starts retain an explicit
+fixed-initial-state premise; mapped unobserved final payloads need not equal
+the original final payloads.
 
 `NodeDriverTests` supplies fresh witnesses for forecast-blocked termination,
 delayed Send records with real queue accounting, Canceled shutdown, and a normal
@@ -494,8 +631,7 @@ Quit -> flush every accumulated completion -> Done
 `completion-bound-counterexample` proves that for every proposed bound and an
 inhabited notification carrier there is a finite operational execution ending
 with zero unanswered requests and more completed tokens than that bound. Its
-witness issues one request at a time. `completed-native` independently gives
-inhabited executions of the actual PTree. `shutdown-count` proves that the
+witness issues one request at a time. `shutdown-count` proves that the
 constructed shutdown from a state with n completed tokens performs exactly n
 flush transitions before Done.
 
@@ -640,46 +776,19 @@ and inhabited runtime witnesses. These results retain the previous successful-IO
 entry-to-shutdown, production-policy and Haskell/CSP-refinement boundaries. See
 the [paired-drain note](../../../docs/notes/leiosnotify-pipe-lookahead-paired-drain.md).
 
-## Completed bookkeeping and exact flush cost
-
-`CompletionAccounting` proves universal completed/retirement/flush accounting
-and total owed-plus-unretired-plus-completed work conservation. Every successful
-close flushes initial work plus newly received requests. After Quit, every
-successful schedule flushes exactly the initial work. Existing completion history
-lower-bounds any later successful closing operation count, even before Quit.
-The older constructed `flushCount` is preserved and proved equal to the new count.
-
-`CompletionDriver` retains these results at the physical commit/decode/trace-hook
-boundary. The replay `CompletionBridge` independently counts actual native
-hidden flushes and proves source-count agreement, exact closure counts and
-operation lower bounds. A fresh modeled native prefix containing server Send-Done
-flushes every decoded historical RequestNext exactly once, without assuming tree
-injectivity or inferring completion from EOF.
-
-`SequentialCompletion` constructs an arbitrary-length family in the combined
-production-policy model, with the actual depth 1000 and explicit eligible inputs
-and normal handlers. Eight natural resource bounds of one hold at every state
-of its normal prefix and shutdown. After n sequential rounds the empty/idle
-client and zero-owed server coexist with n completed tokens. The selected full
-shutdown uses n flushes and exactly n+12 paired/native operations. Source/native
-families and unretired/mixed-work/EOF controls are checked. These are counter and
-model-step results, not measured heap/time or machine-range guarantees. See the
-[completion-cost note](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md).
-
 ## Validation
 
 Agda 2.8.0; run from `src/`:
 
 ```sh
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/NativeTests.agda
-agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/NativeReachability.agda
 agda --safe Cardano_network/LeiosNotifyPipeLookahead/Rank.agda
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/ClientTests.agda
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverTests.agda
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/NodeTests.agda
 ```
 
-All six commands completed with exit zero on 3 November 2026. Their logs and
+All five commands completed with exit zero on 3 November 2026. Their logs and
 exit-code manifest are in `/tmp/leios-notify-pipe-lookahead-t2-20261103/`.
 
 T3.1 validation additionally uses:
@@ -690,10 +799,10 @@ agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/DriverNativeTests.ag
 ```
 
 These roots include both executable interpreters, productive trees and two-sided
-bridges. They and the downstream `NativeTests`/`NativeReachability` roots completed
+bridges. They and the downstream `NativeTests` root completed
 with exit zero; logs are in `/tmp/leios-notify-pipe-lookahead-t3-20261103/`.
 
-After the directory refactor, the native entry point and all eight validation
+After the directory refactor, the native entry point and the validation
 roots above passed command-line `--safe` checks. The eight-root exit-code manifest,
 logs, normalized source hashes and dependency-scan results are in
 `/tmp/leiosnotify-lookahead-layering-20261103/`.
@@ -704,8 +813,8 @@ The native server bridge adds this safe root:
 agda --safe Cardano_network/Replay/LeiosNotifyPipeLookahead/ServerBridgeTests.agda
 ```
 
-It and the downstream ClientNativeTests, DriverNativeTests, NativeTests and
-NativeReachability roots passed. Logs and the exit-code manifest are under
+It and the downstream ClientNativeTests, DriverNativeTests and NativeTests
+roots passed. Logs and the exit-code manifest are under
 `/tmp/leiosnotify-lookahead-server-bridge-20261103/`.
 
 The native client adds this safe root:
@@ -757,7 +866,7 @@ in the native paired tree. The synthetic writer's request-1001 fault has a
 server-only node/native certificate. The publication cases also prove reachable
 held-result checkpoints. Combined with the first four cases, all 80 captured
 histories match (70 paired, including interrupted prefixes; 10 server-only).
-The [T3.3 record](../Replay/LeiosNotifyPipeLookahead/tools/results-t33-20261103.json)
+The T3.3 record (historical development evidence removed)
 includes hashes and memory measurements. Its artifacts are under
 `/var/tmp/leiosnotify-t33-20261103/verified/`. The
 fixture callbacks, observer Effects and identity-codec transport are documented;
@@ -792,7 +901,7 @@ python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/check_ag
 
 Final logs and resource records are under
 `/var/tmp/leiosnotify-t4-conservation-20261103/final/`; the
-[compact result](../Replay/LeiosNotifyPipeLookahead/tools/results-t41-20261103.json)
+compact result (historical development evidence removed)
 records exact source hashes and checking budgets.
 
 The nine T4.1.2 modules are checked with the same bounded wrapper:
@@ -805,56 +914,38 @@ python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/check_ag
 ```
 
 Logs and resources are under `/var/tmp/leiosnotify-t412-20261103/final/`; the
-[T4.1.2 record](../Replay/LeiosNotifyPipeLookahead/tools/results-t412-20261103.json)
+T4.1.2 record (historical development evidence removed)
 ties them to the exact source hashes and theorem scopes.
 
 The eight T4.2.1 modules pass safe checking through `SchedulingTests.agda` and
 `SchedulingNativeTests.agda` using the same bounded wrapper. Their strict scans
 have zero findings. Final artifacts are under
 `/var/tmp/leiosnotify-t421-20261103/final/`; the
-[result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t421-20261103.json)
+result record (historical development evidence removed)
 includes exact source and resource hashes.
 
 The seven T4.2.2 modules pass safe checking through `ProgressTests.agda` and
 `ProgressNativeTests.agda`, with strict zero-finding audits and the same bounded
 wrapper. Final artifacts are under `/var/tmp/leiosnotify-t422-20261103/final-v2/`;
-the [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t422-20261103.json)
+the result record (historical development evidence removed)
 records the conditional scope and remaining general structural invariant.
 
 The eight T4.2.2.3 component modules pass safe checking through
 `ServerDrainTests.agda` and `ServerDrainNativeTests.agda`, with strict zero-finding
 audits and the same bounded wrapper. The
-[result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t4223-20261104.json)
+result record (historical development evidence removed)
 records exact sources, successful root checks and the remaining client/packet
 connection. Existing imported `ShutdownTests` variable-name warnings are retained.
 
 The nine T4.2.2.3.3 modules pass safe checking through `PairedDrainTests.agda`
 and `PairedDrainNativeTests.agda`, with strict zero-finding audits and the same
-bounded wrapper. The [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t42233-20261104.json)
+bounded wrapper. The result record (historical development evidence removed)
 records exact sources, successful checks, the completed structural theorem and
-retained external runtime/implementation assumptions. T4.3 resource results are recorded below.
-
-T4.3.1's six modules pass safe checking through `CompletionTests.agda` and
-`CompletionNativeTests.agda` with strict zero-finding audits and the same bounded
-wrapper. The [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t431-20261104.json)
-records exact sources, successful checks, universal counts and all-state
-occupancy certificates. T4.3.2 resource and representation results follow below.
-
-T4.3.2 adds `ClientBounds`, `ResourceBounds`, `QueueBudget`, `NodeQueueBounds`
-and `Representation` in the protocol layer, with `ResourceFixtures` and
-`ResourceNativeTests` under Replay. The seven modules pass safe checking and
-strict audits. Every fresh fixed-depth policy run has conservative live-resource
-envelopes; the full-pipe Quit witness needs one extra marker slot. Historical
-server deferred jobs remain unbounded, so depth cannot discharge their finite
-Int-range premise. Signed arrival-counter range remains a separate obligation.
-See the [resource-bounds note](../../../docs/notes/leiosnotify-pipe-lookahead-resource-bounds.md)
-and [result record](../Replay/LeiosNotifyPipeLookahead/tools/results-t432-20261104.json).
+retained external runtime/implementation assumptions.
 
 ## Runtime investigation
 
-The [completion-cost topic](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md)
-maintains T5.1.1 history counts, T5.1.2 quiet baseline profiles and T5.2.1 Nat
-heap/arithmetic diagnostics. T5.2.2's [runtime profiles](../../../docs/notes/leiosnotify-pipe-lookahead-progress.md#pinned-haskell-blocking-and-failure-experiments)
+T5.2.2's [runtime profiles](../../../docs/notes/leiosnotify-pipe-lookahead-progress.md#pinned-haskell-blocking-and-failure-experiments)
 cover blocking, injected failures and credit/queue accounting. The topics link
 committed records, reproduction commands and source pins, keeping runtime
 outcomes distinct from model guarantees. These finite fixtures do not establish a verified repair, full
@@ -869,25 +960,3 @@ decision. The typed paired checker now completes its generic search scope;
 Normalized profile/CLI delivery is implemented in the
 [replay guide](../Replay/LeiosNotifyPipeLookahead/README.md#normalized-input-and-cli-delivery);
 raw fidelity and complete captures remain open.
-
-The separate [CollectOne candidate design](../../../docs/specs/leiosnotify-collect-one-design.md)
-has compiled type/constructor feasibility and separate safe reference
-[Model/Contract](../../../docs/specs/leiosnotify-collect-one-design.md#t612-behavior-and-observation-contract)
-definitions. Their witness/guard root is
-[CollectOne/ContractTests.agda](../Replay/LeiosNotifyPipeLookahead/CollectOne/ContractTests.agda).
-[T6.2.1 preservation](../../../docs/specs/leiosnotify-collect-one-design.md#t621-finite-source-and-wire-preservation)
-now proves both finite local source-action and exact wire inclusions without
-extra premises. [T6.2.2 conditional resources/progress](../../../docs/specs/leiosnotify-collect-one-design.md#t622-conditional-resources-and-local-progress)
-now prove B+1 registered inventory, exact early/final collection accounting,
-shutdown safety, internal accessibility and finite local completion/operation
-bounds. [T6.2.2.3 paired-policy bounds](../../../docs/specs/leiosnotify-collect-one-design.md#t6223-paired-policy-resource-bounds)
-now discharge that premise for independent candidate driver/node rules. Every
-fresh candidate policy history has an exact baseline policy history, yielding
-≤1005 retained jobs/completions with no extra resource premise. Candidate native,
-converse paired and Haskell correspondence remain open.
-[T6.3.1 actual-driver comparison](../../../docs/notes/leiosnotify-pipe-lookahead-completion-cost.md#collectone-actual-driver-comparison)
-now passes 1224 fresh fixture processes, with matching behavior and lower
-retention/shutdown cost plus a small allocation increase. The
-[T6.3.2 review bundle](../Replay/LeiosNotifyPipeLookahead/tools/patches/collect-one/README.md)
-is now source/apply checked; these are controlled measurements and a proposal,
-not a deployed-node result.
