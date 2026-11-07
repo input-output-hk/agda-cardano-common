@@ -474,7 +474,7 @@ open import Data.Bool using (_∧_)
 
 -- Startup, protocol and monitor metadata do not add CM collection entries.
 module Mux where
- private module U = MuxModel Types.TypedResult using (State; allocateHandle; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (State; allocateHandle; configure; configureMux; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
  view : U.State → Effects.Registry
  view = Effects.MuxLayer.view
  shutdown : U.State → Close.State
@@ -492,6 +492,7 @@ module Mux where
  ...   | just b = case just-injective eq of λ { refl → note-valid (U.birth a (U.base s)) (record s { base = b }) (Physical.step-preserves a (U.base s) actual valid) }
  step-preserves (U.negotiate w ps flow) s eq valid = transport (Effects.MuxLayer.change (U.negotiate w ps flow) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.negotiate w ps flow) s eq tt)) valid)
  step-preserves (U.allocateHandle w hid mid) s eq valid = transport (Effects.MuxLayer.change (U.allocateHandle w hid mid) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.allocateHandle w hid mid) s eq tt)) valid)
+ step-preserves (U.configureMux w plan limit bound keys) s eq valid = transport (Effects.MuxLayer.change (U.configureMux w plan limit bound keys) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.configureMux w plan limit bound keys) s eq tt)) valid)
  step-preserves (U.publishSuccess w) s eq valid = transport (Effects.MuxLayer.change (U.publishSuccess w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.publishSuccess w) s eq tt)) valid)
  step-preserves (U.startupStep w action) s eq valid = transport (Effects.MuxLayer.change (U.startupStep w action) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.startupStep w action) s eq tt)) valid)
 

@@ -19,6 +19,7 @@ open import ConnectionManagement.Domain using (WorkerId; ErrorId)
 open import ConnectionManagement.Store using (Store; lookup; put)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other; lookup-head)
+import ConnectionManagement.Rules.MuxEgress as EgressLayout
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -61,7 +62,7 @@ physical-present w state (thread , found) = H.captured thread ,
   trans (Birth.lookup-captures w (B.threads state)) (cong (Data.Maybe.map H.captured) found)
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  Valid : U.State → Set
  Valid s = Covers (U.frames s) (Birth.MuxLayer.view s)
@@ -104,6 +105,18 @@ module Mux where
  ...     | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (valid w f found) valid }
  allocated w hid mid s eq valid | just f | U.handleAllocated old mid′ = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.promisePublished old mid′ = case eq of λ ()
+ -- Configured egress installation writes only the actual allocated mux.
+ configured : ∀ w plan limit bound keys s {s′} → U.configure w plan limit bound keys s ≡ just s′ → Valid s → Valid s′
+ configured w EgressLayout.plainLayout limit bound keys s eq = case eq of λ ()
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f
+ ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
+ ...     | nothing = case eq of λ ()
+ ...     | just c = case just-injective eq of λ { refl → λ valid → valid }
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
+
  published : ∀ w s {t} → U.publish w s ≡ just t → Valid s → Valid t
  published w s eq valid with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -130,6 +143,7 @@ module Mux where
  step-preserves (U.run a) = inherited a
  step-preserves (U.negotiate w ps flow) = negotiated w ps flow
  step-preserves (U.allocateHandle w hid mid) = allocated w hid mid
+ step-preserves (U.configureMux w plan limit bound keys) s eq = configured w plan limit bound keys s eq
  step-preserves (U.publishSuccess w) = published w
  step-preserves (U.startupStep w a) = startup w a
  initialized-valid : ∀ c {s} → U.initial c ≡ just s → Valid s
@@ -168,6 +182,18 @@ module Mux where
  allocate-same w hid mid s eq | just f | U.handleAllocated oldHandle oldMux = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.promisePublished oldHandle oldMux = case eq of λ ()
 
+ -- Configured egress installation writes only the actual allocated mux.
+ configure-same : ∀ w plan limit bound keys s {s′} → U.configure w plan limit bound keys s ≡ just s′ → coordinator s′ ≡ coordinator s
+ configure-same w EgressLayout.plainLayout limit bound keys s eq = case eq of λ ()
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f
+ ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
+ ...     | nothing = case eq of λ ()
+ ...     | just c = case just-injective eq of λ { refl → refl }
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
+
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → coordinator s′ ≡ coordinator s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -198,6 +224,7 @@ module Mux where
  direct-shutdown-same (U.run a) s eq ()
  direct-shutdown-same (U.negotiate w ps flow) s eq direct = negotiate-same w ps flow s eq
  direct-shutdown-same (U.allocateHandle w hid mid) s eq direct = allocate-same w hid mid s eq
+ direct-shutdown-same (U.configureMux w plan limit bound keys) s eq direct = configure-same w plan limit bound keys s eq
  direct-shutdown-same (U.publishSuccess w) s eq direct = publish-same w s eq
  direct-shutdown-same (U.startupStep w a) s eq direct = startup-shutdown w a s eq
 

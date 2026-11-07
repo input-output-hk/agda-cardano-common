@@ -18,6 +18,8 @@ open import ConnectionManagement.Domain using (WorkerId; ErrorId)
 open import ConnectionManagement.Store using (Store; lookup; put)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other)
+import ConnectionManagement.Rules.IGRegistration as IG
+import ConnectionManagement.Rules.MuxEgress as EgressLayout
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundMachine as O
@@ -539,6 +541,18 @@ module MuxLayer where
  allocate-same w hid mid s eq | just f | U.handleAllocated oldHandle oldMux = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.promisePublished oldHandle oldMux = case eq of λ ()
 
+ -- Configured egress installation writes only the actual allocated mux.
+ configure-same : ∀ w plan limit bound keys s {s′} → U.configure w plan limit bound keys s ≡ just s′ → view s′ ≡ view s
+ configure-same w EgressLayout.plainLayout limit bound keys s eq = case eq of λ ()
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f
+ ...   | U.handleAllocated hid mid with O.advance (O.inbound (M.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
+ ...     | nothing = case eq of λ ()
+ ...     | just c = case just-injective eq of λ { refl → refl }
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
+
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → view s′ ≡ view s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -556,13 +570,13 @@ module MuxLayer where
  change (U.run a) s eq = inherited-change a s eq
  change (U.negotiate w ps flow) s eq = stable (negotiate-same w ps flow s eq)
  change (U.allocateHandle w hid mid) s eq = stable (allocate-same w hid mid s eq)
+ change (U.configureMux w plan limit bound keys) s eq = stable (configure-same w plan limit bound keys s eq)
  change (U.publishSuccess w) s eq = stable (publish-same w s eq)
  change (U.startupStep w a) s eq = stable (cong captures (Old.startup-parent-registry w a s eq))
 
 import ConnectionManagement.MuxProtocolJobs as ProtocolModel
 import ConnectionManagement.Properties.MuxProtocolJobs as ProtocolProperties
 import ConnectionManagement.Rules.MuxRuntime as Mux
-import ConnectionManagement.Rules.IGRegistration as IG
 module ProtocolLayer where
  private module P = ProtocolModel
  private module U = P.U

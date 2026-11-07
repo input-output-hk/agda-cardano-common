@@ -98,10 +98,9 @@ sendProtocol j bytes s with lookup j (jobs s)
 ...   | false = nothing
 ...   | true = protocolEgress j (λ _ → M.Egress.appendPayload (serial j) bytes) s
 
+-- Monitor entry after the legacy or the complete configured startup.
 monitoring : U.Frame → Bool
-monitoring f with Startup.phase (U.startup f)
-... | Startup.monitoring _ _ = true
-... | _ = false
+monitoring f = Startup.monitoringPC (Startup.phase (U.startup f))
 noParent : Pool.State → Bool
 noParent p with Pool.parentFork p
 ... | nothing = true
@@ -337,17 +336,7 @@ viaProtocol j action s with lookup j (jobs s)
 -- Infrastructure identities are exposed as soon as each fork occurs, so fast
 -- child completion/publication is possible inside the masked insertion gap.
 infraId : Role → Startup.PC → Maybe JobId
-infraId Types.muxer (Startup.muxerForked m) = just m
-infraId Types.muxer (Startup.muxerRegistered m) = just m
-infraId Types.muxer (Startup.demuxerForked m d) = just m
-infraId Types.muxer (Startup.demuxerRegistered m d) = just m
-infraId Types.muxer (Startup.matureTraced m d) = just m
-infraId Types.muxer (Startup.monitoring m d) = just m
-infraId Types.demuxer (Startup.demuxerForked m d) = just d
-infraId Types.demuxer (Startup.demuxerRegistered m d) = just d
-infraId Types.demuxer (Startup.matureTraced m d) = just d
-infraId Types.demuxer (Startup.monitoring m d) = just d
-infraId _ _ = nothing
+infraId = Startup.roleId
 viaInfra : WorkerId → Role → (JobId → Pool.Action) → State → Maybe State
 viaInfra w role action s with lookup w (U.frames (base s))
 ... | nothing = nothing
@@ -359,7 +348,8 @@ viaInfra w role action s with lookup w (U.frames (base s))
 
 -- Only the actual lane muxer can consume/build/write its batch. Create/send
 -- actions belong to protocol children and have no infrastructure alias here.
--- M2 extends this plain role lookup to the immutable configured lane bindings.
+-- The role is derived from the actual mux layout and the batch's lane, then
+-- resolved through the actual historical startup binding (legacy or configured).
 batchLane : ℕ → M.Egress.State → Maybe EgressKernel.Lane
 batchLane id e with lookup id (M.Egress.batches e)
 ... | nothing = nothing
@@ -373,19 +363,28 @@ egressLane (M.Egress.takeFragment id) e = batchLane id e
 egressLane (M.Egress.finishBatch id) e = batchLane id e
 egressLane (M.Egress.writeAccount id) e = batchLane id e
 egressLane (M.Egress.writeFailed id) e = batchLane id e
+laneWorker : U.Frame → M.Egress.Action → State → Maybe (MuxId × JobId)
+laneWorker f action s with U.progress f
+... | U.promisePublished hid mid with muxAt mid s
+...   | nothing = nothing
+...   | just m with egressLane action (M.egress m)
+...     | nothing = nothing
+...     | just lane with Types.roleForLane (M.Egress.layout (M.egress m)) lane
+...       | nothing = nothing
+...       | just role with infraId role (Startup.phase (U.startup f))
+...         | nothing = nothing
+...         | just j = just (mid , j)
+laneWorker f action s | _ = nothing
 muxerEgress : WorkerId → M.Egress.Action → State → Maybe State
 muxerEgress w action s with lookup w (U.frames (base s))
 ... | nothing = nothing
-... | just f with U.progress f | infraId Types.muxer (Startup.phase (U.startup f))
-...   | U.promisePublished hid mid | just j with muxAt mid s | lookup j (Pool.handles (poolAt w s))
-...     | just m | just Pool.bodyRunning with M.Egress.layout (M.egress m) | egressLane action (M.egress m)
-...       | EgressKernel.plainLayout | just EgressKernel.scheduledLane with O.advance
-  (O.inbound (Machine.igStep (IG.egressStep mid action))) (source s)
-...         | nothing = nothing
-...         | just next = just (setSource next s)
-muxerEgress w action s | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | _ | _ = nothing
-muxerEgress w action s | just f | U.promisePublished hid mid | just j | _ | _ = nothing
-muxerEgress w action s | just f | _ | _ = nothing
+... | just f with laneWorker f action s
+...   | nothing = nothing
+...   | just (mid , j) with lookup j (Pool.handles (poolAt w s))
+...     | just Pool.bodyRunning with O.advance (O.inbound (Machine.igStep (IG.egressStep mid action))) (source s)
+...       | nothing = nothing
+...       | just next = just (setSource next s)
+muxerEgress w action s | just f | just (mid , j) | _ = nothing
 
 -- These are the only permitted source-monitor controls in this prefix. Once a
 -- start command is selected, its tracer/fork continuation may finish despite a

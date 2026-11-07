@@ -20,6 +20,7 @@ open import ConnectionManagement.Store using (lookup)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other)
 open import ConnectionManagement.Properties.SupplyBounds using (SupplyBounds)
+import ConnectionManagement.Rules.MuxEgress as E
 import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundMachine as O
@@ -149,6 +150,18 @@ allocate-projects w hid mid s eq with lookup w (W.frames s) in found
 allocate-projects w hid mid s eq | just f | W.handleAllocated oldHandle oldMux = case eq of λ ()
 allocate-projects w hid mid s eq | just f | W.promisePublished oldHandle oldMux = case eq of λ ()
 
+-- Configured egress installation writes only the actual allocated mux.
+configure-projects : ∀ w plan limit bound keys s {s′} → W.configure w plan limit bound keys s ≡ just s′ → Paths s s′
+configure-projects w E.plainLayout limit bound keys s eq = case eq of λ ()
+configure-projects w (E.scheduledLayout slice) limit bound keys s eq with lookup w (W.frames s)
+... | nothing = case eq of λ ()
+... | just f with W.progress f
+...   | W.handleAllocated hid mid with O.advance (O.inbound (M.igStep (IG.configureEgress mid (E.scheduledLayout slice) limit bound keys))) (W.source s) in advanced
+...     | nothing = case eq of λ ()
+...     | just c = case just-injective eq of λ { refl → source-paths (O.inbound (M.igStep (IG.configureEgress mid (E.scheduledLayout slice) limit bound keys))) s advanced }
+configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | W.returnedSuccess = case eq of λ ()
+configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | W.promisePublished h m = case eq of λ ()
+
 publish-projects : ∀ w s {s′} → W.publish w s ≡ just s′ → Paths s s′
 publish-projects w s eq with lookup w (W.frames s) in found
 ... | nothing = case eq of λ ()
@@ -183,6 +196,7 @@ step-projects : ∀ a s {s′} → W.step a s ≡ just s′ → Paths s s′
 step-projects (W.run action) s eq = inherit-projects action s eq
 step-projects (W.negotiate w ps flow) s eq = negotiate-projects w ps flow s eq
 step-projects (W.allocateHandle w hid mid) s eq = allocate-projects w hid mid s eq
+step-projects (W.configureMux w plan limit bound keys) s eq = configure-projects w plan limit bound keys s eq
 step-projects (W.publishSuccess w) s eq = publish-projects w s eq
 step-projects (W.startupStep w action) s eq = startup-projects w action s eq
 exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → Paths s s′

@@ -109,27 +109,18 @@ send-observation j bytes s eq with lookup j (W.jobs s)
 muxer-egress-observation : ∀ w action s {t} → W.step (W.egressMuxer w action) s ≡ just t → EgressChange s t
 muxer-egress-observation w action s eq with lookup w (U.frames (W.base s))
 ... | nothing = case eq of λ ()
-... | just f with U.progress f | W.infraId Types.muxer (S.phase (U.startup f))
-...   | U.promisePublished hid mid | just j with W.muxAt mid s | lookup j (Pool.handles (W.poolAt w s))
-...     | just m | just Pool.bodyRunning with Mux.Egress.layout (Mux.egress m) | W.egressLane action (Mux.egress m)
-...       | EgressKernel.plainLayout | just EgressKernel.scheduledLane with O.advance
-  (O.inbound (M.igStep (IG.egressStep mid action))) (W.source s) in advanced
-...         | nothing = case eq of λ ()
-...         | just c = case just-injective eq of λ { refl → egress-change mid action c advanced refl }
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.plainLayout | nothing = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.plainLayout | just EgressKernel.directLane = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.plainLayout | just EgressKernel.sliceLane = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyRunning | EgressKernel.scheduledLayout enabled | _ = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | nothing | _ = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | nothing = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.bodyReturned value) = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just Pool.bodyUnwinding = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.deregisterPending value) = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.deregistered value) = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | just j | just m | just (Pool.resultAvailable value) = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.returnedSuccess | _ = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.handleAllocated hid mid | _ = case eq of λ ()
-muxer-egress-observation w action s eq | just f | U.promisePublished hid mid | nothing = case eq of λ ()
+... | just f with W.laneWorker f action s
+...   | nothing = case eq of λ ()
+...   | just (mid , j) with lookup j (Pool.handles (W.poolAt w s))
+...     | just Pool.bodyRunning with O.advance (O.inbound (M.igStep (IG.egressStep mid action))) (W.source s) in advanced
+...       | nothing = case eq of λ ()
+...       | just c = case just-injective eq of λ { refl → egress-change mid action c advanced refl }
+muxer-egress-observation w action s eq | just f | just (mid , j) | nothing = case eq of λ ()
+muxer-egress-observation w action s eq | just f | just (mid , j) | just (Pool.bodyReturned value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | just (mid , j) | just Pool.bodyUnwinding = case eq of λ ()
+muxer-egress-observation w action s eq | just f | just (mid , j) | just (Pool.deregisterPending value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | just (mid , j) | just (Pool.deregistered value) = case eq of λ ()
+muxer-egress-observation w action s eq | just f | just (mid , j) | just (Pool.resultAvailable value) = case eq of λ ()
 
 egress-projects : ∀ s {t} → EgressChange s t → Paths s t
 egress-projects s observation rewrite EgressChange.after-shape observation =

@@ -7,9 +7,9 @@ module ConnectionManagement.Rules.IGRegistration where
 open import Class.DecEq.Instances using (DecEq-ℕ)
 open import Data.Integer using (+_; -[1+_])
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤?_; _<?_)
-open import Data.List using (List; []; _∷_; _++_; map)
+open import Data.List using (List; []; _∷_; _++_; map; null)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Bool using (Bool; true; false)
+open import Data.Bool using (Bool; true; false; _∧_)
 open import Data.Product using (_×_; _,_)
 open import Relation.Nullary using (yes; no)
 open import ConnectionManagement.ConnectionOrder public using (lexLess; addressCode; keyLess)
@@ -19,6 +19,7 @@ open import ConnectionManagement.IGTypes public
 open import ConnectionManagement.Store using (Store; lookup; put; delete)
 import ConnectionManagement.Rules.IGBatch as Batch
 import ConnectionManagement.Rules.MuxRuntime as M
+import ConnectionManagement.Rules.MuxEgress as EgressKernel
 import ConnectionManagement.Rules.TracerReadiness as Readiness
 
 -- The default constructor retains the initial RemoteIdle projection.
@@ -100,6 +101,9 @@ data IGAction : Set where
   finishProtocol : MuxId → ℕ → RunResult → IGAction
   -- Actual child/egress writes share the one source mux accounting state.
   egressStep : MuxId → M.Egress.Action → IGAction
+  -- Configured mux creation: exact directional keys, their requested lanes and
+  -- the layout/limits, installed before publication on a pristine egress.
+  configureEgress : MuxId → EgressKernel.Layout → ℕ → ℕ → List (M.ProtocolKey × EgressKernel.Lane) → IGAction
 
 Result = Runtime × List IGEvent
 
@@ -246,6 +250,28 @@ initialCounters M.igTracer = just (M.counters (+ 0) (+ 0))
 -- in both directions, independently of negotiated DataFlow/tracer attachment.
 -- Initiator-only mode uses its separate exact inventory below.
 -- Allocation retains the original freshness and protocol-bundle guards.
+-- A configured profile may replace only the untouched default installation:
+-- plain layout, no send buffer, batch or held ownership yet. Hence at most once.
+pristine : M.Egress.State → Bool
+pristine e = plain (M.Egress.layout e) ∧ null (M.Egress.wantons e) ∧ null (M.Egress.batches e) ∧ isZeroℕ (M.Egress.nextBatch e)
+  where
+  plain : EgressKernel.Layout → Bool
+  plain EgressKernel.plainLayout = true
+  plain (EgressKernel.scheduledLayout _) = false
+  isZeroℕ : ℕ → Bool
+  isZeroℕ zero = true
+  isZeroℕ (suc _) = false
+-- Every configured key names a protocol number registered with this mux.
+keysListed : List (M.ProtocolKey × EgressKernel.Lane) → Store ℕ M.ProtocolStatus → Bool
+keysListed [] ps = true
+keysListed (((n , _) , _) ∷ rest) ps with lookup n ps
+... | just _ = keysListed rest ps
+... | nothing = false
+-- WithInitiatorMode registers initiator keys only.
+initiatorKeys : List (M.ProtocolKey × EgressKernel.Lane) → Bool
+initiatorKeys [] = true
+initiatorKeys (((_ , M.initiatorJob) , _) ∷ rest) = initiatorKeys rest
+initiatorKeys (((_ , M.responderJob) , _) ∷ rest) = false
 installWith : M.TracerAttachment → HandleId → MuxId → ConnectionKey → List Protocol → DataFlow →
   Runtime → List IGEvent → Maybe Result
 installWith attachment hid mid k ps flow r queue
@@ -388,6 +414,11 @@ stepWorker (egressStep mid action) r queue with lookup mid (muxes (execution r))
 ... | just m with M.Egress.step action (M.egress m)
 ...   | nothing = nothing
 ...   | just next = just (setMux mid (record m { egress = next }) r , queue)
+stepWorker (configureEgress mid plan limit bound keys) r queue with lookup mid (muxes (execution r))
+... | nothing = nothing
+... | just m with pristine (M.egress m) ∧ keysListed keys (M.protocols m) | M.Egress.initial plan limit bound keys
+...   | true | just e = just (setMux mid (record m { egress = e }) r , queue)
+...   | _ | _ = nothing
 stepWorker (sampleTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.tracerAttachment m | M.callback m
@@ -609,6 +640,9 @@ runtimeAllowed a r = runtimeAction a
 step : ResponderMode → IGAction → Runtime → List IGEvent → Maybe Result
 step noResponderMode (installOutboundHandle hid mid k ps flow) ig queue =
   installInitiatorWith hid mid k ps flow ig queue
+step noResponderMode (configureEgress mid plan limit bound keys) ig queue with initiatorKeys keys
+... | true = stepWorker (configureEgress mid plan limit bound keys) ig queue
+... | false = nothing
 step noResponderMode a ig queue with runtimeAllowed a ig
 ... | true = stepWorker a ig queue
 ... | false = nothing

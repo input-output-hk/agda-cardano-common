@@ -16,6 +16,7 @@ import ConnectionManagement.Rules.IGRegistration as IG
 step-preserves : ∀ a c {c′} → advance (igStep a) c ≡ just c′ →
   ∀ q → TrackedChain q c → TrackedChain q c′
 step-preserves (IG.egressStep mid action) = Mux.step-preserves (IG.egressStep mid action) Mux.egress
+step-preserves (IG.configureEgress mid plan limit bound keys) = Mux.step-preserves (IG.configureEgress mid plan limit bound keys) Mux.configure
 step-preserves IG.commitDecision = Boundary.step-preserves IG.commitDecision Boundary.decision
 step-preserves (IG.installHandle hid mid k ps flow) = Boundary.step-preserves (IG.installHandle hid mid k ps flow) Boundary.install
 step-preserves (IG.installOutboundHandle hid mid k ps flow) = Boundary.step-preserves (IG.installOutboundHandle hid mid k ps flow) Boundary.installOutbound

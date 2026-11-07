@@ -17,6 +17,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym
 open import Class.DecEq using (_≟_)
 open import ConnectionManagement.Domain using (WorkerId; ErrorId)
 open import ConnectionManagement.Store using (Store; lookup; put)
+import ConnectionManagement.Rules.MuxEgress as EgressLayout
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -36,7 +37,7 @@ inbound-same action c eq quiet with Machine.advance action (O.core c) in actual
 ...   | refl = Core.machine-same action (O.core c) actual quiet
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  table : U.State → Store WorkerId S.AdmissionWorker
  table s = S.admissions (Machine.world (O.core (U.source s)))
@@ -65,6 +66,18 @@ module Mux where
  ...     | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (U.allocationAction f hid mid)) (U.source s) advanced tt }
  allocate-same w hid mid s eq | just f | U.handleAllocated oldHandle oldMux = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.promisePublished oldHandle oldMux = case eq of λ ()
+
+ -- Configured egress installation writes only the actual allocated mux.
+ configure-same : ∀ w plan limit bound keys s {s′} → U.configure w plan limit bound keys s ≡ just s′ → table s′ ≡ table s
+ configure-same w EgressLayout.plainLayout limit bound keys s eq = case eq of λ ()
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f
+ ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
+ ...     | nothing = case eq of λ ()
+ ...     | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys)) (U.source s) advanced tt }
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → table s′ ≡ table s
  publish-same w s eq with lookup w (U.frames s) in found
@@ -96,6 +109,7 @@ module Mux where
  direct-same (U.run a) s eq ()
  direct-same (U.negotiate w ps flow) s eq direct = negotiate-same w ps flow s eq
  direct-same (U.allocateHandle w hid mid) s eq direct = allocate-same w hid mid s eq
+ direct-same (U.configureMux w plan limit bound keys) s eq direct = configure-same w plan limit bound keys s eq
  direct-same (U.publishSuccess w) s eq direct = publish-same w s eq
  direct-same (U.startupStep w a) s eq direct = startup-shutdown w a s eq
 

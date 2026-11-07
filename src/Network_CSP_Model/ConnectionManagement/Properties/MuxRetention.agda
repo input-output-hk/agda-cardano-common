@@ -4,7 +4,7 @@
 module ConnectionManagement.Properties.MuxRetention where
 
 open import Class.DecEq.Instances using (DecEq-ℕ)
-open import Data.Bool using (true; false)
+open import Data.Bool using (true; false; _∧_)
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (just; nothing)
 open import Data.Product using (_,_; proj₁)
@@ -52,6 +52,7 @@ data CoveredMux : IG.IGAction → Set where
   gracefulStoppedTrace : ∀ {mid} → CoveredMux (IG.traceGracefulMuxStopped mid)
   stopped : ∀ {mid} → CoveredMux (IG.finishStop mid)
   egress : ∀ {mid action} → CoveredMux (IG.egressStep mid action)
+  configure : ∀ {mid plan limit bound keys} → CoveredMux (IG.configureEgress mid plan limit bound keys)
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
@@ -62,6 +63,14 @@ worker-anchors .(IG.egressStep mid action) (egress {mid} {action}) ig queue eq
 ... | just m with M.Egress.step action (M.egress m)
 ...   | nothing = case eq of λ ()
 ...   | just updatedEgress = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+-- A configured profile replaces only the actual mux's pristine egress.
+worker-anchors .(IG.configureEgress mid plan limit bound keys) (configure {mid} {plan} {limit} {bound} {keys}) ig queue eq
+  with lookup mid (IG.muxes (IG.execution ig)) in found
+... | nothing = case eq of λ ()
+... | just m with IG.pristine (M.egress m) ∧ IG.keysListed keys (M.protocols m) | M.Egress.initial plan limit bound keys
+...   | true | just e = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+...   | true | nothing = case eq of λ ()
+...   | false | _ = case eq of λ ()
 worker-anchors .(IG.sampleTracer mid) (sample {mid}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
 ... | just m with M.tracerAttachment m | M.callback m
@@ -354,6 +363,10 @@ mode-anchors noResponderMode .(IG.monitorCommand mid) (command {mid}) ig queue e
 mode-anchors noResponderMode .(IG.monitorCompletion mid) (completion {mid}) ig queue eq with IG.runtimeAllowed (IG.monitorCompletion mid) ig
 ... | false = case eq of λ ()
 ... | true = worker-anchors (IG.monitorCompletion mid) completion ig queue eq
+mode-anchors noResponderMode .(IG.configureEgress mid plan limit bound keys) (configure {mid} {plan} {limit} {bound} {keys}) ig queue eq
+  with IG.initiatorKeys keys
+... | false = case eq of λ ()
+... | true = worker-anchors (IG.configureEgress mid plan limit bound keys) configure ig queue eq
 mode-anchors noResponderMode .(IG.sampleTracer mid) (sample {mid}) ig queue eq = worker-anchors (IG.sampleTracer mid) sample ig queue eq
 mode-anchors noResponderMode .(IG.commitTracer mid) (trace {mid}) ig queue eq = worker-anchors (IG.commitTracer mid) trace ig queue eq
 mode-anchors noResponderMode .(IG.finishStop mid) (stopped {mid}) ig queue eq = worker-anchors (IG.finishStop mid) stopped ig queue eq

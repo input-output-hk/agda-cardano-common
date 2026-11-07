@@ -7,6 +7,7 @@ module ConnectionManagement.MuxHandlerSupervision (Result : Set) where
 
 open import Data.Bool using (Bool; true; false; not; _∧_)
 open import Data.List using (List; []; _∷_)
+open import Data.Nat using (ℕ)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_)
 open import Relation.Nullary using (does; yes; no)
@@ -116,6 +117,7 @@ hasMux mid ((_ , f) ∷ rest) with frameMux f
 igAllowed : IG.IGAction → State → Bool
 igAllowed (IG.installHandle _ _ _ _ _) s = false
 igAllowed (IG.installOutboundHandle _ _ _ _ _) s = false
+igAllowed (IG.configureEgress _ _ _ _ _) s = false
 igAllowed action s with Life.muxAction action
 ... | nothing = true
 ... | just (mid , access) = not (hasMux mid (frames s))
@@ -172,6 +174,18 @@ allocate w hid mid s with lookup w (frames s)
 ...     | just c = just (setFrame w (record f { progress = handleAllocated hid mid }) (setSource c s))
 allocate w hid mid s | just f | _ = nothing
 
+-- Configured mux creation happens with the allocated handle, before publication.
+-- Only a non-plain layout uses this route; plain muxes keep their install profile.
+configure : WorkerId → E.Layout → ℕ → ℕ → List (MuxRuntime.ProtocolKey × E.Lane) → State → Maybe State
+configure w E.plainLayout limit bound keys s = nothing
+configure w plan limit bound keys s with lookup w (frames s)
+... | nothing = nothing
+... | just f with progress f
+...   | handleAllocated hid mid with O.advance (O.inbound (M.igStep (IG.configureEgress mid plan limit bound keys))) (source s)
+...     | nothing = nothing
+...     | just c = just (setSource c s)
+configure w plan limit bound keys s | just f | _ = nothing
+
 -- Promise publication and startup observation are one coupled event. No
 -- standalone observePublication action can create a fictitious published handle.
 publish : WorkerId → State → Maybe State
@@ -216,9 +230,8 @@ startupAllowed Startup.observePublication f s = false
 startupAllowed (Startup.forkMuxer j) f s = jobFresh j (frames s)
 startupAllowed (Startup.forkDemuxer j) f s = jobFresh j (frames s)
 startupAllowed (Startup.forkConfigured j) f s = jobFresh j (frames s)
--- ponytail: configured frames are admitted only for non-plain layouts (none
--- installed yet); plain muxes keep the legacy path until protocol/group/monitor
--- selectors use Startup.roleId/infraIds/monitoringPC (M2 selector slice).
+-- Plain muxes keep the legacy two-job startup; a configured frame is admitted
+-- only for the actual non-plain layout installed by configureMux.
 startupAllowed (Startup.configureStartup E.plainLayout) f s = false
 startupAllowed (Startup.configureStartup plan) f s = layoutIs plan f s
 startupAllowed Startup.openPool f s with Startup.phase (startup f)
@@ -238,12 +251,14 @@ data Action : Set where
   run : B.Action → Action
   negotiate : WorkerId → List Protocol → DataFlow → Action
   allocateHandle : WorkerId → HandleId → MuxId → Action
+  configureMux : WorkerId → E.Layout → ℕ → ℕ → List (MuxRuntime.ProtocolKey × E.Lane) → Action
   publishSuccess : WorkerId → Action
   startupStep : WorkerId → Startup.Action → Action
 step : Action → State → Maybe State
 step (run action) s = inherit action s
 step (negotiate w ps negotiatedFlow) s = negotiateReturned w ps negotiatedFlow s
 step (allocateHandle w hid mid) s = allocate w hid mid s
+step (configureMux w plan limit bound keys) s = configure w plan limit bound keys s
 step (publishSuccess w) s = publish w s
 step (startupStep w action) s = advanceStartup w action s
 

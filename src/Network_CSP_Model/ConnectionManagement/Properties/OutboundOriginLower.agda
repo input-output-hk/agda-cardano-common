@@ -59,7 +59,7 @@ module Physical where
  ...     | just next = case just-injective eq of λ { refl → outbound-effect action (B.source s) actual }
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; configure; configureMux; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
  note-source : ∀ origin s → U.source (U.noteBirth origin s) ≡ U.source s
  note-source nothing s = refl
  note-source (just origin) s = refl
@@ -71,6 +71,7 @@ module Mux where
  ...   | just b = case just-injective eq of λ { refl → reframe refl (note-source (U.birth a (U.base s)) (record s { base = b })) (Physical.effect a (U.base s) actual) }
  effect (U.negotiate w ps flow) s eq = same (Quiet.Mux.direct-same (U.negotiate w ps flow) s eq tt)
  effect (U.allocateHandle w hid mid) s eq = same (Quiet.Mux.direct-same (U.allocateHandle w hid mid) s eq tt)
+ effect (U.configureMux w plan limit bound keys) s eq = same (Quiet.Mux.direct-same (U.configureMux w plan limit bound keys) s eq tt)
  effect (U.publishSuccess w) s eq = same (Quiet.Mux.direct-same (U.publishSuccess w) s eq tt)
  effect (U.startupStep w action) s eq = same (Quiet.Mux.direct-same (U.startupStep w action) s eq tt)
 

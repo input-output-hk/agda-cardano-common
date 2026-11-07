@@ -215,11 +215,12 @@ findOwner j ((w , f) ∷ rest) with lookup j (Pool.handles (Startup.pool (U.star
 ownerOf : JobId → State → Maybe (WorkerId × U.Frame)
 ownerOf j s = findOwner j (U.frames (P.base (protocolState s)))
 isInfra : JobId → U.Frame → Bool
-isInfra j f with P.infraId Types.muxer (Startup.phase (U.startup f)) | P.infraId Types.demuxer (Startup.phase (U.startup f))
-... | just m | just d = does (j ≟ m) ∨ does (j ≟ d)
-... | just m | nothing = does (j ≟ m)
-... | nothing | just d = does (j ≟ d)
-... | nothing | nothing = false
+isInfra j f = anyId (Startup.infraIds (Startup.phase (U.startup f)))
+  where
+  -- Every actual born infrastructure job (legacy pair or configured roles).
+  anyId : List JobId → Bool
+  anyId [] = false
+  anyId (k ∷ ks) = does (j ≟ k) ∨ anyId ks
 
 -- This bookkeeping removes a ghost pending occurrence for a clean completion
 -- already committed before AsyncCancelled. Idle/result-cell writes stay intact;
