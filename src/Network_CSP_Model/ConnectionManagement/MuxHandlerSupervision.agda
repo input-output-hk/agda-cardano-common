@@ -118,6 +118,8 @@ igAllowed : IG.IGAction → State → Bool
 igAllowed (IG.installHandle _ _ _ _ _) s = false
 igAllowed (IG.installOutboundHandle _ _ _ _ _) s = false
 igAllowed (IG.configureEgress _ _ _ _ _) s = false
+igAllowed (IG.registerCells _) s = false
+igAllowed (IG.retireCells _) s = false
 igAllowed action s with Life.muxAction action
 ... | nothing = true
 ... | just (mid , access) = not (hasMux mid (frames s))
@@ -186,6 +188,23 @@ configure w plan limit bound keys s with lookup w (frames s)
 ...     | just c = just (setSource c s)
 configure w plan limit bound keys s | just f | _ = nothing
 
+-- withByteCells registers the mux run's byte cells atomically just before
+-- pool entry (legacy egressReady or configured cfgBeforePool), at most once.
+beforePool : Startup.PC → Bool
+beforePool Startup.egressReady = true
+beforePool (Startup.configured g) with Startup.stage g
+... | Startup.cfgBeforePool = true
+... | _ = false
+beforePool _ = false
+registerFor : WorkerId → State → Maybe State
+registerFor w s with lookup w (frames s)
+... | nothing = nothing
+... | just f with progress f | beforePool (Startup.phase (startup f))
+...   | promisePublished hid mid | true with O.advance (O.inbound (M.igStep (IG.registerCells mid))) (source s)
+...     | nothing = nothing
+...     | just c = just (setSource c s)
+registerFor w s | just f | _ | _ = nothing
+
 -- Promise publication and startup observation are one coupled event. No
 -- standalone observePublication action can create a fictitious published handle.
 publish : WorkerId → State → Maybe State
@@ -252,6 +271,7 @@ data Action : Set where
   negotiate : WorkerId → List Protocol → DataFlow → Action
   allocateHandle : WorkerId → HandleId → MuxId → Action
   configureMux : WorkerId → E.Layout → ℕ → ℕ → List (MuxRuntime.ProtocolKey × E.Lane) → Action
+  registerCounters : WorkerId → Action
   publishSuccess : WorkerId → Action
   startupStep : WorkerId → Startup.Action → Action
 step : Action → State → Maybe State
@@ -259,6 +279,7 @@ step (run action) s = inherit action s
 step (negotiate w ps negotiatedFlow) s = negotiateReturned w ps negotiatedFlow s
 step (allocateHandle w hid mid) s = allocate w hid mid s
 step (configureMux w plan limit bound keys) s = configure w plan limit bound keys s
+step (registerCounters w) s = registerFor w s
 step (publishSuccess w) s = publish w s
 step (startupStep w action) s = advanceStartup w action s
 

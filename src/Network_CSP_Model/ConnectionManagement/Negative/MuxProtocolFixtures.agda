@@ -46,7 +46,7 @@ module G where
   armedMux = record newMux { protocols = (1 , Mux.demand) ∷ []; commands = Mux.startCommand proto ∷ [] }
   installedIG : IG.Runtime
   installedIG = IG.runtimeState IG.emptyPublished 0 IG.sampleTime
-    (IG.engine ((ident 0 , Mux.handleState mid (proto ∷ []) duplex) ∷ []) ((mid , newMux) ∷ []) [] true 0)
+    (IG.engine ((ident 0 , Mux.handleState mid (proto ∷ []) duplex) ∷ []) ((mid , newMux) ∷ []) [] true 0 [] 0 [])
 module Fixture where
   caller child : WorkerId
   caller = ident 10

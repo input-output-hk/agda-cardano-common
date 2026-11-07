@@ -33,7 +33,7 @@ import ConnectionManagement.Properties.InboundOriginCore as Core
 open import ConnectionManagement.Properties.InboundOriginEffect using (Effect; same; reframe; outbound-effect)
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; configure; configureMux; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
  note-source : ∀ origin s → U.source (U.noteBirth origin s) ≡ U.source s
  note-source nothing s = refl
  note-source (just origin) s = refl
@@ -46,6 +46,7 @@ module Mux where
  effect (U.negotiate w ps flow) s eq = same (Quiet.Mux.direct-same (U.negotiate w ps flow) s eq tt)
  effect (U.allocateHandle w hid mid) s eq = same (Quiet.Mux.direct-same (U.allocateHandle w hid mid) s eq tt)
  effect (U.configureMux w plan limit bound keys) s eq = same (Quiet.Mux.direct-same (U.configureMux w plan limit bound keys) s eq tt)
+ effect (U.registerCounters w) s eq = same (Quiet.Mux.direct-same (U.registerCounters w) s eq tt)
  effect (U.publishSuccess w) s eq = same (Quiet.Mux.direct-same (U.publishSuccess w) s eq tt)
  effect (U.startupStep w action) s eq = same (Quiet.Mux.direct-same (U.startupStep w action) s eq tt)
 
@@ -96,7 +97,7 @@ module Monitor (b : ErrorId → Bool) where
  effect (M.finishDead w) s eq = same (Quiet.Monitor.direct-same b (M.finishDead w) s eq tt)
 
 module Group (b : ErrorId → Bool) where
- private module G = GroupModel b using (Action; source; State; abortOwner; base; beginAsyncDead; beginWholeClose; captureGroup; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverWhole; drainEmpty; finishAsyncDead; finishChildUnwind; finishGroup; finishNormalScope; finishStoppedTrace; finishWholeClose; initial; joinGroup; joinWhole; observeStoppingTrace; observeTraceStopped; requestGroupCancel; requestShutdown; requestWholeCancel; run; sampleAsyncTracer; sampleStoppedTracer; selectShutdown; step; timeout2Elapsed; unwindReplacedBySync; writeAsyncFailure; writeStopped; writeStopping)
+ private module G = GroupModel b using (Action; source; State; abortOwner; base; beginAsyncDead; beginWholeClose; captureGroup; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverWhole; drainEmpty; finishAsyncDead; finishChildUnwind; finishGroup; finishNormalScope; finishStoppedTrace; finishWholeClose; initial; joinGroup; joinWhole; observeStoppingTrace; observeTraceStopped; requestGroupCancel; requestShutdown; retireCounters; requestWholeCancel; run; sampleAsyncTracer; sampleStoppedTracer; selectShutdown; step; timeout2Elapsed; unwindReplacedBySync; writeAsyncFailure; writeStopped; writeStopping)
  private module M = MonitorModel b using (step)
  effect : ∀ a s {t} → G.step a s ≡ just t → Effect (O.core (G.source s)) (O.core (G.source t))
  effect (G.run a) s eq with G.delegateAllowed a s
@@ -105,6 +106,7 @@ module Group (b : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just lower = case just-injective eq of λ { refl → Monitor.effect b a (G.base s) actual }
  effect (G.requestShutdown w) s eq = same (Quiet.Group.direct-same b (G.requestShutdown w) s eq tt)
+ effect (G.retireCounters w) s eq = same (Quiet.Group.direct-same b (G.retireCounters w) s eq tt)
  effect (G.selectShutdown w) s eq = same (Quiet.Group.direct-same b (G.selectShutdown w) s eq tt)
  effect (G.observeStoppingTrace w) s eq = same (Quiet.Group.direct-same b (G.observeStoppingTrace w) s eq tt)
  effect (G.writeStopping w) s eq = same (Quiet.Group.direct-same b (G.writeStopping w) s eq tt)

@@ -37,7 +37,7 @@ inbound-same action c eq quiet with Machine.advance action (O.core c) in actual
 ...   | refl = Core.machine-same action (O.core c) actual quiet
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  table : U.State → Store WorkerId S.AdmissionWorker
  table s = S.admissions (Machine.world (O.core (U.source s)))
@@ -79,6 +79,18 @@ module Mux where
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
+ -- Counter registration writes only the actual IG registry.
+ register-same : ∀ w s {s′} → U.registerFor w s ≡ just s′ → table s′ ≡ table s
+ register-same w s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f | U.beforePool (U.Startup.phase (U.startup f))
+ ...   | U.promisePublished hid mid | true with O.advance (O.inbound (Machine.igStep (IG.registerCells mid))) (U.source s) in advanced
+ ...     | nothing = case eq of λ ()
+ ...     | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (IG.registerCells mid)) (U.source s) advanced tt }
+ register-same w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
+ register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
+
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → table s′ ≡ table s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -110,6 +122,7 @@ module Mux where
  direct-same (U.negotiate w ps flow) s eq direct = negotiate-same w ps flow s eq
  direct-same (U.allocateHandle w hid mid) s eq direct = allocate-same w hid mid s eq
  direct-same (U.configureMux w plan limit bound keys) s eq direct = configure-same w plan limit bound keys s eq
+ direct-same (U.registerCounters w) s eq direct = register-same w s eq
  direct-same (U.publishSuccess w) s eq direct = publish-same w s eq
  direct-same (U.startupStep w a) s eq direct = startup-shutdown w a s eq
 
@@ -462,7 +475,7 @@ module Monitor (isBearerClosed : ErrorId → Bool) where
  direct-same (W.finishDead w) s eq direct = CIPaths.same-admissions (ci-finish-dead-projects w s eq)
 
 module Group (isBearerClosed : ErrorId → Bool) where
- private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; isInfra; joined; joinGroup; joinMini; joinMiniHead; joinWhole; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
+ private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; isInfra; joined; joinGroup; joinMini; joinMiniHead; joinWhole; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; retireFor; retireAllowed; retireCounters; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
  private module M = W.M using (deadReady; deadTracing; failed; finishMatches; finished; initiatorTracing; pcAt; responderTracing; selected; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; source; protocolException; sameOutcome; step)
  private module U = P.U using (module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess)
@@ -522,6 +535,16 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
+ -- Counter retirement writes only the actual IG registry at scopeDone.
+ ci-retire-projects : ∀ w s {s′} → W.retireFor w s ≡ just s′ → CIPaths s s′
+ ci-retire-projects w s eq with W.retireAllowed (W.phase (W.frameAt w s))
+ ... | false = case eq of λ ()
+ ... | true with lookup w (U.frames (P.base (W.protocolState s)))
+ ...   | nothing = case eq of λ ()
+ ...   | just f with U.progress f
+ ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | U.returnedSuccess = case eq of λ ()
+ ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
  ci-select-projects w s eq with W.phase (W.frameAt w s) | M.pcAt w (W.base s) | W.ownerContext w s
  ... | W.idle | M.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
@@ -968,6 +991,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  direct-same : ∀ a s {t} → W.step a s ≡ just t → IsDirect a → table t ≡ table s
  direct-same (W.run a) s eq ()
  direct-same (W.requestShutdown w) s eq direct = CIPaths.same-admissions (ci-request-projects w s eq)
+ direct-same (W.retireCounters w) s eq direct = CIPaths.same-admissions (ci-retire-projects w s eq)
  direct-same (W.selectShutdown w) s eq direct = CIPaths.same-admissions (ci-select-projects w s eq)
  direct-same (W.observeStoppingTrace w) s eq direct = CIPaths.same-admissions (ci-from-phase-projects w W.shutdownSelected W.stoppingTraced s eq)
  direct-same (W.writeStopping w) s eq direct = CIPaths.same-admissions (ci-source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq)

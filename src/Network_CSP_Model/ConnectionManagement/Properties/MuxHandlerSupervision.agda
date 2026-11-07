@@ -162,6 +162,18 @@ configure-projects w (E.scheduledLayout slice) limit bound keys s eq with lookup
 configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | W.returnedSuccess = case eq of λ ()
 configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | W.promisePublished h m = case eq of λ ()
 
+-- Counter registration writes only the actual IG registry.
+register-projects : ∀ w s {s′} → W.registerFor w s ≡ just s′ → Paths s s′
+register-projects w s eq with lookup w (W.frames s)
+... | nothing = case eq of λ ()
+... | just f with W.progress f | W.beforePool (W.Startup.phase (W.startup f))
+...   | W.promisePublished hid mid | true with O.advance (O.inbound (M.igStep (IG.registerCells mid))) (W.source s) in advanced
+...     | nothing = case eq of λ ()
+...     | just c = case just-injective eq of λ { refl → source-paths (O.inbound (M.igStep (IG.registerCells mid))) s advanced }
+register-projects w s eq | just f | W.promisePublished hid mid | false = case eq of λ ()
+register-projects w s eq | just f | W.returnedSuccess | _ = case eq of λ ()
+register-projects w s eq | just f | W.handleAllocated h m | _ = case eq of λ ()
+
 publish-projects : ∀ w s {s′} → W.publish w s ≡ just s′ → Paths s s′
 publish-projects w s eq with lookup w (W.frames s) in found
 ... | nothing = case eq of λ ()
@@ -197,6 +209,7 @@ step-projects (W.run action) s eq = inherit-projects action s eq
 step-projects (W.negotiate w ps flow) s eq = negotiate-projects w ps flow s eq
 step-projects (W.allocateHandle w hid mid) s eq = allocate-projects w hid mid s eq
 step-projects (W.configureMux w plan limit bound keys) s eq = configure-projects w plan limit bound keys s eq
+step-projects (W.registerCounters w) s eq = register-projects w s eq
 step-projects (W.publishSuccess w) s eq = publish-projects w s eq
 step-projects (W.startupStep w action) s eq = startup-projects w action s eq
 exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → Paths s s′

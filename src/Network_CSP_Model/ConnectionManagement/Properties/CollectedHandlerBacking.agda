@@ -474,7 +474,7 @@ open import Data.Bool using (_∧_)
 
 -- Startup, protocol and monitor metadata do not add CM collection entries.
 module Mux where
- private module U = MuxModel Types.TypedResult using (State; allocateHandle; configure; configureMux; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
  view : U.State → Effects.Registry
  view = Effects.MuxLayer.view
  shutdown : U.State → Close.State
@@ -492,6 +492,7 @@ module Mux where
  ...   | just b = case just-injective eq of λ { refl → note-valid (U.birth a (U.base s)) (record s { base = b }) (Physical.step-preserves a (U.base s) actual valid) }
  step-preserves (U.negotiate w ps flow) s eq valid = transport (Effects.MuxLayer.change (U.negotiate w ps flow) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.negotiate w ps flow) s eq tt)) valid)
  step-preserves (U.allocateHandle w hid mid) s eq valid = transport (Effects.MuxLayer.change (U.allocateHandle w hid mid) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.allocateHandle w hid mid) s eq tt)) valid)
+ step-preserves (U.registerCounters w) s eq valid = transport (Effects.MuxLayer.change (U.registerCounters w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.registerCounters w) s eq tt)) valid)
  step-preserves (U.configureMux w plan limit bound keys) s eq valid = transport (Effects.MuxLayer.change (U.configureMux w plan limit bound keys) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.configureMux w plan limit bound keys) s eq tt)) valid)
  step-preserves (U.publishSuccess w) s eq valid = transport (Effects.MuxLayer.change (U.publishSuccess w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.publishSuccess w) s eq tt)) valid)
  step-preserves (U.startupStep w action) s eq valid = transport (Effects.MuxLayer.change (U.startupStep w action) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.startupStep w action) s eq tt)) valid)
@@ -571,7 +572,7 @@ module Monitor (isBearerClosed : ErrorId → Bool) where
  ... | just lower = case just-injective eq of λ { refl → Protocol.initialized-valid c actual }
 
 module Group (isBearerClosed : ErrorId → Bool) where
- private module G = GroupModel isBearerClosed using (State; abortOwner; base; beginAsyncDead; beginWholeClose; captureGroup; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverWhole; drainEmpty; finishAsyncDead; finishChildUnwind; finishGroup; finishNormalScope; finishStoppedTrace; finishWholeClose; initial; joinGroup; joinWhole; observeStoppingTrace; observeTraceStopped; requestGroupCancel; requestShutdown; requestWholeCancel; run; sampleAsyncTracer; sampleStoppedTracer; selectShutdown; step; timeout2Elapsed; unwindReplacedBySync; writeAsyncFailure; writeStopped; writeStopping)
+ private module G = GroupModel isBearerClosed using (State; abortOwner; base; beginAsyncDead; beginWholeClose; captureGroup; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverWhole; drainEmpty; finishAsyncDead; finishChildUnwind; finishGroup; finishNormalScope; finishStoppedTrace; finishWholeClose; initial; joinGroup; joinWhole; observeStoppingTrace; observeTraceStopped; requestGroupCancel; requestShutdown; retireCounters; requestWholeCancel; run; sampleAsyncTracer; sampleStoppedTracer; selectShutdown; step; timeout2Elapsed; unwindReplacedBySync; writeAsyncFailure; writeStopped; writeStopping)
  private module M = MonitorModel isBearerClosed using (initial; step)
  view : G.State → Effects.Registry
  view = Effects.GroupLayer.view isBearerClosed
@@ -586,6 +587,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just lower = case just-injective eq of λ { refl → Monitor.step-preserves isBearerClosed a (G.base s) actual valid }
  step-preserves (G.requestShutdown w) s eq valid = transport (Effects.GroupLayer.change isBearerClosed (G.requestShutdown w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Group.direct-shutdown-same isBearerClosed (G.requestShutdown w) s eq tt)) valid)
+ step-preserves (G.retireCounters w) s eq valid = transport (Effects.GroupLayer.change isBearerClosed (G.retireCounters w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Group.direct-shutdown-same isBearerClosed (G.retireCounters w) s eq tt)) valid)
  step-preserves (G.selectShutdown w) s eq valid = transport (Effects.GroupLayer.change isBearerClosed (G.selectShutdown w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Group.direct-shutdown-same isBearerClosed (G.selectShutdown w) s eq tt)) valid)
  step-preserves (G.observeStoppingTrace w) s eq valid = transport (Effects.GroupLayer.change isBearerClosed (G.observeStoppingTrace w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Group.direct-shutdown-same isBearerClosed (G.observeStoppingTrace w) s eq tt)) valid)
  step-preserves (G.writeStopping w) s eq valid = transport (Effects.GroupLayer.change isBearerClosed (G.writeStopping w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Group.direct-shutdown-same isBearerClosed (G.writeStopping w) s eq tt)) valid)

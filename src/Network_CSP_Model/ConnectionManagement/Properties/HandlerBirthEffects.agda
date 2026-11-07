@@ -553,6 +553,18 @@ module MuxLayer where
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
+ -- Counter registration writes only the actual IG registry.
+ register-same : ∀ w s {s′} → U.registerFor w s ≡ just s′ → view s′ ≡ view s
+ register-same w s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f | U.beforePool (U.Startup.phase (U.startup f))
+ ...   | U.promisePublished hid mid | true with O.advance (O.inbound (M.igStep (IG.registerCells mid))) (U.source s) in advanced
+ ...     | nothing = case eq of λ ()
+ ...     | just c = case just-injective eq of λ { refl → refl }
+ register-same w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
+ register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
+
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → view s′ ≡ view s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -571,6 +583,7 @@ module MuxLayer where
  change (U.negotiate w ps flow) s eq = stable (negotiate-same w ps flow s eq)
  change (U.allocateHandle w hid mid) s eq = stable (allocate-same w hid mid s eq)
  change (U.configureMux w plan limit bound keys) s eq = stable (configure-same w plan limit bound keys s eq)
+ change (U.registerCounters w) s eq = stable (register-same w s eq)
  change (U.publishSuccess w) s eq = stable (publish-same w s eq)
  change (U.startupStep w a) s eq = stable (cong captures (Old.startup-parent-registry w a s eq))
 
@@ -983,6 +996,16 @@ module GroupLayer (isBearerClosed : ErrorId → Bool) where
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
+ -- Counter retirement writes only the actual IG registry at scopeDone.
+ ci-retire-projects : ∀ w s {s′} → W.retireFor w s ≡ just s′ → CIPaths s s′
+ ci-retire-projects w s eq with W.retireAllowed (W.phase (W.frameAt w s))
+ ... | false = case eq of λ ()
+ ... | true with lookup w (U.frames (P.base (W.protocolState s)))
+ ...   | nothing = case eq of λ ()
+ ...   | just f with U.progress f
+ ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | U.returnedSuccess = case eq of λ ()
+ ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
  ci-select-projects w s eq with W.phase (W.frameAt w s) | Monitor.pcAt w (W.base s) | W.ownerContext w s
  ... | W.idle | Monitor.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
@@ -1410,6 +1433,7 @@ module GroupLayer (isBearerClosed : ErrorId → Bool) where
  change : ∀ action s {s′} → W.step action s ≡ just s′ → Change (Selected action) (view s) (view s′)
  change (W.run action) s eq = inherited-change action s eq
  change (W.requestShutdown w) s eq = stable (CIPaths.retention (ci-request-projects w s eq))
+ change (W.retireCounters w) s eq = stable (CIPaths.retention (ci-retire-projects w s eq))
  change (W.selectShutdown w) s eq = stable (CIPaths.retention (ci-select-projects w s eq))
  change (W.observeStoppingTrace w) s eq = stable (CIPaths.retention (ci-from-phase-projects w W.shutdownSelected W.stoppingTraced s eq))
  change (W.writeStopping w) s eq = stable (CIPaths.retention (ci-source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq))

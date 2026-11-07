@@ -53,6 +53,8 @@ data CoveredMux : IG.IGAction → Set where
   stopped : ∀ {mid} → CoveredMux (IG.finishStop mid)
   egress : ∀ {mid action} → CoveredMux (IG.egressStep mid action)
   configure : ∀ {mid plan limit bound keys} → CoveredMux (IG.configureEgress mid plan limit bound keys)
+  register : ∀ {mid} → CoveredMux (IG.registerCells mid)
+  retire : ∀ {mid} → CoveredMux (IG.retireCells mid)
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
@@ -63,6 +65,19 @@ worker-anchors .(IG.egressStep mid action) (egress {mid} {action}) ig queue eq
 ... | just m with M.Egress.step action (M.egress m)
 ...   | nothing = case eq of λ ()
 ...   | just updatedEgress = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+-- Counter registration/retirement writes only the registry fields.
+worker-anchors .(IG.registerCells mid) (register {mid}) ig queue eq
+  with lookup mid (IG.muxes (IG.execution ig)) | IG.rowOf mid (IG.counterRows (IG.execution ig))
+... | just m | nothing = case just-injective eq of λ { refl → record
+  { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+... | just m | just _ = case eq of λ ()
+... | nothing | _ = case eq of λ ()
+worker-anchors .(IG.retireCells mid) (retire {mid}) ig queue eq
+  with lookup mid (IG.muxes (IG.execution ig)) | IG.rowOf mid (IG.counterRows (IG.execution ig))
+... | just m | just i = case just-injective eq of λ { refl → record
+  { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+... | just m | nothing = case eq of λ ()
+... | nothing | _ = case eq of λ ()
 -- A configured profile replaces only the actual mux's pristine egress.
 worker-anchors .(IG.configureEgress mid plan limit bound keys) (configure {mid} {plan} {limit} {bound} {keys}) ig queue eq
   with lookup mid (IG.muxes (IG.execution ig)) in found
@@ -367,6 +382,8 @@ mode-anchors noResponderMode .(IG.configureEgress mid plan limit bound keys) (co
   with IG.initiatorKeys keys
 ... | false = case eq of λ ()
 ... | true = worker-anchors (IG.configureEgress mid plan limit bound keys) configure ig queue eq
+mode-anchors noResponderMode .(IG.registerCells mid) (register {mid}) ig queue eq = worker-anchors (IG.registerCells mid) register ig queue eq
+mode-anchors noResponderMode .(IG.retireCells mid) (retire {mid}) ig queue eq = worker-anchors (IG.retireCells mid) retire ig queue eq
 mode-anchors noResponderMode .(IG.sampleTracer mid) (sample {mid}) ig queue eq = worker-anchors (IG.sampleTracer mid) sample ig queue eq
 mode-anchors noResponderMode .(IG.commitTracer mid) (trace {mid}) ig queue eq = worker-anchors (IG.commitTracer mid) trace ig queue eq
 mode-anchors noResponderMode .(IG.finishStop mid) (stopped {mid}) ig queue eq = worker-anchors (IG.finishStop mid) stopped ig queue eq

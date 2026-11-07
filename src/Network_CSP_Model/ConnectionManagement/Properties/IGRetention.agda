@@ -17,6 +17,8 @@ mode-retains : ∀ mode a ig queue {ig′ queue′} →
   IG.step mode a ig queue ≡ just (ig′ , queue′) → Retains ig ig′
 mode-retains mode (IG.egressStep mid action) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.egressStep mid action) Mux.egress ig queue eq)
 mode-retains mode (IG.configureEgress mid plan limit bound keys) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.configureEgress mid plan limit bound keys) Mux.configure ig queue eq)
+mode-retains mode (IG.registerCells mid) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.registerCells mid) Mux.register ig queue eq)
+mode-retains mode (IG.retireCells mid) ig queue eq = from-anchors (Mux.mode-anchors mode (IG.retireCells mid) Mux.retire ig queue eq)
 mode-retains mode IG.commitDecision ig queue eq = Boundary.mode-retains mode IG.commitDecision Boundary.decision ig queue eq
 mode-retains mode (IG.installHandle hid mid k ps flow) ig queue eq = Boundary.mode-retains mode (IG.installHandle hid mid k ps flow) Boundary.install ig queue eq
 mode-retains mode (IG.installOutboundHandle hid mid k ps flow) ig queue eq = Boundary.mode-retains mode (IG.installOutboundHandle hid mid k ps flow) Boundary.installOutbound ig queue eq

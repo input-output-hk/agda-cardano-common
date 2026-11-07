@@ -29,6 +29,7 @@ import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 import ConnectionManagement.MuxGroupShutdown as Group
+import ConnectionManagement.Rules.IGRegistration as IG
 module G = Group isBearerClosed
 module M = G.M
 module P = G.P
@@ -177,6 +178,13 @@ data Action : Set where
   deliverReleaseMux : WorkerId → ErrorId → Action
   acknowledgeReleaseFinished : WorkerId → Action
 
+-- The mux run returns only after withByteCells retired any registered row.
+countersClear : U.Frame → State → Bool
+countersClear f s with U.progress f
+... | U.promisePublished hid mid with IG.rowOf mid (IG.counterRows (IG.execution (Machine.inboundGovernor (O.core (source s)))))
+...   | nothing = true
+...   | just _ = false
+countersClear f s | _ = true
 choose : Action → State → Maybe Plan
 choose (run action) s with delegateAllowed action
 ... | true = just (inherited action)
@@ -184,7 +192,7 @@ choose (run action) s with delegateAllowed action
 choose (beginExit w) s with lookup w (exits s) | lookup w (U.frames (P.base (G.protocolState (base s)))) |
   G.phase (G.frameAt w (base s)) | Pool.phase (poolAt w s)
 ... | nothing | just f | G.scopeDone outcome | Pool.closedPool with lookup w (Shared.handlers (shared s))
-...   | just h with sameStart (U.captured f) h
+...   | just h with sameStart (U.captured f) h ∧ countersClear f s
 ...     | true = just (local (put w (exitFrame (U.captured f) (bufferScope outcome) nothing) (exits s)))
 ...     | false = nothing
 choose (beginExit w) s | nothing | just f | G.scopeDone outcome | Pool.closedPool | nothing = nothing

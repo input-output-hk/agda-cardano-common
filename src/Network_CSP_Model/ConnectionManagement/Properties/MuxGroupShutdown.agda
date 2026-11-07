@@ -117,6 +117,16 @@ request-projects w s eq with lookup w (U.frames (P.base (W.protocolState s)))
 ...   | U.promisePublished hid mid = via-source-projects (IG.enqueueMuxStop mid) s eq
 ...   | U.returnedSuccess = case eq of λ ()
 ...   | U.handleAllocated hid mid = case eq of λ ()
+-- Counter retirement writes only the actual IG registry at scopeDone.
+retire-projects : ∀ w s {s′} → W.retireFor w s ≡ just s′ → Paths s s′
+retire-projects w s eq with W.retireAllowed (W.phase (W.frameAt w s))
+... | false = case eq of λ ()
+... | true with lookup w (U.frames (P.base (W.protocolState s)))
+...   | nothing = case eq of λ ()
+...   | just f with U.progress f
+...     | U.promisePublished hid mid = via-source-projects (IG.retireCells mid) s eq
+...     | U.returnedSuccess = case eq of λ ()
+...     | U.handleAllocated hid mid = case eq of λ ()
 select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → Paths s s′
 select-projects w s eq with W.phase (W.frameAt w s) | Monitor.pcAt w (W.base s) | W.ownerContext w s
 ... | W.idle | Monitor.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
@@ -575,6 +585,7 @@ finish-stopped-projects w s eq = subst (Paths s)
 step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → Paths s s′
 step-projects (W.run action) s eq = inherit-projects action s eq
 step-projects (W.requestShutdown w) s eq = request-projects w s eq
+step-projects (W.retireCounters w) s eq = retire-projects w s eq
 step-projects (W.selectShutdown w) s eq = select-projects w s eq
 step-projects (W.observeStoppingTrace w) s eq = from-phase-projects w W.shutdownSelected W.stoppingTraced s eq
 step-projects (W.writeStopping w) s eq = source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq
@@ -953,6 +964,16 @@ module CaptureIdentity where
   ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
   ...   | U.returnedSuccess = case eq of λ ()
   ...   | U.handleAllocated hid mid = case eq of λ ()
+  -- Counter retirement writes only the actual IG registry at scopeDone.
+  ci-retire-projects : ∀ w s {s′} → W.retireFor w s ≡ just s′ → CIPaths s s′
+  ci-retire-projects w s eq with W.retireAllowed (W.phase (W.frameAt w s))
+  ... | false = case eq of λ ()
+  ... | true with lookup w (U.frames (P.base (W.protocolState s)))
+  ...   | nothing = case eq of λ ()
+  ...   | just f with U.progress f
+  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+  ...     | U.returnedSuccess = case eq of λ ()
+  ...     | U.handleAllocated hid mid = case eq of λ ()
   ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
   ci-select-projects w s eq with W.phase (W.frameAt w s) | Monitor.pcAt w (W.base s) | W.ownerContext w s
   ... | W.idle | Monitor.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
@@ -1380,6 +1401,7 @@ module CaptureIdentity where
   ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
   ci-step-projects (W.run action) s eq = ci-inherit-projects action s eq
   ci-step-projects (W.requestShutdown w) s eq = ci-request-projects w s eq
+  ci-step-projects (W.retireCounters w) s eq = ci-retire-projects w s eq
   ci-step-projects (W.selectShutdown w) s eq = ci-select-projects w s eq
   ci-step-projects (W.observeStoppingTrace w) s eq = ci-from-phase-projects w W.shutdownSelected W.stoppingTraced s eq
   ci-step-projects (W.writeStopping w) s eq = ci-source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq
@@ -1484,6 +1506,16 @@ module CommittedRows where
   ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
   ...   | U.returnedSuccess = case eq of λ ()
   ...   | U.handleAllocated hid mid = case eq of λ ()
+  -- Counter retirement writes only the actual IG registry at scopeDone.
+  ci-retire-projects : ∀ w s {s′} → W.retireFor w s ≡ just s′ → CIPaths s s′
+  ci-retire-projects w s eq with W.retireAllowed (W.phase (W.frameAt w s))
+  ... | false = case eq of λ ()
+  ... | true with lookup w (U.frames (P.base (W.protocolState s)))
+  ...   | nothing = case eq of λ ()
+  ...   | just f with U.progress f
+  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+  ...     | U.returnedSuccess = case eq of λ ()
+  ...     | U.handleAllocated hid mid = case eq of λ ()
   ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
   ci-select-projects w s eq with W.phase (W.frameAt w s) | Monitor.pcAt w (W.base s) | W.ownerContext w s
   ... | W.idle | Monitor.waiting | just (f , mid) with P.noParent (W.poolAt w s) | P.noResults (W.poolAt w s)
@@ -1911,6 +1943,7 @@ module CommittedRows where
   ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
   ci-step-projects (W.run action) s eq = ci-inherit-projects action s eq
   ci-step-projects (W.requestShutdown w) s eq = ci-request-projects w s eq
+  ci-step-projects (W.retireCounters w) s eq = ci-retire-projects w s eq
   ci-step-projects (W.selectShutdown w) s eq = ci-select-projects w s eq
   ci-step-projects (W.observeStoppingTrace w) s eq = ci-from-phase-projects w W.shutdownSelected W.stoppingTraced s eq
   ci-step-projects (W.writeStopping w) s eq = ci-source-phase-projects w W.stoppingTraced W.stoppingWritten IG.recordMuxStopping s eq

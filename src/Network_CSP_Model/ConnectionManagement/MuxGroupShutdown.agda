@@ -128,6 +128,19 @@ requestStop w s with lookup w (U.frames (P.base (protocolState s)))
 ... | just f with U.progress f
 ...   | U.promisePublished hid mid = viaSource (IG.enqueueMuxStop mid) s
 ...   | _ = nothing
+-- withByteCells retires after the whole pool bracket and its catch
+-- continuation: only at scopeDone, for the actual registered mux run.
+retireAllowed : Phase → Bool
+retireAllowed (scopeDone _) = true
+retireAllowed _ = false
+retireFor : WorkerId → State → Maybe State
+retireFor w s with retireAllowed (phase (frameAt w s))
+... | false = nothing
+... | true with lookup w (U.frames (P.base (protocolState s)))
+...   | nothing = nothing
+...   | just f with U.progress f
+...     | U.promisePublished hid mid = viaSource (IG.retireCells mid) s
+...     | _ = nothing
 selectStop : WorkerId → State → Maybe State
 selectStop w s with phase (frameAt w s) | M.pcAt w (base s) | ownerContext w s
 ... | idle | M.waiting | just (f , mid) with P.noParent (poolAt w s) | P.noResults (poolAt w s)
@@ -427,7 +440,7 @@ data Action : Set where
   run : M.Action → Action
   requestShutdown selectShutdown observeStoppingTrace writeStopping requestGroupCancel deliverGroup
     joinGroup finishGroup drainEmpty timeout2Elapsed writeStopped observeTraceStopped
-    sampleStoppedTracer commitStoppedTracer finishStoppedTrace : WorkerId → Action
+    sampleStoppedTracer commitStoppedTracer finishStoppedTrace retireCounters : WorkerId → Action
   captureGroup : WorkerId → List JobId → Action
   finishChildUnwind : JobId → Action
   unwindReplacedBySync : JobId → ErrorId → Action
@@ -438,6 +451,7 @@ data Action : Set where
 step : Action → State → Maybe State
 step (run action) s = inherit action s
 step (requestShutdown w) s = requestStop w s
+step (retireCounters w) s = retireFor w s
 step (selectShutdown w) s = selectStop w s
 step (observeStoppingTrace w) s = fromPhase w shutdownSelected stoppingTraced s
 step (writeStopping w) s = sourcePhase w stoppingTraced stoppingWritten IG.recordMuxStopping s

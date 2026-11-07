@@ -5,6 +5,7 @@
 module ConnectionManagement.Rules.IGRegistration where
 
 open import Class.DecEq.Instances using (DecEq-ℕ)
+import Class.DecEq as DecEqClass
 open import Data.Integer using (+_; -[1+_])
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤?_; _<?_)
 open import Data.List using (List; []; _∷_; _++_; map; null)
@@ -66,9 +67,15 @@ record Engine : Set where
         timers : Store TimerId TimeoutFlag
         active : Bool
         lastTime : ℕ
+        -- Optional shared mux byte-counter registry (Counters.hs withByteCells):
+        -- live rows name the registered mux run; retired keeps sent totals.
+        -- Received bytes are not modelled (no ingress byte cells).
+        counterRows : Store ℕ MuxId
+        nextRow : ℕ
+        retiredSent : Store M.ProtocolKey ℕ
 open Engine public
 emptyEngine : Engine
-emptyEngine = engine [] [] [] true 0
+emptyEngine = engine [] [] [] true 0 [] 0 []
 record Runtime : Set where
   constructor runtimeState
   field publishedState : Published
@@ -104,6 +111,8 @@ data IGAction : Set where
   -- Configured mux creation: exact directional keys, their requested lanes and
   -- the layout/limits, installed before publication on a pristine egress.
   configureEgress : MuxId → EgressKernel.Layout → ℕ → ℕ → List (M.ProtocolKey × EgressKernel.Lane) → IGAction
+  -- withByteCells: atomic register before pool entry; atomic retire after it.
+  registerCells retireCells : MuxId → IGAction
 
 Result = Runtime × List IGEvent
 
@@ -272,6 +281,18 @@ initiatorKeys : List (M.ProtocolKey × EgressKernel.Lane) → Bool
 initiatorKeys [] = true
 initiatorKeys (((_ , M.initiatorJob) , _) ∷ rest) = initiatorKeys rest
 initiatorKeys (((_ , M.responderJob) , _) ∷ rest) = false
+-- The live row registered for a mux run, if any.
+rowOf : MuxId → Store ℕ MuxId → Maybe ℕ
+rowOf mid [] = nothing
+rowOf mid ((i , owner) ∷ rows) with mid DecEqClass.≟ owner
+... | yes _ = just i
+... | no _ = rowOf mid rows
+-- Retirement adds each key's successful sent bytes to the retired totals.
+addSent : Store M.ProtocolKey M.Egress.Cell → Store M.ProtocolKey ℕ → Store M.ProtocolKey ℕ
+addSent [] totals = totals
+addSent ((k , c) ∷ cs) totals with lookup k totals
+... | nothing = addSent cs (put k (M.Egress.sent c) totals)
+... | just old = addSent cs (put k (old + M.Egress.sent c) totals)
 installWith : M.TracerAttachment → HandleId → MuxId → ConnectionKey → List Protocol → DataFlow →
   Runtime → List IGEvent → Maybe Result
 installWith attachment hid mid k ps flow r queue
@@ -419,6 +440,16 @@ stepWorker (configureEgress mid plan limit bound keys) r queue with lookup mid (
 ... | just m with pristine (M.egress m) ∧ keysListed keys (M.protocols m) | M.Egress.initial plan limit bound keys
 ...   | true | just e = just (setMux mid (record m { egress = e }) r , queue)
 ...   | _ | _ = nothing
+stepWorker (registerCells mid) r queue with lookup mid (muxes (execution r)) | rowOf mid (counterRows (execution r))
+... | just m | nothing = just (record r { execution = record (execution r)
+      { counterRows = put (nextRow (execution r)) mid (counterRows (execution r))
+      ; nextRow = suc (nextRow (execution r)) } } , queue)
+... | _ | _ = nothing
+stepWorker (retireCells mid) r queue with lookup mid (muxes (execution r)) | rowOf mid (counterRows (execution r))
+... | just m | just i = just (record r { execution = record (execution r)
+      { counterRows = delete i (counterRows (execution r))
+      ; retiredSent = addSent (M.Egress.cells (M.egress m)) (retiredSent (execution r)) } } , queue)
+... | _ | _ = nothing
 stepWorker (sampleTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.tracerAttachment m | M.callback m
@@ -643,6 +674,8 @@ step noResponderMode (installOutboundHandle hid mid k ps flow) ig queue =
 step noResponderMode (configureEgress mid plan limit bound keys) ig queue with initiatorKeys keys
 ... | true = stepWorker (configureEgress mid plan limit bound keys) ig queue
 ... | false = nothing
+step noResponderMode (registerCells mid) ig queue = stepWorker (registerCells mid) ig queue
+step noResponderMode (retireCells mid) ig queue = stepWorker (retireCells mid) ig queue
 step noResponderMode a ig queue with runtimeAllowed a ig
 ... | true = stepWorker a ig queue
 ... | false = nothing
