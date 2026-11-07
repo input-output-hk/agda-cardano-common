@@ -1,6 +1,6 @@
 # Model and proof migration plan
 
-Status: M0 contract fixed; M1 runtime/proof integration in progress (kernel component invariants closed 7 November: per-key conservation, lane exclusivity, routing provenance, write enabledness), M2 staged design only. Migration started at the user's request
+Status: M0 contract fixed; M1 runtime/proof integration in progress (kernel component invariants closed 7 November: per-key conservation, lane exclusivity, routing provenance, write enabledness), M2 in progress (7 November: configured startup kernel, role plan/bindings invariant, controls and handler layout/freshness guards; source installation, selectors and counter registry open). Migration started at the user's request
 on `kangfeng/connection_management_new_source`, based on accepted `daf111d`.
 Task Monitor goal `g-f038d197e9fe` tracks M0–M6. The [M0 profile](MigrationProfile.md)
 fixes source units, state ownership and the first-batch compatibility interface. Authority: [source audit](../review/connection-management-source-baseline-audit-2026-11-06.md),

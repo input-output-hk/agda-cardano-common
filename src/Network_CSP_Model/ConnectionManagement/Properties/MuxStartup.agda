@@ -5,7 +5,14 @@
 module ConnectionManagement.Properties.MuxStartup (Result : Set) where
 
 open import Data.Bool using (true; false)
-open import Data.List using (List; []; _∷_; _++_)
+open import Data.List using (List; []; _∷_; _++_; map; take; drop)
+open import Data.List.Properties using (map-++)
+open import Data.List.Relation.Unary.All using (All; []; _∷_)
+import Data.List.Relation.Unary.All as All
+import Data.List.Relation.Unary.All.Properties as AllProperties
+open import Data.List.Relation.Unary.AllPairs using (AllPairs; []; _∷_)
+import Data.List.Relation.Unary.AllPairs.Properties as AllPairsProperties
+open import Data.Nat using (ℕ; zero; suc)
 open import Data.Maybe using (just; nothing)
 open import Data.Maybe.Properties using (just-injective)
 open import Data.Product using (Σ; _×_; _,_; proj₁; proj₂)
@@ -13,11 +20,13 @@ open import Data.Unit using (⊤; tt)
 open import Data.Empty using (⊥-elim)
 open import Function using (case_of_)
 open import Relation.Nullary using (yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; trans; subst)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; sym; trans; subst; cong)
+open import Class.DecEq using (DecEq; _≟_)
 open import ConnectionManagement.Domain
-open import ConnectionManagement.Store using (lookup)
+open import ConnectionManagement.Store using (Store; lookup; put)
 open import ConnectionManagement.Properties.Entries using (Present; lookup-put; put-preserves-present)
 import ConnectionManagement.Rules.MuxStartup as Startup
+import ConnectionManagement.Rules.MuxJobTypes as Types
 module S = Startup Result
 module Pool = S.Pool
 
@@ -25,6 +34,12 @@ module Pool = S.Pool
 -- certificate therefore makes no claim that both actors remain registered.
 Pair : JobId → JobId → Pool.State → Set
 Pair muxer demuxer p = Present muxer (Pool.handles p) × Present demuxer (Pool.handles p) × muxer ≢ demuxer
+-- A configured frame binds each born role to a present, distinct physical
+-- handle of this same pool, in exactly the order of the layout's plan prefix.
+ConfiguredValid : S.ConfiguredFrame → Pool.State → Set
+ConfiguredValid f p = All (λ b → Present (proj₂ b) (Pool.handles p)) (S.bindings f) ×
+  AllPairs (λ a b → proj₂ a ≢ proj₂ b) (S.bindings f) ×
+  map proj₁ (S.bindings f) ≡ take (S.cursor f) (Types.infraPlan (S.layout f))
 PhaseValid : S.PC → Pool.State → Set
 PhaseValid (S.muxerForked muxer) p = Present muxer (Pool.handles p)
 PhaseValid (S.muxerRegistered muxer) p = Present muxer (Pool.handles p)
@@ -32,6 +47,7 @@ PhaseValid (S.demuxerForked muxer demuxer) p = Pair muxer demuxer p
 PhaseValid (S.demuxerRegistered muxer demuxer) p = Pair muxer demuxer p
 PhaseValid (S.matureTraced muxer demuxer) p = Pair muxer demuxer p
 PhaseValid (S.monitoring muxer demuxer) p = Pair muxer demuxer p
+PhaseValid (S.configured f) p = ConfiguredValid f p
 PhaseValid _ p = ⊤
 Valid : S.State → Set
 Valid s = PhaseValid (S.phase s) (S.pool s)
@@ -53,6 +69,8 @@ phase-retained S.runEntered p q keeps valid = tt
 phase-retained S.startingTraced p q keeps valid = tt
 phase-retained S.egressReady p q keeps valid = tt
 phase-retained S.poolReady p q keeps valid = tt
+phase-retained (S.configured f) p q keeps (present , distinct , prefix) =
+  All.map (λ {b} → keeps (proj₂ b)) present , distinct , prefix
 
 record ForkEvidence (j : JobId) (p q : Pool.State) : Set where
   constructor forkEvidence
@@ -90,6 +108,31 @@ fresh-distinct : ∀ muxer demuxer p → Present muxer (Pool.handles p) →
   lookup demuxer (Pool.handles p) ≡ nothing → muxer ≢ demuxer
 fresh-distinct muxer demuxer p (old , present) fresh refl with trans (sym fresh) present
 ... | ()
+
+-- A fresh key is appended by put; configured bindings therefore grow in order.
+put-fresh-append : ∀ {K V : Set} ⦃ _ : DecEq K ⦄ (k : K) (v : V) xs → lookup k xs ≡ nothing →
+  put k v xs ≡ xs ++ (k , v) ∷ []
+put-fresh-append k v [] absent = refl
+put-fresh-append k v ((q , old) ∷ xs) absent with k ≟ q
+... | yes _ = case absent of λ ()
+... | no _ = cong ((q , old) ∷_) (put-fresh-append k v xs absent)
+take-drop-snoc : ∀ {A : Set} n (xs : List A) y ys → drop n xs ≡ y ∷ ys → take (suc n) xs ≡ take n xs ++ y ∷ []
+take-drop-snoc zero (x ∷ xs) y ys refl = refl
+take-drop-snoc zero [] y ys ()
+take-drop-snoc (suc n) [] y ys ()
+take-drop-snoc (suc n) (x ∷ xs) y ys dropped = cong (x ∷_) (take-drop-snoc n xs y ys dropped)
+
+-- The next derived role is bound to the actual freshly forked handle.
+configured-fork-valid : ∀ f p q role j rest → drop (S.cursor f) (Types.infraPlan (S.layout f)) ≡ role ∷ rest →
+  lookup role (S.bindings f) ≡ nothing → ForkEvidence j p q → ConfiguredValid f p →
+  ConfiguredValid (record f { cursor = suc (S.cursor f); bindings = put role j (S.bindings f); stage = S.cfgRegistering role j }) q
+configured-fork-valid f p q role j rest dropped unbound forked (present , distinct , prefix)
+  rewrite put-fresh-append role j (S.bindings f) unbound =
+  AllProperties.++⁺ (All.map (λ {b} → retained forked (proj₂ b)) present) (ForkEvidence.present forked ∷ []) ,
+  AllPairsProperties.++⁺ distinct ([] ∷ [])
+    (All.map (λ {b} old → fresh-distinct (proj₂ b) j p old (fresh forked) ∷ []) present) ,
+  trans (map-++ proj₁ (S.bindings f) ((role , j) ∷ []))
+    (trans (cong (_++ role ∷ []) prefix) (sym (take-drop-snoc (S.cursor f) (Types.infraPlan (S.layout f)) role rest dropped)))
 
 child-retains : ∀ action p {q} → Pool.step (S.poolAction action) p ≡ just q → Retains p q
 child-retains (S.bodyReturned j result) p eq with lookup j (Pool.handles p)
@@ -326,6 +369,130 @@ step-evidence S.registerDemuxer (S.startupState (S.demuxerForked m d) p) eq = vi
 step-evidence S.registerDemuxer (S.startupState (S.demuxerRegistered m d) p) eq = case eq of λ ()
 step-evidence S.registerDemuxer (S.startupState (S.matureTraced m d) p) eq = case eq of λ ()
 step-evidence S.registerDemuxer (S.startupState (S.monitoring m d) p) eq = case eq of λ ()
+-- Legacy actions never advance a configured frame (except its own pool entry).
+step-evidence S.observePublication (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.allocateBuffer (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.createBearer (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.enterRun (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.traceStarting (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.allocateEgress (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.traceMature (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.enterMonitor (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence (S.forkMuxer j) (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.registerMuxer (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence (S.forkDemuxer j) (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.registerDemuxer (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence S.openPool (S.startupState (S.configured f) p) eq with S.stage f
+... | S.cfgBeforePool = case just-injective eq of λ { refl → evidence ([] , Pool.done) (λ valid → valid) }
+... | S.cfgReady = case eq of λ ()
+... | S.cfgMature = case eq of λ ()
+... | S.cfgMonitoring = case eq of λ ()
+... | S.cfgRegistering r k = case eq of λ ()
+-- Configured startup: layout capture, ordered fork/register, Mature, monitor.
+step-evidence (S.configureStartup plan) (S.startupState S.awaitPublication p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState S.published p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState S.bufferReady p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState S.bearerReady p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState S.runEntered p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState S.startingTraced p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState S.egressReady p) eq = case just-injective eq of λ { refl → evidence ([] , Pool.done) (λ valid → [] , [] , refl) }
+step-evidence (S.configureStartup plan) (S.startupState S.poolReady p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.muxerForked m) p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.muxerRegistered m) p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.demuxerForked m d) p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.demuxerRegistered m d) p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.matureTraced m d) p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.monitoring m d) p) eq = case eq of λ ()
+step-evidence (S.configureStartup plan) (S.startupState (S.configured f) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.awaitPublication p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.awaitPublication p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.awaitPublication p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.awaitPublication p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.published p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.published p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.published p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.published p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.bufferReady p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.bufferReady p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.bufferReady p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.bufferReady p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.bearerReady p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.bearerReady p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.bearerReady p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.bearerReady p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.runEntered p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.runEntered p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.runEntered p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.runEntered p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.startingTraced p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.startingTraced p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.startingTraced p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.startingTraced p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.egressReady p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.egressReady p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.egressReady p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.egressReady p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState S.poolReady p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState S.poolReady p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState S.poolReady p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState S.poolReady p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.muxerForked m) p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.muxerForked m) p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.muxerForked m) p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.muxerForked m) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.muxerRegistered m) p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.muxerRegistered m) p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.muxerRegistered m) p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.muxerRegistered m) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.demuxerForked m d) p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.demuxerForked m d) p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.demuxerForked m d) p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.demuxerForked m d) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.demuxerRegistered m d) p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.demuxerRegistered m d) p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.demuxerRegistered m d) p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.demuxerRegistered m d) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.matureTraced m d) p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.matureTraced m d) p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.matureTraced m d) p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.matureTraced m d) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.monitoring m d) p) eq = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.monitoring m d) p) eq = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.monitoring m d) p) eq = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.monitoring m d) p) eq = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.configured f) p) eq
+  with S.stage f | drop (S.cursor f) (Types.infraPlan (S.layout f)) in dropped
+... | S.cfgReady | role ∷ rest with lookup role (S.bindings f) in unbound | Pool.step (Pool.fork j) p in advanced
+...   | nothing | just q = case just-injective eq of λ { refl → evidence (Pool.fork j ∷ [] , Pool.next advanced Pool.done)
+  (configured-fork-valid f p q role j rest dropped unbound (fork-evidence j p advanced)) }
+...   | nothing | nothing = case eq of λ ()
+...   | just _ | _ = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.configured f) p) eq | S.cfgReady | [] = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.configured f) p) eq | S.cfgBeforePool | _ = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.configured f) p) eq | S.cfgMature | _ = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.configured f) p) eq | S.cfgMonitoring | _ = case eq of λ ()
+step-evidence (S.forkConfigured j) (S.startupState (S.configured f) p) eq | S.cfgRegistering r k | _ = case eq of λ ()
+step-evidence S.registerConfigured (S.startupState (S.configured f) p) eq with S.stage f
+... | S.cfgRegistering role j = via-evidence (S.configured (record f { stage = S.cfgReady })) Pool.register (S.startupState (S.configured f) p)
+  (λ q advanced valid → phase-retained (S.configured f) p q (register-retains p advanced) valid) eq
+... | S.cfgBeforePool = case eq of λ ()
+... | S.cfgReady = case eq of λ ()
+... | S.cfgMature = case eq of λ ()
+... | S.cfgMonitoring = case eq of λ ()
+step-evidence S.traceConfiguredMature (S.startupState (S.configured f) p) eq
+  with S.stage f | drop (S.cursor f) (Types.infraPlan (S.layout f))
+... | S.cfgReady | [] = case just-injective eq of λ { refl → evidence ([] , Pool.done) (λ valid → valid) }
+... | S.cfgReady | _ ∷ _ = case eq of λ ()
+... | S.cfgBeforePool | _ = case eq of λ ()
+... | S.cfgMature | _ = case eq of λ ()
+... | S.cfgMonitoring | _ = case eq of λ ()
+... | S.cfgRegistering r k | _ = case eq of λ ()
+step-evidence S.enterConfiguredMonitor (S.startupState (S.configured f) p) eq with S.stage f
+... | S.cfgMature = case just-injective eq of λ { refl → evidence ([] , Pool.done) (λ valid → valid) }
+... | S.cfgBeforePool = case eq of λ ()
+... | S.cfgReady = case eq of λ ()
+... | S.cfgMonitoring = case eq of λ ()
+... | S.cfgRegistering r k = case eq of λ ()
 step-evidence (S.child action) (S.startupState pc p) eq = via-evidence pc (S.poolAction action) (S.startupState pc p)
   (λ q advanced valid → phase-retained pc p q (child-retains action p advanced) valid) eq
 
@@ -355,4 +522,11 @@ from-initial path = exec-preserves path initial-valid
 monitoring-from-initial : ∀ {actions s} muxer demuxer → S.Executes S.initial actions s →
   S.phase s ≡ S.monitoring muxer demuxer → Pair muxer demuxer (S.pool s) × PoolTrace Pool.initial (S.pool s)
 monitoring-from-initial {s = s} muxer demuxer path phase =
+  subst (λ pc → PhaseValid pc (S.pool s)) phase (from-initial path) , exec-projects path
+
+-- Every configured frame reached from initialization binds its born roles to
+-- present, distinct handles of the same pool, following the layout's plan.
+configured-from-initial : ∀ {actions s} f → S.Executes S.initial actions s →
+  S.phase s ≡ S.configured f → ConfiguredValid f (S.pool s) × PoolTrace Pool.initial (S.pool s)
+configured-from-initial {s = s} f path phase =
   subst (λ pc → PhaseValid pc (S.pool s)) phase (from-initial path) , exec-projects path

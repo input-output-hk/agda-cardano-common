@@ -82,7 +82,7 @@ module Mux where
  startup-shutdown : ∀ w a s {t} → U.advanceStartup w a s ≡ just t → table t ≡ table s
  startup-shutdown w a s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
- ... | just f with U.progress f | U.startupAllowed a s
+ ... | just f with U.progress f | U.startupAllowed a f s
  ...   | U.promisePublished hid mid | true with Startup.step a (U.startup f)
  ...     | nothing = case eq of λ ()
  ...     | just next = case just-injective eq of λ { refl → refl }

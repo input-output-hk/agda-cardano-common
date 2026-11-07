@@ -169,7 +169,7 @@ publish-projects w s eq | just f | W.promisePublished hid mid = case eq of λ ()
 startup-projects : ∀ w action s {s′} → W.advanceStartup w action s ≡ just s′ → Paths s s′
 startup-projects w action s eq with lookup w (W.frames s) in found
 ... | nothing = case eq of λ ()
-... | just f with W.progress f | W.startupAllowed action s
+... | just f with W.progress f | W.startupAllowed action f s
 ...   | W.promisePublished hid mid | true with Startup.step action (W.startup f) in advanced
 ...     | nothing = case eq of λ ()
 ...     | just next = case just-injective eq of λ { refl →
@@ -290,7 +290,7 @@ startup-parent-registry : ∀ w action s {s′} → W.step (W.startupStep w acti
   B.threads (W.base s′) ≡ B.threads (W.base s)
 startup-parent-registry w action s eq with lookup w (W.frames s)
 ... | nothing = case eq of λ ()
-... | just f with W.progress f | W.startupAllowed action s
+... | just f with W.progress f | W.startupAllowed action f s
 ...   | W.promisePublished hid mid | true with Startup.step action (W.startup f)
 ...     | nothing = case eq of λ ()
 ...     | just next = case just-injective eq of λ { refl → refl }

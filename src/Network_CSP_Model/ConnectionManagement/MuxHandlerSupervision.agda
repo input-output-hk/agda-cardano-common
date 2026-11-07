@@ -26,6 +26,8 @@ import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.MuxStartup as StartupRules
+import ConnectionManagement.Rules.MuxRuntime as MuxRuntime
+import ConnectionManagement.Rules.MuxEgress as E
 module Startup = StartupRules Result
 
 -- The immutable birth origin chooses inbound vs mode/flow-sensitive outbound
@@ -192,15 +194,41 @@ jobFresh j [] = true
 jobFresh j ((_ , f) ∷ rest) with lookup j (Startup.Pool.handles (Startup.pool (startup f)))
 ... | nothing = jobFresh j rest
 ... | just _ = false
-startupAllowed : Startup.Action → State → Bool
-startupAllowed Startup.observePublication s = false
-startupAllowed (Startup.forkMuxer j) s = jobFresh j (frames s)
-startupAllowed (Startup.forkDemuxer j) s = jobFresh j (frames s)
-startupAllowed _ s = true
+-- The captured promise names the actual installed mux; its egress layout is
+-- the only admissible startup plan. A legacy two-job startup is plain-only.
+frameLayout : Frame → State → Maybe E.Layout
+frameLayout f s with progress f
+... | promisePublished hid mid with lookup mid (IG.muxes (IG.execution (M.inboundGovernor (O.core (source s)))))
+...   | just m = just (MuxRuntime.Egress.layout (MuxRuntime.egress m))
+...   | nothing = nothing
+frameLayout f s | _ = nothing
+sameLayout : E.Layout → E.Layout → Bool
+sameLayout E.plainLayout E.plainLayout = true
+sameLayout (E.scheduledLayout true) (E.scheduledLayout true) = true
+sameLayout (E.scheduledLayout false) (E.scheduledLayout false) = true
+sameLayout _ _ = false
+layoutIs : E.Layout → Frame → State → Bool
+layoutIs plan f s with frameLayout f s
+... | just actual = sameLayout plan actual
+... | nothing = false
+startupAllowed : Startup.Action → Frame → State → Bool
+startupAllowed Startup.observePublication f s = false
+startupAllowed (Startup.forkMuxer j) f s = jobFresh j (frames s)
+startupAllowed (Startup.forkDemuxer j) f s = jobFresh j (frames s)
+startupAllowed (Startup.forkConfigured j) f s = jobFresh j (frames s)
+-- ponytail: configured frames are admitted only for non-plain layouts (none
+-- installed yet); plain muxes keep the legacy path until protocol/group/monitor
+-- selectors use Startup.roleId/infraIds/monitoringPC (M2 selector slice).
+startupAllowed (Startup.configureStartup E.plainLayout) f s = false
+startupAllowed (Startup.configureStartup plan) f s = layoutIs plan f s
+startupAllowed Startup.openPool f s with Startup.phase (startup f)
+... | Startup.egressReady = layoutIs E.plainLayout f s
+... | _ = true
+startupAllowed _ f s = true
 advanceStartup : WorkerId → Startup.Action → State → Maybe State
 advanceStartup w action s with lookup w (frames s)
 ... | nothing = nothing
-... | just f with progress f | startupAllowed action s
+... | just f with progress f | startupAllowed action f s
 ...   | promisePublished hid mid | true with Startup.step action (startup f)
 ...     | nothing = nothing
 ...     | just next = just (setFrame w (record f { startup = next }) s)

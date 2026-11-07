@@ -5,12 +5,16 @@
 module ConnectionManagement.Negative.MuxStartup where
 
 open import Data.List using (List; []; _∷_; _++_)
-open import Data.Maybe using (just; nothing)
+open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Bool using (true; false)
+open import Data.Nat using (ℕ; suc)
 open import Data.Product using (_,_; _×_)
 open import Data.Unit using (⊤; tt)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import ConnectionManagement.Domain
 import ConnectionManagement.Rules.MuxStartup as Startup
+import ConnectionManagement.Rules.MuxJobTypes as Types
+import ConnectionManagement.Rules.MuxEgress as E
 import ConnectionManagement.Properties.MuxStartup as Properties
 module S = Startup ⊤
 module P = Properties ⊤
@@ -143,3 +147,80 @@ initialized-fast-monitoring : S.Executes S.initial ((prefixActions ++ fastAction
 initialized-fast-monitoring = append initialized-fast-child fastMonitorSuffix
 initialized-fast-physical-certificate : P.Pair muxer₀ demuxer₀ fastBothRegistered × P.PoolTrace Pool.initial fastBothRegistered
 initialized-fast-physical-certificate = P.monitoring-from-initial muxer₀ demuxer₀ initialized-fast-monitoring refl
+
+
+-- Configured startups: the layout alone fixes the ordered roles. Each
+-- execution certificate below proves that the guarded execution returned just.
+exec : List S.Action → S.State → Maybe S.State
+exec [] s = just s
+exec (a ∷ as) s with S.step a s
+... | nothing = nothing
+... | just t = exec as t
+exec-runs : ∀ as s {t} → exec as s ≡ just t → S.Executes s as t
+exec-runs [] s refl = S.done
+exec-runs (a ∷ as) s eq with S.step a s in advanced
+... | just next = S.next advanced (exec-runs as next eq)
+toEgress : List S.Action
+toEgress = S.observePublication ∷ S.allocateBuffer ∷ S.createBearer ∷ S.enterRun ∷ S.traceStarting ∷ S.allocateEgress ∷ []
+-- n configured forks, each followed by its parent registration, ids k..k+n-1.
+forkRegister : ℕ → ℕ → List S.Action
+forkRegister k 0 = []
+forkRegister k (suc n) = S.forkConfigured (ident k) ∷ S.registerConfigured ∷ forkRegister (suc k) n
+configuredActions : E.Layout → ℕ → List S.Action
+configuredActions plan n = toEgress ++ (S.configureStartup plan ∷ S.openPool ∷
+  forkRegister 0 n ++ (S.traceConfiguredMature ∷ S.enterConfiguredMonitor ∷ []))
+final : E.Layout → ℕ → S.State
+final plan n with exec (configuredActions plan n) S.initial
+... | just t = t
+... | nothing = S.initial
+
+initialized-plain2 : S.Executes S.initial (configuredActions E.plainLayout 2) (final E.plainLayout 2)
+initialized-plain2 = exec-runs (configuredActions E.plainLayout 2) S.initial refl
+initialized-scheduled3 : S.Executes S.initial (configuredActions (E.scheduledLayout false) 3) (final (E.scheduledLayout false) 3)
+initialized-scheduled3 = exec-runs (configuredActions (E.scheduledLayout false) 3) S.initial refl
+initialized-slice4 : S.Executes S.initial (configuredActions (E.scheduledLayout true) 4) (final (E.scheduledLayout true) 4)
+initialized-slice4 = exec-runs (configuredActions (E.scheduledLayout true) 4) S.initial refl
+
+-- Exact ordered role bindings and monitor entry after the complete plan.
+plain2-roles : S.infraBindings (S.phase (final E.plainLayout 2)) ≡ (Types.muxer , ident 0) ∷ (Types.demuxer , ident 1) ∷ []
+plain2-roles = refl
+scheduled3-roles : S.infraBindings (S.phase (final (E.scheduledLayout false) 3)) ≡
+  (Types.laneMuxer E.directLane , ident 0) ∷ (Types.laneMuxer E.scheduledLane , ident 1) ∷ (Types.demuxer , ident 2) ∷ []
+scheduled3-roles = refl
+slice4-roles : S.infraBindings (S.phase (final (E.scheduledLayout true) 4)) ≡
+  (Types.laneMuxer E.directLane , ident 0) ∷ (Types.laneMuxer E.scheduledLane , ident 1) ∷
+  (Types.laneMuxer E.sliceLane , ident 2) ∷ (Types.demuxer , ident 3) ∷ []
+slice4-roles = refl
+slice4-monitoring : S.monitoringPC (S.phase (final (E.scheduledLayout true) 4)) ≡ true
+slice4-monitoring = refl
+slice4-lane-role : S.roleId (Types.laneMuxer E.sliceLane) (S.phase (final (E.scheduledLayout true) 4)) ≡ just (ident 2)
+slice4-lane-role = refl
+missing-slice-has-no-role : Types.roleForLane (E.scheduledLayout false) E.sliceLane ≡ nothing
+missing-slice-has-no-role = refl
+lane-muxers-share-result-tag : Types.infraResult (Types.laneMuxer E.sliceLane) (errorId 7) ≡ Types.infraResult Types.muxer (errorId 7)
+lane-muxers-share-result-tag = refl
+scheduled3-certificate : P.ConfiguredValid
+  (S.configuredFrame (E.scheduledLayout false) 3
+    ((Types.laneMuxer E.directLane , ident 0) ∷ (Types.laneMuxer E.scheduledLane , ident 1) ∷ (Types.demuxer , ident 2) ∷ [])
+    S.cfgMonitoring) (S.pool (final (E.scheduledLayout false) 3))
+scheduled3-certificate = proj₁ (P.configured-from-initial _ initialized-scheduled3 refl)
+  where open import Data.Product using (proj₁)
+
+-- Refusals: no fork before the previous registration, no Mature before the
+-- plan is exhausted, no extra fork afterwards, no late configuration, no reuse.
+cfgReady1 cfgForked1 cfgDone : S.State
+cfgReady1 = final (E.scheduledLayout false) 0
+cfgForked1 with exec (toEgress ++ (S.configureStartup (E.scheduledLayout false) ∷ S.openPool ∷ S.forkConfigured (ident 0) ∷ [])) S.initial
+... | just t = t
+... | nothing = S.initial
+cfgDone = final (E.scheduledLayout false) 3
+no-mature-before-plan : S.step S.traceConfiguredMature cfgForked1 ≡ nothing
+no-mature-before-plan = refl
+no-fork-in-registration-gap : S.step (S.forkConfigured (ident 1)) cfgForked1 ≡ nothing
+no-fork-in-registration-gap = refl
+no-fork-after-plan : S.step (S.forkConfigured (ident 9)) cfgDone ≡ nothing
+no-fork-after-plan = refl
+no-late-configuration : S.step (S.configureStartup E.plainLayout) s₇ ≡ nothing
+no-late-configuration = refl
+no-legacy-fork-in-configured-frame : S.step (S.forkMuxer (ident 9)) cfgForked1 ≡ nothing
+no-legacy-fork-in-configured-frame = refl
