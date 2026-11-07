@@ -25,6 +25,8 @@ import ConnectionManagement.Rules.MuxEgress as E
 import ConnectionManagement.Rules.MuxJobTypes as Types
 import ConnectionManagement.Negative.MuxProtocolJobs as Plain
 import ConnectionManagement.Negative.MuxProtocolFixtures as Old
+import ConnectionManagement.MuxGroupShutdown as GroupModel
+import ConnectionManagement.Negative.MuxPublicationInboundFixtures as I
 import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundHandlerSupervision as B
@@ -165,6 +167,12 @@ startupPath = W.next s1 (W.next s2 (W.next s3 (W.next s4 (W.next s5 (W.next s6 (
 append : ∀ {p as q bs r} → W.Executes p as q → W.Executes q bs r → W.Executes p (as ++ bs) r
 append W.done tail = tail
 append (W.next eq path) tail = W.next eq (append path tail)
+-- The configured prefix up to monitor entry (no protocol body operations).
+toMonitoredActions : List W.Action
+toMonitoredActions = (Plain.birthPathActions ++ publication) ++ (Plain.callerPathActions ++ startup)
+abstract
+  initialized-monitored : W.Executes Plain.b0 toMonitoredActions monitored
+  initialized-monitored = append (append Plain.birthPath publicationPath) (append callerPath startupPath)
 segment : List W.Action
 segment = fork ++ traffic
 
@@ -263,3 +271,12 @@ held-blocks-clean = refl
 -- After the actual write the responder key cell is released with header-inclusive bytes.
 released-and-credited : held x12 ≡ just (just (Mux.Egress.cell E.directLane (+ 0) 13))
 released-and-credited = refl
+
+-- Whole-close classification uses every actual configured binding: all three
+-- infrastructure jobs (including the Scheduled lane muxer) are infrastructure,
+-- while the protocol responder is not.
+module Group = GroupModel I.bearerClosed
+infra-classified : ∀ {f} → frame x13 ≡ just f →
+  Group.isInfra direct f ≡ true × Group.isInfra scheduled f ≡ true × Group.isInfra demux f ≡ true ×
+  Group.isInfra responder f ≡ false
+infra-classified refl = refl , refl , refl , refl
