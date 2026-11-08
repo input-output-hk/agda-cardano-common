@@ -11,9 +11,9 @@ open import Data.Nat using (ℕ; zero; suc)
 import Data.Nat as Nat
 open import Data.List using (List; []; _∷_; _++_)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Product using (_×_; _,_)
+open import Data.Product using (Σ; _×_; _,_)
 open import Relation.Nullary using (yes; no; does)
-open import Relation.Binary.PropositionalEquality using (_≡_)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (_≟_)
 open import ConnectionManagement.Domain hiding (job)
 open import ConnectionManagement.IGTypes using (RunResult; clean; errored)
@@ -264,6 +264,77 @@ syncError j err s with lookup j (jobs s)
 ...   | false = nothing
 syncError j err s | nothing = nothing
 
+dbEngine : State → IG.Engine
+dbEngine s = IG.execution (Machine.inboundGovernor (O.core (source s)))
+-- A collector blocked in a LeiosDB await (consensus processLeiosBlock and
+-- ingestAcquiredTxs) cannot send or return from its body until the await ends.
+awaitingDb : JobId → State → Bool
+awaitingDb j s with lookup j (IG.dbWaits (dbEngine s))
+... | nothing = false
+... | just _ = true
+unlessAwaiting : JobId → State → Maybe State → Maybe State
+unlessAwaiting j s r with awaitingDb j s
+... | true = nothing
+... | false = r
+-- Proof adapter: a step admitted by the await guard is the unguarded step.
+unlessAwaiting-just : ∀ j s r {t} → unlessAwaiting j s r ≡ just t → r ≡ just t
+unlessAwaiting-just j s r eq with lookup j (IG.dbWaits (dbEngine s))
+... | nothing = eq
+unlessAwaiting-just j s r () | just _
+-- Only a running, uncommitted body can submit to or await the DB queue.
+collector : JobId → State → Maybe ProtocolJob
+collector j s with lookup j (jobs s)
+... | nothing = nothing
+... | just job with Types.phase job | lookup (Types.owner job) (U.frames (base s)) |
+  lookup j (Pool.handles (poolAt (Types.owner job) s))
+...   | Types.executing | just f | just Pool.bodyRunning = just job
+...   | _ | _ | _ = nothing
+viaDb : IG.DbAction → State → Maybe State
+viaDb a s with O.advance (O.inbound (Machine.igStep (IG.leiosDb a))) (source s)
+... | nothing = nothing
+... | just c = just (setSource c s)
+submitDb : JobId → ℕ → State → Maybe State
+submitDb j d s with collector j s
+... | nothing = nothing
+... | just _ = viaDb (IG.submitWrite j d) s
+awaitDb : JobId → State → Maybe State
+awaitDb j s with collector j s
+... | nothing = nothing
+... | just _ = viaDb (IG.takeResult j) s
+-- The await (or a submission to the sealed queue) throws the seal cause in the
+-- collector; its existing synchronous handler captures that error. Wrapping
+-- the cause into LeiosDbWriteException is abstracted to the same ErrorId.
+dbFailure : JobId → State → Maybe State
+dbFailure j s with collector j s | IG.dbSealed (dbEngine s)
+... | just job | just err with awaitingDb j s
+...   | false = syncError j err s
+...   | true with viaDb (IG.abandonWait j) s
+...     | nothing = nothing
+...     | just next = syncError j err next
+dbFailure j s | _ | _ = nothing
+
+-- Proof adapters: every DB action is a source step, possibly followed by the
+-- existing synchronous-error capture.
+viaDb-source : ∀ a s {t} → viaDb a s ≡ just t →
+  Σ O.Configuration (λ c → O.advance (O.inbound (Machine.igStep (IG.leiosDb a))) (source s) ≡ just c × setSource c s ≡ t)
+viaDb-source a s eq with O.advance (O.inbound (Machine.igStep (IG.leiosDb a))) (source s)
+viaDb-source a s refl | just c = c , refl , refl
+submitDb-via : ∀ j d s {t} → submitDb j d s ≡ just t → viaDb (IG.submitWrite j d) s ≡ just t
+submitDb-via j d s eq with collector j s
+submitDb-via j d s eq | just _ = eq
+awaitDb-via : ∀ j s {t} → awaitDb j s ≡ just t → viaDb (IG.takeResult j) s ≡ just t
+awaitDb-via j s eq with collector j s
+awaitDb-via j s eq | just _ = eq
+data DbFailure (j : JobId) (s t : State) : Set where
+  refused : ∀ err → syncError j err s ≡ just t → DbFailure j s t
+  abandoned : ∀ err mid → viaDb (IG.abandonWait j) s ≡ just mid → syncError j err mid ≡ just t → DbFailure j s t
+dbFailure-via : ∀ j s {t} → dbFailure j s ≡ just t → DbFailure j s t
+dbFailure-via j s eq with collector j s | IG.dbSealed (dbEngine s)
+... | just job | just err with awaitingDb j s
+...   | false = refused err eq
+...   | true with viaDb (IG.abandonWait j) s in abandon
+...     | just next = abandoned err next abandon eq
+
 -- miniProtocolJob returns after its completion/status transaction (or after
 -- its synchronous exception handler published the local error). Preserve that
 -- unmasked window: clean can free the slot while this handle is bodyRunning.
@@ -429,15 +500,20 @@ data Action : Set where
   infrastructureReturn : WorkerId → Role → ErrorId → Action
   publishInfra deregisterInfra asyncInfraResult : WorkerId → Role → Action
   control : WorkerId → MonitorAction → Action
+  -- Collector-owned LeiosDB waits and the node-owned writer thread.
+  submitDbWrite : JobId → ℕ → Action
+  awaitDbWrite dbWriteFailed : JobId → Action
+  writerComplete : ℕ → Action
+  writerSeal : ErrorId → Action
 step : Action → State → Maybe State
 step (run action) s = inherit action s
 step (forkResponder w j gen) s = responderFork w j gen s
 step (forkInitiator w j gen n) s = initiatorFork w j gen n s
 step (enterProtocolBody j) s = enterProtocol j s
-step (appendProtocolPayload j bytes) s = sendProtocol j bytes s
+step (appendProtocolPayload j bytes) s = unlessAwaiting j s (sendProtocol j bytes s)
 step (egressMuxer w action) s = muxerEgress w action s
 step (registerProtocol j) s = register j s
-step (protocolReturned j) s = returned j s
+step (protocolReturned j) s = unlessAwaiting j s (returned j s)
 step (commitClean j) s = cleanCommit j s
 step (protocolException j err) s = syncError j err s
 step (returnProtocol j) s = returnBody j s
@@ -449,6 +525,11 @@ step (publishInfra w role) s = viaInfra w role Pool.publishCompletion s
 step (deregisterInfra w role) s = viaInfra w role Pool.deregister s
 step (asyncInfraResult w role) s = viaInfra w role Pool.publishAsyncResult s
 step (control w action) s = monitorControl w action s
+step (submitDbWrite j d) s = submitDb j d s
+step (awaitDbWrite j) s = awaitDb j s
+step (dbWriteFailed j) s = dbFailure j s
+step (writerComplete d) s = viaDb (IG.completeWrite d) s
+step (writerSeal err) s = viaDb (IG.sealQueue err) s
 
 -- No result-consumption, group-close, cancel/unwind, or join operation is
 -- exposed. The typed physical queue is authoritative; the old source queue is

@@ -19,6 +19,7 @@ step-preserves (IG.egressStep mid action) = Mux.step-preserves (IG.egressStep mi
 step-preserves (IG.configureEgress mid plan limit bound keys) = Mux.step-preserves (IG.configureEgress mid plan limit bound keys) Mux.configure
 step-preserves (IG.registerCells mid) = Mux.step-preserves (IG.registerCells mid) Mux.register
 step-preserves (IG.retireCells mid) = Mux.step-preserves (IG.retireCells mid) Mux.retire
+step-preserves (IG.leiosDb a) = Mux.step-preserves (IG.leiosDb a) Mux.db
 step-preserves IG.commitDecision = Boundary.step-preserves IG.commitDecision Boundary.decision
 step-preserves (IG.installHandle hid mid k ps flow) = Boundary.step-preserves (IG.installHandle hid mid k ps flow) Boundary.install
 step-preserves (IG.installOutboundHandle hid mid k ps flow) = Boundary.step-preserves (IG.installOutboundHandle hid mid k ps flow) Boundary.installOutbound

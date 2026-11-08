@@ -51,7 +51,7 @@ module Mux where
  effect (U.startupStep w action) s eq = same (Quiet.Mux.direct-same (U.startupStep w action) s eq tt)
 
 module Protocol where
- private module P = ProtocolModel using (Action; source; State; enterProtocolBody; appendProtocolPayload; egressMuxer; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step)
+ private module P = ProtocolModel using (Action; source; State; enterProtocolBody; appendProtocolPayload; egressMuxer; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
  private module U = MuxModel Types.TypedResult using (step)
  effect : ∀ a s {t} → P.step a s ≡ just t → Effect (O.core (P.source s)) (O.core (P.source t))
  effect (P.run a) s eq with P.inheritedAllowed a
@@ -78,6 +78,11 @@ module Protocol where
  effect (P.deregisterInfra w role) s eq = same (Quiet.Protocol.direct-same (P.deregisterInfra w role) s eq tt)
  effect (P.asyncInfraResult w role) s eq = same (Quiet.Protocol.direct-same (P.asyncInfraResult w role) s eq tt)
  effect (P.control w action) s eq = same (Quiet.Protocol.direct-same (P.control w action) s eq tt)
+ effect (P.submitDbWrite j d) s eq = same (Quiet.Protocol.direct-same (P.submitDbWrite j d) s eq tt)
+ effect (P.awaitDbWrite j) s eq = same (Quiet.Protocol.direct-same (P.awaitDbWrite j) s eq tt)
+ effect (P.dbWriteFailed j) s eq = same (Quiet.Protocol.direct-same (P.dbWriteFailed j) s eq tt)
+ effect (P.writerComplete d) s eq = same (Quiet.Protocol.direct-same (P.writerComplete d) s eq tt)
+ effect (P.writerSeal err) s eq = same (Quiet.Protocol.direct-same (P.writerSeal err) s eq tt)
 
 module Monitor (b : ErrorId → Bool) where
  private module M = MonitorModel b using (Action; source; State; base; beginDead; commitTracer; consume; delegateAllowed; finishDead; finishProtocolTrace; handleSelected; initial; run; sampleTracer; step)

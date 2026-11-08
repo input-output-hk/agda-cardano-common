@@ -83,7 +83,7 @@ physical-prefix = Facts.lift-run workersTwo S.serving true permissions Selected.
 
 -- Concrete shared IG cleanup is retained; no success oracle closes its scope.
 inactiveGovernor flushedGovernor : IG.Runtime
-inactiveGovernor = IG.runtimeState IG.emptyPublished 0 IG.exitFlush (IG.engine [] [] [] false 0 [] 0 [])
+inactiveGovernor = IG.runtimeState IG.emptyPublished 0 IG.exitFlush (IG.engine [] [] [] false 0 [] 0 [] nothing [] [])
 flushedGovernor = record inactiveGovernor { continuation = IG.exited }
 withGovernor : IG.Runtime → S.State → S.State
 withGovernor r s = S.setSource (record (S.source s)

@@ -505,7 +505,7 @@ module Mux where
  ... | [] | [] | nothing = case eq of λ ()
 
 module Protocol where
- private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; State; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step)
+ private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; State; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
  private module U = MuxModel Types.TypedResult using (base; initial; step)
  view : P.State → Effects.Registry
  view = Effects.ProtocolLayer.view
@@ -537,6 +537,11 @@ module Protocol where
  step-preserves (P.deregisterInfra w role) s eq valid = transport (Effects.ProtocolLayer.change (P.deregisterInfra w role) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.deregisterInfra w role) s eq tt)) valid)
  step-preserves (P.asyncInfraResult w role) s eq valid = transport (Effects.ProtocolLayer.change (P.asyncInfraResult w role) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.asyncInfraResult w role) s eq tt)) valid)
  step-preserves (P.control w action) s eq valid = transport (Effects.ProtocolLayer.change (P.control w action) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.control w action) s eq tt)) valid)
+ step-preserves (P.submitDbWrite j d) s eq valid = transport (Effects.ProtocolLayer.change (P.submitDbWrite j d) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.submitDbWrite j d) s eq tt)) valid)
+ step-preserves (P.awaitDbWrite j) s eq valid = transport (Effects.ProtocolLayer.change (P.awaitDbWrite j) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.awaitDbWrite j) s eq tt)) valid)
+ step-preserves (P.dbWriteFailed j) s eq valid = transport (Effects.ProtocolLayer.change (P.dbWriteFailed j) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.dbWriteFailed j) s eq tt)) valid)
+ step-preserves (P.writerComplete d) s eq valid = transport (Effects.ProtocolLayer.change (P.writerComplete d) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.writerComplete d) s eq tt)) valid)
+ step-preserves (P.writerSeal err) s eq valid = transport (Effects.ProtocolLayer.change (P.writerSeal err) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Protocol.direct-shutdown-same (P.writerSeal err) s eq tt)) valid)
 
  initialized-valid : ∀ c {s} → P.initial c ≡ just s → Valid s
  initialized-valid c eq with U.initial c in actual

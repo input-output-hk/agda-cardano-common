@@ -100,11 +100,14 @@ protocol-egress-observation j action s eq | just job | Types.executing | just f 
 enter-observation : ∀ j s {t} → W.step (W.enterProtocolBody j) s ≡ just t → EgressChange s t
 enter-observation j s = protocol-egress-observation j (λ job → Mux.Egress.createWanton (serial j) (W.jobKey job)) s
 send-observation : ∀ j bytes s {t} → W.step (W.appendProtocolPayload j bytes) s ≡ just t → EgressChange s t
-send-observation j bytes s eq with lookup j (W.jobs s)
-... | nothing = case eq of λ ()
-... | just job with W.hasWanton j job s
-...   | false = case eq of λ ()
-...   | true = protocol-egress-observation j (λ _ → Mux.Egress.appendPayload (serial j) bytes) s eq
+send-observation j bytes s eq = sent (W.unlessAwaiting-just j s _ eq)
+  where
+  sent : ∀ {t} → W.sendProtocol j bytes s ≡ just t → EgressChange s t
+  sent eq with lookup j (W.jobs s)
+  ... | nothing = case eq of λ ()
+  ... | just job with W.hasWanton j job s
+  ...   | false = case eq of λ ()
+  ...   | true = protocol-egress-observation j (λ _ → Mux.Egress.appendPayload (serial j) bytes) s eq
 
 muxer-egress-observation : ∀ w action s {t} → W.step (W.egressMuxer w action) s ≡ just t → EgressChange s t
 muxer-egress-observation w action s eq with lookup w (U.frames (W.base s))
@@ -364,6 +367,10 @@ return-body-projects j s eq with lookup j (W.jobs s)
 return-body-projects j s eq | just job | Types.executing | _ = case eq of λ ()
 return-body-projects j s eq | just job | Types.waitingEgress | _ = case eq of λ ()
 return-body-projects j s eq | just job | Types.resultCaptured _ | nothing = case eq of λ ()
+-- A DB queue/await step is one actual source transition.
+db-projects : ∀ a s {t} → W.viaDb a s ≡ just t → Paths s t
+db-projects a s eq with W.viaDb-source a s eq
+... | c , advanced , refl = source-step (O.inbound (M.igStep (IG.leiosDb a))) s advanced
 step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → Paths s s′
 step-projects (W.run a) s eq = inherit-projects a s eq
 step-projects (W.forkResponder w j gen) s eq = responder-projects w j gen s eq
@@ -372,7 +379,7 @@ step-projects (W.registerProtocol j) s eq = register-projects j s eq
 step-projects (W.enterProtocolBody j) s eq = egress-projects s (enter-observation j s eq)
 step-projects (W.appendProtocolPayload j bytes) s eq = egress-projects s (send-observation j bytes s eq)
 step-projects (W.egressMuxer w action) s eq = egress-projects s (muxer-egress-observation w action s eq)
-step-projects (W.protocolReturned j) s eq = returned-projects j s eq
+step-projects (W.protocolReturned j) s eq = returned-projects j s (W.unlessAwaiting-just j s _ eq)
 step-projects (W.commitClean j) s eq = clean-projects j s eq
 step-projects (W.protocolException j err) s eq = error-projects j err s eq
 step-projects (W.returnProtocol j) s eq = return-body-projects j s eq
@@ -384,6 +391,13 @@ step-projects (W.publishInfra w role) s eq = via-infra-projects w role Pool.publ
 step-projects (W.deregisterInfra w role) s eq = via-infra-projects w role Pool.deregister s eq
 step-projects (W.asyncInfraResult w role) s eq = via-infra-projects w role Pool.publishAsyncResult s eq
 step-projects (W.control w action) s eq = control-projects w action s eq
+step-projects (W.submitDbWrite j d) s eq = db-projects _ s (W.submitDb-via j d s eq)
+step-projects (W.awaitDbWrite j) s eq = db-projects _ s (W.awaitDb-via j s eq)
+step-projects (W.writerComplete d) s eq = db-projects _ s eq
+step-projects (W.writerSeal err) s eq = db-projects _ s eq
+step-projects (W.dbWriteFailed j) s eq with W.dbFailure-via j s eq
+... | W.refused err failed = error-projects j err s failed
+... | W.abandoned err mid abandon failed = compose (db-projects _ s abandon) (error-projects j err mid failed)
 append-pools : ∀ {p as q bs r} → Pool.Executes p as q → Pool.Executes q bs r → Pool.Executes p (as ++ bs) r
 append-pools Pool.done tail = tail
 append-pools (Pool.next eq path) tail = Pool.next eq (append-pools path tail)
@@ -813,6 +827,10 @@ module CaptureIdentity where
 
   -- Exhaustive physical actions retain every older capture, including phase
   -- changes, normal publication, cancellation bookkeeping and infrastructure.
+  -- DB queue/await steps leave the protocol job table untouched.
+  db-stable : ∀ a s {t} → W.viaDb a s ≡ just t → Stable s t
+  db-stable a s eq with W.viaDb-source a s eq
+  ... | c , advanced , refl = identity (W.jobs s)
   step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
   step-stable (W.run a) s eq = inherited-stable a s eq
   step-stable (W.forkResponder w j gen) s eq = fork-retains w j gen s (responder-fork-observation w j gen s eq)
@@ -821,7 +839,7 @@ module CaptureIdentity where
   step-stable (W.enterProtocolBody j) s eq = egress-stable s (enter-observation j s eq)
   step-stable (W.appendProtocolPayload j bytes) s eq = egress-stable s (send-observation j bytes s eq)
   step-stable (W.egressMuxer w action) s eq = egress-stable s (muxer-egress-observation w action s eq)
-  step-stable (W.protocolReturned j) s eq = returned-stable j s eq
+  step-stable (W.protocolReturned j) s eq = returned-stable j s (W.unlessAwaiting-just j s _ eq)
   step-stable (W.commitClean j) s eq = commit-retains j s (clean-observation j s eq)
   step-stable (W.protocolException j err) s eq = commit-retains j s (exception-observation j err s eq)
   step-stable (W.returnProtocol j) s eq = returned-body-stable j s (return-observation j s eq)
@@ -833,6 +851,14 @@ module CaptureIdentity where
   step-stable (W.deregisterInfra w role) s eq = via-infra-stable w role Pool.deregister s eq
   step-stable (W.asyncInfraResult w role) s eq = via-infra-stable w role Pool.publishAsyncResult s eq
   step-stable (W.control w a) s eq = control-stable w a s eq
+  step-stable (W.submitDbWrite j d) s eq = db-stable _ s (W.submitDb-via j d s eq)
+  step-stable (W.awaitDbWrite j) s eq = db-stable _ s (W.awaitDb-via j s eq)
+  step-stable (W.writerComplete d) s eq = db-stable _ s eq
+  step-stable (W.writerSeal err) s eq = db-stable _ s eq
+  step-stable (W.dbWriteFailed j) s {t} eq with W.dbFailure-via j s eq
+  ... | W.refused err failed = commit-retains j s (exception-observation j err s failed)
+  ... | W.abandoned err mid abandon failed = compose-retains {xs = W.jobs s} {ys = W.jobs mid} {zs = W.jobs t}
+    (db-stable _ s abandon) (commit-retains j mid (exception-observation j err mid failed))
   exec-stable : ∀ {s as t} → W.Executes s as t → Stable s t
   exec-stable {s = s} W.done = identity (W.jobs s)
   exec-stable {t = t} (W.next {s = s} {s₁ = mid} {a = a} eq rest) =
@@ -967,6 +993,10 @@ module CommittedRows where
 
   -- Exhaustive physical actions retain every older capture, including phase
   -- changes, normal publication, cancellation bookkeeping and infrastructure.
+  -- DB queue/await steps leave the protocol job table untouched.
+  db-stable : ∀ a s {t} → W.viaDb a s ≡ just t → Stable s t
+  db-stable a s eq with W.viaDb-source a s eq
+  ... | c , advanced , refl = identity (W.jobs s)
   step-stable : ∀ a s {t} → W.step a s ≡ just t → Stable s t
   step-stable (W.run a) s eq = inherited-stable a s eq
   step-stable (W.forkResponder w j gen) s eq = fork-retains w j gen s (responder-fork-observation w j gen s eq)
@@ -975,7 +1005,7 @@ module CommittedRows where
   step-stable (W.enterProtocolBody j) s eq = egress-stable s (enter-observation j s eq)
   step-stable (W.appendProtocolPayload j bytes) s eq = egress-stable s (send-observation j bytes s eq)
   step-stable (W.egressMuxer w action) s eq = egress-stable s (muxer-egress-observation w action s eq)
-  step-stable (W.protocolReturned j) s eq = returned-stable j s eq
+  step-stable (W.protocolReturned j) s eq = returned-stable j s (W.unlessAwaiting-just j s _ eq)
   step-stable (W.commitClean j) s eq = commit-retains j s (clean-observation j s eq)
   step-stable (W.protocolException j err) s eq = commit-retains j s (exception-observation j err s eq)
   step-stable (W.returnProtocol j) s eq = returned-body-stable j s (return-observation j s eq)
@@ -987,6 +1017,14 @@ module CommittedRows where
   step-stable (W.deregisterInfra w role) s eq = via-infra-stable w role Pool.deregister s eq
   step-stable (W.asyncInfraResult w role) s eq = via-infra-stable w role Pool.publishAsyncResult s eq
   step-stable (W.control w a) s eq = control-stable w a s eq
+  step-stable (W.submitDbWrite j d) s eq = db-stable _ s (W.submitDb-via j d s eq)
+  step-stable (W.awaitDbWrite j) s eq = db-stable _ s (W.awaitDb-via j s eq)
+  step-stable (W.writerComplete d) s eq = db-stable _ s eq
+  step-stable (W.writerSeal err) s eq = db-stable _ s eq
+  step-stable (W.dbWriteFailed j) s {t} eq with W.dbFailure-via j s eq
+  ... | W.refused err failed = commit-retains j s (exception-observation j err s failed)
+  ... | W.abandoned err mid abandon failed = compose-retains {xs = W.jobs s} {ys = W.jobs mid} {zs = W.jobs t}
+    (db-stable _ s abandon) (commit-retains j mid (exception-observation j err mid failed))
   exec-stable : ∀ {s as t} → W.Executes s as t → Stable s t
   exec-stable {s = s} W.done = identity (W.jobs s)
   exec-stable {t = t} (W.next {s = s} {s₁ = mid} {a = a} eq rest) =

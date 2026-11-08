@@ -681,6 +681,10 @@ module ProtocolLayer where
  -- Source egress updates retain the original physical birth registry.
  egress-same : ∀ s {t} → Old.EgressChange s t → view t ≡ view s
  egress-same s observation rewrite Old.EgressChange.after-shape observation = refl
+ -- DB queue/await steps change only the source configuration.
+ db-same : ∀ a s {t} → P.viaDb a s ≡ just t → view t ≡ view s
+ db-same a s eq with P.viaDb-source a s eq
+ ... | c , advanced , refl = refl
  change : ∀ a s {t} → P.step a s ≡ just t → Change (Selected a) (view s) (view t)
  change (P.run a) s eq = inherited-change a s eq
  change (P.forkResponder w j gen) s eq = stable (fork-same w j gen s (Old.responder-fork-observation w j gen s eq))
@@ -689,7 +693,7 @@ module ProtocolLayer where
  change (P.enterProtocolBody j) s eq = stable (egress-same s (Old.enter-observation j s eq))
  change (P.appendProtocolPayload j bytes) s eq = stable (egress-same s (Old.send-observation j bytes s eq))
  change (P.egressMuxer w action) s eq = stable (egress-same s (Old.muxer-egress-observation w action s eq))
- change (P.protocolReturned j) s eq = stable (returned-same j s eq)
+ change (P.protocolReturned j) s eq = stable (returned-same j s (P.unlessAwaiting-just j s _ eq))
  change (P.commitClean j) s eq = stable (commit-same j s (Old.clean-observation j s eq))
  change (P.protocolException j err) s eq = stable (commit-same j s (Old.exception-observation j err s eq))
  change (P.returnProtocol j) s eq = stable (returned-body-same j s (Old.return-observation j s eq))
@@ -701,6 +705,13 @@ module ProtocolLayer where
  change (P.deregisterInfra w role) s eq = stable (via-infra-same w role Pool.deregister s eq)
  change (P.asyncInfraResult w role) s eq = stable (via-infra-same w role Pool.publishAsyncResult s eq)
  change (P.control w a) s eq = stable (control-same w a s eq)
+ change (P.submitDbWrite j d) s eq = stable (db-same _ s (P.submitDb-via j d s eq))
+ change (P.awaitDbWrite j) s eq = stable (db-same _ s (P.awaitDb-via j s eq))
+ change (P.writerComplete d) s eq = stable (db-same _ s eq)
+ change (P.writerSeal err) s eq = stable (db-same _ s eq)
+ change (P.dbWriteFailed j) s eq with P.dbFailure-via j s eq
+ ... | P.refused err failed = stable (commit-same j s (Old.exception-observation j err s failed))
+ ... | P.abandoned err mid abandon failed = stable (trans (commit-same j mid (Old.exception-observation j err mid failed)) (db-same _ s abandon))
 
 import ConnectionManagement.MuxResultMonitor as MonitorModel
 open import ConnectionManagement.IGTypes using (clean; errored)

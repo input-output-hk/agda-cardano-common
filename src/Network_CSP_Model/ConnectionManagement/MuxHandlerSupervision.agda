@@ -120,6 +120,7 @@ igAllowed (IG.installOutboundHandle _ _ _ _ _) s = false
 igAllowed (IG.configureEgress _ _ _ _ _) s = false
 igAllowed (IG.registerCells _) s = false
 igAllowed (IG.retireCells _) s = false
+igAllowed (IG.leiosDb _) s = false
 igAllowed action s with Life.muxAction action
 ... | nothing = true
 ... | just (mid , access) = not (hasMux mid (frames s))

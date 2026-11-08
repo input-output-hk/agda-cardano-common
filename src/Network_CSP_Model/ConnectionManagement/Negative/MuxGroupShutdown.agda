@@ -75,6 +75,11 @@ prefixProtocol (P.publishInfra w r) m eq = refl
 prefixProtocol (P.deregisterInfra w r) m eq = refl
 prefixProtocol (P.asyncInfraResult w r) m eq = refl
 prefixProtocol (P.control w a) m eq = refl
+prefixProtocol (P.submitDbWrite j d) m eq = refl
+prefixProtocol (P.awaitDbWrite j) m eq = refl
+prefixProtocol (P.dbWriteFailed j) m eq = refl
+prefixProtocol (P.writerComplete d) m eq = refl
+prefixProtocol (P.writerSeal e) m eq = refl
 prefixProtocol (P.enterProtocolBody j) m ()
 prefixProtocol (P.appendProtocolPayload j bytes) m ()
 prefixProtocol (P.protocolReturned j) m ()

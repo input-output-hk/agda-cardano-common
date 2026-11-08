@@ -60,6 +60,11 @@ empty-allowed (P.publishInfra w r) p = refl
 empty-allowed (P.deregisterInfra w r) p = refl
 empty-allowed (P.asyncInfraResult w r) p = refl
 empty-allowed (P.control w a) p = refl
+empty-allowed (P.submitDbWrite j d) p = refl
+empty-allowed (P.awaitDbWrite j) p = refl
+empty-allowed (P.dbWriteFailed j) p = refl
+empty-allowed (P.writerComplete d) p = refl
+empty-allowed (P.writerSeal e) p = refl
 lift-step : ∀ a p {q} → P.step a p ≡ just q → W.step (W.run a) (wrap p) ≡ just (wrap q)
 lift-step a p eq rewrite empty-allowed a p | eq = refl
 lift-path : ∀ {p actions q} → P.Executes p actions q → W.Executes (wrap p) (map W.run actions) (wrap q)

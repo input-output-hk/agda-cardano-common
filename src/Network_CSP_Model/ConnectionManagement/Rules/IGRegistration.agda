@@ -73,9 +73,18 @@ record Engine : Set where
         counterRows : Store ℕ MuxId
         nextRow : ℕ
         retiredSent : Store M.ProtocolKey ℕ
+        -- Node-owned LeiosDB write queue (consensus WriteQueue.submitJob and
+        -- startWriter). Writes are keyed by an abstract identity and record
+        -- their submitting collector and whether the writer completed them.
+        -- A collector's await is separate from its queued write: cancelling
+        -- the collector never removes the write, since submitJob has no
+        -- removal operation. Queue capacity/parking is not modelled.
+        dbSealed : Maybe ErrorId
+        dbWrites : Store ℕ (JobId × Bool)
+        dbWaits : Store JobId ℕ
 open Engine public
 emptyEngine : Engine
-emptyEngine = engine [] [] [] true 0 [] 0 []
+emptyEngine = engine [] [] [] true 0 [] 0 [] nothing [] []
 record Runtime : Set where
   constructor runtimeState
   field publishedState : Published
@@ -87,6 +96,18 @@ runtime : Published → ℕ → PC → Runtime
 runtime old n pc = runtimeState old n pc emptyEngine
 initial : Runtime
 initial = runtime emptyPublished 0 sampleTime
+
+-- submitWrite: the collector atomically enqueues a write and awaits it.
+-- completeWrite: the writer thread fills a queued write's result.
+-- sealQueue: writer failure seals the queue with its cause.
+-- takeResult: the await returns a completed result (readTMVar is tried
+-- before the seal, so a completed write wins even after sealing).
+-- abandonWait: the await throws the seal cause for an uncompleted write.
+data DbAction : Set where
+  submitWrite : JobId → ℕ → DbAction
+  completeWrite : ℕ → DbAction
+  sealQueue : ErrorId → DbAction
+  takeResult abandonWait : JobId → DbAction
 
 data IGAction : Set where
   captureTime : ℕ → IGAction
@@ -113,6 +134,8 @@ data IGAction : Set where
   configureEgress : MuxId → EgressKernel.Layout → ℕ → ℕ → List (M.ProtocolKey × EgressKernel.Lane) → IGAction
   -- withByteCells: atomic register before pool entry; atomic retire after it.
   registerCells retireCells : MuxId → IGAction
+  -- LeiosDB write queue and collector awaits (see Engine.dbWrites).
+  leiosDb : DbAction → IGAction
 
 Result = Runtime × List IGEvent
 
@@ -348,6 +371,29 @@ takePending (suc i) (result ∷ rest) with takePending i rest
 ... | nothing = nothing
 ... | just (chosen , retained) = just (chosen , result ∷ retained)
 
+-- The DB queue changes only its own fields; muxes and handles are untouched.
+stepDb : DbAction → Engine → Maybe Engine
+stepDb (submitWrite j d) e with dbSealed e | lookup d (dbWrites e) | lookup j (dbWaits e)
+... | nothing | nothing | nothing = just (record e
+      { dbWrites = put d (j , false) (dbWrites e) ; dbWaits = put j d (dbWaits e) })
+... | _ | _ | _ = nothing
+stepDb (completeWrite d) e with dbSealed e | lookup d (dbWrites e)
+... | nothing | just (j , false) = just (record e { dbWrites = put d (j , true) (dbWrites e) })
+... | _ | _ = nothing
+stepDb (sealQueue err) e with dbSealed e
+... | nothing = just (record e { dbSealed = just err })
+... | just _ = nothing
+stepDb (takeResult j) e with lookup j (dbWaits e)
+... | nothing = nothing
+... | just d with lookup d (dbWrites e)
+...   | just (_ , true) = just (record e { dbWaits = delete j (dbWaits e) })
+...   | _ = nothing
+stepDb (abandonWait j) e with lookup j (dbWaits e)
+... | nothing = nothing
+... | just d with lookup d (dbWrites e) | dbSealed e
+...   | just (_ , false) | just _ = just (record e { dbWaits = delete j (dbWaits e) })
+...   | _ | _ = nothing
+
 stepWorker : IGAction → Runtime → List IGEvent → Maybe Result
 -- IG exit is an environment exception/scope-exit boundary, not a free normal
 -- loop decision. Source catch handler deactivates and then flushes in separate STMs.
@@ -450,6 +496,9 @@ stepWorker (retireCells mid) r queue with lookup mid (muxes (execution r)) | row
       { counterRows = delete i (counterRows (execution r))
       ; retiredSent = addSent (M.Egress.cells (M.egress m)) (retiredSent (execution r)) } } , queue)
 ... | _ | _ = nothing
+stepWorker (leiosDb a) r queue with stepDb a (execution r)
+... | nothing = nothing
+... | just e = just (record r { execution = e } , queue)
 stepWorker (sampleTracer mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.tracerAttachment m | M.callback m
@@ -648,6 +697,7 @@ runtimeAction (recordAsyncMuxFailure _ _) = true
 runtimeAction (recordInterruptedMuxFailure _ _) = true
 runtimeAction (traceInterruptedMuxDead _) = true
 runtimeAction (traceGracefulMuxStopped _) = true
+runtimeAction (leiosDb _) = true
 runtimeAction _ = false
 
 -- In initiator-only mode, the shared monitor may consume initiator results

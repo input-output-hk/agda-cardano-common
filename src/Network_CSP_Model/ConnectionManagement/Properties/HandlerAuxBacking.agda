@@ -258,7 +258,7 @@ import ConnectionManagement.MuxProtocolJobs as ProtocolModel
 import ConnectionManagement.Properties.MuxProtocolJobs as ProtocolProperties
 import ConnectionManagement.Rules.MuxRuntime as WireMux
 module Protocol where
- private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol)
+ private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; unlessAwaiting-just; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol; viaDb; viaDb-source; submitDb-via; awaitDb-via; dbFailure-via; DbFailure; refused; abandoned; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
  private module U = P.U using (base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
  private module Pool = P.Pool using (bodyReturnedWith; deregister; parentFork; publishAsyncResult; publishCompletion; register; step)
  private module Startup = P.Startup using (phase)
@@ -356,6 +356,10 @@ module Protocol where
  -- Source egress changes do not replace any captured owner frame.
  egress-valid : ∀ s {t} → Old.EgressChange s t → Valid s → Valid t
  egress-valid s observation valid rewrite Old.EgressChange.after-shape observation = valid
+ -- DB queue/await steps change only the source configuration.
+ db-valid : ∀ a s {t} → P.viaDb a s ≡ just t → Valid s → Valid t
+ db-valid a s eq valid with P.viaDb-source a s eq
+ ... | c , advanced , refl = valid
  step-preserves : ∀ a s {t} → P.step a s ≡ just t → Valid s → Valid t
  step-preserves (P.run a) = inherited a
  step-preserves (P.forkResponder w j gen) s eq = fork-valid w j gen s (Old.responder-fork-observation w j gen s eq)
@@ -364,7 +368,7 @@ module Protocol where
  step-preserves (P.enterProtocolBody j) s eq = egress-valid s (Old.enter-observation j s eq)
  step-preserves (P.appendProtocolPayload j bytes) s eq = egress-valid s (Old.send-observation j bytes s eq)
  step-preserves (P.egressMuxer w action) s eq = egress-valid s (Old.muxer-egress-observation w action s eq)
- step-preserves (P.protocolReturned j) = returned j
+ step-preserves (P.protocolReturned j) s eq = returned j s (P.unlessAwaiting-just j s _ eq)
  step-preserves (P.commitClean j) s eq = commit-valid j s (Old.clean-observation j s eq)
  step-preserves (P.protocolException j err) s eq = commit-valid j s (Old.exception-observation j err s eq)
  step-preserves (P.returnProtocol j) s eq = body-valid j s (Old.return-observation j s eq)
@@ -376,6 +380,13 @@ module Protocol where
  step-preserves (P.deregisterInfra w role) = via-infra w role Pool.deregister
  step-preserves (P.asyncInfraResult w role) = via-infra w role Pool.publishAsyncResult
  step-preserves (P.control w a) = control w a
+ step-preserves (P.submitDbWrite j d) s eq = db-valid _ s (P.submitDb-via j d s eq)
+ step-preserves (P.awaitDbWrite j) s eq = db-valid _ s (P.awaitDb-via j s eq)
+ step-preserves (P.writerComplete d) s eq = db-valid _ s eq
+ step-preserves (P.writerSeal err) s eq = db-valid _ s eq
+ step-preserves (P.dbWriteFailed j) s eq valid with P.dbFailure-via j s eq
+ ... | P.refused err failed = commit-valid j s (Old.exception-observation j err s failed) valid
+ ... | P.abandoned err mid abandon failed = commit-valid j mid (Old.exception-observation j err mid failed) (db-valid _ s abandon valid)
  initialized-valid : ∀ c {s} → P.initial c ≡ just s → Valid s
  initialized-valid c eq with U.initial c in actual
  ... | nothing = case eq of λ ()
@@ -461,6 +472,9 @@ module Protocol where
  -- A child/muxer egress update does not acknowledge CM shutdown.
  egress-same : ∀ s {t} → Old.EgressChange s t → coordinator t ≡ coordinator s
  egress-same s observation rewrite Old.EgressChange.after-shape observation = refl
+ db-same : ∀ a s {t} → P.viaDb a s ≡ just t → coordinator t ≡ coordinator s
+ db-same a s eq with P.viaDb-source a s eq
+ ... | c , advanced , refl = refl
  direct-shutdown-same : ∀ a s {t} → P.step a s ≡ just t → IsDirect a → coordinator t ≡ coordinator s
  direct-shutdown-same (P.run a) s eq ()
  direct-shutdown-same (P.forkResponder w j gen) s eq direct = fork-same w j gen s (Old.responder-fork-observation w j gen s eq)
@@ -469,7 +483,7 @@ module Protocol where
  direct-shutdown-same (P.enterProtocolBody j) s eq direct = egress-same s (Old.enter-observation j s eq)
  direct-shutdown-same (P.appendProtocolPayload j bytes) s eq direct = egress-same s (Old.send-observation j bytes s eq)
  direct-shutdown-same (P.egressMuxer w action) s eq direct = egress-same s (Old.muxer-egress-observation w action s eq)
- direct-shutdown-same (P.protocolReturned j) s eq direct = returned-same j s eq
+ direct-shutdown-same (P.protocolReturned j) s eq direct = returned-same j s (P.unlessAwaiting-just j s _ eq)
  direct-shutdown-same (P.commitClean j) s eq direct = commit-same j s (Old.clean-observation j s eq)
  direct-shutdown-same (P.protocolException j err) s eq direct = commit-same j s (Old.exception-observation j err s eq)
  direct-shutdown-same (P.returnProtocol j) s eq direct = returned-body-same j s (Old.return-observation j s eq)
@@ -481,6 +495,13 @@ module Protocol where
  direct-shutdown-same (P.deregisterInfra w role) s eq direct = via-infra-same w role Pool.deregister s eq
  direct-shutdown-same (P.asyncInfraResult w role) s eq direct = via-infra-same w role Pool.publishAsyncResult s eq
  direct-shutdown-same (P.control w a) s eq direct = control-same w a s eq
+ direct-shutdown-same (P.submitDbWrite j d) s eq direct = db-same _ s (P.submitDb-via j d s eq)
+ direct-shutdown-same (P.awaitDbWrite j) s eq direct = db-same _ s (P.awaitDb-via j s eq)
+ direct-shutdown-same (P.writerComplete d) s eq direct = db-same _ s eq
+ direct-shutdown-same (P.writerSeal err) s eq direct = db-same _ s eq
+ direct-shutdown-same (P.dbWriteFailed j) s eq direct with P.dbFailure-via j s eq
+ ... | P.refused err failed = commit-same j s (Old.exception-observation j err s failed)
+ ... | P.abandoned err mid abandon failed = trans (commit-same j mid (Old.exception-observation j err mid failed)) (db-same _ s abandon)
 
 import ConnectionManagement.MuxResultMonitor as MonitorModel
 open import ConnectionManagement.IGTypes using (clean; errored)

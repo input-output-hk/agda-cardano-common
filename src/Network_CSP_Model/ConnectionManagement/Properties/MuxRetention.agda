@@ -55,6 +55,37 @@ data CoveredMux : IG.IGAction → Set where
   configure : ∀ {mid plan limit bound keys} → CoveredMux (IG.configureEgress mid plan limit bound keys)
   register : ∀ {mid} → CoveredMux (IG.registerCells mid)
   retire : ∀ {mid} → CoveredMux (IG.retireCells mid)
+  db : ∀ {a} → CoveredMux (IG.leiosDb a)
+
+-- Every DB queue/await step keeps the engine's handles and muxes.
+db-anchors : ∀ a ig {e} → IG.stepDb a (IG.execution ig) ≡ just e → Anchors ig (record ig { execution = e })
+db-anchors (IG.submitWrite j d) ig eq
+  with IG.dbSealed (IG.execution ig) | lookup d (IG.dbWrites (IG.execution ig)) | lookup j (IG.dbWaits (IG.execution ig))
+... | nothing | nothing | nothing = case just-injective eq of λ { refl → record { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+... | nothing | nothing | just _ = case eq of λ ()
+... | nothing | just _ | _ = case eq of λ ()
+... | just _ | _ | _ = case eq of λ ()
+db-anchors (IG.completeWrite d) ig eq with IG.dbSealed (IG.execution ig) | lookup d (IG.dbWrites (IG.execution ig))
+... | nothing | just (j , false) = case just-injective eq of λ { refl → record { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+... | nothing | just (j , true) = case eq of λ ()
+... | nothing | nothing = case eq of λ ()
+... | just _ | _ = case eq of λ ()
+db-anchors (IG.sealQueue err) ig eq with IG.dbSealed (IG.execution ig)
+... | nothing = case just-injective eq of λ { refl → record { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+... | just _ = case eq of λ ()
+db-anchors (IG.takeResult j) ig eq with lookup j (IG.dbWaits (IG.execution ig))
+... | nothing = case eq of λ ()
+... | just d with lookup d (IG.dbWrites (IG.execution ig))
+...   | just (_ , true) = case just-injective eq of λ { refl → record { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+...   | just (_ , false) = case eq of λ ()
+...   | nothing = case eq of λ ()
+db-anchors (IG.abandonWait j) ig eq with lookup j (IG.dbWaits (IG.execution ig))
+... | nothing = case eq of λ ()
+... | just d with lookup d (IG.dbWrites (IG.execution ig)) | IG.dbSealed (IG.execution ig)
+...   | just (_ , false) | just _ = case just-injective eq of λ { refl → record { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
+...   | just (_ , false) | nothing = case eq of λ ()
+...   | just (_ , true) | _ = case eq of λ ()
+...   | nothing | _ = case eq of λ ()
 
 worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
   IG.stepWorker a ig queue ≡ just (ig′ , queue′) → Anchors ig ig′
@@ -78,6 +109,10 @@ worker-anchors .(IG.retireCells mid) (retire {mid}) ig queue eq
   { handlesSame = refl ; muxesRetained = λ q old found → old , found , refl } }
 ... | just m | nothing = case eq of λ ()
 ... | nothing | _ = case eq of λ ()
+-- The LeiosDB queue writes only its own engine fields.
+worker-anchors .(IG.leiosDb a) (db {a}) ig queue eq with IG.stepDb a (IG.execution ig) in stepped
+... | nothing = case eq of λ ()
+... | just e = case just-injective eq of λ { refl → db-anchors a ig stepped }
 -- A configured profile replaces only the actual mux's pristine egress.
 worker-anchors .(IG.configureEgress mid plan limit bound keys) (configure {mid} {plan} {limit} {bound} {keys}) ig queue eq
   with lookup mid (IG.muxes (IG.execution ig)) in found
@@ -384,6 +419,7 @@ mode-anchors noResponderMode .(IG.configureEgress mid plan limit bound keys) (co
 ... | true = worker-anchors (IG.configureEgress mid plan limit bound keys) configure ig queue eq
 mode-anchors noResponderMode .(IG.registerCells mid) (register {mid}) ig queue eq = worker-anchors (IG.registerCells mid) register ig queue eq
 mode-anchors noResponderMode .(IG.retireCells mid) (retire {mid}) ig queue eq = worker-anchors (IG.retireCells mid) retire ig queue eq
+mode-anchors noResponderMode .(IG.leiosDb a) (db {a}) ig queue eq = worker-anchors (IG.leiosDb a) db ig queue eq
 mode-anchors noResponderMode .(IG.sampleTracer mid) (sample {mid}) ig queue eq = worker-anchors (IG.sampleTracer mid) sample ig queue eq
 mode-anchors noResponderMode .(IG.commitTracer mid) (trace {mid}) ig queue eq = worker-anchors (IG.commitTracer mid) trace ig queue eq
 mode-anchors noResponderMode .(IG.finishStop mid) (stopped {mid}) ig queue eq = worker-anchors (IG.finishStop mid) stopped ig queue eq
