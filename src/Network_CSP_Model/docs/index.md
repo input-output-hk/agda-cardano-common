@@ -17,15 +17,16 @@ investigation history.
 | Outbound negotiated-mux CM receipt and wait | [Increment 64](../ConnectionManagement/Supervision.md#sixty-fourth-increment-outbound-negotiated-mux-receipt-and-final-wait): accepted actual outer closure and inactive-IG unwind through publication/final wait. [Pinned source evidence](../review/connection-management-si4-source-audit-2026-10-27.md#increment-64-outbound-mux-receipt-and-inactive-ig-6-november-2026) |
 | Initialized TIME_WAIT receipt/finalizer routes | [Increment 65 contract](../ConnectionManagement/Supervision.md#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes): accepted initialized elapsed/interrupted finally routes and CM waits; [pinned entry/finalizer audit](../review/connection-management-si4-source-audit-2026-10-27.md#increment-65-time_wait-entry-and-finalizer-audit-6-november-2026) |
 | Independent outbound-release receipt/return | [Accepted increment 66](../ConnectionManagement/Supervision.md#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return), committed in `daf111d`: finite initialized live/available-result routes, actual source return and same-origin final wait; [generic receipt properties](../ConnectionManagement/Properties/ServerPeersReleaseReceipt.agda). |
-| Source-baseline assessment | [Verified current-pair audit](../review/connection-management-source-baseline-audit-2026-11-06.md): exact source objects retrieved, changed lifecycle/readiness contracts identified; model pins retained pending explicit migration. |
+| Source-baseline assessment | [Verified current-pair audit](../review/connection-management-source-baseline-audit-2026-11-06.md): exact source objects retrieved, changed lifecycle/readiness contracts identified; migrated and promoted on 9 November 2026 ([migration plan](../ConnectionManagement/BASELINE_MIGRATION_PLAN.md)). |
 | Acquisition, release and peer-state behavior | [Outbound](../ConnectionManagement/Outbound.md), [inbound release](../ConnectionManagement/InboundRelease.md), [remote state](../ConnectionManagement/RemoteState.md), [pruning](../ConnectionManagement/Pruning.md) |
 | Handler and IG behavior | [Handler lifecycle](../ConnectionManagement/HandlerLifecycle.md), [handler outcomes](../ConnectionManagement/HandlerOutcomes.md), [IG registration](../ConnectionManagement/IGRegistration.md) |
 | Implementation experiments and reproduction | [Source replays](../ConnectionManagement/SourceReplay/README.md), including the [actual Server admission-worker replay](../ConnectionManagement/SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) |
 | Model semantics and module navigation | [CSP interpretation](../ConnectionManagement/CSP/README.md), [module overview](../ConnectionManagement/README.md) |
 
 ConnectionManagement uses network revision
-`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` and consensus revision
-`585a86117618ff86d7d5b541f9d23b03356d4c3a`. The
+`2f1c154f248659b89523d5679ca532f442e7ed2a` and consensus revision
+`2e44d98a843168ba3b189e305820b79943ac7d1e` (since 9 November 2026; earlier
+results keep `96ee6e0…` / `585a861…`). The
 [dated SI4 audit](../review/connection-management-si4-source-audit-2026-10-27.md)
 records source obligations and subsequent model/replay followups. Model proofs,
 source inspection and finite implementation replays supply different evidence;

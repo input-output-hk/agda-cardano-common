@@ -31,9 +31,10 @@ must include CM, IG, OG and Server; the implemented admission/handshake slices a
 for that slice. The target model includes their shared state, action jobs,
 peer monitors, handlers, mux lifecycle, protocol controls/results, and cleanup.
 
-Network baseline: `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, pinned by consensus
-`585a86117618ff86d7d5b541f9d23b03356d4c3a`. Use [SourceLedger.md](SourceLedger.md)
-for exact paths and ranges. Section 5 of the network specification is a separate
+Network baseline: `2f1c154f248659b89523d5679ca532f442e7ed2a`, pinned by consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e` (promoted 9 November 2026 after the
+M0–M6 migration; earlier results keep `96ee6e0…` / `585a861…`). Use
+[SourceLedger.md](SourceLedger.md) for exact paths and ranges. Section 5 of the network specification is a separate
 comparison specification; implementation rules come from the pinned code.
 
 The executable authority will be a **pure small-step machine with modular rule
@@ -431,4 +432,4 @@ coverage, remaining abstractions and the revised implementation priorities.
 
 ## 11. Audited source-baseline migration
 
-The [migration plan](BASELINE_MIGRATION_PLAN.md) orders the held/in-flight, lane ownership, setup, scheduling and DB-wait changes required for the audited `2e44d98…` / `2f1c154…` target. Existing model pins remain until its acceptance and source-validation gates pass.
+The [migration plan](BASELINE_MIGRATION_PLAN.md) orders the held/in-flight, lane ownership, setup, scheduling and DB-wait changes required for the audited `2e44d98…` / `2f1c154…` target. All gates passed (M1+M2, M3+M5 and M4 strict acceptance; M6 native replays and the full maintained-module regression), and the model was promoted to this pair on 9 November 2026. The remaining explicit gaps are listed in the plan's M6 status.

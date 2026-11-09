@@ -63,9 +63,10 @@ Fresh full acceptance passed; it is committed in `daf111d`. The generic
 [release receipt properties](Properties/ServerPeersReleaseReceipt.agda) derive
 captured-target, source acknowledgement, permission and coordinator evidence.
 The [latest-source audit](../review/connection-management-source-baseline-audit-2026-11-06.md)
-verified the observed `2e44d98…` / `2f1c154…` pair. Existing model pins remain:
-changed held-batch readiness, setup and worker-lifetime contracts need explicit
-migration first. No new proof wave or repin was performed for the audit.
+verified the observed `2e44d98…` / `2f1c154…` pair. The [migration](BASELINE_MIGRATION_PLAN.md)
+then implemented its changed held-batch readiness, setup, scheduling,
+worker-lifetime and DB-wait contracts, and on 9 November 2026 promoted the
+model to that pair.
 The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
 sets the next proof contract, independent workstreams and acceptance gates.
 
@@ -657,7 +658,9 @@ of rendered processes.
 ## Scope and fixture assumptions
 
 - The network source pin is
-  `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, from consensus
+  `2f1c154f248659b89523d5679ca532f442e7ed2a`, from consensus
+  `2e44d98a843168ba3b189e305820b79943ac7d1e` (since 9 November 2026). Earlier
+  results keep `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` /
   `585a86117618ff86d7d5b541f9d23b03356d4c3a`.
 - Fixtures have unique store keys, valid entry references, fresh identity supplies,
   distinct admission/child workers, and accepted sockets associated with their

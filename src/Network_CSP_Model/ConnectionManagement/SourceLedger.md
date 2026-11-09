@@ -3,10 +3,16 @@
 **Initial ledger: 15 October 2026; coverage status reconciled 4 November 2026.**
 Companion to [DESIGN.md](DESIGN.md).
 
-All network paths and line ranges below refer to
-`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. Consensus protocol contracts use
-`585a86117618ff86d7d5b541f9d23b03356d4c3a`. These are fixed baselines, not a claim
-about the latest branch heads.
+**Source authority (promoted 9 November 2026, M6):** network
+`2f1c154f248659b89523d5679ca532f442e7ed2a`, the dependency of consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. CM Core, IG, Server and JobPool are
+byte-identical at both network pins (source audit, 6 November), so ranges cited
+below at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` still locate the same code
+for those files. Ranges in changed files (mux, handler setup, egress, diffusion,
+governor, consensus DB) are cited at the new pin in the M3/M4 tables and the
+[migration profile](MigrationProfile.md). Results and replays recorded at
+`96ee6e…` / consensus `585a861…` keep that pin.
+These are fixed baselines, not a claim about the latest branch heads.
 
 This is an initial implementation ledger. **Expanded** entries define selected
 operation boundaries checked against the source. **Family** entries locate the
@@ -21,9 +27,11 @@ verified the observed consensus/network pair `2e44d98…` / `2f1c154…` from li
 refs and exact fetched objects. CM/IG/Server/JobPool source is unchanged, but mux
 held-batch readiness, handler setup, egress ownership, governor observations and
 synchronous DB completion waits require source-contract reconciliation.
-**The model pins above are retained; this is not a repin or source-refinement
-claim.** Old proof evidence through model commit `daf111d` is preserved. The
-linked audit records the migration gates and remaining checks.
+At audit time the model kept its pins. The M0–M6 migration then reconciled
+these contracts and promoted the model on 9 November 2026. This is not a
+source-refinement claim. Old proof evidence through model commit `daf111d` is
+preserved. The linked audit records the migration gates, and the plan records
+the remaining open items.
 
 ### M3 handler setup and outer scopes (network `2f1c154`)
 

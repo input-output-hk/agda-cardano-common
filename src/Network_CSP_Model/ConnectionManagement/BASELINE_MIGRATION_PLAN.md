@@ -1,6 +1,6 @@
 # Model and proof migration plan
 
-Status: M0 contract fixed; M1 runtime/proof integration in progress (kernel component invariants closed 7 November: per-key conservation, lane exclusivity, routing provenance, write enabledness), M2 in progress (7 November: configured startup kernel and invariant, configured egress installation, configured-role protocol/group/monitor selectors and lane routing; shared counter registry with pre-pool register, scopeDone retire and exit gating; M1+M2 batch strict acceptance passed 8 November at 16bec87); M5 synchronous LeiosDB waits and M3 scheduled-egress handler setup stages/unwind sites with outer-scope owner mapping (pool-relays cancel/join an explicit gap); M3+M5 batch strict acceptance passed 9 November; M4a lane waits/write lock/shared-bucket grants (e5699f2) and M4b governor tenure observations (aa777d9); M4 strict acceptance passed 9 November at aa777d9. Migration started at the user's request
+Status: M0 contract fixed; M1 runtime/proof integration in progress (kernel component invariants closed 7 November: per-key conservation, lane exclusivity, routing provenance, write enabledness), M2 in progress (7 November: configured startup kernel and invariant, configured egress installation, configured-role protocol/group/monitor selectors and lane routing; shared counter registry with pre-pool register, scopeDone retire and exit gating; M1+M2 batch strict acceptance passed 8 November at 16bec87); M5 synchronous LeiosDB waits and M3 scheduled-egress handler setup stages/unwind sites with outer-scope owner mapping (pool-relays cancel/join an explicit gap); M3+M5 batch strict acceptance passed 9 November; M4a lane waits/write lock/shared-bucket grants (e5699f2) and M4b governor tenure observations (aa777d9); M4 strict acceptance passed 9 November at aa777d9; M6 complete 9 November (native replays and probes at 2f1c154, full 495-module regression) and source authority promoted. Migration started at the user's request
 on `kangfeng/connection_management_new_source`, based on accepted `daf111d`.
 Task Monitor goal `g-f038d197e9fe` tracks M0–M6. The [M0 profile](MigrationProfile.md)
 fixes source units, state ownership and the first-batch compatibility interface. Authority: [source audit](../review/connection-management-source-baseline-audit-2026-11-06.md),
@@ -9,9 +9,18 @@ maintained theorem types. Preserve accepted model commit `daf111d`.
 
 Target exact consensus `2e44d98a843168ba3b189e305820b79943ac7d1e` and network
 `2f1c154f248659b89523d5679ca532f442e7ed2a`; these are the audited pair, not a
-moving branch designation. Existing model authority remains consensus585a861 /
-network96ee6e until the final promotion gate. Record module-level migration
-status explicitly while work is in progress.
+moving branch designation. They are the model's source authority since the
+M6 promotion on 9 November 2026. Results recorded at consensus `585a861` /
+network `96ee6e` keep those pins.
+
+M6 open items, stated rather than claimed:
+- The pool-relays thread's cancel and join (M3) are not modelled.
+- The rank rule's standing reads are not modelled; token arithmetic, grant
+  order, floor and fairness are abstract (M4).
+- Peer sharing and local roots are outside the ordinary-peer governor profile.
+- No consensus-side native replay of the LeiosDB waits (M5) was run.
+- Native publication probes cover the plain mux only; scheduled egress is
+  covered by the Agda model and its controls.
 
 ## M0 unit correction (source inspection)
 
