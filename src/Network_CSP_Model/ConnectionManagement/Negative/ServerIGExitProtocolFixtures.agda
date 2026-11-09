@@ -67,7 +67,7 @@ render : Model → E.State
 render m = E.igExitState (S.serverState (wrap (M.monitorState (P.protocolState
   (U.supervised (B.supervised (configuration m) ((A.child₀ , H.handlerThread I.captured H.handshaking) ∷ []) Close.initialState)
     ((A.child₀ , inbound) ∷ [])
-    ((A.child₀ , U.frame I.captured inbound I.ps duplex (U.promisePublished (ident 0) (ident 0)) (startup m)) ∷ []))
+    ((A.child₀ , U.frame I.captured inbound I.ps duplex (U.promisePublished (ident 0) (ident 0)) (startup m) U.setupPending) ∷ []))
   (jobs m) (pending m)) (monitors m)) (tickets m)) (S.workers F.s11) S.serving true) E.emptyExit
 baseWorld : Shared.ConnectionState → List Shared.IGEvent → Shared.State
 baseWorld st queue = record (S.shared F.s11) { inboundInfo = queue

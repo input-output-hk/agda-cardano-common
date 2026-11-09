@@ -79,9 +79,13 @@ current registry membership and physical result availability.
 Optional counter references point to one shared execution-heap registry, not a
 copy per mux. Register/retire must be real source transitions. Pre-pool acquisition failure
 uses its actual failure/outer-finalizer path, not a fabricated pool-close
-certificate. Counter threads,
-relay scopes and pre-publication rank-rule execution remain M3 gaps; M2 records
-only the included pool/register/retire boundary, not whole-diffusion completion.
+certificate. M2 records only the included pool/register/retire boundary, not
+whole-diffusion completion. M3 adds pre-publication rank-rule execution:
+`egressSetup` stages and the `egressRule`/`rankInstall`/`rankTrace` unwind
+sites. The counters loop and pool relays are mapped to their owners in the
+[source ledger](SourceLedger.md#m3-handler-setup-and-outer-scopes-network-2f1c154).
+The pool relays thread's cancel/join remains an explicit gap outside
+`AsyncScope`'s four actors.
 
 Preserve existing theorem types, source projections and actual O traces across
 every new writer. Stronger readiness/all-role/retirement statements are additions.
@@ -138,7 +142,7 @@ no new axioms, holes, unsafe options or weaker old statements. M1–M2 remains o
 until that acceptance passes; no module-wide source promotion follows merely
 from checking the new component.
 
-M3 handler rule/tracer/outer-worker contracts, M4 detailed tokens/policy/fairness,
+M3 pool-relays cancel/join, M4 detailed tokens/policy/fairness,
 M5 collector-owned DB waits, exact dependency/backend validation and M6 source
 replays remain explicit gaps. Scheduling disablement does not remove held guards.
 Cancelling a DB collector does not retract its queued writer job. No universal

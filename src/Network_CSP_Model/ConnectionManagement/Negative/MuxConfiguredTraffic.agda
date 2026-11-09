@@ -51,7 +51,8 @@ responder = Plain.j₁₀
 
 publication : List W.Action
 publication = W.run (U.negotiate owner Old.ps duplex) ∷ W.run (U.allocateHandle owner (ident 0) Plain.mid) ∷
-  W.run (U.configureMux owner plan 16 1000 keys) ∷ W.run (U.publishSuccess owner) ∷ []
+  W.run (U.configureMux owner plan 16 1000 keys) ∷ W.run (U.egressSetup owner) ∷ W.run (U.egressSetup owner) ∷
+  W.run (U.egressSetup owner) ∷ W.run (U.publishSuccess owner) ∷ []
 startup : List W.Action
 startup = st S.allocateBuffer ∷ st S.createBearer ∷ st S.enterRun ∷ st S.traceStarting ∷ st S.allocateEgress ∷
   st (S.configureStartup plan) ∷ st S.openPool ∷
@@ -78,11 +79,25 @@ cfgSource c with lookup Plain.mid (IG.muxes (IG.execution (M.inboundGovernor (O.
 ... | nothing = c
 ... | just m = record c { core = record (O.core c) { inboundGovernor =
   IG.setMux Plain.mid (record m { egress = configuredEgress }) (M.inboundGovernor (O.core c)) } }
+-- The owner's handler setup stage; after publication it is always rankTraced.
+setupAt : U.Setup → W.State → W.State
+setupAt k s with lookup owner (U.frames (W.base s))
+... | nothing = s
+... | just f = record s { base = U.setFrame owner (record f { setup = k }) (W.base s) }
+cfgAt : U.Setup → W.State → W.State
+cfgAt k s = setupAt k (W.setSource (cfgSource (W.source s)) s)
 cfg : W.State → W.State
-cfg s = W.setSource (cfgSource (W.source s)) s
+cfg = cfgAt U.rankTraced
 
-configure14 : W.step (W.run (U.configureMux owner plan 16 1000 keys)) Plain.b14 ≡ just (cfg Plain.b14)
+configure14 : W.step (W.run (U.configureMux owner plan 16 1000 keys)) Plain.b14 ≡ just (cfgAt U.setupPending Plain.b14)
 configure14 = refl
+-- Rule obtained, rank source/sink installed, rank traced: then publication.
+rule14 : W.step (W.run (U.egressSetup owner)) (cfgAt U.setupPending Plain.b14) ≡ just (cfgAt U.ruleObtained Plain.b14)
+rule14 = refl
+install14 : W.step (W.run (U.egressSetup owner)) (cfgAt U.ruleObtained Plain.b14) ≡ just (cfgAt U.rankInstalled Plain.b14)
+install14 = refl
+trace14 : W.step (W.run (U.egressSetup owner)) (cfgAt U.rankInstalled Plain.b14) ≡ just (cfg Plain.b14)
+trace14 = refl
 publish15 : W.step (W.run (U.publishSuccess owner)) (cfg Plain.b14) ≡ just (cfg Plain.b15)
 publish15 = refl
 caller1 : W.step (W.run (U.run (B.outbound (O.acquire Plain.Fixture.caller A.readCounters)))) (cfg Plain.b15) ≡ just (cfg Plain.c1)
@@ -157,7 +172,8 @@ monitored : W.State
 monitored = z 15
 
 publicationPath : W.Executes Plain.b12 publication (cfg Plain.b15)
-publicationPath = W.next Plain.success13 (W.next Plain.success14 (W.next configure14 (W.next publish15 W.done)))
+publicationPath = W.next Plain.success13 (W.next Plain.success14 (W.next configure14 (W.next rule14 (W.next install14
+  (W.next trace14 (W.next publish15 W.done))))))
 callerPath : W.Executes (cfg Plain.b15) Plain.callerPathActions (cfg Plain.c11)
 callerPath = W.next caller1 (W.next caller2 (W.next caller3 (W.next caller4 (W.next caller5 (W.next caller6
   (W.next caller7 (W.next caller8 (W.next caller9 (W.next caller10 (W.next caller11 W.done))))))))))
@@ -192,7 +208,7 @@ e3 = estep (Mux.Egress.takeFirst E.directLane) e2
 e4 = estep (Mux.Egress.selectDemand 0) e3
 e5 = estep (Mux.Egress.writeAccount 0) e4
 csnap : Mux.Egress.State → Mux.Mux → List Shared.IGEvent → W.Pool.State → Store JobId Types.ProtocolJob → Store WorkerId (List JobId) → W.State
-csnap e m queue p jobs pending = Plain.at (Plain.sourceMux (record m { egress = e }) queue) (record cfgMonitor { pool = p }) jobs pending
+csnap e m queue p jobs pending = setupAt U.rankTraced (Plain.at (Plain.sourceMux (record m { egress = e }) queue) (record cfgMonitor { pool = p }) jobs pending)
 pool₀ forkedPool : W.Pool.State
 pool₀ = S.pool cfgMonitor
 forkedPool = record (Plain.physical responder W.Pool.bodyRunning pool₀) { parentFork = just responder }

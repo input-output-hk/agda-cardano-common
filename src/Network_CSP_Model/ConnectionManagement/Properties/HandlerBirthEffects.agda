@@ -565,6 +565,13 @@ module MuxLayer where
  register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
+ setup-same : ∀ w s {s′} → U.setupFor w s ≡ just s′ → view s′ ≡ view s
+ setup-same w s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.scheduled f (U.source s) | U.nextSetup (U.setup f)
+ ...   | true | just next = case just-injective eq of λ { refl → refl }
+ ...   | true | nothing = case eq of λ ()
+ ...   | false | _ = case eq of λ ()
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → view s′ ≡ view s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -584,7 +591,8 @@ module MuxLayer where
  change (U.allocateHandle w hid mid) s eq = stable (allocate-same w hid mid s eq)
  change (U.configureMux w plan limit bound keys) s eq = stable (configure-same w plan limit bound keys s eq)
  change (U.registerCounters w) s eq = stable (register-same w s eq)
- change (U.publishSuccess w) s eq = stable (publish-same w s eq)
+ change (U.egressSetup w) s eq = stable (setup-same w s eq)
+ change (U.publishSuccess w) s eq = stable (publish-same w s (U.whenSetupDone-just w s (U.publish w s) eq))
  change (U.startupStep w a) s eq = stable (cong captures (Old.startup-parent-registry w a s eq))
 
 import ConnectionManagement.MuxProtocolJobs as ProtocolModel
@@ -1879,7 +1887,7 @@ module PublicationLayer (isBearerClosed : ErrorId → Bool) where
  ... | nothing | nothing | _ | _ = case eq of λ ()
  ... | nothing | just f | just e | _ = case eq of λ ()
  ... | nothing | just f | nothing | just oldFault = case eq of λ ()
- ... | nothing | just f | nothing | nothing with N.siteReady site (U.progress f) | N.deliveryReady site result | Startup.phase (U.startup f) | Pool.handles (N.poolAt w s)
+ ... | nothing | just f | nothing | nothing with N.siteReady site f (N.source s) | N.deliveryReady site result | Startup.phase (U.startup f) | Pool.handles (N.poolAt w s)
  ...   | true | true | Startup.awaitPublication | [] with lookup w (S.handlers (M.world (O.core (N.source s)))) |
     lookup (S.handlerPromise (U.captured f)) (S.handshakeResults (M.world (O.core (N.source s))))
  ...     | just actual | nothing with W.sameStart (U.captured f) actual

@@ -60,8 +60,11 @@ startupActions = toEgress ++ (st (S.configureStartup plan) ∷ st S.openPool ∷
   st (S.forkConfigured (ident 11)) ∷ st S.registerConfigured ∷
   st (S.forkConfigured (ident 12)) ∷ st S.registerConfigured ∷
   st S.traceConfiguredMature ∷ st S.enterConfiguredMonitor ∷ [])
+-- Rule obtained, rank source/sink installed, rank traced (ConnectionHandler newMux).
+setup : U.Action
+setup = U.egressSetup Fixture.child
 configuredActions : List U.Action
-configuredActions = configured ∷ U.publishSuccess Fixture.child ∷ startupActions
+configuredActions = configured ∷ setup ∷ setup ∷ setup ∷ U.publishSuccess Fixture.child ∷ startupActions
 
 abstract
   initialized-configured-handler : U.Executes Base.q₀ (Base.birthActions ++
@@ -88,7 +91,7 @@ exact-roles = refl
 
 -- Refusals at the handler boundary.
 afterEgress : U.State
-afterEgress = after (configured ∷ U.publishSuccess Fixture.child ∷ toEgress)
+afterEgress = after (configured ∷ setup ∷ setup ∷ setup ∷ U.publishSuccess Fixture.child ∷ toEgress)
 legacy-pool-refused-on-scheduled-mux : U.step (st S.openPool) afterEgress ≡ nothing
 legacy-pool-refused-on-scheduled-mux = refl
 mismatched-plan-refused : U.step (st (S.configureStartup (E.scheduledLayout true))) afterEgress ≡ nothing
@@ -97,7 +100,24 @@ plain-configured-plan-refused : U.step (st (S.configureStartup E.plainLayout)) a
 plain-configured-plan-refused = refl
 second-configuration-refused : U.step configured (after (configured ∷ [])) ≡ nothing
 second-configuration-refused = refl
-configuration-after-publication-refused : U.step configured (after (configured ∷ U.publishSuccess Fixture.child ∷ [])) ≡ nothing
+configuration-after-publication-refused : U.step configured (after (configured ∷ setup ∷ setup ∷ setup ∷ U.publishSuccess Fixture.child ∷ [])) ≡ nothing
 configuration-after-publication-refused = refl
 raw-ig-configuration-refused : U.step (U.run (B.handler (H.run (M.igStep (IG.configureEgress (ident 0) plan 16 1000 keys))))) Base.q14 ≡ nothing
 raw-ig-configuration-refused = refl
+
+-- M3 setup boundary: a scheduled mux is not published until its rank trace
+-- has returned; a plain mux has no setup; each setup operation runs once.
+publication-before-rule-refused : U.step (U.publishSuccess Fixture.child) (after (configured ∷ [])) ≡ nothing
+publication-before-rule-refused = refl
+publication-before-install-refused : U.step (U.publishSuccess Fixture.child) (after (configured ∷ setup ∷ [])) ≡ nothing
+publication-before-install-refused = refl
+publication-before-trace-refused : U.step (U.publishSuccess Fixture.child) (after (configured ∷ setup ∷ setup ∷ [])) ≡ nothing
+publication-before-trace-refused = refl
+plain-setup-refused : U.step setup Base.q14 ≡ nothing
+plain-setup-refused = refl
+setup-after-trace-refused : U.step setup (after (configured ∷ setup ∷ setup ∷ setup ∷ [])) ≡ nothing
+setup-after-trace-refused = refl
+setup-after-publication-refused : U.step setup (after (configured ∷ setup ∷ setup ∷ setup ∷ U.publishSuccess Fixture.child ∷ [])) ≡ nothing
+setup-after-publication-refused = refl
+plain-publication-unchanged : U.step (U.publishSuccess Fixture.child) Base.q14 ≡ just Base.q15
+plain-publication-unchanged = refl

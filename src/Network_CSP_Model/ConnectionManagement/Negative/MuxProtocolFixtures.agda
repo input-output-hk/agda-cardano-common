@@ -133,7 +133,7 @@ allocatedBase = record Prior.p12 { source = Fixture.withHandle Prior.connectedSo
 publishedBase = record Prior.p12 { source = Fixture.withHandle (Fixture.at (A.count Fixture.wait) Fixture.published) }
 publishedFrame : U.Frame
 publishedFrame = U.frame Prior.captured outbound ps duplex (U.promisePublished (ident 0) G.mid)
-  (Startup.startupState Startup.published Startup.Pool.initial)
+  (Startup.startupState Startup.published Startup.Pool.initial) U.setupPending
 q15 : U.State
 q15 = U.supervised publishedBase born ((Fixture.child , publishedFrame) ∷ [])
 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 : U.State

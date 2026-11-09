@@ -124,7 +124,7 @@ negotiate-projects w ps flow s eq with lookup w (B.threads (W.base s)) |
   lookup w (W.origins s) | lookup w (W.frames s) in absent
 ... | just t | just origin | nothing with H.phase t
 ...   | H.handshaking = case just-injective eq of λ { refl →
-  put-paths w (W.frame (H.captured t) origin ps flow W.returnedSuccess Startup.initial) s
+  put-paths w (W.frame (H.captured t) origin ps flow W.returnedSuccess Startup.initial W.setupPending) s
     (trace-left (startup-missing w s absent) ([] , Startup.done)) }
 negotiate-projects w ps flow s eq | just t | just origin | nothing | H.maskedSetup = case eq of λ ()
 negotiate-projects w ps flow s eq | just t | just origin | nothing | H.caughtCancellation err = case eq of λ ()
@@ -174,6 +174,16 @@ register-projects w s eq | just f | W.promisePublished hid mid | false = case eq
 register-projects w s eq | just f | W.returnedSuccess | _ = case eq of λ ()
 register-projects w s eq | just f | W.handleAllocated h m | _ = case eq of λ ()
 
+-- Egress setup advances only the handler-local setup stage.
+setup-projects : ∀ w s {s′} → W.setupFor w s ≡ just s′ → Paths s s′
+setup-projects w s eq with lookup w (W.frames s) in found
+... | nothing = case eq of λ ()
+... | just f with W.scheduled f (W.source s) | W.nextSetup (W.setup f)
+...   | true | just next = case just-injective eq of λ { refl →
+  put-paths w (record f { setup = next }) s (trace-left (startup-found w s f found) ([] , Startup.done)) }
+...   | true | nothing = case eq of λ ()
+...   | false | _ = case eq of λ ()
+
 publish-projects : ∀ w s {s′} → W.publish w s ≡ just s′ → Paths s s′
 publish-projects w s eq with lookup w (W.frames s) in found
 ... | nothing = case eq of λ ()
@@ -210,7 +220,8 @@ step-projects (W.negotiate w ps flow) s eq = negotiate-projects w ps flow s eq
 step-projects (W.allocateHandle w hid mid) s eq = allocate-projects w hid mid s eq
 step-projects (W.configureMux w plan limit bound keys) s eq = configure-projects w plan limit bound keys s eq
 step-projects (W.registerCounters w) s eq = register-projects w s eq
-step-projects (W.publishSuccess w) s eq = publish-projects w s eq
+step-projects (W.egressSetup w) s eq = setup-projects w s eq
+step-projects (W.publishSuccess w) s eq = publish-projects w s (W.whenSetupDone-just w s (W.publish w s) eq)
 step-projects (W.startupStep w action) s eq = startup-projects w action s eq
 exec-projects : ∀ {s actions s′} → W.Executes s actions s′ → Paths s s′
 exec-projects {s = s} W.done = idle s
@@ -298,7 +309,9 @@ record Publication (w : WorkerId) (before after : W.State) : Set where
 open Publication public
 
 publication-observation : ∀ w s {s′} → W.step (W.publishSuccess w) s ≡ just s′ → Publication w s s′
-publication-observation w s eq with lookup w (W.frames s) in found
+publish-observation : ∀ w s {s′} → W.publish w s ≡ just s′ → Publication w s s′
+publication-observation w s eq = publish-observation w s (W.whenSetupDone-just w s (W.publish w s) eq)
+publish-observation w s eq with lookup w (W.frames s) in found
 ... | nothing = case eq of λ ()
 ... | just f with W.progress f in progress
 ...   | W.handleAllocated hid mid with O.advance
@@ -306,10 +319,10 @@ publication-observation w s eq with lookup w (W.frames s) in found
   Startup.step Startup.observePublication (W.startup f) in progressed
 ...     | just c | just next = case just-injective eq of λ { refl →
   publication f hid mid c next found progress advanced progressed refl }
-publication-observation w s eq | just f | W.handleAllocated hid mid | nothing | startupResult = case eq of λ ()
-publication-observation w s eq | just f | W.handleAllocated hid mid | just c | nothing = case eq of λ ()
-publication-observation w s eq | just f | W.returnedSuccess = case eq of λ ()
-publication-observation w s eq | just f | W.promisePublished hid mid = case eq of λ ()
+publish-observation w s eq | just f | W.handleAllocated hid mid | nothing | startupResult = case eq of λ ()
+publish-observation w s eq | just f | W.handleAllocated hid mid | just c | nothing = case eq of λ ()
+publish-observation w s eq | just f | W.returnedSuccess = case eq of λ ()
+publish-observation w s eq | just f | W.promisePublished hid mid = case eq of λ ()
 
 -- A mux child's result publication cannot fabricate its parent's Async result:
 -- the physical parent registry is unchanged by every startup-only transition.

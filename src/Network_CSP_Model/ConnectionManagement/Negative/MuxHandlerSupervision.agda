@@ -103,10 +103,10 @@ abstract
   initialized-birth = U.next birth-step1 (U.next birth-step2 (U.next birth-step3 (U.next birth-step4 (U.next birth-step5 (U.next birth-step6 (U.next birth-step7 (U.next birth-step8 (U.next birth-step9 (U.next birth-step10 (U.next birth-step11 (U.next birth-step12 (U.done))))))))))))
 
 returnedFrame allocatedFrame : U.Frame
-returnedFrame = U.frame Prior.captured outbound ps duplex U.returnedSuccess S.initial
-allocatedFrame = U.frame Prior.captured outbound ps duplex (U.handleAllocated (ident 0) (ident 0)) S.initial
+returnedFrame = U.frame Prior.captured outbound ps duplex U.returnedSuccess S.initial U.setupPending
+allocatedFrame = U.frame Prior.captured outbound ps duplex (U.handleAllocated (ident 0) (ident 0)) S.initial U.setupPending
 publishedFrame : S.State → U.Frame
-publishedFrame stage = U.frame Prior.captured outbound ps duplex (U.promisePublished (ident 0) (ident 0)) stage
+publishedFrame stage = U.frame Prior.captured outbound ps duplex (U.promisePublished (ident 0) (ident 0)) stage U.setupPending
 allocatedBase publishedBase : B.State
 allocatedBase = record Prior.p12 { source = Fixture.withHandle Prior.connectedSource }
 publishedBase = record Prior.p12 { source = Fixture.withHandle (Fixture.at (A.count Fixture.wait) Fixture.published) }
@@ -220,7 +220,7 @@ after action s with U.step action s
 ... | nothing = s
 ... | just next = next
 uniReturned uniOverwritten uniAllocated : U.State
-uniReturned = U.supervised Prior.p12 born ((Fixture.child , U.frame Prior.captured outbound ps unidirectional U.returnedSuccess S.initial) ∷ [])
+uniReturned = U.supervised Prior.p12 born ((Fixture.child , U.frame Prior.captured outbound ps unidirectional U.returnedSuccess S.initial U.setupPending) ∷ [])
 uniOverwritten = U.setSource (record (U.source uniReturned) { core = M.replaceWorld (O.core (U.source uniReturned))
   (record (M.world (O.core (U.source uniReturned))) { cm = record (Shared.cm (M.world (O.core (U.source uniReturned))))
     { entries = put (ident 0) (Shared.unnegotiated inbound key₁ (ident 99)) (Shared.entries (Shared.cm (M.world (O.core (U.source uniReturned))))) } }) }) uniReturned
@@ -344,7 +344,7 @@ inbound-uni-birth-keeps-ig-tracer = refl
 second-success-visible-before-buffer : lookup (ident 1) (Shared.handshakeResults (M.world (O.core (U.source secondPublished)))) ≡ just (Shared.negotiated (ident 1) unidirectional)
 second-success-visible-before-buffer = refl
 second-published-frame : S.State → U.Frame
-second-published-frame stage = U.frame secondCaptured inbound ps unidirectional (U.promisePublished (ident 1) (ident 1)) stage
+second-published-frame stage = U.frame secondCaptured inbound ps unidirectional (U.promisePublished (ident 1) (ident 1)) stage U.setupPending
 twoAt : S.State → S.State → U.State
 twoAt firstStage secondStage = U.supervised (U.base secondPublished) bothOrigins
   ((Fixture.child , publishedFrame firstStage) ∷ (child₁ , second-published-frame secondStage) ∷ [])

@@ -36,7 +36,7 @@ captured = Shared.handlerStart (ident 0) (ident 0) (ident 0) key₀
 ps : List Protocol
 ps = protocol 1 hot onDemand ∷ []
 successFrame : U.Frame
-successFrame = U.frame captured inbound ps duplex U.returnedSuccess S.initial
+successFrame = U.frame captured inbound ps duplex U.returnedSuccess S.initial U.setupPending
 
 -- Separate pre-fork and post-fork records make the historical birth explicit.
 pre : Machine.Configuration → P.State

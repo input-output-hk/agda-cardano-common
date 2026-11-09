@@ -67,9 +67,9 @@ b12 : P.State
 b12 = P.protocolState Proto.q12 [] []
 b13 b14 b15 : P.State
 b13 = P.protocolState (U.supervised Prior.p12 Proto.born
-  ((owner , U.frame Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial) ∷ [])) [] []
+  ((owner , U.frame Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial U.setupPending) ∷ [])) [] []
 b14 = P.protocolState (U.supervised Proto.allocatedBase Proto.born
-  ((owner , U.frame Prior.captured outbound Proto.ps duplex (U.handleAllocated (ident 0) mid) S.initial) ∷ [])) [] []
+  ((owner , U.frame Prior.captured outbound Proto.ps duplex (U.handleAllocated (ident 0) mid) S.initial U.setupPending) ∷ [])) [] []
 b15 = P.protocolState (U.supervised Proto.publishedBase Proto.born
   ((owner , U.frame Prior.captured outbound Proto.ps duplex (U.promisePublished (ident 0) mid)
-    (S.startupState S.published S.Pool.initial)) ∷ [])) [] []
+    (S.startupState S.published S.Pool.initial) U.setupPending) ∷ [])) [] []

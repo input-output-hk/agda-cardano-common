@@ -118,11 +118,11 @@ head newMuxSync = Old.b13
 head allocationSync = Old.b13
 head newMuxAsync = Old.b13
 frame : Case → U.Frame
-frame successSync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial
-frame successAsync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial
-frame newMuxSync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial
-frame allocationSync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial
-frame newMuxAsync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial
+frame successSync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial U.setupPending
+frame successAsync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial U.setupPending
+frame newMuxSync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial U.setupPending
+frame allocationSync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial U.setupPending
+frame newMuxAsync = U.frame Old.Prior.captured outbound Proto.ps duplex U.returnedSuccess S.initial U.setupPending
 at : Case → W.Phase → N.State
 at which phase = N.publicationState
   (C.catchState (record (Old.delta (head which))

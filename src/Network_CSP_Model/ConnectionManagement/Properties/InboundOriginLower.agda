@@ -33,7 +33,7 @@ import ConnectionManagement.Properties.InboundOriginCore as Core
 open import ConnectionManagement.Properties.InboundOriginEffect using (Effect; same; reframe; outbound-effect)
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; egressSetup; run; startupStep; step)
  note-source : ∀ origin s → U.source (U.noteBirth origin s) ≡ U.source s
  note-source nothing s = refl
  note-source (just origin) s = refl
@@ -47,6 +47,7 @@ module Mux where
  effect (U.allocateHandle w hid mid) s eq = same (Quiet.Mux.direct-same (U.allocateHandle w hid mid) s eq tt)
  effect (U.configureMux w plan limit bound keys) s eq = same (Quiet.Mux.direct-same (U.configureMux w plan limit bound keys) s eq tt)
  effect (U.registerCounters w) s eq = same (Quiet.Mux.direct-same (U.registerCounters w) s eq tt)
+ effect (U.egressSetup w) s eq = same (Quiet.Mux.direct-same (U.egressSetup w) s eq tt)
  effect (U.publishSuccess w) s eq = same (Quiet.Mux.direct-same (U.publishSuccess w) s eq tt)
  effect (U.startupStep w action) s eq = same (Quiet.Mux.direct-same (U.startupStep w action) s eq tt)
 

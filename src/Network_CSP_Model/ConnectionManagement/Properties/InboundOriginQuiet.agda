@@ -37,7 +37,7 @@ inbound-same action c eq quiet with Machine.advance action (O.core c) in actual
 ...   | refl = Core.machine-same action (O.core c) actual quiet
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  table : U.State → Store WorkerId S.AdmissionWorker
  table s = S.admissions (Machine.world (O.core (U.source s)))
@@ -91,6 +91,13 @@ module Mux where
  register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
+ setup-same : ∀ w s {s′} → U.setupFor w s ≡ just s′ → table s′ ≡ table s
+ setup-same w s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.scheduled f (U.source s) | U.nextSetup (U.setup f)
+ ...   | true | just next = case just-injective eq of λ { refl → refl }
+ ...   | true | nothing = case eq of λ ()
+ ...   | false | _ = case eq of λ ()
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → table s′ ≡ table s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -123,7 +130,8 @@ module Mux where
  direct-same (U.allocateHandle w hid mid) s eq direct = allocate-same w hid mid s eq
  direct-same (U.configureMux w plan limit bound keys) s eq direct = configure-same w plan limit bound keys s eq
  direct-same (U.registerCounters w) s eq direct = register-same w s eq
- direct-same (U.publishSuccess w) s eq direct = publish-same w s eq
+ direct-same (U.egressSetup w) s eq direct = setup-same w s eq
+ direct-same (U.publishSuccess w) s eq direct = publish-same w s (U.whenSetupDone-just w s (U.publish w s) eq)
  direct-same (U.startupStep w a) s eq direct = startup-shutdown w a s eq
 
 

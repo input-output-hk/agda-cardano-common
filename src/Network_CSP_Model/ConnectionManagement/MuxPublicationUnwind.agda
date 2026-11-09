@@ -6,7 +6,7 @@ open import ConnectionManagement.Domain using (ErrorId)
 open import Data.Bool using (Bool)
 module ConnectionManagement.MuxPublicationUnwind (isBearerClosed : ErrorId → Bool) where
 
-open import Data.Bool using (true; false)
+open import Data.Bool using (true; false; _∧_)
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Relation.Binary.PropositionalEquality using (_≡_)
@@ -33,8 +33,13 @@ import ConnectionManagement.Rules.CMShutdown as Close
 -- strict Handle construction is retained only as a rejected observation site.
 -- A lazy protocol element may fail synchronously INSIDE Mux.new before its
 -- allocation returns. Private partial TVars are outside this atomic profile.
+-- A scheduled mux adds three sites before publication (network 2f1c154): the
+-- policy-supplied egressRuleOf call, the rank/sink STM transaction (its rule
+-- may retry, so it is interruptible; failure rolls the installation back) and
+-- the TraceEgressRank write. A plain mux reaches none of them.
 data Site : Set where
-  handshakeSuccessTracer newMuxTracer muxAllocation strictHandle : Site
+  handshakeSuccessTracer newMuxTracer muxAllocation strictHandle
+    egressRule rankInstall rankTrace : Site
 record Failure : Set where
   constructor failure
   field captured : U.Frame
@@ -56,12 +61,21 @@ source : State → O.Configuration
 source s = C.source (base s)
 poolAt : WorkerId → State → Pool.State
 poolAt w s = C.poolAt w (base s)
-siteReady : Site → U.Progress → Bool
-siteReady handshakeSuccessTracer U.returnedSuccess = true
-siteReady newMuxTracer U.returnedSuccess = true
-siteReady muxAllocation U.returnedSuccess = true
-siteReady strictHandle _ = false
-siteReady _ _ = false
+returnedOnly : U.Progress → Bool
+returnedOnly U.returnedSuccess = true
+returnedOnly _ = false
+-- The setup site is the operation after the last returned setup step.
+pendingAt : Site → U.Setup → Bool
+pendingAt egressRule U.setupPending = true
+pendingAt rankInstall U.ruleObtained = true
+pendingAt rankTrace U.rankInstalled = true
+pendingAt _ _ = false
+siteReady : Site → U.Frame → O.Configuration → Bool
+siteReady handshakeSuccessTracer f c = returnedOnly (U.progress f)
+siteReady newMuxTracer f c = returnedOnly (U.progress f)
+siteReady muxAllocation f c = returnedOnly (U.progress f)
+siteReady strictHandle f c = false
+siteReady at f c = U.scheduled f c ∧ pendingAt at (U.setup f)
 deliveryReady : Site → R.Exception → Bool
 deliveryReady muxAllocation (R.async _) = false
 deliveryReady strictHandle (R.async _) = false
@@ -76,7 +90,7 @@ record Plan : Set where
 open Plan public
 select : WorkerId → Site → R.Exception → State → Maybe Plan
 select w at result s with lookup w (failures s) | R.owner w (raw s) | lookup w (W.exits (R.base (raw s))) | lookup w (R.faults (raw s))
-... | nothing | just f | nothing | nothing with siteReady at (U.progress f) | deliveryReady at result | S.phase (U.startup f) | Pool.handles (poolAt w s)
+... | nothing | just f | nothing | nothing with siteReady at f (source s) | deliveryReady at result | S.phase (U.startup f) | Pool.handles (poolAt w s)
 ...   | true | true | S.awaitPublication | [] with lookup w (Shared.handlers (Machine.world (O.core (source s)))) |
     lookup (Shared.handlerPromise (U.captured f)) (Shared.handshakeResults (Machine.world (O.core (source s))))
 ...     | just actual | nothing with W.sameStart (U.captured f) actual
@@ -101,6 +115,7 @@ observe w at result ack s with select w at result s
 actorU : U.Action → Maybe WorkerId
 actorU (U.negotiate w _ _) = just w
 actorU (U.allocateHandle w _ _) = just w
+actorU (U.egressSetup w) = just w
 actorU (U.publishSuccess w) = just w
 actorU (U.startupStep w _) = just w
 actorU _ = nothing

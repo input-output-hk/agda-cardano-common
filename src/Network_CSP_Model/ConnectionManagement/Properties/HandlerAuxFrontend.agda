@@ -324,7 +324,7 @@ module Publication (b : ErrorId → Bool) where
  ... | nothing | nothing | _ | _ = case eq of λ ()
  ... | nothing | just f | just e | _ = case eq of λ ()
  ... | nothing | just f | nothing | just oldFault = case eq of λ ()
- ... | nothing | just f | nothing | nothing with N.siteReady site (U.progress f) | N.deliveryReady site result | Startup.phase (U.startup f) | Pool.handles (N.poolAt w s)
+ ... | nothing | just f | nothing | nothing with N.siteReady site f (N.source s) | N.deliveryReady site result | Startup.phase (U.startup f) | Pool.handles (N.poolAt w s)
  ...   | true | true | Startup.awaitPublication | [] with lookup w (Shared.handlers (Machine.world (O.core (N.source s)))) |
     lookup (Shared.handlerPromise (U.captured f)) (Shared.handshakeResults (Machine.world (O.core (N.source s))))
  ...     | just actual | nothing with W.sameStart (U.captured f) actual

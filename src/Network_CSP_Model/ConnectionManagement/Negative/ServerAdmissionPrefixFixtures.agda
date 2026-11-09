@@ -151,7 +151,7 @@ allocatedIG = record IG.initial { execution = IG.engine
   ((ident 0 , Mux.muxState A.key₀ Mux.ready ((1 , Mux.idle) ∷ []) [] [] [] [] []
     (IG.initialCounters Mux.igTracer) Mux.returned Mux.igTracer) ∷ []) [] true 0 [] 0 [] nothing [] [] }
 frame : U.Progress → Startup.State → Store WorkerId U.Frame
-frame progress startup = (A.child₀ , U.frame I.captured inbound I.ps duplex progress startup) ∷ []
+frame progress startup = (A.child₀ , U.frame I.captured inbound I.ps duplex progress startup U.setupPending) ∷ []
 result : Store PromiseId Shared.HandshakeResult
 result = (ident 0 , Shared.negotiated (ident 0) duplex) ∷ []
 info : Shared.NewConnectionInfo

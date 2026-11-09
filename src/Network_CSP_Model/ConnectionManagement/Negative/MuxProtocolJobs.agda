@@ -119,7 +119,7 @@ birthPathActions = (W.run (U.run (B.outbound (O.beginAcquire Fixture.caller Fixt
 birthPath : W.Executes b0 birthPathActions b12
 birthPath = W.next birth1 (W.next birth2 (W.next birth3 (W.next birth4 (W.next birth5 (W.next birth6 (W.next birth7 (W.next birth8 (W.next birth9 (W.next birth10 (W.next birth11 (W.next birth12 (W.done))))))))))))
 publishedFrame : S.State → U.Frame
-publishedFrame stage = U.frame Prior.captured outbound Old.ps duplex (U.promisePublished (ident 0) mid) stage
+publishedFrame stage = U.frame Prior.captured outbound Old.ps duplex (U.promisePublished (ident 0) mid) stage U.setupPending
 at : O.Configuration → S.State → Store JobId T.ProtocolJob → Store WorkerId (List JobId) → W.State
 at c stage jobs pending = W.protocolState
   (U.supervised (record Old.publishedBase { source = c }) Old.born ((owner , publishedFrame stage) ∷ [])) jobs pending
@@ -127,9 +127,9 @@ publishedStage : S.State
 publishedStage = S.startupState S.published Pool.initial
 b13 b14 b15 : W.State
 b13 = W.protocolState (U.supervised Prior.p12 Old.born
-  ((owner , U.frame Prior.captured outbound Old.ps duplex U.returnedSuccess S.initial) ∷ [])) [] []
+  ((owner , U.frame Prior.captured outbound Old.ps duplex U.returnedSuccess S.initial U.setupPending) ∷ [])) [] []
 b14 = W.protocolState (U.supervised Old.allocatedBase Old.born
-  ((owner , U.frame Prior.captured outbound Old.ps duplex (U.handleAllocated (ident 0) mid) S.initial) ∷ [])) [] []
+  ((owner , U.frame Prior.captured outbound Old.ps duplex (U.handleAllocated (ident 0) mid) S.initial U.setupPending) ∷ [])) [] []
 b15 = at (Old.U.source Old.q15) publishedStage [] []
 success13 : W.step (W.run (U.negotiate owner Old.ps duplex)) b12 ≡ just b13
 success13 = refl
@@ -750,7 +750,7 @@ foreignHistory = record x0 { base = record (W.base x0) { frames =
   U.frames (W.base x0) ++ ((ident 999 , U.frame Prior.captured outbound Old.ps duplex
     (U.promisePublished (ident 99) (ident 99))
     (S.startupState (S.monitoring (ident 98) j₂₀)
-      (record Pool.initial { handles = (j₂₀ , Pool.resultAvailable Pool.normalExit) ∷ [] }))) ∷ []) } }
+      (record Pool.initial { handles = (j₂₀ , Pool.resultAvailable Pool.normalExit) ∷ [] })) U.setupPending) ∷ []) } }
 foreign-history-id-reuse-refused : W.step (W.forkInitiator owner j₂₀ r₁ 1) foreignHistory ≡ nothing
 foreign-history-id-reuse-refused = refl
 

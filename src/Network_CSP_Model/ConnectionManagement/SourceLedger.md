@@ -25,6 +25,22 @@ synchronous DB completion waits require source-contract reconciliation.
 claim.** Old proof evidence through model commit `daf111d` is preserved. The
 linked audit records the migration gates and remaining checks.
 
+### M3 handler setup and outer scopes (network `2f1c154`)
+
+| Source operation | Owner | Model | Status |
+| --- | --- | --- | --- |
+| `newMux`: `newWithEgress` (`registerBearer` draws a bucket bearer id; private TVars) | Handler thread before the promise write | `configureMux` (M2); failure inside it is the existing `muxAllocation` site | Implemented. A bearer id is a counter value with no registry row, so no finalizer is owed. |
+| `egressRuleOf addr dataFlow remoteHot` | Handler thread | `egressSetup` (stage `setupPending`→`ruleObtained`); unwind site `egressRule`, sync or async | Implemented. The rule source is an `EgressPolicyRule` parameter, so it may block; the diffusion instance (`mkEgressRule`) only allocates private TVars. |
+| `atomically (setEgressRankSource; setEgressChargeSink; rule now)` | Handler thread | `egressSetup` (`ruleObtained`→`rankInstalled`); site `rankInstall`, sync or async, with the installation rolled back on failure | Implemented. The stored rank and sink values are not modelled; M4 scheduling consumes them. |
+| `traceWith tracer_ (TraceEgressRank rank)` | Handler thread | `egressSetup` (`rankInstalled`→`rankTraced`); site `rankTrace`, sync or async | Implemented. |
+| `withCounters c mux` | Pure field update | No transition; counter cells register before pool entry (M2 `registerCounters`) | Pure, so there is no exceptional exit. |
+| `writePromise` | Handler thread | `publishSuccess` | A scheduled mux requires `rankTraced`. A plain mux skips setup and publishes as before. |
+| `countersLoop` raced against the whole remote/local diffusion (`Diffusion.hs` `runM`) | `runM` main thread via `Async.race` | Not a modelled actor. Its failure, or its tracer's failure, cancels the remote thread, which enters the existing `AsyncScope.beginUnwind`. | Excluded scope. It sits outside `AsyncScope` and outside any all-worker claim. |
+| `withPoolRelays` (outermost `withAsync`, in every `waitAny` list when egress is scheduled) | Remote diffusion thread | Not one of the four `AsyncScope` actors. Its failure, through `waitAny`, is one abstract cause of `beginUnwind`. | Explicit gap. Its cancellation/join after the ledger actor is not modelled, and `allJoined` covers only the four actors. |
+| Pool relays DNS semaphore and `poolRelaysThread` body | Pool relays thread | Not modelled | Excluded, together with its owner. |
+
+Controls: `Negative/MuxConfiguredHandler` checks that publication is refused before each setup step returns, that a plain mux has no setup, and that each setup step runs once. `Negative/MuxEgressSetupUnwind` checks per-site enablement and out-of-order refusal, failure capture with no promise write, a failed owner's refusal to continue, and an initialized trace-failure path.
+
 ## Current implementation coverage
 
 **Reading this section:** the paragraphs and rule-family status cells accumulate

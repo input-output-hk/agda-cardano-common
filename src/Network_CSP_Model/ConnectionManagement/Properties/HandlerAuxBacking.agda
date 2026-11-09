@@ -62,7 +62,7 @@ physical-present w state (thread , found) = H.captured thread ,
   trans (Birth.lookup-captures w (B.threads state)) (cong (Data.Maybe.map H.captured) found)
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  Valid : U.State → Set
  Valid s = Covers (U.frames s) (Birth.MuxLayer.view s)
@@ -129,6 +129,13 @@ module Mux where
  registered w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  registered w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
+ setup-valid : ∀ w s {t} → U.setupFor w s ≡ just t → Valid s → Valid t
+ setup-valid w s eq valid with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.scheduled f (U.source s) | U.nextSetup (U.setup f)
+ ...   | true | just next = case just-injective eq of λ { refl → put-valid w _ s (valid w f found) valid }
+ ...   | true | nothing = case eq of λ ()
+ ...   | false | _ = case eq of λ ()
  published : ∀ w s {t} → U.publish w s ≡ just t → Valid s → Valid t
  published w s eq valid with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -157,7 +164,8 @@ module Mux where
  step-preserves (U.allocateHandle w hid mid) = allocated w hid mid
  step-preserves (U.configureMux w plan limit bound keys) s eq = configured w plan limit bound keys s eq
  step-preserves (U.registerCounters w) s eq = registered w s eq
- step-preserves (U.publishSuccess w) = published w
+ step-preserves (U.egressSetup w) = setup-valid w
+ step-preserves (U.publishSuccess w) s eq = published w s (U.whenSetupDone-just w s (U.publish w s) eq)
  step-preserves (U.startupStep w a) = startup w a
  initialized-valid : ∀ c {s} → U.initial c ≡ just s → Valid s
  initialized-valid c eq with IG.handles (IG.execution (Machine.inboundGovernor (O.core c))) |
@@ -219,6 +227,13 @@ module Mux where
  register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
+ setup-same : ∀ w s {s′} → U.setupFor w s ≡ just s′ → coordinator s′ ≡ coordinator s
+ setup-same w s eq with lookup w (U.frames s)
+ ... | nothing = case eq of λ ()
+ ... | just f with U.scheduled f (U.source s) | U.nextSetup (U.setup f)
+ ...   | true | just next = case just-injective eq of λ { refl → refl }
+ ...   | true | nothing = case eq of λ ()
+ ...   | false | _ = case eq of λ ()
  publish-same : ∀ w s {s′} → U.publish w s ≡ just s′ → coordinator s′ ≡ coordinator s
  publish-same w s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -251,7 +266,8 @@ module Mux where
  direct-shutdown-same (U.allocateHandle w hid mid) s eq direct = allocate-same w hid mid s eq
  direct-shutdown-same (U.configureMux w plan limit bound keys) s eq direct = configure-same w plan limit bound keys s eq
  direct-shutdown-same (U.registerCounters w) s eq direct = register-same w s eq
- direct-shutdown-same (U.publishSuccess w) s eq direct = publish-same w s eq
+ direct-shutdown-same (U.egressSetup w) s eq direct = setup-same w s eq
+ direct-shutdown-same (U.publishSuccess w) s eq direct = publish-same w s (U.whenSetupDone-just w s (U.publish w s) eq)
  direct-shutdown-same (U.startupStep w a) s eq direct = startup-shutdown w a s eq
 
 import ConnectionManagement.MuxProtocolJobs as ProtocolModel

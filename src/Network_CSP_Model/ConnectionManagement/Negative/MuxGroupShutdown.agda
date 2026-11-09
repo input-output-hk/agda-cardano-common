@@ -61,6 +61,7 @@ prefixProtocol (P.run (U.negotiate w ps fl)) m eq = refl
 prefixProtocol (P.run (U.allocateHandle w h mid)) m eq = refl
 prefixProtocol (P.run (U.configureMux w plan limit bound keys)) m eq = refl
 prefixProtocol (P.run (U.registerCounters w)) m eq = refl
+prefixProtocol (P.run (U.egressSetup w)) m eq = refl
 prefixProtocol (P.run (U.publishSuccess w)) m eq = refl
 prefixProtocol (P.run (U.startupStep w a)) m eq = refl
 prefixProtocol (P.forkResponder w j r) m eq = refl

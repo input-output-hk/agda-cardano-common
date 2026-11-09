@@ -36,6 +36,14 @@ module Startup = StartupRules Result
 data Progress : Set where
   returnedSuccess : Progress
   handleAllocated promisePublished : HandleId → MuxId → Progress
+-- Scheduled-egress setup inside newMux, after newWithEgress and before the
+-- promise write (ConnectionHandler.hs:306-339 at network 2f1c154):
+-- egressRuleOf returns the rule and sink; one STM transaction installs the
+-- rank source and charge sink and asks the rule; TraceEgressRank is written.
+-- A plain mux performs none of them. Installed rank values are consumed only
+-- by scheduling (M4) and are not stored here.
+data Setup : Set where
+  setupPending ruleObtained rankInstalled rankTraced : Setup
 record Frame : Set where
   constructor frame
   field captured : Shared.HandlerStart
@@ -44,6 +52,7 @@ record Frame : Set where
         flow : DataFlow
         progress : Progress
         startup : Startup.State
+        setup : Setup
 open Frame public
 record State : Set where
   constructor supervised
@@ -161,7 +170,7 @@ negotiateReturned w ps negotiatedFlow s with lookup w (B.threads (base s)) |
   lookup w (origins s) | lookup w (frames s)
 ... | just t | just origin | nothing with H.phase t
 ...   | H.handshaking = just (setFrame w
-  (frame (H.captured t) origin ps negotiatedFlow returnedSuccess Startup.initial) s)
+  (frame (H.captured t) origin ps negotiatedFlow returnedSuccess Startup.initial setupPending) s)
 ...   | _ = nothing
 negotiateReturned w ps negotiatedFlow s | _ | _ | _ = nothing
 allocationAction : Frame → HandleId → MuxId → IG.IGAction
@@ -188,6 +197,47 @@ configure w plan limit bound keys s with lookup w (frames s)
 ...     | nothing = nothing
 ...     | just c = just (setSource c s)
 configure w plan limit bound keys s | just f | _ = nothing
+
+-- The allocated, not yet published, mux's actual egress layout decides whether
+-- the scheduled setup runs; configureMux is the only writer of that layout.
+scheduled : Frame → O.Configuration → Bool
+scheduled f c with progress f
+... | handleAllocated hid mid with lookup mid (IG.muxes (IG.execution (M.inboundGovernor (O.core c))))
+...   | just m with MuxRuntime.Egress.layout (MuxRuntime.egress m)
+...     | E.scheduledLayout _ = true
+...     | E.plainLayout = false
+scheduled f c | handleAllocated hid mid | nothing = false
+scheduled f c | _ = false
+nextSetup : Setup → Maybe Setup
+nextSetup setupPending = just ruleObtained
+nextSetup ruleObtained = just rankInstalled
+nextSetup rankInstalled = just rankTraced
+nextSetup rankTraced = nothing
+-- Each step is the successful return of the next setup operation, in order.
+setupFor : WorkerId → State → Maybe State
+setupFor w s with lookup w (frames s)
+... | nothing = nothing
+... | just f with scheduled f (source s) | nextSetup (setup f)
+...   | true | just next = just (setFrame w (record f { setup = next }) s)
+...   | _ | _ = nothing
+-- A scheduled mux is published only after its rank trace has returned.
+setupDone : Frame → O.Configuration → Bool
+setupDone f c with setup f
+... | rankTraced = true
+... | setupPending = not (scheduled f c)
+... | _ = false
+whenSetupDone : WorkerId → State → Maybe State → Maybe State
+whenSetupDone w s r with lookup w (frames s)
+... | nothing = r
+... | just f with setupDone f (source s)
+...   | true = r
+...   | false = nothing
+whenSetupDone-just : ∀ w s r {t} → whenSetupDone w s r ≡ just t → r ≡ just t
+whenSetupDone-just w s r eq with lookup w (frames s)
+... | nothing = eq
+... | just f with setupDone f (source s)
+...   | true = eq
+whenSetupDone-just w s r () | just f | false
 
 -- withByteCells registers the mux run's byte cells atomically just before
 -- pool entry (legacy egressReady or configured cfgBeforePool), at most once.
@@ -273,6 +323,7 @@ data Action : Set where
   allocateHandle : WorkerId → HandleId → MuxId → Action
   configureMux : WorkerId → E.Layout → ℕ → ℕ → List (MuxRuntime.ProtocolKey × E.Lane) → Action
   registerCounters : WorkerId → Action
+  egressSetup : WorkerId → Action
   publishSuccess : WorkerId → Action
   startupStep : WorkerId → Startup.Action → Action
 step : Action → State → Maybe State
@@ -281,7 +332,8 @@ step (negotiate w ps negotiatedFlow) s = negotiateReturned w ps negotiatedFlow s
 step (allocateHandle w hid mid) s = allocate w hid mid s
 step (configureMux w plan limit bound keys) s = configure w plan limit bound keys s
 step (registerCounters w) s = registerFor w s
-step (publishSuccess w) s = publish w s
+step (egressSetup w) s = setupFor w s
+step (publishSuccess w) s = whenSetupDone w s (publish w s)
 step (startupStep w action) s = advanceStartup w action s
 
 -- Other actors retain their independent interleavings. This prefix exposes no
