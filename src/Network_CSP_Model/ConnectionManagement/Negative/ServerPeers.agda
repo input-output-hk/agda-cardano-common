@@ -55,7 +55,7 @@ module Fixtures where
   err = errorId 170
   settings : G.State
   settings = G.governorState (G.targets 1 1 1)
-    ((remote A.key₁ , G.known 0 0 nothing false false) ∷ []) [] [] [] [] [] [] []
+    ((remote A.key₁ , G.known 0 0 nothing false false) ∷ []) [] [] [] [] [] [] [] []
   work : G.Job
   work = G.job G.establish (remote A.key₁) nothing
   marked : G.State
@@ -843,7 +843,8 @@ module Protocols where
   shiftG : G.State → G.State
   shiftG g = record g
     { establishedPeers = map (λ { (peer , info) → peer , record info { activateAt = G.activateAt info + 10 } }) (G.establishedPeers g)
-    ; knownPeers = map (λ { (peer , info) → peer , record info { clearFailuresAt = shiftDeadline (G.clearFailuresAt info) } }) (G.knownPeers g) }
+    ; knownPeers = map (λ { (peer , info) → peer , record info { clearFailuresAt = shiftDeadline (G.clearFailuresAt info) } }) (G.knownPeers g)
+    ; activeSince = map (λ { (peer , time) → peer , time + 10 }) (G.activeSince g) }
   shiftSelected : Sub.Selected → Sub.Selected
   shiftSelected (Sub.policy d) = Sub.policy (G.decision (shiftG (G.nextState d)) (G.launches d))
   shiftSelected (Sub.wakeup time) = Sub.wakeup (time + 10)
@@ -9039,7 +9040,7 @@ module AutomaticInboundChecks where
    module F = DataFixtures 10 A.key₀ using (b1; b2; b3; b4; binding; empty; lease₁; live; one; p1; p2; p3; p4; p5; p6; p7; ps₀; r₀; r₁; s1; s10; s11; s2; s3; s4; s5; s6; s7; s8; s9; start; two; unneg)
 
   settings : Governor.State
-  settings = Governor.governorState (Governor.targets 0 0 0) [] [] [] [] [] [] [] []
+  settings = Governor.governorState (Governor.targets 0 0 0) [] [] [] [] [] [] [] [] []
   configuration : O.Configuration
   configuration = O.initial (Machine.initial Shared.responderMode F.empty)
   context : C.Context

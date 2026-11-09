@@ -68,7 +68,7 @@ no-heap-only-outbound-preservation preserve =
 
 -- An empty ordinary governor does not repair an invalid captured CM frame.
 governor : OG.State
-governor = OG.governorState (OG.targets 0 0 0) [] [] [] [] [] [] [] []
+governor = OG.governorState (OG.targets 0 0 0) [] [] [] [] [] [] [] [] []
 
 -- Lift the exact same counterexample through the subsystem's core action.
 subBefore : G.Configuration

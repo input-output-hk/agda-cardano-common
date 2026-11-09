@@ -38,7 +38,7 @@ caller = ident 10
 child = ident 11
 settings : G.State
 settings = G.governorState (G.targets 1 1 1)
-  ((peerAddr , G.known 0 0 nothing false false) ∷ []) [] [] [] [] [] [] []
+  ((peerAddr , G.known 0 0 nothing false false) ∷ []) [] [] [] [] [] [] [] []
 c₀ : Configuration
 c₀ = initial (CM.initial F.start) settings
 

@@ -49,9 +49,14 @@ allocated : M.TracerAttachment → DataFlow → IG.Runtime
 allocated attachment flow = record IG.initial { execution = record (IG.execution IG.initial)
   { handles = put hid (M.handleState mid (proto ∷ []) flow) (IG.handles (IG.execution IG.initial))
   ; muxes = put mid (newMux attachment) (IG.muxes (IG.execution IG.initial)) } }
+-- An initiator-only (noResponderMode) mux registers initiator keys only (M2).
+initiatorPlain : M.Mux
+initiatorPlain = record (newMux M.noIGTracer) { egress = M.plainInitiatorEgress ((1 , M.idle) ∷ []) }
 outUni outInitiator outDuplex inUni : IG.Runtime
 outUni = allocated M.noIGTracer unidirectional
-outInitiator = allocated M.noIGTracer duplex
+outInitiator = record (allocated M.noIGTracer duplex) { execution = record (IG.execution IG.initial)
+  { handles = put hid (M.handleState mid (proto ∷ []) duplex) (IG.handles (IG.execution IG.initial))
+  ; muxes = put mid initiatorPlain (IG.muxes (IG.execution IG.initial)) } }
 outDuplex = allocated M.igTracer duplex
 inUni = allocated M.igTracer unidirectional
 
@@ -118,9 +123,9 @@ initiator-start-uses-peer-action : P.step (P.startProtocol hot 1) initiatorPeer 
   just (record initiatorPeer { runs = P.protocolRun proto P.running P.notStarted ∷ [] } , outInitiator)
 initiator-start-uses-peer-action = refl
 initiatorClean initiatorError initiatorFailed : M.Mux
-initiatorClean = record plain { completions = M.jobResult M.initiatorJob 1 clean ∷ [] }
-initiatorError = record plain { completions = M.jobResult M.initiatorJob 1 (errored (errorId 7)) ∷ [] }
-initiatorFailed = record plain { status = M.failed (errorId 7) }
+initiatorClean = record initiatorPlain { completions = M.jobResult M.initiatorJob 1 clean ∷ [] }
+initiatorError = record initiatorPlain { completions = M.jobResult M.initiatorJob 1 (errored (errorId 7)) ∷ [] }
+initiatorFailed = record initiatorPlain { status = M.failed (errorId 7) }
 initiator-clean-completion : IG.step S.noResponderMode (IG.monitorCompletion mid)
   (IG.setMux mid initiatorClean outInitiator) fullQueue ≡ just (outInitiator , fullQueue)
 initiator-clean-completion = refl

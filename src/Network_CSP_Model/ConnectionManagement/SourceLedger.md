@@ -59,6 +59,21 @@ Controls: `Negative/MuxConfiguredHandler` checks that publication is refused bef
 
 Controls: `Negative/MuxEgress` checks wait-stage ordering, that Direct has no grant, that the lock is shared and is released when a blocked write is cancelled, that nothing can fail after the write returns, and that a plain mux writes directly. `Negative/MuxEgressScheduling` checks the queue, timer, grant and charge lifecycle, that a request cannot be granted twice, that a fast grant waits behind a queued request on the same bucket only, cancellation while queued or armed (no charge), and cancellation after the grant (the charge is kept). `Negative/MuxConfiguredTraffic` runs the initialized Direct write through gate, lock and return, with its credit charge.
 
+### M4b governor observations for egress tenure (network `2f1c154`)
+
+| Source operation | Owner | Model | Status |
+| --- | --- | --- | --- |
+| `activeSince` inserted in `jobPromoteWarmPeer` | Governor | `complete` activate `succeeded` (still established): `put p now` | Implemented. |
+| `activeSince` restricted in `jobDemoteActivePeer` success and failure, and in `Monitor.connections` | Governor | `complete` deactivate (non-timeout) and `applyMonitor`: `delete p`. Under the invariant this equals the source's `restrictKeys`. | Implemented. A timed-out demotion keeps the peer and its tenure. |
+| `assert (Map.keysSet activeSince == activePeersSet)` | Governor | `Properties/ActiveTenure`: `Tenure` (membership agrees and keys are unique) for every governor-state transition, and `Coordinator.tenure-runs` for the private state, the published state and a parked decision along every coordinator run | Proved. |
+| `toPublicState`: `hotUpstreamSince = activeSince` | Governor, at its public-state write | `publishPublicState` copies the private state, so tenure is published with the active set it belongs to | Implemented. The model publishes the whole state, which over-approximates the source's three public fields. |
+| `toPublicState`: `localRootAddrs` | Governor | The selected profile has no local roots, so this set is empty | Outside the profile. |
+| `standingOf` (rank rule: `localRootsVar`, `hotUpstreamSince`, tenure threshold, `remoteHot`) read in the enqueue, grant and refresh transactions | Lane muxer, inside bucket STM | Not observed: grant order and rank are abstract (M4a), so no model state depends on these reads | Explicit gap. A rank model must read the published state and the local-roots TVar at those transactions, never the governor's private state. |
+| `jobPeerShare` failure backoff only for peers still established | Governor | No peer sharing in the selected profile | Outside the profile (an upstream race fix). |
+| `localRootPeersProvider` applying its configuration before DNS and carrying DNS results across restarts | Local-roots thread | No local roots in the profile | Outside the profile. |
+
+Controls: `Negative/OutboundGovernor` checks that tenure is recorded on promotion, dropped by successful, failed and monitor demotions, kept by a timed-out demotion and restarted by a re-promotion, and that `Tenure` holds along the actual promotion.
+
 ## Current implementation coverage
 
 **Reading this section:** the paragraphs and rule-family status cells accumulate

@@ -61,6 +61,11 @@ record State : Set where
         knownPeers : Store PeerAddr Known
         establishedPeers : Store PeerAddr Established
         activePeers promotingCold promotingWarm demotingWarm demotingHot coolingPeers : List PeerAddr
+        -- Network 2f1c154 Governor/Types.hs activeSince: when each active peer
+        -- was promoted; its keys are exactly activePeers. Published as
+        -- PublicPeerSelectionState.hotUpstreamSince (here: the whole published
+        -- state), read by the egress rank rule's tenure gate.
+        activeSince : Store PeerAddr ℕ
 open State public
 
 -- Four independent source in-progress sets; a cooling peer stays established.
@@ -201,6 +206,7 @@ complete maxRetries clearDelay now c s | activate | succeeded with lookup (peer 
 ... | nothing = s -- source aborted completion leaves private state unchanged
 ... | just _ = record s
   { activePeers = union (activePeers s) (peer (work c) ∷ [])
+  ; activeSince = put (peer (work c)) now (activeSince s)
   ; promotingWarm = remove (peer (work c)) (promotingWarm s)
   ; knownPeers = clearAt (peer (work c)) (knownPeers s) }
   where
@@ -223,10 +229,12 @@ complete maxRetries clearDelay now c s | deactivate | demotionTimedOut = record 
   { demotingHot = remove (peer (work c)) (demotingHot s) }
 complete maxRetries clearDelay now c s | deactivate | succeeded = record s
   { activePeers = remove (peer (work c)) (activePeers s)
+  ; activeSince = delete (peer (work c)) (activeSince s)
   ; knownPeers = setTepid (peer (work c)) (knownPeers s)
   ; demotingHot = remove (peer (work c)) (demotingHot s) }
 complete maxRetries clearDelay now c s | deactivate | _ = record s
   { activePeers = remove (peer (work c)) (activePeers s)
+  ; activeSince = delete (peer (work c)) (activeSince s)
   ; establishedPeers = delete (peer (work c)) (establishedPeers s)
   ; knownPeers = setTepid (peer (work c)) (knownPeers s)
   ; demotingHot = remove (peer (work c)) (demotingHot s) }
@@ -254,7 +262,8 @@ applyMonitor : ℕ → ℕ → ℕ → List (PeerAddr × P.Status) → State →
 applyMonitor maxRetries now delay [] s = s
 applyMonitor maxRetries now delay ((p , status) ∷ rest) s = applyMonitor maxRetries now delay rest (update status)
   where
-  baseState = record s { activePeers = remove p (activePeers s) }
+  -- Source restricts activeSince to the new activePeers (Map.restrictKeys).
+  baseState = record s { activePeers = remove p (activePeers s); activeSince = delete p (activeSince s) }
   update : P.Status → State
   update P.peerHot = s
   update P.peerWarm with lookup p (establishedPeers s)

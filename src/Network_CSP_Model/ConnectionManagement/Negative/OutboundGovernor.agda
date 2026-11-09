@@ -6,20 +6,21 @@ module ConnectionManagement.Negative.OutboundGovernor where
 open import Data.Bool using (false; true)
 open import Data.List using ([]; _∷_)
 open import Data.Maybe using (just; nothing)
-open import Data.Product using (_,_)
+open import Data.Product using (_×_; _,_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import ConnectionManagement.Domain
 import ConnectionManagement.IGTypes as I
 open import ConnectionManagement.Store using (lookup)
 import ConnectionManagement.Rules.OutboundGovernor as G
 import ConnectionManagement.Rules.PeerActions as P
+import ConnectionManagement.Properties.ActiveTenure as Tenure
 open import ConnectionManagement.Scenarios.Admission using (key₀)
 
 p : PeerAddr
 p = remote key₀
 warm : G.State
 warm = G.governorState (G.targets 1 1 1) ((p , G.known 0 0 nothing false true) ∷ [])
-  ((p , G.established (ident 0) 0) ∷ []) [] [] [] [] [] []
+  ((p , G.established (ident 0) 0) ∷ []) [] [] [] [] [] [] []
 activating : G.State
 activating = G.mark G.activate (p ∷ []) warm
 no-duplicate-promotion : G.choose 0 (p ∷ []) activating ≡ nothing
@@ -36,7 +37,7 @@ late-failure-after-monitor-is-aborted : G.complete 5 60 10 (G.completion activat
 late-failure-after-monitor-is-aborted = refl
 
 hot : G.State
-hot = record warm { activePeers = p ∷ []; demotingHot = p ∷ [] }
+hot = record warm { activePeers = p ∷ []; activeSince = (p , 3) ∷ []; demotingHot = p ∷ [] }
 timeout-keeps-established-and-active : G.complete 5 60 10
   (G.completion (G.job G.deactivate p (just (ident 0))) G.demotionTimedOut 0) hot ≡
   record hot { demotingHot = [] }
@@ -70,3 +71,31 @@ oldRun = P.protocolRun (I.protocol 1 I.hot I.eagerly) (P.returned I.clean) P.run
 restart-retains-old-result : P.startRun I.hot 1 (oldRun ∷ []) ≡
   just (P.protocolRun (I.protocol 1 I.hot I.eagerly) P.running (P.returned I.clean) ∷ [])
 restart-retains-old-result = refl
+
+-- M4b tenure (network 2f1c154 Governor activeSince, published as
+-- hotUpstreamSince): promotion records its time, every demotion path drops
+-- it, a timed-out demotion keeps it; tenure holds along the actual path.
+promoted : G.State
+promoted = G.complete 5 60 7 (G.completion activation G.succeeded 0) activating
+promotion-records-tenure : G.activePeers promoted ≡ p ∷ [] × G.activeSince promoted ≡ (p , 7) ∷ []
+promotion-records-tenure = refl , refl
+promoted-tenure : Tenure.Tenure promoted
+promoted-tenure = Tenure.tenure-complete 5 60 7 (G.completion activation G.succeeded 0) activating Tenure.tenure-empty
+demoting : G.State
+demoting = G.mark G.deactivate (p ∷ []) promoted
+deactivation : G.Job
+deactivation = G.job G.deactivate p (just (ident 0))
+demotion-drops-tenure : G.activeSince (G.complete 5 60 9 (G.completion deactivation G.succeeded 0) demoting) ≡ []
+demotion-drops-tenure = refl
+failed-demotion-drops-tenure : G.activeSince (G.complete 5 60 9 (G.completion deactivation G.failed 0) demoting) ≡ []
+failed-demotion-drops-tenure = refl
+timed-out-demotion-keeps-tenure : G.activeSince (G.complete 5 60 9 (G.completion deactivation G.demotionTimedOut 0) demoting) ≡ (p , 7) ∷ []
+timed-out-demotion-keeps-tenure = refl
+monitor-demotion-drops-tenure : G.activeSince (G.applyMonitor 5 9 0 ((p , P.peerWarm) ∷ []) promoted) ≡ []
+monitor-demotion-drops-tenure = refl
+-- A second promotion after demotion starts the tenure over.
+repromoted : G.State
+repromoted = G.complete 5 60 20 (G.completion activation G.succeeded 0)
+  (G.mark G.activate (p ∷ []) (G.complete 5 60 9 (G.completion deactivation G.succeeded 0) demoting))
+tenure-restarts : G.activeSince repromoted ≡ (p , 20) ∷ []
+tenure-restarts = refl
