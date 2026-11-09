@@ -40,7 +40,7 @@ All network paths below are under `network-mux/src/` at the target pin.
 | --- | --- | --- |
 | Open batch | First dequeue/fragment take plus first key membership and global held acquisition commit together. No queue-empty/held-zero gap. | Egress243–247 |
 | Extend batch | Subsequent queue try-read and fragment take are separate STM operations. Deduplicate key membership within the existing held batch; do not increment global held again. | Egress340–402 |
-| Grant/wait | Scheduled sink/budget and Slice reservation may commit before write. Queued waiter cancellation does not refund a granted request or release a held batch. Detailed grant algorithms and their actual charge/refund controls remain explicit M4 gaps. | Egress263–289; Bucket674–888,1070–1088 |
+| Grant/wait | Scheduled sink/budget and Slice reservation may commit before write. Queued waiter cancellation does not refund a granted request or release a held batch. M4a models the waits, grants, charges and cancellation cleanup with abstract tokens and grant order (see the [source ledger](SourceLedger.md#m4a-lane-waits-and-shared-buckets-network-2f1c154)). | Egress263–289; Bucket674–888,1070–1088 |
 | Write/account success | Actual writeMany return followed by one STM held release, per-key sent credit and Direct post-write credit. Masking permits blocking-write interruption, not a free async gap after successful return before nonblocking accounting. | Egress298–309 |
 | Failure/cancellation | Before accounting commit, no successful held release/esSent update. Already granted Scheduled/Slice charges persist. Preserve failed/unreleased batch ownership; do not manufacture drain success on exception. | Egress263–309 |
 | Protocol clean completion | Actual body/tracer/result-cell path plus empty want and persistent key-held zero; data readiness alone is not complete event enabledness. | Mux528–553 |
@@ -121,8 +121,8 @@ replacement theorem. The proposal and exact old/new types are recorded in
 
 M1's component does not implement the grant/credit ledger: its failure controls
 establish unchanged held/sent accounting only. Actual pre-grant versus granted
-charge tests belong to M4; record them as deferred rather than claiming a vacuous
-refund result. The first batch does not establish full scheduled-source
+charge tests are M4a controls (`Negative/MuxEgressScheduling`): a grant made
+before cancellation keeps its charge, and a cancelled request is never charged. The first batch does not establish full scheduled-source
 correspondence merely by adding lane/readiness state.
 
 ## Acceptance and later gaps
@@ -142,7 +142,7 @@ no new axioms, holes, unsafe options or weaker old statements. M1–M2 remains o
 until that acceptance passes; no module-wide source promotion follows merely
 from checking the new component.
 
-M3 pool-relays cancel/join, M4 detailed tokens/policy/fairness,
+M3 pool-relays cancel/join, M4 token arithmetic/rank order/floor/fairness and OG observations (M4b),
 M5 collector-owned DB waits, exact dependency/backend validation and M6 source
 replays remain explicit gaps. Scheduling disablement does not remove held guards.
 Cancelling a DB collector does not retract its queued writer job. No universal

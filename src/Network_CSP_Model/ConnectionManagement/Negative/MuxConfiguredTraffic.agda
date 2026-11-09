@@ -64,7 +64,9 @@ fork = W.control owner W.selectCommand ∷ W.control owner (W.demand 1) ∷ W.co
   W.enterProtocolBody responder ∷ W.appendProtocolPayload responder 5 ∷ []
 traffic : List W.Action
 traffic = W.egressMuxer owner (Mux.Egress.takeFirst E.directLane) ∷ W.protocolReturned responder ∷
-  W.egressMuxer owner (Mux.Egress.selectDemand 0) ∷ W.egressMuxer owner (Mux.Egress.writeAccount 0) ∷
+  W.egressMuxer owner (Mux.Egress.selectDemand 0) ∷ W.egressMuxer owner (Mux.Egress.advance 0 E.openGate) ∷
+  W.egressMuxer owner (Mux.Egress.advance 0 E.takeLock) ∷ W.egressMuxer owner (Mux.Egress.advance 0 E.returnWrite) ∷
+  W.egressMuxer owner (Mux.Egress.writeAccount 0) ∷
   W.commitClean responder ∷ []
 
 -- Literal states: the plain fixture's actual states with ONLY the source mux
@@ -201,12 +203,25 @@ estep : Mux.Egress.Action → Mux.Egress.State → Mux.Egress.State
 estep a e with Mux.Egress.step a e
 ... | just t = t
 ... | nothing = e
-e1 e2 e3 e4 e5 : Mux.Egress.State
+e1 e2 e3 e4 g1 g2 g3 e5 : Mux.Egress.State
 e1 = estep (Mux.Egress.createWanton (serial responder) (1 , Mux.responderJob)) configuredEgress
 e2 = estep (Mux.Egress.appendPayload (serial responder) 5) e1
 e3 = estep (Mux.Egress.takeFirst E.directLane) e2
 e4 = estep (Mux.Egress.selectDemand 0) e3
-e5 = estep (Mux.Egress.writeAccount 0) e4
+-- Direct (Credit): writability gate, the mux write lock, the write's return.
+g1 = estep (Mux.Egress.advance 0 E.openGate) e4
+g2 = estep (Mux.Egress.advance 0 E.takeLock) g1
+g3 = estep (Mux.Egress.advance 0 E.returnWrite) g2
+e5 = estep (Mux.Egress.writeAccount 0) g3
+-- The post-write transaction charges the budget on credit for the batch.
+credited : IG.Buckets
+credited = record IG.emptyBuckets { charges = (IG.directCredit , Plain.mid , 0 , 13) ∷ [] }
+withBuckets : IG.Buckets → W.State → W.State
+withBuckets bs s = W.setSource (record c { core = record (O.core c) { inboundGovernor =
+  record ig { execution = record (IG.execution ig) { egressBuckets = bs } } } }) s
+  where
+  c = W.source s
+  ig = M.inboundGovernor (O.core c)
 csnap : Mux.Egress.State → Mux.Mux → List Shared.IGEvent → W.Pool.State → Store JobId Types.ProtocolJob → Store WorkerId (List JobId) → W.State
 csnap e m queue p jobs pending = setupAt U.rankTraced (Plain.at (Plain.sourceMux (record m { egress = e }) queue) (record cfgMonitor { pool = p }) jobs pending)
 pool₀ forkedPool : W.Pool.State
@@ -214,7 +229,7 @@ pool₀ = S.pool cfgMonitor
 forkedPool = record (Plain.physical responder W.Pool.bodyRunning pool₀) { parentFork = just responder }
 job : Types.BodyPhase → Types.ProtocolJob
 job = Plain.rJob
-x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 : W.State
+x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 y1 y2 y3 x12 x13 : W.State
 x1 = csnap configuredEgress Plain.m1 [] pool₀ [] []
 x2 = csnap configuredEgress Plain.m2 [] pool₀ [] []
 x3 = csnap configuredEgress Plain.m3 [] pool₀ [] []
@@ -226,8 +241,11 @@ x8 = csnap e2 Plain.m6 Plain.messages forkedPool ((responder , job Types.executi
 x9 = csnap e3 Plain.m6 Plain.messages forkedPool ((responder , job Types.executing) ∷ []) []
 x10 = csnap e3 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) []
 x11 = csnap e4 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) []
-x12 = csnap e5 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) []
-x13 = csnap e5 Plain.cleanMux Plain.messages forkedPool ((responder , job (Types.resultCaptured clean)) ∷ []) ((owner , responder ∷ []) ∷ [])
+y1 = csnap g1 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) []
+y2 = csnap g2 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) []
+y3 = csnap g3 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) []
+x12 = withBuckets credited (csnap e5 Plain.m6 Plain.messages forkedPool ((responder , job Types.waitingEgress) ∷ []) [])
+x13 = withBuckets credited (csnap e5 Plain.cleanMux Plain.messages forkedPool ((responder , job (Types.resultCaptured clean)) ∷ []) ((owner , responder ∷ []) ∷ []))
 t1 : W.step (W.control owner W.selectCommand) monitored ≡ just x1
 t1 = refl
 t2 : W.step (W.control owner (W.demand 1)) x1 ≡ just x2
@@ -250,13 +268,19 @@ t10 : W.step (W.protocolReturned responder) x9 ≡ just x10
 t10 = refl
 t11 : W.step (W.egressMuxer owner (Mux.Egress.selectDemand 0)) x10 ≡ just x11
 t11 = refl
-t12 : W.step (W.egressMuxer owner (Mux.Egress.writeAccount 0)) x11 ≡ just x12
+u1 : W.step (W.egressMuxer owner (Mux.Egress.advance 0 E.openGate)) x11 ≡ just y1
+u1 = refl
+u2 : W.step (W.egressMuxer owner (Mux.Egress.advance 0 E.takeLock)) y1 ≡ just y2
+u2 = refl
+u3 : W.step (W.egressMuxer owner (Mux.Egress.advance 0 E.returnWrite)) y2 ≡ just y3
+u3 = refl
+t12 : W.step (W.egressMuxer owner (Mux.Egress.writeAccount 0)) y3 ≡ just x12
 t12 = refl
 t13 : W.step (W.commitClean responder) x12 ≡ just x13
 t13 = refl
 segmentPath : W.Executes monitored segment x13
 segmentPath = W.next t1 (W.next t2 (W.next t3 (W.next t4 (W.next t5 (W.next t6 (W.next t7 (W.next t8
-  (W.next t9 (W.next t10 (W.next t11 (W.next t12 (W.next t13 W.done))))))))))))
+  (W.next t9 (W.next t10 (W.next t11 (W.next u1 (W.next u2 (W.next u3 (W.next t12 (W.next t13 W.done)))))))))))))))
 abstract
   initialized-configured-traffic : W.Executes Plain.b0
     ((Plain.birthPathActions ++ publication) ++ (Plain.callerPathActions ++ (startup ++ segment))) x13
@@ -296,3 +320,9 @@ infra-classified : ∀ {f} → frame x13 ≡ just f →
   Group.isInfra direct f ≡ true × Group.isInfra scheduled f ≡ true × Group.isInfra demux f ≡ true ×
   Group.isInfra responder f ≡ false
 infra-classified refl = refl , refl , refl , refl
+
+-- M4: the Direct batch is written only after its gate and the shared lock.
+unwaited-write-refused : W.step (W.egressMuxer owner (Mux.Egress.writeAccount 0)) x11 ≡ nothing
+unwaited-write-refused = refl
+locked-write-before-return-refused : W.step (W.egressMuxer owner (Mux.Egress.writeAccount 0)) y2 ≡ nothing
+locked-write-before-return-refused = refl

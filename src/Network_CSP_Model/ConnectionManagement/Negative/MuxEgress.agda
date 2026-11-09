@@ -1,8 +1,9 @@
 {-# OPTIONS --guardedness #-}
 
 -- Source-distinguishing finite component controls. These are actual kernel
--- paths, not whole-node or protocol/handler reachability witnesses. Grant
--- ledgers/refunds and native bearer behavior remain explicit M4/M6 obligations.
+-- paths, not whole-node or protocol/handler reachability witnesses. On a
+-- scheduled layout each write follows its M4 wait stages; the shared bucket
+-- side of grants is checked at the IG level (Negative/MuxEgressScheduling).
 module ConnectionManagement.Negative.MuxEgress where
 
 open import Data.Bool using (true; false)
@@ -33,10 +34,15 @@ start : E.State
 start = E.state (scheduledLayout false) 16 1000
  ((0 , E.cell directLane (+ 0) 0) ∷ (1 , E.cell directLane (+ 0) 0) ∷
   (2 , E.cell directLane (+ 0) 0) ∷ []) []
- ((directLane , []) ∷ (scheduledLane , []) ∷ []) [] (+ 0) 0
+ ((directLane , []) ∷ (scheduledLane , []) ∷ []) [] (+ 0) 0 [] nothing
 actual-initial : E.initial (scheduledLayout false) 16 1000
  ((0 , directLane) ∷ (1 , directLane) ∷ (2 , directLane) ∷ []) ≡ just start
 actual-initial = refl
+-- Direct (Credit): gate, lock, write return; ranked lanes add a grant.
+directWait rankedWait : ℕ → List E.Action
+directWait b = E.advance b Model.openGate ∷ E.advance b Model.takeLock ∷ E.advance b Model.returnWrite ∷ []
+rankedWait b = E.advance b Model.openGate ∷ E.advance b Model.grantFast ∷ E.advance b Model.takeLock ∷
+  E.advance b Model.returnWrite ∷ []
 setup : List E.Action
 setup = E.createWanton 0 0 ∷ E.createWanton 1 1 ∷ E.createWanton 2 2 ∷ []
 twoSends firstActions bothActions repeatedActions readyActions writtenActions : List E.Action
@@ -45,7 +51,7 @@ firstActions = twoSends ++ (E.takeFirst directLane ∷ [])
 bothActions = firstActions ++ (E.selectDemand 0 ∷ E.takeFragment 0 ∷ [])
 repeatedActions = bothActions ++ (E.appendPayload 0 3 ∷ E.selectDemand 0 ∷ E.takeFragment 0 ∷ [])
 readyActions = repeatedActions ++ (E.selectDemand 0 ∷ [])
-writtenActions = readyActions ++ (E.writeAccount 0 ∷ [])
+writtenActions = readyActions ++ directWait 0 ++ (E.writeAccount 0 ∷ [])
 first both repeated ready written : E.State
 first = at start firstActions
 both = at start bothActions
@@ -103,8 +109,8 @@ unknown-not-ready : E.protocolReady 99 start ≡ false
 unknown-not-ready = refl
 
 -- Empty observation is a history boundary, not a write-time queue recheck.
-afterSeal = at start (readyActions ++ (E.appendPayload 1 1 ∷ []))
-afterSealWritten = at start (readyActions ++ (E.appendPayload 1 1 ∷ E.writeAccount 0 ∷ []))
+afterSeal = at start (readyActions ++ (E.appendPayload 1 1 ∷ []) ++ directWait 0)
+afterSealWritten = at start (readyActions ++ (E.appendPayload 1 1 ∷ []) ++ directWait 0 ++ (E.writeAccount 0 ∷ []))
 sealed-write-after-enqueue : E.step (E.writeAccount 0) afterSeal ≡ just afterSealWritten
 sealed-write-after-enqueue = refl
 queued-after-write-not-drained : E.drainReady afterSealWritten ≡ false
@@ -137,13 +143,14 @@ second-wanton-not-ready = refl
 -- The byte threshold is checked before adding the next SDU. Overshoot is legal.
 capStart = record start { batchLimit = 20 }
 capBoth = at capStart bothActions
-capReady = at capStart (bothActions ++ (E.finishBatch 0 ∷ []))
-cap-write = at capStart (bothActions ++ (E.finishBatch 0 ∷ E.writeAccount 0 ∷ []))
+capSealed = at capStart (bothActions ++ (E.finishBatch 0 ∷ []))
+capReady = at capStart (bothActions ++ (E.finishBatch 0 ∷ []) ++ directWait 0)
+cap-write = at capStart (bothActions ++ (E.finishBatch 0 ∷ []) ++ directWait 0 ++ (E.writeAccount 0 ∷ []))
 cap-wire-overshoot : map (λ b → E.wireTotal (E.members b)) (Store.lookup 0 (E.batches capBoth)) ≡ just 31
 cap-wire-overshoot = refl
 cap-no-further-selection : E.step (E.selectDemand 0) capBoth ≡ nothing
 cap-no-further-selection = refl
-cap-seals : E.step (E.finishBatch 0) capBoth ≡ just capReady
+cap-seals : E.step (E.finishBatch 0) capBoth ≡ just capSealed
 cap-seals = refl
 cap-write-succeeds : E.step (E.writeAccount 0) capReady ≡ just cap-write
 cap-write-succeeds = refl
@@ -152,7 +159,7 @@ no-early-cap-seal = refl
 
 -- Plain still has held readiness, without grant scheduling.
 plainStart = E.state plainLayout 16 1000 ((0 , E.cell scheduledLane (+ 0) 0) ∷ []) []
- ((scheduledLane , []) ∷ []) [] (+ 0) 0
+ ((scheduledLane , []) ∷ []) [] (+ 0) 0 [] nothing
 plain-initial : E.initial plainLayout 16 1000 ((0 , directLane) ∷ []) ≡ just plainStart
 plain-initial = refl
 emptySend = at plainStart (E.createWanton 0 0 ∷ E.appendPayload 0 0 ∷ [])
@@ -170,7 +177,7 @@ plain-held-not-drained : E.drainReady plainHeld ≡ false
 plain-held-not-drained = refl
 
 fallbackStart = E.state (scheduledLayout false) 16 1000 ((0 , E.cell directLane (+ 0) 0) ∷ []) []
- ((directLane , []) ∷ (scheduledLane , []) ∷ []) [] (+ 0) 0
+ ((directLane , []) ∷ (scheduledLane , []) ∷ []) [] (+ 0) 0 [] nothing
 fallback-initial : E.initial (scheduledLayout false) 16 1000 ((0 , sliceLane) ∷ []) ≡ just fallbackStart
 fallback-initial = refl
 
@@ -184,13 +191,15 @@ laned-initial = refl
 lanedActions = setup ++ (E.appendPayload 0 1 ∷ E.appendPayload 1 2 ∷
  E.takeFirst directLane ∷ E.takeFirst scheduledLane ∷ E.selectDemand 0 ∷ E.selectDemand 1 ∷ [])
 laned = at lanedStart lanedActions
-lanedOne = at lanedStart (lanedActions ++ (E.writeAccount 0 ∷ []))
-lanedBoth = at lanedStart (lanedActions ++ (E.writeAccount 0 ∷ E.writeAccount 1 ∷ []))
+lanedWrites : List E.Action
+lanedWrites = directWait 0 ++ (E.writeAccount 0 ∷ []) ++ rankedWait 1 ++ (E.writeAccount 1 ∷ [])
+lanedOne = at lanedStart (lanedActions ++ directWait 0 ++ (E.writeAccount 0 ∷ []))
+lanedBoth = at lanedStart (lanedActions ++ lanedWrites)
 abstract
  actual-two-lanes : P.Runs lanedStart lanedActions laned
  actual-two-lanes = P.execute-runs lanedActions lanedStart refl
- actual-two-writes : P.Runs lanedStart (lanedActions ++ (E.writeAccount 0 ∷ E.writeAccount 1 ∷ [])) lanedBoth
- actual-two-writes = P.execute-runs (lanedActions ++ (E.writeAccount 0 ∷ E.writeAccount 1 ∷ [])) lanedStart refl
+ actual-two-writes : P.Runs lanedStart (lanedActions ++ lanedWrites) lanedBoth
+ actual-two-writes = P.execute-runs (lanedActions ++ lanedWrites) lanedStart refl
 lanes-global-two : E.runHeld laned ≡ + 2
 lanes-global-two = refl
 one-write-global-one : E.runHeld lanedOne ≡ + 1
@@ -235,9 +244,59 @@ no-overfull-queue : map length (Store.lookup directLane (E.queues fullTaken)) �
 no-overfull-queue = refl
 
 sliceStart = E.state (scheduledLayout true) 16 1000 ((0 , E.cell sliceLane (+ 0) 0) ∷ []) []
- ((directLane , []) ∷ (scheduledLane , []) ∷ (sliceLane , []) ∷ []) [] (+ 0) 0
+ ((directLane , []) ∷ (scheduledLane , []) ∷ (sliceLane , []) ∷ []) [] (+ 0) 0 [] nothing
 slice-initial : E.initial (scheduledLayout true) 16 1000 ((0 , sliceLane) ∷ []) ≡ just sliceStart
 slice-initial = refl
 sliceHeld = at sliceStart (E.createWanton 0 0 ∷ E.appendPayload 0 1 ∷ E.takeFirst sliceLane ∷ [])
 slice-held-not-drained : E.drainReady sliceHeld ≡ false
 slice-held-not-drained = refl
+
+-- M4 wait stages at the kernel. The write needs its lane's stages first:
+-- Direct is gated then locked; ranked/reserved lanes also need a grant.
+ready-unwaited-write-refused : E.step (E.writeAccount 0) ready ≡ nothing
+ready-unwaited-write-refused = refl
+gated = at start (readyActions ++ (E.advance 0 Model.openGate ∷ []))
+direct-has-no-grant : E.step (E.advance 0 Model.grantFast) gated ≡ nothing
+direct-has-no-grant = refl
+locked = at start (readyActions ++ (E.advance 0 Model.openGate ∷ E.advance 0 Model.takeLock ∷ []))
+lock-held : E.lockHolder locked ≡ just 0
+lock-held = refl
+write-before-return-refused : E.step (E.writeAccount 0) locked ≡ nothing
+write-before-return-refused = refl
+-- Blocked write cancelled: the lock is put back, the batch stays held.
+blockedFailed = at start (readyActions ++ (E.advance 0 Model.openGate ∷ E.advance 0 Model.takeLock ∷ E.writeFailed 0 ∷ []))
+blocked-write-releases-lock : E.lockHolder blockedFailed ≡ nothing
+blocked-write-releases-lock = refl
+blocked-write-keeps-held : E.runHeld blockedFailed ≡ + 1
+blocked-write-keeps-held = refl
+-- After writeMany returned, the masked accounting has no failure point.
+returned = at start (readyActions ++ directWait 0)
+returned-not-failable : E.step (E.writeFailed 0) returned ≡ nothing
+returned-not-failable = refl
+lock-free-after-return : E.lockHolder returned ≡ nothing
+lock-free-after-return = refl
+-- One lock for every lane of a scheduled mux: a second lane waits for it.
+bothLocked = at lanedStart (lanedActions ++ (E.advance 0 Model.openGate ∷ E.advance 0 Model.takeLock ∷
+  E.advance 1 Model.openGate ∷ E.advance 1 Model.grantFast ∷ []))
+second-lane-lock-refused : E.step (E.advance 1 Model.takeLock) bothLocked ≡ nothing
+second-lane-lock-refused = refl
+-- A ranked batch is not written before its grant.
+rankedGated = at lanedStart (lanedActions ++ (E.advance 1 Model.openGate ∷ []))
+ranked-lock-before-grant-refused : E.step (E.advance 1 Model.takeLock) rankedGated ≡ nothing
+ranked-lock-before-grant-refused = refl
+-- Queued grant path: queue, arm, grant, disarm, then lock; each stage once.
+rankedQueued = at lanedStart (lanedActions ++ (E.advance 1 Model.openGate ∷ E.advance 1 Model.queueRequest ∷ []))
+queued-grant-needs-timer : E.step (E.advance 1 Model.grantQueued) rankedQueued ≡ nothing
+queued-grant-needs-timer = refl
+rankedGranted = at lanedStart (lanedActions ++ (E.advance 1 Model.openGate ∷ E.advance 1 Model.queueRequest ∷
+  E.advance 1 Model.armTimer ∷ E.advance 1 Model.grantQueued ∷ []))
+granted-lock-before-disarm-refused : E.step (E.advance 1 Model.takeLock) rankedGranted ≡ nothing
+granted-lock-before-disarm-refused = refl
+no-second-grant : E.step (E.advance 1 Model.grantQueued) rankedGranted ≡ nothing
+no-second-grant = refl
+-- The plain mux has no wait stages at all.
+plainReady = at plainStart (E.createWanton 0 0 ∷ E.appendPayload 0 1 ∷ E.takeFirst scheduledLane ∷ E.selectDemand 0 ∷ [])
+plain-no-gate : E.step (E.advance 0 Model.openGate) plainReady ≡ nothing
+plain-no-gate = refl
+plain-writes-directly : E.runHeld (at plainReady (E.writeAccount 0 ∷ [])) ≡ + 0
+plain-writes-directly = refl

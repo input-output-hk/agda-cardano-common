@@ -93,9 +93,15 @@ worker-anchors : ∀ a → CoveredMux a → ∀ ig queue {ig′ queue′} →
 worker-anchors .(IG.egressStep mid action) (egress {mid} {action}) ig queue eq
   with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()
-... | just m with M.Egress.step action (M.egress m)
-...   | nothing = case eq of λ ()
-...   | just updatedEgress = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
+... | just m with M.Egress.step action (M.egress m) | IG.bucketStep mid action (M.egress m) (IG.egressBuckets (IG.execution ig))
+...   | just updatedEgress | just bs = case just-injective eq of λ { refl → record
+  { handlesSame = Anchors.handlesSame kept ; muxesRetained = Anchors.muxesRetained kept } }
+  where
+  -- The shared buckets are engine fields outside the anchored handles/muxes.
+  kept : Anchors ig (IG.setMux mid (record m { egress = updatedEgress }) ig)
+  kept = finish ig mid m _ found refl refl
+...   | nothing | _ = case eq of λ ()
+...   | just _ | nothing = case eq of λ ()
 -- Counter registration/retirement writes only the registry fields.
 worker-anchors .(IG.registerCells mid) (register {mid}) ig queue eq
   with lookup mid (IG.muxes (IG.execution ig)) | IG.rowOf mid (IG.counterRows (IG.execution ig))

@@ -3,7 +3,10 @@
 -- M1 accounting kernel for network 2f1c154f248659b89523d5679ca532f442e7ed2a.
 -- Egress.hs:239-257,298-309,340-402; Mux.hs:918-941; Types.hs:305-306.
 -- Held counts are signed BATCH counts. Wire bytes use the explicit finite,
--- non-overflow profile of MigrationProfile.md; grants/refunds belong to M4.
+-- non-overflow profile of MigrationProfile.md. M4 adds the pre-write waits
+-- (Egress.hs:263-309, Mux.hs mkLanes locked writeMany, Bucket.hs
+-- awaitGrantWith/waitQueued/cancel); token arithmetic and grant order stay
+-- abstract and the shared buckets live in the IG engine.
 module ConnectionManagement.Rules.MuxEgress where
 
 open import Data.Bool using (Bool; true; false; _∧_)
@@ -18,7 +21,7 @@ open import Relation.Nullary using (yes; no; does)
 open import Relation.Binary.PropositionalEquality using (refl)
 open import Class.DecEq using (DecEq; _≟_)
 open import Class.DecEq.Instances using (DecEq-ℕ)
-open import ConnectionManagement.Store using (Store; lookup; put)
+open import ConnectionManagement.Store using (Store; lookup; put; delete)
 
 data Lane : Set where
   directLane scheduledLane sliceLane : Lane
@@ -45,6 +48,59 @@ route : Layout → Lane → Lane
 route plainLayout _ = scheduledLane
 route (scheduledLayout false) sliceLane = directLane
 route (scheduledLayout _) lane = lane
+
+-- What a lane's muxer does before writing (Mux.hs mkLanes): a plain mux is
+-- Unscheduled; Direct is Credit; Slice is Reserved; Scheduled is ranked.
+data Mode : Set where
+  unscheduled credit reserved ranked : Mode
+modeOf : Layout → Lane → Mode
+modeOf plainLayout _ = unscheduled
+modeOf (scheduledLayout _) directLane = credit
+modeOf (scheduledLayout _) sliceLane = reserved
+modeOf (scheduledLayout _) scheduledLane = ranked
+
+-- A ready batch's progress towards its write. gated: the writability gate
+-- returned. queued: the grant request joined its bucket's queue (masked);
+-- armed: the wait's refresh timer is registered; grantedArmed: the grant
+-- transaction removed the request and charged, its timer not yet cancelled;
+-- granted: no wait resources remain. writing: the mux's write lock is held
+-- (a scheduled mux's lanes share one lock). wrote: writeMany returned and the
+-- lock was put back; the masked accounting follows with no interruptible step.
+data Wait : Set where
+  gated queued armed grantedArmed granted writing wrote : Wait
+data Advance : Set where
+  openGate grantFast queueRequest armTimer grantQueued disarmTimer takeLock returnWrite : Advance
+waitsGrant : Mode → Bool
+waitsGrant reserved = true
+waitsGrant ranked = true
+waitsGrant _ = false
+nextWait : Mode → Maybe Wait → Advance → Maybe Wait
+nextWait unscheduled _ _ = nothing
+nextWait m nothing openGate = just gated
+nextWait credit (just gated) takeLock = just writing
+nextWait m (just gated) grantFast with waitsGrant m
+... | true = just granted
+... | false = nothing
+nextWait m (just gated) queueRequest with waitsGrant m
+... | true = just queued
+... | false = nothing
+nextWait m (just queued) armTimer = just armed
+nextWait m (just armed) grantQueued = just grantedArmed
+nextWait m (just grantedArmed) disarmTimer = just granted
+nextWait m (just granted) takeLock = just writing
+nextWait m (just writing) returnWrite = just wrote
+nextWait _ _ _ = nothing
+-- The accounting commit follows the write: directly for Unscheduled, after
+-- the locked write returned otherwise.
+writeEnabled : Mode → Maybe Wait → Bool
+writeEnabled unscheduled nothing = true
+writeEnabled unscheduled (just _) = false
+writeEnabled _ (just wrote) = true
+writeEnabled _ _ = false
+-- A failure inside the locked write releases the lock (bracket_).
+lockAfterFailure : Maybe Wait → Maybe ℕ → Maybe ℕ
+lockAfterFailure (just writing) _ = nothing
+lockAfterFailure _ held = held
 
 headerBytes softLimit maxBatchSDUs : ℕ
 headerBytes = 8
@@ -88,6 +144,8 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
           batches : Store ℕ Batch
           runHeld : ℤ
           nextBatch : ℕ
+          waits : Store ℕ Wait
+          lockHolder : Maybe ℕ
   open State public
 
   -- Key cells are created once; duplicate configuration is rejected.
@@ -104,7 +162,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
   initial : Layout → ℕ → ℕ → List (Key × Lane) → Maybe State
   initial plan limit bound ks with makeCells plan ks
   ... | nothing = nothing
-  ... | just cs = just (state plan limit bound cs [] (emptyQueues (lanes plan)) [] (+ 0) 0)
+  ... | just cs = just (state plan limit bound cs [] (emptyQueues (lanes plan)) [] (+ 0) 0 [] nothing)
 
   -- Failed batches stay owned and do not make their lane available again.
   laneBusy : Lane → Store ℕ Batch → Bool
@@ -248,25 +306,47 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
   commitWrite : ℕ → State → Maybe State
   commitWrite ident s with lookup ident (batches s)
   ... | nothing = nothing
-  ... | just b with phase b | pending b | positive (runHeld s)
-  ...   | ready | nothing | true with account (members b) (cells s)
+  ... | just b with phase b | pending b | positive (runHeld s) | writeEnabled (modeOf (layout s) (lane b)) (lookup ident (waits s))
+  ...   | ready | nothing | true | true with account (members b) (cells s)
   ...     | nothing = nothing
   ...     | just cs = just (record s { cells = cs; runHeld = runHeld s Int.- + 1
-    ; batches = put ident (record b { phase = written }) (batches s) })
-  commitWrite ident s | just b | _ | _ | _ = nothing
+    ; batches = put ident (record b { phase = written }) (batches s); waits = delete ident (waits s) })
+  commitWrite ident s | just b | _ | _ | _ | _ = nothing
+  -- A failure leaves the batch held and drops its wait; inside the locked
+  -- write it also puts the lock back. Once the write returned, the masked
+  -- accounting has no interruptible step, so no failure is observed there.
+  failUpdate : ℕ → Batch → Maybe Wait → State → State
+  failUpdate ident b w s = record s { batches = put ident (record b { phase = failed }) (batches s)
+    ; waits = delete ident (waits s); lockHolder = lockAfterFailure w (lockHolder s) }
+  failable : Maybe Wait → Bool
+  failable (just wrote) = false
+  failable _ = true
   failBatch : ℕ → State → Maybe State
   failBatch ident s with lookup ident (batches s)
-  ... | just b with phase b
-  ...   | building = just (record s { batches = put ident (record b { phase = failed }) (batches s) })
-  ...   | ready = just (record s { batches = put ident (record b { phase = failed }) (batches s) })
-  ...   | _ = nothing
+  ... | just b with phase b | failable (lookup ident (waits s))
+  ...   | building | _ = just (failUpdate ident b (lookup ident (waits s)) s)
+  ...   | ready | true = just (failUpdate ident b (lookup ident (waits s)) s)
+  ...   | _ | _ = nothing
   failBatch ident s | nothing = nothing
+
+  -- One wait stage of a ready batch; only waits and the lock change.
+  advanceWait : ℕ → Advance → State → Maybe State
+  advanceWait ident a s with lookup ident (batches s)
+  ... | nothing = nothing
+  ... | just b with phase b | nextWait (modeOf (layout s) (lane b)) (lookup ident (waits s)) a
+  ...   | ready | just w with a | lockHolder s
+  ...     | takeLock | just _ = nothing
+  ...     | takeLock | nothing = just (record s { waits = put ident w (waits s); lockHolder = just ident })
+  ...     | returnWrite | _ = just (record s { waits = put ident w (waits s); lockHolder = nothing })
+  ...     | _ | _ = just (record s { waits = put ident w (waits s) })
+  advanceWait ident a s | just b | _ | _ = nothing
 
   data Action : Set where
     createWanton : ℕ → Key → Action
     appendPayload : ℕ → ℕ → Action
     takeFirst : Lane → Action
     selectDemand takeFragment finishBatch writeAccount writeFailed : ℕ → Action
+    advance : ℕ → Advance → Action
   step : Action → State → Maybe State
   step (createWanton w k) = create w k
   step (appendPayload w n) = send w n
@@ -276,3 +356,4 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
   step (finishBatch b) = finishBuilding b
   step (writeAccount b) = commitWrite b
   step (writeFailed b) = failBatch b
+  step (advance b a) = advanceWait b a

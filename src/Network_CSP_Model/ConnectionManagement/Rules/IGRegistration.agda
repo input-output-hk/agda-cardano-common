@@ -4,7 +4,7 @@
 -- 96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d. Caller-run CM calls use the dispatcher.
 module ConnectionManagement.Rules.IGRegistration where
 
-open import Class.DecEq.Instances using (DecEq-ℕ)
+open import Class.DecEq.Instances using (DecEq-ℕ; DecEq-×)
 import Class.DecEq as DecEqClass
 open import Data.Integer using (+_; -[1+_])
 open import Data.Nat using (ℕ; zero; suc; _+_; _≤?_; _<?_)
@@ -22,6 +22,31 @@ import ConnectionManagement.Rules.IGBatch as Batch
 import ConnectionManagement.Rules.MuxRuntime as M
 import ConnectionManagement.Rules.MuxEgress as EgressKernel
 import ConnectionManagement.Rules.TracerReadiness as Readiness
+
+-- M4 node-wide egress buckets (Diffusion.hs mkEgressPolicy, Bucket.hs at
+-- network 2f1c154): the budget, shared by every scheduled mux's ranked lane,
+-- and the optional slice. Requests are keyed by (mux, batch). Token
+-- arithmetic, rank order, floor, rotation and the rank refresh are abstract:
+-- any queued request may be granted (no fairness claim), and a fast grant
+-- needs the bucket's queue empty. Charges are an append-only log.
+data BucketId : Set where
+  budgetBucket sliceBucket : BucketId
+data ChargeKind : Set where
+  -- ranked: budget grant and installed ChargeSink, in the grant transaction;
+  -- slice: slice grant or idle-budget borrow, budget charged on credit;
+  -- direct: Direct lane takeOnCredit in the post-write transaction.
+  rankedGrant sliceGrant directCredit : ChargeKind
+instance
+  DecEq-Request : DecEqClass.DecEq (MuxId × ℕ)
+  DecEq-Request = DecEq-×
+record Buckets : Set where
+  constructor bucketState
+  field waiting : Store (MuxId × ℕ) BucketId
+        armed : Store (MuxId × ℕ) Bool
+        charges : List (ChargeKind × MuxId × ℕ × ℕ)
+open Buckets public
+emptyBuckets : Buckets
+emptyBuckets = bucketState [] [] []
 
 -- The default constructor retains the initial RemoteIdle projection.
 data RemoteState : Set where
@@ -82,9 +107,10 @@ record Engine : Set where
         dbSealed : Maybe ErrorId
         dbWrites : Store ℕ (JobId × Bool)
         dbWaits : Store JobId ℕ
+        egressBuckets : Buckets
 open Engine public
 emptyEngine : Engine
-emptyEngine = engine [] [] [] true 0 [] 0 [] nothing [] []
+emptyEngine = engine [] [] [] true 0 [] 0 [] nothing [] [] emptyBuckets
 record Runtime : Set where
   constructor runtimeState
   field publishedState : Published
@@ -372,6 +398,56 @@ takePending (suc i) (result ∷ rest) with takePending i rest
 ... | just (chosen , retained) = just (chosen , result ∷ retained)
 
 -- The DB queue changes only its own fields; muxes and handles are untouched.
+bucketOf : EgressKernel.Mode → Maybe BucketId
+bucketOf EgressKernel.ranked = just budgetBucket
+bucketOf EgressKernel.reserved = just sliceBucket
+bucketOf _ = nothing
+grantKind : BucketId → ChargeKind
+grantKind budgetBucket = rankedGrant
+grantKind sliceBucket = sliceGrant
+sameBucket : BucketId → BucketId → Bool
+sameBucket budgetBucket budgetBucket = true
+sameBucket sliceBucket sliceBucket = true
+sameBucket _ _ = false
+queueFree : BucketId → Store (MuxId × ℕ) BucketId → Bool
+queueFree k [] = true
+queueFree k ((_ , k′) ∷ rest) with sameBucket k k′
+... | true = false
+... | false = queueFree k rest
+charge : ChargeKind → MuxId → ℕ → ℕ → Buckets → Buckets
+charge kind mid b bytes bs = record bs { charges = charges bs ++ ((kind , mid , b , bytes) ∷ []) }
+-- The bucket half of a grant-lane wait stage, in the same transaction.
+grantEffect : MuxId → ℕ → EgressKernel.Advance → BucketId → ℕ → Buckets → Maybe Buckets
+grantEffect mid b EgressKernel.queueRequest k bytes bs = just (record bs { waiting = put (mid , b) k (waiting bs) })
+grantEffect mid b EgressKernel.grantFast k bytes bs with queueFree k (waiting bs)
+... | true = just (charge (grantKind k) mid b bytes bs)
+... | false = nothing
+grantEffect mid b EgressKernel.armTimer k bytes bs = just (record bs { armed = put (mid , b) true (armed bs) })
+grantEffect mid b EgressKernel.grantQueued k bytes bs with lookup (mid , b) (waiting bs)
+... | just _ = just (charge (grantKind k) mid b bytes (record bs { waiting = delete (mid , b) (waiting bs) }))
+... | nothing = nothing
+grantEffect mid b EgressKernel.disarmTimer k bytes bs with lookup (mid , b) (armed bs)
+... | just _ = just (record bs { armed = delete (mid , b) (armed bs) })
+... | nothing = nothing
+grantEffect mid b _ k bytes bs = just bs
+-- Bucket effects of a mux egress step, read from the mux's state before it.
+-- A failed muxer's cancel/finally handlers leave the queue and cancel the
+-- refresh timer; a grant already made keeps its charge (no refund).
+bucketStep : MuxId → M.Egress.Action → M.Egress.State → Buckets → Maybe Buckets
+bucketStep mid (M.Egress.advance b a) e bs with lookup b (M.Egress.batches e)
+... | nothing = just bs
+... | just bt with bucketOf (EgressKernel.modeOf (M.Egress.layout e) (M.Egress.lane bt))
+...   | nothing = just bs
+...   | just k = grantEffect mid b a k (M.Egress.wireTotal (M.Egress.members bt)) bs
+bucketStep mid (M.Egress.writeAccount b) e bs with lookup b (M.Egress.batches e)
+... | nothing = just bs
+... | just bt with EgressKernel.modeOf (M.Egress.layout e) (M.Egress.lane bt)
+...   | EgressKernel.credit = just (charge directCredit mid b (M.Egress.wireTotal (M.Egress.members bt)) bs)
+...   | _ = just bs
+bucketStep mid (M.Egress.writeFailed b) e bs =
+  just (record bs { waiting = delete (mid , b) (waiting bs); armed = delete (mid , b) (armed bs) })
+bucketStep mid _ e bs = just bs
+
 stepDb : DbAction → Engine → Maybe Engine
 stepDb (submitWrite j d) e with dbSealed e | lookup d (dbWrites e) | lookup j (dbWaits e)
 ... | nothing | nothing | nothing = just (record e
@@ -478,9 +554,10 @@ stepWorker (installOutboundHandle hid mid k ps flow) r queue =
   installWith (outboundTracer responderMode flow) hid mid k ps flow r queue
 stepWorker (egressStep mid action) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
-... | just m with M.Egress.step action (M.egress m)
-...   | nothing = nothing
-...   | just next = just (setMux mid (record m { egress = next }) r , queue)
+... | just m with M.Egress.step action (M.egress m) | bucketStep mid action (M.egress m) (egressBuckets (execution r))
+...   | just next | just bs = just (record (setMux mid (record m { egress = next }) r)
+  { execution = record (execution (setMux mid (record m { egress = next }) r)) { egressBuckets = bs } } , queue)
+...   | _ | _ = nothing
 stepWorker (configureEgress mid plan limit bound keys) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with pristine (M.egress m) ∧ keysListed keys (M.protocols m) | M.Egress.initial plan limit bound keys

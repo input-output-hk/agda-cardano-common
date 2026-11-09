@@ -41,6 +41,24 @@ linked audit records the migration gates and remaining checks.
 
 Controls: `Negative/MuxConfiguredHandler` checks that publication is refused before each setup step returns, that a plain mux has no setup, and that each setup step runs once. `Negative/MuxEgressSetupUnwind` checks per-site enablement and out-of-order refusal, failure capture with no promise write, a failed owner's refusal to continue, and an initialized trace-failure path.
 
+### M4a lane waits and shared buckets (network `2f1c154`)
+
+| Source operation | Owner | Model | Status |
+| --- | --- | --- | --- |
+| `mkLanes`: Unscheduled, Credit (Direct), Reserved (Slice), Scheduled_ (ranked) | Mux startup | `modeOf layout lane` | Implemented. A plain mux keeps writing directly with no waits. |
+| `gate` (`awaitWritable`, SDU timeout) | Lane muxer | `advance openGate` (`ready`→`gated`); a timeout is `writeFailed` from `ready` | Implemented. The gate-timeout counter is not modelled. |
+| `awaitGrantWith` fast path (one STM: queue empty and tokens there) | Lane muxer, budget or slice bucket | `advance grantFast`; the bucket's queue must be empty; charged in the same step | Implemented. Token availability is an abstract choice. |
+| Masked enqueue (ticket, rank, floor entry) | Lane muxer | `advance queueRequest`; adds `waiting (mux, batch)` | Implemented. Rank, ticket order and floor are abstract. |
+| `waitQueued`: masked `registerDelayCancellable tierRefresh` | Lane muxer | `advance armTimer`; adds `armed (mux, batch)` | Implemented. A refresh replaces a spent timer and is not modelled. |
+| Grant transaction (`takeOrBorrow`/floor; delete key; `queueChanged`; `wakeHead`; charge or ChargeSink) | Lane muxer at the head, or picked by the floor | `advance grantQueued`; removes the request and appends one charge (`rankedGrant` or `sliceGrant`) | Implemented. Which request is granted is abstract; there is no fairness or progress claim. |
+| `finally` cancels the refresh timer | Lane muxer | `advance disarmTimer` | Implemented. |
+| `cancel` (`onException`): leave the queue if still a member; `wakeHead`; `floorLeave` | Lane muxer | `writeFailed` removes the request and timer; a charge already made stays | Implemented. Waking other waiters is not modelled. |
+| Locked `writeMany` (`bracket_ takeTMVar/putTMVar`, one lock per scheduled mux) | Lane muxer | `advance takeLock` (lock free) then `returnWrite`; `writeFailed` while writing puts the lock back | Implemented. |
+| Masked post-write STM: release, Direct `takeOnCredit`, `isEmptyTBQueue` | Lane muxer | `writeAccount` after `returnWrite`, with `directCredit` for Direct; nothing can fail in between | Implemented. |
+| Egress interval delay, `bsServed`/burst statistics, detector, rotation | Lane muxer, bucket | Not modelled | Excluded policy observations. |
+
+Controls: `Negative/MuxEgress` checks wait-stage ordering, that Direct has no grant, that the lock is shared and is released when a blocked write is cancelled, that nothing can fail after the write returns, and that a plain mux writes directly. `Negative/MuxEgressScheduling` checks the queue, timer, grant and charge lifecycle, that a request cannot be granted twice, that a fast grant waits behind a queued request on the same bucket only, cancellation while queued or armed (no charge), and cancellation after the grant (the charge is kept). `Negative/MuxConfiguredTraffic` runs the initialized Direct write through gate, lock and return, with its credit charge.
+
 ## Current implementation coverage
 
 **Reading this section:** the paragraphs and rule-family status cells accumulate

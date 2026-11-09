@@ -434,6 +434,7 @@ egressLane (M.Egress.takeFragment id) e = batchLane id e
 egressLane (M.Egress.finishBatch id) e = batchLane id e
 egressLane (M.Egress.writeAccount id) e = batchLane id e
 egressLane (M.Egress.writeFailed id) e = batchLane id e
+egressLane (M.Egress.advance id _) e = batchLane id e
 laneWorker : U.Frame → M.Egress.Action → State → Maybe (MuxId × JobId)
 laneWorker f action s with U.progress f
 ... | U.promisePublished hid mid with muxAt mid s

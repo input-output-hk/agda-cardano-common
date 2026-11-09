@@ -26,7 +26,7 @@ open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; cong; trans; sym; subst)
 open import Class.DecEq using (DecEq; _≟_)
 open import Class.DecEq.Instances using (DecEq-ℕ)
-open import ConnectionManagement.Store using (Store; lookup; put)
+open import ConnectionManagement.Store using (Store; lookup; put; delete)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (put-values; put-unique; UniqueKeys; lookup-put-other; apart-lookup; lookup-head)
 import ConnectionManagement.Rules.MuxEgress as Model
@@ -78,8 +78,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
   field captured : E.Batch
         found : lookup ident (E.batches before) ≡ just captured
         origin-phase : E.phase captured ≡ E.building ⊎ E.phase captured ≡ E.ready
-        after-shape : after ≡ record before
-          { batches = put ident (record captured { phase = E.failed }) (E.batches before) }
+        after-shape : after ≡ E.failUpdate ident captured (lookup ident (E.waits before)) before
         cells-same : E.cells after ≡ E.cells before
         held-same : E.runHeld after ≡ E.runHeld before
         wantons-same : E.wantons after ≡ E.wantons before
@@ -87,11 +86,12 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  failure : ∀ ident before {after} → E.step (E.writeFailed ident) before ≡ just after → Failure ident before after
  failure ident before actual with lookup ident (E.batches before) in found
  ... | nothing = case actual of λ ()
- ... | just b with E.phase b in phase
- ...   | E.building = case just-injective actual of λ { refl → failed-batch b found (inj₁ phase) refl refl refl refl refl }
- ...   | E.ready = case just-injective actual of λ { refl → failed-batch b found (inj₂ phase) refl refl refl refl refl }
- ...   | E.failed = case actual of λ ()
- ...   | E.written = case actual of λ ()
+ ... | just b with E.phase b in phase | E.failable (lookup ident (E.waits before))
+ ...   | E.building | _ = case just-injective actual of λ { refl → failed-batch b found (inj₁ phase) refl refl refl refl refl }
+ ...   | E.ready | true = case just-injective actual of λ { refl → failed-batch b found (inj₂ phase) refl refl refl refl refl }
+ ...   | E.ready | false = case actual of λ ()
+ ...   | E.failed | _ = case actual of λ ()
+ ...   | E.written | _ = case actual of λ ()
 
  -- Successful accounting observes a ready, unconsumed batch and the actual
  -- all-member accounting transaction. It does not assert a muxer body return.
@@ -103,22 +103,26 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
         ready-before : E.phase captured ≡ E.ready
         no-pending : E.pending captured ≡ nothing
         held-positive : Model.positive (E.runHeld before) ≡ true
+        write-enabled-wait : Model.writeEnabled (Model.modeOf (E.layout before) (E.lane captured)) (lookup ident (E.waits before)) ≡ true
         actual-account : E.account (E.members captured) (E.cells before) ≡ just cellsAfter
         after-shape : after ≡ record before
           { cells = cellsAfter; runHeld = E.runHeld before Int.- + 1
-          ; batches = put ident (record captured { phase = E.written }) (E.batches before) }
+          ; batches = put ident (record captured { phase = E.written }) (E.batches before)
+          ; waits = delete ident (E.waits before) }
  write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after → Write ident before after
  write ident before actual with lookup ident (E.batches before) in found
  ... | nothing = case actual of λ ()
- ... | just b with E.phase b in phase | E.pending b in pending | Model.positive (E.runHeld before) in held
- ...   | E.ready | nothing | true with E.account (E.members b) (E.cells before) in accounted
+ ... | just b with E.phase b in phase | E.pending b in pending | Model.positive (E.runHeld before) in held |
+   Model.writeEnabled (Model.modeOf (E.layout before) (E.lane b)) (lookup ident (E.waits before)) in enabled
+ ...   | E.ready | nothing | true | true with E.account (E.members b) (E.cells before) in accounted
  ...     | nothing = case actual of λ ()
- ...     | just cs = case just-injective actual of λ { refl → wrote-batch b cs found phase pending held accounted refl }
- write ident before actual | just b | E.building | _ | _ = case actual of λ ()
- write ident before actual | just b | E.ready | just _ | _ = case actual of λ ()
- write ident before actual | just b | E.ready | nothing | false = case actual of λ ()
- write ident before actual | just b | E.failed | _ | _ = case actual of λ ()
- write ident before actual | just b | E.written | _ | _ = case actual of λ ()
+ ...     | just cs = case just-injective actual of λ { refl → wrote-batch b cs found phase pending held enabled accounted refl }
+ write ident before actual | just b | E.building | _ | _ | _ = case actual of λ ()
+ write ident before actual | just b | E.ready | just _ | _ | _ = case actual of λ ()
+ write ident before actual | just b | E.ready | nothing | false | _ = case actual of λ ()
+ write ident before actual | just b | E.ready | nothing | true | false = case actual of λ ()
+ write ident before actual | just b | E.failed | _ | _ | _ = case actual of λ ()
+ write ident before actual | just b | E.written | _ | _ | _ = case actual of λ ()
 
  -- Written and failed historical batches cannot be mistaken for a fresh write.
  written-refused : ∀ ident s b → lookup ident (E.batches s) ≡ just b → E.phase b ≡ E.written →
@@ -132,20 +136,42 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  write-once : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   E.step (E.writeAccount ident) after ≡ nothing
  write-once ident before actual with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl =
+ ... | wrote-batch b cs found phase pending held enabled accounted refl =
   written-refused ident (record before
    { cells = cs; runHeld = E.runHeld before Int.- + 1
-   ; batches = put ident (record b { phase = E.written }) (E.batches before) })
+   ; batches = put ident (record b { phase = E.written }) (E.batches before)
+   ; waits = delete ident (E.waits before) })
    (record b { phase = E.written })
    (lookup-put ident (record b { phase = E.written }) (E.batches before)) refl
  failure-not-write : ∀ ident before {after} → E.step (E.writeFailed ident) before ≡ just after →
   E.step (E.writeAccount ident) after ≡ nothing
  failure-not-write ident before actual with failure ident before actual
  ... | failed-batch b found phase refl sameCells sameHeld sameWantons sameQueues =
-  failed-refused ident (record before
-   { batches = put ident (record b { phase = E.failed }) (E.batches before) })
+  failed-refused ident (E.failUpdate ident b (lookup ident (E.waits before)) before)
    (record b { phase = E.failed })
    (lookup-put ident (record b { phase = E.failed }) (E.batches before)) refl
+
+ -- M4 wait stages change only the batch's wait entry and the write lock;
+ -- batches, cells, held counts, queues and wantons are untouched.
+ advance-shape : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t →
+  Σ (Store ℕ Model.Wait) (λ W → Σ (Maybe ℕ) (λ L → t ≡ record s { waits = W; lockHolder = L }))
+ advance-shape ident a s actual with lookup ident (E.batches s)
+ ... | nothing = case actual of λ ()
+ ... | just b with E.phase b | Model.nextWait (Model.modeOf (E.layout s) (E.lane b)) (lookup ident (E.waits s)) a
+ ...   | E.ready | just w with a | E.lockHolder s
+ ...     | Model.takeLock | just _ = case actual of λ ()
+ ...     | Model.takeLock | nothing = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.returnWrite | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.openGate | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.grantFast | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.queueRequest | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.armTimer | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.grantQueued | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.disarmTimer | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ advance-shape ident a s actual | just b | E.ready | nothing = case actual of λ ()
+ advance-shape ident a s actual | just b | E.building | _ = case actual of λ ()
+ advance-shape ident a s actual | just b | E.failed | _ = case actual of λ ()
+ advance-shape ident a s actual | just b | E.written | _ = case actual of λ ()
 
  -- A finite executable path records every actual kernel step. Concrete
  -- controls can reuse this variable-state proof instead of expanding nested
@@ -219,7 +245,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  write-no-underflow : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   + 0 ≤ E.runHeld after
  write-no-underflow ident before actual with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl with positive-predecessor (E.runHeld before) held
+ ... | wrote-batch b cs found phase pending held enabled accounted refl with positive-predecessor (E.runHeld before) held
  ...   | n , same rewrite same = +≤+ z≤n
 
  initial-global : ∀ plan limit bound keys {s} → E.initial plan limit bound keys ≡ just s → GlobalOwnership s
@@ -230,7 +256,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  global-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   GlobalOwnership before → GlobalOwnership after
  global-write ident before actual owns with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl = result
+ ... | wrote-batch b cs found phase pending held enabled accounted refl = result
   where
   decrement : count outstanding (E.batches before) ≡
    suc (count outstanding (put ident (record b { phase = E.written }) (E.batches before)))
@@ -241,7 +267,8 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
    phaseValue rewrite phase = refl
   result : GlobalOwnership (record before
    { cells = cs; runHeld = E.runHeld before Int.- + 1
-   ; batches = put ident (record b { phase = E.written }) (E.batches before) })
+   ; batches = put ident (record b { phase = E.written }) (E.batches before)
+   ; waits = delete ident (E.waits before) })
   result rewrite owns | decrement = refl
 
  global-failure : ∀ ident before {after} → E.step (E.writeFailed ident) before ≡ just after →
@@ -375,6 +402,9 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  global-extend ident s actual owns | just b | E.failed | _ = case actual of λ ()
  global-extend ident s actual owns | just b | E.written | _ = case actual of λ ()
 
+ global-advance : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t → GlobalOwnership s → GlobalOwnership t
+ global-advance ident a s actual owns with advance-shape ident a s actual
+ ... | W , L , refl = owns
  global-step : ∀ action s {t} → E.step action s ≡ just t → GlobalOwnership s → GlobalOwnership t
  global-step (E.createWanton w k) = global-create w k
  global-step (E.appendPayload w n) = global-send w n
@@ -384,6 +414,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  global-step (E.finishBatch ident) = global-finish ident
  global-step (E.writeAccount ident) = global-write ident
  global-step (E.writeFailed ident) = global-failure ident
+ global-step (E.advance ident a) = global-advance ident a
  global-runs : ∀ {s actions t} → Runs s actions t → GlobalOwnership s → GlobalOwnership t
  global-runs stop owns = owns
  global-runs (more {s = s} {a = action} actual path) owns = global-runs path (global-step action s actual owns)
@@ -439,7 +470,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  cells-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   CellsNonnegative before → CellsNonnegative after
  cells-write ident before actual valid with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl = account-nonnegative (E.members b) (E.cells before) accounted valid
+ ... | wrote-batch b cs found phase pending held enabled accounted refl = account-nonnegative (E.members b) (E.cells before) accounted valid
 
  present : Maybe ℕ → ℕ
  present nothing = 0
@@ -492,7 +523,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  members-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   MembersUnique before → MembersUnique after
  members-write ident before {after} actual valid with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl =
+ ... | wrote-batch b cs found phase pending held enabled accounted refl =
   members-from-old ident before after b (record b { phase = E.written }) found refl refl valid
  members-failure : ∀ ident before {after} → E.step (E.writeFailed ident) before ≡ just after →
   MembersUnique before → MembersUnique after
@@ -597,6 +628,9 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  members-extend ident s actual valid | just b | E.ready | _ = case actual of λ ()
  members-extend ident s actual valid | just b | E.failed | _ = case actual of λ ()
  members-extend ident s actual valid | just b | E.written | _ = case actual of λ ()
+ members-advance : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t → MembersUnique s → MembersUnique t
+ members-advance ident a s actual valid with advance-shape ident a s actual
+ ... | W , L , refl = valid
  members-step : ∀ action s {t} → E.step action s ≡ just t → MembersUnique s → MembersUnique t
  members-step (E.createWanton w k) = members-create w k
  members-step (E.appendPayload w n) = members-send w n
@@ -606,6 +640,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  members-step (E.finishBatch ident) = members-finish ident
  members-step (E.writeAccount ident) = members-write ident
  members-step (E.writeFailed ident) = members-failure ident
+ members-step (E.advance ident a) = members-advance ident a
  members-runs : ∀ {s actions t} → Runs s actions t → MembersUnique s → MembersUnique t
  members-runs stop valid = valid
  members-runs (more {s = s} {a = action} actual path) valid = members-runs path (members-step action s actual valid)
@@ -723,7 +758,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  key-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   MembersUnique before → KeyOwnership before → KeyOwnership after
  key-write ident before actual unique owns queried current foundCurrent with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl with
+ ... | wrote-batch b cs found phase pending held enabled accounted refl with
   account-origin queried (E.members b) (E.cells before) accounted foundCurrent
  ...   | old , oldFound with account-cell queried (E.members b) (E.cells before) old
   (lookup-batch-value BatchMembersUnique ident (E.batches before) b unique found) oldFound accounted
@@ -929,6 +964,9 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
 
  -- Per-key held-count conservation over every actual kernel action. Only the
  -- write case consumes batch-member uniqueness, carried by members-step.
+ key-advance : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t → KeyOwnership s → KeyOwnership t
+ key-advance ident a s actual owns with advance-shape ident a s actual
+ ... | W , L , refl = owns
  key-step : ∀ action s {t} → E.step action s ≡ just t → MembersUnique s → KeyOwnership s → KeyOwnership t
  key-step (E.createWanton w k) s actual unique = key-create w k s actual
  key-step (E.appendPayload w n) s actual unique = key-send w n s actual
@@ -938,6 +976,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  key-step (E.finishBatch ident) s actual unique = key-finish ident s actual
  key-step (E.writeAccount ident) s actual unique = key-write ident s actual unique
  key-step (E.writeFailed ident) s actual unique = key-failure ident s actual
+ key-step (E.advance ident a) s actual unique = key-advance ident a s actual
  key-runs : ∀ {s actions t} → Runs s actions t → MembersUnique s → KeyOwnership s → KeyOwnership t
  key-runs stop unique owns = owns
  key-runs (more {s = s} {a = action} actual path) unique owns =
@@ -1054,7 +1093,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  configured-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   MembersUnique before → MembersConfigured before → MembersConfigured after
  configured-write ident before {after} actual unique owns with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl =
+ ... | wrote-batch b cs found phase pending held enabled accounted refl =
   configured-change before after ident (record b { phase = E.written }) forward refl
    (same-members-backed before ident b (record b { phase = E.written }) found refl owns) owns
   where
@@ -1128,6 +1167,9 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  configured-extend ident s actual owns | just b | E.failed | _ = case actual of λ ()
  configured-extend ident s actual owns | just b | E.written | _ = case actual of λ ()
 
+ configured-advance : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t → MembersConfigured s → MembersConfigured t
+ configured-advance ident a s actual owns with advance-shape ident a s actual
+ ... | W , L , refl = owns
  configured-step : ∀ action s {t} → E.step action s ≡ just t → MembersUnique s → MembersConfigured s → MembersConfigured t
  configured-step (E.createWanton w k) s actual unique = configured-create w k s actual
  configured-step (E.appendPayload w n) s actual unique = configured-send w n s actual
@@ -1137,6 +1179,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  configured-step (E.finishBatch ident) s actual unique = configured-finish ident s actual
  configured-step (E.writeAccount ident) s actual unique = configured-write ident s actual unique
  configured-step (E.writeFailed ident) s actual unique = configured-failure ident s actual
+ configured-step (E.advance ident a) s actual unique = configured-advance ident a s actual
 
  -- The four component invariants travel together along actual kernel runs.
  record Reachable (s : E.State) : Set where
@@ -1214,9 +1257,13 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
 
  -- Source positivity guards never refuse a reachable ready, unpending batch:
  -- the actual write/account transaction is enabled for it.
+ -- M4: the batch's wait stage must also admit the write (always true for a
+ -- plain mux's unwaited batch; for a scheduled lane, after the locked write).
  write-enabled : ∀ ident s b → Reachable s → lookup ident (E.batches s) ≡ just b →
-  E.phase b ≡ E.ready → E.pending b ≡ nothing → Σ E.State (λ t → E.step (E.writeAccount ident) s ≡ just t)
- write-enabled ident s b valid found phase pending
+  E.phase b ≡ E.ready → E.pending b ≡ nothing →
+  Model.writeEnabled (Model.modeOf (E.layout s) (E.lane b)) (lookup ident (E.waits s)) ≡ true →
+  Σ E.State (λ t → E.step (E.writeAccount ident) s ≡ just t)
+ write-enabled ident s b valid found phase pending enabled
   with account-succeeds (E.members b) (E.cells s)
    (lookup-batch-value BatchMembersUnique ident (E.batches s) b (Reachable.unique valid) found)
    (All.map (λ {binding} → member-ready ident s b valid found phase (proj₁ binding)) (members-present (E.members b)))
@@ -1230,10 +1277,11 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
    one : outstanding b Nat.+ m ≡ suc m
    one rewrite phase = refl
   result : Σ E.State (λ t → E.step (E.writeAccount ident) s ≡ just t)
-  result rewrite found | phase | pending | heldPositive | accounted = _ , refl
+  result rewrite found | phase | pending | heldPositive | enabled | accounted = _ , refl
  from-initial-write-enabled : ∀ {plan limit bound keys start actions current} ident b →
   E.initial plan limit bound keys ≡ just start → Runs start actions current →
   lookup ident (E.batches current) ≡ just b → E.phase b ≡ E.ready → E.pending b ≡ nothing →
+  Model.writeEnabled (Model.modeOf (E.layout current) (E.lane b)) (lookup ident (E.waits current)) ≡ true →
   Σ E.State (λ t → E.step (E.writeAccount ident) current ≡ just t)
  from-initial-write-enabled {plan} {limit} {bound} {keys} {current = current} ident b initialized path =
   write-enabled ident current b (from-initial-reachable {plan} {limit} {bound} {keys} initialized path)
@@ -1368,7 +1416,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  lanes-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   LaneExclusive before → LaneExclusive after
  lanes-write ident before {after} actual owns with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl =
+ ... | wrote-batch b cs found phase pending held enabled accounted refl =
   lane-row before after ident b (record b { phase = E.written }) found refl (λ ()) refl owns
  lanes-failure : ∀ ident before {after} → E.step (E.writeFailed ident) before ≡ just after →
   LaneExclusive before → LaneExclusive after
@@ -1379,6 +1427,9 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
   live : E.phase b ≡ E.building ⊎ E.phase b ≡ E.ready → outstanding (record b { phase = E.failed }) ≡ 1 → outstanding b ≡ 1
   live (inj₁ building) _ = building-one b building
   live (inj₂ ready) _ rewrite ready = refl
+ lanes-advance : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t → LaneExclusive s → LaneExclusive t
+ lanes-advance ident a s actual valid with advance-shape ident a s actual
+ ... | W , L , refl = valid
  lanes-step : ∀ action s {t} → E.step action s ≡ just t → LaneExclusive s → LaneExclusive t
  lanes-step (E.createWanton w k) = lanes-create w k
  lanes-step (E.appendPayload w n) = lanes-send w n
@@ -1388,6 +1439,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  lanes-step (E.finishBatch ident) = lanes-finish ident
  lanes-step (E.writeAccount ident) = lanes-write ident
  lanes-step (E.writeFailed ident) = lanes-failure ident
+ lanes-step (E.advance ident a) = lanes-advance ident a
  lanes-runs : ∀ {s actions t} → Runs s actions t → LaneExclusive s → LaneExclusive t
  lanes-runs stop valid = valid
  lanes-runs (more {s = s} {a = action} actual path) valid = lanes-runs path (lanes-step action s actual valid)
@@ -1599,7 +1651,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  routing-write : ∀ ident before {after} → E.step (E.writeAccount ident) before ≡ just after →
   MembersUnique before → Routing before → CellKept before after × Routing after
  routing-write ident before {after} actual unique valid with write ident before actual
- ... | wrote-batch b cs found phase pending held accounted refl = kept-routing before after
+ ... | wrote-batch b cs found phase pending held enabled accounted refl = kept-routing before after
   (wanton-same before after refl) ck (queues-from-same before after refl valid)
   (pending-from-row before after ident (record b { phase = E.written }) refl (pending-kept before ident b found valid) valid)
   where
@@ -1608,6 +1660,9 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
    (lookup-batch-value BatchMembersUnique ident (E.batches before) b unique found) cellFound accounted
   ... | accounted-cell current foundCurrent heldShape sentShape laneSame = current , foundCurrent , laneSame
 
+ routing-advance : ∀ ident a s {t} → E.step (E.advance ident a) s ≡ just t → Routing s → CellKept s t × Routing t
+ routing-advance ident a s actual valid with advance-shape ident a s actual
+ ... | W , L , refl = (λ k c found → c , found , refl) , routing (Routing.queues-routed valid) (Routing.pending-routed valid)
  routing-step : ∀ action s {t} → E.step action s ≡ just t → MembersUnique s → Routing s → CellKept s t × Routing t
  routing-step (E.createWanton w k) s actual unique = routing-create w k s actual
  routing-step (E.appendPayload w n) s actual unique = routing-send w n s actual
@@ -1617,6 +1672,7 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  routing-step (E.finishBatch ident) s actual unique = routing-finish ident s actual
  routing-step (E.writeAccount ident) s actual unique = routing-write ident s actual unique
  routing-step (E.writeFailed ident) s actual unique = routing-failure ident s actual
+ routing-step (E.advance ident a) s actual unique = routing-advance ident a s actual
  routing-runs : ∀ {s actions t} → Runs s actions t → MembersUnique s → Routing s → CellKept s t × Routing t
  routing-runs {s} stop unique valid = (λ k c found → c , found , refl) , valid
  routing-runs (more {s = s} {t = next} {u = last} {a = action} actual path) unique valid with routing-step action s actual unique valid

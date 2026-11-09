@@ -123,7 +123,7 @@ plainCells ((n , _) ∷ rest) =
   ((n , responderJob) , Egress.cell EgressKernel.scheduledLane (+ 0) 0) ∷ plainCells rest
 plainEgress : Store ℕ ProtocolStatus → Egress.State
 plainEgress ps = Egress.state EgressKernel.plainLayout 65535 65535 (plainCells ps) []
-  ((EgressKernel.scheduledLane , []) ∷ []) [] (+ 0) 0
+  ((EgressKernel.scheduledLane , []) ∷ []) [] (+ 0) 0 [] nothing
 plainInitiatorCells : Store ℕ ProtocolStatus → Store ProtocolKey Egress.Cell
 plainInitiatorCells [] = []
 plainInitiatorCells ((n , _) ∷ rest) =
