@@ -19,7 +19,8 @@ M6 open items, stated rather than claimed:
 - The rank rule's standing reads are not modelled; token arithmetic, grant
   order, floor and fairness are abstract (M4).
 - Peer sharing and local roots are outside the ordinary-peer governor profile.
-- No consensus-side native replay of the LeiosDB waits (M5) was run.
+- Closed after promotion: a native replay of the LeiosDB waits (M5) passes at
+  consensus `2e44d98` (`SourceReplay/LeiosDbWaits.hs`).
 - Closed after promotion: a native probe of scheduled-egress setup
   (`SourceReplay/EgressSetupHandler.hs`) passes at network `2f1c154`.
 

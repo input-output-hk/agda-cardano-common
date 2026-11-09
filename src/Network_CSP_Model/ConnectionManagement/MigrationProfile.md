@@ -143,9 +143,10 @@ no new axioms, holes, unsafe options or weaker old statements. M1–M2 remains o
 until that acceptance passes; no module-wide source promotion follows merely
 from checking the new component.
 
-M4 token arithmetic, rank order and its standing reads, floor and fairness,
-M5 collector-owned DB waits, exact dependency/backend validation and M6 source
-replays remain explicit gaps. Scheduling disablement does not remove held guards.
+M4 token arithmetic, rank order and its standing reads, floor and fairness
+remain explicit gaps. The M5 DB waits are replayed natively against the
+production SQLite writer only (`SourceReplay/LeiosDbWaits.hs`, with the serial
+blockio backend). Scheduling disablement does not remove held guards.
 Cancelling a DB collector does not retract its queued writer job. No universal
 quiescence, progress or current-source refinement is asserted here.
 

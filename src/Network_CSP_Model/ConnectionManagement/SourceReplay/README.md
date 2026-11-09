@@ -34,11 +34,29 @@ unchanged.
   Each setup fault is classified and writes no promise; the control that
   fails at `TraceStarting` writes the promise only after the rank is traced.
   This is the M3 contract the Agda model states.
+- **LeiosDB write waits (consensus `2e44d98`).** [LeiosDbWaits.hs](LeiosDbWaits.hs)
+  runs the production SQLite LeiosDB and its single writer; the fetch
+  collector awaits these writes inline (`LeiosDemoLogic` 1006, 1007, 1455).
+  Another connection's write lock holds the writer up (SQLite
+  `busy_timeout` is 1000 ms). Three cases pass in each of three runs, with
+  `-Wall` and no warnings:
+  a completed write's await returns once its row is readable; an await
+  blocks while its write is held up (200 ms), and cancelling the awaiting
+  thread does not retract the queued write, which lands afterwards; a write
+  that fails (`ErrorBusy` after a 2500 ms hold) stops and seals the writer,
+  so its awaiter and a job queued behind it both throw
+  `LeiosDbWriteException`, the failure reaches the writer's linked owner, and
+  a later submission is refused. This is the M5 contract the Agda model
+  states. Setup: a worktree of consensus `2e44d98` building
+  `lib:ouroboros-consensus` (215 packages, git dependencies fetched at their
+  pinned tags), with `blockio +serialblockio` (no liburing; the disk backend
+  is outside the contract) and the nix-store `libsodium-vrf`, `secp256k1` and
+  `blst` libraries. Run with
+  `cabal exec --offline -- runghc --ghc-arg=-Wall LeiosDbWaits.hs <scratch dir>`.
 
 Logs: `/tmp/cm-m6-20261109/` (`build.log`, `replay-tests.log`,
-`probes/*.log`, including `EgressSetupHandler.log`). The results under the
-headings below remain the original evidence at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. No consensus-side
-native replay of the M5 LeiosDB waits was run.
+`probes/*.log`, including `EgressSetupHandler.log` and `LeiosDbWaits.log`). The results under the
+headings below remain the original evidence at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
 
 # Socket-open reservation replay
 
