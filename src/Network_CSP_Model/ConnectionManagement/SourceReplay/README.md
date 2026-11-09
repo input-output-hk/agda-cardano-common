@@ -23,13 +23,21 @@ unchanged.
   gained three parameters at this pin, so the probes pass `Nothing` counters,
   `Nothing` egress policy and an unused tier rule. This builds the plain
   (unscheduled) mux, so the checked publication contract is the plain-mux one.
-  Scheduled-egress setup (M3) is covered by the Agda model and its controls,
-  not by a native replay. The saved probe files are the adapted versions;
-  the `96ee6e` versions are at commit `5003d2f`.
+  The saved probe files are the adapted versions; the `96ee6e` versions are
+  at commit `5003d2f`.
+- **Scheduled-egress setup.** [EgressSetupHandler.hs](EgressSetupHandler.hs)
+  runs the production handler with `Just` an egress policy (one budget
+  bucket, `directionSplit`) and an observed egress rule. It injects a fault
+  at each M3 setup site: the rule call, the rank installation (the rule's
+  STM throws inside the install transaction) and the `TraceEgressRank`
+  tracer. All eight cases (both roles) pass with `-Wall` and no warnings.
+  Each setup fault is classified and writes no promise; the control that
+  fails at `TraceStarting` writes the promise only after the rank is traced.
+  This is the M3 contract the Agda model states.
 
 Logs: `/tmp/cm-m6-20261109/` (`build.log`, `replay-tests.log`,
-`probes/*.log`). The results under the headings below remain the original
-evidence at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. No consensus-side
+`probes/*.log`, including `EgressSetupHandler.log`). The results under the
+headings below remain the original evidence at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. No consensus-side
 native replay of the M5 LeiosDB waits was run.
 
 # Socket-open reservation replay

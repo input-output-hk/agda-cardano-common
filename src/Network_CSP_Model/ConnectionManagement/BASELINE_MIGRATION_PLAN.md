@@ -14,13 +14,14 @@ M6 promotion on 9 November 2026. Results recorded at consensus `585a861` /
 network `96ee6e` keep those pins.
 
 M6 open items, stated rather than claimed:
-- The pool-relays thread's cancel and join (M3) are not modelled.
+- Closed after promotion: the pool-relays thread's cancel and join (M3) are
+  modelled as an outer layer (`Rules/PoolRelays`, `ServerPeersRelays`).
 - The rank rule's standing reads are not modelled; token arithmetic, grant
   order, floor and fairness are abstract (M4).
 - Peer sharing and local roots are outside the ordinary-peer governor profile.
 - No consensus-side native replay of the LeiosDB waits (M5) was run.
-- Native publication probes cover the plain mux only; scheduled egress is
-  covered by the Agda model and its controls.
+- Closed after promotion: a native probe of scheduled-egress setup
+  (`SourceReplay/EgressSetupHandler.hs`) passes at network `2f1c154`.
 
 ## M0 unit correction (source inspection)
 
