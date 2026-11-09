@@ -35,7 +35,7 @@ Every profile explicitly records:
 | Field | Supported value |
 |---|---|
 | `mode` | `localclient`, `localserver`, or `paired` |
-| `observation` | `driver-log` |
+| `observation` | `driver-log`, or `driver-log-no-request-votes` (generic-successful callbacks only, no `nodePolicy`) for logs that silence RequestNext and Votes |
 | `clientCallbacks` | `generic-successful`, or `node-client-control` with `localclient` or explicit paired `nodePolicy: full-node` |
 | `nodePolicy` | Optional; if supplied it must be `full-node` with paired mode, node-client-control and node-next |
 | `return` | `unit` |
@@ -64,8 +64,7 @@ It selects the unchanged full `NodeDriverModel` including the depth-1000 client,
 credit/FIFO application queue and Cancel-handler fault. Its report marks
 `serverContractUsed: true`, preserves existential external inputs, and emits
 `--paired-notify-lookahead FILE --node-policy full-node --observation driver-log --assume-fresh`.
-It has no local-server/client fallback. See the
-proofs, build and checked CLI/coordinator evidence (historical development evidence removed).
+It has no local-server/client fallback.
 Actual input truth and capture/deployment correspondence remain external.
 
 The generic client profile does not select a fixed depth or the deployed node's
@@ -170,12 +169,16 @@ Arguments for the dedicated executable are returned without an executable name:
 --notify-lookahead FILE --role client --client-policy node-client-control --observation driver-log --assume-fresh
 ```
 
+A `driver-log-no-request-votes` profile returns the first two forms with that
+observation in place of `driver-log`. Its checker exit 3 (`undetermined`, paired
+only) is reported by `replay_lookahead.py` as `model-undetermined`, exit class 4,
+with no protocol verdict.
+
 The runner must use the argument list directly, validate input/header/coordinate
 and optional checksum consistency, retain declared assumptions and unknown
 provenance in its report, and keep input/evidence failures separate from actual
 protocol rejection. This manifest validator is operational input checking, not
 an Agda proof or a replacement for the certified checker.
 
-The node-client manifest extension record (historical development evidence removed)
-retains 108 pure controls and 36 exact legacy-report comparisons. It records no
-checker invocation or protocol verdict; example input files may remain absent.
+The manifest selftest (`lookahead_manifest.py --selftest`) records no checker
+invocation or protocol verdict; example input files may remain absent.

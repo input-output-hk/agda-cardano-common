@@ -1,8 +1,15 @@
 # Trace replay
 
-The executable checks normalized LeiosFetch, LeiosNotifyP, BlockFetch, ChainSync and TxSubmission2 events against the first-order
-session specification. It accepts prefixes, including unfinished sessions at
-EOF. An accepted prefix is not evidence of delivery or successful completion.
+Two executables check normalized mini-protocol logs against first-order
+session specifications that are proved equivalent to PTree models:
+
+| Executable | Protocols and models | Guide |
+| --- | --- | --- |
+| [`Main.agda`](Main.agda) | LeiosFetch, LeiosNotifyP (alternating and bounded pipelined peers), BlockFetch, ChainSync and TxSubmission2; local, interleaved and paired modes | This README |
+| [`LeiosNotifyPipeLookahead/LookaheadMain.agda`](LeiosNotifyPipeLookahead/LookaheadMain.agda) | LeiosNotify against the pinned lookahead implementation model (pipelined client, lookahead server), including logs that silence RequestNext and Votes | [Lookahead README](LeiosNotifyPipeLookahead/README.md) |
+
+Both accept prefixes, including unfinished sessions at EOF. An accepted prefix
+is not evidence of delivery or successful completion.
 
 Raw-log adapters, pair-manifest normalization and CLI regression scripts live
 in [LogProcessing](LogProcessing/README.md), directly under this replay folder.
@@ -19,79 +26,36 @@ paired opposite endpoints. The [implementation note](../../../docs/notes/paired-
 documents its input grammar, certificates, tracer boundary and limitations;
 the [plan](../../../docs/specs/paired-trace-replay-plan.md) tracks remaining work.
 
-## Lookahead Notify investigation
+## Lookahead Notify replay
 
-[LeiosNotifyPipeLookahead](LeiosNotifyPipeLookahead/README.md) has source-model
-bridges and controlled-schedule certificates for the pinned concurrent server
-and pipelined client. The existing Notify CLI modes below retain their bounded peer targets. A
-separate [lookahead CLI and manifest runner](LeiosNotifyPipeLookahead/README.md#normalized-input-and-cli-delivery)
-now checks normalized local/paired driver-log prefixes using the proved
-generic successful-callback/unit-return model. It retains exact summary fields
-and delayed Send hooks; fresh capture assumptions and unknown deployed
-provenance stay explicit. Fixed node policy and raw-log observation correctness
-remain separate. An opt-in
-[raw correspondence and capture preflight workflow](LeiosNotifyPipeLookahead/README.md#raw-input-correspondence-and-capture-preflight)
-now checks artifacts against original JSON and diagnoses missing observations.
-Its baseline synthetic study retains paired timeouts as inconclusive. A
-certified ordering improvement (historical investigation tooling removed)
-now resolves the retained full-history reproducers with the same source
-predicate and completes the original scale matrix; arbitrary inputs still need
-explicit resource limits. The
-subsequent [unique-basis and rejection study](LeiosNotifyPipeLookahead/README.md#unique-payload-basis-and-rejection-limits)
-preserves the same source language and exact repeated payloads, but found
-closed-negative timeouts. The later
-[proved necessary prechecks](LeiosNotifyPipeLookahead/README.md#proved-necessary-prechecks)
-resolve the retained cases while preserving the same source/native predicates
-and complete-search fallback. Arbitrary inputs still need resource limits. The
-larger stress study (historical investigation tooling removed)
-investigates those limits; a fourth proved guard requires recorded server Request
-credit for client reply receives. The
-[shutdown-origin guard](LeiosNotifyPipeLookahead/ShutdownPrecheck.agda)
-additionally requires a recorded server Quit for client Done, preserving delayed
-Send-Done. All five conditions remain necessary checks before full replay. The
-menu diagnostic (historical investigation tooling removed)
-measures actual basis and successor functions; its exact readiness-gate proof
-preserves dependent successor lists, duplicate occurrences and ordering for every
-state. Diagnostic completion never supplies a protocol acceptance verdict. The
-[compiled-demand review](../../../docs/specs/leiosnotify-lookahead-replay-design.md#certificate-demand-versus-ordinary-verdicts)
-then distinguishes ordinary verdict evaluation from deliberately consuming
-transition certificates; its standalone extractor (historical investigation tooling removed) left production unchanged. The
-shared-score-context trial (historical investigation tooling removed)
-preserves exact priorities and lists, with adoption deferred after measured
-ordinary replay memory/time tradeoffs. The default checker is restored. The
-stable-basis study (historical investigation tooling removed)
-checks an exact generic accumulator and complete replay trial, retaining it
-outside the default after repeated higher residency/RSS despite lower allocation. The
-GC diagnostics (historical investigation tooling removed) retain six
-completed normal-growth comparisons and six closer-growth timeouts; closure
-profiles remain separate instrumented observations without retainer attribution. The
-source-attribution controls (historical investigation tooling removed)
-complete all 17 cases, distinguish profiled-build/annotation/observer effects,
-and preserve retainer IDs within each census. The measured contexts do not
-establish the cause of larger candidate memory peaks. The
-node-client-control profile (historical development evidence removed)
-adds exact fixed-depth source replay and explicit local-client CLI/manifest
-selection. It preserves the generic/paired defaults and reports policy-input
-witnesses separately from deployment truth. The
-[typed logger-schema observation](LeiosNotifyPipeLookahead/README.md#typed-logger-schema-observation)
-transports selected decoded hooks through the existing adapters, keeping lexical
-parsing and physical logging outside the theorem. The
-[numbered plan](../../../docs/specs/leiosnotify-pipe-lookahead-plan.md#t7-build-certified-replay-for-the-selected-observation)
-tracks those gaps; no new real-log acceptance follows from fixture tests.
-The [silenced observation replay](LeiosNotifyPipeLookahead/README.md#silenced-observation-replay)
-adds the `driver-log-no-request-votes` profile for logs that silence RequestNext
-and Votes. Its local verdicts are exact for the erased languages. Its paired
-`undetermined` status means only that the canonical reconstruction failed; it is
-not a refutation. Under it, the
+[LeiosNotifyPipeLookahead](LeiosNotifyPipeLookahead/README.md) models the pinned
+consensus implementation (`2416493b`): the client registers a receiver job before
+each RequestNext, and the server's reader can receive Quit while its sender has
+a reply in flight. Local wire languages are proved equivalent to the source model
+and the native PTree; a paired decision covers both endpoints through the driver
+model, with five proved necessary prechecks before a complete search. Separate
+profiles check the node's fixed-depth client policy and the full node policy.
+The [CLI and manifest runner](LeiosNotifyPipeLookahead/README.md#normalized-input-and-cli-delivery)
+report `accepted-prefix`, `protocol-rejected`, `invalid-input` and, for silenced
+pairs only, `undetermined` (exit 3). Raw-log fidelity, logger correspondence and
+Haskell refinement stay outside the proofs.
+
+The [silenced observation](LeiosNotifyPipeLookahead/README.md#silenced-observation-replay)
+`driver-log-no-request-votes` is for logs whose configuration silences RequestNext
+and Votes (Leios testnet config `614b10d2`). Its local verdicts are exact for the
+erased languages. A paired `undetermined` means only that the canonical
+reconstruction failed; it is not a refutation. Under it, the
 [October 29 capture](../../../docs/notes/leiosnotify-silenced-capture-replay.md)
 is accepted as a prefix in every local session and literal pair. That is weak
-conformance evidence, because silenced acceptance constrains only the
-Quit/Canceled/Done order and, in pairs, FIFO consistency of the visible replies.
-It is not full-observation acceptance. A separate
-[bounded-language relation](LeiosNotifyPipeLookahead/README.md#bounded-and-lookahead-wire-languages)
-shows that the bounded server language is included in the lookahead server
-language under `genericNext` only, that the bounded client language is included
-in the lookahead client language, and that every converse fails.
+conformance evidence: silenced acceptance constrains only the Quit/Canceled/Done
+order and, in pairs, FIFO consistency of the visible replies. It is not
+full-observation acceptance.
+
+The [bounded-language relation](LeiosNotifyPipeLookahead/README.md#bounded-and-lookahead-wire-languages)
+shows that the bounded `LeiosNotifyPipeline` server language is included in the
+lookahead server language under `genericNext` only, that the bounded client
+language is included in the lookahead client language, and that every converse
+fails.
 
 ## Paired BlockFetch and TxSubmission2
 
@@ -401,8 +365,10 @@ two cancellations and a final Done.
 
 The October 29 capture's Notify messages now normalize, including Quit/Canceled.
 It contains no RequestNext observations, so strict replay from fresh sessions
-still cannot certify it: the first observed announcement has no request credit.
-No requests are synthesized. Fetch replies missing hash/slot/bitmap fields are
+cannot certify it: the first observed announcement has no request credit.
+No requests are synthesized. The lookahead checker's silenced observation
+accepts the same capture as prefixes, with the weaker meaning described in
+[Lookahead Notify replay](#lookahead-notify-replay). Fetch replies missing hash/slot/bitmap fields are
 a separate input limitation. See [the shutdown note](../../../docs/notes/leiosnotify-quit-cancel.md) for the
 validation record and capture results.
 
@@ -603,9 +569,10 @@ Fetch/Notify sessions; strict replay rejects at global event 2, session 1,
 a received BlockAnnouncement at raw line 271. This is not sufficient evidence
 of an implementation violation: the input is an extract and lacks the request
 evidence required by this model. The locally inspected prototype also has
-pipelined Notify peers, whereas Agda `LeiosNotifyP` is depth-one. Bounded pipelining is now supported by the replay extension above. A
-correspondence proof for the pipelined prototype and an observation model for
-missing requests remain separate work.
+pipelined Notify peers, whereas Agda `LeiosNotifyP` is depth-one. Bounded
+pipelining is supported by the replay extension above, and the pinned pipelined
+implementation and an observation for silenced requests are covered by
+[Lookahead Notify replay](#lookahead-notify-replay).
 
 Validation includes `LeiosNotifyTests.agda` (positive witnesses, negative controls,
 protocol parsing and interleaving), `LeiosNotifyBridge.agda` and explicit client/server trace witnesses in
@@ -636,7 +603,8 @@ python3 -I src/Cardano_network/Replay/LogProcessing/normalize_logs.py --fetch-on
 
 The existing `Main FILE [K]` mode and per-session adapter files remain available.
 `K` defaults to 4 in both modes. The CLI prints accepted, rejected, or parse-error
-reports; its process exit status does not encode these verdicts.
+reports; its process exit status does not encode these verdicts. (`LookaheadMain`
+does encode them; see its README.)
 
 ## Format and session identity
 
@@ -702,6 +670,9 @@ From the repository root:
 ```sh
 python3 -I src/Cardano_network/Replay/LogProcessing/normalize_logs.py --selftest
 ```
+
+The lookahead checker has its own validation roots and CLI suite; see
+[its README](LeiosNotifyPipeLookahead/README.md#validation).
 
 The Agda tests include explicit positive product witnesses and negative
 refutations, independent client bounds, cross-session isolation, server silent

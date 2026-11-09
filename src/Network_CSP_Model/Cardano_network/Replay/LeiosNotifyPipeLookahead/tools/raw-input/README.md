@@ -153,11 +153,11 @@ The synthetic regressions cover all eight kinds, both agencies, optional
 announcement metadata, ordered duplicate Votes, duplicate complete events,
 byte-exact UTF-8 coordinates, wrappers, explicit generation reuse, unknown and
 malformed selected rows, payload/thread/artifact tampering, strict JSON and
-resource controls. The result record (historical development evidence removed) retains
-source identities and validation evidence.
+resource controls.
 
 No original logger emission or log shipping fidelity is proved. Missing
-RequestNext cannot be repaired by this normalizer. Deployment provenance,
+RequestNext cannot be repaired by this normalizer; for logs that silence it, use
+the `driver-log-no-request-votes` observation instead. Deployment provenance,
 freshness/order/losslessness and endpoint pairing still need independent
 evidence. Full native payload correspondence, formal Python correctness and
 real complete testnet replay remain open. No Agda source was changed here.

@@ -14,11 +14,9 @@ Historical research notes may still describe their earlier results.
 
 ## Normalized lookahead CLI and manifest runner
 
-The wave after `1f5d4eb7` adds standalone native client transport, exact
-normalized client/paired adapters, a dedicated CLI and explicit profile
-manifests. [The replay guide](../README.md#normalized-input-and-cli-delivery)
-states the generic successful-client/unit-return scope, prefix semantics and
-raw-fidelity limitations. Existing `Replay/Main.agda` is unchanged.
+`LookaheadMain` is the lookahead CLI; [the replay guide](../README.md#normalized-input-and-cli-delivery)
+lists its forms and exit codes and states the model scope, prefix semantics and
+raw-fidelity limitations. The legacy `Replay/Main.agda` is separate.
 
 Build `LookaheadMain` separately. Use a fresh disk-backed output directory;
 splitting generation and GHC avoids holding both heaps simultaneously. From
@@ -39,9 +37,8 @@ ghc --make -O0 -threaded -rtsopts -i"$LOOKAHEAD_BUILD" \
 
 `LookaheadMain` is the new ordinary IO/environment/exit boundary; it is not a
 safe theorem module. Its proof/report dependencies are checked separately with
-`--safe`. Build evidence records the actual generated GHC command and toolchain;
-the commands above reproduce the same two-stage method. Installed library
-interface caches may need to be generated on first use of stdlib exit bindings.
+`--safe`. Installed library interface caches may need to be generated on first
+use of stdlib exit bindings.
 
 Copy a [profile example](profiles/README.md), replace its illustrative capture
 assertions/paths with actual declarations, and supply normalized local or paired
@@ -57,7 +54,7 @@ normalized input/source-map bytes. Raw source hashes stream. The runner validate
 declared artifacts, preserves each role's order/coordinates and checks the
 binary's verdict tag against its exit code. Output is JSON. Exit classes are
 0 accepted prefix, 1 protocol rejected, 2 invalid input, 3 missing capture
-assertions, and 4 inconclusive/resource/checker failure. Untagged direct CLI IO
+assertions, and 4 inconclusive/resource/checker failure or `model-undetermined`. Untagged direct CLI IO
 exceptions are inconclusive, never a rejection proof. The validator alone
 neither opens captures nor executes the checker.
 
@@ -70,14 +67,10 @@ python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/test_loo
   --binary "$LOOKAHEAD_BUILD/LookaheadMain" --out /tmp/new-lookahead-cli-regressions
 ```
 
-The wave record (historical development evidence removed) retains 12 fresh safe
-modules, the separately typechecked/compiled IO entry point, 93 manifest
-selftests, 27 fake-checker runner controls, 62 real compiled CLI regressions
-and 10 real-binary manifest smoke cases. The compiled CLI cases complete with
-no runtime budget failure, and legacy Main hashes match. One intentionally
-tiny runner timeout is classified inconclusive. These synthetic tests do not
-establish raw-log fidelity, source-map authenticity, whole-node completion,
-large-capture performance or deployed implementation refinement.
+The compiled-CLI suite has 66 cases at `6b52b420`, including one intentional
+operational inconclusive (a missing input file). These synthetic tests do not establish
+raw-log fidelity, source-map authenticity, whole-node completion, large-capture
+performance or deployed implementation refinement.
 
 ## Raw capture preparation and correspondence
 
@@ -151,11 +144,9 @@ python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/test_rep
   --binary "$LOOKAHEAD_BUILD/LookaheadMain"
 ```
 
-The cost guide (historical investigation tooling removed) records severe observed schedule-order
-sensitivity in paired search. It recommends local-first checks and explicit
-paired limits, preserving the full trace and inconclusive results. It adds no
-checker optimization. The wave record (historical development evidence removed)
-consolidates the new validation; no Agda source or existing binary is changed.
+Paired search cost is sensitive to schedule order on large inputs. Check local
+endpoints first, keep explicit paired limits, and treat timeouts as
+inconclusive; never replace a full inconclusive history by an accepted prefix.
 
 ## Silenced observation and capture batch replay
 

@@ -31,6 +31,10 @@ Notify uses the Quit/Canceled protocol: RequestNext and Quit are initiator
 messages; notifications, Canceled and Done are responder messages. Quit and
 Canceled retain the current session; Done closes it. No missing request
 observations are synthesized. See [shutdown validation](../../../../docs/notes/leiosnotify-quit-cancel.md).
+For logs that silence RequestNext and Votes, replay the normalized sessions with
+the lookahead checker's `driver-log-no-request-votes` observation; its
+[`capture_batch.py`](../LeiosNotifyPipeLookahead/tools/README.md#silenced-observation-and-capture-batch-replay)
+reuses this normalizer's `split_into` per host.
 
 From this directory:
 
