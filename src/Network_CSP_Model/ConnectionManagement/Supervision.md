@@ -679,8 +679,10 @@ or an explicit independent exception-entry observation. Governor Async body exit
 requires its own pool closed; the outer monitor snapshot requires the Async scope
 joins completed. Thread local-body exit remains an explicit component boundary;
 provider/churn internals and startup before those scopes are entered are outside
-this ordinary-profile coordinator. No eventuality or full Haskell refinement is
-claimed. The four scope statuses are stored as finite fields, avoiding nested
+this ordinary-profile coordinator. The pool relays thread is not a fifth actor:
+it encloses the whole remote callback, so `Rules/PoolRelays` wraps the Server
+composition instead and is joined only after `serverReturned`. No eventuality or
+full Haskell refinement is claimed. The four scope statuses are stored as finite fields, avoiding nested
 callback histories while preserving the getter/snapshot-builder interfaces.
 
 `Properties/PeerSupervision` projects every coupled step and finite execution to

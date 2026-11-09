@@ -84,8 +84,9 @@ whole-diffusion completion. M3 adds pre-publication rank-rule execution:
 `egressSetup` stages and the `egressRule`/`rankInstall`/`rankTrace` unwind
 sites. The counters loop and pool relays are mapped to their owners in the
 [source ledger](SourceLedger.md#m3-handler-setup-and-outer-scopes-network-2f1c154).
-The pool relays thread's cancel/join remains an explicit gap outside
-`AsyncScope`'s four actors.
+The pool relays thread is a separate outermost layer (`Rules/PoolRelays`,
+`ServerPeersRelays`): it is cancelled and joined only after the server return,
+outside `AsyncScope`'s four actors.
 
 Preserve existing theorem types, source projections and actual O traces across
 every new writer. Stronger readiness/all-role/retirement statements are additions.
@@ -142,7 +143,7 @@ no new axioms, holes, unsafe options or weaker old statements. M1–M2 remains o
 until that acceptance passes; no module-wide source promotion follows merely
 from checking the new component.
 
-M3 pool-relays cancel/join, M4 token arithmetic, rank order and its standing reads, floor and fairness,
+M4 token arithmetic, rank order and its standing reads, floor and fairness,
 M5 collector-owned DB waits, exact dependency/backend validation and M6 source
 replays remain explicit gaps. Scheduling disablement does not remove held guards.
 Cancelling a DB collector does not retract its queued writer job. No universal
