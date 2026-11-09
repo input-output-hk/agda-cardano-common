@@ -1,3 +1,37 @@
+# Source replays
+
+## M6 revalidation at network `2f1c154` (9 November 2026)
+
+Every replay and probe below was rerun against network
+`2f1c154f248659b89523d5679ca532f442e7ed2a`, the dependency of audited consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. The setup was an isolated worktree
+from the audit's fetched repository with GHC 9.6.7 and Cabal 3.12.1.0. The
+build ran offline: every external dependency resolved from the existing store,
+and only the repository's own packages were built. Production source is
+unchanged.
+
+- **Replay patches.** All three patches pass `git apply --check` at the new pin.
+  Installed together (the OverLimit registration lines merged by hand), the
+  `framework-sim-tests` build exits 0 with no compiler warnings. Running
+  `-p '/GovernorCMReplay/||/socket-/||/OverLimitReleaseReplay/' --quickcheck-tests 1`
+  passes all eight tests: governor seeds 0, 1 and 42, the three over-limit
+  release cases, and the two socket controls.
+- **Probes.** `CatchMaskProbe` and `HandshakeForcing` run unchanged and pass,
+  with the expected output above. `PublicationHandler` (10 cases),
+  `PublicationCM` (18 cases) and `PublicationServer` (6 cases) pass with
+  `-Wall` and no warnings, after one adaptation. `makeConnectionHandler`
+  gained three parameters at this pin, so the probes pass `Nothing` counters,
+  `Nothing` egress policy and an unused tier rule. This builds the plain
+  (unscheduled) mux, so the checked publication contract is the plain-mux one.
+  Scheduled-egress setup (M3) is covered by the Agda model and its controls,
+  not by a native replay. The saved probe files are the adapted versions;
+  the `96ee6e` versions are at commit `5003d2f`.
+
+Logs: `/tmp/cm-m6-20261109/` (`build.log`, `replay-tests.log`,
+`probes/*.log`). The results under the headings below remain the original
+evidence at `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. No consensus-side
+native replay of the M5 LeiosDB waits was run.
+
 # Socket-open reservation replay
 
 Checked 16 October 2026 against network commit

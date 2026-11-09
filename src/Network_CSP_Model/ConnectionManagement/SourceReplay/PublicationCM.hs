@@ -158,7 +158,7 @@ experiment role site = do
   let production :: H.MuxConnectionHandler Mx.InitiatorResponderMode (QueueChannel IO) () () Addr
                     UnversionedProtocol UnversionedProtocolData BL.ByteString IO () ()
       production = H.makeConnectionHandler
-        (Mx.nullTracers { Mx.tracer = muxTrace }) noBindForkPolicy arguments
+        (Mx.nullTracers { Mx.tracer = muxTrace }) noBindForkPolicy Nothing Nothing plainRule arguments
         (unversionedProtocol app) (parent, mempty)
         (H.MuxInitiatorResponderConnectionHandler (const CM.Duplex) (const nullTracer))
       wrapped = CM.ConnectionHandler $ WithInitiatorResponderMode
@@ -302,3 +302,8 @@ verifyCase role site = do
 main :: IO ()
 main = mapM_ (\role -> mapM_ (verifyCase role)
   [SuccessTrace, NewMuxTrace, Allocation, EarlyPayload, StartingTrace, SuccessAsync, NewMuxAsync, SuccessCMShutdown, NewMuxCMShutdown]) [Outbound, Inbound]
+
+-- Network 2f1c154: no node counters, no scheduled egress (the plain mux the
+-- handler builds without an egress policy), and an unused tier rule.
+plainRule :: H.EgressPolicyRule IO peer
+plainRule _ _ _ = return (\_ -> return (Mx.Rank 0), \_ _ _ -> return ())

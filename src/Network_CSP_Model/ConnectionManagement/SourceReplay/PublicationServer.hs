@@ -156,7 +156,7 @@ run site = do
           let production :: H.MuxConnectionHandler Mx.InitiatorResponderMode Socket () (ResponderContext Addr) Addr
                             UnversionedProtocol UnversionedProtocolData BL.ByteString IO () ()
               production = H.makeConnectionHandler
-                (Mx.nullTracers { Mx.tracer = muxTrace }) noBindForkPolicy arguments
+                (Mx.nullTracers { Mx.tracer = muxTrace }) noBindForkPolicy Nothing Nothing plainRule arguments
                 (unversionedProtocol app) (parent, mempty)
                 (H.MuxInitiatorResponderConnectionHandler (const CM.Duplex) igTracer)
           in case CM.connectionHandler production of
@@ -232,3 +232,8 @@ run site = do
 
 main :: IO ()
 main = mapM_ run [SuccessTrace, NewMuxTrace, Allocation, SuccessAsync, NewMuxAsync, EarlyPayload]
+
+-- Network 2f1c154: no node counters, no scheduled egress (the plain mux the
+-- handler builds without an egress policy), and an unused tier rule.
+plainRule :: H.EgressPolicyRule IO peer
+plainRule _ _ _ = return (\_ -> return (Mx.Rank 0), \_ _ _ -> return ())
