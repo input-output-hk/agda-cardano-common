@@ -25,6 +25,7 @@ import ConnectionManagement.Properties.JobPoolClose as GovernorClose
 import ConnectionManagement.Properties.JobPoolCloseKernel as MonitorClose
 import ConnectionManagement.Properties.AsyncScope as ScopeFacts
 import ConnectionManagement.Rules.AsyncScope as Scope
+import ConnectionManagement.Properties.ServerPeersPlanShapes as PlanShapes
 private
   module K = Combined isBearerClosed isIOManagerError
   module E = Exit isBearerClosed
@@ -162,6 +163,7 @@ module Protocols (canInitiate : HandleId → ℕ → Bool) where
     module N = Publication isBearerClosed
     module Jobs = N.P
     module Pool = Jobs.Pool
+    module Shapes = PlanShapes.Frontend isBearerClosed isIOManagerError canInitiate
 
   protocol-view : T.Runtime → P.View
   protocol-view s = view (T.base s)
@@ -364,12 +366,7 @@ module Protocols (canInitiate : HandleId → ℕ → Bool) where
     -- Source effects are irrelevant to this projection; arbitrary Plan values
     -- are not assumed enabled, so their table changes are checked separately.
     planCalls : T.Plan → T.Runtime → Store RunId T.Call
-    planCalls (T.inherit a f) s = T.calls f
-    planCalls (T.caller a f) s = T.calls f
-    planCalls (T.local f) s = T.calls f
-    planCalls (T.birth w captured pool j rid r f) s = T.calls f
-    planCalls (T.complete a rid r result) s = put rid (record r { value = just result }) (T.calls (T.front s))
-    planCalls _ s = T.calls (T.front s)
+    planCalls = Shapes.planCalls
     enact-calls : ∀ plan s {t} → T.enact plan s ≡ just t → T.calls (T.front t) ≡ planCalls plan s
     enact-calls (T.inherit a f) s eq with K.step a (T.base s)
     ... | nothing = case eq of λ ()
@@ -390,50 +387,6 @@ module Protocols (canInitiate : HandleId → ℕ → Bool) where
     -- source permissions remain in the unchanged executable selector.
     Effect : T.Runtime → T.Plan → Set
     Effect s p = Change (T.calls (T.front s)) (planCalls p s)
-    select-change : ∀ w s p → T.selectPlan w s ≡ just p → Effect s p
-    select-change w s p eq with T.idle w (T.front s) | T.pending w (T.front s) | T.controllerFree w (T.base s) |
-      N.M.ownerContext w (N.G.base (T.group (T.base s)))
-    ... | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) with
-      Jobs.muxAt mid (T.physical (T.base s)) | Jobs.noParent (Jobs.poolAt w (T.physical (T.base s))) |
-      Jobs.noResults (Jobs.poolAt w (T.physical (T.base s))) | Pool.phase (Jobs.poolAt w (T.physical (T.base s)))
-    ...   | just m | true | true | Pool.openPool with Mux.status m | Mux.callback m
-    ...     | Mux.ready | Mux.returned = case just-injective eq of λ { refl → unchanged }
-    ...     | Mux.stopping | _ = case eq of λ ()
-    ...     | Mux.stopped | _ = case eq of λ ()
-    ...     | Mux.failed err | _ = case eq of λ ()
-    ...     | Mux.ready | Mux.readActive tr = case eq of λ ()
-    ...     | Mux.ready | Mux.commitTrace active tr = case eq of λ ()
-    ...     | Mux.ready | Mux.afterStart n = case eq of λ ()
-    ...     | Mux.ready | Mux.forkPending n = case eq of λ ()
-    ...     | Mux.ready | Mux.afterFailure = case eq of λ ()
-    ...     | Mux.ready | Mux.tracerFailed n = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | nothing | _ | _ | _ = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | false | _ | _ = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | false | _ = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.closing = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.closedPool = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.cancelPending j = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.joinPending j = case eq of λ ()
-    select-change w s p eq | false | _ | _ | _ = case eq of λ ()
-    select-change w s p eq | true | [] | _ | _ = case eq of λ ()
-    select-change w s p eq | true | T.command rid (Nat.suc n) ∷ rest | _ | _ = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | false | _ = case eq of λ ()
-    select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | nothing = case eq of λ ()
-
-    register-change : ∀ j s p → T.registerPlan j s ≡ just p → Effect s p
-    register-change j s p eq with T.byThread j (T.calls (T.front s))
-    ... | nothing = case eq of λ ()
-    ... | just (rid , r) with T.cursor (T.owner r) (T.front s)
-    ...   | T.registeringC actual target with rid ≟ actual | j ≟ target
-    ...     | yes _ | yes _ = case just-injective eq of λ { refl → unchanged }
-    ...     | no _ | _ = case eq of λ ()
-    ...     | yes _ | no _ = case eq of λ ()
-    register-change j s p eq | just (rid , r) | T.idleC = case eq of λ ()
-    register-change j s p eq | just (rid , r) | T.selectedC gen = case eq of λ ()
-    register-change j s p eq | just (rid , r) | T.tracingC gen = case eq of λ ()
-    register-change j s p eq | just (rid , r) | T.forkReadyC gen = case eq of λ ()
-    register-change j s p eq | just (rid , r) | T.failedC gen result = case eq of λ ()
-
     fork-change : ∀ w j s p → T.forkPlan w j s ≡ just p → Effect s p
     fork-change w j s p eq with T.cursor w (T.front s) | T.controllerFree w (T.base s) |
       lookup w (Jobs.U.frames (Jobs.base (T.physical (T.base s))))
@@ -457,140 +410,20 @@ module Protocols (canInitiate : HandleId → ℕ → Bool) where
     fork-change w j s p eq | T.forkReadyC rid | false | _ = case eq of λ ()
     fork-change w j s p eq | T.forkReadyC rid | true | nothing = case eq of λ ()
 
-    completion-change : ∀ j result s p → Stores.UniqueKeys (T.calls (T.front s)) →
-      T.completionPlan j result s ≡ just p → Effect s p
-    completion-change j result s p unique eq with T.byThread j (T.calls (T.front s)) in found |
-      lookup j (Jobs.jobs (T.physical (T.base s)))
-    ... | just (rid , r) | just job with T.value r in empty | Types.owner job ≟ T.owner r | Types.generation job ≟ rid |
-      Types.protocolNumber job Nat.≟ number (T.descriptor r) | Types.direction job
-    ...   | nothing | yes _ | yes _ | yes _ | Mux.initiatorJob = case just-injective eq of λ { refl →
-      empty-write rid r (record r { value = just result }) (by-thread-lookup j (T.calls (T.front s)) rid r unique found) empty }
-    ...   | just old | _ | _ | _ | _ = case eq of λ ()
-    ...   | nothing | no _ | _ | _ | _ = case eq of λ ()
-    ...   | nothing | yes _ | no _ | _ | _ = case eq of λ ()
-    ...   | nothing | yes _ | yes _ | no _ | _ = case eq of λ ()
-    ...   | nothing | yes _ | yes _ | yes _ | Mux.responderJob = case eq of λ ()
-    completion-change j result s p unique eq | nothing | _ = case eq of λ ()
-    completion-change j result s p unique eq | just pair | nothing = case eq of λ ()
-
-    poll-change : ∀ ref w s p → T.pollResultsPlan ref w s ≡ just p → Effect s p
-    poll-change ref w s p eq with T.readAllowed (Sub.pollPeer ref w) (T.base s) |
-      lookup ref (C.SubContext.peers (C.subsystem (K.context (T.base s)))) |
-      lookup ref (C.SubContext.monitors (C.subsystem (K.context (T.base s))))
-    ... | true | just peer | nothing with Peer.status peer
-    ...   | Peer.peerCold = case just-injective eq of λ { refl → unchanged }
-    ...   | Peer.peerCooling = case just-injective eq of λ { refl → unchanged }
-    ...   | Peer.peerWarm with T.firstPeer ref peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just (kind , result) with T.cleanObservation result
-    ...       | true = case just-injective eq of λ { refl → unchanged }
-    ...       | false = case just-injective eq of λ { refl → unchanged }
-    poll-change ref w s p eq | true | just peer | nothing | Peer.peerHot with T.firstPeer ref peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just (kind , result) with T.cleanObservation result
-    ...       | true = case just-injective eq of λ { refl → unchanged }
-    ...       | false = case just-injective eq of λ { refl → unchanged }
-    poll-change ref w s p eq | true | just peer | just f = case just-injective eq of λ { refl → unchanged }
-    poll-change ref w s p eq | false | _ | _ = case eq of λ ()
-    poll-change ref w s p eq | true | nothing | _ = case eq of λ ()
-
-    job-wait-change : ∀ j s p → T.waitJobPlan j s ≡ just p → Effect s p
-    job-wait-change j s p eq with lookup j (C.SubContext.jobs (C.subsystem (K.context (T.base s))))
-    ... | nothing = case eq of λ ()
-    ... | just jf with Sub.queued jf |
-      lookup (J.connectionRef (Sub.execution jf)) (C.SubContext.peers (C.subsystem (K.context (T.base s)))) |
-      T.readAllowed (Sub.jobStep j (T.waitAction (Sub.execution jf))) (T.base s)
-    ...   | false | just peer | true with T.waitResults (Sub.execution jf) peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just results with T.allClean results
-    ...       | true = case just-injective eq of λ { refl → unchanged }
-    ...       | false = case just-injective eq of λ { refl → unchanged }
-    job-wait-change j s p eq | just jf | true | _ | _ = case eq of λ ()
-    job-wait-change j s p eq | just jf | false | nothing | _ = case eq of λ ()
-    job-wait-change j s p eq | just jf | false | just peer | false = case eq of λ ()
-
-    monitor-wait-change : ∀ ref s p → T.waitMonitorPlan ref s ≡ just p → Effect s p
-    monitor-wait-change ref s p eq with lookup ref (C.SubContext.monitors (C.subsystem (K.context (T.base s))))
-    ... | nothing = case eq of λ ()
-    ... | just f with lookup (J.connectionRef f) (C.SubContext.peers (C.subsystem (K.context (T.base s)))) |
-      T.readAllowed (Sub.monitorStep ref (T.waitAction f)) (T.base s)
-    ...   | just peer | true with T.waitResults f peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just results with T.allClean results
-    ...       | true = case just-injective eq of λ { refl → unchanged }
-    ...       | false = case just-injective eq of λ { refl → unchanged }
-    monitor-wait-change ref s p eq | just f | nothing | _ = case eq of λ ()
-    monitor-wait-change ref s p eq | just f | just peer | false = case eq of λ ()
-
-    -- Legacy FIFO/cursor bookkeeping never changes the generation table.
-    note-legacy-calls : ∀ a f → T.calls (T.noteLegacy a f) ≡ T.calls f
-    note-legacy-calls a f with T.legacySelector a
-    ... | nothing = refl
-    ... | just w = refl
-
+    -- Table changes follow from the plan shapes alone (PlanShapes).
+    from-shape : ∀ s p → Stores.UniqueKeys (T.calls (T.front s)) → Shapes.Shape s p → Effect s p
+    from-shape s p unique (Shapes.ordinary .p _ same) = subst (Change (T.calls (T.front s))) (sym same) unchanged
+    from-shape s _ unique (Shapes.allocation _ f rid r same _ _ absent) =
+      subst (Change (T.calls (T.front s))) (sym same) (allocated rid r absent)
+    from-shape s _ unique (Shapes.completion j result rid r found empty) =
+      empty-write rid r (record r { value = just result }) (by-thread-lookup j (T.calls (T.front s)) rid r unique found) empty
+    from-shape s p unique (Shapes.fork w j chosen) = fork-change w j s p chosen
     choose-change : ∀ a s p → Stores.UniqueKeys (T.calls (T.front s)) →
       T.choose a s ≡ just p → Effect s p
-    choose-change (T.dispatch a) s p unique eq with T.inheritAllowed a s
-    ... | false = case eq of λ ()
-    ... | true = case just-injective eq of λ { refl →
-      subst (Change (T.calls (T.front s))) (sym (note-legacy-calls a (T.front s))) unchanged }
-    choose-change (T.startNext j rid) s p unique eq with K.peerOpen (T.base s) | T.nextRequest j (T.base s) |
-      lookup rid (T.calls (T.front s)) in absent | Jobs.generationFresh rid (Jobs.jobs (T.physical (T.base s)))
-    ... | true | just req | nothing | true with canInitiate (Peer.handleRef (T.peer req)) (number (T.protocol req)) |
-      Jobs.muxAt (Peer.muxRef (T.peer req)) (T.physical (T.base s))
-    ...   | false | _ = case eq of λ ()
-    ...   | true | nothing = case eq of λ ()
-    ...   | true | just m with Mux.status m
-    ...     | Mux.stopping = case eq of λ ()
-    ...     | Mux.stopped = case eq of λ ()
-    ...     | Mux.failed err = case eq of λ ()
-    ...     | Mux.ready with T.slotIdle (T.worker req) (number (T.protocol req)) (T.front s)
-    ...       | false = case eq of λ ()
-    ...       | true = case just-injective eq of λ { refl → allocated rid _ absent }
-    choose-change (T.startNext j rid) s p unique eq | false | _ | _ | _ = case eq of λ ()
-    choose-change (T.startNext j rid) s p unique eq | true | nothing | _ | _ = case eq of λ ()
-    choose-change (T.startNext j rid) s p unique eq | true | just req | just old | _ = case eq of λ ()
-    choose-change (T.startNext j rid) s p unique eq | true | just req | nothing | false = case eq of λ ()
-    choose-change (T.selectStart w) s p unique eq = select-change w s p eq
-    choose-change (T.invokeStartTrace w) s p unique eq with T.cursor w (T.front s) | T.controllerFree w (T.base s)
-    ... | T.selectedC rid | true = case just-injective eq of λ { refl → unchanged }
-    choose-change (T.invokeStartTrace w) s p unique eq | T.idleC | _ = case eq of λ ()
-    choose-change (T.invokeStartTrace w) s p unique eq | T.tracingC rid | _ = case eq of λ ()
-    choose-change (T.invokeStartTrace w) s p unique eq | T.forkReadyC rid | _ = case eq of λ ()
-    choose-change (T.invokeStartTrace w) s p unique eq | T.registeringC rid j | _ = case eq of λ ()
-    choose-change (T.invokeStartTrace w) s p unique eq | T.failedC rid result | _ = case eq of λ ()
-    choose-change (T.invokeStartTrace w) s p unique eq | T.selectedC rid | false = case eq of λ ()
-    choose-change (T.returnStartTrace w) s p unique eq with T.cursor w (T.front s) | T.controllerFree w (T.base s)
-    ... | T.tracingC rid | true = case just-injective eq of λ { refl → unchanged }
-    choose-change (T.returnStartTrace w) s p unique eq | T.idleC | _ = case eq of λ ()
-    choose-change (T.returnStartTrace w) s p unique eq | T.selectedC rid | _ = case eq of λ ()
-    choose-change (T.returnStartTrace w) s p unique eq | T.forkReadyC rid | _ = case eq of λ ()
-    choose-change (T.returnStartTrace w) s p unique eq | T.registeringC rid j | _ = case eq of λ ()
-    choose-change (T.returnStartTrace w) s p unique eq | T.failedC rid result | _ = case eq of λ ()
-    choose-change (T.returnStartTrace w) s p unique eq | T.tracingC rid | false = case eq of λ ()
-    choose-change (T.forkStart w j) s p unique eq = fork-change w j s p eq
-    choose-change (T.registerStart j) s p unique eq = register-change j s p eq
-    choose-change (T.commitClean j) s p unique eq = completion-change j clean s p unique eq
-    choose-change (T.commitError j err) s p unique eq = completion-change j (errored err) s p unique eq
-    choose-change (T.pollResults ref w) s p unique eq = poll-change ref w s p eq
-    choose-change (T.waitJobResults j) s p unique eq = job-wait-change j s p eq
-    choose-change (T.waitMonitorResults ref) s p unique eq = monitor-wait-change ref s p eq
-    choose-change (T.observeStartTraceException w result) s p unique eq with T.startTraceSelection w result s
-    ... | just (rid , fs) = case just-injective eq of λ { refl → unchanged }
-    ... | nothing = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq with S.inCMClose (S.stage (E.base (K.server (T.base s)))) |
-      Close.phase (N.W.shutdown (N.R.base (N.raw (T.publication (T.base s)))))
-    ... | true | Close.awaitDelivery entry w with T.startTraceSelection w (N.R.async err) s
-    ...   | just (rid , fs) with N.W.control Close.acknowledgeDelivery (N.R.base (N.raw (T.publication (T.base s))))
-    ...     | just received = case just-injective eq of λ { refl → unchanged }
-    ...     | nothing = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.awaitDelivery entry w | nothing = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | false | _ = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.initial = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.reading = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.awaitResults = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.closed = case eq of λ ()
-    choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.sendReady entry w = case eq of λ ()
+    choose-change a s p unique eq = from-shape s p unique (Shapes.choose-shape a s p eq)
+    note-legacy-calls : ∀ a f → T.calls (T.noteLegacy a f) ≡ T.calls f
+    note-legacy-calls = Shapes.note-legacy-calls
+
 
     -- Every enabled event preserves uniqueness and every already committed
     -- call record. Arbitrary externally fabricated Plan values are excluded.
@@ -682,6 +515,7 @@ module CaptureIdentity where
     private
       module T = K.Protocols canInitiate
       module Cells = Protocols.CommittedCells canInitiate
+      module Shapes = PlanShapes.Frontend isBearerClosed isIOManagerError canInitiate
     Match : RunId → T.Call → Types.ProtocolJob → Set
     Match rid r job = Physical.keyOf job ≡ Physical.key (T.owner r) (T.mux r)
       Mux.initiatorJob (number (T.descriptor r)) rid
@@ -777,10 +611,7 @@ module CaptureIdentity where
     private
       module N = Publication isBearerClosed
     Ordinary : T.Plan → Bool
-    Ordinary (T.birth _ _ _ _ _ _ _) = false
-    Ordinary (T.caller _ _) = false
-    Ordinary (T.complete _ _ _ _) = false
-    Ordinary _ = true
+    Ordinary = Shapes.Ordinary
     record Effect (s : T.Runtime) (p : T.Plan) : Set where
       constructor effect
       field preserves : ∀ {t} → T.enact p s ≡ just t → Valid s → Valid t
@@ -834,184 +665,18 @@ module CaptureIdentity where
     completion a rid r result s found = effect (completion-proof a rid r result s found)
     selected : ∀ a s p {t} → T.choose a s ≡ just p → T.enact p s ≡ just t → T.advance a s ≡ just t
     selected a s p chosen enacted rewrite chosen = enacted
-    capture-select-change : ∀ w s p → T.selectPlan w s ≡ just p → Effect s p
-    capture-select-change w s p eq with T.idle w (T.front s) | T.pending w (T.front s) | T.controllerFree w (T.base s) |
-      N.M.ownerContext w (N.G.base (T.group (T.base s)))
-    ... | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) with
-      Jobs.muxAt mid (T.physical (T.base s)) | Jobs.noParent (Jobs.poolAt w (T.physical (T.base s))) |
-      Jobs.noResults (Jobs.poolAt w (T.physical (T.base s))) | Pool.phase (Jobs.poolAt w (T.physical (T.base s)))
-    ...   | just m | true | true | Pool.openPool with Mux.status m | Mux.callback m
-    ...     | Mux.ready | Mux.returned = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...     | Mux.stopping | _ = case eq of λ ()
-    ...     | Mux.stopped | _ = case eq of λ ()
-    ...     | Mux.failed err | _ = case eq of λ ()
-    ...     | Mux.ready | Mux.readActive tr = case eq of λ ()
-    ...     | Mux.ready | Mux.commitTrace active tr = case eq of λ ()
-    ...     | Mux.ready | Mux.afterStart n = case eq of λ ()
-    ...     | Mux.ready | Mux.forkPending n = case eq of λ ()
-    ...     | Mux.ready | Mux.afterFailure = case eq of λ ()
-    ...     | Mux.ready | Mux.tracerFailed n = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | nothing | _ | _ | _ = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | false | _ | _ = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | false | _ = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.closing = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.closedPool = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.cancelPending j = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | just (f , mid) | just m | true | true | Pool.joinPending j = case eq of λ ()
-    capture-select-change w s p eq | false | _ | _ | _ = case eq of λ ()
-    capture-select-change w s p eq | true | [] | _ | _ = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid (Nat.suc n) ∷ rest | _ | _ = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | false | _ = case eq of λ ()
-    capture-select-change w s p eq | true | T.command rid Nat.zero ∷ rest | true | nothing = case eq of λ ()
-
-    capture-register-change : ∀ j s p → T.registerPlan j s ≡ just p → Effect s p
-    capture-register-change j s p eq with T.byThread j (T.calls (T.front s))
-    ... | nothing = case eq of λ ()
-    ... | just (rid , r) with T.cursor (T.owner r) (T.front s)
-    ...   | T.registeringC actual target with rid ≟ actual | j ≟ target
-    ...     | yes _ | yes _ = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...     | no _ | _ = case eq of λ ()
-    ...     | yes _ | no _ = case eq of λ ()
-    capture-register-change j s p eq | just (rid , r) | T.idleC = case eq of λ ()
-    capture-register-change j s p eq | just (rid , r) | T.selectedC gen = case eq of λ ()
-    capture-register-change j s p eq | just (rid , r) | T.tracingC gen = case eq of λ ()
-    capture-register-change j s p eq | just (rid , r) | T.forkReadyC gen = case eq of λ ()
-    capture-register-change j s p eq | just (rid , r) | T.failedC gen result = case eq of λ ()
-
-    capture-completion-change : ∀ j result s p → Stores.UniqueKeys (T.calls (T.front s)) →
-      T.completionPlan j result s ≡ just p → Effect s p
-    capture-completion-change j result s p unique eq with T.byThread j (T.calls (T.front s)) in found |
-      lookup j (Jobs.jobs (T.physical (T.base s)))
-    ... | just (rid , r) | just job with T.value r in empty | Types.owner job ≟ T.owner r | Types.generation job ≟ rid |
-      Types.protocolNumber job Nat.≟ number (T.descriptor r) | Types.direction job
-    ...   | nothing | yes _ | yes _ | yes _ | Mux.initiatorJob = case just-injective eq of λ { refl →
-      completion _ rid r result s (Cells.by-thread-lookup j (T.calls (T.front s)) rid r unique found) }
-    ...   | just old | _ | _ | _ | _ = case eq of λ ()
-    ...   | nothing | no _ | _ | _ | _ = case eq of λ ()
-    ...   | nothing | yes _ | no _ | _ | _ = case eq of λ ()
-    ...   | nothing | yes _ | yes _ | no _ | _ = case eq of λ ()
-    ...   | nothing | yes _ | yes _ | yes _ | Mux.responderJob = case eq of λ ()
-    capture-completion-change j result s p unique eq | nothing | _ = case eq of λ ()
-    capture-completion-change j result s p unique eq | just pair | nothing = case eq of λ ()
-
-    capture-poll-change : ∀ ref w s p → T.pollResultsPlan ref w s ≡ just p → Effect s p
-    capture-poll-change ref w s p eq with T.readAllowed (Sub.pollPeer ref w) (T.base s) |
-      lookup ref (C.SubContext.peers (C.subsystem (K.context (T.base s)))) |
-      lookup ref (C.SubContext.monitors (C.subsystem (K.context (T.base s))))
-    ... | true | just peer | nothing with Peer.status peer
-    ...   | Peer.peerCold = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...   | Peer.peerCooling = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...   | Peer.peerWarm with T.firstPeer ref peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just (kind , result) with T.cleanObservation result
-    ...       | true = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...       | false = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-poll-change ref w s p eq | true | just peer | nothing | Peer.peerHot with T.firstPeer ref peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just (kind , result) with T.cleanObservation result
-    ...       | true = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...       | false = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-poll-change ref w s p eq | true | just peer | just f = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-poll-change ref w s p eq | false | _ | _ = case eq of λ ()
-    capture-poll-change ref w s p eq | true | nothing | _ = case eq of λ ()
-
-    capture-job-wait-change : ∀ j s p → T.waitJobPlan j s ≡ just p → Effect s p
-    capture-job-wait-change j s p eq with lookup j (C.SubContext.jobs (C.subsystem (K.context (T.base s))))
-    ... | nothing = case eq of λ ()
-    ... | just jf with Sub.queued jf |
-      lookup (J.connectionRef (Sub.execution jf)) (C.SubContext.peers (C.subsystem (K.context (T.base s)))) |
-      T.readAllowed (Sub.jobStep j (T.waitAction (Sub.execution jf))) (T.base s)
-    ...   | false | just peer | true with T.waitResults (Sub.execution jf) peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just results with T.allClean results
-    ...       | true = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...       | false = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-job-wait-change j s p eq | just jf | true | _ | _ = case eq of λ ()
-    capture-job-wait-change j s p eq | just jf | false | nothing | _ = case eq of λ ()
-    capture-job-wait-change j s p eq | just jf | false | just peer | false = case eq of λ ()
-
-    capture-monitor-wait-change : ∀ ref s p → T.waitMonitorPlan ref s ≡ just p → Effect s p
-    capture-monitor-wait-change ref s p eq with lookup ref (C.SubContext.monitors (C.subsystem (K.context (T.base s))))
-    ... | nothing = case eq of λ ()
-    ... | just f with lookup (J.connectionRef f) (C.SubContext.peers (C.subsystem (K.context (T.base s)))) |
-      T.readAllowed (Sub.monitorStep ref (T.waitAction f)) (T.base s)
-    ...   | just peer | true with T.waitResults f peer s
-    ...     | nothing = case eq of λ ()
-    ...     | just results with T.allClean results
-    ...       | true = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...       | false = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-monitor-wait-change ref s p eq | just f | nothing | _ = case eq of λ ()
-    capture-monitor-wait-change ref s p eq | just f | just peer | false = case eq of λ ()
-
-    -- Legacy FIFO/cursor bookkeeping never changes the generation table.
-    capture-note-legacy-calls : ∀ a f → T.calls (T.noteLegacy a f) ≡ T.calls f
-    capture-note-legacy-calls a f with T.legacySelector a
-    ... | nothing = refl
-    ... | just w = refl
-
+    -- One lemma per plan shape; the selection analysis is PlanShapes'.
+    from-shape : ∀ s p → Stores.UniqueKeys (T.calls (T.front s)) → Shapes.Shape s p → Effect s p
+    from-shape s p unique (Shapes.ordinary .p ok same) = ordinary p s ok same
+    from-shape s _ unique (Shapes.allocation a f rid r same _ unthreaded _) = allocation a f rid r s same unthreaded
+    from-shape s _ unique (Shapes.completion j result rid r found _) =
+      completion _ rid r result s (Cells.by-thread-lookup j (T.calls (T.front s)) rid r unique found)
+    from-shape s p unique (Shapes.fork w j chosen) =
+      effect (λ enacted valid → fork-preserves w j s (selected (T.forkStart w j) s p chosen enacted) valid)
     capture-choose-change : ∀ a s p → Stores.UniqueKeys (T.calls (T.front s)) →
       T.choose a s ≡ just p → Effect s p
-    capture-choose-change (T.dispatch a) s p unique eq with T.inheritAllowed a s
-    ... | false = case eq of λ ()
-    ... | true = case just-injective eq of λ { refl →
-      ordinary _ s refl (Cells.note-legacy-calls a (T.front s)) }
-    capture-choose-change (T.startNext j rid) s p unique eq with K.peerOpen (T.base s) | T.nextRequest j (T.base s) |
-      lookup rid (T.calls (T.front s)) in absent | Jobs.generationFresh rid (Jobs.jobs (T.physical (T.base s)))
-    ... | true | just req | nothing | true with canInitiate (Peer.handleRef (T.peer req)) (number (T.protocol req)) |
-      Jobs.muxAt (Peer.muxRef (T.peer req)) (T.physical (T.base s))
-    ...   | false | _ = case eq of λ ()
-    ...   | true | nothing = case eq of λ ()
-    ...   | true | just m with Mux.status m
-    ...     | Mux.stopping = case eq of λ ()
-    ...     | Mux.stopped = case eq of λ ()
-    ...     | Mux.failed err = case eq of λ ()
-    ...     | Mux.ready with T.slotIdle (T.worker req) (number (T.protocol req)) (T.front s)
-    ...       | false = case eq of λ ()
-    ...       | true = case just-injective eq of λ { refl → allocation _ _ rid _ s refl refl }
-    capture-choose-change (T.startNext j rid) s p unique eq | false | _ | _ | _ = case eq of λ ()
-    capture-choose-change (T.startNext j rid) s p unique eq | true | nothing | _ | _ = case eq of λ ()
-    capture-choose-change (T.startNext j rid) s p unique eq | true | just req | just old | _ = case eq of λ ()
-    capture-choose-change (T.startNext j rid) s p unique eq | true | just req | nothing | false = case eq of λ ()
-    capture-choose-change (T.selectStart w) s p unique eq = capture-select-change w s p eq
-    capture-choose-change (T.invokeStartTrace w) s p unique eq with T.cursor w (T.front s) | T.controllerFree w (T.base s)
-    ... | T.selectedC rid | true = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-choose-change (T.invokeStartTrace w) s p unique eq | T.idleC | _ = case eq of λ ()
-    capture-choose-change (T.invokeStartTrace w) s p unique eq | T.tracingC rid | _ = case eq of λ ()
-    capture-choose-change (T.invokeStartTrace w) s p unique eq | T.forkReadyC rid | _ = case eq of λ ()
-    capture-choose-change (T.invokeStartTrace w) s p unique eq | T.registeringC rid j | _ = case eq of λ ()
-    capture-choose-change (T.invokeStartTrace w) s p unique eq | T.failedC rid result | _ = case eq of λ ()
-    capture-choose-change (T.invokeStartTrace w) s p unique eq | T.selectedC rid | false = case eq of λ ()
-    capture-choose-change (T.returnStartTrace w) s p unique eq with T.cursor w (T.front s) | T.controllerFree w (T.base s)
-    ... | T.tracingC rid | true = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    capture-choose-change (T.returnStartTrace w) s p unique eq | T.idleC | _ = case eq of λ ()
-    capture-choose-change (T.returnStartTrace w) s p unique eq | T.selectedC rid | _ = case eq of λ ()
-    capture-choose-change (T.returnStartTrace w) s p unique eq | T.forkReadyC rid | _ = case eq of λ ()
-    capture-choose-change (T.returnStartTrace w) s p unique eq | T.registeringC rid j | _ = case eq of λ ()
-    capture-choose-change (T.returnStartTrace w) s p unique eq | T.failedC rid result | _ = case eq of λ ()
-    capture-choose-change (T.returnStartTrace w) s p unique eq | T.tracingC rid | false = case eq of λ ()
-    capture-choose-change (T.forkStart w j) s p unique eq = effect (λ enacted valid → fork-preserves w j s (selected (T.forkStart w j) s p eq enacted) valid)
-    capture-choose-change (T.registerStart j) s p unique eq = capture-register-change j s p eq
-    capture-choose-change (T.commitClean j) s p unique eq = capture-completion-change j clean s p unique eq
-    capture-choose-change (T.commitError j err) s p unique eq = capture-completion-change j (errored err) s p unique eq
-    capture-choose-change (T.pollResults ref w) s p unique eq = capture-poll-change ref w s p eq
-    capture-choose-change (T.waitJobResults j) s p unique eq = capture-job-wait-change j s p eq
-    capture-choose-change (T.waitMonitorResults ref) s p unique eq = capture-monitor-wait-change ref s p eq
-    capture-choose-change (T.observeStartTraceException w result) s p unique eq with T.startTraceSelection w result s
-    ... | just (rid , fs) = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ... | nothing = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq with S.inCMClose (S.stage (E.base (K.server (T.base s)))) |
-      Close.phase (N.W.shutdown (N.R.base (N.raw (T.publication (T.base s)))))
-    ... | true | Close.awaitDelivery entry w with T.startTraceSelection w (N.R.async err) s
-    ...   | just (rid , fs) with N.W.control Close.acknowledgeDelivery (N.R.base (N.raw (T.publication (T.base s))))
-    ...     | just received = case just-injective eq of λ { refl → ordinary _ s refl refl }
-    ...     | nothing = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.awaitDelivery entry w | nothing = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | false | _ = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.initial = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.reading = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.awaitResults = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.closed = case eq of λ ()
-    capture-choose-change (T.deliverStartTraceShutdown err) s p unique eq | true | Close.sendReady entry w = case eq of λ ()
+    capture-choose-change a s p unique eq = from-shape s p unique (Shapes.choose-shape a s p eq)
+
 
 
     -- Derive representation and capture validity along actual enabled events.
