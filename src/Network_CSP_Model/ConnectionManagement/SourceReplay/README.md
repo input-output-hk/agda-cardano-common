@@ -580,3 +580,45 @@ later cancellation/close/result suffix. This differs from the one-accept IO
 fixture; no whole trace-refinement theorem equates them. New-writer invariants,
 remaining admission/owned-scope failures and full outer composition are open.
 See Supervision increment 18. No native replay was rerun for those Agda changes.
+
+## Late admission after the CM shutdown (10 November 2026)
+
+[ServerLateAdmissionReplay.patch](ServerLateAdmissionReplay.patch) adds one
+module to `framework-sim-tests` at network `2f1c154`. It asks whether an
+admission worker forked by `Server.with`'s own accept loop can include its
+connection, and so fork a connection handler, after the CM's shutdown
+snapshot. The CM's `finally` (`Core.hs` 524–550) only reads `stateVar`
+(`readTMVar`); nothing marks the CM closed. `includeInboundConnectionImpl`
+(`Core.hs` 796–) has no shutdown guard, and the handler it forks is an
+`Async` that only the snapshot traversal would cancel.
+
+The scenario uses IOSim with one listener, one client connect (no handshake
+is sent) and a Server callback that returns once the connect completes.
+Results:
+
+| Test | Result |
+| --- | --- |
+| Default schedule | The worker includes before `TrShutdown`; its handler is in the snapshot. |
+| IOSimPOR (`explorationScheduleBound = 20000`, `explorationBranching = 20`; 628 schedules, exhausted) | One schedule delays the worker (`Thread {4,1,1}`, forked by `accept-loop-0`) until after every server, inbound-governor, racing and accept-loop step and the test's own steps. `Server.with` returns and the CM `finally` completes while the worker has not taken its first step. The simulation then ends with `NotReleasedConnections` for the accepted connection. |
+| IOSimPOR, same bounds | No explored schedule shows, within one trace, the delayed worker's include after `Server.with` returns. POR reverses conflicting TVar/STM steps; it does not move the teardown (ordered by `throwTo`/`waitCatch`) before the worker's map take. This is a bounded negative, not a proof of unreachability. |
+| Direct API (deterministic) | The CM handle given to the callback is used after `Server.with` returns: `TrShutdown`, return, then `TrIncludeConnection`, a new `UnknownConnectionSt → UnnegotiatedSt Inbound` handler, which runs to its own 10 s handshake timeout and terminates; the call returns `Disconnected`. Nothing cancels or waits for that handler. |
+
+```sh
+git apply /absolute/path/to/ServerLateAdmissionReplay.patch
+cabal build --offline ouroboros-network:test:framework-sim-tests
+framework-sim-tests -p '/ServerLateAdmissionReplay/' --quickcheck-tests 1
+```
+
+All four tests passed in three runs (about 1.3 s each), with no compiler
+warnings. The patch applies to the pristine pin on its own. Logs:
+`/tmp/cm-m6-20261109/late-final-{1,2,3}.log`.
+
+**Reading.** The source admits the state "Server returned, CM `finally` done,
+admission worker not yet started on its include" (the POR witness). From that
+state the worker's next step is the unguarded map take, and the direct replay
+shows what the CM then does: it forks a handler outside every Server and CM
+scope. The two parts are separate traces; a single trace with the late include
+was not produced. This extends CM-PUB1 (workers blocked after return) to a
+candidate late handler fork. It is evidence about the pinned source, not a
+measurement of deployment frequency; in a node the window is narrow, because
+the worker normally takes the map immediately after it is forked.

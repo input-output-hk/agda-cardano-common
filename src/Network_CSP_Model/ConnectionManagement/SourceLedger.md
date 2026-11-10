@@ -158,7 +158,7 @@ is still running when the Server unwinds, which the chain cannot express.
 | `AcceptFailure` with `ECONNABORTED`: delay and retry | Excluded (no state change) | Not modelled; a delay with no allocation |
 | `runConnectionRateLimits` delays | Excluded | Recorded as absent in the README; timing only |
 | `getLocalAddr`/trace failure after `accept` | Implemented (increment 70) | The same `acceptFails` step: the accepted socket is closed before any handoff and never enters the model's socket table |
-| Raw admission worker (bare `async`) | Implemented for selected phases | `ServerAdmission` workers. They outlive the scope, as the [Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) shows |
+| Raw admission worker (bare `async`) | Implemented for selected phases | `ServerAdmission` workers. They outlive the scope, as the [Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) shows. A worker can still include and fork a handler after the CM shutdown ([late-admission replay](SourceReplay/README.md#late-admission-after-the-cm-shutdown-10-november-2026), [model witness](Negative/ServerLateAdmission.agda), increment 73) |
 | Raw admission worker errors before handoff | Missing (already recorded as open) | Accept/getLocalAddr/tracer/fork errors before handoff |
 | Several listeners | Excluded (one listener) | The `withAsyncAll` cancellation order of several loops is not modelled |
 | `TrServerStopped` / `TrServerError` tracer failure | Contract | Traces are observed successful operations |
@@ -177,7 +177,7 @@ is still running when the Server unwinds, which the chain cannot express.
 | --- | --- | --- |
 | Snapshot under `uninterruptibleMask_`, blocking on the map lock | Implemented | `CMShutdown.captureSnapshot` requires a full map cell |
 | `throwTo` per handler thread, then wait for all snapshot results | Implemented | `CMShutdown` read/request/acknowledge/finish; delivery receipts by the handler layers (increments 63–67) |
-| Handlers forked after the snapshot | Contract | The source does not join them. The model keeps them independent and asserts no global freeze |
+| Handlers forked after the snapshot | Contract | The source does not join them. The model keeps them independent and asserts no global freeze. Reachable by a late admission worker (increment 73) |
 | Exceptional entry (the callback raised) | Implemented (increment 1) | The body is the same; only the entry differs |
 
 ### Remote diffusion scopes (`Diffusion.hs` 860–950)

@@ -319,7 +319,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
-| Admission/API quiescence | Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
+| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; residue theorem next). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
@@ -7108,3 +7108,49 @@ warnings) and `Negative/ServerShutdownCoordinator` (53 s, 6.2 GB, no warnings).
 Peak memory was not recorded for the two frame modules.
 No postulates, holes or unsafe flags were added. Admission/API quiescence,
 CM-I4c reference validity and G3–G5 remain open.
+
+## Seventy-third increment: late admission after the CM shutdown
+
+Checked 10 November 2026. First step of admission/API quiescence, as agreed:
+characterize what the source leaves running before modelling a fix.
+
+Source (pin `2f1c154`): the accept loop forks each admission worker with a
+plain `async` and drops the handle (`Server.hs` 239–254). The CM `finally`
+(`Core.hs` 524–550) reads `stateVar` once (`readTMVar`) and cancels only the
+handler threads in that snapshot; nothing marks the CM closed, and
+`includeInboundConnectionImpl` has no shutdown guard. A worker whose map take
+comes after that read can therefore fork a handler that no scope cancels or
+joins. This contradicts the `Server.with` API comment (all server threads
+stop when the callback returns) more strongly than CM-PUB1, where workers
+stay blocked in STM.
+
+Model witness ([Negative/ServerLateAdmission](Negative/ServerLateAdmission.agda)):
+it continues the initialized run of [Negative/ServerAdmission](Negative/ServerAdmission.agda).
+In that run the Server has returned and the coordinator has closed over an
+empty snapshot. The second raw worker, forked before the close, then takes the
+map, counts, allocates a promise, chooses an entry and forks a physical
+handler. After these steps the Server is still returned, the coordinator is
+still closed with an empty collected list, and the new handler thread exists.
+The run is one `S.Executes` from the initializer; the late states are computed
+by the step function, not written by hand. The witness is at the Server
+admission layer. Whether the shared, runtime and relays layers enable the same
+steps after `serverReturned` was not checked, and no composed run was built.
+
+Source replay ([SourceReplay](SourceReplay/README.md#late-admission-after-the-cm-shutdown-10-november-2026)):
+IOSim at the pin. IOSimPOR finds a schedule in which `Server.with` returns and
+the CM `finally` completes before the Server's own worker takes its first
+step. A deterministic run of the retained CM handle after `Server.with`
+returns shows the include forking a handler that runs to its own handshake
+timeout, with nothing cancelling it. No single explored trace contains the
+delayed worker's include itself (a bounded negative). The finding is a strong
+candidate, not a one-trace confirmation.
+
+Model consequence: SI5 (increments 71–72) certifies only the handlers in the
+coordinator's snapshot. The "handlers forked after the snapshot" exclusion is
+now known to be reachable, not only possible.
+
+Checks: `Negative/ServerLateAdmission` (34 s, 4.3 GB, no warnings). Replay:
+4 tests, 3 runs, about 1.3 s each, no compiler warnings. Next: the residue
+theorem, first that the IG has no pending CM call once joined (c1), then that
+no outbound call frame is left once all peer jobs are terminal (c2). The fix
+model follows.
