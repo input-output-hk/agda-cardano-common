@@ -53,8 +53,8 @@ is committed in `a54d4fd`, with fresh full acceptance recorded below.
 [Increment 66](#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
 is accepted and committed in `daf111d`.
 [Increment 67](#sixty-seventh-increment-release-caller-delivery-at-time_wait)
-adds the release caller's delivery into TIME_WAIT at the handler layer; its
-initialized runtime lift is an open gap. The
+adds the release caller's delivery into TIME_WAIT, with an initialized run
+that retains the birth packet to the final CM wait. The
 [source-baseline assessment](#next-task-source-baseline-audit) records changed
 source contracts to reconcile before any repin or further proof expansion.
 
@@ -6700,29 +6700,37 @@ shows the CM coordinator is unchanged. The `Frontend` module lowers the runtime
 event to that physical receipt and derives the outer caller permission.
 
 [Negative/ServerPeersReleaseTimeWait](Negative/ServerPeersReleaseTimeWait.agda)
-starts from the accepted TIME_WAIT snapshot (`TimeWaitChecks.WaitingPrefix`) with
-the caller frame of increment 66 (`ReleaseMuxChecks.reframe`). Each edge is a
-handler-layer `W.step`, proved by `refl`: the delivery, `finishTimeWait`, counter
-read, `finishCleanup`, publication, then CM request, finished acknowledgement,
-traversal and final wait. Receipt facts come from the actual step. Before the
-caller returns there is no result and no released value; afterwards the
-caller has its captured result. Controls refuse delivery before the request,
-a duplicate, an unknown caller, masked cleanup before TIME_WAIT, a stale capture,
-delivery after CM shutdown has already interrupted TIME_WAIT, and substituting
-the finished-target acknowledgement.
+starts from the accepted TIME_WAIT branch point (`TimeWaitChecks.Suffix.branchpoint`)
+and gives the caller the frame of increment 66 (`ReleaseMuxChecks.reframe`). Its
+`actual` run executes eleven events: the caller's request, the delivery, the
+caller's return, `finishTimeWait`, the counter read, `finishCleanup` and
+publication, then CM request, finished acknowledgement, traversal and final
+wait. The core caller calls use their real guarded step. Each handler edge is
+lifted through `endpoint-up` with all six permissions discharged on its states.
+`initialized` extends the accepted retention certificate (`TimeWaitChecks.retain`
+from `TimeWaitChecks.branch`), so the original outbound birth packet and backing
+are retained to the final CM wait. Receipt facts come from the actual step.
+Before the caller returns there is no result and no released value; afterwards
+the caller has its captured result. Controls refuse delivery before the
+request, a duplicate, an unknown caller, masked cleanup before TIME_WAIT, a
+stale capture, delivery after CM shutdown has already interrupted TIME_WAIT,
+substituting the finished-target acknowledgement, raw core delivery and
+return before delivery.
 
-**Open gap.** These are handler-layer edges from a fixture snapshot, not an
-initialized runtime run. Lifting the route through the embedding
-(`endpoint-up`) exhausts a 20 GB heap even with every permission field left
-open. Proving all ten runtime edges by `refl` took 2 h 22 min. Extending the
-retention certificate (`TimeWaitChecks.retain`) to the final state exhausts the
-heap again. The cause is not yet understood; increment 66 uses the same
-combination at acceptable cost. Retention of the birth packet through this
-route is therefore not established.
+**Checking cost and module copies.** A first version of this witness exhausted
+a 20 GB heap when lifting the edges. The cause was module aliases: `module R =
+ReleaseMuxChecks` is a module copy, and `R.up`'s type names the original
+`ReleaseMuxChecks.W.step`. A proof typed with the copy `R.W.step` (or with a
+locally applied `Exit RF.bearerClosed`) is definitionally equal but not
+syntactically equal. Agda therefore evaluates both concrete steps in full to
+compare them. Bisection isolated this: the same application typed with the
+original name checks in 48 s at an 8 GB cap. The witness therefore opens the
+endpoint's names instead of aliasing them, and composes edges with the
+endpoint's own `trace-edge`.
 
 **Validation.** All checks ran sequentially under Agda 2.8.0 with a 20 GB heap,
-a 25 GB scope and swap disabled. The witness module checked in 86 s (peak RSS
-17.9 GB). Every top module of the 123-module affected set passed with exit 0:
+a 25 GB scope and swap disabled. The witness module checked fresh in 47.9 s
+(peak RSS 6.5 GB). Every top module of the 123-module affected set passed with exit 0:
 the 18 `Negative/Mux*`, PoolRelays, ServerAdmissionInvariants and ServerIGExit
 fixtures, and `Properties/MuxInitiatorTrace`. Fresh strict interaction acceptance of
 `Negative/ServerPeersOrigins.agda` passed in 154.8 s (10.9 GB). It recorded the
