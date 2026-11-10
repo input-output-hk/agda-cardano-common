@@ -160,5 +160,21 @@ The handler-level step proof is relativized (`Relative` in HandlerPhaseCleanup):
 handler operations whose target is unframed leave every framed worker's thread
 and cleanup record intact, which the mux layer's `unframed` guard guarantees.
 The frame-presence and layer structure adapt the skeleton of `HandlerAuxBacking`.
-The layers above `MuxHandlerExit` (startup unwind, exit cancellation, DeltaQ,
-catch and publication unwind, server admission and peers) are not yet covered.
+
+The same module covers exit cancellation (which only rewrites phases before the
+finalizer) and startup unwind. There a worker with a startup fault stays framed
+(`Unwind.Valid` uses the faulted workers as the kept set), so a handoff adopts an
+exit frame before the finalizer only for a framed worker without a cleanup record.
+[FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda) lifts the result
+through DeltaQ, catch and publication unwind, server admission, server IG exit,
+the shared server/peer layer and the top-level runtime (`ServerPeers.Protocols`);
+`Frontend.from-initial` holds for every initialized runtime run.
+[CleanupPeers](Properties/CleanupPeers.agda) shows that every permitted peer
+action leaves the cleanup store unchanged. It adapts `InboundOriginPeers` and
+uses that module's permission, which refuses raw peer-side core operations. The
+adapted skeletons are those of `HandlerAuxFrontend`.
+
+This closes the phase/cleanup part of CM-I4c. Reference validity of the live
+trackers (handler, promise, handle and mux references) is not part of this
+result; it is covered separately, as far as it goes, by the capture and
+handler-resource retention theorems.
