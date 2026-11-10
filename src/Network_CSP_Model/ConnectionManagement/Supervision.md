@@ -172,7 +172,10 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   theorem about collected workers.
 - **Open question — SI4/SI5:** identify and discharge remaining admission,
   handler and outer-scope obligations before deriving whole-supervision
-  completion. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
+  completion. The [SI4 source-coverage audit](SourceLedger.md#si4-source-coverage-audit-10-november-2026)
+  finds that both production `Server.with` callbacks can exit only by an
+  exception, so the modelled normal action return has no production instance.
+  It ranks the exceptional Server exit first among the missing branches. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
   explicitly delivered completion boundary; the new local certificates do not
   discharge it. Any API-quiescence premise or source change needs its own
   evidence. G0–G5 and CM-I4c remain open.

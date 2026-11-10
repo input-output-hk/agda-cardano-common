@@ -82,6 +82,118 @@ Controls: `Negative/MuxEgress` checks wait-stage ordering, that Direct has no gr
 
 Controls: `Negative/OutboundGovernor` checks that tenure is recorded on promotion, dropped by successful, failed and monitor demotions, kept by a timed-out demotion and restarted by a re-promotion, and that `Tenure` holds along the actual promotion.
 
+## SI4 source-coverage audit (10 November 2026)
+
+Scope: the Server, inbound-governor, CM outer-scope and remote-diffusion scope
+code at network `2f1c154`, read from the pinned objects of the 6 November
+baseline audit (`Server.hs`, `InboundGovernor.hs`, `ConnectionManager/Core.hs`,
+`Diffusion.hs`). Each source outcome is classified as **implemented**,
+**contract** (an explicit observed-operation or profile premise), **excluded**
+(a justified profile exclusion) or **missing**. Handler-internal outcomes keep
+the classification of the increment records in [Supervision](Supervision.md).
+This is a documentation audit; no model, proof or replay changed.
+
+### Audit finding: the modelled Server exit has no production instance
+
+Both production callers pass `Server.with` a callback that cannot return
+normally. The node-to-node callback ends in `Async.waitAny` over `m Void`
+threads (ledger and local-root providers, governor, churn, inbound governor and
+optional pool relays; `Diffusion.hs` 930–950). The node-to-client callback is
+`Async.wait inboundGovernorThread` (`Diffusion.hs` 466). A `Void` thread
+completes only by an exception, which `waitAny` and `wait` rethrow. So the
+action thread always exits with an exception, unless the thread running
+`Server.with` is cancelled first.
+
+The model's only Server scope exit is the normal action return of
+[ServerAdmission](ServerAdmission.agda) (`returnAction` … `serverReturned`).
+Every certificate built on it describes a branch that these callers never take.
+This includes the pool-relays owner return (`ServerPeersRelays`) and the
+selected CM-wait and Server-return routes. The peer side is modelled on its
+exceptional path (`AsyncScope.beginUnwind`), but its completion is followed by a
+normal action return.
+
+Below the race, a normal return and an action-thread exception unwind in the
+same order:
+
+1. `race` cancels the accept loops, and the listener `finally` closes the socket.
+2. `TrServerStopped` is traced.
+3. `withAsync` cancels and waits for the (finished) action thread.
+4. The IG `withAsync` cancels the IG thread.
+5. `withConnectionManager`'s `finally` runs.
+
+The exception path adds a `TrServerError` trace for synchronous exceptions and
+ends by rethrowing instead of returning.
+
+### `Server.with` and the accept loop (`Server.hs` 147–254)
+
+| Source outcome | Status | Model / reason |
+| --- | --- | --- |
+| Action thread returns `x` | Implemented, but not reachable from the production callers | `ServerAdmission` scope chain |
+| Action thread raises (sync or async), via `waitEither` | **Missing** | Same chain with an exceptional action result, `TrServerError` for sync exceptions, final rethrow |
+| IG thread raises first (it is `Void`), via `waitEither` | **Missing** | The IG `catch` deactivates, drains, traces and rethrows inside the IG thread before the race. The still-running action thread is cancelled by `withAsync` only after the accept loops close |
+| An accept loop raises first (`raceAll` / `waitAny`) | **Missing** | Fatal `AcceptFailure`, `getLocalAddr` failure or tracer failure. `withAsyncAll` cancels the other loops, then the waiter; the action and IG scopes then unwind |
+| External cancellation of the thread running `Server.with` | **Missing** | Diffusion races the remote thread with the counters loop and the local thread (`Diffusion.hs` 281–296). The async exception lands in the race wait |
+| `AcceptFailure` with `ECONNABORTED`: delay and retry | Excluded (no state change) | Not modelled; a delay with no allocation |
+| `runConnectionRateLimits` delays | Excluded | Recorded as absent in the README; timing only |
+| `getLocalAddr`/trace failure after `accept` | **Missing** | Closes the accepted socket, then kills the accept loop and hence the Server |
+| Raw admission worker (bare `async`) | Implemented for selected phases | `ServerAdmission` workers. They outlive the scope, as the [Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) shows |
+| Raw admission worker errors before handoff | Missing (already recorded as open) | Accept/getLocalAddr/tracer/fork errors before handoff |
+| Several listeners | Excluded (one listener) | The `withAsyncAll` cancellation order of several loops is not modelled |
+| `TrServerStopped` / `TrServerError` tracer failure | Contract | Traces are observed successful operations |
+
+### `InboundGovernor.with` (`InboundGovernor.hs` 145–236)
+
+| Source outcome | Status | Model / reason |
+| --- | --- | --- |
+| IG thread cancelled by its `withAsync` | Implemented | `ServerAdmission` IG stages and [ServerIGExit](ServerIGExit.agda): pending CM call interruption, deactivate, drain, nonempty remote-state trace |
+| IG thread fails on its own (async exception) | **Missing** | Same `catch` body, but as the race winner (see above) |
+| `withConnectionManager` around the IG scope | Implemented | CM outer `finally` below |
+
+### CM outer `finally` (`Core.hs` 523–550)
+
+| Source outcome | Status | Model / reason |
+| --- | --- | --- |
+| Snapshot under `uninterruptibleMask_`, blocking on the map lock | Implemented | `CMShutdown.captureSnapshot` requires a full map cell |
+| `throwTo` per handler thread, then wait for all snapshot results | Implemented | `CMShutdown` read/request/acknowledge/finish; delivery receipts by the handler layers (increments 63–67) |
+| Handlers forked after the snapshot | Contract | The source does not join them. The model keeps them independent and asserts no global freeze |
+| Exceptional entry (the callback raised) | **Missing** at the Server boundary | The body is the same; only the entry differs |
+
+### Remote diffusion scopes (`Diffusion.hs` 860–950)
+
+| Source outcome | Status | Model / reason |
+| --- | --- | --- |
+| A provider, governor or churn thread fails; `waitAny` rethrows; `withAsync` cancels churn, then the governor; provider and PSA scopes unwind | Implemented as an abstract cause | `AsyncScope.beginUnwind` and the PSA/governor pool close, but followed by a normal Server action return |
+| `inboundGovernorThread` in the same `waitAny` list | **Missing** | The action thread observes the IG failure as a `waitAny` result, while `Server.with` independently observes it through `waitEither` |
+| `withPoolRelays` around the whole callback | Implemented on the normal-return branch only | `ServerPeersRelays` waits for `serverReturned` |
+| Initiator-only mode (no Server) | Excluded | Not in the CM/IG/OG/Server composition |
+| Local (node-to-client) server | Excluded | A separate CM/IG instance with the same exit shape |
+
+### Proposed increments, ranked
+
+1. **Exceptional Server exit.**
+   - Add an exceptional (sync or async) action result to `ServerAdmission`, a
+     `TrServerError` observation and a final `serverRaised` stage.
+   - Feed it from the peer-side unwind, so that the completion of
+     `AsyncScope.beginUnwind` ends the action thread with an exception instead
+     of a return.
+   - Re-target `ServerPeersRelays` and the selected CM-wait certificates to the
+     new exit. Keep the normal branch as a generic `Server.with` contract.
+
+   This makes the existing certificates describe the production exit.
+2. **IG-thread failure as race winner.** The IG `catch` body runs first. The
+   action thread is still live when the accept loops close and is cancelled
+   afterwards. This unwinds the peer side by cancellation rather than by its own
+   failure.
+3. **Accept-loop failure as race winner**, including the `getLocalAddr`
+   failure after a successful accept.
+4. **External cancellation** of the remote thread (counters-loop or local
+   thread failure).
+5. **SI5:** derive `completeShutdown` from the exceptional exit and the existing
+   CM/handler certificates, for the justified one-listener profile. Admission
+   quiescence stays separate: raw admission workers outlive the scope in every
+   branch.
+
+
 ## Current implementation coverage
 
 **Reading this section:** the paragraphs and rule-family status cells accumulate
