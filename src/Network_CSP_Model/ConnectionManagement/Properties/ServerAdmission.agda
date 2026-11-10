@@ -49,16 +49,16 @@ inherit-preserves-workers a s eq with S.allowed a s
 
 -- Reuse already checked physical executions without normalizing their whole
 -- dispatchers again. Permission is checked separately for each actual label.
-lift-step : ∀ a n n′ ts st listener →
-  S.allowed a (S.serverState n ts st listener) ≡ true → N.step a n ≡ just n′ →
-  S.step (S.run a) (S.serverState n ts st listener) ≡ just (S.serverState n′ ts st listener)
-lift-step a n n′ ts st listener allowed advanced rewrite allowed | advanced = refl
-lift-run : ∀ {n as n′} ts st listener →
-  All.All (λ a → ∀ current → S.allowed a (S.serverState current ts st listener) ≡ true) as →
-  N.Executes n as n′ → S.Executes (S.serverState n ts st listener) (map S.run as) (S.serverState n′ ts st listener)
-lift-run ts st listener All.[] N.done = S.done
-lift-run ts st listener (permitted All.∷ permissions) (N.next {s = n} {s₁ = next} {a = a} eq rest) =
-  S.next (lift-step a n next ts st listener (permitted n) eq) (lift-run ts st listener permissions rest)
+lift-step : ∀ a n n′ ts st listener ig →
+  S.allowed a (S.serverState n ts st listener ig) ≡ true → N.step a n ≡ just n′ →
+  S.step (S.run a) (S.serverState n ts st listener ig) ≡ just (S.serverState n′ ts st listener ig)
+lift-step a n n′ ts st listener ig allowed advanced rewrite allowed | advanced = refl
+lift-run : ∀ {n as n′} ts st listener ig →
+  All.All (λ a → ∀ current → S.allowed a (S.serverState current ts st listener ig) ≡ true) as →
+  N.Executes n as n′ → S.Executes (S.serverState n ts st listener ig) (map S.run as) (S.serverState n′ ts st listener ig)
+lift-run ts st listener ig All.[] N.done = S.done
+lift-run ts st listener ig (permitted All.∷ permissions) (N.next {s = n} {s₁ = next} {a = a} eq rest) =
+  S.next (lift-step a n next ts st listener ig (permitted n) eq) (lift-run ts st listener ig permissions rest)
 
 -- The guarded raw-machine path is exactly the path used by the public builder.
 machine-action-roundtrip : ∀ a → S.machineAction (S.runMachine a) ≡ just a

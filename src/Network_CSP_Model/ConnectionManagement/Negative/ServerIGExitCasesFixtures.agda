@@ -48,10 +48,11 @@ flushedModel : Y.Model → Y.Model
 flushedModel m = record (inactiveModel m)
   { world = record (Y.world m) { inboundInfo = [] }
   ; governor = record (Y.governor (inactiveModel m)) { continuation = IG.exited } }
-state : Y.Model → S.Stage → E.Exit → E.State
-state m pc e = E.igExitState (record (E.base (Y.render m)) { stage = pc; listenerOpen = false }) e
+-- The IG catch advances while the Server waits at igCancelRequested.
+state : Y.Model → S.IGPhase → E.Exit → E.State
+state m ph e = E.igExitState (record (E.base (Y.render m)) { stage = S.igCancelRequested; listenerOpen = false; ig = ph }) e
 caught inactive flushed : E.Receipt → Y.Model → E.State
-caught r m = state (clear m) S.igCancelDelivered (E.caughtExit r)
+caught r m = state (clear m) S.igCaught (E.caughtExit r)
 inactive r m = state (inactiveModel m) S.igInactive (E.caughtExit r)
 flushed r m = state (flushedModel m) S.igFlushed (E.caughtExit r)
 rows : Y.Model → List E.Row
@@ -63,9 +64,9 @@ snapshot r m = state (flushedModel m) S.igFlushed (snapshotExit r m)
 invoked r m = state (flushedModel m) S.igFlushed (record (snapshotExit r m) { phase = E.invoked })
 returned r m = state (flushedModel m) S.igFlushed
   (record (snapshotExit r m) { remaining = drop 1 (rows m); returned = take 1 (rows m) })
-done r m = record (returned r m) { base = record (E.base (returned r m)) { stage = S.igBodyExited }
+done r m = record (returned r m) { base = record (E.base (returned r m)) { ig = S.igBodyExited }
   ; exit = record (E.exit (returned r m)) { phase = E.bodyDone } }
-published r m = record (done r m) { base = record (E.base (done r m)) { stage = S.igResultAvailable }
+published r m = record (done r m) { base = record (E.base (done r m)) { ig = S.igResultAvailable }
   ; exit = record (E.exit (done r m)) { result = just (S.async (E.exception r)) } }
 joined r m = record (published r m) { base = record (E.base (published r m)) { stage = S.igJoined } }
 
@@ -79,8 +80,8 @@ lateSnapshot lateInvoked lateReturned lateDone latePublished lateJoined : E.Stat
 lateSnapshot = state lateModel S.igFlushed (snapshotExit body Y.a3)
 lateInvoked = state lateModel S.igFlushed (record (snapshotExit body Y.a3) { phase = E.invoked })
 lateReturned = state lateModel S.igFlushed (record (snapshotExit body Y.a3) { remaining = []; returned = rows Y.a3 })
-lateDone = record lateReturned { base = record (E.base lateReturned) { stage = S.igBodyExited }
+lateDone = record lateReturned { base = record (E.base lateReturned) { ig = S.igBodyExited }
   ; exit = record (E.exit lateReturned) { phase = E.bodyDone } }
-latePublished = record lateDone { base = record (E.base lateDone) { stage = S.igResultAvailable }
+latePublished = record lateDone { base = record (E.base lateDone) { ig = S.igResultAvailable }
   ; exit = record (E.exit lateDone) { result = just (S.async X.err) } }
 lateJoined = record latePublished { base = record (E.base latePublished) { stage = S.igJoined } }

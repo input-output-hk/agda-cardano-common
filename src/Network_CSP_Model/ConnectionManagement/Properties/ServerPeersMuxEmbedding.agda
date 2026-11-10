@@ -31,7 +31,7 @@ private
  module D = DeltaModel b using (State; deltaQState; run; allowed; note)
  module C = CatchModel b using (catchState; run)
  module N = PublicationModel b using (Action; publicationState; run)
- module S = ServerModel b using (State; Stage; serverState; run; allowed)
+ module S = ServerModel b using (State; Stage; IGPhase; serverState; run; allowed; cancelPathIG; igCancelRequested)
  module E = IGModel b using (State; Exit; Action; igExitState; run; runAllowed)
  module K = Combined b io using (combined; serverStep; step; serverAllowed)
 module Context = ContextModel io using (Context)
@@ -42,10 +42,16 @@ delta : W.State → D.State
 delta physical = D.deltaQState (raw physical) []
 body : W.Action → N.Action
 body action = N.run (C.run (D.run (R.run (X.run action))))
+-- A Server stage on the cancellation path outside the IG catch, or the IG
+-- catch itself (Server waiting at igCancelRequested, IG in the given phase).
+serverAt : W.State → S.Stage → Bool → S.IGPhase → S.State
+serverAt physical stage listener ig = S.serverState (N.publicationState (C.catchState (delta physical) []) []) [] stage listener ig
 server : W.State → S.Stage → Bool → S.State
-server physical stage listener = S.serverState (N.publicationState (C.catchState (delta physical) []) []) [] stage listener
+server physical stage listener = serverAt physical stage listener (S.cancelPathIG stage)
 outer : W.State → S.Stage → Bool → E.Exit → E.State
 outer physical stage listener exit = E.igExitState (server physical stage listener) exit
+outerIG : W.State → S.IGPhase → Bool → E.Exit → E.State
+outerIG physical ig listener exit = E.igExitState (serverAt physical S.igCancelRequested listener ig) exit
 action : W.Action → E.Action
 action physicalAction = E.run (S.run (body physicalAction))
 
@@ -55,6 +61,9 @@ module Frontend (capability : HandleId → ℕ → Bool) where
  embed : W.State → Context.Context → T.Front → S.Stage → Bool → E.Exit → T.Runtime
  embed physical context front stage listener exit = T.runtime
   (K.combined (outer physical stage listener exit) context) front
+ embedIG : W.State → Context.Context → T.Front → S.IGPhase → Bool → E.Exit → T.Runtime
+ embedIG physical context front ig listener exit = T.runtime
+  (K.combined (outerIG physical ig listener exit) context) front
  event : W.Action → T.Event
  event a = T.dispatch (K.serverStep (action a))
  nextFront : W.Action → T.Front → T.Front

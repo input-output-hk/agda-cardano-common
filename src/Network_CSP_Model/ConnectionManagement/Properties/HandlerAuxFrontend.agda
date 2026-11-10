@@ -605,7 +605,7 @@ module Server (isBearerClosed : ErrorId → Bool) where
 
 -- IG exit plans delegate physical changes or update only their own metadata.
 module IGExit (b : ErrorId → Bool) where
- private module E = IGExitModel b using (State; abandon; base; choose; delegate; enact; finish; initial; local; step)
+ private module E = IGExitModel b using (State; abandon; ownFailure; base; choose; delegate; enact; finish; initial; local; step)
  private module SA = AdmissionModel b using (initial; setSource; step)
  private module ServerFacts = Server b using (Valid; initialized-valid; source-valid; step-preserves)
  Valid : E.State → Set
@@ -618,6 +618,7 @@ module IGExit (b : ErrorId → Bool) where
  ... | just server = case just-injective eq of λ { refl → ServerFacts.step-preserves a (E.base s) actual valid }
  enact-preserves (E.local e) s eq valid = case just-injective eq of λ { refl → valid }
  enact-preserves (E.abandon r) s eq valid = case just-injective eq of λ { refl → valid }
+ enact-preserves (E.ownFailure r f) s eq valid = case just-injective eq of λ { refl → valid }
  enact-preserves (E.finish e) s eq valid = case just-injective eq of λ { refl → valid }
  step-preserves : ∀ a s {t} → E.step a s ≡ just t → Valid s → Valid t
  step-preserves a s eq valid with E.choose a s

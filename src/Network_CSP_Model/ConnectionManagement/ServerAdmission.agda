@@ -63,19 +63,33 @@ record Worker : Set where
         closeCalls : ℕ
 open Worker public
 
--- The normal action-return branch of the single-listener async/race tree.
--- Listener close, IG's actual shared cleanup and CM's result wait are distinct.
+-- The Server.with thread's progress through the single-listener async/race
+-- tree. Listener close, IG's actual shared cleanup and CM's result wait are
+-- distinct.
 data Stage : Set where
   serving actionBodyExited actionResultAvailable closingAccept acceptCancelRequested
     acceptCancelDelivered acceptBodyExited acceptResultAvailable acceptJoined
-    serverStopped actionJoined igCancelRequested igCancelDelivered igInactive
-    igFlushed igBodyExited igResultAvailable igJoined closingCM serverReturned : Stage
+    serverStopped actionJoined igCancelRequested igJoined closingCM serverReturned : Stage
+-- The inbound-governor thread's own progress (InboundGovernor.hs 194-235). Its
+-- catch body (deactivate, drain, final trace, rethrow) runs on the IG thread,
+-- whether it was entered by the Server's cancellation or by the IG's own
+-- failure, while the Server thread may still be serving.
+data IGPhase : Set where
+  igLive igCaught igInactive igFlushed igBodyExited igResultAvailable : IGPhase
+-- The IG phase at each Server stage on the cancellation path, outside the IG
+-- catch: live until the Server cancels it, finished once it is joined.
+cancelPathIG : Stage → IGPhase
+cancelPathIG igJoined = igResultAvailable
+cancelPathIG closingCM = igResultAvailable
+cancelPathIG serverReturned = igResultAvailable
+cancelPathIG _ = igLive
 record State : Set where
   constructor serverState
   field base : N.State
         workers : Store WorkerId Worker
         stage : Stage
         listenerOpen : Bool
+        ig : IGPhase
 open State public
 source : State → O.Configuration
 source s = N.source (base s)
@@ -89,7 +103,7 @@ setWorld : Shared.State → State → State
 setWorld world s = setSource (record (source s) { core = Machine.replaceWorld (O.core (source s)) world }) s
 initial : O.Configuration → Maybe State
 initial c with Shared.admissions (Machine.world (O.core c)) | Shared.sockets (Machine.world (O.core c)) | N.initial c
-... | [] | [] | just n = just (serverState n [] serving true)
+... | [] | [] | just n = just (serverState n [] serving true igLive)
 ... | _ | _ | _ = nothing
 
 accepting : Stage → Bool
@@ -189,16 +203,9 @@ cmAction _ = false
 inCMClose : Stage → Bool
 inCMClose closingCM = true
 inCMClose _ = false
-igRunning : Stage → Bool
-igRunning igCancelDelivered = false
-igRunning igInactive = false
-igRunning igFlushed = false
-igRunning igBodyExited = false
-igRunning igResultAvailable = false
-igRunning igJoined = false
-igRunning closingCM = false
-igRunning serverReturned = false
-igRunning _ = true
+igRunning : IGPhase → Bool
+igRunning igLive = true
+igRunning _ = false
 igBodyAction : IG.IGAction → Bool
 igBodyAction (IG.captureTime _) = true
 igBodyAction IG.registerInactivity = true
@@ -221,7 +228,7 @@ machineAllowed (Machine.handshakeStep w _) s = running w s
 machineAllowed (Machine.igStep IG.deactivateIG) s = false
 machineAllowed (Machine.igStep IG.flushOnExit) s = false
 machineAllowed (Machine.igStep a) s with igBodyAction a
-... | true = igRunning (stage s)
+... | true = igRunning (ig s)
 ... | false = true
 machineAllowed _ s = true
 allowed : N.Action → State → Bool
@@ -333,6 +340,11 @@ data ScopeAction : Set where
     deliverAcceptAtWait closeListener publishAcceptResult joinAccept traceStopped
     cancelJoinReturnedAction requestIGCancel deliverIGBody deactivateIG flushIG
     finishIGBody publishIGResult joinIG beginCM finishServer : ScopeAction
+  -- The IG thread's own failure enters its catch while it is still live.
+  failIGBody : ScopeAction
+  -- waitEither returns the failed IG thread before the action thread: the race
+  -- then cancels the accept loops while the action thread keeps running.
+  igWins : ScopeAction
   -- Asynchronous cancellation of the thread running Server.with while it waits
   -- in the race (the node's ordinary shutdown). The race cancels the accept
   -- loops before withAsync cancels the still-running action thread.
@@ -341,81 +353,96 @@ record ScopePlan : Set where
   constructor scopePlan
   field nextStage : Stage
         keepListener : Bool
+        nextIG : IGPhase
         physicalAction : Maybe N.Action
 open ScopePlan public
 chooseScope : ScopeAction → State → Maybe ScopePlan
 chooseScope returnAction s with stage s
-... | serving = just (scopePlan actionBodyExited (listenerOpen s) nothing)
+... | serving = just (scopePlan actionBodyExited (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope publishActionResult s with stage s
-... | actionBodyExited = just (scopePlan actionResultAvailable (listenerOpen s) nothing)
+... | actionBodyExited = just (scopePlan actionResultAvailable (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope interruptServer s with stage s
-... | serving = just (scopePlan closingAccept (listenerOpen s) nothing)
+... | serving = just (scopePlan closingAccept (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope selectActionWinner s with stage s
-... | actionResultAvailable = just (scopePlan closingAccept (listenerOpen s) nothing)
+... | actionResultAvailable = just (scopePlan closingAccept (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope requestAcceptCancel s with stage s
-... | closingAccept = just (scopePlan acceptCancelRequested (listenerOpen s) nothing)
+... | closingAccept = just (scopePlan acceptCancelRequested (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope deliverAcceptAtWait s with stage s
-... | acceptCancelRequested = just (scopePlan acceptCancelDelivered (listenerOpen s) nothing)
+... | acceptCancelRequested = just (scopePlan acceptCancelDelivered (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope closeListener s with stage s
-... | acceptCancelDelivered = just (scopePlan acceptBodyExited false nothing)
+... | acceptCancelDelivered = just (scopePlan acceptBodyExited false (ig s) nothing)
 ... | _ = nothing
 chooseScope publishAcceptResult s with stage s
-... | acceptBodyExited = just (scopePlan acceptResultAvailable (listenerOpen s) nothing)
+... | acceptBodyExited = just (scopePlan acceptResultAvailable (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope joinAccept s with stage s
-... | acceptResultAvailable = just (scopePlan acceptJoined (listenerOpen s) nothing)
+... | acceptResultAvailable = just (scopePlan acceptJoined (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope traceStopped s with stage s
-... | acceptJoined = just (scopePlan serverStopped (listenerOpen s) nothing)
+... | acceptJoined = just (scopePlan serverStopped (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope cancelJoinReturnedAction s with stage s
-... | serverStopped = just (scopePlan actionJoined (listenerOpen s) nothing)
+... | serverStopped = just (scopePlan actionJoined (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope requestIGCancel s with stage s
-... | actionJoined = just (scopePlan igCancelRequested (listenerOpen s) nothing)
+... | actionJoined = just (scopePlan igCancelRequested (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 -- Pending IG CM calls require their own cancellation/unwind adapter. This
 -- first exit profile cannot discard such a continuation before deactivation.
-chooseScope deliverIGBody s with stage s | Machine.inboundRelease (O.core (source s)) | Machine.remoteCall (O.core (source s))
-... | igCancelRequested | nothing | nothing = just (scopePlan igCancelDelivered (listenerOpen s) nothing)
-... | _ | _ | _ = nothing
-chooseScope deactivateIG s with stage s
-... | igCancelDelivered = just (scopePlan igInactive (listenerOpen s) (just (runMachine (Machine.igStep IG.deactivateIG))))
-... | _ = nothing
-chooseScope flushIG s with stage s
-... | igInactive = just (scopePlan igFlushed (listenerOpen s) (just (runMachine (Machine.igStep IG.flushOnExit))))
-... | _ = nothing
-chooseScope finishIGBody s with stage s | IG.connections (IG.publishedState (Machine.inboundGovernor (O.core (source s)))) |
-  IG.continuation (Machine.inboundGovernor (O.core (source s))) | IG.active (IG.execution (Machine.inboundGovernor (O.core (source s))))
-... | igFlushed | [] | IG.exited | false = just (scopePlan igBodyExited (listenerOpen s) nothing)
+-- The IG thread receives the Server's cancellation only after it is requested.
+chooseScope deliverIGBody s with stage s | ig s | Machine.inboundRelease (O.core (source s)) | Machine.remoteCall (O.core (source s))
+... | igCancelRequested | igLive | nothing | nothing = just (scopePlan (stage s) (listenerOpen s) igCaught nothing)
 ... | _ | _ | _ | _ = nothing
-chooseScope publishIGResult s with stage s
-... | igBodyExited = just (scopePlan igResultAvailable (listenerOpen s) nothing)
+-- The IG thread's own failure can occur at any Server stage while it is live.
+chooseScope failIGBody s with ig s | Machine.inboundRelease (O.core (source s)) | Machine.remoteCall (O.core (source s))
+... | igLive | nothing | nothing = just (scopePlan (stage s) (listenerOpen s) igCaught nothing)
+... | _ | _ | _ = nothing
+chooseScope deactivateIG s with ig s
+... | igCaught = just (scopePlan (stage s) (listenerOpen s) igInactive (just (runMachine (Machine.igStep IG.deactivateIG))))
 ... | _ = nothing
-chooseScope joinIG s with stage s
-... | igResultAvailable = just (scopePlan igJoined (listenerOpen s) nothing)
+chooseScope flushIG s with ig s
+... | igInactive = just (scopePlan (stage s) (listenerOpen s) igFlushed (just (runMachine (Machine.igStep IG.flushOnExit))))
 ... | _ = nothing
+chooseScope finishIGBody s with ig s | IG.connections (IG.publishedState (Machine.inboundGovernor (O.core (source s)))) |
+  IG.continuation (Machine.inboundGovernor (O.core (source s))) | IG.active (IG.execution (Machine.inboundGovernor (O.core (source s))))
+... | igFlushed | [] | IG.exited | false = just (scopePlan (stage s) (listenerOpen s) igBodyExited nothing)
+... | _ | _ | _ | _ = nothing
+chooseScope publishIGResult s with ig s
+... | igBodyExited = just (scopePlan (stage s) (listenerOpen s) igResultAvailable nothing)
+... | _ = nothing
+-- withAsync's cancellation of a finished IG thread is a no-op; the join waits
+-- for its result.
+chooseScope joinIG s with stage s | ig s
+... | igCancelRequested | igResultAvailable = just (scopePlan igJoined (listenerOpen s) igResultAvailable nothing)
+... | _ | _ = nothing
+-- The failed IG thread wins waitEither before the action thread's result is
+-- selected; the race then closes the accept loops.
+chooseScope igWins s with stage s | ig s
+... | serving | igResultAvailable = just (scopePlan closingAccept (listenerOpen s) igResultAvailable nothing)
+... | actionBodyExited | igResultAvailable = just (scopePlan closingAccept (listenerOpen s) igResultAvailable nothing)
+... | actionResultAvailable | igResultAvailable = just (scopePlan closingAccept (listenerOpen s) igResultAvailable nothing)
+... | _ | _ = nothing
 chooseScope beginCM s with stage s
-... | igJoined = just (scopePlan closingCM (listenerOpen s) nothing)
+... | igJoined = just (scopePlan closingCM (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
 chooseScope finishServer s with stage s | Close.phase (W.shutdown (R.base (N.raw (base s))))
-... | closingCM | Close.closed = just (scopePlan serverReturned (listenerOpen s) nothing)
+... | closingCM | Close.closed = just (scopePlan serverReturned (listenerOpen s) (ig s) nothing)
 ... | _ | _ = nothing
 
 -- Every scope plan preserves the raw-worker table, even when IG cleanup
 -- performs an actual shared-source operation. No cancellation/join is implied.
 enactScope : ScopePlan → State → Maybe State
 enactScope p s with physicalAction p
-... | nothing = just (record s { stage = nextStage p; listenerOpen = keepListener p })
+... | nothing = just (record s { stage = nextStage p; listenerOpen = keepListener p; ig = nextIG p })
 ... | just a with N.step a (base s)
 ...   | nothing = nothing
-...   | just n = just (record s { base = n; stage = nextStage p; listenerOpen = keepListener p })
+...   | just n = just (record s { base = n; stage = nextStage p; listenerOpen = keepListener p; ig = nextIG p })
 scopeAdvance : ScopeAction → State → Maybe State
 scopeAdvance a s with chooseScope a s
 ... | nothing = nothing

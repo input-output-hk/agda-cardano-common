@@ -401,7 +401,7 @@ module Server (isBearerClosed : ErrorId → Bool) where
  effect (SA.scope a) = scope-preserves a
 
 module IGExit (b : ErrorId → Bool) where
- private module E = IGExitModel b using (source; abandon; base; choose; delegate; enact; finish; local; step)
+ private module E = IGExitModel b using (source; abandon; ownFailure; base; choose; delegate; enact; finish; local; step)
  private module SA = AdmissionModel b using (step)
  private module ServerFacts = Server b using (effect)
  enact-preserves : ∀ p s {t} → E.enact p s ≡ just t → Effect (E.source s) (E.source t)
@@ -410,6 +410,7 @@ module IGExit (b : ErrorId → Bool) where
  ... | just server = case just-injective eq of λ { refl → ServerFacts.effect a (E.base s) actual }
  enact-preserves (E.local e) s eq = case just-injective eq of λ { refl → same refl }
  enact-preserves (E.abandon r) s eq = case just-injective eq of λ { refl → same refl }
+ enact-preserves (E.ownFailure r f) s eq = case just-injective eq of λ { refl → same refl }
  enact-preserves (E.finish e) s eq = case just-injective eq of λ { refl → same refl }
  effect : ∀ a s {t} → E.step a s ≡ just t → Effect (E.source s) (E.source t)
  effect a s eq with E.choose a s

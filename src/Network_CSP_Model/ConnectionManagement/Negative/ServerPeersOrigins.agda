@@ -1997,6 +1997,9 @@ module OutboundMuxChecks where
     closedContext = peerContext Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
     scopeAt : W.State → S.Stage → Bool → E.Exit → T.Runtime
     scopeAt physical stage listener exit = Embed.embed physical closedContext Prefix.preparedFront stage listener exit
+    -- The IG catch advances while the Server waits at igCancelRequested.
+    scopeAtIG : W.State → S.IGPhase → Bool → E.Exit → T.Runtime
+    scopeAtIG physical ph listener exit = Embed.embedIG physical closedContext Prefix.preparedFront ph listener exit
     scopeEvent : S.ScopeAction → T.Event
     scopeEvent action = T.dispatch (K.serverStep (E.run (S.scope action)))
     exitEvent : E.Action → T.Event
@@ -2087,42 +2090,42 @@ module OutboundMuxChecks where
     scopeStep11 = refl
 
     scope12 : T.Runtime
-    scope12 = scopeAt readyPhysical S.igCancelDelivered false caught
+    scope12 = scopeAtIG readyPhysical S.igCaught false caught
     scopeStep12 : T.advance (exitEvent (E.receive E.loopBoundary Old.err)) scope11 ≡ just scope12
     scopeStep12 = refl
 
     scope13 : T.Runtime
-    scope13 = scopeAt inactivePhysical S.igInactive false caught
+    scope13 = scopeAtIG inactivePhysical S.igInactive false caught
     scopeStep13 : T.advance (scopeEvent S.deactivateIG) scope12 ≡ just scope13
     scopeStep13 = refl
 
     scope14 : T.Runtime
-    scope14 = scopeAt exitedPhysical S.igFlushed false caught
+    scope14 = scopeAtIG exitedPhysical S.igFlushed false caught
     scopeStep14 : T.advance (scopeEvent S.flushIG) scope13 ≡ just scope14
     scopeStep14 = refl
 
     scope15 : T.Runtime
-    scope15 = scopeAt exitedPhysical S.igFlushed false snapshotExit
+    scope15 = scopeAtIG exitedPhysical S.igFlushed false snapshotExit
     scopeStep15 : T.advance (exitEvent (E.captureSnapshot)) scope14 ≡ just scope15
     scopeStep15 = refl
 
     scope16 : T.Runtime
-    scope16 = scopeAt exitedPhysical S.igFlushed false invokedExit
+    scope16 = scopeAtIG exitedPhysical S.igFlushed false invokedExit
     scopeStep16 : T.advance (exitEvent (E.invokeFinal)) scope15 ≡ just scope16
     scopeStep16 = refl
 
     scope17 : T.Runtime
-    scope17 = scopeAt exitedPhysical S.igFlushed false returnedExit
+    scope17 = scopeAtIG exitedPhysical S.igFlushed false returnedExit
     scopeStep17 : T.advance (exitEvent (E.returnFinal)) scope16 ≡ just scope17
     scopeStep17 = refl
 
     scope18 : T.Runtime
-    scope18 = scopeAt exitedPhysical S.igBodyExited false doneExit
+    scope18 = scopeAtIG exitedPhysical S.igBodyExited false doneExit
     scopeStep18 : T.advance (exitEvent (E.finishFinal)) scope17 ≡ just scope18
     scopeStep18 = refl
 
     scope19 : T.Runtime
-    scope19 = scopeAt exitedPhysical S.igResultAvailable false publishedExit
+    scope19 = scopeAtIG exitedPhysical S.igResultAvailable false publishedExit
     scopeStep19 : T.advance (scopeEvent S.publishIGResult) scope18 ≡ just scope19
     scopeStep19 = refl
 
@@ -3235,12 +3238,12 @@ module TimeWaitChecks where
      module C = Context Prior.classify using (Context; governorPool; monitorPool)
      module PS = Supervision Prior.classify using (Action; module Pool; beginMonitorClose; finishMonitorClose; run; scope)
      module GP = Governor Prior.classify using (module Pool; beginClose; finishClose)
-     module S = Server RF.bearerClosed using (ScopeAction; Stage; acceptBodyExited; acceptCancelDelivered; acceptCancelRequested; acceptJoined; acceptResultAvailable; actionBodyExited; actionJoined; actionResultAvailable; async; beginCM; cancelJoinReturnedAction; closeListener; closingAccept; closingCM; deactivateIG; deliverAcceptAtWait; flushIG; igBodyExited; igCancelDelivered; igCancelRequested; igFlushed; igInactive; igJoined; igResultAvailable; joinAccept; joinIG; publishAcceptResult; publishActionResult; publishIGResult; requestAcceptCancel; requestIGCancel; returnAction; scope; selectActionWinner; serverStopped; serving; stage; traceStopped)
+     module S = Server RF.bearerClosed using (ScopeAction; Stage; acceptBodyExited; acceptCancelDelivered; acceptCancelRequested; acceptJoined; acceptResultAvailable; actionBodyExited; actionJoined; actionResultAvailable; async; beginCM; cancelJoinReturnedAction; closeListener; closingAccept; closingCM; deactivateIG; deliverAcceptAtWait; flushIG; IGPhase; igBodyExited; igCaught; igCancelRequested; igFlushed; igInactive; igJoined; igResultAvailable; joinAccept; joinIG; publishAcceptResult; publishActionResult; publishIGResult; requestAcceptCancel; requestIGCancel; returnAction; scope; selectActionWinner; serverStopped; serving; stage; traceStopped)
      module E = IGExit RF.bearerClosed using (Action; Exit; Row; base; bodyDone; captureSnapshot; caughtExit; emptyExit; finishFinal; invokeFinal; invoked; loopBoundary; receipt; receive; returnFinal; run; snapshotRows; traversing)
      module W = Exit RF.bearerClosed using (State; setSource; source)
      module K = Combined RF.bearerClosed Prior.classify using (peerStep; server; serverStep)
      module T = Combined.Protocols RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (Event; Runs; Runtime; advance; base; dispatch; more; stop)
-     module Embed = Embedding.Frontend RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (embed)
+     module Embed = Embedding.Frontend RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (embed; embedIG)
      module J = Joins.Frontend RF.bearerClosed Prior.classify PriorServer.Protocols.capability using (ServerRuns; serverDone; serverNext)
      module Fixtures = PriorServer.Fixtures using (q1; q10; q11; q12; q13; q14; q15; q16; q17; q18; q19; q2; q20; q21; q22; q3; q4; q5; q6; q7; q8; q9)
 
@@ -3436,6 +3439,9 @@ module TimeWaitChecks where
     closedContext = peerContext Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
     scopeAt : W.State → S.Stage → Bool → E.Exit → T.Runtime
     scopeAt physical stage listener exit = Embed.embed physical closedContext Prefix.preparedFront stage listener exit
+    -- The IG catch advances while the Server waits at igCancelRequested.
+    scopeAtIG : W.State → S.IGPhase → Bool → E.Exit → T.Runtime
+    scopeAtIG physical ph listener exit = Embed.embedIG physical closedContext Prefix.preparedFront ph listener exit
     scopeEvent : S.ScopeAction → T.Event
     scopeEvent action = T.dispatch (K.serverStep (E.run (S.scope action)))
     exitEvent : E.Action → T.Event
@@ -3526,42 +3532,42 @@ module TimeWaitChecks where
     scopeStep11 = refl
 
     scope12 : T.Runtime
-    scope12 = scopeAt readyPhysical S.igCancelDelivered false caught
+    scope12 = scopeAtIG readyPhysical S.igCaught false caught
     scopeStep12 : T.advance (exitEvent (E.receive E.loopBoundary Old.err)) scope11 ≡ just scope12
     scopeStep12 = refl
 
     scope13 : T.Runtime
-    scope13 = scopeAt inactivePhysical S.igInactive false caught
+    scope13 = scopeAtIG inactivePhysical S.igInactive false caught
     scopeStep13 : T.advance (scopeEvent S.deactivateIG) scope12 ≡ just scope13
     scopeStep13 = refl
 
     scope14 : T.Runtime
-    scope14 = scopeAt exitedPhysical S.igFlushed false caught
+    scope14 = scopeAtIG exitedPhysical S.igFlushed false caught
     scopeStep14 : T.advance (scopeEvent S.flushIG) scope13 ≡ just scope14
     scopeStep14 = refl
 
     scope15 : T.Runtime
-    scope15 = scopeAt exitedPhysical S.igFlushed false snapshotExit
+    scope15 = scopeAtIG exitedPhysical S.igFlushed false snapshotExit
     scopeStep15 : T.advance (exitEvent (E.captureSnapshot)) scope14 ≡ just scope15
     scopeStep15 = refl
 
     scope16 : T.Runtime
-    scope16 = scopeAt exitedPhysical S.igFlushed false invokedExit
+    scope16 = scopeAtIG exitedPhysical S.igFlushed false invokedExit
     scopeStep16 : T.advance (exitEvent (E.invokeFinal)) scope15 ≡ just scope16
     scopeStep16 = refl
 
     scope17 : T.Runtime
-    scope17 = scopeAt exitedPhysical S.igFlushed false returnedExit
+    scope17 = scopeAtIG exitedPhysical S.igFlushed false returnedExit
     scopeStep17 : T.advance (exitEvent (E.returnFinal)) scope16 ≡ just scope17
     scopeStep17 = refl
 
     scope18 : T.Runtime
-    scope18 = scopeAt exitedPhysical S.igBodyExited false doneExit
+    scope18 = scopeAtIG exitedPhysical S.igBodyExited false doneExit
     scopeStep18 : T.advance (exitEvent (E.finishFinal)) scope17 ≡ just scope18
     scopeStep18 = refl
 
     scope19 : T.Runtime
-    scope19 = scopeAt exitedPhysical S.igResultAvailable false publishedExit
+    scope19 = scopeAtIG exitedPhysical S.igResultAvailable false publishedExit
     scopeStep19 : T.advance (scopeEvent S.publishIGResult) scope18 ≡ just scope19
     scopeStep19 = refl
 

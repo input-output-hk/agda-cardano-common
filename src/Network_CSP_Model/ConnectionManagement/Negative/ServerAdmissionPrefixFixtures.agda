@@ -53,11 +53,11 @@ wrap : P.State → N.State
 wrap p = N.publicationState (C.catchState (D.deltaQState (R.unwinding
   (W.handlerExitState (G.shutdownState (M.monitorState p []) []) []) []) []) []) []
 start one two : S.State
-start = S.serverState (wrap (I.pre (Machine.initial Shared.responderMode empty))) [] S.serving true
+start = S.serverState (wrap (I.pre (Machine.initial Shared.responderMode empty))) [] S.serving true S.igLive
 one = S.serverState (wrap (I.pre (Machine.initial Shared.responderMode
   (Shared.state A.emptyCM ((A.w₀ , Shared.admissionWorker r₀ Shared.acquireMap) ∷ []) []
     ((ident 0 , Shared.admitting A.w₀) ∷ []) [] 0 [] [] []))))
-  ((A.w₀ , S.rawWorker r₀ S.calling 0) ∷ []) S.serving true
+  ((A.w₀ , S.rawWorker r₀ S.calling 0) ∷ []) S.serving true S.igLive
 
 -- Every argument is data, rather than the result of an attempted transition.
 world : Shared.CMStore → Shared.AdmissionPC → Shared.AdmissionPC →
@@ -69,7 +69,7 @@ world c pc₀ pc₁ hs socket₀ socket₁ ps n rs queue = Shared.state c
 pre : Shared.CMStore → Shared.AdmissionPC → Shared.AdmissionPC →
   List PromiseId → ℕ → Shared.SocketOwner → S.State
 pre c pc₀ pc₁ ps n socket₀ = S.serverState (wrap (I.pre (Machine.initial Shared.responderMode
-  (world c pc₀ pc₁ [] socket₀ (Shared.admitting A.w₁) ps n [] [])))) workers S.serving true
+  (world c pc₀ pc₁ [] socket₀ (Shared.admitting A.w₁) ps n [] [])))) workers S.serving true S.igLive
 two = pre A.emptyCM Shared.acquireMap Shared.acquireMap [] 0 (Shared.admitting A.w₀)
 
 -- The only physical birth is the first worker's actual handler fork.
@@ -83,7 +83,7 @@ live st c pc₀ pc₁ ps n rs queue socket₁ ig phase frames = S.serverState
         ((A.child₀ , I.captured) ∷ []) (Shared.handling A.child₀) socket₁ ps n rs queue))
       { inboundGovernor = ig }))
       ((A.child₀ , H.handlerThread I.captured phase) ∷ []) Close.initialState)
-    ((A.child₀ , inbound) ∷ []) frames) [] [])) workers S.serving true
+    ((A.child₀ , inbound) ∷ []) frames) [] [])) workers S.serving true S.igLive
 lease₀ : Shared.Lease
 lease₀ = Shared.lease A.w₀ []
 binding : Shared.ConnMap

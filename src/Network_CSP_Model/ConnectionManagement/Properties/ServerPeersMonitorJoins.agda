@@ -316,11 +316,6 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
  ... | A.serverStopped = case eq of λ ()
  ... | A.actionJoined = case eq of λ ()
  ... | A.igCancelRequested = case eq of λ ()
- ... | A.igCancelDelivered = case eq of λ ()
- ... | A.igInactive = case eq of λ ()
- ... | A.igFlushed = case eq of λ ()
- ... | A.igBodyExited = case eq of λ ()
- ... | A.igResultAvailable = case eq of λ ()
  ... | A.closingCM = case eq of λ ()
  ... | A.serverReturned = case eq of λ ()
  entry-stage : ∀ s {t} → E.step (E.run (A.scope A.beginCM)) s ≡ just t → A.stage (E.base t) ≡ A.closingCM

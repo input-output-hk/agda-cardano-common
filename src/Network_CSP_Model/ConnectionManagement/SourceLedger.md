@@ -152,7 +152,7 @@ is still running when the Server unwinds, which the chain cannot express.
 | --- | --- | --- |
 | Action thread returns `x` | Implemented | `ServerAdmission` scope chain; not used by the production callers |
 | Action thread raises (sync or async), via `waitEither` | Implemented (increment 1, reinterpretation) | The same chain; `TrServerError` is merged into the `traceStopped` contract and the final rethrow is not model state |
-| IG thread raises first (it is `Void`), via `waitEither` | **Missing** | The IG `catch` deactivates, drains, traces and rethrows inside the IG thread before the race. The still-running action thread is cancelled by `withAsync` only after the accept loops close |
+| IG thread raises first (it is `Void`), via `waitEither` | Implemented (increment 69) | The IG phase is separate from the Server stage. `failIGBody` or `ServerIGExit.fail` enters the catch while the Server serves; `igWins` closes the accept loops once the IG result is available; the later `joinIG` reads the finished thread's result |
 | An accept loop raises first (`raceAll` / `waitAny`) | **Missing** | Fatal `AcceptFailure`, `getLocalAddr` failure or tracer failure. `withAsyncAll` cancels the other loops, then the waiter; the action and IG scopes then unwind |
 | External cancellation of the thread running `Server.with` | Implemented (increment 68) | `interruptServer`: the race wait is interrupted, the accept chain runs while the peer side stays live, and the action thread is joined only after the peer side closes. Diffusion races the remote thread with the counters loop and the local thread (`Diffusion.hs` 281–296) |
 | `AcceptFailure` with `ECONNABORTED`: delay and retry | Excluded (no state change) | Not modelled; a delay with no allocation |
@@ -168,7 +168,7 @@ is still running when the Server unwinds, which the chain cannot express.
 | Source outcome | Status | Model / reason |
 | --- | --- | --- |
 | IG thread cancelled by its `withAsync` | Implemented | `ServerAdmission` IG stages and [ServerIGExit](ServerIGExit.agda): pending CM call interruption, deactivate, drain, nonempty remote-state trace |
-| IG thread fails on its own (async exception) | **Missing** | Same `catch` body, but as the race winner (see above) |
+| IG thread fails on its own (sync or async exception) | Implemented (increment 69) | Same `catch` body, entered by `ServerIGExit.fail` at the cancellation receipt sites |
 | `withConnectionManager` around the IG scope | Implemented | CM outer `finally` below |
 
 ### CM outer `finally` (`Core.hs` 523–550)
@@ -185,7 +185,7 @@ is still running when the Server unwinds, which the chain cannot express.
 | Source outcome | Status | Model / reason |
 | --- | --- | --- |
 | A provider, governor or churn thread fails; `waitAny` rethrows; `withAsync` cancels churn, then the governor; provider and PSA scopes unwind | Implemented as an abstract cause | `AsyncScope.beginUnwind` and the PSA/governor pool close, then the action thread's exceptional exit (`returnAction`, increment 1) |
-| `inboundGovernorThread` in the same `waitAny` list | **Missing** | The action thread observes the IG failure as a `waitAny` result, while `Server.with` independently observes it through `waitEither` |
+| `inboundGovernorThread` in the same `waitAny` list | Implemented as an abstract cause (increment 69) | The action thread's `waitAny` observation is one cause of `AsyncScope.beginUnwind`, independent of the Server's `igWins` |
 | `withPoolRelays` around the whole callback | Implemented | `ServerPeersRelays` waits for `serverReturned`, read as the end of the callback's unwind |
 | Initiator-only mode (no Server) | Excluded | Not in the CM/IG/OG/Server composition |
 | Local (node-to-client) server | Excluded | A separate CM/IG instance with the same exit shape |
@@ -195,10 +195,9 @@ is still running when the Server unwinds, which the chain cannot express.
 1. **Exceptional Server exit.** Done as a reinterpretation of the existing
    chain (see the resolution above). The user chose this over adding an outcome
    tag to the model state.
-2. **IG-thread failure as race winner.** The IG `catch` body runs first. The
-   action thread is still live when the accept loops close and is cancelled
-   afterwards. This unwinds the peer side by cancellation rather than by its own
-   failure.
+2. **IG-thread failure as race winner.** Done in increment 69. The user chose
+   a faithful model over an exclusion: the IG thread's phase is now separate
+   from the Server stage.
 3. **Accept-loop failure as race winner**, including the `getLocalAddr`
    failure after a successful accept.
 4. **External cancellation** of the remote thread (counters-loop or local

@@ -86,6 +86,7 @@ module Lift (Valid : O.Configuration → Set)
   ... | just server = case just-injective eq of λ { refl → base-preserves a (E.base s) advanced valid }
   enact-preserves (E.local e) s eq valid = case just-injective eq of λ { refl → valid }
   enact-preserves (E.abandon r) s eq valid = case just-injective eq of λ { refl → clear-preserves (E.source s) valid }
+  enact-preserves (E.ownFailure r f) s eq valid = case just-injective eq of λ { refl → clear-preserves (E.source s) valid }
   enact-preserves (E.finish e) s eq valid = case just-injective eq of λ { refl → valid }
   step-preserves : ∀ a s {t} → E.step a s ≡ just t → Valid (E.source s) → Valid (E.source t)
   step-preserves a s eq valid with E.choose a s
@@ -129,6 +130,7 @@ module CaptureIdentity where
   ... | just next = case just-injective eq of λ { refl → Base.step-stable a (E.base s) advanced }
   enact-stable (E.local e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
   enact-stable (E.abandon r) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  enact-stable (E.ownFailure r f) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
   enact-stable (E.finish e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
   step-stable : ∀ a s {t} → E.step a s ≡ just t → Stable s t
   step-stable a s eq with E.choose a s
@@ -150,6 +152,7 @@ module CommittedRows where
   ... | just next = case just-injective eq of λ { refl → Base.step-stable a (E.base s) advanced }
   enact-stable (E.local e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
   enact-stable (E.abandon r) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
+  enact-stable (E.ownFailure r f) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
   enact-stable (E.finish e) s eq = case just-injective eq of λ { refl → Physical.identity (jobs s) }
   step-stable : ∀ a s {t} → E.step a s ≡ just t → Stable s t
   step-stable a s eq with E.choose a s

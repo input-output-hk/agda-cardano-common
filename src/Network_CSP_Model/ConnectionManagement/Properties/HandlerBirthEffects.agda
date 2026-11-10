@@ -2212,7 +2212,7 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
 
 import ConnectionManagement.ServerIGExit as IGExitModel
 module IGExitLayer (isBearerClosed : ErrorId → Bool) where
- private module E = IGExitModel isBearerClosed using (Action; Plan; State; abandon; base; choose; delegate; enact; finish; local; step)
+ private module E = IGExitModel isBearerClosed using (Action; Plan; State; abandon; ownFailure; base; choose; delegate; enact; finish; local; step)
  private module SA = AdmissionModel isBearerClosed using (step)
  view : E.State → Registry
  view s = (ServerLayer.view isBearerClosed) (E.base s)
@@ -2226,6 +2226,7 @@ module IGExitLayer (isBearerClosed : ErrorId → Bool) where
  ... | just server = case just-injective eq of λ { refl → map-change delegated-birth ((ServerLayer.change isBearerClosed) a (E.base s) actual) }
  enact-change (E.local e) s eq = case just-injective eq of λ { refl → stable refl }
  enact-change (E.abandon r) s eq = case just-injective eq of λ { refl → stable refl }
+ enact-change (E.ownFailure r f) s eq = case just-injective eq of λ { refl → stable refl }
  enact-change (E.finish e) s eq = case just-injective eq of λ { refl → stable refl }
  change : ∀ a s {t} → E.step a s ≡ just t → Change (Selected a s) (view s) (view t)
  change a s eq with E.choose a s in chosen

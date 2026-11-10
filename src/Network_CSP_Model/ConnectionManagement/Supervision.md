@@ -177,8 +177,10 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   exception. The existing Server exit chain follows that exit step for step and
   is now read as it (increment 1, documentation only). External cancellation,
   the ordinary node-shutdown path, is implemented in
-  [increment 68](#sixty-eighth-increment-external-server-interruption). Still
-  open: the IG thread and an accept loop as race winners. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
+  [increment 68](#sixty-eighth-increment-external-server-interruption), and the
+  IG thread as race winner in
+  [increment 69](#sixty-ninth-increment-the-inbound-governor-fails-first).
+  Still open: an accept loop as race winner. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
   explicitly delivered completion boundary; the new local certificates do not
   discharge it. Any API-quiescence premise or source change needs its own
   evidence. G0–G5 and CM-I4c remain open.
@@ -6805,3 +6807,96 @@ failure. It does not cover a full peer-side unwind started by the interruption,
 or new CM calls between the interruption and the action cancellation, although
 the model now allows both. The IG thread and an accept loop as race winners
 remain open, as do SI5, admission/API quiescence, source refinement and G3–G5.
+
+## Sixty-ninth increment: the inbound governor fails first
+
+Checked 10 November 2026. This is SI4 increment 3 of the
+[source-coverage audit](SourceLedger.md#si4-source-coverage-audit-10-november-2026),
+modelled faithfully at the user's request rather than excluded.
+
+At network `2f1c154` the IG thread runs `forever step` under a `catch`
+(`InboundGovernor.hs` 194–235). If the step raises, the catch runs on the IG
+thread while the Server still serves:
+
+1. It deactivates the IG.
+2. It drains the information channel.
+3. It traces every remote state to `Nothing`.
+4. It rethrows.
+
+`waitEither` in `Server.with` then returns the failed IG thread
+(`Server.hs` 165–175), and the race closes the accept loops. `withAsync`
+cancels and joins the action thread. In node-to-node mode the action thread's
+own `waitAny` also observes the IG failure and starts the peer-side unwind.
+Finally the IG `withAsync` cancels the finished thread, which is a no-op, and
+reads its result.
+
+Model change:
+
+- [ServerAdmission](ServerAdmission.agda) separates the IG thread's phase
+  (`IGPhase`: live, caught, inactive, flushed, body exited, result available)
+  from the Server thread's stage. The IG stages `igCancelDelivered` to
+  `igResultAvailable` are no longer Server stages.
+  - `deliverIGBody`, `deactivateIG`, `flushIG`, `finishIGBody` and
+    `publishIGResult` are gated by the IG phase.
+  - `deliverIGBody` still requires the Server's cancellation request.
+  - The new `failIGBody` enters the catch at any Server stage while the IG is
+    live.
+  - The new `igWins` moves from `serving`, `actionBodyExited` or
+    `actionResultAvailable` to `closingAccept` once the IG result is available.
+  - `joinIG` requires the Server's cancellation request and the IG result.
+  - `cancelPathIG` gives the IG phase at each stage of the cancellation path
+    outside the catch. Fixtures use it to state that path's existing points.
+- [ServerIGExit](ServerIGExit.agda) adds `fail`, an own-failure receipt with a
+  synchronous or asynchronous fault, at the existing receipt sites. It opens
+  only while the IG is live, independent of the Server stage. The new plan
+  `ownFailure` clears the pending CM call frames like `abandon` and records the
+  fault. The snapshot and finish steps check the IG phase instead of the stage.
+
+The existing paths keep their meaning. Their fixtures now state the IG catch as
+the Server waiting at `igCancelRequested` while the IG phase advances. Re-expressed:
+
+- `Negative/ServerAdmission`, `ServerAdmissionPrefixFixtures`,
+  `ServerIGExitFixtures`, `ServerIGExitControls`, `ServerIGExitCasesFixtures`
+  and `ServerIGExitProtocolFixtures`.
+- `Negative/ServerPeers`: new `sceneIG`, `stageSceneIG` and
+  `outbound-owned-atIG` helpers.
+- `Negative/ServerPeersOrigins`: `scopeAtIG`, through `embedIG` in
+  `Properties/ServerPeersMuxEmbedding`.
+
+The proof modules that match on IG-exit plans gain an `ownFailure` case that
+mirrors `abandon`. `Properties/ServerAdmission`'s lift lemmas carry the IG
+phase. `Properties/ServerPeersMonitorJoins` drops the removed stages from an
+exhaustive case analysis.
+
+Checks: the six top-level modules covering the 75 affected modules pass
+(`Properties/FrontendPhaseCleanup`, `Negative/ServerAdmissionInvariants`,
+`Negative/ServerIGExit`, `Negative/ServerIGFirst`, `Negative/PoolRelays`;
+`Negative/ServerPeers` passed separately in 678 s, 12.5 GB). Fresh acceptance
+passed: a strict interaction-mode load of the changed endpoint
+`Negative/ServerPeersOrigins`, after removing its interface, reported checked,
+fresh checking, no goals, warnings or errors, and an unchanged source hash
+(204 s, 11.9 GB). A cached confirmation (51 s) and
+`Negative/ServerPeersReleaseTimeWait` (53 s) passed. Evidence is in the session
+scratchpad `si4b/`.
+
+The new witness, [Negative/ServerIGFirst](Negative/ServerIGFirst.agda),
+continues the initialized IG-exit prefix. With the Server serving, the IG fails
+synchronously at its loop boundary and runs its whole catch: deactivate, flush,
+final trace and result. `igWins` then closes the accept loop, the Server stops
+and joins the action, requests the IG cancellation, joins the finished IG at
+once and enters CM close. The supply invariant holds at the end. A handler
+step succeeds during the catch.
+
+Controls:
+
+- `igWins` is refused while the IG is live.
+- The catch is entered once.
+- The IG loop does not resume after the catch.
+- The IG join waits for the IG result.
+
+The witness is at the Server/IG-exit layer, without the peer side. In the
+composed runtime the action join additionally requires the peer side to be
+closed (increment 68). An own-failure receipt uses the existing receipt sites;
+a synchronous exception's exact origin inside the step is not modelled. An
+accept loop as race winner, SI5, admission/API quiescence, source refinement
+and G3–G5 remain open.

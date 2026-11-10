@@ -138,8 +138,14 @@ remoteReady _ _ _ = false
 -- and masked nonblocking sites are refused. Send sites observe a blocked throwTo
 -- before target receipt, not an acknowledgment or a join of that target.
 receptionOpen : State → Bool
-receptionOpen s with phase (exit s) | received (exit s) | S.stage (base s) | IG.active (IG.execution (governor s))
-... | live | nothing | S.igCancelRequested | true = true
+receptionOpen s with phase (exit s) | received (exit s) | S.stage (base s) | S.ig (base s) | IG.active (IG.execution (governor s))
+... | live | nothing | S.igCancelRequested | S.igLive | true = true
+... | _ | _ | _ | _ | _ = false
+-- The IG thread's own failure (an RTS exception, or a synchronous exception
+-- from its step) can arrive at any Server stage while the IG is live.
+failureOpen : State → Bool
+failureOpen s with phase (exit s) | received (exit s) | S.ig (base s) | IG.active (IG.execution (governor s))
+... | live | nothing | S.igLive | true = true
 ... | _ | _ | _ | _ = false
 inCM : IG.PC → Bool
 inCM IG.inCM = true
@@ -160,8 +166,27 @@ selectReceipt at err s | true | nothing | just f with inCM (IG.continuation (gov
 ... | false | _ = nothing
 ... | true | false = nothing
 selectReceipt at err s | true | just _ | just _ = nothing
+-- Own-failure receipts are coupled to the same active continuation sites.
+selectFailure : Site → ErrorId → State → Maybe Receipt
+selectFailure at err s with failureOpen s
+... | false = nothing
+... | true with Machine.inboundRelease (O.core (source s)) | Machine.remoteCall (O.core (source s))
+...   | nothing | nothing with bodyReady at (IG.continuation (governor s))
+...     | true = just (receipt at err nothing)
+...     | false = nothing
+selectFailure at err s | true | just f | nothing with inCM (IG.continuation (governor s)) | releaseReady at f s
+... | true | true = just (receipt at err (just (releaseCall f)))
+... | false | _ = nothing
+... | true | false = nothing
+selectFailure at err s | true | nothing | just f with inCM (IG.continuation (governor s)) | remoteReady at f s
+... | true | true = just (receipt at err (just (remoteCall f)))
+... | false | _ = nothing
+... | true | false = nothing
+selectFailure at err s | true | just _ | just _ = nothing
 caughtExit : Receipt → Exit
 caughtExit r = exitState caught (just r) [] [] [] (just (S.async (exception r))) nothing
+failedExit : Receipt → S.Fault → Exit
+failedExit r f = exitState caught (just r) [] [] [] (just f) nothing
 
 -- Other actors keep their lower permissions. The IG cannot resume its own
 -- abandoned loop/call; raw catch-entry/body-exit shortcuts are not admitted.
@@ -173,6 +198,7 @@ igProgress _ = false
 runAllowed : S.Action → State → Bool
 runAllowed (S.scope S.deliverIGBody) s = false
 runAllowed (S.scope S.finishIGBody) s = false
+runAllowed (S.scope S.failIGBody) s = false
 runAllowed (S.run a) s with phase (exit s) | S.machineAction a
 ... | live | _ = true
 ... | _ | just a with igProgress a
@@ -192,12 +218,14 @@ data Plan : Set where
   delegate : S.Action → Exit → Plan
   local : Exit → Plan
   abandon : Receipt → Plan
+  ownFailure : Receipt → S.Fault → Plan
   finish : Exit → Plan
 data Action : Set where
   run : S.Action → Action
   receive : Site → ErrorId → Action
   captureSnapshot invokeFinal returnFinal finishFinal : Action
   failFinal : S.Fault → Action
+  fail : Site → S.Fault → Action
 choose : Action → State → Maybe Plan
 choose (run a) s with runAllowed a s
 ... | false = nothing
@@ -207,7 +235,10 @@ choose (run a) s with runAllowed a s
 choose (receive at err) s with selectReceipt at err s
 ... | nothing = nothing
 ... | just r = just (abandon r)
-choose captureSnapshot s with phase (exit s) | S.stage (base s) | IG.active (IG.execution (governor s)) |
+choose (fail at f) s with selectFailure at (S.error f) s
+... | nothing = nothing
+... | just r = just (ownFailure r f)
+choose captureSnapshot s with phase (exit s) | S.ig (base s) | IG.active (IG.execution (governor s)) |
   IG.continuation (governor s) | Machine.inboundRelease (O.core (source s)) | Machine.remoteCall (O.core (source s)) |
   unique (IG.connections (IG.publishedState (governor s)))
 ... | caught | S.igFlushed | false | IG.exited | nothing | nothing | true = just (local (record (exit s)
@@ -226,7 +257,7 @@ choose returnFinal s with phase (exit s) | remaining (exit s)
 choose (failFinal err) s with phase (exit s) | remaining (exit s)
 ... | invoked | row ∷ rest = just (local (record (exit s) { phase = failed; outcome = just err }))
 ... | _ | _ = nothing
-choose finishFinal s with phase (exit s) | remaining (exit s) | outcome (exit s) | S.stage (base s)
+choose finishFinal s with phase (exit s) | remaining (exit s) | outcome (exit s) | S.ig (base s)
 ... | traversing | [] | just err | S.igFlushed = just (finish (record (exit s) { phase = bodyDone }))
 ... | failed | _ | just err | S.igFlushed = just (finish (record (exit s) { phase = bodyDone }))
 ... | _ | _ | _ | _ = nothing
@@ -236,8 +267,10 @@ enact (delegate a e) s with S.step a (base s)
 ... | just server = just (igExitState server e)
 enact (local e) s = just (record s { exit = e })
 enact (abandon r) s = just (igExitState
-  (record (S.setSource (clearPending (source s)) (base s)) { stage = S.igCancelDelivered }) (caughtExit r))
-enact (finish e) s = just (igExitState (record (base s) { stage = S.igBodyExited }) e)
+  (record (S.setSource (clearPending (source s)) (base s)) { ig = S.igCaught }) (caughtExit r))
+enact (ownFailure r f) s = just (igExitState
+  (record (S.setSource (clearPending (source s)) (base s)) { ig = S.igCaught }) (failedExit r f))
+enact (finish e) s = just (igExitState (record (base s) { ig = S.igBodyExited }) e)
 step : Action → State → Maybe State
 step a s with choose a s
 ... | nothing = nothing

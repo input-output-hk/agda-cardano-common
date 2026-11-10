@@ -49,9 +49,9 @@ abstract
 module Failure (fault : S.Fault) where
   failed exited published : E.State
   failed = record X.invoked { exit = record (E.exit X.invoked) { phase = E.failed; outcome = just fault } }
-  exited = record failed { base = record (E.base failed) { stage = S.igBodyExited }
+  exited = record failed { base = record (E.base failed) { ig = S.igBodyExited }
     ; exit = record (E.exit failed) { phase = E.bodyDone } }
-  published = record exited { base = record (E.base exited) { stage = S.igResultAvailable }
+  published = record exited { base = record (E.base exited) { ig = S.igResultAvailable }
     ; exit = record (E.exit exited) { result = just fault } }
   fail-step : E.step (E.failFinal fault) X.invoked ≡ just failed
   fail-step = refl
@@ -100,7 +100,7 @@ pruningReceipt : E.Receipt
 pruningReceipt = E.receipt E.promoteSend X.err (just (E.remoteCall pruningFrame))
 pruningCaught : E.State
 pruningCaught = E.igExitState
-  (record (S.setSource (E.clearPending (E.source pruning)) (E.base pruning)) { stage = S.igCancelDelivered })
+  (record (S.setSource (E.clearPending (E.source pruning)) (E.base pruning)) { ig = S.igCaught })
   (E.caughtExit pruningReceipt)
 conditional-prune-send : E.step (E.receive E.promoteSend X.err) pruning ≡ just pruningCaught
 conditional-prune-send = refl
@@ -109,7 +109,7 @@ whole-pruning-cursor-retained = refl
 handler-descriptors-retained : Shared.handlers (Machine.world (O.core (E.source pruningCaught))) ≡ Shared.handlers (Machine.world (O.core (E.source pruning)))
 handler-descriptors-retained = refl
 no-synthetic-receiver-step : S.setSource (E.source pruning) (E.base pruningCaught) ≡
-  record (E.base pruning) { stage = S.igCancelDelivered }
+  record (E.base pruning) { ig = S.igCaught }
 no-synthetic-receiver-step = refl
 exact-source-unwind : E.source pruningCaught ≡ E.clearPending (E.source pruning)
 exact-source-unwind = Facts.receive-source E.promoteSend X.err pruning conditional-prune-send

@@ -100,23 +100,24 @@ held = releaseAt writtenFrame heldWorld
 
 -- The normal owned-scope prefix ends at an actual pending IG cancellation.
 atScope : S.Stage → Bool → E.State → E.State
-atScope pc listener s = record s { base = record (E.base s) { stage = pc; listenerOpen = listener } }
+atScope pc listener s = record s { base = record (E.base s) { stage = pc; listenerOpen = listener; ig = S.cancelPathIG pc } }
 err : ErrorId
 err = errorId 140
 receivedRelease : E.Receipt
 receivedRelease = E.receipt E.releaseCounters err (just (E.releaseCall writtenFrame))
 caughtRelease : E.State
 caughtRelease = E.igExitState
-  (record (S.setSource (E.clearPending (E.source held)) (E.base held)) { stage = S.igCancelDelivered; listenerOpen = false })
+  (record (S.setSource (E.clearPending (E.source held)) (E.base held)) { stage = S.igCancelRequested; listenerOpen = false; ig = S.igCaught })
   (E.caughtExit receivedRelease)
 inactiveIG flushedIG : IG.Runtime
 inactiveIG = IG.runtimeState registeredState 3 IG.exitFlush (record expiredEngine { active = false })
 flushedIG = record inactiveIG { continuation = IG.exited }
-afterUnwind : IG.Runtime → S.Stage → E.State
-afterUnwind ig pc = E.igExitState
+-- The IG catch advances while the Server waits at igCancelRequested.
+afterUnwind : IG.Runtime → S.IGPhase → E.State
+afterUnwind rt ph = E.igExitState
   (record (S.setSource (record (S.source F.s11)
-    { core = record (O.core (S.source F.s11)) { world = heldWorld; inboundGovernor = ig } }) F.s11)
-    { stage = pc; listenerOpen = false }) (E.caughtExit receivedRelease)
+    { core = record (O.core (S.source F.s11)) { world = heldWorld; inboundGovernor = rt } }) F.s11)
+    { stage = S.igCancelRequested; listenerOpen = false; ig = ph }) (E.caughtExit receivedRelease)
 inactive flushed : E.State
 inactive = afterUnwind inactiveIG S.igInactive
 flushed = afterUnwind flushedIG S.igFlushed
@@ -131,8 +132,8 @@ snapshot invoked returned bodyDone published joined : E.State
 snapshot = record flushed { exit = snapshotExit }
 invoked = record flushed { exit = record snapshotExit { phase = E.invoked } }
 returned = record flushed { exit = record snapshotExit { remaining = []; returned = rows } }
-bodyDone = record returned { base = record (E.base returned) { stage = S.igBodyExited }
+bodyDone = record returned { base = record (E.base returned) { ig = S.igBodyExited }
   ; exit = record (E.exit returned) { phase = E.bodyDone } }
-published = record bodyDone { base = record (E.base bodyDone) { stage = S.igResultAvailable }
+published = record bodyDone { base = record (E.base bodyDone) { ig = S.igResultAvailable }
   ; exit = record (E.exit bodyDone) { result = just (S.async err) } }
 joined = record published { base = record (E.base published) { stage = S.igJoined } }

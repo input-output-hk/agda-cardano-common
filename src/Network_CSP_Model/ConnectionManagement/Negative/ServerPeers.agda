@@ -2581,7 +2581,15 @@ module Protocols where
       scene : S.Stage → Bool → E.Exit → Y.Model → C.Context → V.Front → V.Runtime
       scene stage listener ex m k f = record original { base = record b
         { server = record (K.server b) { base = record (E.base (K.server b))
-          { stage = stage; listenerOpen = listener }; exit = ex } } }
+          { stage = stage; listenerOpen = listener; ig = S.cancelPathIG stage }; exit = ex } } }
+        where
+        original = at m k f
+        b = V.base original
+      -- The IG catch advances while the Server waits at igCancelRequested.
+      sceneIG : S.IGPhase → Bool → E.Exit → Y.Model → C.Context → V.Front → V.Runtime
+      sceneIG ph listener ex m k f = record original { base = record b
+        { server = record (K.server b) { base = record (E.base (K.server b))
+          { stage = S.igCancelRequested; listenerOpen = listener; ig = ph }; exit = ex } } }
         where
         original = at m k f
         b = V.base original
@@ -2736,23 +2744,23 @@ module Protocols where
       serverEdge9 = refl
       serverEdge10 : V.advance (serverEvent S.requestIGCancel) (scene S.actionJoined false E.emptyExit legacy peerDone tracingFront) ≡ just (scene S.igCancelRequested false E.emptyExit legacy peerDone tracingFront)
       serverEdge10 = refl
-      serverEdge11 : V.advance (exitEvent (E.receive E.loopBoundary igError)) (scene S.igCancelRequested false E.emptyExit legacy peerDone tracingFront) ≡ just (scene S.igCancelDelivered false caughtIG legacy peerDone tracingFront)
+      serverEdge11 : V.advance (exitEvent (E.receive E.loopBoundary igError)) (scene S.igCancelRequested false E.emptyExit legacy peerDone tracingFront) ≡ just (sceneIG S.igCaught false caughtIG legacy peerDone tracingFront)
       serverEdge11 = refl
-      serverEdge12 : V.advance (serverEvent S.deactivateIG) (scene S.igCancelDelivered false caughtIG legacy peerDone tracingFront) ≡ just (scene S.igInactive false caughtIG dormant peerDone tracingFront)
+      serverEdge12 : V.advance (serverEvent S.deactivateIG) (sceneIG S.igCaught false caughtIG legacy peerDone tracingFront) ≡ just (sceneIG S.igInactive false caughtIG dormant peerDone tracingFront)
       serverEdge12 = refl
-      serverEdge13 : V.advance (serverEvent S.flushIG) (scene S.igInactive false caughtIG dormant peerDone tracingFront) ≡ just (scene S.igFlushed false caughtIG flushingDone peerDone tracingFront)
+      serverEdge13 : V.advance (serverEvent S.flushIG) (sceneIG S.igInactive false caughtIG dormant peerDone tracingFront) ≡ just (sceneIG S.igFlushed false caughtIG flushingDone peerDone tracingFront)
       serverEdge13 = refl
-      serverEdge14 : V.advance (exitEvent E.captureSnapshot) (scene S.igFlushed false caughtIG flushingDone peerDone tracingFront) ≡ just (scene S.igFlushed false snapshotIG flushingDone peerDone tracingFront)
+      serverEdge14 : V.advance (exitEvent E.captureSnapshot) (sceneIG S.igFlushed false caughtIG flushingDone peerDone tracingFront) ≡ just (sceneIG S.igFlushed false snapshotIG flushingDone peerDone tracingFront)
       serverEdge14 = refl
-      serverEdge15 : V.advance (exitEvent E.invokeFinal) (scene S.igFlushed false snapshotIG flushingDone peerDone tracingFront) ≡ just (scene S.igFlushed false invokedIG flushingDone peerDone tracingFront)
+      serverEdge15 : V.advance (exitEvent E.invokeFinal) (sceneIG S.igFlushed false snapshotIG flushingDone peerDone tracingFront) ≡ just (sceneIG S.igFlushed false invokedIG flushingDone peerDone tracingFront)
       serverEdge15 = refl
-      serverEdge16 : V.advance (exitEvent E.returnFinal) (scene S.igFlushed false invokedIG flushingDone peerDone tracingFront) ≡ just (scene S.igFlushed false returnedIG flushingDone peerDone tracingFront)
+      serverEdge16 : V.advance (exitEvent E.returnFinal) (sceneIG S.igFlushed false invokedIG flushingDone peerDone tracingFront) ≡ just (sceneIG S.igFlushed false returnedIG flushingDone peerDone tracingFront)
       serverEdge16 = refl
-      serverEdge17 : V.advance (exitEvent E.finishFinal) (scene S.igFlushed false returnedIG flushingDone peerDone tracingFront) ≡ just (scene S.igBodyExited false finishedIG flushingDone peerDone tracingFront)
+      serverEdge17 : V.advance (exitEvent E.finishFinal) (sceneIG S.igFlushed false returnedIG flushingDone peerDone tracingFront) ≡ just (sceneIG S.igBodyExited false finishedIG flushingDone peerDone tracingFront)
       serverEdge17 = refl
-      serverEdge18 : V.advance (serverEvent S.publishIGResult) (scene S.igBodyExited false finishedIG flushingDone peerDone tracingFront) ≡ just (scene S.igResultAvailable false publishedIG flushingDone peerDone tracingFront)
+      serverEdge18 : V.advance (serverEvent S.publishIGResult) (sceneIG S.igBodyExited false finishedIG flushingDone peerDone tracingFront) ≡ just (sceneIG S.igResultAvailable false publishedIG flushingDone peerDone tracingFront)
       serverEdge18 = refl
-      serverEdge19 : V.advance (serverEvent S.joinIG) (scene S.igResultAvailable false publishedIG flushingDone peerDone tracingFront) ≡ just (scene S.igJoined false publishedIG flushingDone peerDone tracingFront)
+      serverEdge19 : V.advance (serverEvent S.joinIG) (sceneIG S.igResultAvailable false publishedIG flushingDone peerDone tracingFront) ≡ just (scene S.igJoined false publishedIG flushingDone peerDone tracingFront)
       serverEdge19 = refl
       serverEdge20 : V.advance (serverEvent S.beginCM) (scene S.igJoined false publishedIG flushingDone peerDone tracingFront) ≡ just (scene S.closingCM false publishedIG flushingDone peerDone tracingFront)
       serverEdge20 = refl
@@ -3752,6 +3760,8 @@ module Protocols where
       peerFinished = record peerMonUnwound { monitorPool = monClosed }
       stageScene : S.Stage → Bool → E.Exit → Y.Model → C.Context → V.Front → V.Runtime
       stageScene = SC.scene
+      stageSceneIG : S.IGPhase → Bool → E.Exit → Y.Model → C.Context → V.Front → V.Runtime
+      stageSceneIG = SC.sceneIG
       innerClosed callbackExited : V.Runtime
       innerClosed = at secondRegistered peerFinished secondFreeFront
       callbackExited = stageScene S.actionBodyExited true E.emptyExit secondRegistered peerFinished secondFreeFront
@@ -3919,31 +3929,31 @@ module Protocols where
       serverCloseEdge10 : V.advance (SC.serverEvent S.requestIGCancel) (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront)
       serverCloseEdge10 = refl
 
-      serverCloseEdge11 : V.advance (SC.exitEvent (E.receive E.loopBoundary SC.igError)) (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.igCancelDelivered false SC.caughtIG secondRegistered peerFinished secondFreeFront)
+      serverCloseEdge11 : V.advance (SC.exitEvent (E.receive E.loopBoundary SC.igError)) (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront) ≡ just (stageSceneIG S.igCaught false SC.caughtIG secondRegistered peerFinished secondFreeFront)
       serverCloseEdge11 = refl
 
-      serverCloseEdge12 : V.advance (SC.serverEvent S.deactivateIG) (stageScene S.igCancelDelivered false SC.caughtIG secondRegistered peerFinished secondFreeFront) ≡ just (stageScene S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)
+      serverCloseEdge12 : V.advance (SC.serverEvent S.deactivateIG) (stageSceneIG S.igCaught false SC.caughtIG secondRegistered peerFinished secondFreeFront) ≡ just (stageSceneIG S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)
       serverCloseEdge12 = refl
 
-      serverCloseEdge13 : V.advance (SC.serverEvent S.flushIG) (stageScene S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge13 : V.advance (SC.serverEvent S.flushIG) (stageSceneIG S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront) ≡ just (stageSceneIG S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge13 = refl
 
-      serverCloseEdge14 : V.advance (SC.exitEvent E.captureSnapshot) (stageScene S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge14 : V.advance (SC.exitEvent E.captureSnapshot) (stageSceneIG S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront) ≡ just (stageSceneIG S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge14 = refl
 
-      serverCloseEdge15 : V.advance (SC.exitEvent E.invokeFinal) (stageScene S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge15 : V.advance (SC.exitEvent E.invokeFinal) (stageSceneIG S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront) ≡ just (stageSceneIG S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge15 = refl
 
-      serverCloseEdge16 : V.advance (SC.exitEvent E.returnFinal) (stageScene S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge16 : V.advance (SC.exitEvent E.returnFinal) (stageSceneIG S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront) ≡ just (stageSceneIG S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge16 = refl
 
-      serverCloseEdge17 : V.advance (SC.exitEvent E.finishFinal) (stageScene S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge17 : V.advance (SC.exitEvent E.finishFinal) (stageSceneIG S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront) ≡ just (stageSceneIG S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge17 = refl
 
-      serverCloseEdge18 : V.advance (SC.serverEvent S.publishIGResult) (stageScene S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge18 : V.advance (SC.serverEvent S.publishIGResult) (stageSceneIG S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageSceneIG S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge18 = refl
 
-      serverCloseEdge19 : V.advance (SC.serverEvent S.joinIG) (stageScene S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)
+      serverCloseEdge19 : V.advance (SC.serverEvent S.joinIG) (stageSceneIG S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)
       serverCloseEdge19 = refl
 
       serverCloseEdge20 : V.advance (SC.serverEvent S.beginCM) (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront) ≡ just (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)
@@ -3955,7 +3965,7 @@ module Protocols where
       serverCloseActions = ((SC.serverEvent S.publishActionResult)) ∷ ((SC.serverEvent S.selectActionWinner)) ∷ ((SC.serverEvent S.requestAcceptCancel)) ∷ ((SC.serverEvent S.deliverAcceptAtWait)) ∷ ((SC.serverEvent S.closeListener)) ∷ ((SC.serverEvent S.publishAcceptResult)) ∷ ((SC.serverEvent S.joinAccept)) ∷ ((SC.serverEvent S.traceStopped)) ∷ ((SC.serverEvent S.cancelJoinReturnedAction)) ∷ ((SC.serverEvent S.requestIGCancel)) ∷ ((SC.exitEvent (E.receive E.loopBoundary SC.igError))) ∷ ((SC.serverEvent S.deactivateIG)) ∷ ((SC.serverEvent S.flushIG)) ∷ ((SC.exitEvent E.captureSnapshot)) ∷ ((SC.exitEvent E.invokeFinal)) ∷ ((SC.exitEvent E.returnFinal)) ∷ ((SC.exitEvent E.finishFinal)) ∷ ((SC.serverEvent S.publishIGResult)) ∷ ((SC.serverEvent S.joinIG)) ∷ ((SC.serverEvent S.beginCM)) ∷ []
       abstract
         server-close-path : V.Runs callbackExited serverCloseActions cmEntry
-        server-close-path = V.more {s = (stageScene S.actionBodyExited true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.publishActionResult)} serverCloseEdge1 (V.more {s = (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.closingAccept true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.selectActionWinner)} serverCloseEdge2 (V.more {s = (stageScene S.closingAccept true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptCancelRequested true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.requestAcceptCancel)} serverCloseEdge3 (V.more {s = (stageScene S.acceptCancelRequested true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptCancelDelivered true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.deliverAcceptAtWait)} serverCloseEdge4 (V.more {s = (stageScene S.acceptCancelDelivered true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptBodyExited false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.closeListener)} serverCloseEdge5 (V.more {s = (stageScene S.acceptBodyExited false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptResultAvailable false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.publishAcceptResult)} serverCloseEdge6 (V.more {s = (stageScene S.acceptResultAvailable false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.joinAccept)} serverCloseEdge7 (V.more {s = (stageScene S.acceptJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.serverStopped false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.traceStopped)} serverCloseEdge8 (V.more {s = (stageScene S.serverStopped false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.cancelJoinReturnedAction)} serverCloseEdge9 (V.more {s = (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.requestIGCancel)} serverCloseEdge10 (V.more {s = (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.igCancelDelivered false SC.caughtIG secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent (E.receive E.loopBoundary SC.igError))} serverCloseEdge11 (V.more {s = (stageScene S.igCancelDelivered false SC.caughtIG secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.deactivateIG)} serverCloseEdge12 (V.more {s = (stageScene S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)} {t = (stageScene S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.flushIG)} serverCloseEdge13 (V.more {s = (stageScene S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.captureSnapshot)} serverCloseEdge14 (V.more {s = (stageScene S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.invokeFinal)} serverCloseEdge15 (V.more {s = (stageScene S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.returnFinal)} serverCloseEdge16 (V.more {s = (stageScene S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.finishFinal)} serverCloseEdge17 (V.more {s = (stageScene S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.publishIGResult)} serverCloseEdge18 (V.more {s = (stageScene S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.joinIG)} serverCloseEdge19 (V.more {s = (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.beginCM)} serverCloseEdge20 (V.stop {s = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)}))))))))))))))))))))
+        server-close-path = V.more {s = (stageScene S.actionBodyExited true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.publishActionResult)} serverCloseEdge1 (V.more {s = (stageScene S.actionResultAvailable true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.closingAccept true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.selectActionWinner)} serverCloseEdge2 (V.more {s = (stageScene S.closingAccept true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptCancelRequested true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.requestAcceptCancel)} serverCloseEdge3 (V.more {s = (stageScene S.acceptCancelRequested true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptCancelDelivered true E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.deliverAcceptAtWait)} serverCloseEdge4 (V.more {s = (stageScene S.acceptCancelDelivered true E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptBodyExited false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.closeListener)} serverCloseEdge5 (V.more {s = (stageScene S.acceptBodyExited false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptResultAvailable false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.publishAcceptResult)} serverCloseEdge6 (V.more {s = (stageScene S.acceptResultAvailable false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.acceptJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.joinAccept)} serverCloseEdge7 (V.more {s = (stageScene S.acceptJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.serverStopped false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.traceStopped)} serverCloseEdge8 (V.more {s = (stageScene S.serverStopped false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.cancelJoinReturnedAction)} serverCloseEdge9 (V.more {s = (stageScene S.actionJoined false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.requestIGCancel)} serverCloseEdge10 (V.more {s = (stageScene S.igCancelRequested false E.emptyExit secondRegistered peerFinished secondFreeFront)} {t = (stageSceneIG S.igCaught false SC.caughtIG secondRegistered peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent (E.receive E.loopBoundary SC.igError))} serverCloseEdge11 (V.more {s = (stageSceneIG S.igCaught false SC.caughtIG secondRegistered peerFinished secondFreeFront)} {t = (stageSceneIG S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.deactivateIG)} serverCloseEdge12 (V.more {s = (stageSceneIG S.igInactive false SC.caughtIG inactiveModel peerFinished secondFreeFront)} {t = (stageSceneIG S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.flushIG)} serverCloseEdge13 (V.more {s = (stageSceneIG S.igFlushed false SC.caughtIG exitedModel peerFinished secondFreeFront)} {t = (stageSceneIG S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.captureSnapshot)} serverCloseEdge14 (V.more {s = (stageSceneIG S.igFlushed false SC.snapshotIG exitedModel peerFinished secondFreeFront)} {t = (stageSceneIG S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.invokeFinal)} serverCloseEdge15 (V.more {s = (stageSceneIG S.igFlushed false SC.invokedIG exitedModel peerFinished secondFreeFront)} {t = (stageSceneIG S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.returnFinal)} serverCloseEdge16 (V.more {s = (stageSceneIG S.igFlushed false SC.returnedIG exitedModel peerFinished secondFreeFront)} {t = (stageSceneIG S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.exitEvent E.finishFinal)} serverCloseEdge17 (V.more {s = (stageSceneIG S.igBodyExited false SC.finishedIG exitedModel peerFinished secondFreeFront)} {t = (stageSceneIG S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.publishIGResult)} serverCloseEdge18 (V.more {s = (stageSceneIG S.igResultAvailable false SC.publishedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.joinIG)} serverCloseEdge19 (V.more {s = (stageScene S.igJoined false SC.publishedIG exitedModel peerFinished secondFreeFront)} {t = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {u = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)} {a = (SC.serverEvent S.beginCM)} serverCloseEdge20 (V.stop {s = (stageScene S.closingCM false SC.publishedIG exitedModel peerFinished secondFreeFront)}))))))))))))))))))))
         initialized-restarted-cm-entry : V.Runs initial ((livePrefixActions ++ peerCloseActions) ++ serverCloseActions) cmEntry
         initialized-restarted-cm-entry = Facts.append-protocols initialized-peer-close server-close-path
       restarted-cm-entry-supply : Inv.ProtocolValid cmEntry
@@ -7095,7 +7105,7 @@ module Protocols where
     no-CM-entry-immediately-after-callback : V.advance Joins.cm-event D.callbackExited ≡ nothing
     no-CM-entry-immediately-after-callback = refl
     no-CM-entry-before-IG-join : V.advance Joins.cm-event
-      (D.stageScene S.igResultAvailable false SC.publishedIG D.exitedModel D.peerFinished Reactivation.secondFreeFront) ≡ nothing
+      (D.stageSceneIG S.igResultAvailable false SC.publishedIG D.exitedModel D.peerFinished Reactivation.secondFreeFront) ≡ nothing
     no-CM-entry-before-IG-join = refl
     no-repeated-CM-entry : V.advance Joins.cm-event D.cmEntry ≡ nothing
     no-repeated-CM-entry = refl
@@ -7656,17 +7666,28 @@ module Protocols where
     outbound-ig-done = record outbound-ig-caught { phase = E.bodyDone }
     outbound-ig-published = record outbound-ig-done { result = just (S.async OB.err) }
     outbound-exit-at : S.Stage → E.Exit
-    outbound-exit-at S.igCancelDelivered = outbound-ig-caught
-    outbound-exit-at S.igInactive = outbound-ig-caught
-    outbound-exit-at S.igFlushed = outbound-ig-caught
-    outbound-exit-at S.igBodyExited = outbound-ig-done
-    outbound-exit-at S.igResultAvailable = outbound-ig-published
     outbound-exit-at S.igJoined = outbound-ig-published
     outbound-exit-at S.closingCM = outbound-ig-published
     outbound-exit-at _ = E.emptyExit
+    outbound-exit-ig : S.IGPhase → E.Exit
+    outbound-exit-ig S.igBodyExited = outbound-ig-done
+    outbound-exit-ig S.igResultAvailable = outbound-ig-published
+    outbound-exit-ig S.igLive = E.emptyExit
+    outbound-exit-ig _ = outbound-ig-caught
+    -- The IG catch advances while the Server waits at igCancelRequested.
+    outbound-owned-atIG : B.State → S.IGPhase → Bool → IG.Runtime → V.Runtime
+    outbound-owned-atIG b ph listener ig = V.runtime (record ownedBase
+      { server = record (K.server ownedBase) { base = record (E.base (K.server ownedBase)) { stage = S.igCancelRequested; listenerOpen = listener; ig = ph }; exit = outbound-exit-ig ph } }) V.empty
+      where
+      original = render-outbound b ordinary
+      source = K.source (V.base original)
+      updated = record source { core = record (O.core source) { inboundGovernor = ig } }
+      ownedBase = record (V.base original)
+        { context = outbound-context Fixtures.q22 GP.Pool.closedPool PS.Pool.closedPool
+        ; server = K.setSource updated (K.server (V.base original)) }
     outbound-owned-at : B.State → S.Stage → Bool → IG.Runtime → V.Runtime
     outbound-owned-at b stage listener ig = V.runtime (record ownedBase
-      { server = record (K.server ownedBase) { base = record (E.base (K.server ownedBase)) { stage = stage; listenerOpen = listener }; exit = outbound-exit-at stage } }) V.empty
+      { server = record (K.server ownedBase) { base = record (E.base (K.server ownedBase)) { stage = stage; listenerOpen = listener; ig = S.cancelPathIG stage }; exit = outbound-exit-at stage } }) V.empty
       where
       original = render-outbound b ordinary
       source = K.source (V.base original)
@@ -7723,15 +7744,15 @@ module Protocols where
     outbound-scope-edge11 : V.advance (outbound-scope-event S.requestIGCancel) outbound-scope10 ≡ just outbound-scope11
     outbound-scope-edge11 = refl
     outbound-scope12 : V.Runtime
-    outbound-scope12 = outbound-owned-at OB.p12 S.igCancelDelivered false outbound-initial-ig
+    outbound-scope12 = outbound-owned-atIG OB.p12 S.igCaught false outbound-initial-ig
     outbound-scope-edge12 : V.advance (outbound-exit-event (E.receive E.loopBoundary OB.err)) outbound-scope11 ≡ just outbound-scope12
     outbound-scope-edge12 = refl
     outbound-scope13 : V.Runtime
-    outbound-scope13 = outbound-owned-at OB.p12 S.igInactive false outbound-inactive-ig
+    outbound-scope13 = outbound-owned-atIG OB.p12 S.igInactive false outbound-inactive-ig
     outbound-scope-edge13 : V.advance (outbound-scope-event S.deactivateIG) outbound-scope12 ≡ just outbound-scope13
     outbound-scope-edge13 = refl
     outbound-scope14 : V.Runtime
-    outbound-scope14 = outbound-owned-at OB.p12 S.igFlushed false outbound-exited-ig
+    outbound-scope14 = outbound-owned-atIG OB.p12 S.igFlushed false outbound-exited-ig
     outbound-scope-edge14 : V.advance (outbound-scope-event S.flushIG) outbound-scope13 ≡ just outbound-scope14
     outbound-scope-edge14 = refl
     outbound-ig-snapshot : V.Runtime
@@ -7740,11 +7761,11 @@ module Protocols where
     outbound-snapshot-edge : V.advance (outbound-exit-event E.captureSnapshot) outbound-scope14 ≡ just outbound-ig-snapshot
     outbound-snapshot-edge = refl
     outbound-scope15 : V.Runtime
-    outbound-scope15 = outbound-owned-at OB.p12 S.igBodyExited false outbound-exited-ig
+    outbound-scope15 = outbound-owned-atIG OB.p12 S.igBodyExited false outbound-exited-ig
     outbound-scope-edge15 : V.advance (outbound-exit-event E.finishFinal) outbound-ig-snapshot ≡ just outbound-scope15
     outbound-scope-edge15 = refl
     outbound-scope16 : V.Runtime
-    outbound-scope16 = outbound-owned-at OB.p12 S.igResultAvailable false outbound-exited-ig
+    outbound-scope16 = outbound-owned-atIG OB.p12 S.igResultAvailable false outbound-exited-ig
     outbound-scope-edge16 : V.advance (outbound-scope-event S.publishIGResult) outbound-scope15 ≡ just outbound-scope16
     outbound-scope-edge16 = refl
     outbound-scope17 : V.Runtime
@@ -8397,7 +8418,7 @@ module Protocols where
     configuration = O.initial (Machine.initial Shared.responderMode seeded)
     preloaded : V.Runtime
     preloaded = V.runtime (K.combined
-      (E.igExitState (S.serverState (F.wrap (I.pre (Machine.initial Shared.responderMode seeded))) [] S.serving true) E.emptyExit)
+      (E.igExitState (S.serverState (F.wrap (I.pre (Machine.initial Shared.responderMode seeded))) [] S.serving true S.igLive) E.emptyExit)
       k0) V.empty
     accepts-unbacked-entry : V.initialize configuration L.settings ≡ just preloaded
     accepts-unbacked-entry = refl
@@ -8530,7 +8551,7 @@ module Protocols where
       (K.combined
         (E.igExitState
           (S.serverState
-            (F.wrap (P.protocolState (U.supervised physical origins []) [] [])) [] S.serving true)
+            (F.wrap (P.protocolState (U.supervised physical origins []) [] [])) [] S.serving true S.igLive)
           E.emptyExit)
         (record k0 { regions = regions })) V.empty
     preloadedStart : V.Runtime

@@ -60,9 +60,9 @@ workersOne workersTwo : Store WorkerId S.Worker
 workersOne = (Admission.w₀ , S.rawWorker Admission.r₀ S.calling 0) ∷ []
 workersTwo = workersOne ++ ((Admission.w₁ , S.rawWorker Admission.r₁ S.calling 0) ∷ [])
 start one born : S.State
-start = S.serverState (baseAt bareWorld) [] S.serving true
-one = S.serverState (baseAt oneWorld) workersOne S.serving true
-born = S.serverState B.initial workersTwo S.serving true
+start = S.serverState (baseAt bareWorld) [] S.serving true S.igLive
+one = S.serverState (baseAt oneWorld) workersOne S.serving true S.igLive
+born = S.serverState B.initial workersTwo S.serving true S.igLive
 actual-initializer : S.initial (O.initial (Machine.initial Shared.responderMode bareWorld)) ≡ just start
 actual-initializer = refl
 no-adoption : S.initial (O.initial Source.start) ≡ nothing
@@ -73,13 +73,13 @@ fork-two : S.step (S.acceptedFork Admission.w₁ Admission.r₁) one ≡ just bo
 fork-two = refl
 
 permissions : All.All
-  (λ a → ∀ current → S.allowed a (S.serverState current workersTwo S.serving true) ≡ true)
+  (λ a → ∀ current → S.allowed a (S.serverState current workersTwo S.serving true S.igLive) ≡ true)
   Selected.actions
 permissions = (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ (λ _ → refl) All.∷ All.[]
 faultEnded : S.State
-faultEnded = S.serverState Selected.s10 workersTwo S.serving true
+faultEnded = S.serverState Selected.s10 workersTwo S.serving true S.igLive
 physical-prefix : S.Executes born (map S.run Selected.actions) faultEnded
-physical-prefix = Facts.lift-run workersTwo S.serving true permissions Selected.initialized
+physical-prefix = Facts.lift-run workersTwo S.serving true S.igLive permissions Selected.initialized
 
 -- Concrete shared IG cleanup is retained; no success oracle closes its scope.
 inactiveGovernor flushedGovernor : IG.Runtime
@@ -98,13 +98,16 @@ atBeforeIG pc = record faultEnded { stage = pc; listenerOpen = listener pc }
   listener S.serverStopped = false
   listener S.actionJoined = false
   listener S.igCancelRequested = false
-  listener S.igCancelDelivered = false
   listener _ = true
-inactive flushed : S.State
-inactive = withGovernor inactiveGovernor (record faultEnded { stage = S.igInactive; listenerOpen = false })
-flushed = withGovernor flushedGovernor (record inactive { stage = S.igFlushed })
+-- The IG catch runs while the Server waits at igCancelRequested.
+caught inactive flushed : S.State
+caught = record (atBeforeIG S.igCancelRequested) { ig = S.igCaught }
+inactive = withGovernor inactiveGovernor (record faultEnded { stage = S.igCancelRequested; listenerOpen = false; ig = S.igInactive })
+flushed = withGovernor flushedGovernor (record inactive { ig = S.igFlushed })
+afterIG : S.IGPhase → S.State
+afterIG ph = record flushed { ig = ph }
 atAfterIG : S.Stage → S.State
-atAfterIG pc = record flushed { stage = pc }
+atAfterIG pc = record flushed { stage = pc; ig = S.igResultAvailable }
 scope1 : S.step (S.scope S.returnAction) faultEnded ≡ just (atBeforeIG S.actionBodyExited)
 scope1 = refl
 scope2 : S.step (S.scope S.publishActionResult) (atBeforeIG S.actionBodyExited) ≡ just (atBeforeIG S.actionResultAvailable)
@@ -127,17 +130,17 @@ scope10 : S.step (S.scope S.cancelJoinReturnedAction) (atBeforeIG S.serverStoppe
 scope10 = refl
 scope11 : S.step (S.scope S.requestIGCancel) (atBeforeIG S.actionJoined) ≡ just (atBeforeIG S.igCancelRequested)
 scope11 = refl
-scope12 : S.step (S.scope S.deliverIGBody) (atBeforeIG S.igCancelRequested) ≡ just (atBeforeIG S.igCancelDelivered)
+scope12 : S.step (S.scope S.deliverIGBody) (atBeforeIG S.igCancelRequested) ≡ just caught
 scope12 = refl
-scope13 : S.step (S.scope S.deactivateIG) (atBeforeIG S.igCancelDelivered) ≡ just inactive
+scope13 : S.step (S.scope S.deactivateIG) caught ≡ just inactive
 scope13 = refl
 scope14 : S.step (S.scope S.flushIG) inactive ≡ just flushed
 scope14 = refl
-scope15 : S.step (S.scope S.finishIGBody) flushed ≡ just (atAfterIG S.igBodyExited)
+scope15 : S.step (S.scope S.finishIGBody) flushed ≡ just (afterIG S.igBodyExited)
 scope15 = refl
-scope16 : S.step (S.scope S.publishIGResult) (atAfterIG S.igBodyExited) ≡ just (atAfterIG S.igResultAvailable)
+scope16 : S.step (S.scope S.publishIGResult) (afterIG S.igBodyExited) ≡ just (afterIG S.igResultAvailable)
 scope16 = refl
-scope17 : S.step (S.scope S.joinIG) (atAfterIG S.igResultAvailable) ≡ just (atAfterIG S.igJoined)
+scope17 : S.step (S.scope S.joinIG) (afterIG S.igResultAvailable) ≡ just (atAfterIG S.igJoined)
 scope17 = refl
 scope18 : S.step (S.scope S.beginCM) (atAfterIG S.igJoined) ≡ just (atAfterIG S.closingCM)
 scope18 = refl
