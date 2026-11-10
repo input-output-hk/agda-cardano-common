@@ -557,6 +557,35 @@ module Interleaving where
   peer-shut-after-close : K.peerOpen (staged S.serverStopped false F.kdone) ≡ false
   peer-shut-after-close = refl
 
+  -- SI4: the accept loop fails first (a fatal AcceptFailure, or a failure
+  -- after accept). Its finally closes the listener and the race rethrows while
+  -- the peer side is still live; the rest is the interrupted unwind above.
+  acceptFail1 : K.step (K.serverStep (E.run (S.scope S.acceptFails))) (F.at F.finalSource live) ≡ just (staged S.acceptFailed true live)
+  acceptFail1 = refl
+  acceptFail2 : K.step (K.serverStep (E.run (S.scope S.closeListener))) (staged S.acceptFailed true live) ≡ just (staged S.acceptBodyExited false live)
+  acceptFail2 = refl
+  acceptFailActions : List K.Action
+  acceptFailActions = (K.serverStep (E.run (S.scope S.acceptFails))) ∷ (K.serverStep (E.run (S.scope S.closeListener))) ∷
+    (K.serverStep (E.run (S.scope S.publishAcceptResult))) ∷ (K.serverStep (E.run (S.scope S.joinAccept))) ∷
+    (K.serverStep (E.run (S.scope S.traceStopped))) ∷ (K.peerStep (PS.beginMonitorClose [])) ∷
+    (K.peerStep PS.finishMonitorClose) ∷ (K.serverStep (E.run (S.scope S.cancelJoinReturnedAction))) ∷ []
+  abstract
+    initialized-accept-failure : K.Executes F.start (take 55 actions ++ acceptFailActions) (staged S.actionJoined false F.kdone)
+    initialized-accept-failure = K.next step1 (K.next step2 (K.next step3 (K.next step4 (K.next step5 (K.next step6 (K.next step7 (K.next step8 (K.next step9 (K.next step10 (K.next step11 (K.next step12 (K.next step13 (K.next step14 (K.next step15 (K.next step16 (K.next step17 (K.next step18 (K.next step19 (K.next step20 (K.next step21 (K.next step22 (K.next step23 (K.next step24 (K.next step25 (K.next step26 (K.next step27 (K.next step28 (K.next step29 (K.next step30 (K.next step31 (K.next step32 (K.next step33 (K.next step34 (K.next step35 (K.next step36 (K.next step37 (K.next step38 (K.next step39 (K.next step40 (K.next step41 (K.next step42 (K.next step43 (K.next step44 (K.next step45 (K.next step46 (K.next step47 (K.next step48 (K.next step49 (K.next step50 (K.next step51 (K.next step52 (K.next step53 (K.next step54 (K.next step55
+      (K.next acceptFail1 (K.next acceptFail2 (K.next interrupt5 (K.next interrupt6 (K.next interrupt7 (K.next interrupt8 (K.next interrupt9 (K.next interrupt10 K.done))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+  accept-failure-supply : Inv.Valid (staged S.actionJoined false F.kdone)
+  accept-failure-supply = Inv.from-initial-valid initializer (All.[] , All.[]) initialized-accept-failure
+  -- Controls: a failed loop takes no cancellation, accepts no new connection,
+  -- leaves the peer side running, and cannot fail again after the stop.
+  no-cancel-after-accept-failure : K.step (K.serverStep (E.run (S.scope S.requestAcceptCancel))) (staged S.acceptFailed true live) ≡ nothing
+  no-cancel-after-accept-failure = refl
+  no-accept-after-failure : S.accepting (S.stage (E.base (K.server (staged S.acceptFailed true live)))) ≡ false
+  no-accept-after-failure = refl
+  peer-live-after-accept-failure : K.peerOpen (staged S.acceptFailed true live) ≡ true
+  peer-live-after-accept-failure = refl
+  no-accept-failure-after-stop : K.step (K.serverStep (E.run (S.scope S.acceptFails))) (staged S.serverStopped false live) ≡ nothing
+  no-accept-failure-after-stop = refl
+
 -- A second initialized history keeps a real pending IG release and another raw
 -- worker's lease across peer-scope closure, then runs the checked nonempty exit.
 module IGExit where

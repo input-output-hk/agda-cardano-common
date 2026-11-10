@@ -179,8 +179,11 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   the ordinary node-shutdown path, is implemented in
   [increment 68](#sixty-eighth-increment-external-server-interruption), and the
   IG thread as race winner in
-  [increment 69](#sixty-ninth-increment-the-inbound-governor-fails-first).
-  Still open: an accept loop as race winner. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
+  [increment 69](#sixty-ninth-increment-the-inbound-governor-fails-first), and
+  the accept loop failing first in
+  [increment 70](#seventieth-increment-the-accept-loop-fails-first). All
+  missing `Server.with` exit branches of the audit are now modelled for one
+  listener. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
   explicitly delivered completion boundary; the new local certificates do not
   discharge it. Any API-quiescence premise or source change needs its own
   evidence. G0–G5 and CM-I4c remain open.
@@ -6899,4 +6902,58 @@ composed runtime the action join additionally requires the peer side to be
 closed (increment 68). An own-failure receipt uses the existing receipt sites;
 a synchronous exception's exact origin inside the step is not modelled. An
 accept loop as race winner, SI5, admission/API quiescence, source refinement
+and G3–G5 remain open.
+
+## Seventieth increment: the accept loop fails first
+
+Checked 10 November 2026. This is SI4 increment 4 of the
+[source-coverage audit](SourceLedger.md#si4-source-coverage-audit-10-november-2026).
+At network `2f1c154` (`Server.hs` 147–249) the accept loop raises in two ways:
+
+- on an `AcceptFailure` other than `ECONNABORTED` ("fatal for the whole
+  process"), for example `EMFILE`;
+- when `getLocalAddr` or a trace fails after a successful accept. The accepted
+  socket is closed first, before any handoff.
+
+Its `finally` then closes the listener and `raceAll`'s `waitAny` rethrows. The
+race cancels the waiter, and the Server stops while the action thread is still
+running. `withAsync` then cancels and joins the action thread, and the IG and CM
+scopes unwind as before.
+
+Model change: [ServerAdmission](ServerAdmission.agda) adds the stage
+`acceptFailed` and the scope action `acceptFails`. It is enabled from `serving`,
+`actionBodyExited`, `actionResultAvailable`, `closingAccept` and
+`acceptCancelRequested`, that is, until the race's cancellation reaches the
+loop. `closeListener` (the loop's `finally`) is also enabled from
+`acceptFailed`, and the rest of the chain is reused. In
+[ServerPeers](ServerPeers.agda), `peerOpen` also holds in `acceptFailed` while
+the peer side has not closed. `acceptFailed` admits no new accepted connection.
+The accepted socket of the `getLocalAddr` case never enters the model's socket
+table, so both triggers are the same step.
+
+Checks: the cascade over all modules affected by the change passes. Its
+top-level modules are `Negative/ServerPeers` (1666 s, 13.9 GB),
+`Properties/FrontendPhaseCleanup`, `Negative/ServerAdmissionInvariants`,
+`Negative/ServerIGExit`, `Negative/ServerIGFirst` and `Negative/PoolRelays`.
+Fresh acceptance passed: a strict interaction-mode load of the endpoint
+`Negative/ServerPeersOrigins`, after removing its interface, reported checked,
+fresh checking, no goals, warnings or errors, and an unchanged source hash
+(185 s, 12.4 GB). A cached confirmation (47 s) and
+`Negative/ServerPeersReleaseTimeWait` (48 s) passed.
+
+`Negative/ServerPeers.Interleaving` adds `initialized-accept-failure`. It
+follows the existing path to step 55, where the PSA monitor pool is open. The
+accept loop then fails and the listener closes. The accept result is published
+and joined, and the stop is traced. Only then does the monitor pool close, and
+the action thread is joined. The supply invariant holds at the end.
+
+Controls:
+
+- The failed loop takes no cancellation request.
+- No new connection is accepted after the failure.
+- The peer side stays open.
+- The loop cannot fail after the stop.
+
+Several listeners, and therefore the cancellation of the other loops by
+`withAsyncAll`, remain excluded. SI5, admission/API quiescence, source refinement
 and G3–G5 remain open.

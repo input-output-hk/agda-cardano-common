@@ -70,6 +70,9 @@ data Stage : Set where
   serving actionBodyExited actionResultAvailable closingAccept acceptCancelRequested
     acceptCancelDelivered acceptBodyExited acceptResultAvailable acceptJoined
     serverStopped actionJoined igCancelRequested igJoined closingCM serverReturned : Stage
+  -- The accept loop raised on its own (a fatal AcceptFailure, or a failure
+  -- after accept); its finally has not yet closed the listener.
+  acceptFailed : Stage
 -- The inbound-governor thread's own progress (InboundGovernor.hs 194-235). Its
 -- catch body (deactivate, drain, final trace, rethrow) runs on the IG thread,
 -- whether it was entered by the Server's cancellation or by the IG's own
@@ -345,6 +348,10 @@ data ScopeAction : Set where
   -- waitEither returns the failed IG thread before the action thread: the race
   -- then cancels the accept loops while the action thread keeps running.
   igWins : ScopeAction
+  -- The accept loop raises (Server.hs 207-249): a fatal AcceptFailure, or a
+  -- getLocalAddr/trace failure after accept, which first closes the accepted
+  -- socket. Its finally then closes the listener and raceAll rethrows.
+  acceptFails : ScopeAction
   -- Asynchronous cancellation of the thread running Server.with while it waits
   -- in the race (the node's ordinary shutdown). The race cancels the accept
   -- loops before withAsync cancels the still-running action thread.
@@ -377,6 +384,7 @@ chooseScope deliverAcceptAtWait s with stage s
 ... | _ = nothing
 chooseScope closeListener s with stage s
 ... | acceptCancelDelivered = just (scopePlan acceptBodyExited false (ig s) nothing)
+... | acceptFailed = just (scopePlan acceptBodyExited false (ig s) nothing)
 ... | _ = nothing
 chooseScope publishAcceptResult s with stage s
 ... | acceptBodyExited = just (scopePlan acceptResultAvailable (listenerOpen s) (ig s) nothing)
@@ -423,6 +431,14 @@ chooseScope joinIG s with stage s | ig s
 ... | _ | _ = nothing
 -- The failed IG thread wins waitEither before the action thread's result is
 -- selected; the race then closes the accept loops.
+-- The accept loop can fail until the race's cancellation reaches it.
+chooseScope acceptFails s with stage s
+... | serving = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+... | actionBodyExited = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+... | actionResultAvailable = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+... | closingAccept = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+... | acceptCancelRequested = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+... | _ = nothing
 chooseScope igWins s with stage s | ig s
 ... | serving | igResultAvailable = just (scopePlan closingAccept (listenerOpen s) igResultAvailable nothing)
 ... | actionBodyExited | igResultAvailable = just (scopePlan closingAccept (listenerOpen s) igResultAvailable nothing)

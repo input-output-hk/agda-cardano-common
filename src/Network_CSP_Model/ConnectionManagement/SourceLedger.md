@@ -153,11 +153,11 @@ is still running when the Server unwinds, which the chain cannot express.
 | Action thread returns `x` | Implemented | `ServerAdmission` scope chain; not used by the production callers |
 | Action thread raises (sync or async), via `waitEither` | Implemented (increment 1, reinterpretation) | The same chain; `TrServerError` is merged into the `traceStopped` contract and the final rethrow is not model state |
 | IG thread raises first (it is `Void`), via `waitEither` | Implemented (increment 69) | The IG phase is separate from the Server stage. `failIGBody` or `ServerIGExit.fail` enters the catch while the Server serves; `igWins` closes the accept loops once the IG result is available; the later `joinIG` reads the finished thread's result |
-| An accept loop raises first (`raceAll` / `waitAny`) | **Missing** | Fatal `AcceptFailure`, `getLocalAddr` failure or tracer failure. `withAsyncAll` cancels the other loops, then the waiter; the action and IG scopes then unwind |
+| An accept loop raises first (`raceAll` / `waitAny`) | Implemented for one listener (increment 70) | `acceptFails` (to `acceptFailed`) until the race's cancellation reaches the loop; its `finally` closes the listener, then the existing chain runs while the action thread is still live. Cancelling other loops is excluded with several listeners |
 | External cancellation of the thread running `Server.with` | Implemented (increment 68) | `interruptServer`: the race wait is interrupted, the accept chain runs while the peer side stays live, and the action thread is joined only after the peer side closes. Diffusion races the remote thread with the counters loop and the local thread (`Diffusion.hs` 281–296) |
 | `AcceptFailure` with `ECONNABORTED`: delay and retry | Excluded (no state change) | Not modelled; a delay with no allocation |
 | `runConnectionRateLimits` delays | Excluded | Recorded as absent in the README; timing only |
-| `getLocalAddr`/trace failure after `accept` | **Missing** | Closes the accepted socket, then kills the accept loop and hence the Server |
+| `getLocalAddr`/trace failure after `accept` | Implemented (increment 70) | The same `acceptFails` step: the accepted socket is closed before any handoff and never enters the model's socket table |
 | Raw admission worker (bare `async`) | Implemented for selected phases | `ServerAdmission` workers. They outlive the scope, as the [Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) shows |
 | Raw admission worker errors before handoff | Missing (already recorded as open) | Accept/getLocalAddr/tracer/fork errors before handoff |
 | Several listeners | Excluded (one listener) | The `withAsyncAll` cancellation order of several loops is not modelled |
@@ -199,7 +199,7 @@ is still running when the Server unwinds, which the chain cannot express.
    a faithful model over an exclusion: the IG thread's phase is now separate
    from the Server stage.
 3. **Accept-loop failure as race winner**, including the `getLocalAddr`
-   failure after a successful accept.
+   failure after a successful accept. Done in increment 70.
 4. **External cancellation** of the remote thread (counters-loop or local
    thread failure, or node shutdown). Done in increment 68, ahead of 2 and 3,
    because it is the ordinary node-shutdown path.

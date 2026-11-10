@@ -310,6 +310,7 @@ module Frontend (canInitiate : HandleId → ℕ → Bool) where
  ... | A.closingAccept = case eq of λ ()
  ... | A.acceptCancelRequested = case eq of λ ()
  ... | A.acceptCancelDelivered = case eq of λ ()
+ ... | A.acceptFailed = case eq of λ ()
  ... | A.acceptBodyExited = case eq of λ ()
  ... | A.acceptResultAvailable = case eq of λ ()
  ... | A.acceptJoined = case eq of λ ()
