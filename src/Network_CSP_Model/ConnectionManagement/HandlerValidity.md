@@ -85,3 +85,38 @@ agda ConnectionManagement/Negative/HandlerValidity.agda +RTS -M2G -RTS
 Next extend global preservation to reference-chain validity, and extend tracking
 to more source scenarios.
 These obligations remain separate from outbound acquisition and OG integration.
+
+## Scope in the current supervised stack (10 November 2026)
+
+`valid`, `fullyTracked` and `TrackedChain` read the legacy lifecycle store
+`Machine.handlerLifecycles`. Only a raw `Machine.handlerStep` adds a frame to it.
+In the supervised stack that store stays empty, so `valid` holds trivially,
+`fullyTracked` fails once any mux is installed, and `TrackedChain` holds of
+nothing. These predicates therefore say nothing about current runs. Handler
+phase is now tracked by `HandlerSupervision` threads, `MuxHandlerSupervision`
+frames, `MuxStartupUnwind`, `MuxGroupShutdown` and `MuxHandlerExit` exit frames.
+
+[LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda) proves the empty
+store at the layers that can forward source operations:
+
+- `machine-preserves`: every `Machine.advance` except `handlerStep` keeps an
+  empty store empty; `outbound-preserves` lifts this to every
+  `OutboundMachine.advance` except an inbound `handlerStep`.
+- `Raw.from-initial`: every initialized `HandlerSupervision` run keeps it empty.
+  The initializer requires an empty store and `rawAllowed` refuses raw
+  `handlerStep`, `handlerExit`, `cleanupStep` and publication.
+- `Physical.from-initial`: the same for every initialized
+  `OutboundHandlerSupervision` run, which refuses raw inbound operations on its
+  outbound side.
+
+Above these two layers the claim rests on an audit, not a proof. A search of the
+non-test modules for `O.inbound (`, `Sub.core (` and `O.advance <variable>`
+shows that the upper layers reach the source only through the supervised layers
+or through fixed operations: `igStep` (mux, protocol-job, monitor, group and
+unwind layers), `handlerPublication` (mux supervision), `handlerExit` and
+`cleanupStep` (handler exit) and outbound acquire/release calls. Their generic
+`machine` plans are built only from those constants. The peer side cannot issue
+raw core operations (`ServerPeers.rawPeerAllowed (Sub.core _) = false`). Each of
+these operations is covered by `outbound-preserves`. A per-layer proof up to the
+top-level runtime is deferred to the phase/cleanup validity work, which needs
+the same layer chain.
