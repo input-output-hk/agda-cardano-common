@@ -143,5 +143,22 @@ cases adapt the admission-table proofs of `InboundOriginCore`.
 
 `Raw.from-initial` and `Physical.from-initial` prove that every initialized
 `HandlerSupervision` and `OutboundHandlerSupervision` run keeps this agreement.
-Exit frames of `MuxHandlerExit`, which also write cleanup records for framed
-workers, and the layers above `OutboundHandlerSupervision` are not yet covered.
+
+[MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda) extends it through the mux,
+protocol-job, result-monitor and group layers to `MuxHandlerExit`.
+`Exit.from-initial` proves for every initialized handler-exit run:
+
+- Each exit frame's phase determines its worker's cleanup record: none from
+  `bufferScope` to `bodyExited`, some record while `finalizing`, and
+  `cleanupDone o` at `cleanupComplete`/`resultAvailable` with outcome `o`.
+- A worker with an exit frame has a mux frame.
+- A framed worker keeps a `handshaking` physical thread. Without an exit frame
+  it has no cleanup record.
+- Unframed workers satisfy the physical-thread agreement above.
+
+The handler-level step proof is relativized (`Relative` in HandlerPhaseCleanup):
+handler operations whose target is unframed leave every framed worker's thread
+and cleanup record intact, which the mux layer's `unframed` guard guarantees.
+The frame-presence and layer structure adapt the skeleton of `HandlerAuxBacking`.
+The layers above `MuxHandlerExit` (startup unwind, exit cancellation, DeltaQ,
+catch and publication unwind, server admission and peers) are not yet covered.
