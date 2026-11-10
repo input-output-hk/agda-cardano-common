@@ -314,7 +314,11 @@ Handler/server scope integration remains open. Detached cleanup capture/supply v
 is now proved in `Properties/GovernorPoolSupply` for arbitrary finite coupled
 executions, with explicit initial supply bounds. Accordingly the existing production
 profile's external `completeShutdown` boundary is retained until that wider
-certificate can be derived. The
+certificate can be derived. In the composed model (pool relays around the
+Server/peer runtime) SI5a now derives the Server return, peer closure and
+relays join instead
+([ServerShutdownComplete](Properties/ServerShutdownComplete.agda)); the
+standalone policy wrapper is unchanged and still uses the boundary. The
 [pool source audit](../review/connection-management-pool-supervision-source-audit-2026-10-27.md)
 records these source distinctions and dependency limits.
 

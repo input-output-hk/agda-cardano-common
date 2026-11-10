@@ -206,7 +206,9 @@ is still running when the Server unwinds, which the chain cannot express.
 5. **SI5:** derive `completeShutdown` from the exceptional exit and the existing
    CM/handler certificates, for the justified one-listener profile. Admission
    quiescence stays separate: raw admission workers outlive the scope in every
-   branch.
+   branch. SI5a is done in increment 71 (Server return, peer closure with
+   component certificates, relays join). SI5b, the CM coordinator at the final
+   state, is open.
 
 
 ## Current implementation coverage

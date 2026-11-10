@@ -183,9 +183,12 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   the accept loop failing first in
   [increment 70](#seventieth-increment-the-accept-loop-fails-first). All
   missing `Server.with` exit branches of the audit are now modelled for one
-  listener. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
-  explicitly delivered completion boundary; the new local certificates do not
-  discharge it. Any API-quiescence premise or source change needs its own
+  listener. [Increment 71](#seventy-first-increment-derived-shutdown-certificate-for-the-outer-composition-si5a)
+  (SI5a) derives the Server return, peer closure with its component
+  certificates, and the relays join from one initialized outer history. The
+  CM-coordinator part (SI5b) remains open. [ProductionPolicy](Rules/ProductionPolicy.agda)
+  still accepts an explicitly delivered completion boundary as a standalone
+  wrapper. Any API-quiescence premise or source change needs its own
   evidence. G0–G5 and CM-I4c remain open.
 
 ## Milestones and completion criteria
@@ -202,7 +205,7 @@ recheck the actual theorem types and worktree.
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
 | SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are committed in `898a02d`. Increment 62 is committed in `8636e88`, with outbound resource proofs under `O.initial core` and fresh full acceptance. Increment 63 finished-target integration is committed in `8dd2452`, with fresh full acceptance recorded below. Increment 64 outbound mux integration is committed in `eef9971`, with fresh full acceptance recorded below. Increment 65 TIME_WAIT integration is accepted and uncommitted, with fresh full acceptance recorded below. Remaining shutdown routes and full scope/quiescence obligations remain open. |
-| SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | Requires SI2–SI4. |
+| SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | SI5a (increment 71): Server return, peer closure and component certificates, and relays join, derived for every initialized outer run reaching the finished relays state. SI5b (CM coordinator closed with snapshot results collected at that state) open. |
 
 The current production-policy wrapper's explicit completed-supervision boundary
 remains a scoped assumption until SI5. No theorem about a smaller component may
@@ -315,7 +318,7 @@ statement or acceptance requirement may be relaxed during migration.
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
 | Admission/API quiescence | Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
-| SI5 derived completion | Depends on the required handler/scope certificates and the quiescence resolution. Replace [ProductionPolicy.completeShutdown](Rules/ProductionPolicy.agda)'s external completion boundary only for the justified profile, using one initialized composed history. No eventual-completion claim follows without separate progress assumptions. |
+| SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) for the one-listener profile, from one initialized outer history. SI5b needs a full-stack proof that the closed CM shutdown coordinator is not rewritten, then its `FinalWait` certificate at the final state. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
 Explorer work can start with its interface and bound manifest while proofs run.
@@ -6957,3 +6960,81 @@ Controls:
 Several listeners, and therefore the cancellation of the other loops by
 `withAsyncAll`, remain excluded. SI5, admission/API quiescence, source refinement
 and G3–G5 remain open.
+
+## Seventy-first increment: derived shutdown certificate for the outer composition (SI5a)
+
+Checked 10 November 2026. This is the first part of SI5. It derives the
+peer-side, Server and relays parts of a complete shutdown from one initialized
+history of the outermost composition. The pool relays scope wraps the
+Server/peer runtime (`ServerPeersRelays.Protocols`). The CM-coordinator part is
+deferred to SI5b, as agreed.
+
+Statement ([ServerShutdownComplete](Properties/ServerShutdownComplete.agda),
+`Protocols.complete`). Take a runtime initialized by `T.initialize c g` and an
+outer run from it, with relays `initial scheduled`, to a state whose relays are
+`finished`. Its final runtime satisfies `Complete`:
+
+- `serverReturned`: the Server stage is `serverReturned`.
+- `peerClosed`: the governor and PSA monitor pools are `closedPool`, and the
+  scope coordinator is finished.
+- `peerComponents`: `Certificates` of [ServerPeers](Properties/ServerPeers.agda).
+  Every governor and monitor snapshot job has an available Async result, and
+  all four inner scopes are joined.
+- `relays`: a node without relays has no thread, and on a node with relays the
+  thread is `joined`.
+
+Proof layers:
+
+1. [ServerStageEntry](Properties/ServerStageEntry.agda) shows that only Server
+   scope actions change the Server stage, at the admission and IG-exit layers.
+   It also shows that the only scope action entering a post-join stage
+   (`actionJoined` and later) from an earlier stage is
+   `cancelJoinReturnedAction`. The IG-exit plans keep the stage, and only a
+   `run` action delegates to the Server.
+2. In ServerShutdownComplete, a closed job pool and a finished scope coordinator
+   admit no change. Along the projected pool/scope traces of `advance-projects`,
+   `peerClosed` therefore persists.
+3. At the shared layer, peer and common CM steps keep the stage. A Server scope
+   step passes `serverAllowed`, and for `cancelJoinReturnedAction` that is
+   `peerClosed`. Through the runtime plans (result caching writes only peer
+   context) this gives the invariant: at a post-join stage, the peer side is
+   closed. It holds initially (`serving`) and is preserved by every
+   `T.advance`.
+4. The outer run projects to an inner runtime run. `Certified.from-initial`
+   gives the inner return and the relays join, and `present-preserved` ties the
+   relays to the initial choice. The invariant at `serverReturned` gives peer
+   closure, and `initial-components` gives the component certificates.
+
+[Negative/ServerShutdownComplete](Negative/ServerShutdownComplete.agda) applies
+the theorem to the initialized scheduled-node close of `Negative/PoolRelays`
+(the accepted server-return run lifted into the relays scope, then relays
+cancellation, join and owner return).
+
+Scope and limits:
+
+- **SI5b (open):** the CM coordinator is closed, with its snapshot handler
+  results collected, at the final state. `finishServer` requires
+  `Close.closed` when it enters `serverReturned`. Persistence after that needs
+  every writer of the shutdown coordinator, through all layers, to go through a
+  `CMShutdown` step. That full-stack lift is not done.
+- The following stay excluded:
+  - raw admission workers, which outlive the scope;
+  - handlers forked after the CM snapshot;
+  - several listeners;
+  - fatal delivery as the cause of interruption, which stays abstract.
+- Accept, action and IG joins are read off the stage order. `serverReturned`
+  is entered only from `closingCM`, after `joinAccept`, `cancelJoinReturnedAction`
+  and `joinIG`. No separate history record is proved.
+- No eventuality or fairness claim: the certificate holds for runs that reach
+  the finished relays state.
+- [ProductionPolicy](Rules/ProductionPolicy.agda) and its external
+  `completeShutdown` boundary are unchanged. In the composed model the boundary
+  is superseded by this certificate for the parts above; the standalone policy
+  wrapper still uses it.
+
+Checks (one Agda process at a time, 25 GB cgroup, `-M20G`):
+`Properties/ServerStageEntry` (37 s, 2.0 GB), `Properties/ServerShutdownComplete`
+(51 s, 3.0 GB, no warnings) and `Negative/ServerShutdownComplete` (44 s,
+6.2 GB, no warnings, over cached `Negative/PoolRelays`).
+No postulates, holes or unsafe flags were added. SI5b, admission/API
+quiescence, CM-I4c reference validity and G3–G5 remain open.
