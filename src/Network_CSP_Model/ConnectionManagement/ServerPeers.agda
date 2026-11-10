@@ -8,7 +8,7 @@ open import Data.Bool using (Bool)
 module ConnectionManagement.ServerPeers
   (isBearerClosed isIOManagerError : ErrorId → Bool) where
 
-open import Data.Bool using (true; false; _∧_)
+open import Data.Bool using (true; false; _∧_; not)
 open import Data.List using (List; []; _∷_)
 open import Data.Nat using (ℕ)
 open import Data.Maybe using (Maybe; just; nothing)
@@ -61,9 +61,19 @@ peerClosed s with GP.Pool.phase (C.governorPool (context s)) |
   PS.Pool.phase (C.monitorPool (context s)) | Scope.closed (C.scopes (context s))
 ... | GP.Pool.closedPool | PS.Pool.closedPool | true = true
 ... | _ | _ | _ = false
+-- The peer side runs until its own unwind closes it. After an interrupted
+-- Server it stays live while the Server unwinds, until the action thread is
+-- cancelled and joined; on the returned-action path it is already closed.
 peerOpen : State → Bool
 peerOpen s with S.stage (E.base (server s))
 ... | S.serving = true
+... | S.closingAccept = not (peerClosed s)
+... | S.acceptCancelRequested = not (peerClosed s)
+... | S.acceptCancelDelivered = not (peerClosed s)
+... | S.acceptBodyExited = not (peerClosed s)
+... | S.acceptResultAvailable = not (peerClosed s)
+... | S.acceptJoined = not (peerClosed s)
+... | S.serverStopped = not (peerClosed s)
 ... | _ = false
 
 -- Future establishing jobs reserve their socket even before CM opens it.
@@ -136,6 +146,7 @@ releaseCallerAllowed caller s with lookup caller (O.releasing (source s))
 serverAllowed : E.Action → State → Bool
 serverAllowed (E.run (S.acceptedFork w req)) s = newActors w (Shared.child req) (Shared.socketRef req) s
 serverAllowed (E.run (S.scope S.returnAction)) s = peerClosed s
+serverAllowed (E.run (S.scope S.cancelJoinReturnedAction)) s = peerClosed s
 serverAllowed (E.run (S.run a)) s with S.releaseReceiptCaller a
 ... | just caller = releaseCallerAllowed caller s
 ... | nothing with S.outboundCaller a

@@ -175,9 +175,10 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   completion. The [SI4 source-coverage audit](SourceLedger.md#si4-source-coverage-audit-10-november-2026)
   finds that both production `Server.with` callbacks can exit only by an
   exception. The existing Server exit chain follows that exit step for step and
-  is now read as it (increment 1, documentation only). Still open: the IG thread
-  and an accept loop as race winners, and external cancellation, where the
-  action thread is still running when the Server unwinds. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
+  is now read as it (increment 1, documentation only). External cancellation,
+  the ordinary node-shutdown path, is implemented in
+  [increment 68](#sixty-eighth-increment-external-server-interruption). Still
+  open: the IG thread and an accept loop as race winners. [ProductionPolicy](Rules/ProductionPolicy.agda) still accepts an
   explicitly delivered completion boundary; the new local certificates do not
   discharge it. Any API-quiescence premise or source change needs its own
   evidence. G0–G5 and CM-I4c remain open.
@@ -6745,3 +6746,62 @@ The endpoint source is unchanged by this increment. No postulate, hole or
 termination pragma was added. Evidence: `/tmp/cm-inc67-20261110/accept/`.
 
 CM-I4c, SI4/SI5, admission/API quiescence, source refinement and G3–G5 remain open.
+
+## Sixty-eighth increment: external Server interruption
+
+Checked 10 November 2026. This is SI4 increment 2 of the
+[source-coverage audit](SourceLedger.md#si4-source-coverage-audit-10-november-2026).
+On ordinary node shutdown, the thread running `Server.with` receives
+`AsyncCancelled` while it waits in its race (network `2f1c154`, `Server.hs`
+165–175; `Diffusion.hs` 281–296). The race cancels the accept loops, the
+listener closes and `TrServerStopped` is traced. Only then does `withAsync`
+cancel the action thread. Until that point the peer side (governor, churn,
+providers and PSA) is fully live and can still start CM calls. The peer side
+then unwinds by cancellation, the action thread is joined, and the IG and CM
+scopes unwind as before.
+
+Model changes:
+
+- [ServerAdmission](ServerAdmission.agda) adds the scope action
+  `interruptServer`, from `serving` to `closingAccept`, without an action exit.
+  The rest of the scope chain is reused.
+- In [ServerPeers](ServerPeers.agda), `peerOpen` also holds in the stages from
+  `closingAccept` to `serverStopped` while the peer side has not closed, and
+  `cancelJoinReturnedAction` requires `peerClosed`. On the returned-action path
+  the peer side is closed before `returnAction`, so that path is unchanged.
+  Peer-side unwinding remains the abstract `AsyncScope.beginUnwind`; on this path
+  its cause is the delivered cancellation.
+
+Checks: the 74 modules affected by the model change pass with no proof change,
+through the five top-level modules `Properties/FrontendPhaseCleanup`,
+`Negative/ServerAdmissionInvariants`, `Negative/ServerIGExit`,
+`Negative/PoolRelays` and `Negative/ServerPeersReleaseTimeWait` (exit 0).
+
+Fresh acceptance passed: a strict interaction-mode load of the endpoint
+`Negative/ServerPeersOrigins` after removing its interface reported checked,
+fresh checking, no goals, warnings or errors, and an unchanged source hash
+(207 s, 11.2 GB). `Negative/PoolRelays` (73 s), a cached endpoint
+confirmation (51 s) and `Negative/ServerPeersReleaseTimeWait` (51 s) passed.
+Evidence is in the session scratchpad `si4b/`.
+
+`Negative/ServerPeers.Interleaving` adds an initialized witness,
+`initialized-interrupt`. It follows the existing path to step 55, where the peer
+scopes have finished but the PSA monitor pool is open. It then interrupts the
+Server, closes the accept loop and the listener, and traces the stop. The
+monitor pool closes after that, and the action thread is joined last. The
+supply invariant holds at the end (`interrupt-supply`).
+
+Controls:
+
+- `no-join-before-peer-close`: the action thread cannot be joined while the peer
+  side is open.
+- `no-return-after-interrupt`: the action cannot return after an interruption.
+- `no-second-interrupt`: the Server can be interrupted only once.
+- `peer-live-after-stop` and `peer-shut-after-close`: the peer side stays open
+  after the stop until it closes.
+
+The witness interrupts after the peer scopes have already unwound by their own
+failure. It does not cover a full peer-side unwind started by the interruption,
+or new CM calls between the interruption and the action cancellation, although
+the model now allows both. The IG thread and an accept loop as race winners
+remain open, as do SI5, admission/API quiescence, source refinement and G3–G5.

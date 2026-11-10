@@ -333,6 +333,10 @@ data ScopeAction : Set where
     deliverAcceptAtWait closeListener publishAcceptResult joinAccept traceStopped
     cancelJoinReturnedAction requestIGCancel deliverIGBody deactivateIG flushIG
     finishIGBody publishIGResult joinIG beginCM finishServer : ScopeAction
+  -- Asynchronous cancellation of the thread running Server.with while it waits
+  -- in the race (the node's ordinary shutdown). The race cancels the accept
+  -- loops before withAsync cancels the still-running action thread.
+  interruptServer : ScopeAction
 record ScopePlan : Set where
   constructor scopePlan
   field nextStage : Stage
@@ -345,6 +349,9 @@ chooseScope returnAction s with stage s
 ... | _ = nothing
 chooseScope publishActionResult s with stage s
 ... | actionBodyExited = just (scopePlan actionResultAvailable (listenerOpen s) nothing)
+... | _ = nothing
+chooseScope interruptServer s with stage s
+... | serving = just (scopePlan closingAccept (listenerOpen s) nothing)
 ... | _ = nothing
 chooseScope selectActionWinner s with stage s
 ... | actionResultAvailable = just (scopePlan closingAccept (listenerOpen s) nothing)

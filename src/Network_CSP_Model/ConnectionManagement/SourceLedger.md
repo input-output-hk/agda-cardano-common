@@ -154,7 +154,7 @@ is still running when the Server unwinds, which the chain cannot express.
 | Action thread raises (sync or async), via `waitEither` | Implemented (increment 1, reinterpretation) | The same chain; `TrServerError` is merged into the `traceStopped` contract and the final rethrow is not model state |
 | IG thread raises first (it is `Void`), via `waitEither` | **Missing** | The IG `catch` deactivates, drains, traces and rethrows inside the IG thread before the race. The still-running action thread is cancelled by `withAsync` only after the accept loops close |
 | An accept loop raises first (`raceAll` / `waitAny`) | **Missing** | Fatal `AcceptFailure`, `getLocalAddr` failure or tracer failure. `withAsyncAll` cancels the other loops, then the waiter; the action and IG scopes then unwind |
-| External cancellation of the thread running `Server.with` | **Missing** | Diffusion races the remote thread with the counters loop and the local thread (`Diffusion.hs` 281–296). The async exception lands in the race wait |
+| External cancellation of the thread running `Server.with` | Implemented (increment 68) | `interruptServer`: the race wait is interrupted, the accept chain runs while the peer side stays live, and the action thread is joined only after the peer side closes. Diffusion races the remote thread with the counters loop and the local thread (`Diffusion.hs` 281–296) |
 | `AcceptFailure` with `ECONNABORTED`: delay and retry | Excluded (no state change) | Not modelled; a delay with no allocation |
 | `runConnectionRateLimits` delays | Excluded | Recorded as absent in the README; timing only |
 | `getLocalAddr`/trace failure after `accept` | **Missing** | Closes the accepted socket, then kills the accept loop and hence the Server |
@@ -202,7 +202,8 @@ is still running when the Server unwinds, which the chain cannot express.
 3. **Accept-loop failure as race winner**, including the `getLocalAddr`
    failure after a successful accept.
 4. **External cancellation** of the remote thread (counters-loop or local
-   thread failure).
+   thread failure, or node shutdown). Done in increment 68, ahead of 2 and 3,
+   because it is the ordinary node-shutdown path.
 5. **SI5:** derive `completeShutdown` from the exceptional exit and the existing
    CM/handler certificates, for the justified one-listener profile. Admission
    quiescence stays separate: raw admission workers outlive the scope in every

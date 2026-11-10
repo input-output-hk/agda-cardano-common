@@ -502,6 +502,61 @@ module Interleaving where
   callback-certificates : Facts.Certificates (F.at F.finalSource F.kdone)
   callback-certificates = Facts.callback-from-initial initializer initialized-before-return step58
 
+
+  -- SI4 increment 2: asynchronous cancellation of the thread running
+  -- Server.with. At step 55 the peer scopes have finished but the PSA monitor
+  -- pool is still open. The Server is interrupted there: the accept loop closes
+  -- and the Server stops while the peer side is still live; only after the
+  -- monitor pool closes is the action thread joined.
+  open import Data.List using (take; _++_)
+  open import Data.Bool using (Bool)
+  live : C.Context
+  live = F.atScope F.q22 F.kclosed
+  staged : S.Stage → Bool → C.Context → K.State
+  staged st lo k = K.combined (record (F.serverAt F.finalSource)
+    { base = record (E.base (F.serverAt F.finalSource)) { stage = st; listenerOpen = lo } }) k
+  interrupt1 : K.step (K.serverStep (E.run (S.scope S.interruptServer))) (F.at F.finalSource live) ≡ just (staged S.closingAccept true live)
+  interrupt1 = refl
+  interrupt2 : K.step (K.serverStep (E.run (S.scope S.requestAcceptCancel))) (staged S.closingAccept true live) ≡ just (staged S.acceptCancelRequested true live)
+  interrupt2 = refl
+  interrupt3 : K.step (K.serverStep (E.run (S.scope S.deliverAcceptAtWait))) (staged S.acceptCancelRequested true live) ≡ just (staged S.acceptCancelDelivered true live)
+  interrupt3 = refl
+  interrupt4 : K.step (K.serverStep (E.run (S.scope S.closeListener))) (staged S.acceptCancelDelivered true live) ≡ just (staged S.acceptBodyExited false live)
+  interrupt4 = refl
+  interrupt5 : K.step (K.serverStep (E.run (S.scope S.publishAcceptResult))) (staged S.acceptBodyExited false live) ≡ just (staged S.acceptResultAvailable false live)
+  interrupt5 = refl
+  interrupt6 : K.step (K.serverStep (E.run (S.scope S.joinAccept))) (staged S.acceptResultAvailable false live) ≡ just (staged S.acceptJoined false live)
+  interrupt6 = refl
+  interrupt7 : K.step (K.serverStep (E.run (S.scope S.traceStopped))) (staged S.acceptJoined false live) ≡ just (staged S.serverStopped false live)
+  interrupt7 = refl
+  interrupt8 : K.step (K.peerStep (PS.beginMonitorClose [])) (staged S.serverStopped false live) ≡ just (staged S.serverStopped false F.kmonitor)
+  interrupt8 = refl
+  interrupt9 : K.step (K.peerStep PS.finishMonitorClose) (staged S.serverStopped false F.kmonitor) ≡ just (staged S.serverStopped false F.kdone)
+  interrupt9 = refl
+  interrupt10 : K.step (K.serverStep (E.run (S.scope S.cancelJoinReturnedAction))) (staged S.serverStopped false F.kdone) ≡ just (staged S.actionJoined false F.kdone)
+  interrupt10 = refl
+  interruptActions : List K.Action
+  interruptActions =
+    (K.serverStep (E.run (S.scope S.interruptServer))) ∷ (K.serverStep (E.run (S.scope S.requestAcceptCancel))) ∷ (K.serverStep (E.run (S.scope S.deliverAcceptAtWait))) ∷ (K.serverStep (E.run (S.scope S.closeListener))) ∷ (K.serverStep (E.run (S.scope S.publishAcceptResult))) ∷ (K.serverStep (E.run (S.scope S.joinAccept))) ∷ (K.serverStep (E.run (S.scope S.traceStopped))) ∷ (K.peerStep (PS.beginMonitorClose [])) ∷ (K.peerStep PS.finishMonitorClose) ∷ (K.serverStep (E.run (S.scope S.cancelJoinReturnedAction))) ∷ []
+  abstract
+    initialized-interrupt : K.Executes F.start (take 55 actions ++ interruptActions) (staged S.actionJoined false F.kdone)
+    initialized-interrupt = (K.next step1 (K.next step2 (K.next step3 (K.next step4 (K.next step5 (K.next step6 (K.next step7 (K.next step8 (K.next step9 (K.next step10 (K.next step11 (K.next step12 (K.next step13 (K.next step14 (K.next step15 (K.next step16 (K.next step17 (K.next step18 (K.next step19 (K.next step20 (K.next step21 (K.next step22 (K.next step23 (K.next step24 (K.next step25 (K.next step26 (K.next step27 (K.next step28 (K.next step29 (K.next step30 (K.next step31 (K.next step32 (K.next step33 (K.next step34 (K.next step35 (K.next step36 (K.next step37 (K.next step38 (K.next step39 (K.next step40 (K.next step41 (K.next step42 (K.next step43 (K.next step44 (K.next step45 (K.next step46 (K.next step47 (K.next step48 (K.next step49 (K.next step50 (K.next step51 (K.next step52 (K.next step53 (K.next step54 (K.next step55 (K.next interrupt1 (K.next interrupt2 (K.next interrupt3 (K.next interrupt4 (K.next interrupt5 (K.next interrupt6 (K.next interrupt7 (K.next interrupt8 (K.next interrupt9 (K.next interrupt10 K.done)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+  interrupt-supply : Inv.Valid (staged S.actionJoined false F.kdone)
+  interrupt-supply = Inv.from-initial-valid initializer (All.[] , All.[]) initialized-interrupt
+  -- Controls: the action is joined only after the peer side closes, it cannot
+  -- return once the Server has been interrupted, the interruption happens once,
+  -- and the peer side stays open exactly until it closes.
+  no-join-before-peer-close : K.step (K.serverStep (E.run (S.scope S.cancelJoinReturnedAction))) (staged S.serverStopped false live) ≡ nothing
+  no-join-before-peer-close = refl
+  no-return-after-interrupt : K.step (K.serverStep (E.run (S.scope S.returnAction))) (staged S.closingAccept true live) ≡ nothing
+  no-return-after-interrupt = refl
+  no-second-interrupt : K.step (K.serverStep (E.run (S.scope S.interruptServer))) (staged S.closingAccept true live) ≡ nothing
+  no-second-interrupt = refl
+  peer-live-after-stop : K.peerOpen (staged S.serverStopped false live) ≡ true
+  peer-live-after-stop = refl
+  peer-shut-after-close : K.peerOpen (staged S.serverStopped false F.kdone) ≡ false
+  peer-shut-after-close = refl
+
 -- A second initialized history keeps a real pending IG release and another raw
 -- worker's lease across peer-scope closure, then runs the checked nonempty exit.
 module IGExit where
