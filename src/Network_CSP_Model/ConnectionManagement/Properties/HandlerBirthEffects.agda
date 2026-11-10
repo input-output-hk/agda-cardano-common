@@ -1531,6 +1531,11 @@ module ExitLayer (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just c = case just-injective eq of λ { refl → stable
    (Lower.CIPaths.retention (Lower.no-growth (G.abortOwner worker err) (W.base s) aborted (λ ()))) }
+ enact-change (W.releaseTimeWaitDelivery caller worker err) s eq with O.advance (O.inbound (M.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s)
+ ... | nothing = case eq of λ ()
+ ... | just c with O.advance (O.release caller (OutboundRelease.cancellationDelivered worker)) c
+ ...   | nothing = case eq of λ ()
+ ...   | just c′ = case just-injective eq of λ { refl → stable refl }
  change : ∀ a s {t} → W.step a s ≡ just t → Change (Selected a s) (view s) (view t)
  change a s eq with W.choose a s in chosen
  ... | nothing = case eq of λ ()

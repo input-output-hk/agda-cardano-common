@@ -145,12 +145,17 @@ module Group (b : ErrorId → Bool) where
 
 
 module Exit (b : ErrorId → Bool) where
- private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; noteCleanup; step; choose)
+ private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; releaseTimeWaitDelivery; noteCleanup; step; choose)
  private module G = GroupModel b using (step; abortOwner; source)
  control-source : ∀ action s {t} → W.control action s ≡ just t → W.source t ≡ W.source s
  control-source action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s)
  ... | nothing = case eq of λ ()
  ... | just next = case just-injective eq of λ { refl → refl }
+ inbound-quiet : ∀ action c {d} → O.advance (O.inbound action) c ≡ just d → Core.QuietMachine action →
+  Shared.admissions (Machine.world (O.core d)) ≡ Shared.admissions (Machine.world (O.core c))
+ inbound-quiet action c actual quiet with Machine.advance action (O.core c) in stepped
+ ... | nothing = case actual of λ ()
+ ... | just next = case just-injective actual of λ { refl → Core.machine-same action (O.core c) stepped quiet }
  enact-effect : ∀ plan s {t} → W.enact plan s ≡ just t → Effect (O.core (W.source s)) (O.core (W.source t))
  enact-effect (W.local fs) s eq = case just-injective eq of λ { refl → same refl }
  enact-effect (W.machine action fs) s eq with O.advance action (W.source s) in actual
@@ -176,6 +181,15 @@ module Exit (b : ErrorId → Bool) where
  ...   | just next = case just-injective eq of λ { refl → same (trans
    (Core.outbound-same (O.release caller (Release.cancellationDelivered worker)) (G.source g) acknowledged tt)
    (Quiet.Group.direct-same b (G.abortOwner worker err) (W.base s) aborted tt)) }
+ -- The release caller's TIME_WAIT interruption is a quiet cleanup step followed
+ -- by its acknowledgement; neither writes inbound admission history.
+ enact-effect (W.releaseTimeWaitDelivery caller worker err) s eq with O.advance (O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s) in interrupted
+ ... | nothing = case eq of λ ()
+ ... | just c with O.advance (O.release caller (Release.cancellationDelivered worker)) c in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → same (trans
+   (Core.outbound-same (O.release caller (Release.cancellationDelivered worker)) c acknowledged tt)
+   (inbound-quiet (Machine.cleanupStep worker (Cleanup.interruptTimeWait err)) (W.source s) interrupted tt)) }
  effect : ∀ action s {t} → W.step action s ≡ just t → Effect (O.core (W.source s)) (O.core (W.source t))
  effect action s eq with W.choose action s
  ... | nothing = case eq of λ ()

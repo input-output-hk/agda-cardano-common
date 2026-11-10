@@ -171,7 +171,7 @@ module Group (b : ErrorId → Bool) where
 
 
 module Exit (b : ErrorId → Bool) where
- private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; noteCleanup; step; choose)
+ private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; releaseTimeWaitDelivery; noteCleanup; step; choose)
  private module G = GroupModel b using (step; abortOwner; source)
  control-source : ∀ action s {t} → W.control action s ≡ just t → W.source t ≡ W.source s
  control-source action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s)
@@ -190,6 +190,12 @@ module Exit (b : ErrorId → Bool) where
   (Release.cancellationDelivered worker) saved (Machine.world (O.core before))
  ...   | nothing = case actual of λ ()
  ...   | just (next , world) = case just-injective actual of λ { refl → refl }
+ -- An inbound machine step never touches the acquisition frames.
+ inbound-acquiring : ∀ action before {after} → O.advance (O.inbound action) before ≡ just after →
+  O.acquiring after ≡ O.acquiring before
+ inbound-acquiring action before actual with Machine.advance action (O.core before)
+ ... | nothing = case actual of λ ()
+ ... | just next = case just-injective actual of λ { refl → refl }
  enact-effect : ∀ plan s {t} → W.enact plan s ≡ just t → Effect (W.source s) (W.source t)
  enact-effect (W.local fs) s eq = case just-injective eq of λ { refl → same refl }
  enact-effect (W.machine action fs) s eq with O.advance action (W.source s) in actual
@@ -214,6 +220,13 @@ module Exit (b : ErrorId → Bool) where
  ...   | just next = case just-injective eq of λ { refl → same (trans
    (ack-acquiring caller worker (G.source g) acknowledged)
    (Quiet.Group.direct-same b (G.abortOwner worker err) (W.base s) aborted tt)) }
+ enact-effect (W.releaseTimeWaitDelivery caller worker err) s eq with O.advance (O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s) in interrupted
+ ... | nothing = case eq of λ ()
+ ... | just c with O.advance (O.release caller (Release.cancellationDelivered worker)) c in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → same (trans
+   (ack-acquiring caller worker c acknowledged)
+   (inbound-acquiring (Machine.cleanupStep worker (Cleanup.interruptTimeWait err)) (W.source s) interrupted)) }
  effect : ∀ action s {t} → W.step action s ≡ just t → Effect (W.source s) (W.source t)
  effect action s eq with W.choose action s
  ... | nothing = case eq of λ ()

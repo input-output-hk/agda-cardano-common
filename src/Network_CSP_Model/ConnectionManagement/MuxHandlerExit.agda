@@ -136,6 +136,7 @@ data Plan : Set where
   muxDelivery : WorkerId → ErrorId → Plan
   timeWaitDelivery : WorkerId → ErrorId → Plan
   releaseDelivery : WorkerId → WorkerId → ErrorId → Plan
+  releaseTimeWaitDelivery : WorkerId → WorkerId → ErrorId → Plan
 
 -- A release keeps its originally captured target even after map replacement
 -- or cleanup. Only the actual delivering caller frame supplies that target.
@@ -176,7 +177,20 @@ data Action : Set where
   deliverShutdownMux deliverShutdownTimeWait : ErrorId → Action
   acknowledgeFinished : Action
   deliverReleaseMux : WorkerId → ErrorId → Action
+  deliverReleaseTimeWait : WorkerId → ErrorId → Action
   acknowledgeReleaseFinished : WorkerId → Action
+
+-- Core.hs 2032/1254: a release caller's throwTo reaches the handler's cleanup
+-- only at its unmasked TIME_WAIT delay (Core.hs 667-668). This is the caller's
+-- target when that handler is finalizing, holds its current capture and waits.
+timeWaitTarget : WorkerId → State → Maybe WorkerId
+timeWaitTarget caller s with releaseTarget caller s
+... | nothing = nothing
+... | just target with lookup target (exits s) | lookup target (Shared.cleanups (shared s))
+...   | just f | just (Shared.cleanupWaiting _) with phase f | currentCapture target f s
+...     | finalizing _ | true = just target
+...     | _ | _ = nothing
+timeWaitTarget caller s | just target | _ | _ = nothing
 
 -- The mux run returns only after withByteCells retired any registered row.
 countersClear : U.Frame → State → Bool
@@ -281,6 +295,9 @@ choose acknowledgeFinished s | _ = nothing
 choose (deliverReleaseMux caller err) s with releaseTarget caller s
 ... | nothing = nothing
 ... | just target = just (releaseDelivery caller target err)
+choose (deliverReleaseTimeWait caller err) s with timeWaitTarget caller s
+... | nothing = nothing
+... | just target = just (releaseTimeWaitDelivery caller target err)
 choose (acknowledgeReleaseFinished caller) s with releaseTarget caller s
 ... | nothing = nothing
 ... | just target with resultReady target s
@@ -313,6 +330,14 @@ enact (releaseDelivery caller target err) s with G.step (G.abortOwner target err
 ... | just g with O.advance (O.release caller (Release.cancellationDelivered target)) (G.source g)
 ...   | nothing = nothing
 ...   | just c = just (setSource c (record s { base = g }))
+-- The interrupted TIME_WAIT and the caller's acknowledgement are coupled, as
+-- for a mux delivery. CM shutdown is not acknowledged, no handler result is
+-- published and the caller does not return.
+enact (releaseTimeWaitDelivery caller target err) s with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (source s)
+... | nothing = nothing
+... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c
+...   | nothing = nothing
+...   | just c′ = just (record (setSource c′ s) { exits = noteCleanup target (Cleanup.interruptTimeWait err) s })
 step : Action → State → Maybe State
 step action s with choose action s
 ... | nothing = nothing

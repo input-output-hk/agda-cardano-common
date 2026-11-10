@@ -161,6 +161,7 @@ runOutbound a = N.run (C.run (D.run (R.run (X.run (W.run (G.run (M.run (P.run (U
 releaseReceiptCaller : N.Action → Maybe WorkerId
 releaseReceiptCaller (N.run (C.run (D.run (R.run (X.run (W.deliverReleaseMux caller err)))))) = just caller
 releaseReceiptCaller (N.run (C.run (D.run (R.run (X.run (W.acknowledgeReleaseFinished caller)))))) = just caller
+releaseReceiptCaller (N.run (C.run (D.run (R.run (X.run (W.deliverReleaseTimeWait caller err)))))) = just caller
 releaseReceiptCaller _ = nothing
 outboundCaller : N.Action → Maybe WorkerId
 outboundCaller (N.run (C.run (D.run (R.run (X.run (W.run (G.run (M.run (P.run (U.run (B.outbound a))))))))))) = caller a

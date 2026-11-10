@@ -358,6 +358,7 @@ inputs, not derived from transport or a clock model.
 | `failSocketClose` / `restoreCleanupMap` | `658/661`, helper exception branch | Mark socket outcome uncertain; restore saved map, retain committed entry writes, expose cleanup error. |
 | `publishCleanupMap` | helper completion | Put proposed map separately; route to counter read or TIME_WAIT. |
 | `timeWaitElapsed` / `interruptTimeWait` | `666–669` | Untimed environment completion/interruption of unmasked delay; both enter finally. |
+| `deliverReleaseTimeWait` | `667–668`; callers `2032`, `1254` | A release caller's `throwTo` lands in its frame's target only during this unmasked delay: `interruptTimeWait` plus the caller's `cancellationDelivered` in one step (increment 67). |
 | `finishTimeWait` | `677–709` | One STM writes captured entry and identity-guards deletion. If map is taken, neither effect commits. Uses captured state, not a refreshed decision. |
 | `readCleanupCounters` | `665/713` | Separate full-map/entry read, then finalizer completion or delayed interruption propagation. |
 

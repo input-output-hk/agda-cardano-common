@@ -51,7 +51,10 @@ is committed in `eef9971`, with fresh full acceptance recorded below.
 [Increment 65](#sixty-fifth-increment-initialized-time_wait-receipt-and-finalizer-routes)
 is committed in `a54d4fd`, with fresh full acceptance recorded below.
 [Increment 66](#sixty-sixth-increment-framed-mux-outbound-release-receipt-and-return)
-is accepted and committed in `daf111d`. The
+is accepted and committed in `daf111d`.
+[Increment 67](#sixty-seventh-increment-release-caller-delivery-at-time_wait)
+adds the release caller's delivery into TIME_WAIT at the handler layer; its
+initialized runtime lift is an open gap. The
 [source-baseline assessment](#next-task-source-baseline-audit) records changed
 source contracts to reconcile before any repin or further proof expansion.
 
@@ -6667,3 +6670,65 @@ CM-I4c and G0–G5 remain open. No native replay, backend/RTS or imported term-l
 axiom audit, presentation refresh or commit was performed. Per the user's newer
 steering, no next proof wave starts; the next task is the
 [source-baseline audit](#next-task-source-baseline-audit).
+
+## Sixty-seventh increment: release-caller delivery at TIME_WAIT
+
+**10 November 2026, at source pin network `2f1c154`.** Increment 66 left release
+interruption at cleanup TIME_WAIT as a coverage gap. A release caller delivers
+with `throwTo` (`Core.hs` 2032 for the outbound timeout, 1254 for inbound
+release). The handler's cleanup runs its TIME_WAIT delay under
+`unmask (threadDelay timeWaitTimeout)` (`Core.hs` 667–668), the only
+interruptible point in cleanup.
+
+`MuxHandlerExit.deliverReleaseTimeWait caller err` takes its target only from
+the caller's own `Release.delivering` frame (`releaseTarget`). The step is enabled
+only when that handler is finalizing, holds its current capture and its cleanup
+is `cleanupWaiting` (`timeWaitTarget`). One step executes the real
+`Cleanup.interruptTimeWait err` source step for the target. It then executes the
+real `Release.cancellationDelivered` acknowledgement for the caller and records
+the cleanup in the handler's exit frame. It does not publish a handler result,
+acknowledge CM shutdown or return the caller. `ServerAdmission` keeps the
+governor-owned caller guard (`releaseReceiptCaller`). The proof cascade
+(exit projections, auxiliary and collected backing, birth effects and both origin
+lowerings) is extended without changing any statement.
+
+[ServerPeersReleaseTimeWait](Properties/ServerPeersReleaseTimeWait.agda) inverts
+an actual step. `waiting-observation` derives the captured target, its frame,
+finalizing phase, current capture and `cleanupWaiting` entry. `timewait-observation`
+derives the two actual source steps and the exact successor. `timewait-shutdown`
+shows the CM coordinator is unchanged. The `Frontend` module lowers the runtime
+event to that physical receipt and derives the outer caller permission.
+
+[Negative/ServerPeersReleaseTimeWait](Negative/ServerPeersReleaseTimeWait.agda)
+starts from the accepted TIME_WAIT snapshot (`TimeWaitChecks.WaitingPrefix`) with
+the caller frame of increment 66 (`ReleaseMuxChecks.reframe`). Each edge is a
+handler-layer `W.step`, proved by `refl`: the delivery, `finishTimeWait`, counter
+read, `finishCleanup`, publication, then CM request, finished acknowledgement,
+traversal and final wait. Receipt facts come from the actual step. Before the
+caller returns there is no result and no released value; afterwards the
+caller has its captured result. Controls refuse delivery before the request,
+a duplicate, an unknown caller, masked cleanup before TIME_WAIT, a stale capture,
+delivery after CM shutdown has already interrupted TIME_WAIT, and substituting
+the finished-target acknowledgement.
+
+**Open gap.** These are handler-layer edges from a fixture snapshot, not an
+initialized runtime run. Lifting the route through the embedding
+(`endpoint-up`) exhausts a 20 GB heap even with every permission field left
+open. Proving all ten runtime edges by `refl` took 2 h 22 min. Extending the
+retention certificate (`TimeWaitChecks.retain`) to the final state exhausts the
+heap again. The cause is not yet understood; increment 66 uses the same
+combination at acceptable cost. Retention of the birth packet through this
+route is therefore not established.
+
+**Validation.** All checks ran sequentially under Agda 2.8.0 with a 20 GB heap,
+a 25 GB scope and swap disabled. The witness module checked in 86 s (peak RSS
+17.9 GB). Every top module of the 123-module affected set passed with exit 0:
+the 18 `Negative/Mux*`, PoolRelays, ServerAdmissionInvariants and ServerIGExit
+fixtures, and `Properties/MuxInitiatorTrace`. Fresh strict interaction acceptance of
+`Negative/ServerPeersOrigins.agda` passed in 154.8 s (10.9 GB). It recorded the
+endpoint's own `Checking` line, exit 0, `DoneExiting`, empty goals, warnings and
+errors, and an unchanged source hash. A cached CLI confirmation passed in 45 s.
+The endpoint source is unchanged by this increment. No postulate, hole or
+termination pragma was added. Evidence: `/tmp/cm-inc67-20261110/accept/`.
+
+CM-I4c, SI4/SI5, admission/API quiescence, source refinement and G3–G5 remain open.

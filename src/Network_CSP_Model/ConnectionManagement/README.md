@@ -62,6 +62,9 @@ separate source return, retaining the same birth/resources through final CM wait
 Fresh full acceptance passed; it is committed in `daf111d`. The generic
 [release receipt properties](Properties/ServerPeersReleaseReceipt.agda) derive
 captured-target, source acknowledgement, permission and coordinator evidence.
+[Increment 67](Supervision.md#sixty-seventh-increment-release-caller-delivery-at-time_wait)
+adds the caller's delivery into the target's TIME_WAIT at the handler layer;
+its initialized runtime lift remains open.
 The [latest-source audit](../review/connection-management-source-baseline-audit-2026-11-06.md)
 verified the observed `2e44d98…` / `2f1c154…` pair. The [migration](BASELINE_MIGRATION_PLAN.md)
 then implemented its changed held-batch readiness, setup, scheduling,

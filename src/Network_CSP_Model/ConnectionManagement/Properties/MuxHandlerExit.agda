@@ -97,6 +97,14 @@ enact-projects (W.releaseDelivery caller target err) s eq with G.step (G.abortOw
 ...   | just c = case just-injective eq of λ { refl → compose
   (from-base s (record s { base = g }) (Base.step-projects (G.abortOwner target err) (W.base s) aborted))
   (source-step (O.release caller (Release.cancellationDelivered target)) (record s { base = g }) acknowledged) }
+enact-projects (W.releaseTimeWaitDelivery caller target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) in advanced
+... | nothing = case eq of λ ()
+... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c in acknowledged
+...   | nothing = case eq of λ ()
+...   | just c′ = case just-injective eq of λ { refl → compose (compose
+  (source-step (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) s advanced)
+  (source-step (O.release caller (Release.cancellationDelivered target)) (W.setSource c s) acknowledged))
+  (metadata (W.setSource c′ (W.setSource c s)) (W.noteCleanup target (Cleanup.interruptTimeWait err) s)) }
 step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → Paths s s′
 step-projects action s eq with W.choose action s
 ... | nothing = case eq of λ ()
@@ -276,6 +284,14 @@ module CaptureIdentity where
   ...   | just c = case just-injective eq of λ { refl → ci-compose
     (ci-from-base s (record s { base = g }) (CIBase.step-stable (G.abortOwner target err) (W.base s) aborted))
     (ci-source-step (O.release caller (Release.cancellationDelivered target)) (record s { base = g }) acknowledged) }
+  ci-enact-projects (W.releaseTimeWaitDelivery caller target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c in acknowledged
+  ...   | nothing = case eq of λ ()
+  ...   | just c′ = case just-injective eq of λ { refl → ci-compose (ci-compose
+    (ci-source-step (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) s advanced)
+    (ci-source-step (O.release caller (Release.cancellationDelivered target)) (W.setSource c s) acknowledged))
+    (ci-metadata (W.setSource c′ (W.setSource c s)) (W.noteCleanup target (Cleanup.interruptTimeWait err) s)) }
   ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
   ci-step-projects action s eq with W.choose action s
   ... | nothing = case eq of λ ()
@@ -341,6 +357,14 @@ module CommittedRows where
   ...   | just c = case just-injective eq of λ { refl → ci-compose
     (ci-from-base s (record s { base = g }) (CIBase.step-stable (G.abortOwner target err) (W.base s) aborted))
     (ci-source-step (O.release caller (Release.cancellationDelivered target)) (record s { base = g }) acknowledged) }
+  ci-enact-projects (W.releaseTimeWaitDelivery caller target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c in acknowledged
+  ...   | nothing = case eq of λ ()
+  ...   | just c′ = case just-injective eq of λ { refl → ci-compose (ci-compose
+    (ci-source-step (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) s advanced)
+    (ci-source-step (O.release caller (Release.cancellationDelivered target)) (W.setSource c s) acknowledged))
+    (ci-metadata (W.setSource c′ (W.setSource c s)) (W.noteCleanup target (Cleanup.interruptTimeWait err) s)) }
   ci-step-projects : ∀ action s {s′} → W.step action s ≡ just s′ → CIPaths s s′
   ci-step-projects action s eq with W.choose action s
   ... | nothing = case eq of λ ()
