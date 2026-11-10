@@ -120,3 +120,28 @@ raw core operations (`ServerPeers.rawPeerAllowed (Sub.core _) = false`). Each of
 these operations is covered by `outbound-preserves`. A per-layer proof up to the
 top-level runtime is deferred to the phase/cleanup validity work, which needs
 the same layer chain.
+
+### Phase/cleanup validity of physical handler threads
+
+[CleanupWriters](Properties/CleanupWriters.agda) proves that only two source
+operations write the shared cleanup store. `Machine.handlerExit` creates the
+exiting worker's record at `cleanupAcquire` (`exit-effect`). `Machine.cleanupStep`
+rewrites only the stepping worker's existing, unfinished record (`cleanup-effect`),
+so `cleanupDone` is terminal. Every other machine and outbound-machine operation
+leaves the whole store unchanged (`machine-same`, `outbound-same`). The quiet
+cases adapt the admission-table proofs of `InboundOriginCore`.
+
+[HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda) relates each
+`HandlerSupervision` thread to its worker's cleanup record:
+
+| Thread phase | Cleanup record |
+| --- | --- |
+| `maskedSetup` to `bodyExited` | none |
+| `finalizing` | some record |
+| `cleanupComplete`, `resultAvailable` with outcome `o` | `cleanupDone o` |
+| untracked worker | none |
+
+`Raw.from-initial` and `Physical.from-initial` prove that every initialized
+`HandlerSupervision` and `OutboundHandlerSupervision` run keeps this agreement.
+Exit frames of `MuxHandlerExit`, which also write cleanup records for framed
+workers, and the layers above `OutboundHandlerSupervision` are not yet covered.
