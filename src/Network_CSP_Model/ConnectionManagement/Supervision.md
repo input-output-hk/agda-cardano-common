@@ -185,8 +185,10 @@ not rerun Agda, native replays or a term-level imported-assumption audit.
   missing `Server.with` exit branches of the audit are now modelled for one
   listener. [Increment 71](#seventy-first-increment-derived-shutdown-certificate-for-the-outer-composition-si5a)
   (SI5a) derives the Server return, peer closure with its component
-  certificates, and the relays join from one initialized outer history. The
-  CM-coordinator part (SI5b) remains open. [ProductionPolicy](Rules/ProductionPolicy.agda)
+  certificates, and the relays join from one initialized outer history.
+  [Increment 72](#seventy-second-increment-the-closed-cm-coordinator-at-the-final-state-si5b)
+  (SI5b) adds the closed, drained CM coordinator and its physical final wait.
+  [ProductionPolicy](Rules/ProductionPolicy.agda)
   still accepts an explicitly delivered completion boundary as a standalone
   wrapper. Any API-quiescence premise or source change needs its own
   evidence. G0–G5 and CM-I4c remain open.
@@ -205,7 +207,7 @@ recheck the actual theorem types and worktree.
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
 | SI3 | Separate PSA background-thread registry/pool plus provider, churn and governor Async scopes, with their actual ownership and unwinding order. | Committed in `bb11970`. Initialized nonempty close, component certificates and capture/supply preservation pass. |
 | SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are committed in `898a02d`. Increment 62 is committed in `8636e88`, with outbound resource proofs under `O.initial core` and fresh full acceptance. Increment 63 finished-target integration is committed in `8dd2452`, with fresh full acceptance recorded below. Increment 64 outbound mux integration is committed in `eef9971`, with fresh full acceptance recorded below. Increment 65 TIME_WAIT integration is accepted and uncommitted, with fresh full acceptance recorded below. Remaining shutdown routes and full scope/quiescence obligations remain open. |
-| SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | SI5a (increment 71): Server return, peer closure and component certificates, and relays join, derived for every initialized outer run reaching the finished relays state. SI5b (CM coordinator closed with snapshot results collected at that state) open. |
+| SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | SI5a (increment 71): Server return, peer closure and component certificates, and relays join, derived for every initialized outer run reaching the finished relays state. SI5b (increment 72): at that state the CM coordinator is closed, has no unread snapshot entry, and was closed by an actual physical result wait. Raw admission workers stay outside (admission quiescence). |
 
 The current production-policy wrapper's explicit completed-supervision boundary
 remains a scoped assumption until SI5. No theorem about a smaller component may
@@ -318,7 +320,7 @@ statement or acceptance requirement may be relaxed during migration.
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
 | Admission/API quiescence | Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
-| SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) for the one-listener profile, from one initialized outer history. SI5b needs a full-stack proof that the closed CM shutdown coordinator is not rewritten, then its `FinalWait` certificate at the final state. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
+| SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
 Explorer work can start with its interface and bound manifest while proofs run.
@@ -7012,11 +7014,9 @@ cancellation, join and owner return).
 
 Scope and limits:
 
-- **SI5b (open):** the CM coordinator is closed, with its snapshot handler
-  results collected, at the final state. `finishServer` requires
-  `Close.closed` when it enters `serverReturned`. Persistence after that needs
-  every writer of the shutdown coordinator, through all layers, to go through a
-  `CMShutdown` step. That full-stack lift is not done.
+- **SI5b:** the CM coordinator is closed, with its snapshot handler results
+  collected, at the final state. This was open at increment 71 and is done in
+  increment 72.
 - The following stay excluded:
   - raw admission workers, which outlive the scope;
   - handlers forked after the CM snapshot;
@@ -7038,3 +7038,73 @@ Checks (one Agda process at a time, 25 GB cgroup, `-M20G`):
 6.2 GB, no warnings, over cached `Negative/PoolRelays`).
 No postulates, holes or unsafe flags were added. SI5b, admission/API
 quiescence, CM-I4c reference validity and G3–G5 remain open.
+
+## Seventy-second increment: the closed CM coordinator at the final state (SI5b)
+
+Checked 10 November 2026. This completes SI5 for the one-listener profile. It
+adds the CM shutdown coordinator to the SI5a certificate, for the same
+initialized outer histories.
+
+Statement ([ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda),
+`Protocols.complete`). Under the premises of SI5a, the final runtime satisfies
+`Complete`, which holds the SI5a certificate and `CMClosed`:
+
+- `closed`: the coordinator phase is `Close.closed`.
+- `drained`: no captured snapshot entry is left unread (`remaining ≡ []`).
+- `physicalWait`: the closing `finishClose` was an actual wrapper transition,
+  either the handler supervisor's (`HandlerSupervision.PhysicalWait`) or the
+  exit wrapper's (`CoordinatorFrames.ExitWait`). Its oracle is that wrapper's
+  handler-result table at the wait, and every collected handler was available
+  there.
+
+Proof layers:
+
+1. [CoordinatorFrames](Properties/CoordinatorFrames.agda) defines a coordinator
+   `Frame`: a list of real `CMShutdown` steps between two observations, and
+   transport of the closing-wait witness. A closed coordinator admits no step,
+   and only `finishClose` can produce `closed`. The frame is proved for every
+   step of the mux handler supervisor (from its existing projected coordinator
+   path), the protocol, monitor and group layers (from the existing
+   `direct-shutdown-same` lemmas), and the exit, cancellation, startup-unwind,
+   DeltaQ, catch and publication wrappers. These mirror their `step-projects`
+   proofs. Exit-wrapper coordinator calls go through `control-frame`, which
+   records the physical wait for `finishClose`.
+2. [CoordinatorFrontend](Properties/CoordinatorFrontend.agda) lifts the frame
+   through the Server (worker metadata, inherited and IG-cleanup steps), the IG
+   exit wrapper, the shared Server/peer composition (peer steps write only the
+   CM source) and the runtime. The runtime's trace-fault delivery is the only
+   plan that replaces the coordinator directly. Its chosen plan carries the exit
+   wrapper's actual acknowledgment (`SafePlan`, proved for every event as in
+   `HandlerAuxFrontend`).
+3. In ServerShutdownCoordinator, `serverReturned` is entered only by
+   `finishServer`, which is chosen only on a closed coordinator. A closed
+   coordinator stays the same along any frame, so the invariant "a returned
+   Server has a closed coordinator" holds initially and after every
+   `T.advance`. Initialization yields `Close.initialState` through every
+   layer. `CMShutdown.closed-from-initial` on the composed trace gives
+   `remaining ≡ []`, and the frame carries the physical wait.
+
+[Negative/ServerShutdownCoordinator](Negative/ServerShutdownCoordinator.agda)
+applies the theorem to the same initialized scheduled-node close as
+increment 71.
+
+Scope and limits:
+
+- The coordinator certifies only the handlers in its snapshot. Handlers forked
+  after the snapshot, raw admission workers and several listeners stay
+  excluded, as in SI5a.
+- The wait reads the actual result table of the wrapper that performed it. No
+  claim is made that the oracle stays true afterwards, or that every handler
+  ever forked has ended.
+- No eventuality or fairness claim. [ProductionPolicy](Rules/ProductionPolicy.agda)
+  is unchanged as a standalone wrapper.
+- No existing module was changed; the frames are new modules over the existing
+  projections.
+
+Checks (one Agda process at a time, 25 GB cgroup, `-M20G`):
+`Properties/CoordinatorFrames` (1 min 56 s), `Properties/CoordinatorFrontend`
+(4 min 14 s), `Properties/ServerShutdownCoordinator` (5 min 14 s, 5.4 GB, no
+warnings) and `Negative/ServerShutdownCoordinator` (53 s, 6.2 GB, no warnings).
+Peak memory was not recorded for the two frame modules.
+No postulates, holes or unsafe flags were added. Admission/API quiescence,
+CM-I4c reference validity and G3–G5 remain open.

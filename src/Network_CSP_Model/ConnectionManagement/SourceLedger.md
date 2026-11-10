@@ -207,8 +207,8 @@ is still running when the Server unwinds, which the chain cannot express.
    CM/handler certificates, for the justified one-listener profile. Admission
    quiescence stays separate: raw admission workers outlive the scope in every
    branch. SI5a is done in increment 71 (Server return, peer closure with
-   component certificates, relays join). SI5b, the CM coordinator at the final
-   state, is open.
+   component certificates, relays join), and SI5b in increment 72 (the closed,
+   drained CM coordinator with its physical final wait).
 
 
 ## Current implementation coverage
