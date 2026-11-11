@@ -31,6 +31,19 @@ must include CM, IG, OG and Server; the implemented admission/handshake slices a
 for that slice. The target model includes their shared state, action jobs,
 peer monitors, handlers, mux lifecycle, protocol controls/results, and cleanup.
 
+The model has a second objective of equal standing: a correct design. Beyond
+locating defects in the pinned source, it should:
+
+- state intended behaviour as invariants and guarantees proved for every
+  reachable state of the executable machine, not only as finite witnesses;
+- keep model over-approximations distinct from source behaviour, so each
+  guarantee names the callers and environments it covers;
+- support design exploration: a proposed change (a fix or a restructuring) is a
+  variant of the same rule families, checked against the same statements and
+  compared with the source model by explicit witnesses and theorems.
+
+The G0–G5 gates in section 9 are unchanged by this objective.
+
 Network baseline: `2f1c154f248659b89523d5679ca532f442e7ed2a`, pinned by consensus
 `2e44d98a843168ba3b189e305820b79943ac7d1e` (promoted 9 November 2026 after the
 M0–M6 migration; earlier results keep `96ee6e0…` / `585a861…`). Use
