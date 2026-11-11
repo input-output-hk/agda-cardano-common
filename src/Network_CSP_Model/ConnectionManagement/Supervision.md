@@ -319,7 +319,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
-| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; c2, outbound caller frames, next). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
+| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; restated owned-caller c2 in progress). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
@@ -7213,3 +7213,42 @@ chain modules (7–10 s each), `Properties/ServerIGDone` (2 min),
 `Properties/ServerSourceQuiet` (19 min 15 s, 5.3 GB),
 `Properties/IGPendingQuiet` (7 min 28 s, 6.7 GB) and
 `Negative/IGPendingQuiet` (52 s, 6.8 GB). No postulates, holes or unsafe flags.
+
+## Seventy-fifth increment: outbound caller frames at shutdown (residue c2)
+
+Checked 11 November 2026. Third part of the admission/API residue.
+
+As first stated, c2 was "no outbound acquire or release call frame
+(`O.acquiring`, `O.releasing`) is left at the end of the outer shutdown".
+That is false in the model, and the counterexample is kept.
+
+Counterexample ([Negative/ForeignCallerResidue](Negative/ForeignCallerResidue.agda)).
+The model admits a foreign CM caller: a worker owned by no peer job and no
+monitor. While the peer side is open, it may begin an outbound acquire
+(`ServerPeers.coreAllowed`, `GovernorPool.unowned`,
+`PeerSupervision.rawAllowed`). Only two writers delete a frame: the caller's
+own `returnResult`, and `CallerCancellation.start` (job cancellation or
+monitor detach). No shutdown gate inspects `O.acquiring`. The witness:
+
+- inserts `beginAcquire` for worker `ident 900` into the initialized
+  scheduled-node close, at the last state before the peer scopes unwind;
+- replays every later fixture edge (95 events: peer scopes, Server scope, CM
+  receipt, physical close, catch, handler finalizer, CM finish, Server
+  finish) by `refl` on the state carrying the extra frame and region;
+- closes the relays exactly as `Negative/PoolRelays` does.
+
+At the end the SI5b certificate (`Certificate.complete`) and residue c1
+(`ig-quiet`) both hold, yet `acquiring-nonempty` shows the foreign frame
+still pending at `selecting`.
+
+This is not a source defect. In the node, `acquireOutboundConnection` and
+`releaseOutboundConnection` are called only from peer-state actions run by
+the outbound governor's jobs. A foreign caller models an arbitrary holder of
+the CM handle. Its frame is that caller's own stack, which the CM neither
+owns nor joins.
+
+Restated c2 (approved 11 November 2026, in progress): every outbound frame
+left at the end belongs to a foreign caller, never to a worker owned by a
+peer job or monitor.
+
+Checks: `Negative/ForeignCallerResidue` (58 s, 6.8 GB, no warnings).
