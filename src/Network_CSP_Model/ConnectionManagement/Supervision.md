@@ -319,7 +319,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
-| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; residue theorem next). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
+| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; c2, outbound caller frames, next). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
@@ -7154,3 +7154,62 @@ Checks: `Negative/ServerLateAdmission` (34 s, 4.3 GB, no warnings). Replay:
 theorem, first that the IG has no pending CM call once joined (c1), then that
 no outbound call frame is left once all peer jobs are terminal (c2). The fix
 model follows.
+
+## Seventy-fourth increment: no pending inbound-governor CM call at shutdown (residue c1)
+
+Checked 11 November 2026. Second part of the admission/API residue: the
+inbound governor is not a CM API caller left behind.
+
+Statement ([IGPendingQuiet](Properties/IGPendingQuiet.agda),
+`Protocols.ig-quiet`). For every initialized run of the outer composition that
+reaches the finished relays state (the SI5 premises), the final CM source has
+an exited, deactivated inbound governor (`continuation ≡ exited`,
+`active ≡ false`) with no pending release call (`inboundRelease ≡ nothing`)
+and no pending remote call (`remoteCall ≡ nothing`).
+
+Proof layers:
+
+1. [IGQuiet](Properties/IGQuiet.agda): from an exited, deactivated governor,
+   every `IG.step` keeps it exited and deactivated. Loop actions need a live
+   continuation, deactivation needs an active engine, and all other actions
+   rewrite only mux, handle, timer, counter or DB tables.
+2. [MachineQuiet](Properties/MachineQuiet.agda): that state with no pending
+   call (Q) is preserved by every machine and outbound-machine step. A release
+   or remote call can begin only from a `needsCM` continuation; handler
+   lifecycle and peer actions only replace mux rows (`SameControl`).
+3. The CM peer chain ([PeerJobCM](Properties/PeerJobCM.agda),
+   [SubsystemCM](Properties/SubsystemCM.agda),
+   [GovernorPoolCM](Properties/GovernorPoolCM.agda),
+   [PeerSupervisionCM](Properties/PeerSupervisionCM.agda)) lifts any predicate
+   on the whole CM configuration through every peer job, subsystem, governor
+   pool and supervision step. Its premises are the actual write kinds:
+   control-preserving IG writes, call initializers, monitor completions, raw
+   core actions (with a permission), caller-cancellation start, cleanup world
+   writes and close-failure results. It is reusable for residue c2.
+4. [ServerSourceQuiet](Properties/ServerSourceQuiet.agda) lifts Q through the
+   publication layer (its existing outbound-machine traces) and every Server
+   step. [ServerIGDone](Properties/ServerIGDone.agda) shows (generated) that a
+   Server scope step reaches a finished IG phase only from one or by
+   `finishIGBody`, keeps it finished, and enters `igJoined` or later only from
+   there or by `joinIG` with a finished IG.
+5. In IGPendingQuiet the runtime invariant has three parts: after the IG
+   exit's snapshot step Q holds (that step checks exactly Q's fields); a
+   finished IG body implies that phase (the exit wrapper refuses the Server's
+   own `finishIGBody`); a post-IG stage implies a finished body. It holds
+   initially and after every runtime step, and the SI5a `serverReturned`
+   gives the result.
+
+[Negative/IGPendingQuiet](Negative/IGPendingQuiet.agda) applies it to the
+initialized scheduled-node close.
+
+Scope and limits: this is about the inbound governor's CM calls only. Raw
+admission workers remain the known residue (increment 73). Outbound caller
+frames (`acquiring`/`releasing`) are residue c2, still open; on the same
+fixture they are empty, which is evidence, not a proof. No eventuality claim.
+
+Checks (one Agda process at a time, 25 GB cgroup, `-M20G`, no warnings):
+`Properties/IGQuiet` (8 s), `Properties/MachineQuiet` (9 s), the four peer
+chain modules (7–10 s each), `Properties/ServerIGDone` (2 min),
+`Properties/ServerSourceQuiet` (19 min 15 s, 5.3 GB),
+`Properties/IGPendingQuiet` (7 min 28 s, 6.7 GB) and
+`Negative/IGPendingQuiet` (52 s, 6.8 GB). No postulates, holes or unsafe flags.
