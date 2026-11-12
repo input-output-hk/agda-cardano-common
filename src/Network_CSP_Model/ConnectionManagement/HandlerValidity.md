@@ -271,26 +271,59 @@ births. This compares neither complete saved/current frames nor their mutable
 continuations. A [separate scheduled-close application](Negative/LiveTrackerFailuresInitialized.agda)
 keeps the fixture checks split.
 
-The remaining auxiliary obligation is still open at the full frontend.
 [LiveTrackerAuxCoreInitialized](Properties/LiveTrackerAuxCoreInitialized.agda)
-now proves joint all-row protocol-job and pool-queue/returned-body content for
-every initialized typed protocol run. Its monitor endpoint also proves every
-stored PC's owner and selected-payload backing. The proof includes the necessary
-unpublished-startup phase and frame-key uniqueness facts, with actual typed
-fork, commit, return, publication, DB and configured-startup writer lemmas.
-Split [queue](Negative/LiveTrackerAuxProtocol.agda) and
+proves joint protocol-job and pool-queue/returned-body content at the typed
+protocol layer, together with all-row monitor-PC content at its monitor endpoint.
+The certificate includes unique frame keys and the unpublished-startup phase
+fact needed for infrastructure results. Its split
+[queue](Negative/LiveTrackerAuxProtocol.agda) and
 [selected-PC](Negative/LiveTrackerAuxMonitor.agda) fixtures exercise nonempty
-initialized states.
+initialized states. [LiveTrackerAuxCancellation](Properties/LiveTrackerAuxCancellation.agda)
+proves actual child unwind/replacement and pool-writer preservation.
 
-[LiveTrackerAuxCancellation](Properties/LiveTrackerAuxCancellation.agda)
-proves actual child unwind/replacement core preservation and the no-new-payload
-group pool writers. [LiveTrackerAuxBirth](Properties/LiveTrackerAuxBirth.agda)
-proves the direct birth core update and its real `forkPlan` application given
-saved-call owner/mux agreement (`Calls`). That frontend invariant has not been
-proved universally. All-row control/ticket insertion and preservation, plus
-the lift of joint core/PC validity through the higher shutdown/unwind/DeltaQ and
-frontend writers, remain unfinished. The original
-[Coverage](Properties/LiveTrackerAuxContent.agda) statement is unchanged;
-no conditional result is presented as the requested initialized frontend
-`FullValidity` theorem. CM-I4c remains partly open, and the original unrestricted
-resource claim remains false. No new initialized counterexample was checked.
+[LiveTrackerCalls](Properties/LiveTrackerCalls.agda) recovers the exact published
+owner selected by `ownerFor`/`nextRequest`. Frame-key uniqueness comes from the
+joint initialized invariant. Initialization installs an empty call table. On actual `T.advance` steps, its
+three later changes are `enqueue` adding a saved call, birth filling its thread,
+and completion filling its result. There is no deletion writer. Dispatch's `noteLegacy` edits commands;
+`cacheResult` edits peer bookkeeping. Neither changes saved owner/mux fields.
+[LiveTrackerAuxFrontend](Properties/LiveTrackerAuxFrontend.agda) proves universal
+`Calls s` and the joint core/PC lift through all eight actual frontend plan
+forms. `fork-from-initial` therefore discharges the saved-call premise of
+[LiveTrackerAuxBirth](Properties/LiveTrackerAuxBirth.agda) for initialized runs.
+
+[LiveTrackerAuxControls](Properties/LiveTrackerAuxControls.agda) derives exact
+job descriptors and physical backing from `registeredMini` and `sameSnapshot`,
+then preserves snapshot, remaining, joined and in-flight cancellation references.
+[LiveTrackerAuxControlGroup](Properties/LiveTrackerAuxControlGroup.agda) covers
+every group action, including abort, whole close and unwind replacement.
+[LiveTrackerAuxTickets](Properties/LiveTrackerAuxTickets.agda) certifies `D.note`
+from all-row selected-PC content and keeps the exact payload through phase marks.
+The [exit](Properties/LiveTrackerAuxCoverageExit.agda),
+[unwind](Properties/LiveTrackerAuxCoverageUnwind.agda), and
+[higher-layer](Properties/LiveTrackerAuxCoverageLayers.agda) lifts carry these
+facts through W/X/R/D/C/N/S/E and the shared composition, over the existing
+B/U/P/M components. The
+[frontend lift](Properties/LiveTrackerAuxCoverageFrontend.agda) proves the original
+unchanged `Coverage` predicate through every actual `T.advance` plan, including
+direct birth, completion/cache, source-only callers, reads and fault delivery.
+
+**CM-I4c complete for `T.initialize (O.initial c₀) g`.**
+[LiveTrackerInitialized](Properties/LiveTrackerInitialized.agda) combines rounds
+2–6 into `Frontend.FullValidity`: original physical/resource/phase/cleanup and
+snapshot certificates; current-frame allocation/publication chains; saved
+publication-failure references; the original all-row control/PC/ticket/job
+`Coverage`; pool content; and saved-call owner/mux agreement. Its theorem is:
+
+```agda
+from-initial : ∀ c₀ g {start events s} →
+  initialize (O.initial c₀) g ≡ just start →
+  Runs start events s → FullValidity s
+```
+
+There is no additional invariant, owner, supply-bound or history premise.
+The [full fixture](Negative/LiveTrackerInitialized.agda) applies it to the real
+initialized scheduled-close history through Server return. The unrestricted
+initializer resource claim remains false, as witnessed above. This result is a
+model invariant over finite reachable states; it does not assert source
+refinement, progress, delivery or completion of the overall G0–G5 project gates.
