@@ -1,5 +1,7 @@
 # Initial source-to-transition ledger
 
+Current branch/profile classification: [BranchMatrix.md](BranchMatrix.md).
+
 **Initial ledger: 15 October 2026; coverage status reconciled 4 November 2026.**
 Companion to [DESIGN.md](DESIGN.md).
 
