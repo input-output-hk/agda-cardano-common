@@ -266,10 +266,9 @@ node3's restart; they were checked locally only. No session or pair was rejected
 All 11 sessions are depth-1 request/reply alternation; none contains Done,
 pipelining beyond depth 1, draining or a throw, so the run does not exercise
 those branches.
-Output and manifests are under `/tmp/leiosfetch-devnet-stage1/`; the small
-[node1 fixture and provenance](LogProcessing/fixtures/leiosfetch-devnet-node1.md)
-preserve the largest accepted node1 session. These are finite-prefix results,
-not delivery, validity or implementation-wide conformance proofs.
+The run recorded output and manifests under `/tmp/leiosfetch-devnet-stage1/`.
+These are finite-prefix results, not delivery, validity or implementation-wide
+conformance proofs.
 
 ## Lookahead Notify replay
 
