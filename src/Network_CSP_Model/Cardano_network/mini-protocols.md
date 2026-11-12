@@ -34,6 +34,74 @@ runs one pair or the other according to whether it is built with `nodeBundle` /
 `nodeBundleR` or with `nodeBundleP` (`Leios/PeersP.agda`). Theorems about the old
 peers are unaffected by the prototype ones and vice versa.
 
+The current-schema **LeiosFetch replay** target is pinned to `ouroboros-consensus`
+`leios-prototype` **`e6511527`** (`e651152750388ccf20700eb28149751981a396f4`),
+`LeiosDemoOnlyTestFetch.hs` and `Ouroboros/Consensus/Leios/Types.hs`.
+Its positional `BlockTxs` observation carries transaction count and byte size,
+with default client depth 150. This replay pin does not update the older peer
+modules' source-fidelity claims. Stage 3D's local bridges now observe counts;
+sizes and bitmap words are forgotten and constrained by an explicit `WireOK`
+premise. See the [replay scope and devnet results](Replay/README.md#current-schema-leiosfetch-replay-2026-11-11).
+
+Stage 2 aligns the prototype model's wire reply with that pin:
+`MsgLFPBlockTxs : List Tx → MessageLeiosFetchP`. The client checks reply count
+against its saved bitmap and reconstructs `(q , zip bm txs)`. Since stage 3A,
+it receives a count-mismatched reply and then becomes `Stop` (no further event
+or τ step of that peer). This represents upstream's client error at peer scope;
+whole-connection teardown is abstracted. The server sends `map proj₂ es`.
+The API carrier remains `(EBHash × LSlot) × List (ℕ × Tx)`.
+The pipe retains stop-and-drain with replies consumed by kind regardless of count. Replay caps
+client request sends at `maxTxs = 17142` (client-layer diagnostic), but leaves
+server request counts uncapped after bitmap decoding: upstream serves every
+requested offset or throws. Replay wire caps still apply to replies, including draining. See the
+[stage-2 scope and reporting limits](Replay/README.md#stage-2-positional-model-and-replay-follow-ups)
+and [D5 and the stage-2 outcome](../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-2-outcome).
+
+**Stage 3D decoder caps.** The model producer receives then stops on a
+non-`decodable` transaction request: offsets must be strictly ascending and
+below `64 * maxBitmapEntries = 17152`. This includes the final word's padding
+bits. Honest client sends and the FIFO pipe keep the narrower `canonical`
+condition (offsets below `maxTxs = 17142`). The model client receives then stops
+on a reply count above 17142, before the handler count check; the drain refuses
+such replies. Decoder-failing receives are absent from the replay observation.
+Generic honest-node canonicity needs `length (ebTxs h) ≤ maxTxs` for every
+relevant body, including locally forged ones. The replay serving instance uses
+an artificial 17152-entry unit table and held unit tx to cover all decoder-valid
+server requests; it is not a witness of that honest-body premise.
+
+**Stage 3B+C changes the node logic.** Body and mempool stores offer unit-valued
+`stLacksBody`/`stLacksTx` exactly for absent hashes; held hashes retain positive
+reads, and negative reads leave the stores unchanged. The server stops on all
+three upstream throw causes: unknown EB, missing table offset, and unwritten
+transaction bytes (`LeiosDemoLogic.hs:266–307`). It sends no partial reply.
+This stops the serving thread and leaves its producer waiting for a reply;
+no throw API tag or new peer state is added.
+
+The client stops on a received EB whose table exceeds `maxTxs`, a Block hash
+mismatch, or a failed reply check. `putChecked` validates every offset and hash
+before any deposit from that reply; `fetchChunks` also rejects a mismatched point.
+Earlier successful chunks keep their deposits. Such a stop ends the link's
+shared `lnClientLoopL` and therefore silences its Notify client, including
+announcement, offer and vote handling. This is a thread stop, not whole-link
+shutdown of every mini-protocol.
+
+`fetchTxs` reads the body, then splits **`allOffsets`**, in order, into chunks
+of at most `chunk`, with `1 ≤ chunk ≤ maxTxs`; an empty table sends no transaction
+request. It deliberately over-fetches relative to upstream's missing-only
+selection. The main instances use `maxTxs = 17142`, model `chunk = 1`, and replay
+`chunk = 17142`; this count parameter abstracts byte batching. The seven safety
+disciplines, `noRet-logic`, the two no-livelock statements, and `LiveL`/`Live2`
+finite-witness statements are unchanged, as are the replay bridge and `server-legal`
+statements, application carriers, pipe/replay spec and peer states.
+`Negative/FetchWedge.wedge-stuck` now concerns the retained blocking copy
+`ebServeBodyBlocking`; `wedge-throws` witnesses the shipped server consuming a
+negative read and stopping in the same scenario, at thread/store-pair scope.
+See the [Leios account](Parametric/Leios/README.md#stage-3bc-behavior),
+[coarse bridge scope](Replay/README.md#stage-3bc-server-throw-and-bridge-scope), and
+[stage-3B+C outcome and measurements](../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome).
+These checks preserve model safety and no-livelock results; they do not establish
+delivery liveness, validity or implementation-wide conformance.
+
 **Initiator/agency convention.** A "connection" here is a *protocol-independent*
 TCP link `Link = Fin numLinks` (`Params.agda:38`) plus a `Dir` (`Base.agda:104-105`):
 `lo` means the lower-indexed endpoint initiates that mini-protocol instance, `hi`

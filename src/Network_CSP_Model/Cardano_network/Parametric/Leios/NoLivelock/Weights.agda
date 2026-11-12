@@ -73,7 +73,7 @@ isK notif      (leiosNotifyP (MsgLNPBlockTxsOffer _))      = 1
 isK votes      (leiosNotifyP (MsgLNPVotes _))              = 1
 isK BlockReq   (leiosFetchP (MsgLFPBlockRequest _))        = 1
 isK TxsReq     (leiosFetchP (MsgLFPBlockTxsRequest _ _))   = 1
-isK BlockTxs   (leiosFetchP (MsgLFPBlockTxs _ _))          = 1
+isK BlockTxs   (leiosFetchP (MsgLFPBlockTxs _))            = 1
 isK ReplyTxIds (txSubmission (MsgTSReplyTxIds _))          = 1
 isK ReplyTxs   (txSubmission (MsgTSReplyTxs _))            = 1
 isK _          _                                           = 0
@@ -82,7 +82,7 @@ isK _          _                                           = 0
 ℓK : Kind → Messages → ℕ
 ℓK votes      (leiosNotifyP (MsgLNPVotes vs))             = length vs
 ℓK TxsReq     (leiosFetchP (MsgLFPBlockTxsRequest _ bm))  = length bm
-ℓK BlockTxs   (leiosFetchP (MsgLFPBlockTxs _ es))         = length es
+ℓK BlockTxs   (leiosFetchP (MsgLFPBlockTxs txs))          = length txs
 ℓK ReplyTxIds (txSubmission (MsgTSReplyTxIds ids))        = length ids
 ℓK ReplyTxs   (txSubmission (MsgTSReplyTxs txs))          = length txs
 ℓK _          _                                           = 0

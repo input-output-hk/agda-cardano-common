@@ -93,9 +93,10 @@
 module Cardano_network.Parametric.Leios.TxOriginBad where
 
 open import Level using (0ℓ)
+open import Data.Bool.ListAction using (all)
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
--- `nothing` IS LISTED: without it the `nothing` clause of `putCheckedBad` below silently
+-- `nothing` IS LISTED: without it the `nothing` clause of `entryOkBad` below silently
 -- becomes a pattern VARIABLE (campaign ledger, gotcha 1), which Agda reports only as a
 -- `PatternShadowsConstructor` warning
 open import Data.Maybe using (Maybe; just; nothing)
@@ -134,7 +135,7 @@ import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.Leios.TxOrigin as TO
 
 open Params leiosLParams using (Block; EB; EBHash; LSlot; Size; Tx; TxHash; txHash; decTx)
-open LeiosP leiosLParams using (LeiosEb; allOffsets)
+open LeiosP leiosLParams using (LeiosEb; allOffsets; txChunks)
 open LeiosP.LeiosParams leiosLP using (ebTxs)
 
 -- the transaction equality the broken thread's mempool `!`-output needs.  At a CONCRETE
@@ -150,7 +151,7 @@ private
 
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
-  using ( StateL; st₀; DecEq-⊤poly; at?; putTxEv; getBodyEv; forgeL
+  using ( StateL; st₀; DecEq-⊤poly; at?; putAll; putTxEv; getBodyEv; forgeL
         ; fetchBody; putAllVotes; lnClientLoopL
         ; blockStoreL; ebStore; bodyStore; mempool; voteStore )
 -- S5 at this instance: the five parameters `NodeLogicL.Generic` takes, with
@@ -160,7 +161,7 @@ open TO.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
         ; soundLogic; wf-withStores; wf-lnClient; wf-nP; oo-forgeL; wf-⦀ )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open Op using (Ret; Skip; pchoice; iter-bind; _>>=_; loop0; _⦀_; _∥⇘_⇙_; _□_
+open Op using (Ret; Skip; Stop; _>>_; pchoice; iter-bind; _>>=_; loop0; _⦀_; _∥⇘_⇙_; _□_
               ; Prefix; Prefix₀; Output; _◁_▷_)
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -181,27 +182,29 @@ open import CSP.Laws.Traces.TraceLawsParallel (Net_Api-≟ {Payload})
 nA : Fin 3
 nA = fzero
 
--- THE BROKEN DEPOSIT LOOP: `NodeLogicL.putChecked` with the OFFSET-HASH GUARD DELETED.
--- Same offset dispatch — an entry past the end of the table is still skipped — the ONLY
--- difference is that the conditional `◁ ⌊ txHash tx ≟ k ⌋ ▷` is gone, so a neighbour may
--- answer a closure request with ANY transaction at a valid offset and it is stored.  This
--- is the guard the prototype's own entry check stands for (spec §5.2).
-putCheckedBad : Fin 3 → EBHash → List (ℕ × Tx) → Proc
-putCheckedBad n h []               = Skip
-putCheckedBad n h ((o , tx) ∷ es) with at? o (ebTxs h)
-... | nothing      = putCheckedBad n h es
-... | just (k , _) = putTxEv n ! tx ⟶ putCheckedBad n h es
+-- The single ablated check still rejects absent offsets, but ignores transaction hashes.
+entryOkBad : EBHash → ℕ × Tx → Bool
+entryOkBad h (o , tx) with at? o (ebTxs h)
+... | nothing = false
+... | just _ = true
 
--- the broken closure fetch: `NodeLogicL.fetchTxs` with `putCheckedBad` in the deposit
--- slot.  The leading body read, the all-offsets request and the ECHOED-POINT check are
--- all untouched — only the per-entry hash check is gone.
+-- Validate all offsets before depositing; only the matching-hash guard is deleted.
+putCheckedBad : Fin 3 → EBHash → List (ℕ × Tx) → Proc
+putCheckedBad n h es = putAll n es ◁ all (entryOkBad h) es ▷ Stop
+
+-- Chunking, point checking and stopping are identical to the shipped client.
+fetchChunksBad : Fin 3 → Link → Dir → EBHash × LSlot → List TxBitmap → Proc
+fetchChunksBad n l d q [] = Skip
+fetchChunksBad n l d q (bm ∷ bms) =
+  Output ⦃ DecEq-TxsRequest ⦄ (apiLP l d lfpSendBlockTxsRequest) (q , bm)
+    (apiLP l d lfpRecvBlockTxs ⟶ (λ { (q′ , es) →
+      (putCheckedBad n (proj₁ q) es >> fetchChunksBad n l d q bms)
+        ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Stop }))
+
+-- The leading body read and chunk list are unchanged by the one-guard ablation.
 fetchTxsBad : Fin 3 → Link → Dir → EBHash × LSlot → Proc
-fetchTxsBad n l d q =
-  getBodyEv n (proj₁ q) ⟶ (λ _ →
-    Output ⦃ DecEq-TxsRequest ⦄ (apiLP l d lfpSendBlockTxsRequest)
-      (q , allOffsets leiosLP (proj₁ q))
-      (apiLP l d lfpRecvBlockTxs ⟶ (λ { (q′ , es) →
-         putCheckedBad n (proj₁ q) es ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Skip })))
+fetchTxsBad n l d q = getBodyEv n (proj₁ q) ⟶
+  (λ _ → fetchChunksBad n l d q (txChunks leiosLP (proj₁ q)))
 
 -- the broken Notify client's round: `NodeLogicL.lnClientBodyL` with `fetchTxsBad` in the
 -- tx-closure-offer branch and the other three branches untouched
@@ -257,8 +260,8 @@ goodLogic = nodeLogicLTxGood nA st₀
 table-pin : ebTxs true ≡ (true , U.tt) ∷ []
 table-pin = refl
 
--- … so the all-offsets request for that point asks for offset 0 and nothing else
-offsets-pin : allOffsets leiosLP true ≡ 0 ∷ []
+-- … so the chunk list for that point asks for offset 0 and nothing else
+offsets-pin : txChunks leiosLP true ≡ (0 ∷ []) ∷ []
 offsets-pin = refl
 
 -- THE TRANSACTION THE NEIGHBOUR ACTUALLY DELIVERS at offset 0: `false`, which is NOT the
@@ -272,7 +275,7 @@ txGood = true
 
 -- THE HONEST GUARD WOULD HAVE REJECTED IT: `putChecked`'s `⌊ txHash tx ≟ k ⌋` at the
 -- delivered `false` against the table's hash `true` computes to `false`, so the honest
--- logic skips the entry.  This is the one conditional `putCheckedBad` deletes.
+-- logic stops before any deposit.  This is the one conditional `putCheckedBad` deletes.
 honest-rejects : ⌊ txHash txBad ≟ true ⌋ ≡ false
 honest-rejects = refl
 

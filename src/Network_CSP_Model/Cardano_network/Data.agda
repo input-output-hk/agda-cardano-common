@@ -48,7 +48,7 @@ open import Cardano_network.Base
 -- PROJECTION in the 62 modules that `open Params p` AND `open import Data p` (measured
 -- at `Net.agda:50`, `numLinks`).  `Tx` is therefore taken from `Params` by the modules
 -- that used to take it from here; only the plain alias `DecEq-Tx` below is re-exported.
--- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+-- see docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md, decision D5
 open Params p
 
 ------------------------------------------------------------------------
@@ -77,7 +77,7 @@ data Vote : Set where
 -- A TX BITMAP: a finite set of OFFSETS into an endorser block's tx-reference table
 -- `LeiosParams.ebTxs`.  The prototype's `TxBitmaps = [(Word16, Word64)]` is a COMPRESSED
 -- bitmap; compression is representation, not protocol, so the model carries the offsets.
--- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+-- see docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md, decision D5
 TxBitmap : Set
 TxBitmap = List ℕ
 
@@ -89,6 +89,10 @@ DecEq-EBPoint = DecEqI.DecEq-×
 -- the DecEq of a tx bitmap
 DecEq-TxBitmap : DecEq TxBitmap
 DecEq-TxBitmap = DecEqI.DecEq-List ⦃ DecEqI.DecEq-ℕ ⦄
+
+-- Decidable equality for the positional transaction list carried on the wire.
+DecEq-TxList : DecEq (List Tx)
+DecEq-TxList = DecEqI.DecEq-List ⦃ decTx ⦄
 
 -- the DecEq of a tx-closure reply's entries, the offset-indexed map `offset ↦ tx`
 DecEq-TxEntries : DecEq (List (ℕ × Tx))
@@ -180,14 +184,13 @@ data MessageLeiosNotifyP : Set where
 -- in the prototype's GADT (votes request/delivery, the three range messages) are
 -- deliberately NOT modelled — they are not in its `Message` type.
 -- `MsgLFPBlock` carries NO point: the client keys on the point it requested.
--- `MsgLFPBlockTxs` echoes the point but NOT the bitmap — the reply is an offset-indexed
--- map, so the offsets are its keys and the echo would be redundant.
--- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+-- `MsgLFPBlockTxs` carries only transactions in requested-bitmap order: neither the
+-- point nor offsets are echoed.  The application API retains its indexed entries.
 data MessageLeiosFetchP : Set where
   MsgLFPBlockRequest    : EBHash × LSlot → MessageLeiosFetchP
   MsgLFPBlock           : EB → MessageLeiosFetchP
   MsgLFPBlockTxsRequest : EBHash × LSlot → TxBitmap → MessageLeiosFetchP
-  MsgLFPBlockTxs        : EBHash × LSlot → List (ℕ × Tx) → MessageLeiosFetchP
+  MsgLFPBlockTxs        : List Tx → MessageLeiosFetchP
   MsgLFPDone            : MessageLeiosFetchP
 
 data Messages : Set where
@@ -685,32 +688,30 @@ instance
     ... | yes refl | yes refl = yes refl
     ... | no ¬p    | _        = no λ where refl → ¬p refl
     ... | _        | no ¬p    = no λ where refl → ¬p refl
-    go (MsgLFPBlockTxs q es) (MsgLFPBlockTxs q′ es′)
-      with _≟_ ⦃ DecEq-EBPoint ⦄ q q′ | _≟_ ⦃ DecEq-TxEntries ⦄ es es′
-    ... | yes refl | yes refl = yes refl
-    ... | no ¬p    | _        = no λ where refl → ¬p refl
-    ... | _        | no ¬p    = no λ where refl → ¬p refl
+    go (MsgLFPBlockTxs txs) (MsgLFPBlockTxs txs′) with _≟_ ⦃ DecEq-TxList ⦄ txs txs′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ where refl → ¬p refl
     go MsgLFPDone MsgLFPDone = yes refl
     go (MsgLFPBlockRequest _) (MsgLFPBlock _) = no λ ()
     go (MsgLFPBlockRequest _) (MsgLFPBlockTxsRequest _ _) = no λ ()
-    go (MsgLFPBlockRequest _) (MsgLFPBlockTxs _ _) = no λ ()
+    go (MsgLFPBlockRequest _) (MsgLFPBlockTxs _) = no λ ()
     go (MsgLFPBlockRequest _) MsgLFPDone = no λ ()
     go (MsgLFPBlock _) (MsgLFPBlockRequest _) = no λ ()
     go (MsgLFPBlock _) (MsgLFPBlockTxsRequest _ _) = no λ ()
-    go (MsgLFPBlock _) (MsgLFPBlockTxs _ _) = no λ ()
+    go (MsgLFPBlock _) (MsgLFPBlockTxs _) = no λ ()
     go (MsgLFPBlock _) MsgLFPDone = no λ ()
     go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlockRequest _) = no λ ()
     go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlock _) = no λ ()
-    go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlockTxs _ _) = no λ ()
+    go (MsgLFPBlockTxsRequest _ _) (MsgLFPBlockTxs _) = no λ ()
     go (MsgLFPBlockTxsRequest _ _) MsgLFPDone = no λ ()
-    go (MsgLFPBlockTxs _ _) (MsgLFPBlockRequest _) = no λ ()
-    go (MsgLFPBlockTxs _ _) (MsgLFPBlock _) = no λ ()
-    go (MsgLFPBlockTxs _ _) (MsgLFPBlockTxsRequest _ _) = no λ ()
-    go (MsgLFPBlockTxs _ _) MsgLFPDone = no λ ()
+    go (MsgLFPBlockTxs _) (MsgLFPBlockRequest _) = no λ ()
+    go (MsgLFPBlockTxs _) (MsgLFPBlock _) = no λ ()
+    go (MsgLFPBlockTxs _) (MsgLFPBlockTxsRequest _ _) = no λ ()
+    go (MsgLFPBlockTxs _) MsgLFPDone = no λ ()
     go MsgLFPDone (MsgLFPBlockRequest _) = no λ ()
     go MsgLFPDone (MsgLFPBlock _) = no λ ()
     go MsgLFPDone (MsgLFPBlockTxsRequest _ _) = no λ ()
-    go MsgLFPDone (MsgLFPBlockTxs _ _) = no λ ()
+    go MsgLFPDone (MsgLFPBlockTxs _) = no λ ()
 
 ------------------------------------------------------------------------
 -- The `Messages` union

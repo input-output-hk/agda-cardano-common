@@ -14,6 +14,8 @@ open import Data.Sum using (inj₁; inj₂)
 open import Relation.Nullary using (yes; no)
 open import Cardano_network.Replay.Sessions
 open import Cardano_network.Replay.ParseSessions
+open import Cardano_network.Replay.LeiosFetchInterleavedReport
+  using (leftEvents; rightEvents; checkedNote)
 
 -- Locate the first rejection and display the targeted session's prior state.
 scanWithProtocolDepths : (k depth bfDepth csDepth tsDepth : ℕ) (rs : List Session) → List (Events rs) → ℕ →
@@ -44,10 +46,26 @@ rejectionWithProtocolDepths k depth bfDepth csDepth tsDepth rs es i with checkWi
   "\nmodel session state after " ++ showℕ (i ∸ 1) ++ " events: " ++ componentState st e
 ... | _ | _ = scanWithProtocolDepths k depth bfDepth csDepth tsDepth rs es 0 (initial rs) es
 
+-- Only Fetch has silent draining; other protocol reports keep their existing text.
+localAcceptedNote : (k session : ℕ) (s : Session) → List (LocalEvent s) → String
+localAcceptedNote k session (fetch r) es = checkedNote k session r es
+localAcceptedNote k session (notify _) es = ""
+localAcceptedNote k session (blockfetch _) es = ""
+localAcceptedNote k session (chainsync _) es = ""
+localAcceptedNote k session (txsubmission2 _) es = ""
+
+-- Project independent sessions before looking for a checked Fetch failure.
+-- Advance the session index with suc while projecting events left/right.
+acceptedNotes : (k session : ℕ) (rs : List Session) → List (Events rs) → String
+acceptedNotes k session [] es = ""
+acceptedNotes k session (r ∷ rs) es =
+  localAcceptedNote k session r (leftEvents es) ++
+  acceptedNotes k (suc session) rs (rightEvents es)
+
 -- Decide the complete global trace before scanning rejected prefixes.
 verdictWithProtocolDepths : (k depth bfDepth csDepth tsDepth : ℕ) (rs : List Session) → List (Events rs) → String
 verdictWithProtocolDepths k depth bfDepth csDepth tsDepth rs es with checkWithProtocolDepths k depth bfDepth csDepth tsDepth rs es
-... | yes _ = "accepted (" ++ showℕ (length es) ++ " events, " ++ showℕ (length rs) ++ " sessions)"
+... | yes _ = "accepted (" ++ showℕ (length es) ++ " events, " ++ showℕ (length rs) ++ " sessions)" ++ acceptedNotes k 0 rs es
 ... | no _ = rejectionWithProtocolDepths k depth bfDepth csDepth tsDepth rs es (firstRejectedWithProtocolDepths k depth bfDepth csDepth tsDepth rs es (length es) 0 (length es))
 
 -- Preserve the four-bound scan with TxSubmission2 requester capacity four.

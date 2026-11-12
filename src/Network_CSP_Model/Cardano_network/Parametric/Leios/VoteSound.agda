@@ -101,11 +101,12 @@
 module Cardano_network.Parametric.Leios.VoteSound where
 
 open import Level using (Level; 0ℓ)
+open import Data.Bool.ListAction using (all)
 open import Data.Bool using (Bool; true; false; if_then_else_; _∧_; _∨_)
 open import Data.Bool.ListAction using (any)
 open import Data.Empty using (⊥; ⊥-elim)
-open import Data.Nat using (ℕ; zero; suc)
-open import Data.List using (List; []; _∷_; map; _++_)
+open import Data.Nat using (ℕ; zero; suc; _<ᵇ_)
+open import Data.List using (List; []; _∷_; map; _++_; length)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Membership.Propositional.Properties using (∈-++⁺ˡ; ∈-map⁺)
 open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
@@ -213,8 +214,8 @@ module Generic
           ; linkConfig; ebHash; rbHash; txHash; slotOf; announcedEB
           ; decBlock; decEBHash; decLSlot; decVoteBlob; decEB
           ; decRbHash; decTx; decTxHash )
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets)
-  open LeiosP.LeiosParams lp using (mkVoteBlob; blobRb; blobRb-mk; ebTxs; ebSize; rbCert)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks)
+  open LeiosP.LeiosParams lp using (mkVoteBlob; blobRb; blobRb-mk; ebTxs; maxTxs; ebSize; rbCert)
   -- EVERY tag named below MUST appear here: an unlisted tag silently becomes a pattern
   -- VARIABLE and the carrier table turns into a stuck term (campaign ledger, gotcha 1).
   open N p
@@ -222,7 +223,7 @@ module Generic
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
-          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
+          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert; stLacksBody; stLacksTx
           ; lnpSendRequestNext; lnpSendBlockOffer; lnpSendBlockTxsOffer; lnpSendVotes
           ; lnpRecvBlockAnnouncement; lnpRecvBlockOffer; lnpRecvBlockTxsOffer
           ; lnpRecvVotes
@@ -246,7 +247,7 @@ module Generic
   endAtT : Link → Dir → Node
   endAtT = Topology.endAt t
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
-    using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_)
+    using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_; Stop; _>>_)
   open import Cardano_network.Parametric.Node p t apiES
     using (Proc; nodeWith; bundleAtWith; linkBundlesWith)
   open import Semantics.LTS
@@ -263,16 +264,18 @@ module Generic
   -- `∥⇘ apiES ⇙`, and `DRCongruenceRep.NoRet-Par` reads the left operand.  Already
   -- proved, at this very telescope, by the announcement campaign.
   open BPS.Generic p t apiES using (NoRet-ParR)
+  open import CSP.Laws.DivFree.CountOffers (Net_Api-≟ {Payload})
+    using (OffersOnly-□; OffersOnly-Stop)
   open NL.Generic p t apiES
     using (storeES; homeOf; putEv; clientLoop; clientBody-k; serverBody-k)
   open NLL.Generic p lp t apiES voterOf
     using ( nodeLogicL; st₀; DecEq-⊤poly; DecEq-ℕ×ℕ; at?
-          ; getAtEv; putEBEv; putBodyEv; getBodyEv; putVoteEv; getVoteAtEv
+          ; getAtEv; putEBEv; putBodyEv; getBodyEv; lacksBodyEv; lacksTxEv; putVoteEv; getVoteAtEv
           ; putTxEv; getTxAtEv; getTxEv; hasCertEv; forgeOK
           ; forgeL; forgeBodyL; forgeCertL
           ; ebIndex; voter; voterBody; submit; certSink
           ; serverLoopL; lnServerLoopL; bodyOfferLoop; voteOfferLoop
-          ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; tsPull; tsServe; putAllTx
+          ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; putAll; entryOk; fetchChunks; tsPull; tsServe; putAllTx
           ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes; awaitTxs
           ; endpointThreadsL; allThreadsL )
     -- `putAllTx`'s own membership test, RENAMED so it cannot be confused with (or
@@ -584,6 +587,8 @@ module Generic
   needs-store {e = store _ _ stCert}          ()
   needs-store {e = store _ _ (stGetTx _)}     ()
   needs-store {e = store _ _ (stHasCert _)}   ()
+  needs-store {e = store _ _ (stLacksBody _)}   ()
+  needs-store {e = store _ _ (stLacksTx _)}   ()
   needs-store {e = input _ _ _}               ()
   needs-store {e = output _ _ _}              ()
   needs-store {e = sndmsg _ _ _}              ()
@@ -785,7 +790,9 @@ module Generic
   oo-ebServeLoop : ∀ n ld → OffersOnly noNeed (ebServeLoop n ld)
   oo-ebServeLoop n (l , d) =
     OffersOnly-loop0 (OffersOnly-Prefix (λ _ → λ ()) (λ q →
-      OffersOnly-Prefix (λ _ → λ ()) (λ eb → OffersOnly-Output (λ ()) OffersOnly-Skip)))
+      OffersOnly-□
+        (OffersOnly-Prefix (λ _ → λ ()) (λ eb → OffersOnly-Output (λ ()) OffersOnly-Skip))
+        (OffersOnly-Prefix₀ (λ _ → λ ()) OffersOnly-Stop)))
 
   -- the reply builder of the tx-closure server: a mempool read per served offset, then
   -- one offset-indexed reply
@@ -793,15 +800,19 @@ module Generic
   oo-serveTxs n l d q []       acc =
     OffersOnly-Output ⦃ DecEq-TxsReply ⦄ (λ ()) OffersOnly-Skip
   oo-serveTxs n l d q (o ∷ os) acc with at? o (ebTxs (proj₁ q))
-  ... | nothing      = oo-serveTxs n l d q os acc
-  ... | just (h , _) = OffersOnly-Prefix (λ _ → λ ())
-                         (λ tx′ → oo-serveTxs n l d q os (acc ++ ((o , tx′) ∷ [])))
+  ... | nothing      = OffersOnly-Stop
+  ... | just (h , _) = OffersOnly-□
+      (OffersOnly-Prefix (λ _ → λ ())
+        (λ tx′ → oo-serveTxs n l d q os (acc ++ ((o , tx′) ∷ []))))
+      (OffersOnly-Prefix₀ (λ _ → λ ()) OffersOnly-Stop)
 
   -- the tx-closure serve thread
   oo-ebTxsServeLoop : ∀ n ld → OffersOnly noNeed (ebTxsServeLoop n ld)
   oo-ebTxsServeLoop n (l , d) =
     OffersOnly-loop0 (OffersOnly-Prefix (λ _ → λ ()) (λ { (q , bm) →
-      OffersOnly-Prefix (λ _ → λ ()) (λ _ → oo-serveTxs n l (opposite d) q bm []) }))
+      OffersOnly-□
+        (OffersOnly-Prefix (λ _ → λ ()) (λ _ → oo-serveTxs n l (opposite d) q bm []))
+        (OffersOnly-Prefix₀ (λ _ → λ ()) OffersOnly-Stop) }))
 
   -- every REQUESTED transaction pulled off the wire, deposited in the mempool; the
   -- membership guard only drops deposits, so both arms are `noNeed`
@@ -830,12 +841,13 @@ module Generic
             OffersOnly-Output ⦃ DecEqI.DecEq-List ⦄ (λ ()) OffersOnly-Ret)))))
 
   -- the guarded body deposit of a fetch: needs no key either way
-  oo-fetchDep : ∀ n′ h′ eb
-              → OffersOnly noNeed
-                  ((putBodyEv n′ ! eb ⟶ Skip {0ℓ}) ◁ ⌊ ebHash eb ≟ h′ ⌋ ▷ Skip {0ℓ})
-  oo-fetchDep n′ h′ eb with ⌊ ebHash eb ≟ h′ ⌋
-  ... | true  = OffersOnly-Output (λ ()) OffersOnly-Skip
-  ... | false = OffersOnly-Skip
+  oo-fetchDep : ∀ n′ h′ eb → OffersOnly noNeed
+    (Stop ◁ (maxTxs <ᵇ length (ebTxs (ebHash eb))) ▷
+      ((putBodyEv n′ ! eb ⟶ Skip {0ℓ}) ◁ ⌊ ebHash eb ≟ h′ ⌋ ▷ Stop))
+  oo-fetchDep n′ h′ eb with maxTxs <ᵇ length (ebTxs (ebHash eb)) | ⌊ ebHash eb ≟ h′ ⌋
+  ... | true | _ = OffersOnly-Stop
+  ... | false | true = OffersOnly-Output (λ ()) OffersOnly-Skip
+  ... | false | false = OffersOnly-Stop
 
   -- the reaction to a body offer: request the offered point, receive the body, deposit
   -- it if it hashes to what was asked for
@@ -844,29 +856,38 @@ module Generic
     OffersOnly-Output ⦃ DecEq-EBPoint ⦄ (λ ())
       (OffersOnly-Prefix (λ _ → λ ()) (oo-fetchDep n′ (proj₁ q)))
 
-  -- every checked entry of a tx-closure reply, deposited in the MEMPOOL
-  oo-putChecked : ∀ n′ h es → OffersOnly noNeed (putChecked n′ h es)
-  oo-putChecked n′ h []              = OffersOnly-Skip
-  oo-putChecked n′ h ((o , tx′) ∷ es) with at? o (ebTxs h)
-  ... | nothing      = oo-putChecked n′ h es
-  ... | just (k , _) with ⌊ txHash tx′ ≟ k ⌋
-  ...   | true  = OffersOnly-Output (λ ()) (oo-putChecked n′ h es)
-  ...   | false = oo-putChecked n′ h es
+  -- Successful reply validation deposits only transactions, in entry order.
+  oo-putAll : ∀ n′ es → OffersOnly noNeed (putAll n′ es)
+  oo-putAll n′ [] = OffersOnly-Skip
+  oo-putAll n′ ((o , tx′) ∷ es) = OffersOnly-Output (λ ()) (oo-putAll n′ es)
 
-  -- the reaction to a tx-closure offer: block at the body, request every offset, and
-  -- deposit the checked entries.  TRANSACTIONS, not blobs.
-  oo-fetchTxs : ∀ n′ l d q → OffersOnly noNeed (fetchTxs n′ l d q)
-  oo-fetchTxs n′ l d q =
-    OffersOnly-Prefix (λ _ → λ ()) (λ _ →
-      OffersOnly-Output ⦃ DecEq-TxsRequest ⦄ (λ ())
-        (OffersOnly-Prefix (λ _ → λ ()) (λ { (q′ , es) → guard q′ es })))
+  -- A failed reply-wide validation stops before any deposit.
+  oo-putChecked : ∀ n′ h es → OffersOnly noNeed (putChecked n′ h es)
+  oo-putChecked n′ h es with all (entryOk h) es
+  ... | true = oo-putAll n′ es
+  ... | false = OffersOnly-Stop
+
+  -- Every chunk requests and receives data before transaction-only deposits.
+  oo-fetchChunks : ∀ n′ l d q bms → OffersOnly noNeed (fetchChunks n′ l d q bms)
+  oo-fetchChunks n′ l d q [] = OffersOnly-Skip
+  oo-fetchChunks n′ l d q (bm ∷ bms) =
+    OffersOnly-Output ⦃ DecEq-TxsRequest ⦄ (λ ())
+      (OffersOnly-Prefix (λ _ → (λ ())) (λ { (q′ , es) → guard q′ es }))
     where
-    -- the echoed-point check around the deposit
+    -- Echo mismatch stops; matching replies sequence deposits and the remaining chunks.
     guard : ∀ q′ es → OffersOnly noNeed
-              (putChecked n′ (proj₁ q) es ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Skip {0ℓ})
+      ((putChecked n′ (proj₁ q) es >> fetchChunks n′ l d q bms)
+        ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Stop {0ℓ})
     guard q′ es with ⌊ DecEq-EBPoint ._≟_ q′ q ⌋
-    ... | true  = oo-putChecked n′ (proj₁ q) es
-    ... | false = OffersOnly-Skip
+    ... | true = OffersOnly->>= (oo-putChecked n′ (proj₁ q) es)
+                     (λ _ → oo-fetchChunks n′ l d q bms)
+    ... | false = OffersOnly-Stop
+
+  -- The leading body read and all chunk rounds never deposit a body or vote blob.
+  oo-fetchTxs : ∀ n′ l d q → OffersOnly noNeed (fetchTxs n′ l d q)
+  oo-fetchTxs n′ l d q = OffersOnly-Prefix (λ _ → (λ ()))
+    (λ _ → oo-fetchChunks n′ l d q (txChunks lp (proj₁ q)))
+
 
   ------------------------------------------------------------------------
   -- THE TWO CONTENT-BEARING LEAVES

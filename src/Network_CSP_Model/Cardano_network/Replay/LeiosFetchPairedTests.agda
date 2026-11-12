@@ -58,10 +58,18 @@ server-sequential = toWitnessFalse {a? = P.compatible? 2 (P.initial 2)
   ((Send , MsgLeiosBlockRequest 1 3) ∷ (Send , MsgLeiosBlockRequest 2 4) ∷ [])
   ((Recv , MsgLeiosBlockRequest 1 3) ∷ (Recv , MsgLeiosBlockRequest 2 4) ∷ [])} tt
 
--- Transaction reply fields must match their send, but need not echo the request.
-non-echo : P.Witness 1 (P.initial 1)
-  ((Send , MsgLeiosBlockTxsRequest 1 3 2 []) ∷ (Recv , MsgLeiosBlockTxs 1 3 9 40 ((0 , 15) ∷ [])) ∷ [])
-  ((Recv , MsgLeiosBlockTxsRequest 1 3 2 []) ∷ (Send , MsgLeiosBlockTxs 1 3 9 40 ((0 , 15) ∷ [])) ∷ [])
-non-echo = toWitness {a? = P.witness? 1 (P.initial 1)
-  ((Send , MsgLeiosBlockTxsRequest 1 3 2 []) ∷ (Recv , MsgLeiosBlockTxs 1 3 9 40 ((0 , 15) ∷ [])) ∷ [])
-  ((Recv , MsgLeiosBlockTxsRequest 1 3 2 []) ∷ (Send , MsgLeiosBlockTxs 1 3 9 40 ((0 , 15) ∷ [])) ∷ [])} tt
+-- A request for two bitmap bits cannot receive a positional count of nine.
+non-echo : ¬ P.Witness 1 (P.initial 1)
+  ((Send , MsgLeiosBlockTxsRequest 1 3 2 ((0 , 3) ∷ [])) ∷ (Recv , MsgLeiosBlockTxs 9 40) ∷ [])
+  ((Recv , MsgLeiosBlockTxsRequest 1 3 2 ((0 , 3) ∷ [])) ∷ (Send , MsgLeiosBlockTxs 9 40) ∷ [])
+non-echo = toWitnessFalse {a? = P.witness? 1 (P.initial 1)
+  ((Send , MsgLeiosBlockTxsRequest 1 3 2 ((0 , 3) ∷ [])) ∷ (Recv , MsgLeiosBlockTxs 9 40) ∷ [])
+  ((Recv , MsgLeiosBlockTxsRequest 1 3 2 ((0 , 3) ∷ [])) ∷ (Send , MsgLeiosBlockTxs 9 40) ∷ [])} tt
+
+-- An unanswered request is an accepted paired prefix.
+paired-throw : P.Witness 1 (P.initial 1)
+  ((Send , MsgLeiosBlockRequest 10 4) ∷ [])
+  ((Recv , MsgLeiosBlockRequest 10 4) ∷ [])
+paired-throw = toWitness {a? = P.witness? 1 (P.initial 1)
+  ((Send , MsgLeiosBlockRequest 10 4) ∷ [])
+  ((Recv , MsgLeiosBlockRequest 10 4) ∷ [])} tt

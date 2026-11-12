@@ -8,9 +8,9 @@
 -- leaf closures (`MAccR-⟶`, `MAccR-Output`, `MAccR-□`, `MAccR->>=`).
 ------------------------------------------------------------------------
 
-open import Data.Nat using (ℕ)
+open import Data.Nat using (ℕ; _<ᵇ_)
 open import Data.Fin using (Fin)
-open import Data.List using (List)
+open import Data.List using (List; length)
 open import Cardano_network.Parametric.Topology using (Topology; module Topology)
 open import Cardano_network.Parametric.Leios.LeiosInstanceP using (pL; lpF; VB; AllV; HP)
 
@@ -29,6 +29,7 @@ open import Data.List using (List; []; _∷_; reverse)
 open import Data.List.Relation.Unary.All using (universal)
 open import Data.List.Relation.Unary.All.Properties using (map⁺)
 open import Data.Maybe using (just; nothing)
+open import Data.Bool.ListAction using (all)
 open import Data.Bool using (not; _∧_)
 open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Data.Product using (_,_; proj₁; proj₂)
@@ -37,9 +38,10 @@ open import Data.Unit.Polymorphic using (tt)
 open import Data.Maybe.Properties using (just-injective)
 open import Relation.Nullary using (yes; no)
 open import Relation.Binary.PropositionalEquality using (refl; subst)
+open import Function using (case_of_)
 open import Class.DecEq using (DecEq; _≟_)
 
-open import Process_Trees using (ExtI)
+open import Process_Trees using (ExtI; react)
 open import Cardano_network.Base
 open import Cardano_network.Net pP
 open import Cardano_network.Data pP using (Payload)
@@ -50,30 +52,43 @@ open import CSP.Laws.DivFree.Reach (Net_Api-≟ {Payload}) using (MAccR-Ret; MAc
 open import CSP.Laws.DivFree.ReachExtra (Net_Api-≟ {Payload}) using (MAccR-if; MAccR-maybe′)
 open import CSP.Laws.DivFree.Loop (Net_Api-≟ {Payload})
   using (Guarded; Guarded-react; Guarded-⟶-vis; Guarded-Output-vis
-        ; MAccR-⟶; MAccR-⟶₀; MAccR-Output; MAccR->>=; MAccR-loop; MAccR-loop0; MAccR-Stop)
+        ; MAccR-react; MAccR-⟶; MAccR-⟶₀; MAccR-Output; MAccR->>=; MAccR-loop; MAccR-loop0; MAccR-Stop)
 open import CSP.Laws.DivFree.ReachChoice (Net_Api-≟ {Payload}) using (MAccR-□; Guarded-□)
 import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic pP tP apiES using (serverBody-k; offerHeld; DecEq-Header×Tip; clientLoop; clientBody-k; storeES)
 open import Cardano_network.Data pP using (header; DecEq-ChainRange; DecEq-Header; DecEq-EBPoint; DecEq-TxsRequest; DecEq-TxsReply; DecEq-Offer)
 import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-open LeiosP pP using (DecEq-LeiosPoint)
-open LeiosP.LeiosParams lpP using (ebTxs; certifies)
+open LeiosP pP using (DecEq-LeiosPoint; txChunks)
+open LeiosP.LeiosParams lpP using (ebTxs; certifies; maxTxs)
 open import Cardano_network.Parametric.Topology using (module Topology)
 open Topology tP using (endpointsOf)
 open import Cardano_network.Params using (module Params)
 open Params pP using (decBlock; decEBHash; decTxHash; decRbHash; decVoteBlob; announcedEB)
 import Class.DecEq.Instances as DecEqI
+import Cardano_network.Parametric.Leios.LacksStoreL
+open import Semantics.LTS using (sVis)
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic pP lpP tP apiES vo
   using (nodeLogicL; st₀; serverBodyL; serverLoopL; storeStepL; blockStoreL; offerIx
         ; DecEq-⊤poly; DecEq-Votes; DecEq-ℕ×ℕ; at?; memberOf
         ; forgeL; forgeOK; forgeBodyL; forgeCertL; ebIndex; ebIndexBody; voter; voterBody; submit; certSink
         ; lnServerLoopL; lnServerBodyL; awaitTxs; bodyOfferBody; bodyOfferLoop
-        ; voteOfferBody; voteOfferLoop; fetchBody; putChecked; fetchTxs; putAllVotes
+        ; voteOfferBody; voteOfferLoop; fetchBody; putChecked; putAll; entryOk; fetchChunks; fetchTxs; putAllVotes
         ; lnClientBodyL; lnClientLoopL; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody
         ; ebTxsServeLoop; putAllTx; tsPullBody; tsPull; tsServeBody; tsServe
-        ; ebStep; ebStore; bodyStep; offerBodies; bodyStore; memStep; offerTxs; mempool
+        ; lacksBodies; lacksTxs; ebStep; ebStore; bodyStep; offerBodies; bodyStore; memStep; offerTxs; mempool
         ; certify; offerCerts; voteStep; voteStore; endpointThreadsL; allThreadsL)
+
+-- The negative menus have only state-preserving return successors.
+module Lacks = Cardano_network.Parametric.Leios.LacksStoreL.Generic pP lpP tP apiES vo
+
+-- Every negative body read has an accessible return continuation.
+lacksBodies-R : ∀ n bs → MAccR ∅ES (lacksBodies n bs)
+lacksBodies-R n bs = MAccR-react refl (λ {at} {a} br → case Lacks.body-inv n bs (sVis {at = at} {a = a} refl br) of λ { (_ , refl , refl) → MAccR-Ret _ })
+
+-- Every negative transaction read has an accessible return continuation.
+lacksTxs-R : ∀ n ts → MAccR ∅ES (lacksTxs n ts)
+lacksTxs-R n ts = MAccR-react refl (λ {at} {a} br → case Lacks.tx-inv n ts (sVis {at = at} {a = a} refl br) of λ { (_ , refl , refl) → MAccR-Ret _ })
 
 ------------------------------------------------------------------------
 -- a thread: the ChainSync server's read-pointer loop
@@ -242,21 +257,29 @@ voteOfferLoop-R n (l , d) = MAccR-loop _ (λ _ → Guarded-⟶-vis _ (λ _ ())) 
 fetchBody-R : ∀ n l d qs → MAccR ∅ES (fetchBody n l d qs)
 fetchBody-R n l d (q , _) =
   MAccR-Output ⦃ DecEq-EBPoint ⦄ _ _ (MAccR-⟶ _ (λ eb →
-    MAccR-if ⌊ DecEq._≟_ decEBHash eb (proj₁ q) ⌋ (MAccR-Output _ _ MAccR-Skip) MAccR-Skip))
+    MAccR-if (maxTxs <ᵇ length (ebTxs eb)) MAccR-Stop
+      (MAccR-if ⌊ DecEq._≟_ decEBHash eb (proj₁ q) ⌋ (MAccR-Output _ _ MAccR-Skip) MAccR-Stop)))
 
--- depositing the checked entries of a tx-closure reply (mirrors `putChecked`'s `with`)
+-- Ordered deposits remain accessible after the finite reply has been validated.
+putAll-R : ∀ n es → MAccR ∅ES (putAll n es)
+putAll-R n [] = MAccR-Skip
+putAll-R n ((o , x) ∷ es) = MAccR-Output _ _ (putAll-R n es)
+
+-- A failed reply-wide check stops without a deposit.
 putChecked-R : ∀ n h es → MAccR ∅ES (putChecked n h es)
-putChecked-R n h []             = MAccR-Skip
-putChecked-R n h ((o , x) ∷ es) with at? o (ebTxs h)
-... | nothing      = putChecked-R n h es
-... | just (k , _) =
-  MAccR-if ⌊ DecEq._≟_ decTxHash x k ⌋ (MAccR-Output _ _ (putChecked-R n h es)) (putChecked-R n h es)
+putChecked-R n h es = MAccR-if (all (entryOk h) es) (putAll-R n es) MAccR-Stop
 
--- fetching a tx closure
+-- Chunk recursion is finite; sequencing a stopped check cannot reach the next chunk.
+fetchChunks-R : ∀ n l d q bms → MAccR ∅ES (fetchChunks n l d q bms)
+fetchChunks-R n l d q [] = MAccR-Skip
+fetchChunks-R n l d q (bm ∷ bms) =
+  MAccR-Output ⦃ DecEq-TxsRequest ⦄ _ _ (MAccR-⟶ _ (λ { (q′ , es) →
+    MAccR-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋
+      (MAccR->>= (putChecked-R n (proj₁ q) es) (λ _ → fetchChunks-R n l d q bms)) MAccR-Stop }))
+
+-- Fetching a closure starts with a visible body read.
 fetchTxs-R : ∀ n l d q → MAccR ∅ES (fetchTxs n l d q)
-fetchTxs-R n l d q =
-  MAccR-⟶ _ (λ _ → MAccR-Output ⦃ DecEq-TxsRequest ⦄ _ _ (MAccR-⟶ _ (λ { (q′ , es) →
-    MAccR-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋ (putChecked-R n (proj₁ q) es) MAccR-Skip })))
+fetchTxs-R n l d q = MAccR-⟶ _ (λ _ → fetchChunks-R n l d q (txChunks lpP (proj₁ q)))
 
 -- depositing the delivered vote blobs
 putAllVotes-R : ∀ n vs → MAccR ∅ES (putAllVotes n vs)
@@ -275,20 +298,24 @@ lnClientLoopL-R n (l , d) =
 ebServeLoop-R : ∀ n ld → MAccR ∅ES (ebServeLoop n ld)
 ebServeLoop-R n (l , d) =
   MAccR-loop0 (Guarded-⟶-vis _ (λ _ ()))
-    (MAccR-⟶ _ (λ q → MAccR-⟶ _ (λ eb → MAccR-Output _ _ MAccR-Skip)))
+    (MAccR-⟶ _ (λ q → MAccR-□
+      (MAccR-⟶ _ (λ eb → MAccR-Output _ _ MAccR-Skip))
+      (MAccR-⟶₀ _ MAccR-Stop)))
 
 -- building and sending a tx-closure reply (mirrors `serveTxs`'s `with`)
 serveTxs-R : ∀ n l d q os acc → MAccR ∅ES (serveTxs n l d q os acc)
 serveTxs-R n l d q []       acc = MAccR-Output ⦃ DecEq-TxsReply ⦄ _ _ MAccR-Skip
 serveTxs-R n l d q (o ∷ os) acc with at? o (ebTxs (proj₁ q))
-... | nothing      = serveTxs-R n l d q os acc
-... | just (h , _) = MAccR-⟶ _ (λ y → serveTxs-R n l d q os _)
+... | nothing      = MAccR-Stop
+... | just (h , _) = MAccR-□
+  (MAccR-⟶ _ (λ y → serveTxs-R n l d q os _)) (MAccR-⟶₀ _ MAccR-Stop)
 
 -- THE TX-CLOSURE-SERVE LEAF (each pass opens with `lfpReqBlockTxsRequest`)
 ebTxsServeLoop-R : ∀ n ld → MAccR ∅ES (ebTxsServeLoop n ld)
 ebTxsServeLoop-R n (l , d) =
   MAccR-loop0 (Guarded-⟶-vis _ (λ _ ()))
-    (MAccR-⟶ _ (λ { (q , bm) → MAccR-⟶ _ (λ _ → serveTxs-R n l _ q bm []) }))
+    (MAccR-⟶ _ (λ { (q , bm) → MAccR-□
+      (MAccR-⟶ _ (λ _ → serveTxs-R n l _ q bm [])) (MAccR-⟶₀ _ MAccR-Stop) }))
 
 -- depositing the requested transactions of a TxSubmission reply
 putAllTx-R : ∀ n ids txs → MAccR ∅ES (putAllTx n ids txs)
@@ -334,8 +361,8 @@ offerBodies-G n bs (eb ∷ ebs) = Guarded-□ (Guarded-Output-vis _ _ (λ _ ()))
 -- THE EB-BODY STORE LEAF
 bodyStore-R : ∀ n bs → MAccR ∅ES (bodyStore n bs)
 bodyStore-R n = MAccR-loop _
-  (λ bs → Guarded-□ (Guarded-⟶-vis _ (λ _ ())) (offerBodies-G n bs bs))
-  (λ bs → MAccR-□ (MAccR-⟶ _ (λ _ → MAccR-Ret _)) (offerBodies-R n bs bs))
+  (λ bs → Guarded-□ (Guarded-⟶-vis _ (λ _ ())) (Guarded-□ (offerBodies-G n bs bs) (Guarded-react refl (λ ()))))
+  (λ bs → MAccR-□ (MAccR-⟶ _ (λ _ → MAccR-Ret _)) (MAccR-□ (offerBodies-R n bs bs) (lacksBodies-R n bs)))
 
 -- the by-hash transaction menu …
 offerTxs-R : ∀ n ts xs → MAccR ∅ES (offerTxs n ts xs)
@@ -351,9 +378,9 @@ offerTxs-G n ts (x ∷ xs) = Guarded-□ (Guarded-Output-vis _ _ (λ _ ())) (off
 mempool-R : ∀ n ts → MAccR ∅ES (mempool n ts)
 mempool-R n = MAccR-loop _
   (λ ts → Guarded-□ (Guarded-⟶-vis _ (λ _ ())) (Guarded-□ (Guarded-⟶-vis _ (λ _ ()))
-            (Guarded-□ (oi-G _ ts 0 ts) (offerTxs-G n ts ts))))
+            (Guarded-□ (oi-G _ ts 0 ts) (Guarded-□ (offerTxs-G n ts ts) (Guarded-react refl (λ ()))))))
   (λ ts → MAccR-□ (MAccR-⟶ _ (λ _ → MAccR-Ret _)) (MAccR-□ (MAccR-⟶ _ (λ _ → MAccR-Ret _))
-            (MAccR-□ (oi-R _ ts 0 ts) (offerTxs-R n ts ts))))
+            (MAccR-□ (oi-R _ ts 0 ts) (MAccR-□ (offerTxs-R n ts ts) (lacksTxs-R n ts)))))
 
 -- the certification step after a vote deposit
 certify-R : ∀ n bs cs r → MAccR ∅ES (certify n bs cs r)

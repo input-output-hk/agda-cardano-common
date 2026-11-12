@@ -38,6 +38,7 @@ open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 import Data.Fin.Properties as FinProp
 open import Data.List using (List; []; _∷_)
 open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Nat using (s≤s; z≤n)
 import Data.Maybe.Properties as MaybeProp
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Relation.Nullary using (yes)
@@ -136,6 +137,8 @@ leiosLP = record
   ; blobRb-mk    = λ _ _ → refl
   ; certifies  = λ vs r → any (λ v → ⌊ DecEq._≟_ leiosLDecEqBlock (proj₂ v) r ⌋) vs
   ; ebTxs      = λ h → if h then ((true , U.tt) ∷ []) else []
+  ; chunk = 1
+  ; chunk-pos = s≤s z≤n ; chunk≤maxTxs = s≤s z≤n
   ; ebSize     = λ _ → U.tt
   ; rbCert     = λ b → if ⌊ DecEq._≟_ leiosLDecEqBlock b (just false) ⌋
                        then just (just true) else nothing }

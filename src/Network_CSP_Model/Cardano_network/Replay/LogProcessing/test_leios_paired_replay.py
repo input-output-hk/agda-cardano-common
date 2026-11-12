@@ -115,20 +115,26 @@ def run_tests(binary, root):
             local(protocol, 'server', s)
             check(protocol, c, s, expected='rejected paired trace:')
         if not notify:
-            txreq = 'BlockTxsRequest ab 3 2 0:ff,1:aa'
-            txreply = 'BlockTxs ab 3 2 80 0:ff,1:aa'
-            for reply in [txreply, 'BlockTxs ab 3 9 90 -']:
-                # Reply count/bitmap need not echo a request, but must match its send.
+            txreq = 'BlockTxsRequest ab 3 2 0:c000000000000000'
+            txreply = 'BlockTxs 2 80'
+            for reply, expected in [(txreply, 'accepted paired prefix'),
+                                    ('BlockTxs 9 90', 'rejected paired trace:')]:
                 check(protocol, [f'Send {txreq}', f'Recv {reply}'],
-                      [f'Recv {txreq}', f'Send {reply}'])
-            for field in ['BlockTxs ab 3 3 80 0:ff,1:aa',
-                          'BlockTxs ab 3 2 81 0:ff,1:aa',
-                          'BlockTxs ab 3 2 80 1:aa,0:ff',
-                          'BlockTxs ab 3 2 80 0:fe,1:aa']:
-                c, s = [f'Send {txreq}', f'Recv {txreply}'], [f'Recv {txreq}', f'Send {field}']
-                local(protocol, 'client', c)
-                local(protocol, 'server', s)
-                check(protocol, c, s, expected='rejected paired trace:')
+                      [f'Recv {txreq}', f'Send {reply}'], expected=expected)
+            # Counts match the request; byte size has no requested counterpart.
+            for fields, expected in [(['BlockTxs 3 80'], 'rejected paired trace:'),
+                                     (['BlockTxs 2 81'], 'accepted paired prefix')]:
+                for reply in fields:
+                    check(protocol, [f'Send {txreq}', f'Recv {reply}'],
+                          [f'Recv {txreq}', f'Send {reply}'], expected=expected)
+            # Two locally legal sizes must still agree across the paired FIFO.
+            c = [f'Send {txreq}', f'Recv {txreply}']
+            s = [f'Recv {txreq}', 'Send BlockTxs 2 81']
+            local(protocol, 'client', c)
+            local(protocol, 'server', s)
+            check(protocol, c, s, expected='rejected paired trace:')
+            # paired-throw: an unanswered request is an accepted paired prefix.
+            check(protocol, [f'Send {txreq}'], [f'Recv {txreq}'])
             check(protocol, ['Send BlockRequest ab 3', 'Recv Block cd 20'],
                   ['Recv BlockRequest ab 3', 'Send Block ab 20'], expected='rejected paired trace:')
             check(protocol, ['Send BlockRequest ab 3'], ['Recv BlockRequest ab 4'],
@@ -150,8 +156,10 @@ def run_tests(binary, root):
             check(protocol, ['Send RequestNext', 'Recv Canceled'],
                   ['Recv RequestNext', 'Send Votes -'], expected='rejected paired trace:')
         # Exact protocol namespaces, alias expansion and original source maps.
+        if not notify:
+            request, response = txreq, txreply
         ns = 'LeiosNotify' if notify else 'LeiosFetch'
-        req_kind = 'NotificationRequestNext' if notify else 'BlockRequest ab 3'
+        req_kind = 'NotificationRequestNext' if notify else request
         (root / 'client.txt').write_text(f'role client\n{ns}.Remote.Send.{req_kind}\n'
                                          f'{ns}.Remote.Receive.{response}\n')
         (root / 'server.txt').write_text(f'role server\n{ns}.Remote.Receive.{req_kind}\n'

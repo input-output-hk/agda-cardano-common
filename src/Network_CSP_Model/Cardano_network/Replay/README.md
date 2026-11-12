@@ -1,7 +1,8 @@
 # Trace replay
 
 Two executables check normalized mini-protocol logs against first-order
-session specifications that are proved equivalent to PTree models:
+session specifications with protocol-specific PTree bridges. Fetch's local
+bridges concern counted observations with explicit wire premises, as qualified below:
 
 | Executable | Protocols and models | Guide |
 | --- | --- | --- |
@@ -25,6 +26,246 @@ Paired ChainSync, LeiosNotifyP, LeiosFetchP, BlockFetch and TxSubmission2 replay
 paired opposite endpoints. The [implementation note](../../../docs/notes/paired-chainsync-replay.md)
 documents its input grammar, certificates, tracer boundary and limitations;
 the [plan](../../../docs/specs/paired-trace-replay-plan.md) tracks remaining work.
+
+## Current-schema LeiosFetch replay (2026-11-11)
+
+The replay schema and constants target `ouroboros-consensus` `leios-prototype`
+at **`e6511527`** (`e651152750388ccf20700eb28149751981a396f4`).
+`BlockTxs` is a positional reply carrying only transaction count and byte size;
+it has no reply hash, slot or bitmap. See the [grammar and diagnostics](USAGE.md#leiosfetch-grammar-and-diagnostics).
+Fetch's default client depth is **150** in local, interleaved and paired modes;
+an explicit bound overrides it. Its server remains sequential.
+
+Acceptance has two layers in [the session spec](LeiosFetchSession.agda):
+
+- `wire`: bitmap decoding, protocol state, depth, FIFO reply kinds and byte caps.
+  [Wire constants](LeiosFetchWire.agda) are `maxTxs = 17142`,
+  `maxBitmapEntries = 268`, `txsCap = 550000`, `ebCap = 660000`.
+- `client`: request count versus bitmap popcount, client-send count ≤ `maxTxs`,
+  and checked replies' count/hash matches. Both roles require the logged request count to equal bitmap popcount.
+  On a server-role session, count and hash failures are labelled `client:` because
+  they are checks the receiving client makes.
+
+The client can silently stop and drain outstanding replies by kind without
+count/hash matching; wire checks remain active and new requests are forbidden.
+The server can silently throw while holding a request. Prefix acceptance therefore
+does not assert that all replies passed application checks, or that an unanswered
+request was actually served or thrown. Paired acceptance additionally matches all
+retained message fields across the two directional FIFOs.
+
+### Stage 2 positional model and replay follow-ups
+
+The protocol model now uses `MsgLFPBlockTxs : List Tx → MessageLeiosFetchP`.
+The client retains its requested point and offsets, accepts a checked reply only
+when `length txs ≡ length bm`, then delivers `(q , zip bm txs)` to the application.
+Since stage 3A, `LeiosFetchP` receives a count mismatch and then becomes `Stop`
+(no further event or τ step of that peer), representing upstream's client error
+at peer scope; whole-connection teardown is abstracted. The server sends
+`map proj₂ es`; the application reply carrier remains
+`(EBHash × LSlot) × List (ℕ × Tx)`. `LeiosFetchPipe` checks FIFO kind and count,
+while its existing stop-and-drain path consumes replies by kind with any count.
+The first-order replay still applies wire decoder caps while draining.
+
+The stage-3A stop replaces stage 2's receive refusal. Stage 3B+C now implements
+negative store reads and server throws, reply-wide validation before deposits,
+all-offset chunked requests, and client stops on oversized or mismatched EBs and
+failed reply checks. A client-thread stop also silences that link's shared Notify
+client. See the [Leios behavior and scope](../Parametric/Leios/README.md#stage-3bc-behavior).
+Application carriers, peer states, `LeiosFetchPipe`, the replay spec, node-level
+safety and no-livelock statements are unchanged. The
+[stage-3B+C outcome](../../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome)
+records the helper changes, accepted rulings and measured checks.
+
+Only a **client Send** of BlockTxsRequest has the new premise `n ≤ maxTxs`
+(`17142`); the diagnostic is `client: request count exceeds maxTxs`.
+An honest client's requested offsets come from an EB of at most `maxTxs`
+transactions. Valid bitmap decoding alone permits 268 words with popcount
+17150, so it does not imply this bound. **Server Recv remains uncapped**:
+upstream [`msgLeiosBlockTxsRequest`](https://github.com/IntersectMBO/ouroboros-consensus/blob/e651152750388ccf20700eb28149751981a396f4/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs#L281-L308)
+serves every requested offset or throws, with no request-count guard.
+Both roles still check the logged count against bitmap popcount; replies still
+have the wire count cap.
+
+Local and interleaved drain-only acceptances retain their existing first line
+(`accepted (<n> events)` locally; `accepted (<n> events, <m> sessions)` in
+interleaved mode), followed by `note: checked reading fails …` on line 2.
+Interleaved notes identify the session and its local event index; independent
+session queues stay separate. Paired Fetch retains its existing
+`accepted paired prefix (…)` first line and witness. Paired mode prints no drain note
+because no legal pair needs a client drain: the session spec's `sSendBlock`
+preserves the requested hash and `sSendTxs` preserves the requested count, while
+paired FIFO matching delivers exactly what the server sent. Thus a pair with
+legal server behaviour and matching FIFOs cannot fail those client reply checks;
+paired mode needs no silent client stop for such pairs. The paired-drain
+regression still rejects because the client receives Block `b` while the server
+sent Block `a`, violating FIFO matching. The checker and its witness are unchanged.
+
+### Stage 3B+C server throw and Stage 3D counted bridges
+
+A negative body read stops the serving thread and leaves the inventory unchanged.
+[`unknownEBThrows`](LeiosFetchBridgeSanity.agda) remains an actual model-run
+witness. The generic node logic also stops on missing offsets or transactions.
+The replay instance now has a decoder-sized table and holds its unit transaction,
+so its valid nonempty requests proceed to transaction reads rather than missing
+an offset in the former empty table. An accepted unanswered prefix does not
+establish that a concrete implementation threw or tore down its connection.
+
+### Stage 3D bridge and local-run statements
+
+Stage 1 returned an accepted representative existentially and related whole
+classes of logs under an observation that erased counts. Stage 3D replaces those
+shapes with **counted, conditional soundness** and direct log equivalences.
+Each restated endpoint below shows its old signature (the stage-1 statements at
+`cd63f3c7`) → its new signature (current source).
+
+[`server-sound`](LeiosFetchServerSound.agda):
+
+```agda
+-- Old
+server-sound : ∀ bs {t M} → serverModel bs ⟹∖√⟨ t ⟩ M
+             → ∃[ es ] (ObsS t es × HasTrace server₀ es)
+-- → New
+server-sound : ∀ bs {t M es} → serverModel bs ⟹∖√⟨ t ⟩ M
+             → ObsS t es → WireOK es → HasTrace server₀ es
+```
+
+[`client-sound`](LeiosFetchClientBridge.agda):
+
+```agda
+-- Old
+client-sound : ∀ {t M} → pipe k l d ⟹∖√⟨ t ⟩ M
+             → ∃[ es ] (ObsC t es × HasTrace client₀ es)
+-- → New
+client-sound : ∀ {t M es} → pipe k l d ⟹∖√⟨ t ⟩ M
+             → ObsC t es → WireOK es → HasTrace client₀ es
+```
+
+[`server-bridge`](LeiosFetchServerComplete.agda):
+
+```agda
+-- Old
+server-bridge : ∀ {es} → (∃[ es′ ] (es′ ≈♭ es × HasTrace server₀ es′))
+              ⇔ (∃[ bs ] ∃[ t ] ∃[ M ] (serverModel bs ⟹∖√⟨ t ⟩ M × ObsS t es))
+-- → New
+server-bridge : ∀ {es} → HasTrace server₀ es
+              ⇔ (WireOK es × ∃[ bs ] ∃[ t ] ∃[ M ]
+                  (serverModel bs ⟹∖√⟨ t ⟩ M × ObsS t es))
+```
+
+[`client-bridge`](LeiosFetchClientBridge.agda):
+
+```agda
+-- Old
+client-bridge : ∀ {es} → (∃[ es′ ] (es′ ≈♭ es × HasTrace client₀ es′))
+              ⇔ (∃[ t ] ∃[ M ] (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es))
+-- → New
+client-bridge : ∀ {es} → HasTrace client₀ es
+              ⇔ (WireOK es × ∃[ t ] ∃[ M ]
+                  (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es))
+```
+
+Fixed-store completeness retains its explicit request premise:
+
+```agda
+server-complete : ∀ bs {es} → All (ReqHeld bs) es → HasTrace server₀ es
+                → ∃[ t ] ∃[ M ] (serverModel bs ⟹∖√⟨ t ⟩ M × ObsS t es)
+```
+
+[Observation](LeiosFetchObs.agda) retains request hashes/slots, Block hashes,
+and both transaction counts (`length bm` / `length txs` in the model). It drops
+model receives that fail decoding, matching decoder-before-logging upstream.
+It still forgets byte sizes and bitmap words. [WireOK](LeiosFetchWireOK.agda)
+requires each Block's size ≤ 660000, each BlockTxs count ≤ 17142 and size ≤ 550000,
+and every transaction request's valid bitmap and count/popcount equality.
+Thus a counted observation alone does not imply acceptance: the regression log
+with a 660001-byte Block has the same observation as a model run and fails WireOK.
+
+D8′ distinguishes server decoding from honest client sends. Server requests use
+`decodable`: strictly ascending offsets below `64 * 268 = 17152`. Honest sends
+and the pipe use `canonical`: strictly ascending offsets below `17142`.
+[`LeiosFetchWords`](LeiosFetchWords.agda) proves canonical implies decodable and
+encoding validity/popcount preservation for all decodable lists. The valid
+17150-count server request now has a counted model-run witness; honest clients
+still cannot send that count. Replies, including drained replies, keep the wire
+count cap. Drain mode intentionally skips handler count matching.
+
+`ReplayParams` uses option (a), extended to all 17152 decoder offsets: each EB
+table entry is `(tt , tt)`. The [replay server model](LeiosFetchServerModel.agda)
+extends the original body store menu with a read of the held unit transaction.
+This is necessary for nonzero counted replies: the previous body-only store had
+no transaction-read partner. `ReqHeld` pairs held request hashes with bounds for
+every requested table offset; every corresponding transaction is held by this
+store. The total server bridge chooses the requested body inventory and derives
+the offset premise from wire validity. Soundness still covers every initial
+body inventory. This artificial serving table includes decoder padding; it is
+not an honest-body-size witness. The generic honest-node canonicity lemma still
+requires `length (ebTxs h) ≤ maxTxs`, including locally forged bodies.
+
+[Client completeness](LeiosFetchClientBridge.agda) realizes every accepted
+client trace at every bound, link and direction. This bridge certifies the
+spec-written `LeiosFetchPipe`, not the existing `LFPclientStClient`. Sizes and
+bitmap identity remain abstracted; these results do not supply an exact-field
+composed Fetch bridge or establish deployed implementation refinement.
+
+The composed [store-backed server endpoint](LeiosFetchPairedStoreTrace.agda),
+`LeiosFetchPairedStoreTrace.server-legal`, changes as follows (old → new):
+
+```agda
+-- Old
+server-legal : ∀ (k : ℕ) (l : Link) (d : Dir) (bs : Bodies)
+  {events : List Pair.Event} {end : PTree PairEv PairI ⊤} →
+  system k l d bs PairTrace.⟹∖√⟨ events ⟩ end →
+  ∃[ es ] (ObsS (projectServer events) es ×
+    Replay.Traces.HasTrace (F.Spec.leiosFetch k) F.server₀ es)
+-- → New
+server-legal : ∀ (k : ℕ) (l : Link) (d : Dir) (bs : Bodies)
+  {events : List Pair.Event} {end : PTree PairEv PairI ⊤} {es} →
+  system k l d bs PairTrace.⟹∖√⟨ events ⟩ end →
+  ObsS (projectServer events) es → WireOK es →
+  Replay.Traces.HasTrace (F.Spec.leiosFetch k) F.server₀ es
+```
+
+The inhabited `request-server-legal` gate applies it to a specific admissible
+log; the wrong-hash negative control remains impossible.
+
+[Paired local normalization](LeiosFetchPairedLocal.agda) now preserves the visible
+list with an existential endpoint and retains silent stopping explicitly:
+
+```agda
+data Run (r : Role) : St → List E → St → Set where
+  finish : ∀ {s} → Run r s [] s
+  stopped : ∀ {q es t} → Run r (cDrain q) es t → Run r (cOpen q) es t
+  visible : ∀ {s e t es u} → next r s e ≡ just t → Run r t es u → Run r s (e ∷ es) u
+
+lower : ∀ {r s es t} → Local._⇒⟨_⟩_ s es t → ∃ (Run r (normal s) es)
+```
+
+A terminal throw cannot preserve the normalized endpoint: `normal (sBusy r)`
+is ready, whereas the original run may end at `sThrown`. The `stopped` case
+retains `cStop` and `lift` restores it. The old `tau-normal` equality lemma was
+removed because stopping and throwing do not normalize to equality. The
+`wire-language` equivalence keeps its statement with this extended `Run`;
+paired deterministic `next` still chooses service and a prefix does not witness
+an actual throw.
+
+### Stage 1 devnet results
+
+On 2026-11-11, normalization and replay of
+`/home/rye/YE_Workspace_Research/Workspace_IOG/git_repos/leios-local/ouroboros-leios/demo/proto-devnet/tmp-devnet/node{1,2,3}/node.log`
+(captured 2026-11-10; logged `gitRevision 7b8ca5a178ee47a6f34be88de299ce936588bf9d`)
+accepted **11/11 sessions, 88 endpoint events**, at default depth 150. Node1,
+node2 and node3 contributed 5/38, 4/30 and 2/20 sessions/events respectively.
+All **4/4 matched pairs** accepted (`accepted paired prefix`), covering 76 endpoint
+events (38 messages observed at both endpoints). Three earlier sessions, totaling
+12 events, have no opposite endpoint in the supplied node3 log, which starts after
+node3's restart; they were checked locally only. No session or pair was rejected.
+All 11 sessions are depth-1 request/reply alternation; none contains Done,
+pipelining beyond depth 1, draining or a throw, so the run does not exercise
+those branches.
+Output and manifests are under `/tmp/leiosfetch-devnet-stage1/`; the small
+[node1 fixture and provenance](LogProcessing/fixtures/leiosfetch-devnet-node1.md)
+preserve the largest accepted node1 session. These are finite-prefix results,
+not delivery, validity or implementation-wide conformance proofs.
 
 ## Lookahead Notify replay
 
@@ -124,7 +365,7 @@ Main --paired-fetch PAIR.txt [K_FETCH]
 python3 -I src/Cardano_network/Replay/LogProcessing/paired_sessions.py manifest.json PAIR.txt
 ```
 
-**Default capacities: Notify 1, Fetch client 4.** Notify uses bounded credits
+**Default capacities: Notify 1, Fetch client 150.** Notify uses bounded credits
 at both endpoints; Fetch retains its sequential server. Both use exact parsed
 message equality on two initially empty FIFOs and return source-mapped merge
 witnesses. Headers and manifest protocol names are `LeiosNotifyP` and
@@ -301,7 +542,7 @@ BlockFetch wire events, but all their Fetch/Notify sessions pass replay.
 Raw BlockFetch adaptation is not yet provided.
 
 Mixed manifests accept `blockfetch:client` and `blockfetch:server` alongside
-`fetch:*` and `notify:*`. Bounds are independent (defaults 4, 1, 100). The
+`fetch:*` and `notify:*`. Bounds are independent (defaults 150, 1, 100). The
 existing one/two-bound forms retain those defaults for omitted arguments.
 `--blockfetch-client FILE [K_BF]` and `--blockfetch-server FILE` remain compatible
 role-specific entry points; the latter still rejects a depth argument.
@@ -386,7 +627,7 @@ Main --interleaved FILE [K_FETCH [K_NOTIFY]]
 /tmp/leios-replay-build/Main --interleaved /tmp/leios-replay-20261014/interleaved.txt 150 1000
 ```
 
-Defaults remain **Fetch 4, Notify 1**. A single interleaved bound still applies
+Current defaults are **Fetch 150, Notify 1**. A single interleaved bound still applies
 to Fetch. Bounds are nonnegative decimal integers; malformed or extra arguments
 print usage. Notify zero disables requests but permits an empty prefix or Quit/Done shutdown.
 

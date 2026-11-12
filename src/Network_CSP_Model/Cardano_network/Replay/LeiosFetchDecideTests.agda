@@ -1,170 +1,341 @@
 {-# OPTIONS --safe #-}
 
--- Typecheck-time tests of the replay decision procedure on the LeiosFetch
--- session spec (trace-replay Phase 4), pipelining bound k = 4. Every
--- `False` test is a proof of non-membership (`toWitnessFalse` turns it into
--- `¬ HasTrace s₀ trace`); every `True` test re-confirms a Phase 3 trace.
+-- Computation tests for the positional reply, decoder caps, and silent
+-- draining/throw branches, pinned to upstream e6511527 (stage 1).
 module Cardano_network.Replay.LeiosFetchDecideTests where
 
+open import Data.Bool using (true; false)
 open import Data.Nat using (ℕ)
-open import Data.List using (List; []; _∷_)
-open import Data.Product using (_×_; _,_)
-open import Data.Unit using (tt)
+open import Data.List using (List; []; _∷_; _++_; applyUpTo)
+open import Data.Product using (_,_)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Relation.Nullary using (¬_)
-open import Relation.Nullary.Decidable using (True; False; toWitnessFalse)
-
+open import Relation.Nullary.Decidable using (does; toWitnessFalse)
+open import Data.Unit using (tt)
 open import Semantics.Replay using (module Traces)
+
 open import Cardano_network.Replay.LeiosFetchSession
+open import Cardano_network.Replay.LeiosFetchWire using (Bitmap)
 open import Cardano_network.Replay.LeiosFetchDecide
 
-open Spec 4 using (leiosFetch)
+open Spec 150 using (whyRejected; after; taus; leiosFetch)
 open Traces leiosFetch using (HasTrace)
-open Cert 4 using (hasTrace?; client-cert; server-cert)
+open Cert 150 using (hasTrace?; client-cert; server-cert; rejectionReason)
 
--- a bitmap: word 0 with its low 8 bits set
-bm : List (ℕ × ℕ)
-bm = (0 , 255) ∷ []
+-- Two requested offsets, represented by the low two bits of word zero.
+bm : Bitmap
+bm = (0 , 3) ∷ []
 
-------------------------------------------------------------------------
--- Positive: the decider agrees with the Phase 3 fuel checker
+-- All 268 indices are valid; 267 full words plus 62 bits request 17150 transactions.
+overCapBitmap : Bitmap
+overCapBitmap = applyUpTo (λ i → i , 18446744073709551615) 267 ++
+  ((267 , 4611686018427387903) ∷ [])
 
--- server plain cycle (each reply after one τ)
-_ : True (hasTrace? server-cert
-      ( (Recv , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlock 1 5000)
-      ∷ (Recv , MsgLeiosBlockTxsRequest 1 10 8 bm)
-      ∷ (Send , MsgLeiosBlockTxs 1 10 8 9000 bm)
-      ∷ []))
-_ = tt
+-- The oversized count comes from a valid bitmap, rather than malformed input.
+over-cap-bitmap-valid : Cardano_network.Replay.LeiosFetchWire.validᵇ overCapBitmap ≡ true
+over-cap-bitmap-valid = refl
 
--- client pipelined depth 4 (= k), FIFO answers
-_ : True (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlockRequest 2 11)
-      ∷ (Send , MsgLeiosBlockTxsRequest 1 10 3 bm)
-      ∷ (Send , MsgLeiosBlockRequest 4 13)
-      ∷ (Recv , MsgLeiosBlock 1 100)
-      ∷ (Recv , MsgLeiosBlock 2 200)
-      ∷ (Recv , MsgLeiosBlockTxs 1 10 3 300 bm)
-      ∷ (Recv , MsgLeiosBlock 4 400)
-      ∷ []))
-_ = tt
+-- Its popcount is above the decoder's 17142-transaction limit.
+over-cap-bitmap-count : Cardano_network.Replay.LeiosFetchWire.popcount overCapBitmap ≡ 17150
+over-cap-bitmap-count = refl
 
--- client interleaving r1 r2 a1 r3 a2 a3
-_ : True (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlockTxsRequest 2 11 5 bm)
-      ∷ (Recv , MsgLeiosBlock 1 100)
-      ∷ (Send , MsgLeiosBlockRequest 3 12)
-      ∷ (Recv , MsgLeiosBlockTxs 2 11 5 500 bm)
-      ∷ (Recv , MsgLeiosBlock 3 300)
-      ∷ []))
-_ = tt
+-- Honest clients cannot request more than maxTxs, even with a valid bitmap.
+client-request-over-cap : does (hasTrace? client-cert
+  ((Send , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap) ∷ [])) ≡ false
+client-request-over-cap = refl
 
-------------------------------------------------------------------------
--- Negative: proofs of non-membership
+-- Oversized requests fail at the client layer rather than bitmap decoding.
+client-request-over-cap-reason : rejectionReason client₀ client₀
+  ((Send , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap) ∷ []) ≡
+  "client: request count exceeds maxTxs at index 1"
+client-request-over-cap-reason = refl
 
--- client: response without a request
-_ : False (hasTrace? client-cert ((Recv , MsgLeiosBlock 1 100) ∷ []))
-_ = tt
+-- Servers may receive every valid request and then serve it or throw.
+server-request-over-cap-accepted : does (hasTrace? server-cert
+  ((Recv , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap) ∷ [])) ≡ true
+server-request-over-cap-accepted = refl
 
--- server: response without a request
-_ : False (hasTrace? server-cert ((Send , MsgLeiosBlock 1 100) ∷ []))
-_ = tt
+-- Server replies must satisfy the same count decoder cap as client replies.
+server-count-cap : does (hasTrace? server-cert
+  ((Recv , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap)
+   ∷ (Send , MsgLeiosBlockTxs 17150 100) ∷ [])) ≡ false
+server-count-cap = refl
 
--- client: duplicated response (one request, two Blocks)
-_ : False (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Recv , MsgLeiosBlock 1 100)
-      ∷ (Recv , MsgLeiosBlock 1 100)
-      ∷ []))
-_ = tt
+-- The rejected oversized reply is explained at the wire layer.
+server-count-cap-reason : rejectionReason server₀ sThrown
+  ((Recv , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap)
+   ∷ (Send , MsgLeiosBlockTxs 17150 100) ∷ []) ≡
+  "wire: transaction count cap exceeded at index 2"
+server-count-cap-reason = refl
 
--- server: duplicated response (one request, two Blocks)
-_ : False (hasTrace? server-cert
-      ( (Recv , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlock 1 100)
-      ∷ (Send , MsgLeiosBlock 1 100)
-      ∷ []))
-_ = tt
+-- A server cannot send a different block hash for the outstanding request.
+server-wrong-hash : does (hasTrace? server-cert
+  ((Recv , MsgLeiosBlockRequest 1 10) ∷ (Send , MsgLeiosBlock 2 100) ∷ [])) ≡ false
+server-wrong-hash = refl
 
--- client: response for an EB never requested (wrong ebHash)
-_ : False (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Recv , MsgLeiosBlock 2 100)
-      ∷ []))
-_ = tt
+-- Client session: client-ok.
+client-ok : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 2 300)
+    ∷ [])) ≡ true
+client-ok = refl
 
--- server: reply for an EB never requested (wrong ebHash)
-_ : False (hasTrace? server-cert
-      ( (Recv , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlock 2 100)
-      ∷ []))
-_ = tt
+-- Client session: client-count.
+client-count : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 3 300)
+    ∷ (Send , MsgLeiosBlockRequest 2 11)
+    ∷ [])) ≡ false
+client-count = refl
 
--- client: two pipelined requests answered in reverse order
-_ : False (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlockRequest 2 11)
-      ∷ (Recv , MsgLeiosBlock 2 200)
-      ∷ (Recv , MsgLeiosBlock 1 100)
-      ∷ []))
-_ = tt
+-- Client session: drain-ok.
+drain-ok : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 3 300)
+    ∷ (Send , MsgLeiosDone)
+    ∷ [])) ≡ true
+drain-ok = refl
 
--- client: BlockTxs response with the wrong slot
-_ : False (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockTxsRequest 1 10 8 bm)
-      ∷ (Recv , MsgLeiosBlockTxs 1 11 8 9000 bm)
-      ∷ []))
-_ = tt
+-- Client session: numtxs-popcount.
+numtxs-popcount : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 3 bm)
+    ∷ [])) ≡ false
+numtxs-popcount = refl
 
--- server: BlockTxs reply with the wrong slot
-_ : False (hasTrace? server-cert
-      ( (Recv , MsgLeiosBlockTxsRequest 1 10 8 bm)
-      ∷ (Send , MsgLeiosBlockTxs 1 11 8 9000 bm)
-      ∷ []))
-_ = tt
+-- Client session: bad-bitmap.
+bad-bitmap : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 0 ((0 , 0) ∷ []))
+    ∷ [])) ≡ false
+bad-bitmap = refl
 
--- client: a fifth outstanding request exceeds k = 4
-_ : False (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlockRequest 2 11)
-      ∷ (Send , MsgLeiosBlockRequest 3 12)
-      ∷ (Send , MsgLeiosBlockRequest 4 13)
-      ∷ (Send , MsgLeiosBlockRequest 5 14)
-      ∷ []))
-_ = tt
+-- Client session: too-many.
+too-many : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 17143 300)
+    ∷ (Send , MsgLeiosDone)
+    ∷ [])) ≡ false
+too-many = refl
 
--- client: Done with a request outstanding
-_ : False (hasTrace? client-cert
-      ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosDone)
-      ∷ []))
-_ = tt
+-- Client session: too-big.
+too-big : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 2 550001)
+    ∷ [])) ≡ false
+too-big = refl
 
--- server: Done with a request outstanding
-_ : False (hasTrace? server-cert
-      ( (Recv , MsgLeiosBlockRequest 1 10)
-      ∷ (Recv , MsgLeiosDone)
-      ∷ []))
-_ = tt
+-- Client session: block-hash.
+block-hash : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosBlock 2 100)
+    ∷ (Send , MsgLeiosBlockRequest 3 11)
+    ∷ [])) ≡ false
+block-hash = refl
 
--- server: a second request before the first is answered
-_ : False (hasTrace? server-cert
-      ( (Recv , MsgLeiosBlockRequest 1 10)
-      ∷ (Recv , MsgLeiosBlockRequest 2 11)
-      ∷ []))
-_ = tt
+-- Client session: block-hash-drain.
+block-hash-drain : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosBlock 2 100)
+    ∷ (Send , MsgLeiosDone)
+    ∷ [])) ≡ true
+block-hash-drain = refl
 
-------------------------------------------------------------------------
--- Replica of the real FIFO-skip sessions (relay leios1-rel-a-1, session
--- 172.31.40.28:3001 ↔ 52.58.138.208:3001, client role, 2026-09-27): the
--- client queue was empty just before 14:43:35, so the session state there
--- is client₀. The BlockRequest for 203b94b7… (slot 1781013) is never
--- answered; the next Block answers the following request 322074c6… (slot
--- 1781049, 99975 bytes).
+-- Client session: fifo.
+fifo : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Send , MsgLeiosBlockTxsRequest 2 11 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 2 300)
+    ∷ [])) ≡ false
+fifo = refl
 
--- the logged event sequence from the empty queue
+-- Server session: server-ok.
+server-ok : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Send , MsgLeiosBlockTxs 2 300)
+    ∷ [])) ≡ true
+server-ok = refl
+
+-- Server session: server-count.
+server-count : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Send , MsgLeiosBlockTxs 1 300)
+    ∷ [])) ≡ false
+server-count = refl
+
+-- Server session: throw-eof.
+throw-eof : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ [])) ≡ true
+throw-eof = refl
+
+-- Server session: throw-block-eof.
+throw-block-eof : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockRequest 1 10)
+    ∷ [])) ≡ true
+throw-block-eof = refl
+
+-- Server session: server-popcount.
+server-popcount : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockTxsRequest 1 10 3 bm)
+    ∷ [])) ≡ false
+server-popcount = refl
+
+-- Server session: server-bad-bitmap.
+server-bad-bitmap : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockTxsRequest 1 10 0 ((0 , 0) ∷ []))
+    ∷ [])) ≡ false
+server-bad-bitmap = refl
+
+-- Client session: zero-count.
+zero-count : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 0 300)
+    ∷ (Send , MsgLeiosBlockRequest 2 11)
+    ∷ [])) ≡ false
+zero-count = refl
+
+-- Client session: block-too-big.
+block-too-big : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosBlock 1 660001)
+    ∷ (Send , MsgLeiosDone)
+    ∷ [])) ≡ false
+block-too-big = refl
+
+-- Server session: server-txs-too-big.
+server-txs-too-big : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Send , MsgLeiosBlockTxs 2 550001)
+    ∷ [])) ≡ false
+server-txs-too-big = refl
+
+-- Server session: server-block-too-big.
+server-block-too-big : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockRequest 1 10)
+    ∷ (Send , MsgLeiosBlock 1 660001)
+    ∷ [])) ≡ false
+server-block-too-big = refl
+
+-- Client session: client-unsolicited.
+client-unsolicited : does (hasTrace? client-cert
+    ((Recv , MsgLeiosBlock 1 100)
+    ∷ [])) ≡ false
+client-unsolicited = refl
+
+-- Server session: server-unsolicited.
+server-unsolicited : does (hasTrace? server-cert
+    ((Send , MsgLeiosBlock 1 100)
+    ∷ [])) ≡ false
+server-unsolicited = refl
+
+-- Client session: client-duplicate.
+client-duplicate : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosBlock 1 100)
+    ∷ (Recv , MsgLeiosBlock 1 100)
+    ∷ [])) ≡ false
+client-duplicate = refl
+
+-- Server session: server-duplicate.
+server-duplicate : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockRequest 1 10)
+    ∷ (Send , MsgLeiosBlock 1 100)
+    ∷ (Send , MsgLeiosBlock 1 100)
+    ∷ [])) ≡ false
+server-duplicate = refl
+
+-- Client session: client-done-pending.
+client-done-pending : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Send , MsgLeiosDone)
+    ∷ [])) ≡ false
+client-done-pending = refl
+
+-- Server session: server-done-pending.
+server-done-pending : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosDone)
+    ∷ [])) ≡ false
+server-done-pending = refl
+
+-- Server session: server-overlap.
+server-overlap : does (hasTrace? server-cert
+    ((Recv , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosBlockRequest 2 11)
+    ∷ [])) ≡ false
+server-overlap = refl
+
+-- Client session: block-cap-boundary.
+block-cap-boundary : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockRequest 1 10)
+    ∷ (Recv , MsgLeiosBlock 1 660000)
+    ∷ [])) ≡ true
+block-cap-boundary = refl
+
+-- Client session: txs-cap-boundary.
+txs-cap-boundary : does (hasTrace? client-cert
+    ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+    ∷ (Recv , MsgLeiosBlockTxs 2 550000)
+    ∷ [])) ≡ true
+txs-cap-boundary = refl
+
+-- Construct exactly n client requests, with the index as the requested hash.
+requests : ℕ → List E
+requests n = applyUpTo (λ i → Send , MsgLeiosBlockRequest i 0) n
+
+-- The upstream pipeline accepts all 150 requests.
+depth : does (hasTrace? client-cert (requests 150)) ≡ true
+depth = refl
+
+-- Request 151 exceeds the upstream pipeline bound.
+depth-over : does (hasTrace? client-cert (requests 151)) ≡ false
+depth-over = refl
+
+-- A bad count can only have been consumed by draining, forbidding a new request.
+client-count-diagnostic :
+  whyRejected (cDrain []) (Send , MsgLeiosBlockRequest 2 11) ≡
+    "client: draining forbids new requests"
+client-count-diagnostic = refl
+
+-- Invalid bitmap encoding is diagnosed before the logged popcount is checked.
+bad-bitmap-diagnostic :
+  whyRejected client₀ (Send , MsgLeiosBlockTxsRequest 1 10 0 ((0 , 0) ∷ [])) ≡
+    "wire: invalid bitmap"
+bad-bitmap-diagnostic = refl
+
+-- Both application outcomes are enumerated, including the terminal throw.
+throw-successors : taus (sBusy (blockReq 1 10)) ≡
+  sReady (blockReq 1 10) ∷ sThrown ∷ []
+throw-successors = refl
+
+-- A thrown server has no visible continuation, in either direction.
+throw-terminal-send : after sThrown (Send , MsgLeiosBlock 1 100) ≡ []
+throw-terminal-send = refl
+
+-- A thrown server cannot receive a new request either.
+throw-terminal-recv : after sThrown (Recv , MsgLeiosBlockRequest 2 11) ≡ []
+throw-terminal-recv = refl
+
+-- A thrown server has no further silent step.
+throw-terminal-tau : taus sThrown ≡ []
+throw-terminal-tau = refl
+
+-- A mismatched reply count is a client-layer failure on the checked reading.
+count-diagnostic : whyRejected (cOpen (blockTxsReq 1 10 2 ∷ []))
+  (Recv , MsgLeiosBlockTxs 3 300) ≡ "client: reply count mismatch"
+count-diagnostic = refl
+
+-- The count wire cap is checked before byte size or client matching.
+count-cap-diagnostic : whyRejected (cOpen (blockTxsReq 1 10 2 ∷ []))
+  (Recv , MsgLeiosBlockTxs 17143 550001) ≡ "wire: transaction count cap exceeded"
+count-cap-diagnostic = refl
+
+-- An impossible event kind is diagnosed using the current state.
+kind-diagnostic : whyRejected client₀ (Recv , MsgLeiosBlock 1 100) ≡
+  "wire: no step from client open"
+kind-diagnostic = refl
+
+-- Historical FIFO-skip log, now admitted as an unobservable drain on stop.
+-- Its former non-membership claim is replaced below with a later-request case.
 fifoSkip : List E
 fifoSkip =
     (Send , MsgLeiosBlockRequest
@@ -175,10 +346,74 @@ fifoSkip =
        0x322074c685b9aa591cfc461d269faf8bfa05889020b55c05a7e2bc61470d2f34 99975)
   ∷ []
 
--- the decider rejects it
-_ : False (hasTrace? client-cert fifoSkip)
-_ = tt
+-- With no later request, the mismatched hash may be drained.
+fifoSkip-drained : does (hasTrace? client-cert fifoSkip) ≡ true
+fifoSkip-drained = refl
 
--- ... which is a proof that the FIFO spec has no run on it
-fifoSkip-rejected : ¬ HasTrace client₀ fifoSkip
-fifoSkip-rejected = toWitnessFalse {a? = hasTrace? client-cert fifoSkip} tt
+-- Sending another request after the skip rules out the draining reading.
+fifoSkip-continued : List E
+fifoSkip-continued = fifoSkip ++ ((Send , MsgLeiosBlockRequest 3 11) ∷ [])
+
+-- The continued historical counterexample still computes to rejection.
+fifoSkip-continued-result : does (hasTrace? client-cert fifoSkip-continued) ≡ false
+fifoSkip-continued-result = refl
+
+-- The negative decision carries a proof of weak-trace non-membership.
+fifoSkip-continued-rejected : ¬ HasTrace client₀ fifoSkip-continued
+fifoSkip-continued-rejected =
+  toWitnessFalse {a? = hasTrace? client-cert fifoSkip-continued} tt
+
+-- A successful check has a neutral sentinel, never a wire-failure prefix.
+no-failure-diagnostic : whyRejected client₀ (Send , MsgLeiosDone) ≡
+  "none: no failed check"
+no-failure-diagnostic = refl
+
+-- The review's exact count mismatch is drainable until a later request.
+drained-count-continuation : List E
+drained-count-continuation =
+    (Send , MsgLeiosBlockTxsRequest 1 10 2 ((0 , 0xc000000000000000) ∷ []))
+  ∷ (Recv , MsgLeiosBlockTxs 3 300)
+  ∷ (Send , MsgLeiosBlockRequest 2 11)
+  ∷ []
+
+-- The reproduction really rejects, rather than merely failing the checked path.
+drained-count-rejected : does (hasTrace? client-cert drained-count-continuation) ≡ false
+drained-count-rejected = refl
+
+-- Diagnose the earlier checked failure even though the witness queue is empty.
+drained-count-reason : rejectionReason client₀ (cDrain []) drained-count-continuation ≡
+  "client: reply count mismatch at index 2 (accepted only by a draining client; a later event rules that out)"
+drained-count-reason = refl
+
+-- The same whole-history reading recovers the earlier hash mismatch.
+drained-hash-reason : rejectionReason client₀ (cDrain [])
+  ((Send , MsgLeiosBlockRequest 1 10) ∷ (Recv , MsgLeiosBlock 2 100)
+   ∷ (Send , MsgLeiosBlockRequest 3 11) ∷ []) ≡
+  "client: block hash mismatch at index 2 (accepted only by a draining client; a later event rules that out)"
+drained-hash-reason = refl
+
+-- A thrown server witness must not hide the checked service reply-count failure.
+thrown-server-reason : rejectionReason server₀ sThrown
+  ((Recv , MsgLeiosBlockTxsRequest 1 10 2 bm) ∷ (Send , MsgLeiosBlockTxs 3 300) ∷ []) ≡
+  "client: reply count mismatch at index 2"
+thrown-server-reason = refl
+
+-- After a throw-capable prefix, checked service diagnoses a second request.
+thrown-overlap-reason : rejectionReason server₀ sThrown
+  ((Recv , MsgLeiosBlockRequest 1 10) ∷ (Recv , MsgLeiosBlockRequest 2 11) ∷ []) ≡
+  "wire: request while one is outstanding at index 2"
+thrown-overlap-reason = refl
+
+-- A draining depth-overflow witness still reports the checked wire depth limit.
+drained-depth-reason : Cert.rejectionReason 1 client₀ (cDrain (blockReq 1 10 ∷ []))
+  ((Send , MsgLeiosBlockRequest 1 10) ∷ (Send , MsgLeiosBlockRequest 2 11) ∷ []) ≡
+  "wire: pipeline depth exceeded at index 2"
+drained-depth-reason = refl
+
+
+-- An unsolicited later reply also rules out the earlier draining interpretation.
+drained-unsolicited-reason : rejectionReason client₀ (cDrain [])
+  ((Send , MsgLeiosBlockRequest 1 10) ∷ (Recv , MsgLeiosBlock 2 100)
+   ∷ (Recv , MsgLeiosBlock 3 100) ∷ []) ≡
+  "client: block hash mismatch at index 2 (accepted only by a draining client; a later event rules that out)"
+drained-unsolicited-reason = refl

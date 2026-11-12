@@ -66,7 +66,7 @@ module Body {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) �
 
   open BP.Carrier E-≟ S B Carries WA next _≤_ ≤-trans next-≤
   open O {E = E} E-≟
-    using ( Prefix; Prefix-cont; Output; Output-cont; Ret; Stop; _□_; _⊓_; _>>=_
+    using ( pchoice; Prefix; Prefix-cont; Output; Output-cont; Ret; Stop; _□_; _⊓_; _>>=_
           ; iter; iter-bind; loop; loop0; ∅t; _⦀_; ⦀⁺ )
   open import Semantics.LTS {E = E} {I = ExtI E}
     using (Label; Event√; ev; τ; evl; √; evLabel; _─[_]─►_; sRet; sSil; sVis; sTau)
@@ -185,6 +185,22 @@ module Body {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) �
   wfR-Stop .stepR _ (sVis refl ())
   wfR-Stop .stepR _ (sTau refl ())
   wfR-Stop .retR  _ ()
+
+  -- A visible menu pays its guarantee and preserves the invariant at each successor.
+  wfR-pchoice : ∀ {Inv : S → R → Set}
+                  {v : (at : AnyTypes E) → ContinueType at (Maybe (PTree E (ExtI E) R))}
+                → (∀ {s′ X} {e : E X} {a M′} → s ≤ s′ → G (X , e) a
+                    → pchoice v ─[ ev (evl (evLabel X e a)) ]─► M′ → OK s′ (lbl e a))
+                → (∀ {s′ X} {e : E X} {a M′} → s ≤ s′
+                    → pchoice v ─[ ev (evl (evLabel X e a)) ]─► M′ → OK s′ (lbl e a)
+                    → WfR G (next (lbl e a) s′) Inv M′)
+                → WfR G s Inv (pchoice v)
+  wfR-pchoice g k .nowR le gm st = g le gm st
+  wfR-pchoice g k .stepR _ (sRet ())
+  wfR-pchoice g k .stepR _ (sSil ())
+  wfR-pchoice g k .stepR _ (sTau refl ())
+  wfR-pchoice g k .stepR le st@(sVis refl _) ok = k le st ok
+  wfR-pchoice g k .retR _ ()
 
   -- THE RELAY STEP.  A prefix `e ⟶ P` guarantees `OK` on its own channel if that is
   -- in `G`, and its continuation at `a` may ASSUME `OK s′ (lbl e a)` — the rely of an

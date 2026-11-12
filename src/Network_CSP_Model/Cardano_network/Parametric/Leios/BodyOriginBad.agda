@@ -75,7 +75,8 @@ open import Level using (0ℓ)
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.Maybe using (Maybe; just)
-open import Data.List using (List; []; _∷_)
+open import Data.Nat using (_<ᵇ_)
+open import Data.List using (List; []; _∷_; length)
 open import Data.List.Relation.Unary.Any using (here)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁)
@@ -105,8 +106,9 @@ import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.Leios.BodyOrigin as BO
 
-open Params leiosLParams using (Block; EB; EBHash; LSlot; Size; decEB)
+open Params leiosLParams using (Block; EB; EBHash; LSlot; Size; decEB; ebHash)
 open LeiosP leiosLParams using (LeiosEb)
+open LeiosP.LeiosParams leiosLP using (ebTxs; maxTxs)
 
 -- the EB equality the broken thread's body `!`-output needs.  At a CONCRETE
 -- instantiation `open Params leiosLParams using (decEB)` does not put the field in
@@ -129,7 +131,7 @@ open BO.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
         ; soundLogic; wf-withStores; wf-lnClient )
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open Op using (Ret; Skip; pchoice; iter-bind; _>>=_; loop0; _⦀_; _∥⇘_⇙_; _□_; Prefix; Prefix₀; Output)
+open Op using (Ret; Skip; Stop; _◁_▷_; pchoice; iter-bind; _>>=_; loop0; _⦀_; _∥⇘_⇙_; _□_; Prefix; Prefix₀; Output)
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import Semantics.Failures
@@ -150,14 +152,15 @@ nA : Fin 3
 nA = fzero
 
 -- THE BROKEN FETCH: `NodeLogicL.fetchBody` with the wire guard DELETED.  Same request,
--- same reply channel, same deposit — the ONLY difference is that the conditional
--- `◁ ⌊ ebHash eb ≟ proj₁ q ⌋ ▷ Skip` is gone, so a neighbour may hand over ANY body
+-- same size check, reply channel and deposit — the ONLY difference is that the conditional
+-- `◁ ⌊ ebHash eb ≟ proj₁ q ⌋ ▷ Stop` is gone, so a neighbour may hand over ANY body
 -- against the offer and it is stored.  This is the guard the prototype's own
 -- "MsgLeiosBlock hash mismatch" check stands for (spec §3).
 fetchBad : Fin 3 → Link → Dir → (EBHash × LSlot) × Size → Proc
 fetchBad n l d (q , _) =
   Output ⦃ DecEq-EBPoint ⦄ (apiLP l d lfpSendBlockRequest) q
-    (apiLP l d lfpRecvBlock ⟶ (λ eb → putBodyEv n ! eb ⟶ Skip))
+    (apiLP l d lfpRecvBlock ⟶ (λ eb →
+      Stop ◁ (maxTxs <ᵇ length (ebTxs (ebHash eb))) ▷ (putBodyEv n ! eb ⟶ Skip)))
 
 -- the broken Notify client's round: `NodeLogicL.lnClientBodyL` with `fetchBad` in the
 -- body-offer branch and the other three branches untouched

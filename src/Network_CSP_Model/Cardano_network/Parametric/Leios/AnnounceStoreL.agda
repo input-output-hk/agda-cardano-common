@@ -80,6 +80,8 @@ import Cardano_network.Net as N
 import Cardano_network.Data as D
 import CSP.Operators as O
 import Cardano_network.Parametric.NodeLogic as NL
+open import Function using (case_of_)
+import Cardano_network.Parametric.Leios.LacksStoreL
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.AnnounceSafe as AS
 import Cardano_network.Parametric.AnnounceInvariant as AI
@@ -123,7 +125,7 @@ module Generic
           ; getAtEv; putEBEv; getEBAtEv; putBodyEv; getBodyEv
           ; putTxEv; getTxAtEv; getTxEv; putVoteEv; getVoteAtEv
           ; certEv; hasCertEv; submitEv
-          ; storeStepL; blockStoreL; ebStep; ebStore; bodyStep; offerBodies; bodyStore
+          ; storeStepL; blockStoreL; ebStep; ebStore; bodyStep; offerBodies; bodyStore; lacksBodies; lacksTxs
           ; memStep; offerTxs; mempool; certify; offerCerts; voteStep; voteStore )
   open AS.Generic p t apiES using (Forged)
   open AI.Generic p t apiES using (WellAnnounced; wellAnnounced-mono)
@@ -139,6 +141,9 @@ module Generic
   open BPN.Generic p t apiES
     using ( nodeG; storeG; threadsG; StoreInv; storeInv-mono; forge-seed
           ; acceptForge-wa; stable-offerHeld; offerHeld-wf; ok-stGet; ok-stPut )
+
+  -- Negative-store menu inversions share the logic's parameters.
+  module Lacks = Cardano_network.Parametric.Leios.LacksStoreL.Generic p lp t apiES voterOf
 
   ------------------------------------------------------------------------
   -- The read-pointer menu of design law L
@@ -283,7 +288,19 @@ module Generic
       (wfR-Output (λ _ _ ()) (λ _ _ → wfR-Ret (λ _ → tt)))
       (wfR-offerBodies n bs ebs)
 
-  -- the EB-body store: a deposit and the by-hash menu
+  -- A negative read carries no disciplined value and preserves the trivial invariant.
+  wfR-lacksBodies : ∀ {ms} n (bs : Bodies) → WfR storeG ms (λ _ _ → ⊤ {0ℓ}) (lacksBodies n bs)
+  wfR-lacksBodies n bs = wfR-pchoice
+    (λ le gm st → case Lacks.body-inv n bs st of λ { (_ , refl , refl) → λ () })
+    (λ le st ok → case Lacks.body-inv n bs st of λ { (_ , refl , refl) → wfR-Ret (λ _ → tt) })
+
+  -- A negative read carries no disciplined value and preserves the trivial invariant.
+  wfR-lacksTxs : ∀ {ms} n (ts : Mem) → WfR storeG ms (λ _ _ → ⊤ {0ℓ}) (lacksTxs n ts)
+  wfR-lacksTxs n ts = wfR-pchoice
+    (λ le gm st → case Lacks.tx-inv n ts st of λ { (_ , refl , refl) → λ () })
+    (λ le st ok → case Lacks.tx-inv n ts st of λ { (_ , refl , refl) → wfR-Ret (λ _ → tt) })
+
+  -- The body-store loop includes both positive and negative keyed reads.
   wf-bodyStore : ∀ {ms} n (bs : Bodies) → Wf storeG ms (bodyStore n bs)
   wf-bodyStore n bs =
     wf-loop {body = bodyStep n} {a = bs} (λ _ _ _ → tt) (λ _ xs _ → body xs) tt
@@ -291,9 +308,10 @@ module Generic
     -- one pass of the EB-body store
     body : ∀ {s} (xs : Bodies) → WfR storeG s (λ _ _ → ⊤ {0ℓ}) (bodyStep n xs)
     body xs =
-      wfR-□ _ _ (stable-node refl) (stable-offerBodies n xs xs)
+      wfR-□ _ _ (stable-node refl) (stable-□ (stable-offerBodies n xs xs) (stable-node refl))
         (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
-        (wfR-offerBodies n xs xs)
+        (wfR-□ _ _ (stable-offerBodies n xs xs) (stable-node refl)
+          (wfR-offerBodies n xs xs) (wfR-lacksBodies n xs))
 
   -- the mempool's by-hash menu is stable …
   stable-offerTxs : ∀ n (ts us : Mem) → Stable (offerTxs n ts us)
@@ -321,14 +339,15 @@ module Generic
     body xs =
       wfR-□ _ _ (stable-node refl)
         (stable-□ (stable-node refl)
-          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-offerTxs n xs xs)))
+          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-□ (stable-offerTxs n xs xs) (stable-node refl))))
         (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
         (wfR-□ _ _ (stable-node refl)
-          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-offerTxs n xs xs))
+          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-□ (stable-offerTxs n xs xs) (stable-node refl)))
           (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
-          (wfR-□ _ _ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-offerTxs n xs xs)
+          (wfR-□ _ _ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-□ (stable-offerTxs n xs xs) (stable-node refl))
             (wfR-offerIx (getTxAtEv n) xs 0 xs (λ _ _ ()) (λ _ _ → tt) tt)
-            (wfR-offerTxs n xs xs)))
+            (wfR-□ _ _ (stable-offerTxs n xs xs) (stable-node refl)
+              (wfR-offerTxs n xs xs) (wfR-lacksTxs n xs))))
 
   -- the certificate menu is stable …
   stable-offerCerts : ∀ n (vs : Votes) (rs : Certs) → Stable (offerCerts n vs rs)

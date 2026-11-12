@@ -3,7 +3,7 @@
 -- Typecheck-time replay tests for the LeiosFetch session spec (Phase 3),
 -- with pipelining bound k = 4. Each positive test is accepted by the fuel
 -- checker, so it carries a weak-trace witness. Fuel = number of τ steps
--- allowed on the whole run (one per server reply, none for the client).
+-- allowed on the whole run (one per server reply, or one client stop).
 module Cardano_network.Replay.LeiosFetchTests where
 
 open import Data.Nat using (ℕ)
@@ -14,20 +14,21 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Semantics.Replay.Fuel
 open import Cardano_network.Replay.LeiosFetchSession
+open import Cardano_network.Replay.LeiosFetchWire using (Bitmap)
 
 open Spec 4 using (leiosFetch)
 open Checker leiosFetch
 
--- a bitmap: word 0 with its low 8 bits set
-bm : List (ℕ × ℕ)
-bm = (0 , 255) ∷ []
+-- a bitmap: word 0 with its low 2 bits set
+bm : Bitmap
+bm = (0 , 3) ∷ []
 
 -- 1. client plain cycle: one Block and one BlockTxs exchange
 _ : IsAccept (check 0 client₀
       ( (Send , MsgLeiosBlockRequest 1 10)
       ∷ (Recv , MsgLeiosBlock 1 5000)
-      ∷ (Send , MsgLeiosBlockTxsRequest 1 10 8 bm)
-      ∷ (Recv , MsgLeiosBlockTxs 1 10 8 9000 bm)
+      ∷ (Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+      ∷ (Recv , MsgLeiosBlockTxs 2 9000)
       ∷ []))
 _ = tt
 
@@ -35,8 +36,8 @@ _ = tt
 _ : IsAccept (check 2 server₀
       ( (Recv , MsgLeiosBlockRequest 1 10)
       ∷ (Send , MsgLeiosBlock 1 5000)
-      ∷ (Recv , MsgLeiosBlockTxsRequest 1 10 8 bm)
-      ∷ (Send , MsgLeiosBlockTxs 1 10 8 9000 bm)
+      ∷ (Recv , MsgLeiosBlockTxsRequest 1 10 2 bm)
+      ∷ (Send , MsgLeiosBlockTxs 2 9000)
       ∷ []))
 _ = tt
 
@@ -52,10 +53,10 @@ _ = tt
 -- 3b. client pipelined depth 3, mixed kinds, FIFO answers
 _ : IsAccept (check 0 client₀
       ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlockTxsRequest 2 11 3 bm)
+      ∷ (Send , MsgLeiosBlockTxsRequest 2 11 2 bm)
       ∷ (Send , MsgLeiosBlockRequest 3 12)
       ∷ (Recv , MsgLeiosBlock 1 100)
-      ∷ (Recv , MsgLeiosBlockTxs 2 11 3 300 bm)
+      ∷ (Recv , MsgLeiosBlockTxs 2 300)
       ∷ (Recv , MsgLeiosBlock 3 200)
       ∷ []))
 _ = tt
@@ -64,11 +65,11 @@ _ = tt
 _ : IsAccept (check 0 client₀
       ( (Send , MsgLeiosBlockRequest 1 10)
       ∷ (Send , MsgLeiosBlockRequest 2 11)
-      ∷ (Send , MsgLeiosBlockTxsRequest 1 10 3 bm)
+      ∷ (Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
       ∷ (Send , MsgLeiosBlockRequest 4 13)
       ∷ (Recv , MsgLeiosBlock 1 100)
       ∷ (Recv , MsgLeiosBlock 2 200)
-      ∷ (Recv , MsgLeiosBlockTxs 1 10 3 300 bm)
+      ∷ (Recv , MsgLeiosBlockTxs 2 300)
       ∷ (Recv , MsgLeiosBlock 4 400)
       ∷ []))
 _ = tt
@@ -76,10 +77,10 @@ _ = tt
 -- 4. interleaving: send r1, send r2, recv a1, send r3, recv a2, recv a3
 _ : IsAccept (check 0 client₀
       ( (Send , MsgLeiosBlockRequest 1 10)
-      ∷ (Send , MsgLeiosBlockTxsRequest 2 11 5 bm)
+      ∷ (Send , MsgLeiosBlockTxsRequest 2 11 2 bm)
       ∷ (Recv , MsgLeiosBlock 1 100)
       ∷ (Send , MsgLeiosBlockRequest 3 12)
-      ∷ (Recv , MsgLeiosBlockTxs 2 11 5 500 bm)
+      ∷ (Recv , MsgLeiosBlockTxs 2 500)
       ∷ (Recv , MsgLeiosBlock 3 300)
       ∷ []))
 _ = tt
@@ -87,11 +88,11 @@ _ = tt
 -- 5. server: the same EB's txs requested three times in one session
 _ : IsAccept (check 3 server₀
       ( (Recv , MsgLeiosBlockTxsRequest 7 20 2 bm)
-      ∷ (Send , MsgLeiosBlockTxs 7 20 2 64 bm)
+      ∷ (Send , MsgLeiosBlockTxs 2 64)
       ∷ (Recv , MsgLeiosBlockTxsRequest 7 20 2 bm)
-      ∷ (Send , MsgLeiosBlockTxs 7 20 2 64 bm)
+      ∷ (Send , MsgLeiosBlockTxs 2 64)
       ∷ (Recv , MsgLeiosBlockTxsRequest 7 20 2 bm)
-      ∷ (Send , MsgLeiosBlockTxs 7 20 2 64 bm)
+      ∷ (Send , MsgLeiosBlockTxs 2 64)
       ∷ []))
 _ = tt
 
@@ -127,18 +128,20 @@ _ = tt
 _ : check 5 client₀ ((Recv , MsgLeiosBlock 1 100) ∷ []) ≡ unknown
 _ = refl
 
--- response for a different EB than the oldest request
+-- A wrong hash followed by a request rules out silent draining.
 _ : check 5 client₀
       ( (Send , MsgLeiosBlockRequest 1 10)
       ∷ (Recv , MsgLeiosBlock 2 100)
+      ∷ (Send , MsgLeiosBlockRequest 3 11)
       ∷ []) ≡ unknown
 _ = refl
 
--- answers out of FIFO order
+-- A wrong FIFO hash followed by a request rules out silent draining.
 _ : check 5 client₀
       ( (Send , MsgLeiosBlockRequest 1 10)
       ∷ (Send , MsgLeiosBlockRequest 2 11)
       ∷ (Recv , MsgLeiosBlock 2 200)
+      ∷ (Send , MsgLeiosBlockRequest 3 11)
       ∷ []) ≡ unknown
 _ = refl
 

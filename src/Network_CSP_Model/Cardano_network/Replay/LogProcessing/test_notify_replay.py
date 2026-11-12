@@ -18,6 +18,7 @@ def main(binary):
             args = [binary] + ([mode] if mode else []) + [str(path)] + [str(x) for x in bounds]
             result = subprocess.run(args, check=True, capture_output=True, text=True).stdout
             assert result.startswith(expected), (contents, expected, result)
+            return result
         rounds = ('Send RequestNext\nRecv BlockAnnouncement -\n'
                   'Send RequestNext\nRecv BlockAnnouncement ab 3 20\n'
                   'Send RequestNext\nRecv BlockOffer cd 4 30\n'
@@ -46,6 +47,75 @@ def main(binary):
         check('sessions client\n0 Send BlockRequest ab 3\n0 Recv Block ab 20\n',
               'accepted (2 events, 1 sessions)')
         check('role client\nSend BlockRequest ab 3\nRecv Block ab 20\n', 'accepted (2 events)', '')
+        # A silent stop admits these out-of-order hashes only as a draining client.
+        drained = check('role client\nSend BlockRequest a 10\nSend BlockRequest b 11\n'
+                        'Recv Block b 100\nRecv Block a 100\nSend Done\n',
+                        'accepted (5 events)', '')
+        assert drained.splitlines()[0] == 'accepted (5 events)', drained
+        assert drained.splitlines()[1] == (
+            'note: checked reading fails at index 3: client: block hash mismatch; '
+            'accepted only as a draining client'), drained
+        assert len(drained.splitlines()) == 2, drained
+        # Drain-only reporting keeps each mode's existing first line verbatim.
+        drain_cases = [
+            ('', 'role client\nSend BlockRequest a 10\nRecv Block b 100\n',
+             'accepted (2 events)'),
+            ('--interleaved',
+             'sessions client\n0 Send BlockRequest a 10\n0 Recv Block b 100\n',
+             'accepted (2 events, 1 sessions)'),
+        ]
+        for mode, contents, first_line in drain_cases:
+            output = check(contents, first_line, mode)
+            lines = output.splitlines()
+            assert lines[0] == first_line, output
+            assert len(lines) == 2 and lines[1].startswith('note: checked reading fails'), output
+        # This pair rejects by FIFO mismatch (the client receives Block b, the
+        # server sent Block a); a paired client drain would not admit it either.
+        paired_drain = (
+            'pair LeiosFetchP link-AB session-0\n'
+            'client node-A c17 generation-0 fresh client.log\n'
+            'server node-B c42 generation-3 fresh server.log\n'
+            'client 20 Send BlockRequest a 10\nclient 27 Recv Block b 100\n'
+            'server 20 Recv BlockRequest a 10\nserver 27 Send Block a 100\n')
+        rejected_pair = check(paired_drain, 'rejected paired trace:', '--paired-fetch')
+        assert 'note: checked reading fails' not in rejected_pair, rejected_pair
+        checked_pair = paired_drain.replace('client 27 Recv Block b 100',
+                                            'client 27 Recv Block a 100')
+        accepted_pair = check(checked_pair, 'accepted paired prefix', '--paired-fetch')
+        assert accepted_pair.splitlines()[0] == (
+            'accepted paired prefix (LeiosFetchP retained message fields; client 2 rows, server 2 rows)'), accepted_pair
+        assert accepted_pair.splitlines()[1] == 'pair link-AB session-0', accepted_pair
+        assert 'note: checked reading fails' not in accepted_pair, accepted_pair
+        mixed_drain = check(
+            'sessions notify:client fetch:client fetch:client\n'
+            '0 Send RequestNext\n1 Send BlockRequest a 10\n'
+            '2 Send BlockRequest c 12\n0 Recv Votes -\n'
+            '1 Recv Block b 100\n2 Recv Block c 100\n',
+            'accepted (6 events, 3 sessions)')
+        assert len(mixed_drain.splitlines()) == 2, mixed_drain
+        assert '(session 1, local event)' in mixed_drain.splitlines()[1], mixed_drain
+        count_drain = check(
+            'sessions client\n0 Send BlockTxsRequest a 10 2 0:c000000000000000\n'
+            '0 Recv BlockTxs 3 100\n', 'accepted (2 events, 1 sessions)')
+        assert count_drain.splitlines()[1].startswith('note: checked reading fails'), count_drain
+        assert 'client: reply count mismatch' in count_drain, count_drain
+        # Fetch defaults to 150; an explicit depth still overrides it.
+        fetch_full = 'role client\n' + 'Send BlockRequest ab 3\n' * 150
+        check(fetch_full, 'accepted (150 events)', '')
+        rejected = check(fetch_full + 'Send BlockRequest ab 3\n',
+                         'rejected at index 151:', '')
+        assert rejected.splitlines()[2] == 'reason: wire: pipeline depth exceeded at index 151', rejected
+        check('role client\n' + 'Send BlockRequest ab 3\n' * 5,
+              'rejected at index 5:', '', (4,))
+        check('sessions fetch:client\n' + '0 Send BlockRequest ab 3\n' * 150,
+              'accepted (150 events, 1 sessions)')
+        txrequest = 'BlockTxsRequest ab 3 2 0:c000000000000000\n'
+        check('role client\nSend ' + txrequest + 'Recv BlockTxs 2 80\nSend Done\n',
+              'accepted (3 events)', '')
+        check('role client\nRecv BlockTxs ab 3 2 80 -\n', 'parse error at line 2:', '')
+        rejected = check('role server\nRecv ' + txrequest + 'Send BlockTxs 9 90\n',
+                         'rejected at index 2:', '')
+        assert rejected.splitlines()[2] == 'reason: client: reply count mismatch at index 2', rejected
         # Independent numeric bounds, including the audited prototype values.
         piped = ('role client\nSend RequestNext\nSend RequestNext\n'
                  'Recv Votes -\nSend RequestNext\nRecv BlockOffer ab 3 20\n'

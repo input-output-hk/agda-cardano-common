@@ -67,7 +67,7 @@ def event(text, protocol):
             'LeiosFetchP': {'Done': [()], 'BlockRequest': [('hex', 'dec')],
                 'Block': [('hex', 'dec')],
                 'BlockTxsRequest': [('hex', 'dec', 'dec', 'bitmaps')],
-                'BlockTxs': [('hex', 'dec', 'dec', 'dec', 'bitmaps')]},
+                'BlockTxs': [('dec', 'dec')]},
         }
         patterns = {'hex': r'[0-9a-f]+', 'dec': r'[0-9]+', 'empty': r'-',
                     'votes': r'-|[0-9a-f]+:[0-9]+(?:,[0-9a-f]+:[0-9]+)*',

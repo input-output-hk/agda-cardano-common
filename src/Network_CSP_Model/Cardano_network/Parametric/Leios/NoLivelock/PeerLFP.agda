@@ -7,10 +7,10 @@
 --   * premise (b): `lfpClientA-τ`, `lfpServerA-τ`
 --   * counting on the peer's own renamed trace: P1, and the relays —
 --     client: block / tx-closure requests sent ≤ commanded, requested
---     bitmap entries ≤ commanded, tx-closure entries reported ≤ received
---     (list lengths), sends no BlockTxs; server: request reports ≤
---     requests received (and bitmap lengths), sends no request, BlockTxs
---     entries sent ≤ commanded (list lengths)
+--     bitmap entries ≤ commanded, restored API entries ≤ positional tx reply
+--     transactions received (list lengths), sends no BlockTxs; server: request reports ≤
+--     requests received (and bitmap lengths), sends no request, positional tx reply
+--     transactions sent ≤ commanded API entries (list lengths)
 --   * provenance: chain-free by renaming alone (`lfpA-PA`)
 ------------------------------------------------------------------------
 
@@ -19,40 +19,47 @@ open import Cardano_network.Params using (Params)
 module Cardano_network.Parametric.Leios.NoLivelock.PeerLFP (p : Params) where
 
 open import Data.Empty using (⊥)
+import Data.Unit
+open import Data.Bool using (T; true; false)
+open import Data.List using ([]; _∷_; length; zip; map)
+open import Data.List.Properties using (length-zipWith; length-map)
 open import Data.Maybe using (just)
 open import Data.Maybe.Properties using (just-injective)
-open import Data.Nat using (ℕ; _≤_; _+_; z≤n)
-open import Data.Nat.Properties using (≤-refl; m≤m+n)
-open import Data.Product using (_,_)
+open import Data.Nat using (ℕ; _≤_; _+_; _<ᵇ_; z≤n)
+open import Data.Nat.Properties using (≤ᵇ⇒≤; ≤-refl; m≤m+n; ⊓-idem)
+open import Data.Product using (_×_; _,_; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit.Polymorphic using (tt)
 open import Relation.Nullary using (yes; no)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
+open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; subst)
 open import Class.DecEq using (DecEq; _≟_)
 
+open import Cardano_network.Replay.LeiosFetchWords using (decodable)
+open import Cardano_network.Replay.LeiosFetchWire using (maxTxs)
 open import Process_Trees using (ExtI; PTree)
 open import Cardano_network.Base
 open import Cardano_network.Net p
 open import Cardano_network.Data p
 open import Cardano_network.LeiosFetchP p
 open import Cardano_network.Parametric.Leios.PeersP p using (ιLFP; ιLFP⁻¹; ιLFP-linv; LFPclientA; LFPserverA)
-open Params p using (time₀; length₀; Time; Length; decEB)
+open Params p using (time₀; length₀; Time; Length; EBHash; LSlot; decEB)
 import CSP.Rename {E₁ = LFPEv} {E₂ = Net_Api Payload} ιLFP ιLFP⁻¹ ιLFP-linv as RenLFP
-open import CSP.Operators LFPEv-≟ using (∅ES; Ret; Output; Prefix; Prefix₀)
+open import CSP.Operators LFPEv-≟ using (∅ES; Stop; Ret; Output; Prefix; Prefix₀)
 open import Semantics.LTS {E = LFPEv} {I = ExtI LFPEv} using (_─[_]─►_; ev; evl; sVis)
 import Semantics.LTS {E = LFPEv} {I = ExtI LFPEv} as F
 import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} as L
 import Semantics.DivergenceFree {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} as DF
 open import Semantics.Failures {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using (_⟹⟨_⟩_)
+open import Semantics.Failures {E = LFPEv} {I = ExtI LFPEv} using (⟹-refl; ⟹-τ; ⟹-ev)
 open import CSP.Laws.DivFree.ModAcc LFPEv-≟ using (MAccR; MAccR→τ-AccReach)
 open import CSP.Laws.DivFree.Reach LFPEv-≟ using (MAccR-Ret)
 open import CSP.Laws.DivFree.Loop LFPEv-≟
-  using (NoRetBy; Looping; NoRetBy-mono; NoRetBy-Ret; Guarded-react; MAccR-react; MAccR-Output; MAccR-⟶₀; MAccR-iter)
+  using (NoRetBy; Looping; NoRetBy-mono; NoRetBy-Ret; Guarded-react; MAccR-react; MAccR-Stop; MAccR-Output; MAccR-⟶₀; MAccR-iter)
 open import CSP.Laws.DivFree.ReachRename {E₁ = LFPEv} {E₂ = Net_Api Payload} ιLFP ιLFP⁻¹ ιLFP-linv using (τ-AccReach-renameMap)
 import CSP.Laws.DivFree.Count LFPEv-≟ as S
 open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload}) using (Σc; labels)
 open import CSP.Laws.DivFree.CountMore (Net_Api-≟ {Payload}) using (slack0; none0)
-open import CSP.Laws.DivFree.CountMore LFPEv-≟ using (RoundPot; StepPot; rp-pch; rp-done; sp-Ret; sp-Out; sp-Out≤; sp-⟶; potIter)
+open import CSP.Laws.DivFree.CountMore LFPEv-≟ using (RoundPot; StepPot; okP; rp-pch; rp-done; sp-Ret; sp-Out; sp-Out≤; sp-⟶; potIter)
 open import CSP.Laws.DivFree.Prov LFPEv-≟ using (pa)
 open import CSP.Laws.DivFree.ProvMore LFPEv-≟ using (Prov-free)
 import CSP.Laws.DivFree.Prov (Net_Api-≟ {Payload}) as PL
@@ -127,7 +134,7 @@ snd l d md msg st = sendLFP l d ! (time₀ , md , length₀ , leiosFetchP msg) �
 data CIdleV (l : Link) (d : Dir) : F.Event → Rd → Set₁ where
   ciBlk  : ∀ q    → CIdleV l d (F.evLabel _ (apiLPev l d lfpSendBlockRequest) q) (snd l d FromInitiator (MsgLFPBlockRequest q) stBlock)
   ciTxs  : ∀ q bm → CIdleV l d (F.evLabel _ (apiLPev l d lfpSendBlockTxsRequest) (q , bm))
-                      (snd l d FromInitiator (MsgLFPBlockTxsRequest q bm) stBlockTxs)
+                      (snd l d FromInitiator (MsgLFPBlockTxsRequest q bm) (stBlockTxs q bm))
   ciDone : ∀ u    → CIdleV l d (F.evLabel _ (apiLPev l d lfpSendDone) u) (snd l d FromInitiator MsgLFPDone stDone)
 
 -- the client Idle inversion
@@ -177,7 +184,7 @@ cBlkV {l} {d} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetchP
 ... | yes refl | no _     with () ← br
 cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockRequest _)} refl ())
 cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxsRequest _ _)} refl ())
-cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxs _ _)} refl ())
+cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxs _)} refl ())
 cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP MsgLFPDone} refl ())
 cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , keepAlive _} refl ())
 cBlkV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , blockFetch _} refl ())
@@ -190,17 +197,29 @@ cBlkV (sVis {at = _ , sendLFP _ _} refl ())
 cBlkV (sVis {at = _ , doneLFP _ _} refl ())
 cBlkV (sVis {at = _ , apiLPev _ _ _} refl ())
 
--- client stBlockTxs: the receive menu (the tx closure, reported)
-data CTxsV (l : Link) (d : Dir) : F.Event → Rd → Set₁ where
-  ctTxs : ∀ {tm md ln} q es → CTxsV l d (rcv l d tm md ln (MsgLFPBlockTxs q es))
-                                (Output ⦃ DecEq-TxsReply ⦄ (apiLPev l d lfpRecvBlockTxs) (q , es) (Ret (inj₁ stIdle)))
+-- Client stBlockTxs reports count-matched replies and stops on a mismatch.
+data CTxsV (l : Link) (d : Dir) (q : EBHash × LSlot) (bm : TxBitmap) : F.Event → Rd → Set₁ where
+  ctTxs : ∀ {tm md ln} txs → (maxTxs <ᵇ length txs) ≡ false → length txs ≡ length bm
+        → CTxsV l d q bm (rcv l d tm md ln (MsgLFPBlockTxs txs))
+            (Output ⦃ DecEq-TxsReply ⦄ (apiLPev l d lfpRecvBlockTxs) (q , zip bm txs) (Ret (inj₁ stIdle)))
+  -- A mismatched positional reply is received and leaves the step stopped.
+  ctStop : ∀ {tm md ln} txs → length txs ≢ length bm
+         → CTxsV l d q bm (rcv l d tm md ln (MsgLFPBlockTxs txs)) Stop
 
--- the client stBlockTxs inversion
-cTxsV : ∀ {l d x t′} → clientStepP l d stBlockTxs ─[ ev (evl x) ]─► t′ → CTxsV l d x t′
-cTxsV {l} {d} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxs q es)} refl br) with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = subst (CTxsV l d _) (just-injective br) (ctTxs q es)
-... | no _     | _        with () ← br
-... | yes refl | no _     with () ← br
+  -- An oversized reply fails decoding before the handler count check.
+  ctDecodeStop : ∀ {tm md ln} txs → (maxTxs <ᵇ length txs) ≡ true
+               → CTxsV l d q bm (rcv l d tm md ln (MsgLFPBlockTxs txs)) Stop
+
+-- Invert decoder overflow first, then the handler count decision.
+cTxsV : ∀ {l d q bm x t′} → clientStepP l d (stBlockTxs q bm) ─[ ev (evl x) ]─► t′ → CTxsV l d q bm x t′
+cTxsV {l} {d} {q} {bm} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxs txs)} refl br)
+  with l′ ≟ l | d′ ≟ d | maxTxs <ᵇ length txs in cap
+... | yes refl | yes refl | true = subst (CTxsV l d q bm _) (just-injective br) (ctDecodeStop txs cap)
+... | no _     | _        | _ with () ← br
+... | yes refl | no _     | _ with () ← br
+... | yes refl | yes refl | false with length txs ≟ length bm
+...   | yes count = subst (CTxsV l d q bm _) (just-injective br) (ctTxs txs cap count)
+...   | no count = subst (CTxsV l d q bm _) (just-injective br) (ctStop txs count)
 cTxsV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockRequest _)} refl ())
 cTxsV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlock _)} refl ())
 cTxsV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxsRequest _ _)} refl ())
@@ -216,12 +235,15 @@ cTxsV (sVis {at = _ , sendLFP _ _} refl ())
 cTxsV (sVis {at = _ , doneLFP _ _} refl ())
 cTxsV (sVis {at = _ , apiLPev _ _ _} refl ())
 
--- server Idle: the receive menu (both requests reported / Done)
+-- Server Idle reports decodable requests, stops on decoder failure, or receives Done.
 data SIdleV (l : Link) (d : Dir) : F.Event → Rd → Set₁ where
   siBlk  : ∀ {tm md ln} q    → SIdleV l d (rcv l d tm md ln (MsgLFPBlockRequest q))
                                  (Output ⦃ DecEq-EBPoint ⦄ (apiLPev l d lfpReqBlockRequest) q (Ret (inj₁ stBlock)))
-  siTxs  : ∀ {tm md ln} q bm → SIdleV l d (rcv l d tm md ln (MsgLFPBlockTxsRequest q bm))
-                                 (Output ⦃ DecEq-TxsRequest ⦄ (apiLPev l d lfpReqBlockTxsRequest) (q , bm) (Ret (inj₁ stBlockTxs)))
+  siTxs  : ∀ {tm md ln} q bm → T (decodable bm) → SIdleV l d (rcv l d tm md ln (MsgLFPBlockTxsRequest q bm))
+                                 (Output ⦃ DecEq-TxsRequest ⦄ (apiLPev l d lfpReqBlockTxsRequest) (q , bm) (Ret (inj₁ (stBlockTxs q bm))))
+  -- A malformed bitmap is received but never reported to the application.
+  siDecodeStop : ∀ {tm md ln} q bm → decodable bm ≡ false
+               → SIdleV l d (rcv l d tm md ln (MsgLFPBlockTxsRequest q bm)) Stop
   siDone : ∀ {tm md ln}      → SIdleV l d (rcv l d tm md ln MsgLFPDone) (doneLFP l d ⟶₀ Ret (inj₁ stDone))
 
 -- the server Idle inversion
@@ -230,16 +252,17 @@ sIdleV {l} {d} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetch
 ... | yes refl | yes refl = subst (SIdleV l d _) (just-injective br) (siBlk q)
 ... | no _     | _        with () ← br
 ... | yes refl | no _     with () ← br
-sIdleV {l} {d} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxsRequest q bm)} refl br) with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = subst (SIdleV l d _) (just-injective br) (siTxs q bm)
-... | no _     | _        with () ← br
-... | yes refl | no _     with () ← br
+sIdleV {l} {d} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxsRequest q bm)} refl br) with l′ ≟ l | d′ ≟ d | decodable bm in can
+... | yes refl | yes refl | true = subst (SIdleV l d _) (just-injective br) (siTxs q bm (subst T (Relation.Binary.PropositionalEquality.sym can) Data.Unit.tt))
+... | yes refl | yes refl | false = subst (SIdleV l d _) (just-injective br) (siDecodeStop q bm can)
+... | no _     | _        | _ with () ← br
+... | yes refl | no _     | _ with () ← br
 sIdleV {l} {d} (sVis {at = _ , receiveLFP l′ d′} {a = _ , _ , _ , leiosFetchP MsgLFPDone} refl br) with l′ ≟ l | d′ ≟ d
 ... | yes refl | yes refl = subst (SIdleV l d _) (just-injective br) siDone
 ... | no _     | _        with () ← br
 ... | yes refl | no _     with () ← br
 sIdleV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlock _)} refl ())
-sIdleV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxs _ _)} refl ())
+sIdleV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , leiosFetchP (MsgLFPBlockTxs _)} refl ())
 sIdleV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , keepAlive _} refl ())
 sIdleV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , blockFetch _} refl ())
 sIdleV (sVis {at = _ , receiveLFP _ _} {a = _ , _ , _ , chainSync _} refl ())
@@ -284,15 +307,15 @@ sBlkV (sVis {at = _ , sendLFP _ _} refl ())
 sBlkV (sVis {at = _ , receiveLFP _ _} refl ())
 sBlkV (sVis {at = _ , doneLFP _ _} refl ())
 
--- server stBlockTxs: the api menu (send the tx closure)
-data STxsV (l : Link) (d : Dir) : F.Event → Rd → Set₁ where
-  stxTxs : ∀ q es → STxsV l d (F.evLabel _ (apiLPev l d lfpSendBlockTxs) (q , es))
-                      (snd l d FromResponder (MsgLFPBlockTxs q es) stIdle)
+-- server stBlockTxs: the api menu (drop offsets and send a positional tx reply)
+data STxsV (l : Link) (d : Dir) (q : EBHash × LSlot) (bm : TxBitmap) : F.Event → Rd → Set₁ where
+  stxTxs : ∀ q′ es → STxsV l d q bm (F.evLabel _ (apiLPev l d lfpSendBlockTxs) (q′ , es))
+                       (snd l d FromResponder (MsgLFPBlockTxs (map proj₂ es)) stIdle)
 
 -- the server stBlockTxs inversion
-sTxsV : ∀ {l d x t′} → serverStepP l d stBlockTxs ─[ ev (evl x) ]─► t′ → STxsV l d x t′
-sTxsV {l} {d} (sVis {at = _ , apiLPev l′ d′ lfpSendBlockTxs} {a = q , es} refl br) with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = subst (STxsV l d _) (just-injective br) (stxTxs q es)
+sTxsV : ∀ {l d q bm x t′} → serverStepP l d (stBlockTxs q bm) ─[ ev (evl x) ]─► t′ → STxsV l d q bm x t′
+sTxsV {l} {d} {q₀} {bm} (sVis {at = _ , apiLPev l′ d′ lfpSendBlockTxs} {a = q , es} refl br) with l′ ≟ l | d′ ≟ d
+... | yes refl | yes refl = subst (STxsV l d q₀ bm _) (just-injective br) (stxTxs q es)
 ... | no _     | _        with () ← br
 ... | yes refl | no _     with () ← br
 sTxsV (sVis {at = _ , apiLPev _ _ lnpSendRequestNext} refl ())
@@ -330,6 +353,18 @@ sTxsV (sVis {at = _ , doneLFP _ _} refl ())
 aOut : ∀ {B : Set} ⦃ _ : DecEq B ⦄ {e : LFPEv B} {v : B} {r : LFPState ⊎ Rr} → MAccR ∅ES (e ! v ⟶ Ret r)
 aOut = MAccR-Output _ _ (MAccR-Ret _)
 
+-- Stop has only an empty trace and never returns, so only the receive costs.
+-- Local to avoid rebuilding CountMore.agda's importers.
+sp-Stop : ∀ {Φ : LFPState → ℕ} {cost credit : F.Event → ℕ} {K a x}
+            {ok₁ : T (okP {Rx = Rr} {Φ = Φ} {cost} {credit} {K} a (x ∷ []))}
+        → StepPot {Rx = Rr} {Φ = Φ} {cost} {credit} {K} a x Stop
+sp-Stop {ok₁ = ok₁} = (λ where
+    ⟹-refl → ≤ᵇ⇒≤ _ _ ok₁
+    (⟹-τ (F.sSil ()) _)
+    (⟹-τ (F.sTau refl ()) _)
+    (⟹-ev (F.sRet ()) _)
+    (⟹-ev (sVis refl ()) _)) , S.Post-Stop
+
 -- a client step's facts: accessibility, P1 and the five relays
 record OkC (a : LFPState) (x : F.Event) (t′ : Rd) : Set₁ where
   constructor okC
@@ -354,12 +389,23 @@ ok-cBlk (cbBlk _) = okC (aOut ⦃ decEB ⦄) (sp-Out ⦃ decEB ⦄) (sp-Out ⦃ 
                         (sp-Out ⦃ decEB ⦄) (sp-Out ⦃ decEB ⦄)
 
 -- (client stBlockTxs; the entries relay pays list lengths)
-ok-cTxs : ∀ {l d x t′} → CTxsV l d x t′ → OkC stBlockTxs x t′
-ok-cTxs (ctTxs _ _) = okC (aOut ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄)
-                          (sp-Out≤ ⦃ i ⦄ z≤n (m≤m+n _ _) ≤-refl) (sp-Out ⦃ i ⦄)
+ok-cTxs : ∀ {l d q bm x t′} → CTxsV l d q bm x t′ → OkC (stBlockTxs q bm) x t′
+ok-cTxs {bm = bm} (ctTxs txs _ count) = okC (aOut ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄)
+                          (sp-Out≤ ⦃ i ⦄ z≤n entries≤ entriesBack) (sp-Out ⦃ i ⦄)
   where
+    -- Accepted counts make zip preserve the number of wire transactions.
+    entries≤ : length (zip bm txs) + 0 ≤ (length txs + 0) + 0
+    entries≤ rewrite length-zipWith _,_ bm txs | count | ⊓-idem (length bm) = m≤m+n _ _
+
+    -- The completed round also preserves the zero potential after pairing.
+    entriesBack : (length (zip bm txs) + 0) + 0 ≤ (length txs + 0) + 0
+    entriesBack rewrite length-zipWith _,_ bm txs | count | ⊓-idem (length bm) = ≤-refl
+
     -- the tx-closure carrier's decidable equality
     i = DecEq-TxsReply
+
+ok-cTxs (ctDecodeStop _ _) = okC MAccR-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop
+ok-cTxs (ctStop _ _) = okC MAccR-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop
 
 -- a server step's facts: accessibility, P1 and the six relays
 record OkS (a : LFPState) (x : F.Event) (t′ : Rd) : Set₁ where
@@ -381,11 +427,12 @@ ok-sIdle (siBlk _)   = okS (aOut ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄
   where
     -- the point carrier's decidable equality
     i = DecEq-EBPoint
-ok-sIdle (siTxs _ _) = okS (aOut ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out≤ ⦃ i ⦄ z≤n (m≤m+n _ _) ≤-refl)
+ok-sIdle (siTxs _ _ _) = okS (aOut ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out≤ ⦃ i ⦄ z≤n (m≤m+n _ _) ≤-refl)
                            (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄) (sp-Out ⦃ i ⦄)
   where
     -- the tx-closure-request carrier's decidable equality
     i = DecEq-TxsRequest
+ok-sIdle (siDecodeStop _ _ _) = okS MAccR-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop sp-Stop
 ok-sIdle siDone      = okS (MAccR-⟶₀ _ (MAccR-Ret _)) sp-⟶ sp-⟶ sp-⟶ sp-⟶ sp-⟶ sp-⟶ sp-⟶
 
 -- (server stBlock)
@@ -393,8 +440,16 @@ ok-sBlk : ∀ {l d x t′} → SBlkV l d x t′ → OkS stBlock x t′
 ok-sBlk (sbBlk _) = okS aOut sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out
 
 -- (server stBlockTxs; the entries relay pays list lengths)
-ok-sTxs : ∀ {l d x t′} → STxsV l d x t′ → OkS stBlockTxs x t′
-ok-sTxs (stxTxs _ _) = okS aOut sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out (sp-Out≤ z≤n (m≤m+n _ _) ≤-refl)
+ok-sTxs : ∀ {l d q bm x t′} → STxsV l d q bm x t′ → OkS (stBlockTxs q bm) x t′
+ok-sTxs (stxTxs _ es) = okS aOut sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out (sp-Out≤ z≤n entries≤ entriesBack)
+  where
+    -- Dropping API offsets preserves the number of transactions sent.
+    entries≤ : length (map proj₂ es) + 0 ≤ (length es + 0) + 0
+    entries≤ rewrite length-map proj₂ es = m≤m+n _ _
+
+    -- The completed round preserves the zero potential after dropping offsets.
+    entriesBack : (length (map proj₂ es) + 0) + 0 ≤ (length es + 0) + 0
+    entriesBack rewrite length-map proj₂ es = ≤-refl
 
 -- the client's rounds, for any fact its steps provide
 rd-c : ∀ {Φ : LFPState → ℕ} {cost credit : F.Event → ℕ} {K}
@@ -402,7 +457,7 @@ rd-c : ∀ {Φ : LFPState → ℕ} {cost credit : F.Event → ℕ} {K}
      → ∀ {l d} st → RoundPot {Rx = Rr} {Φ = Φ} {cost} {credit} {K} st (clientStepP l d st)
 rd-c π stIdle     = rp-pch λ st → π (ok-cIdle (cIdleV st))
 rd-c π stBlock    = rp-pch λ st → π (ok-cBlk (cBlkV st))
-rd-c π stBlockTxs = rp-pch λ st → π (ok-cTxs (cTxsV st))
+rd-c π (stBlockTxs _ _) = rp-pch λ st → π (ok-cTxs (cTxsV st))
 rd-c π stDone     = rp-done
 
 -- the server's rounds, for any fact its steps provide
@@ -411,7 +466,7 @@ rd-s : ∀ {Φ : LFPState → ℕ} {cost credit : F.Event → ℕ} {K}
      → ∀ {l d} st → RoundPot {Rx = Rr} {Φ = Φ} {cost} {credit} {K} st (serverStepP l d st)
 rd-s π stIdle     = rp-pch λ st → π (ok-sIdle (sIdleV st))
 rd-s π stBlock    = rp-pch λ st → π (ok-sBlk (sBlkV st))
-rd-s π stBlockTxs = rp-pch λ st → π (ok-sTxs (sTxsV st))
+rd-s π (stBlockTxs _ _) = rp-pch λ st → π (ok-sTxs (sTxsV st))
 rd-s π stDone     = rp-done
 
 ------------------------------------------------------------------------
@@ -422,28 +477,28 @@ rd-s π stDone     = rp-done
 cbodyR : ∀ {l d} st → MAccR ∅ES (clientStepP l d st)
 cbodyR {l} {d} stIdle     = MAccR-react refl λ {at} {a} eq → OkC.acc (ok-cIdle (cIdleV {l} {d} (sVis {at = at} {a = a} refl eq)))
 cbodyR {l} {d} stBlock    = MAccR-react refl λ {at} {a} eq → OkC.acc (ok-cBlk (cBlkV {l} {d} (sVis {at = at} {a = a} refl eq)))
-cbodyR {l} {d} stBlockTxs = MAccR-react refl λ {at} {a} eq → OkC.acc (ok-cTxs (cTxsV {l} {d} (sVis {at = at} {a = a} refl eq)))
+cbodyR {l} {d} (stBlockTxs _ _) = MAccR-react refl λ {at} {a} eq → OkC.acc (ok-cTxs (cTxsV {l} {d} (sVis {at = at} {a = a} refl eq)))
 cbodyR stDone             = MAccR-Ret _
 
 -- every client round starts with a visible event
 cbodyG : ∀ {l d} st → NoRetBy Looping ∅ES (clientStepP l d st)
 cbodyG stIdle     = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
 cbodyG stBlock    = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
-cbodyG stBlockTxs = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
+cbodyG (stBlockTxs _ _) = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
 cbodyG stDone     = NoRetBy-Ret λ ()
 
 -- every server body state is accessible at every reachable state
 sbodyR : ∀ {l d} st → MAccR ∅ES (serverStepP l d st)
 sbodyR {l} {d} stIdle     = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sIdle (sIdleV {l} {d} (sVis {at = at} {a = a} refl eq)))
 sbodyR {l} {d} stBlock    = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sBlk (sBlkV {l} {d} (sVis {at = at} {a = a} refl eq)))
-sbodyR {l} {d} stBlockTxs = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sTxs (sTxsV {l} {d} (sVis {at = at} {a = a} refl eq)))
+sbodyR {l} {d} (stBlockTxs q bm) = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sTxs (sTxsV {l} {d} {q} {bm} (sVis {at = at} {a = a} refl eq)))
 sbodyR stDone             = MAccR-Ret _
 
 -- every server round starts with a visible event
 sbodyG : ∀ {l d} st → NoRetBy Looping ∅ES (serverStepP l d st)
 sbodyG stIdle     = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
 sbodyG stBlock    = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
-sbodyG stBlockTxs = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
+sbodyG (stBlockTxs _ _) = NoRetBy-mono (λ _ _ → tt) (Guarded-react refl λ ())
 sbodyG stDone     = NoRetBy-Ret λ ()
 
 -- THE CLIENT LEAF
@@ -484,13 +539,13 @@ lfpClientA-bm : ∀ l d {s W} → LFPclientA l d ⟹⟨ s ⟩ W
 lfpClientA-bm l d {s} tr = slack0 {ls = labels s}
   (Σc≤-ren (ℓIn TxsReq) (ℓCmd lfpSendBlockTxsRequest) 0 (potIter Φ0 _ _ 0 (rd-c OkC.bm {l} {d}) stIdle) tr)
 
--- RELAY (client): the tx-closure entries it reports, it received (list lengths)
+-- RELAY (client): entries restored from a positional tx reply ≤ transactions received
 lfpClientA-es : ∀ l d {s W} → LFPclientA l d ⟹⟨ s ⟩ W
               → Σc (ℓRep lfpRecvBlockTxs) (labels s) ≤ Σc (ℓOut BlockTxs) (labels s)
 lfpClientA-es l d {s} tr = slack0 {ls = labels s}
   (Σc≤-ren (ℓRep lfpRecvBlockTxs) (ℓOut BlockTxs) 0 (potIter Φ0 _ _ 0 (rd-c OkC.es {l} {d}) stIdle) tr)
 
--- RELAY (client): it puts no tx closure on the wire
+-- RELAY (client): it puts no positional tx reply on the wire
 lfpClientA-noBT : ∀ l d {s W} → LFPclientA l d ⟹⟨ s ⟩ W → Σc (wIn BlockTxs) (labels s) ≡ 0
 lfpClientA-noBT l d {s} tr = none0 {ls = labels s}
   (Σc≤-ren (wIn BlockTxs) (λ _ → 0) 0 (potIter Φ0 _ _ 0 (rd-c OkC.nBT {l} {d}) stIdle) tr)
@@ -523,7 +578,7 @@ lfpServerA-noTQ : ∀ l d {s W} → LFPserverA l d ⟹⟨ s ⟩ W → Σc (wIn T
 lfpServerA-noTQ l d {s} tr = none0 {ls = labels s}
   (Σc≤-ren (wIn TxsReq) (λ _ → 0) 0 (potIter Φ0 _ _ 0 (rd-s OkS.nTQ {l} {d}) stIdle) tr)
 
--- RELAY (server): the tx-closure entries it sends were commanded (list lengths)
+-- RELAY (server): positional tx reply transactions ≤ commanded API entries (list lengths)
 lfpServerA-es : ∀ l d {s W} → LFPserverA l d ⟹⟨ s ⟩ W
               → Σc (ℓIn BlockTxs) (labels s) ≤ Σc (ℓCmd lfpSendBlockTxs) (labels s)
 lfpServerA-es l d {s} tr = slack0 {ls = labels s}
@@ -573,14 +628,16 @@ nr-cBlk : ∀ {l d x t′} → CBlkV l d x t′ → NRc stBlock x t′
 nr-cBlk (cbBlk _) = sp-Out ⦃ decEB ⦄
 
 -- (client stBlockTxs)
-nr-cTxs : ∀ {l d x t′} → CTxsV l d x t′ → NRc stBlockTxs x t′
-nr-cTxs (ctTxs _ _) = sp-Out ⦃ DecEq-TxsReply ⦄
+nr-cTxs : ∀ {l d q bm x t′} → CTxsV l d q bm x t′ → NRc (stBlockTxs q bm) x t′
+nr-cTxs (ctTxs _ _ _) = sp-Out ⦃ DecEq-TxsReply ⦄
+nr-cTxs (ctDecodeStop _ _) = sp-Stop
+nr-cTxs (ctStop _ _) = sp-Stop
 
 -- the client's rounds
 nr-c : ∀ {l d} st → RoundPot {Rx = Rr} {Φ = Φ0} {(λ e → repLNP e + repLFs e) ʳ} {λ _ → 0} {0} st (clientStepP l d st)
 nr-c stIdle     = rp-pch λ st → nr-cIdle (cIdleV st)
 nr-c stBlock    = rp-pch λ st → nr-cBlk (cBlkV st)
-nr-c stBlockTxs = rp-pch λ st → nr-cTxs (cTxsV st)
+nr-c (stBlockTxs _ _) = rp-pch λ st → nr-cTxs (cTxsV st)
 nr-c stDone     = rp-done
 
 -- a server step makes no foreign report
@@ -590,7 +647,8 @@ NRs = StepPot {Rx = Rr} {Φ = Φ0} {(λ e → repLNP e + repLFc e) ʳ} {λ _ →
 -- (server Idle)
 nr-sIdle : ∀ {l d x t′} → SIdleV l d x t′ → NRs stIdle x t′
 nr-sIdle (siBlk _)   = sp-Out ⦃ DecEq-EBPoint ⦄
-nr-sIdle (siTxs _ _) = sp-Out ⦃ DecEq-TxsRequest ⦄
+nr-sIdle (siTxs _ _ _) = sp-Out ⦃ DecEq-TxsRequest ⦄
+nr-sIdle (siDecodeStop _ _ _) = sp-Stop
 nr-sIdle siDone      = sp-⟶
 
 -- (server stBlock)
@@ -598,14 +656,14 @@ nr-sBlk : ∀ {l d x t′} → SBlkV l d x t′ → NRs stBlock x t′
 nr-sBlk (sbBlk _) = sp-Out
 
 -- (server stBlockTxs)
-nr-sTxs : ∀ {l d x t′} → STxsV l d x t′ → NRs stBlockTxs x t′
+nr-sTxs : ∀ {l d q bm x t′} → STxsV l d q bm x t′ → NRs (stBlockTxs q bm) x t′
 nr-sTxs (stxTxs _ _) = sp-Out
 
 -- the server's rounds
 nr-s : ∀ {l d} st → RoundPot {Rx = Rr} {Φ = Φ0} {(λ e → repLNP e + repLFc e) ʳ} {λ _ → 0} {0} st (serverStepP l d st)
 nr-s stIdle     = rp-pch λ st → nr-sIdle (sIdleV st)
 nr-s stBlock    = rp-pch λ st → nr-sBlk (sBlkV st)
-nr-s stBlockTxs = rp-pch λ st → nr-sTxs (sTxsV st)
+nr-s (stBlockTxs _ _) = rp-pch λ st → nr-sTxs (sTxsV st)
 nr-s stDone     = rp-done
 
 -- ALPHABET (client): it makes no LNP-client report and no LFP-server report

@@ -27,9 +27,11 @@ open Topology tP using (Node)
 
 
 open import Data.Empty using (⊥)
-open import Data.Nat using (ℕ; suc; _+_; _*_; _≤_; _<_; z≤n; s≤s)
+open import Data.Nat using (ℕ; suc; _<ᵇ_; _+_; _*_; _≤_; _<_; z≤n; s≤s)
 open import Data.Nat.Properties
   using (≤-refl; ≤-trans; m≤m+n; m≤n+m; +-mono-≤; +-monoʳ-≤; +-identityʳ; +-assoc; n≤1+n)
+import Data.List.Relation.Unary.All as All
+open import Data.Bool.ListAction using (all)
 open import Data.Bool using (Bool; true; false)
 open import Data.List using (List; []; _∷_; _++_; length)
 open import Data.List.Properties using (++-identityʳ; length-++)
@@ -57,23 +59,23 @@ open import Semantics.Failures {E = Net_Api Payload} {I = ExtI (Net_Api Payload)
 open import CSP.Laws.DivFree.Loop (Net_Api-≟ {Payload}) using (loopStep)
 open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload})
 open import CSP.Laws.DivFree.CountMore (Net_Api-≟ {Payload})
-  using (DpW; Dp→DpW; DpW-mono; DpW-Ret; DpW-⟶; DpW-Output; DpW->>=; DpW-□; DpW-if; Dp-if; Dp-maybe′
+  using (DpW; Dp→DpW; DpW-mono; DpW-Ret; DpW-Stop; DpW-⟶; DpW-Output; DpW->>=; DpW-□; DpW-if; Dp-if; Dp-maybe′
         ; Ends-maybe′; AllT-if; AllT-maybe′; trigLoop; Σc-0; PfxW; Back; RoundPot; potIter; slack0
         ; labels-√; +-swap; ≤-≡)
 open import CSP.Laws.Traces.TraceLawsBind (Net_Api-≟ {Payload}) using (bind-elim-aux; bs-live; bs-term)
 open import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (loop; Prefix; Output; Ret; _>>=_)
 open import Cardano_network.Parametric.Leios.NoLivelock.Weights pP using (cRep; cCmd; ℓRep; ℓCmd)
 import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-open LeiosP pP using (allOffsets; DecEq-LeiosPoint)
-open LeiosP.LeiosParams lpP using (ebTxs; rbCert)
+open LeiosP pP using (allOffsets; txChunks; DecEq-LeiosPoint)
+open LeiosP.LeiosParams lpP using (ebTxs; rbCert; maxTxs)
 import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic pP tP apiES using (serverBody-k; DecEq-Header×Tip; clientBody; clientBody-k; clientLoop; forgeEv; putEv)
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic pP lpP tP apiES vo using ( serverBodyL; serverLoopL; lnServerBodyL; lnServerLoopL; ebIndexBody; ebIndex; voterBody; voter
         ; bodyOfferBody; bodyOfferLoop; awaitTxs; voteOfferBody; voteOfferLoop; tsServeBody; tsServe
         ; forgeL; forgeBodyL; forgeCertL; submit; certSink; lnClientBodyL; lnClientLoopL; fetchBody
-        ; fetchTxs; putChecked; putAllVotes; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody
-        ; ebTxsServeLoop; putAllTx; tsPullBody; tsPull; at?; getTxEv; putTxEv; putVoteEv; submitEv; certEv; memberOf; forgeOK; DecEq-⊤poly; DecEq-ℕ×ℕ )
+        ; fetchTxs; fetchChunks; entryOk; putAll; putChecked; putAllVotes; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody
+        ; ebTxsServeLoop; putAllTx; tsPullBody; tsPull; at?; getTxEv; putTxEv; putVoteEv; submitEv; certEv; lacksBodyEv; lacksTxEv; memberOf; forgeOK; DecEq-⊤poly; DecEq-ℕ×ℕ )
 
 ------------------------------------------------------------------------
 -- the thread
@@ -231,19 +233,56 @@ pav-All : ∀ {P : Event → Set} n → (∀ v → P (evLabel _ (putVoteEv n) v)
 pav-All n p []       = AllT-Ret
 pav-All n p (v ∷ vs) = AllT-Output ⦃ decVoteBlob ⦄ (putVoteEv n) v (p v) (pav-All n p vs)
 
--- a checked tx-closure reply deposits at most one transaction per entry
-pc-Dp : ∀ n h es → Dp (length es) (putChecked n h es)
-pc-Dp n h []              = Dp-Ret
-pc-Dp n h ((o , t₁) ∷ es) with at? o (ebTxs h)
-... | nothing      = Dp-mono (n≤1+n _) (pc-Dp n h es)
-... | just (k , _) = Dp-if ⌊ DecEq._≟_ decTxHash (txHash t₁) k ⌋ (Dp-Output ⦃ decTx ⦄ _ _ (pc-Dp n h es)) (Dp-mono (n≤1+n _) (pc-Dp n h es))
+-- An accepted reply deposits one transaction per entry, in order.
+pa-Dp : ∀ n es → Dp (length es) (putAll n es)
+pa-Dp n [] = Dp-Ret
+pa-Dp n ((o , x) ∷ es) = Dp-Output ⦃ decTx ⦄ _ _ (pa-Dp n es)
 
--- every label of a checked reply is a deposit
+-- The all-or-nothing guard can only decrease this entry-count bound.
+pc-Dp : ∀ n h es → Dp (length es) (putChecked n h es)
+pc-Dp n h es = Dp-if (all (entryOk h) es) (pa-Dp n es) (Dp-mono z≤n Dp-Stop)
+
+-- Every ordered deposit has the requested per-transaction property.
+pa-All : ∀ {P : Event → Set} n → (∀ tx → P (evLabel _ (putTxEv n) tx))
+  → ∀ es → AllT P (putAll n es)
+pa-All n p [] = AllT-Ret
+pa-All n p ((o , x) ∷ es) = AllT-Output ⦃ decTx ⦄ (putTxEv n) x (p x) (pa-All n p es)
+
+-- A rejected reply has no labels; accepted replies deposit only transactions.
 pc-All : ∀ {P : Event → Set} n h → (∀ tx → P (evLabel _ (putTxEv n) tx)) → ∀ es → AllT P (putChecked n h es)
-pc-All n h p []              = AllT-Ret
-pc-All n h p ((o , t₁) ∷ es) with at? o (ebTxs h)
-... | nothing      = pc-All n h p es
-... | just (k , _) = AllT-if ⌊ DecEq._≟_ decTxHash (txHash t₁) k ⌋ (AllT-Output ⦃ decTx ⦄ (putTxEv n) t₁ (p t₁) (pc-All n h p es)) (pc-All n h p es)
+pc-All n h p es = AllT-if (all (entryOk h) es) (pa-All n p es) AllT-Stop
+
+-- Chunk confinement composes request/receive labels, checked deposits and later chunks.
+fc-All : ∀ {P : Event → Set} n l d q bms
+  → All.All (λ bm → P (evLabel _ (apiLP l d lfpSendBlockTxsRequest) (q , bm))) bms
+  → (∀ reply → P (evLabel _ (apiLP l d lfpRecvBlockTxs) reply))
+  → (∀ tx → P (evLabel _ (putTxEv n) tx)) → AllT P (fetchChunks n l d q bms)
+fc-All n l d q [] All.[] pr pp = AllT-Ret
+fc-All n l d q (bm ∷ bms) (pq All.∷ pqs) pr pp =
+  AllT-Output ⦃ DecEq-TxsRequest ⦄ _ _ pq
+    (AllT-⟶ _ pr (λ { (q′ , es) → AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋
+      (AllT->>= (pc-All n (proj₁ q) pp es) (λ _ → fc-All n l d q bms pqs pr pp)) AllT-Stop }))
+
+-- At lpP each body has zero or one transaction, so its chunks are singleton or absent.
+ft-All : ∀ {P : Event → Set} n l d q
+  → (∀ eb → P (evLabel _ (NLL.Generic.getBodyEv pP lpP tP apiES vo n (proj₁ q)) eb))
+  → (∀ bm → length bm ≤ 1 → P (evLabel _ (apiLP l d lfpSendBlockTxsRequest) (q , bm)))
+  → (∀ reply → P (evLabel _ (apiLP l d lfpRecvBlockTxs) reply))
+  → (∀ tx → P (evLabel _ (putTxEv n) tx)) → AllT P (fetchTxs n l d q)
+ft-All n l d (true , slot) pg pq pr pp = AllT-⟶ _ pg
+  (λ _ → fc-All n l d _ _ (pq (0 ∷ []) ≤-refl All.∷ All.[]) pr pp)
+ft-All n l d (false , slot) pg pq pr pp = AllT-⟶ _ pg (λ _ → AllT-Ret)
+
+-- Body rejection stops without labels after the receive; success deposits one body.
+fb-All : ∀ {P : Event → Set} n l d q sz
+  → P (evLabel _ (apiLP l d lfpSendBlockRequest) q)
+  → (∀ eb → P (evLabel _ (apiLP l d lfpRecvBlock) eb))
+  → (∀ eb → P (evLabel _ (NLL.Generic.putBodyEv pP lpP tP apiES vo n) eb))
+  → AllT P (fetchBody n l d (q , sz))
+fb-All n l d q sz pq pr pp = AllT-Output ⦃ DecEq-EBPoint ⦄ _ _ pq
+  (AllT-⟶ _ pr (λ eb → AllT-if (maxTxs <ᵇ length (ebTxs (ebHash eb))) AllT-Stop
+    (AllT-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋
+      (AllT-Output ⦃ decEB ⦄ _ _ (pp eb) AllT-Ret) AllT-Stop)))
 
 -- a TxSubmission reply deposits at most one transaction per element
 pat-Dp : ∀ n ids txs → Dp (length txs) (putAllTx n ids txs)
@@ -259,16 +298,19 @@ pat-All n ids p (t₁ ∷ txs) = AllT-if (memberOf ⦃ decTxHash ⦄ (txHash t�
 st-Dp : ∀ n l d q os acc → Dp (suc (length os)) (serveTxs n l d q os acc)
 st-Dp n l d q []       acc = Dp-Output ⦃ DecEq-TxsReply ⦄ _ _ Dp-Ret
 st-Dp n l d q (o ∷ os) acc with at? o (ebTxs (proj₁ q))
-... | nothing      = Dp-mono (n≤1+n _) (st-Dp n l d q os acc)
-... | just (h , _) = Dp-⟶ _ (λ t₁ → st-Dp n l d q os _)
+... | nothing      = Dp-mono z≤n Dp-Stop
+... | just (h , _) = Dp-□ (Dp-⟶ _ (λ t₁ → st-Dp n l d q os _)) (Dp-⟶ _ (λ _ → Dp-mono z≤n Dp-Stop))
 
 -- every label of a closure serve is a mempool read or the reply
 st-All : ∀ {P : Event → Set} n l d q → (∀ h x → P (evLabel _ (getTxEv n h) x))
+       → (∀ h x → P (evLabel _ (lacksTxEv n h) x))
        → (∀ acc → P (evLabel _ (apiLP l d lfpSendBlockTxs) (q , acc))) → ∀ os acc → AllT P (serveTxs n l d q os acc)
-st-All n l d q pg ps []       acc = AllT-Output ⦃ DecEq-TxsReply ⦄ (apiLP l d lfpSendBlockTxs) (q , acc) (ps acc) AllT-Ret
-st-All n l d q pg ps (o ∷ os) acc with at? o (ebTxs (proj₁ q))
-... | nothing      = st-All n l d q pg ps os acc
-... | just (h , _) = AllT-⟶ (getTxEv n h) (pg h) (λ t₁ → st-All n l d q pg ps os _)
+st-All n l d q pg pn ps []       acc = AllT-Output ⦃ DecEq-TxsReply ⦄ (apiLP l d lfpSendBlockTxs) (q , acc) (ps acc) AllT-Ret
+st-All n l d q pg pn ps (o ∷ os) acc with at? o (ebTxs (proj₁ q))
+... | nothing      = AllT-Stop
+... | just (h , _) = AllT-□
+  (AllT-⟶ (getTxEv n h) (pg h) (λ t₁ → st-All n l d q pg pn ps os _))
+  (AllT-⟶ (lacksTxEv n h) (pn h) (λ _ → AllT-Stop))
 
 ------------------------------------------------------------------------
 -- the pointer threads
@@ -377,6 +419,14 @@ clientLoop-count n l d =
     ck : ∀ ht → Dp 3 (clientBody-k n l d ht)
     ck (header b , _) = Dp-Output ⦃ DecEq-ChainRange ⦄ _ _ (Dp-⟶ _ (λ _ → Dp-Output ⦃ decBlock ⦄ _ _ Dp-Ret))
 
+-- The concrete family has at most one chunk: three non-deposit events after the offer.
+ft-DpW : ∀ n l d q → DpW 3 ℓLnRep (fetchTxs n l d q)
+ft-DpW n l d (true , slot) = DpW-⟶ _ (λ _ → DpW-Output ⦃ DecEq-TxsRequest ⦄ _ _
+  (DpW-⟶ _ (λ { (q′ , es) → DpW-if ⌊ DecEq._≟_ DecEq-EBPoint q′ (true , slot) ⌋
+    (DpW-mono (m≤m+n _ _) (Dp→DpW (Dp-mono (≤-≡ (+-identityʳ (length es)))
+      (Dp->>= {m = length es} {n = 0} (pc-Dp n true es) (λ _ → Dp-Ret))))) DpW-Stop })))
+ft-DpW n l d (false , slot) = DpW-⟶ _ (λ _ → DpW-Ret)
+
 -- THE LN CLIENT COUNT: five events per Notify report, plus one per delivered list entry
 lnClientLoopL-count : ∀ n l d {s W} → lnClientLoopL n (l , d) ⟹⟨ s ⟩ W
                     → #e s ≤ 5 * Σc cLnRep (labels s) + 5 + Σc ℓLnRep (labels s)
@@ -386,9 +436,11 @@ lnClientLoopL-count n l d =
       (DpW-⟶ (apiLP l d lnpSendRequestNext) (λ _ →
          DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockAnnouncement) (λ _ → DpW-Ret))
         (DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockOffer) (λ { (q , _) → Dp→DpW
-                  (Dp-Output ⦃ DecEq-EBPoint ⦄ _ _ (Dp-⟶ _ (λ eb → Dp-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋ (Dp-Output ⦃ decEB ⦄ _ _ Dp-Ret) (Dp-mono z≤n Dp-Ret)))) }))
-        (DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ q → DpW-⟶ _ (λ _ → DpW-Output ⦃ DecEq-TxsRequest ⦄ _ _
-                  (DpW-⟶ _ (λ { (q′ , es) → DpW-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋ (DpW-mono (m≤m+n _ 0) (Dp→DpW (pc-Dp n (proj₁ q) es))) DpW-Ret })))))
+                  (Dp-Output ⦃ DecEq-EBPoint ⦄ _ _ (Dp-⟶ _ (λ eb →
+                    Dp-if (maxTxs <ᵇ length (ebTxs (ebHash eb))) (Dp-mono z≤n Dp-Stop)
+                      (Dp-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋
+                        (Dp-Output ⦃ decEB ⦄ _ _ Dp-Ret) (Dp-mono z≤n Dp-Stop))))) }))
+        (DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ q → ft-DpW n l d q))
                (DpW-⟶ (apiLP l d lnpRecvVotes) (λ vs → DpW-mono (m≤n+m _ 3) (Dp→DpW (pav-Dp n vs))))))))
       (λ _ → DpW-Ret))
     (λ _ → trig-ls tt (Post-⟶ (apiLP l d lnpSendRequestNext) (λ _ →
@@ -401,7 +453,8 @@ lnClientLoopL-count n l d =
 ebServeLoop-count : ∀ n l d {s W} → ebServeLoop n (l , d) ⟹⟨ s ⟩ W
                   → #e s ≤ 3 * Σc (cRep lfpReqBlockRequest) (labels s) + 3
 ebServeLoop-count n l d =
-  trig0 (λ _ → Dp->>= {m = 3} {n = 0} (Dp-⟶ _ (λ _ → Dp-⟶ _ (λ _ → Dp-Output ⦃ decEB ⦄ _ _ Dp-Ret))) (λ _ → Dp-Ret))
+  trig0 (λ _ → Dp->>= {m = 3} {n = 0} (Dp-⟶ _ (λ _ → Dp-□ (Dp-⟶ _ (λ _ → Dp-Output ⦃ decEB ⦄ _ _ Dp-Ret))
+                                             (Dp-⟶ _ (λ _ → Dp-mono z≤n Dp-Stop)))) (λ _ → Dp-Ret))
         (λ _ → trig-ls tt (trig-hd (apiLP l (opposite d) lfpReqBlockRequest) (λ _ → ≤-refl))) tt
 
 -- THE CLOSURE-SERVE COUNT: three events per closure request, plus one per requested offset
@@ -412,7 +465,9 @@ ebTxsServeLoop-count n l d =
   trigLoop
     (λ _ → DpW->>= {m = 3} {n = 0}
       (DpW-⟶ (apiLP l (opposite d) lfpReqBlockTxsRequest) (λ { (q , bm) →
-         DpW-⟶ _ (λ _ → DpW-mono (m≤m+n _ 0) (Dp→DpW (st-Dp n l (opposite d) q bm []))) }))
+         DpW-□
+           (DpW-⟶ _ (λ _ → DpW-mono (m≤m+n _ 0) (Dp→DpW (st-Dp n l (opposite d) q bm []))))
+           (DpW-⟶ _ (λ _ → DpW-Stop)) }))
       (λ _ → DpW-Ret))
     (λ _ → trig-ls tt (trig-hd (apiLP l (opposite d) lfpReqBlockTxsRequest) (λ _ → ≤-refl))) tt
 
@@ -475,13 +530,10 @@ fetchTxs-emits n l d {s} tr = Σc-≤ (AllL-map proj₁ a) , Σc1≤#e s (AllL-m
                 {body = λ _ → lnClientBodyL n l d}
           (λ _ → AllT-⟶ (apiLP l d lnpSendRequestNext) (λ _ → z≤n , z≤n , z≤n) (λ _ →
              AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockAnnouncement) (λ _ → z≤n , z≤n , z≤n) (λ _ → AllT-Ret))
-            (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ → z≤n , z≤n , z≤n) (λ { (q , _) →
-                       AllT-Output ⦃ DecEq-EBPoint ⦄ _ _ (z≤n , ≤-refl , z≤n) (AllT-⟶ _ (λ _ → z≤n , z≤n , z≤n) (λ eb →
-                       AllT-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋ (AllT-Output ⦃ decEB ⦄ _ _ (z≤n , z≤n , z≤n) AllT-Ret) AllT-Ret)) }))
-            (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ → z≤n , z≤n , z≤n) (λ q →
-                       AllT-⟶ _ (λ _ → z≤n , z≤n , z≤n) (λ _ →
-                       AllT-Output ⦃ DecEq-TxsRequest ⦄ _ _ (ao≤1 (proj₁ q) , z≤n , ≤-refl) (AllT-⟶ _ (λ _ → z≤n , z≤n , z≤n) (λ { (q′ , es) →
-                       AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋ (pc-All n (proj₁ q) (λ _ → z≤n , z≤n , z≤n) es) AllT-Ret })))))
+            (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ → z≤n , z≤n , z≤n)
+              (λ { (q , sz) → fb-All n l d q sz (z≤n , ≤-refl , z≤n) (λ _ → z≤n , z≤n , z≤n) (λ _ → z≤n , z≤n , z≤n) }))
+            (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ → z≤n , z≤n , z≤n)
+              (λ q → ft-All n l d q (λ _ → z≤n , z≤n , z≤n) (λ bm bound → bound , z≤n , ≤-refl) (λ _ → z≤n , z≤n , z≤n) (λ _ → z≤n , z≤n , z≤n)))
                     (AllT-⟶ (apiLP l d lnpRecvVotes) (λ _ → z≤n , z≤n , z≤n)
                        (λ vs → pav-All n (λ _ → z≤n , z≤n , z≤n) vs)))))) tt tr
 
@@ -529,14 +581,31 @@ pfx→rp {c} {d} {a = a} p = p , post λ {s} {x} tr → bk x (subst (λ ls → �
     bk (inj₁ _) h = ≤-trans (≤-≡ (+-identityʳ _)) h
     bk (inj₂ _) h = U.tt
 
+open import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_□_)
+open import CSP.Laws.Traces.TraceLawsExtChoiceMono (Net_Api-≟ {Payload}) using (□-trace-elim)
+
+-- a choice pays what its branches pay
+PfxW-□ : ∀ {c d : Event → ℕ} {k} {R : Set} ⦃ _ : DecEq R ⦄ {P Q : Tr R}
+       → PfxW c d k P → PfxW c d k Q → PfxW c d k (P □ Q)
+PfxW-□ {P = P} {Q} p q tr with □-trace-elim P Q tr
+... | inj₁ (_ , t) = p t
+... | inj₂ (_ , t) = q t
+
+-- a tree that never pays pays at most anything
+PfxW-0 : ∀ {c d : Event → ℕ} {k} {R : Set} {t : Tr R} → AllT (λ e → c e ≤ 0) t → PfxW c d k t
+PfxW-0 {c} {d} {k} a {s} tr =
+  ≤-trans (Σc-≤ (a tr)) (≤-trans (≤-≡ (Σc-0 (labels s))) z≤n)
+
 -- serving a closure from `acc`: the reply pays at most |acc| + |os| out of the budget
 st-Pfx : ∀ n l d q os acc k → length acc + length os ≤ k
        → PfxW (ℓCmd lfpSendBlockTxs) (ℓRep lfpReqBlockTxsRequest) k (serveTxs n l d q os acc)
 st-Pfx n l d q []       acc k h = PfxW-Out ⦃ DecEq-TxsReply ⦄ _ _ (≤-trans (m≤m+n _ 0) h)
 st-Pfx n l d q (o ∷ os) acc k h with at? o (ebTxs (proj₁ q))
-... | nothing      = st-Pfx n l d q os acc k (≤-trans (+-monoʳ-≤ (length acc) (n≤1+n _)) h)
-... | just (x , _) = PfxW-⟶ _ (λ _ → refl) (λ t₁ → st-Pfx n l d q os _ k
-                       (subst (_≤ k) (sym (trans (cong (_+ length os) (length-++ acc)) (+-assoc (length acc) 1 (length os)))) h))
+... | nothing      = PfxW-0 AllT-Stop
+... | just (x , _) = PfxW-□
+  (PfxW-⟶ _ (λ _ → refl) (λ t₁ → st-Pfx n l d q os _ k
+    (subst (_≤ k) (sym (trans (cong (_+ length os) (length-++ acc)) (+-assoc (length acc) 1 (length os)))) h)))
+  (PfxW-0 (AllT-⟶ (lacksTxEv n x) (λ _ → z≤n) (λ _ → AllT-Stop)))
 
 -- a closure reply carries at most as many entries as the request had offsets
 serveTxs-emits : ∀ n l d {s W} → ebTxsServeLoop n (l , d) ⟹⟨ s ⟩ W
@@ -544,7 +613,9 @@ serveTxs-emits : ∀ n l d {s W} → ebTxsServeLoop n (l , d) ⟹⟨ s ⟩ W
 serveTxs-emits n l d {s} tr =
   slack0 {ℓCmd lfpSendBlockTxs} {ℓRep lfpReqBlockTxsRequest} {labels s} (potIter (λ _ → 0) (ℓCmd lfpSendBlockTxs) (ℓRep lfpReqBlockTxsRequest) 0
     (λ _ → pfx→rp (PfxW->>=Ret (PfxW-⟶ (apiLP l (opposite d) lfpReqBlockTxsRequest) (λ _ → refl) (λ { (q , bm) →
-             PfxW-⟶ _ (λ _ → refl) (λ _ → st-Pfx n l (opposite d) q bm [] _ (m≤m+n _ 0)) })))) tt tr)
+             PfxW-□
+               (PfxW-⟶ _ (λ _ → refl) (λ _ → st-Pfx n l (opposite d) q bm [] _ (m≤m+n _ 0)))
+               (PfxW-0 (AllT-⟶ (lacksBodyEv n (proj₁ q)) (λ _ → z≤n) (λ _ → AllT-Stop))) })))) tt tr)
 
 -- the RollForward announcements are commands of the ChainSync server thread
 serverLoopL-cmd : ∀ n l d {s W} → serverLoopL n (l , d) ⟹⟨ s ⟩ W → Σc (cCmd sendCSRollForward) (labels s) ≤ #e s
@@ -583,21 +654,6 @@ bodyOfferLoop-cmd n l d {s} tr = Σc1≤#e s (AllL-map proj₁ a) , Σc1≤#e s 
 -- self-loop through the entries those requests bring back
 ------------------------------------------------------------------------
 
-open import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (_□_)
-open import CSP.Laws.Traces.TraceLawsExtChoiceMono (Net_Api-≟ {Payload}) using (□-trace-elim)
-
--- a choice pays what its branches pay
-PfxW-□ : ∀ {c d : Event → ℕ} {k} {R : Set} ⦃ _ : DecEq R ⦄ {P Q : Tr R}
-       → PfxW c d k P → PfxW c d k Q → PfxW c d k (P □ Q)
-PfxW-□ {P = P} {Q} p q tr with □-trace-elim P Q tr
-... | inj₁ (_ , t) = p t
-... | inj₂ (_ , t) = q t
-
--- a tree that never pays pays at most anything
-PfxW-0 : ∀ {c d : Event → ℕ} {k} {R : Set} {t : Tr R} → AllT (λ e → c e ≤ 0) t → PfxW c d k t
-PfxW-0 {c} {d} {k} a {s} tr =
-  ≤-trans (Σc-≤ (a tr)) (≤-trans (≤-≡ (Σc-0 (labels s))) z≤n)
-
 -- an output paying at most k, then a tree that never pays
 PfxW-Out0 : ∀ {c d : Event → ℕ} {k} {A R : Set} ⦃ _ : DecEq A ⦄ (e : Net_Api Payload A) (v : A) {P : Tr R}
           → c (evLabel A e v) ≤ k → AllT (λ e → c e ≤ 0) P → PfxW c d k (e ! v ⟶ P)
@@ -606,6 +662,14 @@ PfxW-Out0 {c} {d} {k} {A} e v h a tr with out-tr tr
 ... | inj₂ (s′ , refl , rest) =
       ≤-trans (+-mono-≤ h (≤-trans (Σc-≤ (a rest)) (≤-≡ (Σc-0 (labels s′)))))
               (≤-trans (≤-≡ (+-identityʳ k)) (m≤n+m k _))
+
+-- One transaction-table entry in lpP means at most one request per closure offer.
+ft-req : ∀ n l d q → PfxW (cCmd lfpSendBlockTxsRequest) (cRep lnpRecvBlockTxsOffer) 1 (fetchTxs n l d q)
+ft-req n l d (false , slot) = PfxW-⟶ _ (λ _ → refl) (λ _ → PfxW-0 AllT-Ret)
+ft-req n l d (true , slot) = PfxW-⟶ _ (λ _ → refl) (λ _ →
+  PfxW-Out0 ⦃ DecEq-TxsRequest ⦄ _ _ ≤-refl (AllT-⟶ _ (λ _ → z≤n) (λ { (q′ , es) →
+    AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ (true , slot) ⌋
+      (AllT->>= (pc-All n true (λ _ → z≤n) es) (λ _ → AllT-Ret)) AllT-Stop })))
 
 -- THE CLOSURE-REQUEST RELAY: every closure request answers a closure offer report
 fetchTxs-req : ∀ n l d {s W} → lnClientLoopL n (l , d) ⟹⟨ s ⟩ W
@@ -618,10 +682,8 @@ fetchTxs-req n l d {s} tr =
     rnd : PfxW (cCmd lfpSendBlockTxsRequest) (cRep lnpRecvBlockTxsOffer) 0 (lnClientBodyL n l d)
     rnd = PfxW-⟶ (apiLP l d lnpSendRequestNext) (λ _ → refl) (λ _ →
        PfxW-□ (PfxW-0 (AllT-⟶ (apiLP l d lnpRecvBlockAnnouncement) (λ _ → z≤n) (λ _ → AllT-Ret)))
-      (PfxW-□ (PfxW-0 (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ → z≤n) (λ { (q , _) →
-                 AllT-Output ⦃ DecEq-EBPoint ⦄ _ _ z≤n (AllT-⟶ _ (λ _ → z≤n) (λ eb →
-                 AllT-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋ (AllT-Output ⦃ decEB ⦄ _ _ z≤n AllT-Ret) AllT-Ret)) })))
-      (PfxW-□ (PfxW-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ → refl) (λ q → PfxW-⟶ _ (λ _ → refl) (λ _ →
-                 PfxW-Out0 ⦃ DecEq-TxsRequest ⦄ _ _ ≤-refl (AllT-⟶ _ (λ _ → z≤n) (λ { (q′ , es) →
-                 AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋ (pc-All n (proj₁ q) (λ _ → z≤n) es) AllT-Ret })))))
+      (PfxW-□ (PfxW-0 (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ → z≤n)
+        (λ { (q , sz) → fb-All n l d q sz z≤n (λ _ → z≤n) (λ _ → z≤n) })))
+      (PfxW-□ (PfxW-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ → refl)
+        (λ q → ft-req n l d q))
               (PfxW-0 (AllT-⟶ (apiLP l d lnpRecvVotes) (λ _ → z≤n) (λ vs → pav-All n (λ _ → z≤n) vs))))))

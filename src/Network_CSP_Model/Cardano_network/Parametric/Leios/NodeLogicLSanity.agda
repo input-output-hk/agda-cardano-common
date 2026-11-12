@@ -58,7 +58,7 @@ open import Data.Unit.Polymorphic using (tt)
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin using (Fin) renaming (zero to fzero)
 open import Data.List using (List; []; _∷_)
-open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Maybe using (Maybe; just; nothing; maybe′; is-just)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
@@ -80,14 +80,14 @@ import Cardano_network.Parametric.Leios.CertRbOrigin as CRO
 open Params leiosLParams using (Block; RbHash; Tx; EB)
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
-  using (nodeLogicL; st₀; hasCertEv; voteStore)
+  using (nodeLogicL; st₀; hasCertEv; voteStore; bodyStep; memStep; getBodyEv; getTxEv; lacksBodyEv; lacksTxEv; serveTxs)
 -- S4's specification gate AT THE SHIPPED `leiosLP` (the control states the same gate at
 -- its own `leiosLP₃`; this open is what makes probes 5 and 6 facts about the ship line)
 open CRO.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
   using (certRbGate)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
-open Op using (viewV)
+open Op using (viewV; Ret)
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
 open import CSP.Laws.Traces.TraceLawsParallel (Net_Api-≟ {Payload})
@@ -210,3 +210,123 @@ gate-uncertified-at-leiosLP = refl
 gate-certified-at-leiosLP :
   certRbGate (((fzero , lo) , rCert) ∷ []) (Block , store fzero lo stPut) bCert ≡ true
 gate-certified-at-leiosLP = refl
+
+-- A held body offers its positive read and preserves the body-store state.
+get-body-held :
+  viewV (PTree.force (bodyStep nA (true ∷ []))) (EB , getBodyEv nA true) true
+    ≡ just (Ret (true ∷ []))
+get-body-held = refl
+
+-- An absent body hash has no positive read, complementing its negative offer.
+get-body-missing :
+  viewV (PTree.force (bodyStep nA (true ∷ []))) (EB , getBodyEv nA false) false ≡ nothing
+get-body-missing = refl
+
+-- A held body has no negative read at the shipped Boolean-hash instance.
+lacksIffNotHeld-body-held :
+  viewV (PTree.force (bodyStep nA (true ∷ []))) (U.⊤ , lacksBodyEv nA true) U.tt ≡ nothing
+lacksIffNotHeld-body-held = refl
+
+-- A missing body offers a negative read that leaves the store unchanged.
+lacksIffNotHeld-body-missing :
+  viewV (PTree.force (bodyStep nA (true ∷ []))) (U.⊤ , lacksBodyEv nA false) U.tt
+    ≡ just (Ret (true ∷ []))
+lacksIffNotHeld-body-missing = refl
+
+-- A held transaction offers its positive read and preserves the mempool state.
+get-tx-held :
+  viewV (PTree.force (memStep nA (true ∷ []))) (Tx , getTxEv nA true) true
+    ≡ just (Ret (true ∷ []))
+get-tx-held = refl
+
+-- An absent transaction hash has no positive read, complementing its negative offer.
+get-tx-missing :
+  viewV (PTree.force (memStep nA (true ∷ []))) (Tx , getTxEv nA false) false ≡ nothing
+get-tx-missing = refl
+
+-- A held transaction has no negative read at the same instance.
+lacksIffNotHeld-tx-held :
+  viewV (PTree.force (memStep nA (true ∷ []))) (U.⊤ , lacksTxEv nA true) U.tt ≡ nothing
+lacksIffNotHeld-tx-held = refl
+
+-- A missing transaction offers a negative read that leaves the mempool unchanged.
+lacksIffNotHeld-tx-missing :
+  viewV (PTree.force (memStep nA (true ∷ []))) (U.⊤ , lacksTxEv nA false) U.tt
+    ≡ just (Ret (true ∷ []))
+lacksIffNotHeld-tx-missing = refl
+
+-- A requested offset past the shipped body's table stops the serving thread.
+missingOffsetStops : serveTxs nA fzero lo (false , U.tt) (100 ∷ []) [] ≡ Op.Stop
+missingOffsetStops = refl
+
+-- A valid offset can consume an unwritten-transaction read only by stopping.
+unwrittenTxStops : viewV (PTree.force (serveTxs nA fzero lo (true , U.tt) (0 ∷ []) []))
+  (U.⊤ , lacksTxEv nA true) U.tt ≡ just Op.Stop
+unwrittenTxStops = refl
+
+-- A missing offset never sends an accumulated partial reply.
+missingOffsetDiscardsPartial : serveTxs nA fzero lo (false , U.tt) (100 ∷ []) ((0 , true) ∷ []) ≡ Op.Stop
+missingOffsetDiscardsPartial = refl
+
+
+import Data.List.Properties
+import Cardano_network.Parametric.Leios.LeiosParams as LP
+open import Data.Nat using (s≤s; z≤n)
+open import Cardano_network.Net leiosLParams
+  using (apiLP; lfpSendBlockRequest; lfpRecvBlock; lfpSendBlockTxsRequest; lfpRecvBlockTxs)
+
+-- A body above the fixed wire ceiling exercises the oversized stop.
+lpOver : LP.LeiosParams leiosLParams
+lpOver = record leiosLP { ebTxs = λ _ → Data.List.replicate 17143 (true , U.tt) }
+
+-- A two-entry body with singleton chunks exercises two successive requests.
+lpTwo : LP.LeiosParams leiosLParams
+lpTwo = record leiosLP { ebTxs = λ _ → (true , U.tt) ∷ (false , U.tt) ∷ [] }
+
+-- Instantiate the body table above the fixed decoder ceiling.
+module Over = NLL.Generic leiosLParams lpOver leiosLLine apiES (λ n → n)
+-- Instantiate the two-entry table with singleton chunks.
+module Two = NLL.Generic leiosLParams lpTwo leiosLLine apiES (λ n → n)
+-- Keep hash/reply rejection probes at the shipped instance.
+module Ship = NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
+
+-- Follow a concrete visible offer; absence is mapped to Stop for these computation probes.
+after : ∀ {A : Set} → Proc → Net_Api Payload A → A → Proc
+after P e a = maybe′ (λ Q → Q) Op.Stop (viewV (PTree.force P) (_ , e) a)
+
+-- An EB with maxTxs + 1 entries stops immediately after its receive.
+oversizedEBStops :
+  viewV (PTree.force (after (Over.fetchBody nA fzero lo ((true , U.tt) , U.tt))
+    (apiLP fzero lo lfpSendBlockRequest) (true , U.tt)))
+    (_ , apiLP fzero lo lfpRecvBlock) true ≡ just Op.Stop
+oversizedEBStops rewrite Data.List.Properties.length-replicate {A = Bool × U.⊤} 17143 {x = (true , U.tt)} = refl
+
+-- A hash-mismatched body stops even when its table fits the ceiling.
+hashMismatchStops :
+  viewV (PTree.force (after (Ship.fetchBody nA fzero lo ((false , U.tt) , U.tt))
+    (apiLP fzero lo lfpSendBlockRequest) (false , U.tt)))
+    (_ , apiLP fzero lo lfpRecvBlock) true ≡ just Op.Stop
+hashMismatchStops = refl
+
+-- A bad second entry prevents the good first entry from being deposited.
+partialReplyDepositsNothing :
+  Ship.putChecked nA true ((0 , true) ∷ (0 , false) ∷ []) ≡ Op.Stop
+partialReplyDepositsNothing = refl
+
+-- Fetching the body first reaches the first singleton request, followed by its receive.
+firstChunk : Proc
+firstChunk = after (Two.fetchTxs nA fzero lo (true , U.tt)) (Two.getBodyEv nA true) true
+
+-- A matching reply deposits its transaction before the second request is available.
+secondChunk : Proc
+secondChunk = after (after (after firstChunk (apiLP fzero lo lfpSendBlockTxsRequest)
+  ((true , U.tt) , 0 ∷ [])) (apiLP fzero lo lfpRecvBlockTxs)
+    ((true , U.tt) , (0 , true) ∷ [])) (Two.putTxEv nA) true
+
+-- Both singleton requests are offered in order by the actual fetchTxs residuals.
+twoChunksTwoRequests :
+  (is-just (viewV (PTree.force firstChunk) (_ , apiLP fzero lo lfpSendBlockTxsRequest)
+    ((true , U.tt) , 0 ∷ [])) ≡ true)
+  × (is-just (viewV (PTree.force secondChunk) (_ , apiLP fzero lo lfpSendBlockTxsRequest)
+    ((true , U.tt) , 1 ∷ [])) ≡ true)
+twoChunksTwoRequests = refl , refl

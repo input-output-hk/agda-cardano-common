@@ -705,7 +705,7 @@ storesF n X {s} tr rely with Par-trace-elim _ _ (blockStoreL n []) _ tr
     ebV = loopAll (λ es → eb-All n es (λ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _) (λ _ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _)) []
     -- the EB-body store
     bdV : ∀ {s′ W} → bodyStore n [] ⟹⟨ s′ ⟩ W → AllL NR (labels s′)
-    bdV = loopAll (λ bs → body-All n bs (λ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _) (λ _ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _)) []
+    bdV = loopAll (λ bs → body-All n bs (λ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _) (λ _ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _) (λ _ → (λ _ ()) , (λ _ ()) , (λ _ ()) , _)) []
     -- the RB store: no vote or tx read, no certificate
     VTC : Event → Set
     VTC e = (∀ j → IsGetVoteAt j e → ⊥) × ((∀ j → IsGetTxAt j e → ⊥) × IsZ (cCert e))
@@ -731,7 +731,7 @@ storesF n X {s} tr rely with Par-trace-elim _ _ (blockStoreL n []) _ tr
     -- the mempool: no RB or vote read, no certificate
     mpT : AllL (λ e → (∀ j → IsGetAt j e → ⊥) × ((∀ j → IsGetVoteAt j e → ⊥) × IsZ (cCert e))) (labels s4)
     mpT = loopAll (λ ts → mem-All n ts (λ _ → (λ _ ()) , (λ _ ()) , _) (λ _ → (λ _ ()) , (λ _ ()) , _)
-                           (λ _ _ _ → (λ _ ()) , (λ _ ()) , _) (λ _ _ → (λ _ ()) , (λ _ ()) , _)) [] t4
+                           (λ _ _ _ → (λ _ ()) , (λ _ ()) , _) (λ _ _ → (λ _ ()) , (λ _ ()) , _) (λ _ → (λ _ ()) , (λ _ ()) , _)) [] t4
     -- … its reads
     mpR : AllL (RdOK Bs) (labels s4)
     mpR = AllL-map (λ { ((a , b , _) , c) → (λ j g → ⊥-elim (a j g)) , (λ j g → ⊥-elim (b j g)) , c }) (zipL mpT (mempool-reads n t4))

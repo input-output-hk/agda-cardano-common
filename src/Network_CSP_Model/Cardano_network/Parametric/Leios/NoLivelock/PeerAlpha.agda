@@ -390,7 +390,7 @@ CvLF e = ((wI (ww gTQ) e ≡ wIn TxsReq e + ℓIn TxsReq e) × (wO (ww gTQ) e �
 ℓ0q (leiosFetchP (MsgLFPBlockRequest _))      _ = refl
 ℓ0q (leiosFetchP (MsgLFPBlock _))             _ = refl
 ℓ0q (leiosFetchP (MsgLFPBlockTxsRequest _ _)) ()
-ℓ0q (leiosFetchP (MsgLFPBlockTxs _ _))        _ = refl
+ℓ0q (leiosFetchP (MsgLFPBlockTxs _))          _ = refl
 ℓ0q (leiosFetchP MsgLFPDone)                  _ = refl
 
 -- closure entries come only with closure replies
@@ -405,7 +405,7 @@ CvLF e = ((wI (ww gTQ) e ≡ wIn TxsReq e + ℓIn TxsReq e) × (wO (ww gTQ) e �
 ℓ0b (leiosFetchP (MsgLFPBlockRequest _))      _ = refl
 ℓ0b (leiosFetchP (MsgLFPBlock _))             _ = refl
 ℓ0b (leiosFetchP (MsgLFPBlockTxsRequest _ _)) _ = refl
-ℓ0b (leiosFetchP (MsgLFPBlockTxs _ _))        ()
+ℓ0b (leiosFetchP (MsgLFPBlockTxs _))          ()
 ℓ0b (leiosFetchP MsgLFPDone)                  _ = refl
 
 -- tx lists come only with tx replies

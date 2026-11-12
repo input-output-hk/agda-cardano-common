@@ -59,9 +59,9 @@ servers-ok = tt
 mixed-ok : report 1 "sessions client server\n0 Send BlockRequest 5 0\n1 Recv BlockRequest 6 0\n0 Recv Block 5 10\n1 Send Block 6 10\n" ≡ "accepted (4 events, 2 sessions)"
 mixed-ok = refl
 
--- A wrong-hash reply is rejected at its GLOBAL index with the correct tag.
-wrong-hash : report 1 "sessions client client\n0 Send BlockRequest 5 0\n1 Send Done\n0 Recv Block 6 10\n" ≡
-             "rejected at index 3 (session 0): Recv Block 0000000000000000000000000000000000000000000000000000000000000006 10\nmodel session state after 2 events: client open, outstanding oldest first [BlockRequest 0000000000000000000000000000000000000000000000000000000000000005 0] (accepts: a response to the FIRST of these, or a new request if fewer than k are outstanding)"
+-- A wrong-hash reply can drain; a later request rejects at its GLOBAL index.
+wrong-hash : report 1 "sessions client client\n0 Send BlockRequest 5 0\n1 Send Done\n0 Recv Block 6 10\n0 Send BlockRequest 7 0\n" ≡
+             "rejected at index 4 (session 0): Send BlockRequest 0000000000000000000000000000000000000000000000000000000000000007 0\nmodel session state after 3 events: client draining, outstanding oldest first [] (accepts: replies by kind, then Send Done; no new requests)"
 wrong-hash = refl
 
 -- Reusing a closed generation is rejected rather than silently resetting it.
@@ -99,10 +99,21 @@ overflow : False (check 1 (client ∷ client ∷ [])
           ∷ inj₁ (Send , MsgLeiosBlockRequest 7 0) ∷ []))
 overflow = tt
 
--- FIFO ordering within a session still applies at depth two.
+-- A later request rules out consuming a wrong FIFO hash by stopping to drain.
 fifo : False (check 2 (client ∷ client ∷ [])
        (inj₁ (Send , MsgLeiosBlockRequest 5 0)
       ∷ inj₂ (inj₁ (Send , MsgLeiosDone))
       ∷ inj₁ (Send , MsgLeiosBlockRequest 6 0)
-      ∷ inj₁ (Recv , MsgLeiosBlock 6 10) ∷ []))
+      ∷ inj₁ (Recv , MsgLeiosBlock 6 10)
+      ∷ inj₁ (Send , MsgLeiosBlockRequest 7 0) ∷ []))
 fifo = tt
+
+-- Tagged transaction replies use only the positional count and byte size.
+txs-grammar : report 1 "sessions client server\n0 Send BlockTxsRequest 1 3 2 0:3\n1 Recv BlockTxsRequest 1 3 2 0:3\n1 Send BlockTxs 2 40\n0 Recv BlockTxs 2 40\n" ≡
+  "accepted (4 events, 2 sessions)"
+txs-grammar = refl
+
+-- The interleaved parser rejects the obsolete reply grammar too.
+old-txs-grammar : report 1 "sessions client\n0 Recv BlockTxs ab 3 2 80 -\n" ≡
+  "parse error at line 2: 0 Recv BlockTxs ab 3 2 80 -"
+old-txs-grammar = refl

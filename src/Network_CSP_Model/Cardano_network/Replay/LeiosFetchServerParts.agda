@@ -9,15 +9,19 @@
 -- Invariant 1 (B7a): checked with `agda --safe` on the command line.
 module Cardano_network.Replay.LeiosFetchServerParts where
 
+open import Data.Nat using (ℕ; zero; suc; _<_)
+import Data.Nat.Properties as N
+open import Data.List.Relation.Unary.All using (All; []; _∷_)
+open import Cardano_network.Replay.LeiosFetchWords using (decoderOffsets)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Fin using () renaming (zero to fzero; suc to fsuc)
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; map; replicate; _++_)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Maybe.Properties using (just-injective)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit.Polymorphic using () renaming (tt to ptt)
-open import Data.Unit using (tt)
+open import Data.Unit using (⊤; tt)
 import Data.Unit.Polymorphic as PU
 open import Function using (case_of_)
 open import Level using (lift)
@@ -27,6 +31,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym;
 open import Process_Trees using (PTree; ExtI; AnyTypes; react; ret; sil; base; pair; fin; isStable)
 open import Cardano_network.Base using (N2N_LeiosFetch; hi; FromResponder)
 open import Cardano_network.Replay.ReplayParams using (replayParams; replayLP; replayTopo)
+import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
 open import Cardano_network.Params using (module Params)
 open import Class.DecEq using (DecEq; _≟_)
 open import Class.DecEq.Instances using (DecEq-List)
@@ -41,9 +46,10 @@ open import Cardano_network.Parametric.Leios.NoLivelock.PeerLFP replayParams
   using ( ιLFP-rinv; Rd; snd; SIdleV; sIdleV; SBlkV; sbBlk; sBlkV; STxsV; stxTxs; sTxsV )
 open import Cardano_network.Replay.LeiosFetchServerModel
 open import Cardano_network.ApiAlphabet replayParams using (apiES)
+import Cardano_network.Parametric.Leios.LacksStoreL
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic replayParams replayLP replayTopo apiES (λ _ → tt)
-  using (ebServeBody; ebTxsServeBody; serveTxs)
+  using (ebServeBody; ebTxsServeBody; lacksBodies; lacksBodyEv; lacksTxEv; at?)
 import Cardano_network.LeiosFetchP replayParams as LFP
 import Cardano_network.Net replayParams as Net
 import Cardano_network.Data replayParams as Data
@@ -75,6 +81,9 @@ open import CSP.Laws.Bisim.Laws (Net_Api-≟ {Payload}) using (⊓-τ-inv)
 open import CSP.Laws.Bisim.IterCong (Net_Api-≟ {Payload}) using (fIter-react)
 open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload})
   using (AllT; AllL; _∷_; AllT-□; AllT-⟶; AllT-Output; AllT-Ret; AllT-Stop; AllT->>=)
+
+-- The negative-read inversions at the replay instance.
+module Lacks = Cardano_network.Parametric.Leios.LacksStoreL.Generic replayParams replayLP replayTopo apiES (λ _ → tt)
 
 ------------------------------------------------------------------------
 -- Vocabulary
@@ -223,7 +232,7 @@ prest-τ pBack st with peer-τ st
 ... | inj₂ (_ , refl , refl) = pHead
 prest-τ {stIdle}     pHead st = ⊥-elim (p-no-τ refl st)
 prest-τ {stBlock}    pHead st = ⊥-elim (p-no-τ refl st)
-prest-τ {stBlockTxs} pHead st = ⊥-elim (p-no-τ refl st)
+prest-τ {stBlockTxs _ _} pHead st = ⊥-elim (p-no-τ refl st)
 prest-τ {stDone}     pHead st with peer-τ st
 ... | inj₁ (_ , F.sSil () , _)
 ... | inj₁ (_ , F.sTau () _ , _)
@@ -246,13 +255,13 @@ pblk-ev pHead st with peer-ev st
 ...   | sbBlk eb = eb , refl , refl
 
 -- the BlockTxs-state producer's moves: take the reply `(q , es)` from the application
-ptx-ev : ∀ {P e W} → PRest stBlockTxs P → P ─[ ev (evl e) ]─► W
+ptx-ev : ∀ {q bm P e W} → PRest (stBlockTxs q bm) P → P ─[ ev (evl e) ]─► W
        → Σ[ qe ∈ Net.ApiLPCar lfpSendBlockTxs ]
            (e ≡ evLabel _ (apiLP lS dS lfpSendBlockTxs) qe
-            × W ≡ peerAfter (snd lS dS FromResponder (MsgLFPBlockTxs (proj₁ qe) (proj₂ qe)) stIdle))
+            × W ≡ peerAfter (snd lS dS FromResponder (MsgLFPBlockTxs (map proj₂ (proj₂ qe))) stIdle))
 ptx-ev pBack st = ⊥-elim (p-ret-no-ev st)
-ptx-ev pHead st with peer-ev st
-... | x , t′ , stx , refl , refl with sTxsV stx
+ptx-ev {q} {bm} pHead st with peer-ev st
+... | x , t′ , stx , refl , refl with sTxsV {q = q} {bm = bm} stx
 ...   | stxTxs q es = (q , es) , refl , refl
 
 ------------------------------------------------------------------------
@@ -273,7 +282,8 @@ lat body b = iter-bind (b >>= (λ a′ → Op.Ret (inj₁ a′))) (loopStep (λ 
 
 -- the EB-serve round after the report of point `q`: read the body from the store
 a1 : Net.ApiLPCar lfpReqBlockRequest → Proc
-a1 q = getBodyEvS (proj₁ q) Op.⟶ (λ eb → Op.Output (apiLP lS hi lfpSendBlock) eb Op.Skip)
+a1 q = (getBodyEvS (proj₁ q) Op.⟶ (λ eb → Op.Output (apiLP lS hi lfpSendBlock) eb Op.Skip))
+       □ (lacksBodyEv nS (proj₁ q) Op.⟶₀ Op.Stop)
 
 -- the EB-serve round after the store handed over `eb`: command the Block
 a2 : Params.EB replayParams → Proc
@@ -281,17 +291,44 @@ a2 eb = Op.Output (apiLP lS hi lfpSendBlock) eb Op.Skip
 
 -- the tx-closure round after the report of `(q , bm)`: confirm the EB is held
 b1 : Net.ApiLPCar lfpReqBlockTxsRequest → Proc
-b1 qb = getBodyEvS (proj₁ (proj₁ qb)) Op.⟶ (λ _ → serveTxs nS lS hi (proj₁ qb) (proj₂ qb) [])
+b1 qb = (getBodyEvS (proj₁ (proj₁ qb)) Op.⟶ (λ _ → serveTxs nS lS hi (proj₁ qb) (proj₂ qb) []))
+        □ (lacksBodyEv nS (proj₁ (proj₁ qb)) Op.⟶₀ Op.Stop)
 
--- the tx-closure round's reply for point `q` (no mempool: the closure is empty)
+-- Compatibility helper for the empty accumulated reply at point q.
 b2 : Net.ApiLPCar lfpReqBlockRequest → Proc
 b2 q = Op.Output ⦃ Data.DecEq-TxsReply ⦄ (apiLP lS hi lfpSendBlockTxs) (q , []) Op.Skip
 
--- with `ebTxs = const []` every offset is skipped: the reply is the empty closure
-serveTxs-flat : ∀ q bm acc
-              → serveTxs nS lS hi q bm acc ≡ Op.Output ⦃ Data.DecEq-TxsReply ⦄ (apiLP lS hi lfpSendBlockTxs) (q , acc) Op.Skip
-serveTxs-flat q []       acc = refl
-serveTxs-flat q (o ∷ os) acc = serveTxs-flat q os acc
+-- A prefix identifies both its event value and its exact residual.
+prefix-ev : ∀ {A} {ce : Net_Api Payload A} {k : A → Proc} {e T′} →
+  (ce Op.⟶ k) ─[ ev (evl e) ]─► T′ →
+  Σ[ a ∈ A ] (e ≡ evLabel A ce a × T′ ≡ k a)
+prefix-ev {A} {ce} (sVis {at = B , e} {a = a} refl br) with Net_Api-≟ (A , ce) (B , e)
+... | no _ = case br of λ ()
+... | yes refl = a , refl , sym (just-injective br)
+
+-- Invert the disjoint positive/negative read before the loop wraps its residual.
+read-ev : ∀ {h k e T′} →
+  ((getBodyEvS h Op.⟶ k) □ (lacksBodyEv nS h Op.⟶₀ Op.Stop)) ─[ ev (evl e) ]─► T′ →
+  (Σ[ eb ∈ Params.EB replayParams ] (e ≡ evLabel _ (getBodyEvS h) eb × T′ ≡ k eb)) ⊎
+  (e ≡ evLabel ⊤ (lacksBodyEv nS h) tt × T′ ≡ Op.Stop)
+read-ev {h} {k} st with □-ev-elim (getBodyEvS h Op.⟶ k) (lacksBodyEv nS h Op.⟶₀ Op.Stop) st
+... | evP p = inj₁ (prefix-ev p)
+... | evQ q with prefix-ev q
+...   | _ , refl , refl = inj₂ (refl , refl)
+read-ev {h} {k} st | evPQ p q with prefix-ev p | prefix-ev q
+... | _ , refl , _ | _ , () , _
+
+-- Loop wrapping preserves the two alternatives of a body read.
+lat-read-ev : ∀ {body h k e T′} →
+  lat body ((getBodyEvS h Op.⟶ k) □ (lacksBodyEv nS h Op.⟶₀ Op.Stop)) ─[ ev (evl e) ]─► T′ →
+  (Σ[ eb ∈ Params.EB replayParams ] (e ≡ evLabel _ (getBodyEvS h) eb × T′ ≡ lat body (k eb))) ⊎
+  (e ≡ evLabel ⊤ (lacksBodyEv nS h) tt × T′ ≡ lat body Op.Stop)
+lat-read-ev st with LoopN.iter-ev-elim _ _ st
+... | _ , st₁ , refl with bind-ev-elim _ _ st₁
+...   | beK _ _ (sVis () _)
+...   | beL _ st₂ refl with read-ev st₂
+...     | inj₁ (eb , refl , refl) = inj₁ (eb , refl , refl)
+...     | inj₂ (refl , refl) = inj₂ (refl , refl)
 
 -- the threads, as the composite starts them
 threadsS-lat : threadsS ≡ (lat bodyA bodyA ⦀ lat bodyB bodyB)
@@ -303,11 +340,11 @@ a0-ev : ∀ {e T′} → lat bodyA bodyA ─[ ev (evl e) ]─► T′
 a0-ev st with loop-pfx-ev-inv _ _ _ st
 ... | q , refl , refl = q , refl , refl
 
--- thread A after the report takes only a body read for the reported hash
-a1-ev : ∀ {q e T′} → lat bodyA (a1 q) ─[ ev (evl e) ]─► T′
-      → Σ[ eb ∈ Params.EB replayParams ] (e ≡ evLabel _ (getBodyEvS (proj₁ q)) eb × T′ ≡ lat bodyA (a2 eb))
-a1-ev st with loop-pfx-ev-inv _ _ _ st
-... | eb , refl , refl = eb , refl , refl
+-- Thread A either reads the body or consumes the negative read and stops.
+a1-ev : ∀ {q e T′} → lat bodyA (a1 q) ─[ ev (evl e) ]─► T′ →
+  (Σ[ eb ∈ Params.EB replayParams ] (e ≡ evLabel _ (getBodyEvS (proj₁ q)) eb × T′ ≡ lat bodyA (a2 eb))) ⊎
+  (e ≡ evLabel ⊤ (lacksBodyEv nS (proj₁ q)) tt × T′ ≡ lat bodyA Op.Stop)
+a1-ev = lat-read-ev
 
 -- thread A with the body takes only its Block command
 a2-ev : ∀ {eb e T′} → lat bodyA (a2 eb) ─[ ev (evl e) ]─► T′
@@ -321,11 +358,12 @@ b0-ev : ∀ {e T′} → lat bodyB bodyB ─[ ev (evl e) ]─► T′
 b0-ev st with loop-pfx-ev-inv _ _ _ st
 ... | qb , refl , refl = qb , refl , refl
 
--- thread B after the report takes only a body read for the reported hash, then replies
-b1-ev : ∀ {qb e T′} → lat bodyB (b1 qb) ─[ ev (evl e) ]─► T′
-      → Σ[ eb ∈ Params.EB replayParams ] (e ≡ evLabel _ (getBodyEvS (proj₁ (proj₁ qb))) eb × T′ ≡ lat bodyB (b2 (proj₁ qb)))
-b1-ev {qb} st with loop-pfx-ev-inv _ _ _ st
-... | eb , refl , refl = eb , refl , cong (lat bodyB) (serveTxs-flat (proj₁ qb) (proj₂ qb) [])
+-- Thread B either reads the body then checks the bitmap, or stops on its absence.
+b1-ev : ∀ {qb e T′} → lat bodyB (b1 qb) ─[ ev (evl e) ]─► T′ →
+  (Σ[ eb ∈ Params.EB replayParams ] (e ≡ evLabel _ (getBodyEvS (proj₁ (proj₁ qb))) eb ×
+    T′ ≡ lat bodyB (serveTxs nS lS hi (proj₁ qb) (proj₂ qb) []))) ⊎
+  (e ≡ evLabel ⊤ (lacksBodyEv nS (proj₁ (proj₁ qb))) tt × T′ ≡ lat bodyB Op.Stop)
+b1-ev = lat-read-ev
 
 -- thread B with the reply takes only its BlockTxs command
 b2-ev : ∀ {q e T′} → lat bodyB (b2 q) ─[ ev (evl e) ]─► T′
@@ -392,7 +430,8 @@ alphB-rest r st with erestB-ev r st
 -- thread A's alphabet while reading the body
 alphA1 : ∀ {q} → Alph (lat bodyA (a1 q))
 alphA1 {q} st with a1-ev {q} st
-... | _ , refl , _ = inj₂ ptt
+... | inj₁ (_ , refl , _) = inj₂ ptt
+... | inj₂ (refl , _) = inj₂ ptt
 
 -- thread A's alphabet while commanding the Block
 alphA2 : ∀ {eb} → Alph (lat bodyA (a2 eb))
@@ -402,7 +441,8 @@ alphA2 {eb} st with a2-ev {eb} st
 -- thread B's alphabet while reading the body
 alphB1 : ∀ {qb} → Alph (lat bodyB (b1 qb))
 alphB1 {qb} st with b1-ev {qb} st
-... | _ , refl , _ = inj₂ ptt
+... | inj₁ (_ , refl , _) = inj₂ ptt
+... | inj₂ (refl , _) = inj₂ ptt
 
 -- thread B's alphabet while commanding the BlockTxs
 alphB2 : ∀ {q} → Alph (lat bodyB (b2 q))
@@ -413,14 +453,39 @@ alphB2 {q} st with b2-ev {q} st
 -- The body store (hoisted from the Increment 0 probe, plus the body read)
 ------------------------------------------------------------------------
 
+-- Distinguish the original body-only menu from transaction lookup channels.
+BodyOnly : Event → Set
+BodyOnly (evLabel _ (store _ _ Net.stPutBody) _) = ⊤
+BodyOnly (evLabel _ (store _ _ (Net.stGetBody _)) _) = ⊤
+BodyOnly (evLabel _ (store _ _ (Net.stLacksBody _)) _) = ⊤
+BodyOnly _ = ⊥
+
+-- Original body inventory operations cannot answer a transaction read.
+original-All : ∀ bs → AllT BodyOnly (originalBodyStep nS bs)
+original-All bs = AllT-□ (AllT-⟶ (putBodyEv nS) (λ _ → tt) (λ _ → AllT-Ret))
+  (AllT-□ (menu bs) (Lacks.body-All nS bs (λ _ → tt)))
+  where
+  -- Every keyed body offer has the body-read channel.
+  menu : ∀ xs → AllT BodyOnly (offerBodies nS bs xs)
+  menu [] = AllT-Stop
+  menu (eb ∷ xs) = AllT-□ (AllT-Output (getBodyEvS eb) eb tt AllT-Ret) (menu xs)
+
+-- Extract the body-only predicate from one original store round step.
+original-label : ∀ {bs e P} → originalBodyStep nS bs ─[ ev (evl e) ]─► P → BodyOnly e
+original-label {bs} step with original-All bs (⟹-ev step ⟹-refl)
+... | p ∷ _ = p
+
 -- every label of a store round is a store event (`Stores.body-All`'s shape)
 bodyAll : ∀ bs → AllT SE (bodyStep nS bs)
-bodyAll bs = AllT-□ (AllT-⟶ (putBodyEv nS) (λ _ → ptt) (λ _ → AllT-Ret)) (obA bs)
+bodyAll bs = AllT-□ original (AllT-Output (getTxEv nS tt) tt ptt AllT-Ret)
   where
     -- the keyed menu
     obA : ∀ xs → AllT SE (offerBodies nS bs xs)
     obA []         = AllT-Stop
     obA (eb ∷ ebs) = AllT-□ (AllT-Output (getBodyEvS eb) eb ptt AllT-Ret) (obA ebs)
+
+    -- Body-menu labels retain the original store alphabet.
+    original = AllT-□ (AllT-⟶ (putBodyEv nS) (λ _ → ptt) (λ _ → AllT-Ret)) (AllT-□ (obA bs) (Lacks.body-All nS bs (λ _ → ptt)))
 
 -- every first move of the store is a store event
 store-ev : ∀ {bs X e a M} → bodyStore nS bs ─[ ev (evl (evLabel X e a)) ]─► M
@@ -429,11 +494,20 @@ store-ev {bs} st with LoopN.iter-ev-elim _ _ st
 ... | _ , st₁ , _ with AllT->>= (bodyAll bs) (λ _ → AllT-Ret) (⟹-ev st₁ ⟹-refl)
 ...   | p ∷ _ = p
 
+-- A bounded offset selects the unique unit entry of a repeated table.
+at-replicate : ∀ n o → o < n → at? o (replicate n (tt , tt)) ≡ just (tt , tt)
+at-replicate (suc n) zero p = refl
+at-replicate (suc n) (suc o) (Data.Nat.s≤s p) = at-replicate n o p
+
+-- The table covers the entire server decoder domain.
+table-at : ∀ o → o < decoderOffsets → at? o (LeiosP.LeiosParams.ebTxs replayLP 0) ≡ just (tt , tt)
+table-at = at-replicate decoderOffsets
+
 -- a `□` of two react nodes forces to the merged node
-□-force-rr : ∀ {P Q : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies} {vP τcP vQ τcQ}
+□-force-rr : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ {P Q : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) R} {vP τcP vQ τcQ}
            → PTree.force P ≡ react vP τcP → PTree.force Q ≡ react vQ τcQ
            → PTree.force (P □ Q) ≡ react (mergeVis vP vQ) (□-mt (react vP τcP) (react vQ τcQ) P Q)
-□-force-rr {P} {Q} eqP eqQ with PTree.force P | PTree.force Q
+□-force-rr {P = P} {Q = Q} eqP eqQ with PTree.force P | PTree.force Q
 ... | react _ _ | react _ _ = case eqP of λ { refl → case eqQ of λ { refl → refl } }
 ... | ret _     | _         = case eqP of λ ()
 ... | sil _ | _ = case eqP of λ ()
@@ -442,9 +516,9 @@ store-ev {bs} st with LoopN.iter-ev-elim _ _ st
 
 -- a `□` of two stable menus is stable (`Stability.ExtChoice.stable-□`, kept local
 -- so this module does not import the FD layer)
-□-stable : ∀ {P Q : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies}
+□-stable : ∀ {ℓr} {R : Set ℓr} ⦃ _ : DecEq R ⦄ {P Q : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) R}
          → isStable P → isStable Q → isStable (P □ Q)
-□-stable {P} {Q} sP sQ with stable→react {t = P} sP | stable→react {t = Q} sQ
+□-stable {P = P} {Q = Q} sP sQ with stable→react {t = P} sP | stable→react {t = Q} sQ
 ... | vP , τcP , eqP , hP | vQ , τcQ , eqQ , hQ = mk-stable {t = P □ Q} (□-force-rr eqP eqQ) mt
   where
     -- the merged τ-map is everywhere nothing
@@ -458,8 +532,8 @@ store-ev {bs} st with LoopN.iter-ev-elim _ _ st
     mt (_ , pair fin i) (lift (fsuc (fsuc _)) , a) = refl
 
 -- a bind of a stable tree is stable
-bind-stable : ∀ {ℓs} {S : Set ℓs} {P : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies}
-                {k : Bodies → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) S}
+bind-stable : ∀ {ℓr ℓs} {R : Set ℓr} {S : Set ℓs} {P : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) R}
+                {k : R → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) S}
             → isStable P → isStable (P >>= k)
 bind-stable {P = P} {k = k} sP with stable→react {t = P} sP
 ... | v , τc , eqP , h = mk-stable {t = P >>= k} (fBind-react k P eqP) bt
@@ -483,7 +557,8 @@ iter-stable {t = t} {k = k} sP with stable→react {t = t} sP
 store-stable : ∀ bs → isStable (bodyStore nS bs)
 store-stable bs =
   iter-stable {t = bodyStep nS bs >>= kR}
-    (bind-stable {S = Bodies ⊎ PU.⊤} {P = bodyStep nS bs} {k = kR} (□-stable {P = Op.Prefix (putBodyEv nS) _} {Q = offerBodies nS bs bs} (λ _ _ → refl) (ob bs)))
+    (bind-stable {S = Bodies ⊎ PU.⊤} {P = bodyStep nS bs} {k = kR} (□-stable {P = originalBodyStep nS bs} {Q = Op.Output ⦃ Params.decTx replayParams ⦄ (getTxEv nS tt) tt (Op.Ret bs)} (□-stable {P = Op.Prefix (putBodyEv nS) _} {Q = offerBodies nS bs bs □ lacksBodies nS bs} (λ _ _ → refl)
+      (□-stable {P = offerBodies nS bs bs} {Q = lacksBodies nS bs} (ob bs) (λ _ _ → refl))) (λ _ _ → refl)))
   where
     -- the loop's continuation into the next round
     kR : Bodies → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) (Bodies ⊎ PU.⊤)
@@ -527,14 +602,27 @@ ob-get (eb ∷ ebs) st | evQ stR = ob-get ebs stR
 ob-get (eb ∷ ebs) st | evPQ stO stR with out-ev stO | ob-get ebs stR
 ...   | refl , refl | refl , dR = refl , drains-⊓ drains-ret dR
 
+-- A positive body channel cannot be a negative-read channel.
+not-lacks-get : ∀ {bs h x c} → lacksBodies nS bs ─[ ev (evl (evLabel _ (getBodyEvS h) x)) ]─► c → ⊥
+not-lacks-get {bs} st with Lacks.body-inv nS bs st
+... | _ , () , _
+
+-- The extended menu still serves positive reads only from held bodies.
+menu-get : ∀ {bs h x c} → (offerBodies nS bs bs □ lacksBodies nS bs) ─[ ev (evl (evLabel _ (getBodyEvS h) x)) ]─► c
+         → x ≡ h × Drains bs c
+menu-get {bs} st with □-ev-elim (offerBodies nS bs bs) (lacksBodies nS bs) st
+... | evP p = ob-get bs p
+... | evQ q = ⊥-elim (not-lacks-get q)
+... | evPQ _ q = ⊥-elim (not-lacks-get q)
+
 -- a body read off one store round comes from the menu (the deposit arm is another channel)
 round-get : ∀ {bs h x c} {k : Params.EB replayParams → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies}
-          → (Op.Prefix (putBodyEv nS) k □ offerBodies nS bs bs) ─[ ev (evl (evLabel _ (getBodyEvS h) x)) ]─► c
+          → (Op.Prefix (putBodyEv nS) k □ (offerBodies nS bs bs □ lacksBodies nS bs)) ─[ ev (evl (evLabel _ (getBodyEvS h) x)) ]─► c
           → x ≡ h × Drains bs c
-round-get {bs} {h} {x} {k = k} st with □-ev-elim (Op.Prefix (putBodyEv nS) k) (offerBodies nS bs bs) st
+round-get {bs} {h} {x} {k = k} st with □-ev-elim (Op.Prefix (putBodyEv nS) k) (offerBodies nS bs bs □ lacksBodies nS bs) st
 ... | evP (sVis refl br) with Prefix-cont-fires {e = getBodyEvS h} {a = x} {ce = putBodyEv nS} {P = k} br
 ...   | () , _
-round-get {bs} st | evQ stR = ob-get bs stR
+round-get {bs} st | evQ stR = menu-get stR
 round-get {bs} {h} {x} {k = k} st | evPQ (sVis refl br) _ with Prefix-cont-fires {e = getBodyEvS h} {a = x} {ce = putBodyEv nS} {P = k} br
 ...   | () , _
 
@@ -542,14 +630,97 @@ round-get {bs} {h} {x} {k = k} st | evPQ (sVis refl br) _ with Prefix-cont-fires
 smid : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies → Proc
 smid c = iter-bind (c >>= (λ a′ → Op.Ret (inj₁ a′))) (loopStep (bodyStep nS))
 
+-- A body read cannot select the new transaction arm of the replay store.
+replay-round-get : ∀ {bs h x c} → bodyStep nS bs ─[ ev (evl (evLabel _ (getBodyEvS h) x)) ]─► c →
+  x ≡ h × Drains bs c
+replay-round-get {bs} st with □-ev-elim (originalBodyStep nS bs)
+  (Op.Output ⦃ Params.decTx replayParams ⦄ (getTxEv nS tt) tt (Op.Ret bs)) st
+... | evP p = round-get p
+... | evQ q with out-ev q
+... | () , _
+replay-round-get {bs} st | evPQ _ q with out-ev q
+... | () , _
+
 -- a body read off the store at its loop head: the asked body, and the store goes mid-round
 store-get : ∀ {bs h x S′} → bodyStore nS bs ─[ ev (evl (evLabel _ (getBodyEvS h) x)) ]─► S′
           → x ≡ h × Σ[ c ∈ PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies ] (Drains bs c × S′ ≡ smid c)
 store-get {bs} st with LoopN.iter-ev-elim _ _ st
 ... | t′ , st₁ , refl with bind-ev-elim _ (bodyStep nS bs) st₁
 ...   | beK r _ (sVis () _)
-...   | beL c st₂ refl with round-get st₂
+...   | beL c st₂ refl with replay-round-get st₂
 ...     | eq , d = eq , c , d , refl
+
+-- A positive body menu never offers the negative-read channel.
+ob-no-lacks : ∀ {bs h c} xs → ¬ (offerBodies nS bs xs ─[ ev (evl (evLabel ⊤ (lacksBodyEv nS h) tt)) ]─► c)
+ob-no-lacks [] (sVis refl ())
+ob-no-lacks {bs} (eb ∷ ebs) st with □-ev-elim (Op.Output (getBodyEvS eb) eb (Op.Ret bs)) (offerBodies nS bs ebs) st
+... | evP p with out-ev p
+...   | () , _
+ob-no-lacks (eb ∷ ebs) st | evQ q = ob-no-lacks ebs q
+ob-no-lacks (eb ∷ ebs) st | evPQ p _ with out-ev p
+... | () , _
+
+-- A negative body read returns the unchanged store through its draining residual.
+original-round-lacks : ∀ {bs h c} → originalBodyStep nS bs ─[ ev (evl (evLabel ⊤ (lacksBodyEv nS h) tt)) ]─► c → Drains bs c
+original-round-lacks {bs} st with □-ev-elim (Op.Prefix (putBodyEv nS) _) (offerBodies nS bs bs □ lacksBodies nS bs) st
+... | evP (sVis refl ())
+original-round-lacks {bs} st | evPQ (sVis refl ()) _
+original-round-lacks {bs} st | evQ q with □-ev-elim (offerBodies nS bs bs) (lacksBodies nS bs) q
+... | evP p = ⊥-elim (ob-no-lacks bs p)
+... | evPQ p _ = ⊥-elim (ob-no-lacks bs p)
+... | evQ r with Lacks.body-inv nS bs r
+...   | _ , _ , refl = drains-ret
+
+-- A negative body read also cannot select the transaction arm.
+round-lacks : ∀ {bs h c} → bodyStep nS bs ─[ ev (evl (evLabel ⊤ (lacksBodyEv nS h) tt)) ]─► c → Drains bs c
+round-lacks {bs} st with □-ev-elim (originalBodyStep nS bs)
+  (Op.Output ⦃ Params.decTx replayParams ⦄ (getTxEv nS tt) tt (Op.Ret bs)) st
+... | evP p = original-round-lacks p
+... | evQ q with out-ev q
+... | () , _
+round-lacks {bs} st | evPQ _ q with out-ev q
+... | () , _
+
+-- Loop wrapping a negative read leaves the store in a draining round.
+store-lacks : ∀ {bs h S′} → bodyStore nS bs ─[ ev (evl (evLabel ⊤ (lacksBodyEv nS h) tt)) ]─► S′ →
+  Σ[ c ∈ PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies ] (Drains bs c × S′ ≡ smid c)
+store-lacks {bs} st with LoopN.iter-ev-elim _ _ st
+... | _ , st₁ , refl with bind-ev-elim _ (bodyStep nS bs) st₁
+...   | beK _ _ (sVis () _)
+...   | beL c st₂ refl = c , round-lacks st₂ , refl
+
+-- Transaction reads use the sole unit-transaction arm and leave the inventory intact.
+round-tx : ∀ {bs c} → bodyStep nS bs ─[ ev (evl (evLabel ⊤ (getTxEv nS tt) tt)) ]─► c → Drains bs c
+round-tx {bs} step with □-ev-elim (originalBodyStep nS bs)
+  (Op.Output ⦃ Params.decTx replayParams ⦄ (getTxEv nS tt) tt (Op.Ret bs)) step
+... | evP p = ⊥-elim (original-label p)
+... | evQ q with out-ev q
+... | refl , refl = drains-ret
+round-tx {bs} step | evPQ p _ = ⊥-elim (original-label p)
+
+-- A transaction read at the loop head produces only a draining residual.
+store-tx : ∀ {bs S′} → bodyStore nS bs ─[ ev (evl (evLabel ⊤ (getTxEv nS tt) tt)) ]─► S′ →
+  Σ[ c ∈ PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies ] (Drains bs c × S′ ≡ smid c)
+store-tx {bs} step with LoopN.iter-ev-elim _ _ step
+... | _ , st₁ , refl with bind-ev-elim _ (bodyStep nS bs) st₁
+... | beK _ _ (sVis () _)
+... | beL c st₂ refl = c , round-tx st₂ , refl
+
+-- The replay store never reports absence of the held unit transaction.
+round-no-lacksTx : ∀ {bs c} → ¬ (bodyStep nS bs ─[ ev (evl (evLabel ⊤ (store lS Cardano_network.Base.lo (Net.stLacksTx tt)) tt)) ]─► c)
+round-no-lacksTx {bs} step with □-ev-elim (originalBodyStep nS bs)
+  (Op.Output ⦃ Params.decTx replayParams ⦄ (getTxEv nS tt) tt (Op.Ret bs)) step
+... | evP p = original-label p
+... | evQ q with out-ev q
+... | () , _
+round-no-lacksTx {bs} step | evPQ p _ = original-label p
+
+-- Loop wrapping preserves absence of negative transaction reads.
+store-no-lacksTx : ∀ {bs S′} → ¬ (bodyStore nS bs ─[ ev (evl (evLabel ⊤ (store lS Cardano_network.Base.lo (Net.stLacksTx tt)) tt)) ]─► S′)
+store-no-lacksTx {bs} step with LoopN.iter-ev-elim _ _ step
+... | _ , st₁ , refl with bind-ev-elim _ (bodyStep nS bs) st₁
+... | beK _ _ (sVis () _)
+... | beL _ st₂ refl = round-no-lacksTx st₂
 
 -- the store at rest: at its loop head, or mid-round on a draining residual
 data SRest (bs : Bodies) : Proc → Set₁ where
@@ -592,6 +763,113 @@ srest-get : ∀ {bs S h x S′} → SRest bs S → S ─[ ev (evl (evLabel _ (ge
 srest-get {bs} sHead st with store-get {bs} st
 ... | eq , c , d , refl = eq , sMid d
 srest-get (sMid d) st = ⊥-elim (smid-no-ev d st)
+
+-- A resting store stays at rest after a negative body read.
+srest-lacks : ∀ {bs S h S′} → SRest bs S → S ─[ ev (evl (evLabel ⊤ (lacksBodyEv nS h) tt)) ]─► S′ → SRest bs S′
+srest-lacks {bs} sHead st with store-lacks {bs} st
+... | _ , d , refl = sMid d
+srest-lacks (sMid d) st = ⊥-elim (smid-no-ev d st)
+
+-- A stable round remains stable under the serving loop's bind and iteration.
+lat-stable : ∀ body {P} → isStable P → isStable (lat body P)
+lat-stable body {P} s = iter-stable {t = P >>= _} (bind-stable {P = P} s)
+
+-- The positive/negative body-read menu has no silent branch.
+a1-no-τ : ∀ {q T′} → ¬ (lat bodyA (a1 q) ─[ τ ]─► T′)
+a1-no-τ {q} = stable-no-τ {t = lat bodyA (a1 q)}
+  (lat-stable bodyA {P = a1 q}
+    (□-stable {P = getBodyEvS (proj₁ q) Op.⟶ (λ eb → a2 eb)}
+      {Q = lacksBodyEv nS (proj₁ q) Op.⟶₀ Op.Stop} (λ _ _ → refl) (λ _ _ → refl)))
+
+-- The closure server's positive/negative body-read menu is stable too.
+b1-no-τ : ∀ {qb T′} → ¬ (lat bodyB (b1 qb) ─[ τ ]─► T′)
+b1-no-τ {qb} = stable-no-τ {t = lat bodyB (b1 qb)}
+  (lat-stable bodyB {P = b1 qb}
+    (□-stable {P = getBodyEvS (proj₁ (proj₁ qb)) Op.⟶ (λ _ → serveTxs nS lS hi (proj₁ qb) (proj₂ qb) [])}
+      {Q = lacksBodyEv nS (proj₁ (proj₁ qb)) Op.⟶₀ Op.Stop} (λ _ _ → refl) (λ _ _ → refl)))
+
+-- A resting replay store preserves its inventory while handing over the unit tx.
+srest-tx : ∀ {bs S S′} → SRest bs S → S ─[ ev (evl (evLabel ⊤ (getTxEv nS tt) tt)) ]─► S′ → SRest bs S′
+srest-tx {bs} sHead st with store-tx {bs} st
+... | c , d , refl = sMid d
+srest-tx (sMid d) st = ⊥-elim (smid-no-ev d st)
+
+-- The held transaction excludes negative read rendezvous in every resting state.
+srest-no-lacksTx : ∀ {bs S S′} → SRest bs S → ¬ (S ─[ ev (evl (evLabel ⊤ (lacksTxEv nS tt) tt)) ]─► S′)
+srest-no-lacksTx {bs} sHead st = store-no-lacksTx {bs} st
+srest-no-lacksTx (sMid d) st = smid-no-ev d st
+
+-- A valid table offset enables precisely the positive/negative transaction menu.
+work-force : ∀ q o os acc → o < decoderOffsets → serveTxs nS lS hi q (o ∷ os) acc ≡
+  ((getTxEv nS tt Op.⟶ (λ tx → serveTxs nS lS hi q os (acc ++ ((o , tx) ∷ []))))
+    □ (lacksTxEv nS tt Op.⟶₀ Op.Stop))
+work-force q o os acc bound rewrite table-at o bound = refl
+
+-- Invert the transaction lookup menu before applying its loop wrapper.
+tx-read-ev : ∀ {k e T′} →
+  ((getTxEv nS tt Op.⟶ k) □ (lacksTxEv nS tt Op.⟶₀ Op.Stop)) ─[ ev (evl e) ]─► T′ →
+  (e ≡ evLabel ⊤ (getTxEv nS tt) tt × T′ ≡ k tt) ⊎
+  (e ≡ evLabel ⊤ (lacksTxEv nS tt) tt × T′ ≡ Op.Stop)
+tx-read-ev {k} step with □-ev-elim (getTxEv nS tt Op.⟶ k) (lacksTxEv nS tt Op.⟶₀ Op.Stop) step
+... | evP p with prefix-ev p
+... | tt , refl , refl = inj₁ (refl , refl)
+tx-read-ev {k} step | evQ q with prefix-ev q
+... | tt , refl , refl = inj₂ (refl , refl)
+tx-read-ev {k} step | evPQ p q with prefix-ev p | prefix-ev q
+... | tt , refl , _ | tt , () , _
+
+-- A nonempty transaction closure either reads the next tx or takes a negative read.
+work-ev : ∀ {q o os acc e T′} → o < decoderOffsets →
+  lat bodyB (serveTxs nS lS hi q (o ∷ os) acc) ─[ ev (evl e) ]─► T′ →
+  (e ≡ evLabel ⊤ (getTxEv nS tt) tt × T′ ≡ lat bodyB (serveTxs nS lS hi q os (acc ++ ((o , tt) ∷ [])))) ⊎
+  (e ≡ evLabel ⊤ (lacksTxEv nS tt) tt × T′ ≡ lat bodyB Op.Stop)
+work-ev {q} {o} {os} {acc} bound step rewrite work-force q o os acc bound
+  with LoopN.iter-ev-elim _ _ step
+... | _ , st₁ , refl with bind-ev-elim _ _ st₁
+... | beK _ _ (sVis () _)
+... | beL _ st₂ refl with tx-read-ev st₂
+... | inj₁ (refl , refl) = inj₁ (refl , refl)
+... | inj₂ (refl , refl) = inj₂ (refl , refl)
+
+-- An empty closure sends exactly its accumulated indexed transactions.
+work-done-ev : ∀ {q acc e T′} → lat bodyB (serveTxs nS lS hi q [] acc) ─[ ev (evl e) ]─► T′ →
+  e ≡ evLabel _ (apiLP lS hi lfpSendBlockTxs) (q , acc) × T′ ≡ lat bodyB Op.Skip
+work-done-ev step with loop-out-ev-inv ⦃ Data.DecEq-TxsReply ⦄ _ _ _ _ step
+... | refl , refl = refl , refl
+
+-- Every transaction closure step is an API reply or a store lookup.
+alphWork : ∀ {q os acc} → All (_< decoderOffsets) os → Alph (lat bodyB (serveTxs nS lS hi q os acc))
+alphWork [] step with work-done-ev step
+... | refl , _ = inj₁ ptt
+alphWork (bound ∷ bounds) step with work-ev bound step
+... | inj₁ (refl , _) = inj₂ ptt
+... | inj₂ (refl , _) = inj₂ ptt
+
+-- Closures are stable at the next read or reply, including while accumulating txs.
+work-no-τ : ∀ {q os acc T′} → All (_< decoderOffsets) os → ¬ (lat bodyB (serveTxs nS lS hi q os acc) ─[ τ ]─► T′)
+work-no-τ {os = []} bounds = loop-out-no-τ ⦃ Data.DecEq-TxsReply ⦄ _ _ _ _
+work-no-τ {q} {o ∷ os} {acc} (bound ∷ bounds) rewrite work-force q o os acc bound =
+  stable-no-τ {t = lat bodyB menu} (lat-stable bodyB {P = menu}
+    (□-stable {P = getTxEv nS tt Op.⟶ (λ tx → serveTxs nS lS hi q os (acc ++ ((o , tx) ∷ [])))}
+      {Q = lacksTxEv nS tt Op.⟶₀ Op.Stop} (λ _ _ → refl) (λ _ _ → refl)))
+  where
+  -- Keep the neutral transaction continuation explicit for stability inference.
+  menu : Proc
+  menu = (getTxEv nS tt Op.⟶ (λ tx → serveTxs nS lS hi q os (acc ++ ((o , tx) ∷ []))))
+    □ (lacksTxEv nS tt Op.⟶₀ Op.Stop)
+
+-- A stopped round cannot emit a label, even under its loop wrappers.
+stop-no-ev : ∀ {body e T′} → ¬ (lat body Op.Stop ─[ ev (evl e) ]─► T′)
+stop-no-ev (sVis refl ())
+
+-- A stopped round cannot restart the serving loop.
+stop-no-τ : ∀ {body T′} → ¬ (lat body Op.Stop ─[ τ ]─► T′)
+stop-no-τ (sSil ())
+stop-no-τ (sTau refl ())
+
+-- The stopped round has the empty alphabet.
+alph-stop : ∀ {body} → Alph (lat body Op.Stop)
+alph-stop st = ⊥-elim (stop-no-ev st)
 
 ------------------------------------------------------------------------
 -- The composite: a step of `C P Ta Tb S` is a step of its components
@@ -722,3 +1000,8 @@ comp-ev {P} {Ta} {Tb} {S} {evLabel X c a} hP hA hB hS st = outer (Par-ev-elim st
     outer (evL ns stI)       = innerO ns (Par-ev-elim apiES _ P (Ta ⦀ Tb) stI)
     outer (evR ns stS)       = ⊥-elim (ns (hS stS))
     outer (evBoth ns _ stS)  = ⊥-elim (ns (hS stS))
+
+-- A decoder-stopped producer has no visible continuation through iteration/renaming.
+p-stop-no-ev : ∀ {e W} → ¬ (peerAfter LOp.Stop ─[ ev (evl e) ]─► W)
+p-stop-no-ev st with peer-ev st
+... | _ , _ , F.sVis refl () , _

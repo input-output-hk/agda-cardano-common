@@ -5,13 +5,13 @@
 -- without --safe (it imports the stdlib IO and System.Environment bindings);
 -- no postulates or pragmas of its own.
 --
---   Main FILE [K]      K = Fetch client pipelining bound, default 4
+--   Main FILE [K]      K = Fetch client pipelining bound, default 150
 --   Main --blockfetch FILE [K_BF]         role-selected; client depth default 100
 --   Main --blockfetch-client FILE [K_BF]  control-only, default 100
 --   Main --blockfetch-server FILE        sequential server, no depth argument
 --   Main --txsubmission2 FILE [K_TS]   server/requester depth default 4
 --   Main --paired-notify FILE [K_NOTIFY]  explicit fresh pair, default 1
---   Main --paired-fetch FILE [K_FETCH]    explicit fresh pair, default 4
+--   Main --paired-fetch FILE [K_FETCH]    explicit fresh pair, default 150
 --   Main --paired-chainsync FILE [K_CS]  explicit fresh pair, default 300
 --   Main --paired-blockfetch FILE [K_BF]  fresh pair; client depth default 100
 --   Main --paired-txsubmission2 FILE [K_TS]  fresh pair; server depth default 4
@@ -21,8 +21,11 @@
 --
 -- Single-session mode prints one of
 --   accepted (<n> events)
+--   note: checked reading fails at index <i>: <reason>; accepted only as a draining client
+--     (optional second line when acceptance requires draining)
 --   rejected at index <i>: <event>          (i = 1-based event index,
 --   model state after <i-1> events: <st>     event i is on file line i+1)
+--   reason: <first failed wire/client check>
 --   parse error at line <l>: <line>
 -- Interleaved mode also prints the session count on acceptance, and the
 -- session id and its state at a global rejection index.
@@ -49,6 +52,7 @@ open import IO using (IO; Main; run; putStrLn; readFiniteFile; _>>=_)
 open import Relation.Nullary using (yes; no)
 open import System.Environment using (getArgs)
 
+open import Cardano_network.Replay.LeiosFetchWire using (fetchDepth)
 open import Cardano_network.Replay.LeiosFetchSession
 open import Cardano_network.Replay.LeiosFetchDecide
 open import Cardano_network.Replay.LeiosFetchParse
@@ -74,16 +78,25 @@ module Check (k : ℕ) where
   -- reached by the (accepted) prefix of length i, rest the events after it.
   scan : ∀ {s₀} → τAccReach s₀ → List E → ℕ → St → List E → String
   scan h es i st [] = "accepted (" ++ showℕ i ++ " events)"
-  scan h es i st (e ∷ rest) with hasTrace? h (take (suc i) es)
+  scan {s₀} h es i st (e ∷ rest) with hasTrace? h (take (suc i) es)
   ... | yes (st′ , _) = scan h es (suc i) st′ rest
   ... | no _ = "rejected at index " ++ showℕ (suc i) ++ ": " ++ showEvent e ++
-               "\nmodel state after " ++ showℕ i ++ " events: " ++ showSt st
+               "\nmodel state after " ++ showℕ i ++ " events: " ++ showSt st ++
+               "\nreason: " ++ rejectionReason s₀ st es
+
+  -- Keep the acceptance line stable and explain when only a draining run accepts.
+  acceptedReport : St → List E → String
+  acceptedReport initial es with checkedFailure initial 1 es
+  ... | nothing = "accepted (" ++ showℕ (length es) ++ " events)"
+  ... | just (i , reason , _) = "accepted (" ++ showℕ (length es) ++ " events)" ++
+    "\nnote: checked reading fails at index " ++ showℕ i ++ ": " ++ reason ++
+    "; accepted only as a draining client"
 
   -- The verdict for a parsed session.
   verdict : Role → List E → String
   verdict r es with start r
   ... | s₀ , h with hasTrace? h es
-  ...   | yes _ = "accepted (" ++ showℕ (length es) ++ " events)"
+  ...   | yes _ = acceptedReport s₀ es
   ...   | no _  = scan h es 0 s₀ es
 
 -- The report for one session file's contents.
@@ -94,7 +107,7 @@ report k s with parseFile s
 
 -- Usage line.
 usage : String
-usage = "usage: Main FILE [K_FETCH] | Main --paired-notify FILE [K_NOTIFY] | Main --paired-fetch FILE [K_FETCH] | Main --paired-chainsync FILE [K_CS] | Main --paired-blockfetch FILE [K_BF] | Main --paired-txsubmission2 FILE [K_TS] | Main --blockfetch FILE [K_BF] | Main --blockfetch-client FILE [K_BF] | Main --blockfetch-server FILE | Main --txsubmission2 FILE [K_TS] | Main --chainsync FILE [K_CS] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   (defaults: Fetch 4, Notify 1, BlockFetch 100, ChainSync 300, TxSubmission2 4)"
+usage = "usage: Main FILE [K_FETCH] | Main --paired-notify FILE [K_NOTIFY] | Main --paired-fetch FILE [K_FETCH] | Main --paired-chainsync FILE [K_CS] | Main --paired-blockfetch FILE [K_BF] | Main --paired-txsubmission2 FILE [K_TS] | Main --blockfetch FILE [K_BF] | Main --blockfetch-client FILE [K_BF] | Main --blockfetch-server FILE | Main --txsubmission2 FILE [K_TS] | Main --chainsync FILE [K_CS] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   (defaults: Fetch 150, Notify 1, BlockFetch 100, ChainSync 300, TxSubmission2 4)"
 
 -- Read, check and print one file.
 checkFile : ℕ → String → IO ⊤
@@ -176,7 +189,7 @@ dispatch ("--paired-notify" ∷ f ∷ []) = checkPairedNotify 1 f
 dispatch ("--paired-notify" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just depth = checkPairedNotify depth f
 ... | nothing = putStrLn usage
-dispatch ("--paired-fetch" ∷ f ∷ []) = checkPairedFetch 4 f
+dispatch ("--paired-fetch" ∷ f ∷ []) = checkPairedFetch fetchDepth f
 dispatch ("--paired-fetch" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just depth = checkPairedFetch depth f
 ... | nothing = putStrLn usage
@@ -212,7 +225,7 @@ dispatch ("--notify" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just depth = checkNotify depth f
 ... | nothing = putStrLn usage
 dispatch ("--notify" ∷ _) = putStrLn usage
-dispatch ("--interleaved" ∷ f ∷ []) = checkInterleaved 4 1 f
+dispatch ("--interleaved" ∷ f ∷ []) = checkInterleaved fetchDepth 1 f
 dispatch ("--interleaved" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just k′ = checkInterleaved k′ 1 f
 ... | nothing = putStrLn usage
@@ -229,7 +242,7 @@ dispatch ("--interleaved" ∷ f ∷ k ∷ n ∷ b ∷ c ∷ t ∷ []) with readM
 ... | just k′ | just n′ | just b′ | just c′ | just t′ = checkInterleavedWithProtocolDepths k′ n′ b′ c′ t′ f
 ... | _ | _ | _ | _ | _ = putStrLn usage
 dispatch ("--interleaved" ∷ _) = putStrLn usage
-dispatch (f ∷ []) = checkFile 4 f
+dispatch (f ∷ []) = checkFile fetchDepth f
 dispatch (f ∷ k ∷ []) with readMaybe 10 k
 ... | just k′  = checkFile k′ f
 ... | nothing  = putStrLn usage

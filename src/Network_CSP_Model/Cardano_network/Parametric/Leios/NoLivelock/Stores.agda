@@ -63,6 +63,7 @@ open NLL.Generic pP lpP tP apiES vo
   using (storeStepL; blockStoreL; offerIx; getAtEv; memberOf; acceptForgeL)
 
 -- (Task 8, the other stores)
+import Data.Unit
 open import Data.Bool using (_∧_; not)
 open import Data.Bool.Properties using (∨-identityʳ; ∨-zeroʳ; ∨-assoc)
 open import Data.Empty using (⊥-elim)
@@ -89,7 +90,11 @@ open NLL.Generic pP lpP tP apiES vo
   using ( Votes; memStep; mempool; voteStep; voteStore; ebStep; ebStore; bodyStep; bodyStore
         ; insertU; certify; offerCerts; offerTxs; offerBodies; getTxAtEv; getVoteAtEv; putTxEv
         ; putVoteEv; certEv; hasCertEv; getTxEv; submitEv; putEBEv; getEBAtEv; putBodyEv; getBodyEv
-        ; DecEq-Votes )
+        ; DecEq-Votes; lacksTxEv; lacksBodyEv )
+
+-- Shared negative-read trace facts for this shipped instance.
+open import Cardano_network.Parametric.Leios.LacksStoreL
+module Lacks = Cardano_network.Parametric.Leios.LacksStoreL.Generic pP lpP tP apiES vo
 
 ------------------------------------------------------------------------
 -- the RB store: at most 3 distinct blocks, plus one duplicate per forge
@@ -417,14 +422,15 @@ insTx-inv t₀ ts i with memberOf ⦃ decTxHash ⦄ (txHash t₀) (map txHash ts
 ... | false = subst₂ _≤_ (sym (length-snoc ts t₀)) (cong (cntD decTxHash UB) (sym (map-++ txHash ts (t₀ ∷ []))))
                 (≤-trans (s≤s i) (cntD-fresh decTxHash UB (map txHash ts) (txHash t₀) (allB (txHash t₀)) eq))
 
--- every label of a mempool round is one of its four channels, its reads below |ts|
+-- Every mempool label is a deposit, submission, positive read, or negative read.
 mem-All : ∀ {P : Event → Set} n ts
         → (∀ t₀ → P (evLabel _ (putTxEv n) t₀)) → (∀ t₀ → P (evLabel _ (submitEv n) t₀))
         → (∀ k t₀ → k < length ts → P (evLabel _ (getTxAtEv n k) t₀)) → (∀ h t₀ → P (evLabel _ (getTxEv n h) t₀))
+        → (∀ h → P (evLabel _ (lacksTxEv n h) Data.Unit.tt))
         → AllT P (memStep n ts)
-mem-All {P} n ts pp ps pa pg =
+mem-All {P} n ts pp ps pa pg pl =
   AllT-□ (AllT-⟶ (putTxEv n) pp (λ _ → AllT-Ret))
-    (AllT-□ (AllT-⟶ (submitEv n) ps (λ _ → AllT-Ret)) (AllT-□ (oiAll (getTxAtEv n) ts 0 ts pa) (otA ts)))
+    (AllT-□ (AllT-⟶ (submitEv n) ps (λ _ → AllT-Ret)) (AllT-□ (oiAll (getTxAtEv n) ts 0 ts pa) (AllT-□ (otA ts) (Lacks.tx-All n ts pl))))
   where
     -- the keyed menu
     otA : ∀ xs → AllT P (offerTxs n ts xs)
@@ -435,7 +441,7 @@ mem-All {P} n ts pp ps pa pg =
 mem-Post : ∀ n ts → MInv ts → Post (λ _ ts′ → MInv ts′) (memStep n ts)
 mem-Post n ts i =
   Post-□ (Post-⟶ (putTxEv n) (λ t₀ → Post-Ret (insTx-inv t₀ ts i)))
-    (Post-□ (Post-⟶ (submitEv n) (λ _ → Post-Ret i)) (Post-□ (oiPost (getTxAtEv n) ts 0 ts (λ _ _ → i)) (otP ts)))
+    (Post-□ (Post-⟶ (submitEv n) (λ _ → Post-Ret i)) (Post-□ (oiPost (getTxAtEv n) ts 0 ts (λ _ _ → i)) (Post-□ (otP ts) (Lacks.tx-Post n ts i))))
   where
     -- the keyed menu
     otP : ∀ xs → Post (λ _ ts′ → MInv ts′) (offerTxs n ts xs)
@@ -448,7 +454,7 @@ mempool-reads n tr =
   invLoop {body = memStep n} (λ ts _ → MInv ts) (λ _ → 0) (λ _ e → ∀ j → IsGetTxAt j e → j < 2) (λ _ ok → ok)
     (λ {ts} i → AllT->>= (mem-All n ts (λ _ j ()) (λ _ j ())
                             (λ k _ lt j eq → subst (_< 2) eq (≤-trans lt (≤-trans i (cntD≤ decTxHash UB (map txHash ts)))))
-                            (λ _ _ j ()))
+                            (λ _ _ j ()) (λ _ j ()))
                           (λ _ → AllT-Ret))
     (λ {ts} i → Post->>= {Q₁ = λ _ ts′ → MInv ts′} (mem-Post n ts i) (λ q → Post-Ret q)) {a = []} {m = 0} z≤n tr
 
@@ -580,10 +586,11 @@ eb-All : ∀ {P : Event → Set} n es → (∀ e → P (evLabel _ (putEBEv n) e)
        → AllT P (ebStep n es)
 eb-All n es pp pa = AllT-□ (AllT-⟶ (putEBEv n) pp (λ _ → AllT-Ret)) (oiAll (getEBAtEv n) es 0 es (λ k e _ → pa k e))
 
--- every label of a body-store round is a deposit or a keyed read
+-- Every body-store label is a deposit, positive keyed read, or negative read.
 body-All : ∀ {P : Event → Set} n bs → (∀ eb → P (evLabel _ (putBodyEv n) eb)) → (∀ h eb → P (evLabel _ (getBodyEv n h) eb))
+         → (∀ h → P (evLabel _ (lacksBodyEv n h) Data.Unit.tt))
          → AllT P (bodyStep n bs)
-body-All {P} n bs pp pg = AllT-□ (AllT-⟶ (putBodyEv n) pp (λ _ → AllT-Ret)) (obA bs)
+body-All {P} n bs pp pg pl = AllT-□ (AllT-⟶ (putBodyEv n) pp (λ _ → AllT-Ret)) (AllT-□ (obA bs) (Lacks.body-All n bs pl))
   where
     -- the keyed menu
     obA : ∀ xs → AllT P (offerBodies n bs xs)

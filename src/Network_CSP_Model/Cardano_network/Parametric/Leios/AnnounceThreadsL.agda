@@ -53,11 +53,12 @@
 module Cardano_network.Parametric.Leios.AnnounceThreadsL where
 
 open import Level using (Level; 0ℓ)
+open import Data.Bool.ListAction using (all)
 open import Data.Bool using (Bool; true; false)
 open import Data.Empty using (⊥; ⊥-elim)
-open import Data.List using (List; []; _∷_; _++_)
+open import Data.List using (List; []; _∷_; _++_; length)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Nat using (ℕ; suc)
+open import Data.Nat using (ℕ; suc; _<ᵇ_)
 open import Data.Product using (_×_; _,_; proj₁; proj₂)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Unit.Polymorphic using (⊤; tt)
@@ -98,14 +99,14 @@ module Generic
           ; ebHash; rbHash; txHash; slotOf; announcedEB
           ; decBlock; decEBHash; decLSlot; decVoteBlob; decEB
           ; decRbHash; decTx; decTxHash )
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint)
-  open LeiosP.LeiosParams lp using (rbCert; ebTxs)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; txChunks)
+  open LeiosP.LeiosParams lp using (rbCert; ebTxs; maxTxs)
   open N p
     using ( Link; Net_Api; Net_Api-≟; store; env; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
-          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
+          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert; stLacksBody; stLacksTx
           ; envForge; envSubmit; lnpSendBlockAnnouncement )
   -- `Data.DecEq-Tx` is deliberately NOT opened, so `decTx` is the ONE `DecEq Tx` in
   -- scope and instance search resolves the very term `NodeLogicL` used
@@ -136,7 +137,7 @@ module Generic
           ; ebIndexBody; ebIndex; voterBody; voter; submit; certSink
           ; serverBodyL; serverLoopL; lnServerBodyL; lnServerLoopL
           ; bodyOfferBody; bodyOfferLoop; voteOfferBody; voteOfferLoop; awaitTxs
-          ; fetchBody; putChecked; fetchTxs; putAllVotes
+          ; fetchBody; putChecked; putAll; entryOk; fetchChunks; fetchTxs; putAllVotes
           ; lnClientBodyL; lnClientLoopL
           ; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody; ebTxsServeLoop
           ; putAllTx; tsPullBody; tsPull; tsServeBody; tsServe
@@ -215,6 +216,8 @@ module Generic
   nodeG⊆ (_ , store _ _ (stGetVoteAt _)) a g = inj₂ g
   nodeG⊆ (_ , store _ _ stCert)          a g = inj₂ g
   nodeG⊆ (_ , store _ _ (stHasCert _))   a g = inj₂ g
+  nodeG⊆ (_ , store _ _ (stLacksBody _))   a g = inj₂ g
+  nodeG⊆ (_ , store _ _ (stLacksTx _))   a g = inj₂ g
   nodeG⊆ (_ , env    _ _ _) a g = inj₂ g
   nodeG⊆ (_ , input  _ _ _) a g = inj₂ g
   nodeG⊆ (_ , output _ _ _) a g = inj₂ g
@@ -355,17 +358,16 @@ module Generic
   -- The sub-recursions of the per-endpoint threads
   ------------------------------------------------------------------------
 
-  -- DEPOSIT EVERY CHECKED ENTRY of a tx-closure reply: structural on the entry list,
-  -- and `stPutTx` carries no ranking block.  The `with` mirrors `putChecked`'s own.
+  -- Successful reply validation deposits only transactions, in entry order.
+  wfR-putAll : ∀ n {ms} es → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (putAll n es)
+  wfR-putAll n [] = wfR-Ret (λ _ → tt)
+  wfR-putAll n ((o , e) ∷ es) = wfR-Output (λ _ _ ()) (λ _ _ → wfR-putAll n es)
+
+  -- The reply-wide check either deposits the entire list or stops.
   wfR-putChecked : ∀ n {ms} (h : EBHash) (es : List (ℕ × Tx))
                  → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (putChecked n h es)
-  wfR-putChecked n h []             = wfR-Ret (λ _ → tt)
-  wfR-putChecked n h ((o , e) ∷ es) with at? o (ebTxs h)
-  ... | nothing      = wfR-putChecked n h es
-  ... | just (k , _) =
-    wfR-if ⌊ txHash e ≟ k ⌋
-           (λ _ → wfR-Output (λ _ _ ()) (λ _ _ → wfR-putChecked n h es))
-           (λ _ → wfR-putChecked n h es)
+  wfR-putChecked n h es = wfR-if (all (entryOk h) es)
+    (λ _ → wfR-putAll n es) (λ _ → wfR-Stop)
 
   -- deposit every delivered vote blob, in order
   wfR-putAllVotes : ∀ n {ms} (vs : List VoteBlob)
@@ -390,20 +392,27 @@ module Generic
   wfR-fetchBody n l d q sz =
     wfR-Output ⦃ DecEq-EBPoint ⦄ (λ _ _ ()) (λ _ _ →
       wfR-Prefix (λ _ _ _ ()) (λ _ eb _ →
-        wfR-if ⌊ ebHash eb ≟ proj₁ q ⌋
-               (λ _ → wfR-Output (λ _ _ ()) (λ _ _ → wfR-Ret (λ _ → tt)))
-               (λ _ → wfR-Ret (λ _ → tt))))
+        wfR-if (maxTxs <ᵇ length (ebTxs (ebHash eb))) (λ _ → wfR-Stop) (λ _ →
+          wfR-if ⌊ ebHash eb ≟ proj₁ q ⌋
+            (λ _ → wfR-Output (λ _ _ ()) (λ _ _ → wfR-Ret (λ _ → tt)))
+            (λ _ → wfR-Stop))))
 
-  -- fetch the whole tx closure of an offered point: block at the body, request every
-  -- offset, check the echoed point, then deposit
+  -- Each chunk has a checked deposit sequence followed by the remaining chunks.
+  wfR-fetchChunks : ∀ n l d {ms} q bms
+    → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (fetchChunks n l d q bms)
+  wfR-fetchChunks n l d q [] = wfR-Ret (λ _ → tt)
+  wfR-fetchChunks n l d q (bm ∷ bms) =
+    wfR-Output ⦃ DecEq-TxsRequest ⦄ (λ _ _ ()) (λ _ _ →
+      wfR-Prefix (λ _ _ _ ()) (λ { _ (q′ , es) _ →
+        wfR-if ⌊ DecEq-EBPoint ._≟_ q′ q ⌋
+          (λ _ → wfR->>= (wfR-putChecked n (proj₁ q) es)
+            (λ _ _ _ → wfR-fetchChunks n l d q bms)) (λ _ → wfR-Stop) }))
+
+  -- The body read precedes all chunk requests.
   wfR-fetchTxs : ∀ n l d {ms} (q : EBHash × LSlot)
                → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (fetchTxs n l d q)
-  wfR-fetchTxs n l d q =
-    wfR-Prefix (λ _ _ _ ()) (λ _ _ _ →
-      wfR-Output ⦃ DecEq-TxsRequest ⦄ (λ _ _ ()) (λ _ _ →
-        wfR-Prefix (λ _ _ _ ()) (λ { _ (q′ , es) _ →
-          wfR-if ⌊ DecEq-EBPoint ._≟_ q′ q ⌋
-                 (λ _ → wfR-putChecked n (proj₁ q) es) (λ _ → wfR-Ret (λ _ → tt)) })))
+  wfR-fetchTxs n l d q = wfR-Prefix (λ _ _ _ ())
+    (λ _ _ _ → wfR-fetchChunks n l d q (txChunks lp (proj₁ q)))
 
   -- SERVE THE REQUESTED OFFSETS: structural on the bitmap, and neither the keyed
   -- mempool read nor the reply carries a ranking block.  The `with` mirrors `serveTxs`'s.
@@ -412,9 +421,11 @@ module Generic
   wfR-serveTxs n l d q []       acc =
     wfR-Output ⦃ DecEq-TxsReply ⦄ (λ _ _ ()) (λ _ _ → wfR-Ret (λ _ → tt))
   wfR-serveTxs n l d q (o ∷ os) acc with at? o (ebTxs (proj₁ q))
-  ... | nothing      = wfR-serveTxs n l d q os acc
+  ... | nothing      = wfR-Stop
   ... | just (h , _) =
-    wfR-Prefix (λ _ _ _ ()) (λ _ e _ → wfR-serveTxs n l d q os (acc ++ ((o , e) ∷ [])))
+    wfR-□ _ _ (stable-node refl) (stable-node refl)
+      (wfR-Prefix (λ _ _ _ ()) (λ _ e _ → wfR-serveTxs n l d q os (acc ++ ((o , e) ∷ []))))
+      (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Stop))
 
   ------------------------------------------------------------------------
   -- The ten per-endpoint threads
@@ -523,15 +534,18 @@ module Generic
   wf-ebServeLoop : ∀ {ms} n (ld : Link × Dir) → Wf threadsGL ms (ebServeLoop n ld)
   wf-ebServeLoop n (l , d) =
     wf-loop0 (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ →
-      wfR-Prefix (λ _ _ _ ()) (λ _ _ _ →
-        wfR-Output (λ _ _ ()) (λ _ _ → wfR-Ret (λ _ → tt)))))
+      wfR-□ _ _ (stable-node refl) (stable-node refl)
+        (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ →
+          wfR-Output (λ _ _ ()) (λ _ _ → wfR-Ret (λ _ → tt))))
+        (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Stop))))
 
   -- THE TX-CLOSURE-SERVE THREAD: the request, the body rendezvous, then `serveTxs`
   wf-ebTxsServeLoop : ∀ {ms} n (ld : Link × Dir) → Wf threadsGL ms (ebTxsServeLoop n ld)
   wf-ebTxsServeLoop n (l , d) =
     wf-loop0 (wfR-Prefix (λ _ _ _ ()) (λ { _ (q , bm) _ →
-      wfR-Prefix (λ _ _ _ ()) (λ _ _ _ →
-        wfR-serveTxs n l (opposite d) q bm []) }))
+      wfR-□ _ _ (stable-node refl) (stable-node refl)
+        (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-serveTxs n l (opposite d) q bm []))
+        (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Stop)) }))
 
   -- THE TXSUBMISSION PULL THREAD: four `apiTS` events and a deposit list
   wf-tsPull : ∀ {ms} n (ld : Link × Dir) → Wf threadsGL ms (tsPull n ld)

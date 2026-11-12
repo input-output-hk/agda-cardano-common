@@ -9,7 +9,7 @@
 --     <Dir> BlockRequest    <hash> <slot>
 --     <Dir> Block           <hash> <bytes>
 --     <Dir> BlockTxsRequest <hash> <slot> <numTxs> <bitmaps>
---     <Dir> BlockTxs        <hash> <slot> <numTxs> <bytes> <bitmaps>
+--     <Dir> BlockTxs        <numTxs> <txsBytesSize>
 --     <Dir> Done
 --   <Dir>     = Send | Recv (from the logging node's viewpoint)
 --   <hash>    = ebHash, lowercase hex without `0x` (parsed to ℕ, as in Phase 3)
@@ -32,6 +32,7 @@ open import Data.Product using (_×_; _,_)
 open import Data.String using (String; _++_; lines; words; wordsByᵇ; padLeft;
                                intersperse)
 open import Data.Sum using (_⊎_; inj₁; inj₂; map₂)
+open import Function.Strict using (force′)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 open import Cardano_network.Replay.LeiosFetchSession
@@ -41,13 +42,20 @@ open import Cardano_network.Replay.LeiosFetchSession
 
 open import Cardano_network.Replay.Common using (Role; client; server) public
 
+-- Evaluate a parsed numeral before exposing `just`. The stdlib parser returns
+-- `just` around an unevaluated fold that retains the digit list, and replay
+-- never inspects payload values, so without this every row's digits stay live.
+strict : Maybe ℕ → Maybe ℕ
+strict nothing  = nothing
+strict (just n) = force′ n just
+
 -- A decimal numeral.
 dec : String → Maybe ℕ
-dec = readMaybe 10
+dec s = strict (readMaybe 10 s)
 
 -- A lowercase hexadecimal numeral (no `0x`).
 hex : String → Maybe ℕ
-hex = readMaybe 16
+hex s = strict (readMaybe 16 s)
 
 -- Split a string at a separator character (empty pieces dropped).
 splitOn : Char.Char → String → List String
@@ -79,9 +87,8 @@ msg ("Block" ∷ h ∷ z ∷ []) =
 msg ("BlockTxsRequest" ∷ h ∷ s ∷ n ∷ b ∷ []) =
   hex h >>= λ h′ → dec s >>= λ s′ → dec n >>= λ n′ → bitmaps b >>= λ b′ →
   just (MsgLeiosBlockTxsRequest h′ s′ n′ b′)
-msg ("BlockTxs" ∷ h ∷ s ∷ n ∷ z ∷ b ∷ []) =
-  hex h >>= λ h′ → dec s >>= λ s′ → dec n >>= λ n′ → dec z >>= λ z′ →
-  bitmaps b >>= λ b′ → just (MsgLeiosBlockTxs h′ s′ n′ z′ b′)
+msg ("BlockTxs" ∷ n ∷ z ∷ []) =
+  dec n >>= λ n′ → dec z >>= λ z′ → just (MsgLeiosBlockTxs n′ z′)
 msg ("Done" ∷ []) = just MsgLeiosDone
 msg _ = nothing
 
@@ -140,9 +147,8 @@ showMsg (MsgLeiosBlock h z) =
 showMsg (MsgLeiosBlockTxsRequest h s n b) =
   "BlockTxsRequest " ++ hexPad 64 h ++ " " ++ showℕ s ++ " " ++ showℕ n ++
   " " ++ showBitmaps b
-showMsg (MsgLeiosBlockTxs h s n z b) =
-  "BlockTxs " ++ hexPad 64 h ++ " " ++ showℕ s ++ " " ++ showℕ n ++
-  " " ++ showℕ z ++ " " ++ showBitmaps b
+showMsg (MsgLeiosBlockTxs n z) =
+  "BlockTxs " ++ showℕ n ++ " " ++ showℕ z
 showMsg MsgLeiosDone = "Done"
 
 -- An event in the file syntax.
@@ -152,7 +158,7 @@ showEvent (d , m) = showDir d ++ " " ++ showMsg m
 -- An outstanding request.
 showReq : Req → String
 showReq (blockReq h s)    = "BlockRequest " ++ hexPad 64 h ++ " " ++ showℕ s
-showReq (blockTxsReq h s) = "BlockTxsRequest " ++ hexPad 64 h ++ " " ++ showℕ s
+showReq (blockTxsReq h s n) = "BlockTxsRequest " ++ hexPad 64 h ++ " " ++ showℕ s ++ " " ++ showℕ n
 
 -- A session state, phrased as what the model accepts next.
 showSt : St → String
@@ -161,12 +167,16 @@ showSt (cOpen []) =
 showSt (cOpen q@(_ ∷ _)) =
   "client open, outstanding oldest first [" ++ intersperse "; " (map showReq q) ++
   "] (accepts: a response to the FIRST of these, or a new request if fewer than k are outstanding)"
+showSt (cDrain q) =
+  "client draining, outstanding oldest first [" ++ intersperse "; " (map showReq q) ++
+  "] (accepts: replies by kind, then Send Done; no new requests)"
 showSt cClosed = "client closed after Send Done (accepts nothing)"
 showSt sIdle = "server idle (accepts: Recv BlockRequest/BlockTxsRequest/Done)"
 showSt (sBusy r) =
   "server holding " ++ showReq r ++ " (accepts: the matching Send response only)"
 showSt (sReady r) =
   "server ready to answer " ++ showReq r ++ " (accepts: the matching Send response only)"
+showSt sThrown = "server thrown (accepts nothing)"
 showSt sClosed = "server closed after Recv Done (accepts nothing)"
 
 ------------------------------------------------------------------------
@@ -188,6 +198,10 @@ _ : parseFile "role peer\nRecv Done\n" ≡ inj₁ (1 , "role peer")
 _ = refl
 
 -- Printing a canonical line and parsing it back is the identity.
-_ : parseEvent (showEvent (Recv , MsgLeiosBlockTxs 3 1781013 2 100 ((0 , 255) ∷ [])))
-    ≡ just (Recv , MsgLeiosBlockTxs 3 1781013 2 100 ((0 , 255) ∷ []))
+_ : parseEvent (showEvent (Recv , MsgLeiosBlockTxs 190 52440))
+    ≡ just (Recv , MsgLeiosBlockTxs 190 52440)
+_ = refl
+
+-- The obsolete hash/slot/bitmap reply grammar is rejected.
+_ : parseEvent "Recv BlockTxs ab 3 2 80 -" ≡ nothing
 _ = refl

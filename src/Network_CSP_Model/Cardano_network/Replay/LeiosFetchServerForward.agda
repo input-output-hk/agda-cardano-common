@@ -15,22 +15,26 @@
 -- Invariant 1 (B7a): checked with `agda --safe` on the command line.
 module Cardano_network.Replay.LeiosFetchServerForward where
 
+open import Cardano_network.Replay.LeiosFetchWords using (decoderOffsets; decodable)
+import Data.Bool
+import Cardano_network.Replay.LeiosFetchObs
 open import Data.Empty using (⊥-elim)
-open import Data.Nat using (ℕ)
-open import Data.List using (List; []; _∷_)
+open import Data.Nat using (ℕ; _<_)
+open import Data.List using (List; []; _∷_; _++_)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (Σ; Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Sum using (inj₁; inj₂)
-open import Data.Unit using (tt)
+open import Data.Unit using (⊤; tt)
 open import Relation.Nullary using (¬_; yes; no; Dec)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong₂; trans)
 
 open import Process_Trees using (PTree; ExtI; AnyTypes; react)
 open import Class.DecEq using (DecEq)
+open import Cardano_network.Params using (module Params)
 open import Cardano_network.Base using (N2N_LeiosFetch; hi; FromResponder)
-open import Cardano_network.Replay.ReplayParams using (replayParams)
+open import Cardano_network.Replay.ReplayParams using (replayParams; replayLP; replayTopo)
 open import Cardano_network.Net replayParams using (Net_Api; Net_Api-≟; ApiLPTag; apiLP; input)
 import Cardano_network.Net replayParams as Net
 open import Cardano_network.Data replayParams using (Payload; MessageLeiosFetchP; leiosFetchP)
@@ -42,8 +46,13 @@ open import Cardano_network.Parametric.Leios.NoLivelock.PeerLFP replayParams usi
 open import Cardano_network.Replay.LeiosFetchServerModel
 open import Cardano_network.ApiAlphabet replayParams using (apiES)
 open import Cardano_network.Replay.LeiosFetchServerParts
-  using ( AE; SE; peerAfter; lat; bodyA; bodyB; a1; a2; b1; b2; C; smid
+  using ( work-force; original-label; AE; SE; peerAfter; lat; bodyA; bodyB; a1; a2; b1; b2; C; smid
         ; □-force-rr; □-stable; store-ev; store-stable )
+
+-- Negative reads are disjoint from the positive body reads constructed here.
+import Cardano_network.Parametric.Leios.NodeLogicL
+module Logic = Cardano_network.Parametric.Leios.NodeLogicL.Generic replayParams replayLP replayTopo apiES (λ _ → tt)
+open Logic using (lacksBodies; lacksBodyEv)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (EventSet; ∅ES; _□_; _>>=_; _⊓_; _⦀_; mergeMaybe; viewV)
@@ -211,11 +220,24 @@ ob-fire bs (eb ∷ ebs) {h} (there m) with ob-fire bs ebs m
 ...   | just p  = p ⊓ c , □-fire refl eqQ (cong₂ mergeMaybe e brQ) , bτ (⊓-stepR _ _) bk
 
 -- a body read off one store round, for a held hash (the deposit arm stays silent)
-round-fire : ∀ bs {h} → h ∈ bs
+original-round-fire : ∀ bs {h} → h ∈ bs
            → Σ[ c ∈ PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies ]
-               (bodyStep nS bs ─[ ev (evl (getL h)) ]─► c × Back bs c)
-round-fire bs m with ob-fire bs bs m
-... | c , sVis eqQ brQ , bk = c , □-fire refl eqQ (cong (mergeMaybe nothing) brQ) , bk
+               (originalBodyStep nS bs ─[ ev (evl (getL h)) ]─► c × Back bs c)
+original-round-fire bs m with ob-fire bs bs m
+... | c , sVis eqQ brQ , bk = c , □-fire refl (□-force-rr {P = offerBodies nS bs bs} {Q = lacksBodies nS bs} eqQ refl)
+  (cong (mergeMaybe nothing) (trans (cong (λ z → mergeMaybe z nothing) brQ) (mergeMaybe-right c))) , bk
+  where
+  -- A positive read has no competing negative-menu continuation.
+  mergeMaybe-right : (c : PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies)
+                   → mergeMaybe (just c) nothing ≡ just c
+  mergeMaybe-right _ = refl
+
+-- Extending the store by a tx arm preserves every positive body read.
+round-fire : ∀ bs {h} → h ∈ bs →
+  Σ[ c ∈ PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies ]
+    (bodyStep nS bs ─[ ev (evl (getL h)) ]─► c × Back bs c)
+round-fire bs m with original-round-fire bs m
+... | c , sVis eq br , back = c , □-fire eq refl (cong (λ v → mergeMaybe v nothing) br) , back
 
 -- a body read at the store's loop head, for a held hash: the store goes mid-round
 store-read : ∀ bs {h} → h ∈ bs
@@ -280,9 +302,16 @@ p-snd-fwd : ∀ {msg}
             peerAfter (LOp.Ret (inj₁ stIdle))
 p-snd-fwd = peer-fwd out-fireL
 
+-- The positive branch fires alone: its channel is disjoint from the negative read.
+positive-read : ∀ {h} {k : ℕ → Proc} →
+  ((getBodyEvS h Op.⟶ k) □ (lacksBodyEv nS h Op.⟶₀ Op.Stop))
+  ─[ ev (evl (getL h)) ]─► k h
+positive-read {h} {k} = sVis refl
+  (cong (λ m → mergeMaybe m nothing) (Fire.pfx-br (Net_Api-≟ {Payload}) (getBodyEvS h) k h))
+
 -- thread A reads the reported hash's body from the store
 a1-fwd : ∀ {q} → lat bodyA (a1 q) ─[ ev (evl (getL (proj₁ q))) ]─► lat bodyA (a2 (proj₁ q))
-a1-fwd = iter-bind-ev _ _ (bind-ev _ _ pfx-fire)
+a1-fwd = iter-bind-ev _ _ (bind-ev _ _ positive-read)
 
 -- thread A commands the Block with the body it holds
 a2-fwd : ∀ {eb} → lat bodyA (a2 eb) ─[ ev (evl (apiL Net.lfpSendBlock eb)) ]─► lat bodyA Op.Skip
@@ -290,8 +319,57 @@ a2-fwd = iter-bind-ev _ _ (bind-ev _ _ out-fire)
 
 -- thread B confirms the reported hash is held (empty bitmap: the reply follows at once)
 b1-fwd : ∀ {q} → lat bodyB (b1 (q , [])) ─[ ev (evl (getL (proj₁ q))) ]─► lat bodyB (b2 q)
-b1-fwd = iter-bind-ev _ _ (bind-ev _ _ pfx-fire)
+b1-fwd = iter-bind-ev _ _ (bind-ev _ _ positive-read)
 
 -- thread B commands the (empty) BlockTxs for point `q`
 b2-fwd : ∀ {q} → lat bodyB (b2 q) ─[ ev (evl (apiL Net.lfpSendBlockTxs (q , []))) ]─► lat bodyB Op.Skip
 b2-fwd = iter-bind-ev _ _ (bind-ev _ _ out-fire)
+
+-- The original body menu is stable before the extra transaction arm is added.
+original-round-stable : ∀ bs → Process_Trees.isStable (originalBodyStep nS bs)
+original-round-stable bs = □-stable {P = Op.Prefix (putBodyEv nS) _}
+  {Q = offerBodies nS bs bs □ lacksBodies nS bs} (λ _ _ → refl)
+  (□-stable {P = offerBodies nS bs bs} {Q = lacksBodies nS bs} (ob-stable bs bs) (λ _ _ → refl))
+
+-- The held unit tx fires alone, since every original-menu label is a body label.
+tx-round-fire : ∀ bs → bodyStep nS bs ─[ ev (evl (evLabel Data.Unit.⊤ (getTxEv nS tt) tt)) ]─► Op.Ret bs
+tx-round-fire bs with stable→react {t = originalBodyStep nS bs} (original-round-stable bs)
+... | v , τc , eq , _ with v (_ , getTxEv nS tt) tt in br
+... | nothing = □-fire eq refl (cong₂ mergeMaybe br (out-br {d = Params.decTx replayParams} (getTxEv nS tt) tt (Op.Ret bs)))
+... | just p = ⊥-elim (original-label {bs = bs} (sVis eq br))
+
+-- The replay store can always hand over the sole unit transaction.
+store-tx-read : ∀ bs → bodyStore nS bs ─[ ev (evl (evLabel Data.Unit.⊤ (getTxEv nS tt) tt)) ]─► smid (Op.Ret bs)
+store-tx-read bs = iter-bind-ev (loopStep (bodyStep nS)) _
+  (bind-ev (λ a′ → Op.Ret (inj₁ a′)) (bodyStep nS bs) (tx-round-fire bs))
+
+-- Body confirmation works for an arbitrary requested offset list.
+b1-any-fwd : ∀ {q bm} → lat bodyB (b1 (q , bm)) ─[ ev (evl (getL (proj₁ q))) ]─►
+  lat bodyB (serveTxs nS lS hi q bm [])
+b1-any-fwd = iter-bind-ev _ _ (bind-ev _ _ positive-read)
+
+-- A valid offset's transaction read advances the indexed accumulator.
+work-fwd : ∀ {q o os acc} → o Data.Nat.< Cardano_network.Replay.LeiosFetchWords.decoderOffsets →
+  lat bodyB (serveTxs nS lS hi q (o ∷ os) acc) ─[ ev (evl (evLabel Data.Unit.⊤ (getTxEv nS tt) tt)) ]─►
+  lat bodyB (serveTxs nS lS hi q os (acc Data.List.++ ((o , tt) ∷ [])))
+work-fwd {q} {o} {os} {acc} bound rewrite work-force q o os acc bound =
+  iter-bind-ev _ _ (bind-ev _ _ (sVis refl refl))
+
+-- The completed closure commands its actual accumulated indexed transactions.
+work-out-fwd : ∀ {q acc} → lat bodyB (serveTxs nS lS hi q [] acc) ─[ ev (evl (apiL Net.lfpSendBlockTxs (q , acc))) ]─► lat bodyB Op.Skip
+work-out-fwd = iter-bind-ev _ _ (bind-ev _ _ out-fire)
+
+-- A decoded transaction request is received and reported at its actual bitmap.
+p-recvT-fwd : ∀ q bm → Data.Bool.T (Cardano_network.Replay.LeiosFetchWords.decodable bm) →
+  peerAfter (serverStepP lS dS stIdle) ─[ ev (evl (evLabel _ (Net.output lS dS N2N_LeiosFetch)
+    (tt , Cardano_network.Base.FromInitiator , tt , leiosFetchP (Data.MsgLFPBlockTxsRequest q bm)))) ]─►
+  peerAfter (LOp.Output ⦃ Data.DecEq-TxsRequest ⦄ (LFP.apiLPev lS dS Net.lfpReqBlockTxsRequest)
+    (q , bm) (LOp.Ret (inj₁ (LFP.stBlockTxs q bm))))
+p-recvT-fwd q bm ok = peer-fwd (F.sVis refl branch)
+  where
+  -- Expose the successful decoder Boolean at the concrete receive offer.
+  branch : LOp.viewV (PTree.force (serverStepP lS dS stIdle)) (_ , LFP.receiveLFP lS dS)
+    (tt , Cardano_network.Base.FromInitiator , tt , leiosFetchP (Data.MsgLFPBlockTxsRequest q bm)) ≡
+    just (LOp.Output ⦃ Data.DecEq-TxsRequest ⦄ (LFP.apiLPev lS dS Net.lfpReqBlockTxsRequest)
+      (q , bm) (LOp.Ret (inj₁ (LFP.stBlockTxs q bm))))
+  branch rewrite Cardano_network.Replay.LeiosFetchObs.T-true ok = refl

@@ -36,7 +36,7 @@ open import Cardano_network.LeiosFetchP replayParams
   using (LFPEv; LFPEv-≟; receiveLFP; serverStepP; stIdle; LFPserverStClient)
 open import Cardano_network.Parametric.Leios.PeersP replayParams using (ιLFP; ιLFP⁻¹; ιLFP-linv)
 open import Cardano_network.Parametric.Leios.NoLivelock.PeerLFP replayParams
-  using (ιLFP-rinv; Rd; SIdleV; siBlk; siTxs; siDone; sIdleV)
+  using (ιLFP-rinv; Rd; SIdleV; siBlk; siTxs; siDecodeStop; siDone; sIdleV)
 open import Cardano_network.Replay.LeiosFetchServerModel
 open import Cardano_network.Replay.LeiosFetchServerParts
   using (decEBR; renE; peerAfter; ivi-elim; SE; bodyAll; store-ev; store-stable)
@@ -72,7 +72,8 @@ open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload})
 -- every Idle move of the producer is a wire receive on its own cell
 sidle-wire : ∀ {x t′} → SIdleV lS dS x t′ → Σ[ p ∈ Payload ] x ≡ F.evLabel Payload (receiveLFP lS dS) p
 sidle-wire (siBlk _)    = _ , refl
-sidle-wire (siTxs _ _)  = _ , refl
+sidle-wire (siTxs _ _ _)  = _ , refl
+sidle-wire (siDecodeStop _ _ _) = _ , refl
 sidle-wire siDone       = _ , refl
 
 ------------------------------------------------------------------------
@@ -150,7 +151,8 @@ inner-ev st | evBoth ¬m _ stT = ⊥-elim (¬m (threads-ev stT))
 wire-out : ∀ {x t′ X e a} → SIdleV lS dS x t′ → evLabel X e a ≡ renE x
          → ¬ EventSet.mem apiES (X , e) a × ¬ EventSet.mem storeES (X , e) a
 wire-out (siBlk _)   refl = (λ ()) , (λ ())
-wire-out (siTxs _ _) refl = (λ ()) , (λ ())
+wire-out (siTxs _ _ _) refl = (λ ()) , (λ ())
+wire-out (siDecodeStop _ _ _) refl = (λ ()) , (λ ())
 wire-out siDone      refl = (λ ()) , (λ ())
 
 -- no first move of the inner composite is a store event

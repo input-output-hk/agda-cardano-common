@@ -4,33 +4,12 @@
 -- Cardano network example — NEGATIVE FACT 2: THE POINTER-DRIVEN FETCH
 -- WEDGE (the spec's correction C2).
 --
--- A fetch thread driven by the EB-STORE POINTER asks its neighbour for the
--- k-th announced point whether or not the neighbour holds that body.  With
--- one outstanding LeiosFetch request per endpoint, the neighbour's LF
--- server then sits at `stGetBody h` for a body it does not hold — and the
--- body store offers nothing on that channel.  Both are in `storeES`, so
--- the pair has NO transition whatsoever: `wedge-stuck` below.
---
--- Re-pointed to the leios-prototype peers (`apiLP`) on branch
--- `examples/leios_prototype_protocols`; the wedge is a property of the
--- POINTER-DRIVEN fetch design and is equally true of the old `apiLF` pair,
--- which is why correction C2 survives the protocol change.
---
--- THAT IS WHY `MsgLNPBlockOffer` EXISTS, and why `NodeLogicL` fetches only
--- what a neighbour has OFFERED (`bodyOfferLoop` offers a body only once the
--- node holds it, so `ebServeLoop`'s `stGetBody h` never blocks) — DESIGN
--- RATIONALE, not proved here; no positive counterpart is built in this
--- module, and this paragraph must not be quoted as a result.
---
--- LEVEL: a PAIR plus ONE STEP.  The wedged process is the UNCHANGED
--- `NodeLogicL.ebServeLoop` thread of node 0's only endpoint, ONE visible
--- step after it has received `lfpReqBlockRequest ! qBad` (the report a
--- pointer-driven fetch at the far end would produce), synchronised on
--- `storeES` with `NodeLogicL.bodyStore` holding NO body of hash `hBad`.
--- This is NOT a `systemOf` fact and NOT a statement "on a three-node line":
--- the spec's §5.4.2 asks for the wedge at system level and that is NOT
--- established here (the plan's Open Question 5).  Nothing below is a claim
--- about `leiosSystemL`.
+-- The LOCAL pre-3B+C blocking thread below is the negative control: after a
+-- request for an unknown hash it cannot rendezvous with the body store.
+-- `wedge-stuck` concerns that copy. With the shipped throwing thread the same
+-- scenario instead consumes `stLacksBody` and reaches a stopped server round
+-- (`wedge-throws`). Both facts concern a thread/store pair, not `leiosSystemL`.
+-- Honest offers still name held bodies; neither fact establishes system liveness.
 --
 -- NOTE ON THE HIDE.  No hiding operator appears here.  The wedge is the
 -- ABSENCE of every transition, visible and silent alike, so hiding any
@@ -47,6 +26,8 @@ open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
 open import Data.List using ([]; _∷_)
 open import Data.Product using (Σ-syntax; _×_; _,_; proj₁; proj₂)
 open import Data.Unit.Polymorphic using (⊤; tt)
+import Data.Sum
+open import Class.DecEq.Instances using (DecEq-Bool)
 import Data.Unit as U
 open import Function.Base using (case_of_)
 open import Relation.Nullary using (¬_; yes; no)
@@ -57,7 +38,7 @@ open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
 open import Cardano_network.Base using (lo; hi)
 open import Cardano_network.Net leiosLParams
-  using (Net_Api; Net_Api-≟; apiLP; lfpReqBlockRequest)
+  using (Net_Api; Net_Api-≟; apiLP; lfpReqBlockRequest; lfpSendBlock)
 open import Cardano_network.Data leiosLParams using (Payload)
 open import Cardano_network.ApiAlphabet leiosLParams using (apiES)
 open import Cardano_network.Parametric.Node leiosLParams leiosLLine apiES
@@ -69,19 +50,27 @@ import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
-  using (getBodyEv; putBodyEv; bodyStore; ebServeLoop)
+  using (getBodyEv; lacksBodyEv; putBodyEv; bodyStore; bodyStep; offerBodies; lacksBodies; ebServeBody; ebServeLoop)
 
 import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) as Op
 open Op using (EventSet; _∥⇘_⇙_)
 
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
-  using (_─[_]─►_; Label; Event√; ev; τ; evl; evLabel; sVis; sSil; sTau)
+  using (_─[_]─►_; Label; Event√; ev; τ; evl; evLabel; sRet; sVis; sSil; sTau)
 open import CSP.Laws.Traces.TraceLawsParallel (Net_Api-≟ {Payload})
-  using (Par-soloL)
+  using (Par-soloL; Par-sync)
 open import CSP.Laws.Traces.TraceLawsParallelElim (Net_Api-≟ {Payload})
   using (Par-τ-elim; τL; τR; Par-ev-elim; evSync; evL; evR; evBoth; ev√)
 open import CSP.Laws.Traces.PrefixInversion (Net_Api-≟ {Payload})
   using (loop-pfx-ev-inv)
+
+import Cardano_network.Parametric.Leios.LacksStoreL
+module Lacks = Cardano_network.Parametric.Leios.LacksStoreL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
+open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload})
+  using (AllT; AllT-□; AllT-⟶; AllT-Output; AllT-Ret; AllT-Stop; AllT->>=; _∷_)
+import CSP.Laws.DivFree.Loop (Net_Api-≟ {Payload}) as Loop
+open import Semantics.Failures {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using (⟹-ev; ⟹-refl)
+open import CSP.Laws.Traces.TraceLawsExtChoiceMono (Net_Api-≟ {Payload}) using (□-ev-elim; evP; evQ; evPQ)
 
 ------------------------------------------------------------------------
 -- The wedged configuration and the step that reaches it
@@ -112,15 +101,20 @@ reqEv = apiLP fzero hi lfpReqBlockRequest
 evReq : Event√ (⊤ {0ℓ})
 evReq = evl (evLabel (EBHash × LSlot) reqEv qBad)
 
--- the EB hash inside the requested point: what `ebServeBody` then blocks on
+-- the EB hash inside the requested point: what `ebServeBodyBlocking` then blocks on
 hBad : EBHash
 hBad = proj₁ qBad
 
--- node 0's UNCHANGED EB-serve thread at its loop head
-ebServeThread : Proc
-ebServeThread = ebServeLoop nA (fzero , lo)
+-- The previous server round waits only for a positive store read.
+ebServeBodyBlocking : Proc
+ebServeBodyBlocking = apiLP fzero hi lfpReqBlockRequest Op.⟶ (λ q →
+  getBodyEv nA (proj₁ q) Op.⟶ (λ eb → Op.Output (apiLP fzero hi lfpSendBlock) eb Op.Skip))
 
--- node 0's UNCHANGED EB-body store, holding exactly `ebGood`
+-- Node 0's pre-3B+C blocking server, retained only as a negative control.
+ebServeThread : Proc
+ebServeThread = Op.loop0 ebServeBodyBlocking
+
+-- Node 0's extended EB-body store (including `lacksBodies`), holding exactly `ebGood`
 bodySt : Proc
 bodySt = bodyStore nA (ebGood ∷ [])
 
@@ -134,7 +128,7 @@ ebServePair = ebServeThread ∥⇘ storeES ⇙ bodySt
 threadAfter : Σ[ T ∈ Proc ] (ebServeThread ─[ ev evReq ]─► T)
 threadAfter = _ , sVis refl refl
 
--- THE WEDGED SERVE THREAD: `ebServeBody` waiting at `stGetBody hBad`
+-- THE WEDGED SERVE THREAD: `ebServeBodyBlocking` waiting at `stGetBody hBad`
 wedgedThread : Proc
 wedgedThread = proj₁ threadAfter
 
@@ -163,7 +157,7 @@ thread-no-τ (sTau refl ())
 -- the body store has no silent move at its menu either: `bodyStep` is a `□` of
 -- pure-visible prefixes, and `□`'s τ-map (`□-mt`) needs the τ-index split open before
 -- it reduces — tag0 reads the `stPutBody` prefix's `∅t`, tag1 the nested `□` of the
--- `stGetBody` output and `Stop`, both of which are `∅t` again
+-- positive keyed menu and the negative menu; the former has a final `Stop` arm
 store-no-τ : ∀ {M : Proc} → ¬ (bodySt ─[ τ ]─► M)
 store-no-τ (sSil ())
 store-no-τ (sTau {i = _ , base _}            refl ())
@@ -180,8 +174,20 @@ store-no-τ (sTau {i = _ , pair fin (pair (base _) _)}
                  {a = lift (fsuc fzero) , _} refl ())
 store-no-τ (sTau {i = _ , pair fin (pair (pair _ _) _)}
                  {a = lift (fsuc fzero) , _} refl ())
-store-no-τ (sTau {i = _ , pair fin (pair fin _)}
+store-no-τ (sTau {i = _ , pair fin (pair fin (base _))}
                  {a = lift (fsuc fzero) , (lift fzero , _)} refl ())
+store-no-τ (sTau {i = _ , pair fin (pair fin (fin))}
+                 {a = lift (fsuc fzero) , (lift fzero , _)} refl ())
+store-no-τ (sTau {i = _ , pair fin (pair fin (pair (base _) _))}
+                 {a = lift (fsuc fzero) , (lift fzero , _)} refl ())
+store-no-τ (sTau {i = _ , pair fin (pair fin (pair (pair _ _) _))}
+                 {a = lift (fsuc fzero) , (lift fzero , _)} refl ())
+store-no-τ (sTau {i = _ , pair fin (pair fin (pair fin _))}
+                 {a = lift (fsuc fzero) , (lift fzero , (lift (fzero) , _))} refl ())
+store-no-τ (sTau {i = _ , pair fin (pair fin (pair fin _))}
+                 {a = lift (fsuc fzero) , (lift fzero , (lift (fsuc fzero) , _))} refl ())
+store-no-τ (sTau {i = _ , pair fin (pair fin (pair fin _))}
+                 {a = lift (fsuc fzero) , (lift fzero , (lift (fsuc (fsuc _)) , _))} refl ())
 store-no-τ (sTau {i = _ , pair fin (pair fin _)}
                  {a = lift (fsuc fzero) , (lift (fsuc fzero) , _)} refl ())
 store-no-τ (sTau {i = _ , pair fin (pair fin _)}
@@ -199,18 +205,21 @@ store-no-bad : ∀ {eb : EB} {M : Proc}
              → ¬ (bodySt ─[ ev (evl (evLabel EB (getBodyEv nA hBad) eb)) ]─► M)
 store-no-bad (sVis refl ())
 
+-- Every branch, including the negative menu, remains a store rendezvous.
+bodyAll : AllT (λ { (evLabel X e a) → EventSet.mem storeES (X , e) a }) (bodyStep nA (ebGood ∷ []))
+bodyAll = AllT-□ (AllT-⟶ (putBodyEv nA) (λ _ → tt) (λ _ → AllT-Ret))
+  (AllT-□ (AllT-□ (AllT-Output (getBodyEv nA ebGood) ebGood tt AllT-Ret) AllT-Stop)
+    (Lacks.body-All nA (ebGood ∷ []) (λ _ → tt)))
+
+
 -- every event the body store offers is a `store` event, hence in `storeES`: its menu
--- is exactly `stPutBody` and `stGetBody true`, and nothing else reduces to an offer
+-- includes `stPutBody`, `stGetBody true`, and `stLacksBody false`
 store-in-storeES : ∀ {X : Set} {e : Net_Api Payload X} {a : X} {M : Proc}
                  → bodySt ─[ ev (evl (evLabel X e a)) ]─► M
                  → EventSet.mem storeES (X , e) a
-store-in-storeES {X = X} {e = e} (sVis refl br)
-  with Net_Api-≟ (EB , putBodyEv nA) (X , e)
-... | yes refl = tt
-... | no _ with Net_Api-≟ (EB , getBodyEv nA ebGood) (X , e)
-...   | yes refl = tt
-...   | no _     = case br of λ ()
-
+store-in-storeES st with Loop.iter-ev-elim _ _ st
+... | _ , st₁ , _ with AllT->>= bodyAll (λ _ → AllT-Ret) (⟹-ev st₁ ⟹-refl)
+...   | p ∷ _ = p
 ------------------------------------------------------------------------
 -- The refutation
 ------------------------------------------------------------------------
@@ -245,3 +254,30 @@ wedge-stuck {l = ev _} st with Par-ev-elim storeES _ wedgedThread bodySt st
 ... | evR ¬m stQ       = ¬m (store-in-storeES stQ)
 ... | evBoth ¬m stP _  = wedge-solo ¬m stP
 ... | ev√ () _
+
+------------------------------------------------------------------------
+-- The shipped server throws in the same unknown-body scenario.
+------------------------------------------------------------------------
+
+-- The current serving thread first consumes exactly the same bad request.
+throwAfterRequest : Σ[ T ∈ Proc ] (ebServeLoop nA (fzero , lo) ─[ ev evReq ]─► T)
+throwAfterRequest = _ , sVis refl refl
+
+-- After the negative read, its loop contains Stop rather than a returning round.
+stoppedThread : Proc
+stoppedThread = Op.iter-bind (Op.Stop Op.>>= (λ a → Op.Ret (Data.Sum.inj₁ a)))
+  (Loop.loopStep (λ _ → ebServeBody nA fzero hi))
+
+-- The store explicitly reports the missing hash and the server thread stops.
+wedge-throws : Σ[ S ∈ Proc ]
+  ((proj₁ throwAfterRequest ∥⇘ storeES ⇙ bodySt) ─[
+    ev (evl (evLabel U.⊤ (lacksBodyEv nA hBad) U.tt)) ]─►
+    (stoppedThread ∥⇘ storeES ⇙ S))
+wedge-throws = _ , Par-sync storeES _ _ _ tt (sVis refl refl) (sVis refl refl)
+
+-- The stopped round has no further transition, including a loop-back or termination.
+stopped-no-step : ∀ {l M} → ¬ (stoppedThread ─[ l ]─► M)
+stopped-no-step (sRet ())
+stopped-no-step (sSil ())
+stopped-no-step (sVis refl ())
+stopped-no-step (sTau refl ())

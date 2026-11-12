@@ -13,10 +13,14 @@
 -- This module models the Leios mini-protocol as implemented on the `leios-prototype`
 -- branch of ouroboros-consensus (`LeiosDemoOnlyTest{Notify,Fetch}.hs`, protocol numbers
 -- 18/19), which adapts the CIP-164 draft of July 2026.  Messages, payload types, state
--- machine and agency follow the prototype exactly, with two payload abstractions recorded
--- in the ADR `docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`
--- (`TxBitmap` is a concrete offset set; `MsgLeiosBlockTxs` is an offset-indexed map without
--- a bitmap echo); pipelining and credits, vote weights, deadlines, equivocation and
+-- machine and agency follow the prototype, with `TxBitmap` represented as concrete
+-- offsets and `MsgLFPBlockTxs` carrying transactions in that requested order, without
+-- an echoed point or bitmap (see decision D5 in
+-- docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md).
+-- The application API retains offset-indexed entries;
+-- a count-mismatched BlockTxs reply is received, then the client stops inside its
+-- step, at the scope of this peer; whole-connection death is not modeled here.
+-- Pipelining and credits, vote weights, deadlines, equivocation and
 -- freshness are abstracted (peers are depth-1 alternating machines; the oracles
 -- `certifies`, `ebSize`, `ebTxs` stand in for validation).  The older CIP-draft model
 -- (`LeiosNotify.agda`/`LeiosFetch.agda`, `apiLN`/`apiLF`) stays beside this one: both ride
@@ -36,8 +40,12 @@ module Cardano_network.LeiosFetchP (p : Params) where
 open import Level renaming (zero to lzero)
 import Data.Unit.Polymorphic as Poly
 open import Data.Unit using (⊤)
-open import Data.List using (List)
-open import Data.Product using (_×_; _,_)
+open import Data.Bool using (true; false)
+open import Data.Nat using (_<ᵇ_)
+open import Cardano_network.Replay.LeiosFetchWire using (maxTxs)
+open import Cardano_network.Replay.LeiosFetchWords using (decodable)
+open import Data.List using (List; length; zip; map)
+open import Data.Product using (_×_; _,_; proj₂)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Relation.Nullary using (Dec; yes; no)
@@ -136,7 +144,7 @@ open LFPOps LFPEv-≟
 data LFPState : Set where
   stIdle     : LFPState   -- consumer requests / producer awaits a request
   stBlock    : LFPState   -- EB delivery outstanding
-  stBlockTxs : LFPState   -- tx-closure delivery outstanding
+  stBlockTxs : EBHash × LSlot → TxBitmap → LFPState -- outstanding tx-closure request
   stDone     : LFPState   -- terminal (√)
 
 instance
@@ -147,20 +155,24 @@ instance
     go : (x y : LFPState) → Dec (x ≡ y)
     go stIdle     stIdle     = yes refl
     go stBlock    stBlock    = yes refl
-    go stBlockTxs stBlockTxs = yes refl
+    go (stBlockTxs q bm) (stBlockTxs q′ bm′)
+      with _≟_ ⦃ DecEq-EBPoint ⦄ q q′ | _≟_ ⦃ DecEq-TxBitmap ⦄ bm bm′
+    ... | yes refl | yes refl = yes refl
+    ... | no ¬p    | _        = no λ where refl → ¬p refl
+    ... | _        | no ¬p    = no λ where refl → ¬p refl
     go stDone     stDone     = yes refl
     go stIdle     stBlock    = no λ ()
-    go stIdle     stBlockTxs = no λ ()
+    go stIdle     (stBlockTxs _ _) = no λ ()
     go stIdle     stDone     = no λ ()
     go stBlock    stIdle     = no λ ()
-    go stBlock    stBlockTxs = no λ ()
+    go stBlock    (stBlockTxs _ _) = no λ ()
     go stBlock    stDone     = no λ ()
-    go stBlockTxs stIdle     = no λ ()
-    go stBlockTxs stBlock    = no λ ()
-    go stBlockTxs stDone     = no λ ()
+    go (stBlockTxs _ _) stIdle     = no λ ()
+    go (stBlockTxs _ _) stBlock    = no λ ()
+    go (stBlockTxs _ _) stDone     = no λ ()
     go stDone     stIdle     = no λ ()
     go stDone     stBlock    = no λ ()
-    go stDone     stBlockTxs = no λ ()
+    go stDone     (stBlockTxs _ _) = no λ ()
 
 ------------------------------------------------------------------------
 -- Step 5: the client (consumer) peer.
@@ -182,7 +194,7 @@ clientStepP l d stIdle = pchoice v
   ... | yes refl | yes refl = just
         (sendLFP l d !
            (time₀ , FromInitiator , length₀ , leiosFetchP (MsgLFPBlockTxsRequest q bm)) ⟶
-           Ret (inj₁ stBlockTxs))
+           Ret (inj₁ (stBlockTxs q bm)))
   ... | _        | _        = nothing
   v (_ , apiLPev l′ d′ lfpSendDone) _ with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
@@ -205,20 +217,23 @@ clientStepP l d stBlock = pchoice v
   v (_ , sendLFP _ _)    _ = nothing
   v (_ , apiLPev _ _ _)  _ = nothing
   v (_ , doneLFP _ _)    _ = nothing
-clientStepP l d stBlockTxs = pchoice v
+clientStepP l d (stBlockTxs q bm) = pchoice v
   where
   v : (at : AnyTypes LFPEv)
     → ContinueType at (Maybe (PTree LFPEv (ExtI LFPEv) (LFPState ⊎ Rr)))
-  -- THE ONE PAYLOAD ABSTRACTION of this protocol: the reply echoes the POINT but not the
-  -- bitmap — it is the offset-indexed map `offset ↦ tx`, whose keys ARE the offsets, so a
-  -- bitmap echo would be redundant.
-  -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
-  v (_ , receiveLFP l′ d′) (_ , _ , _ , leiosFetchP (MsgLFPBlockTxs q es))
-    with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just
-        (Output ⦃ DecEq-TxsReply ⦄ (apiLPev l d lfpRecvBlockTxs) (q , es)
+  -- No point is echoed: pair the positional reply with the stored request's bitmap.
+  -- Apply the decoder cap before the count check and zip; stop as upstream's
+  -- client errors and the connection dies, without reporting an API reply.
+  v (_ , receiveLFP l′ d′) (_ , _ , _ , leiosFetchP (MsgLFPBlockTxs txs))
+    with l′ ≟ l | d′ ≟ d | maxTxs <ᵇ length txs
+  ... | yes refl | yes refl | true = just Stop
+  ... | no _     | _        | _ = nothing
+  ... | yes refl | no _     | _ = nothing
+  ... | yes refl | yes refl | false with length txs ≟ length bm
+  ...   | yes _ = just
+        (Output ⦃ DecEq-TxsReply ⦄ (apiLPev l d lfpRecvBlockTxs) (q , zip bm txs)
            (Ret (inj₁ stIdle)))
-  ... | _        | _        = nothing
+  ...   | no _ = just Stop
   v (_ , receiveLFP _ _) _ = nothing
   v (_ , sendLFP _ _)    _ = nothing
   v (_ , apiLPev _ _ _)  _ = nothing
@@ -249,12 +264,14 @@ serverStepP l d stIdle = pchoice v
         (Output ⦃ DecEq-EBPoint ⦄ (apiLPev l d lfpReqBlockRequest) q
            (Ret (inj₁ stBlock)))
   ... | _        | _        = nothing
+  -- Malformed offset lists are received, then stopped before the API report.
   v (_ , receiveLFP l′ d′) (_ , _ , _ , leiosFetchP (MsgLFPBlockTxsRequest q bm))
-    with l′ ≟ l | d′ ≟ d
-  ... | yes refl | yes refl = just
+    with l′ ≟ l | d′ ≟ d | decodable bm
+  ... | yes refl | yes refl | false = just Stop
+  ... | yes refl | yes refl | true = just
         (Output ⦃ DecEq-TxsRequest ⦄ (apiLPev l d lfpReqBlockTxsRequest) (q , bm)
-           (Ret (inj₁ stBlockTxs)))
-  ... | _        | _        = nothing
+           (Ret (inj₁ (stBlockTxs q bm))))
+  ... | _        | _        | _ = nothing
   v (_ , receiveLFP l′ d′) (_ , _ , _ , leiosFetchP MsgLFPDone) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just (doneLFP l d ⟶₀ Ret (inj₁ stDone))
   ... | _        | _        = nothing
@@ -275,14 +292,15 @@ serverStepP l d stBlock = pchoice v
   v (_ , sendLFP _ _)    _ = nothing
   v (_ , receiveLFP _ _) _ = nothing
   v (_ , doneLFP _ _)    _ = nothing
-serverStepP l d stBlockTxs = pchoice v
+serverStepP l d (stBlockTxs q bm) = pchoice v
   where
   v : (at : AnyTypes LFPEv)
     → ContinueType at (Maybe (PTree LFPEv (ExtI LFPEv) (LFPState ⊎ Rr)))
-  v (_ , apiLPev l′ d′ lfpSendBlockTxs) (q , es) with l′ ≟ l | d′ ≟ d
+  -- Carry the stored request for stage 3; the wire reply only contains API transactions.
+  v (_ , apiLPev l′ d′ lfpSendBlockTxs) (q′ , es) with l′ ≟ l | d′ ≟ d
   ... | yes refl | yes refl = just
         (sendLFP l d !
-           (time₀ , FromResponder , length₀ , leiosFetchP (MsgLFPBlockTxs q es)) ⟶
+           (time₀ , FromResponder , length₀ , leiosFetchP (MsgLFPBlockTxs (map proj₂ es))) ⟶
            Ret (inj₁ stIdle))
   ... | _        | _        = nothing
   v (_ , apiLPev _ _ _)  _ = nothing

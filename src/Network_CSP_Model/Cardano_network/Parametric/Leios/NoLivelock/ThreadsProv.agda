@@ -56,7 +56,7 @@ open Params pP using (decBlock; decVoteBlob; decTx; decEB; decEBHash; ebHash)
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} using (Event; evLabel)
 open import CSP.Laws.DivFree.Loop (Net_Api-≟ {Payload}) using (loopStep)
 open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload})
-  using (AllT; AllT-Ret; AllT-⟶; AllT-Output; AllT-□; AllT->>=)
+  using (AllT; AllT-Stop; AllT-Ret; AllT-⟶; AllT-Output; AllT-□; AllT->>=)
 open import CSP.Laws.DivFree.CountMore (Net_Api-≟ {Payload}) using (AllT-if; AllT-maybe′)
 open import CSP.Laws.DivFree.Prov (Net_Api-≟ {Payload})
   using (PA; pa; ProvT; ProvT-Ret; ProvT-⟶; ProvT-Output; ProvT->>=; provIter; PA-par≡)
@@ -64,7 +64,7 @@ open import CSP.Laws.DivFree.ProvMore (Net_Api-≟ {Payload}) using (AllT→PA; 
 open import CSP.Operators {E = Net_Api Payload} (Net_Api-≟ {Payload}) using (Prefix; _⦀_)
 open import Cardano_network.Parametric.Leios.NoLivelock.ProvBF pP using (ChS)
 open import Cardano_network.Parametric.Leios.NoLivelock.Threads k m tP vo
-  using (loopAll; aw-All; pav-All; pc-All; pat-All; st-All; iVs; iHs; iTs)
+  using (fb-All; ft-All; loopAll; aw-All; pav-All; pc-All; pat-All; st-All; iVs; iHs; iTs)
 import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
 open LeiosP pP using (DecEq-LeiosPoint)
 open LeiosP.LeiosParams lpP using (ebTxs; rbCert)
@@ -79,7 +79,7 @@ open NLL.Generic pP lpP tP apiES vo
         ; fetchBody; fetchTxs; ebServeBody; ebServeLoop; ebTxsServeBody; ebTxsServeLoop; tsPullBody; tsPull
         ; endpointThreadsL; allThreadsL
         ; getAtEv; putEBEv; getBodyEv; putBodyEv; putTxEv; getTxAtEv; putVoteEv; getVoteAtEv; certEv
-        ; hasCertEv; getTxEv; submitEv; DecEq-⊤poly; DecEq-ℕ×ℕ )
+        ; hasCertEv; lacksBodyEv; getTxEv; submitEv; DecEq-⊤poly; DecEq-ℕ×ℕ )
 
 ------------------------------------------------------------------------
 -- the thread rely
@@ -177,16 +177,10 @@ lnClientLoopL-PA : ∀ n l d → PA ChS ChS InT (lnClientLoopL n (l , d))
 lnClientLoopL-PA n l d = AllT→PA (loopAll (λ _ →
   AllT-⟶ (apiLP l d lnpSendRequestNext) (λ _ {_} ()) (λ _ →
      AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockAnnouncement) (λ _ {_} ()) (λ _ → AllT-Ret))
-    (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ {_} ()) (λ { (q , _) →
-               AllT-Output ⦃ DecEq-EBPoint ⦄ (apiLP l d lfpSendBlockRequest) q (λ {_} ())
-                 (AllT-⟶ (apiLP l d lfpRecvBlock) (λ _ {_} ()) (λ eb →
-                   AllT-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋
-                     (AllT-Output ⦃ decEB ⦄ (putBodyEv n) eb (λ {_} ()) AllT-Ret) AllT-Ret)) }))
-    (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ {_} ()) (λ q →
-               AllT-⟶ (getBodyEv n (proj₁ q)) (λ _ {_} ()) (λ _ →
-                 AllT-Output ⦃ DecEq-TxsRequest ⦄ (apiLP l d lfpSendBlockTxsRequest) _ (λ {_} ())
-                   (AllT-⟶ (apiLP l d lfpRecvBlockTxs) (λ _ {_} ()) (λ { (q′ , es) →
-                     AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋ (pc-All n (proj₁ q) (λ _ {_} ()) es) AllT-Ret })))))
+    (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ {_} ())
+      (λ { (q , sz) → fb-All n l d q sz (λ {_} ()) (λ _ {_} ()) (λ _ {_} ()) }))
+    (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ {_} ())
+      (λ q → ft-All n l d q (λ _ {_} ()) (λ _ _ {_} ()) (λ _ {_} ()) (λ _ {_} ())))
             (AllT-⟶ (apiLP l d lnpRecvVotes) (λ _ {_} ()) (λ vs → pav-All n (λ _ {_} ()) vs)))))) tt)
 
 -- the LN announcer reads the store only
@@ -215,14 +209,18 @@ voteOfferLoop-PA n l d = AllT→PA (loopAll {body = voteOfferBody n l (opposite 
 ebServeLoop-PA : ∀ n l d → PA ChS ChS InT (ebServeLoop n (l , d))
 ebServeLoop-PA n l d = AllT→PA (loopAll (λ _ →
   AllT-⟶ (apiLP l (opposite d) lfpReqBlockRequest) (λ _ {_} ()) (λ q →
-    AllT-⟶ (getBodyEv n (proj₁ q)) (λ _ {_} ()) (λ eb →
-      AllT-Output ⦃ decEB ⦄ (apiLP l (opposite d) lfpSendBlock) eb (λ {_} ()) AllT-Ret))) tt)
+    AllT-□
+      (AllT-⟶ (getBodyEv n (proj₁ q)) (λ _ {_} ()) (λ eb →
+        AllT-Output ⦃ decEB ⦄ (apiLP l (opposite d) lfpSendBlock) eb (λ {_} ()) AllT-Ret))
+      (AllT-⟶ (lacksBodyEv n (proj₁ q)) (λ _ {_} ()) (λ _ → AllT-Stop)))) tt)
 
 -- the closure server touches no chain label
 ebTxsServeLoop-PA : ∀ n l d → PA ChS ChS InT (ebTxsServeLoop n (l , d))
 ebTxsServeLoop-PA n l d = AllT→PA (loopAll (λ _ →
   AllT-⟶ (apiLP l (opposite d) lfpReqBlockTxsRequest) (λ _ {_} ()) (λ { (q , bm) →
-    AllT-⟶ (getBodyEv n (proj₁ q)) (λ _ {_} ()) (λ _ → st-All n l (opposite d) q (λ _ _ {_} ()) (λ _ {_} ()) bm []) })) tt)
+    AllT-□
+      (AllT-⟶ (getBodyEv n (proj₁ q)) (λ _ {_} ()) (λ _ → st-All n l (opposite d) q (λ _ _ {_} ()) (λ _ _ {_} ()) (λ _ {_} ()) bm []))
+      (AllT-⟶ (lacksBodyEv n (proj₁ q)) (λ _ {_} ()) (λ _ → AllT-Stop)) })) tt)
 
 -- the TxSubmission puller touches no chain label
 tsPull-PA : ∀ n l d → PA ChS ChS InT (tsPull n (l , d))

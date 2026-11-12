@@ -171,14 +171,15 @@ def bm(xs):
 
 def normalize(direction, kind, m):
     """One normalized event line from the tracer's `msg` object."""
+    if kind == 'BlockTxs' and any(name in m for name in ('ebHash', 'ebSlot', 'bitmaps')):
+        raise ValueError('old LeiosFetch schema: BlockTxs carries ebHash/ebSlot/bitmaps '
+                         '(pre-e9a99ea74); not supported')
     f = {
         'BlockRequest':    lambda: [h(m['ebHash']), n(m['ebSlot'])],
         'Block':           lambda: [h(m['ebHash']), n(m['ebBytesSize'])],
         'BlockTxsRequest': lambda: [h(m['ebHash']), n(m['ebSlot']),
                                     n(m['numTxs']), bm(m['bitmaps'])],
-        'BlockTxs':        lambda: [h(m['ebHash']), n(m['ebSlot']),
-                                    n(m['numTxs']), n(m['txsBytesSize']),
-                                    bm(m['bitmaps'])],
+        'BlockTxs':        lambda: [n(m['numTxs']), n(m['txsBytesSize'])],
         'Done':            lambda: [],
     }[kind]
     return ' '.join([direction, kind] + f())
@@ -501,10 +502,9 @@ def selftest_fetch():
         mux('t3', 'State', {'state': 'Dead'}),
         mux('t4', 'NewMux', {}),
         lf('t5', 'Send.BlockTxsRequest', {'ebHash': hh.upper(), 'ebSlot': 5,
-                                          'numTxs': 2, 'bitmaps': ['0:0xFF', '3:0x01']}),
+                                          'numTxs': 2, 'bitmaps': ['0:0x80', '3:0x01']}),
         mux('t5b', 'State', {'state': 'Dead'}),          # not a cut
-        lf('t6', 'Receive.BlockTxs', {'ebHash': hh, 'ebSlot': 5, 'numTxs': 2,
-                                      'txsBytesSize': 9, 'bitmaps': []}),
+        lf('t6', 'Receive.BlockTxs', {'numTxs': 2, 'txsBytesSize': 9}),
         lf('t7', 'Send.Done', {'kind': 'MsgDone'}),
         lf('t8', 'Send.Block', {'ebHash': hh, 'ebBytesSize': 7}),
     ]
@@ -515,9 +515,9 @@ def selftest_fetch():
         read = lambda f: open(os.path.join(tmp, f)).read()
         assert read('s0003-client.txt') == (
             'role client\n'
-            'Send BlockTxsRequest %s 5 2 0:ff,3:01\n'
-            'Recv BlockTxs %s 5 2 9 -\n'
-            'Send Done\n') % (hh, hh), read('s0003-client.txt')
+            'Send BlockTxsRequest %s 5 2 0:80,3:01\n'
+            'Recv BlockTxs 2 9\n'
+            'Send Done\n') % hh, read('s0003-client.txt')
         assert read('s0004-server.txt') == 'role server\nSend Block %s 7\n' % hh
         assert read('s0003-client.src') == '6 t5\n8 t6\n9 t7\n'
         global_lines = read('interleaved.txt').splitlines()
@@ -547,6 +547,27 @@ def selftest_fetch():
             '1 Send Done', '0 Recv Block %s 7' % hh]
         rows = split(lines, os.path.join(tmp, 'nomux'), mux_split=False)
         assert [r[3] for r in rows] == [4, 2], rows
+        # Reject the old reply schema even when just one obsolete field is present.
+        old_error = ('old LeiosFetch schema: BlockTxs carries ebHash/ebSlot/bitmaps '
+                     '(pre-e9a99ea74); not supported')
+        for obsolete in [{'ebHash': hh, 'ebSlot': 5, 'bitmaps': []},
+                         {'ebHash': hh}, {'ebSlot': 5}, {'bitmaps': []}]:
+            msg = {'numTxs': 2, 'txsBytesSize': 9, **obsolete}
+            try:
+                normalize('Recv', 'BlockTxs', msg)
+            except ValueError as err:
+                assert str(err) == old_error, err
+            else:
+                raise AssertionError('old BlockTxs schema accepted: %r' % msg)
+        # The raw-log input path retains the source line on the same error.
+        try:
+            split([lf('old', 'Receive.BlockTxs', {
+                'ebHash': hh, 'ebSlot': 5, 'numTxs': 2,
+                'txsBytesSize': 9, 'bitmaps': []})], os.path.join(tmp, 'old'))
+        except ValueError as err:
+            assert str(err) == 'line 1: ' + old_error, err
+        else:
+            raise AssertionError('old BlockTxs log accepted')
     print('Fetch normalization selftest passed')
 
 

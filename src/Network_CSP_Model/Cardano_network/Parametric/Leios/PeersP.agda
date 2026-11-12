@@ -6,10 +6,13 @@
 -- This module models the Leios mini-protocol as implemented on the `leios-prototype`
 -- branch of ouroboros-consensus (`LeiosDemoOnlyTest{Notify,Fetch}.hs`, protocol numbers
 -- 18/19), which adapts the CIP-164 draft of July 2026.  Messages, payload types, state
--- machine and agency follow the prototype exactly, with two payload abstractions recorded
--- in the ADR `docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`
--- (`TxBitmap` is a concrete offset set; `MsgLeiosBlockTxs` is an offset-indexed map without
--- a bitmap echo); pipelining and credits, vote weights, deadlines, equivocation and
+-- machine and agency follow the prototype, with `TxBitmap` represented as concrete
+-- offsets and `MsgLFPBlockTxs` carrying a positional `List Tx` in that requested order,
+-- without an echoed point or bitmap; the client restores the point and offsets from
+-- its request (see decision D5 in
+-- docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md).
+-- The application API retains offset-indexed entries;
+-- pipelining and credits, vote weights, deadlines, equivocation and
 -- freshness are abstracted (peers are depth-1 alternating machines; the oracles
 -- `certifies`, `ebSize`, `ebTxs` stand in for validation).  The older CIP-draft model
 -- (`LeiosNotify.agda`/`LeiosFetch.agda`, `apiLN`/`apiLF`) stays beside this one: both ride

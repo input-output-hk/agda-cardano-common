@@ -2364,7 +2364,7 @@ msgOrigin (leiosNotifyP MsgLNPCanceled)              = FromResponder
 msgOrigin (leiosFetchP (MsgLFPBlockRequest _))       = FromInitiator
 msgOrigin (leiosFetchP (MsgLFPBlock _))              = FromResponder
 msgOrigin (leiosFetchP (MsgLFPBlockTxsRequest _ _))  = FromInitiator
-msgOrigin (leiosFetchP (MsgLFPBlockTxs _ _))         = FromResponder
+msgOrigin (leiosFetchP (MsgLFPBlockTxs _))           = FromResponder
 msgOrigin (leiosFetchP MsgLFPDone)                   = FromInitiator
 
 -- CLIENT value-role: a CLIENT peer offering io `(e,a)` constrains the value.

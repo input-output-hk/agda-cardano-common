@@ -63,17 +63,17 @@
 module Cardano_network.Parametric.Leios.NodeLogicL where
 
 open import Data.Bool using (Bool; true; false; if_then_else_; not; _∧_)
-open import Data.List using (List; []; _∷_; map; reverse; _++_)
-open import Data.Bool.ListAction using (any)
+open import Data.List using (List; []; _∷_; map; reverse; _++_; length)
+open import Data.Bool.ListAction using (any; all)
 open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
-open import Data.Nat using (ℕ; zero; suc)
-open import Data.Product using (_×_; _,_; proj₁; proj₂)
+open import Data.Nat using (ℕ; zero; suc; _<ᵇ_)
+open import Data.Product using (_×_; _,_; proj₁; proj₂; Σ)
 open import Data.Unit.Polymorphic using (⊤; tt)
 import Data.Unit as U
 open import Level using (0ℓ)
 open import Relation.Nullary using (yes; no)
 open import Relation.Nullary.Decidable using (⌊_⌋)
-open import Relation.Binary.PropositionalEquality using (refl)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import Class.DecEq using (DecEq; _≟_)
 import Class.DecEq.Instances as DecEqI
 open import Class.DecEq.Instances using (DecEq-List)
@@ -102,16 +102,16 @@ module Generic
                       ; decRbHash; decTx; decTxHash)
   -- `LeiosEb`/`LeiosPoint`, their `DecEq` instance and the derived all-offsets request
   -- live in `LeiosParams.agda`, not redefined here
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks)
   open LeiosP.LeiosParams lp using (mkVoteBlob; blobVoter; blobRb; certifies; ebTxs
-                                   ; ebSize; rbCert)
+                                   ; ebSize; rbCert; maxTxs)
   open import Cardano_network.Base using (Dir)
   -- EVERY tag this module names MUST appear here: an unlisted tag silently becomes a
   -- pattern VARIABLE and the carrier table turns into a stuck term (ledger gotcha 1).
   open N p
     using ( Link; Net_Api; Net_Api-≟; apiCS; apiTS; apiLP; store; env
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
-          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
+          ; stLacksBody; stLacksTx; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
           ; envForge; envSubmit
           ; reqCSRequestNext; sendCSRequestNext; recvCSRollforward
           ; lnpSendRequestNext; lnpSendBlockAnnouncement; lnpSendBlockOffer
@@ -135,7 +135,7 @@ module Generic
   open Topology t using (Node; endpointsOf)
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
     using ( EventSet; _∥⇘_⇙_; _⦀_; ⦀⁺; _□_; _◁_▷_; _>>_
-          ; Skip; Stop; Ret; Prefix; Prefix₀; Output; loop; loop0 )
+          ; pchoice; Skip; Stop; Ret; Prefix; Prefix₀; Output; loop; loop0 )
   open import Cardano_network.Parametric.Node p t apiES using (Proc)
   open NL.Generic p t apiES
     using ( Held; StoreProc; homeOf; forgeEv; putEv; getEv; offerHeld; acceptForge
@@ -209,6 +209,10 @@ module Generic
   getBodyEv : Node → EBHash → Net_Api Payload LeiosEb
   getBodyEv n h = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) (stGetBody h)
 
+  -- A value-free negative body read, offered only when its hash is absent.
+  lacksBodyEv : Node → EBHash → Net_Api Payload U.⊤
+  lacksBodyEv n h = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) (stLacksBody h)
+
   -- the mempool deposit channel of `n`
   putTxEv : Node → Net_Api Payload Tx
   putTxEv n = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) stPutTx
@@ -241,6 +245,10 @@ module Generic
   -- makes a served tx-closure entry real.
   getTxEv : Node → TxHash → Net_Api Payload Tx
   getTxEv n h = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) (stGetTx h)
+
+  -- A value-free negative transaction read, offered only when its hash is absent.
+  lacksTxEv : Node → TxHash → Net_Api Payload U.⊤
+  lacksTxEv n h = store (proj₁ (homeOf n)) (proj₂ (homeOf n)) (stLacksTx h)
 
   -- the transaction-submission channel of `n`: the environment injects a fresh tx
   submitEv : Node → Net_Api Payload Tx
@@ -333,7 +341,48 @@ module Generic
   ebStore : Node → Entries → Proc
   ebStore n es = loop (ebStep n) es
 
-  -- one step of the EB-body store: deposit a body unless its hash is already held, or
+  -- Recognise exactly this node's negative body channels, retaining their hash.
+  lacksBodyKey : (n : Node) (at : AnyTypes (Net_Api Payload))
+               → Maybe (Σ EBHash (λ h → (U.⊤ , lacksBodyEv n h) ≡ at))
+  lacksBodyKey n (._ , store l d (stLacksBody h))
+    with Net_Api-≟ (U.⊤ , lacksBodyEv n h) (U.⊤ , store l d (stLacksBody h))
+  ... | no _ = nothing
+  ... | yes eq = just (h , eq)
+  lacksBodyKey n _ = nothing
+
+  -- Recognise exactly this node's negative transaction channels, retaining their hash.
+  lacksTxKey : (n : Node) (at : AnyTypes (Net_Api Payload))
+             → Maybe (Σ TxHash (λ h → (U.⊤ , lacksTxEv n h) ≡ at))
+  lacksTxKey n (._ , store l d (stLacksTx h))
+    with Net_Api-≟ (U.⊤ , lacksTxEv n h) (U.⊤ , store l d (stLacksTx h))
+  ... | no _ = nothing
+  ... | yes eq = just (h , eq)
+  lacksTxKey n _ = nothing
+
+  -- The negative body menu preserves the state and excludes every held hash.
+  lacksBodies : Node → Bodies → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies
+  lacksBodies n bs = pchoice menu
+    where
+    -- Recognised channels return the unchanged state only when their hash is absent.
+    menu : (at : AnyTypes (Net_Api Payload)) → Process_Trees.ContinueType at
+             (Maybe (PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Bodies))
+    menu at _ with lacksBodyKey n at
+    ... | nothing = nothing
+    ... | just (h , _) = if memberOf h (map ebHash bs) then nothing else just (Ret bs)
+
+  -- The negative transaction menu preserves the state and excludes every held hash.
+  lacksTxs : Node → Mem → PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Mem
+  lacksTxs n ts = pchoice menu
+    where
+    -- Recognised channels return the unchanged state only when their hash is absent.
+    menu : (at : AnyTypes (Net_Api Payload)) → Process_Trees.ContinueType at
+             (Maybe (PTree (Net_Api Payload) (ExtI (Net_Api Payload)) Mem))
+    menu at _ with lacksTxKey n at
+    ... | nothing = nothing
+    ... | just (h , _) = if memberOf h (map txHash ts) then nothing else just (Ret ts)
+
+  -- One body-store step deposits, reads a held body, or reports a missing hash.
+  -- Deposit a body unless its hash is already held, or
   -- hand over the body with a given hash.  A body is keyed by its hash, so this store
   -- needs no pointer and may serve the same body any number of times.  (Forward
   -- declaration: `bodyStep` calls `offerBodies`, defined right after it.)
@@ -344,7 +393,7 @@ module Generic
   bodyStep n bs =
       (putBodyEv n ⟶ (λ eb → Ret (if memberOf (ebHash eb) (map ebHash bs)
                                    then bs else bs ++ (eb ∷ []))))
-    □  offerBodies n bs bs
+    □ (offerBodies n bs bs □ lacksBodies n bs)
 
   -- offer `stGetBody (ebHash eb) ! eb` for every body held, leaving the state intact
   offerBodies n bs []         = Stop
@@ -362,7 +411,8 @@ module Generic
 
   -- one step of the mempool: key-dedup-insert a transaction, THE STORE SIDE OF
   -- `envSubmit`, hand over the k-th oldest (the TxSubmission server's read pointer), or
-  -- hand over the one with a given hash (the tx-closure server's keyed lookup).
+  -- hand over the one with a given hash (the tx-closure server's keyed lookup), or
+  -- report that a transaction hash is absent.
   -- Forward declaration: `memStep` calls `offerTxs`, defined right after it.
   --
   -- THE `envSubmit` ARM — the store side `submit` was missing — is a PURE RENDEZVOUS:
@@ -378,7 +428,7 @@ module Generic
       (putTxEv n ⟶ (λ tx → Ret (insertTx tx ts)))
     □ ((submitEv n ⟶ (λ _ → Ret ts))
     □ ((offerIx (getTxAtEv n) ts 0 ts)
-    □   offerTxs n ts ts))
+    □  (offerTxs n ts ts □ lacksTxs n ts)))
 
   -- offer `stGetTx (txHash tx) ! tx` for every transaction held, leaving the state intact
   offerTxs n ts []         = Stop
@@ -597,43 +647,46 @@ module Generic
   voteOfferLoop : Node → Link × Dir → Proc
   voteOfferLoop n (l , d) = loop (voteOfferBody n l (opposite d)) 0
 
-  -- fetch the body that was OFFERED, and store it only if its hash matches the point the
-  -- request named — `MsgLFPBlock` carries no point, so the guard is against the REQUESTED
-  -- point (spec §2.2, §3 "wire checks").  This is the guard S1 rests on.
+  -- Fetch an offered body; an oversized table or mismatched hash stops this thread.
+  -- The shared Notify client loop then cannot service any other arm on this link.
   fetchBody : Node → Link → Dir → (EBHash × LSlot) × Size → Proc
   fetchBody n l d (q , _) =
     Output ⦃ DecEq-EBPoint ⦄ (apiLP l d lfpSendBlockRequest) q
       (apiLP l d lfpRecvBlock ⟶ (λ eb →
-         (putBodyEv n ! eb ⟶ Skip) ◁ ⌊ ebHash eb ≟ proj₁ q ⌋ ▷ Skip))
+         Stop ◁ (maxTxs <ᵇ length (ebTxs (ebHash eb))) ▷
+           ((putBodyEv n ! eb ⟶ Skip) ◁ ⌊ ebHash eb ≟ proj₁ q ⌋ ▷ Stop)))
 
-  -- DEPOSIT EVERY CHECKED ENTRY of a tx-closure reply: an entry `(o , tx)` is stored only
-  -- when `tx` really is the transaction the EB body's table names at offset `o`.  An entry
-  -- that fails the check, or whose offset is past the table, is SKIPPED — the reply is
-  -- data, and dropping a bad entry is the modelled form of the prototype's wire check.
-  -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+  -- Check that an offset exists and its transaction hashes to the table entry.
+  entryOk : EBHash → ℕ × Tx → Bool
+  entryOk h (o , tx) with at? o (ebTxs h)
+  ... | nothing      = false
+  ... | just (k , _) = ⌊ txHash tx ≟ k ⌋
+
+  -- Deposit every entry in order, after the reply-wide check has succeeded.
+  putAll : Node → List (ℕ × Tx) → Proc
+  putAll n []             = Skip
+  putAll n ((o , tx) ∷ es) = putTxEv n ! tx ⟶ putAll n es
+
+  -- Validate the entire reply before its first deposit; any bad entry stops the thread.
   putChecked : Node → EBHash → List (ℕ × Tx) → Proc
-  putChecked n h []             = Skip
-  putChecked n h ((o , tx) ∷ es) with at? o (ebTxs h)
-  ... | nothing      = putChecked n h es
-  ... | just (k , _) = (putTxEv n ! tx ⟶ putChecked n h es)
-                         ◁ ⌊ txHash tx ≟ k ⌋ ▷ putChecked n h es
+  putChecked n h es = putAll n es ◁ all (entryOk h) es ▷ Stop
 
-  -- fetch the WHOLE tx closure of an offered point.  BLOCK first at the body the point
-  -- names (a closure without its EB body is meaningless), then request every offset of
-  -- that body's table, then check the echoed point and hand the entries to `putChecked`.
-  -- The reply does NOT echo the bitmap: the offsets are the entries' keys.
-  -- LIVENESS CEILING: that leading `getBodyEv` BLOCKS the ONE Notify client thread when the
-  -- body is not held — reachable when `fetchBody`'s hash guard rejected a bad EB, i.e. under
-  -- the very threat model S1 addresses — and with it the announcement, offer and vote arms
-  -- of this endpoint.  Deliberate (a closure without its body is meaningless), not a wedge
-  -- in the C2 sense, but it is a ceiling Task 10 must not mistake for deadlock-freedom.
+  -- Fetch each chunk in order; a mismatched point or failed reply check stops the loop.
+  fetchChunks : Node → Link → Dir → EBHash × LSlot → List TxBitmap → Proc
+  fetchChunks n l d q [] = Skip
+  fetchChunks n l d q (bm ∷ bms) =
+    Output ⦃ DecEq-TxsRequest ⦄ (apiLP l d lfpSendBlockTxsRequest) (q , bm)
+      (apiLP l d lfpRecvBlockTxs ⟶ (λ { (q′ , es) →
+        (putChecked n (proj₁ q) es >> fetchChunks n l d q bms)
+          ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Stop }))
+
+  -- Wait for the offered body's table, then request all its offsets in bounded chunks.
+  -- An empty table sends no request. A missing body blocks the shared Notify client;
+  -- a failed body/reply check stops it, silencing this link's announcement, offer and
+  -- vote handling. Chunking still over-fetches all offsets rather than only missing ones.
   fetchTxs : Node → Link → Dir → EBHash × LSlot → Proc
   fetchTxs n l d q =
-    getBodyEv n (proj₁ q) ⟶ (λ _ →
-      Output ⦃ DecEq-TxsRequest ⦄ (apiLP l d lfpSendBlockTxsRequest)
-        (q , allOffsets lp (proj₁ q))
-        (apiLP l d lfpRecvBlockTxs ⟶ (λ { (q′ , es) →
-           putChecked n (proj₁ q) es ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Skip })))
+    getBodyEv n (proj₁ q) ⟶ (λ _ → fetchChunks n l d q (txChunks lp (proj₁ q)))
 
   -- deposit every delivered vote blob, in order
   putAllVotes : Node → List VoteBlob → Proc
@@ -657,46 +710,38 @@ module Generic
   lnClientLoopL : Node → Link × Dir → Proc
   lnClientLoopL n (l , d) = loop0 (lnClientBodyL n l d)
 
-  -- one EB-serve round: the LF producer reports the POINT the far end asked for, the body
-  -- store hands that body over, and it goes out on the wire.  The far end requests only
-  -- points this node OFFERED, and bodies are never removed, so `stGetBody` never blocks in
-  -- the good logic.
+  -- Serve a requested body when held; a negative store read stops this thread.
+  -- Honest offers name held bodies, so their positive read is unchanged.
   ebServeBody : Node → Link → Dir → Proc
   ebServeBody n l d =
     apiLP l d lfpReqBlockRequest ⟶ (λ q →
-      getBodyEv n (proj₁ q) ⟶ (λ eb → apiLP l d lfpSendBlock ! eb ⟶ Skip))
+      (getBodyEv n (proj₁ q) ⟶ (λ eb → apiLP l d lfpSendBlock ! eb ⟶ Skip))
+      □ (lacksBodyEv n (proj₁ q) ⟶₀ Stop))
 
   -- the EB-serve thread of one endpoint.  IT DRIVES `opposite d`.
   ebServeLoop : Node → Link × Dir → Proc
   ebServeLoop n (l , d) = loop0 (ebServeBody n l (opposite d))
 
-  -- SERVE THE REQUESTED OFFSETS, then send the offset-indexed reply.  For each offset `o`
-  -- the EB body table gives a hash, and `stGetTx` — offered only for a transaction the
-  -- mempool HOLDS — gives the transaction; that store read is what makes the reply's
-  -- entries real.  An offset past the table is skipped.  Structurally recursive on the
-  -- bitmap, so no `>>=` and no corecursion here.
-  -- NO LONGER A LIVENESS CEILING (2026-10-02 dedup/closure-gate design §2, bug 2).
-  -- `getTxEv n h` would block if this node held the EB body but not the transaction at
-  -- offset `o`, and since `ebServeLoop` and `ebTxsServeLoop` drive the SAME LeiosFetchP
-  -- producer that would also stop EB-BODY serving on this endpoint.  The store read STAYS
-  -- (it is what makes the reply's entries real); the OFFER moved instead: `bodyOfferBody`
-  -- sends `lnpSendBlockTxsOffer` only after `awaitTxs` has seen the whole closure, and the
-  -- mempool never drops a transaction, so a closure this node offered never blocks here.
-  -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
+  -- Serve every requested offset in order, sending a reply only after all reads.
+  -- An offset past the body table or an unwritten transaction stops the thread.
+  -- Honest closure offers pass `awaitTxs`, and the mempool never removes entries,
+  -- so those requests take the positive reads. Recursion is on the bitmap.
   serveTxs : Node → Link → Dir → EBHash × LSlot → TxBitmap → List (ℕ × Tx) → Proc
   serveTxs n l d q []       acc =
     Output ⦃ DecEq-TxsReply ⦄ (apiLP l d lfpSendBlockTxs) (q , acc) Skip
   serveTxs n l d q (o ∷ os) acc with at? o (ebTxs (proj₁ q))
-  ... | nothing      = serveTxs n l d q os acc
+  ... | nothing      = Stop
   ... | just (h , _) =
-        getTxEv n h ⟶ (λ tx → serveTxs n l d q os (acc ++ ((o , tx) ∷ [])))
+        (getTxEv n h ⟶ (λ tx → serveTxs n l d q os (acc ++ ((o , tx) ∷ []))))
+        □ (lacksTxEv n h ⟶₀ Stop)
 
   -- one tx-closure-serve round: the LF producer reports the request, the body store
-  -- confirms this node holds the EB, and `serveTxs` builds and sends the reply
+  -- confirms the EB or stops; `serveTxs` then builds the complete reply or stops
   ebTxsServeBody : Node → Link → Dir → Proc
   ebTxsServeBody n l d =
     apiLP l d lfpReqBlockTxsRequest ⟶ (λ { (q , bm) →
-      getBodyEv n (proj₁ q) ⟶ (λ _ → serveTxs n l d q bm []) })
+      (getBodyEv n (proj₁ q) ⟶ (λ _ → serveTxs n l d q bm []))
+      □ (lacksBodyEv n (proj₁ q) ⟶₀ Stop) })
 
   -- the tx-closure-serve thread of one endpoint.  IT DRIVES `opposite d`.
   -- see ADR 2026-09-21 (leios-tx-closure-and-object-identities)
@@ -705,9 +750,9 @@ module Generic
 
   -- DEPOSIT EVERY REQUESTED TRANSACTION of a TxSubmission reply: an entry `tx` is stored
   -- only when its hash is one of the `ids` THIS NODE ASKED FOR in the same round.  An
-  -- unrequested transaction is SKIPPED, exactly as `putChecked` skips an entry that fails
-  -- its offset check — the reply is data, and dropping a bad entry is the modelled form of
-  -- the prototype's wire check.  Real TxSubmission does not accept an unrequested
+  -- unrequested transaction is SKIPPED on this TxSubmission route. LeiosFetch instead
+  -- validates its whole reply in `putChecked` and stops on any bad entry.
+  -- Real TxSubmission does not accept an unrequested
   -- transaction; this route had NO wire check at all, the one deposit path of the three
   -- (`fetchBody`, `putChecked`, here) that did not guard against its own request.
   putAllTx : Node → List TxHash → List Tx → Proc

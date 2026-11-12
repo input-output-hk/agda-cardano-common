@@ -1,20 +1,22 @@
 {-# OPTIONS --guardedness #-}
 
 -- Concrete parameters for the trace-replay bridge (Phase 5, amendment B4):
--- EB = EBHash = LSlot = ℕ with `ebHash = id`, every other domain ⊤, no
--- mempool (`ebTxs = const []`), and a 2-node, 1-link topology.  Node 0 sits
+-- EB = EBHash = LSlot = ℕ with `ebHash = id`, every other domain ⊤, a
+-- decoder-sized transaction table, and a 2-node, 1-link topology.  Node 0 sits
 -- at `(link 0 , lo)`, node 1 at `(link 0 , hi)`.
 -- Invariant 1 (B7a): checked with `agda --safe` on the command line.
 module Cardano_network.Replay.ReplayParams where
 
-open import Data.Nat using (ℕ)
+open import Data.Nat using (ℕ; s≤s; z≤n)
+open import Data.Nat.Properties using (≤-refl)
 open import Data.Unit using (⊤; tt)
 open import Data.Fin using (Fin) renaming (zero to fzero; suc to fsuc)
-open import Data.List using (List; []; _∷_)
+open import Data.List using (List; []; _∷_; replicate)
 open import Data.Maybe using (nothing)
 open import Data.Bool using (false)
 open import Data.Product using (_×_; _,_)
 open import Relation.Binary.PropositionalEquality using (refl)
+open import Cardano_network.Replay.LeiosFetchWords using (decoderOffsets)
 import Class.DecEq.Instances as DecEqI
 
 open import Cardano_network.Base using (Dir; lo; hi; IDs; N2N_LeiosFetch)
@@ -51,9 +53,10 @@ replayLP = record
   { mkVoteBlob = λ _ _ → tt ; blobVoter = λ _ → tt ; blobRb = λ _ → tt
   ; blobVoter-mk = λ _ _ → refl ; blobRb-mk = λ _ _ → refl
   ; certifies = λ _ _ → false
-  -- ponytail: no mempool, BlockTxs bodies always empty (the log forgets them);
-  -- upgrade path = real ebTxs + mempool if bitmaps/numTxs ever get constrained
-  ; ebTxs = λ _ → []
+  -- D10′ option (a): cover the entire decoder domain, including padding bits.
+  ; ebTxs = λ _ → replicate decoderOffsets (tt , tt)
+  ; chunk = 17142
+  ; chunk-pos = s≤s z≤n ; chunk≤maxTxs = ≤-refl
   ; ebSize = λ _ → tt ; rbCert = λ _ → nothing }
 
 -- the link's (lo-end , hi-end) nodes: node 0 — node 1

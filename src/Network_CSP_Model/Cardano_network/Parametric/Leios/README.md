@@ -8,13 +8,72 @@ node-level theorems they were lifted from, **eight negative controls**, and **no
 theorems for a two-node instance and for the shipped three-node line** (`noLivelock2`,
 `noLivelockL`) with their controls (section F). Everything
 here is built on the repository's generic CSP-over-process-trees layer and on
-`Cardano_network`'s existing `Params`/`Net`/`Node` scaffolding; nothing in the older
-estate was changed to accommodate it.
+`Cardano_network`'s `Params`/`Net`/`Node` scaffolding, including the negative store
+reads added in stage 3B+C.
+
+The positional BlockTxs wire reply follows `ouroboros-consensus` `leios-prototype`
+at `e651152750388ccf20700eb28149751981a396f4`: `MsgLFPBlockTxs : List Tx` carries
+transactions in requested-bitmap order, without an echoed point or offsets. The
+client rebuilds the point and offset keys from its own request. Since stage 3A,
+it receives a count-mismatched reply and then becomes `Stop`: stable, with no
+further event or τ step of that peer. This represents upstream's client error at
+the scope of this peer; whole-connection teardown is abstracted.
+`NodeLogicL.fetchChunks` then waits forever for the application reply, and
+because that is the link's `lnClientLoopL` thread, the link's Notify client goes quiet
+too. A successful honest server reply contains one transaction per requested offset.
+The application-level reply carrier remains
+`(EBHash × LSlot) × List (ℕ × Tx)`.
+
+## Stage 3B+C behavior
+
+The upstream pin remains `e651152750388ccf20700eb28149751981a396f4`.
+The body store and mempool now offer unit-valued negative reads,
+`stLacksBody h` and `stLacksTx k`, exactly when the corresponding hash is absent.
+Positive reads remain available for held hashes; a negative read leaves the store
+unchanged. The server chooses between these reads and becomes `Stop` on each of
+the three upstream throw causes (`LeiosDemoLogic.hs:266–307`): an unknown EB,
+an offset outside that EB's transaction table, or unwritten transaction bytes.
+`serveTxs` sends only after all requested reads succeed, so a throw sends no
+partial reply. The affected producer remains busy waiting for its stopped serving
+thread; no throw API tag or new peer state models connection teardown.
+
+The client now stops on a received EB whose transaction table exceeds `maxTxs`,
+on an EB hash different from the requested hash, or on a failed transaction-reply
+check. `entryOk` requires an existing offset and the table's transaction hash;
+`putChecked` validates the entire reply before `putAll` deposits its first entry.
+A single bad entry therefore deposits nothing from that reply. Successful earlier
+chunks retain their deposits. `fetchChunks` also stops on an echoed-point mismatch;
+the peer's reconstructed replies satisfy that guard because it restores its own
+requested point. An application-level stop ends the shared `lnClientLoopL`,
+silencing that link's Notify client, including announcement, offer and vote handling.
+These are thread/peer stops, not a model of every mini-protocol dying on a TCP link.
+
+`fetchTxs` still first reads the body, then requests
+`txChunks lp h = chunksOf (chunk lp) (allOffsets lp h)` in order, with
+`1 ≤ chunk ≤ maxTxs`. An empty table sends no transaction request. This deliberately
+over-fetches relative to upstream's missing-only selection; the count bound stands
+in for upstream's byte batching. The three main parameter constructors use
+`maxTxs = 17142`, with `chunk = 1` in model instances and `17142` in `replayLP`.
+The received-EB check bounds table length, not wire byte size.
+
+The seven safety disciplines, `noRet-logic`, `noLivelockL`, `noLivelock2`, and the
+`LiveL`/`Live2` finite-witness statements are unchanged. Their helpers cover the
+new events and stopped/chunked thread shapes. The replay server/client bridge and
+`server-legal` statements are unchanged too; `LeiosFetchPipe`, the replay spec,
+application carriers and peer states retain their definitions.
+[`FetchWedge`](Negative/FetchWedge.agda)'s `wedge-stuck` now concerns the local
+pre-3B+C copy `ebServeBodyBlocking`; `wedge-throws` and `stopped-no-step` witness
+the shipped serving thread's stop in the same unknown-body scenario. Their scope
+is a thread/store pair, not the whole system. Recheck evidence and accepted helper
+signature changes are in the [stage-3B+C outcome](../../../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome).
+Count-preserving universal replay soundness remains stage 3D work. These results
+do not establish delivery liveness, validity, or honest announcement reachability.
 
 The design spec is
 `docs/superpowers/specs/2026-09-21-leios-prototype-protocols-design.md`; the two payload
 abstractions are recorded in
-`docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`. The
+`docs/superpowers/decisions/2026-09-21-leios-tx-closure-and-object-identities.md`
+(the BlockTxs one superseded by D5 of docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md). The
 branch's public status record is `csp-ptree-agda/src/CSP/Laws_status.md` §"Leios prototype".
 
 > **Read section C before quoting anything from sections A0, A or B.** All seven
@@ -613,8 +672,9 @@ txSound-node-FAILS : ¬ TxSound-node-Bad
 txSound-node-FAILS h = noForge (proj₂ (h _ bad-tx-fires))
 ```
 
-`putCheckedBad` (`TxOriginBad.agda:189-193`) drops `putChecked`'s `⌊ txHash tx ≟ k ⌋` and
-stores whatever the reply carries at a valid offset. `badLogic`
+`TxOriginBad.entryOkBad` drops `entryOk`'s `⌊ txHash tx ≟ k ⌋`, retaining offset
+existence, chunking, echoed-point rejection and reply-wide validation before deposits.
+`putCheckedBad` therefore stores whatever the reply carries at valid offsets. `badLogic`
 (`TxOriginBad.agda:243-244`) is `nodeLogicLTxBad nA st₀` (`:226-230`): the **forge thread
 and the broken Notify client** against the node's five real stores on the same
 `∥⇘ storeES ⇙`, with the peer bundle and the other thirteen threads absent. So what is
@@ -665,12 +725,13 @@ in §A0. **Never put either of them and `annSafeLT`'s ∀-quantification in one 
 
 ### The other two negative facts
 
-Neither is a control at all; both are properties of *designs that were rejected*.
+Both negative facts concern *designs that were rejected*. `FetchWedge` also
+compares its blocking copy with the shipped throwing thread.
 
 | Fact | Module:line | What it is |
 |---|---|---|
 | `chatter-diverges` | `Negative/Chatter.agda:179` | `Diverges chatterPair` — the unchanged relay loop announces the same held block forever, so an infinite τ-path exists once the store and Notify channels are hidden. This is why `NodeLogicL.lnServerLoopL` carries a read pointer. |
-| `wedge-reachable` / `wedge-stuck` | `wedge-reachable` at `Negative/FetchWedge.agda:147`, `wedge-stuck` at `:238` | A pointer-driven fetch asks for a body the neighbour does not hold; both sides of the rendezvous are in `storeES`, so the pair has **no** transition at all. Level: a pair plus one step, not a system. |
+| `wedge-reachable` / `wedge-stuck`; `wedge-throws` | `Negative/FetchWedge.agda` | The local pre-3B+C `ebServeBodyBlocking` asks for an unknown body and cannot rendezvous with the store, so the pair has **no** transition. The shipped server instead consumes `stLacksBody` and reaches a stopped round (`wedge-throws`, `stopped-no-step`). Level: a thread/store pair, not a system. |
 
 ---
 
@@ -808,7 +869,7 @@ statement to mean anything — and is not a new restriction on what a node may a
 ### The probe levels in `NodeLogicLSanity` differ and must not be conflated
 
 `NodeLogicLSanity.agda` is a non-vacuity certificate for the R1 repair (two pure-rendezvous
-`env` arms that unblocked `forgeCert` and `submit`). Nothing imports it. Its six probes sit
+`env` arms that unblocked `forgeCert` and `submit`). Nothing imports it. Its original six probes sit
 at **three different levels**:
 
 | Probe | Line | Level |
@@ -824,6 +885,14 @@ Probes 3 and 4 are process facts about the store at one hash and two states; the
 is structural, in `NodeLogicL.offerCerts`, and is **not** what they pin. Probes 5 and 6
 say nothing about the implementation. Nothing here may be quoted as a fact about the
 composite except probes 1 and 2.
+
+Stage 3B+C adds `refl` gates for held/missing body and transaction reads, missing
+offsets and unwritten transactions stopping the server, discarding a partial
+server accumulator, oversized/mismatched bodies stopping the client, a bad reply
+depositing nothing, and two chunks making two requests. These are local
+offer-map or definitional equations, not composed reachability witnesses.
+`LeiosParamsSanity` separately pins chunk boundaries, empty input, singleton
+chunks and the universe-polymorphic concatenation law.
 
 ### Pairing a positive with its refutation
 
@@ -892,8 +961,8 @@ the same shape, the bundle contributing only the vacuous `wf-linkBundlesP`.
 
 | Module | Lines | Purpose |
 |---|--:|---|
-| `LeiosParams.agda` | 93 | The Leios parameter record over a `Params`: the vote-blob algebra (a vote names the **ranking block** it endorses), the certification oracle `certifies` and its `CertifiesMono` law, the two EB projections `ebTxs`/`ebSize`, and `rbCert`. No validation oracle — the prototype's votes carry no verdict. |
-| `NodeLogicL.agda` | 788 | **The Linear-Leios node logic.** An additive layer over `Parametric.NodeLogic`, which is untouched. `nodeLogicL` (`:783`) is **five** node-level threads (`forgeL`, `ebIndex`, `voter`, `submit`, `certSink`) in parallel with each endpoint's ten, synchronised on `storeES` with five stores (block, EB-entry, body, mempool, vote). The certificate-RB forge is part of `forgeL` since `76bb8ec2`; `envForgeCert` and the sixth thread are gone, and `storeStepL` (`:311-316`) has **four** branches. All three mempool deposit routes now carry a wire check: `fetchBody` against the point it asked for, `putChecked` against the offset hash, and — since `0c2d3e63` — `putAllTx` (`:713-717`) against the `ids` of its own round. |
+| `LeiosParams.agda` | 143 | The Leios parameter record over a `Params`: the vote-blob algebra, certification oracle and monotonicity law, EB projections and `rbCert`; stage 3B+C adds `maxTxs`, positive bounded `chunk`, `chunksOf`/`chunksOf-concat`, and all-offset `txChunks`. No validation oracle — the prototype's votes carry no verdict. |
+| `NodeLogicL.agda` | 833 | **The Linear-Leios node logic.** An additive layer over `Parametric.NodeLogic`. `nodeLogicL` combines five node-level threads (`forgeL`, `ebIndex`, `voter`, `submit`, `certSink`) and each endpoint's ten, synchronised on `storeES` with five stores (block, EB-entry, body, mempool, vote). Stage 3B+C adds negative body/transaction reads, server throws, all-offset chunking and reply-wide client checks. `fetchBody` checks received EB size/hash; `putChecked` checks transaction offset/hash, while TxSubmission's `putAllTx` checks the requested `ids`. |
 | `PeersP.agda` | 170 | The **prototype** peer bundle `nodeBundleP`, over `LeiosNotifyP`/`LeiosFetchP` (`apiLP`). Additive: `NetworkPar` and `Node.agda` are untouched; a node runs one bundle or another via `Node.nodeWith`. |
 | `PeersR.agda` | 85 | The earlier **request-reporting** bundle `nodeBundleR`, which swaps in the reporting LeiosFetch/TxSubmission servers of the *old* CIP-draft peers. Superseded: it now carries zero `Wf` facts and one consumer, `PeersRSanity`. |
 | `LeiosInstanceL.agda` | 176 | The concrete three-node Linear-Leios line over its own `Params` (`leiosLParams`, `:94`; `leiosLP`, `:130`; `leiosLLine`, `:156`), and the system `leiosSystemL` (`:174`) — the prototype bundle over `NetworkLinkBreakableA`. |
@@ -974,12 +1043,13 @@ tick — peers terminate on `done`. The `Wf`/`Carries` framework carries the who
 
 | Module | Lines | Purpose |
 |---|--:|---|
-| `NodeLogicLSanity.agda` | 212 | Six probes at three levels (see section C). Imported by nobody. |
+| `NodeLogicLSanity.agda` | 310 | The original six probes at three levels (section C), plus stage-3B+C negative-read, server-stop, client-stop and two-chunk computation gates. Imported by nobody. |
+| `LeiosParamsSanity.agda` | — | `refl` chunk-boundary/empty/singleton gates and the polymorphic concatenation law. |
 | `DedupGateSanity.agda` | 113 | The two 2026-10-02 regression pins, `viewV` facts at `leiosLParams`: `dedup-held`/`fresh-prepends` (the RB store's `putEv` arm keeps a held block and prepends a fresh one) and `gate-waits`/`empty-mempool-withholds` (`bodyOfferBody` waits for the closure before `lnpSendBlockTxsOffer`, then sends it). Store- and thread-local, not composite facts. Imported by nobody. |
 | `PeersPSanity.agda` | 73 | `lfpP-reports-request` (`:68`) — a `refl` typechecking probe that the prototype LeiosFetch server reports the request to the application. |
 | `PeersRSanity.agda` | 43 | The line system over `nodeBundleR`; the only remaining consumer of `PeersR`. |
 | `Negative/Chatter.agda` | 189 | `chatter-diverges` (`:179`) — the unchanged relay chatters. Design law L's justification. |
-| `Negative/FetchWedge.agda` | 247 | `wedge-reachable` (`:147`) / `wedge-stuck` (`:238`) — the pointer-driven fetch wedge (spec correction C2). |
+| `Negative/FetchWedge.agda` | 283 | `wedge-reachable` / `wedge-stuck` concern the local blocking copy; `wedge-throws` / `stopped-no-step` compare the shipped server in the same unknown-body scenario. Thread/store scope. |
 
 ---
 

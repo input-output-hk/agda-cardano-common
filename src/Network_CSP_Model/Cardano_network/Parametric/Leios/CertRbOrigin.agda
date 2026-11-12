@@ -137,8 +137,8 @@ module Cardano_network.Parametric.Leios.CertRbOrigin where
 open import Level using (Level; 0ℓ)
 open import Data.Bool using (Bool; true; false)
 open import Data.Empty using (⊥; ⊥-elim)
-open import Data.Nat using (ℕ; zero; suc)
-open import Data.List using (List; []; _∷_; _++_)
+open import Data.Nat using (ℕ; zero; suc; _<ᵇ_)
+open import Data.List using (List; []; _∷_; _++_; length)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.Maybe using (Maybe; just; nothing; maybe; maybe′)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
@@ -184,7 +184,7 @@ module Generic
           ; linkConfig; ebHash; rbHash; txHash; slotOf; announcedEB
           ; decBlock; decEBHash; decRbHash; decLSlot; decVoteBlob; decEB; decTx; decTxHash )
   open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets)
-  open LeiosP.LeiosParams lp using (mkVoteBlob; ebTxs; ebSize; rbCert)
+  open LeiosP.LeiosParams lp using (mkVoteBlob; ebTxs; maxTxs; ebSize; rbCert)
   -- EVERY tag named below MUST appear here: an unlisted tag silently becomes a pattern
   -- VARIABLE and the carrier table turns into a stuck term (campaign ledger, gotcha 1).
   open N p
@@ -192,7 +192,7 @@ module Generic
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
-          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
+          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert; stLacksBody; stLacksTx
           ; envForge; envSubmit
           ; recvBFBlock
           ; lnpSendBlockOffer; lnpSendBlockTxsOffer
@@ -219,7 +219,7 @@ module Generic
   endAtT : Link → Dir → Node
   endAtT = Topology.endAt t
   open O {E = Net_Api Payload} (Net_Api-≟ {Payload})
-    using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_)
+    using (EventSet; Skip; Ret; _⦀_; _∥⇘_⇙_; Prefix; Prefix₀; Output; _□_; _◁_▷_; Stop)
   open import Cardano_network.Parametric.Node p t apiES
     using (Proc; nodeWith; bundleAtWith; linkBundlesWith)
   open import Semantics.LTS
@@ -456,6 +456,8 @@ module Generic
   needs-put {e = store _ _ stCert}          ()
   needs-put {e = store _ _ (stGetTx _)}     ()
   needs-put {e = store _ _ (stHasCert _)}   ()
+  needs-put {e = store _ _ (stLacksBody _)}   ()
+  needs-put {e = store _ _ (stLacksTx _)}   ()
   needs-put {e = input _ _ _}               ()
   needs-put {e = output _ _ _}              ()
   needs-put {e = sndmsg _ _ _}              ()
@@ -573,13 +575,16 @@ module Generic
   -- S4 does not gate, so it is written here at S4's own `noNeed`.
   ------------------------------------------------------------------------
 
+  open import CSP.Laws.DivFree.CountOffers (Net_Api-≟ {Payload}) using (OffersOnly-Stop)
+
   -- the guarded EB-BODY deposit of a fetch: not a block either way
-  oo-fetchDep : ∀ n h′ eb
-              → OffersOnly noNeed
-                  ((putBodyEv n ! eb ⟶ Skip {0ℓ}) ◁ ⌊ ebHash eb ≟ h′ ⌋ ▷ Skip {0ℓ})
-  oo-fetchDep n h′ eb with ⌊ ebHash eb ≟ h′ ⌋
-  ... | true  = OffersOnly-Output (λ ()) OffersOnly-Skip
-  ... | false = OffersOnly-Skip
+  oo-fetchDep : ∀ n h′ eb → OffersOnly noNeed
+    (Stop ◁ (maxTxs <ᵇ length (ebTxs (ebHash eb))) ▷
+      ((putBodyEv n ! eb ⟶ Skip {0ℓ}) ◁ ⌊ ebHash eb ≟ h′ ⌋ ▷ Stop))
+  oo-fetchDep n h′ eb with maxTxs <ᵇ length (ebTxs (ebHash eb)) | ⌊ ebHash eb ≟ h′ ⌋
+  ... | true | _ = OffersOnly-Stop
+  ... | false | true = OffersOnly-Output (λ ()) OffersOnly-Skip
+  ... | false | false = OffersOnly-Stop
 
   -- the reaction to a body offer: request the offered point, receive the body, deposit
   -- it if it hashes to what was asked for — an EB body, never a ranking block

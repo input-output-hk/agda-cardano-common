@@ -381,11 +381,11 @@ ebStore-alph n = loopAll (λ es → eb-All n es (λ _ → _) (λ _ _ → _))
 
 -- … of the EB-body store
 bodyStore-alph : ∀ n bs {s W} → bodyStore n bs ⟹⟨ s ⟩ W → AllL (InA storeES) (labels s)
-bodyStore-alph n = loopAll (λ bs → body-All n bs (λ _ → _) (λ _ _ → _))
+bodyStore-alph n = loopAll (λ bs → body-All n bs (λ _ → _) (λ _ _ → _) (λ _ → _))
 
 -- … of the mempool
 mempool-alph : ∀ n ts {s W} → mempool n ts ⟹⟨ s ⟩ W → AllL (InA storeES) (labels s)
-mempool-alph n = loopAll (λ ts → mem-All n ts (λ _ → _) (λ _ → _) (λ _ _ _ → _) (λ _ _ → _))
+mempool-alph n = loopAll (λ ts → mem-All n ts (λ _ → _) (λ _ → _) (λ _ _ _ → _) (λ _ _ → _) (λ _ → _))
 
 -- … of the vote store
 voteStore-alph : ∀ n vs {s W} → voteStore n vs ⟹⟨ s ⟩ W → AllL (InA storeES) (labels s)
@@ -401,11 +401,11 @@ ebStore-noCh n = loopAll (λ es → eb-All n es (λ _ ()) (λ _ _ ()))
 
 -- … nor the EB-body store
 bodyStore-noCh : ∀ n bs {s W} → bodyStore n bs ⟹⟨ s ⟩ W → AllL NoCh (labels s)
-bodyStore-noCh n = loopAll (λ bs → body-All n bs (λ _ ()) (λ _ _ ()))
+bodyStore-noCh n = loopAll (λ bs → body-All n bs (λ _ ()) (λ _ _ ()) (λ _ ()))
 
 -- … nor the mempool
 mempool-noCh : ∀ n ts {s W} → mempool n ts ⟹⟨ s ⟩ W → AllL NoCh (labels s)
-mempool-noCh n = loopAll (λ ts → mem-All n ts (λ _ ()) (λ _ ()) (λ _ _ _ ()) (λ _ _ ()))
+mempool-noCh n = loopAll (λ ts → mem-All n ts (λ _ ()) (λ _ ()) (λ _ _ _ ()) (λ _ _ ()) (λ _ ()))
 
 -- … nor the vote store
 voteStore-noCh : ∀ n vs {s W} → voteStore n vs ⟹⟨ s ⟩ W → AllL NoCh (labels s)

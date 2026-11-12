@@ -289,6 +289,8 @@ toFg {e@(evLabel _ (store _ _ (stGetVoteAt _)) _)} {x} = SRst e {x} _ (λ ()) (�
 toFg {e@(evLabel _ (store _ _ stCert) _)} {x}        = SRst e {x} _ (λ ()) (λ ()) (λ ())
 toFg {e@(evLabel _ (store _ _ (stGetTx _)) _)} {x}   = SRst e {x} _ (λ ()) (λ ()) (λ ())
 toFg {e@(evLabel _ (store _ _ (stHasCert _)) _)} {x} = SRst e {x} _ (λ ()) (λ ()) (λ ())
+toFg {e@(evLabel _ (store _ _ (stLacksBody _)) _)} {x} = SRst e {x} _ (λ ()) (λ ()) (λ ())
+toFg {e@(evLabel _ (store _ _ (stLacksTx _)) _)} {x} = SRst e {x} _ (λ ()) (λ ()) (λ ())
 toFg {e@(evLabel _ (env _ _ envForge) _)} {x}        = SRst e {x} _ (λ ()) (λ ()) (λ { refl _ → here refl })
 toFg {e@(evLabel _ (env _ _ envSubmit) _)} {x}       = SRst e {x} _ (λ ()) (λ ()) (λ ())
 

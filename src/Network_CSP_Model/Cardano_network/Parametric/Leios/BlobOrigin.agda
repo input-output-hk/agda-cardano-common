@@ -84,10 +84,10 @@
 -- S2's plus a side condition (`atVoter … ≡ false`), so
 -- `blobCarries → voteCarries` pointwise (`carries-VS`), and every thread
 -- that carries nothing for S2 carries nothing here — `OffersOnly-mono`
--- transports each in one line (`wf-vs`).  `VoteSound` defines 21 `oo-*`
--- facts and this module names SIXTEEN of them; the other five
--- (`oo-fetchDep`, `oo-putAllTx`, `oo-putChecked`, `oo-serverBody-k`,
--- `oo-serveTxs`) are helpers consumed inside those sixteen.  That is why
+-- transports each in one line (`wf-vs`).  `VoteSound` supplies the `oo-*`
+-- facts used here, including internal helpers such as `oo-fetchDep`,
+-- `oo-putAllTx`, `oo-putChecked`, `oo-putAll`, `oo-fetchChunks`,
+-- `oo-serverBody-k` and `oo-serveTxs`.  That is why
 -- this module imports `VoteSound`: for those leaves and its four Boolean
 -- lemmas, NOT for any part of S2's statement.  Only the two content-bearing
 -- leaves, `wf-voter` and `wf-lnClient`, are proper to S2′ — and they are
@@ -177,7 +177,7 @@ module Generic
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
-          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert
+          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert; stLacksBody; stLacksTx
           ; lnpRecvBlockAnnouncement; lnpRecvBlockOffer; lnpRecvBlockTxsOffer
           ; lnpRecvVotes )
   open D p using (Payload)
@@ -435,6 +435,8 @@ module Generic
   needs-putVote {e = store _ _ stCert}        ()
   needs-putVote {e = store _ _ (stGetTx _)}   ()
   needs-putVote {e = store _ _ (stHasCert _)} ()
+  needs-putVote {e = store _ _ (stLacksBody _)} ()
+  needs-putVote {e = store _ _ (stLacksTx _)} ()
   needs-putVote {e = input _ _ _}             ()
   needs-putVote {e = output _ _ _}            ()
   needs-putVote {e = sndmsg _ _ _}            ()

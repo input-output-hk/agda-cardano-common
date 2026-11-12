@@ -273,6 +273,8 @@ data StoreTag : Set where
   stCert      : StoreTag            -- the node-local certificate event for a ranking block
   stGetTx     : TxHash → StoreTag   -- the mempool transaction with that hash, offered iff held
   stHasCert   : RbHash → StoreTag   -- offered iff that RB is already certified here
+  stLacksBody : EBHash → StoreTag   -- offered iff that body hash is absent
+  stLacksTx   : TxHash → StoreTag   -- offered iff that transaction hash is absent
 
 -- what each store channel hands over
 StoreCar : StoreTag → Set
@@ -290,6 +292,8 @@ StoreCar (stGetVoteAt _) = VoteBlob
 StoreCar stCert          = RbHash    -- CHANGED from EBHash: a vote names the RB it certifies
 StoreCar (stGetTx _)     = Tx
 StoreCar (stHasCert _)   = ⊤
+StoreCar (stLacksBody _) = ⊤
+StoreCar (stLacksTx _)   = ⊤
 
 -- the environment's TWO channels into a node: the block forge and a transaction
 -- submission.  There is no separate certificate-RB forge channel: a ranking block whose
@@ -1425,6 +1429,70 @@ instance
     go (stHasCert r) (stHasCert r′) with r ≟ r′
     ... | yes refl = yes refl
     ... | no ¬p    = no λ { refl → ¬p refl }
+    go (stLacksBody h) (stLacksBody h′) with h ≟ h′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go (stLacksTx h) (stLacksTx h′) with h ≟ h′
+    ... | yes refl = yes refl
+    ... | no ¬p    = no λ { refl → ¬p refl }
+    go (stLacksBody _) stPut = no λ ()
+    go stPut (stLacksBody _) = no λ ()
+    go (stLacksBody _) stGet = no λ ()
+    go stGet (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stGetAt _) = no λ ()
+    go (stGetAt _) (stLacksBody _) = no λ ()
+    go (stLacksBody _) stPutEB = no λ ()
+    go stPutEB (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stGetEBAt _) = no λ ()
+    go (stGetEBAt _) (stLacksBody _) = no λ ()
+    go (stLacksBody _) stPutBody = no λ ()
+    go stPutBody (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stGetBody _) = no λ ()
+    go (stGetBody _) (stLacksBody _) = no λ ()
+    go (stLacksBody _) stPutTx = no λ ()
+    go stPutTx (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stGetTxAt _) = no λ ()
+    go (stGetTxAt _) (stLacksBody _) = no λ ()
+    go (stLacksBody _) stPutVote = no λ ()
+    go stPutVote (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stGetVoteAt _) = no λ ()
+    go (stGetVoteAt _) (stLacksBody _) = no λ ()
+    go (stLacksBody _) stCert = no λ ()
+    go stCert (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stGetTx _) = no λ ()
+    go (stGetTx _) (stLacksBody _) = no λ ()
+    go (stLacksBody _) (stHasCert _) = no λ ()
+    go (stHasCert _) (stLacksBody _) = no λ ()
+    go (stLacksTx _) stPut = no λ ()
+    go stPut (stLacksTx _) = no λ ()
+    go (stLacksTx _) stGet = no λ ()
+    go stGet (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stGetAt _) = no λ ()
+    go (stGetAt _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) stPutEB = no λ ()
+    go stPutEB (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stGetEBAt _) = no λ ()
+    go (stGetEBAt _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) stPutBody = no λ ()
+    go stPutBody (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stGetBody _) = no λ ()
+    go (stGetBody _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) stPutTx = no λ ()
+    go stPutTx (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stGetTxAt _) = no λ ()
+    go (stGetTxAt _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) stPutVote = no λ ()
+    go stPutVote (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stGetVoteAt _) = no λ ()
+    go (stGetVoteAt _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) stCert = no λ ()
+    go stCert (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stGetTx _) = no λ ()
+    go (stGetTx _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stHasCert _) = no λ ()
+    go (stHasCert _) (stLacksTx _) = no λ ()
+    go (stLacksBody _) (stLacksTx _) = no λ ()
+    go (stLacksTx _) (stLacksBody _) = no λ ()
     go stPut stGet = no λ ()
     go stPut (stGetAt _) = no λ ()
     go stPut stPutEB = no λ ()

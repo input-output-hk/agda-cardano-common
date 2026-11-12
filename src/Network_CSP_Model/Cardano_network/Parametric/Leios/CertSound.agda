@@ -166,6 +166,8 @@ import Cardano_network.Net as N
 import Cardano_network.Data as D
 import CSP.Operators as O
 import Cardano_network.Parametric.NodeLogic as NL
+open import Function using (case_of_)
+import Cardano_network.Parametric.Leios.LacksStoreL
 import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.Leios.OriginSafe as OS
 import Cardano_network.Parametric.BlockProvenance as BP
@@ -197,7 +199,7 @@ module Generic
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
           ; apiCS; apiBF; apiTS; apiKA; apiLN; apiLF; apiLP; store; env; break
           ; stPut; stGet; stGetAt; stPutEB; stGetEBAt; stPutBody; stGetBody
-          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert )
+          ; stPutTx; stGetTxAt; stGetTx; stPutVote; stGetVoteAt; stCert; stHasCert; stLacksBody; stLacksTx )
   -- `Tx`/`TxHash` come from `Params`; `Data.DecEq-Tx` is deliberately NOT opened, so
   -- `decTx` is the ONE `DecEq Tx` in scope and instance search resolves exactly the term
   -- `NodeLogicL` used (ledger gotcha 4) — `VoteSound.Generic` does the same.
@@ -228,7 +230,7 @@ module Generic
           ; memberOf; insertU; offerIx
           ; getAtEv; putEBEv; getEBAtEv; putBodyEv; getBodyEv
           ; putTxEv; getTxAtEv; getTxEv; putVoteEv; getVoteAtEv; certEv; hasCertEv
-          ; storeStepL; blockStoreL; ebStep; ebStore; bodyStep; offerBodies; bodyStore
+          ; storeStepL; blockStoreL; ebStep; ebStore; bodyStep; offerBodies; bodyStore; lacksBodies; lacksTxs
           ; memStep; offerTxs; mempool; certify; offerCerts; voteStep; voteStore )
   open OS.Generic p t apiES using (noRet→noTick)
 
@@ -381,6 +383,8 @@ module Generic
   needs-store {e = store _ _ (stGetVoteAt _)} ()
   needs-store {e = store _ _ (stGetTx _)}     ()
   needs-store {e = store _ _ (stHasCert _)}   ()
+  needs-store {e = store _ _ (stLacksBody _)}   ()
+  needs-store {e = store _ _ (stLacksTx _)}   ()
   needs-store {e = input _ _ _}               ()
   needs-store {e = output _ _ _}              ()
   needs-store {e = sndmsg _ _ _}              ()
@@ -422,7 +426,10 @@ module Generic
   open BPW.Body (Net_Api-≟ {Payload}) Minted NeedKey certCarries certWA
                 certNext _⊆_ ⊆-refl ⊆-trans certNext-⊆
     using ( WfR; Stable; stable-node; stable-□
-          ; wfR-Ret; wfR-Stop; wfR-Prefix; wfR-Output; wfR-□; wf-loop )
+          ; wfR-pchoice; wfR-Ret; wfR-Stop; wfR-Prefix; wfR-Output; wfR-□; wf-loop )
+
+  -- Negative-store menu inversions share the logic's parameters.
+  module Lacks = Cardano_network.Parametric.Leios.LacksStoreL.Generic p lp t apiES voterOf
 
   ------------------------------------------------------------------------
   -- THE STORE MENUS
@@ -548,7 +555,19 @@ module Generic
         (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
         (wfR-offerIx (getEBAtEv n) xs 0 xs (λ _ _ ()) (λ _ _ → tt) tt)
 
-  -- the EB-body store: a deposit and the by-hash menu
+  -- A negative read carries no disciplined value and preserves the trivial invariant.
+  wfR-lacksBodies : ∀ {ms} n (bs : Bodies) → WfR fullα ms (λ _ _ → ⊤ {0ℓ}) (lacksBodies n bs)
+  wfR-lacksBodies n bs = wfR-pchoice
+    (λ le gm st → case Lacks.body-inv n bs st of λ { (_ , refl , refl) → λ () })
+    (λ le st ok → case Lacks.body-inv n bs st of λ { (_ , refl , refl) → wfR-Ret (λ _ → tt) })
+
+  -- A negative read carries no disciplined value and preserves the trivial invariant.
+  wfR-lacksTxs : ∀ {ms} n (ts : Mem) → WfR fullα ms (λ _ _ → ⊤ {0ℓ}) (lacksTxs n ts)
+  wfR-lacksTxs n ts = wfR-pchoice
+    (λ le gm st → case Lacks.tx-inv n ts st of λ { (_ , refl , refl) → λ () })
+    (λ le st ok → case Lacks.tx-inv n ts st of λ { (_ , refl , refl) → wfR-Ret (λ _ → tt) })
+
+  -- The body-store loop includes both positive and negative keyed reads.
   wf-bodyStore : ∀ {ms} n (bs : Bodies) → Wf fullα ms (bodyStore n bs)
   wf-bodyStore n bs =
     wf-loop {body = bodyStep n} {a = bs} (λ _ _ _ → tt) (λ _ xs _ → body xs) tt
@@ -556,12 +575,13 @@ module Generic
     -- one pass of the EB-body store
     body : ∀ {s} (xs : Bodies) → WfR fullα s (λ _ _ → ⊤ {0ℓ}) (bodyStep n xs)
     body xs =
-      wfR-□ _ _ (stable-node refl) (stable-offerBodies n xs xs)
+      wfR-□ _ _ (stable-node refl) (stable-□ (stable-offerBodies n xs xs) (stable-node refl))
         (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
-        (wfR-offerBodies n xs xs)
+        (wfR-□ _ _ (stable-offerBodies n xs xs) (stable-node refl)
+          (wfR-offerBodies n xs xs) (wfR-lacksBodies n xs))
 
   -- the mempool: a deposit, THE SUBMISSION RENDEZVOUS, a read-pointer menu and the
-  -- by-hash menu.  The `envSubmit` arm is an `env` channel and carries nothing.
+  -- by-hash menu and `lacksTxs`.  The `envSubmit` arm is an `env` channel and carries nothing.
   wf-mempool : ∀ {ms} n (ts : Mem) → Wf fullα ms (mempool n ts)
   wf-mempool n ts =
     wf-loop {body = memStep n} {a = ts} (λ _ _ _ → tt) (λ _ xs _ → body xs) tt
@@ -571,14 +591,15 @@ module Generic
     body xs =
       wfR-□ _ _ (stable-node refl)
         (stable-□ (stable-node refl)
-          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-offerTxs n xs xs)))
+          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-□ (stable-offerTxs n xs xs) (stable-node refl))))
         (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
         (wfR-□ _ _ (stable-node refl)
-          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-offerTxs n xs xs))
+          (stable-□ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-□ (stable-offerTxs n xs xs) (stable-node refl)))
           (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-Ret (λ _ → tt)))
-          (wfR-□ _ _ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-offerTxs n xs xs)
+          (wfR-□ _ _ (stable-offerIx (getTxAtEv n) xs 0 xs) (stable-□ (stable-offerTxs n xs xs) (stable-node refl))
             (wfR-offerIx (getTxAtEv n) xs 0 xs (λ _ _ ()) (λ _ _ → tt) tt)
-            (wfR-offerTxs n xs xs)))
+            (wfR-□ _ _ (stable-offerTxs n xs xs) (stable-node refl)
+              (wfR-offerTxs n xs xs) (wfR-lacksTxs n xs))))
 
   ------------------------------------------------------------------------
   -- THE CONTENT-BEARING LEAF: the vote store
