@@ -242,14 +242,42 @@ preserves any already recorded result through arbitrary frontend runs. The
 scheduled-close fixture checks its concrete handle/mux chain and transports
 its negotiated result through the actual cleanup/CM/Server suffix.
 
-The universal handle/mux and publication-phase obligations remain open.
-`AllocationReferences` and `PublicationReferences` name the missing state
-invariants: every current frame must retain the chain established at its actual
-allocation/publication event. Boundary establishment and source retention are
-proved; the association with every surviving frame and preservation through all
-tracker writers are not. Group controls, monitor PCs, DeltaQ tickets, protocol
-job owner/mux/generation references and publication-failure snapshots also lack
-their universal coverage/content invariants. In particular, a historical ticket
-or failure snapshot need not equal a current continuation. No initialized
-counterexample for these remaining items is established. CM-I4c remains partly
-open, and the original unrestricted resource claim remains false.
+[LiveTrackerChainsInitialized](Properties/LiveTrackerChainsInitialized.agda) now
+proves both universal current-frame obligations. For every state reached by
+`T.Runs` from `T.initialize (O.initial c₀) g`, its `Frontend.from-initial` returns
+`Validity s`: all previous snapshot/resource/phase certificates, plus the unchanged
+`AllocationReferences` and `PublicationReferences` predicates. Every allocated or
+published frame has its complete negotiated handle descriptor and a mux with the
+original connection key. Every `promisePublished` frame's original promise holds
+`negotiated hid (flow f)`.
+
+The proof keeps an all-row content record for each current frame. Allocation
+establishes its anchor; publication records the actual immutable registration
+read by the writer and its exact result. Initialized capture agreement identifies
+that registration with the frame's original descriptor. Startup, setup and pool
+replacement preserve the immutable profile; source, Server, caller, peer and
+frontend writers preserve its references. No history oracle, resource certificate,
+supply bound or current-ownership assumption was added. The
+[split scheduled-close extension](Negative/LiveTrackerChainsInitialized.agda)
+applies this combined theorem to the existing initialized run.
+
+[LiveTrackerFailuresInitialized](Properties/LiveTrackerFailuresInitialized.agda)
+also proves reference/content validity of every saved publication-failure row
+through all initialized frontend runs. Its `Frontend.from-initial` returns, for
+each row's own saved frame, exact physical capture and original resources,
+`AllocationAt`, and `PublicationAt`. Selection establishes the saved content;
+all later writers retain it, including source changes and direct frontend
+births. This compares neither complete saved/current frames nor their mutable
+continuations. A [separate scheduled-close application](Negative/LiveTrackerFailuresInitialized.agda)
+keeps the fixture checks split.
+
+The remaining auxiliary obligation is still open. Controls and monitor PCs need
+all-row coverage of actual owners; tickets need backing for their captured typed
+payloads; protocol jobs need preserved owner/mux/generation and physical-handle
+backing. [LiveTrackerAuxContent](Properties/LiveTrackerAuxContent.agda) defines the
+remaining records and checks owner-context selection, actual fork establishment
+and typed payload extraction at a real dequeue conditional on `PoolContent`.
+Its all-row `Coverage` and `PoolContent` preservation remain unproved. Default
+`frameAt`/`pcAt` values and one successful dequeue do not supply these invariants. No initialized counterexample to these remaining claims has
+been checked. CM-I4c remains partly open, and the original unrestricted resource
+claim remains false.
