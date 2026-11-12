@@ -217,11 +217,39 @@ exit-frame and startup-fault keys and acknowledged CM collection members,
 together with C3 phase/cleanup validity. The
 [positive fixture](Negative/LiveTrackerReferencesInitialized.agda) applies the
 combined certificate to the initialized scheduled-close run through Server
-return. Owner presence does not equate a frame snapshot with the physical
-capture. Exact snapshot agreement, handle/mux allocation and negotiation
-agreement, phase-specific negotiated publication, and references in the
-remaining auxiliary trackers are still open. They need additional establishment
-and preservation invariants; neither physical birth resources nor auxiliary
-owner backing implies them. No initialized counterexample for this narrower
-profile is proved here. CM-I4c therefore remains partly open, and the original
-unrestricted claim remains false.
+return.
+
+[LiveTrackerSnapshotsInitialized](Properties/LiveTrackerSnapshotsInitialized.agda)
+now proves exact snapshot agreement for every state reached from
+`T.initialize (O.initial c₀) g`. Its `Frontend.from-initial` returns `Validity s`,
+including all prior certificates and `DescriptorReferences w h s` for each
+mux, exit and startup-fault row's own captured descriptor `h`. This gives an
+actual physical thread whose capture equals `h`, the exact shared registration,
+the original entry/socket and current promise allocation. The proof covers
+all traversal rows internally, including hypothetical shadowed rows, and never
+compares mutable continuations. Capture agreement itself holds from the broad
+initializer; the resource part uses `O.initial`. The fixture explicitly applies
+the theorem to the nonempty exit and fault rows after cleanup and Server return.
+
+[LiveTrackerChainSteps](Properties/LiveTrackerChainSteps.agda) proves that actual
+supervised allocation (`allocated`) establishes the handle's complete negotiated
+bundle/flow and mux reference, plus mux existence and the captured connection
+key. This includes inbound, outbound responder and outbound initiator profiles.
+`FixedAnchor` preserves that content through arbitrary outbound source runs.
+`publication-result` and `published` establish the exact original-promise write
+at successful publication. [LivePromiseResultFrontend](Properties/LivePromiseResultFrontend.agda)
+preserves any already recorded result through arbitrary frontend runs. The
+scheduled-close fixture checks its concrete handle/mux chain and transports
+its negotiated result through the actual cleanup/CM/Server suffix.
+
+The universal handle/mux and publication-phase obligations remain open.
+`AllocationReferences` and `PublicationReferences` name the missing state
+invariants: every current frame must retain the chain established at its actual
+allocation/publication event. Boundary establishment and source retention are
+proved; the association with every surviving frame and preservation through all
+tracker writers are not. Group controls, monitor PCs, DeltaQ tickets, protocol
+job owner/mux/generation references and publication-failure snapshots also lack
+their universal coverage/content invariants. In particular, a historical ticket
+or failure snapshot need not equal a current continuation. No initialized
+counterexample for these remaining items is established. CM-I4c remains partly
+open, and the original unrestricted resource claim remains false.
