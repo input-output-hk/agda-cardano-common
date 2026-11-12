@@ -202,9 +202,26 @@ phase/cleanup theorem (`phase-cleanup-valid`).
 
 This is an explicit over-approximation of the initializer, not a source-defect
 claim. `O.initial core` removes the supplied acquisition continuation, and the
-same immediate fork is then refused (`ordinary-fork-refused`). No universal
-reference theorem for that narrower profile is proved here. The existing
-capture/resource retention theorems remain conditional on their certificates;
-they cannot establish resources omitted before a preloaded fork. CM-I4c stays
-open pending an explicit initialization contract and a proof of reference
-establishment and preservation under that contract.
+same immediate fork is then refused (`ordinary-fork-refused`). For that explicit
+profile, [LiveTrackerReferencesInitialized](Properties/LiveTrackerReferencesInitialized.agda)
+now proves `Frontend.from-initial`: every state reached by `T.Runs` from a
+successful `T.initialize (O.initial c₀) g` satisfies the full
+`PhysicalReferences` predicate. Birth discovery and the existing resource
+retention theorems establish the exact registration and original entry/socket;
+new promise-retention lemmas carry allocation membership through every gap and
+later event. There are no extra supply bounds or current-ownership premises.
+
+[LiveTrackerOwnersInitialized](Properties/LiveTrackerOwnersInitialized.agda)
+also returns physical owners and their resource certificates for mux-frame,
+exit-frame and startup-fault keys and acknowledged CM collection members,
+together with C3 phase/cleanup validity. The
+[positive fixture](Negative/LiveTrackerReferencesInitialized.agda) applies the
+combined certificate to the initialized scheduled-close run through Server
+return. Owner presence does not equate a frame snapshot with the physical
+capture. Exact snapshot agreement, handle/mux allocation and negotiation
+agreement, phase-specific negotiated publication, and references in the
+remaining auxiliary trackers are still open. They need additional establishment
+and preservation invariants; neither physical birth resources nor auxiliary
+owner backing implies them. No initialized counterexample for this narrower
+profile is proved here. CM-I4c therefore remains partly open, and the original
+unrestricted claim remains false.
