@@ -319,7 +319,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
-| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; increment 76: restated c2 proved, every frame left at shutdown belongs to a foreign caller with no result yet). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
+| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; increment 76: restated c2 proved, every frame left at shutdown belongs to a foreign caller with no result yet; increment 77: in the owned-callers design variant the original c2 holds, no frame is left). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
@@ -7298,8 +7298,53 @@ the theorem that the surviving frame's worker `ident 900` is foreign.
 Consequence for the design. Foreign callers are a model over-approximation;
 production calls come only from peer-state actions run by governor jobs. In
 a model without them no outbound frame is left at shutdown. A design variant
-proving that directly is the next step.
+proving that directly is the seventy-seventh increment.
 
 Checks: fresh `Negative/ForeignFramesFixture` (5 new modules, 123 s, 7.8 GB);
 fresh `Properties/OwnedFramesExecution` (67 modules including all
 `SourceKeys*`, 815 s, 6.6 GB). No warnings.
+
+## Seventy-seventh increment: owned-callers design variant, original residue c2
+
+Checked 12 November 2026. First design-exploration variant (DESIGN §1).
+
+Variant ([Variants/OwnedCallers](Variants/OwnedCallers.agda)). Only peer jobs
+and monitors call the CM. The policy `ownedOnly` refuses the raw core actions
+`O.beginAcquire` and `O.beginRelease`. `ServerPeers.coreAllowed` admits these
+only for a worker owned by no job and no monitor, so the policy removes
+exactly the foreign callers of the seventy-fifth increment. No other route
+admits a foreign begin: Server steps never begin a CM call
+(`SourceKeysShared.server-keys`), raw peer `Sub.core` actions are already
+refused, and direct runtime callers are selected job continuations.
+
+The variant guards the existing rules rather than copying them: `step′`
+guards `K.step`; `enact′` guards the `inherit` and `complete` plans and keeps
+the original plan selection; `Runs′` and `OuterRuns′` execute the guarded
+transitions. `restriction`, `runs-restriction` and `outer-restriction` show
+each variant run is a source run, so every source theorem (SI5,
+`foreign-frames`) applies. `allowed-build` and `allowed-view` show the
+guarded runs are exactly the source runs whose enacted shared actions satisfy
+the policy (`Allowed`).
+
+Endpoint ([Properties/OwnedCallers](Properties/OwnedCallers.agda),
+`Protocols.no-frames`). For every variant outer run from
+`T.initialize (O.initial c₀) g` to finished relays, `O.acquiring` and
+`O.releasing` of the final source have no entry for any worker. The variant
+keeps `NoForeign` (no frame's worker is foreign) alongside `Reach`
+(`no-foreign`); with `foreign-frames` this excludes every final frame.
+
+Fixtures ([Negative/OwnedCallersFixture](Negative/OwnedCallersFixture.agda)):
+
+- `scheduled-policy`, `scheduled-run`, `scheduled-close`: the scheduled close
+  satisfies the policy (by computation), so it ends with no frame;
+- `foreign-begin-refused`, `complete-begin-refused`,
+  `foreign-run-not-variant`, `foreign-source-policy-rejected`: the variant
+  refuses the counterexample run at its inserted foreign begin.
+
+Summary of residue c2: the source model guarantees only the restated c2
+(seventy-sixth increment); the owned-callers design guarantees the original
+c2. The difference is exactly the foreign caller, which the node does not
+have.
+
+Checks: fresh `Negative/OwnedCallersFixture` (12 new modules, 107 s, 7.6 GB).
+No warnings.
