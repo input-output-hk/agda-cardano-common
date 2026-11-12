@@ -317,7 +317,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Work | Dependency and completion evidence |
 | --- | --- |
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
-| CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers. Under C3's unrestricted initializer it is false: [increment 79](#seventy-ninth-increment-live-tracker-reference-validity-and-the-initializer) checks a preloaded outbound fork creating a live physical thread with an absent captured entry and unallocated promise ([statement](Properties/LiveTrackerReferences.agda), [counterexample](Properties/LiveTrackerReferencesCounterexample.agda)). For the explicit `O.initial c₀` profile, [LiveTrackerReferencesInitialized](Properties/LiveTrackerReferencesInitialized.agda) now proves the full physical component at every reachable runtime state, including original promise allocation. [LiveTrackerOwnersInitialized](Properties/LiveTrackerOwnersInitialized.agda) also gives physical owners and their resource certificates for mux frames, exit frames, startup faults and acknowledged CM collection, together with C3 phase/cleanup validity. [LiveTrackerSnapshotsInitialized](Properties/LiveTrackerSnapshotsInitialized.agda) now also proves exact mux/exit/fault descriptor agreement and resources for every reachable state of that profile. [LiveTrackerChainsInitialized](Properties/LiveTrackerChainsInitialized.agda) proves universal current-frame handle/mux chains and original-promise publication results for this profile. [LiveTrackerFailuresInitialized](Properties/LiveTrackerFailuresInitialized.agda) also proves saved publication-failure descriptor/resources/content through all initialized frontend runs. Auxiliary controls, PCs, ticket payloads and protocol-job content still need all-row coverage/preservation. CM-I4c is not fully closed. |
+| CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers. Under C3's unrestricted initializer it is false: [increment 79](#seventy-ninth-increment-live-tracker-reference-validity-and-the-initializer) checks a preloaded outbound fork creating a live physical thread with an absent captured entry and unallocated promise ([statement](Properties/LiveTrackerReferences.agda), [counterexample](Properties/LiveTrackerReferencesCounterexample.agda)). For the explicit `O.initial c₀` profile, [LiveTrackerReferencesInitialized](Properties/LiveTrackerReferencesInitialized.agda) now proves the full physical component at every reachable runtime state, including original promise allocation. [LiveTrackerOwnersInitialized](Properties/LiveTrackerOwnersInitialized.agda) also gives physical owners and their resource certificates for mux frames, exit frames, startup faults and acknowledged CM collection, together with C3 phase/cleanup validity. [LiveTrackerSnapshotsInitialized](Properties/LiveTrackerSnapshotsInitialized.agda) now also proves exact mux/exit/fault descriptor agreement and resources for every reachable state of that profile. [LiveTrackerChainsInitialized](Properties/LiveTrackerChainsInitialized.agda) proves universal current-frame handle/mux chains and original-promise publication results for this profile. [LiveTrackerFailuresInitialized](Properties/LiveTrackerFailuresInitialized.agda) also proves saved publication-failure descriptor/resources/content through all initialized frontend runs. [Round five](#round-five-joint-pool-and-job-content-components) adds initialized joint job/pool content and all-row PC validity at the typed protocol/monitor layers, actual cancellation/unwind writer lemmas, and conditional direct frontend birth preservation. All-row controls/tickets and the higher-layer/frontend lift, including saved-call owner agreement, still remain. CM-I4c is not fully closed. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
 | Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; increment 76: restated c2 proved, every frame left at shutdown belongs to a foreign caller with no result yet; increment 77: in the owned-callers design variant the original c2 holds, no frame is left; increment 78: step 2 design exploration, Server-owned workers plus a CM handler registry are quiescent at shutdown; source candidate: a self-purged handler outlives `Server.with`). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
@@ -7788,3 +7788,104 @@ final evidence uses distinct paths. Final checks are in the round-four scratch
 report and `round4-checks.json`. No executable rule, committed Agda statement,
 initializer, source pin, configuration symlink or unrelated user file was
 modified. No Git mutation, full-library sweep or native replay was performed.
+
+
+### Round five: joint pool and job content components
+
+CM-I4c remains open at the requested `ServerPeers.Protocols` frontend. No
+initialized counterexample was established and no combined `FullValidity`
+theorem is claimed.
+
+[LiveTrackerPoolContent](Properties/LiveTrackerPoolContent.agda) proves payload
+preservation and physical-handle retention for every queued-pool primitive.
+`Content C pool` covers both the FIFO queue and every `bodyReturned` value.
+`step-preserves` requires evidence `C value` only when the actual primitive is
+`bodyReturnedWith j value`; publication obtains its appended value from the
+old returned-body certificate. Cancellation, unwind replacement, deregistration,
+Async result publication, consumption and whole-close operations introduce no
+new payload. Generated complements cover the primitive action cases.
+
+[LiveTrackerAuxUpdates](Properties/LiveTrackerAuxUpdates.agda) supplies the joint
+core certificate: unique mux-frame keys, the fact that unpublished frames have
+startup phase `awaitPublication`, every protocol-job row's owner/mux/physical
+handle, and `PoolContent` for every owner's pool. The startup phase fact is
+needed to establish a published owner at infrastructure return; job/pool
+coverage alone is too weak as an induction hypothesis. Unique keys identify the
+frame returned by the `findOwner` traversal with its keyed lookup.
+[Startup](Properties/LiveTrackerAuxStartup.agda),
+[mux](Properties/LiveTrackerAuxMux.agda), and
+[protocol](Properties/LiveTrackerAuxProtocol.agda) components preserve these
+facts through every typed protocol writer, including configured infrastructure
+roles, both fork directions, clean/error capture, body return, publication,
+DB operations and subsequent physical-result steps.
+
+[LiveTrackerAuxCoreInitialized](Properties/LiveTrackerAuxCoreInitialized.agda)
+proves the lower initialized endpoint:
+
+```agda
+from-initial : ∀ c {start actions s} →
+  P.initial c ≡ just start → P.Executes start actions s → Up.Valid s
+```
+
+Its `MonitorEndpoint.monitor-from-initial` additionally covers every stored
+monitor PC, using [LiveTrackerAuxMonitor](Properties/LiveTrackerAuxMonitor.agda).
+A selected PC has the exact typed completion backed by its captured protocol
+job or configured infrastructure role. This is a universal lower-layer result;
+it has not been lifted to every `T.Runs` frontend state.
+The split [protocol](Negative/LiveTrackerAuxProtocol.agda) and
+[monitor](Negative/LiveTrackerAuxMonitor.agda) fixtures apply these endpoints to
+an initialized nonempty responder queue after physical-result publication and
+a real initialized dequeue into a selected PC.
+
+[LiveTrackerAuxCancellation](Properties/LiveTrackerAuxCancellation.agda) proves
+joint core preservation for the actual `G.unwindChild` and `G.replaceUnwind`
+writers and for `G.viaPool` primitives which introduce no new payload. Clean
+pending-occurrence removal is source bookkeeping; replacement executes the real
+pool resume followed by the existing `P.protocolException` capture.
+[LiveTrackerAuxBirth](Properties/LiveTrackerAuxBirth.agda) proves direct birth
+core preservation and its actual frontend `forkPlan`/`enact` application, given
+`Calls s`: every saved call has a published owner with its saved mux. That
+premise is explicit and is not proved universally over frontend runs here.
+[LiveTrackerAuxTransport](Properties/LiveTrackerAuxTransport.agda) transports
+all the original control, PC, ticket and job predicates through retained owners,
+role bindings, captured jobs and physical handles.
+
+The exact remaining integration is to establish/preserve `Coverage.controls`
+and `Coverage.tickets` at their insertions and through the higher shutdown,
+exit, cancellation, startup-unwind, DeltaQ and frontend wrappers; lift the joint
+core and PC certificates through those same writers; and establish the
+frontend `Calls` invariant at request enqueue and preserve it through later
+call-table writes. The conditional `fork-preserves` theorem then handles direct
+`T.birth`. These results must be assembled with round four's `Validity` and
+publication-failure references into the requested unconditional initialized
+frontend theorem. No added premise may be substituted for that theorem.
+
+
+Round-five final validation (Agda 2.8.0, serial): the command for each row is
+`agda ConnectionManagement/<module>.agda +RTS -M20G -A128m -RTS`. All rows
+passed with fresh endpoint `Checking` lines, unchanged source hashes and no
+warnings; current imports reused their interfaces.
+
+| Module under `ConnectionManagement/` | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `Properties/LiveTrackerPoolContent` | 6.02 | 0.84 | pass |
+| `Properties/LiveTrackerAuxTransport` | 13.86 | 1.57 | pass |
+| `Properties/LiveTrackerAuxStartup` | 6.25 | 0.89 | pass |
+| `Properties/LiveTrackerAuxUpdates` | 12.32 | 1.84 | pass |
+| `Properties/LiveTrackerAuxMux` | 19.49 | 2.11 | pass |
+| `Properties/LiveTrackerAuxProtocol` | 32.09 | 2.24 | pass |
+| `Properties/LiveTrackerAuxMonitor` | 33.16 | 2.43 | pass |
+| `Properties/LiveTrackerAuxCancellation` | 32.83 | 2.94 | pass |
+| `Properties/LiveTrackerAuxBirth` | 23.75 | 2.37 | pass |
+| `Properties/LiveTrackerAuxCoreInitialized` | 36.85 | 3.06 | pass |
+| `Negative/LiveTrackerAuxProtocol` | 14.69 | 2.08 | pass |
+| `Negative/LiveTrackerAuxMonitor` | 14.59 | 2.35 | pass |
+
+Both split fixtures stayed below 10 GiB. The local 12-file heuristic audit found
+zero holes, postulates or unsafe options; local Markdown paths and whitespace
+checks passed. Development diagnostics and variable-shadowing warnings were
+repaired before these final checks. Full command/time/RSS/source-hash evidence
+is in the round-five scratch report and `round5-checks.json`. No existing Agda
+module, runtime rule, initializer, source pin or unrelated user file changed.
+No Git mutation, full-library sweep, native replay or imported term-level axiom
+audit was performed. The frontend obligation above remains open.

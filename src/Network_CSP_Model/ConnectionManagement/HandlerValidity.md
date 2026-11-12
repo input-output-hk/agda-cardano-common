@@ -271,13 +271,26 @@ births. This compares neither complete saved/current frames nor their mutable
 continuations. A [separate scheduled-close application](Negative/LiveTrackerFailuresInitialized.agda)
 keeps the fixture checks split.
 
-The remaining auxiliary obligation is still open. Controls and monitor PCs need
-all-row coverage of actual owners; tickets need backing for their captured typed
-payloads; protocol jobs need preserved owner/mux/generation and physical-handle
-backing. [LiveTrackerAuxContent](Properties/LiveTrackerAuxContent.agda) defines the
-remaining records and checks owner-context selection, actual fork establishment
-and typed payload extraction at a real dequeue conditional on `PoolContent`.
-Its all-row `Coverage` and `PoolContent` preservation remain unproved. Default
-`frameAt`/`pcAt` values and one successful dequeue do not supply these invariants. No initialized counterexample to these remaining claims has
-been checked. CM-I4c remains partly open, and the original unrestricted resource
-claim remains false.
+The remaining auxiliary obligation is still open at the full frontend.
+[LiveTrackerAuxCoreInitialized](Properties/LiveTrackerAuxCoreInitialized.agda)
+now proves joint all-row protocol-job and pool-queue/returned-body content for
+every initialized typed protocol run. Its monitor endpoint also proves every
+stored PC's owner and selected-payload backing. The proof includes the necessary
+unpublished-startup phase and frame-key uniqueness facts, with actual typed
+fork, commit, return, publication, DB and configured-startup writer lemmas.
+Split [queue](Negative/LiveTrackerAuxProtocol.agda) and
+[selected-PC](Negative/LiveTrackerAuxMonitor.agda) fixtures exercise nonempty
+initialized states.
+
+[LiveTrackerAuxCancellation](Properties/LiveTrackerAuxCancellation.agda)
+proves actual child unwind/replacement core preservation and the no-new-payload
+group pool writers. [LiveTrackerAuxBirth](Properties/LiveTrackerAuxBirth.agda)
+proves the direct birth core update and its real `forkPlan` application given
+saved-call owner/mux agreement (`Calls`). That frontend invariant has not been
+proved universally. All-row control/ticket insertion and preservation, plus
+the lift of joint core/PC validity through the higher shutdown/unwind/DeltaQ and
+frontend writers, remain unfinished. The original
+[Coverage](Properties/LiveTrackerAuxContent.agda) statement is unchanged;
+no conditional result is presented as the requested initialized frontend
+`FullValidity` theorem. CM-I4c remains partly open, and the original unrestricted
+resource claim remains false. No new initialized counterexample was checked.
