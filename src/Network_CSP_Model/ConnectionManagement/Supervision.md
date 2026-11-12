@@ -7401,8 +7401,8 @@ The initialized run admits `Connected`, returns and joins the worker, then
 runs the handler's self-purge and pauses it at `cleanupCount`, before exit.
 CM closes with an empty snapshot and the relays finish, but the handler has
 no physical result (`not-quiescent`). `source-run` also gives the erased
-source run. This is a model result, not yet replayed in IOSim: a strong
-candidate that `Server.with` can return with a live handler.
+source run. This is a model result; the direct-CM IOSim replay below separately confirms
+the self-purge/CM-finally boundary in the pinned source.
 
 Design 3, accepted ([Variants/ServerOwnedHandlers](Variants/ServerOwnedHandlers.agda)),
 combines a historical handler registry, Server-owned admission workers
@@ -7433,4 +7433,15 @@ Checks (fresh, by the reviewer): `Properties/ServerOwnedHandlers` (105 s,
 `Negative/ServerOwnedWorkersCounterexample` (16 s) and
 `Negative/ServerOwnedWorkersFixture` (36 s). No warnings.
 
-Next: IOSim replay of the self-purge candidate.
+IOSim replay (12 November 2026): [ServerHandlerSelfPurgeReplay.patch](SourceReplay/ServerHandlerSelfPurgeReplay.patch)
+confirms the CM boundary at `2f1c154`: after `Connected` and the admission
+worker's join, a synchronous buffer-acquisition fixture fails; actual handler
+cleanup closes the socket and purges the map. Blocking only that handler's
+existing cleanup counter tracer (`Core.hs` 665, after map publication) leaves
+its actual Async result unavailable both before and after CM `with` returns.
+Releasing the gate lets it finish with the injected failure. Without the pause,
+the result is already available before return. Both deterministic tests passed
+in three runs; the final offline build had no warnings. This is a direct-CM
+confirmation with synthetic transport/handshake/handler body, not a full
+`Server.with` replay or a deployment-tracer claim. See the [replay record](SourceReplay/README.md#handler-self-purge-before-the-cm-returns-12-november-2026)
+for commands, timings and limits.

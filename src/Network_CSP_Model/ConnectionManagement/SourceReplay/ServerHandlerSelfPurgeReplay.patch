@@ -1,0 +1,221 @@
+diff --git a/ouroboros-network/framework/sim-tests/Main.hs b/ouroboros-network/framework/sim-tests/Main.hs
+index 0fcdcd2cc..51cf04be0 100644
+--- a/ouroboros-network/framework/sim-tests/Main.hs
++++ b/ouroboros-network/framework/sim-tests/Main.hs
+@@ -5,6 +5,7 @@ import Test.Tasty
+ 
+ import Test.Ouroboros.Network.ConnectionManager qualified as ConnectionManager
+ import Test.Ouroboros.Network.RateLimiting qualified as RateLimiting
++import Test.Ouroboros.Network.ServerHandlerSelfPurgeReplay qualified as ServerHandlerSelfPurgeReplay
+ import Test.Ouroboros.Network.Server.Sim qualified as Server
+ import Test.Simulation.Network.Snocket qualified as Snocket
+ 
+@@ -14,7 +15,8 @@ main = withUtf8 $ defaultMain tests
+ tests :: TestTree
+ tests =
+   testGroup "ouroboros-network-framework:sim-tests"
+-  [ ConnectionManager.tests
++  [ ServerHandlerSelfPurgeReplay.tests
++  , ConnectionManager.tests
+   , Server.tests
+   , RateLimiting.tests
+   , Snocket.tests
+diff --git a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ServerHandlerSelfPurgeReplay.hs b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ServerHandlerSelfPurgeReplay.hs
+new file mode 100644
+index 000000000..4fb518fb2
+--- /dev/null
++++ b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/ServerHandlerSelfPurgeReplay.hs
+@@ -0,0 +1,181 @@
++{-# LANGUAGE DataKinds           #-}
++{-# LANGUAGE ScopedTypeVariables #-}
++
++-- | Increment 78: actual CM fork, include, cleanup and finally; synthetic
++-- transport/handshake. The only pause is in the existing cleanup counter tracer,
++-- after socket close and publication of the purged map. No production edits.
++module Test.Ouroboros.Network.ServerHandlerSelfPurgeReplay (tests) where
++
++import Control.Concurrent.Class.MonadSTM.Strict
++import Control.Monad (when)
++import Control.Monad.Class.MonadAsync
++import Control.Monad.Class.MonadFork (myThreadId)
++import Control.Monad.Class.MonadThrow
++import Control.Monad.Class.MonadTimer.SI (threadDelay, timeout)
++import Control.Monad.IOSim
++import Control.Tracer (mkTracer)
++import Data.Map.Strict qualified as Map
++import Data.Maybe (isNothing)
++import Data.Proxy (Proxy (..))
++import Data.Set qualified as Set
++import Data.Void (Void)
++import Network.Mux.Types qualified as Mx
++import System.Random (mkStdGen)
++import Test.QuickCheck
++import Test.Tasty (TestTree, testGroup)
++import Test.Tasty.QuickCheck (testProperty)
++
++import Ouroboros.Network.ConnectionId (ConnectionId (..))
++import Ouroboros.Network.ConnectionManager.Core qualified as CM
++import Ouroboros.Network.ConnectionManager.State qualified as CS
++import Ouroboros.Network.ConnectionManager.Types
++import Ouroboros.Network.InboundGovernor.InformationChannel (newInformationChannel)
++import Ouroboros.Network.MuxMode
++import Ouroboros.Network.Server.RateLimiting (AcceptedConnectionsLimit (..))
++import Ouroboros.Network.Snocket
++
++-- A synchronous failure in the supplied withBuffer acquisition, after Connected.
++data BufferFailure = BufferFailure deriving (Eq, Show)
++instance Exception BufferFailure
++
++data Ev = AdmittedAndJoined | BufferFailed | Cleanup | SocketClosed
++        | CleanupCounters | Shutdown | CMReturned | HandlerJoined
++  deriving (Eq, Show)
++
++data Report = Report {
++    admitted :: Bool,
++    cleanupMasked :: Bool,
++    emptyBeforeReturn :: Bool,
++    closeCount :: Int,
++    resultBeforeReturn :: String,
++    resultAfterReturn :: String,
++    resultAfterRelease :: String,
++    events :: [Ev]
++  } deriving (Eq, Show)
++
++type Addr = TestAddress Int
++
++resultName :: Maybe (Either SomeException ()) -> String
++resultName Nothing = "pending"
++resultName (Just (Right ())) = "normal"
++resultName (Just (Left err))
++  | Just BufferFailure <- fromException err = "BufferFailure"
++  | otherwise = show err
++
++-- | Admission is performed by a separate worker and joined before failure is
++-- enabled. Only CM performs handler allocation, map writes, cleanup and shutdown.
++experiment :: forall s. Bool -> IOSim s Report
++experiment pauseCleanup = do
++  logVar <- newTVarIO []
++  closes <- newTVarIO (0 :: Int)
++  handlerVar <- newEmptyTMVarIO
++  failGate <- newEmptyTMVarIO
++  tailEntered <- newEmptyTMVarIO
++  tailRelease <- newEmptyTMVarIO
++  let record e = atomically $ modifyTVar logVar (++ [e])
++      local = TestAddress 0
++      remote = TestAddress 1
++      key = ConnectionId local remote
++      transport :: Snocket (IOSim s) Addr Addr
++      transport = Snocket {
++        getLocalAddr = const (pure local), getRemoteAddr = pure,
++        addrFamily = const TestFamily,
++        open = const (fail "unexpected open"),
++        openToConnect = const (fail "unexpected outbound open"),
++        connect = \_ _ -> fail "unexpected connect",
++        bind = \_ _ -> fail "unexpected bind",
++        listen = const (fail "unexpected listen"),
++        accept = const (fail "unexpected accept"),
++        close = \socket -> do
++          when (socket /= remote) $ fail "wrong socket closed"
++          atomically $ modifyTVar closes (+1)
++          record SocketClosed
++      }
++      -- Match the source's successful promise -> withBuffer ordering. The
++      -- handshake and handle are fixtures; no real mux or buffer is allocated.
++      handler :: ConnectionHandler Mx.InitiatorResponderMode () Addr Addr () Void () DataFlow (IOSim s)
++      handler = ConnectionHandler (WithInitiatorResponderMode body body)
++        where
++          body _ _ writer _ _ _ withBuffer = MaskedAction $ \unmask -> do
++            atomically $ writePromise writer (Right (HandshakeConnectionResult () ((), Duplex)))
++            unmask $ atomically $ takeTMVar failGate
++            withBuffer $ \_ -> fail "buffer callback must not run"
++      cmTracer = mkTracer $ \event -> case event of
++        CM.TrShutdown -> record Shutdown
++        CM.TrConnectionCleanup _ -> record Cleanup
++        CM.TrConnectionManagerCounters _ -> do
++          -- Admission also traces counters: pause only the physical handler.
++          tid <- myThreadId
++          mh <- atomically $ tryReadTMVar handlerVar
++          case mh of
++            Just h | asyncThreadId h == tid -> do
++              masking <- getMaskingState
++              record CleanupCounters
++              atomically $ putTMVar tailEntered (masking == MaskedUninterruptible)
++              when pauseCleanup $ atomically $ takeTMVar tailRelease
++            _ -> pure ()
++        _ -> pure ()
++      transitions = mkTracer $ \(TransitionTrace _ tr) -> case toState tr of
++        Known (CS.UnnegotiatedState Inbound _ h) ->
++          atomically $ putTMVar handlerVar h
++        _ -> pure ()
++  supply <- atomically $ CS.newConnStateIdSupply Proxy
++  info <- newInformationChannel
++  (ok, masked, empty, nclose, before) <- CM.with CM.Arguments {
++      CM.tracer = cmTracer, CM.trTracer = transitions,
++      CM.ipv4Address = Nothing, CM.ipv6Address = Nothing,
++      CM.addressType = const (Just IPv4Address), CM.snocket = transport,
++      CM.makeBearer = MakeBearer $ \_ _ _ -> fail "unexpected bearer",
++      CM.withBuffer = \_ -> record BufferFailed >> throwIO BufferFailure,
++      CM.configureSocket = \_ _ -> fail "unexpected configuration",
++      CM.connectionDataFlow = id, CM.prunePolicy = \_ _ _ -> Set.empty,
++      CM.stdGen = mkStdGen 0,
++      CM.connectionsLimits = AcceptedConnectionsLimit 10 10 0,
++      CM.timeWaitTimeout = 1, CM.outboundIdleTimeout = 1,
++      CM.updateVersionData = \a _ -> a, CM.connStateIdSupply = supply,
++      CM.classifyHandlerError = const HandshakeFailure
++    } (InResponderMode info) handler $ \cm -> do
++      -- No admission worker remains when failure is enabled.
++      r <- withAsync (includeInboundConnection cm 10 remote key) wait
++      record AdmittedAndJoined
++      state <- atomically $ CS.getConnMap <$> readState cm
++      let connected = case r of
++            Connected actual _ _ -> actual == key
++            _ -> False
++          expected = Map.singleton remote (Map.singleton (CS.LocalAddr local) (InboundIdleSt Duplex))
++      h <- atomically $ readTMVar handlerVar
++      pending <- isNothing <$> atomically (pollSTM h)
++      atomically $ putTMVar failGate ()
++      masked <- atomically $ takeTMVar tailEntered
++      -- Same observation delay in both cases. No join/cancel forces the control
++      -- to finish: its tracer returns immediately, so its Async can complete.
++      threadDelay 1
++      empty <- atomically $ Map.null . CS.getConnMap <$> readState cm
++      nclose <- readTVarIO closes
++      before <- resultName <$> atomically (pollSTM h)
++      pure (connected && state == expected && pending, masked, empty, nclose, before)
++  record CMReturned
++  h <- atomically $ readTMVar handlerVar
++  after <- resultName <$> atomically (pollSTM h)
++  when pauseCleanup $ atomically $ putTMVar tailRelease ()
++  final <- resultName . Just <$> waitCatch h
++  record HandlerJoined
++  evs <- readTVarIO logVar
++  pure (Report ok masked empty nclose before after final evs)
++
++-- The watchdog bounds harness mistakes, including an unexpected CM join of the
++-- paused handler. Release/join afterwards prevents leaving a simulated thread.
++prop_replay :: Bool -> Property
++prop_replay paused =
++  let observed = runSimOrThrow (timeout 10 (experiment paused))
++      readiness = if paused then "pending" else "BufferFailure"
++      expected = Report True True True 1 readiness readiness "BufferFailure"
++        [AdmittedAndJoined, BufferFailed, Cleanup, SocketClosed,
++         CleanupCounters, Shutdown, CMReturned, HandlerJoined]
++  in counterexample (show observed) (observed === Just expected)
++
++tests :: TestTree
++tests = testGroup "ServerHandlerSelfPurgeReplay"
++  [ testProperty "paused cleanup: CM.with returns with handler Async pending" (once (prop_replay True))
++  , testProperty "no-pause control: handler result available before CM return" (once (prop_replay False))
++  ]
+diff --git a/ouroboros-network/ouroboros-network.cabal b/ouroboros-network/ouroboros-network.cabal
+index 249b8c543..19b913f3d 100644
+--- a/ouroboros-network/ouroboros-network.cabal
++++ b/ouroboros-network/ouroboros-network.cabal
+@@ -547,6 +547,7 @@ test-suite framework-sim-tests
+     Test.Ouroboros.Network.RateLimiting
+     Test.Ouroboros.Network.RawBearer
+     Test.Ouroboros.Network.Server.Sim
++    Test.Ouroboros.Network.ServerHandlerSelfPurgeReplay
+     Test.Simulation.Network.Snocket
+ 
+   build-depends:

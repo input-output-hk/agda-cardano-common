@@ -622,3 +622,118 @@ was not produced. This extends CM-PUB1 (workers blocked after return) to a
 candidate late handler fork. It is evidence about the pinned source, not a
 measurement of deployment frequency; in a node the window is narrow, because
 the worker normally takes the map immediately after it is forked.
+
+
+## Handler self-purge before the CM returns (12 November 2026)
+
+[ServerHandlerSelfPurgeReplay.patch](ServerHandlerSelfPurgeReplay.patch) confirms
+increment 78's **CM shutdown boundary** at network
+`2f1c154f248659b89523d5679ca532f442e7ed2a`: the actual CM `with` finally can
+complete while a handler it forked has no available Async result, after that
+handler has closed its socket and removed its own map binding. This is a
+deterministic direct-API IOSim replay of the CM boundary; it does not run
+the full `Server.with`/IG/accept-loop schedule.
+
+The patch adds one test module and its `framework-sim-tests` registration.
+Production source is unchanged. A synthetic inbound handshake publishes success;
+a separate admission worker calls the actual `includeInboundConnection`, returns
+`Connected`, and is joined. The test checks the entire map is exactly one
+`InboundIdle Duplex` connection and the handler is still pending before enabling
+a synchronous failure in the supplied `withBuffer` acquisition. This follows
+the production inbound handler's successful-promise/`withBuffer` order
+(`ConnectionHandler.hs` 510–514); the handshake, handle and handler body are
+fixtures, rather than a replay of `makeConnectionHandler` and its classifier.
+CM performs the real fork, admission, map changes, socket-close call, cleanup and
+shutdown.
+
+**Hook.** Only the handler's `TrConnectionManagerCounters` callback is paused,
+using a TMVar gate. The ordinary cleanup branch invokes it at `Core.hs` 665,
+after `modifyTMVar` has closed the socket and published the purged map
+(606–663). The test obtains the CM's actual handler `Async` from the existing
+`trTracer` transition to `UnnegotiatedState Inbound`; it matches the callback's
+thread ID against that handle, so admission's counter callbacks never pause.
+The callback also checks `MaskedUninterruptible`, as prescribed by the cleanup
+scope. This is a supplied, synchronous tracer at an existing source call site;
+no extra fork, map mutation, cancellation or production instrumentation is added.
+Blocking such a callback holds the cleanup continuation before Async completion.
+The pause is slightly later than the model's `cleanupCount` read: the source
+counter read has completed, but its tracer and handler exit have not.
+
+Both cases use the same one-second simulated observation delay after the cleanup
+counter callback is reached. No join forces the control to complete before CM
+return. The paused case keeps the gate closed across return, then opens it and
+joins the handler; neither case leaves a simulated handler behind.
+
+| Observation | Paused cleanup tracer | No-pause control |
+| --- | --- | --- |
+| Admission result/worker | `Connected`, joined before failure | Same |
+| Map before CM scope exit / socket close calls | Empty / exactly 1 | Same |
+| Actual handler `pollSTM` before CM finally | `Nothing` | `Just (Left BufferFailure)` |
+| Actual handler `pollSTM` after CM `with` returns | `Nothing` | `Just (Left BufferFailure)` |
+| After gate release and final join | `Left BufferFailure` | `Left BufferFailure` |
+
+The asserted event order is admission joined, buffer failure, cleanup entry,
+socket close, cleanup counters, `TrShutdown`, CM return, final handler join.
+The empty map has no subsequent writer, so the shutdown snapshot at
+`Core.hs` 530 omits the handler; the traversal and result wait at 534–550 do
+not collect it. Polling the captured CM-created Async establishes result
+unavailability directly. Its eventual exception is the injected synchronous
+failure, rather than cancellation.
+
+### Commands and validation
+
+The earlier `/tmp/cm-*` worktrees and audit fetch were absent. The exact commit
+was recovered offline from the existing Cabal source cache:
+
+```text
+/home/rye/YE_Workspace_Research/Workspace_IOG/git_repos/ouroboros-consensus/dist-newstyle/src/ouroboros_-d8331e5b904ad4f3
+```
+
+A shared scratch clone was checked out detached at the pin. All scratch files,
+logs and the independent patch-application checkout are under:
+
+```text
+/tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/replay78/
+```
+
+To reproduce in a clean checkout of the pin, with external dependencies already
+in the Cabal store (GHC 9.6.7, Cabal 3.12.1.0, io-sim/io-classes 1.8.0.1):
+
+```sh
+git rev-parse HEAD
+git apply --check /absolute/path/to/ServerHandlerSelfPurgeReplay.patch
+git apply /absolute/path/to/ServerHandlerSelfPurgeReplay.patch
+cabal --config-file=../cabal.config build --offline -j1 \
+  ouroboros-network:test:framework-sim-tests
+cabal --config-file=../cabal.config list-bin \
+  ouroboros-network:test:framework-sim-tests
+/path/printed/by/list-bin -p '/ServerHandlerSelfPurgeReplay/' \
+  --quickcheck-tests 1 --quickcheck-verbose
+```
+
+`../cabal.config` is a scratch copy of the existing user config, replacing
+`build-summary` and `logs-dir` with writable paths in the scratch directory;
+the existing package cache and store are retained. There was one build at a
+time, with `-j1`, and no network fetch. Offline planning took 2.23 s and required
+only repository packages to build. The initial baseline build compiled and linked
+but exited 1 after 54.17 s because the historical build-summary path was read-only;
+that is not a successful build. After correcting the scratch config, the replay
+build passed in 14.46 s with two unused-import warnings. Removing those imports
+produced the final successful rebuild in 2.53 s, without warnings.
+
+Both final tests passed in three runs (0.032, 0.042 and 0.023 s wall time).
+`--quickcheck-verbose` records the complete reports, including the actual poll
+results. `git apply --check` and application passed independently against a
+pristine pinned checkout, and all three applied files matched the tested files
+byte for byte. Scratch logs: `plan.log`, `build-baseline.log`,
+`build-replay-1.log`, `build-final.log`, `final-tests-{1,2,3}.log` and
+`verification.json`. No Agda or broader generated-suite check was run.
+
+**Limits.** This confirms the selected self-purge/CM-finally behavior under a
+controllable blocking tracer. It is not a full `Server.with` execution, a real
+buffer-allocation failure, a deployment-tracer contract, a frequency estimate or
+exhaustive schedule coverage. The socket and handshake are synthetic; no real
+mux or protocol workers run. The control establishes completion on its one
+unpaused IOSim schedule. The result supports the model's historical-handler
+registry motivation, without validating the proposed registry implementation or
+proving whole-system shutdown.
