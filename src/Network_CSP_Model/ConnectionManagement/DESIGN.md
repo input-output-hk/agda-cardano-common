@@ -399,6 +399,8 @@ be advertised as a real-source defect.
 | G4 | Semantic bridge | Machine/process transition and trace correspondence; monitors and negative controls |
 | G5 | Exploration/replay | Bounded enumeration/export checks, minimized candidates, source-operation replay |
 
+See [GateAudit.md](GateAudit.md) for the evidence audit and ordered gap-closing plan.
+
 Develop G2 in small paths, but do not declare the subsystem modeled after only a
 CM or IG path. First witnesses: inbound clean lifecycle; outbound clean lifecycle;
 duplex reuse; handshake failure and socket cleanup; successful hot demotion;
