@@ -317,7 +317,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Work | Dependency and completion evidence |
 | --- | --- |
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
-| CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
+| CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers. Under C3's unrestricted initializer it is false: [increment 79](#seventy-ninth-increment-live-tracker-reference-validity-and-the-initializer) checks a preloaded outbound fork creating a live physical thread with an absent captured entry and unallocated promise ([statement](Properties/LiveTrackerReferences.agda), [counterexample](Properties/LiveTrackerReferencesCounterexample.agda)). An explicit initialization contract and the corresponding reference theorem remain open; C3 phase/cleanup validity is unchanged. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
 | Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; increment 76: restated c2 proved, every frame left at shutdown belongs to a foreign caller with no result yet; increment 77: in the owned-callers design variant the original c2 holds, no frame is left; increment 78: step 2 design exploration, Server-owned workers plus a CM handler registry are quiescent at shutdown; source candidate: a self-purged handler outlives `Server.with`). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
@@ -7445,3 +7445,67 @@ in three runs; the final offline build had no warnings. This is a direct-CM
 confirmation with synthetic transport/handshake/handler body, not a full
 `Server.with` replay or a deployment-tracer claim. See the [replay record](SourceReplay/README.md#handler-self-purge-before-the-cm-returns-12-november-2026)
 for commands, timings and limits.
+
+## Seventy-ninth increment: live-tracker reference validity and the initializer
+
+Checked 12 November 2026. The remaining reference part of CM-I4c is false
+with the same initializer and premises as the C3 phase/cleanup theorem.
+
+Statement ([Properties/LiveTrackerReferences](Properties/LiveTrackerReferences.agda)).
+`Frontend.PhysicalReferences` requires that every physical thread's captured
+handler agree with its shared registration, that the original entry and socket
+exist, and that the original promise be allocated. This is a necessary part
+of full live-tracker reference validity, not a replacement for its handle/mux
+and phase-specific publication obligations. `Universal` requires this component
+at every state reached by `T.Runs` from any successful `T.initialize c g`,
+exactly as C3 does. It adds no `O.initial core` or preloaded-PC coherence premise.
+
+Counterexample ([Properties/LiveTrackerReferencesCounterexample](Properties/LiveTrackerReferencesCounterexample.agda)).
+The small independent witness follows the initialization boundary already
+exposed by `Negative/ServerPeers.Protocols.PreloadedAcquisitionForkControl`:
+
+- The initial physical, handler, socket, admission and promise stores are empty.
+  The referenced CM map entry exists, but is entry0, not captured entry99.
+  A supplied outbound acquisition continuation is already at
+  `forkHandler entry99 promise88 key`.
+- `initialized` checks that the real runtime initializer accepts this state;
+  `initial-references` proves the physical component initially.
+- `actual-fork` and `initialized-run` check the actual dispatched `forkOK` and
+  its one-event runtime run. The successor has a live physical `maskedSetup`
+  thread, the matching handler registration and its actual socket.
+- `entry-missing` and `promise-missing` establish the dangling captured
+  references. `not-references` refutes the endpoint predicate and
+  `not-universal : Universal → ⊥` refutes the universal claim.
+  `phase-cleanup-valid` applies C3 to that same initialized run.
+- `ordinary-initialized` and `ordinary-fork-refused` check the control:
+  replacing the supplied configuration by `O.initial core` erases the
+  preloaded acquisition continuation and refuses the same immediate fork.
+
+This is a model initialization counterexample, not a pinned-source defect.
+The existing retention theorems preserve certificates they are given; they
+cannot establish missing resources when initialization admits a continuation
+that skipped allocation. Requiring current CM map ownership, or a current
+entry constructor naming the old worker, would also be inappropriate because
+source replacement and temporary mismatches are allowed.
+
+Work stops at the checked counterexample. CM-I4c remains open. A reference
+invariant for the narrower `O.initial core` profile, or for an explicit
+well-formed preloaded-state contract, would be a different theorem and is not
+proved here. No executable rules, existing Agda modules, source pin or
+`PROJECT_STATE.md` were changed.
+
+Validation (one Agda process at a time, from the library root):
+
+```sh
+agda ConnectionManagement/Properties/LiveTrackerReferences.agda +RTS -M20G -A128m -RTS
+agda ConnectionManagement/Properties/LiveTrackerReferencesCounterexample.agda +RTS -M20G -A128m -RTS
+```
+
+Both passed with their own `Checking` lines, reusing unchanged dependency
+interfaces. The statement module took 8.07 s (1.34 GiB peak RSS); the final
+counterexample check, including the C3 application, took 24.43 s (3.42 GiB).
+The earlier witness check without the C3 application also passed (13.89 s).
+There were no warnings. The two-file local proof audit found no holes,
+postulates or unsafe options; this is not a transitive term-level axiom audit.
+Whitespace and the new documentation links were checked. No full regression
+sweep or native replay was run; no existing Agda module was modified.

@@ -175,6 +175,36 @@ uses that module's permission, which refuses raw peer-side core operations. The
 adapted skeletons are those of `HandlerAuxFrontend`.
 
 This closes the phase/cleanup part of CM-I4c. Reference validity of the live
-trackers (handler, promise, handle and mux references) is not part of this
-result; it is covered separately, as far as it goes, by the capture and
-handler-resource retention theorems.
+trackers (handler, promise, handle and mux references) is a separate obligation.
+It is false under the same unrestricted initializer premises as C3; see
+[Supervision increment 79](Supervision.md#seventy-ninth-increment-live-tracker-reference-validity-and-the-initializer).
+
+[LiveTrackerReferences](Properties/LiveTrackerReferences.agda) states a necessary
+component, `Frontend.PhysicalReferences`: every stored physical thread's captured
+handler agrees with its shared registration, its original entry and socket
+exist, and its original promise is allocated. A promise need not have a result
+before publication. This is required even for a live `maskedSetup` thread;
+it does not require current CM map membership, an open socket, or the entry's
+current constructor to name that worker. A full live-tracker invariant would
+also relate the mux, exit and startup-fault trackers and their references to
+these same resources, with handle/mux and negotiated-result requirements at
+the appropriate allocation/publication phases.
+
+[LiveTrackerReferencesCounterexample](Properties/LiveTrackerReferencesCounterexample.agda)
+checks an initialized one-event run of `ServerPeers.Protocols`. The supplied
+configuration has an outbound acquisition continuation already at
+`forkHandler entry99 promise88 key`, but neither resource is allocated. The
+unchanged initializer accepts it. The enabled `forkOK` creates an actual
+physical `maskedSetup` thread, matching handler registration and socket, while
+entry99 and promise88 remain absent. `not-universal` refutes the necessary
+component for arbitrary initialized runs. The same run satisfies C3's
+phase/cleanup theorem (`phase-cleanup-valid`).
+
+This is an explicit over-approximation of the initializer, not a source-defect
+claim. `O.initial core` removes the supplied acquisition continuation, and the
+same immediate fork is then refused (`ordinary-fork-refused`). No universal
+reference theorem for that narrower profile is proved here. The existing
+capture/resource retention theorems remain conditional on their certificates;
+they cannot establish resources omitted before a preloaded fork. CM-I4c stays
+open pending an explicit initialization contract and a proof of reference
+establishment and preservation under that contract.
