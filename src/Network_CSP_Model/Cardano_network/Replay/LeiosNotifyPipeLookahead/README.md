@@ -290,9 +290,15 @@ are executable checks of supplied bytes, not theorems about Python or the logger
 The `node-client-control` profile checks
 [`NodeClientModel`](../../LeiosNotifyPipeLookahead/NodeClientModel.agda) with unit
 return: depth 1000, forecast/stop source actions, normal handling and the
-unexpected-Canceled fault state. `Wire/NodeClientPolicy` instantiates
-`Semantics.Replay.Decide` with finite sound and complete menus and inherited
-hidden accessibility; rejection excludes every matching initial source execution.
+unexpected-Canceled fault state. `Wire/NodeClientPolicy` instantiates the
+frontier decider [`Semantics.Replay.Frontier`](../../../Semantics/Replay/Frontier.agda)
+with finite sound and complete menus, inherited hidden accessibility and
+decidable policy-state equality; rejection excludes every matching initial
+source execution. The frontier keeps the set of states reachable by the
+processed rows and expands each distinct hidden-closure state once per row.
+The path-by-path `Semantics.Replay.Decide` search it replaces re-explored
+equivalent main/receiver interleavings and exhausted a 2 GB heap on
+real-capture sessions of a few thousand rows once the 1000-request window was full.
 It does not infer the truth of unlogged forecast/governor inputs. Select it with
 `clientCallbacks: "node-client-control"` in a `localclient` manifest; the paired
 full-node profile needs `nodePolicy: "full-node"`. `node-next` is a server

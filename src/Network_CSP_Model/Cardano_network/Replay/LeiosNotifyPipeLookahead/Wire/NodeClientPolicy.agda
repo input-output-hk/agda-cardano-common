@@ -7,20 +7,28 @@ module Cardano_network.Replay.LeiosNotifyPipeLookahead.Wire.NodeClientPolicy
   (Notification : Set) (notificationEq : DecidableEquality Notification) where
 
 open import Level using (0ℓ)
-open import Data.Empty using (⊥-elim)
-open import Data.Bool using (true; false)
-open import Data.List using (List; []; _∷_; _++_; map; mapMaybe)
+open import Data.Empty using (⊥; ⊥-elim)
+open import Data.Bool using (Bool; true; false)
+import Data.Bool.Properties as Bool
+open import Data.List using (List; []; _∷_; _++_; map; mapMaybe; length)
 open import Data.List.Membership.Propositional using (_∈_)
 open import Data.List.Membership.Propositional.Properties using (∈-map⁺; ∈-map⁻; ∈-++⁺ˡ; ∈-++⁺ʳ; ∈-++⁻)
 open import Data.List.Relation.Unary.Any using (here; there)
 open import Data.Maybe using (Maybe; just; nothing)
-open import Data.Nat using (ℕ; suc; zero; _<_; s≤s; z≤n)
-open import Data.Nat.Induction using (<-wellFounded)
+open import Data.Nat using (ℕ; suc; zero; _<_; s≤s; z≤n; _+_; _*_; _%_)
+open import Data.Integer using (ℤ; +_; -[1+_])
+import Data.Nat.Properties as Nat
+open import Data.Nat.Induction using (<-wellFounded-fast)
+import Data.Integer.Properties as Int
+import Data.Maybe.Properties as Maybe
+import Data.Product.Properties as Product
+import Data.Unit.Properties as Unit
 open import Data.Product using (Σ-syntax; _×_; _,_; proj₁)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Unit using (⊤; tt)
 open import Induction.WellFounded using (Acc; acc)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; subst; cong)
+open import Relation.Binary.Definitions using (DecidableEquality)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; subst; cong; cong₂)
 open import Relation.Nullary using (Dec; yes; no)
 import Cardano_network.LeiosNotifyPipeLookahead.Model Notification as S
 import Cardano_network.LeiosNotifyPipeLookahead.ClientModel Notification ⊤ as C
@@ -32,6 +40,7 @@ import Cardano_network.LeiosNotifyPipeLookahead.SchedulingRank Notification ⊤ 
 import Cardano_network.LeiosNotifyPipeLookahead.Wire.Client Notification as W
 import Semantics.Replay as R
 import Semantics.Replay.Decide as Decide
+import Semantics.Replay.Frontier as Frontier
 
 -- The same existing typed wire alphabet retains every notification value.
 Wire : Set
@@ -174,6 +183,217 @@ wireEq (W.reply a) (W.reply b) with S.Executable.replyEq notificationEq a b
 ... | yes refl = yes refl
 ... | no unequal = no λ { refl → unequal refl }
 
+-- Decidable equality transfers along a coding with a left inverse.
+viaCode : {A B : Set} (code : A → B) (decode : B → A) →
+  (∀ a → decode (code a) ≡ a) → DecidableEquality B → DecidableEquality A
+viaCode code decode inverse _≟B_ a a′ with code a ≟B code a′
+... | yes same = yes (trans (sym (inverse a)) (trans (cong decode same) (inverse a′)))
+... | no different = no λ same → different (cong code same)
+
+-- Main-thread positions are numbered; the Quit writer's marker bit is part of the number.
+mainCode : C.Main → ℕ
+mainCode C.poll = 0
+mainCode C.issue = 1
+mainCode C.writingRequest = 2
+mainCode C.stopPending = 3
+mainCode C.registerQuit = 4
+mainCode C.collectingMaybe = 5
+mainCode C.collectingWait = 6
+mainCode C.adjustCollected = 7
+mainCode C.draining = 8
+mainCode C.awaitDone = 9
+mainCode C.closed = 10
+mainCode (C.writingQuit false) = 11
+mainCode (C.writingQuit true) = 12
+
+-- Every main-thread number below 13 names its position; other numbers are unused.
+mainDecode : ℕ → C.Main
+mainDecode 0 = C.poll
+mainDecode 1 = C.issue
+mainDecode 2 = C.writingRequest
+mainDecode 3 = C.stopPending
+mainDecode 4 = C.registerQuit
+mainDecode 5 = C.collectingMaybe
+mainDecode 6 = C.collectingWait
+mainDecode 7 = C.adjustCollected
+mainDecode 8 = C.draining
+mainDecode 9 = C.awaitDone
+mainDecode 10 = C.closed
+mainDecode 11 = C.writingQuit false
+mainDecode 12 = C.writingQuit true
+mainDecode _ = C.poll
+
+-- Decoding inverts the main-thread numbering.
+mainDecode-code : ∀ m → mainDecode (mainCode m) ≡ m
+mainDecode-code C.poll = refl
+mainDecode-code C.issue = refl
+mainDecode-code C.writingRequest = refl
+mainDecode-code C.stopPending = refl
+mainDecode-code C.registerQuit = refl
+mainDecode-code C.collectingMaybe = refl
+mainDecode-code C.collectingWait = refl
+mainDecode-code C.adjustCollected = refl
+mainDecode-code C.draining = refl
+mainDecode-code C.awaitDone = refl
+mainDecode-code C.closed = refl
+mainDecode-code (C.writingQuit false) = refl
+mainDecode-code (C.writingQuit true) = refl
+
+-- Main-thread positions have decidable equality.
+mainEq : DecidableEquality C.Main
+mainEq = viaCode mainCode mainDecode mainDecode-code Nat._≟_
+
+-- Receiver positions are coded by a tag, an optional held reply and the publish marker bit.
+receiverCode : C.Receiver → ℕ × Maybe S.Reply × Bool
+receiverCode C.idle = 0 , nothing , false
+receiverCode C.awaiting = 1 , nothing , false
+receiverCode C.bumpArrival = 2 , nothing , false
+receiverCode (C.inspect reply) = 3 , just reply , false
+receiverCode (C.handling reply) = 4 , just reply , false
+receiverCode (C.publish marker) = 5 , nothing , marker
+
+-- Receiver codes decode to their position; unused codes are irrelevant.
+receiverDecode : ℕ × Maybe S.Reply × Bool → C.Receiver
+receiverDecode (1 , _ , _) = C.awaiting
+receiverDecode (2 , _ , _) = C.bumpArrival
+receiverDecode (3 , just reply , _) = C.inspect reply
+receiverDecode (4 , just reply , _) = C.handling reply
+receiverDecode (5 , _ , marker) = C.publish marker
+receiverDecode _ = C.idle
+
+-- Decoding inverts the receiver coding.
+receiverDecode-code : ∀ r → receiverDecode (receiverCode r) ≡ r
+receiverDecode-code C.idle = refl
+receiverDecode-code C.awaiting = refl
+receiverDecode-code C.bumpArrival = refl
+receiverDecode-code (C.inspect _) = refl
+receiverDecode-code (C.handling _) = refl
+receiverDecode-code (C.publish _) = refl
+
+-- Receiver positions, including held replies, have decidable equality.
+receiverEq : DecidableEquality C.Receiver
+receiverEq = viaCode receiverCode receiverDecode receiverDecode-code
+  (Product.≡-dec Nat._≟_ (Product.≡-dec (Maybe.≡-dec (S.Executable.replyEq notificationEq)) Bool._≟_))
+
+-- Allocation-free list comparison from an element test.
+listᵇ : {A : Set} → (A → A → Bool) → List A → List A → Bool
+listᵇ f [] [] = true
+listᵇ f [] (_ ∷ _) = false
+listᵇ f (_ ∷ _) [] = false
+listᵇ f (x ∷ xs) (y ∷ ys) with f x y
+... | true = listᵇ f xs ys
+... | false = false
+
+-- A sound element test gives a sound list test.
+listᵇ-sound : {A : Set} (f : A → A → Bool) → (∀ x y → f x y ≡ true → x ≡ y) →
+  ∀ xs ys → listᵇ f xs ys ≡ true → xs ≡ ys
+listᵇ-sound f sound [] [] _ = refl
+listᵇ-sound f sound (x ∷ xs) (y ∷ ys) eq with f x y in same
+... | true = cong₂ _∷_ (sound x y same) (listᵇ-sound f sound xs ys eq)
+
+-- A reflexive element test gives a reflexive list test.
+listᵇ-refl : {A : Set} (f : A → A → Bool) → (∀ x → f x x ≡ true) → ∀ xs → listᵇ f xs xs ≡ true
+listᵇ-refl f reflexive [] = refl
+listᵇ-refl f reflexive (x ∷ xs) with f x x | reflexive x
+... | true | _ = listᵇ-refl f reflexive xs
+
+-- List equality decided by the allocation-free test.
+listEq : {A : Set} (f : A → A → Bool) → (∀ x y → f x y ≡ true → x ≡ y) → (∀ x → f x x ≡ true) →
+  DecidableEquality (List A)
+listEq f sound reflexive xs ys with listᵇ f xs ys in eq
+... | true = yes (listᵇ-sound f sound xs ys eq)
+... | false = no λ { refl → false≢true (trans (sym eq) (listᵇ-refl f reflexive xs)) }
+  where
+  false≢true : false ≡ true → ⊥
+  false≢true ()
+
+-- Boolean job comparison.
+jobᵇ : C.Job → C.Job → Bool
+jobᵇ C.responseJob C.responseJob = true
+jobᵇ C.quitMarker C.quitMarker = true
+jobᵇ _ _ = false
+
+-- Job comparison is sound.
+jobᵇ-sound : ∀ x y → jobᵇ x y ≡ true → x ≡ y
+jobᵇ-sound C.responseJob C.responseJob _ = refl
+jobᵇ-sound C.quitMarker C.quitMarker _ = refl
+jobᵇ-sound C.responseJob C.quitMarker ()
+jobᵇ-sound C.quitMarker C.responseJob ()
+
+-- Job comparison is reflexive.
+jobᵇ-refl : ∀ x → jobᵇ x x ≡ true
+jobᵇ-refl C.responseJob = refl
+jobᵇ-refl C.quitMarker = refl
+
+-- Boolean token comparison.
+tokenᵇ : C.Token → C.Token → Bool
+tokenᵇ C.responseToken C.responseToken = true
+tokenᵇ C.markerToken C.markerToken = true
+tokenᵇ _ _ = false
+
+-- Token comparison is sound.
+tokenᵇ-sound : ∀ x y → tokenᵇ x y ≡ true → x ≡ y
+tokenᵇ-sound C.responseToken C.responseToken _ = refl
+tokenᵇ-sound C.markerToken C.markerToken _ = refl
+tokenᵇ-sound C.responseToken C.markerToken ()
+tokenᵇ-sound C.markerToken C.responseToken ()
+
+-- Token comparison is reflexive.
+tokenᵇ-refl : ∀ x → tokenᵇ x x ≡ true
+tokenᵇ-refl C.responseToken = refl
+tokenᵇ-refl C.markerToken = refl
+
+-- Client states are equal field by field; the long job list is compared last.
+clientEq : DecidableEquality C.State
+clientEq (C.client m r js rs n a q v) (C.client m′ r′ js′ rs′ n′ a′ q′ v′) with mainEq m m′
+... | no different = no λ same → different (cong C.main same)
+... | yes refl with receiverEq r r′
+...   | no different = no λ same → different (cong C.receiver same)
+...   | yes refl with n Nat.≟ n′
+...     | no different = no λ same → different (cong C.inFlight same)
+...     | yes refl with a Int.≟ a′
+...       | no different = no λ same → different (cong C.arrived same)
+...       | yes refl with q Bool.≟ q′
+...         | no different = no λ same → different (cong C.stopFlag same)
+...         | yes refl with Maybe.≡-dec Unit._≟_ v v′
+...           | no different = no λ same → different (cong C.returnValue same)
+...           | yes refl with listEq tokenᵇ tokenᵇ-sound tokenᵇ-refl rs rs′
+...             | no different = no λ same → different (cong C.results same)
+...             | yes refl with listEq jobᵇ jobᵇ-sound jobᵇ-refl js js′
+...               | no different = no λ same → different (cong C.jobs same)
+...               | yes refl = yes refl
+
+-- Node policy states have decidable equality.
+stateEq : DecidableEquality N.State
+stateEq (N.running c) (N.running c′) with clientEq c c′
+... | yes refl = yes refl
+... | no different = no λ { refl → different refl }
+stateEq (N.running _) (N.unexpectedCancel _) = no λ ()
+stateEq (N.unexpectedCancel _) (N.running _) = no λ ()
+stateEq (N.unexpectedCancel c) (N.unexpectedCancel c′) with clientEq c c′
+... | yes refl = yes refl
+... | no different = no λ { refl → different refl }
+
+-- Signed arrival counts are coded injectively by sign and magnitude.
+arrivedCode : ℤ → ℕ
+arrivedCode (+ n) = 2 * n
+arrivedCode -[1+ n ] = suc (2 * n)
+
+-- A cheap bucket hash from the short client fields; the job list is not traversed.
+clientHash : C.State → ℕ
+clientHash c =
+  ((((mainCode (C.main c) * 7 + proj₁ (receiverCode (C.receiver c))) * 1009 + C.inFlight c) * 1013
+    + arrivedCode (C.arrived c)) * 1019 + length (C.results c)) * 2 + stopBit (C.stopFlag c)
+  where
+  stopBit : Bool → ℕ
+  stopBit true = 1
+  stopBit false = 0
+
+-- Node policy states hash by their client fields; the abnormal exit gets its own residue.
+stateHash : N.State → ℕ
+stateHash (N.running c) = clientHash c % 4093
+stateHash (N.unexpectedCancel c) = suc (clientHash c) % 4093
+
 -- The generic replay decision is instantiated rather than reimplemented.
 replay : R.Replay 0ℓ N.State Wire
 replay = record
@@ -191,6 +411,7 @@ replay = record
 -- Trace evidence is the existing generic semantics over the exact policy menus.
 module Trace = R.Traces replay
 module Decision = Decide.Decider replay
+module Search = Frontier.Decider replay stateEq stateHash
 
 -- Failure has zero residual potential; every running source state retains one credit.
 potential : N.State → ℕ
@@ -211,7 +432,7 @@ from-rank s (acc smaller) = Decision.acc λ {t} step → from-rank t (smaller (d
 
 -- Every policy state has a terminating hidden closure; no guessed fuel or graph bound is used.
 tau-accessible : ∀ s → Decision.τAcc s
-tau-accessible s = from-rank s (<-wellFounded (potential s))
+tau-accessible s = from-rank s (<-wellFounded-fast (potential s))
 
 -- The named unit-return policy profile starts in the existing fresh node client state.
 initial : N.State
@@ -269,7 +490,8 @@ equivalence : ∀ rows → (SourceTrace rows → Trace.HasTrace initial rows) ×
 equivalence rows = source→replay , replay→source
 
 -- Acceptance builds a source run; rejection excludes every allowed hidden scheduling choice.
+-- The frontier decider expands each distinct hidden-closure state once per row.
 decide-source : (rows : List Wire) → Dec (SourceTrace rows)
-decide-source rows with Decision.hasTrace? (Decision.τAccReach-all tau-accessible initial) rows
+decide-source rows with Search.hasTrace? tau-accessible initial rows
 ... | yes accepted = yes (replay→source accepted)
 ... | no denied = no λ source → denied (source→replay source)

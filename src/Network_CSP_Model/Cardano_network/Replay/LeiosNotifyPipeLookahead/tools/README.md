@@ -20,20 +20,28 @@ raw-fidelity limitations. The legacy `Replay/Main.agda` is separate.
 
 Build `LookaheadMain` separately. Use a fresh disk-backed output directory;
 splitting generation and GHC avoids holding both heaps simultaneously. From
-the repository root:
+`src/`, so that Agda picks up `csp-ptree.agda-lib` and its library
+dependencies (running from the repository root with `-i src` fails to find
+`Class.DecEq`):
 
 ```sh
 LOOKAHEAD_BUILD=/var/tmp/leiosnotify-lookahead-build
-agda --compile --ghc-dont-call-ghc -i src \
+agda --compile --ghc-dont-call-ghc \
   --compile-dir="$LOOKAHEAD_BUILD" \
   --ghc-flag=-O0 --ghc-flag=-threaded --ghc-flag=-rtsopts \
-  src/Cardano_network/Replay/LeiosNotifyPipeLookahead/LookaheadMain.agda \
+  Cardano_network/Replay/LeiosNotifyPipeLookahead/LookaheadMain.agda \
   +RTS -M2G -RTS
-ghc --make -O0 -threaded -rtsopts -i"$LOOKAHEAD_BUILD" \
+ghc --make -O -threaded -rtsopts -i"$LOOKAHEAD_BUILD" \
   -main-is MAlonzo.Code.Cardano_network.Replay.LeiosNotifyPipeLookahead.LookaheadMain \
   "$LOOKAHEAD_BUILD/MAlonzo/Code/Cardano_network/Replay/LeiosNotifyPipeLookahead/LookaheadMain.hs" \
   -o "$LOOKAHEAD_BUILD/LookaheadMain" +RTS -M2G -RTS
 ```
+
+Use `-O` for capture-sized input: on 2026-11-10 it ran the generic client check
+of a 730k-event session in 8.8 s instead of 93 s at `-O0`, and the
+node-client-control check of a 2302-row session in 1.8 s instead of 31 s. The
+GHC step then takes about a minute and 1 GB. `-O0` builds faster and gives the
+same verdicts.
 
 `LookaheadMain` is the new ordinary IO/environment/exit boundary; it is not a
 safe theorem module. Its proof/report dependencies are checked separately with
@@ -206,3 +214,43 @@ DIR must be new. It receives:
 `--selftest` uses a synthetic two-host capture and a fake checker, plus a
 timeout control. `--selftest --checker BIN --out DIR` runs the same assertions
 with a real binary. Silenced acceptance is not full-observation acceptance.
+
+## Per-connection CSV captures
+
+`csv_capture_batch.py` replays a capture made of one CSV file per remote
+address and port (`conn-<address>-<port>.csv`, columns `at,protocol,direction,msg,
+ebSlot,ebHash,ebBodySize,ebBytesSize,rbHash,voterId,nVotes`):
+
+```sh
+python3 -I -B src/Cardano_network/Replay/LeiosNotifyPipeLookahead/tools/csv_capture_batch.py \
+  CAPTURE_DIR /var/tmp/new-batch-dir --checker "$LOOKAHEAD_BUILD/LookaheadMain" \
+  [--timeout 600] [--heap 2G] [--only 'conn-*.csv'] [--split-silence 30] [--split-only]
+```
+
+- Role follows message agency. `Done` closes that role's session.
+- The capture records no connection boundary, and an outbound reconnect reuses
+  the peer's listening port, so both connections share one file. Without a
+  split, the dead connection's unanswered requests stay open and the next
+  connection looks like a depth violation. A role's session therefore also ends
+  when a `RequestNext` follows at least `--split-silence` seconds without rows
+  while requests are still unanswered. A live client at full depth resumes with
+  a reply, not a request.
+- A split is undone when the new session ever has more replies than requests,
+  because a fresh connection starts with nothing outstanding. In the
+  2026-11-05 capture this rule kept 237 of 239 splits and undid two live pauses
+  (30.9 s and 42.0 s).
+- Client sessions run under `generic` and `node-client-control`, server sessions
+  under `generic-next` and `node-next`, all with `--observation driver-log
+  --assume-fresh`. Timeouts are `resource-inconclusive` and exit/tag
+  disagreement is `checker-inconclusive`.
+
+DIR must be new. It receives `sessions/` (each `.txt` with a `.src` map of CSV
+line and timestamp), `splits.jsonl` (each session's rows, end (`done`,
+`silence` or `eof`), the silence before it and any undone splits),
+`results.jsonl` and `summary.json`. `--split-only` stops after `splits.jsonl`.
+`--selftest` covers a reconnect, a live pause, a request with nothing
+outstanding and an undone split.
+
+The splits are a reading of the log, not observed connection boundaries. A
+capture that records the local port or a connection id would make them
+unnecessary.
