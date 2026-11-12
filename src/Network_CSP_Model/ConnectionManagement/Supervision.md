@@ -319,7 +319,7 @@ statement or acceptance requirement may be relaxed during migration.
 | Remaining collected-worker shutdown routes | After the profiled origin layer, integrate mux, cleanup/TIME_WAIT and already-finished paths. Preserve the same actual fork through acknowledgement, publication and the final pre-wait oracle; keep premature-wait/duplicate-publication controls. |
 | CM-I4c tracked validity | Can proceed independently in separate component properties. Review initialized reference, phase and cleanup preservation across combined writers. [HandlerValidity](Properties/HandlerValidity.agda) is a diagnostic, not a proved global invariant or a filter for enabled transitions. Its legacy lifecycle store stays empty in the supervised stack ([LegacyLifecycleEmpty](Properties/LegacyLifecycleEmpty.agda), proved through `HandlerSupervision` and `OutboundHandlerSupervision`, audited above them; see [scope](HandlerValidity.md#scope-in-the-current-supervised-stack-10-november-2026)). Phase/cleanup validity for `HandlerSupervision` threads is proved through `OutboundHandlerSupervision` ([HandlerPhaseCleanup](Properties/HandlerPhaseCleanup.agda), over the cleanup-writer lemmas in [CleanupWriters](Properties/CleanupWriters.agda)), and with `MuxHandlerExit` exit frames and startup faults up to the top-level runtime ([MuxPhaseCleanup](Properties/MuxPhaseCleanup.agda), [FrontendPhaseCleanup](Properties/FrontendPhaseCleanup.agda), with peer actions by [CleanupPeers](Properties/CleanupPeers.agda)). The remaining CM-I4c obligation is reference validity of the live trackers, which these theorems do not state. |
 | SI4 executable/source coverage | Audit now in parallel. For each selected Server/handler/provider/tracer/finalizer outcome, record implemented behavior, explicit contract, justified profile exclusion or missing branch using the [ledger checklist](SourceLedger.md#9-source-expansion-and-implementation-checklist). Implement missing branches only after pinned source/masking review and reachable controls. |
-| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; increment 76: restated c2 proved, every frame left at shutdown belongs to a foreign caller with no result yet; increment 77: in the owned-callers design variant the original c2 holds, no frame is left). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
+| Admission/API quiescence | In progress (increment 73: late-admission witness and replay; increment 74: residue c1, no pending inbound-governor CM call at the finished state; increment 75: c2 as first stated is false, since a foreign CM caller's frame survives shutdown; increment 76: restated c2 proved, every frame left at shutdown belongs to a foreign caller with no result yet; increment 77: in the owned-callers design variant the original c2 holds, no frame is left; increment 78: step 2 design exploration, Server-owned workers plus a CM handler registry are quiescent at shutdown; source candidate: a self-purged handler outlives `Server.with`). Investigate in parallel with SI4. Preserve the [finite Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) and model counterexamples: listener and CM completion do not imply raw-admission completion. Resolve the intended claim by source evidence, a justified profile, or a separately reviewed fix. Do not prove an unconditional claim contradicted by retained examples. |
 | SI5 derived completion | SI5a is done in [ServerShutdownComplete](Properties/ServerShutdownComplete.agda) and SI5b in [ServerShutdownCoordinator](Properties/ServerShutdownCoordinator.agda), for the one-listener profile, from one initialized outer history. Raw admission workers stay outside (quiescence resolution). No eventual-completion claim follows without separate progress assumptions. |
 | G0–G5 beyond supervision | Close the selected profile's branch/primitive matrix and initialized G2 lifecycles; extend G3 interference and audit G4 correspondence for the expanded dispatcher. G5 still needs enabledness-complete bounded enumeration, explicit cutoffs, trace export/minimization and source-operation replay. Existing raw trace proofs and finite native replays remain useful partial evidence. |
 
@@ -7348,3 +7348,89 @@ have.
 
 Checks: fresh `Negative/OwnedCallersFixture` (12 new modules, 107 s, 7.6 GB).
 No warnings.
+
+## Seventy-eighth increment: admission quiescence step 2, design exploration
+
+Checked 12 November 2026. The goal is a design in which all Server threads
+stop when `Server.with` returns, addressing the seventy-third increment.
+
+Rejected design 1, "Server owns, cancels and joins admission workers"
+(phase A). The include callback is explicitly unmasked (`Core.hs` 801–880).
+If cancellation arrives after the handler fork but before map publication,
+`modifyTMVar` restores the old map (2373–2379), losing the live handler's
+binding. Joining the worker does not join its child. A standalone `async`
+primitive-contract probe confirmed this window and its post-publication
+control. This is a primitive-contract probe, not a replay of CM or Server.
+
+Design 2, "own + join, no cancel" (phase B,
+[Variants/ServerOwnedWorkers](Variants/ServerOwnedWorkers.agda)). Workers are
+registered at accept and joined only when their results are available.
+`outer-erasure` drops the joins; [Properties/ServerOwnedWorkers](Properties/ServerOwnedWorkers.agda)
+transports SI5. The late-admission witness is refused at `beginCM`
+([fixture](Negative/ServerOwnedWorkersFixture.agda)). It is still not quiescent:
+in [Negative/ServerOwnedWorkersCounterexample](Negative/ServerOwnedWorkersCounterexample.agda),
+the worker consumes a failed handshake, deletes the binding and is joined,
+while its handler remains in the catch with no physical result. CM and relays
+finish over an empty snapshot.
+
+Phase C audited routes by which a live handler can leave the map, or lose its
+thread reference, before the snapshot. Source ranges are in `Core.hs` at pin
+`2f1c154`:
+
+- Inbound failure/query deletion (897–904, 1007–1075), and outbound
+  failure/query deletion (1771–1830, delete at 1795), precede handler exit.
+- Ordinary self-purge (652–665) and TIME_WAIT final purge (695–713) leave
+  tracing, possibly blocking counter reads and physical result publication.
+  Even the tail after cleanup has finished can still lack its Async result.
+- Outbound bracket cleanup can remove aliases (1452–1471); a fork before
+  entry publication (1532–1552) leaves a reservation that CM skips.
+- Same-entry overwrite or fresh-entry replacement (839–879, 1558–1563)
+  can detach an old handler. Concrete collision/address reachability remains
+  a separate obligation.
+- Pruning (761–776) writes `Terminated` before physical completion, losing
+  the thread reference. Cancellation receipt is not a join.
+- Pre-publication exception rollback (870–879, 2376–2377) can omit a forked
+  handler; this source concern is outside the selected worker exception model.
+
+A failure/query-only worker-to-handler join leaves the other routes open.
+The decision was that only a historical handler registry closes all these
+routes among the explored designs.
+
+Source candidate ([Negative/ServerOwnedWorkersSelfPurge](Negative/ServerOwnedWorkersSelfPurge.agda)).
+The initialized run admits `Connected`, returns and joins the worker, then
+runs the handler's self-purge and pauses it at `cleanupCount`, before exit.
+CM closes with an empty snapshot and the relays finish, but the handler has
+no physical result (`not-quiescent`). `source-run` also gives the erased
+source run. This is a model result, not yet replayed in IOSim: a strong
+candidate that `Server.with` can return with a live handler.
+
+Design 3, accepted ([Variants/ServerOwnedHandlers](Variants/ServerOwnedHandlers.agda)),
+combines a historical handler registry, Server-owned admission workers
+(no cancel), and the owned-callers policy of increment 77. Physical births
+register atomically. A registry sweep skips available results or requests
+cancellation through existing delivery sites, then waits for every registered
+result. During protected cleanup it waits for the actual result. The worker
+gate requires joined workers with available results at `closingCM` and
+`serverReturned`; the CM gate requires the completed sweep and all registry
+results before closure, and preserves that requirement afterwards.
+
+Theorems ([Properties/ServerOwnedHandlers](Properties/ServerOwnedHandlers.agda)):
+`outer-erasure` supplies a source run, relabelling registry delivery to existing
+physical observations; `si5` transports SI5; `registry-si5` adds the completed
+registry wait. `no-late-admission` gives joined workers at the closed Server
+stages. At finished relays, `quiescence` gives `Quiescent`: workers are joined,
+and every registered and every physical handler thread has its result.
+`quiescent-covered` derives live-handler coverage. The initialized progress
+and refusal fixtures are in [Negative/ServerOwnedHandlersFixture](Negative/ServerOwnedHandlersFixture.agda).
+
+Scope: safety only. Progress is demonstrated by finite runs only; the model
+is untimed and proves no eventual shutdown. The registry is a design proposal,
+not part of the pinned source.
+
+Checks (fresh, by the reviewer): `Properties/ServerOwnedHandlers` (105 s,
+4.8 GB), `Negative/ServerOwnedWorkersSelfPurge` (27 s),
+`Negative/ServerOwnedHandlersFixture` (70 s, 5.3 GB),
+`Negative/ServerOwnedWorkersCounterexample` (16 s) and
+`Negative/ServerOwnedWorkersFixture` (36 s). No warnings.
+
+Next: IOSim replay of the self-purge candidate.
