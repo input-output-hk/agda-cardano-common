@@ -105,9 +105,73 @@ report k s with parseFile s
 ... | inj₁ (l , txt) = "parse error at line " ++ showℕ l ++ ": " ++ txt
 ... | inj₂ (r , es)  = Check.verdict k r es
 
--- Usage line.
+-- Standalone command reference, including preparation and verdict semantics.
 usage : String
-usage = "usage: Main FILE [K_FETCH] | Main --paired-notify FILE [K_NOTIFY] | Main --paired-fetch FILE [K_FETCH] | Main --paired-chainsync FILE [K_CS] | Main --paired-blockfetch FILE [K_BF] | Main --paired-txsubmission2 FILE [K_TS] | Main --blockfetch FILE [K_BF] | Main --blockfetch-client FILE [K_BF] | Main --blockfetch-server FILE | Main --txsubmission2 FILE [K_TS] | Main --chainsync FILE [K_CS] | Main --notify FILE [K_NOTIFY] | Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]   (defaults: Fetch 150, Notify 1, BlockFetch 100, ChainSync 300, TxSubmission2 4)"
+usage =
+  "usage: Main MODE FILE [DEPTH ...]\n" ++
+  "Replay normalized mini-protocol traces. Raw JSON logs must be normalized first.\n" ++
+  "\n" ++
+  "Local modes (FILE begins with 'role client' or 'role server'):\n" ++
+  "  Main FILE [K_FETCH]                    LeiosFetch, default 150\n" ++
+  "  Main --notify FILE [K_NOTIFY]          bounded prototype Notify, default 1\n" ++
+  "  Main --blockfetch FILE [K_BF]          role-selected BlockFetch, default 100\n" ++
+  "  Main --blockfetch-client FILE [K_BF]   client-only alias, default 100\n" ++
+  "  Main --blockfetch-server FILE          sequential server, no depth argument\n" ++
+  "  Main --chainsync FILE [K_CS]           ChainSync, default 300\n" ++
+  "  Main --txsubmission2 FILE [K_TS]        TxSubmission2, default 4\n" ++
+  "\n" ++
+  "Paired modes (FILE is a paired_sessions.py output, not two concatenated logs):\n" ++
+  "  Main --paired-fetch FILE [K_FETCH]     default 150\n" ++
+  "  Main --paired-notify FILE [K_NOTIFY]   default 1; prototype model\n" ++
+  "  Main --paired-blockfetch FILE [K_BF]   default 100\n" ++
+  "  Main --paired-chainsync FILE [K_CS]    default 300\n" ++
+  "  Main --paired-txsubmission2 FILE [K_TS] default 4\n" ++
+  "\n" ++
+  "Interleaved independent sessions (not a paired communication check):\n" ++
+  "  Main --interleaved FILE [K_FETCH [K_NOTIFY [K_BF [K_CS [K_TS]]]]]\n" ++
+  "  Defaults: 150 1 100 300 4. Supply bounds in exactly this order.\n" ++
+  "  FILE begins with 'sessions' followed by protocol:role entries, then events\n" ++
+  "  tagged with zero-based session IDs. Bare roles mean Fetch.\n" ++
+  "\n" ++
+  "Bounds are decimal naturals, including zero. Fetch/BlockFetch/ChainSync bound\n" ++
+  "client pipelining; TxSubmission2 bounds the requester/server. Sequential servers\n" ++
+  "ignore client bounds. Notify bounds outstanding credits in the prototype model.\n" ++
+  "Use LookaheadMain for implementation-lookahead Notify and silenced observations.\n" ++
+  "\n" ++
+  "Raw-log preparation (from repository root; OUT must be new or empty):\n" ++
+  "  REPLAY=src/Cardano_network/Replay\n" ++
+  "  python3 -I -B \"$REPLAY/LogProcessing/normalize_logs.py\" node.log /tmp/replay-input\n" ++
+  "  Main --interleaved /tmp/replay-input/interleaved.txt 150 1 100 300 4\n" ++
+  "  For Fetch only: add --fetch-only to the normalizer.\n" ++
+  "  For explicit handshake/cleanup boundaries: add --connection-lifecycle.\n" ++
+  "  If TxSubmission2 control fields are absent: add --exclude-txsubmission2.\n" ++
+  "  Fetch BlockTxs replies contain only numTxs and txsBytesSize.\n" ++
+  "\n" ++
+  "Input examples (Send/Recv are relative to the declared local role):\n" ++
+  "  role client                  sessions chainsync:client blockfetch:server\n" ++
+  "  Send RequestNext             0 Send RequestNext\n" ++
+  "  Recv RollForward             1 Recv RequestRange\n" ++
+  "  (left: --chainsync; right: --interleaved; each column is a separate file)\n" ++
+  "\n" ++
+  "Session identity: node + connection + generation + protocol + local role.\n" ++
+  "Done ends its own protocol/role; NewMux splits all roles on that connection.\n" ++
+  "--connection-lifecycle instead uses matching handshake/cleanup records.\n" ++
+  "A connection can have both roles; counting endpoint histories across nodes\n" ++
+  "counts both ends. Cleanup needs no protocol Done. EOF is an unfinished prefix.\n" ++
+  "index.tsv lists sessions; each .src row maps one event to its raw line/time.\n" ++
+  "Local event i is file line i+1 and .src row i; interleaved IDs are zero-based.\n" ++
+  "Paired checks require opposite endpoints of the same connection lifetime;\n" ++
+  "do not pair the client and server recorded at one node or equate local generation\n" ++
+  "numbers across captures. Assemble an explicit manifest with paired_sessions.py.\n" ++
+  "\n" ++
+  "Reports: accepted = allowed model prefix; rejected = outside this model/bound;\n" ++
+  "parse error = invalid normalized input. Process exit status DOES NOT encode\n" ++
+  "these verdicts: read stdout. IO errors/timeouts/heap exhaustion are inconclusive.\n" ++
+  "Acceptance does not prove completion, payload validity or deployed conformance.\n" ++
+  "\n" ++
+  "Help: Main --help | Main -h | Main (no arguments)\n" ++
+  "Build with GHC -rtsopts for runner heap caps (+RTS -M512M -RTS).\n" ++
+  "Full examples, builds and pairing: src/Cardano_network/Replay/USAGE.md\n"
 
 -- Read, check and print one file.
 checkFile : ℕ → String → IO ⊤
@@ -175,6 +239,8 @@ checkPairedTxSubmission2 depth path = readFiniteFile path >>= λ s → putStrLn 
 
 -- Dispatch on the command-line arguments.
 dispatch : List String → IO ⊤
+dispatch ("--help" ∷ []) = putStrLn usage
+dispatch ("-h" ∷ []) = putStrLn usage
 dispatch ("--paired-blockfetch" ∷ f ∷ []) = checkPairedBlockFetch 100 f
 dispatch ("--paired-blockfetch" ∷ f ∷ k ∷ []) with readMaybe 10 k
 ... | just depth = checkPairedBlockFetch depth f

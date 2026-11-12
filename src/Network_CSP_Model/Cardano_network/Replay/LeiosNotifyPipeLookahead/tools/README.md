@@ -168,9 +168,9 @@ LookaheadMain --paired-notify-lookahead PAIR \
   --next-contract generic-next|node-next --observation driver-log-no-request-votes --assume-fresh
 ```
 
-`LookaheadMain`'s usage text intentionally does not list these forms, because
-the existing modes keep byte-identical output. A silenced RequestNext/Votes row
-in the input is `invalid-input`; the checker never erases it. Checker exit 3 is
+`LookaheadMain --help` documents both observation choices and their supported
+forms. A silenced RequestNext/Votes row in the input is `invalid-input`; the
+checker never erases it. Checker exit 3 is
 `undetermined`: both local silenced checks pass but no paired protocol verdict
 exists. It is only reachable in silenced paired mode. `replay_lookahead.py`
 reports it as `model-undetermined` with exit class 4 and no protocol verdict.

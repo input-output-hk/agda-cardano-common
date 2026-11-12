@@ -10,6 +10,11 @@ import tempfile
 def main(binary):
     """Check verdict text: the CLI intentionally does not encode it in exit codes."""
     binary = str(Path(binary).resolve())
+    # Help must succeed without trying to open an input file; aliases agree.
+    helps = [subprocess.run([binary, flag], check=True, capture_output=True,
+                            text=True, timeout=10) for flag in ('--help', '-h')]
+    assert helps[0].stdout == helps[1].stdout
+    assert helps[0].stdout.startswith('usage:') and not any(r.stderr for r in helps)
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         def check(contents, expected, mode='--interleaved', bounds=()):

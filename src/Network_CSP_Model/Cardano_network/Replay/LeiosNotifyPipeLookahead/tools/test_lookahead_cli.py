@@ -291,7 +291,7 @@ def execute_manifest(binary, case, out, timeout):
 
 
 def legacy_hashes():
-    """Compare the actual legacy Main to HEAD without compiling or changing it."""
+    """Record HEAD and working-tree hashes without compiling or changing Main."""
     result = subprocess.run(['git', 'show', 'HEAD:src/Cardano_network/Replay/Main.agda'],
                             cwd=ROOT, capture_output=True, timeout=10, check=True)
     return {'path': str(LEGACY), 'head_sha256': hashlib.sha256(result.stdout).hexdigest(),
@@ -359,6 +359,12 @@ def main():
                               'Unknown exit/tag, missing file, crash, timeout and resource failure remain inconclusive.',
                               'No deployment provenance, real-log capture completeness or clean Done from EOF is established.']}
     destination = out / 'report.json'
+    # Help is successful informational output, not a protocol verdict.
+    helps = [subprocess.run([str(binary), flag], capture_output=True, text=True,
+                            timeout=args.timeout) for flag in ('--help', '-h')]
+    report['help_passed'] = (all(r.returncode == 0 and not r.stderr and
+                                 r.stdout.startswith('usage:') for r in helps) and
+                             helps[0].stdout == helps[1].stdout)
     prepared = fixtures()
     report['prepared_case_count'] = len(prepared)
     for case in prepared:
@@ -370,11 +376,13 @@ def main():
             report['aborted_after'] = case['name']
             break
     legacy['after_sha256'] = sha256(LEGACY)
-    legacy['unchanged'] = legacy['before_sha256'] == legacy['after_sha256'] == legacy['head_sha256']
+    # Intentional working-tree edits are allowed; the runner must not mutate Main.
+    legacy['matches_head'] = legacy['before_sha256'] == legacy['head_sha256']
+    legacy['unchanged'] = legacy['before_sha256'] == legacy['after_sha256']
     report['binary_unchanged'] = report['binary_sha256'] == sha256(binary)
     report['passed'] = (len(report['cases']) == len(prepared) and
                         all(case['passed'] for case in report['cases']) and
-                        legacy['unchanged'] and report['binary_unchanged'])
+                        legacy['unchanged'] and report['binary_unchanged'] and report['help_passed'])
     report['completed_at_utc'] = datetime.now(timezone.utc).isoformat()
     report['counts'] = {'cases': len(report['cases']), 'passed': sum(case['passed'] for case in report['cases']),
                         'expected_operational_inconclusive': sum(case['expected'] == 'inconclusive' for case in report['cases'])}

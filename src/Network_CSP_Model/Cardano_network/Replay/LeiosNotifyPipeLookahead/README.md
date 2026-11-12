@@ -22,7 +22,7 @@ The legacy checker [`Main.agda`](../Main.agda) is separate and keeps its bounded
 
 <a id="normalized-input-and-cli-delivery"></a>
 
-The compiled [`LookaheadMain`](LookaheadMain.agda) accepts exactly these forms
+The compiled [`LookaheadMain`](LookaheadMain.agda) accepts these replay forms
 (arguments in the order shown):
 
 | Form | Model checked |
@@ -36,8 +36,10 @@ The compiled [`LookaheadMain`](LookaheadMain.agda) accepts exactly these forms
 
 `C` is the server callback contract: `generic-next` (the server may select
 Canceled at any time) or `node-next` (the node's normal-only selection). It is
-unused by a standalone client. The usage text does not list the two silenced
-forms, so that existing outputs stay byte-identical.
+unused by a standalone client. Run `LookaheadMain --help` (or `-h`) for
+all forms, observations, examples, preparation steps and verdict meanings.
+Explicit help exits 0 without a verdict tag; invalid arguments retain an
+`invalid-input` report and exit 2. See the [usage guide](../USAGE.md).
 
 Local input is a `role client`/`role server` header followed by normalized
 Notify events. Paired input is the existing `pair LeiosNotifyP ...` format with

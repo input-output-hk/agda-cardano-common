@@ -1,5 +1,9 @@
 # Trace replay
 
+Start with the [replay usage guide](USAGE.md) for builds, raw-log preparation,
+session lifecycles, pairing and verdicts. Both executables also provide
+`--help` and `-h` with commands and examples.
+
 Two executables check normalized mini-protocol logs against first-order
 session specifications with protocol-specific PTree bridges. Fetch's local
 bridges concern counted observations with explicit wire premises, as qualified below:
