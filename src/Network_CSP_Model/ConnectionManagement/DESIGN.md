@@ -42,6 +42,8 @@ locating defects in the pinned source, it should:
   variant of the same rule families, checked against the same statements and
   compared with the source model by explicit witnesses and theorems.
 
+The [design-variant acceptance contract](DesignContract.md) records the proposed ownership/registry design, safety guarantees, open progress assumptions and pinned replay plan.
+
 The G0–G5 gates in section 9 are unchanged by this objective.
 
 Network baseline: `2f1c154f248659b89523d5679ca532f442e7ed2a`, pinned by consensus
