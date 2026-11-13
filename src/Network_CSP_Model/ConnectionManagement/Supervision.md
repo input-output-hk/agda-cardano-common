@@ -8954,3 +8954,193 @@ transitive term-level axiom audit. All 648 local documentation targets across
 the four updated pages pass; `git diff --check` and whitespace/newline checks
 on all new Agda files pass. Existing Agda modules are unchanged, so no broader/heavy
 regression, whole-library build, GovernorWedge rebuild or Haskell replay was run.
+
+## Eighty-sixth increment: G4 supervised runtime semantic bridge
+
+13 November 2026. Gate-plan step 8 extends representation correspondence to the
+actual supervised frontend and outer relays runtime. Seven new Agda modules are
+added; every existing Agda module and theorem statement is unchanged. The source
+pin remains network `2f1c154` / consensus `2e44d98`. Current inspected model HEAD
+is `655c74e`; no Git state-changing command was used.
+
+**Executable authority and coverage.** [Dispatcher](CSP/Dispatcher.agda) factors
+the productive `react` rendering pattern already used by `CSP.Subsystem`, without
+changing that module. Its only enabledness test and state update is the supplied
+`advance`. [Supervised](CSP/Supervised.agda) instantiates it at
+`ServerPeersRelays.Protocols.outerStep`, and
+[SupervisedInner](CSP/SupervisedInner.agda) at `ServerPeers.Protocols.advance`.
+All classifier/capability functions remain parameters. This covers the full
+current `T.Event` and `O.OuterAction` types, not merely G2/G3's selected event
+lists: physical handlers, protocol results/startup, PSA job/monitor observations,
+Server/governor dispatch and outer relays thread/cancel/join/finish events.
+Native `T.Runs` / outer `Executes` convert structurally in both directions to the
+generic paths; conversion adds no edge and keeps exact endpoints.
+
+Representative signatures below omit implicit binders and fixed module
+parameters. `O` is the actual outer runtime; `label` is its complete action label.
+The same step/run/trace statements hold for inner `T.advance` and `T.Runs`.
+
+```agda
+step-intro : O.outerStep a s ≡ just t → Process s ─[ ev (label a) ]─► Process t
+step-inv : Process s ─[ ev (label a) ]─► P →
+  Σ O.Outer (λ t → O.outerStep a s ≡ just t × P ≡ Process t)
+exec-intro : O.Executes s as t → Process s ⟹⟨ map label as ⟩ Process t
+exec-inv : Process s ⟹⟨ map label as ⟩ P →
+  Σ O.Outer (λ t → P ≡ Process t × O.Executes s as t)
+trace-intro : O.Executes s as t → traces (Process s) (map label as)
+trace-inv : traces (Process s) (map label as) → Σ O.Outer (λ t → O.Executes s as t)
+all-trace-inv : traces (Process s) es →
+  Σ (List O.OuterAction) (λ as → Σ O.Outer (λ t →
+    es ≡ map label as × O.Executes s as t))
+```
+
+`all-exec-inv` additionally retains the process endpoint. Raw `no-τ` and
+`no-tick` rule out silent/tick-bearing extras. `refused-extension` transports a
+checked prefix and a disabled successor to absence of that raw trace extension.
+These are finite representation theorems about a single dispatcher interpreted
+as a process, not independent parallel CM/IG/OG/Server semantics or Haskell
+conformance. They make no initialization or reachability assumption; the concrete
+positive witness supplies the real initializer separately.
+
+**Result-bearing observation review.** The raw PTree action label retains every
+explicit nested action payload, including `commitError`'s error, `commitClean`'s
+clean result and supplied publication/physical-result values and identities.
+However `pollResults`, `waitJobResults`, `waitMonitorResults` and various CM
+read/return labels obtain results from state rather than carrying them. An
+action-only alphabet without an initial-state contract can merge different
+observations. The legacy hiding policy is not silently upgraded.
+
+[ResultTrace](CSP/ResultTrace.agda) therefore supplies an explicit **lossless
+trace object**, whose observation alphabet is `(before, action, after)` for the
+whole outer or inner runtime. Its `Recorded` constructor requires the actual
+successful dispatcher equation; it is not a second version of the rules. Both
+snapshots retain the frontend result cells/read context, CM promise/return stores,
+physical async results and every other machine field. This intentionally exposes
+internal diagnostic state. It assumes neither an executable equality decision on
+runtime states nor a serializer.
+
+For `Raw = Dispatcher State Action advance`:
+
+```agda
+record-run : Raw.Executes s as t →
+  Σ (List Observation) (λ os → map action os ≡ as × Recorded s os t)
+erase : Recorded s os t → Raw.Executes s (map action os) t
+recorded-trace : Recorded s os t →
+  traces (Raw.Process s) (map Raw.label (map action os))
+all-trace-recorded : traces (Raw.Process s) es →
+  Σ (List Observation) (λ os → Σ State (λ t →
+    es ≡ map Raw.label (map action os) × Recorded s os t))
+recorded-deterministic : Recorded s os t → Recorded s ps u →
+  map action os ≡ map action ps → os ≡ ps
+result-distinguishes : (query : State → Value) →
+  query (after x) ≢ query (after y) → x ≢ y
+```
+
+`input-distinguishes` gives the analogous pre-state result. Thus every lossless
+trace erases to a rendered PTree trace, every raw PTree trace has a lossless
+completion, and a fixed start/complete action schedule determines the snapshots
+uniquely. Composition with `from-raw` recovers the native outer/inner machine run.
+This is the strongest observation contract delivered here: full state trace
+labels, with an explicit action-only PTree projection. A compact result-bearing
+API PTree, API abstraction/serialization and expanded-runtime hiding correspondence
+remain separate work; no hidden divergence/failures-divergences claim follows.
+
+**Current-event monitors and frontiers.**
+[RuntimeMonitor](CSP/RuntimeMonitor.agda) takes the whole supplied event type,
+so new frontend/physical events cannot fall through a legacy classifier. Its
+executable `replay` returns an indexed `Report` with actual successful prefix
+edges and one of: complete input, malformed input, explicitly unsupported input,
+event-fuel cutoff, or an unclassified disabled event. Empty input completes at
+zero fuel; cutoff keeps the unconsumed suffix. Malformed/unsupported diagnostics
+come from the input adapter and consume no machine edge. They are declarations,
+not a proved decoder or evidence inferred from `advance = nothing`.
+
+`accepted-run : Accepted report → Σ State (λ t → Raw.Executes s (actions rs) t)`
+retains the original report argument; `replay-run` proves acceptance of every
+checked run at its exact event-count budget. This validates schedules, not a
+bounded action enumerator, allocation cutoff, exporter or exhaustive search.
+`Explain.Refusal` pairs an actual disabled equation with either explicitly
+proved `Blocking`/`Missing` evidence or `unclassified`. It cannot infer ordinary
+blocking, a model gap or global deadlock from refusal alone.
+
+[SupervisedControls](CSP/SupervisedControls.agda) checks all five frontier kinds
+and instantiates one source-backed ordinary wait: relays `requestCancel` is
+refused until the inner callback has returned. Other disabled events remain
+unclassified without their own domain contracts. This replaces no origin or
+live-tracker invariant; legacy monitor absence still cannot certify completeness.
+The earlier blanket `CSP.Scope.remainingSubsystem = ogSubsystem` is retained as a
+legacy diagnostic, not applied to this expanded runtime.
+
+**Initialized positive and negative instances.**
+[SupervisedWitness](CSP/SupervisedWitness.agda) maps the unchanged committed
+`Negative.InboundCleanLifecycle.initialized-to-completion` (109 events) to
+`inner-rendered-trace`, `outer-run`, `rendered-trace`, `value-complete-trace` and
+`replay-accepted`. `terminal-result` retains its exact asynchronous physical
+handler result 42 after real cleanup. The outer relays owner remains inside:
+this is the initialized reduced inbound profile, not whole-system shutdown.
+The bridge itself quantifies over all current events and arbitrary native runs,
+so other committed G2/G3 histories can use the same structural lift without
+reproving any dispatch edge; they are not separately instantiated here.
+
+The genuine initialized prefix through `s17` also gives
+`premature-result-refused`: publishing the handler's result before TIME_WAIT
+finally cannot extend the outer process trace. Controls distinguish equal action
+labels with unequal physical-result snapshots; these two alphabet-control labels
+are not asserted to be reachable transitions. Premature outer cancellation and
+malformed/model-gap/cutoff frontiers remain distinct. Existing rollback, cleanup,
+counter, live-tracker and origin counterexamples are unchanged and pass the
+selected checks below. Existing design-variant controls are retained unchanged.
+
+**Gate status.** Step 8's full raw supervised step/run/trace bridge, explicit
+lossless result projection, current-event replay frontiers, initialized positive
+instance and negative controls are delivered. **G4 remains partly met**:
+domain explanations for the remaining disabled events and completeness of the
+external input-decoder/model-coverage declarations are not proved. The next G4
+acceptance work is to state and prove those domain contracts without treating
+unknown refusal as waiting or missing semantics. A value-bearing API-only PTree
+and hiding abstraction remain explicitly unprovided. G0/G1/G2/G3/G5 and plan
+step 6's separate progress contract are unchanged. No later plan step was started.
+
+### Validation of increment 86
+
+Agda 2.8.0, one process at a time, exact command for every entry:
+`agda <file> +RTS -M20G -A128m -RTS`. No `-c` or build-configuration change.
+Available host memory was checked before starting. Child RSS was sampled every
+0.2 s with a 9,500,000 KiB stop threshold; it never fired. Reported peaks take
+the larger of sampled RSS and the kernel high-water mark from `/usr/bin/time`.
+Wall times include the serial runner's polling interval.
+
+All seven new modules have final **fresh own-module** checks (only that module's
+own interface invalidated), matching `Checking` lines, unchanged source hashes,
+exit 0 and no warnings. Dependency interfaces were reused.
+
+| New module under `CSP/` | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `Dispatcher` | 5.741 | 0.779 | fresh pass |
+| `ResultTrace` | 5.532 | 0.817 | fresh pass |
+| `RuntimeMonitor` | 5.745 | 0.875 | fresh pass |
+| `Supervised` | 8.409 | 1.305 | fresh pass |
+| `SupervisedInner` | 8.409 | 1.321 | fresh pass |
+| `SupervisedWitness` | 19.487 | 2.588 | fresh pass |
+| `SupervisedControls` | 16.214 | 2.460 | fresh pass |
+
+New-module total: **69.537 s**, maximum **2.588 GiB**.
+Seven selected regression invocations also pass, **57.633 s** total,
+maximum **2.952 GiB**: `CSP/Correspondence`, `CSP/Subsystem`,
+`Negative/HeapRollback`, `Negative/CleanupAtomicity`, `Negative/CounterValidity`,
+`Properties/LiveTrackerReferencesCounterexample` and `Negative/OriginMonitor`.
+HeapRollback, CleanupAtomicity and OriginMonitor have own-module `Checking`
+lines; the other four reuse interfaces. No warnings or failed final checks.
+Combined final acceptance: **14 invocations / 127.170 s**, maximum
+**2.952 GiB**. Development/earlier successes are excluded
+from these totals. Seven development failures (module scope/import issues,
+implicit edge inference, and three dependent-replay proof attempts) were repaired
+only in new modules; no machine guard or theorem statement was changed.
+
+The seven-file local heuristic proof audit has zero findings. This is not a
+transitive term-level axiom audit. No new postulates, holes, unsafe options or
+termination pragmas are introduced. Local documentation links and whitespace
+checks pass. Detailed logs, measurements, source hashes and `progress.md` remain
+in the requested step8 scratch directory; durable documentation has no scratch
+links. No broad/heavy regression, variant-control rebuild, whole-library build,
+Haskell replay, hidden-process check or G5 exploration/export was run.

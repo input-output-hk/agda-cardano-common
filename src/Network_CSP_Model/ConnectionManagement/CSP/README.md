@@ -446,3 +446,50 @@ a child-before-parent-registration interleaving. `OutboundAdmission`,
 `OutboundReleaseScenarios` and `OutboundOpenFailure` supply acquisition, conditional
 release and socket-open-failure traces. See [coverage and validation](../Outbound.md)
 for source mappings, fixture qualifications and the unconfirmed source candidate.
+
+## Supervised runtime bridge (increment 86)
+
+[Supervised](Supervised.agda) and [SupervisedInner](SupervisedInner.agda) render
+`ServerPeersRelays.Protocols.outerStep` and `ServerPeers.Protocols.advance`
+respectively, for arbitrary classifier/capability parameters. They reuse the
+original `react` renderer pattern through [Dispatcher](Dispatcher.agda), delegating
+every offered step to the machine. Native outer `Executes` and inner `Runs`
+correspond in both directions to process runs and traces. Arbitrary raw traces
+also invert; no additional tick/tau events occur. This includes every current
+frontend/physical event and both outer event constructors, rather than a selected
+list of legacy action families.
+
+The raw label remains the complete scheduling action. In particular, explicitly
+supplied result/error/identity payloads are retained. Read/return events such as
+`pollResults`, `waitJobResults` and `waitMonitorResults` do not themselves carry
+the state-derived observation. [ResultTrace](ResultTrace.agda) supplies an explicit
+lossless **trace object**, with labels `(before, action, after)`. This retains the
+frontend calls/results, physical async results, CM returns/promises and all other
+runtime state, including pre-read values. `result-distinguishes` and
+`input-distinguishes` cover any state query; `recorded-deterministic` proves that
+fixed-start, complete-action erasure uniquely determines these snapshots.
+`recorded-trace` erases to a raw PTree trace; `all-trace-recorded` completes every
+raw trace to snapshots. This is deliberately a diagnostic alphabet, not a compact
+API alphabet or a result-bearing PTree. The earlier observation-policy warning
+above still applies to legacy hiding. No serialization or decidable state equality
+is assumed.
+
+[RuntimeMonitor](RuntimeMonitor.agda) replays the **entire supplied action type**.
+It records dispatched prefixes and keeps malformed adapter input, explicitly
+unsupported model input, event-budget cutoff and unclassified disabled events
+separate. A supplied list ending normally is complete even at zero fuel; cutoff
+retains unconsumed input. `accepted-run` proves accepted input actually runs;
+`replay-run` accepts every checked run at its exact event budget. This is schedule
+validation, not enabledness-complete bounded exploration. External malformed/
+unsupported reports are declarations, not a verified parser or automatic model
+coverage test. `Explain` requires domain evidence before calling a refusal
+ordinary blocking or incomplete modeling; most refusals remain unclassified.
+
+[SupervisedWitness](SupervisedWitness.agda) maps the committed initialized inbound
+109-event G2 witness to both PTree traces, a lossless result trace and monitor
+acceptance. It retains the exact physical-result endpoint and rejects a premature
+result extension. [SupervisedControls](SupervisedControls.agda) checks the frontier
+separation, unequal physical-result snapshots and a proved outer wait condition.
+See [increment 86](../Supervision.md#eighty-sixth-increment-g4-supervised-runtime-semantic-bridge)
+for checks and remaining G4 obligations. Existing origin/invariant monitors and
+negative controls are unchanged.
