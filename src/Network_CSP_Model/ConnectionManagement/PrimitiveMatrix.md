@@ -16,9 +16,8 @@ Haskell refinement or a new implementation replay.
 ## Resolved dependency evidence
 
 The actual retained replay build plan is
-[retained `plan.json`](/tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/replay78/network/dist-newstyle/cache/plan.json)
-under the scratch root recorded in SourceReplay. Its full local path is
-`/tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/replay78/network/dist-newstyle/cache/plan.json`.
+`dist-newstyle/cache/plan.json` of the session-local replay build (not
+retained in the repository).
 SHA256: `2c443751d64a3fa6ab8e967541b64adf69a39aac8ac2e6cbbd8ea462c651701a`.
 It reports **GHC 9.6.7, Cabal 3.12.1.0, Linux x86_64**. Its network checkout's
 HEAD was independently read as the full pin above. This is resolved build
@@ -248,7 +247,7 @@ as fresh validation here. New fixture checks are listed below.
 
 All five findings are implemented rather than excluded. The source pin and the
 90-row inventory stay fixed. Existing theorem statements are retained; proof
-consumers receive new cases and lemmas. The [impact plan and check record][Fix5]
+consumers receive new cases and lemmas. The impact plan and check record (session-local, not retained)
 records batch boundaries, development diagnostics, commands, wall times, peak RSS
 and deferred regressions. [Increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure)
 summarizes the runtime changes and acceptance boundary.
@@ -281,7 +280,7 @@ contract inspection and historical implementation replays remain separate.
 The following is the **12 November inventory-only checkpoint**. It is retained
 as historical evidence; the 13 November runtime edits and regression results are
 in [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure)
-and the [working check record][Fix5].
+and the working check record (session-local, not retained).
 
 The seven new modules contain only computational `refl` equations over existing
 rules/predicates. Their comments distinguish local permission checks, local
@@ -348,7 +347,6 @@ arbitrary providers, or eventual shutdown.
 [Actions]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs
 [Bucket]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux/Egress/Bucket.hs
 
-[Fix5]: /tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/fix5/report.md
 
 [HandshakeHelper]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Protocol/Handshake.hs#L82-L95
 [DriverLimits]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Driver/Limits.hs#L139-L140

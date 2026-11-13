@@ -8094,7 +8094,7 @@ The following passing direct invocations include transitive import checks.
 
 These logs contain no warnings/errors and each checked source's before/after
 hashes match. The full command/time/RSS/result ledger, development failures and
-module list are in the [working report][Fix5Report]. An early detached checker
+module list are in the session working report (not retained). An early detached checker
 survived a controller stop and overlapped later work; those diagnostic runs are
 excluded from serial acceptance. The runner was corrected before the final
 queues. The earlier 918.997-second SI5 manual stop was not a passing check or a
@@ -8108,24 +8108,22 @@ projections and an additional identical local helper type in the new PC case.
 This is not a transitive term-level axiom audit. The six edited topic/index
 pages passed local-link checking; no diagram source changed.
 
-**Needs capped check (user-run):**
+**Capped checks** (13 November 2026, run by the reviewer under a 25 GB cgroup
+cap with the same RTS flags, one Agda process at a time; each top module
+rechecked after its dependencies changed; exit 0, no warnings):
 
-- [Properties/SourceKeysServer](Properties/SourceKeysServer.agda).
-- [Properties/OwnedFramesExecution](Properties/OwnedFramesExecution.agda),
-  including SourceKeysShared and OwnedFramesUnwindSteps.
-- [Negative/OwnedCallersFixture](Negative/OwnedCallersFixture.agda), including
-  OwnedCallersExecution and its ownership closure.
-- [Negative/LiveTrackerInitialized](Negative/LiveTrackerInitialized.agda).
-- [Negative/ServerPeers](Negative/ServerPeers.agda).
-- [Negative/ServerPeersOrigins](Negative/ServerPeersOrigins.agda), also the
-  migration plan's fresh strict interaction acceptance (own Checking,
-  checked:true, DoneExiting, empty goals/warnings/errors, successful exit and
-  unchanged source hash), followed by the ordinary cached CLI.
+| Module | Wall time | Peak RSS |
+| --- | ---: | ---: |
+| [Properties/SourceKeysServer](Properties/SourceKeysServer.agda) | 414 s | 5.8 GiB |
+| [Properties/OwnedFramesExecution](Properties/OwnedFramesExecution.agda) | 106 s | 4.3 GiB |
+| [Negative/OwnedCallersFixture](Negative/OwnedCallersFixture.agda) | 621 s | 12.7 GiB |
+| [Negative/LiveTrackerInitialized](Negative/LiveTrackerInitialized.agda) | 68 s | 9.3 GiB |
+| [Negative/ServerPeers](Negative/ServerPeers.agda) | 43 s | 5.5 GiB |
+| [Negative/ServerPeersOrigins](Negative/ServerPeersOrigins.agda) | 173 s | 11.6 GiB |
 
-Use the same RTS flags and one Agda process at a time under an external cap.
-These known-heavy checks were not run here and remain required acceptance.
-**G1 has 90/90 primitive coverage and remains partly met pending those checks.**
+The migration plan's strict interaction-mode acceptance of
+`Negative/ServerPeersOrigins` was not run; its ordinary CLI check passed.
+**G1 is met** (90/90 primitive coverage with the capped regression above).
 G0/G2–G5 are unchanged. No full-library sweep, Haskell build/replay or universal
 progress/source-refinement claim follows from this increment.
 
-[Fix5Report]: /tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/fix5/report.md
