@@ -1085,7 +1085,8 @@ See that topic's [open questions](Supervision.md#open-questions-and-reconciled-s
 for the limits on handler provenance, admission quiescence and whole-system
 shutdown; its dated increment sections retain the detailed acceptance evidence.
 
-ChainSync/BlockFetch application lifecycle and shared registration boundaries are
-reviewed in [ProtocolContracts](ProtocolContracts.md), with a captured-peer kernel
-and conditional physical mux-job adapter. This does not supply the full configured
+ChainSync/BlockFetch, TxSubmission2/KeepAlive, LeiosNotify/LeiosFetch and shared
+registry/peer-resource lifecycle boundaries are reviewed in
+[ProtocolContracts](ProtocolContracts.md), with three captured-invocation kernels
+and conditional physical mux-job adapters. This does not supply the full configured
 application lifecycle witness; see the [gate audit](GateAudit.md).

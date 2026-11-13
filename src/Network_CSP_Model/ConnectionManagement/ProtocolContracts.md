@@ -335,3 +335,138 @@ modules.
 [MempoolInit]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Mempool/Init.hs
 [MempoolAPI]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Mempool/API.hs
 [MempoolUpdate]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Mempool/Update.hs
+
+## Batch 3 authority and executable boundary
+
+Reviewed 13 November 2026 at HEAD `156c0ac`; [increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts).
+Read-only `git show` at consensus **`2e44d98a843168ba3b189e305820b79943ac7d1e`**
+verified these blobs (the bundle blob is unchanged from batch 1):
+
+| Alias | Blob |
+| --- | --- |
+| [Notify] | `d0bedfb26d6190a386694bfc55e5832f41680f7d` |
+| [Fetch] | `1a403a4b636f5b40576e8b030aca729a7fc808b6` |
+| [Logic] | `2f3f4b5a926df486309b1f7099faeeef1547b899` |
+| [LeiosDbAPI] | `2efa560dfe9d9b7979fc2bff74c6df04253ba62f` |
+| [LeiosDbSQLite] | `d5f10344d0bfb8dde22b28068c15569ff6b5b2c9` |
+
+All three rows are **contracted**, with CM-visible order guards implemented in
+[ProtocolContracts3](ProtocolContracts3.agda), finite enabled/refusal
+[controls](Negative/ProtocolContracts3.agda), and a conditional
+[typed job adapter](ProtocolContractJobs3.agda) with
+[job controls](Negative/ProtocolContractJobs3.agda). No existing Agda module or
+theorem statement changes. The independent `Cardano_network` wire models do not
+supply CM bracket/resource semantics, and synthetic mux protocol 1 is not recast
+as a configured application. Numbers **18/19** come from [Notify] 117–118 and
+[Fetch] 103–104; the sharing ChainSync initiator retains number 2.
+
+Each endpoint is one fixed invocation for a captured connection key. `start`
+certifies a successful bracket acquisition/driver entry; an acquisition failure
+before acquiring any resource uses `acquisitionFailed`. For the sharing ChainSync endpoint, `acquisitionFailed` concerns failure to acquire
+the nested shared bracket after entering outer CS scopes, so it still requires
+`outerClosed`; other outer-CS acquisition failures belong to batch 1. Partial
+acquisition or nested writer/pump setup failure must project its actual acquired-prefix unwind,
+not assert that no resource was acquired. `await` records a blocked operation;
+`ready`, `issue`, `collect`, `innerClosed`, `deletePeer` and `refundPeer` certify
+actual source operation returns. `idle` is an operation boundary, not the full
+wire state. Legal send sites, positive/configured depth limits, credit bounds,
+arrived counters, actual STM alternative priority and exact response callbacks
+remain source-instance obligations. Counts represent collected requests/deferred
+sends; they do not establish wire correspondence or callback completion by
+arbitrary counter changes. No fairness, readiness or eventual shutdown is assumed.
+
+## LeiosNotify
+
+### Initiator
+
+| Lifecycle item and source lines | Disposition and exact contract |
+| --- | --- |
+| Control and forecast gate: [Bundle] 615–659; [Notify] 549–588 | **Implement** `checkControl`, forecast/arrival waits, and Terminate from the same control-check transaction, including while it retries. **Contract** successful STM observations: Terminate returns `Left ()` before the immutable-tip forecast; Continue **and Quiesce** require `awaitImmTipCanForecastNow` and return the configured depth. At capacity, the transaction reads control before waiting for `arrived > 0`; ordinary Collect is selected only when ephemerally blocking. It does not block forever in Collect merely because depth is full. |
+| Pending replies and effects: [Notify] 590–624; [Bundle] 633–644, 660–768 | **Implement** outstanding issue/collection and callback wait observations. **Contract** receivers, ledger/header/offer/vote validation, mempool/cache/kernel/DB and tracer effects; their synchronous faults (including unexpected MsgCanceled before draining) escape. After `AlreadyDraining`, receiver callbacks are skipped, but actual reply collection is still required. **Exclude** payload correctness, credit accounting algorithms and announcement delivery from this CM kernel. |
+| Quit and return: [Notify] 553–566, 626–635; [Bundle] 1866–1889 | **Implement** Terminate → `quitting` → actual `quitSent` → drain to zero → observed MsgDone. With a nonempty pipe the additional Quit receiver does not consume MsgDone; drain still precedes that final Await. **Contract** successful driver completion with `((), trailing)`; wrapper returns `(NoInitiatorResult, trailing)`. No Fetch-style Done send is substituted for Quit/Done handshake. |
+| Bracket, masks and faults: [Bundle] 1880–1889, 1841–1864 | **Implement** actual body sync/cancel outcome, inner driver unwind, then shared delete/refund before finished. **Contract** ordinary bracket acquisition/release mask and restored body mask, limits/codec/channel exceptions and cleanup failures under [PrimitiveMatrix D-MASK/D-ASYNC](PrimitiveMatrix.md#resolved-dependency-evidence). This is not an uninterruptible shared finalizer. Cleanup exception replaces the body outcome and need not certify resource removal. |
+
+### Responder
+
+| Lifecycle item and source lines | Disposition and exact contract |
+| --- | --- |
+| Request/lookahead and work waits: [Notify] 637–706; [Bundle] 769–935 | **Implement** received request/deferred-send count, work/channel waits and received Quit while sender work waits. **Contract** first ordinary Await, then lookahead handoff; credit increment can throw `ExnLeiosNotifyExcessiveRequests`. Sender STM is **Quit-first** `orElse`: once quitVar is true it emits MsgCanceled, otherwise it waits on FIFO `next`. Pump waits on EB notifications/votes (ordered alternatives), gates offers, and only enqueues with credit. There is no local responder control-message read. |
+| Termination: [Notify] 695–723 | **Implement** received Quit → draining → actual flushes → zero → Done send. **Contract** quitVar is set before flush so senders can emit cancellations; MsgDone follows all spawned sends, and normal peer result is unit. Pending sender work cannot be discarded by immediate normal completion. |
+| Pump supervision and cleanup: [Bundle] 914–935, 1891–1909; [Notify] 736–765 | **Implement** an `innerRelease` barrier before result; `innerClosed` certifies complete pump release. **Contract** `withAsync pump`, `link` propagation of pump failure, lookahead driver sender/receiver ownership, and withAsync cancel/join semantics. Pump registers central queue view under an MVar, loops in STM, and its `finally` deletes that view under the same MVar. Successful inner closure requires actual pump finalizer completion and child join; receipt of cancellation alone is insufficient. The kernel does not expose an interruptible pump-join shortcut; dependency-specific cleanup masking remains D-ASYNC. Setup failure need not imply the pump ever registered. **Exclude** independent physical pump IDs and full central relay/FIFO correctness. |
+| Results and resources: [Bundle] 1891–1909 | **Contract** `((), trailing)` after inner scope closure; normal/synchronous/cancel outcomes stay distinct. This responder has no `bracketLeiosPeer` or BlockFetch registry membership. Tracer, driver, pump and release exceptions may escape and replace an earlier outcome. |
+
+Notify termination/results feed existing mux supervision; neither direction's
+Done alone is mux stop, handler exit, CM release or a completed demotion. Hot
+Terminate can be observed at its legal STM gate; peer replies/Done and pump
+cleanup can still delay physical completion indefinitely.
+
+## LeiosFetch
+
+### Initiator
+
+| Lifecycle item and source lines | Disposition and exact contract |
+| --- | --- |
+| Work/control choice: [Bundle] 937–956; [Logic] 707–772; [Fetch] 604–641 | **Implement** legal check sites, zero-depth command wait, and nonzero-depth `noCommand` → blocked collection → recheck. **Contract** `nextLeiosFetchClientCommand` first atomically tests Terminate, then dequeues work, else supplies blocking `awaitStopOrRequest` with the **same stop-first** order. Quiesce is not Terminate. With zero outstanding, execute that wait; with outstanding replies, `Left next` instead selects `Collect Nothing` and cannot read control again until a collection returns. Terminate is therefore not an immediate interrupt of this Collect. A job selected at the depth cap is retained until collection; real depth/send choices are certified inputs, not proved by this counter abstraction. |
+| Receiver effects / DB waits: [Fetch] 644–675; [Logic] 774–812, 1006–1007, 1455 | **Implement** callback/DB blocking observations and prohibition of local control/normal completion there. **Contract** actual inline receiver processing, kernel/cache MVar operations, writer submissions/awaits, validation, mempool reads and exceptions. On draining, skip callback effects but still collect wire replies. Reuse existing [MuxProtocolJobs DB waits](MuxProtocolJobs.agda) and [historical DB replay](SourceReplay/README.md#m6-revalidation-at-network-2f1c154-9-november-2026): cancelling an awaiter does not retract committed queued work. The new adapter does not automatically pair an abstract `database` wait with a concrete writer job; a source projection must keep both consistent. |
+| Termination/result: [Fetch] 622–625, 677–687; [Bundle] 1911–1935 | **Implement** stop → drain all outstanding replies → **send MsgDone** → inner scope cleanup. Fetch does not await a Notify-style MsgDone reply. **Contract** result `(NoInitiatorResult, trailing)` after driver returns unit and nested writer scope closes. |
+| Resources, masks and faults: [Bundle] 1925–1935; [LeiosDbAPI] 193–197 | **Implement** writer/driver inner closure before shared peer deletion/refund. An inner writer-close fault or interruption still enters the enclosing shared finalizer with that new outcome; only a fault in the shared finalizer can leave its own cleanup uncertified. **Contract** outer `bracketLeiosPeer`, nested `withWriter = bracket openWriter closeWriter`, successful/partial acquisitions, restored body mask and masked interruptible release. Actual sync/async receipts and DB/driver/tracer failures are observations; there is no local catch converting cancellation into a clean result. **Exclude** SQLite/FFI close internals and universal write durability. |
+
+### Responder
+
+| Lifecycle item and source lines | Disposition and exact contract |
+| --- | --- |
+| Request/DB/response: [Fetch] 545–568; [Bundle] 957–962, 1937–1951; [Logic] 230–285 | **Implement** channel/DB waits with normal Done refused during DB work. **Contract** sequential nonpipelined handler (despite pipelined initiator), reader context, body/transaction lookup and response send. Unknown requested block and malformed stored encoding throw; tracer/DB/channel/driver errors can also escape. Requests beyond this abstraction's legal input protocol are not silently successful. There is no responder control/work-selection STM or shared peer-vars bracket. |
+| Termination, reader and result: same ranges; [LeiosDbAPI] 193–194 | **Implement** received MsgDone → inner reader/driver cleanup → finished. **Contract** `withReader = bracket openReader closeReader`, masked acquisition/release, restored body mask, actual synchronous/async faults at permitted sites and replacement errors. Return `((), trailing)` only after cleanup. **Exclude** reader connection internals, data validity and response-delivery guarantees. |
+
+Both directions use the existing generic body result/egress/pool path. A DB wait,
+pipeline drain, writer/reader close or remote Done may delay demotion and handler
+exit. Protocol completion alone does not create CM release, mux shutdown, Cold,
+socket cleanup or an Async result; these retain their existing separate rules.
+
+## Shared Leios peer resources
+
+### Initiator clients: ChainSync, Notify and Fetch
+
+| Lifecycle item and source lines | Disposition and exact contract |
+| --- | --- |
+| Acquisition/sharing: [Bundle] 1473, 1819–1857, 1880, 1925 | **Implement** first-or-later `start` sets shared presence without refcounting; distinct fixed invocations can start while siblings run. **Contract** fresh `newLeiosPeerVars` allocation followed by atomic **get-or-create** under full `MkPeerId ConnectionId` key. If present, use existing vars and discard unused fresh vars. Actual cell identity, big-ledger attribute, connection incarnation and all partial acquisition prefixes are certified inputs. This is separate from [Registry]'s CS/BF synchronization and KeepAlive's doneVar: no BF registry done/removal inference follows. |
+| First exit and cleanup ordering: [Bundle] 1819–1835, 1859–1864 | **Implement** each successful bracket exit deletes presence **before** refund, even with other clients live. There is **no reference count or last-client wait**. `innerClosed` must certify all nested scopes first, including Fetch's writer. For ChainSync, the shared bracket is **inside** its candidate/sync brackets ([Bundle] 1456–1474): delete/refund precedes batch-1 candidate/watcher/sync cleanup, certified by a separate `outerClosed` barrier before whole-job completion. **Contract** delete is atomic; refund takes the outstanding MVar, applies `removePeerFromOutstanding`, then restores it. These are two operations; no atomic delete+refund assumption. |
+| Accounting removal: [Logic] 1142–1171; [Bundle] 1828–1835 | **Implement** separate `charged` residue, successful refund clears it, and decision-loop `account` refuses absent map entries. **Contract** actual per-peer bytes, EB-peer sets and job maps are removed, and job multiplicities unpicked under outstanding lock. Decision loop re-reads the live peer map **inside** that lock; this serializes increments against removal. **Exclude** numerical byte/multiplicity correctness, scheduling/fairness and complete concurrent decision-loop implementation. The Boolean is an abstraction, not a conservation theorem. |
+| Siblings/stragglers: [Bundle] 1844–1847, 1860–1864 | **Implement** idempotent later cleanup and late allocation after deletion; no restart of the same invocation. **Contract** new invocations/captured cell identities must be tracked externally. Deletion is by **peer key**, not comparison with captured `_peerVars`: an older exiting sibling may delete a re-created entry. The kernel deliberately makes no generation-isolation or immunity claim for that entry; operational coupling/teardown-together is an explicit source assumption, not a proved guarantee. |
+| Masking, exceptions and result | **Implement** body sync/cancel exit, release faults replacing outcomes, and actual async receipt while blocked acquiring the refund MVar, retaining residue. **Contract** ordinary bracket acquisition/release masking, body restoration and MVar exception restoration from PrimitiveMatrix. Pure delete offers no ordinary async delivery site. If acquisition fails, only its successfully acquired prefix is unwound. Failure after delete need not refund outstanding work, and normal bracket return requires both observed successes. **Exclude** unconditional cleanup progress or immediate/independent sibling cleanup. |
+
+### Responders
+
+[Bundle] 1891–1909 and 1937–1951 do **not** use `bracketLeiosPeer` for these
+responders. **Exclude** shared initiator peer-vars allocation/removal for them;
+**contract** their actual private resources (Notify pump/central view, Fetch
+reader) as specified above. This does not remove the responder failure paths.
+
+### CM boundary and remaining acceptance
+
+`ProtocolContractJobs3` binds fixed distinct physical children to the captured
+connection and checks live executing child, number and direction on every
+endpoint event. Shared `account` is a source-certified environment input.
+`complete-via` exposes the actual generic mux edge and `complete-enabled`
+constructs it from explicit real-child/egress premises; enabled examples are
+**conditional**, not a constructed initialized application run. Only finished
+normal or synchronous outcomes select generic return/exception. Finished
+cancellation, blocked work, unfinished drain, inner close and refund cannot
+become clean/synchronous body results. Pump failure is an observed body failure;
+this kernel does not claim a new physical nested-pool invariant.
+
+Current matrix: **66 implemented / 19 contracted / 14 excluded / 0 missing**.
+G0 **cannot yet be called met**: executable LocalLifecycle configuration must
+still reconcile two-peer targets, bundle/group selection and concrete source
+PRNG seed/selection assumptions. A full configured-bundle initialized clean
+witness (including nonempty established/KeepAlive group and these protocol/job
+contracts on shared resources) is still absent; reduced protocol-1 witnesses and
+conditional adapters do not provide it. This also blocks G2 full-profile
+acceptance. Batch 3 completes the three lifecycle reviews; it adds no native
+replay, universal progress, Haskell refinement or whole-node shutdown claim.
+
+[Notify]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestNotify.hs
+[Fetch]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoOnlyTestFetch.hs
+[Logic]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs
+[LeiosDbAPI]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/API.hs
+[LeiosDbSQLite]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite.hs

@@ -400,7 +400,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `ACTION.CLOSE` | [Deactivation and close][actions-close] | All-temperature termination, result wait and CM release/error/timeout paths | Implemented: controls, all-results, real CM release and timeout/error continuations |
 | `PEER.MONITOR` | [Peer monitoring][actions-monitor] | First-result alternatives, concurrent demotion/close, source Cold condition | Implemented: ordered first-result reads, background close/demotion and CM Cold condition |
 | `OG.DEMOTE.ERROR` | [Demotion job][demote-job] | Separate timed wait for Cold; timeout-dependent completion membership changes | Implemented: separate Cold wait and timeout-dependent completion |
-| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Family; initial per-protocol contracts required |
+| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Family; reviewed lifecycle contracts in [ProtocolContracts](ProtocolContracts.md), batches 1–3 (increments 88–90). Actual operation observations remain contracted; full configured initialized witness remains open. |
 
 ## 4. Expanded admission and map-lock boundaries
 

@@ -9573,3 +9573,138 @@ No new/checked module exceeded 12 GB or the approximately 10 GB budget. No
 additional >12 GB module was discovered or attempted. This batch claims no
 heavy acceptance, full configured bundle execution, universal progress,
 implementation refinement, native replay or additional gate closure.
+
+## Ninetieth increment: G0 Leios protocol and shared resource contracts
+
+13 November 2026, batch 3, inspected HEAD `156c0ac` (batch 2), following batch 1
+`96b3bd4`. Overall objective remains the combined CM/IG/OG/Server source-problem
+model and correct design under unchanged G0–G5 acceptance criteria. Existing
+Agda modules/theorem statements are unchanged; unrelated untracked files were
+preserved. No Git state-changing command, source-pin change or native replay.
+
+### Source review and decisions
+
+The three missing rows become **contracted**, with executable CM-visible guards.
+[ProtocolContracts](ProtocolContracts.md#batch-3-authority-and-executable-boundary)
+records verified Git blobs, pinned source-line citations, both directions,
+blocking points, masks/exceptions, resource release, results and exclusions.
+Read-only `git show` read consensus `2e44d98a843168ba3b189e305820b79943ac7d1e`
+and network `2f1c154f248659b89523d5679ca532f442e7ed2a` from local repositories.
+The latter's BlockFetch registry is distinct from shared Leios peer-vars lifetime.
+
+- **LeiosNotify:** implement legal control/forecast/arrival boundary, Quit before
+  pipeline drain and received Done, responder Quit-before-flush-before-Done and
+  complete inner pump-release barrier. Contract depth/credit/arrived and FIFO
+  state, actual driver/STM/ledger callbacks, linked pump failure and its central
+  registry finalizer/cancel/join. Exclude payload correctness and universal relay
+  progress. Both directions retain their distinct result values/resources.
+- **LeiosFetch:** implement command/check boundaries, collection before recheck
+  when no command and replies outstanding, drain before sending Done, and nested
+  writer/reader closure before normal result/shared cleanup. Contract stop-first
+  STM, actual pipeline-depth branches, DB/kernel/mempool effects and exceptions,
+  reader/writer bracketing. Existing concrete DB-wait machinery is reused by
+  source projection, not silently equated to the new abstract wait. Exclude
+  payload/storage correctness and deadline/delivery guarantees.
+- **Shared Leios resources:** implement get-or-create presence, first-exit
+  deletion before outstanding refund with siblings still live, idempotent later
+  cleanup, straggler reallocation and failed-release residue. Contract full
+  connection/cell identities, allocation/partial acquisitions, MVar lock discipline
+  and numerical refunds/job unpicks. No refcount, last-client wait, atomic
+  delete+refund or captured-cell identity check is invented. A late re-created
+  entry is still deleted by peer key; generation isolation is not claimed.
+  Responders have separate pump/reader resources and no shared peer-vars bracket.
+
+Body cancellation cannot select an ordinary clean/synchronous mux result.
+Ordinary shared release may be interrupted at a blocked refund MVar; neither
+that receipt nor cleanup fault certifies refund. Successful Notify responder
+inner closure certifies actual pump finalizer and join, not just cancellation
+receipt. The adapter does not implement physical nested pump ownership.
+Protocol results feed existing egress/pool supervision; mux stop, handler exit,
+CM release, demotion, socket cleanup and Async result remain separate edges.
+
+### Files and finite evidence
+
+- [ProtocolContracts3](ProtocolContracts3.agda): five captured invocations (four
+  Leios endpoints plus shared ChainSync initiator); blocking/control/drain and
+  cleanup guards, synchronous/async/release-failure distinctions, shared presence
+  and outstanding residue.
+- [ProtocolContractJobs3](ProtocolContractJobs3.agda): fixed physical children,
+  executing-child checks and number/direction guards (18 Notify, 19 Fetch,
+  2 sharing CS), `complete-via`/`complete-enabled` over actual generic mux edges.
+  No full initialized frontend is replaced or constructed.
+- [Negative/ProtocolContracts3](Negative/ProtocolContracts3.agda): clean paths for
+  all four Leios endpoints, forecast/arrival/command/DB waits, no-command collect,
+  first cleanup with live siblings, idempotence, straggler allocation, body error/
+  cancellation, acquisition failure, interrupted refund and replacement error.
+  Refusals cover Quit/drain/flush ordering, DB/collection control reads, responder
+  control, premature writer/shared cleanup/refund, absent-peer reaccounting,
+  duplicate collect/restart and premature pump close. Further controls check CS outer cleanup only
+  after shared refund and writer-close error/cancellation still entering the
+  enclosing shared finalizer.
+- [Negative/ProtocolContractJobs3](Negative/ProtocolContractJobs3.agda): result
+  selection, blocked/refund/inner-release/cancellation refusals and two enabled
+  client completions explicitly conditional on real matching-child and egress
+  premises. These do not establish existence of an initialized full-bundle run.
+
+The nearby README and ledger family now link the completed review. The
+[branch matrix](BranchMatrix.md) has **66 implemented / 19 contracted /
+14 excluded / 0 missing** (99 rows). **G0 is still partly met**: reconcile one
+executable LocalLifecycle configuration with the two-peer targets and configured
+bundle/group selections, and state its concrete source PRNG seed/selection
+contract. The **full configured-bundle initialized clean witness** remains
+absent, including nonempty established/KeepAlive work and the protocol/job
+contracts on shared state. This is still a G2 full-profile acceptance gap;
+local protocol-1 reduced witnesses, validity proofs and conditional adapters do
+not close it. All protocol/shared-resource lifecycle reviews are now present.
+G1/G3/G4 retain their accepted scopes; G5 and universal progress are unaffected.
+
+### Validation of increment 90
+
+Agda **2.8.0**, sequential from this library root, every invocation:
+`agda ConnectionManagement/<module>.agda +RTS -M20G -A128m -RTS`.
+Resource inspection before checks found about 26 GiB available and no live Agda
+process. A 0.1-second RSS/high-water monitor stopped above 9,500,000 KiB;
+no stop fired. No `-c`, broad interface purge or heavy rebuild.
+
+| Module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `ProtocolContracts3` | 5.319 | 0.770 | fresh own-module pass |
+| `ProtocolContractJobs3` | 5.921 | 0.889 | fresh own-module pass |
+| `Negative/ProtocolContracts3` | 5.217 | 0.741 | fresh own-module pass |
+| `Negative/ProtocolContractJobs3` | 5.619 | 0.831 | fresh own-module pass |
+| `Properties/MuxProtocolJobs` | 7.626 | 1.029 | interface-reusing pass |
+| `Negative/MuxProtocolJobs` | 7.627 | 1.034 | interface-reusing pass |
+| `Negative/MuxHandlerSupervision` | 8.027 | 1.073 | interface-reusing pass |
+
+All seven invocations exited **0**, no warnings or Agda diagnostics. Four new
+modules have their own `Checking` lines with dependency interfaces reused:
+**22.076 s**, maximum **0.889 GiB**. Three unchanged regressions: **23.280 s**,
+maximum **1.073 GiB**. Total **45.356 s**. No failing Agda attempt occurred. Earlier successful new-module development
+checks are excluded from these final totals. A final source-nesting review
+added the CS outer-cleanup barrier and nested-writer fault propagation before
+rerunning all four additions; unchanged regressions do not import them and
+were not repeated.
+One source lookup in the ordinary network checkout lacked the promoted object;
+reading the retained replay78 checkout verified the expected registry blob.
+No source lookup failure was treated as evidence. Local four-file heuristic
+proof audit: **zero findings**; not a transitive term-level axiom audit.
+Selected local Markdown targets/anchors and whitespace checks pass. Small pinned
+extracts, runner, measured JSON records, logs and progress are retained in the
+requested RAM-backed gate scratch area; no transient links are added here.
+
+The six requested heavy endpoints were **not run** (none imports these additions;
+no existing Agda module changed):
+
+- `ConnectionManagement/Properties/SourceKeysServer.agda`
+- `ConnectionManagement/Properties/OwnedFramesExecution.agda`
+- `ConnectionManagement/Negative/OwnedCallersFixture.agda`
+- `ConnectionManagement/Negative/LiveTrackerInitialized.agda`
+- `ConnectionManagement/Negative/ServerPeers.agda`
+- `ConnectionManagement/Negative/ServerPeersOrigins.agda`
+
+No checked/new module exceeded 12 GB or the approximately 10 GB budget, and no
+additional >12 GB endpoint was attempted/discovered. No broad downstream
+acceptance, implementation refinement, exhaustive replay or additional gate
+closure is claimed. Next executable work is configuration/selection
+reconciliation followed by the full configured initialized witness; this batch
+does not start it.
