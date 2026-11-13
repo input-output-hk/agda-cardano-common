@@ -8127,3 +8127,107 @@ The migration plan's strict interaction-mode acceptance of
 G0/G2–G5 are unchanged. No full-library sweep, Haskell build/replay or universal
 progress/source-refinement claim follows from this increment.
 
+
+## Eighty-first increment: G2 initialized inbound normal-exit obstruction
+
+13 November 2026. Gate plan step 3 follows DESIGN §9's instruction to diagnose
+an inadmissible clean lifecycle rather than weaken its guards. The new
+[InboundCleanLifecycle](Negative/InboundCleanLifecycle.agda) is an initialized
+finite diagnostic witness, **not a completed clean inbound lifecycle**. Source
+authority remains network `2f1c154f248659b89523d5679ca532f442e7ed2a` / consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`.
+
+The [support module](Negative/InboundCleanLifecycleSupport.agda) checks
+`V.initialize (O.initial c₀) settings ≡ just initial`, with an empty responder
+world, empty governor peer sets and targets 0/0/0. The same `ServerPeers.Protocols`
+frontend retains the Server/IG/CM, physical mux, peer and outer supervision
+layers; no OG job is launched. One inbound connection negotiates duplex with
+one synthetic hot/on-demand responder (protocol 1), a plain mux and no configured
+byte-cell row. This is a reduced model profile, not the configured six-protocol
+LocalLifecycle application or a native replay.
+
+The 94-event `initialized-to-obstruction` concatenates four checked segments:
+
+- [Admission](Negative/InboundCleanLifecycleAdmission.agda): 38 events, one
+  actual Server accepted-fork, CM admission, physical handler birth, negotiation,
+  handle/mux allocation and publication, consumer return, raw admission-worker
+  physical result, IG registration and physical mux infrastructure startup.
+- [Protocol](Negative/InboundCleanLifecycleProtocol.agda): 20 events, actual
+  command/demand and tracer steps, responder fork/registration/body/clean outcome,
+  JobPool publication/deregistration/physical result, typed monitor selection,
+  responder completion tracer and explicit DeltaQ invocation/return.
+- [Mux](Negative/InboundCleanLifecycleMux.agda): 27 events, actual shutdown
+  enqueue/selection, stopping trace/status, empty registered-mini group, successful
+  empty egress drain, Stopped status/tracer, then whole-pool cancellation,
+  unwind/deregistration/result/join of the actual demuxer and muxer, and normal
+  scope return. Infrastructure cancellation here is the normal pool finalizer,
+  not a handler failure outcome.
+- The endpoint module adds nine events: actual expiry of the initial remote-idle
+  timer, IG time/batch selection (peer commit precedes queued notifications),
+  read of `commitRemote`, and caller-run inbound release enter/transaction/counter
+  read/cancellation request. It reaches `Release.delivering child₀`.
+
+Every event has a direct `V.advance … ≡ just …` proof by `refl`. Reflection
+normalizes one actual successor into a literal snapshot; it does not inject a
+midpoint. Its default on refusal cannot validate an edge: every independent
+`just` equality must still check. Segment histories are composed by the ordinary
+`V.Runs` constructors. There are no new runtime rules, postulates, holes or
+unsafe options.
+
+**Obstruction:** [HandlerSupervision](HandlerSupervision.agda), `rawAllowed`,
+unconditionally refuses `Machine.releaseStep (InboundRelease.cancellationDelivered
+_)`. The physical release operations in [MuxHandlerExit](MuxHandlerExit.agda),
+`deliverReleaseMux`, `acknowledgeReleaseFinished` and `deliverReleaseTimeWait`,
+all use `releaseTarget`, which reads `OutboundMachine.releasing`; they do not
+consume `Machine.inboundRelease`. The fixture checks the raw refusal universally
+at the guard and concretely at the reached frontend state, the absence of an
+outbound frame, and refusal of all three physical adapter operations. The
+inbound release's actual `requestCancellation` is enabled; it is its physical
+acknowledgement that has no supported route in this profile. No general rule
+that release must wait for mux exit is asserted.
+
+Exact endpoint facts are checked: responder result captured `clean`; mux status
+`stopped`; whole pool `closedPool`; mux scope `scopeDone normalExit`; entry zero
+`terminating key₀ child₀ nothing`; socket zero still `handling child₀`; IG
+published registration unchanged; no handler cleanup started; handler physical
+result unavailable. Controls refuse release return/assertion before receipt,
+handler result before cleanup, cleanup before finalizer, release before commit
+selection, and handler exit before mux-scope closure. The admission-worker result
+is distinct from the unavailable handler result.
+
+Work stops at this obstruction as requested. A future source/adapter review
+must decide the physical inbound receipt behavior, including a normally exiting
+or already finished handler, before a clean release/cleanup/result witness can
+be accepted. This is a model-supervision coverage finding, not evidence of a
+pinned Haskell defect, global deadlock, universal progress or source refinement.
+**The inbound G2 row remains partly met (blocked); plan step 3 is diagnosed but
+not accepted as a completed lifecycle. G2 overall remains partly met.**
+
+Final validation: Agda 2.8.0, one checker at a time, fresh own-module
+checks with imported interfaces reused. Only each selected endpoint's own
+`.agdai` was invalidated. All five source hashes remained unchanged, all five
+logs contain their own `Checking` line, exit 0 and no warnings/errors.
+Each invocation used `/usr/bin/time -v` and the exact command shape:
+
+```sh
+agda ConnectionManagement/Negative/<module>.agda +RTS -M20G -A128m -RTS
+```
+
+| Module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `InboundCleanLifecycleSupport` | 23.268 | 2.478 | pass, fresh |
+| `InboundCleanLifecycleAdmission` | 15.856 | 2.049 | pass, fresh |
+| `InboundCleanLifecycleProtocol` | 22.062 | 2.430 | pass, fresh |
+| `InboundCleanLifecycleMux` | 41.353 | 3.163 | pass, fresh |
+| `InboundCleanLifecycle` | 17.269 | 2.090 | pass, fresh |
+
+Total wall time was 119.808 seconds; peak across invocations was 3,316,584 KiB
+(3.163 GiB, below 10 GB). The five-file local heuristic proof audit found zero
+holes, postulates or unsafe options; it is not a transitive term-level axiom
+audit. GateAudit and the new increment's local link targets and whitespace
+checks passed. Development diagnostics (import scope, event/action wrapper and
+missing qualification) were repaired in new files. The rejected direct
+`finishProtocolTrace` shortcut was replaced with the real DeltaQ invocation and
+return before final acceptance. No existing Agda module, runtime guard,
+initializer, source pin or Git state was changed. No heavy existing fixture,
+full-library sweep or Haskell replay was run for this diagnostic-only addition.
