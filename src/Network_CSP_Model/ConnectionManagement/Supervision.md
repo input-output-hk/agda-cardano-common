@@ -9144,3 +9144,156 @@ checks pass. Detailed logs, measurements, source hashes and `progress.md` remain
 in the requested step8 scratch directory; durable documentation has no scratch
 links. No broad/heavy regression, variant-control rebuild, whole-library build,
 Haskell replay, hidden-process check or G5 exploration/export was run.
+
+## Eighty-seventh increment: G4 refusal and decoder completeness
+
+13 November 2026. Follow-up to increment 86, at inspected HEAD `2dc015a`.
+Adds lemmas only to the six authorized step-8 modules
+[CSP/Dispatcher](CSP/Dispatcher.agda), [Supervised](CSP/Supervised.agda),
+[SupervisedInner](CSP/SupervisedInner.agda), [RuntimeMonitor](CSP/RuntimeMonitor.agda),
+[SupervisedWitness](CSP/SupervisedWitness.agda) and
+[SupervisedControls](CSP/SupervisedControls.agda). Existing definitions, theorem
+statements and machine rules are unchanged; `ResultTrace` is unchanged.
+No Git state-changing command was used. The overall combined CM/IG/OG/Server
+source-problem and correct-design objective, source pins and G0–G5 acceptance
+criteria remain unchanged.
+
+**Refusals at every state.** `Dispatcher` now identifies stable refusals exactly
+with disabled machine actions, for arbitrary configurations, arbitrary refusal
+sets (universe-polymorphic), and the complete raw alphabet. No initialization,
+reachability, finite carrier, decidable action/state equality or extra semantic
+assumption is needed. Both supervised renderers publicly instantiate these facts
+at the actual full inner `T.Event` / outer `O.OuterAction` dispatcher.
+
+Representative signatures omit implicit binders and fixed module parameters:
+
+```agda
+DisabledSet s X = ∀ a → X (label a) → advance a s ≡ nothing
+refusal-intro : DisabledSet s X → Refuses (Process s) X
+refusal-inv   : Refuses (Process s) X → DisabledSet s X
+refusal-exact : (Refuses (Process s) X → DisabledSet s X) ×
+                (DisabledSet s X → Refuses (Process s) X)
+singleton-refusal : advance a s ≡ nothing →
+  Refuses (Process s) (λ e → e ≡ label a)
+singleton-refusal-inv : Refuses (Process s) (λ e → e ≡ label a) →
+  advance a s ≡ nothing
+failure-intro : Executes s as t → DisabledSet t X →
+  failures (Process s) (map label as) X
+failure-inv : failures (Process s) (map label as) X →
+  Σ Configuration (λ t → Executes s as t × DisabledSet t X)
+all-failure-inv : failures (Process s) es X →
+  Σ (List Action) (λ as → Σ Configuration (λ t →
+    es ≡ map label as × Executes s as t × DisabledSet t X))
+```
+
+The proof uses the existing exact step inversion and the supplied dispatcher:
+`nothing` forbids an offer, and `just t` supplies an offer. The raw rendering is
+stable at every state. Each supervised bridge also adds `native-failure-intro`
+and `native-failure-inv` with `O.Executes` / `T.Runs` instead of generic paths.
+Thus the stable-failures reading after finite traces matches actual machine runs,
+not just singleton tests at one witness state. Tick can belong to `X`: it is
+always refused and has no machine action. No hidden-process result is inferred.
+
+**Decoder and full coverage.** The rendering has exactly one channel carrying
+the complete action type. Its visible `Event` therefore has a total decoder,
+retaining every constructor and nested payload, independently of enabledness:
+
+```agda
+decode-event : Event → Action
+decode : Event√ ⊤ → Maybe Action
+encode-decode : ∀ e → label (decode-event e) ≡ evl e
+decode-label : ∀ a → decode (label a) ≡ just a
+decode-sound : decode e ≡ just a → e ≡ label a
+label-injective : label a ≡ label b → a ≡ b
+alphabet-complete : ∀ e → Σ Action (λ a →
+  evl e ≡ label a × (∀ b → evl e ≡ label b → a ≡ b))
+action-covered : ∀ a → Σ Event (λ e →
+  evl e ≡ label a × decode-event e ≡ a)
+```
+
+This is coverage of **all** typed inner and outer actions, including disabled
+ones, and unique decoding of **all** visible raw events. The ambient termination
+marker `√ tt` is not rendered: `decode` returns `nothing` and the checked
+`tick-not-covered : ∀ a → ¬ (√ tt ≡ B.label a)` refutes surjectivity onto all
+`Event√` markers. It does not obstruct visible-alphabet completeness.
+
+**Monitor and committed-state controls.** `RuntimeMonitor.decode-input` maps
+every visible event to an `event` request, and tick to `malformed 0`.
+`decode-input-label`, `visible-input-covered` and `decode-schedule` certify this
+adapter's coverage and round trip. `replay-rendered-run` accepts the decoded
+rendering of every actual machine history at its exact event budget.
+`refusal-rendering`/`rendering-refusal` explain every disabled monitor edge by
+precisely the corresponding singleton stable refusal, in both directions.
+This supplies a verified typed adapter rather than assuming arbitrary external
+`malformed`/`unsupported` declarations are complete. There is no byte/log parser
+in this contract, nor a claim that the machine covers every source operation.
+Optional classification into ordinary wait versus missing semantics remains
+separate domain evidence; it is not needed for the proved disabled-action
+explanation and must not be inferred automatically.
+
+`SupervisedWitness.pre-result-refusal` instantiates this at the real committed
+`Run.s17` state. `initialized-stable-failure` combines the unchanged initialized
+prefix with refusal of premature physical-result publication.
+`pre-result-still-offers` proves the actual next release assertion is enabled at
+the same state, explicitly ruling out a global-deadlock reading of this singleton
+refusal. `rendered-replay-accepted` applies the verified decoder to the complete
+109-event initialized schedule. `SupervisedControls` checks the committed
+monitor/refusal round trip, coverage even of the disabled publication action,
+and explicit tick exclusions; previous controls are preserved.
+
+**G4 is now met for the full raw supervised rendering and increment 86's explicit
+lossless result-trace contract.** Both requested remaining typed semantic items
+are closed. No compact value-bearing API-only PTree, expanded hiding abstraction,
+hidden divergence/liveness, independent parallel architecture, external parser,
+implementation conformance or exhaustive exploration is established. Those
+exclusions do not weaken or modify an existing theorem or the G4 acceptance
+criterion. G0/G2/G5 remain partly met; G1/G3 retain their accepted scopes and
+step 6's progress contract remains separate. No later plan step is started.
+
+### Validation of increment 87
+
+Serial Agda 2.8.0, exact command `agda <file> +RTS -M20G -A128m -RTS`,
+never `-c`. Host resources were inspected before checks. Six edited modules each
+have a successful fresh own-module `Checking` line, exit 0 and no warnings;
+dependency interfaces were reused. No cache purge was performed.
+
+| Edited module under `CSP/` | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `Dispatcher` | 5.860 | 0.898 | fresh pass |
+| `RuntimeMonitor` | 5.517 | 0.876 | fresh pass |
+| `Supervised` | 8.527 | 1.492 | fresh pass |
+| `SupervisedInner` | 8.327 | 1.306 | fresh pass |
+| `SupervisedWitness` | 22.572 | 2.739 | fresh pass |
+| `SupervisedControls` | 16.050 | 2.500 | fresh pass |
+
+Edited-module total **66.853 s**, maximum **2.739 GiB**.
+Eight selected interface-reusing checks also exit 0/no warnings:
+`CSP/ResultTrace` (5.316 s), `CSP/Correspondence` (5.618 s), `CSP/Subsystem`
+(5.618 s), `Negative/HeapRollback` (5.318 s), `Negative/CleanupAtomicity`
+(5.418 s), `Negative/CounterValidity` (5.519 s),
+`Properties/LiveTrackerReferencesCounterexample` (20.063 s), and
+`Negative/OriginMonitor` (7.324 s). Total **60.194 s**, maximum **2.952 GiB**.
+Combined final acceptance: **14 invocations / 127.047 s**, peak **2.952 GiB**.
+The unchanged `ResultTrace` also elaborated as a dependency during development;
+its final independent invocation is accurately reported as interface-reusing.
+
+An earlier `Dispatcher` attempt failed on an ambiguous imported `Event√` name;
+restricting the second import fixed it, without changing any old statement.
+An earlier witness attempt was stopped by the 9,500,000 KiB RSS monitor after
+65.104 s, at observed 9,523,392 KiB (9.082 GiB). The repair gives the new witness
+lemmas explicit state/action arguments, avoiding full-runtime implicit inference;
+the final witness check above passes at 2.739 GiB. These attempts and preliminary
+bridge successes are excluded from acceptance totals. Subsequent serial checks
+used the same stop threshold, sampled every 0.1 s, with no stop. Dispatcher uses
+`/usr/bin/time` kernel high-water RSS; other reported peaks are the maximum
+sampled current RSS/kernel high-water values. No concurrent Agda processes were
+started.
+
+The six-edited-file local heuristic proof audit has zero findings. A Git-content
+comparison confirms every original module remains an exact prefix, except for
+two `Dispatcher` import lists; all existing definitions and statements remain
+intact. Local documentation file targets and `git diff --check` pass. This is
+not a transitive term-level axiom audit. No new postulates, holes, unsafe options,
+termination pragmas or execution rules were added. No broad/heavy rebuild,
+variant rebuild, external parser/native replay, hidden-process check or G5
+exploration/export was run. Changes remain uncommitted over `2dc015a`.

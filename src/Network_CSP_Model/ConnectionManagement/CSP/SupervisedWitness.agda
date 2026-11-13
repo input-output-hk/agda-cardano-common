@@ -87,3 +87,34 @@ abstract
   inner-rendered-trace : InnerTraces.traces (Inner.Process initial)
     (map Inner.label (Run.schedule ++ Run.completionActions))
   inner-rendered-trace = Inner.trace-intro Run.initialized-to-completion
+
+open import Semantics.Refusals {E = B.Channel} {I = ExtI B.Channel} using (Refuses; Offers)
+open import Semantics.Failures {E = B.Channel} {I = ExtI B.Channel} using (failures)
+-- A refusal at the actual committed pre-result state, after the initialized run.
+pre-result-state : O.Outer
+pre-result-state = O.outer Run.s17 (Pool.initial true)
+premature-publication : O.OuterAction
+premature-publication = O.innerAct (exit (W.publishAsyncResult A.child₀))
+pre-result-disabled : O.outerStep premature-publication pre-result-state ≡ nothing
+pre-result-disabled rewrite Run.no-result-before-timewait-finally = refl
+pre-result-refusal : Refuses (B.Process pre-result-state) (λ e → e ≡ B.label premature-publication)
+pre-result-refusal = B.singleton-refusal {s = pre-result-state} {a = premature-publication}
+  pre-result-disabled
+abstract
+  initialized-stable-failure : failures (B.Process start)
+    (map B.label (map O.innerAct pre-result-schedule)) (λ e → e ≡ B.label premature-publication)
+  initialized-stable-failure = B.Raw.failure-intro {s = start}
+    {as = map O.innerAct pre-result-schedule} {t = pre-result-state}
+    (B.to-raw (B.lift-run (just Pool.running) pre-result-run))
+    (B.refusal-inv {s = pre-result-state} pre-result-refusal)
+-- The singleton refusal is not global deadlock: the real next release step runs.
+pre-result-still-offers : Offers (B.Process pre-result-state) (B.label (O.innerAct Run.a18))
+pre-result-still-offers = B.Process (O.outer Run.s18 (Pool.initial true)) ,
+  B.step-intro {c = pre-result-state} {c′ = O.outer Run.s18 (Pool.initial true)}
+    {a = O.innerAct Run.a18}
+    (B.lift-edge {s = Run.s17} {t = Run.s18} {a = Run.a18} (just Pool.running) Run.e18)
+abstract
+  rendered-replay-accepted : Replay.Accepted
+    (Replay.replay (Data.List.length schedule) start
+      (map Replay.decode-input (map B.label schedule)))
+  rendered-replay-accepted = Replay.replay-rendered-run (B.to-raw outer-run)

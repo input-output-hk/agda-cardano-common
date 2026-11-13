@@ -74,3 +74,29 @@ module Explanation = R.Explain Blocking Missing
 cancel-explanation : Explanation.Refusal Witness.start cancel
 cancel-explanation = Explanation.explanation cancel-before-return
   (Explanation.ordinary-blocking (refl , refl))
+
+open import Process_Trees using (ExtI)
+open import Data.Unit using (tt)
+open import Relation.Nullary using (¬_)
+open import Semantics.LTS {E = B.Channel} {I = ExtI B.Channel} using (√)
+open import Semantics.Refusals {E = B.Channel} {I = ExtI B.Channel} using (Refuses)
+
+-- The monitor's refusal explanation is exactly the committed machine refusal.
+committed-monitor-refusal : Refuses (B.Process Witness.pre-result-state)
+  (λ e → e ≡ B.label Witness.premature-publication)
+committed-monitor-refusal = R.refusal-rendering {s = Witness.pre-result-state}
+  {a = Witness.premature-publication} Witness.pre-result-disabled
+committed-refusal-decodes : O.outerStep Witness.premature-publication Witness.pre-result-state ≡ nothing
+committed-refusal-decodes = R.rendering-refusal {s = Witness.pre-result-state}
+  {a = Witness.premature-publication} committed-monitor-refusal
+-- Coverage/decoding includes disabled actions, not only successful trace events.
+disabled-input-covered : R.decode-input (B.label Witness.premature-publication) ≡
+  R.event Witness.premature-publication
+disabled-input-covered = R.decode-input-label Witness.premature-publication
+-- Tick is an ambient termination marker, excluded from the rendered alphabet.
+tick-decode-rejected : B.decode (√ tt) ≡ nothing
+tick-decode-rejected = refl
+tick-input-rejected : R.decode-input (√ tt) ≡ R.malformed 0
+tick-input-rejected = refl
+tick-not-covered : ∀ a → ¬ (√ tt ≡ B.label a)
+tick-not-covered a ()

@@ -483,7 +483,9 @@ retains unconsumed input. `accepted-run` proves accepted input actually runs;
 validation, not enabledness-complete bounded exploration. External malformed/
 unsupported reports are declarations, not a verified parser or automatic model
 coverage test. `Explain` requires domain evidence before calling a refusal
-ordinary blocking or incomplete modeling; most refusals remain unclassified.
+ordinary blocking or incomplete modeling. Increment 87 explains every raw refusal
+exactly as disabled machine actions; optional wait/model-gap classification remains
+a separate domain question.
 
 [SupervisedWitness](SupervisedWitness.agda) maps the committed initialized inbound
 109-event G2 witness to both PTree traces, a lossless result trace and monitor
@@ -491,5 +493,45 @@ acceptance. It retains the exact physical-result endpoint and rejects a prematur
 result extension. [SupervisedControls](SupervisedControls.agda) checks the frontier
 separation, unequal physical-result snapshots and a proved outer wait condition.
 See [increment 86](../Supervision.md#eighty-sixth-increment-g4-supervised-runtime-semantic-bridge)
-for checks and remaining G4 obligations. Existing origin/invariant monitors and
+for the original checks and historical G4 obligations. Increment 87 below closes
+the two remaining typed semantic obligations. Existing origin/invariant monitors and
 negative controls are unchanged.
+
+## Refusal and decoder completeness (increment 87)
+
+**G4 is met for the full raw supervised rendering and the explicit lossless
+result-trace contract.** Both bridges publicly expose `Dispatcher`'s added lemmas,
+for every inner `T.Event` and outer `O.OuterAction`, arbitrary state and all
+classifier/capability parameters:
+
+- `refusal-exact`: `Refuses (Process s) X` iff
+  `DisabledSet s X = ∀ a → X (label a) → advance a s ≡ nothing`.
+  `X` is any universe-polymorphic event set, including tick. Singleton introduction
+  and inversion identify each refused machine action exactly.
+- `failure-intro`/`failure-inv`, `all-failure-inv` and each bridge's
+  `native-failure-intro`/`native-failure-inv` identify stable failures as machine
+  runs ending at states that disable every action in the refusal set.
+- `alphabet-complete` gives exactly one action for every visible event;
+  `action-covered` gives a visible event for every action, including disabled
+  actions. `encode-decode`, `decode-label`, `decode-sound` and `label-injective`
+  retain all action payloads. `decode` explicitly rejects ambient tick, which
+  the raw process never performs; it is not an extra machine action.
+
+`RuntimeMonitor.decode-input` is a verified adapter for this typed alphabet.
+Every visible event yields an `event` request, never unsupported or malformed;
+`decode-schedule` and `replay-rendered-run` establish schedule round trip and
+acceptance. `refusal-rendering`/`rendering-refusal` connect its disabled edges
+exactly with process refusals. External malformed/unsupported declarations are
+still declarations; no external byte/log format is defined or verified.
+
+`SupervisedWitness.initialized-stable-failure` reaches the committed `s17`
+pre-result state and refuses premature physical-result publication.
+`pre-result-still-offers` proves the real next release assertion remains enabled,
+so this singleton failure is not global deadlock. `SupervisedControls` adds
+monitor/refusal round trips, disabled-action input coverage and checked tick
+exclusions. Existing statements and machine modules are unchanged.
+
+See [increment 87](../Supervision.md#eighty-seventh-increment-g4-refusal-and-decoder-completeness)
+for signatures and validation. No compact API-only PTree/hiding abstraction,
+hidden-process liveness/divergence, independent parallel composition, external
+parser correctness, source conformance or exhaustive exploration is claimed.

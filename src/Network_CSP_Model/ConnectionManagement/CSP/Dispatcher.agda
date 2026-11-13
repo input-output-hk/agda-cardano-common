@@ -13,7 +13,7 @@ open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Unit using (⊤)
 open import Function using (case_of_)
 open import Relation.Nullary using (¬_; Dec; yes)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym; trans; subst)
 open import Process_Trees
 open PTree
 -- Finite paths in the supplied dispatcher; adapters retain native run types.
@@ -33,7 +33,7 @@ label : Action → Event√ ⊤
 label a = evl (evLabel Action action a)
 
 open import CSP.Operators channel-≟ using (viewV)
-open import Semantics.LTS {E = Channel} {I = ExtI Channel}
+open import Semantics.LTS {E = Channel} {I = ExtI Channel} hiding (Event√; evl; evLabel)
 open import Semantics.Failures {E = Channel} {I = ExtI Channel}
   using (_⟹⟨_⟩_; ⟹-refl; ⟹-τ; ⟹-ev; traces)
 open import Semantics.Refusals {E = Channel} {I = ExtI Channel} using (Refuses)
@@ -114,3 +114,76 @@ refused-extension : ∀ {c as c′ a} → Executes c as c′ → advance a c′ 
   ¬ traces (Process c) (map label (as ++ (a ∷ [])))
 refused-extension prefix disabled tr with trace-inv tr
 ... | end , path = reject-execution prefix disabled path
+
+-- The visible alphabet is exactly Action, including every nested payload.
+-- Tick belongs to Event√ but is never rendered; decoding rejects it explicitly.
+decode-event : Event → Action
+decode-event (evLabel _ action a) = a
+decode : Event√ ⊤ → Maybe Action
+decode (evl e) = just (decode-event e)
+decode (√ _) = nothing
+encode-decode : ∀ e → label (decode-event e) ≡ evl e
+encode-decode (evLabel _ action a) = refl
+decode-label : ∀ a → decode (label a) ≡ just a
+decode-label a = refl
+label-injective : ∀ {a b} → label a ≡ label b → a ≡ b
+label-injective eq = just-injective (cong decode eq)
+decode-sound : ∀ {e a} → decode e ≡ just a → e ≡ label a
+decode-sound {evl (evLabel _ action a)} refl = refl
+-- Every visible event has one preimage, and that preimage is unique.
+alphabet-complete : ∀ e → Σ Action (λ a →
+  evl e ≡ label a × (∀ b → evl e ≡ label b → a ≡ b))
+alphabet-complete (evLabel _ action a) = a , refl , λ b eq → label-injective eq
+-- Coverage is total even for actions disabled at a particular state.
+action-covered : ∀ a → Σ Event (λ e → evl e ≡ label a × decode-event e ≡ a)
+action-covered a = evLabel Action action a , refl , refl
+
+open import Level using (Level)
+open import Semantics.Refusals {E = Channel} {I = ExtI Channel} using (Offers)
+open import Semantics.Failures {E = Channel} {I = ExtI Channel} using (failures)
+
+-- No reachability, finiteness or equality-decision assumption is required.
+-- Sets may include tick: it is automatically refused, as it has no machine action.
+DisabledSet : ∀ {ℓ : Level} → Configuration → (Event√ ⊤ → Set ℓ) → Set ℓ
+DisabledSet s X = ∀ a → X (label a) → advance a s ≡ nothing
+
+not-offered-disabled : ∀ {s a} → ¬ Offers (Process s) (label a) → advance a s ≡ nothing
+not-offered-disabled {s} {a} absent with advance a s in eq
+... | nothing = refl
+... | just t = ⊥-elim (absent (Process t , step-intro eq))
+disabled-not-offered : ∀ {s a} → advance a s ≡ nothing → ¬ Offers (Process s) (label a)
+disabled-not-offered disabled (_ , st) with step-inv st
+... | t , enabled , _ with trans (sym disabled) enabled
+...   | ()
+
+-- Arbitrary-set refusal equivalence, over the full Event√ alphabet.
+refusal-intro : ∀ {ℓ} {s} {X : Event√ ⊤ → Set ℓ} → DisabledSet s X → Refuses (Process s) X
+refusal-intro {s = s} {X = X} disabled = (λ _ _ → refl) , reject
+  where
+  reject : ∀ e → X e → ¬ Offers (Process s) e
+  reject (evl (evLabel _ action a)) member = disabled-not-offered (disabled a member)
+  reject (√ r) member (_ , st) = no-tick st
+refusal-inv : ∀ {ℓ} {s} {X : Event√ ⊤ → Set ℓ} → Refuses (Process s) X → DisabledSet s X
+refusal-inv (_ , reject) a member = not-offered-disabled (reject (label a) member)
+refusal-exact : ∀ {ℓ} {s} {X : Event√ ⊤ → Set ℓ} →
+  (Refuses (Process s) X → DisabledSet s X) × (DisabledSet s X → Refuses (Process s) X)
+refusal-exact = refusal-inv , refusal-intro
+singleton-refusal : ∀ {s a} → advance a s ≡ nothing → Refuses (Process s) (λ e → e ≡ label a)
+singleton-refusal {s = s} {a = a} disabled = refusal-intro λ b eq →
+  subst (λ x → advance x s ≡ nothing) (sym (label-injective eq)) disabled
+singleton-refusal-inv : ∀ {s a} → Refuses (Process s) (λ e → e ≡ label a) → advance a s ≡ nothing
+singleton-refusal-inv refusal = refusal-inv refusal _ refl
+
+-- Stable failures agree exactly with a machine run followed by disabled actions.
+failure-intro : ∀ {ℓ} {s as t} {X : Event√ ⊤ → Set ℓ} →
+  Executes s as t → DisabledSet t X → failures (Process s) (map label as) X
+failure-intro {t = t} run disabled = Process t , exec-intro run , refusal-intro disabled
+failure-inv : ∀ {ℓ} {s as} {X : Event√ ⊤ → Set ℓ} →
+  failures (Process s) (map label as) X → Σ Configuration (λ t → Executes s as t × DisabledSet t X)
+failure-inv (_ , path , refusal) with exec-inv path
+... | t , refl , run = t , run , refusal-inv refusal
+all-failure-inv : ∀ {ℓ} {s es} {X : Event√ ⊤ → Set ℓ} →
+  failures (Process s) es X → Σ (List Action) (λ as → Σ Configuration (λ t →
+    es ≡ map label as × Executes s as t × DisabledSet t X))
+all-failure-inv (_ , path , refusal) with all-exec-inv path
+... | as , t , eq , refl , run = as , t , eq , run , refusal-inv refusal

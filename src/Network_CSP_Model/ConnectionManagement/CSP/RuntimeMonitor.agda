@@ -95,3 +95,42 @@ module Explain (Blocking Missing : State → Action → Set) where
     constructor explanation
     field disabled : advance a s ≡ nothing
           cause : Cause s a
+
+open import Data.Product using (_×_)
+open import Relation.Binary.PropositionalEquality using (cong)
+open import Process_Trees using (ExtI)
+open import Semantics.LTS {E = Raw.Channel} {I = ExtI Raw.Channel}
+  using (Event; Event√; evl; √)
+open import Semantics.Refusals {E = Raw.Channel} {I = ExtI Raw.Channel} using (Refuses)
+
+-- Verified adapter for the full typed rendering alphabet. Tick is not a machine
+-- action; the visible alphabet never produces malformed/unsupported requests.
+-- This makes no claim about parsing external bytes or a Haskell log format.
+decode-input : Event√ ⊤ → Request
+decode-input (evl e) = event (Raw.decode-event e)
+decode-input (√ _) = malformed 0
+decode-input-label : ∀ a → decode-input (Raw.label a) ≡ event a
+decode-input-label a = refl
+visible-input-covered : ∀ e → Σ Action (λ a → decode-input (evl e) ≡ event a)
+visible-input-covered e = Raw.decode-event e , refl
+input-unique : ∀ {a b} → Raw.label a ≡ Raw.label b → event a ≡ event b
+input-unique eq = cong event (Raw.label-injective eq)
+
+-- Every disabled replay edge has a stable-refusal explanation and conversely.
+-- This is an exact machine explanation, independent of optional wait/gap causes.
+refusal-rendering : ∀ {s a} → advance a s ≡ nothing →
+  Refuses (Raw.Process s) (λ e → e ≡ Raw.label a)
+refusal-rendering = Raw.singleton-refusal
+rendering-refusal : ∀ {s a} → Refuses (Raw.Process s) (λ e → e ≡ Raw.label a) →
+  advance a s ≡ nothing
+rendering-refusal = Raw.singleton-refusal-inv
+
+-- Monitor the encoded schedule using the verified adapter, with no declarations
+-- of unsupported coverage. Acceptance follows from the actual machine history.
+open import Relation.Binary.PropositionalEquality using (refl)
+decode-schedule : ∀ as → map decode-input (map Raw.label as) ≡ map event as
+decode-schedule [] = refl
+decode-schedule (a ∷ as) rewrite decode-schedule as = refl
+replay-rendered-run : ∀ {s as t} → Raw.Executes s as t →
+  Accepted (replay (length as) s (map decode-input (map Raw.label as)))
+replay-rendered-run {as = as} run rewrite decode-schedule as = replay-run run

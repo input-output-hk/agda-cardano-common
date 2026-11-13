@@ -76,3 +76,17 @@ all-trace-inv : ∀ {s es} → traces (Process s) es →
     es ≡ map label as × O.Executes s as t))
 all-trace-inv (_ , tr) with all-exec-inv tr
 ... | as , t , eq , endpoint , run = as , t , eq , run
+
+open import Data.Unit using (⊤)
+open import Semantics.LTS {E = Channel} {I = ExtI Channel} using (Event√)
+open import Semantics.Failures {E = Channel} {I = ExtI Channel} using (failures)
+
+-- Stable failures retain native histories and exact machine endpoints.
+native-failure-intro : ∀ {ℓ} {s as t} {X : Event√ ⊤ → Set ℓ} →
+  O.Executes s as t → DisabledSet t X → failures (Process s) (map label as) X
+native-failure-intro run disabled = Raw.failure-intro (to-raw run) disabled
+native-failure-inv : ∀ {ℓ} {s as} {X : Event√ ⊤ → Set ℓ} →
+  failures (Process s) (map label as) X →
+  Σ O.Outer (λ t → O.Executes s as t × DisabledSet t X)
+native-failure-inv failure with Raw.failure-inv failure
+... | t , run , disabled = t , from-raw run , disabled
