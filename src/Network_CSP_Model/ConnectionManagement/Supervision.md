@@ -8610,10 +8610,10 @@ stated scopes: inbound clean (109 events), outbound clean (156), initialized
 duplex reuse, supervised outbound handshake failure/cleanup (40), successful hot
 demotion and this timeout/Cooling/delayed-cleanup/Cold run (158). Existing duplex
 reuse and hot-demotion evidence was reviewed without rebuilding its heavy
-fixture. **The timeout row and plan step 5 remain partly met:** this run uses a
-foreign caller to force TIME_WAIT; it is not the production-only timeout cleanup
-witness. The source audit below resolves release ownership without upgrading that
-coverage. **G2 overall remains partly met**: full selected application protocol
+fixture. **At this checkpoint the timeout row and plan step 5 remained partly met:**
+this run uses a foreign caller to force TIME_WAIT. The source audit below resolves
+release ownership; the production-only witness below subsequently closes the
+reduced-profile coverage gap. **G2 overall remains partly met**: full selected application protocol
 contracts/bundles and their clean coverage also remain open. No later gate is started.
 
 ### Validation of increment 84
@@ -8702,8 +8702,9 @@ queues shutdown; `Rules/PeerJobs.operationTimeout` enters `awaitCold succeeded`;
 `requestRelease`. `Rules/Cleanup.decideCleanup` immediately terminates/purges
 outbound states and defers only Terminating. No model wiring, theorem statement
 or Agda source changed. The full 158-event run is retained as foreign-caller
-interleaving evidence. A production-only initialized timeout → handler cleanup
-→ Cold witness remains step 5's acceptance gap; source ownership is now resolved.
+interleaving evidence. At this audit checkpoint a production-only initialized timeout → handler cleanup
+→ Cold witness remained step 5's acceptance gap. The following witness closes
+that reduced-profile gap; source ownership remains as audited here.
 
 Validation of this follow-up: six exact pinned-source comparisons passed;
 112 local link destinations, nine pinned source-link ranges and whitespace
@@ -8725,3 +8726,72 @@ modules remain unrun: `Properties/SourceKeysServer`,
 [timeout84-cleanup]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L580-L713
 [timeout84-demotion]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L438-L457
 [timeout84-pool]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Control/Concurrent/JobPool.hs#L122-L177
+
+### Production-only timeout-cooling witness
+
+13 November 2026. [TimeoutCoolingOwned](Negative/TimeoutCoolingOwned.agda),
+`initialized-to-completion`, adds a **145-event initialized frontend run** following
+that audited source branch. It reuses the existing acquisition (23), startup (20),
+established (19), operation-timeout (29), protocol-results (12) and mux-shutdown
+(24) segments unchanged. Its 18 new events perform handler exit/buffer return,
+CM finally entry, take/select cleanup, socket close, publish the purged map,
+cleanup counters/completion and handler physical result; then actual monitor
+poll/Cold, close-job observation/completion/deregistration/physical result and
+monitor finish/deregistration/physical result. Every new real `V.advance` edge
+is checked by `refl`; the reused edges retain their original checks. Initialization
+uses the existing `initializer` proof; no midpoint is injected.
+
+The profile remains one known ordinary outbound peer, a plain unidirectional
+bearer, one warm/on-demand initiator, empty hot/established bundles and targets
+initially 1/1/0. Timeout occurs with that configured result still pending. PSA
+queues `Mux.stop` and waits for Cold. Handler finally takes the existing immediate
+outbound cleanup branch, writes Terminated, closes the socket and identity-guardedly
+purges the entry. There is **no CM release, foreign caller or TIME_WAIT** in this
+history. Physical shutdown/cleanup may interleave after Cooling; no duration or
+universal progress bound is asserted. The separate 158-event foreign-caller run
+and all existing Agda modules remain unchanged.
+
+[TimeoutCoolingOwnedCallers](Negative/TimeoutCoolingOwnedCallers.agda) lifts the
+entire initialized schedule into the actual outer relays scope (still `inside`,
+with its scheduled thread running). `every-owned` computes
+`PolicyCheck.everyOwned outer-schedule ≡ true`; `production-policy` applies the
+existing source-policy theorem to obtain `Owned.Allowed initialized-outer`.
+`production-run` then uses `Owned.allowed-build` to establish an executable
+`Owned.OuterRuns′` with exactly the same labels, initializer state and endpoint.
+This covers the acquisition prefix as well as the timeout tail, excluding raw CM
+beginAcquire/beginRelease even under complete plans. It is finite peer cleanup,
+not completion of the outer relays scope or whole-node shutdown.
+
+Endpoint facts prove Cold, closed socket, captured entry Terminated, empty live
+map, normal completed cleanup, normal handler result, close job `complete succeeded`
+and normal physical job and monitor results. Premature controls refuse Cold before
+CM demotion/map publication, close-job success/publication before monitor Cold,
+handler result before cleanup, physical job result before publication and monitor
+result before its body exit. All-results is unavailable before protocol return.
+After direct map publication the peer is still Cooling until the monitor observes
+it; TIME_WAIT elapsed/finally steps are refused. A separate demotion-timeout edge
+from the reached pre-cleanup state produces `demotionTimedOut` and retains Cooling;
+it is never spliced into the successful history and is refused at `awaitAll`.
+
+**G2 timeout row and plan step 5 are met for this reduced production-caller
+profile.** The six first witnesses now have scoped finite evidence including this
+production-only timeout path; **G2 overall remains partly met** pending full
+selected application protocol contracts and configured-bundle clean coverage.
+No native replay, source refinement, universal delivery, shutdown progress or
+measured deadline follows from this run. Source fidelity is the separate pinned
+control-flow audit above.
+
+Validation: both new modules passed fresh serial Agda 2.8.0 checks, with their own
+`Checking` lines, exit 0 and no warnings, using
+`agda ConnectionManagement/Negative/<module>.agda +RTS -M20G -A128m -RTS`.
+Dependency interfaces were reused; existing Agda modules were not modified.
+
+| Module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `TimeoutCoolingOwned` | 70.02 | 6.656 | pass, fresh |
+| `TimeoutCoolingOwnedCallers` | 37.86 | 4.418 | pass, fresh |
+
+The new-module proof audit reports zero findings; local documentation links and
+`git diff --check` pass. Existing heavy fixtures and broader regression were not
+rebuilt: all existing source/dependency statements are unchanged. Historical
+increment-84 and source-audit measurements above remain historical.
