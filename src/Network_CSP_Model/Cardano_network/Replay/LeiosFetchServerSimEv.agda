@@ -42,7 +42,7 @@ open import Cardano_network.Parametric.Leios.NoLivelock.PeerLFP replayParams
 open import Cardano_network.Replay.LeiosFetchServerModel using (Proc; Bodies; lS; dS; nS; serveTxs)
 open import Cardano_network.Replay.LeiosFetchServerParts
 open import Cardano_network.Replay.LeiosFetchServerRel k
-open import Cardano_network.Replay.LeiosFetchObs using (ObsS; clsS; forget; recv-request; recv-request-fails)
+open import Cardano_network.Replay.LeiosFetchObs using (ObsS; clsS; forget; recv-request; recv-request-fails; request-match)
 import Cardano_network.Replay.LeiosFetchWireBridge {E = Net_Api Payload} {I = ExtI (Net_Api Payload)} as WB
 open WB using (silent; logged)
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -76,7 +76,10 @@ sim-ev (rIdle pr ea eb ss) st with comp-ev (prest-ns pr) (alphA-rest ea) (alphB-
 ...   | _ , _ , siBlk q , refl , refl = logged refl
         (λ { (Recv , MsgLeiosBlockRequest _ _) refl _ → _ , vis sRecvBlockReq done , rReqB q ea eb ss })
 ...   | _ , _ , siTxs q bm ok , refl , refl = logged (recv-request tt FromInitiator tt q bm ok)
-        (λ { (Recv , MsgLeiosBlockTxsRequest _ _ _ _) refl (valid , count) → _ , vis (sRecvTxsReq valid count) done , rReqT (q , bm) (decodable-all ok) ea eb ss })
+        (λ { (Recv , MsgLeiosBlockTxsRequest _ _ _ b) same _ →
+          case request-match {b = b} (cong proj₂ same) of λ { (refl , refl , refl , valid , offsets-eq) →
+            _ , vis (sRecvTxsReq valid (sym (cong length offsets-eq))) done ,
+            rReqT (q , bm) (decodable-all ok) ea eb ss } })
 ...   | _ , _ , siDecodeStop q bm bad , refl , refl =
         silent (recv-request-fails tt FromInitiator tt q bm bad) done (rDecode ea eb ss)
 ...   | _ , _ , siDone , refl , refl = logged refl
@@ -146,7 +149,7 @@ sim-ev (rReadyB q pr eb ss) st | eBoth stA stB with a2-ev {proj₁ q} stA | eres
 sim-ev (rSendB q ea eb ss) st with comp-ev peer-ns (alphA-rest ea) (alphB-rest eb) (srest-alph ss) st
 ... | eP _ _ stP with p-snd-ev stP
 ...   | refl , refl = logged refl
-        (λ { (Send , MsgLeiosBlock _ _) refl cap → _ , vis (sSendBlock cap) done , rIdle pBack ea eb ss })
+        (λ { (Send , MsgLeiosBlock _ _) refl cap → _ , vis sSendBlock done , rIdle pBack ea eb ss })
 sim-ev (rSendB q ea eb ss) st | eAA a stP _ with p-snd-ev stP
 ... | refl , _ = ⊥-elim a
 sim-ev (rSendB q ea eb ss) st | eAB a stP _ with p-snd-ev stP
@@ -234,8 +237,8 @@ sim-ev (rWorkT qb (o ∷ os) acc (bound ∷ bounds) count pr ea ss) st | eBoth s
 sim-ev (rSendT qb acc count ea eb ss) st with comp-ev peer-ns (alphA-rest ea) (alphB-rest eb) (srest-alph ss) st
 ... | eP _ _ stP with p-snd-ev stP
 ...   | refl , refl = logged refl
-        (λ { (Send , MsgLeiosBlockTxs _ z) refl (cap , bytes) → _ ,
-          vis (subst (λ n → sReady (blockTxsReq (proj₁ (proj₁ qb)) (proj₂ (proj₁ qb)) n) -[ Send , MsgLeiosBlockTxs (length (map proj₂ acc)) z ]→ sIdle) count (sSendTxs cap bytes)) done , rIdle pBack ea eb ss })
+        (λ { (Send , MsgLeiosBlockTxs _ z) refl w → _ ,
+          vis (subst (λ n → sReady (blockTxsReq (proj₁ (proj₁ qb)) (proj₂ (proj₁ qb)) n) -[ Send , MsgLeiosBlockTxs (length (map proj₂ acc)) z ]→ sIdle) count sSendTxs) done , rIdle pBack ea eb ss })
 sim-ev (rSendT qb acc count ea eb ss) st | eAA a stP _ with p-snd-ev stP
 ... | refl , _ = ⊥-elim a
 sim-ev (rSendT qb acc count ea eb ss) st | eAB a stP _ with p-snd-ev stP

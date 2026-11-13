@@ -57,8 +57,8 @@ unique (cDrainTxs _ _) (cDrainTxs _ _) = refl
 unique cDrainDone cDrainDone = refl
 unique sRecvBlockReq sRecvBlockReq = refl
 unique (sRecvTxsReq _ _) (sRecvTxsReq _ _) = refl
-unique (sSendBlock _) (sSendBlock _) = refl
-unique (sSendTxs _ _) (sSendTxs _ _) = refl
+unique sSendBlock sSendBlock = refl
+unique sSendTxs sSendTxs = refl
 unique sRecvDone sRecvDone = refl
 
 -- No visible step originates at sBusy, so normalizing its source preserves steps.
@@ -73,8 +73,8 @@ normal-step p@(cDrainTxs _ _) = p
 normal-step cDrainDone = cDrainDone
 normal-step sRecvBlockReq = sRecvBlockReq
 normal-step p@(sRecvTxsReq _ _) = p
-normal-step p@(sSendBlock _) = p
-normal-step p@(sSendTxs _ _) = p
+normal-step p@sSendBlock = p
+normal-step p@sSendTxs = p
 normal-step sRecvDone = sRecvDone
 
 -- Select the normalized target of the certified visible-successor enumeration.

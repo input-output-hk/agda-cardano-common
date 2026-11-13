@@ -622,3 +622,8 @@ abstract
           {b = does (linked? (λ e f → proj₁ e N.<? proj₁ f) b)} ok))))
     (Data.List.Relation.Unary.Linked.Properties.Linked⇒AllPairs N.<-trans
       (Cardano_network.Replay.LeiosFetchWire.offsets-sorted b ok))
+
+
+-- The upstream decoder validates wire words and expands them into model offsets.
+Decodes : Bitmap → List ℕ → Set
+Decodes b bm = T (validᵇ b) × offsets b ≡ bm

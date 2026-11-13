@@ -7,6 +7,9 @@
 -- Invariant 1 (B7a): checked with `agda --safe` on the command line.
 module Cardano_network.Replay.LeiosFetchBridgeSanity where
 
+import Data.Bool
+import Cardano_network.Replay.LeiosFetchWords
+
 open import Data.Nat using (ℕ; _≤_)
 open import Data.Nat.Properties using (_≤?_)
 open import Data.Empty using (⊥-elim)
@@ -54,7 +57,7 @@ import Cardano_network.Replay.LeiosFetchServerSound 2 as SS
 import Cardano_network.Replay.LeiosFetchServerComplete 2 as SB
 import Cardano_network.Replay.LeiosFetchClientBridge 2 fzero lo as CB
 open import Cardano_network.Replay.LeiosFetchDecide using (module Cert)
-open Cert 2 using (hasTrace?; client-cert; server-cert)
+open Cert 2 using (hasTrace?; client-cert; server-cert; rejectionReason)
 open import Semantics.Replay using (module Traces)
 open Spec 2 using (leiosFetch)
 open Traces leiosFetch using (HasTrace)
@@ -165,7 +168,7 @@ drainObs = refl
 -- Soundness accepts this particular counted, wire-admissible server log.
 srvSound : HasTrace server₀ srvLog
 srvSound with srvRun
-... | M , run = SS.server-sound (7 ∷ []) run srvObs (tt ∷ Data.Nat.z≤n ∷ [])
+... | M , run = SS.server-sound (7 ∷ []) run srvObs (tt ∷ tt ∷ [])
 
 -- The same conditional soundness holds for the client log.
 cliSound : HasTrace client₀ cliLog
@@ -243,7 +246,7 @@ pipeCountTrace = pipeTxAsk ∷ pipeTxReq ∷ pipeTxReply (tt ∷ tt ∷ []) ∷
 -- The actual checking run and its observation retain the request point and reply kind.
 pipeCountMatch : (Σ[ M ∈ PTree LFP.LFPEv (ExtI LFP.LFPEv) LFP.Rr ]
   pipe 2 fzero lo DC.⟹∖√⟨ pipeCountTrace ⟩ M) ×
-  (mapMaybe clsC pipeCountTrace ≡ (Send , txsReq♭ 7 1 2) ∷ (Recv , txs♭ 2) ∷ [])
+  (mapMaybe clsC pipeCountTrace ≡ (Send , txsReq♭ 7 1 2 (3 ∷ 5 ∷ []) Data.Bool.true) ∷ (Recv , txs♭ 2) ∷ [])
 pipeCountMatch = (_ ,
   DC.∖√-ev (LC.sVis refl refl) (DC.∖√-ev (LC.sVis refl refl)
   (DC.∖√-τ (LC.sSil refl)
@@ -342,12 +345,12 @@ pipeDrainRefusesOverCap = drainOverflow (replicate 17143 tt) (length-replicate {
 
 -- Counted observation retains both transactions in the pipe regression.
 countedTwo : mapMaybe clsC pipeCountTrace ≡
-  (Send , txsReq♭ 7 1 2) ∷ (Recv , txs♭ 2) ∷ []
+  (Send , txsReq♭ 7 1 2 (3 ∷ 5 ∷ []) Data.Bool.true) ∷ (Recv , txs♭ 2) ∷ []
 countedTwo = refl
 
 -- Two requested offsets and two reply transactions are accepted with their counts.
 countedTwoLog : List E
-countedTwoLog = (Send , MsgLeiosBlockTxsRequest 7 1 2 ((0 , 3) ∷ [])) ∷
+countedTwoLog = (Send , MsgLeiosBlockTxsRequest 7 1 2 (Cardano_network.Replay.LeiosFetchWords.toWords (3 ∷ 5 ∷ []))) ∷
   (Recv , MsgLeiosBlockTxs 2 0) ∷ []
 
 -- The explicit pipe run realizes this accepted counted exchange.
@@ -368,24 +371,25 @@ emptyCountAccepted = toWitness {a? = hasTrace? client-cert emptyCountLog} tt
 
 -- A different reply count cannot describe the concrete two-transaction run.
 wrongReplyNotObservation : ¬ ObsC pipeCountTrace
-  ((Send , MsgLeiosBlockTxsRequest 7 1 2 ((0 , 3) ∷ [])) ∷ (Recv , MsgLeiosBlockTxs 1 0) ∷ [])
+  ((Send , MsgLeiosBlockTxsRequest 7 1 2 (Cardano_network.Replay.LeiosFetchWords.toWords (3 ∷ 5 ∷ []))) ∷ (Recv , MsgLeiosBlockTxs 1 0) ∷ [])
 wrongReplyNotObservation ()
 
--- Forgotten byte sizes still distinguish admissible logs from oversized messages.
+-- Server encoding may produce a Block above the client's receive-side limit.
 oversizedBlockLog : List E
 oversizedBlockLog = (Recv , MsgLeiosBlockRequest 7 1) ∷ (Send , MsgLeiosBlock 7 660001) ∷ []
 
--- Counts alone leave this counterexample in the same observed class.
+-- The counted server observation permits the oversized send.
 oversizedBlockObservation : ObsS srvTrace oversizedBlockLog
 oversizedBlockObservation = refl
 
--- The new explicit wire premise excludes the former universal-soundness counterexample.
-oversizedBlockNotWireOK : ¬ WireOK oversizedBlockLog
-oversizedBlockNotWireOK (_ ∷ cap ∷ []) = toWitnessFalse {a? = 660001 ≤? 660000} tt cap
+-- D11 admits the server send without a decoder-size premise.
+oversizedBlockAccepted : HasTrace server₀ oversizedBlockLog
+oversizedBlockAccepted = toWitness {a? = hasTrace? server-cert oversizedBlockLog} tt
 
--- Frozen replay behavior continues to reject the oversized Block log.
-oversizedBlockRejected : ¬ HasTrace server₀ oversizedBlockLog
-oversizedBlockRejected = toWitnessFalse {a? = hasTrace? server-cert oversizedBlockLog} tt
+-- Received Blocks still require a byte limit in the bridge premise.
+oversizedBlockNotWireOK : ¬ WireOK
+  ((Send , MsgLeiosBlockRequest 7 1) ∷ (Recv , MsgLeiosBlock 7 660001) ∷ [])
+oversizedBlockNotWireOK (_ ∷ cap ∷ []) = toWitnessFalse {a? = 660001 ≤? 660000} tt cap
 
 import Cardano_network.Replay.LeiosFetchDecideTests as DTests
 open import Data.Bool using (T)
@@ -426,7 +430,7 @@ emptyCountObservation = refl
 
 -- The same two-transaction exchange is a valid server-role trace.
 countedTwoServerLog : List E
-countedTwoServerLog = (Recv , MsgLeiosBlockTxsRequest 7 1 2 ((0 , 3) ∷ [])) ∷
+countedTwoServerLog = (Recv , MsgLeiosBlockTxsRequest 7 1 2 (Cardano_network.Replay.LeiosFetchWords.toWords (3 ∷ 5 ∷ []))) ∷
   (Send , MsgLeiosBlockTxs 2 0) ∷ []
 
 -- The frozen replay accepts the counted server exchange.
@@ -446,5 +450,24 @@ decoderFailureUnlogged = refl
 -- Padding offsets beyond the honest cap remain logged after successful decoding.
 decoderPaddingLogged : clsS (LS.evLabel Payload (output lS dS N2N_LeiosFetch)
   (tt , FromInitiator , tt , leiosFetchP (MsgLFPBlockTxsRequest (7 , 1) (17142 ∷ [])))) ≡
-  just (Recv , txsReq♭ 7 1 1)
+  just (Recv , txsReq♭ 7 1 1 (17142 ∷ []) Data.Bool.true)
 decoderPaddingLogged = refl
+
+-- Equal counts with different offsets cannot observe the concrete request.
+wrongBitmapNotObserved : ¬ ObsC pipeCountTrace
+  ((Send , MsgLeiosBlockTxsRequest 7 1 2 ((0 , 3) ∷ [])) ∷
+   (Recv , MsgLeiosBlockTxs 2 0) ∷ [])
+wrongBitmapNotObserved ()
+
+-- The final decoder padding bit is a valid bitmap but cannot be sent by a client.
+paddingClientLog : List E
+paddingClientLog = (Send , MsgLeiosBlockTxsRequest 7 1 1 ((267 , 1) ∷ [])) ∷ []
+
+-- Replay rejects padding offsets, matching the pipe's outgoing domain.
+paddingClientRejected : ¬ HasTrace client₀ paddingClientLog
+paddingClientRejected = toWitnessFalse {a? = hasTrace? client-cert paddingClientLog} tt
+
+-- The rejection identifies the offset cap even though the count is only one.
+paddingClientReason : rejectionReason client₀ client₀ paddingClientLog ≡
+  "client: request offset exceeds maxTxs at index 1"
+paddingClientReason = refl

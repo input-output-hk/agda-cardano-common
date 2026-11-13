@@ -6,7 +6,9 @@ session lifecycles, pairing and verdicts. Both executables also provide
 
 Two executables check normalized mini-protocol logs against first-order
 session specifications with protocol-specific PTree bridges. Fetch's local
-bridges concern counted observations with explicit wire premises, as qualified below:
+bridges retain decoded request bitmaps and counts, with explicit receive-side
+limits; the spec client send rule supplies canonicity, so client completeness
+and equivalence need no separate sender premise, as detailed below:
 
 | Executable | Protocols and models | Guide |
 | --- | --- | --- |
@@ -42,10 +44,11 @@ an explicit bound overrides it. Its server remains sequential.
 
 Acceptance has two layers in [the session spec](LeiosFetchSession.agda):
 
-- `wire`: bitmap decoding, protocol state, depth, FIFO reply kinds and byte caps.
+- `wire`: bitmap decoding, protocol state, depth, FIFO reply kinds and client
+  receive byte/count caps.
   [Wire constants](LeiosFetchWire.agda) are `maxTxs = 17142`,
   `maxBitmapEntries = 268`, `txsCap = 550000`, `ebCap = 660000`.
-- `client`: request count versus bitmap popcount, client-send count ≤ `maxTxs`,
+- `client`: request count versus bitmap popcount, client-send offsets < `maxTxs`,
   and checked replies' count/hash matches. Both roles require the logged request count to equal bitmap popcount.
   On a server-role session, count and hash failures are labelled `client:` because
   they are checks the receiving client makes.
@@ -80,15 +83,21 @@ safety and no-livelock statements are unchanged. The
 [stage-3B+C outcome](../../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome)
 records the helper changes, accepted rulings and measured checks.
 
-Only a **client Send** of BlockTxsRequest has the new premise `n ≤ maxTxs`
-(`17142`); the diagnostic is `client: request count exceeds maxTxs`.
+Only a **client Send** of BlockTxsRequest requires `T (canonical (offsets b))`:
+every decoded offset is below `maxTxs` (`17142`). The diagnostic is
+`client: request offset exceeds maxTxs`. The count bound follows from canonical
+offsets and the logged count matching popcount.
 An honest client's requested offsets come from an EB of at most `maxTxs`
 transactions. Valid bitmap decoding alone permits 268 words with popcount
-17150, so it does not imply this bound. **Server Recv remains uncapped**:
+17150 and padding offsets through 17151, so it does not imply this bound. **Server Recv remains uncapped**:
 upstream [`msgLeiosBlockTxsRequest`](https://github.com/IntersectMBO/ouroboros-consensus/blob/e651152750388ccf20700eb28149751981a396f4/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs#L281-L308)
 serves every requested offset or throws, with no request-count guard.
 Both roles still check the logged count against bitmap popcount; replies still
-have the wire count cap.
+have the wire count cap only on client receives, including draining.
+Under D11, server sends have no byte or count cap: a requested Block of
+700000 bytes or a requested 17143-transaction reply above `txsCap` is accepted
+on the server side. The requested hash or count must still match.
+These same received values are rejected on the client side with `wire:` reasons.
 
 Local and interleaved drain-only acceptances retain their existing first line
 (`accepted (<n> events)` locally; `accepted (<n> events, <m> sessions)` in
@@ -114,11 +123,14 @@ so its valid nonempty requests proceed to transaction reads rather than missing
 an offset in the former empty table. An accepted unanswered prefix does not
 establish that a concrete implementation threw or tore down its connection.
 
-### Stage 3D bridge and local-run statements
+### Stage 3F bridge and local-run statements
 
 Stage 1 returned an accepted representative existentially and related whole
 classes of logs under an observation that erased counts. Stage 3D replaces those
 shapes with **counted, conditional soundness** and direct log equivalences.
+Stage 3F additionally retains decoded request offsets. Canonicity follows from
+the spec client send rule; client completeness and equivalence need no separate
+honest-sender or canonical-request premise.
 Each restated endpoint below shows its old signature (the stage-1 statements at
 `cd63f3c7`) → its new signature (current source).
 
@@ -178,11 +190,23 @@ server-complete : ∀ bs {es} → All (ReqHeld bs) es → HasTrace server₀ es
 [Observation](LeiosFetchObs.agda) retains request hashes/slots, Block hashes,
 and both transaction counts (`length bm` / `length txs` in the model). It drops
 model receives that fail decoding, matching decoder-before-logging upstream.
-It still forgets byte sizes and bitmap words. [WireOK](LeiosFetchWireOK.agda)
-requires each Block's size ≤ 660000, each BlockTxs count ≤ 17142 and size ≤ 550000,
-and every transaction request's valid bitmap and count/popcount equality.
-Thus a counted observation alone does not imply acceptance: the regression log
-with a 660001-byte Block has the same observation as a model run and fails WireOK.
+Stage 3F additionally retains exact decoded request offsets. The relation is
+`Decodes b bm = T (validᵇ b) × offsets b ≡ bm`, together with
+`n ≡ length bm`. This is what upstream `decodeBitmaps` computes, not a separate
+bitmap premise. `Msg♭` records the decoded offsets and validity Boolean, so
+request observation equality supplies `Decodes` (see `request-match`).
+It still forgets byte sizes. [WireOK](LeiosFetchWireOK.agda)
+requires each received Block's size ≤ 660000, each received BlockTxs count
+≤ 17142 and size ≤ 550000. Requests and server sends have no `WireOK` premise.
+Exact bitmap observations alone therefore do not establish receive-side limits.
+The regression server log with a 660001-byte Block is accepted under D11;
+a client receive of that size fails WireOK. Current logged byte sizes omit
+parts of the encoded framing, so passing these one-sided receive checks does
+not establish that the whole encoded message met its decoder limit. In particular,
+`ebBytesSize` includes the inner EB framing, while `txsBytesSize` sums inner
+transaction bytes; full message framing and individual transaction lengths are
+not recorded. `WireOK` is a check on these logged summaries, not an exact wire
+size certificate, and cannot establish decoder compliance from current logs.
 
 D8′ distinguishes server decoding from honest client sends. Server requests use
 `decodable`: strictly ascending offsets below `64 * 268 = 17152`. Honest sends
@@ -190,7 +214,7 @@ and the pipe use `canonical`: strictly ascending offsets below `17142`.
 [`LeiosFetchWords`](LeiosFetchWords.agda) proves canonical implies decodable and
 encoding validity/popcount preservation for all decodable lists. The valid
 17150-count server request now has a counted model-run witness; honest clients
-still cannot send that count. Replies, including drained replies, keep the wire
+still cannot send that count. Client receives, including drained replies, keep the wire
 count cap. Drain mode intentionally skips handler count matching.
 
 `ReplayParams` uses option (a), extended to all 17152 decoder offsets: each EB
@@ -206,10 +230,22 @@ not an honest-body-size witness. The generic honest-node canonicity lemma still
 requires `length (ebTxs h) ≤ maxTxs`, including locally forged bodies.
 
 [Client completeness](LeiosFetchClientBridge.agda) realizes every accepted
-client trace at every bound, link and direction. This bridge certifies the
-spec-written `LeiosFetchPipe`, not the existing `LFPclientStClient`. Sizes and
-bitmap identity remain abstracted; these results do not supply an exact-field
-composed Fetch bridge or establish deployed implementation refinement.
+client trace, at every bound, link and direction. The client send rule supplies
+canonical decoded offsets below 17142. Completeness chooses `offsets b` from
+the actual logged bitmap, replacing the earlier count-only witness `upTo n`:
+
+```agda
+client-complete : HasTrace client₀ es
+                → ∃[ t ] ∃[ M ] (run t M × ObsC t es)
+```
+
+No separate `Honest` premise is needed for completeness or equivalence.
+A one-bit padding request at offset 17151 is rejected on client send with
+`client: request offset exceeds maxTxs`; server receive still accepts it.
+Soundness consumes observation and receive-side `WireOK`.
+This bridge certifies the spec-written `LeiosFetchPipe`, not the existing
+`LFPclientStClient`. Byte sizes remain abstracted; these results do not supply an
+exact-field composed Fetch bridge or establish deployed implementation refinement.
 
 The composed [store-backed server endpoint](LeiosFetchPairedStoreTrace.agda),
 `LeiosFetchPairedStoreTrace.server-legal`, changes as follows (old → new):

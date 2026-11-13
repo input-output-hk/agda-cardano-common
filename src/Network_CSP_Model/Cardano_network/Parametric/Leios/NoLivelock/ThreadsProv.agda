@@ -180,7 +180,7 @@ lnClientLoopL-PA n l d = AllT→PA (loopAll (λ _ →
     (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ {_} ())
       (λ { (q , sz) → fb-All n l d q sz (λ {_} ()) (λ _ {_} ()) (λ _ {_} ()) }))
     (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ {_} ())
-      (λ q → ft-All n l d q (λ _ {_} ()) (λ _ _ {_} ()) (λ _ {_} ()) (λ _ {_} ())))
+      (λ q → ft-All n l d q (λ _ {_} ()) (λ _ {_} ()) (λ {_} ()) (λ _ _ {_} ()) (λ _ {_} ()) (λ _ {_} ())))
             (AllT-⟶ (apiLP l d lnpRecvVotes) (λ _ {_} ()) (λ vs → pav-All n (λ _ {_} ()) vs)))))) tt)
 
 -- the LN announcer reads the store only

@@ -50,30 +50,9 @@ open import CSP.Laws.DivFree.Loop LFPEv-≟ using (iter-τ-elim; iter-ev-elim; i
 open import CSP.Laws.Bisim.IterCong LFPEv-≟ using (iter-bind-ev; iter-bind-τ)
 import CSP.Operators LFPEv-≟ as Op
 
--- Invert an LFPEv output locally, keeping client proofs independent of server views.
-out-ev : ∀ {ℓr} {R : Set ℓr} {B : Set} ⦃ _ : DecEq B ⦄
-           {ce : LFPEv B} {v : B} {P : PTree LFPEv (ExtI LFPEv) R} {x t′}
-       → Output ce v P ─[ ev (evl x) ]─► t′ → x ≡ evLabel B ce v × t′ ≡ P
-out-ev {B = B} {ce = ce} {v = v} (sVis {at = A , e} {a = a} refl br)
-  with LFPEv-≟ (B , ce) (A , e)
-... | no _ = case br of λ ()
-... | yes refl with a ≟ v
-...   | yes refl = refl , sym (just-injective br)
-...   | no _ = case br of λ ()
-
--- Fire an LFPEv output at its own value with the tree's named equality decision.
-out-fire : ∀ {ℓr} {R : Set ℓr} {B : Set} {dd : DecEq B}
-             {ce : LFPEv B} {v : B} {P : PTree LFPEv (ExtI LFPEv) R}
-         → Output ⦃ dd ⦄ ce v P ─[ ev (evl (evLabel B ce v)) ]─► P
-out-fire {B = B} {dd} {ce} {v} {P} = sVis refl br
-  where
-  -- Reflexive routing and payload decisions enable the output branch.
-  br : Op.Output-cont ⦃ dd ⦄ ce v P (B , ce) v ≡ just P
-  br with LFPEv-≟ (B , ce) (B , ce)
-  ... | no ne = ⊥-elim (ne refl)
-  ... | yes refl with DecEq._≟_ dd v v
-  ...   | yes _ = refl
-  ...   | no ne = ⊥-elim (ne refl)
+open import Cardano_network.Replay.LeiosFetchOutParts using (module OutInv; module Fire)
+open OutInv LFPEv-≟ public using (out-ev)
+open Fire LFPEv-≟ public using (out-fire)
 
 -- the client process type
 Proc : Set₁

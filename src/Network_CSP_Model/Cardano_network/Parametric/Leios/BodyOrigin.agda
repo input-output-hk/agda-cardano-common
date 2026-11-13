@@ -177,8 +177,8 @@ module Generic
     using ( Block; LSlot; VoterId; VoteBlob; EB; EBHash; Tx; TxHash; Size
           ; linkConfig; ebHash; rbHash; txHash; slotOf; announcedEB
           ; decBlock; decEBHash; decLSlot; decVoteBlob; decEB; decTx; decTxHash )
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks)
-  open LeiosP.LeiosParams lp using (mkVoteBlob; ebTxs; maxTxs; ebSize; rbCert)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks; chunksOf)
+  open LeiosP.LeiosParams lp using (mkVoteBlob; ebTxs; chunk; maxTxs; ebSize; rbCert)
   -- EVERY tag named below MUST appear here: an unlisted tag silently becomes a pattern
   -- VARIABLE and the carrier table turns into a stuck term (campaign ledger, gotcha 1).
   open N p
@@ -239,7 +239,7 @@ module Generic
           ; forgeL; forgeBodyL; forgeCertL
           ; ebIndex; voter; voterBody; submit; certSink
           ; serverLoopL; lnServerLoopL; bodyOfferLoop; voteOfferLoop
-          ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; putAll; entryOk; fetchChunks; tsPull; tsServe; putAllTx
+          ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; putAll; entryOk; missingOffsets; fetchChunks; tsPull; tsServe; putAllTx
           ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes; awaitTxs
           ; endpointThreadsL; allThreadsL )
     -- `putAllTx`'s own membership test, RENAMED so it cannot be confused with (or
@@ -732,7 +732,7 @@ module Generic
     OffersOnly-Output ⦃ DecEq-TxsRequest ⦄ tt
       (OffersOnly-Prefix (λ _ → tt) (λ { (q′ , es) → guard q′ es }))
     where
-    -- Echo mismatch stops; matching replies sequence deposits and the remaining chunks.
+    -- A client-restored point mismatch stops; matching replies sequence deposits and the remaining chunks.
     guard : ∀ q′ es → OffersOnly noPuts
       ((putChecked n (proj₁ q) es >> fetchChunks n l d q bms)
         ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Stop {0ℓ})
@@ -741,10 +741,22 @@ module Generic
                      (λ _ → oo-fetchChunks n l d q bms)
     ... | false = OffersOnly-Stop
 
+  -- Mempool inspection preserves the continuation's offer restriction.
+  oo-missingOffsets : ∀ n h os k → (∀ ms → OffersOnly noPuts (k ms)) →
+    OffersOnly noPuts (missingOffsets n h os k)
+  oo-missingOffsets n h [] k cont = cont []
+  oo-missingOffsets n h (o ∷ os) k cont with at? o (ebTxs h)
+  ... | nothing = OffersOnly-Stop
+  ... | just (hash , _) = OffersOnly-□
+    (OffersOnly-Prefix (λ _ → tt) (λ _ → oo-missingOffsets n h os k cont))
+    (OffersOnly-Prefix (λ _ → tt)
+      (λ _ → oo-missingOffsets n h os (λ ms → k (o ∷ ms)) (λ ms → cont (o ∷ ms))))
+
   -- The leading body read and all chunk rounds never deposit a body or vote blob.
   oo-fetchTxs : ∀ n l d q → OffersOnly noPuts (fetchTxs n l d q)
   oo-fetchTxs n l d q = OffersOnly-Prefix (λ _ → tt)
-    (λ _ → oo-fetchChunks n l d q (txChunks lp (proj₁ q)))
+    (λ _ → oo-missingOffsets n (proj₁ q) (allOffsets lp (proj₁ q)) _
+      (λ ms → oo-fetchChunks n l d q (chunksOf chunk ms)))
 
   -- every delivered vote blob, deposited in the VOTE store
   oo-putAllVotes : ∀ n vs → OffersOnly noPuts (putAllVotes n vs)

@@ -88,7 +88,7 @@ open import Cardano_network.Parametric.Leios.NoLivelock.MediumRelay pP using (Wi
 open import Cardano_network.Parametric.Leios.NoLivelock.Threads k m tP vo
   using ( IsGetAt; IsGetVoteAt; IsGetTxAt; cForge; cSubmit; cCert; cLnRep; ℓLnRep; loopAll; Σc-≤; iVs; iTs; iHs
         ; serverLoopL-count; lnServerLoopL-count; ebIndex-count; voter-count; bodyOfferLoop-count; voteOfferLoop-count
-        ; tsServe-count; forgeL-count; submit-count; certSink-count; clientLoop-count; lnClientLoopL-count
+        ; tsServe-count; forgeL-count; submit-count; certSink-count; clientLoop-count; fetchBody-req; lnClientLoopL-count
         ; ebServeLoop-count; ebTxsServeLoop-count; tsPull-count
         ; voteOffer-emits; tsServe-emits; fetchTxs-emits; serveTxs-emits; serverLoopL-cmd; lnServerLoopL-cmd
         ; bodyOfferLoop-cmd; fetchTxs-req )
@@ -363,7 +363,7 @@ zio w {o} {B} {d} α {s} tr _ =
 
 -- the trigger weight of the threads' event count (the certificates first)
 TWr : Event → ℕ
-TWr e = 4 * cForge e + (2 * cSubmit e + (5 * rep gRF e + (5 * rep gLN e + (rep gBT e + (3 * rep gBQ e + (3 * rep gTQ e
+TWr e = 4 * cForge e + (2 * cSubmit e + (5 * rep gRF e + (6 * rep gLN e + (rep gBT e + (3 * rep gBQ e + (3 * rep gTQ e
       + 4 * rep grTS e))))))
 
 -- … with the certificates
@@ -404,10 +404,10 @@ lnId e = solve 5 (λ a b c d v → a :+ (b :+ (c :+ (d :+ v))) := (a :+ (b :+ (c
   where open +-*-Solver
 
 -- the LN client's round count against its reports
-lnA : ∀ x y v r → 5 * x + (y + v) ≤ 5 * (x + v) + (y + r)
-lnA x y v r = subst (5 * x + (y + v) ≤_) (solve 4 (λ x y v r → (con 5 :* x :+ (y :+ v)) :+ (con 4 :* v :+ r)
-                                                      := con 5 :* (x :+ v) :+ (y :+ r)) refl x y v r)
-                (m≤m+n (5 * x + (y + v)) (4 * v + r))
+lnA : ∀ x y v r → 6 * x + (y + v) ≤ 6 * (x + v) + (y + r)
+lnA x y v r = subst (6 * x + (y + v) ≤_) (solve 4 (λ x y v r → (con 6 :* x :+ (y :+ v)) :+ (con 5 :* v :+ r)
+                                                      := con 6 :* (x :+ v) :+ (y :+ r)) refl x y v r)
+                (m≤m+n (6 * x + (y + v)) (5 * v + r))
   where open +-*-Solver
 
 -- a count and its list lengths, against a scaled sum
@@ -415,15 +415,15 @@ kA : ∀ k x y → suc k * x + y ≤ suc k * (x + y)
 kA k x y = ≤-trans (+-monoʳ-≤ (suc k * x) (m≤m+n y (k * y))) (≤-≡ (sym (*-distribˡ-+ (suc k) x y)))
 
 -- the LN client's counts against the trigger weight
-pLN : ∀ e → 5 * cLnRep e + ℓLnRep e ≤ TW e
+pLN : ∀ e → 6 * cLnRep e + ℓLnRep e ≤ TW e
 pLN e = in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e) (in+ (5 * rep gRF e)
-          (subst (λ z → 5 * cLnRep e + ℓLnRep e ≤ 5 * z + (repLFc e + (3 * rep gBQ e + (3 * rep gTQ e + 4 * rep grTS e)))) (sym (lnId e))
+          (subst (λ z → 6 * cLnRep e + ℓLnRep e ≤ 6 * z + (repLFc e + (3 * rep gBQ e + (3 * rep gTQ e + 4 * rep grTS e)))) (sym (lnId e))
             (lnA (cLnRep e) (repLFc e) (ℓRep lnpRecvVotes e) (3 * rep gBQ e + (3 * rep gTQ e + 4 * rep grTS e)))))))
 
 -- … and against the body-request credit
-pLNb : ∀ e → 5 * cLnRep e + ℓLnRep e ≤ 5 * rep gLN e + rep gBT e
-pLNb e = subst (λ z → 5 * cLnRep e + ℓLnRep e ≤ 5 * z + repLFc e) (sym (lnId e))
-           (≤-trans (lnA (cLnRep e) (repLFc e) (ℓRep lnpRecvVotes e) 0) (≤-≡ (cong (λ z → 5 * (cLnRep e + ℓRep lnpRecvVotes e) + z) (+-identityʳ _))))
+pLNb : ∀ e → 6 * cLnRep e + ℓLnRep e ≤ 6 * rep gLN e + rep gBT e
+pLNb e = subst (λ z → 6 * cLnRep e + ℓLnRep e ≤ 6 * z + repLFc e) (sym (lnId e))
+           (≤-trans (lnA (cLnRep e) (repLFc e) (ℓRep lnpRecvVotes e) 0) (≤-≡ (cong (λ z → 6 * (cLnRep e + ℓRep lnpRecvVotes e) + z) (+-identityʳ _))))
 
 -- a closure-offer report is a Notify report
 pTxO : ∀ e → cRep lnpRecvBlockTxsOffer e ≤ rep gLN e
@@ -513,7 +513,7 @@ thrN n a₁ a₂ a₃ a₄ a₅ aE =
 
 -- the endpoint threads' constant
 KTe : ℕ → ℕ
-KTe B = 5 + ((8 * B + 8) + (5 + ((2 * B + 2) + ((5 * B + 5) + ((2 * length U + 2) + (3 + (3 + (4 + (5 * 2 + 5)))))))))
+KTe B = 5 + ((8 * B + 8) + (6 + ((2 * B + 2) + ((5 * B + 5) + ((2 * length U + 2) + (3 + (3 + (4 + (5 * 2 + 5)))))))))
 
 -- the node's threads' constant (one `KTe` per endpoint)
 KTn : Node → ℕ → ℕ
@@ -528,17 +528,17 @@ module _ (n : Node) (B : ℕ) where
     (λ {s} tr _ → cnt s (cv1 s 5 5 (cRep recvCSRollforward) (λ e → in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e) (m≤m+n _ _))))
                     (clientLoop-count n l d₀ tr)))
     (λ {s} tr rh → cvP s (8 * B + 8) (serverLoopL-count n l d₀ B tr (proj₁ rh)))
-    (λ {s} tr _ → cnt s (cv2 s 5 5 cLnRep ℓLnRep pLN (lnClientLoopL-count n l d₀ tr)))
+    (λ {s} tr _ → cnt s (cv2 s 6 6 cLnRep ℓLnRep pLN (lnClientLoopL-count n l d₀ tr)))
     (λ {s} tr rh → cvP s (2 * B + 2) (lnServerLoopL-count n l d₀ B tr (proj₁ rh)))
     (λ {s} tr rh → cvP s (5 * B + 5) (bodyOfferLoop-count n l d₀ B tr (proj₁ rh)))
     (λ {s} tr rh → cvP s (2 * length U + 2) (voteOfferLoop-count n l d₀ (length U) tr (proj₁ (proj₂ rh))))
     (λ {s} tr _ → cnt s (cv1 s 3 3 (cRep lfpReqBlockRequest) (λ e → in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e)
-                    (in+ (5 * rep gRF e) (in+ (5 * rep gLN e) (in+ (rep gBT e) (m≤m+n _ _))))))) (ebServeLoop-count n l d₀ tr)))
+                    (in+ (5 * rep gRF e) (in+ (6 * rep gLN e) (in+ (rep gBT e) (m≤m+n _ _))))))) (ebServeLoop-count n l d₀ tr)))
     (λ {s} tr _ → cnt s (cv2 s 3 3 (cRep lfpReqBlockTxsRequest) (ℓRep lfpReqBlockTxsRequest)
-                    (λ e → in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e) (in+ (5 * rep gRF e) (in+ (5 * rep gLN e)
+                    (λ e → in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e) (in+ (5 * rep gRF e) (in+ (6 * rep gLN e)
                       (in+ (rep gBT e) (in+ (3 * rep gBQ e) (≤-trans (kA 2 (cRep lfpReqBlockTxsRequest e) (ℓRep lfpReqBlockTxsRequest e)) (m≤m+n _ _))))))))) (ebTxsServeLoop-count n l d₀ tr)))
     (λ {s} tr _ → cnt s (cv2 s 4 4 (cRep recvTSReplyTxIds) (ℓRep recvTSReplyTxs)
-                    (λ e → in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e) (in+ (5 * rep gRF e) (in+ (5 * rep gLN e)
+                    (λ e → in+ (cCert e) (in+ (4 * cForge e) (in+ (2 * cSubmit e) (in+ (5 * rep gRF e) (in+ (6 * rep gLN e)
                       (in+ (rep gBT e) (in+ (3 * rep gBQ e) (in+ (3 * rep gTQ e) (kA 3 (cRep recvTSReplyTxIds e) (ℓRep recvTSReplyTxs e)))))))))) (tsPull-count n l d₀ tr)))
     (λ {s} tr rh → cvP s (5 * 2 + 5) (tsServe-count n l d₀ 2 tr (proj₂ (proj₂ rh))))
 
@@ -629,15 +629,20 @@ module _ (n : Node) (B : ℕ) where
       tq : ∀ e → cmd gTQ e ≤ gw gReq e
       tq e = m≤n+m (cmd gTQ e) (cCmd lfpSendBlockRequest e)
 
-  -- the body requests: the LN clients', at most their events
-  thrBQN : RlH B (cmd gBQ) (λ e → 5 * rep gLN e + rep gBT e) (slk (5 + 0) (tl n)) (THn n)
+  -- Body requests answer body offers; the relaxed credit preserves the public bound.
+  thrBQN : RlH B (cmd gBQ) (λ e → 4 * rep gLN e + rep gBT e) (slk (5 + 0) (tl n)) (THn n)
   thrBQN = nodeZ gReq bq λ { (l , d₀) → thr10 n (l , d₀) (rlH-≤ bq (zt gReq {nothing} (clientLoop-α n l d₀)))
     (rlH-≤ bq (zt gReq {(just gCS)} (serverLoopL-α n l d₀)))
-    (λ {s} tr rh → ≤-trans (proj₁ (proj₂ (fetchTxs-emits n l d₀ tr))) (cv2 s 5 5 cLnRep ℓLnRep pLNb (lnClientLoopL-count n l d₀ tr)))
+    (λ {s} tr _ → ≤-trans (fetchBody-req n l d₀ tr)
+      (≤-trans (Σc-≤ (allL bodyCredit (labels s))) (m≤m+n _ 5)))
     (rlH-≤ bq (zt gReq {(just gAnn)} (lnServerLoopL-α n l d₀))) (rlH-≤ bq (zt gReq {(just gOff)} (bodyOfferLoop-α n l d₀)))
     (rlH-≤ bq (zt gReq {(just gVot)} (voteOfferLoop-α n l d₀))) (rlH-≤ bq (zt gReq {nothing} (ebServeLoop-α n l d₀)))
     (rlH-≤ bq (zt gReq {(just gBTx)} (ebTxsServeLoop-α n l d₀))) (rlH-≤ bq (zt gReq {nothing} (tsPull-α n l d₀))) (rlH-≤ bq (zt gReq {(just gTS)} (tsServe-α n l d₀))) }
     where
+      -- A body-offer report is covered by the relaxed four-report credit.
+      bodyCredit : ∀ e → cRep lnpRecvBlockOffer e ≤ 4 * rep gLN e + rep gBT e
+      bodyCredit e = ≤-trans (in+ (cRep lnpRecvBlockAnnouncement e) (m≤m+n _ _))
+        (≤-trans (m≤m+n (rep gLN e) (3 * rep gLN e)) (m≤m+n _ (rep gBT e)))
       -- the body requests are part of the request group
       bq : ∀ e → cmd gBQ e ≤ gw gReq e
       bq e = m≤m+n (cCmd lfpSendBlockRequest e) (cmd gTQ e)
@@ -750,7 +755,7 @@ CBn n grTS B ls = slk 30 (tl n)
 CBn n gLN  B ls = slk (12 * B + (4 * length U + 16)) (tl n)
 CBn n gTQ  B ls = 2 * Σc (rep gLN) ls
 CBn n gBT  B ls = Σc (rep gTQ) ls
-CBn n gBQ  B ls = 5 * Σc (rep gLN) ls + Σc (rep gBT) ls + slk 5 (tl n)
+CBn n gBQ  B ls = 4 * Σc (rep gLN) ls + Σc (rep gBT) ls + slk 5 (tl n)
 
 -- what the logic gives, on its own labels
 record LogicOutN (n : Node) (X : List Block) (ls : List Event) : Set where
@@ -827,9 +832,9 @@ logicFN n X {s} tr rely with Par-trace-elim storeES _ (THn n) (ST n) tr
                    (≤-trans (+-mono-≤ (Σc-parL (rep gLN) pi) (≤-trans (Σc-parL (rep gLN) pi) (m≤m+n _ 0))) ≤-refl))
     cbT gBT  = ≤-trans (thrBTN n Bs tT rh) (≤-trans (≤-≡ (trans (cong (_ +_) (slk-0 (tl n))) (+-identityʳ _))) (Σc-parL (rep gTQ) pi))
     cbT gBQ  = ≤-trans (thrBQN n Bs tT rh)
-                 (≤-trans (≤-≡ (cong (_+ slk (5 + 0) (tl n)) (trans (Σc-+ (λ e → 5 * rep gLN e) (rep gBT) (labels sT))
-                                                     (cong (_+ Σc (rep gBT) (labels sT)) (Σc-* 5 (rep gLN) (labels sT))))))
-                   (+-mono-≤ (+-mono-≤ (*-monoʳ-≤ 5 (Σc-parL (rep gLN) pi)) (Σc-parL (rep gBT) pi)) (≤-≡ (s0 5))))
+                 (≤-trans (≤-≡ (cong (_+ slk (5 + 0) (tl n)) (trans (Σc-+ (λ e → 4 * rep gLN e) (rep gBT) (labels sT))
+                                                     (cong (_+ Σc (rep gBT) (labels sT)) (Σc-* 4 (rep gLN) (labels sT))))))
+                   (+-mono-≤ (+-mono-≤ (*-monoʳ-≤ 4 (Σc-parL (rep gLN) pi)) (Σc-parL (rep gBT) pi)) (≤-≡ (s0 5))))
 
 ------------------------------------------------------------------------
 -- THE NODE LAYER (moved from Stage C's `Bound2`, Stage L, L4): a node's
@@ -852,7 +857,7 @@ CB-mono n grTS B m = ≤-refl
 CB-mono n gLN  B m = ≤-refl
 CB-mono n gTQ  B m = *-monoʳ-≤ 2 (m (rep gLN))
 CB-mono n gBT  B m = m (rep gTQ)
-CB-mono n gBQ  B m = +-mono-≤ (+-mono-≤ (*-monoʳ-≤ 5 (m (rep gLN))) (m (rep gBT))) ≤-refl
+CB-mono n gBQ  B m = +-mono-≤ (+-mono-≤ (*-monoʳ-≤ 4 (m (rep gLN))) (m (rep gBT))) ≤-refl
 
 -- one slack per instance of a non-empty list of bundles
 rl-⦀⁺ : ∀ {A : Set} {c d k} (f : A → Proc) → (∀ x → Rl c d k (f x)) → ∀ x xs → Rl c d (slk k xs) (⦀⁺ (f x) (map f xs))
@@ -930,9 +935,9 @@ nodeF : ∀ n X {s W} → nodeWith nodeBundleP n (nodeLogicL n st₀) ⟹⟨ s �
 nodeF = nodeF′
 
 -- the trigger weight, summed
-ΣTW : ∀ ls → Σc TWr ls ≡ 4 * Σc cForge ls + (2 * Σc cSubmit ls + (5 * Σc (rep gRF) ls + (5 * Σc (rep gLN) ls
+ΣTW : ∀ ls → Σc TWr ls ≡ 4 * Σc cForge ls + (2 * Σc cSubmit ls + (5 * Σc (rep gRF) ls + (6 * Σc (rep gLN) ls
                        + (Σc (rep gBT) ls + (3 * Σc (rep gBQ) ls + (3 * Σc (rep gTQ) ls + 4 * Σc (rep grTS) ls))))))
 ΣTW ls = trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 4 cForge ls) (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 2 cSubmit ls)
-          (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 5 (rep gRF) ls) (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 5 (rep gLN) ls)
+          (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 5 (rep gRF) ls) (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 6 (rep gLN) ls)
           (trans (Σc-+ _ _ ls) (cong₂ _+_ refl (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 3 (rep gBQ) ls)
           (trans (Σc-+ _ _ ls) (cong₂ _+_ (Σc-* 3 (rep gTQ) ls) (Σc-* 4 (rep grTS) ls))))))))))))))

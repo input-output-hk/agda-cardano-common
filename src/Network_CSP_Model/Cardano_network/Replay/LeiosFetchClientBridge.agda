@@ -5,10 +5,10 @@ open import Cardano_network.Base using (Dir)
 open import Cardano_network.Replay.ReplayParams using (replayParams)
 open import Cardano_network.Net replayParams using (Link)
 
--- Counted bridge for the spec-written depth-k FIFO client, for every link and
+-- Exact bitmap bridge for the spec-written depth-k FIFO client, for every link and
 -- direction. Honest sends are canonical; checking retains positional counts;
 -- silent stop-and-drain ignores handler count matching but keeps decoder caps.
--- Soundness consumes WireOK for forgotten sizes and bitmap validity. The bridge
+-- Soundness consumes WireOK for receive-side limits. Completeness obtains canonical sends from the spec. The bridge
 -- certifies this pipe transcription, not the pre-existing depth-1 client.
 -- Checked with --safe on the command line (B7a).
 module Cardano_network.Replay.LeiosFetchClientBridge (k : ℕ) (l : Link) (d : Dir) where
@@ -18,11 +18,11 @@ open import Data.List using (List; []; _∷_; _∷ʳ_; length; map; upTo; replic
 import Data.List.Properties as L
 import Data.Nat.Properties as N
 open import Data.Bool using (T)
-open import Cardano_network.Replay.LeiosFetchWords using (canonical; canonical-count; canonical-upTo; canonical-decodable; toWords; toWords-valid; toWords-popcount)
-open import Cardano_network.Replay.LeiosFetchWire using (maxTxs)
+open import Cardano_network.Replay.LeiosFetchWords using (canonical; canonical-count; canonical-upTo; canonical-decodable; toWords; toWords-valid; toWords-popcount; offsets-toWords)
+open import Cardano_network.Replay.LeiosFetchWire using (maxTxs; offsets)
 open import Cardano_network.Replay.LeiosFetchWireOK using (WireOK; accepted-wire)
 open import Cardano_network.Replay.LeiosFetchObservationTransport k using (accepted-transport)
-open import Data.List.Relation.Unary.All using (universal)
+open import Data.List.Relation.Unary.All using ([]; _∷_; universal)
 open import Data.Product using (Σ-syntax; ∃-syntax; _×_; _,_)
 open import Data.Sum using (inj₁; inj₂)
 open import Data.Unit using (⊤; tt)
@@ -38,7 +38,7 @@ open import Cardano_network.Data replayParams
 open import Cardano_network.LeiosFetchP replayParams using (LFPEv; LFPEv-≟)
 open import Cardano_network.LeiosFetchPipe replayParams using (Pend; blk; txs; pipe; pipeStep; sendM; delB; delT; drainStep)
 open import Cardano_network.Replay.LeiosFetchClientParts replayParams
-open import Cardano_network.Replay.LeiosFetchObs using (ObsC; clsC; forget; _≈♭_; recv-reply; txs♭; txsReq♭)
+open import Cardano_network.Replay.LeiosFetchObs using (ObsC; clsC; forget; _≈♭_; recv-reply; txs♭; txsReq♭; request-equal)
 open import CSP.Operators LFPEv-≟ using (Ret)
 open import Semantics.LTS {E = LFPEv} {I = ExtI LFPEv} using (Event; _─[_]─►_; ev; evl; τ)
 open import Semantics.Deadlock {E = LFPEv} {I = ExtI LFPEv}
@@ -165,9 +165,14 @@ sim-ev (rReqB {h = h} {s} tr lt) st with it-out-ev k l d st
   , vis (cSendBlockReq (subst (_< k) (Tr-len tr) lt)) done , rBack (Tr-snoc tr (bk []))
 sim-ev (rReqT {h = h} {s} {bm} tr lt can) st with it-out-ev k l d st
 ... | refl , refl =
-  (Send , MsgLeiosBlockTxsRequest h s (length bm) (toWords bm)) ∷ [] , _ , refl ,
+  (Send , MsgLeiosBlockTxsRequest h s (length bm) (toWords bm)) ∷ [] , _ ,
+  cong (λ m → (Send , m) ∷ [])
+    (sym (request-equal h s (length bm) (toWords bm) bm refl
+      (toWords-valid {os = bm} (canonical-decodable {os = bm} can) ,
+       offsets-toWords {os = bm} (canonical-decodable {os = bm} can)))) ,
   vis (cSendTxsReq (subst (_< k) (Tr-len tr) lt) (toWords-valid {os = bm} (canonical-decodable {os = bm} can))
-    (sym (toWords-popcount {os = bm} (canonical-decodable {os = bm} can))) (canonical-count {os = bm} can)) done ,
+    (sym (toWords-popcount {os = bm} (canonical-decodable {os = bm} can)))
+    (subst (λ os → T (canonical os)) (sym (offsets-toWords {os = bm} (canonical-decodable {os = bm} can))) can)) done ,
   rBack (Tr-snoc tr (tx can []))
 sim-ev rDone st with it-out-ev k l d st
 ... | refl , refl = (Send , MsgLeiosDone) ∷ [] , _ , refl , vis cSendDone done , rEnd
@@ -225,13 +230,14 @@ co-ev (cHead tr) _ (cSendBlockReq {h = h} {s} lt) =
   (∖√-ev (it-ev k l d out-fire)
   (∖√-τ (it-back k l d) ∖√-refl))
   , refl , cHead (TrC-snoc tr (bk []))
-co-ev (cHead tr) _ (cSendTxsReq {h = h} {s} {n} lt _ _ cap) =
+co-ev (cHead tr) _ (cSendTxsReq {h = h} {s} {n} {b} lt valid count can) rewrite count =
   _ , _ ,
-  ∖√-ev (it-ev k l d (fire-reqT k l d (h , s) (upTo n) (subst (_< k) (sym (TrC-len tr)) lt) (canonical-upTo n cap)))
+  ∖√-ev (it-ev k l d (fire-reqT k l d (h , s) (offsets b)
+    (subst (_< k) (sym (TrC-len tr)) lt) can))
   (∖√-ev (it-ev k l d out-fire) (∖√-τ (it-back k l d) ∖√-refl)) ,
-  cong (λ m → (Send , txsReq♭ h s m) ∷ []) (L.length-upTo n) ,
-  cHead (TrC-snoc tr (subst (λ m → TrC (txs (h , s) (upTo n) ∷ []) (blockTxsReq h s m ∷ []))
-    (L.length-upTo n) (tx (canonical-upTo n cap) [])))
+  cong (λ m → (Send , m) ∷ [])
+    (sym (request-equal h s (length (offsets b)) b (offsets b) refl (valid , refl))) ,
+  cHead (TrC-snoc tr (tx can []))
 co-ev (cHead (bk {h = h} tr)) _ (cRecvBlock _) =
   _ , _ ,
   ∖√-ev (it-ev k l d (fire-blk k l d {tm = tt} {md = FromResponder} {ln = tt} h refl))
@@ -264,7 +270,7 @@ co-ev (cDraining []) _ cDrainDone =
   _ , _ , ∖√-ev (it-ev k l d out-fire) ∖√-refl , refl , cEnd
 co-ev cEnd _ ()
 
--- the pipelined client co-simulates the client spec (no premise)
+-- The send rule supplies canonical offsets for every accepted client request.
 clientCoSim : BrC.CoSim leiosFetch clsC forget RelC (λ _ → ⊤)
 clientCoSim = record { co-τ = co-τ ; co-ev = co-ev }
 
@@ -273,17 +279,17 @@ client-complete : ∀ {es} → HasTrace client₀ es → ∃[ t ] ∃[ M ] (pipe
 client-complete {es} (_ , r) with BrC.complete leiosFetch clsC forget clientCoSim (cHead []) (universal (λ _ → tt) es) r
 ... | M , t , run , o , _ = t , M , run , o
 
--- Exact counted client bridge; forgotten wire fields are constrained explicitly.
+-- Exact bitmap client bridge on canonical outgoing requests, with receive-side limits.
 client-bridge : ∀ {es} → HasTrace client₀ es ⇔
   (WireOK es × ∃[ t ] ∃[ M ] (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es))
-client-bridge = mk⇔ forward backward
+client-bridge {es} = mk⇔ forward backward
   where
   -- Completeness realizes every accepted client log, which is wire-admissible.
-  forward : ∀ {es} → HasTrace client₀ es → WireOK es × ∃[ t ] ∃[ M ] (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es)
+  forward : HasTrace client₀ es → WireOK es × ∃[ t ] ∃[ M ] (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es)
   forward accepted = accepted-wire k accepted , client-complete accepted
 
   -- Universal soundness consumes the matching run, observation and wire checks.
-  backward : ∀ {es} → (WireOK es × ∃[ t ] ∃[ M ] (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es)) → HasTrace client₀ es
+  backward : (WireOK es × ∃[ t ] ∃[ M ] (pipe k l d ⟹∖√⟨ t ⟩ M × ObsC t es)) → HasTrace client₀ es
   backward (wire , t , M , run , obs) = client-sound run obs wire
 
 ------------------------------------------------------------------------

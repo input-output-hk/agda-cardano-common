@@ -40,6 +40,22 @@ def run_tests(binary, root):
                                 check=True, capture_output=True, text=True).stdout
         assert output.startswith('accepted'), output
 
+    # Client send offsets stop at 17141; server decoder padding remains valid.
+    for role, word, accepted in [('client', '400', True),
+                                  ('client', '200', False),
+                                  ('client', '1', False),
+                                  ('server', '1', True)]:
+        direction = 'Send' if role == 'client' else 'Recv'
+        path = root / 'fetch-padding.txt'
+        path.write_text(f'role {role}\n{direction} BlockTxsRequest ab 3 1 267:{word}\n')
+        output = subprocess.run([str(binary), str(path), '2'], check=True,
+                                capture_output=True, text=True).stdout
+        if accepted:
+            assert output.startswith('accepted'), output
+        else:
+            assert output.startswith('rejected'), output
+            assert 'client: request offset exceeds maxTxs at index 1' in output, output
+
     for protocol in ('LeiosNotifyP', 'LeiosFetchP'):
         notify = protocol == 'LeiosNotifyP'
         request = 'RequestNext' if notify else 'BlockRequest ab 3'

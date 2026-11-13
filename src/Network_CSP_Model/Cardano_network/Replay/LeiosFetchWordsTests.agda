@@ -2,9 +2,10 @@
 
 module Cardano_network.Replay.LeiosFetchWordsTests where
 
-open import Cardano_network.Replay.LeiosFetchWire using (popcount; validᵇ)
+open import Cardano_network.Replay.LeiosFetchWire using (popcount; validᵇ; offsets)
 open import Cardano_network.Replay.LeiosFetchWords
 open import Data.Bool using (true; false)
+open import Data.Unit using (tt)
 open import Data.List using ([]; _∷_; upTo)
 open import Data.Product using (_,_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
@@ -85,3 +86,36 @@ last-decodable = refl
 -- The first offset beyond all decoder words is rejected.
 cap-not-decodable : decodable (17152 ∷ []) ≡ false
 cap-not-decodable = refl
+
+
+-- Empty wire words decode to no offsets.
+decodes-empty : offsets [] ≡ []
+decodes-empty = refl
+
+-- The low bit in word zero is the last position in that word.
+decodes-63 : offsets ((0 , 1) ∷ []) ≡ (63 ∷ [])
+decodes-63 = refl
+
+-- The final decoder position is the low bit of the final word.
+decodes-17151 : offsets ((267 , 1) ∷ []) ≡ (17151 ∷ [])
+decodes-17151 = refl
+
+-- The most significant bit of word zero decodes to offset zero.
+decodes-zero : Decodes ((0 , 9223372036854775808) ∷ []) (0 ∷ [])
+decodes-zero = tt , refl
+
+-- The most significant bit of word one decodes to offset 64.
+decodes-64 : Decodes ((1 , 9223372036854775808) ∷ []) (64 ∷ [])
+decodes-64 = tt , refl
+
+-- The low bit of word zero is valid and decodes to offset 63.
+decodes-63-valid : Decodes ((0 , 1) ∷ []) (63 ∷ [])
+decodes-63-valid = tt , refl
+
+-- The final decoder padding bit is valid and decodes exactly.
+decodes-17151-valid : Decodes ((267 , 1) ∷ []) (17151 ∷ [])
+decodes-17151-valid = tt , refl
+
+-- The empty bitmap is valid and decodes to the empty model list.
+decodes-empty-valid : Decodes [] []
+decodes-empty-valid = tt , refl

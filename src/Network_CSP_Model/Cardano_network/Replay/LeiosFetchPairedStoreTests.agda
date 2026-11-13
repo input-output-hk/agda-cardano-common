@@ -2,7 +2,6 @@
 
 -- Inhabited capture prefixes for the renamed client and store-backed producer.
 module Cardano_network.Replay.LeiosFetchPairedStoreTests where
-open import Data.Nat using (z≤n)
 open import Data.List.Relation.Unary.All using ([]; _∷_)
 open import Data.Fin using (zero)
 open import Data.List using (List; []; _∷_)
@@ -63,7 +62,7 @@ wrong-observation (Spec.vis sRecvBlockReq (Spec.tau sThrow (Spec.tau () _))) _
 wrong-observation (Spec.vis sRecvBlockReq (Spec.tau sThrow (Spec.vis () _))) _
 wrong-observation (Spec.vis sRecvBlockReq (Spec.tau sServe Spec.done)) ()
 wrong-observation (Spec.vis sRecvBlockReq (Spec.tau sServe (Spec.tau () _))) _
-wrong-observation (Spec.vis sRecvBlockReq (Spec.tau sServe (Spec.vis (sSendBlock _) _))) ()
+wrong-observation (Spec.vis sRecvBlockReq (Spec.tau sServe (Spec.vis sSendBlock _))) ()
 
 -- Store-backed service excludes the wrong-hash behavior admitted by the bare peer.
 wrong-server-impossible : ∀ (bs : Bodies) {events end} →
@@ -71,5 +70,5 @@ wrong-server-impossible : ∀ (bs : Bodies) {events end} →
   ObsS (T.projectServer events)
     ((F.Recv , F.MsgLeiosBlockRequest 1 3) ∷ (F.Send , F.MsgLeiosBlock 2 0) ∷ []) → ⊥
 wrong-server-impossible bs run obs with T.server-legal 2 zero hi bs
-  {es = (F.Recv , F.MsgLeiosBlockRequest 1 3) ∷ (F.Send , F.MsgLeiosBlock 2 0) ∷ []} run obs (tt ∷ z≤n ∷ [])
+  {es = (F.Recv , F.MsgLeiosBlockRequest 1 3) ∷ (F.Send , F.MsgLeiosBlock 2 0) ∷ []} run obs (tt ∷ tt ∷ [])
 ... | t , accepted = wrong-observation accepted refl

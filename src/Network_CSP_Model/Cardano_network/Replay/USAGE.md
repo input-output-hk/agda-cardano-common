@@ -106,8 +106,13 @@ A rejected standalone Fetch session prints the rejected event, model state,
 then a third line such as `reason: client: reply count mismatch at index 2`.
 `wire:` names decoder/state/depth/FIFO/byte-cap checks; `client:` names the
 receiving client's count/hash checks, **including on server-role sessions**.
-Both roles enforce the reply count cap `maxTxs = 17142`; byte caps are `txsCap = 550000` and
-`ebCap = 660000`. The diagnostic is a best-effort explanation of the checked
+Client sends require every bitmap offset below `maxTxs = 17142`; a padding
+offset rejects with `client: request offset exceeds maxTxs`. Server receives
+still accept decoder-valid padding offsets through 17151.
+Only client receives (including draining) enforce the reply count cap
+`maxTxs = 17142` and byte caps `txsCap = 550000`, `ebCap = 660000`.
+Server sends have no such caps; checked replies still match the request count/hash.
+These are one-sided checks on logged sizes, not checks of full encoded wire sizes. The diagnostic is a best-effort explanation of the checked
 reading, not a separate proof; it can say `none: no failed check` when that
 reading does not explain a rejection. A client may silently stop and drain
 replies by kind without count/hash matching, retaining wire checks and forbidding

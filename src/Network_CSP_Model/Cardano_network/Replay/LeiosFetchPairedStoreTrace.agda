@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness #-}
 
 -- Operational correspondence for the client/FIFO/store-backed-server product.
--- Server legality accepts the counted observation under explicit wire checks.
+-- Server legality accepts the exact decoded-bitmap observation under explicit wire checks.
 module Cardano_network.Replay.LeiosFetchPairedStoreTrace where
 open import Process_Trees using (ExtI)
 open import Cardano_network.Replay.ReplayParams using (replayParams)
@@ -28,7 +28,7 @@ import Semantics.Deadlock {E = PairEv} {I = PairI} as PairTrace
 open import Data.Unit using (⊤)
 open import Process_Trees using (PTree)
 
--- Projected server runs accept every counted observation satisfying WireOK.
+-- Projected server runs accept every exact decoded-bitmap observation satisfying WireOK.
 server-legal : ∀ (k : ℕ) (l : Link) (d : Dir) (bs : Bodies)
   {events : List Pair.Event} {end : PTree PairEv PairI ⊤} {es} →
   system k l d bs PairTrace.⟹∖√⟨ events ⟩ end →

@@ -75,9 +75,9 @@
 --   * the IMPLEMENTATION half — `bad-tx-fires`: the broken node has the
 --     trace ⟨forge of the EB `true`, deposit of that body, long-poll,
 --     tx-closure offer for the point `true`, the body read the closure
---     blocks at, the closure request for every offset, delivery of an entry
+--     blocks at, the negative mempool read, the closure request, delivery of an entry
 --     `(0 , false)`, deposit of `false`⟩, all of it FROM EMPTY STORES.  The
---     first seven events are the honest logic's, unchanged; only the eighth
+--     first eight events are the honest logic's, unchanged; only the ninth
 --     is the defect;
 --   * the SPECIFICATION half — `noForge`: that same trace is not a trace of
 --     `TxSpecT`.  Only the CLOSURE REQUEST mints, and it mints the hashes
@@ -119,7 +119,7 @@ open import Cardano_network.Params using (Params)
 open import Cardano_network.Parametric.Leios.LeiosInstanceL
   using (leiosLParams; leiosLP; leiosLLine)
 open import Cardano_network.Net leiosLParams
-  using ( Net_Api; Net_Api-≟; Link; store; stPutTx; stPutBody; stGetBody; apiLP; env
+  using ( Net_Api; Net_Api-≟; Link; store; stPutTx; stPutBody; stGetBody; stLacksTx; apiLP; env
         ; envForge
         ; lnpSendRequestNext; lnpRecvBlockAnnouncement; lnpRecvBlockOffer
         ; lnpRecvBlockTxsOffer; lnpRecvVotes
@@ -135,8 +135,8 @@ import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 import Cardano_network.Parametric.Leios.TxOrigin as TO
 
 open Params leiosLParams using (Block; EB; EBHash; LSlot; Size; Tx; TxHash; txHash; decTx)
-open LeiosP leiosLParams using (LeiosEb; allOffsets; txChunks)
-open LeiosP.LeiosParams leiosLP using (ebTxs)
+open LeiosP leiosLParams using (LeiosEb; allOffsets; txChunks; chunksOf)
+open LeiosP.LeiosParams leiosLP using (ebTxs; chunk)
 
 -- the transaction equality the broken thread's mempool `!`-output needs.  At a CONCRETE
 -- instantiation `open Params leiosLParams using (decTx)` does not put the field in
@@ -151,7 +151,7 @@ private
 
 open NL.Generic leiosLParams leiosLLine apiES using (storeES)
 open NLL.Generic leiosLParams leiosLP leiosLLine apiES (λ n → n)
-  using ( StateL; st₀; DecEq-⊤poly; at?; putAll; putTxEv; getBodyEv; forgeL
+  using ( StateL; st₀; DecEq-⊤poly; at?; missingOffsets; putAll; putTxEv; getBodyEv; forgeL
         ; fetchBody; putAllVotes; lnClientLoopL
         ; blockStoreL; ebStore; bodyStore; mempool; voteStore )
 -- S5 at this instance: the five parameters `NodeLogicL.Generic` takes, with
@@ -201,10 +201,11 @@ fetchChunksBad n l d q (bm ∷ bms) =
       (putCheckedBad n (proj₁ q) es >> fetchChunksBad n l d q bms)
         ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Stop }))
 
--- The leading body read and chunk list are unchanged by the one-guard ablation.
+-- The body read, missing-offset walk and chunking retain the honest client behaviour.
 fetchTxsBad : Fin 3 → Link → Dir → EBHash × LSlot → Proc
 fetchTxsBad n l d q = getBodyEv n (proj₁ q) ⟶
-  (λ _ → fetchChunksBad n l d q (txChunks leiosLP (proj₁ q)))
+  (λ _ → missingOffsets n (proj₁ q) (allOffsets leiosLP (proj₁ q))
+    (λ ms → fetchChunksBad n l d q (chunksOf chunk ms)))
 
 -- the broken Notify client's round: `NodeLogicL.lnClientBodyL` with `fetchTxsBad` in the
 -- tx-closure-offer branch and the other three branches untouched
@@ -280,7 +281,7 @@ honest-rejects : ⌊ txHash txBad ≟ true ⌋ ≡ false
 honest-rejects = refl
 
 ------------------------------------------------------------------------
--- The eight visible events of the bad trace
+-- The nine visible events of the bad trace
 ------------------------------------------------------------------------
 
 -- THE POINT THE NODE IS OFFERED AND ASKS THE CLOSURE OF (`LSlot = ⊤` at this instance,
@@ -315,21 +316,25 @@ evOffer = evl (evLabel (EBHash × LSlot) (apiLP fzero lo lnpRecvBlockTxsOffer) q
 evGetBody : Event√ (⊤ {0ℓ})
 evGetBody = evl (evLabel EB (store fzero lo (stGetBody true)) true)
 
--- event 6: THE CLOSURE REQUEST, and the one minting event of the trace: it mints every
+-- Event 6: the empty mempool confirms the table transaction is missing before the request.
+evLacksTx : Event√ (⊤ {0ℓ})
+evLacksTx = evl (evLabel U.⊤ (store fzero lo (stLacksTx true)) U.tt)
+
+-- event 7: THE CLOSURE REQUEST, and the one minting event of the trace: it mints every
 -- hash the EB body table of `true` names, i.e. the single hash `true`
 evSendReq : Event√ (⊤ {0ℓ})
 evSendReq =
   evl (evLabel ((EBHash × LSlot) × TxBitmap)
                (apiLP fzero lo lfpSendBlockTxsRequest) (qGood , 0 ∷ []))
 
--- event 7: the neighbour echoes the point — so the echoed-point check passes — but puts
+-- event 8: the client restores the requested point, so its point check passes, but the neighbour puts
 -- the WRONG transaction at offset 0.  The delivery mints nothing.
 evRecvTxs : Event√ (⊤ {0ℓ})
 evRecvTxs =
   evl (evLabel ((EBHash × LSlot) × List (ℕ × Tx))
                (apiLP fzero lo lfpRecvBlockTxs) (qGood , (0 , txBad) ∷ []))
 
--- event 8: THE UNSOLICITED DEPOSIT — a transaction the node was neither handed nor asked
+-- event 9: THE UNSOLICITED DEPOSIT — a transaction the node was neither handed nor asked
 -- for enters the mempool
 evPutTx : Event√ (⊤ {0ℓ})
 evPutTx = evl (evLabel Tx (store fzero lo stPutTx) txBad)
@@ -338,7 +343,7 @@ evPutTx = evl (evLabel Tx (store fzero lo stPutTx) txBad)
 -- derived mutation test, all quote the same list
 badTrace : List (Event√ (⊤ {0ℓ}))
 badTrace = evForge ∷ evPutBody ∷ evReqNext ∷ evOffer ∷ evGetBody
-         ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ []
+         ∷ evLacksTx ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ []
 
 -- THE MINTED SET THE CLOSURE REQUEST LEAVES BEHIND.  A mint carries the endpoint the
 -- deposit it licenses is made at: node `nA` has degree 1, so the endpoint it asked at is
@@ -347,14 +352,14 @@ msMint : Minted
 msMint = ((fzero , lo) , true) ∷ []
 
 ------------------------------------------------------------------------
--- The nine steps (eight visible, one τ)
+-- The eleven steps (nine visible, two τ)
 --
 -- Each is stated as "there is a state such that …", so the target of one step is
 -- `proj₁` of it and the next step's source (`BodyOriginBad`'s shape).  The four `apiLP`
 -- events are OUTSIDE `storeES`, so the store group stays put; the `env` and `store`
--- events ARE in `storeES`, so a thread and a store synchronise.  The ONE τ is the body
+-- events ARE in `storeES`, so a thread and a store synchronise. The first τ is the body
 -- store's loop-back after the deposit, without which it is not back at its read menu
--- when event 5 asks it for the body.
+-- when event 5 asks it for the body; the second returns the mempool after its read.
 ------------------------------------------------------------------------
 
 -- STEP 1.  The forge: the forge thread with the ranking-block store.
@@ -374,7 +379,7 @@ step₂ = _ ,
     (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
       refl) refl)
 
--- STEP 3.  THE ONE τ: the body store's loop-back, which puts it back at the menu that
+-- STEP 3.  The body-store τ: the body store's loop-back, which puts it back at the menu that
 -- offers `stGetBody true`.
 step₃ : Σ[ P₃ ∈ Proc ] (proj₁ step₂ ─[ τ ]─► P₃)
 step₃ = _ ,
@@ -400,13 +405,30 @@ step₆ = _ ,
     (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
       refl) refl)
 
+-- The missing-only walk reads the empty mempool's complementary negative offer.
+step₆a : Σ[ P ∈ Proc ] (proj₁ step₆ ─[ ev evLacksTx ]─► P)
+step₆a = _ ,
+  Par-sync _ _ _ _ _
+    (Par-soloR _ _ _ _ (λ ()) (sVis refl refl) refl)
+    (Par-soloR _ _ _ _ (λ ())
+    (Par-soloR _ _ _ _ (λ ())
+    (Par-soloR _ _ _ _ (λ ())
+    (Par-soloL _ _ _ _ (λ ()) (sVis refl refl) refl)
+      refl) refl) refl)
+
+-- Return the mempool to its offer menu before the later transaction deposit.
+step₆b : Σ[ P ∈ Proc ] (proj₁ step₆a ─[ τ ]─► P)
+step₆b = _ ,
+  Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _ (Par-τ-R _ _ _ _
+    (Par-τ-R _ _ _ _ (Par-τ-L _ _ _ _ (sSil refl)))))
+
 -- STEP 7.  THE CLOSURE REQUEST: the node asks for every offset of the table of `true`.
 -- This is the mint.
-step₇ : Σ[ P₇ ∈ Proc ] (proj₁ step₆ ─[ ev evSendReq ]─► P₇)
+step₇ : Σ[ P₇ ∈ Proc ] (proj₁ step₆b ─[ ev evSendReq ]─► P₇)
 step₇ = _ ,
   Par-soloL _ _ _ _ (λ ()) (Par-soloR _ _ _ _ (λ ()) (sVis refl refl) refl) refl
 
--- STEP 8.  The neighbour echoes the point and delivers the WRONG transaction at offset 0.
+-- STEP 8.  The client restores the point; the neighbour delivers the WRONG transaction at offset 0.
 step₈ : Σ[ P₈ ∈ Proc ] (proj₁ step₇ ─[ ev evRecvTxs ]─► P₈)
 step₈ = _ ,
   Par-soloL _ _ _ _ (λ ()) (Par-soloR _ _ _ _ (λ ()) (sVis refl refl) refl) refl
@@ -429,7 +451,8 @@ bad-tx-fires : traces badLogic badTrace
 bad-tx-fires =
   _ , ⟹-ev (proj₂ step₁) (⟹-ev (proj₂ step₂) (⟹-τ (proj₂ step₃)
         (⟹-ev (proj₂ step₄) (⟹-ev (proj₂ step₅) (⟹-ev (proj₂ step₆)
-          (⟹-ev (proj₂ step₇) (⟹-ev (proj₂ step₈) (⟹-ev (proj₂ step₉) ⟹-refl))))))))
+          (⟹-ev (proj₂ step₆a) (⟹-τ (proj₂ step₆b)
+          (⟹-ev (proj₂ step₇) (⟹-ev (proj₂ step₈) (⟹-ev (proj₂ step₉) ⟹-refl))))))))))
 
 ------------------------------------------------------------------------
 -- The two states `TxSpecT` alternates between
@@ -499,23 +522,30 @@ noSendReq (⟹-τ (sSil eq) _) = case eq of λ ()
 noSendReq (⟹-τ (sTau refl ()) _)
 noSendReq (⟹-ev (sVis refl refl) rest) = noRecvTxs (proj₂ (backEdge {ms = msMint} rest))
 
+-- The negative read mints nothing and therefore cannot license the bad deposit.
+noLacksTx : ∀ {q} → ¬ (OriginSpecAt []
+  ⟹⟨ evLacksTx ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ [] ⟩ q)
+noLacksTx (⟹-τ (sSil eq) _) = case eq of λ ()
+noLacksTx (⟹-τ (sTau refl ()) _)
+noLacksTx (⟹-ev (sVis refl refl) rest) = noSendReq (proj₂ (backEdge {ms = []} rest))
+
 -- a body READ mints nothing
 noGetBody : ∀ {q} → ¬ (OriginSpecAt []
-                         ⟹⟨ evGetBody ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ [] ⟩ q)
+                         ⟹⟨ evGetBody ∷ evLacksTx ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ [] ⟩ q)
 noGetBody (⟹-τ (sSil eq) _) = case eq of λ ()
 noGetBody (⟹-τ (sTau refl ()) _)
-noGetBody (⟹-ev (sVis refl refl) rest) = noSendReq (proj₂ (backEdge {ms = []} rest))
+noGetBody (⟹-ev (sVis refl refl) rest) = noLacksTx (proj₂ (backEdge {ms = []} rest))
 
 -- an OFFER received mints nothing: what licences a deposit is the node's own asking
 noOffer : ∀ {q} → ¬ (OriginSpecAt []
-                       ⟹⟨ evOffer ∷ evGetBody ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ [] ⟩ q)
+                       ⟹⟨ evOffer ∷ evGetBody ∷ evLacksTx ∷ evSendReq ∷ evRecvTxs ∷ evPutTx ∷ [] ⟩ q)
 noOffer (⟹-τ (sSil eq) _) = case eq of λ ()
 noOffer (⟹-τ (sTau refl ()) _)
 noOffer (⟹-ev (sVis refl refl) rest) = noGetBody (proj₂ (backEdge {ms = []} rest))
 
 -- the long poll mints nothing
 noReqNext : ∀ {q} → ¬ (OriginSpecAt []
-                         ⟹⟨ evReqNext ∷ evOffer ∷ evGetBody ∷ evSendReq ∷ evRecvTxs
+                         ⟹⟨ evReqNext ∷ evOffer ∷ evGetBody ∷ evLacksTx ∷ evSendReq ∷ evRecvTxs
                             ∷ evPutTx ∷ [] ⟩ q)
 noReqNext (⟹-τ (sSil eq) _) = case eq of λ ()
 noReqNext (⟹-τ (sTau refl ()) _)
@@ -523,7 +553,7 @@ noReqNext (⟹-ev (sVis refl refl) rest) = noOffer (proj₂ (backEdge {ms = []} 
 
 -- an EB-BODY deposit mints nothing for S5 — that channel is S1's business
 noPutBody : ∀ {q} → ¬ (OriginSpecAt []
-                         ⟹⟨ evPutBody ∷ evReqNext ∷ evOffer ∷ evGetBody ∷ evSendReq
+                         ⟹⟨ evPutBody ∷ evReqNext ∷ evOffer ∷ evGetBody ∷ evLacksTx ∷ evSendReq
                             ∷ evRecvTxs ∷ evPutTx ∷ [] ⟩ q)
 noPutBody (⟹-τ (sSil eq) _) = case eq of λ ()
 noPutBody (⟹-τ (sTau refl ()) _)

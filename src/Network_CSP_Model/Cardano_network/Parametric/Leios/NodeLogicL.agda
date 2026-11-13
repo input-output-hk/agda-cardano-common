@@ -16,12 +16,13 @@
 -- branches plus the read-pointer menu); `NodeLogic.blockStore` itself stays
 -- byte-identical and keeps serving `nodeLogic`.
 --
--- DESIGN LAW L — READ-POINTER SERVERS.  Every server thread serves each item
--- at most once per endpoint: it carries a pointer `k` through `loop` (not
--- `loop0`) and reads the k-th item through a store event the store offers
--- ONLY while such an item exists.  With nothing new the server BLOCKS at the
--- store, hence the client waiting on it blocks, hence quiescence.  This is
--- what kills the chatter divergence of `nodeLogic` (`Negative/Chatter.agda`).
+-- DESIGN LAW L — READ-POINTER NOTIFY AND TXSUBMISSION SERVERS.
+-- These threads serve each item at most once per endpoint: each carries a
+-- pointer `k` through `loop` (not `loop0`) and reads the k-th item through a
+-- store event offered ONLY while such an item exists. With nothing new the
+-- server BLOCKS at the store, hence its waiting client blocks, hence quiescence.
+-- This kills the chatter divergence of `nodeLogic` (`Negative/Chatter.agda`).
+-- LeiosFetch instead answers explicit requests without a read pointer.
 --
 -- INDICES COUNT FROM THE OLDEST END.  `NodeLogic.blockStore` PREPENDS
 -- (`b ∷ held`), so `blockStoreL` enumerates `reverse held`; the four stores
@@ -102,9 +103,9 @@ module Generic
                       ; decRbHash; decTx; decTxHash)
   -- `LeiosEb`/`LeiosPoint`, their `DecEq` instance and the derived all-offsets request
   -- live in `LeiosParams.agda`, not redefined here
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks; chunksOf)
   open LeiosP.LeiosParams lp using (mkVoteBlob; blobVoter; blobRb; certifies; ebTxs
-                                   ; ebSize; rbCert; maxTxs)
+                                   ; ebSize; rbCert; maxTxs; chunk)
   open import Cardano_network.Base using (Dir)
   -- EVERY tag this module names MUST appear here: an unlisted tag silently becomes a
   -- pattern VARIABLE and the carrier table turns into a stuck term (ledger gotcha 1).
@@ -680,13 +681,24 @@ module Generic
         (putChecked n (proj₁ q) es >> fetchChunks n l d q bms)
           ◁ ⌊ DecEq-EBPoint ._≟_ q′ q ⌋ ▷ Stop }))
 
-  -- Wait for the offered body's table, then request all its offsets in bounded chunks.
-  -- An empty table sends no request. A missing body blocks the shared Notify client;
-  -- a failed body/reply check stops it, silencing this link's announcement, offer and
-  -- vote handling. Chunking still over-fetches all offsets rather than only missing ones.
+  -- Walk offsets structurally; the continuation accumulates missing offsets in order.
+  -- An invalid table offset stops; allOffsets never supplies one.
+  missingOffsets : Node → EBHash → TxBitmap → (TxBitmap → Proc) → Proc
+  missingOffsets n h [] k = k []
+  missingOffsets n h (o ∷ os) k with at? o (ebTxs h)
+  ... | nothing = Stop
+  ... | just (hash , _) =
+    (getTxEv n hash ⟶ (λ _ → missingOffsets n h os k))
+      □ (lacksTxEv n hash ⟶₀ missingOffsets n h os (λ ms → k (o ∷ ms)))
+
+  -- Read the body, then request only missing transactions in bounded chunks.
+  -- Positive and negative mempool reads are complementary; no missing offsets
+  -- means no request. A missing body blocks the shared Notify client.
   fetchTxs : Node → Link → Dir → EBHash × LSlot → Proc
   fetchTxs n l d q =
-    getBodyEv n (proj₁ q) ⟶ (λ _ → fetchChunks n l d q (txChunks lp (proj₁ q)))
+    getBodyEv n (proj₁ q) ⟶ (λ _ →
+      missingOffsets n (proj₁ q) (allOffsets lp (proj₁ q))
+        (λ ms → fetchChunks n l d q (chunksOf chunk ms)))
 
   -- deposit every delivered vote blob, in order
   putAllVotes : Node → List VoteBlob → Proc

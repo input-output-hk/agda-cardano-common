@@ -313,9 +313,14 @@ partialReplyDepositsNothing :
   Ship.putChecked nA true ((0 , true) ∷ (0 , false) ∷ []) ≡ Op.Stop
 partialReplyDepositsNothing = refl
 
--- Fetching the body first reaches the first singleton request, followed by its receive.
+-- Reading the body starts the mempool inspection walk.
+afterBody : Proc
+afterBody = after (Two.fetchTxs nA fzero lo (true , U.tt)) (Two.getBodyEv nA true) true
+
+-- With neither transaction held, both negative reads lead to singleton requests.
 firstChunk : Proc
-firstChunk = after (Two.fetchTxs nA fzero lo (true , U.tt)) (Two.getBodyEv nA true) true
+firstChunk = after (after afterBody (Two.lacksTxEv nA true) U.tt)
+  (Two.lacksTxEv nA false) U.tt
 
 -- A matching reply deposits its transaction before the second request is available.
 secondChunk : Proc
@@ -330,3 +335,33 @@ twoChunksTwoRequests :
   × (is-just (viewV (PTree.force secondChunk) (_ , apiLP fzero lo lfpSendBlockTxsRequest)
     ((true , U.tt) , 1 ∷ [])) ≡ true)
 twoChunksTwoRequests = refl , refl
+
+-- The two-entry mempool serves both positive reads used by the all-held walk.
+allHeldReads :
+  (viewV (PTree.force (Two.memStep nA (true ∷ false ∷ [])))
+    (_ , Two.getTxEv nA true) true ≡ just (Ret (true ∷ false ∷ []))) ×
+  (viewV (PTree.force (Two.memStep nA (true ∷ false ∷ [])))
+    (_ , Two.getTxEv nA false) false ≡ just (Ret (true ∷ false ∷ [])))
+allHeldReads = refl , refl
+
+-- Holding only offset zero serves its positive read and offset one's negative read.
+oneMissingReads :
+  (viewV (PTree.force (Two.memStep nA (true ∷ [])))
+    (_ , Two.getTxEv nA true) true ≡ just (Ret (true ∷ []))) ×
+  (viewV (PTree.force (Two.memStep nA (true ∷ [])))
+    (_ , Two.lacksTxEv nA false) U.tt ≡ just (Ret (true ∷ [])))
+oneMissingReads = refl , refl
+
+-- With those reads, the whole residual is exactly the singleton offset-one request.
+oneMissingOneRequest :
+  PTree.force (after (after afterBody (Two.getTxEv nA true) true)
+    (Two.lacksTxEv nA false) U.tt)
+    ≡ PTree.force (Two.fetchChunks nA fzero lo (true , U.tt) ((1 ∷ []) ∷ []))
+oneMissingOneRequest = refl
+
+-- Reading both held transactions after the body leaves no request to send.
+allHeldNoRequest :
+  PTree.force (after (after afterBody (Two.getTxEv nA true) true)
+    (Two.getTxEv nA false) false)
+    ≡ PTree.force (Two.fetchChunks nA fzero lo (true , U.tt) [])
+allHeldNoRequest = refl

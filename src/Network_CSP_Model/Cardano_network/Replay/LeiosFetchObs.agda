@@ -1,17 +1,18 @@
 {-# OPTIONS --guardedness #-}
 
--- Counted wire observation drops decoder-failing receives before logging.
--- Hashes, slots and transaction counts are retained. Sizes and bitmap words
--- are forgotten and constrained separately by WireOK at bridge endpoints.
+-- Exact decoded-bitmap observation drops decoder-failing receives before logging.
+-- Hashes, slots and transaction counts are retained. Request offsets and validity are retained; receive-side sizes use WireOK.
 -- Checked with --safe on the command line (B7a).
 module Cardano_network.Replay.LeiosFetchObs where
 
 open import Data.Nat using (ℕ; _≤_; _≤ᵇ_)
 import Data.Nat.Properties as N
-open import Data.List using (List; map; length)
+open import Data.List using (List; map; length; _∷_; [])
 open import Data.Bool using (Bool; T; true; false)
-open import Cardano_network.Replay.LeiosFetchWords using (decodable)
-open import Cardano_network.Replay.LeiosFetchWire using (maxTxs)
+open import Cardano_network.Replay.LeiosFetchWords using (decodable; canonical)
+open import Cardano_network.Replay.LeiosFetchWords public using (Decodes)
+open import Cardano_network.Replay.LeiosFetchWire using (maxTxs; Bitmap; validᵇ; offsets)
+import Data.Unit
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_)
 
@@ -40,8 +41,8 @@ data Msg♭ : Set where
   blockReq♭ : (h s : ℕ) → Msg♭
   -- Block ebHash
   block♭    : (h : ℕ) → Msg♭
-  -- BlockTxsRequest (ebHash, ebSlot, count)
-  txsReq♭   : (h s n : ℕ) → Msg♭
+  -- BlockTxsRequest (hash, slot, count, decoded offsets, decoder validity)
+  txsReq♭   : (h s n : ℕ) → List ℕ → Bool → Msg♭
   -- BlockTxs positional reply count
   txs♭      : (n : ℕ) → Msg♭
   -- Done
@@ -55,7 +56,7 @@ E♭ = Direction × Msg♭
 forget : E → E♭
 forget (d , MsgLeiosBlockRequest h s)        = d , blockReq♭ h s
 forget (d , MsgLeiosBlock h _)               = d , block♭ h
-forget (d , MsgLeiosBlockTxsRequest h s n _) = d , txsReq♭ h s n
+forget (d , MsgLeiosBlockTxsRequest h s n b) = d , txsReq♭ h s n (offsets b) (validᵇ b)
 forget (d , MsgLeiosBlockTxs n _)            = d , txs♭ n
 forget (d , MsgLeiosDone)                    = d , done♭
 
@@ -63,7 +64,7 @@ forget (d , MsgLeiosDone)                    = d , done♭
 msg♭ : MessageLeiosFetchP → Msg♭
 msg♭ (MsgLFPBlockRequest (h , s))      = blockReq♭ h s
 msg♭ (MsgLFPBlock eb)                  = block♭ eb
-msg♭ (MsgLFPBlockTxsRequest (h , s) bm) = txsReq♭ h s (length bm)
+msg♭ (MsgLFPBlockTxsRequest (h , s) bm) = txsReq♭ h s (length bm) bm true
 msg♭ (MsgLFPBlockTxs txs)              = txs♭ (length txs)
 msg♭ MsgLFPDone                        = done♭
 
@@ -93,7 +94,7 @@ T-true {false} ()
 -- A decoded server request is logged with its actual offset count.
 recv-request : ∀ tm md ln q bm → T (decodable bm) →
   recv♭ (tm , md , ln , leiosFetchP (MsgLFPBlockTxsRequest q bm)) ≡
-  just (Recv , txsReq♭ (Data.Product.proj₁ q) (Data.Product.proj₂ q) (length bm))
+  just (Recv , txsReq♭ (Data.Product.proj₁ q) (Data.Product.proj₂ q) (length bm) bm true)
 recv-request tm md ln q bm ok rewrite T-true ok = refl
 
 -- A decoder-failing request is absent from the upstream receive trace.
@@ -126,7 +127,33 @@ ObsS = BrS.Obs clsS forget
 ObsC : List LTSC.Event → List E → Set
 ObsC = BrC.Obs clsC forget
 
--- Two replay traces agree on hashes, slots and counts, independently of WireOK.
+-- Two replay traces agree on retained fields, including decoded request offsets.
 infix 4 _≈♭_
 _≈♭_ : List E → List E → Set
 es ≈♭ es′ = map forget es ≡ map forget es′
+
+-- Exact request equality exposes decoder validity, count and decoded offsets.
+request-match : ∀ {h s n b h′ s′ bm} →
+  txsReq♭ h s n (offsets b) (validᵇ b) ≡ txsReq♭ h′ s′ (length bm) bm true →
+  (h ≡ h′) × (s ≡ s′) × (n ≡ length bm) × Decodes b bm
+request-match {b = b} eq with validᵇ b
+... | false with eq
+... | ()
+request-match {b = b} refl | true = refl , refl , refl , Data.Unit.tt , refl
+
+-- Decoder evidence constructs an exact request observation.
+request-equal : ∀ h s n b bm → n ≡ length bm → Decodes b bm →
+  txsReq♭ h s n (offsets b) (validᵇ b) ≡ txsReq♭ h s (length bm) bm true
+request-equal h s .(length bm) b bm refl (valid , same)
+  rewrite T-true valid | same = refl
+
+-- Equal flattened requests retain validity, counts and offsets independently.
+request-fields : ∀ {h s n os v h′ s′ n′ os′ v′} →
+  txsReq♭ h s n os v ≡ txsReq♭ h′ s′ n′ os′ v′ →
+  (h ≡ h′) × (s ≡ s′) × (n ≡ n′) × (os ≡ os′) × (v ≡ v′)
+request-fields refl = refl , refl , refl , refl , refl
+
+-- Honest outgoing requests use offsets inside the client's transaction table.
+Honest : E → Set
+Honest (Send , MsgLeiosBlockTxsRequest _ _ _ b) = T (canonical (offsets b))
+Honest _ = Data.Unit.⊤

@@ -30,7 +30,7 @@ module _ {ℓr ℓρ : Level} {R : Set ℓr} (k : ℕ)
   data Match (P′ : PTree E I R) (s : St) (v : Maybe E♭) : Set (ℓr ⊔ ℓρ ⊔ ℓ ⊔ ℓe ⊔ ℓi) where
     -- An unlogged event uses only silent session transitions.
     silent : ∀ {s′} → v ≡ nothing → s ⇒⟨ [] ⟩ s′ → Rel P′ s′ → Match P′ s v
-    -- An observed message is matched after checking its forgotten wire fields.
+    -- An observed message is matched after checking its receive-side summary fields.
     logged : ∀ {a} → v ≡ just a → ((e : LogEvent) → forget e ≡ a → WireMsg e →
       Σ[ s′ ∈ St ] (s ⇒⟨ e ∷ [] ⟩ s′ × Rel P′ s′)) → Match P′ s v
 
@@ -43,7 +43,7 @@ module _ {ℓr ℓρ : Level} {R : Set ℓr} (k : ℕ)
       -- Visible transitions are matched with decoder evidence when logged.
       sim-ev : ∀ {P P′ s e} → Rel P s → P ─[ ev (evl e) ]─► P′ → Match P′ s (cls e)
 
-  -- A complete observed run is legal whenever all forgotten wire fields are legal.
+  -- A complete observed run is legal whenever all receive-side summary fields are legal.
   sound : Sim → ∀ {P P′ s t es} → Rel P s → P ⟹∖√⟨ t ⟩ P′ →
     mapMaybe cls t ≡ map forget es → WireOK es → Σ[ s′ ∈ St ] (s ⇒⟨ es ⟩ s′ × Rel P′ s′)
   sound sm {es = []} r ∖√-refl o [] = _ , done , r

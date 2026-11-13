@@ -29,7 +29,9 @@ open import Relation.Nullary.Decidable using (map′; _×-dec_; T?; does)
 open import Data.String using (String; _++_)
 
 open import Cardano_network.Replay.LeiosFetchWire using
-  (Bitmap; validᵇ; popcount; maxTxs; txsCap; ebCap)
+  (Bitmap; offsets; validᵇ; popcount; maxTxs; txsCap; ebCap)
+
+open import Cardano_network.Replay.LeiosFetchWords using (canonical)
 
 open import Semantics.Replay
 
@@ -172,8 +174,8 @@ module Spec (k : ℕ) where
     -- Client sends a BlockRequest within its pipeline bound.
     cSendBlockReq : ∀ {q h s} → length q < k →
       cOpen q -[ Send , MsgLeiosBlockRequest h s ]→ cOpen (q ∷ʳ blockReq h s)
-    -- Honest client requests fit maxTxs and agree with a valid wire bitmap.
-    cSendTxsReq : ∀ {q h s n b} → length q < k → T (validᵇ b) → n ≡ popcount b → n ≤ maxTxs →
+    -- Client requests use canonical offsets below maxTxs and a valid wire bitmap.
+    cSendTxsReq : ∀ {q h s n b} → length q < k → T (validᵇ b) → n ≡ popcount b → T (canonical (offsets b)) →
       cOpen q -[ Send , MsgLeiosBlockTxsRequest h s n b ]→
       cOpen (q ∷ʳ blockTxsReq h s n)
     -- Client checks the oldest Block request's hash and the wire byte cap.
@@ -198,11 +200,11 @@ module Spec (k : ℕ) where
     -- Server observation checks bitmap decoding and the logged request count.
     sRecvTxsReq : ∀ {h s n b} → T (validᵇ b) → n ≡ popcount b →
       sIdle -[ Recv , MsgLeiosBlockTxsRequest h s n b ]→ sBusy (blockTxsReq h s n)
-    -- Ready server replies with the requested Block within the byte cap.
-    sSendBlock : ∀ {h s z} → z ≤ ebCap →
+    -- Ready server sends the requested Block without a receive-side byte cap.
+    sSendBlock : ∀ {h s z} →
       sReady (blockReq h s) -[ Send , MsgLeiosBlock h z ]→ sIdle
-    -- Ready server replies positionally within both wire decoder caps.
-    sSendTxs : ∀ {h s n z} → n ≤ maxTxs → z ≤ txsCap →
+    -- Ready server sends the requested count without receive-side decoder caps.
+    sSendTxs : ∀ {h s n z} →
       sReady (blockTxsReq h s n) -[ Send , MsgLeiosBlockTxs n z ]→ sIdle
     -- Idle server receives Done.
     sRecvDone : sIdle -[ Recv , MsgLeiosDone ]→ sClosed
@@ -263,17 +265,16 @@ module Spec (k : ℕ) where
   drainDone [] = [ cClosed , cDrainDone ]
   drainDone (_ ∷ _) = []
 
-  -- Ready Block replies check their hash and the wire byte cap.
+  -- Ready Block replies check only the requested hash.
   sendBlock : ∀ r h z → List (∃ (sReady r -[ Send , MsgLeiosBlock h z ]→_))
   sendBlock (blockReq h′ _) h z =
-    guard (z ≤? ebCap ×-dec h′ ≟ℕ h) sIdle λ { (cap , refl) → sSendBlock cap }
+    guard (h′ ≟ℕ h) sIdle λ { refl → sSendBlock }
   sendBlock (blockTxsReq _ _ _) _ _ = []
 
-  -- Ready transaction replies check both wire caps and their positional count.
+  -- Ready transaction replies check only their positional count.
   sendTxs : ∀ r n z → List (∃ (sReady r -[ Send , MsgLeiosBlockTxs n z ]→_))
   sendTxs (blockTxsReq _ _ n′) n z =
-    guard (n ≤? maxTxs ×-dec z ≤? txsCap ×-dec n′ ≟ℕ n) sIdle
-      λ { (countCap , byteCap , refl) → sSendTxs countCap byteCap }
+    guard (n′ ≟ℕ n) sIdle λ { refl → sSendTxs }
   sendTxs (blockReq _ _) _ _ = []
 
   -- All e-steps out of s, each with its derivation (zero or one).
@@ -281,7 +282,7 @@ module Spec (k : ℕ) where
   steps (cOpen q) (Send , MsgLeiosBlockRequest h s) =
     guard (length q <? k) (cOpen (q ∷ʳ blockReq h s)) cSendBlockReq
   steps (cOpen q) (Send , MsgLeiosBlockTxsRequest h s n b) =
-    guard (length q <? k ×-dec T? (validᵇ b) ×-dec n ≟ℕ popcount b ×-dec n ≤? maxTxs)
+    guard (length q <? k ×-dec T? (validᵇ b) ×-dec n ≟ℕ popcount b ×-dec T? (canonical (offsets b)))
       (cOpen (q ∷ʳ blockTxsReq h s n))
       λ { (lt , valid , count , cap) → cSendTxsReq lt valid count cap }
   steps (cOpen q) (Recv , MsgLeiosBlock h z) = recvBlock q h z
@@ -327,7 +328,7 @@ module Spec (k : ℕ) where
   after-complete : ∀ {s e s′} → s -[ e ]→ s′ → s′ ∈ after s e
   after-complete (cSendBlockReq {q} lt) = guard-complete (length q <? k) lt
   after-complete (cSendTxsReq {q} {n = n} {b} lt valid count cap) =
-    guard-complete (length q <? k ×-dec T? (validᵇ b) ×-dec n ≟ℕ popcount b ×-dec n ≤? maxTxs)
+    guard-complete (length q <? k ×-dec T? (validᵇ b) ×-dec n ≟ℕ popcount b ×-dec T? (canonical (offsets b)))
       (lt , valid , count , cap)
   after-complete (cRecvBlock {h = h} {z = z} cap) =
     guard-complete (z ≤? ebCap ×-dec h ≟ℕ h) (cap , refl)
@@ -342,11 +343,10 @@ module Spec (k : ℕ) where
   after-complete sRecvBlockReq = here refl
   after-complete (sRecvTxsReq {n = n} {b} valid count) =
     guard-complete (T? (validᵇ b) ×-dec n ≟ℕ popcount b) (valid , count)
-  after-complete (sSendBlock {h = h} {z = z} cap) =
-    guard-complete (z ≤? ebCap ×-dec h ≟ℕ h) (cap , refl)
-  after-complete (sSendTxs {n = n} {z} countCap byteCap) =
-    guard-complete (n ≤? maxTxs ×-dec z ≤? txsCap ×-dec n ≟ℕ n)
-      (countCap , byteCap , refl)
+  after-complete (sSendBlock {h = h}) =
+    guard-complete (h ≟ℕ h) refl
+  after-complete (sSendTxs {n = n}) =
+    guard-complete (n ≟ℕ n) refl
   after-complete sRecvDone = here refl
 
   -- Every silent step appears in the enumeration, including throw.
@@ -379,8 +379,8 @@ module Spec (k : ℕ) where
   -- Only honest client sends are capped; servers may receive and throw instead.
   clientRequestWhy : ℕ → Bitmap → String
   clientRequestWhy n b = if validᵇ b ∧ (n ≡ᵇ popcount b) then
-    (if n ≤ᵇ maxTxs then "none: no failed check"
-     else "client: request count exceeds maxTxs")
+    (if canonical (offsets b) then "none: no failed check"
+     else "client: request offset exceeds maxTxs")
     else requestWhy n b
 
   -- Block diagnostics apply the wire cap before the client hash comparison.
@@ -405,9 +405,10 @@ module Spec (k : ℕ) where
 
   -- Diagnose a ready reply (also the possible service successor of busy).
   replyWhy : St → Req → E → String
-  replyWhy st (blockReq h _) (Send , MsgLeiosBlock h′ z) = blockWhy h h′ z
+  replyWhy st (blockReq h _) (Send , MsgLeiosBlock h′ z) =
+    if h ≡ᵇ h′ then "none: no failed check" else "client: block hash mismatch"
   replyWhy st (blockTxsReq _ _ n) (Send , MsgLeiosBlockTxs n′ z) =
-    txsWhy n n′ z
+    if n ≡ᵇ n′ then "none: no failed check" else "client: reply count mismatch"
   replyWhy st _ (Recv , MsgLeiosBlockRequest _ _) = "wire: request while one is outstanding"
   replyWhy st _ (Recv , MsgLeiosBlockTxsRequest _ _ _ _) = "wire: request while one is outstanding"
   replyWhy st _ _ = noStepWhy st

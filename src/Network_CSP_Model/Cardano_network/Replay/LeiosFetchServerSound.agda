@@ -2,8 +2,8 @@
 
 open import Data.Nat using (ℕ)
 
--- Counted server soundness, conditional on each logged message's decoder checks.
--- Transaction counts are observed; byte sizes and bitmap words use WireOK.
+-- Exact bitmap server soundness, conditional on each logged message's decoder checks.
+-- Counts and decoded request offsets are observed; client receive sizes use WireOK.
 -- Checked with --safe on the command line (B7a).
 module Cardano_network.Replay.LeiosFetchServerSound (k : ℕ) where
 
@@ -32,7 +32,7 @@ open Traces leiosFetch using (HasTrace)
 serverSim : ∀ bs → BrS.Sim k clsS (Rel bs)
 serverSim bs = record { sim-τ = sim-τ ; sim-ev = sim-ev }
 
--- Every model run matching an admissible counted log is a legal server trace.
+-- Every model run matching an admissible exact-bitmap log is a legal server trace.
 server-sound : ∀ bs {t M es} → serverModel bs ⟹∖√⟨ t ⟩ M → ObsS t es → WireOK es → HasTrace server₀ es
 server-sound bs run obs wire with BrS.sound k clsS (Rel bs) (serverSim bs) (rel₀ bs) run obs wire
 ... | s′ , trace , related = s′ , trace

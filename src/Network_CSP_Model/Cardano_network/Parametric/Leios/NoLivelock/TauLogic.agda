@@ -58,8 +58,8 @@ import Cardano_network.Parametric.NodeLogic as NL
 open NL.Generic pP tP apiES using (serverBody-k; offerHeld; DecEq-Header×Tip; clientLoop; clientBody-k; storeES)
 open import Cardano_network.Data pP using (header; DecEq-ChainRange; DecEq-Header; DecEq-EBPoint; DecEq-TxsRequest; DecEq-TxsReply; DecEq-Offer)
 import Cardano_network.Parametric.Leios.LeiosParams as LeiosP
-open LeiosP pP using (DecEq-LeiosPoint; txChunks)
-open LeiosP.LeiosParams lpP using (ebTxs; certifies; maxTxs)
+open LeiosP pP using (DecEq-LeiosPoint; txChunks; allOffsets; chunksOf)
+open LeiosP.LeiosParams lpP using (chunk; ebTxs; certifies; maxTxs)
 open import Cardano_network.Parametric.Topology using (module Topology)
 open Topology tP using (endpointsOf)
 open import Cardano_network.Params using (module Params)
@@ -73,7 +73,7 @@ open NLL.Generic pP lpP tP apiES vo
         ; DecEq-⊤poly; DecEq-Votes; DecEq-ℕ×ℕ; at?; memberOf
         ; forgeL; forgeOK; forgeBodyL; forgeCertL; ebIndex; ebIndexBody; voter; voterBody; submit; certSink
         ; lnServerLoopL; lnServerBodyL; awaitTxs; bodyOfferBody; bodyOfferLoop
-        ; voteOfferBody; voteOfferLoop; fetchBody; putChecked; putAll; entryOk; fetchChunks; fetchTxs; putAllVotes
+        ; voteOfferBody; voteOfferLoop; fetchBody; putChecked; putAll; entryOk; missingOffsets; fetchChunks; fetchTxs; putAllVotes
         ; lnClientBodyL; lnClientLoopL; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody
         ; ebTxsServeLoop; putAllTx; tsPullBody; tsPull; tsServeBody; tsServe
         ; lacksBodies; lacksTxs; ebStep; ebStore; bodyStep; offerBodies; bodyStore; memStep; offerTxs; mempool
@@ -277,9 +277,20 @@ fetchChunks-R n l d q (bm ∷ bms) =
     MAccR-if ⌊ DecEq._≟_ DecEq-EBPoint q′ q ⌋
       (MAccR->>= (putChecked-R n (proj₁ q) es) (λ _ → fetchChunks-R n l d q bms)) MAccR-Stop }))
 
+-- Each inspection takes one visible read and structurally shortens the walk.
+missingOffsets-R : ∀ n h os k → (∀ xs → MAccR ∅ES (k xs)) →
+  MAccR ∅ES (missingOffsets n h os k)
+missingOffsets-R n h [] k cont = cont []
+missingOffsets-R n h (o ∷ os) k cont with at? o (ebTxs h)
+... | nothing = MAccR-Stop
+... | just (hash , _) = MAccR-□
+  (MAccR-⟶ _ (λ _ → missingOffsets-R n h os k cont))
+  (MAccR-⟶ _ (λ _ → missingOffsets-R n h os (λ xs → k (o ∷ xs)) (λ xs → cont (o ∷ xs))))
+
 -- Fetching a closure starts with a visible body read.
 fetchTxs-R : ∀ n l d q → MAccR ∅ES (fetchTxs n l d q)
-fetchTxs-R n l d q = MAccR-⟶ _ (λ _ → fetchChunks-R n l d q (txChunks lpP (proj₁ q)))
+fetchTxs-R n l d q = MAccR-⟶ _ (λ _ → missingOffsets-R n (proj₁ q) (allOffsets lpP (proj₁ q)) _
+  (λ xs → fetchChunks-R n l d q (chunksOf chunk xs)))
 
 -- depositing the delivered vote blobs
 putAllVotes-R : ∀ n vs → MAccR ∅ES (putAllVotes n vs)

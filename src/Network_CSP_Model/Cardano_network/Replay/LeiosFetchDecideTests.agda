@@ -26,6 +26,43 @@ open Cert 150 using (hasTrace?; client-cert; server-cert; rejectionReason)
 bm : Bitmap
 bm = (0 , 3) ∷ []
 
+-- A valid 17143-offset request exceeds the client decoder count limit.
+replyCapBitmap : Bitmap
+replyCapBitmap = applyUpTo (λ i → i , 18446744073709551615) 267 ++
+  ((267 , 36028797018963967) ∷ [])
+
+-- Server encoding permits both an over-cap count and an over-cap byte size.
+server-over-cap-reply-accepted : does (hasTrace? server-cert
+  ((Recv , MsgLeiosBlockTxsRequest 1 10 17143 replyCapBitmap)
+   ∷ (Send , MsgLeiosBlockTxs 17143 550001) ∷ [])) ≡ true
+server-over-cap-reply-accepted = refl
+
+-- Server encoding permits a Block larger than the receive-side byte cap.
+server-oversized-block-accepted : does (hasTrace? server-cert
+  ((Recv , MsgLeiosBlockRequest 1 10) ∷ (Send , MsgLeiosBlock 1 700000) ∷ [])) ≡ true
+server-oversized-block-accepted = refl
+
+-- Client receives still reject an oversized Block, including while draining.
+client-oversized-block-rejected : does (hasTrace? client-cert
+  ((Send , MsgLeiosBlockRequest 1 10) ∷ (Recv , MsgLeiosBlock 1 700000) ∷ [])) ≡ false
+client-oversized-block-rejected = refl
+
+-- The oversized client Block is diagnosed at the wire layer.
+client-oversized-block-reason : whyRejected (cOpen (blockReq 1 10 ∷ []))
+  (Recv , MsgLeiosBlock 1 700000) ≡ "wire: block byte cap exceeded"
+client-oversized-block-reason = refl
+
+-- Client receives still reject the over-cap reply even on the drain path.
+client-over-cap-reply-rejected : does (hasTrace? client-cert
+  ((Send , MsgLeiosBlockTxsRequest 1 10 2 bm)
+   ∷ (Recv , MsgLeiosBlockTxs 17143 550001) ∷ [])) ≡ false
+client-over-cap-reply-rejected = refl
+
+-- The client count cap is diagnosed before the reply byte cap.
+client-over-cap-reply-reason : whyRejected (cOpen (blockTxsReq 1 10 2 ∷ []))
+  (Recv , MsgLeiosBlockTxs 17143 550001) ≡ "wire: transaction count cap exceeded"
+client-over-cap-reply-reason = refl
+
 -- All 268 indices are valid; 267 full words plus 62 bits request 17150 transactions.
 overCapBitmap : Bitmap
 overCapBitmap = applyUpTo (λ i → i , 18446744073709551615) 267 ++
@@ -39,6 +76,32 @@ over-cap-bitmap-valid = refl
 over-cap-bitmap-count : Cardano_network.Replay.LeiosFetchWire.popcount overCapBitmap ≡ 17150
 over-cap-bitmap-count = refl
 
+-- Client sends reject the final decoder padding bit despite its small count.
+client-padding-rejected : does (hasTrace? client-cert
+  ((Send , MsgLeiosBlockTxsRequest 7 1 1 ((267 , 1) ∷ [])) ∷ [])) ≡ false
+client-padding-rejected = refl
+
+-- Padding is diagnosed as an offset violation rather than a count violation.
+client-padding-reason : rejectionReason client₀ client₀
+  ((Send , MsgLeiosBlockTxsRequest 7 1 1 ((267 , 1) ∷ [])) ∷ []) ≡
+  "client: request offset exceeds maxTxs at index 1"
+client-padding-reason = refl
+
+-- The last honest offset remains a legal client request.
+client-last-offset-accepted : does (hasTrace? client-cert
+  ((Send , MsgLeiosBlockTxsRequest 7 1 1 ((267 , 1024) ∷ [])) ∷ [])) ≡ true
+client-last-offset-accepted = refl
+
+-- The first padding offset is already outside the client send domain.
+client-first-padding-rejected : does (hasTrace? client-cert
+  ((Send , MsgLeiosBlockTxsRequest 7 1 1 ((267 , 512) ∷ [])) ∷ [])) ≡ false
+client-first-padding-rejected = refl
+
+-- Server decoding still permits the final padding offset 17151.
+server-padding-accepted : does (hasTrace? server-cert
+  ((Recv , MsgLeiosBlockTxsRequest 7 1 1 ((267 , 1) ∷ [])) ∷ [])) ≡ true
+server-padding-accepted = refl
+
 -- Honest clients cannot request more than maxTxs, even with a valid bitmap.
 client-request-over-cap : does (hasTrace? client-cert
   ((Send , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap) ∷ [])) ≡ false
@@ -47,7 +110,7 @@ client-request-over-cap = refl
 -- Oversized requests fail at the client layer rather than bitmap decoding.
 client-request-over-cap-reason : rejectionReason client₀ client₀
   ((Send , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap) ∷ []) ≡
-  "client: request count exceeds maxTxs at index 1"
+  "client: request offset exceeds maxTxs at index 1"
 client-request-over-cap-reason = refl
 
 -- Servers may receive every valid request and then serve it or throw.
@@ -55,18 +118,31 @@ server-request-over-cap-accepted : does (hasTrace? server-cert
   ((Recv , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap) ∷ [])) ≡ true
 server-request-over-cap-accepted = refl
 
--- Server replies must satisfy the same count decoder cap as client replies.
+-- Even a 17150-count reply is permitted on a server send.
 server-count-cap : does (hasTrace? server-cert
   ((Recv , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap)
-   ∷ (Send , MsgLeiosBlockTxs 17150 100) ∷ [])) ≡ false
+   ∷ (Send , MsgLeiosBlockTxs 17150 100) ∷ [])) ≡ true
 server-count-cap = refl
 
--- The rejected oversized reply is explained at the wire layer.
-server-count-cap-reason : rejectionReason server₀ sThrown
-  ((Recv , MsgLeiosBlockTxsRequest 1 10 17150 overCapBitmap)
-   ∷ (Send , MsgLeiosBlockTxs 17150 100) ∷ []) ≡
-  "wire: transaction count cap exceeded at index 2"
+-- Server diagnostics retain count matching even above both decoder caps.
+server-count-cap-reason : whyRejected (sReady (blockTxsReq 1 10 2))
+  (Send , MsgLeiosBlockTxs 17143 550001) ≡ "client: reply count mismatch"
 server-count-cap-reason = refl
+
+-- Oversized server sends have no cap failure to report after matching.
+server-oversized-block-reason : whyRejected (sReady (blockReq 1 10))
+  (Send , MsgLeiosBlock 1 700000) ≡ "none: no failed check"
+server-oversized-block-reason = refl
+
+-- Both decoder limits are ignored for a matching server transaction reply.
+server-over-cap-reply-reason : whyRejected (sReady (blockTxsReq 1 10 17143))
+  (Send , MsgLeiosBlockTxs 17143 550001) ≡ "none: no failed check"
+server-over-cap-reply-reason = refl
+
+-- A wrong server hash remains diagnosed even above the receive byte cap.
+server-oversized-wrong-hash-reason : whyRejected (sReady (blockReq 1 10))
+  (Send , MsgLeiosBlock 2 700000) ≡ "client: block hash mismatch"
+server-oversized-wrong-hash-reason = refl
 
 -- A server cannot send a different block hash for the outstanding request.
 server-wrong-hash : does (hasTrace? server-cert
@@ -205,14 +281,14 @@ block-too-big = refl
 server-txs-too-big : does (hasTrace? server-cert
     ((Recv , MsgLeiosBlockTxsRequest 1 10 2 bm)
     ∷ (Send , MsgLeiosBlockTxs 2 550001)
-    ∷ [])) ≡ false
+    ∷ [])) ≡ true
 server-txs-too-big = refl
 
 -- Server session: server-block-too-big.
 server-block-too-big : does (hasTrace? server-cert
     ((Recv , MsgLeiosBlockRequest 1 10)
     ∷ (Send , MsgLeiosBlock 1 660001)
-    ∷ [])) ≡ false
+    ∷ [])) ≡ true
 server-block-too-big = refl
 
 -- Client session: client-unsolicited.

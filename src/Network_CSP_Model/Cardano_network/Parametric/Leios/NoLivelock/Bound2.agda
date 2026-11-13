@@ -41,6 +41,7 @@ open import CSP.Laws.DivFree.Count (Net_Api-≟ {Payload}) using (Σc; labels)
 open import CSP.Laws.DivFree.CountMore (Net_Api-≟ {Payload}) using (Σc-⦀; Σc-sync; χ; χ̄; #H≡Σc; Σc≤#V; AllL-parL; AllL-parR; ≤-≡; +-inter)
 open import CSP.Laws.Traces.TraceLawsParallelTrace (Net_Api-≟ {Payload}) using (Par-trace-elim; ParInter)
 open import Function using (case_of_)
+import Data.Unit as Unit
 open import Data.Unit.Polymorphic using (tt)
 open import Cardano_network.Parametric.Leios.NoLivelock.MediumRelay p2 using (WireW; wO; wI; medium-relay; medium-io; medium-prov)
 open import Cardano_network.Parametric.Leios.NoLivelock.StoresProv 1 2 line2 (λ n → n) U6 allV6 using (Σc-+)
@@ -81,19 +82,19 @@ cancel2 {r₀} {i₀} {o₀} {c₀} {r₁} {i₁} {o₁} {c₁} h₀ h₁ m =
       (≤-trans (+-monoˡ-≤ (c₀ + c₁) m) (≤-≡ (+-comm (i₀ + i₁) (c₀ + c₁)))))))
 
 -- the threads' constant, in closed form
-KT≡ : ∀ B → KTn fzero B ≡ 20 * B + 76
+KT≡ : ∀ B → KTn fzero B ≡ 20 * B + 77
 KT≡ B = solve 1 (λ B → con 4 :+ ((con 2 :* B :+ con 2) :+ ((con 3 :* B :+ con 3) :+ (con 2 :+ (con 1 :+ (con 5
-          :+ ((con 8 :* B :+ con 8) :+ (con 5 :+ ((con 2 :* B :+ con 2) :+ ((con 5 :* B :+ con 5) :+ ((con 2 :* con 6 :+ con 2)
+          :+ ((con 8 :* B :+ con 8) :+ (con 6 :+ ((con 2 :* B :+ con 2) :+ ((con 5 :* B :+ con 5) :+ ((con 2 :* con 6 :+ con 2)
           :+ (con 3 :+ (con 3 :+ (con 4 :+ (con 5 :* con 2 :+ con 5))))))))))))))
-          := con 20 :* B :+ con 76) refl B
+          := con 20 :* B :+ con 77) refl B
   where open +-*-Solver
 
 -- THE LINEAR SYSTEM, solved
 fin : ∀ {H V F S Xn B₀ B₁ C₀ C₁ T₀ T₁ RF LN TQ BT BQ TS : ℕ}
     → F + S ≤ V → C₀ + C₁ ≤ V → Xn ≤ V → B₀ ≤ Xn + C₀ → B₁ ≤ Xn + C₁
-    → T₀ + T₁ ≤ (4 * F + (2 * S + (5 * RF + (5 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS))))))) + ((3 + KTn fzero B₀) + (3 + KTn (fsuc fzero) B₁))
+    → T₀ + T₁ ≤ (4 * F + (2 * S + (5 * RF + (6 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS))))))) + ((3 + KTn fzero B₀) + (3 + KTn (fsuc fzero) B₁))
     → RF ≤ 16 * (B₀ + B₁) + 32 → TS ≤ 120 → LN ≤ 24 * (B₀ + B₁) + 160 → TQ ≤ 4 * LN → BT ≤ 2 * TQ
-    → BQ ≤ 10 * LN + 2 * BT + 20 → H ≤ 12 * (T₀ + T₁) + 48 → H ≤ c2 * V + c2₀
+    → BQ ≤ 8 * LN + 2 * BT + 20 → H ≤ 12 * (T₀ + T₁) + 48 → H ≤ c2 * V + c2₀
 fin {H} {V} {F} {S} {Xn} {B₀} {B₁} {C₀} {C₁} {T₀} {T₁} {RF} {LN} {TQ} {BT} {BQ} {TS} hFS hC hX hB₀ hB₁ hT hRF hTS hLN hTQ hBT hBQ hH =
   ≤-trans hH (≤-trans (+-monoˡ-≤ 48 (*-monoʳ-≤ 12 tB))
     (≤-≡ (solve 1 (λ v → con 12 :* (con 7720 :* v :+ con 17338) :+ con 48 := con 92640 :* v :+ con 208104) refl V)))
@@ -109,32 +110,37 @@ fin {H} {V} {F} {S} {Xn} {B₀} {B₁} {C₀} {C₁} {T₀} {T₁} {RF} {LN} {TQ
     bt : BT ≤ 8 * LN
     bt = ≤-trans hBT (≤-trans (*-monoʳ-≤ 2 hTQ) (≤-≡ (solve 1 (λ l → con 2 :* (con 4 :* l) := con 8 :* l) refl LN)))
     -- BT's bound `bt` substituted into BQ's own bound, restated as a multiple of LN
-    bq : BQ ≤ 26 * LN + 20
-    bq = ≤-trans hBQ (≤-trans (+-monoˡ-≤ 20 (+-monoʳ-≤ (10 * LN) (*-monoʳ-≤ 2 bt)))
-           (≤-≡ (solve 1 (λ l → con 10 :* l :+ con 2 :* (con 8 :* l) :+ con 20 := con 26 :* l :+ con 20) refl LN)))
+    bq : BQ ≤ 24 * LN + 20
+    bq = ≤-trans hBQ (≤-trans (+-monoˡ-≤ 20 (+-monoʳ-≤ (8 * LN) (*-monoʳ-≤ 2 bt)))
+           (≤-≡ (solve 1 (λ l → con 8 :* l :+ con 2 :* (con 8 :* l) :+ con 20 := con 24 :* l :+ con 20) refl LN)))
     -- forges and submissions
     fs : 4 * F + 2 * S ≤ 4 * V
     fs = ≤-trans (+-monoʳ-≤ (4 * F) (*-monoˡ-≤ S {2} {4} (s≤s (s≤s z≤n))))
            (≤-trans (≤-≡ (sym (*-distribˡ-+ 4 F S))) (*-monoʳ-≤ 4 hFS))
     -- the trigger weight
-    w : 4 * F + (2 * S + (5 * RF + (5 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS)))))) ≤ 4 * V + (5 * RF + (103 * LN + 540))
-    w = ≤-trans (+-monoʳ-≤ (4 * F) (+-monoʳ-≤ (2 * S) (+-monoʳ-≤ (5 * RF) (+-monoʳ-≤ (5 * LN)
+    w : 4 * F + (2 * S + (5 * RF + (6 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS)))))) ≤ 4 * V + (5 * RF + (98 * LN + 540))
+    w = ≤-trans (+-monoʳ-≤ (4 * F) (+-monoʳ-≤ (2 * S) (+-monoʳ-≤ (5 * RF) (+-monoʳ-≤ (6 * LN)
               (+-mono-≤ bt (+-mono-≤ (*-monoʳ-≤ 3 bq) (+-mono-≤ (*-monoʳ-≤ 3 hTQ) (*-monoʳ-≤ 4 hTS))))))))
-          (≤-trans (≤-≡ (solve 4 (λ f s r l → f :+ (s :+ (con 5 :* r :+ (con 5 :* l :+ (con 8 :* l :+ (con 3 :* (con 26 :* l :+ con 20)
+          (≤-trans (≤-≡ (solve 4 (λ f s r l → f :+ (s :+ (con 5 :* r :+ (con 6 :* l :+ (con 8 :* l :+ (con 3 :* (con 24 :* l :+ con 20)
                                      :+ (con 3 :* (con 4 :* l) :+ con 4 :* con 120))))))
-                                   := (f :+ s) :+ (con 5 :* r :+ (con 103 :* l :+ con 540))) refl (4 * F) (2 * S) RF LN))
+                                   := (f :+ s) :+ (con 5 :* r :+ (con 98 :* l :+ con 540))) refl (4 * F) (2 * S) RF LN))
             (+-monoˡ-≤ _ fs))
     -- the threads' events
+    tB-tight : T₀ + T₁ ≤ 7360 * V + 16540
+    tB-tight = ≤-trans hT (≤-trans (+-mono-≤ w (≤-≡ (trans (cong₂ (λ x y → (3 + x) + (3 + y)) (KT≡ B₀) (KT≡ B₁))
+                                            (solve 2 (λ b c → (con 3 :+ (con 20 :* b :+ con 77)) :+ (con 3 :+ (con 20 :* c :+ con 77))
+                                                            := con 20 :* (b :+ c) :+ con 160) refl B₀ B₁))))
+           (≤-trans (+-monoˡ-≤ (20 * B + 160) (+-monoʳ-≤ (4 * V) (+-mono-≤ (*-monoʳ-≤ 5 hRF) (+-monoˡ-≤ 540 (*-monoʳ-≤ 98 hLN)))))
+             (≤-trans (≤-≡ (solve 2 (λ v b → con 4 :* v :+ (con 5 :* (con 16 :* b :+ con 32) :+ (con 98 :* (con 24 :* b :+ con 160)
+                                                :+ con 540)) :+ (con 20 :* b :+ con 160)
+                                              := con 4 :* v :+ con 2452 :* b :+ con 16540) refl V B))
+               (≤-trans (+-monoˡ-≤ 16540 (+-monoʳ-≤ (4 * V) (*-monoʳ-≤ 2452 bB)))
+                 (≤-≡ (solve 1 (λ v → con 4 :* v :+ con 2452 :* (con 3 :* v) :+ con 16540 := con 7360 :* v :+ con 16540) refl V))))))
+
+    -- The tighter body-request relay leaves room inside the original public bound.
     tB : T₀ + T₁ ≤ 7720 * V + 17338
-    tB = ≤-trans hT (≤-trans (+-mono-≤ w (≤-≡ (trans (cong₂ (λ x y → (3 + x) + (3 + y)) (KT≡ B₀) (KT≡ B₁))
-                                            (solve 2 (λ b c → (con 3 :+ (con 20 :* b :+ con 76)) :+ (con 3 :+ (con 20 :* c :+ con 76))
-                                                            := con 20 :* (b :+ c) :+ con 158) refl B₀ B₁))))
-           (≤-trans (+-monoˡ-≤ (20 * B + 158) (+-monoʳ-≤ (4 * V) (+-mono-≤ (*-monoʳ-≤ 5 hRF) (+-monoˡ-≤ 540 (*-monoʳ-≤ 103 hLN)))))
-             (≤-trans (≤-≡ (solve 2 (λ v b → con 4 :* v :+ (con 5 :* (con 16 :* b :+ con 32) :+ (con 103 :* (con 24 :* b :+ con 160)
-                                                :+ con 540)) :+ (con 20 :* b :+ con 158)
-                                              := con 4 :* v :+ con 2572 :* b :+ con 17338) refl V B))
-               (≤-trans (+-monoˡ-≤ 17338 (+-monoʳ-≤ (4 * V) (*-monoʳ-≤ 2572 bB)))
-                 (≤-≡ (solve 1 (λ v → con 4 :* v :+ con 2572 :* (con 3 :* v) :+ con 17338 := con 7720 :* v :+ con 17338) refl V))))))
+    tB = ≤-trans tB-tight (+-mono-≤
+      (*-monoˡ-≤ V (≤ᵇ⇒≤ 7360 7720 Unit.tt)) (≤ᵇ⇒≤ 16540 17338 Unit.tt))
 
 -- the system, split: the medium and the two nodes
 sysB : ∀ {s Q sM sN s₀ s₁ M′ N₀′ N₁′} → rawSys2 ⟹⟨ s ⟩ Q → NetworkLinkA ⟹⟨ sM ⟩ M′
@@ -160,10 +166,10 @@ sysB {s} {s₀ = s₀} {s₁ = s₁} tr tM t₀ t₁ pi pn =
        (≤-trans (grp gTQ) (≤-≡ (trans (solve 2 (λ a b → con 2 :* (con 2 :* a) :+ con 2 :* (con 2 :* b) := con 4 :* (a :+ b)) refl
                                          (Σc (rep gLN) l₀) (Σc (rep gLN) l₁)) (cong (4 *_) (sym (sp (rep gLN)))))))
        (≤-trans (grp gBT) (≤-≡ (trans (sym (*-distribˡ-+ 2 (Σc (rep gTQ) l₀) (Σc (rep gTQ) l₁))) (cong (2 *_) (sym (sp (rep gTQ)))))))
-       (≤-trans (grp gBQ) (≤-≡ (trans (solve 4 (λ a b c d → con 2 :* (con 5 :* a :+ c :+ con 5) :+ con 2 :* (con 5 :* b :+ d :+ con 5)
-                                                      := con 10 :* (a :+ b) :+ con 2 :* (c :+ d) :+ con 20) refl
+       (≤-trans (grp gBQ) (≤-≡ (trans (solve 4 (λ a b c d → con 2 :* (con 4 :* a :+ c :+ con 5) :+ con 2 :* (con 4 :* b :+ d :+ con 5)
+                                                      := con 8 :* (a :+ b) :+ con 2 :* (c :+ d) :+ con 20) refl
                                          (Σc (rep gLN) l₀) (Σc (rep gLN) l₁) (Σc (rep gBT) l₀) (Σc (rep gBT) l₁))
-                                  (cong₂ (λ x y → 10 * x + 2 * y + 20) (sym (sp (rep gLN))) (sym (sp (rep gBT)))))))
+                                  (cong₂ (λ x y → 8 * x + 2 * y + 20) (sym (sp (rep gLN))) (sym (sp (rep gBT)))))))
        (≤-trans (≤-≡ (sp (χ H2)))
          (≤-trans (cancel2 {Σc (χ H2) l₀} {Σc (wI one) l₀} {Σc (wO one) l₀} {12 * NodeOut.nT N₀ + 24}
                            {Σc (χ H2) l₁} {Σc (wI one) l₁} {Σc (wO one) l₁} {12 * NodeOut.nT N₁ + 24}

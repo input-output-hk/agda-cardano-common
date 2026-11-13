@@ -48,26 +48,43 @@ requested point. An application-level stop ends the shared `lnClientLoopL`,
 silencing that link's Notify client, including announcement, offer and vote handling.
 These are thread/peer stops, not a model of every mini-protocol dying on a TCP link.
 
-`fetchTxs` still first reads the body, then requests
-`txChunks lp h = chunksOf (chunk lp) (allOffsets lp h)` in order, with
-`1 ≤ chunk ≤ maxTxs`. An empty table sends no transaction request. This deliberately
-over-fetches relative to upstream's missing-only selection; the count bound stands
-in for upstream's byte batching. The three main parameter constructors use
-`maxTxs = 17142`, with `chunk = 1` in model instances and `17142` in `replayLP`.
-The received-EB check bounds table length, not wire byte size.
+## Stage 3E behavior: missing-only fetch
+
+`fetchTxs` first reads the body, then `missingOffsets` walks `allOffsets lp h`
+in ascending order. For each table hash, `getTxEv` skips a held transaction and
+`lacksTxEv` keeps a missing transaction's offset. The continuation receives the
+missing list in the same order; `fetchChunks` requests
+`chunksOf (chunk lp) missing`. An empty table or a fully held table sends no
+transaction request. If only offset 1 of a two-transaction body is missing, the
+request bitmap is exactly `1 ∷ []`.
+
+The missing list is a sublist of `allOffsets`. `missing-canonical` and the
+missing-walk/chunk lemmas preserve strict ordering and the wire ceiling under the
+existing body-table length premise, including for locally forged bodies.
+`allHeldNoRequest` and `oneMissingOneRequest` in
+[`NodeLogicLSanity`](NodeLogicLSanity.agda) are local residual computation gates;
+they do not witness a composed network delivery or honest announcement.
+
+The bound remains `1 ≤ chunk ≤ maxTxs`. The three main parameter constructors
+use `maxTxs = 17142`, with `chunk = 1` in model instances and `17142` in `replayLP`.
+Missing-only selection now follows the upstream policy; the count parameter still
+abstracts byte batching. The received-EB check bounds table length, not wire size.
 
 The seven safety disciplines, `noRet-logic`, `noLivelockL`, `noLivelock2`, and the
 `LiveL`/`Live2` finite-witness statements are unchanged. Their helpers cover the
-new events and stopped/chunked thread shapes. The replay server/client bridge and
-`server-legal` statements are unchanged too; `LeiosFetchPipe`, the replay spec,
+new events, missing-offset walk and stopped/chunked thread shapes. The replay
+server/client bridge and `server-legal` statements are unchanged too; `LeiosFetchPipe`, the replay spec,
 application carriers and peer states retain their definitions.
 [`FetchWedge`](Negative/FetchWedge.agda)'s `wedge-stuck` now concerns the local
 pre-3B+C copy `ebServeBodyBlocking`; `wedge-throws` and `stopped-no-step` witness
 the shipped serving thread's stop in the same unknown-body scenario. Their scope
 is a thread/store pair, not the whole system. Recheck evidence and accepted helper
 signature changes are in the [stage-3B+C outcome](../../../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome).
-Count-preserving universal replay soundness remains stage 3D work. These results
-do not establish delivery liveness, validity, or honest announcement reachability.
+The [stage-3E outcome](../../../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3e-outcome)
+records the cleanup, counting-helper changes and fresh recheck. Count-preserving
+universal replay soundness has the conditional `WireOK` scope recorded in the
+[stage-3D outcome](../../../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3d-outcome).
+These results do not establish delivery liveness, validity, or honest announcement reachability.
 
 The design spec is
 `docs/superpowers/specs/2026-09-21-leios-prototype-protocols-design.md`; the two payload

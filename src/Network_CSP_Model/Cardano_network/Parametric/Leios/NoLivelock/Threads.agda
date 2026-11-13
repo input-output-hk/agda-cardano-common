@@ -74,7 +74,7 @@ import Cardano_network.Parametric.Leios.NodeLogicL as NLL
 open NLL.Generic pP lpP tP apiES vo using ( serverBodyL; serverLoopL; lnServerBodyL; lnServerLoopL; ebIndexBody; ebIndex; voterBody; voter
         ; bodyOfferBody; bodyOfferLoop; awaitTxs; voteOfferBody; voteOfferLoop; tsServeBody; tsServe
         ; forgeL; forgeBodyL; forgeCertL; submit; certSink; lnClientBodyL; lnClientLoopL; fetchBody
-        ; fetchTxs; fetchChunks; entryOk; putAll; putChecked; putAllVotes; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody
+        ; fetchTxs; missingOffsets; fetchChunks; entryOk; putAll; putChecked; putAllVotes; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody
         ; ebTxsServeLoop; putAllTx; tsPullBody; tsPull; at?; getTxEv; putTxEv; putVoteEv; submitEv; certEv; lacksBodyEv; lacksTxEv; memberOf; forgeOK; DecEq-⊤poly; DecEq-ℕ×ℕ )
 
 ------------------------------------------------------------------------
@@ -266,12 +266,15 @@ fc-All n l d q (bm ∷ bms) (pq All.∷ pqs) pr pp =
 -- At lpP each body has zero or one transaction, so its chunks are singleton or absent.
 ft-All : ∀ {P : Event → Set} n l d q
   → (∀ eb → P (evLabel _ (NLL.Generic.getBodyEv pP lpP tP apiES vo n (proj₁ q)) eb))
+  → (∀ tx → P (evLabel _ (getTxEv n true) tx))
+  → P (evLabel _ (lacksTxEv n true) U.tt)
   → (∀ bm → length bm ≤ 1 → P (evLabel _ (apiLP l d lfpSendBlockTxsRequest) (q , bm)))
   → (∀ reply → P (evLabel _ (apiLP l d lfpRecvBlockTxs) reply))
   → (∀ tx → P (evLabel _ (putTxEv n) tx)) → AllT P (fetchTxs n l d q)
-ft-All n l d (true , slot) pg pq pr pp = AllT-⟶ _ pg
-  (λ _ → fc-All n l d _ _ (pq (0 ∷ []) ≤-refl All.∷ All.[]) pr pp)
-ft-All n l d (false , slot) pg pq pr pp = AllT-⟶ _ pg (λ _ → AllT-Ret)
+ft-All n l d (true , slot) pg pt pn pq pr pp = AllT-⟶ _ pg
+  (λ _ → AllT-□ (AllT-⟶ _ pt (λ _ → AllT-Ret))
+    (AllT-⟶ _ (λ _ → pn) (λ _ → fc-All n l d _ _ (pq (0 ∷ []) ≤-refl All.∷ All.[]) pr pp)))
+ft-All n l d (false , slot) pg pt pn pq pr pp = AllT-⟶ _ pg (λ _ → AllT-Ret)
 
 -- Body rejection stops without labels after the receive; success deposits one body.
 fb-All : ∀ {P : Event → Set} n l d q sz
@@ -419,29 +422,31 @@ clientLoop-count n l d =
     ck : ∀ ht → Dp 3 (clientBody-k n l d ht)
     ck (header b , _) = Dp-Output ⦃ DecEq-ChainRange ⦄ _ _ (Dp-⟶ _ (λ _ → Dp-Output ⦃ decBlock ⦄ _ _ Dp-Ret))
 
--- The concrete family has at most one chunk: three non-deposit events after the offer.
-ft-DpW : ∀ n l d q → DpW 3 ℓLnRep (fetchTxs n l d q)
-ft-DpW n l d (true , slot) = DpW-⟶ _ (λ _ → DpW-Output ⦃ DecEq-TxsRequest ⦄ _ _
-  (DpW-⟶ _ (λ { (q′ , es) → DpW-if ⌊ DecEq._≟_ DecEq-EBPoint q′ (true , slot) ⌋
-    (DpW-mono (m≤m+n _ _) (Dp→DpW (Dp-mono (≤-≡ (+-identityʳ (length es)))
-      (Dp->>= {m = length es} {n = 0} (pc-Dp n true es) (λ _ → Dp-Ret))))) DpW-Stop })))
+-- The concrete family has at most one chunk: four non-deposit events after the offer.
+ft-DpW : ∀ n l d q → DpW 4 ℓLnRep (fetchTxs n l d q)
+ft-DpW n l d (true , slot) = DpW-⟶ _ (λ _ → DpW-□
+  (DpW-⟶ _ (λ _ → DpW-Ret))
+  (DpW-⟶ _ (λ _ → DpW-Output ⦃ DecEq-TxsRequest ⦄ _ _
+    (DpW-⟶ _ (λ { (q′ , es) → DpW-if ⌊ DecEq._≟_ DecEq-EBPoint q′ (true , slot) ⌋
+      (DpW-mono (m≤m+n _ _) (Dp→DpW (Dp-mono (≤-≡ (+-identityʳ (length es)))
+        (Dp->>= {m = length es} {n = 0} (pc-Dp n true es) (λ _ → Dp-Ret))))) DpW-Stop })))))
 ft-DpW n l d (false , slot) = DpW-⟶ _ (λ _ → DpW-Ret)
 
--- THE LN CLIENT COUNT: five events per Notify report, plus one per delivered list entry
+-- THE LN CLIENT COUNT: six events per Notify report, plus one per delivered list entry
 lnClientLoopL-count : ∀ n l d {s W} → lnClientLoopL n (l , d) ⟹⟨ s ⟩ W
-                    → #e s ≤ 5 * Σc cLnRep (labels s) + 5 + Σc ℓLnRep (labels s)
+                    → #e s ≤ 6 * Σc cLnRep (labels s) + 6 + Σc ℓLnRep (labels s)
 lnClientLoopL-count n l d =
   trigLoop
-    (λ _ → DpW->>= {m = 5} {n = 0}
+    (λ _ → DpW->>= {m = 6} {n = 0}
       (DpW-⟶ (apiLP l d lnpSendRequestNext) (λ _ →
          DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockAnnouncement) (λ _ → DpW-Ret))
         (DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockOffer) (λ { (q , _) → Dp→DpW
-                  (Dp-Output ⦃ DecEq-EBPoint ⦄ _ _ (Dp-⟶ _ (λ eb →
+                  (Dp-mono (s≤s (s≤s (s≤s z≤n))) (Dp-Output ⦃ DecEq-EBPoint ⦄ _ _ (Dp-⟶ _ (λ eb →
                     Dp-if (maxTxs <ᵇ length (ebTxs (ebHash eb))) (Dp-mono z≤n Dp-Stop)
                       (Dp-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋
-                        (Dp-Output ⦃ decEB ⦄ _ _ Dp-Ret) (Dp-mono z≤n Dp-Stop))))) }))
+                        (Dp-Output ⦃ decEB ⦄ _ _ Dp-Ret) (Dp-mono z≤n Dp-Stop)))))) }))
         (DpW-□ (DpW-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ q → ft-DpW n l d q))
-               (DpW-⟶ (apiLP l d lnpRecvVotes) (λ vs → DpW-mono (m≤n+m _ 3) (Dp→DpW (pav-Dp n vs))))))))
+               (DpW-⟶ (apiLP l d lnpRecvVotes) (λ vs → DpW-mono (m≤n+m _ 4) (Dp→DpW (pav-Dp n vs))))))))
       (λ _ → DpW-Ret))
     (λ _ → trig-ls tt (Post-⟶ (apiLP l d lnpSendRequestNext) (λ _ →
        Post-□ (trig-hd (apiLP l d lnpRecvBlockAnnouncement) (λ _ → ≤-refl))
@@ -533,7 +538,7 @@ fetchTxs-emits n l d {s} tr = Σc-≤ (AllL-map proj₁ a) , Σc1≤#e s (AllL-m
             (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockOffer) (λ _ → z≤n , z≤n , z≤n)
               (λ { (q , sz) → fb-All n l d q sz (z≤n , ≤-refl , z≤n) (λ _ → z≤n , z≤n , z≤n) (λ _ → z≤n , z≤n , z≤n) }))
             (AllT-□ (AllT-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ → z≤n , z≤n , z≤n)
-              (λ q → ft-All n l d q (λ _ → z≤n , z≤n , z≤n) (λ bm bound → bound , z≤n , ≤-refl) (λ _ → z≤n , z≤n , z≤n) (λ _ → z≤n , z≤n , z≤n)))
+              (λ q → ft-All n l d q (λ _ → z≤n , z≤n , z≤n) (λ _ → z≤n , z≤n , z≤n) (z≤n , z≤n , z≤n) (λ bm bound → bound , z≤n , ≤-refl) (λ _ → z≤n , z≤n , z≤n) (λ _ → z≤n , z≤n , z≤n)))
                     (AllT-⟶ (apiLP l d lnpRecvVotes) (λ _ → z≤n , z≤n , z≤n)
                        (λ vs → pav-All n (λ _ → z≤n , z≤n , z≤n) vs)))))) tt tr
 
@@ -667,9 +672,11 @@ PfxW-Out0 {c} {d} {k} {A} e v h a tr with out-tr tr
 ft-req : ∀ n l d q → PfxW (cCmd lfpSendBlockTxsRequest) (cRep lnpRecvBlockTxsOffer) 1 (fetchTxs n l d q)
 ft-req n l d (false , slot) = PfxW-⟶ _ (λ _ → refl) (λ _ → PfxW-0 AllT-Ret)
 ft-req n l d (true , slot) = PfxW-⟶ _ (λ _ → refl) (λ _ →
-  PfxW-Out0 ⦃ DecEq-TxsRequest ⦄ _ _ ≤-refl (AllT-⟶ _ (λ _ → z≤n) (λ { (q′ , es) →
-    AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ (true , slot) ⌋
-      (AllT->>= (pc-All n true (λ _ → z≤n) es) (λ _ → AllT-Ret)) AllT-Stop })))
+  PfxW-□ (PfxW-⟶ _ (λ _ → refl) (λ _ → PfxW-0 AllT-Ret))
+    (PfxW-⟶ _ (λ _ → refl) (λ _ →
+      PfxW-Out0 ⦃ DecEq-TxsRequest ⦄ _ _ ≤-refl (AllT-⟶ _ (λ _ → z≤n) (λ { (q′ , es) →
+        AllT-if ⌊ DecEq._≟_ DecEq-EBPoint q′ (true , slot) ⌋
+          (AllT->>= (pc-All n true (λ _ → z≤n) es) (λ _ → AllT-Ret)) AllT-Stop })))))
 
 -- THE CLOSURE-REQUEST RELAY: every closure request answers a closure offer report
 fetchTxs-req : ∀ n l d {s W} → lnClientLoopL n (l , d) ⟹⟨ s ⟩ W
@@ -687,3 +694,30 @@ fetchTxs-req n l d {s} tr =
       (PfxW-□ (PfxW-⟶ (apiLP l d lnpRecvBlockTxsOffer) (λ _ → refl)
         (λ q → ft-req n l d q))
               (PfxW-0 (AllT-⟶ (apiLP l d lnpRecvVotes) (λ _ → z≤n) (λ vs → pav-All n (λ _ → z≤n) vs))))))
+
+-- A body-offer arm sends one body request, then only receives or deposits.
+fb-req : ∀ n l d q sz →
+  PfxW (cCmd lfpSendBlockRequest) (cRep lnpRecvBlockOffer) 1 (fetchBody n l d (q , sz))
+fb-req n l d q sz = PfxW-Out0 ⦃ DecEq-EBPoint ⦄ _ _ ≤-refl
+  (AllT-⟶ _ (λ _ → z≤n) (λ eb →
+    AllT-if (maxTxs <ᵇ length (ebTxs (ebHash eb))) AllT-Stop
+      (AllT-if ⌊ DecEq._≟_ decEBHash (ebHash eb) (proj₁ q) ⌋
+        (AllT-Output ⦃ decEB ⦄ _ _ z≤n AllT-Ret) AllT-Stop)))
+
+-- Body requests are paid directly by body offers, independently of mempool reads.
+fetchBody-req : ∀ n l d {s W} → lnClientLoopL n (l , d) ⟹⟨ s ⟩ W →
+  Σc (cCmd lfpSendBlockRequest) (labels s) ≤ Σc (cRep lnpRecvBlockOffer) (labels s)
+fetchBody-req n l d {s} tr =
+  slack0 {cCmd lfpSendBlockRequest} {cRep lnpRecvBlockOffer} {labels s}
+    (potIter (λ _ → 0) (cCmd lfpSendBlockRequest) (cRep lnpRecvBlockOffer) 0
+      (λ _ → pfx→rp (PfxW->>=Ret rnd)) tt tr)
+  where
+  -- Only the body-offer branch consumes body-request credit.
+  rnd : PfxW (cCmd lfpSendBlockRequest) (cRep lnpRecvBlockOffer) 0 (lnClientBodyL n l d)
+  rnd = PfxW-⟶ _ (λ _ → refl) (λ _ →
+    PfxW-□ (PfxW-0 (AllT-⟶ _ (λ _ → z≤n) (λ _ → AllT-Ret)))
+      (PfxW-□ (PfxW-⟶ _ (λ _ → refl) (λ { (q , sz) → fb-req n l d q sz }))
+        (PfxW-□ (PfxW-0 (AllT-⟶ _ (λ _ → z≤n)
+          (λ q → ft-All n l d q (λ _ → z≤n) (λ _ → z≤n) z≤n
+            (λ _ _ → z≤n) (λ _ → z≤n) (λ _ → z≤n))))
+          (PfxW-0 (AllT-⟶ _ (λ _ → z≤n) (λ vs → pav-All n (λ _ → z≤n) vs))))))

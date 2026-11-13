@@ -308,14 +308,14 @@ sBlkV (sVis {at = _ , receiveLFP _ _} refl ())
 sBlkV (sVis {at = _ , doneLFP _ _} refl ())
 
 -- server stBlockTxs: the api menu (drop offsets and send a positional tx reply)
-data STxsV (l : Link) (d : Dir) (q : EBHash × LSlot) (bm : TxBitmap) : F.Event → Rd → Set₁ where
-  stxTxs : ∀ q′ es → STxsV l d q bm (F.evLabel _ (apiLPev l d lfpSendBlockTxs) (q′ , es))
+data STxsV (l : Link) (d : Dir) : F.Event → Rd → Set₁ where
+  stxTxs : ∀ q′ es → STxsV l d (F.evLabel _ (apiLPev l d lfpSendBlockTxs) (q′ , es))
                        (snd l d FromResponder (MsgLFPBlockTxs (map proj₂ es)) stIdle)
 
 -- the server stBlockTxs inversion
-sTxsV : ∀ {l d q bm x t′} → serverStepP l d (stBlockTxs q bm) ─[ ev (evl x) ]─► t′ → STxsV l d q bm x t′
+sTxsV : ∀ {l d q bm x t′} → serverStepP l d (stBlockTxs q bm) ─[ ev (evl x) ]─► t′ → STxsV l d x t′
 sTxsV {l} {d} {q₀} {bm} (sVis {at = _ , apiLPev l′ d′ lfpSendBlockTxs} {a = q , es} refl br) with l′ ≟ l | d′ ≟ d
-... | yes refl | yes refl = subst (STxsV l d q₀ bm _) (just-injective br) (stxTxs q es)
+... | yes refl | yes refl = subst (STxsV l d _) (just-injective br) (stxTxs q es)
 ... | no _     | _        with () ← br
 ... | yes refl | no _     with () ← br
 sTxsV (sVis {at = _ , apiLPev _ _ lnpSendRequestNext} refl ())
@@ -440,7 +440,7 @@ ok-sBlk : ∀ {l d x t′} → SBlkV l d x t′ → OkS stBlock x t′
 ok-sBlk (sbBlk _) = okS aOut sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out
 
 -- (server stBlockTxs; the entries relay pays list lengths)
-ok-sTxs : ∀ {l d q bm x t′} → STxsV l d q bm x t′ → OkS (stBlockTxs q bm) x t′
+ok-sTxs : ∀ {l d q bm x t′} → STxsV l d x t′ → OkS (stBlockTxs q bm) x t′
 ok-sTxs (stxTxs _ es) = okS aOut sp-Out sp-Out sp-Out sp-Out sp-Out sp-Out (sp-Out≤ z≤n entries≤ entriesBack)
   where
     -- Dropping API offsets preserves the number of transactions sent.
@@ -466,7 +466,7 @@ rd-s : ∀ {Φ : LFPState → ℕ} {cost credit : F.Event → ℕ} {K}
      → ∀ {l d} st → RoundPot {Rx = Rr} {Φ = Φ} {cost} {credit} {K} st (serverStepP l d st)
 rd-s π stIdle     = rp-pch λ st → π (ok-sIdle (sIdleV st))
 rd-s π stBlock    = rp-pch λ st → π (ok-sBlk (sBlkV st))
-rd-s π (stBlockTxs _ _) = rp-pch λ st → π (ok-sTxs (sTxsV st))
+rd-s π (stBlockTxs q bm) = rp-pch λ st → π (ok-sTxs (sTxsV {q = q} {bm = bm} st))
 rd-s π stDone     = rp-done
 
 ------------------------------------------------------------------------
@@ -491,7 +491,7 @@ cbodyG stDone     = NoRetBy-Ret λ ()
 sbodyR : ∀ {l d} st → MAccR ∅ES (serverStepP l d st)
 sbodyR {l} {d} stIdle     = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sIdle (sIdleV {l} {d} (sVis {at = at} {a = a} refl eq)))
 sbodyR {l} {d} stBlock    = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sBlk (sBlkV {l} {d} (sVis {at = at} {a = a} refl eq)))
-sbodyR {l} {d} (stBlockTxs q bm) = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sTxs (sTxsV {l} {d} {q} {bm} (sVis {at = at} {a = a} refl eq)))
+sbodyR {l} {d} (stBlockTxs q bm) = MAccR-react refl λ {at} {a} eq → OkS.acc (ok-sTxs {q = q} {bm = bm} (sTxsV {l} {d} {q} {bm} (sVis {at = at} {a = a} refl eq)))
 sbodyR stDone             = MAccR-Ret _
 
 -- every server round starts with a visible event
@@ -656,14 +656,14 @@ nr-sBlk : ∀ {l d x t′} → SBlkV l d x t′ → NRs stBlock x t′
 nr-sBlk (sbBlk _) = sp-Out
 
 -- (server stBlockTxs)
-nr-sTxs : ∀ {l d q bm x t′} → STxsV l d q bm x t′ → NRs (stBlockTxs q bm) x t′
+nr-sTxs : ∀ {l d q bm x t′} → STxsV l d x t′ → NRs (stBlockTxs q bm) x t′
 nr-sTxs (stxTxs _ _) = sp-Out
 
 -- the server's rounds
 nr-s : ∀ {l d} st → RoundPot {Rx = Rr} {Φ = Φ0} {(λ e → repLNP e + repLFc e) ʳ} {λ _ → 0} {0} st (serverStepP l d st)
 nr-s stIdle     = rp-pch λ st → nr-sIdle (sIdleV st)
 nr-s stBlock    = rp-pch λ st → nr-sBlk (sBlkV st)
-nr-s (stBlockTxs _ _) = rp-pch λ st → nr-sTxs (sTxsV st)
+nr-s (stBlockTxs q bm) = rp-pch λ st → nr-sTxs (sTxsV {q = q} {bm = bm} st)
 nr-s stDone     = rp-done
 
 -- ALPHABET (client): it makes no LNP-client report and no LFP-server report

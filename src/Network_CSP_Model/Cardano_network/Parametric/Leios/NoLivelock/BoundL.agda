@@ -28,6 +28,7 @@ open import Data.List using (List; length)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; cong₂; subst; subst₂)
 open import Process_Trees using (ExtI)
 open import Function using (case_of_)
+import Data.Unit as Unit
 open import Data.Unit.Polymorphic using (tt)
 import Data.Unit.Polymorphic as UP
 open import Level using (0ℓ)
@@ -150,34 +151,34 @@ cancel3 {r₀} {i₀} {o₀} {c₀} {r₁} {i₁} {o₁} {c₁} {r₂} {i₂} {o
   where open +-*-Solver
 
 -- the one-endpoint nodes' threads' constant, in closed form
-KTA : ∀ B → KTn fzero B ≡ 20 * B + 82
+KTA : ∀ B → KTn fzero B ≡ 20 * B + 83
 KTA B = solve 1 (λ B → con 4 :+ ((con 2 :* B :+ con 2) :+ ((con 3 :* B :+ con 3) :+ (con 2 :+ (con 1 :+ (con 5
-          :+ ((con 8 :* B :+ con 8) :+ (con 5 :+ ((con 2 :* B :+ con 2) :+ ((con 5 :* B :+ con 5) :+ ((con 2 :* con 9 :+ con 2)
+          :+ ((con 8 :* B :+ con 8) :+ (con 6 :+ ((con 2 :* B :+ con 2) :+ ((con 5 :* B :+ con 5) :+ ((con 2 :* con 9 :+ con 2)
           :+ (con 3 :+ (con 3 :+ (con 4 :+ (con 5 :* con 2 :+ con 5))))))))))))))
-          := con 20 :* B :+ con 82) refl B
+          := con 20 :* B :+ con 83) refl B
   where open +-*-Solver
 
 -- … node C's is node A's
-KTC : ∀ B → KTn (fsuc (fsuc fzero)) B ≡ 20 * B + 82
+KTC : ∀ B → KTn (fsuc (fsuc fzero)) B ≡ 20 * B + 83
 KTC = KTA
 
 -- node B's threads' constant (two endpoints), in closed form
-KTB : ∀ B → KTn (fsuc fzero) B ≡ 35 * B + 152
+KTB : ∀ B → KTn (fsuc fzero) B ≡ 35 * B + 154
 KTB B = solve 1 (λ B → con 4 :+ ((con 2 :* B :+ con 2) :+ ((con 3 :* B :+ con 3) :+ (con 2 :+ (con 1 :+ (kE B :+ kE B)))))
-          := con 35 :* B :+ con 152) refl B
+          := con 35 :* B :+ con 154) refl B
   where
     open +-*-Solver
     -- one endpoint's constant
-    kE = λ B → con 5 :+ ((con 8 :* B :+ con 8) :+ (con 5 :+ ((con 2 :* B :+ con 2) :+ ((con 5 :* B :+ con 5)
+    kE = λ B → con 5 :+ ((con 8 :* B :+ con 8) :+ (con 6 :+ ((con 2 :* B :+ con 2) :+ ((con 5 :* B :+ con 5)
                :+ ((con 2 :* con 9 :+ con 2) :+ (con 3 :+ (con 3 :+ (con 4 :+ (con 5 :* con 2 :+ con 5)))))))))
 
 -- THE LINEAR SYSTEM, solved (W = B₀ + 2·B₁ + B₂ weighs node B's doubled slacks)
 finL : ∀ {H V F S Xn B₀ B₁ B₂ C₀ C₁ C₂ T₀ T₁ T₂ RF LN TQ BT BQ TS : ℕ}
      → F + S ≤ V → C₀ + (C₁ + C₂) ≤ V → Xn ≤ V → B₀ ≤ Xn + C₀ → B₁ ≤ Xn + C₁ → B₂ ≤ Xn + C₂
-     → T₀ + (T₁ + T₂) ≤ (4 * F + (2 * S + (5 * RF + (5 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS)))))))
+     → T₀ + (T₁ + T₂) ≤ (4 * F + (2 * S + (5 * RF + (6 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS)))))))
                         + ((3 + KTn fzero B₀) + ((3 + KTn (fsuc fzero) B₁) + (3 + KTn (fsuc (fsuc fzero)) B₂)))
      → RF ≤ 16 * (B₀ + 2 * B₁ + B₂) + 64 → TS ≤ 240 → LN ≤ 24 * (B₀ + 2 * B₁ + B₂) + 416 → TQ ≤ 4 * LN → BT ≤ 2 * TQ
-     → BQ ≤ 10 * LN + 2 * BT + 40 → H ≤ 12 * (T₀ + (T₁ + T₂)) + 96 → H ≤ cL * V + cL₀
+     → BQ ≤ 8 * LN + 2 * BT + 40 → H ≤ 12 * (T₀ + (T₁ + T₂)) + 96 → H ≤ cL * V + cL₀
 finL {H} {V} {F} {S} {Xn} {B₀} {B₁} {B₂} {C₀} {C₁} {C₂} {T₀} {T₁} {T₂} {RF} {LN} {TQ} {BT} {BQ} {TS}
      hFS hC hX hB₀ hB₁ hB₂ hT hRF hTS hLN hTQ hBT hBQ hH =
   ≤-trans hH (≤-trans (+-monoˡ-≤ 96 (*-monoʳ-≤ 12 tB))
@@ -198,36 +199,41 @@ finL {H} {V} {F} {S} {Xn} {B₀} {B₁} {B₂} {C₀} {C₁} {C₂} {T₀} {T₁
     bt : BT ≤ 8 * LN
     bt = ≤-trans hBT (≤-trans (*-monoʳ-≤ 2 hTQ) (≤-≡ (solve 1 (λ l → con 2 :* (con 4 :* l) := con 8 :* l) refl LN)))
     -- BT's bound `bt` substituted into BQ's own bound, restated as a multiple of LN
-    bq : BQ ≤ 26 * LN + 40
-    bq = ≤-trans hBQ (≤-trans (+-monoˡ-≤ 40 (+-monoʳ-≤ (10 * LN) (*-monoʳ-≤ 2 bt)))
-           (≤-≡ (solve 1 (λ l → con 10 :* l :+ con 2 :* (con 8 :* l) :+ con 40 := con 26 :* l :+ con 40) refl LN)))
+    bq : BQ ≤ 24 * LN + 40
+    bq = ≤-trans hBQ (≤-trans (+-monoˡ-≤ 40 (+-monoʳ-≤ (8 * LN) (*-monoʳ-≤ 2 bt)))
+           (≤-≡ (solve 1 (λ l → con 8 :* l :+ con 2 :* (con 8 :* l) :+ con 40 := con 24 :* l :+ con 40) refl LN)))
     -- forges and submissions
     fs : 4 * F + 2 * S ≤ 4 * V
     fs = ≤-trans (+-monoʳ-≤ (4 * F) (*-monoˡ-≤ S {2} {4} (s≤s (s≤s z≤n))))
            (≤-trans (≤-≡ (sym (*-distribˡ-+ 4 F S))) (*-monoʳ-≤ 4 hFS))
     -- the trigger weight
-    w : 4 * F + (2 * S + (5 * RF + (5 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS)))))) ≤ 4 * V + (5 * RF + (103 * LN + 1080))
-    w = ≤-trans (+-monoʳ-≤ (4 * F) (+-monoʳ-≤ (2 * S) (+-monoʳ-≤ (5 * RF) (+-monoʳ-≤ (5 * LN)
+    w : 4 * F + (2 * S + (5 * RF + (6 * LN + (BT + (3 * BQ + (3 * TQ + 4 * TS)))))) ≤ 4 * V + (5 * RF + (98 * LN + 1080))
+    w = ≤-trans (+-monoʳ-≤ (4 * F) (+-monoʳ-≤ (2 * S) (+-monoʳ-≤ (5 * RF) (+-monoʳ-≤ (6 * LN)
               (+-mono-≤ bt (+-mono-≤ (*-monoʳ-≤ 3 bq) (+-mono-≤ (*-monoʳ-≤ 3 hTQ) (*-monoʳ-≤ 4 hTS))))))))
-          (≤-trans (≤-≡ (solve 4 (λ f s r l → f :+ (s :+ (con 5 :* r :+ (con 5 :* l :+ (con 8 :* l :+ (con 3 :* (con 26 :* l :+ con 40)
+          (≤-trans (≤-≡ (solve 4 (λ f s r l → f :+ (s :+ (con 5 :* r :+ (con 6 :* l :+ (con 8 :* l :+ (con 3 :* (con 24 :* l :+ con 40)
                                      :+ (con 3 :* (con 4 :* l) :+ con 4 :* con 240))))))
-                                   := (f :+ s) :+ (con 5 :* r :+ (con 103 :* l :+ con 1080))) refl (4 * F) (2 * S) RF LN))
+                                   := (f :+ s) :+ (con 5 :* r :+ (con 98 :* l :+ con 1080))) refl (4 * F) (2 * S) RF LN))
             (+-monoˡ-≤ _ fs))
     -- the three nodes' thread constants (node B's 35 · B₁ rounded up to 40 · B₁)
-    kt : (3 + KTn fzero B₀) + ((3 + KTn (fsuc fzero) B₁) + (3 + KTn (fsuc (fsuc fzero)) B₂)) ≤ 20 * W + 325
+    kt : (3 + KTn fzero B₀) + ((3 + KTn (fsuc fzero) B₁) + (3 + KTn (fsuc (fsuc fzero)) B₂)) ≤ 20 * W + 329
     kt = ≤-trans (≤-≡ (cong₂ (λ x y → (3 + x) + y) (KTA B₀) (cong₂ (λ x y → (3 + x) + (3 + y)) (KTB B₁) (KTC B₂))))
            (≤-trans (m≤m+n _ (5 * B₁))
-             (≤-≡ (solve 3 (λ a b c → (con 3 :+ (con 20 :* a :+ con 82)) :+ ((con 3 :+ (con 35 :* b :+ con 152)) :+ (con 3 :+ (con 20 :* c :+ con 82)))
-                                       :+ con 5 :* b := con 20 :* (a :+ con 2 :* b :+ c) :+ con 325) refl B₀ B₁ B₂)))
+             (≤-≡ (solve 3 (λ a b c → (con 3 :+ (con 20 :* a :+ con 83)) :+ ((con 3 :+ (con 35 :* b :+ con 154)) :+ (con 3 :+ (con 20 :* c :+ con 83)))
+                                       :+ con 5 :* b := con 20 :* (a :+ con 2 :* b :+ c) :+ con 329) refl B₀ B₁ B₂)))
     -- the threads' events
+    tB-tight : T₀ + (T₁ + T₂) ≤ 14716 * V + 42497
+    tB-tight = ≤-trans hT (≤-trans (+-mono-≤ w kt)
+           (≤-trans (+-monoˡ-≤ (20 * W + 329) (+-monoʳ-≤ (4 * V) (+-mono-≤ (*-monoʳ-≤ 5 hRF) (+-monoˡ-≤ 1080 (*-monoʳ-≤ 98 hLN)))))
+             (≤-trans (≤-≡ (solve 2 (λ v b → con 4 :* v :+ (con 5 :* (con 16 :* b :+ con 64) :+ (con 98 :* (con 24 :* b :+ con 416)
+                                                :+ con 1080)) :+ (con 20 :* b :+ con 329)
+                                              := con 4 :* v :+ con 2452 :* b :+ con 42497) refl V W))
+               (≤-trans (+-monoˡ-≤ 42497 (+-monoʳ-≤ (4 * V) (*-monoʳ-≤ 2452 bW)))
+                 (≤-≡ (solve 1 (λ v → con 4 :* v :+ con 2452 :* (con 6 :* v) :+ con 42497 := con 14716 :* v :+ con 42497) refl V))))))
+
+    -- Retain the original public bound using the sharper body-request relay.
     tB : T₀ + (T₁ + T₂) ≤ 15436 * V + 44573
-    tB = ≤-trans hT (≤-trans (+-mono-≤ w kt)
-           (≤-trans (+-monoˡ-≤ (20 * W + 325) (+-monoʳ-≤ (4 * V) (+-mono-≤ (*-monoʳ-≤ 5 hRF) (+-monoˡ-≤ 1080 (*-monoʳ-≤ 103 hLN)))))
-             (≤-trans (≤-≡ (solve 2 (λ v b → con 4 :* v :+ (con 5 :* (con 16 :* b :+ con 64) :+ (con 103 :* (con 24 :* b :+ con 416)
-                                                :+ con 1080)) :+ (con 20 :* b :+ con 325)
-                                              := con 4 :* v :+ con 2572 :* b :+ con 44573) refl V W))
-               (≤-trans (+-monoˡ-≤ 44573 (+-monoʳ-≤ (4 * V) (*-monoʳ-≤ 2572 bW)))
-                 (≤-≡ (solve 1 (λ v → con 4 :* v :+ con 2572 :* (con 6 :* v) :+ con 44573 := con 15436 :* v :+ con 44573) refl V))))))
+    tB = ≤-trans tB-tight (+-mono-≤
+      (*-monoˡ-≤ V (≤ᵇ⇒≤ 14716 15436 Unit.tt)) (≤ᵇ⇒≤ 42497 44573 Unit.tt))
 
 -- the system, split: the breakable medium and the three nodes
 sysBL : ∀ {s Q sM} {sN s₁₂ : List (Event√ (UP.⊤ {0ℓ}))} {s₀ s₁ s₂ M′ N₀′ N₁′ N₂′} → rawL ⟹⟨ s ⟩ Q → NetworkLinkBreakableA ⟹⟨ sM ⟩ M′
@@ -259,11 +265,11 @@ sysBL {s} {s₀ = s₀} {s₁ = s₁} {s₂ = s₂} tr tM t₀ t₁ t₂ pi pn p
        (≤-trans (grp gBT) (≤-≡ (trans (solve 3 (λ a b c → con 2 :* a :+ (con 2 :* b :+ con 2 :* c) := con 2 :* (a :+ (b :+ c))) refl
                                          (Σc (rep gTQ) l₀) (Σc (rep gTQ) l₁) (Σc (rep gTQ) l₂))
                                   (cong (2 *_) (sym (sp (rep gTQ) (zr gTQ)))))))
-       (≤-trans (grp gBQ) (≤-≡ (trans (solve 6 (λ a b c d e f → con 2 :* (con 5 :* a :+ d :+ con 5) :+ (con 2 :* (con 5 :* b :+ e :+ con 10)
-                                                              :+ con 2 :* (con 5 :* c :+ f :+ con 5))
-                                                      := con 10 :* (a :+ (b :+ c)) :+ con 2 :* (d :+ (e :+ f)) :+ con 40) refl
+       (≤-trans (grp gBQ) (≤-≡ (trans (solve 6 (λ a b c d e f → con 2 :* (con 4 :* a :+ d :+ con 5) :+ (con 2 :* (con 4 :* b :+ e :+ con 10)
+                                                              :+ con 2 :* (con 4 :* c :+ f :+ con 5))
+                                                      := con 8 :* (a :+ (b :+ c)) :+ con 2 :* (d :+ (e :+ f)) :+ con 40) refl
                                          (Σc (rep gLN) l₀) (Σc (rep gLN) l₁) (Σc (rep gLN) l₂) (Σc (rep gBT) l₀) (Σc (rep gBT) l₁) (Σc (rep gBT) l₂))
-                                  (cong₂ (λ x y → 10 * x + 2 * y + 40) (sym (sp (rep gLN) (zr gLN))) (sym (sp (rep gBT) (zr gBT)))))))
+                                  (cong₂ (λ x y → 8 * x + 2 * y + 40) (sym (sp (rep gLN) (zr gLN))) (sym (sp (rep gBT) (zr gBT)))))))
        (≤-trans (≤-≡ (sp (χ HL) (zB (χ HL) (λ _ _ → refl))))
          (≤-trans (cancel3 {Σc (χ HL) l₀} {Σc (wI one) l₀} {Σc (wO one) l₀} {12 * NodeOut.nT N₀ + 24}
                            {Σc (χ HL) l₁} {Σc (wI one) l₁} {Σc (wO one) l₁} {12 * NodeOut.nT N₁ + 48}

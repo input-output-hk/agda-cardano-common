@@ -40,7 +40,7 @@ open import Cardano_network.Replay.LeiosFetchServerParts using (C; peerAfter; la
 open import Cardano_network.Replay.LeiosFetchServerRel k using (repB; repT; doneR; tq)
 open import Cardano_network.Replay.LeiosFetchServerForward
 open import Cardano_network.Replay.LeiosFetchServerSound k using (server-sound)
-open import Cardano_network.Replay.LeiosFetchObs using (ObsS; clsS; forget; _≈♭_; recv-request)
+open import Cardano_network.Replay.LeiosFetchObs using (ObsS; clsS; forget; _≈♭_; recv-request; request-equal)
 open import Semantics.LTS {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
   using (Event; evLabel; sVis; sSil)
 open import Semantics.Deadlock {E = Net_Api Payload} {I = ExtI (Net_Api Payload)}
@@ -51,9 +51,9 @@ open import Cardano_network.Replay.LeiosFetchSession
   using ( St; E; Send; Recv; sIdle; sBusy; sReady; sClosed; sThrown; blockReq; blockTxsReq; server₀
         ; MsgLeiosBlockRequest; MsgLeiosBlockTxsRequest; module Spec )
 open Spec k
-  using (leiosFetch; _-[_]→_; _-τ→_; sRecvBlockReq; sRecvTxsReq; sRecvDone; sSendBlock; sSendTxs; sServe; sThrow)
+  using (leiosFetch; _-[_]→_; _-τ→_; sRecvBlockReq; sRecvTxsReq; sRecvDone; sSendBlock; sSendTxs; sServe; sThrow; cSendBlockReq; cSendTxsReq; cRecvBlock; cRecvTxs; cSendDone; cDrainBlock; cDrainTxs; cDrainDone)
 open import Semantics.Replay using (module Traces)
-open Traces leiosFetch using (HasTrace)
+open Traces leiosFetch using (HasTrace; _⇒⟨_⟩_; done; tau; vis)
 
 ------------------------------------------------------------------------
 -- The premise (B1)
@@ -79,13 +79,27 @@ ReqOffsets _ = ⊤
 ReqHeld : List ℕ → E → Set
 ReqHeld bs e = Held bs (reqHash e) × ReqOffsets e
 
--- Wire decoding supplies table bounds; the replay store holds the unit tx at every entry.
-wire-offsets : ∀ e → WireMsg e → ReqOffsets e
-wire-offsets (_ , MsgLeiosBlockTxsRequest _ _ _ b) (valid , _) = decodable-all (offsets-decodable b valid)
-wire-offsets (_ , Cardano_network.Replay.LeiosFetchSession.MsgLeiosBlockRequest _ _) w = tt
-wire-offsets (_ , Cardano_network.Replay.LeiosFetchSession.MsgLeiosBlock _ _) w = tt
-wire-offsets (_ , Cardano_network.Replay.LeiosFetchSession.MsgLeiosBlockTxs _ _) w = tt
-wire-offsets (_ , Cardano_network.Replay.LeiosFetchSession.MsgLeiosDone) w = tt
+-- Legal request steps supply decoder-established bounds independently of WireOK.
+step-offsets : ∀ {s e s′} → s -[ e ]→ s′ → ReqOffsets e
+step-offsets (cSendTxsReq {b = b} _ valid _ _) = decodable-all (offsets-decodable b valid)
+step-offsets (sRecvTxsReq {b = b} valid _) = decodable-all (offsets-decodable b valid)
+step-offsets (cSendBlockReq _) = tt
+step-offsets (cRecvBlock _) = tt
+step-offsets (cRecvTxs _ _) = tt
+step-offsets cSendDone = tt
+step-offsets (cDrainBlock _) = tt
+step-offsets (cDrainTxs _ _) = tt
+step-offsets cDrainDone = tt
+step-offsets sRecvBlockReq = tt
+step-offsets sSendBlock = tt
+step-offsets sSendTxs = tt
+step-offsets sRecvDone = tt
+
+-- Every accepted trace has bounded decoded request offsets.
+trace-offsets : ∀ {s es s′} → s ⇒⟨ es ⟩ s′ → All ReqOffsets es
+trace-offsets done = []
+trace-offsets (tau _ run) = trace-offsets run
+trace-offsets (vis step run) = step-offsets step ∷ trace-offsets run
 
 -- WHY THE PREMISE IS NEEDED (B1).  With `bs = []`, the log trace
 --   [Recv BlockRequest 7 1 , Send Block 7 0]
@@ -207,13 +221,14 @@ co-ev {bs} cIdle (m , bounds) (sRecvTxsReq {h} {s} {n} {b} valid count) rewrite 
   -- Decoder-before-logging exposes this request's actual popcount.
   request-obs : ObsS (wireR (MsgLFPBlockTxsRequest (h , s) (offsets b)) ∷ [])
     ((Recv , MsgLeiosBlockTxsRequest h s (length (offsets b)) b) ∷ [])
-  request-obs rewrite recv-request tt FromInitiator tt (h , s) (offsets b) (offsets-decodable b valid) = refl
+  request-obs rewrite recv-request tt FromInitiator tt (h , s) (offsets b) (offsets-decodable b valid) = cong (λ m → (Recv , m) ∷ [])
+    (sym (request-equal h s (length (offsets b)) b (offsets b) refl (valid , refl)))
 co-ev {bs} cIdle m sRecvDone =
   _ , _ ,
   ∖√-ev (stepAt (wireR MsgLFPDone) (liftP (λ ()) (λ ()) (sVis refl refl) refl (store-quiet bs (λ ()))))
   ∖√-refl
   , refl , cDone
-co-ev {bs} (cReadyB {h}) m (sSendBlock _) =
+co-ev {bs} (cReadyB {h}) m sSendBlock =
   _ , _ ,
   ∖√-ev (stepAt (apiL lfpSendBlock h) (liftPA ptt (λ ()) (sVis refl refl) a2-fwd refl (store-quiet bs (λ ()))))
   (∖√-ev (stepAt (wireS (MsgLFPBlock h)) (liftP (λ ()) (λ ()) p-snd-fwd refl (store-quiet bs (λ ()))))
@@ -221,7 +236,7 @@ co-ev {bs} (cReadyB {h}) m (sSendBlock _) =
   (∖√-τ (liftτA (sSil refl))
    ∖√-refl)))
   , refl , cIdle
-co-ev {bs} (cReadyT {q} {bm} {acc} count) m (sSendTxs _ _) =
+co-ev {bs} (cReadyT {q} {bm} {acc} count) m sSendTxs =
   _ , _ ,
   ∖√-ev (stepAt (apiL lfpSendBlockTxs (q , acc)) (liftPB ptt (λ ()) (sVis refl refl) work-out-fwd refl (store-quiet bs (λ ()))))
   (∖√-ev (stepAt (wireS (MsgLFPBlockTxs (map proj₂ acc))) (liftP (λ ()) (λ ()) p-snd-fwd refl (store-quiet bs (λ ()))))
@@ -271,16 +286,16 @@ all-hashes (e ∷ es) = held-add (reqHash e) (reqs es) ∷
   All.map (λ {e′} → held-wk (reqHash e) (reqHash e′)) (all-hashes es)
 
 -- Pair held hashes with decoder-established bounds for every table lookup.
-held-with-wire : ∀ bs es → All (λ e → Held bs (reqHash e)) es → WireOK es → All (ReqHeld bs) es
+held-with-wire : ∀ bs es → All (λ e → Held bs (reqHash e)) es → All ReqOffsets es → All (ReqHeld bs) es
 held-with-wire bs [] [] [] = []
-held-with-wire bs (e ∷ es) (held ∷ rest) (wire ∷ wires) =
-  (held , wire-offsets e wire) ∷ held-with-wire bs es rest wires
+held-with-wire bs (e ∷ es) (held ∷ rest) (bounds ∷ restBounds) =
+  (held , bounds) ∷ held-with-wire bs es rest restBounds
 
 -- The chosen inventory meets the extended premise for every admissible trace.
-all-held : ∀ es → WireOK es → All (ReqHeld (reqs es)) es
-all-held es = held-with-wire (reqs es) es (all-hashes es)
+all-held : ∀ es → HasTrace server₀ es → All (ReqHeld (reqs es)) es
+all-held es (_ , run) = held-with-wire (reqs es) es (all-hashes es) (trace-offsets run)
 
--- Exact counted server bridge, with forgotten wire fields explicitly constrained.
+-- Exact decoded-bitmap server bridge with receive-side summary limits.
 server-bridge : ∀ {es} → HasTrace server₀ es ⇔
   (WireOK es × ∃[ bs ] ∃[ t ] ∃[ M ] (serverModel bs ⟹∖√⟨ t ⟩ M × ObsS t es))
 server-bridge = mk⇔ forward backward
@@ -288,7 +303,7 @@ server-bridge = mk⇔ forward backward
   -- Choose all requested bodies and use the decoded table bounds.
   forward : ∀ {es} → HasTrace server₀ es →
     WireOK es × ∃[ bs ] ∃[ t ] ∃[ M ] (serverModel bs ⟹∖√⟨ t ⟩ M × ObsS t es)
-  forward {es} accepted with server-complete (reqs es) (all-held es (accepted-wire k accepted)) accepted
+  forward {es} accepted with server-complete (reqs es) (all-held es accepted) accepted
   ... | t , M , run , obs = accepted-wire k accepted , reqs es , t , M , run , obs
 
   -- Soundness spends the explicit wire premise on the observed log.

@@ -77,36 +77,7 @@ open import CSP.Laws.DivFree.Loop (Net_Api-≟ {Payload}) using (loopStep)
 -- Firing prefixes and outputs at symbolic channels and values
 ------------------------------------------------------------------------
 
--- a channel or value compared with itself is equal, in any alphabet
-module Fire {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y)) where
-  open import CSP.Operators E-≟ using (Prefix; Prefix-cont; Output; Output-cont)
-  import Semantics.LTS {E = E} {I = ExtI E} as L
-
-  -- a prefix's offer map accepts every value on its own channel
-  pfx-br : ∀ {ℓr} {R : Set ℓr} {B : Set ℓ} (ce : E B) (P : B → PTree E (ExtI E) R) (a : B)
-         → Prefix-cont ce P (B , ce) a ≡ just (P a)
-  pfx-br {B = B} ce P a with E-≟ (B , ce) (B , ce)
-  ... | yes refl = refl
-  ... | no ¬p    = ⊥-elim (¬p refl)
-
-  -- an output's offer map accepts its own value (the DecEq is fixed by the tree)
-  out-br : ∀ {ℓr} {R : Set ℓr} {B : Set ℓ} {d : DecEq B} (ce : E B) (v : B) (P : PTree E (ExtI E) R)
-         → Output-cont ⦃ d ⦄ ce v P (B , ce) v ≡ just P
-  out-br {B = B} {d} ce v P with E-≟ (B , ce) (B , ce)
-  ... | no ¬p    = ⊥-elim (¬p refl)
-  ... | yes refl with DecEq._≟_ d v v
-  ...   | yes _  = refl
-  ...   | no ¬p  = ⊥-elim (¬p refl)
-
-  -- a prefix fires any value
-  pfx-fire : ∀ {ℓr} {R : Set ℓr} {B : Set ℓ} {ce : E B} {P : B → PTree E (ExtI E) R} {a : B}
-           → Prefix ce P L.─[ L.ev (L.evl (L.evLabel B ce a)) ]─► P a
-  pfx-fire {ce = ce} {P} {a} = L.sVis refl (pfx-br ce P a)
-
-  -- an output fires its own value
-  out-fire : ∀ {ℓr} {R : Set ℓr} {B : Set ℓ} {d : DecEq B} {ce : E B} {v : B} {P : PTree E (ExtI E) R}
-           → Output ⦃ d ⦄ ce v P L.─[ L.ev (L.evl (L.evLabel B ce v)) ]─► P
-  out-fire {d = d} {ce} {v} {P} = L.sVis refl (out-br {d = d} ce v P)
+open import Cardano_network.Replay.LeiosFetchOutParts public using (module Fire)
 
 open Fire (Net_Api-≟ {Payload}) using (pfx-fire; out-fire; out-br)
 open Fire LFPEv-≟ using () renaming (out-fire to out-fireL)

@@ -115,20 +115,7 @@ tag (evLabel _ (apiLP _ _ lfpReqBlockTxsRequest) _) = tReqT
 tag (evLabel _ (apiLP _ _ lfpSendBlockTxs) _)       = tSendT
 tag _                                               = tOther
 
--- a single output fires only its own value and continues with its tree (any alphabet)
-module OutInv {ℓ ℓe} {E : Set ℓ → Set ℓe} (E-≟ : (x y : AnyTypes E) → Dec (x ≡ y)) where
-  open import CSP.Operators E-≟ using (Output)
-  import Semantics.LTS {E = E} {I = ExtI E} as L
-
-  -- the output inversion
-  out-ev : ∀ {ℓr} {R : Set ℓr} {B : Set ℓ} ⦃ _ : DecEq B ⦄ {ce : E B} {v : B} {P : PTree E (ExtI E) R}
-             {x : L.Event} {t′ : PTree E (ExtI E) R}
-         → Output ce v P L.─[ L.ev (L.evl x) ]─► t′ → x ≡ L.evLabel B ce v × t′ ≡ P
-  out-ev {B = B} {ce = ce} {v = v} (L.sVis {at = A , e} {a = a} refl br) with E-≟ (B , ce) (A , e)
-  ... | no _ = case br of λ ()
-  ... | yes refl with a ≟ v
-  ...   | yes refl = refl , sym (just-injective br)
-  ...   | no _     = case br of λ ()
+open import Cardano_network.Replay.LeiosFetchOutParts public using (module OutInv)
 
 open OutInv (Net_Api-≟ {Payload}) using (out-ev)
 open OutInv LFPEv-≟ renaming (out-ev to out-evL) using ()

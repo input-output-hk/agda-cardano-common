@@ -22,6 +22,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
 open import Process_Trees using (ExtI)
 open import Cardano_network.Base using (FromResponder)
 open import Cardano_network.Replay.ReplayParams using (replayParams)
+open import Cardano_network.Params using (module Params)
 open import Cardano_network.Net replayParams
   using (Net_Api; Net_Api-≟; ApiLPCar; lfpReqBlockRequest; lfpReqBlockTxsRequest; lfpSendBlock; lfpSendBlockTxs)
 open import Cardano_network.Data replayParams
@@ -67,8 +68,8 @@ sndB : ApiLPCar lfpSendBlock → Rd
 sndB h = snd lS dS FromResponder (MsgLFPBlock h) stIdle
 
 -- The producer round sends the accumulated transactions without their offsets.
-sndT : ApiLPCar lfpSendBlockTxs → Rd
-sndT (q , acc) = snd lS dS FromResponder (MsgLFPBlockTxs (map proj₂ acc)) stIdle
+sndT : List (ℕ × Params.Tx replayParams) → Rd
+sndT acc = snd lS dS FromResponder (MsgLFPBlockTxs (map proj₂ acc)) stIdle
 
 -- the producer round after receiving Done
 doneR : Rd
@@ -109,7 +110,7 @@ data Rel (bs : Bodies) : Proc → St → Set₁ where
   -- The producer has received the complete indexed reply and will send its transactions.
   rSendT : ∀ {Ta Tb S} qb acc → length (map proj₂ acc) ≡ length (proj₂ qb) →
     ERest bodyA Ta → ERest bodyB Tb → SRest bs S →
-    Rel bs (C (peerAfter (sndT (proj₁ qb , acc))) Ta Tb S) (sReady (tq qb))
+    Rel bs (C (peerAfter (sndT acc)) Ta Tb S) (sReady (tq qb))
   -- Done received: the producer's `done` has no partner, the composite only drains
   rDone   : ∀ {Ta Tb S} → ERest bodyA Ta → ERest bodyB Tb → SRest bs S
           → Rel bs (C (peerAfter doneR) Ta Tb S) sClosed

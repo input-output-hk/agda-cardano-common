@@ -99,8 +99,8 @@ module Generic
           ; ebHash; rbHash; txHash; slotOf; announcedEB
           ; decBlock; decEBHash; decLSlot; decVoteBlob; decEB
           ; decRbHash; decTx; decTxHash )
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; txChunks)
-  open LeiosP.LeiosParams lp using (rbCert; ebTxs; maxTxs)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; txChunks; allOffsets; chunksOf)
+  open LeiosP.LeiosParams lp using (rbCert; ebTxs; chunk; maxTxs)
   open N p
     using ( Link; Net_Api; Net_Api-≟; store; env; break
           ; input; output; sndmsg; rcvmsg; tx; sndack; rcvack; ack; done
@@ -130,14 +130,14 @@ module Generic
     using ( DecEq-⊤poly; DecEq-ℕ×ℕ
           ; memberOf
           ; Entries; Bodies; Mem; Votes; StateL
-          ; at?; getAtEv; putEBEv; putBodyEv; getBodyEv
+          ; at?; lacksTxEv; getAtEv; putEBEv; putBodyEv; getBodyEv
           ; putTxEv; getTxAtEv; getTxEv; putVoteEv; getVoteAtEv
           ; certEv; hasCertEv; submitEv
           ; forgeOK; forgeCertL; forgeBodyL; forgeL
           ; ebIndexBody; ebIndex; voterBody; voter; submit; certSink
           ; serverBodyL; serverLoopL; lnServerBodyL; lnServerLoopL
           ; bodyOfferBody; bodyOfferLoop; voteOfferBody; voteOfferLoop; awaitTxs
-          ; fetchBody; putChecked; putAll; entryOk; fetchChunks; fetchTxs; putAllVotes
+          ; fetchBody; putChecked; putAll; entryOk; missingOffsets; fetchChunks; fetchTxs; putAllVotes
           ; lnClientBodyL; lnClientLoopL
           ; ebServeBody; ebServeLoop; serveTxs; ebTxsServeBody; ebTxsServeLoop
           ; putAllTx; tsPullBody; tsPull; tsServeBody; tsServe
@@ -408,11 +408,25 @@ module Generic
           (λ _ → wfR->>= (wfR-putChecked n (proj₁ q) es)
             (λ _ _ _ → wfR-fetchChunks n l d q bms)) (λ _ → wfR-Stop) }))
 
+  -- Mempool inspection leaves announcement evidence to the continuation.
+  wfR-missingOffsets : ∀ n h os k →
+    (∀ {ms} xs → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (k xs)) →
+    ∀ {ms} → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (missingOffsets n h os k)
+  wfR-missingOffsets n h [] k cont = cont []
+  wfR-missingOffsets n h (o ∷ os) k cont with at? o (ebTxs h)
+  ... | nothing = wfR-Stop
+  ... | just (hash , _) =
+    wfR-□ _ _ (stable-node refl) (stable-node refl)
+      (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ → wfR-missingOffsets n h os k cont))
+      (wfR-Prefix (λ _ _ _ ()) (λ _ _ _ →
+        wfR-missingOffsets n h os (λ xs → k (o ∷ xs)) (λ xs → cont (o ∷ xs))))
+
   -- The body read precedes all chunk requests.
   wfR-fetchTxs : ∀ n l d {ms} (q : EBHash × LSlot)
                → WfR threadsGL ms (λ _ _ → ⊤ {0ℓ}) (fetchTxs n l d q)
   wfR-fetchTxs n l d q = wfR-Prefix (λ _ _ _ ())
-    (λ _ _ _ → wfR-fetchChunks n l d q (txChunks lp (proj₁ q)))
+    (λ _ _ _ → wfR-missingOffsets n (proj₁ q) (allOffsets lp (proj₁ q)) _
+      (λ xs → wfR-fetchChunks n l d q (chunksOf chunk xs)))
 
   -- SERVE THE REQUESTED OFFSETS: structural on the bitmap, and neither the keyed
   -- mempool read nor the reply carries a ranking block.  The `with` mirrors `serveTxs`'s.

@@ -183,8 +183,8 @@ module Generic
     using ( Block; LSlot; VoterId; VoteBlob; EB; EBHash; Tx; TxHash; Size
           ; linkConfig; ebHash; rbHash; txHash; slotOf; announcedEB
           ; decBlock; decEBHash; decLSlot; decVoteBlob; decEB; decTx; decTxHash )
-  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks)
-  open LeiosP.LeiosParams lp using (mkVoteBlob; ebTxs; maxTxs; ebSize; rbCert)
+  open LeiosP p using (LeiosEb; LeiosPoint; DecEq-LeiosPoint; allOffsets; txChunks; chunksOf)
+  open LeiosP.LeiosParams lp using (mkVoteBlob; ebTxs; chunk; maxTxs; ebSize; rbCert)
   -- EVERY tag named below MUST appear here: an unlisted tag silently becomes a pattern
   -- VARIABLE and the carrier table turns into a stuck term (campaign ledger, gotcha 1).
   open N p
@@ -246,7 +246,7 @@ module Generic
           ; forgeL; forgeBodyL; forgeCertL
           ; ebIndex; voter; voterBody; submit; certSink
           ; serverLoopL; lnServerLoopL; bodyOfferLoop; voteOfferLoop
-          ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; putAll; entryOk; fetchChunks; tsPull; tsServe; putAllTx
+          ; ebServeLoop; ebTxsServeLoop; serveTxs; putChecked; putAll; entryOk; missingOffsets; fetchChunks; tsPull; tsServe; putAllTx
           ; lnClientLoopL; fetchBody; fetchTxs; putAllVotes; awaitTxs
           ; endpointThreadsL; allThreadsL )
     -- `putAllTx`'s own membership test, RENAMED so it cannot be confused with (or
@@ -942,7 +942,7 @@ module Generic
       wfR-Output ⦃ DecEq-TxsRequest ⦄ (λ _ _ → λ ()) (λ _ _ →
         wfR-Prefix (λ _ _ _ → λ ()) (λ le → λ { (q′ , es) _ → guard q′ es (atHome q le) }))
       where
-      -- Echo checking encloses the entire deposit-and-next-chunk sequence.
+      -- Checking the client-restored point encloses the entire deposit-and-next-chunk sequence.
       guard : ∀ {s} q′ es
         → (∀ {k : TxHash} {sz : Size} → (k , sz) ∈ ebTxs (proj₁ q)
            → memKey (homeOf n , k) s ≡ true)
@@ -953,10 +953,24 @@ module Generic
       ... | true = wfR->>= (dep (proj₁ q) es hyp) (λ _ _ _ → chunks q bms)
       ... | false = wfR-Stop
 
+    -- Reads mint no transactions; every continuation retains its own chunk requests.
+    missing : ∀ h os k →
+      (∀ {s} xs → WfR fullα s (λ _ _ → ⊤ {0ℓ}) (k xs)) →
+      ∀ {s} → WfR fullα s (λ _ _ → ⊤ {0ℓ}) (missingOffsets n h os k)
+    missing h [] k cont = cont []
+    missing h (o ∷ os) k cont with at? o (ebTxs h)
+    ... | nothing = wfR-Stop
+    ... | just (hash , _) =
+      wfR-□ _ _ (stable-node refl) (stable-node refl)
+        (wfR-Prefix (λ _ _ _ → λ ()) (λ _ _ _ → missing h os k cont))
+        (wfR-Prefix (λ _ _ _ → λ ()) (λ _ _ _ →
+          missing h os (λ xs → k (o ∷ xs)) (λ xs → cont (o ∷ xs))))
+
     -- Read the body before iterating over its chunk list.
     fetch : ∀ {s} (q : EBHash × LSlot) → WfR fullα s (λ _ _ → ⊤ {0ℓ}) (fetchTxs n l d q)
     fetch q = wfR-Prefix (λ _ _ _ → λ ())
-      (λ _ _ _ → chunks q (txChunks lp (proj₁ q)))
+      (λ _ _ _ → missing (proj₁ q) (allOffsets lp (proj₁ q)) _
+        (λ xs → chunks q (chunksOf chunk xs)))
 
     -- the tx-closure branch: THE CONTENT-BEARING one
     txB : ∀ {s} → WfR fullα s (λ _ _ → ⊤ {0ℓ})

@@ -39,9 +39,11 @@ The current-schema **LeiosFetch replay** target is pinned to `ouroboros-consensu
 `LeiosDemoOnlyTestFetch.hs` and `Ouroboros/Consensus/Leios/Types.hs`.
 Its positional `BlockTxs` observation carries transaction count and byte size,
 with default client depth 150. This replay pin does not update the older peer
-modules' source-fidelity claims. Stage 3D's local bridges now observe counts;
-sizes and bitmap words are forgotten and constrained by an explicit `WireOK`
-premise. See the [replay scope and devnet results](Replay/README.md#current-schema-leiosfetch-replay-2026-11-11).
+modules' source-fidelity claims. Stage 3F's local bridges observe counts and
+relate logged bitmap words `b` to model offsets `bm` by `Decodes b bm`
+(valid decoding with exactly those offsets). Byte sizes remain abstracted;
+`WireOK` contains only receive-side limits, whose whole-message decoder
+compliance cannot be confirmed from current logs because framing is omitted. See the [replay scope and devnet results](Replay/README.md#current-schema-leiosfetch-replay-2026-11-11).
 
 Stage 2 aligns the prototype model's wire reply with that pin:
 `MsgLFPBlockTxs : List Tx → MessageLeiosFetchP`. The client checks reply count
@@ -53,7 +55,11 @@ The API carrier remains `(EBHash × LSlot) × List (ℕ × Tx)`.
 The pipe retains stop-and-drain with replies consumed by kind regardless of count. Replay caps
 client request sends at `maxTxs = 17142` (client-layer diagnostic), but leaves
 server request counts uncapped after bitmap decoding: upstream serves every
-requested offset or throws. Replay wire caps still apply to replies, including draining. See the
+requested offset or throws. Under stage 3F D11, replay byte/count caps apply only to client receives,
+including draining. Server sends have no such cap; their Block hash or BlockTxs
+count must still match the request. Thus server sends of a 700000-byte Block or
+a requested 17143-transaction reply above `txsCap` are accepted, while those
+client receives are rejected with `wire:` diagnostics. See the
 [stage-2 scope and reporting limits](Replay/README.md#stage-2-positional-model-and-replay-follow-ups)
 and [D5 and the stage-2 outcome](../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-2-outcome).
 
@@ -85,11 +91,16 @@ shared `lnClientLoopL` and therefore silences its Notify client, including
 announcement, offer and vote handling. This is a thread stop, not whole-link
 shutdown of every mini-protocol.
 
-`fetchTxs` reads the body, then splits **`allOffsets`**, in order, into chunks
-of at most `chunk`, with `1 ≤ chunk ≤ maxTxs`; an empty table sends no transaction
-request. It deliberately over-fetches relative to upstream's missing-only
-selection. The main instances use `maxTxs = 17142`, model `chunk = 1`, and replay
-`chunk = 17142`; this count parameter abstracts byte batching. The seven safety
+**Stage 3E requests only missing transactions.** `fetchTxs` reads the body,
+then `missingOffsets` walks `allOffsets` in order: a positive mempool read skips
+a held transaction, and a complementary negative read retains its offset.
+`fetchChunks` splits the missing sublist into chunks of at most `chunk`, with
+`1 ≤ chunk ≤ maxTxs`. Empty or fully held tables send no transaction request;
+holding only transaction 0 of a two-transaction body yields bitmap `1 ∷ []`.
+The sanity gates check these local residuals, not whole-network reachability.
+Sublist and chunk lemmas preserve canonicity under the existing body-table bound.
+The main instances use `maxTxs = 17142`, model `chunk = 1`, and replay
+`chunk = 17142`; this count parameter still abstracts byte batching. The seven safety
 disciplines, `noRet-logic`, the two no-livelock statements, and `LiveL`/`Live2`
 finite-witness statements are unchanged, as are the replay bridge and `server-legal`
 statements, application carriers, pipe/replay spec and peer states.
@@ -97,8 +108,9 @@ statements, application carriers, pipe/replay spec and peer states.
 `ebServeBodyBlocking`; `wedge-throws` witnesses the shipped server consuming a
 negative read and stopping in the same scenario, at thread/store-pair scope.
 See the [Leios account](Parametric/Leios/README.md#stage-3bc-behavior),
-[coarse bridge scope](Replay/README.md#stage-3bc-server-throw-and-bridge-scope), and
-[stage-3B+C outcome and measurements](../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome).
+[counted bridge scope](Replay/README.md#stage-3bc-server-throw-and-stage-3d-counted-bridges),
+[stage-3B+C outcome](../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3bc-outcome), and
+[stage-3E outcome and measurements](../../docs/specs/2026-11-11-leiosfetch-upstream-alignment-design.md#stage-3e-outcome).
 These checks preserve model safety and no-livelock results; they do not establish
 delivery liveness, validity or implementation-wide conformance.
 
