@@ -8364,6 +8364,18 @@ reverse-import closure (the two repeated reserved fixtures are intentional):
 LiveTrackerChainsInitialized,LiveTrackerFailuresInitialized,LiveTrackerInitialized,
 LiveTrackerReferencesInitialized,OwnedCallersFixture,ServerPeersReleaseTimeWait,
 ServerShutdownComplete,ServerShutdownCoordinator}.agda`.
-They retain their original statements; broad regression acceptance remains open
-until their checks pass. The initialized inbound witness and the overall G2 gate
+They retain their original statements.
+
+**Capped regression result** (13 November 2026, reviewer, 25 GB cgroup cap,
+same RTS flags, one Agda process at a time; exit 0, no warnings). Reserved
+six: `SourceKeysServer` 2244 s / 5.6 GiB, `OwnedFramesExecution` 126 s /
+4.5 GiB, `OwnedCallersFixture` 442 s / 13.5 GiB, `LiveTrackerInitialized`
+70 s / 9.1 GiB, `ServerPeers` 45 s / 5.6 GiB, `ServerPeersOrigins` 177 s /
+11.8 GiB (a first attempt was killed by host memory pressure, not the cap,
+and was rerun). Downstream endpoints: `ForeignFramesFixture`,
+`IGPendingQuiet`, `LiveTrackerAuxFrontend`, `LiveTrackerChainsInitialized`,
+`LiveTrackerFailuresInitialized`, `LiveTrackerReferencesInitialized`,
+`ServerPeersReleaseTimeWait`, `ServerShutdownComplete` and
+`ServerShutdownCoordinator`, 44-56 s each, at most 7.5 GiB. Broad regression
+acceptance for increment 82 is complete. The initialized inbound witness and the overall G2 gate
 have the distinct statuses stated above.
