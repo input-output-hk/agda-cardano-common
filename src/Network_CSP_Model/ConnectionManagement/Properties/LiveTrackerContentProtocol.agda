@@ -39,7 +39,7 @@ import ConnectionManagement.Properties.MuxProtocolJobs as ProtocolProperties
 import ConnectionManagement.Rules.MuxRuntime as WireMux
 module Protocol where
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; unlessAwaiting-just; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol; viaDb; viaDb-source; submitDb-via; awaitDb-via; dbFailure-via; DbFailure; refused; abandoned; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
- private module U = P.U using (captured; base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
+ private module U = P.U using (handshakePending; captured; base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
  private module Pool = P.Pool using (bodyReturnedWith; deregister; parentFork; publishAsyncResult; publishCompletion; register; step)
  private module Startup = P.Startup using (phase)
  private module Old = ProtocolProperties using (EgressChange; enter-observation; send-observation; muxer-egress-observation; BodyReturn; CompletionCommit; Fork; Publication; clean-observation; exception-observation; initiator-fork-observation; publication-observation; responder-fork-observation; return-observation)
@@ -141,6 +141,7 @@ module Protocol where
  ...       | true with O.advance (O.inbound (Machine.igStep (P.sourceControl a mid))) (P.source s) in advanced
  ...         | nothing = case eq of λ ()
  ...         | just c = case just-injective eq of λ { refl → source-valid c s (O.next {a = O.inbound (Machine.igStep (P.sourceControl a mid))} advanced O.done) valid }
+ control w a s eq valid | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.returnedSuccess | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.promisePublished hid mid | false | _ = case eq of λ ()

@@ -113,6 +113,7 @@ observe w at result ack s with select w at result s
 -- A failed owner cannot return to allocation/publication or its old controller.
 -- Other owners, actual CM actions and its outer classifier/finalizer stay live.
 actorU : U.Action → Maybe WorkerId
+actorU (U.handshakeStep w _) = just w
 actorU (U.negotiate w _ _) = just w
 actorU (U.allocateHandle w _ _) = just w
 actorU (U.egressSetup w) = just w

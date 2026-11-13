@@ -225,6 +225,7 @@ module Raw where
  step-valid (H.run (M.admissionStep w Server.chooseEntry)) s eq v = dispatch-valid (M.admissionStep w Server.chooseEntry) s eq tt v
  step-valid (H.run (M.admissionStep w Server.putMapBack)) s eq v = dispatch-valid (M.admissionStep w Server.putMapBack) s eq tt v
  step-valid (H.run (M.admissionStep w Server.readCounters)) s eq v = dispatch-valid (M.admissionStep w Server.readCounters) s eq tt v
+ step-valid (H.run (M.admissionStep w Server.restoreBody)) s eq v = dispatch-valid (M.admissionStep w Server.restoreBody) s eq tt v
  step-valid (H.run (M.admissionStep w Server.restore)) s eq v = dispatch-valid (M.admissionStep w Server.restore) s eq tt v
  step-valid (H.run (M.admissionStep w Server.close)) s eq v = dispatch-valid (M.admissionStep w Server.close) s eq tt v
  step-valid (H.run (M.admissionStep w Server.failFork)) s eq v = dispatch-valid (M.admissionStep w Server.failFork) s eq tt v
@@ -663,6 +664,7 @@ module Relative (Z : WorkerId → Bool) where
  step-moves (H.run (M.admissionStep w Server.chooseEntry)) s g eq v = dispatch-moves (M.admissionStep w Server.chooseEntry) s eq tt v
  step-moves (H.run (M.admissionStep w Server.putMapBack)) s g eq v = dispatch-moves (M.admissionStep w Server.putMapBack) s eq tt v
  step-moves (H.run (M.admissionStep w Server.readCounters)) s g eq v = dispatch-moves (M.admissionStep w Server.readCounters) s eq tt v
+ step-moves (H.run (M.admissionStep w Server.restoreBody)) s g eq v = dispatch-moves (M.admissionStep w Server.restoreBody) s eq tt v
  step-moves (H.run (M.admissionStep w Server.restore)) s g eq v = dispatch-moves (M.admissionStep w Server.restore) s eq tt v
  step-moves (H.run (M.admissionStep w Server.close)) s g eq v = dispatch-moves (M.admissionStep w Server.close) s eq tt v
  step-moves (H.run (M.admissionStep w Server.failFork)) s g eq v = dispatch-moves (M.admissionStep w Server.failFork) s eq tt v

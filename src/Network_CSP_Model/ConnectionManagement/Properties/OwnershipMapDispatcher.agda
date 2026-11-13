@@ -28,6 +28,7 @@ take-admission-worker w (admissionWorker r (forkHandler l p e)) s found () own
 take-admission-worker w (admissionWorker r (publish l p e)) s found () own
 take-admission-worker w (admissionWorker r (reject l hardLimitReached)) s found () own
 take-admission-worker w (admissionWorker r (reject l forbidden)) s found () own
+take-admission-worker w (admissionWorker r (reject l bodyFailed)) s found () own
 take-admission-worker w (admissionWorker r (reject l forkFailed)) s found () own
 take-admission-worker w (admissionWorker r (closeSocket reason)) s found () own
 take-admission-worker w (admissionWorker r (finished reason)) s found () own
@@ -51,6 +52,7 @@ publish-admission-worker w (admissionWorker r (prepare l)) s found () own
 publish-admission-worker w (admissionWorker r (selectEntry l p)) s found () own
 publish-admission-worker w (admissionWorker r (forkHandler l p e)) s found () own
 publish-admission-worker w (admissionWorker r (reject l forbidden)) s found () own
+publish-admission-worker w (admissionWorker r (reject l bodyFailed)) s found () own
 publish-admission-worker w (admissionWorker r (reject l forkFailed)) s found () own
 publish-admission-worker w (admissionWorker r (closeSocket reason)) s found () own
 publish-admission-worker w (admissionWorker r (finished reason)) s found () own
@@ -94,10 +96,52 @@ restore-admission-worker w (admissionWorker r (reject l forbidden)) s found eq o
 ... | nothing = case eq of λ ()
 ... | just c′ = subst Ownership (just-injective eq)
   (admission-put w (admissionWorker r (reject l forbidden)) (closeSocket forbidden) l (savedMap l) s found refl refl putEq own)
+restore-admission-worker w (admissionWorker r (reject l bodyFailed)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Ownership (just-injective eq)
+  (admission-put w (admissionWorker r (reject l bodyFailed)) (closeSocket bodyFailed) l (savedMap l) s found refl refl putEq own)
 restore-admission-worker w (admissionWorker r (reject l forkFailed)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
 ... | nothing = case eq of λ ()
 ... | just c′ = subst Ownership (just-injective eq)
   (admission-put w (admissionWorker r (reject l forkFailed)) (closeSocket forkFailed) l (savedMap l) s found refl refl putEq own)
+
+restore-body-admission-worker : ∀ w a s {s′} → lookup w (admissions s) ≡ just a →
+  Server.stepWorker w a Server.restoreBody s ≡ just s′ → Ownership s → Ownership s′
+restore-body-admission-worker w (admissionWorker r (count l)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Ownership (just-injective eq)
+  (admission-put w (admissionWorker r (count l)) (closeSocket bodyFailed) l (savedMap l) s found refl refl putEq own)
+restore-body-admission-worker w (admissionWorker r (prepare l)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Ownership (just-injective eq)
+  (admission-put w (admissionWorker r (prepare l)) (closeSocket bodyFailed) l (savedMap l) s found refl refl putEq own)
+restore-body-admission-worker w (admissionWorker r (selectEntry l p)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Ownership (just-injective eq)
+  (admission-put w (admissionWorker r (selectEntry l p)) (closeSocket bodyFailed) l (savedMap l) s found refl refl putEq own)
+restore-body-admission-worker w (admissionWorker r (forkHandler l p e)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Ownership (just-injective eq)
+  (admission-put w (admissionWorker r (forkHandler l p e)) (closeSocket bodyFailed) l (savedMap l) s found refl refl putEq own)
+restore-body-admission-worker w (admissionWorker r (publish l p e)) s found eq own with CM.putMap l (savedMap l) (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Ownership (just-injective eq)
+  (admission-put w (admissionWorker r (publish l p e)) (closeSocket bodyFailed) l (savedMap l) s found refl refl putEq own)
+restore-body-admission-worker w (admissionWorker r acquireMap) s found () own
+restore-body-admission-worker w (admissionWorker r (reject l hardLimitReached)) s found () own
+restore-body-admission-worker w (admissionWorker r (closeSocket reason)) s found () own
+restore-body-admission-worker w (admissionWorker r (finished reason)) s found () own
+restore-body-admission-worker w (admissionWorker r (countPublished p e)) s found () own
+restore-body-admission-worker w (admissionWorker r (awaitHandshake p e)) s found () own
+restore-body-admission-worker w (admissionWorker r (commitHandshake e result)) s found () own
+restore-body-admission-worker w (admissionWorker r (countHandshake result)) s found () own
+restore-body-admission-worker w (admissionWorker r (notifyInbound info)) s found () own
+restore-body-admission-worker w (admissionWorker r (returnHandshake result)) s found () own
+restore-body-admission-worker w (admissionWorker r (completedHandshake result)) s found () own
+restore-body-admission-worker w (admissionWorker r impossibleHandshake) s found () own
+restore-body-admission-worker w (admissionWorker r (reject l forbidden)) s found () own
+restore-body-admission-worker w (admissionWorker r (reject l bodyFailed)) s found () own
+restore-body-admission-worker w (admissionWorker r (reject l forkFailed)) s found () own
 
 take-cleanup-worker : ∀ w h p s {s′} → lookup w (cleanups s) ≡ just p →
   Cleanup.stepWorker w h p Cleanup.takeCleanupMap s ≡ just s′ → Ownership s → Ownership s′

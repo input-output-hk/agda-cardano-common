@@ -67,9 +67,9 @@ modeOf (scheduledLayout _) scheduledLane = ranked
 -- (a scheduled mux's lanes share one lock). wrote: writeMany returned and the
 -- lock was put back; the masked accounting follows with no interruptible step.
 data Wait : Set where
-  gated queued armed grantedArmed granted writing wrote : Wait
+  gated queued armed refreshDue grantedArmed granted writing wrote : Wait
 data Advance : Set where
-  openGate grantFast queueRequest armTimer grantQueued disarmTimer takeLock returnWrite : Advance
+  openGate grantFast queueRequest armTimer refreshExpired rearmRefresh grantQueued disarmTimer takeLock returnWrite : Advance
 waitsGrant : Mode → Bool
 waitsGrant reserved = true
 waitsGrant ranked = true
@@ -85,6 +85,15 @@ nextWait m (just gated) queueRequest with waitsGrant m
 ... | true = just queued
 ... | false = nothing
 nextWait m (just queued) armTimer = just armed
+-- The timer-winning observation comes from awaitOr's right alternative.
+-- A spent timer is replaced before returning to the grant loop; cancellation
+-- may unwind the restored refresh read, but replacement itself is masked.
+nextWait m (just armed) refreshExpired with waitsGrant m
+... | true = just refreshDue
+... | false = nothing
+nextWait m (just refreshDue) rearmRefresh with waitsGrant m
+... | true = just armed
+... | false = nothing
 nextWait m (just armed) grantQueued = just grantedArmed
 nextWait m (just grantedArmed) disarmTimer = just granted
 nextWait m (just granted) takeLock = just writing

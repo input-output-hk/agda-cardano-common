@@ -98,6 +98,7 @@ reception-ig e opened with E.phase (E.exit e) | E.received (E.exit e) | S.stage 
 ... | E.live | nothing | S.acceptCancelRequested | _ | _ = case opened of λ ()
 ... | E.live | nothing | S.acceptCancelDelivered | _ | _ = case opened of λ ()
 ... | E.live | nothing | S.acceptFailed | _ | _ = case opened of λ ()
+... | E.live | nothing | (S.acceptForkClosing _ _) | _ | _ = case opened of λ ()
 ... | E.live | nothing | S.acceptBodyExited | _ | _ = case opened of λ ()
 ... | E.live | nothing | S.acceptResultAvailable | _ | _ = case opened of λ ()
 ... | E.live | nothing | S.acceptJoined | _ | _ = case opened of λ ()
@@ -144,6 +145,8 @@ delegate-phase (S.scope S.publishIGResult) x eq with E.phase x in ph | E.outcome
 ... | E.traversing | _ | _ = case eq of λ ()
 ... | E.invoked | _ | _ = case eq of λ ()
 ... | E.failed | _ | _ = case eq of λ ()
+delegate-phase (S.scope (S.forkFailure sock err)) x eq = case just-injective eq of λ { refl → refl }
+delegate-phase (S.scope S.finishForkFailure) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.scope S.returnAction) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.scope S.publishActionResult) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.scope S.selectActionWinner) x eq = case just-injective eq of λ { refl → refl }
@@ -166,8 +169,10 @@ delegate-phase (S.scope S.failIGBody) x eq = case just-injective eq of λ { refl
 delegate-phase (S.scope S.igWins) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.scope S.acceptFails) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.scope S.interruptServer) x eq = case just-injective eq of λ { refl → refl }
+delegate-phase (S.closeForkFailure outcome) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.acceptedFork w req) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.run a) x eq = case just-injective eq of λ { refl → refl }
+delegate-phase (S.workerRestore w) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.workerReturned w) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.workerPrefixReturned w) x eq = case just-injective eq of λ { refl → refl }
 delegate-phase (S.workerPrefixException w err) x eq = case just-injective eq of λ { refl → refl }

@@ -18,6 +18,8 @@ open import Class.DecEq using (_≟_)
 open import ConnectionManagement.Domain using (WorkerId; ErrorId)
 open import ConnectionManagement.Store using (Store; lookup; put)
 import ConnectionManagement.Rules.MuxEgress as EgressLayout
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -37,7 +39,7 @@ inbound-same action c eq quiet with Machine.advance action (O.core c) in actual
 ...   | refl = Core.machine-same action (O.core c) actual quiet
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  table : U.State → Store WorkerId S.AdmissionWorker
  table s = S.admissions (Machine.world (O.core (U.source s)))
@@ -57,6 +59,48 @@ module Mux where
  negotiate-same w ps flow s eq | just t | nothing | previous = case eq of λ ()
  negotiate-same w ps flow s eq | just t | just origin | just previous = case eq of λ ()
 
+ -- Helper frames preserve the same source/capture observation.
+ capture-handshake-same : ∀ w pc s {s′} → U.captureHandshake w pc s ≡ just s′ → table s′ ≡ table s
+ capture-handshake-same w pc s eq with lookup w (B.threads (U.base s)) |
+   lookup w (U.origins s) | lookup w (U.frames s) in absent
+ ... | just t | just origin | nothing with H.phase t
+ ...   | H.handshaking = case just-injective eq of λ { refl → refl }
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.maskedSetup = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.caughtCancellation err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.cancellationPublished err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.bodyExited err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.finalizing err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.cleanupComplete err outcome = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.resultAvailable err outcome = case eq of λ ()
+ capture-handshake-same w pc s eq | nothing | origin | previous = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | nothing | previous = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | just previous = case eq of λ ()
+
+ -- Metadata stutters; publication executes the actual promise writer.
+ advance-handshake-same : ∀ w action s {s′} → U.advanceHandshake w action s ≡ just s′ → table s′ ≡ table s
+ advance-handshake-same w action s eq with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f in progress
+ ...   | U.handshakePending pc with HS.step action pc
+ ...     | just (next , nothing) = case just-injective eq of λ { refl → refl }
+ ...     | just (next , just result) with O.advance (O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)) (U.source s) in advanced
+ ...       | nothing = case eq of λ ()
+ ...       | just c = case just-injective eq of λ { refl → inbound-same (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten) (U.source s) advanced tt }
+ advance-handshake-same w action s eq | just f | U.handshakePending pc | nothing = case eq of λ ()
+ advance-handshake-same w action s eq | just f | U.returnedSuccess = case eq of λ ()
+ advance-handshake-same w action s eq | just f | U.handleAllocated h mid = case eq of λ ()
+ advance-handshake-same w action s eq | just f | U.promisePublished h mid = case eq of λ ()
+
+ -- Only inbound origins can enter the query delay.
+ handshake-same : ∀ w event s {s′} → U.handshakeFor w event s ≡ just s′ → table s′ ≡ table s
+ handshake-same w (HS.limitReturned kind err) s eq = capture-handshake-same w (HS.returned (HS.protocolLimit kind err)) s eq
+ handshake-same w (HS.bearerTimedOut err) s eq = capture-handshake-same w (HS.returned (HS.bearerTimeout err)) s eq
+ handshake-same w HS.queryReturned s eq with lookup w (U.origins s)
+ ... | just HandshakeDomain.inbound = capture-handshake-same w (HS.returned HS.query) s eq
+ ... | just HandshakeDomain.outbound = case eq of λ ()
+ ... | nothing = case eq of λ ()
+ handshake-same w (HS.continue action) s eq = advance-handshake-same w action s eq
+
  allocate-same : ∀ w hid mid s {s′} → U.allocate w hid mid s ≡ just s′ → table s′ ≡ table s
  allocate-same w hid mid s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -64,6 +108,7 @@ module Mux where
  ...   | U.returnedSuccess with O.advance (O.inbound (Machine.igStep (U.allocationAction f hid mid))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (U.allocationAction f hid mid)) (U.source s) advanced tt }
+ allocate-same w hid mid s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.handleAllocated oldHandle oldMux = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.promisePublished oldHandle oldMux = case eq of λ ()
 
@@ -76,6 +121,7 @@ module Mux where
  ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys)) (U.source s) advanced tt }
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
@@ -88,6 +134,7 @@ module Mux where
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (IG.registerCells mid)) (U.source s) advanced tt }
  register-same w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ register-same w s eq | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
@@ -108,6 +155,7 @@ module Mux where
  ...     | just c | just next = case just-injective eq of λ { refl → inbound-same (Machine.handlerPublication w (S.negotiated hid (U.flow f)) Machine.resultWritten) (U.source s) advanced tt }
  publish-same w s eq | just f | U.handleAllocated hid mid | nothing | startupResult = case eq of λ ()
  publish-same w s eq | just f | U.handleAllocated hid mid | just c | nothing = case eq of λ ()
+ publish-same w s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  publish-same w s eq | just f | U.returnedSuccess = case eq of λ ()
  publish-same w s eq | just f | U.promisePublished hid mid = case eq of λ ()
 
@@ -118,6 +166,7 @@ module Mux where
  ...   | U.promisePublished hid mid | true with Startup.step a (U.startup f)
  ...     | nothing = case eq of λ ()
  ...     | just next = case just-injective eq of λ { refl → refl }
+ startup-shutdown w a s eq | just f | (U.handshakePending helperPC) | allowed = case eq of λ ()
  startup-shutdown w a s eq | just f | U.returnedSuccess | allowed = case eq of λ ()
  startup-shutdown w a s eq | just f | U.handleAllocated hid mid | allowed = case eq of λ ()
  startup-shutdown w a s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
@@ -126,6 +175,7 @@ module Mux where
  IsDirect _ = ⊤
  direct-same : ∀ a s {t} → U.step a s ≡ just t → IsDirect a → table t ≡ table s
  direct-same (U.run a) s eq ()
+ direct-same (U.handshakeStep w event) s eq direct = handshake-same w event s eq
  direct-same (U.negotiate w ps flow) s eq direct = negotiate-same w ps flow s eq
  direct-same (U.allocateHandle w hid mid) s eq direct = allocate-same w hid mid s eq
  direct-same (U.configureMux w plan limit bound keys) s eq direct = configure-same w plan limit bound keys s eq
@@ -142,7 +192,7 @@ import Data.Nat as Nat
 
 module Protocol where
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; bodySource; publicationSource; locate; pendingAt; sameOutcome; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; unlessAwaiting-just; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol; viaDb; viaDb-source; submitDb-via; awaitDb-via; dbFailure-via; DbFailure; refused; abandoned; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
- private module U = P.U using (base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
+ private module U = P.U using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
  private module Pool = P.Pool using (bodyReturnedWith; deregister; parentFork; publishAsyncResult; publishCompletion; register; step)
  private module Startup = P.Startup using (phase)
  private module Old = ProtocolProperties using (EgressChange; enter-observation; send-observation; muxer-egress-observation; ForkSource; responderSource; initiatorSource; BodyReturn; CompletionCommit; Fork; Publication; clean-observation; exception-observation; initiator-fork-observation; publication-observation; responder-fork-observation; return-observation)
@@ -236,6 +286,7 @@ module Protocol where
  ...       | true with O.advance (O.inbound (Machine.igStep (P.sourceControl action mid))) (P.source s) in advanced
  ...         | nothing = case eq of λ ()
  ...         | just c = case just-injective eq of λ { refl → inbound-same (Machine.igStep (P.sourceControl action mid)) (P.source s) advanced tt }
+ control-same w action s eq | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
  control-same w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
  control-same w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
  control-same w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -497,7 +548,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; isInfra; joined; joinGroup; joinMini; joinMiniHead; joinWhole; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; retireFor; retireAllowed; retireCounters; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
  private module M = W.M using (deadReady; deadTracing; failed; finishMatches; finished; initiatorTracing; pcAt; responderTracing; selected; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; source; protocolException; sameOutcome; step)
- private module U = P.U using (module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess)
+ private module U = P.U using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess)
  private module Pool = P.Pool using (beginClose; bodyReturned; bodyRunning; bodyUnwinding; bodyUnwound; cancelPending; closedPool; closing; deliverCancel; deregisterPending; deregistered; finishClose; handles; interruptJob; join; joinPending; openPool; phase; requestCancel; resultAvailable; resumeAfterUnwindError; sameSnapshot; step)
  open W using (remaining; joined; cancelPC)
  table : W.State → Store WorkerId S.AdmissionWorker
@@ -552,6 +603,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just f with U.progress f
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+ ...   | (U.handshakePending helperPC) = case eq of λ ()
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
  -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -562,6 +614,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just f with U.progress f
  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | (U.handshakePending helperPC) = case eq of λ ()
  ...     | U.returnedSuccess = case eq of λ ()
  ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′

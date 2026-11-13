@@ -74,6 +74,7 @@ request-stop-keys w s eq with lookup w (U.frames (P.base (G.protocolState s)))
 ... | nothing = case eq of λ ()
 ... | just f with U.progress f
 ...   | U.promisePublished hid mid = via-keys (IG.enqueueMuxStop mid) s eq
+...   | (U.handshakePending helperPC) = case eq of λ ()
 ...   | U.returnedSuccess = case eq of λ ()
 ...   | U.handleAllocated _ _ = case eq of λ ()
 retire-keys : ∀ w s {s′} → G.retireFor w s ≡ just s′ → Same s s′
@@ -83,6 +84,7 @@ retire-keys w s eq with G.retireAllowed (G.phase (G.frameAt w s))
 ...   | nothing = case eq of λ ()
 ...   | just f with U.progress f
 ...     | U.promisePublished hid mid = via-keys (IG.retireCells mid) s eq
+...     | (U.handshakePending helperPC) = case eq of λ ()
 ...     | U.returnedSuccess = case eq of λ ()
 ...     | U.handleAllocated _ _ = case eq of λ ()
 select-stop-keys : ∀ w s {s′} → G.selectStop w s ≡ just s′ → Same s s′

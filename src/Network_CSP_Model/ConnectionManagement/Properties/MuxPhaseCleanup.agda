@@ -28,6 +28,8 @@ open import ConnectionManagement.Properties.Stores using (lookup-put-other; look
 open import ConnectionManagement.Properties.CleanupWriters using (outbound-same; QuietOutbound)
 open import ConnectionManagement.Properties.HandlerPhaseCleanup using (Expected; Agrees; module Relative; module Raw; module Physical)
 import ConnectionManagement.Rules.MuxEgress as EgressLayout
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -51,7 +53,7 @@ Parked nothing = ⊥
 Parked (just t) = H.phase t ≡ H.handshaking
 
 module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : WorkerId → Bool) where
- private module U = MuxModel Types.TypedResult using (Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; handlerAllowed; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; shutdownTargetAllowed; egressSetup; unframed; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step; frame)
+ private module U = MuxModel Types.TypedResult using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; handshakeStep; handshakeFor; captureHandshake; advanceHandshake; Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handlerAllowed; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; publish; publishSuccess; run; setupFor; scheduled; nextSetup; setup; shutdownTargetAllowed; egressSetup; unframed; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step; frame)
  private module Startup = U.Startup using (observePublication; step; initial)
  framedZ : U.State → WorkerId → Bool
  framedZ s q = present (lookup q (U.frames s))
@@ -203,6 +205,48 @@ module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : Wor
  negotiated w ps flow s eq v | nothing | origin | old = case eq of λ ()
  negotiated w ps flow s eq v | just thread | nothing | old = case eq of λ ()
  negotiated w ps flow s eq v | just thread | just origin | just old = case eq of λ ()
+ -- Helper frames preserve the same source/capture observation.
+ capture-handshake-preserves : ∀ w pc s {t} → U.captureHandshake w pc s ≡ just t → Valid s → Valid t
+ capture-handshake-preserves w pc s eq valid with lookup w (B.threads (U.base s)) in found |
+   lookup w (U.origins s) | lookup w (U.frames s) in absent
+ ... | just thread | just origin | nothing with H.phase thread in ph
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.maskedSetup = case eq of λ ()
+ ...   | H.handshaking = case just-injective eq of λ { refl → framed-new w _ thread s absent found ph valid }
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | (H.caughtCancellation err) = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | (H.cancellationPublished err) = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | (H.bodyExited err) = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | (H.finalizing err) = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | (H.cleanupComplete err outcome) = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | (H.resultAvailable err outcome) = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | nothing | origin | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | nothing | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | just old = case eq of λ ()
+
+ -- Metadata stutters; publication executes the actual promise writer.
+ advance-handshake-preserves : ∀ w action s {t} → U.advanceHandshake w action s ≡ just t → Valid s → Valid t
+ advance-handshake-preserves w action s eq valid with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f in progress
+ ...   | U.handshakePending pc with HS.step action pc
+ ...     | just (next , nothing) = case just-injective eq of λ { refl → put-valid w _ s (cong present found) valid }
+ ...     | just (next , just result) with O.advance (O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)) (U.source s) in advanced
+ ...       | nothing = case eq of λ ()
+ ...       | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (cong present found) (source-valid c s (outbound-same (O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)) (U.source s) advanced tt) valid) }
+ advance-handshake-preserves w action s eq valid | just f | U.handshakePending pc | nothing = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.returnedSuccess = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.handleAllocated h mid = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.promisePublished h mid = case eq of λ ()
+
+ -- Only inbound origins can enter the query delay.
+ handshake-preserves : ∀ w event s {t} → U.handshakeFor w event s ≡ just t → Valid s → Valid t
+ handshake-preserves w (HS.limitReturned kind err) s eq valid = capture-handshake-preserves w (HS.returned (HS.protocolLimit kind err)) s eq valid
+ handshake-preserves w (HS.bearerTimedOut err) s eq valid = capture-handshake-preserves w (HS.returned (HS.bearerTimeout err)) s eq valid
+ handshake-preserves w HS.queryReturned s eq valid with lookup w (U.origins s)
+ ... | just HandshakeDomain.inbound = capture-handshake-preserves w (HS.returned HS.query) s eq valid
+ ... | just HandshakeDomain.outbound = case eq of λ ()
+ ... | nothing = case eq of λ ()
+ handshake-preserves w (HS.continue action) s eq valid = advance-handshake-preserves w action s eq valid
+
  allocated : ∀ w hid mid s {t} → U.allocate w hid mid s ≡ just t → Valid s → Valid t
  allocated w hid mid s eq v with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -211,6 +255,7 @@ module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : Wor
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (cong present found)
    (source-valid c s (outbound-same (O.inbound (Machine.igStep (U.allocationAction f hid mid))) (U.source s) advanced tt) v) }
+ allocated w hid mid s eq v | just f | (U.handshakePending helperPC) = case eq of λ ()
  allocated w hid mid s eq v | just f | U.handleAllocated old mid′ = case eq of λ ()
  allocated w hid mid s eq v | just f | U.promisePublished old mid′ = case eq of λ ()
  configured : ∀ w plan limit bound keys s {s′} → U.configure w plan limit bound keys s ≡ just s′ → Valid s → Valid s′
@@ -222,6 +267,7 @@ module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : Wor
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → source-valid c s
    (outbound-same (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) advanced tt) }
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
  registered : ∀ w s {s′} → U.registerFor w s ≡ just s′ → Valid s → Valid s′
@@ -232,6 +278,7 @@ module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : Wor
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → source-valid c s (outbound-same (O.inbound (Machine.igStep (IG.registerCells mid))) (U.source s) advanced tt) }
  registered w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ registered w s eq | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  registered w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  registered w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
  setup-valid : ∀ w s {t} → U.setupFor w s ≡ just t → Valid s → Valid t
@@ -252,6 +299,7 @@ module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : Wor
    (source-valid c s (outbound-same (O.inbound (Machine.handlerPublication w (S.negotiated hid (U.flow f)) Machine.resultWritten)) (U.source s) advanced tt) v) }
  ...     | nothing | _ = case eq of λ ()
  ...     | just c | nothing = case eq of λ ()
+ published w s eq v | just f | (U.handshakePending helperPC) = case eq of λ ()
  published w s eq v | just f | U.returnedSuccess = case eq of λ ()
  published w s eq v | just f | U.promisePublished hid mid = case eq of λ ()
  startup : ∀ w a s {t} → U.advanceStartup w a s ≡ just t → Valid s → Valid t
@@ -261,11 +309,13 @@ module Mux (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : Wor
  ...   | U.promisePublished hid mid | true with Startup.step a (U.startup f)
  ...     | nothing = case eq of λ ()
  ...     | just next = case just-injective eq of λ { refl → put-valid w _ s (cong present found) v }
+ startup w a s eq v | just f | (U.handshakePending helperPC) | allowed = case eq of λ ()
  startup w a s eq v | just f | U.returnedSuccess | allowed = case eq of λ ()
  startup w a s eq v | just f | U.handleAllocated hid mid | allowed = case eq of λ ()
  startup w a s eq v | just f | U.promisePublished hid mid | false = case eq of λ ()
  step-preserves : ∀ a s {t} → U.step a s ≡ just t → Valid s → Valid t
  step-preserves (U.run a) = inherited a
+ step-preserves (U.handshakeStep w event) = handshake-preserves w event
  step-preserves (U.negotiate w ps flow) = negotiated w ps flow
  step-preserves (U.allocateHandle w hid mid) = allocated w hid mid
  step-preserves (U.configureMux w plan limit bound keys) s eq = configured w plan limit bound keys s eq
@@ -293,7 +343,7 @@ open import Relation.Nullary using (does)
 -- Protocol jobs issue only quiet source operations and rewrite existing frames.
 module Protocol (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : WorkerId → Bool) where
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; bodySource; publicationSource; locate; pendingAt; sameOutcome; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; unlessAwaiting-just; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol; viaDb; viaDb-source; submitDb-via; awaitDb-via; dbFailure-via; DbFailure; refused; abandoned; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
- private module U = P.U using (base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; handshakeStep; handshakeFor; captureHandshake; advanceHandshake; base; frames; initial; startup; step)
  private module Pool = P.Pool using (bodyReturnedWith; deregister; parentFork; publishAsyncResult; publishCompletion; register; step)
  private module Startup = P.Startup using (phase)
  private module Old = ProtocolProperties using (EgressChange; enter-observation; send-observation; muxer-egress-observation; ForkSource; responderSource; initiatorSource; BodyReturn; CompletionCommit; Fork; Publication; clean-observation; exception-observation; initiator-fork-observation; publication-observation; responder-fork-observation; return-observation)
@@ -411,6 +461,7 @@ module Protocol (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K 
  ...       | true with O.advance (O.inbound (Machine.igStep (P.sourceControl a mid))) (P.source s) in advanced
  ...         | nothing = case eq of λ ()
  ...         | just c = case just-injective eq of λ { refl → source-valid c s (outbound-same (O.inbound (Machine.igStep (P.sourceControl a mid))) (P.source s) advanced tt) valid }
+ control w a s eq valid | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.returnedSuccess | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -459,7 +510,7 @@ open import ConnectionManagement.IGTypes using (clean; errored)
 module Monitor (isBearerClosed : ErrorId → Bool) (F : WorkerId → Bool) (C : WorkerId → Maybe S.CleanupPC) (K : WorkerId → Bool) where
  private module W = MonitorModel isBearerClosed using (Action; State; base; beginDead; commitTracer; consume; deadAction; deadReady; deadTracing; delegateAllowed; demuxFinish; failed; findCaptured; finishDead; finishMatches; finishMux; finishProtocol; finishProtocolTrace; finished; handleHead; handleProtocol; handleSelected; inherit; initial; initiatorTracing; legacyMatches; muxAt; ownerContext; pcAt; poolAt; protocolSource; recordFinish; responderTracing; run; sampleTracer; selectHead; selected; setPC; setSource; source; startDead; statusAction; step; traceSource; tracing; viaSource; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; initial; jobs; monitoring; noParent; step)
- private module U = P.U using (base; frames; handleAllocated; progress; promisePublished; returnedSuccess)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; handshakeStep; handshakeFor; captureHandshake; advanceHandshake; base; frames)
  private module Pool = P.Pool using (completions; consumeCompletion; step)
  private module PV = Protocol F C K
  Valid : W.State → Set
@@ -487,6 +538,7 @@ module Monitor (isBearerClosed : ErrorId → Bool) (F : WorkerId → Bool) (C : 
  ... | just actual with U.progress actual | P.monitoring actual
  ...   | U.promisePublished hid mid | true = case just-injective eq of λ { refl → refl }
  ...   | U.promisePublished hid mid | false = case eq of λ ()
+ ...   | (U.handshakePending helperPC) | _ = case eq of λ ()
  ...   | U.returnedSuccess | _ = case eq of λ ()
  ...   | U.handleAllocated hid mid | _ = case eq of λ ()
  ci-via-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
@@ -684,7 +736,7 @@ module Group (isBearerClosed : ErrorId → Bool) (F : WorkerId → Bool) (C : Wo
  private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; findOwner; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; inherit; initial; isInfra; joinGroup; joinMini; joinMiniHead; joinWhole; joined; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; retireFor; retireAllowed; retireCounters; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
  private module M = W.M using (deadReady; deadTracing; failed; finishMatches; finished; initial; initiatorTracing; pcAt; responderTracing; selected; step; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; protocolException; sameOutcome; step)
- private module U = P.U using (module Startup; Frame; frames; handleAllocated; progress; promisePublished; returnedSuccess; startup)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; handshakeStep; handshakeFor; captureHandshake; advanceHandshake; module Startup; Frame; frames; startup)
  private module Startup = U.Startup using (pool)
  private module Pool = P.Pool using (beginClose; bodyReturned; bodyRunning; bodyUnwinding; bodyUnwound; cancelPending; closedPool; closing; deliverCancel; deregisterPending; deregistered; finishClose; handles; interruptJob; join; joinPending; openPool; phase; requestCancel; resultAvailable; resumeAfterUnwindError; sameSnapshot; step)
  private module Lower = Monitor isBearerClosed F C K using (Valid; owner-found; step-preserves)
@@ -760,6 +812,7 @@ module Group (isBearerClosed : ErrorId → Bool) (F : WorkerId → Bool) (C : Wo
  ... | nothing = case eq of λ ()
  ... | just f with U.progress f
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+ ...   | (U.handshakePending helperPC) = case eq of λ ()
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
  -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -770,6 +823,7 @@ module Group (isBearerClosed : ErrorId → Bool) (F : WorkerId → Bool) (C : Wo
  ...   | nothing = case eq of λ ()
  ...   | just f with U.progress f
  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | (U.handshakePending helperPC) = case eq of λ ()
  ...     | U.returnedSuccess = case eq of λ ()
  ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
@@ -1288,7 +1342,7 @@ import ConnectionManagement.Rules.OutboundRelease as OutboundRelease
 open import ConnectionManagement.Properties.CleanupWriters using (exit-effect; cleanup-effect; stepped)
 -- The cleanup record an exit phase requires (independent of the kept set).
 module ExitPhase (isBearerClosed : ErrorId → Bool) where
- private module W = ExitModel isBearerClosed using (Phase; bufferScope; classifying; errorTracing; peerRethrow; nodeDelivery; nodeRethrow; bodyExited; finalizing; cleanupComplete; resultAvailable)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; Phase; bufferScope; classifying; errorTracing; peerRethrow; nodeDelivery; nodeRethrow; bodyExited; finalizing; cleanupComplete; resultAvailable)
  ExitExpected : W.Phase → Maybe S.CleanupPC → Set
  ExitExpected (W.bufferScope _) c = c ≡ nothing
  ExitExpected (W.classifying _) c = c ≡ nothing
@@ -1305,10 +1359,10 @@ module ExitPhase (isBearerClosed : ErrorId → Bool) where
 -- leave its record intact; its own exit steps keep the record matching the
 -- exit phase.
 module Exit (isBearerClosed : ErrorId → Bool) (K : WorkerId → Bool) where
- private module W = ExitModel isBearerClosed using (Action; Frame; Phase; BodyResult; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; releaseTarget; timeWaitTarget; releaseDelivery; releaseTimeWaitDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; phaseAfterBuffer; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; countersClear; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery; Executes; done; next)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; Action; Frame; Phase; BodyResult; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; releaseTarget; timeWaitTarget; releaseDelivery; releaseTimeWaitDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; phaseAfterBuffer; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; countersClear; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery; Executes; done; next)
  private module G = GroupModel isBearerClosed using (Outcome; abortOwner; asyncDeadTracing; asyncExit; asyncFailureWritten; drainReady; draining; failedExit; frameAt; groupClosing; idle; initial; monitorReturnedNormal; normalExit; ownerAborting; phase; protocolState; scopeDone; setPool; shutdownSelected; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; wholeClosed; wholeClosing)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base)
- private module U = P.U using (State; captured; frames; base; source)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; handshakeStep; handshakeFor; captureHandshake; advanceHandshake; State; captured; frames; base; source)
  private module Pool = P.Pool using (cancelPending; closedPool; closing; joinPending; openPool; phase)
  uview : W.State → U.State
  uview s = P.base (G.protocolState (W.base s))
@@ -1550,6 +1604,7 @@ module Exit (isBearerClosed : ErrorId → Bool) (K : WorkerId → Bool) where
   safe-machine : ∀ {a fs s} → (∀ c → O.advance a (W.source s) ≡ just c → Valid (record (W.setSource c s) { exits = fs })) → PlanSafe (W.machine a fs) s
   safe-inherited : ∀ {a s} → PlanSafe (W.inherited a) s
   safe-coordinator : ∀ {a s} → PlanSafe (W.coordinator a) s
+  safe-handshakeDelivery : ∀ {w window err s} → PlanSafe (W.handshakeDelivery w window err) s
   safe-muxDelivery : ∀ {w err s} → PlanSafe (W.muxDelivery w err) s
   safe-timeWaitDelivery : ∀ {w err s} → (∀ c → O.advance (O.inbound (Machine.cleanupStep w (Cleanup.interruptTimeWait err))) (W.source s) ≡ just c →
     Valid (record (W.setSource c s) { exits = W.noteCleanup w (Cleanup.interruptTimeWait err) s })) → PlanSafe (W.timeWaitDelivery w err) s
@@ -1565,6 +1620,9 @@ module Exit (isBearerClosed : ErrorId → Bool) (K : WorkerId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just g = case just-injective eq of λ { refl → g-step a s actual v }
  enact-preserves (W.coordinator a) s eq v safe-coordinator = control-preserves a s eq v
+ enact-preserves (W.handshakeDelivery w window err) s eq v safe-handshakeDelivery with G.step (W.handshakeAction w window err) (W.base s) in actual
+ ... | nothing = case eq of λ ()
+ ... | just g = control-preserves Close.acknowledgeDelivery (record s { base = g }) eq (g-step (W.handshakeAction w window err) s actual v)
  enact-preserves (W.muxDelivery w err) s eq v safe-muxDelivery with G.step (G.abortOwner w err) (W.base s) in actual
  ... | nothing = case eq of λ ()
  ... | just g = control-preserves Close.acknowledgeDelivery (record s { base = g }) eq (g-step (G.abortOwner w err) s actual v)
@@ -1592,6 +1650,19 @@ module Exit (isBearerClosed : ErrorId → Bool) (K : WorkerId → Bool) where
  choose-safe (W.run a) s eq valid with W.delegateAllowed a
  ... | true = case just-injective eq of λ { refl → safe-inherited }
  ... | false = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid with lookup w (W.exits s) in absent | lookup w (U.frames (P.base (G.protocolState (W.base s)))) in found
+ ... | nothing | just f with U.progress f
+ ...   | U.handshakePending (HS.exited result HS.normal) = case just-injective eq of λ { refl → safe-local (adopt-valid w _ s absent (cong present found) (λ c eq → eq) valid) }
+ ...   | U.handshakePending (HS.exited result (HS.sync err)) = case just-injective eq of λ { refl → safe-local (adopt-valid w _ s absent (cong present found) (λ c eq → eq) valid) }
+ ...   | U.handshakePending (HS.exited result (HS.async err)) = case just-injective eq of λ { refl → safe-local (adopt-valid w _ s absent (cong present found) (λ c eq → eq) valid) }
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handshakePending (HS.returned result) = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handshakePending (HS.published result) = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handshakePending HS.sleeping = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.returnedSuccess = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handleAllocated hid mid = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.promisePublished hid mid = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | nothing = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | just old | _ = case eq of λ ()
  choose-safe (W.beginExit w) s eq valid with lookup w (W.exits s) in absent | lookup w (U.frames (P.base (G.protocolState (W.base s)))) in found |
    G.phase (G.frameAt w (W.base s)) | Pool.phase (W.poolAt w s)
  ... | nothing | just f | G.scopeDone outcome | Pool.closedPool with lookup w (S.handlers (W.shared s))
@@ -1795,6 +1866,13 @@ module Exit (isBearerClosed : ErrorId → Bool) (K : WorkerId → Bool) where
  choose-safe (W.shutdownStep Close.requestCancellation) s eq valid = case just-injective eq of λ { refl → safe-coordinator }
  choose-safe (W.shutdownStep Close.finishTraversal) s eq valid = case just-injective eq of λ { refl → safe-coordinator }
  choose-safe (W.shutdownStep Close.finishClose) s eq valid = case just-injective eq of λ { refl → safe-coordinator }
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid with Close.phase (W.shutdown s)
+ ... | Close.awaitDelivery e w = case just-injective eq of λ { refl → safe-handshakeDelivery }
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.initial = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.reading = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.sendReady e w = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.awaitResults = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.closed = case eq of λ ()
  choose-safe (W.deliverShutdownMux err) s eq valid with Close.phase (W.shutdown s)
  ... | Close.awaitDelivery e w = case just-injective eq of λ { refl → safe-muxDelivery }
  choose-safe (W.deliverShutdownMux err) s eq valid | Close.initial = case eq of λ ()
@@ -1880,7 +1958,7 @@ import ConnectionManagement.MuxExitCancellation as CancellationModel
 -- Cancellation edits only phases before the finalizer.
 module Cancellation (isBearerClosed : ErrorId → Bool) (K : WorkerId → Bool) where
  private module X = CancellationModel isBearerClosed using (Window; State; bufferBlock; errorTraceBlock; nodeSendBlock; deliver; deliverShutdown; observeCancellation; observeErrorTraceException; run; shutdownDelivery; step; target; traceThrew)
- private module W = ExitModel isBearerClosed using (bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown; syncException; Phase; Frame)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown; syncException; Phase; Frame)
  private module Lower = Exit isBearerClosed K
  Valid : X.State → Set
  Valid = Lower.Valid
@@ -1958,12 +2036,12 @@ import ConnectionManagement.Properties.MuxStartupUnwind as UnwindProperties
 -- A handoff installs an exit frame before the finalizer for a framed worker
 -- without one, which therefore has no cleanup record.
 module Unwind (isBearerClosed : ErrorId → Bool) where
- private module R = UnwindModel isBearerClosed using (Executes; done; next; Action; Fault; Plan; State; acknowledge; allowed; async; asyncDead; asyncStatus; awaitingClose; base; beginClose; beginDead; cancellationPlan; choose; closing; commitDead; continueSync; deadThrowPoint; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; faults; finishClose; finishDead; handedOff; handoff; inherited; initial; join; local; machine; mux; observeCancellation; observeDeadTraceException; observeFailure; outcome; owner; phase; pool; poolAt; poolClosed; protocols; readyBody; readyBuffer; requestCancel; run; sameClose; sampleDead; setPhase; setPool; setSource; siteControl; siteRoute; source; start; step; sync; transfer; withPool; writeAsyncFailure)
- private module W = ExitModel isBearerClosed using (base; control; exits; setShutdown; shutdown; phase; setSource; source; Frame)
+ private module R = UnwindModel isBearerClosed using (counterRow; Executes; done; next; Action; Fault; Plan; State; acknowledge; allowed; async; asyncDead; asyncStatus; awaitingClose; base; beginClose; beginDead; cancellationPlan; choose; closing; commitDead; continueSync; deadThrowPoint; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; faults; finishClose; finishDead; handedOff; handoff; inherited; initial; join; local; machine; mux; observeCancellation; observeDeadTraceException; observeFailure; outcome; owner; phase; pool; poolAt; poolClosed; protocols; readyBody; readyBuffer; requestCancel; run; sameClose; sampleDead; setPhase; setPool; setSource; siteControl; siteRoute; source; start; step; sync; transfer; withPool; writeAsyncFailure)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; base; control; exits; setShutdown; shutdown; phase; setSource; source; Frame)
  private module X = CancellationModel isBearerClosed using (initial; step)
  private module G = GroupModel isBearerClosed using (module M; protocolState; wholeDeliverable; setPool)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; muxAt)
- private module U = P.U using (frames)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; handshakeStep; handshakeFor; captureHandshake; advanceHandshake; frames)
  private module Pool = P.Pool using (beginClose; cancelPending; closedPool; closing; finishClose; join; joinPending; openPool; phase; requestCancel; step)
  private module M = G.M using (failed; finishMatches)
  private module F = UnwindProperties isBearerClosed using (Selection; selection-observation)
@@ -2206,9 +2284,11 @@ module Unwind (isBearerClosed : ErrorId → Bool) where
 
  chosen-safe (R.handoff w) s eq valid with lookup w (R.faults s) in found | lookup w (W.exits (R.base s)) in absent
  ... | just f | nothing with R.phase f | R.outcome f
- ...   | R.readyBuffer | result = case just-injective eq of λ { refl → safe-transfer (fault-framed s valid found) absent (λ c none → none) (ff-phase w f R.handedOff s found valid) , λ _ → tt }
- ...   | R.readyBody | R.sync err = case just-injective eq of λ { refl → safe-transfer (fault-framed s valid found) absent (λ c none → none) (ff-phase w f R.handedOff s found valid) , λ _ → tt }
- ...   | R.readyBody | R.async err = case just-injective eq of λ { refl → safe-transfer (fault-framed s valid found) absent (λ c none → none) (ff-phase w f R.handedOff s found valid) , λ _ → tt }
+ ...   | R.readyBuffer | result with R.counterRow f s
+ ...     | just _ = case just-injective eq of λ { refl → safe-machine tt (ff-same s valid) , λ _ → tt }
+ ...     | nothing = case just-injective eq of λ { refl → safe-transfer (fault-framed s valid found) absent (λ c none → none) (ff-phase w f R.handedOff s found valid) , λ _ → tt }
+ chosen-safe (R.handoff w) s eq valid | just f | nothing | R.readyBody | R.sync err = case just-injective eq of λ { refl → safe-transfer (fault-framed s valid found) absent (λ c none → none) (ff-phase w f R.handedOff s found valid) , λ _ → tt }
+ chosen-safe (R.handoff w) s eq valid | just f | nothing | R.readyBody | R.async err = case just-injective eq of λ { refl → safe-transfer (fault-framed s valid found) absent (λ c none → none) (ff-phase w f R.handedOff s found valid) , λ _ → tt }
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.awaitingClose | _ = case eq of λ ()
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.closing | _ = case eq of λ ()
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.poolClosed | _ = case eq of λ ()

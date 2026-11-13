@@ -344,7 +344,7 @@ module Publication (b : ErrorId → Bool) where
 
 -- Server bookkeeping retains backing; real physical calls use the lower proof.
 module Server (isBearerClosed : ErrorId → Bool) where
- private module SA = AdmissionModel isBearerClosed using (Action; State; initial; setSource; source; request; socketOutcome; acceptedFork; accepting; allowed; base; bodyExited; calling; chooseScope; closeDisconnected; closeException; closePrefix; closePrefixWorker; closeWorker; enactClose; enactPrefixClose; enactScope; forkAccepted; fresh; inherit; listenerOpen; nextException; nextNormal; observeException; observeReturn; pc; physicalAction; prefixCloseFailed; prefixException; prefixMatches; prefixReturned; publishWorkerResult; resultAvailable; run; runMachine; sameLimit; scope; scopeAdvance; shared; stage; step; workerClose; workerException; workerPrefixException; workerPrefixReturned; workerResult; workerReturned; workers)
+ private module SA = AdmissionModel isBearerClosed using (restoreWorker; workerRestore; raised; returned; scopePlan; socketScopePlan; isAcceptedSocket; closeForkFailure; closeFailedFork; failedForkSocket; Action; State; initial; setSource; source; request; socketOutcome; acceptedFork; accepting; allowed; base; bodyExited; calling; chooseScope; closeDisconnected; closeException; closePrefix; closePrefixWorker; closeWorker; enactClose; enactPrefixClose; enactScope; forkAccepted; fresh; inherit; listenerOpen; nextException; nextNormal; observeException; observeReturn; pc; physicalAction; prefixCloseFailed; prefixException; prefixMatches; prefixReturned; publishWorkerResult; resultAvailable; run; runMachine; sameLimit; scope; scopeAdvance; shared; stage; step; workerClose; workerException; workerPrefixException; workerPrefixReturned; workerResult; workerReturned; workers)
  private module N = PublicationModel isBearerClosed using (initial; raw; step)
  private module W = ExitModel isBearerClosed using (run)
  private module G = GroupModel isBearerClosed using (Action; run)
@@ -422,6 +422,7 @@ module Server (isBearerClosed : ErrorId → Bool) where
  ...   | SA.calling | Shared.returnHandshake _ = case eq of λ ()
  ...   | SA.calling | Shared.completedHandshake _ = case eq of λ ()
  ...   | SA.calling | Shared.impossibleHandshake = case eq of λ ()
+ ...   | SA.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
  ...   | SA.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
  ...   | SA.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
  ...   | SA.closeDisconnected | _ = case eq of λ ()
@@ -434,6 +435,7 @@ module Server (isBearerClosed : ErrorId → Bool) where
  prefix-exception-preserves : ∀ w err s {t} → SA.prefixException w err s ≡ just t → Valid s → Valid t
  prefix-exception-preserves w err s eq valid with lookup w (SA.workers s) | lookup w (Shared.admissions (SA.shared s))
  ... | just worker | just a with SA.pc worker | Shared.pc a
+ ...   | SA.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
  ...   | SA.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → valid }
  ...   | SA.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → valid }
  ...   | SA.calling | Shared.acquireMap = case eq of λ ()
@@ -465,15 +467,15 @@ module Server (isBearerClosed : ErrorId → Bool) where
  ... | just worker | just a with SA.pc worker | Shared.pc a
  ...   | SA.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → valid }
  ...   | SA.calling | Shared.acquireMap = case eq of λ ()
- ...   | SA.calling | Shared.count _ = case eq of λ ()
- ...   | SA.calling | Shared.prepare _ = case eq of λ ()
- ...   | SA.calling | Shared.selectEntry _ _ = case eq of λ ()
- ...   | SA.calling | Shared.forkHandler _ _ _ = case eq of λ ()
- ...   | SA.calling | Shared.publish _ _ _ = case eq of λ ()
+ ...   | SA.calling | Shared.count _ = case just-injective eq of λ { refl → valid }
+ ...   | SA.calling | Shared.prepare _ = case just-injective eq of λ { refl → valid }
+ ...   | SA.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → valid }
+ ...   | SA.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → valid }
+ ...   | SA.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → valid }
  ...   | SA.calling | Shared.reject _ _ = case eq of λ ()
  ...   | SA.calling | Shared.closeSocket _ = case eq of λ ()
  ...   | SA.calling | Shared.finished _ = case eq of λ ()
- ...   | SA.calling | Shared.countPublished _ _ = case eq of λ ()
+ ...   | SA.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → valid }
  ...   | SA.calling | Shared.commitHandshake _ _ = case eq of λ ()
  ...   | SA.calling | Shared.countHandshake _ = case eq of λ ()
  ...   | SA.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -505,6 +507,16 @@ module Server (isBearerClosed : ErrorId → Bool) where
    (record (SA.source s) { core = Machine.replaceWorld (O.core (SA.source s)) (record (SA.shared s)
      { sockets = put (Shared.socketRef (SA.request worker)) (SA.socketOutcome outcome) (Shared.sockets (SA.shared s)) }) })
    (N.raw (SA.base s)) refl valid
+ -- The failed bare fork's close changes only the captured socket cell.
+ fork-close-preserves : ∀ outcome s {t} → SA.closeFailedFork outcome s ≡ just t → Valid s → Valid t
+ fork-close-preserves outcome s eq valid with SA.failedForkSocket s
+ ... | nothing = case eq of λ ()
+ ... | just sock with SA.isAcceptedSocket sock s
+ ...   | false = case eq of λ ()
+ ...   | true = case just-injective eq of λ { refl → Unwind.source-quiet isBearerClosed
+   (record (SA.source s) { core = Machine.replaceWorld (O.core (SA.source s)) (record (SA.shared s)
+     { sockets = put sock (SA.socketOutcome outcome) (Shared.sockets (SA.shared s)) }) })
+   (N.raw (SA.base s)) refl valid }
  enact-prefix-preserves : ∀ w worker result outcome s {t} → SA.enactPrefixClose w worker result outcome s ≡ just t →
    Valid s → Valid t
  enact-prefix-preserves w worker result nothing s eq valid with N.step
@@ -536,18 +548,42 @@ module Server (isBearerClosed : ErrorId → Bool) where
  ... | true with N.step a (SA.base s) in actual
  ...   | nothing = case eq of λ ()
  ...   | just n = case just-injective eq of λ { refl → PublishFacts.step-preserves a (SA.base s) actual valid }
+ body-restore-preserves : ∀ w s {t} → SA.restoreWorker w s ≡ just t → Valid s → Valid t
+ body-restore-preserves w s eq valid with lookup w (SA.workers s)
+ ... | nothing = case eq of λ ()
+ ... | just worker with SA.pc worker
+ ...   | SA.closePrefix Shared.bodyFailed (SA.raised fault) with N.step (SA.runMachine (Machine.admissionStep w Admission.restoreBody)) (SA.base s) in actual
+ ...     | nothing = case eq of λ ()
+ ...     | just n = case just-injective eq of λ { refl → PublishFacts.step-preserves (SA.runMachine (Machine.admissionStep w Admission.restoreBody)) (SA.base s) actual valid }
+ body-restore-preserves w s eq valid | just worker | SA.calling = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.closeDisconnected = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.closeException fault = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.closePrefix Shared.hardLimitReached result = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.closePrefix Shared.forbidden result = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.closePrefix Shared.forkFailed result = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.closePrefix Shared.bodyFailed SA.returned = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.bodyExited result = case eq of λ ()
+ body-restore-preserves w s eq valid | just worker | SA.resultAvailable result = case eq of λ ()
+
  scope-enact-preserves : ∀ p s {t} → SA.enactScope p s ≡ just t → Valid s → Valid t
- scope-enact-preserves p s eq valid with SA.physicalAction p
+ scope-enact-preserves (SA.scopePlan st keep ig action) s eq valid with action
  ... | nothing = case just-injective eq of λ { refl → valid }
  ... | just command with N.step command (SA.base s) in actual
  ...   | nothing = case eq of λ ()
  ...   | just n = case just-injective eq of λ { refl → PublishFacts.step-preserves command (SA.base s) actual valid }
+ scope-enact-preserves (SA.socketScopePlan st keep ig sock owner) s eq valid =
+   case just-injective eq of λ { refl → Unwind.source-quiet isBearerClosed
+     (record (SA.source s) { core = Machine.replaceWorld (O.core (SA.source s)) (record (SA.shared s)
+     { sockets = put sock owner (Shared.sockets (SA.shared s)) }) })
+     (N.raw (SA.base s)) refl valid }
  scope-preserves : ∀ a s {t} → SA.scopeAdvance a s ≡ just t → Valid s → Valid t
  scope-preserves a s eq valid with SA.chooseScope a s
  ... | nothing = case eq of λ ()
  ... | just p = scope-enact-preserves p s eq valid
  step-preserves : ∀ a s {t} → SA.step a s ≡ just t → Valid s → Valid t
+ step-preserves (SA.closeForkFailure outcome) = fork-close-preserves outcome
  step-preserves (SA.acceptedFork w req) = fork-preserves w req
+ step-preserves (SA.workerRestore w) = body-restore-preserves w
  step-preserves (SA.run a) = inherit-preserves a
  step-preserves (SA.workerReturned w) = return-preserves w
  step-preserves (SA.workerPrefixReturned w) = prefix-return-preserves w
@@ -566,7 +602,7 @@ module Server (isBearerClosed : ErrorId → Bool) where
 -- IG exit plans delegate physical changes or update only their own metadata.
 module IGExit (b : ErrorId → Bool) where
  private module E = IGExitModel b using (clearPending; source; State; abandon; ownFailure; base; choose; delegate; enact; finish; initial; local; step)
- private module SA = AdmissionModel b using (initial; setSource; step; base)
+ private module SA = AdmissionModel b using (restoreWorker; workerRestore; raised; returned; scopePlan; socketScopePlan; isAcceptedSocket; closeForkFailure; closeFailedFork; failedForkSocket; initial; setSource; step; base)
  private module N = PublicationModel b using (raw)
  private module ServerFacts = Server b using (Valid; initialized-valid; step-preserves)
  Valid : E.State → Set
@@ -600,7 +636,7 @@ module SharedLayer (b io : ErrorId → Bool) where
  private module ExitFacts = IGExit b using (Valid; initialized-valid; step-preserves)
  private module PeerFacts = CleanupPeers io using (cleanups-same)
  private module Permission = OriginRuntime.Frontend b io (λ _ _ → false) using (peer-permission)
- private module SA = AdmissionModel b using (base)
+ private module SA = AdmissionModel b using (restoreWorker; workerRestore; raised; returned; scopePlan; socketScopePlan; isAcceptedSocket; closeForkFailure; closeFailedFork; failedForkSocket; base)
  private module EX = IGExitModel b using (base)
  private module N = PublicationModel b using (raw)
  unwind : K.State → UnwindModel.State b

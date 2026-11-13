@@ -137,6 +137,7 @@ selection-observation w result route s eq with R.free w s in free | R.owner w s 
 ...       | nothing = case eq of λ ()
 ...       | just r = selection u hid mid m r free found absent
           (subst (λ p → P.noParent p ≡ true) (sym (owner-pool w s u found)) settled) published muxFound routed (sym (just-injective eq))
+selection-observation w result route s eq | true | just u | nothing | true | (U.handshakePending helperPC) = case eq of λ ()
 selection-observation w result route s eq | true | just u | nothing | true | U.returnedSuccess = case eq of λ ()
 selection-observation w result route s eq | true | just u | nothing | true | U.handleAllocated _ _ = case eq of λ ()
 selection-observation w result route s eq | false | _ | _ | _ = case eq of λ ()

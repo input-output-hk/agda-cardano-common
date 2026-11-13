@@ -56,6 +56,7 @@ owner-frame w s actual with lookup w (U.frames (P.base (W.base s))) in found
 ... | just f with U.progress f | P.monitoring f
 ...   | U.promisePublished hid mid | true = case just-injective actual of λ { refl → refl }
 ...   | U.promisePublished hid mid | false = case actual of λ ()
+...   | (U.handshakePending helperPC) | _ = case actual of λ ()
 ...   | U.returnedSuccess | _ = case actual of λ ()
 ...   | U.handleAllocated hid mid | _ = case actual of λ ()
 

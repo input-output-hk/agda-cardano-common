@@ -92,6 +92,7 @@ responder-keys w j gen s eq | just f | true | U.promisePublished hid mid | true 
 responder-keys w j gen s eq | just f | true | U.promisePublished hid mid | true | just m | M.returned = case eq of λ ()
 responder-keys w j gen s eq | just f | true | U.promisePublished hid mid | true | nothing = case eq of λ ()
 responder-keys w j gen s eq | just f | true | U.promisePublished hid mid | false = case eq of λ ()
+responder-keys w j gen s eq | just f | true | (U.handshakePending helperPC) | _ = case eq of λ ()
 responder-keys w j gen s eq | just f | true | U.returnedSuccess | _ = case eq of λ ()
 responder-keys w j gen s eq | just f | true | U.handleAllocated _ _ | _ = case eq of λ ()
 responder-keys w j gen s eq | just f | false = case eq of λ ()
@@ -118,6 +119,7 @@ initiator-keys w j gen n s eq | just f | true | U.promisePublished hid mid | tru
 initiator-keys w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | just m | M.stopped | _ | _ | _ | _ = case eq of λ ()
 initiator-keys w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | just m | M.failed _ | _ | _ | _ | _ = case eq of λ ()
 initiator-keys w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | nothing = case eq of λ ()
+initiator-keys w j gen n s eq | just f | true | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
 initiator-keys w j gen n s eq | just f | true | U.returnedSuccess | _ | _ = case eq of λ ()
 initiator-keys w j gen n s eq | just f | true | U.handleAllocated _ _ | _ | _ = case eq of λ ()
 initiator-keys w j gen n s eq | just f | true | U.promisePublished _ _ | true | nothing = case eq of λ ()
@@ -277,6 +279,7 @@ control-keys w act s eq with lookup w (U.frames (P.base s))
 ...       | true with O.advance (O.inbound (Machine.igStep (P.sourceControl act mid))) (P.source s) in advanced
 ...         | nothing = case eq of λ ()
 ...         | just c = case just-injective eq of λ { refl → nonkey (O.inbound (Machine.igStep (P.sourceControl act mid))) (P.source s) refl advanced }
+control-keys w act s eq | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
 control-keys w act s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
 control-keys w act s eq | just f | U.handleAllocated _ _ | _ | _ = case eq of λ ()
 control-keys w act s eq | just f | U.promisePublished _ _ | true | false = case eq of λ ()

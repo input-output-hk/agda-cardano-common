@@ -20,6 +20,8 @@ open import ConnectionManagement.Store using (Store; lookup; put)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other; lookup-head)
 import ConnectionManagement.Rules.MuxEgress as EgressLayout
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -39,7 +41,7 @@ open import ConnectionManagement.Properties.LiveTrackerCapture public
 import ConnectionManagement.Properties.HandlerAuxBacking as Presence
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (captured; Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; captured; Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  Valid : U.State → Set
  Valid s = Covers (U.frames s) (Birth.MuxLayer.view s)
@@ -73,6 +75,48 @@ module Mux where
  negotiated w ps flow s eq valid | nothing | origin | old = case eq of λ ()
  negotiated w ps flow s eq valid | just thread | nothing | old = case eq of λ ()
  negotiated w ps flow s eq valid | just thread | just origin | just old = case eq of λ ()
+ -- Helper frames preserve the same source/capture observation.
+ capture-handshake-preserves : ∀ w pc s {t} → U.captureHandshake w pc s ≡ just t → Valid s → Valid t
+ capture-handshake-preserves w pc s eq valid with lookup w (B.threads (U.base s)) in found |
+   lookup w (U.origins s) | lookup w (U.frames s)
+ ... | just thread | just origin | nothing with H.phase thread
+ ...   | H.handshaking = case just-injective eq of λ { refl → put-valid w _ s (physical-present w (U.base s) thread found) valid }
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.maskedSetup = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.caughtCancellation err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.cancellationPublished err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.bodyExited err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.finalizing err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.cleanupComplete err outcome = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.resultAvailable err outcome = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | nothing | origin | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | nothing | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | just old = case eq of λ ()
+
+ -- Metadata stutters; publication executes the actual promise writer.
+ advance-handshake-preserves : ∀ w action s {t} → U.advanceHandshake w action s ≡ just t → Valid s → Valid t
+ advance-handshake-preserves w action s eq valid with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f in progress
+ ...   | U.handshakePending pc with HS.step action pc
+ ...     | just (next , nothing) = case just-injective eq of λ { refl → put-valid w _ s (covers-at valid w f found) valid }
+ ...     | just (next , just result) with O.advance (O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)) (U.source s) in advanced
+ ...       | nothing = case eq of λ ()
+ ...       | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (covers-at valid w f found) valid }
+ advance-handshake-preserves w action s eq valid | just f | U.handshakePending pc | nothing = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.returnedSuccess = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.handleAllocated h mid = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.promisePublished h mid = case eq of λ ()
+
+ -- Only inbound origins can enter the query delay.
+ handshake-preserves : ∀ w event s {t} → U.handshakeFor w event s ≡ just t → Valid s → Valid t
+ handshake-preserves w (HS.limitReturned kind err) s eq valid = capture-handshake-preserves w (HS.returned (HS.protocolLimit kind err)) s eq valid
+ handshake-preserves w (HS.bearerTimedOut err) s eq valid = capture-handshake-preserves w (HS.returned (HS.bearerTimeout err)) s eq valid
+ handshake-preserves w HS.queryReturned s eq valid with lookup w (U.origins s)
+ ... | just HandshakeDomain.inbound = capture-handshake-preserves w (HS.returned HS.query) s eq valid
+ ... | just HandshakeDomain.outbound = case eq of λ ()
+ ... | nothing = case eq of λ ()
+ handshake-preserves w (HS.continue action) s eq valid = advance-handshake-preserves w action s eq valid
+
  allocated : ∀ w hid mid s {t} → U.allocate w hid mid s ≡ just t → Valid s → Valid t
  allocated w hid mid s eq valid with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -80,6 +124,7 @@ module Mux where
  ...   | U.returnedSuccess with O.advance (O.inbound (Machine.igStep (U.allocationAction f hid mid))) (U.source s)
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (covers-at valid w f found) valid }
+ allocated w hid mid s eq valid | just f | (U.handshakePending helperPC) = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.handleAllocated old mid′ = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.promisePublished old mid′ = case eq of λ ()
  -- Configured egress installation writes only the actual allocated mux.
@@ -91,6 +136,7 @@ module Mux where
  ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → λ valid → valid }
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
@@ -103,6 +149,7 @@ module Mux where
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → λ valid → valid }
  registered w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ registered w s eq | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  registered w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  registered w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
@@ -123,6 +170,7 @@ module Mux where
  ...     | just c | just next = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (covers-at valid w f found) valid }
  ...     | nothing | _ = case eq of λ ()
  ...     | just c | nothing = case eq of λ ()
+ published w s eq valid | just f | (U.handshakePending helperPC) = case eq of λ ()
  published w s eq valid | just f | U.returnedSuccess = case eq of λ ()
  published w s eq valid | just f | U.promisePublished hid mid = case eq of λ ()
  startup : ∀ w a s {t} → U.advanceStartup w a s ≡ just t → Valid s → Valid t
@@ -132,11 +180,13 @@ module Mux where
  ...   | U.promisePublished hid mid | true with Startup.step a (U.startup f)
  ...     | nothing = case eq of λ ()
  ...     | just next = case just-injective eq of λ { refl → put-valid w _ s (covers-at valid w f found) valid }
+ startup w a s eq valid | just f | (U.handshakePending helperPC) | allowed = case eq of λ ()
  startup w a s eq valid | just f | U.returnedSuccess | allowed = case eq of λ ()
  startup w a s eq valid | just f | U.handleAllocated hid mid | allowed = case eq of λ ()
  startup w a s eq valid | just f | U.promisePublished hid mid | false = case eq of λ ()
  step-preserves : ∀ a s {t} → U.step a s ≡ just t → Valid s → Valid t
  step-preserves (U.run a) = inherited a
+ step-preserves (U.handshakeStep w event) = handshake-preserves w event
  step-preserves (U.negotiate w ps flow) = negotiated w ps flow
  step-preserves (U.allocateHandle w hid mid) = allocated w hid mid
  step-preserves (U.configureMux w plan limit bound keys) s eq = configured w plan limit bound keys s eq
@@ -158,7 +208,7 @@ import ConnectionManagement.Properties.MuxProtocolJobs as ProtocolProperties
 import ConnectionManagement.Rules.MuxRuntime as WireMux
 module Protocol where
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; Action; module Pool; module Startup; State; module U; appendPending; asyncInfraResult; asyncProtocolResult; base; commitClean; control; controlReady; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infraId; infrastructureReturn; inherit; inheritedAllowed; initial; jobs; monitorControl; monitoring; muxAt; noParent; poolAt; protocolException; protocolReturned; unlessAwaiting-just; publishInfra; publishProtocol; register; registerProtocol; removePublished; returnProtocol; returned; run; setPool; setSource; source; sourceControl; step; viaInfra; viaProtocol; viaDb; viaDb-source; submitDb-via; awaitDb-via; dbFailure-via; DbFailure; refused; abandoned; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
- private module U = P.U using (captured; base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
+ private module U = P.U using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; captured; base; frames; handleAllocated; initial; progress; promisePublished; returnedSuccess; startup; step)
  private module Pool = P.Pool using (bodyReturnedWith; deregister; parentFork; publishAsyncResult; publishCompletion; register; step)
  private module Startup = P.Startup using (phase)
  private module Old = ProtocolProperties using (EgressChange; enter-observation; send-observation; muxer-egress-observation; BodyReturn; CompletionCommit; Fork; Publication; clean-observation; exception-observation; initiator-fork-observation; publication-observation; responder-fork-observation; return-observation)
@@ -248,6 +298,7 @@ module Protocol where
  ...       | true with O.advance (O.inbound (Machine.igStep (P.sourceControl a mid))) (P.source s)
  ...         | nothing = case eq of λ ()
  ...         | just c = case just-injective eq of λ { refl → valid }
+ control w a s eq valid | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.returnedSuccess | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -299,7 +350,7 @@ open import Relation.Nullary using (does)
 module Monitor (isBearerClosed : ErrorId → Bool) where
  private module W = MonitorModel isBearerClosed using (Action; State; base; beginDead; commitTracer; consume; deadAction; deadReady; deadTracing; delegateAllowed; demuxFinish; failed; findCaptured; finishDead; finishMatches; finishMux; finishProtocol; finishProtocolTrace; finished; handleHead; handleProtocol; handleSelected; inherit; initial; initiatorTracing; legacyMatches; muxAt; ownerContext; pcAt; poolAt; protocolSource; recordFinish; responderTracing; run; sampleTracer; selectHead; selected; setPC; setSource; source; startDead; statusAction; step; traceSource; tracing; viaSource; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; initial; jobs; monitoring; noParent; step)
- private module U = P.U using (captured; base; frames; handleAllocated; progress; promisePublished; returnedSuccess)
+ private module U = P.U using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; captured; base; frames; handleAllocated; progress; promisePublished; returnedSuccess)
  private module Pool = P.Pool using (completions; consumeCompletion; step)
  Valid : W.State → Set
  Valid s = Protocol.Valid (W.base s)
@@ -331,6 +382,7 @@ module Monitor (isBearerClosed : ErrorId → Bool) where
  ... | just actual with U.progress actual | P.monitoring actual
  ...   | U.promisePublished hid mid | true = case just-injective eq of λ { refl → covers-at valid w actual found }
  ...   | U.promisePublished hid mid | false = case eq of λ ()
+ ...   | (U.handshakePending helperPC) | _ = case eq of λ ()
  ...   | U.returnedSuccess | _ = case eq of λ ()
  ...   | U.handleAllocated hid mid | _ = case eq of λ ()
  ci-via-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
@@ -531,7 +583,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; findOwner; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; inherit; initial; isInfra; joinGroup; joinMini; joinMiniHead; joinWhole; joined; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; retireFor; retireAllowed; retireCounters; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
  private module M = W.M using (deadReady; deadTracing; failed; finishMatches; finished; initial; initiatorTracing; pcAt; responderTracing; selected; step; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; protocolException; sameOutcome; step)
- private module U = P.U using (captured; module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess; startup)
+ private module U = P.U using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; captured; module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess; startup)
  private module Startup = U.Startup using (pool)
  private module Pool = P.Pool using (beginClose; bodyReturned; bodyRunning; bodyUnwinding; bodyUnwound; cancelPending; closedPool; closing; deliverCancel; deregisterPending; deregistered; finishClose; handles; interruptJob; join; joinPending; openPool; phase; requestCancel; resultAvailable; resumeAfterUnwindError; sameSnapshot; step)
  private module Lower = Monitor isBearerClosed using (Valid; coordinator; initialized-valid; owner-present; step-preserves)
@@ -608,6 +660,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just f with U.progress f
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+ ...   | (U.handshakePending helperPC) = case eq of λ ()
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
  -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -618,6 +671,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just f with U.progress f
  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | (U.handshakePending helperPC) = case eq of λ ()
  ...     | U.returnedSuccess = case eq of λ ()
  ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′

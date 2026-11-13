@@ -73,6 +73,9 @@ data Stage : Set where
   -- The accept loop raised on its own (a fatal AcceptFailure, or a failure
   -- after accept); its finally has not yet closed the listener.
   acceptFailed : Stage
+  -- Bare async threw synchronously before birth; the accepted socket remains
+  -- owned by the accept loop's masked onException cleanup until close returns.
+  acceptForkClosing : SocketId → ErrorId → Stage
 -- The inbound-governor thread's own progress (InboundGovernor.hs 194-235). Its
 -- catch body (deactivate, drain, final trace, rethrow) runs on the IG thread,
 -- whether it was entered by the Server's cancellation or by the IG's own
@@ -200,6 +203,7 @@ foreignCallerAllowed a s with outboundCaller a
 ...   | nothing = true
 ...   | just _ = false
 cmAction : N.Action → Bool
+cmAction (N.run (C.run (D.run (R.run (X.run (W.deliverShutdownHandshake _ _)))))) = true
 cmAction (N.run (C.run (D.run (R.run (X.run (W.shutdownStep _)))))) = true
 cmAction (N.deliverShutdown _ _) = true
 cmAction _ = false
@@ -226,6 +230,7 @@ machineAllowed : Machine.Action → State → Bool
 -- Prefix close is now coupled to the raw worker body. The lower primitive
 -- remains unchanged; its unaccompanied alias cannot bypass physical metadata.
 machineAllowed (Machine.admissionStep w Admission.close) s = false
+machineAllowed (Machine.admissionStep w Admission.restoreBody) s = false
 machineAllowed (Machine.admissionStep w _) s = running w s
 machineAllowed (Machine.handshakeStep w _) s = running w s
 machineAllowed (Machine.igStep IG.deactivateIG) s = false
@@ -273,14 +278,33 @@ prefixException w err s with lookup w (workers s) | lookup w (Shared.admissions 
 ...   | _ | _ = nothing
 prefixException w err s | _ | _ = nothing
 
--- This direct exception observation covers the post-handoff promise wait.
--- Other async regions still need their own bracket/restore extension.
+-- Receipt in the restored include body captures the pending map restoration.
+-- The post-publication counter read and promise wait have no map to restore.
+-- Body receipts below retain their saved-map continuation until restoration.
 observeException : WorkerId → Fault → State → Maybe State
 observeException w err s with lookup w (workers s) | lookup w (Shared.admissions (shared s))
 ... | just t | just a with pc t | Shared.pc a
+...   | calling | Shared.count _ = just (setPC w t (closePrefix Shared.bodyFailed (raised err)) s)
+...   | calling | Shared.prepare _ = just (setPC w t (closePrefix Shared.bodyFailed (raised err)) s)
+...   | calling | Shared.selectEntry _ _ = just (setPC w t (closePrefix Shared.bodyFailed (raised err)) s)
+...   | calling | Shared.forkHandler _ _ _ = just (setPC w t (closePrefix Shared.bodyFailed (raised err)) s)
+...   | calling | Shared.publish _ _ _ = just (setPC w t (closePrefix Shared.bodyFailed (raised err)) s)
+...   | calling | Shared.countPublished _ _ = just (setPC w t (closeException err) s)
 ...   | calling | Shared.awaitHandshake _ _ = just (setPC w t (closeException err) s)
 ...   | _ | _ = nothing
 observeException w err s | _ | _ = nothing
+-- Restoration is a distinct masked source transaction after receipt. Only
+-- this captured worker fault can invoke the lower restoreBody primitive; the
+-- unaccompanied machine alias is refused by machineAllowed.
+restoreWorker : WorkerId → State → Maybe State
+restoreWorker w s with lookup w (workers s)
+... | just t with pc t
+...   | closePrefix Shared.bodyFailed (raised fault) with N.step (runMachine (Machine.admissionStep w Admission.restoreBody)) (base s)
+...     | just n = just (record s { base = n })
+...     | nothing = nothing
+restoreWorker w s | just t | _ = nothing
+restoreWorker w s | nothing = nothing
+
 nextNormal : Maybe Fault → WorkerPC
 nextNormal nothing = bodyExited returned
 nextNormal (just err) = closeException err
@@ -304,6 +328,7 @@ sameFailure : Shared.Failure → Shared.Failure → Bool
 sameFailure Shared.hardLimitReached Shared.hardLimitReached = true
 sameFailure Shared.forbidden Shared.forbidden = true
 sameFailure Shared.forkFailed Shared.forkFailed = true
+sameFailure Shared.bodyFailed Shared.bodyFailed = true
 sameFailure _ _ = false
 prefixMatches : WorkerId → Shared.Failure → State → Bool
 prefixMatches w f s with lookup w (Shared.admissions (shared s))
@@ -337,6 +362,11 @@ publishWorkerResult w s with lookup w (workers s)
 publishWorkerResult w s | nothing = nothing
 
 -- Scope steps do not inspect or cancel raw admission Asyncs. Normal listener
+failedForkSocket : State → Maybe SocketId
+failedForkSocket s with stage s
+... | acceptForkClosing sock err = just sock
+... | _ = nothing
+
 -- close and tracer return are observed operations, not eventuality premises.
 data ScopeAction : Set where
   returnAction publishActionResult selectActionWinner requestAcceptCancel
@@ -352,18 +382,41 @@ data ScopeAction : Set where
   -- getLocalAddr/trace failure after accept, which first closes the accepted
   -- socket. Its finally then closes the listener and raceAll rethrows.
   acceptFails : ScopeAction
+  forkFailure : SocketId → ErrorId → ScopeAction
+  finishForkFailure : ScopeAction
   -- Asynchronous cancellation of the thread running Server.with while it waits
   -- in the race (the node's ordinary shutdown). The race cancels the accept
   -- loops before withAsync cancels the still-running action thread.
   interruptServer : ScopeAction
-record ScopePlan : Set where
-  constructor scopePlan
-  field nextStage : Stage
-        keepListener : Bool
-        nextIG : IGPhase
-        physicalAction : Maybe N.Action
-open ScopePlan public
+-- Ordinary scope operations retain the original constructor/API. A socket
+-- scope records accept-loop ownership without inventing an admission worker.
+data ScopePlan : Set where
+  scopePlan : Stage → Bool → IGPhase → Maybe N.Action → ScopePlan
+  socketScopePlan : Stage → Bool → IGPhase → SocketId → Shared.SocketOwner → ScopePlan
+nextStage : ScopePlan → Stage
+nextStage (scopePlan st keep ig action) = st
+nextStage (socketScopePlan st keep ig sock owner) = st
+keepListener : ScopePlan → Bool
+keepListener (scopePlan st keep ig action) = keep
+keepListener (socketScopePlan st keep ig sock owner) = keep
+nextIG : ScopePlan → IGPhase
+nextIG (scopePlan st keep ig action) = ig
+nextIG (socketScopePlan st keep ig sock owner) = ig
+physicalAction : ScopePlan → Maybe N.Action
+physicalAction (scopePlan st keep ig action) = action
+physicalAction (socketScopePlan st keep ig sock owner) = nothing
 chooseScope : ScopeAction → State → Maybe ScopePlan
+-- The supplied failure is a synchronous async-acquisition exception, not an
+-- async receipt at the nonblocking masked parent fork. No raw child is born.
+chooseScope (forkFailure sock err) s with accepting (stage s) | listenerOpen s | lookup sock (Shared.sockets (shared s))
+... | true | true | nothing = just (socketScopePlan (acceptForkClosing sock err) (listenerOpen s) (ig s) sock Shared.acceptPending)
+... | _ | _ | _ = nothing
+chooseScope finishForkFailure s with failedForkSocket s
+... | just sock with lookup sock (Shared.sockets (shared s))
+...   | just Shared.closed = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+...   | just (Shared.closeUncertain replacement) = just (scopePlan acceptFailed (listenerOpen s) (ig s) nothing)
+...   | _ = nothing
+chooseScope finishForkFailure s | nothing = nothing
 chooseScope returnAction s with stage s
 ... | serving = just (scopePlan actionBodyExited (listenerOpen s) (ig s) nothing)
 ... | _ = nothing
@@ -454,28 +507,49 @@ chooseScope finishServer s with stage s | Close.phase (W.shutdown (R.base (N.raw
 -- Every scope plan preserves the raw-worker table, even when IG cleanup
 -- performs an actual shared-source operation. No cancellation/join is implied.
 enactScope : ScopePlan → State → Maybe State
-enactScope p s with physicalAction p
-... | nothing = just (record s { stage = nextStage p; listenerOpen = keepListener p; ig = nextIG p })
+enactScope (scopePlan st keep ig action) s with action
+... | nothing = just (record s { stage = st; listenerOpen = keep; ig = ig })
 ... | just a with N.step a (base s)
 ...   | nothing = nothing
-...   | just n = just (record s { base = n; stage = nextStage p; listenerOpen = keepListener p; ig = nextIG p })
+...   | just n = just (record s { base = n; stage = st; listenerOpen = keep; ig = ig })
+enactScope (socketScopePlan st keep ig sock owner) s = just (record
+  (setWorld (record (shared s) { sockets = put sock owner (Shared.sockets (shared s)) }) s)
+  { stage = st; listenerOpen = keep; ig = ig })
 scopeAdvance : ScopeAction → State → Maybe State
 scopeAdvance a s with chooseScope a s
 ... | nothing = nothing
 ... | just p = enactScope p s
 
+-- A close completion is a separate observed IO outcome. While it is pending,
+-- this accept loop cannot fork again or publish its own result. Close failure
+-- records the replacement exception; neither outcome fabricates a worker.
+isAcceptedSocket : SocketId → State → Bool
+isAcceptedSocket sock s with lookup sock (Shared.sockets (shared s))
+... | just Shared.acceptPending = true
+... | _ = false
+closeFailedFork : Maybe Fault → State → Maybe State
+closeFailedFork outcome s with failedForkSocket s
+... | just sock with isAcceptedSocket sock s
+...   | true = just (setWorld (record (shared s)
+  { sockets = put sock (socketOutcome outcome) (Shared.sockets (shared s)) }) s)
+...   | false = nothing
+closeFailedFork outcome s | nothing = nothing
+
 data Action : Set where
+  closeForkFailure : Maybe Fault → Action
   acceptedFork : WorkerId → Shared.Admission → Action
   run : N.Action → Action
-  workerReturned workerPrefixReturned : WorkerId → Action
+  workerReturned workerPrefixReturned workerRestore : WorkerId → Action
   workerPrefixException : WorkerId → ErrorId → Action
   workerException : WorkerId → Fault → Action
   workerClose : WorkerId → Maybe Fault → Action
   workerResult : WorkerId → Action
   scope : ScopeAction → Action
 step : Action → State → Maybe State
+step (closeForkFailure outcome) s = closeFailedFork outcome s
 step (acceptedFork w req) s = forkAccepted w req s
 step (run a) s = inherit a s
+step (workerRestore w) s = restoreWorker w s
 step (workerReturned w) s = observeReturn w s
 step (workerPrefixReturned w) s = prefixReturned w s
 step (workerPrefixException w e) s = prefixException w e s

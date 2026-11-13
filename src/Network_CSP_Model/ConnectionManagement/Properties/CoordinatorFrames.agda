@@ -249,6 +249,10 @@ exit-enact-frame (W.inherited action) s eq with G.step action (W.base s) in adva
 ... | nothing = case eq of λ ()
 ... | just g = case just-injective eq of λ { refl → group-frame action (W.base s) advanced }
 exit-enact-frame (W.coordinator action) s eq = control-frame action s eq
+exit-enact-frame (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in advanced
+... | nothing = case eq of λ ()
+... | just g = compose (group-frame (W.handshakeAction w window err) (W.base s) advanced)
+  (control-frame Close.acknowledgeDelivery (record s { base = g }) eq)
 exit-enact-frame (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in advanced
 ... | nothing = case eq of λ ()
 ... | just g = compose (group-frame (G.abortOwner w err) (W.base s) advanced)

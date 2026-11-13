@@ -18,11 +18,21 @@ open import ConnectionManagement.Rules.CM
 -- Labels are diagnostic attempts, not extra source rendezvous.
 data AdmissionAction : Set where
   take countLimit allocatePromise chooseEntry fork putMapBack readCounters
-    restore close failFork : AdmissionAction
+    restore restoreBody close failFork : AdmissionAction
 
 -- Update only the caller's continuation, retaining other admission workers.
 setPC : WorkerId → AdmissionWorker → AdmissionPC → State → State
 setPC w a p s = record s { admissions = put w (record a { pc = p }) (admissions s) }
+
+-- These are the restored include IO-body continuations, before modifyTMVar
+-- publishes its result. Its saved map is separate from committed entry writes.
+bodyLease : AdmissionPC → Maybe Lease
+bodyLease (count l) = just l
+bodyLease (prepare l) = just l
+bodyLease (selectEntry l _) = just l
+bodyLease (forkHandler l _ _) = just l
+bodyLease (publish l _ _) = just l
+bodyLease _ = nothing
 
 -- A map count is its own STM step. The admitted decision is not rechecked later.
 stepWorker : WorkerId → AdmissionWorker → AdmissionAction → State → Maybe State
@@ -90,6 +100,14 @@ stepWorker w a restore s with pc a
 ...   | nothing = nothing
 ...   | just c = just (setPC w a (closeSocket f) (record s { cm = c }))
 stepWorker w a restore s | _ = nothing
+
+-- The caller has observed a body exception. onException runs masked and
+-- restores the saved map only; neither heap writes nor child birth roll back.
+stepWorker w a restoreBody s with bodyLease (pc a)
+... | just l with restoreMap l (cm s)
+...   | just c = just (setPC w a (closeSocket bodyFailed) (record s { cm = c }))
+...   | nothing = nothing
+stepWorker w a restoreBody s | nothing = nothing
 
 stepWorker w a close s with pc a
 ... | closeSocket f = just (setPC w a (finished f)

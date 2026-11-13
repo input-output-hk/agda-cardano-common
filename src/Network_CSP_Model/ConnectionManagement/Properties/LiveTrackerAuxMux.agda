@@ -17,6 +17,8 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans
 open import ConnectionManagement.Domain using (WorkerId; JobId)
 open import ConnectionManagement.Store using (Store; lookup)
 open import ConnectionManagement.Properties.Entries using (Present)
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -127,6 +129,48 @@ module For (js : Store JobId Types.ProtocolJob) (pending : Store WorkerId (List 
  negotiated w ps flow s eq valid | nothing | origin | old = case eq of λ ()
  negotiated w ps flow s eq valid | just thread | nothing | old = case eq of λ ()
  negotiated w ps flow s eq valid | just thread | just origin | just old = case eq of λ ()
+ -- Helper frames preserve the same source/capture observation.
+ capture-handshake-preserves : ∀ w pc s {t} → U.captureHandshake w pc s ≡ just t → Valid s → Valid t
+ capture-handshake-preserves w pc s eq valid with lookup w (B.threads (U.base s)) in found |
+   lookup w (U.origins s) | lookup w (U.frames s) in absent
+ ... | just thread | just origin | nothing with H.phase thread
+ ...   | H.handshaking = case just-injective eq of λ { refl → Up.frame-valid w _ (lift s) refl (Up.fresh-frame w _ (lift s) absent refl) (Kernel.initial _) (proj₁ valid) , stable (Up.fresh-frame w _ (lift s) absent refl) (proj₂ valid) }
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.maskedSetup = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.caughtCancellation err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.cancellationPublished err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.bodyExited err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.finalizing err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.cleanupComplete err outcome = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.resultAvailable err outcome = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | nothing | origin | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | nothing | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | just old = case eq of λ ()
+
+ -- Metadata stutters; publication executes the actual promise writer.
+ advance-handshake-preserves : ∀ w action s {t} → U.advanceHandshake w action s ≡ just t → Valid s → Valid t
+ advance-handshake-preserves w action s eq valid with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f in progress
+ ...   | U.handshakePending pc with HS.step action pc
+ ...     | just (next , nothing) = case just-injective eq of λ { refl → put-same-startup w f _ s found (λ hid mid published → case trans (sym progress) published of λ ()) refl valid }
+ ...     | just (next , just result) with O.advance (O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)) (U.source s) in advanced
+ ...       | nothing = case eq of λ ()
+ ...       | just c = case just-injective eq of λ { refl → put-same-startup w f _ (U.setSource c s) found (λ hid mid published → case trans (sym progress) published of λ ()) refl (source-valid c s valid) }
+ advance-handshake-preserves w action s eq valid | just f | U.handshakePending pc | nothing = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.returnedSuccess = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.handleAllocated h mid = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.promisePublished h mid = case eq of λ ()
+
+ -- Only inbound origins can enter the query delay.
+ handshake-preserves : ∀ w event s {t} → U.handshakeFor w event s ≡ just t → Valid s → Valid t
+ handshake-preserves w (HS.limitReturned kind err) s eq valid = capture-handshake-preserves w (HS.returned (HS.protocolLimit kind err)) s eq valid
+ handshake-preserves w (HS.bearerTimedOut err) s eq valid = capture-handshake-preserves w (HS.returned (HS.bearerTimeout err)) s eq valid
+ handshake-preserves w HS.queryReturned s eq valid with lookup w (U.origins s)
+ ... | just HandshakeDomain.inbound = capture-handshake-preserves w (HS.returned HS.query) s eq valid
+ ... | just HandshakeDomain.outbound = case eq of λ ()
+ ... | nothing = case eq of λ ()
+ handshake-preserves w (HS.continue action) s eq valid = advance-handshake-preserves w action s eq valid
+
  allocated : ∀ w hid mid s {t} → U.allocate w hid mid s ≡ just t → Valid s → Valid t
  allocated w hid mid s eq valid with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -135,6 +179,7 @@ module For (js : Store JobId Types.ProtocolJob) (pending : Store WorkerId (List 
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → put-same-startup w f _ (U.setSource c s) found
      (λ hid′ mid′ published → case trans (sym progress) published of λ ()) refl (source-valid c s valid) }
+ allocated w hid mid s eq valid | just f | (U.handshakePending helperPC) = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.handleAllocated old mid′ = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.promisePublished old mid′ = case eq of λ ()
  -- Configured egress installation writes only the actual allocated mux.
@@ -146,6 +191,7 @@ module For (js : Store JobId Types.ProtocolJob) (pending : Store WorkerId (List 
  ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → λ valid → source-valid c s valid }
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
@@ -158,6 +204,7 @@ module For (js : Store JobId Types.ProtocolJob) (pending : Store WorkerId (List 
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → λ valid → source-valid c s valid }
  registered w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ registered w s eq | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  registered w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  registered w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
@@ -179,6 +226,7 @@ module For (js : Store JobId Types.ProtocolJob) (pending : Store WorkerId (List 
      Startup.observePublication found (λ hid′ mid′ published → case trans (sym progress) published of λ ()) tt startupActual (λ C → tt) (source-valid c s valid) }
  ...     | nothing | _ = case eq of λ ()
  ...     | just c | nothing = case eq of λ ()
+ published w s eq valid | just f | (U.handshakePending helperPC) = case eq of λ ()
  published w s eq valid | just f | U.returnedSuccess = case eq of λ ()
  published w s eq valid | just f | U.promisePublished hid mid = case eq of λ ()
  startup : ∀ w a s {t} → U.advanceStartup w a s ≡ just t → Typed (U.startupStep w a) → Valid s → Valid t
@@ -188,11 +236,13 @@ module For (js : Store JobId Types.ProtocolJob) (pending : Store WorkerId (List 
  ...   | U.promisePublished hid mid | true with Startup.step a (U.startup f) in startupActual
  ...     | nothing = case eq of λ ()
  ...     | just next = case just-injective eq of λ { refl → put-startup w f (record f { startup = next }) s a found (λ hid mid published → published) (Up.early-published _ hid mid progress) startupActual (λ C → supply w a C allowed) valid }
+ startup w a s eq allowed valid | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  startup w a s eq allowed valid | just f | U.returnedSuccess | _ = case eq of λ ()
  startup w a s eq allowed valid | just f | U.handleAllocated hid mid | _ = case eq of λ ()
  startup w a s eq allowed valid | just f | U.promisePublished hid mid | false = case eq of λ ()
  step-preserves : ∀ a s {t} → U.step a s ≡ just t → Typed a → Valid s → Valid t
  step-preserves (U.run a) s eq allowed = inherited a s eq
+ step-preserves (U.handshakeStep w event) s eq allowed = handshake-preserves w event s eq
  step-preserves (U.negotiate w ps flow) s eq allowed = negotiated w ps flow s eq
  step-preserves (U.allocateHandle w hid mid) s eq allowed = allocated w hid mid s eq
  step-preserves (U.configureMux w plan limit bound keys) s eq allowed = configured w plan limit bound keys s eq

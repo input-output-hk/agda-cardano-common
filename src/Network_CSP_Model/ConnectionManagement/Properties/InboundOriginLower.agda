@@ -33,7 +33,7 @@ import ConnectionManagement.Properties.InboundOriginCore as Core
 open import ConnectionManagement.Properties.InboundOriginEffect using (Effect; same; reframe; outbound-effect)
 
 module Mux where
- private module U = MuxModel Types.TypedResult using (Action; source; State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; egressSetup; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; Action; source; State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; egressSetup; run; startupStep; step)
  note-source : ∀ origin s → U.source (U.noteBirth origin s) ≡ U.source s
  note-source nothing s = refl
  note-source (just origin) s = refl
@@ -43,6 +43,7 @@ module Mux where
  ... | true with B.step a (U.base s) in actual
  ...   | nothing = case eq of λ ()
  ...   | just b = case just-injective eq of λ { refl → reframe refl (cong O.core (note-source (U.birth a (U.base s)) (record s { base = b }))) (Raw.Physical.effect a (U.base s) actual) }
+ effect (U.handshakeStep w event) s eq = same (Quiet.Mux.direct-same (U.handshakeStep w event) s eq tt)
  effect (U.negotiate w ps flow) s eq = same (Quiet.Mux.direct-same (U.negotiate w ps flow) s eq tt)
  effect (U.allocateHandle w hid mid) s eq = same (Quiet.Mux.direct-same (U.allocateHandle w hid mid) s eq tt)
  effect (U.configureMux w plan limit bound keys) s eq = same (Quiet.Mux.direct-same (U.configureMux w plan limit bound keys) s eq tt)
@@ -53,7 +54,7 @@ module Mux where
 
 module Protocol where
  private module P = ProtocolModel using (Action; source; State; enterProtocolBody; appendProtocolPayload; egressMuxer; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
- private module U = MuxModel Types.TypedResult using (step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; step)
  effect : ∀ a s {t} → P.step a s ≡ just t → Effect (O.core (P.source s)) (O.core (P.source t))
  effect (P.run a) s eq with P.inheritedAllowed a
  ... | false = case eq of λ ()
@@ -145,7 +146,7 @@ module Group (b : ErrorId → Bool) where
 
 
 module Exit (b : ErrorId → Bool) where
- private module W = ExitModel b using (State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; releaseTimeWaitDelivery; noteCleanup; step; choose)
+ private module W = ExitModel b using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; releaseTimeWaitDelivery; noteCleanup; step; choose)
  private module G = GroupModel b using (step; abortOwner; source)
  control-source : ∀ action s {t} → W.control action s ≡ just t → W.source t ≡ W.source s
  control-source action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s)
@@ -165,6 +166,10 @@ module Exit (b : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just g = case just-injective eq of λ { refl → Group.effect b action (W.base s) actual }
  enact-effect (W.coordinator action) s eq = same (cong (λ c → Shared.admissions (Machine.world (O.core c))) (control-source action s eq))
+ enact-effect (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in actual
+ ... | nothing = case eq of λ ()
+ ... | just g = reframe refl (cong O.core (control-source Close.acknowledgeDelivery (record s { base = g }) eq))
+   (Group.effect b (W.handshakeAction w window err) (W.base s) actual)
  enact-effect (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in actual
  ... | nothing = case eq of λ ()
  ... | just g = reframe refl (cong O.core (control-source Close.acknowledgeDelivery (record s { base = g }) eq))
@@ -197,7 +202,7 @@ module Exit (b : ErrorId → Bool) where
 
 module Cancellation (b : ErrorId → Bool) where
  private module X = CancellationModel b using (State; source; target; deliver; traceThrew; shutdownDelivery; step; run; observeCancellation; deliverShutdown; observeErrorTraceException)
- private module W = ExitModel b using (source; exits; phase; edit; bodyExited; syncException; bufferScope; classifying; errorTracing; peerRethrow; nodeDelivery; nodeRethrow; finalizing; cleanupComplete; resultAvailable; shutdown; control)
+ private module W = ExitModel b using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; source; exits; phase; edit; bodyExited; syncException; bufferScope; classifying; errorTracing; peerRethrow; nodeDelivery; nodeRethrow; finalizing; cleanupComplete; resultAvailable; shutdown; control)
  deliver-source : ∀ window w err s {t} → X.deliver window w err s ≡ just t → X.source t ≡ X.source s
  deliver-source window w err s eq with lookup w (W.exits s)
  ... | nothing = case eq of λ ()
@@ -237,7 +242,7 @@ module Cancellation (b : ErrorId → Bool) where
 module Unwind (b : ErrorId → Bool) where
  private module R = UnwindModel b using (source; base; faults; poolAt; setSource; setPool; enact; local; machine; pool; inherited; transfer; acknowledge; step; choose)
  private module X = CancellationModel b using (step)
- private module W = ExitModel b using (exits; control)
+ private module W = ExitModel b using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; exits; control)
  private module G = GroupModel b using (module Pool)
  private module Pool = G.Pool using (step)
  enact-effect : ∀ plan s {t} → R.enact plan s ≡ just t → Effect (O.core (R.source s)) (O.core (R.source t))

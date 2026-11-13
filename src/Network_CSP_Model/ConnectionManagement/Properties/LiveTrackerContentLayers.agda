@@ -52,7 +52,7 @@ import ConnectionManagement.Properties.MuxGroupShutdown as GroupPaths
 module Monitor (isBearerClosed : ErrorId → Bool) where
  private module W = MonitorModel isBearerClosed using (Action; State; base; beginDead; commitTracer; consume; deadAction; deadReady; deadTracing; delegateAllowed; demuxFinish; failed; findCaptured; finishDead; finishMatches; finishMux; finishProtocol; finishProtocolTrace; finished; handleHead; handleProtocol; handleSelected; inherit; initial; initiatorTracing; legacyMatches; muxAt; ownerContext; pcAt; poolAt; protocolSource; recordFinish; responderTracing; run; sampleTracer; selectHead; selected; setPC; setSource; source; startDead; statusAction; step; traceSource; tracing; viaSource; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; initial; jobs; monitoring; noParent; step)
- private module U = P.U using (captured; base; frames; handleAllocated; progress; promisePublished; returnedSuccess)
+ private module U = P.U using (handshakePending; captured; base; frames; handleAllocated; progress; promisePublished; returnedSuccess)
  private module Pool = P.Pool using (completions; consumeCompletion; step)
  Valid : W.State → Set
  Valid s = Protocol.Valid (W.base s)
@@ -84,6 +84,7 @@ module Monitor (isBearerClosed : ErrorId → Bool) where
  ... | just actual with U.progress actual | P.monitoring actual
  ...   | U.promisePublished hid mid | true = case just-injective eq of λ { refl → at (U.frames (P.base (W.base s))) (W.source s) valid w actual found }
  ...   | U.promisePublished hid mid | false = case eq of λ ()
+ ...   | (U.handshakePending helperPC) | _ = case eq of λ ()
  ...   | U.returnedSuccess | _ = case eq of λ ()
  ...   | U.handleAllocated hid mid | _ = case eq of λ ()
  ci-via-projects : ∀ action s {s′} → W.viaSource action s ≡ just s′ → CIPaths s s′
@@ -284,7 +285,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  private module W = GroupModel isBearerClosed using (Action; module M; State; abortMonitor; abortOwner; abortStage; asyncDead; asyncDeadTracing; asyncExit; asyncFailure; asyncFailureWritten; asyncTrace; base; beginAsyncDead; beginWhole; beginWholeClose; cancelPC; captureGroup; captureMini; childEligible; commitAsyncTracer; commitStoppedTracer; delegateAllowed; deliverGroup; deliverMini; deliverWhole; deliverWholeChild; delivered; discardClean; drainEmpty; drainReady; draining; failedExit; findOwner; finishAsync; finishAsyncDead; finishChildUnwind; finishGroup; finishMini; finishNormalScope; finishOrdinary; finishStopped; finishStoppedTrace; finishWhole; finishWholeClose; frameAt; fromPhase; groupClosing; idle; inherit; initial; isInfra; joinGroup; joinMini; joinMiniHead; joinWhole; joined; miniMember; monitorReturnedNormal; normalExit; observeStoppingTrace; observeTraceStopped; ownerAborting; ownerContext; ownerOf; phase; poolAt; prepareUnwind; protocolState; ready; registeredMini; remaining; replaceUnwind; replacementEligible; requestGroup; requestGroupCancel; requestShutdown; requestStop; retireFor; retireAllowed; retireCounters; requestWholeCancel; requested; run; sameStage; sampleAsyncTracer; sampleStoppedTracer; scopeDone; selectShutdown; selectStop; setFrame; setPhase; setPool; setProtocols; setSource; shutdownSelected; source; sourcePhase; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; timeout2Elapsed; unwindChild; unwindReplacedBySync; viaPool; viaSource; wholeAction; wholeClosed; wholeClosing; wholeDeliverable; wholeOutcome; writeAsyncFailure; writeStopped; writeStopping)
  private module M = W.M using (deadReady; deadTracing; failed; finishMatches; finished; initial; initiatorTracing; pcAt; responderTracing; selected; step; waiting)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; jobs; locate; muxAt; noParent; noResults; pendingAt; protocolException; sameOutcome; step)
- private module U = P.U using (captured; module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess; startup)
+ private module U = P.U using (handshakePending; captured; module Startup; frames; handleAllocated; progress; promisePublished; returnedSuccess; startup)
  private module Startup = U.Startup using (pool)
  private module Pool = P.Pool using (beginClose; bodyReturned; bodyRunning; bodyUnwinding; bodyUnwound; cancelPending; closedPool; closing; deliverCancel; deregisterPending; deregistered; finishClose; handles; interruptJob; join; joinPending; openPool; phase; requestCancel; resultAvailable; resumeAfterUnwindError; sameSnapshot; step)
  private module Lower = Monitor isBearerClosed using (Valid; coordinator; initialized-valid; owner-present; step-preserves)
@@ -361,6 +362,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just f with U.progress f
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+ ...   | (U.handshakePending helperPC) = case eq of λ ()
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
  -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -371,6 +373,7 @@ module Group (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just f with U.progress f
  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | (U.handshakePending helperPC) = case eq of λ ()
  ...     | U.returnedSuccess = case eq of λ ()
  ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′

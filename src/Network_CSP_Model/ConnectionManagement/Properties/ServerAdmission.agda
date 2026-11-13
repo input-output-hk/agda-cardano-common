@@ -20,11 +20,12 @@ private
   module N = Publication isBearerClosed
 
 enact-preserves-workers : ∀ p s {t} → S.enactScope p s ≡ just t → S.workers t ≡ S.workers s
-enact-preserves-workers p s eq with S.physicalAction p
+enact-preserves-workers (S.scopePlan st keep ig action) s eq with action
 ... | nothing = cong S.workers (sym (just-injective eq))
 ... | just a with N.step a (S.base s)
 ...   | nothing = case eq of λ ()
 ...   | just n = cong S.workers (sym (just-injective eq))
+enact-preserves-workers (S.socketScopePlan st keep ig sock owner) s eq = case just-injective eq of λ { refl → refl }
 scope-preserves-workers : ∀ a s {t} → S.scopeAdvance a s ≡ just t → S.workers t ≡ S.workers s
 scope-preserves-workers a s eq with S.chooseScope a s
 ... | nothing = case eq of λ ()

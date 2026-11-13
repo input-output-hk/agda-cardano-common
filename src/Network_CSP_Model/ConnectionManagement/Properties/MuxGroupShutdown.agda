@@ -115,6 +115,7 @@ request-projects w s eq with lookup w (U.frames (P.base (W.protocolState s)))
 ... | nothing = case eq of λ ()
 ... | just f with U.progress f
 ...   | U.promisePublished hid mid = via-source-projects (IG.enqueueMuxStop mid) s eq
+...   | (U.handshakePending helperPC) = case eq of λ ()
 ...   | U.returnedSuccess = case eq of λ ()
 ...   | U.handleAllocated hid mid = case eq of λ ()
 -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -125,6 +126,7 @@ retire-projects w s eq with W.retireAllowed (W.phase (W.frameAt w s))
 ...   | nothing = case eq of λ ()
 ...   | just f with U.progress f
 ...     | U.promisePublished hid mid = via-source-projects (IG.retireCells mid) s eq
+...     | (U.handshakePending helperPC) = case eq of λ ()
 ...     | U.returnedSuccess = case eq of λ ()
 ...     | U.handleAllocated hid mid = case eq of λ ()
 select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → Paths s s′
@@ -962,6 +964,7 @@ module CaptureIdentity where
   ... | nothing = case eq of λ ()
   ... | just f with U.progress f
   ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+  ...   | (U.handshakePending helperPC) = case eq of λ ()
   ...   | U.returnedSuccess = case eq of λ ()
   ...   | U.handleAllocated hid mid = case eq of λ ()
   -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -972,6 +975,7 @@ module CaptureIdentity where
   ...   | nothing = case eq of λ ()
   ...   | just f with U.progress f
   ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+  ...     | (U.handshakePending helperPC) = case eq of λ ()
   ...     | U.returnedSuccess = case eq of λ ()
   ...     | U.handleAllocated hid mid = case eq of λ ()
   ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
@@ -1504,6 +1508,7 @@ module CommittedRows where
   ... | nothing = case eq of λ ()
   ... | just f with U.progress f
   ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+  ...   | (U.handshakePending helperPC) = case eq of λ ()
   ...   | U.returnedSuccess = case eq of λ ()
   ...   | U.handleAllocated hid mid = case eq of λ ()
   -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -1514,6 +1519,7 @@ module CommittedRows where
   ...   | nothing = case eq of λ ()
   ...   | just f with U.progress f
   ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+  ...     | (U.handshakePending helperPC) = case eq of λ ()
   ...     | U.returnedSuccess = case eq of λ ()
   ...     | U.handleAllocated hid mid = case eq of λ ()
   ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′

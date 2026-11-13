@@ -9,6 +9,7 @@ module ConnectionManagement.MuxStartupUnwind (isBearerClosed : ErrorId → Bool)
 
 open import Data.Bool using (true; false; _∧_; _∨_)
 open import Data.List using (List; []; _∷_)
+open import Data.Nat using (ℕ)
 open import Data.Maybe using (Maybe; just; nothing)
 open import Data.Product using (_×_; _,_)
 open import Relation.Binary.PropositionalEquality using (_≡_)
@@ -148,7 +149,7 @@ siteControl w stoppedTrace s = true
 siteControl w _ s = normalControl w s
 
 data DeliverySite : Set where
-  blockedBufferAcquire blockedBearer unmaskedStartup unmaskedMuxCallback : DeliverySite
+  blockedBufferAcquire blockedBearer unmaskedStartup unmaskedConfiguredStartup unmaskedConfiguredBeforePool unmaskedMuxCallback : DeliverySite
 asyncRoute : DeliverySite → S.PC → Maybe Route
 asyncRoute blockedBufferAcquire S.published = just beforeBuffer
 asyncRoute blockedBearer S.bufferReady = just bufferOnly
@@ -159,6 +160,19 @@ asyncRoute unmaskedStartup S.poolReady = just poolBody
 asyncRoute unmaskedStartup (S.muxerRegistered _) = just poolBody
 asyncRoute unmaskedStartup (S.demuxerRegistered _ _) = just poolBody
 asyncRoute unmaskedStartup (S.matureTraced _ _) = just poolBody
+-- Configured pool body after openPool is restored. Pre-pool acquisition is
+-- outside this site (egressReady has the earlier unmasked boundary); each
+-- fork/register pair masks the
+-- parent. Keep the legacy classifier separate for its existing clients.
+asyncRoute unmaskedConfiguredStartup (S.configured f) with S.stage f
+... | S.cfgBeforePool = nothing
+... | S.cfgReady = just poolBody
+... | S.cfgMature = just poolBody
+... | S.cfgRegistering _ _ = nothing
+... | S.cfgMonitoring = nothing
+asyncRoute unmaskedConfiguredBeforePool (S.configured f) with S.stage f
+... | S.cfgBeforePool = just bufferOnly
+... | _ = nothing
 asyncRoute _ _ = nothing
 deliveryRoute : DeliverySite → U.Frame → Mux.Mux → Maybe Route
 deliveryRoute unmaskedMuxCallback f m with P.monitoring f | Mux.interruptibleCallback (Mux.callback m)
@@ -197,6 +211,17 @@ start w result route s | _ | _ | _ | _ = nothing
 deliveryControl : WorkerId → DeliverySite → State → Bool
 deliveryControl w unmaskedMuxCallback s = normalControl w s ∨
   G.sameStage G.stoppedTracing (G.phase (G.frameAt w (W.base (base s))))
+-- Before the byte-cell/pool acquisition, receipt is an observed unmasked
+-- boundary. A registered row means that acquisition has already progressed;
+-- it cannot be used to invent this earlier masking window.
+deliveryControl w unmaskedConfiguredBeforePool s with normalControl w s | owner w s
+... | true | just f with U.progress f
+...   | U.promisePublished hid mid with IG.rowOf mid (IG.counterRows
+  (IG.execution (Machine.inboundGovernor (O.core (source s)))))
+...     | nothing = true
+...     | just _ = false
+deliveryControl w unmaskedConfiguredBeforePool s | true | just f | _ = false
+deliveryControl w unmaskedConfiguredBeforePool s | _ | _ = false
 deliveryControl w _ s = normalControl w s
 cancellationPlan : WorkerId → DeliverySite → ErrorId → State → Maybe Plan
 cancellationPlan w site err s with deliveryControl w site s
@@ -209,7 +234,9 @@ allowedP : P.Action → State → Bool
 allowedP (P.control w _) s = free w s
 allowedP (P.forkResponder w _ _) s = free w s
 allowedP (P.forkInitiator w _ _ _) s = free w s
+allowedP (P.run (U.handshakeStep w _)) s = free w s
 allowedP (P.run (U.startupStep w _)) s = free w s
+allowedP (P.run (U.registerCounters w)) s = free w s
 allowedP _ s = true
 allowedM : M.Action → State → Bool
 allowedM (M.run action) s = allowedP action s
@@ -257,6 +284,10 @@ allowedG action s with controller action
 allowedW : W.Action → State → Bool
 allowedW (W.run action) s = allowedG action s
 allowedW (W.beginExit w) s = free w s
+allowedW (W.finishHandshake w) s = free w s
+allowedW (W.deliverShutdownHandshake _ _) s with Close.phase (W.shutdown (base s))
+... | Close.awaitDelivery e w = free w s
+... | _ = true
 allowedW (W.deliverShutdownMux _) s with Close.phase (W.shutdown (base s))
 ... | Close.awaitDelivery e w = free w s
 ... | _ = true
@@ -292,6 +323,12 @@ deadAction : Fault → IG.IGAction
 deadAction f with Mux.interruptibleCallback (callbackAtFailure f)
 ... | true = IG.traceInterruptedMuxDead (mux f)
 ... | false = IG.traceMuxDead (mux f)
+
+-- Byte-cell retirement belongs to the withByteCells bracket outside the
+-- closed pool/catch. Its source transaction must precede leaving that bracket.
+counterRow : Fault → State → Maybe ℕ
+counterRow f s = IG.rowOf (mux f) (IG.counterRows
+  (IG.execution (Machine.inboundGovernor (O.core (source s)))))
 
 data Action : Set where
   run : X.Action → Action
@@ -365,10 +402,12 @@ choose (observeDeadTraceException w err) s | just f | _ | _ = nothing
 choose (observeDeadTraceException w err) s | nothing = nothing
 choose (handoff w) s with lookup w (faults s) | lookup w (W.exits (base s))
 ... | just f | nothing with phase f | outcome f
-...   | readyBuffer | result = just (transfer w (W.exitFrame (captured f) (W.bufferScope (asOutcome result)) nothing) (setPhase w f handedOff s))
-...   | readyBody | sync err = just (transfer w (W.exitFrame (captured f) (W.classifying err) nothing) (setPhase w f handedOff s))
-...   | readyBody | async err = just (transfer w (W.exitFrame (captured f) (W.bodyExited (W.asyncException err)) nothing) (setPhase w f handedOff s))
-...   | _ | _ = nothing
+...   | readyBuffer | result with counterRow f s
+...     | just _ = just (machine (O.inbound (Machine.igStep (IG.retireCells (mux f)))) (faults s))
+...     | nothing = just (transfer w (W.exitFrame (captured f) (W.bufferScope (asOutcome result)) nothing) (setPhase w f handedOff s))
+choose (handoff w) s | just f | nothing | readyBody | sync err = just (transfer w (W.exitFrame (captured f) (W.classifying err) nothing) (setPhase w f handedOff s))
+choose (handoff w) s | just f | nothing | readyBody | async err = just (transfer w (W.exitFrame (captured f) (W.bodyExited (W.asyncException err)) nothing) (setPhase w f handedOff s))
+choose (handoff w) s | just f | nothing | _ | _ = nothing
 choose (handoff w) s | _ | _ = nothing
 
 enact : Plan → State → Maybe State

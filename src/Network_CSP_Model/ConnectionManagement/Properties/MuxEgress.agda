@@ -166,6 +166,8 @@ module Kernel (Key : Set) ⦃ keyEquality : DecEq Key ⦄ where
  ...     | Model.grantFast | _ = case just-injective actual of λ { refl → _ , _ , refl }
  ...     | Model.queueRequest | _ = case just-injective actual of λ { refl → _ , _ , refl }
  ...     | Model.armTimer | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.refreshExpired | _ = case just-injective actual of λ { refl → _ , _ , refl }
+ ...     | Model.rearmRefresh | _ = case just-injective actual of λ { refl → _ , _ , refl }
  ...     | Model.grantQueued | _ = case just-injective actual of λ { refl → _ , _ , refl }
  ...     | Model.disarmTimer | _ = case just-injective actual of λ { refl → _ , _ , refl }
  advance-shape ident a s actual | just b | E.ready | nothing = case actual of λ ()

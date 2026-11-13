@@ -160,7 +160,7 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
   module D = DeltaModel b using (State; step; run; allowed; source; base)
   module Catch = CatchModel b using (State; step; run; allowed; source; base)
   module N = PublicationModel b using (State; step; run; allowed; source; base)
-  module SA = ServerModel b using (State; step; run; scope; allowed; chooseScope; physicalAction; enactScope; scopeAdvance; source; base)
+  module SA = ServerModel b using (scopePlan; socketScopePlan; State; step; run; scope; allowed; chooseScope; physicalAction; enactScope; scopeAdvance; source; base)
   module E = IGExitModel b using (State; step; choose; enact; delegate; source; base)
   module Route = Effects.InheritedRoutes b using (mux-inherited; jobs-inherited; monitor-inherited; group-inherited)
   module EL = Effects.ExitLayer b using (Selected; PlanSelected; chosen-birth; inherited-plan; CIPaths; ci-control-projects)
@@ -268,12 +268,13 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
    (actual : SA.enactScope plan state ≡ just after)
    (witness : NL.Selected command (SA.base state)) →
    SourceFork (Back.server-state state) (Effects.ServerLayer.view b after) (O.core (SA.source after))
- server-scope-source action plan command state chosen selected actual witness with SA.physicalAction plan
+ server-scope-source action (SA.scopePlan st keep ig operation₀) command state chosen selected actual witness with operation₀
  ... | nothing = case selected of λ ()
  ... | just operation with just-injective selected
  ...   | refl with N.step command (SA.base state) in advanced
  ...     | nothing = case actual of λ ()
  ...     | just next = case just-injective actual of λ { refl → publication-source command (SA.base state) advanced witness }
+ server-scope-source action (SA.socketScopePlan st keep ig sock owner) command state chosen selected actual witness = case selected of λ ()
  server-source : ∀ action state {after} (actual : SA.step action state ≡ just after) (selected : SL.Selected action state) →
    SourceFork (Back.server-state state) (Effects.ServerLayer.view b after) (O.core (SA.source after))
  server-source (SA.run action) state actual (SL.inherited-birth selected) with SA.allowed action state

@@ -37,6 +37,7 @@ module Pool = P.Pool
 -- is preserved by pool replacement and is sufficient even for partial startup.
 Early : U.Frame → Set
 Early f with U.progress f
+... | (U.handshakePending helperPC0) = P.Startup.phase (U.startup f) ≡ P.Startup.awaitPublication
 ... | U.returnedSuccess = P.Startup.phase (U.startup f) ≡ P.Startup.awaitPublication
 ... | U.handleAllocated hid mid = P.Startup.phase (U.startup f) ≡ P.Startup.awaitPublication
 ... | U.promisePublished hid mid = ⊤
@@ -54,6 +55,7 @@ early-insert w f ((q , first) ∷ rows) good (old ∷ rest) with w ≟ q
 ... | no _ = old ∷ early-insert w f rows good rest
 early-pool : ∀ f p → Early f → Early (record f { startup = record (U.startup f) { pool = p } })
 early-pool f p good with U.progress f
+... | (U.handshakePending helperPC0) = good
 ... | U.returnedSuccess = good
 ... | U.handleAllocated hid mid = good
 ... | U.promisePublished hid mid = tt
@@ -61,12 +63,19 @@ early-kept : ∀ f next →
  (∀ hid mid → U.progress f ≡ U.promisePublished hid mid → U.progress next ≡ U.promisePublished hid mid) →
  P.Startup.phase (U.startup next) ≡ P.Startup.phase (U.startup f) → Early f → Early next
 early-kept f next published phase good with U.progress f in before | U.progress next in after
+... | (U.handshakePending helperPC0) | U.returnedSuccess = trans phase good
+... | U.returnedSuccess | (U.handshakePending helperPC1) = trans phase good
+... | (U.handshakePending helperPC0) | (U.handshakePending helperPC1) = trans phase good
 ... | U.returnedSuccess | U.returnedSuccess = trans phase good
+... | (U.handshakePending helperPC0) | U.handleAllocated hid mid = trans phase good
 ... | U.returnedSuccess | U.handleAllocated hid mid = trans phase good
+... | (U.handshakePending helperPC0) | U.promisePublished hid mid = tt
 ... | U.returnedSuccess | U.promisePublished hid mid = tt
+... | U.handleAllocated hid mid | (U.handshakePending helperPC0) = trans phase good
 ... | U.handleAllocated hid mid | U.returnedSuccess = trans phase good
 ... | U.handleAllocated hid mid | U.handleAllocated hid′ mid′ = trans phase good
 ... | U.handleAllocated hid mid | U.promisePublished hid′ mid′ = tt
+... | U.promisePublished hid mid | (U.handshakePending helperPC0) = case published hid mid refl of λ ()
 ... | U.promisePublished hid mid | U.returnedSuccess = case published hid mid refl of λ ()
 ... | U.promisePublished hid mid | U.handleAllocated hid′ mid′ = case published hid mid refl of λ ()
 ... | U.promisePublished hid mid | U.promisePublished hid′ mid′ = tt
@@ -74,6 +83,7 @@ role-owner : ∀ w f s role j → lookup w (U.frames (P.base s)) ≡ just f → 
  P.infraId role (P.Startup.phase (U.startup f)) ≡ just j → Owner w s
 role-owner w f s role j found early bound with U.progress f in progress
 ... | U.promisePublished hid mid = owner f hid mid found progress
+... | (U.handshakePending helperPC0) rewrite early = case bound of λ ()
 ... | U.returnedSuccess rewrite early = case bound of λ ()
 ... | U.handleAllocated hid mid rewrite early = case bound of λ ()
 
@@ -265,6 +275,7 @@ fresh-frame w next s absent startup = record
 early-published : ∀ f hid mid → U.progress f ≡ U.promisePublished hid mid → Early f
 early-published f hid mid published with U.progress f
 ... | U.promisePublished hid′ mid′ = tt
+... | (U.handshakePending helperPC0) = case published of λ ()
 ... | U.returnedSuccess = case published of λ ()
 ... | U.handleAllocated hid′ mid′ = case published of λ ()
 
@@ -272,5 +283,6 @@ early-published f hid mid published with U.progress f
 role-owner-frame : ∀ w f s role j found early bound →
  Owner.frame (role-owner w f s role j found early bound) ≡ f
 role-owner-frame w (U.frame h origin ps flow (U.promisePublished hid mid) startup setup) s role j found early bound = refl
+role-owner-frame w (U.frame h origin ps flow (U.handshakePending helperPC0) startup setup) s role j found early bound = case subst (λ pc → P.infraId role pc ≡ just j) early bound of λ ()
 role-owner-frame w (U.frame h origin ps flow U.returnedSuccess startup setup) s role j found early bound = case subst (λ pc → P.infraId role pc ≡ just j) early bound of λ ()
 role-owner-frame w (U.frame h origin ps flow (U.handleAllocated hid mid) startup setup) s role j found early bound = case subst (λ pc → P.infraId role pc ≡ just j) early bound of λ ()

@@ -14,6 +14,8 @@ open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; subst)
 open import ConnectionManagement.Domain
 open import ConnectionManagement.Store using (lookup)
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundMachine as O
@@ -118,6 +120,47 @@ module U (Result : Set) where
   negotiate-keys w ps fl s eq | nothing | _ | _ = case eq of λ ()
   negotiate-keys w ps fl s eq | just _ | nothing | _ = case eq of λ ()
   negotiate-keys w ps fl s eq | just _ | just _ | just _ = case eq of λ ()
+  -- Helper frames preserve the same source/capture observation.
+  capture-handshake-keys : ∀ w pc s {s′} → W.captureHandshake w pc s ≡ just s′ → KeySame (W.source s) (W.source s′)
+  capture-handshake-keys w pc s eq with lookup w (B.threads (W.base s)) | lookup w (W.origins s) | lookup w (W.frames s)
+  ... | just t | just origin | nothing with H.phase t
+  ...   | H.handshaking = case just-injective eq of λ { refl → same-refl _ }
+  ...   | H.maskedSetup = case eq of λ ()
+  ...   | H.caughtCancellation _ = case eq of λ ()
+  ...   | H.cancellationPublished _ = case eq of λ ()
+  ...   | H.bodyExited _ = case eq of λ ()
+  ...   | H.finalizing _ = case eq of λ ()
+  ...   | H.cleanupComplete _ _ = case eq of λ ()
+  ...   | H.resultAvailable _ _ = case eq of λ ()
+  capture-handshake-keys w pc s eq | nothing | _ | _ = case eq of λ ()
+  capture-handshake-keys w pc s eq | just _ | nothing | _ = case eq of λ ()
+  capture-handshake-keys w pc s eq | just _ | just _ | just _ = case eq of λ ()
+
+  -- Metadata stutters; publication executes the actual promise writer.
+  advance-handshake-keys : ∀ w action s {s′} → W.advanceHandshake w action s ≡ just s′ → KeySame (W.source s) (W.source s′)
+  advance-handshake-keys w action s eq with lookup w (W.frames s) in found
+  ... | nothing = case eq of λ ()
+  ... | just f with W.progress f in progress
+  ...   | W.handshakePending pc with HS.step action pc
+  ...     | just (next , nothing) = case just-injective eq of λ { refl → same-refl _ }
+  ...     | just (next , just result) with O.advance (O.inbound (M.handlerPublication w (HS.asResult result) M.resultWritten)) (W.source s) in advanced
+  ...       | nothing = case eq of λ ()
+  ...       | just c = case just-injective eq of λ { refl → nonkey (O.inbound (M.handlerPublication w (HS.asResult result) M.resultWritten)) (W.source s) refl advanced }
+  advance-handshake-keys w action s eq | just f | W.handshakePending pc | nothing = case eq of λ ()
+  advance-handshake-keys w action s eq | just f | W.returnedSuccess = case eq of λ ()
+  advance-handshake-keys w action s eq | just f | W.handleAllocated h mid = case eq of λ ()
+  advance-handshake-keys w action s eq | just f | W.promisePublished h mid = case eq of λ ()
+
+  -- Only inbound origins can enter the query delay.
+  handshake-keys : ∀ w event s {s′} → W.handshakeFor w event s ≡ just s′ → KeySame (W.source s) (W.source s′)
+  handshake-keys w (HS.limitReturned kind err) s eq = capture-handshake-keys w (HS.returned (HS.protocolLimit kind err)) s eq
+  handshake-keys w (HS.bearerTimedOut err) s eq = capture-handshake-keys w (HS.returned (HS.bearerTimeout err)) s eq
+  handshake-keys w HS.queryReturned s eq with lookup w (W.origins s)
+  ... | just HandshakeDomain.inbound = capture-handshake-keys w (HS.returned HS.query) s eq
+  ... | just HandshakeDomain.outbound = case eq of λ ()
+  ... | nothing = case eq of λ ()
+  handshake-keys w (HS.continue action) s eq = advance-handshake-keys w action s eq
+
   allocate-keys : ∀ w hid mid s {s′} → W.allocate w hid mid s ≡ just s′ → KeySame (W.source s) (W.source s′)
   allocate-keys w hid mid s eq with lookup w (W.frames s)
   ... | nothing = case eq of λ ()
@@ -125,6 +168,7 @@ module U (Result : Set) where
   ...   | W.returnedSuccess with O.advance (O.inbound (M.igStep (W.allocationAction f hid mid))) (W.source s) in advanced
   ...     | nothing = case eq of λ ()
   ...     | just c = case just-injective eq of λ { refl → nonkey (O.inbound (M.igStep (W.allocationAction f hid mid))) (W.source s) refl advanced }
+  allocate-keys w hid mid s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
   allocate-keys w hid mid s eq | just f | W.handleAllocated _ _ = case eq of λ ()
   allocate-keys w hid mid s eq | just f | W.promisePublished _ _ = case eq of λ ()
   configure-keys : ∀ w plan limit bound keys s {s′} → W.configure w plan limit bound keys s ≡ just s′ →
@@ -136,6 +180,7 @@ module U (Result : Set) where
   ...   | W.handleAllocated hid mid with O.advance (O.inbound (M.igStep (IG.configureEgress mid (E.scheduledLayout b) limit bound keys))) (W.source s) in advanced
   ...     | nothing = case eq of λ ()
   ...     | just c = case just-injective eq of λ { refl → nonkey (O.inbound (M.igStep (IG.configureEgress mid (E.scheduledLayout b) limit bound keys))) (W.source s) refl advanced }
+  configure-keys w (E.scheduledLayout b) limit bound keys s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
   configure-keys w (E.scheduledLayout b) limit bound keys s eq | just f | W.returnedSuccess = case eq of λ ()
   configure-keys w (E.scheduledLayout b) limit bound keys s eq | just f | W.promisePublished _ _ = case eq of λ ()
   register-keys : ∀ w s {s′} → W.registerFor w s ≡ just s′ → KeySame (W.source s) (W.source s′)
@@ -146,6 +191,7 @@ module U (Result : Set) where
   ...     | nothing = case eq of λ ()
   ...     | just c = case just-injective eq of λ { refl → nonkey (O.inbound (M.igStep (IG.registerCells mid))) (W.source s) refl advanced }
   register-keys w s eq | just f | W.promisePublished _ _ | false = case eq of λ ()
+  register-keys w s eq | just f | (W.handshakePending helperPC) | _ = case eq of λ ()
   register-keys w s eq | just f | W.returnedSuccess | _ = case eq of λ ()
   register-keys w s eq | just f | W.handleAllocated _ _ | _ = case eq of λ ()
   setup-keys : ∀ w s {s′} → W.setupFor w s ≡ just s′ → KeySame (W.source s) (W.source s′)
@@ -165,6 +211,7 @@ module U (Result : Set) where
   ...     | just c | just next = case just-injective eq of λ { refl → nonkey (O.inbound (M.handlerPublication w (S.negotiated hid (W.flow f)) M.resultWritten)) (W.source s) refl advanced }
   ...     | just c | nothing = case eq of λ ()
   ...     | nothing | _ = case eq of λ ()
+  publish-keys w s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
   publish-keys w s eq | just f | W.returnedSuccess = case eq of λ ()
   publish-keys w s eq | just f | W.promisePublished _ _ = case eq of λ ()
   startup-keys : ∀ w a s {s′} → W.advanceStartup w a s ≡ just s′ → KeySame (W.source s) (W.source s′)
@@ -175,10 +222,12 @@ module U (Result : Set) where
   ...     | nothing = case eq of λ ()
   ...     | just next = case just-injective eq of λ { refl → same-refl _ }
   startup-keys w a s eq | just f | W.promisePublished _ _ | false = case eq of λ ()
+  startup-keys w a s eq | just f | (W.handshakePending helperPC) | _ = case eq of λ ()
   startup-keys w a s eq | just f | W.returnedSuccess | _ = case eq of λ ()
   startup-keys w a s eq | just f | W.handleAllocated _ _ | _ = case eq of λ ()
   step-keysU : ∀ a s {s′} → W.step a s ≡ just s′ → Effect (rootU a) (W.source s) (W.source s′)
   step-keysU (W.run a) s eq = inherit-keys a s eq
+  step-keysU (W.handshakeStep w event) s eq = handshake-keys w event s eq
   step-keysU (W.negotiate w ps fl) s eq = negotiate-keys w ps fl s eq
   step-keysU (W.allocateHandle w hid mid) s eq = allocate-keys w hid mid s eq
   step-keysU (W.configureMux w plan limit bound keys) s eq = configure-keys w plan limit bound keys s eq

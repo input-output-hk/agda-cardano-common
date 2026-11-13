@@ -90,6 +90,23 @@ inherit-keys a s eq with S.allowed a s
 ...   | just n = case just-injective eq of λ { refl → PK.step-keysN a (S.base s) advanced }
 
 -- Return, exception and result observations change only raw-worker metadata.
+body-restore-keys : ∀ w s {t} → S.restoreWorker w s ≡ just t → Effect nothing (S.source s) (S.source t)
+body-restore-keys w s eq with lookup w (S.workers s)
+... | nothing = case eq of λ ()
+... | just worker with S.pc worker
+...   | S.closePrefix Shared.bodyFailed (S.raised fault) with N.step (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) in actual
+...     | nothing = case eq of λ ()
+...     | just n = case just-injective eq of λ { refl → PK.step-keysN (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) actual }
+body-restore-keys w s eq | just worker | S.calling = case eq of λ ()
+body-restore-keys w s eq | just worker | S.closeDisconnected = case eq of λ ()
+body-restore-keys w s eq | just worker | S.closeException fault = case eq of λ ()
+body-restore-keys w s eq | just worker | S.closePrefix Shared.hardLimitReached result = case eq of λ ()
+body-restore-keys w s eq | just worker | S.closePrefix Shared.forbidden result = case eq of λ ()
+body-restore-keys w s eq | just worker | S.closePrefix Shared.forkFailed result = case eq of λ ()
+body-restore-keys w s eq | just worker | S.closePrefix Shared.bodyFailed S.returned = case eq of λ ()
+body-restore-keys w s eq | just worker | S.bodyExited result = case eq of λ ()
+body-restore-keys w s eq | just worker | S.resultAvailable result = case eq of λ ()
+
 return-keys : ∀ w s {t} → S.observeReturn w s ≡ just t → Same s t
 return-keys w s eq with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
 ... | just worker | just a with S.pc worker | Shared.pc a
@@ -138,6 +155,7 @@ prefix-return-keys w s eq with lookup w (S.workers s) | lookup w (Shared.admissi
 ...   | S.calling | Shared.returnHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.completedHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.impossibleHandshake = case eq of λ ()
+...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
 ...   | S.closeDisconnected | _ = case eq of λ ()
@@ -150,6 +168,7 @@ prefix-return-keys w s eq | just _ | nothing = case eq of λ ()
 prefix-exception-keys : ∀ w err s {t} → S.prefixException w err s ≡ just t → Same s t
 prefix-exception-keys w err s eq with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
 ... | just worker | just a with S.pc worker | Shared.pc a
+...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
 ...   | S.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
 ...   | S.calling | Shared.acquireMap = case eq of λ ()
@@ -181,15 +200,15 @@ exception-keys w err s eq with lookup w (S.workers s) | lookup w (Shared.admissi
 ... | just worker | just a with S.pc worker | Shared.pc a
 ...   | S.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
 ...   | S.calling | Shared.acquireMap = case eq of λ ()
-...   | S.calling | Shared.count _ = case eq of λ ()
-...   | S.calling | Shared.prepare _ = case eq of λ ()
-...   | S.calling | Shared.selectEntry _ _ = case eq of λ ()
-...   | S.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-...   | S.calling | Shared.publish _ _ _ = case eq of λ ()
+...   | S.calling | Shared.count _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+...   | S.calling | Shared.prepare _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+...   | S.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+...   | S.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+...   | S.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
 ...   | S.calling | Shared.reject _ _ = case eq of λ ()
 ...   | S.calling | Shared.closeSocket _ = case eq of λ ()
 ...   | S.calling | Shared.finished _ = case eq of λ ()
-...   | S.calling | Shared.countPublished _ _ = case eq of λ ()
+...   | S.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
 ...   | S.calling | Shared.commitHandshake _ _ = case eq of λ ()
 ...   | S.calling | Shared.countHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -247,6 +266,20 @@ scope-parts x s eq with S.chooseScope x s
 ... | nothing = case eq of λ ()
 ... | just p = p , refl , eq
 phys-root : ∀ x s {p} → S.chooseScope x s ≡ just p → PhysRoot (S.physicalAction p)
+phys-root (S.forkFailure sock err) s chosen with S.accepting (S.stage s) | S.listenerOpen s | lookup sock (Shared.sockets (S.shared s))
+... | true | true | nothing = case just-injective chosen of λ { refl → tt }
+... | false | _ | _ = case chosen of λ ()
+... | true | false | _ = case chosen of λ ()
+... | true | true | just _ = case chosen of λ ()
+phys-root S.finishForkFailure s chosen with S.failedForkSocket s
+... | nothing = case chosen of λ ()
+... | just sock with lookup sock (Shared.sockets (S.shared s))
+...   | just Shared.closed = case just-injective chosen of λ { refl → tt }
+...   | just (Shared.closeUncertain _) = case just-injective chosen of λ { refl → tt }
+...   | nothing = case chosen of λ ()
+...   | just Shared.acceptPending = case chosen of λ ()
+...   | just (Shared.admitting _) = case chosen of λ ()
+...   | just (Shared.handling _) = case chosen of λ ()
 phys-root S.returnAction s chosen with S.stage s in st
 ... | S.serving = case just-injective chosen of λ { refl → tt }
 ... | S.actionBodyExited = case chosen of λ ()
@@ -255,6 +288,7 @@ phys-root S.returnAction s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -272,6 +306,7 @@ phys-root S.publishActionResult s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -289,6 +324,7 @@ phys-root S.interruptServer s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -306,6 +342,7 @@ phys-root S.selectActionWinner s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -323,6 +360,7 @@ phys-root S.requestAcceptCancel s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -340,6 +378,7 @@ phys-root S.deliverAcceptAtWait s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case just-injective chosen of λ { refl → tt }
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -357,6 +396,7 @@ phys-root S.closeListener s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case just-injective chosen of λ { refl → tt }
 ... | S.acceptFailed = case just-injective chosen of λ { refl → tt }
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -374,6 +414,7 @@ phys-root S.publishAcceptResult s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case just-injective chosen of λ { refl → tt }
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -391,6 +432,7 @@ phys-root S.joinAccept s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case just-injective chosen of λ { refl → tt }
 ... | S.acceptJoined = case chosen of λ ()
@@ -408,6 +450,7 @@ phys-root S.traceStopped s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case just-injective chosen of λ { refl → tt }
@@ -425,6 +468,7 @@ phys-root S.cancelJoinReturnedAction s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -442,6 +486,7 @@ phys-root S.requestIGCancel s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -459,6 +504,7 @@ phys-root S.acceptFails s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case just-injective chosen of λ { refl → tt }
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -476,6 +522,7 @@ phys-root S.beginCM s chosen with S.stage s in st
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -493,6 +540,7 @@ phys-root S.deliverIGBody s chosen with S.stage s in st | S.ig s in igq | Machin
 ... | S.acceptCancelRequested | _ | _ | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ | _ | _ = case chosen of λ ()
 ... | S.acceptFailed | _ | _ | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ | _ | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ | _ | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ | _ | _ = case chosen of λ ()
 ... | S.acceptJoined | _ | _ | _ = case chosen of λ ()
@@ -517,6 +565,7 @@ phys-root S.joinIG s chosen with S.stage s in st | S.ig s in igq
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()
@@ -554,6 +603,7 @@ phys-root S.igWins s chosen with S.stage s in st | S.ig s in igq
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()
@@ -571,6 +621,7 @@ phys-root S.finishServer s chosen with S.stage s in st | Close.phase (W.shutdown
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()
@@ -642,14 +693,26 @@ phys-root S.finishIGBody s chosen with S.ig s in igq | IG.connections (IG.publis
 scope-keys : ∀ x s {t} → S.scopeAdvance x s ≡ just t → Same s t
 scope-keys x s eq with S.chooseScope x s in chosen
 ... | nothing = case eq of λ ()
-... | just p with S.physicalAction p in physical
-...   | nothing = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
-...   | just a with N.step a (S.base s) in advanced
-...     | nothing = case eq of λ ()
-...     | just n = case just-injective eq of λ { refl → nil _ (subst PhysRoot physical (phys-root x s chosen))
+... | just (S.scopePlan st keep ig nothing) = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+... | just (S.scopePlan st keep ig (just a)) with N.step a (S.base s) in advanced
+...   | nothing = case eq of λ ()
+...   | just n = case just-injective eq of λ { refl → nil _ (phys-root x s chosen)
   (PK.step-keysN a (S.base s) advanced) }
+scope-keys x s eq | just (S.socketScopePlan st keep ig sock owner) =
+  case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+
+-- Pre-birth close preserves this observation.
+fork-close-keys : ∀ outcome s {t} → S.closeFailedFork outcome s ≡ just t → Same s t
+fork-close-keys outcome s eq with S.failedForkSocket s
+... | nothing = case eq of λ ()
+... | just sock with S.isAcceptedSocket sock s
+...   | false = case eq of λ ()
+...   | true = case just-injective eq of λ { refl → fields-same _ _ refl refl refl refl }
+
 step-keysS : ∀ a s {t} → S.step a s ≡ just t → Effect (rootS a) (S.source s) (S.source t)
+step-keysS (S.closeForkFailure outcome) s eq = fork-close-keys outcome s eq
 step-keysS (S.acceptedFork w req) s eq = fork-keys w req s eq
+step-keysS (S.workerRestore w) s eq = body-restore-keys w s eq
 step-keysS (S.run a) s eq = inherit-keys a s eq
 step-keysS (S.workerReturned w) s eq = return-keys w s eq
 step-keysS (S.workerPrefixReturned w) s eq = prefix-return-keys w s eq

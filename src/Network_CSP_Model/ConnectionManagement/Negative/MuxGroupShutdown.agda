@@ -56,6 +56,7 @@ prefixSafe : M.Action → Bool
 prefixSafe (M.run a) = prefixSafeP a
 prefixSafe _ = true
 prefixProtocol : ∀ a m → prefixSafeP a ≡ true → W.protocolAllowed a (wrap m) ≡ true
+prefixProtocol (P.run (U.handshakeStep w event)) m eq = refl
 prefixProtocol (P.run (U.run a)) m eq = refl
 prefixProtocol (P.run (U.negotiate w ps fl)) m eq = refl
 prefixProtocol (P.run (U.allocateHandle w h mid)) m eq = refl

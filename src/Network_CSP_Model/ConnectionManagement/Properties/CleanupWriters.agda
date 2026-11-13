@@ -221,6 +221,7 @@ private
  prefix-worker Admission.putMapBack w (S.admissionWorker r (S.completedHandshake result)) s owned ()
  prefix-worker Admission.putMapBack w (S.admissionWorker r S.impossibleHandshake) s owned ()
  prefix-worker Admission.putMapBack w (S.admissionWorker r (S.reject l S.forbidden)) s owned ()
+ prefix-worker Admission.putMapBack w (S.admissionWorker r (S.reject l S.bodyFailed)) s owned ()
  prefix-worker Admission.putMapBack w (S.admissionWorker r (S.reject l S.forkFailed)) s owned ()
  prefix-worker Admission.putMapBack w a@(S.admissionWorker r (S.publish l p e)) s owned eq with CM.putMap l (S.insertConnection (S.key r) e (S.savedMap l)) (S.cm s) in putEq
  ... | nothing = case eq of λ ()
@@ -248,11 +249,44 @@ private
  prefix-worker Admission.restore w a@(S.admissionWorker r (S.reject l S.forbidden)) s owned eq with CM.restoreMap l (S.cm s) in putEq
  ... | nothing = case eq of λ ()
  ... | just c′ = case just-injective eq of λ { refl → refl }
+ prefix-worker Admission.restore w a@(S.admissionWorker r (S.reject l S.bodyFailed)) s owned eq with CM.restoreMap l (S.cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = case just-injective eq of λ { refl → refl }
  prefix-worker Admission.restore w a@(S.admissionWorker r (S.reject l S.forkFailed)) s owned eq with CM.restoreMap l (S.cm s) in putEq
  ... | nothing = case eq of λ ()
  ... | just c′ = case just-injective eq of λ { refl → refl }
 
 
+ prefix-worker Admission.restoreBody w a@(S.admissionWorker r (S.count l)) s owned eq with CM.restoreMap l (S.cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = case just-injective eq of λ { refl → refl }
+ prefix-worker Admission.restoreBody w a@(S.admissionWorker r (S.prepare l)) s owned eq with CM.restoreMap l (S.cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = case just-injective eq of λ { refl → refl }
+ prefix-worker Admission.restoreBody w a@(S.admissionWorker r (S.selectEntry l p)) s owned eq with CM.restoreMap l (S.cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = case just-injective eq of λ { refl → refl }
+ prefix-worker Admission.restoreBody w a@(S.admissionWorker r (S.forkHandler l p e)) s owned eq with CM.restoreMap l (S.cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = case just-injective eq of λ { refl → refl }
+ prefix-worker Admission.restoreBody w a@(S.admissionWorker r (S.publish l p e)) s owned eq with CM.restoreMap l (S.cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = case just-injective eq of λ { refl → refl }
+ prefix-worker Admission.restoreBody w (S.admissionWorker r S.acquireMap) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.closeSocket reason)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.finished reason)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.countPublished p e)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.awaitHandshake p e)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.commitHandshake e result)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.countHandshake result)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.notifyInbound info)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.returnHandshake result)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.completedHandshake result)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r S.impossibleHandshake) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.reject l S.hardLimitReached)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.reject l S.forbidden)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.reject l S.bodyFailed)) s owned ()
+ prefix-worker Admission.restoreBody w (S.admissionWorker r (S.reject l S.forkFailed)) s owned ()
  success-result : ∀ (native : M.Action) w a e h f decision s →
    S.cleanups (H.applySuccess w a e h f decision s) ≡ S.cleanups s
  success-result native w a e h f (H.update st provenance) s = refl

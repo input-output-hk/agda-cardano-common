@@ -22,6 +22,7 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; subst)
 open import ConnectionManagement.Domain using (HandleId)
+open import ConnectionManagement.Store using (lookup)
 import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -74,6 +75,20 @@ private
 -- a closed coordinator.
 returned-entry : ∀ x s {p} → S.chooseScope x s ≡ just p → S.nextStage p ≡ S.serverReturned →
   S.stage s ≡ S.serverReturned ⊎ x ≡ S.finishServer
+returned-entry (S.forkFailure sock err) s chosen with S.accepting (S.stage s) | S.listenerOpen s | lookup sock (Shared.sockets (S.shared s))
+... | true | true | nothing = case just-injective chosen of λ { refl → λ () }
+... | false | _ | _ = case chosen of λ ()
+... | true | false | _ = case chosen of λ ()
+... | true | true | just _ = case chosen of λ ()
+returned-entry S.finishForkFailure s chosen with S.failedForkSocket s
+... | nothing = case chosen of λ ()
+... | just sock with lookup sock (Shared.sockets (S.shared s))
+...   | just Shared.closed = case just-injective chosen of λ { refl → λ () }
+...   | just (Shared.closeUncertain _) = case just-injective chosen of λ { refl → λ () }
+...   | nothing = case chosen of λ ()
+...   | just Shared.acceptPending = case chosen of λ ()
+...   | just (Shared.admitting _) = case chosen of λ ()
+...   | just (Shared.handling _) = case chosen of λ ()
 returned-entry S.returnAction s chosen with S.stage s
 ... | S.serving = case just-injective chosen of λ { refl → λ () }
 ... | S.actionBodyExited = case chosen of λ ()
@@ -82,6 +97,7 @@ returned-entry S.returnAction s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -99,6 +115,7 @@ returned-entry S.publishActionResult s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -116,6 +133,7 @@ returned-entry S.interruptServer s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -133,6 +151,7 @@ returned-entry S.selectActionWinner s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -150,6 +169,7 @@ returned-entry S.requestAcceptCancel s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -167,6 +187,7 @@ returned-entry S.deliverAcceptAtWait s chosen with S.stage s
 ... | S.acceptCancelRequested = case just-injective chosen of λ { refl → λ () }
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -184,6 +205,7 @@ returned-entry S.closeListener s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case just-injective chosen of λ { refl → λ () }
 ... | S.acceptFailed = case just-injective chosen of λ { refl → λ () }
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -201,6 +223,7 @@ returned-entry S.publishAcceptResult s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case just-injective chosen of λ { refl → λ () }
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -218,6 +241,7 @@ returned-entry S.joinAccept s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case just-injective chosen of λ { refl → λ () }
 ... | S.acceptJoined = case chosen of λ ()
@@ -235,6 +259,7 @@ returned-entry S.traceStopped s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case just-injective chosen of λ { refl → λ () }
@@ -252,6 +277,7 @@ returned-entry S.cancelJoinReturnedAction s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -269,6 +295,7 @@ returned-entry S.requestIGCancel s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -286,6 +313,7 @@ returned-entry S.acceptFails s chosen with S.stage s
 ... | S.acceptCancelRequested = case just-injective chosen of λ { refl → λ () }
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -303,6 +331,7 @@ returned-entry S.beginCM s chosen with S.stage s
 ... | S.acceptCancelRequested = case chosen of λ ()
 ... | S.acceptCancelDelivered = case chosen of λ ()
 ... | S.acceptFailed = case chosen of λ ()
+... | (S.acceptForkClosing _ _) = case chosen of λ ()
 ... | S.acceptBodyExited = case chosen of λ ()
 ... | S.acceptResultAvailable = case chosen of λ ()
 ... | S.acceptJoined = case chosen of λ ()
@@ -320,6 +349,7 @@ returned-entry S.deliverIGBody s chosen with S.stage s in st | S.ig s | Machine.
 ... | S.acceptCancelRequested | _ | _ | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ | _ | _ = case chosen of λ ()
 ... | S.acceptFailed | _ | _ | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ | _ | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ | _ | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ | _ | _ = case chosen of λ ()
 ... | S.acceptJoined | _ | _ | _ = case chosen of λ ()
@@ -345,6 +375,7 @@ returned-entry S.joinIG s chosen with S.stage s | S.ig s
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()
@@ -382,6 +413,7 @@ returned-entry S.igWins s chosen with S.stage s | S.ig s
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()
@@ -399,6 +431,7 @@ returned-entry S.finishServer s chosen with S.stage s | Close.phase (W.shutdown 
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()
@@ -483,6 +516,7 @@ finish-closed s chosen with S.stage s | Close.phase (W.shutdown (R.base (N.raw (
 ... | S.acceptCancelRequested | _ = case chosen of λ ()
 ... | S.acceptCancelDelivered | _ = case chosen of λ ()
 ... | S.acceptFailed | _ = case chosen of λ ()
+... | (S.acceptForkClosing _ _) | _ = case chosen of λ ()
 ... | S.acceptBodyExited | _ = case chosen of λ ()
 ... | S.acceptResultAvailable | _ = case chosen of λ ()
 ... | S.acceptJoined | _ = case chosen of λ ()

@@ -193,6 +193,7 @@ responder-projects w j gen s eq | just f | true | U.promisePublished hid mid | t
 responder-projects w j gen s eq | just f | true | U.promisePublished hid mid | true | just m | Mux.tracerFailed n = case eq of λ ()
 responder-projects w j gen s eq | just f | true | U.promisePublished hid mid | true | just m | Mux.returned = case eq of λ ()
 responder-projects w j gen s eq | just f | true | U.promisePublished hid mid | true | nothing = case eq of λ ()
+responder-projects w j gen s eq | just f | true | (U.handshakePending helperPC) | _ = case eq of λ ()
 responder-projects w j gen s eq | just f | true | U.returnedSuccess | _ = case eq of λ ()
 responder-projects w j gen s eq | just f | true | U.handleAllocated hid mid | _ = case eq of λ ()
 responder-projects w j gen s eq | just f | true | U.promisePublished hid mid | false = case eq of λ ()
@@ -221,6 +222,7 @@ initiator-projects w j gen n s eq | just f | true | U.promisePublished hid mid |
 initiator-projects w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | just m | Mux.ready | Mux.returned | [] | false | _ = case eq of λ ()
 initiator-projects w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | just m | Mux.ready | Mux.returned | [] | true | true = case eq of λ ()
 initiator-projects w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | nothing = case eq of λ ()
+initiator-projects w j gen n s eq | just f | true | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
 initiator-projects w j gen n s eq | just f | true | U.returnedSuccess | _ | _ = case eq of λ ()
 initiator-projects w j gen n s eq | just f | true | U.handleAllocated hid mid | _ | _ = case eq of λ ()
 initiator-projects w j gen n s eq | just f | true | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -351,6 +353,7 @@ control-projects w action s eq with lookup w (U.frames (W.base s))
 ...       | true with O.advance (O.inbound (M.igStep (W.sourceControl action mid))) (W.source s) in advanced
 ...         | nothing = case eq of λ ()
 ...         | just c = case just-injective eq of λ { refl → source-step (O.inbound (M.igStep (W.sourceControl action mid))) s advanced }
+control-projects w action s eq | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
 control-projects w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
 control-projects w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
 control-projects w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -653,6 +656,7 @@ responder-fork-observation w j gen s eq | just f | true | U.promisePublished hid
 responder-fork-observation w j gen s eq | just f | true | U.promisePublished hid mid | true | just m | Mux.tracerFailed n = case eq of λ ()
 responder-fork-observation w j gen s eq | just f | true | U.promisePublished hid mid | true | just m | Mux.returned = case eq of λ ()
 responder-fork-observation w j gen s eq | just f | true | U.promisePublished hid mid | true | nothing = case eq of λ ()
+responder-fork-observation w j gen s eq | just f | true | (U.handshakePending helperPC) | _ = case eq of λ ()
 responder-fork-observation w j gen s eq | just f | true | U.returnedSuccess | _ = case eq of λ ()
 responder-fork-observation w j gen s eq | just f | true | U.handleAllocated hid mid | _ = case eq of λ ()
 responder-fork-observation w j gen s eq | just f | true | U.promisePublished hid mid | false = case eq of λ ()
@@ -681,6 +685,7 @@ initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished h
 initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | just m | Mux.ready | Mux.returned | [] | false | _ = case eq of λ ()
 initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | just m | Mux.ready | Mux.returned | [] | true | true = case eq of λ ()
 initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished hid mid | true | just descriptor | nothing = case eq of λ ()
+initiator-fork-observation w j gen n s eq | just f | true | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
 initiator-fork-observation w j gen n s eq | just f | true | U.returnedSuccess | _ | _ = case eq of λ ()
 initiator-fork-observation w j gen n s eq | just f | true | U.handleAllocated hid mid | _ | _ = case eq of λ ()
 initiator-fork-observation w j gen n s eq | just f | true | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -816,6 +821,7 @@ module CaptureIdentity where
   ...       | true with O.advance (O.inbound (M.igStep (W.sourceControl action mid))) (W.source s) in advanced
   ...         | nothing = case eq of λ ()
   ...         | just c = case just-injective eq of λ { refl → identity (W.jobs s) }
+  control-stable w action s eq | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
   control-stable w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
   control-stable w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
   control-stable w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -982,6 +988,7 @@ module CommittedRows where
   ...       | true with O.advance (O.inbound (M.igStep (W.sourceControl action mid))) (W.source s) in advanced
   ...         | nothing = case eq of λ ()
   ...         | just c = case just-injective eq of λ { refl → identity (W.jobs s) }
+  control-stable w action s eq | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
   control-stable w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
   control-stable w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
   control-stable w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()

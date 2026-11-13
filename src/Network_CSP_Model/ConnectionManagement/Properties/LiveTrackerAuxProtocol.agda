@@ -167,6 +167,7 @@ module For (Obs : P.State → Set) (stable : ∀ {s t} → Retains s t → Obs s
  ...       | true with O.advance (O.inbound (Machine.igStep (P.sourceControl a mid))) (P.source s) in advanced
  ...         | nothing = case eq of λ ()
  ...         | just c = case just-injective eq of λ { refl → source-valid c s valid }
+ control w a s eq valid | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.returnedSuccess | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
  control w a s eq valid | just f | U.promisePublished hid mid | false | _ = case eq of λ ()

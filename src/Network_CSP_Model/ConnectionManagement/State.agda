@@ -101,7 +101,7 @@ record Admission : Set where
 open Admission public
 
 data Failure : Set where
-  hardLimitReached forbidden forkFailed : Failure
+  hardLimitReached forbidden forkFailed bodyFailed : Failure
 
 -- Handler errors retain identity separately from the source classifier.
 data HandlerErrorClass : Set where
@@ -160,6 +160,8 @@ record HandlerStart : Set where
 open HandlerStart public
 
 data SocketOwner : Set where
+  -- Accepted socket owned by the accept loop before a failed async handoff.
+  acceptPending : SocketOwner
   admitting handling : WorkerId → SocketOwner
   closed : SocketOwner
   closeUncertain : ErrorId → SocketOwner

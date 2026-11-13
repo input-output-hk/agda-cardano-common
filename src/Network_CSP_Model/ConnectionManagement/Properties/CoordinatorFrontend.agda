@@ -92,6 +92,23 @@ inherit-frame a s eq with S.allowed a s
 ...   | just n = case just-injective eq of λ { refl → publication-frame a (S.base s) advanced }
 
 -- Return, exception and result observations change only raw-worker metadata.
+body-restore-frame : ∀ w s {t} → S.restoreWorker w s ≡ just t → Frame (coordS s) (coordS t)
+body-restore-frame w s eq with lookup w (S.workers s)
+... | nothing = case eq of λ ()
+... | just worker with S.pc worker
+...   | S.closePrefix Shared.bodyFailed (S.raised fault) with N.step (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) in actual
+...     | nothing = case eq of λ ()
+...     | just n = case just-injective eq of λ { refl → publication-frame (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) actual }
+body-restore-frame w s eq | just worker | S.calling = case eq of λ ()
+body-restore-frame w s eq | just worker | S.closeDisconnected = case eq of λ ()
+body-restore-frame w s eq | just worker | S.closeException fault = case eq of λ ()
+body-restore-frame w s eq | just worker | S.closePrefix Shared.hardLimitReached result = case eq of λ ()
+body-restore-frame w s eq | just worker | S.closePrefix Shared.forbidden result = case eq of λ ()
+body-restore-frame w s eq | just worker | S.closePrefix Shared.forkFailed result = case eq of λ ()
+body-restore-frame w s eq | just worker | S.closePrefix Shared.bodyFailed S.returned = case eq of λ ()
+body-restore-frame w s eq | just worker | S.bodyExited result = case eq of λ ()
+body-restore-frame w s eq | just worker | S.resultAvailable result = case eq of λ ()
+
 return-frame : ∀ w s {t} → S.observeReturn w s ≡ just t → Frame (coordS s) (coordS t)
 return-frame w s eq with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
 ... | just worker | just a with S.pc worker | Shared.pc a
@@ -140,6 +157,7 @@ prefix-return-frame w s eq with lookup w (S.workers s) | lookup w (Shared.admiss
 ...   | S.calling | Shared.returnHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.completedHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.impossibleHandshake = case eq of λ ()
+...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
 ...   | S.closeDisconnected | _ = case eq of λ ()
@@ -152,6 +170,7 @@ prefix-return-frame w s eq | just _ | nothing = case eq of λ ()
 prefix-exception-frame : ∀ w err s {t} → S.prefixException w err s ≡ just t → Frame (coordS s) (coordS t)
 prefix-exception-frame w err s eq with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
 ... | just worker | just a with S.pc worker | Shared.pc a
+...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → stay _ }
 ...   | S.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → stay _ }
 ...   | S.calling | Shared.acquireMap = case eq of λ ()
@@ -183,15 +202,15 @@ exception-frame w err s eq with lookup w (S.workers s) | lookup w (Shared.admiss
 ... | just worker | just a with S.pc worker | Shared.pc a
 ...   | S.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → stay _ }
 ...   | S.calling | Shared.acquireMap = case eq of λ ()
-...   | S.calling | Shared.count _ = case eq of λ ()
-...   | S.calling | Shared.prepare _ = case eq of λ ()
-...   | S.calling | Shared.selectEntry _ _ = case eq of λ ()
-...   | S.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-...   | S.calling | Shared.publish _ _ _ = case eq of λ ()
+...   | S.calling | Shared.count _ = case just-injective eq of λ { refl → stay _ }
+...   | S.calling | Shared.prepare _ = case just-injective eq of λ { refl → stay _ }
+...   | S.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → stay _ }
+...   | S.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → stay _ }
+...   | S.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → stay _ }
 ...   | S.calling | Shared.reject _ _ = case eq of λ ()
 ...   | S.calling | Shared.closeSocket _ = case eq of λ ()
 ...   | S.calling | Shared.finished _ = case eq of λ ()
-...   | S.calling | Shared.countPublished _ _ = case eq of λ ()
+...   | S.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → stay _ }
 ...   | S.calling | Shared.commitHandshake _ _ = case eq of λ ()
 ...   | S.calling | Shared.countHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -241,16 +260,29 @@ close-frame w outcome s eq with lookup w (S.workers s)
 ...   | S.resultAvailable _ = case eq of λ ()
 
 
+-- Socket-only scopes retain this observer; physical scopes use the old lift.
+enact-scope-frame : ∀ p s {t} → S.enactScope p s ≡ just t → Frame (coordS s) (coordS t)
+enact-scope-frame (S.scopePlan st keep ig nothing) s eq = case just-injective eq of λ { refl → stay _ }
+enact-scope-frame (S.scopePlan st keep ig (just a)) s eq with N.step a (S.base s) in advanced
+... | nothing = case eq of λ ()
+... | just n = case just-injective eq of λ { refl → publication-frame a (S.base s) advanced }
+enact-scope-frame (S.socketScopePlan st keep ig sock owner) s eq = case just-injective eq of λ { refl → stay _ }
 scope-frame : ∀ x s {t} → S.scopeAdvance x s ≡ just t → Frame (coordS s) (coordS t)
 scope-frame x s eq with S.chooseScope x s
 ... | nothing = case eq of λ ()
-... | just p with S.physicalAction p
-...   | nothing = case just-injective eq of λ { refl → stay _ }
-...   | just a with N.step a (S.base s) in advanced
-...     | nothing = case eq of λ ()
-...     | just n = case just-injective eq of λ { refl → publication-frame a (S.base s) advanced }
+... | just p = enact-scope-frame p s eq
+-- Pre-birth close preserves this observation.
+fork-close-frame : ∀ outcome s {t} → S.closeFailedFork outcome s ≡ just t → Frame (coordS s) (coordS t)
+fork-close-frame outcome s eq with S.failedForkSocket s
+... | nothing = case eq of λ ()
+... | just sock with S.isAcceptedSocket sock s
+...   | false = case eq of λ ()
+...   | true = case just-injective eq of λ { refl → stay _ }
+
 server-frame : ∀ a s {t} → S.step a s ≡ just t → Frame (coordS s) (coordS t)
+server-frame (S.closeForkFailure outcome) s eq = fork-close-frame outcome s eq
 server-frame (S.acceptedFork w req) s eq = fork-frame w req s eq
+server-frame (S.workerRestore w) s eq = body-restore-frame w s eq
 server-frame (S.run a) s eq = inherit-frame a s eq
 server-frame (S.workerReturned w) s eq = return-frame w s eq
 server-frame (S.workerPrefixReturned w) s eq = prefix-return-frame w s eq

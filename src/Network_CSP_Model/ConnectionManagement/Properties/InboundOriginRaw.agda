@@ -87,6 +87,7 @@ module Raw where
  effect (H.run (Machine.admissionStep w Server.chooseEntry)) s eq = dispatch-effect (Machine.admissionStep w Server.chooseEntry) s eq
  effect (H.run (Machine.admissionStep w Server.putMapBack)) s eq = dispatch-effect (Machine.admissionStep w Server.putMapBack) s eq
  effect (H.run (Machine.admissionStep w Server.readCounters)) s eq = dispatch-effect (Machine.admissionStep w Server.readCounters) s eq
+ effect (H.run (Machine.admissionStep w Server.restoreBody)) s eq = dispatch-effect (Machine.admissionStep w Server.restoreBody) s eq
  effect (H.run (Machine.admissionStep w Server.restore)) s eq = dispatch-effect (Machine.admissionStep w Server.restore) s eq
  effect (H.run (Machine.admissionStep w Server.close)) s eq = dispatch-effect (Machine.admissionStep w Server.close) s eq
  effect (H.run (Machine.admissionStep w Server.failFork)) s eq = dispatch-effect (Machine.admissionStep w Server.failFork) s eq

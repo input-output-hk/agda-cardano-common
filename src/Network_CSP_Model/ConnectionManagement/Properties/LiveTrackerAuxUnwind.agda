@@ -51,7 +51,7 @@ import ConnectionManagement.Properties.MuxStartupUnwind as UnwindProperties
 module Unwind (isBearerClosed : ErrorId → Bool)
  (Obs : ProtocolModel.State → Set)
  (stable : ∀ {s t} → Transport.Retains isBearerClosed s t → Obs s → Obs t) where
- private module R = UnwindModel isBearerClosed using (Action; Fault; Plan; State; acknowledge; allowed; async; asyncDead; asyncStatus; awaitingClose; base; beginClose; beginDead; cancellationPlan; choose; closing; commitDead; continueSync; deadThrowPoint; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; faults; finishClose; finishDead; handedOff; handoff; inherited; initial; join; local; machine; mux; observeCancellation; observeDeadTraceException; observeFailure; outcome; owner; phase; pool; poolAt; poolClosed; protocols; readyBody; readyBuffer; requestCancel; run; sameClose; sampleDead; setPhase; setPool; setSource; siteControl; siteRoute; source; start; step; sync; transfer; withPool; writeAsyncFailure)
+ private module R = UnwindModel isBearerClosed using (counterRow; Action; Fault; Plan; State; acknowledge; allowed; async; asyncDead; asyncStatus; awaitingClose; base; beginClose; beginDead; cancellationPlan; choose; closing; commitDead; continueSync; deadThrowPoint; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; faults; finishClose; finishDead; handedOff; handoff; inherited; initial; join; local; machine; mux; observeCancellation; observeDeadTraceException; observeFailure; outcome; owner; phase; pool; poolAt; poolClosed; protocols; readyBody; readyBuffer; requestCancel; run; sameClose; sampleDead; setPhase; setPool; setSource; siteControl; siteRoute; source; start; step; sync; transfer; withPool; writeAsyncFailure)
  private module W = ExitModel isBearerClosed using (base; control; exits; setShutdown; shutdown)
  private module X = CancellationModel isBearerClosed using (initial; step)
  private module G = GroupModel isBearerClosed using (module M; protocolState; wholeDeliverable)
@@ -277,9 +277,11 @@ module Unwind (isBearerClosed : ErrorId → Bool)
 
  chosen-safe (R.handoff w) s eq valid with lookup w (R.faults s) in found | lookup w (W.exits (R.base s))
  ... | just f | nothing with R.phase f | R.outcome f
- ...   | R.readyBuffer | result = case just-injective eq of λ { refl → safe-transfer   , λ _ → tt }
- ...   | R.readyBody | R.sync err = case just-injective eq of λ { refl → safe-transfer   , λ _ → tt }
- ...   | R.readyBody | R.async err = case just-injective eq of λ { refl → safe-transfer   , λ _ → tt }
+ ...   | R.readyBuffer | result with R.counterRow f s
+ ...     | just _ = case just-injective eq of λ { refl → safe-machine , λ _ → tt }
+ ...     | nothing = case just-injective eq of λ { refl → safe-transfer   , λ _ → tt }
+ chosen-safe (R.handoff w) s eq valid | just f | nothing | R.readyBody | R.sync err = case just-injective eq of λ { refl → safe-transfer   , λ _ → tt }
+ chosen-safe (R.handoff w) s eq valid | just f | nothing | R.readyBody | R.async err = case just-injective eq of λ { refl → safe-transfer   , λ _ → tt }
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.awaitingClose | _ = case eq of λ ()
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.closing | _ = case eq of λ ()
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.poolClosed | _ = case eq of λ ()

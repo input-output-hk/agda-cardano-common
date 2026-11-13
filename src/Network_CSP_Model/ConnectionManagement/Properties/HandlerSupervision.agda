@@ -284,6 +284,7 @@ step-projects (H.run (M.admissionStep w Server.allocatePromise)) s eq = dispatch
 step-projects (H.run (M.admissionStep w Server.chooseEntry)) s eq = dispatch-paths (M.admissionStep w Server.chooseEntry) s eq
 step-projects (H.run (M.admissionStep w Server.putMapBack)) s eq = dispatch-paths (M.admissionStep w Server.putMapBack) s eq
 step-projects (H.run (M.admissionStep w Server.readCounters)) s eq = dispatch-paths (M.admissionStep w Server.readCounters) s eq
+step-projects (H.run (M.admissionStep w Server.restoreBody)) s eq = dispatch-paths (M.admissionStep w Server.restoreBody) s eq
 step-projects (H.run (M.admissionStep w Server.restore)) s eq = dispatch-paths (M.admissionStep w Server.restore) s eq
 step-projects (H.run (M.admissionStep w Server.close)) s eq = dispatch-paths (M.admissionStep w Server.close) s eq
 step-projects (H.run (M.admissionStep w Server.failFork)) s eq = dispatch-paths (M.admissionStep w Server.failFork) s eq

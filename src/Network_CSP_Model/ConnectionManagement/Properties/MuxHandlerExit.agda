@@ -80,6 +80,10 @@ enact-projects (W.inherited action) s eq with G.step action (W.base s) in advanc
 ... | nothing = case eq of λ ()
 ... | just g = case just-injective eq of λ { refl → from-base s _ (Base.step-projects action (W.base s) advanced) }
 enact-projects (W.coordinator action) s eq = control-projects action s eq
+enact-projects (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in advanced
+... | nothing = case eq of λ ()
+... | just g = compose (from-base s (record s { base = g }) (Base.step-projects (W.handshakeAction w window err) (W.base s) advanced))
+  (control-projects Close.acknowledgeDelivery (record s { base = g }) eq)
 enact-projects (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in advanced
 ... | nothing = case eq of λ ()
 ... | just g = compose (from-base s (record s { base = g }) (Base.step-projects (G.abortOwner w err) (W.base s) advanced))
@@ -267,6 +271,10 @@ module CaptureIdentity where
   ... | nothing = case eq of λ ()
   ... | just g = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.step-stable action (W.base s) advanced) }
   ci-enact-projects (W.coordinator action) s eq = ci-control-projects action s eq
+  ci-enact-projects (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just g = ci-compose (ci-from-base s (record s { base = g }) (CIBase.step-stable (W.handshakeAction w window err) (W.base s) advanced))
+    (ci-control-projects Close.acknowledgeDelivery (record s { base = g }) eq)
   ci-enact-projects (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in advanced
   ... | nothing = case eq of λ ()
   ... | just g = ci-compose (ci-from-base s (record s { base = g }) (CIBase.step-stable (G.abortOwner w err) (W.base s) advanced))
@@ -340,6 +348,10 @@ module CommittedRows where
   ... | nothing = case eq of λ ()
   ... | just g = case just-injective eq of λ { refl → ci-from-base s _ (CIBase.step-stable action (W.base s) advanced) }
   ci-enact-projects (W.coordinator action) s eq = ci-control-projects action s eq
+  ci-enact-projects (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in advanced
+  ... | nothing = case eq of λ ()
+  ... | just g = ci-compose (ci-from-base s (record s { base = g }) (CIBase.step-stable (W.handshakeAction w window err) (W.base s) advanced))
+    (ci-control-projects Close.acknowledgeDelivery (record s { base = g }) eq)
   ci-enact-projects (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in advanced
   ... | nothing = case eq of λ ()
   ... | just g = ci-compose (ci-from-base s (record s { base = g }) (CIBase.step-stable (G.abortOwner w err) (W.base s) advanced))

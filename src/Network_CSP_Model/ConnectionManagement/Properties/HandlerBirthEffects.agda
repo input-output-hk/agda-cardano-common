@@ -20,6 +20,8 @@ open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other)
 import ConnectionManagement.Rules.IGRegistration as IG
 import ConnectionManagement.Rules.MuxEgress as EgressLayout
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundMachine as O
@@ -204,6 +206,7 @@ step-change (H.run (M.admissionStep w Server.allocatePromise)) s eq = dispatch-c
 step-change (H.run (M.admissionStep w Server.chooseEntry)) s eq = dispatch-change (M.admissionStep w Server.chooseEntry) s eq
 step-change (H.run (M.admissionStep w Server.putMapBack)) s eq = dispatch-change (M.admissionStep w Server.putMapBack) s eq
 step-change (H.run (M.admissionStep w Server.readCounters)) s eq = dispatch-change (M.admissionStep w Server.readCounters) s eq
+step-change (H.run (M.admissionStep w Server.restoreBody)) s eq = dispatch-change (M.admissionStep w Server.restoreBody) s eq
 step-change (H.run (M.admissionStep w Server.restore)) s eq = dispatch-change (M.admissionStep w Server.restore) s eq
 step-change (H.run (M.admissionStep w Server.close)) s eq = dispatch-change (M.admissionStep w Server.close) s eq
 step-change (H.run (M.admissionStep w Server.failFork)) s eq = dispatch-change (M.admissionStep w Server.failFork) s eq
@@ -531,6 +534,48 @@ module MuxLayer where
  negotiate-same w ps flow s eq | just t | nothing | previous = case eq of λ ()
  negotiate-same w ps flow s eq | just t | just origin | just previous = case eq of λ ()
 
+ -- Helper frames preserve the same source/capture observation.
+ capture-handshake-same : ∀ w pc s {s′} → U.captureHandshake w pc s ≡ just s′ → view s′ ≡ view s
+ capture-handshake-same w pc s eq with lookup w (B.threads (U.base s)) |
+   lookup w (U.origins s) | lookup w (U.frames s) in absent
+ ... | just t | just origin | nothing with H.phase t
+ ...   | H.handshaking = case just-injective eq of λ { refl → refl }
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.maskedSetup = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.caughtCancellation err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.cancellationPublished err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.bodyExited err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.finalizing err = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.cleanupComplete err outcome = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | nothing | H.resultAvailable err outcome = case eq of λ ()
+ capture-handshake-same w pc s eq | nothing | origin | previous = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | nothing | previous = case eq of λ ()
+ capture-handshake-same w pc s eq | just t | just origin | just previous = case eq of λ ()
+
+ -- Metadata stutters; publication executes the actual promise writer.
+ advance-handshake-same : ∀ w action s {s′} → U.advanceHandshake w action s ≡ just s′ → view s′ ≡ view s
+ advance-handshake-same w action s eq with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f in progress
+ ...   | U.handshakePending pc with HS.step action pc
+ ...     | just (next , nothing) = case just-injective eq of λ { refl → refl }
+ ...     | just (next , just result) with O.advance (O.inbound (M.handlerPublication w (HS.asResult result) M.resultWritten)) (U.source s) in advanced
+ ...       | nothing = case eq of λ ()
+ ...       | just c = case just-injective eq of λ { refl → refl }
+ advance-handshake-same w action s eq | just f | U.handshakePending pc | nothing = case eq of λ ()
+ advance-handshake-same w action s eq | just f | U.returnedSuccess = case eq of λ ()
+ advance-handshake-same w action s eq | just f | U.handleAllocated h mid = case eq of λ ()
+ advance-handshake-same w action s eq | just f | U.promisePublished h mid = case eq of λ ()
+
+ -- Only inbound origins can enter the query delay.
+ handshake-same : ∀ w event s {s′} → U.handshakeFor w event s ≡ just s′ → view s′ ≡ view s
+ handshake-same w (HS.limitReturned kind err) s eq = capture-handshake-same w (HS.returned (HS.protocolLimit kind err)) s eq
+ handshake-same w (HS.bearerTimedOut err) s eq = capture-handshake-same w (HS.returned (HS.bearerTimeout err)) s eq
+ handshake-same w HS.queryReturned s eq with lookup w (U.origins s)
+ ... | just HandshakeDomain.inbound = capture-handshake-same w (HS.returned HS.query) s eq
+ ... | just HandshakeDomain.outbound = case eq of λ ()
+ ... | nothing = case eq of λ ()
+ handshake-same w (HS.continue action) s eq = advance-handshake-same w action s eq
+
  allocate-same : ∀ w hid mid s {s′} → U.allocate w hid mid s ≡ just s′ → view s′ ≡ view s
  allocate-same w hid mid s eq with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -538,6 +583,7 @@ module MuxLayer where
  ...   | U.returnedSuccess with O.advance (O.inbound (M.igStep (U.allocationAction f hid mid))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → refl }
+ allocate-same w hid mid s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.handleAllocated oldHandle oldMux = case eq of λ ()
  allocate-same w hid mid s eq | just f | U.promisePublished oldHandle oldMux = case eq of λ ()
 
@@ -550,6 +596,7 @@ module MuxLayer where
  ...   | U.handleAllocated hid mid with O.advance (O.inbound (M.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → refl }
+ configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configure-same w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
@@ -562,6 +609,7 @@ module MuxLayer where
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → refl }
  register-same w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ register-same w s eq | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  register-same w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  register-same w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
@@ -582,11 +630,13 @@ module MuxLayer where
  ...     | just c | just next = case just-injective eq of λ { refl → refl }
  publish-same w s eq | just f | U.handleAllocated hid mid | nothing | startupResult = case eq of λ ()
  publish-same w s eq | just f | U.handleAllocated hid mid | just c | nothing = case eq of λ ()
+ publish-same w s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  publish-same w s eq | just f | U.returnedSuccess = case eq of λ ()
  publish-same w s eq | just f | U.promisePublished hid mid = case eq of λ ()
 
  change : ∀ a s {t} → U.step a s ≡ just t → Change (Selected a) (view s) (view t)
  change (U.run a) s eq = inherited-change a s eq
+ change (U.handshakeStep w event) s eq = stable (handshake-same w event s eq)
  change (U.negotiate w ps flow) s eq = stable (negotiate-same w ps flow s eq)
  change (U.allocateHandle w hid mid) s eq = stable (allocate-same w hid mid s eq)
  change (U.configureMux w plan limit bound keys) s eq = stable (configure-same w plan limit bound keys s eq)
@@ -681,6 +731,7 @@ module ProtocolLayer where
  ...       | true with O.advance (O.inbound (M.igStep (P.sourceControl action mid))) (P.source s) in advanced
  ...         | nothing = case eq of λ ()
  ...         | just c = case just-injective eq of λ { refl → refl }
+ control-same w action s eq | just f | (U.handshakePending helperPC) | _ | _ = case eq of λ ()
  control-same w action s eq | just f | U.returnedSuccess | _ | _ = case eq of λ ()
  control-same w action s eq | just f | U.handleAllocated hid mid | _ | _ = case eq of λ ()
  control-same w action s eq | just f | U.promisePublished hid mid | false | _ = case eq of λ ()
@@ -1013,6 +1064,7 @@ module GroupLayer (isBearerClosed : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just f with U.progress f
  ...   | U.promisePublished hid mid = ci-via-source-projects (IG.enqueueMuxStop mid) s eq
+ ...   | (U.handshakePending helperPC) = case eq of λ ()
  ...   | U.returnedSuccess = case eq of λ ()
  ...   | U.handleAllocated hid mid = case eq of λ ()
  -- Counter retirement writes only the actual IG registry at scopeDone.
@@ -1023,6 +1075,7 @@ module GroupLayer (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just f with U.progress f
  ...     | U.promisePublished hid mid = ci-via-source-projects (IG.retireCells mid) s eq
+ ...     | (U.handshakePending helperPC) = case eq of λ ()
  ...     | U.returnedSuccess = case eq of λ ()
  ...     | U.handleAllocated hid mid = case eq of λ ()
  ci-select-projects : ∀ w s {s′} → W.selectStop w s ≡ just s′ → CIPaths s s′
@@ -1507,6 +1560,10 @@ module ExitLayer (isBearerClosed : ErrorId → Bool) where
  control-change a s eq with Close.step (S.cm (W.shared s)) (λ w → W.resultReady w s) a (W.shutdown s)
  ... | nothing = case eq of λ ()
  ... | just next = case just-injective eq of λ { refl → stable refl }
+ -- A helper continuation cannot select the physical fork at the mux root.
+ handshake-no-birth : ∀ w window err → Lower.Selected (W.handshakeAction w window err) → ⊥
+ handshake-no-birth w window err (Lower.inherited-birth
+   (MonitorLayer.inherited-birth (ProtocolLayer.inherited-birth ())))
  enact-change : ∀ plan s {t} → W.enact plan s ≡ just t → Change (PlanSelected plan s) (view s) (view t)
  enact-change (W.local fs) s eq = case just-injective eq of λ { refl → stable refl }
  enact-change (W.machine a fs) s eq with O.advance a (W.source s)
@@ -1516,6 +1573,11 @@ module ExitLayer (isBearerClosed : ErrorId → Bool) where
  ... | nothing = case eq of λ ()
  ... | just g = case just-injective eq of λ { refl → map-change inherited-plan (Lower.change a (W.base s) actual) }
  enact-change (W.coordinator a) s eq = control-change a s eq
+ enact-change (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in actual
+ ... | nothing = case eq of λ ()
+ ... | just g = followed
+   (stable (Lower.CIPaths.retention (Lower.no-growth (W.handshakeAction w window err) (W.base s) actual (handshake-no-birth w window err))))
+   (control-change Close.acknowledgeDelivery (record s { base = g }) eq)
  enact-change (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in actual
  ... | nothing = case eq of λ ()
  ... | just g = followed
@@ -1689,7 +1751,7 @@ import ConnectionManagement.Properties.MuxDeltaQ as DeltaQProperties
 module DeltaQLayer (isBearerClosed : ErrorId → Bool) where
  private module D = DeltaQModel isBearerClosed using (Action; State; allowed; applyFault; base; begin; beginDeltaQ; beginInitiator; beginInitiatorTrace; captured; complete; deliverInitiatorShutdown; deliverShutdown; delivery; entryPhase; faultPlan; finishAction; inherit; initiatorFaultPlan; initiatorReady; invoked; muxInvoked; muxReturned; observeException; observeInitiatorException; observeInitiatorReturn; observeReturn; payload; phase; ready; returnInitiator; returned; run; step; throw; throwInitiator; throwing; tickets; wrapMonitor)
  private module R = UnwindModel isBearerClosed using (async; base; enact; poolBody; step)
- private module W = ExitModel isBearerClosed using (shutdown)
+ private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; shutdown)
  private module Monitor = MonitorModel isBearerClosed using (finishDead; finishProtocolTrace)
  private module Lower = UnwindLayer isBearerClosed using (CIPaths; PlanSelected; Selected; acknowledged-plan; change; ci-enact-no-growth; monitor-source-same; view)
  private module Old = DeltaQProperties isBearerClosed using (fault-selection)
@@ -1824,7 +1886,7 @@ module CatchLayer (isBearerClosed : ErrorId → Bool) where
  private module C = CatchModel isBearerClosed using (Action; State; action; allowed; apply; base; cancellation; deliverShutdown; observe; observeCancellation; observeException; run; select; step; synchronous)
  private module D = DeltaQModel isBearerClosed using (base; delivery; step)
  private module R = UnwindModel isBearerClosed using (State; base; enact)
- private module W = ExitModel isBearerClosed using (shutdown)
+ private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; shutdown)
 
 
  private module Lower = DeltaQLayer isBearerClosed using (Selected; change; delivery-no-birth; view)
@@ -1872,8 +1934,8 @@ module PublicationLayer (isBearerClosed : ErrorId → Bool) where
  private module C = CatchModel isBearerClosed using (step)
  private module D = DeltaQModel isBearerClosed using (delivery)
  private module R = UnwindModel isBearerClosed using (async; base; enact; faults; owner)
- private module W = ExitModel isBearerClosed using (exits; sameStart; shutdown)
- private module U = MuxModel Types.TypedResult using (captured; progress; startup)
+ private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; exits; sameStart; shutdown)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; captured; progress; startup)
  private module Startup = ProtocolModel.Startup using (awaitPublication; bearerReady; bufferReady; demuxerForked; demuxerRegistered; egressReady; matureTraced; monitoring; muxerForked; muxerRegistered; phase; poolReady; published; runEntered; startingTraced)
  private module Pool = ProtocolModel.Pool using (handles)
  private module Lower = CatchLayer isBearerClosed using (Selected; change; view)
@@ -1953,7 +2015,7 @@ module InheritedRoutes (isBearerClosed : ErrorId → Bool) where
 
  private module Monitor = MonitorModel isBearerClosed using (base; delegateAllowed; run; step)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; base; inheritedAllowed; run; step)
- private module U = MuxModel Types.TypedResult using (base; baseAllowed; birth; birthFresh; origins; run; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; base; baseAllowed; birth; birthFresh; origins; run; step)
  group-inherited = (UnwindLayer.group-run-lower isBearerClosed)
  monitor-inherited : ∀ a s {t} → Monitor.step (Monitor.run a) s ≡ just t → P.step a (Monitor.base s) ≡ just (Monitor.base t)
  monitor-inherited a s eq with Monitor.delegateAllowed a s
@@ -1974,13 +2036,13 @@ module InheritedRoutes (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just b = case just-injective eq of λ { refl → cong just (sym (MuxLayer.birth-base (U.birth a (U.base s)) (record s { base = b }))) }
 module ServerLayer (isBearerClosed : ErrorId → Bool) where
- private module SA = AdmissionModel isBearerClosed using (Action; State; acceptedFork; accepting; allowed; base; bodyExited; calling; chooseScope; closeDisconnected; closeException; closePrefix; closePrefixWorker; closeWorker; enactClose; enactPrefixClose; enactScope; forkAccepted; fresh; inherit; listenerOpen; nextException; nextNormal; observeException; observeReturn; pc; physicalAction; prefixCloseFailed; prefixException; prefixMatches; prefixReturned; publishWorkerResult; resultAvailable; run; runMachine; sameLimit; scope; scopeAdvance; shared; stage; step; workerClose; workerException; workerPrefixException; workerPrefixReturned; workerResult; workerReturned; workers)
+ private module SA = AdmissionModel isBearerClosed using (restoreWorker; workerRestore; raised; returned; scopePlan; socketScopePlan; isAcceptedSocket; closeForkFailure; closeFailedFork; failedForkSocket; Action; State; acceptedFork; accepting; allowed; base; bodyExited; calling; chooseScope; closeDisconnected; closeException; closePrefix; closePrefixWorker; closeWorker; enactClose; enactPrefixClose; enactScope; forkAccepted; fresh; inherit; listenerOpen; nextException; nextNormal; observeException; observeReturn; pc; physicalAction; prefixCloseFailed; prefixException; prefixMatches; prefixReturned; publishWorkerResult; resultAvailable; run; runMachine; sameLimit; scope; scopeAdvance; shared; stage; step; workerClose; workerException; workerPrefixException; workerPrefixReturned; workerResult; workerReturned; workers)
  private module N = PublicationModel isBearerClosed using (raw; step)
- private module W = ExitModel isBearerClosed using (run)
+ private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; run)
  private module G = GroupModel isBearerClosed using (Action; run)
  private module Monitor = MonitorModel isBearerClosed using (run)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; run)
- private module U = MuxModel Types.TypedResult using (run)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; run)
  view : SA.State → Registry
  view s = (PublicationLayer.view isBearerClosed) (SA.base s)
  private module R = UnwindModel isBearerClosed using (base)
@@ -2001,6 +2063,21 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
  close-same w n {t} actual = no-witness-same (close-no-birth w n)
    ((PublicationLayer.change isBearerClosed) (SA.runMachine (Machine.admissionStep w Admission.close)) n {t = t} actual)
 
+ -- Saved-map restoration cannot create a physical handler.
+ restore-group-action : WorkerId → G.Action
+ restore-group-action w = G.run (Monitor.run (P.run (U.run (B.handler (H.run (Machine.admissionStep w Admission.restoreBody))))))
+ restore-group-impossible : ∀ w → (GroupLayer.Selected isBearerClosed) (restore-group-action w) → ⊥
+ restore-group-impossible w (GroupLayer.inherited-birth (MonitorLayer.inherited-birth
+   (ProtocolLayer.inherited-birth (MuxLayer.inherited-birth ()))))
+ restore-no-birth : ∀ w n → (PublicationLayer.Selected isBearerClosed) (SA.runMachine (Machine.admissionStep w Admission.restoreBody)) n → ⊥
+ restore-no-birth w n (PublicationLayer.inherited-birth (CatchLayer.inherited-birth (DeltaQLayer.inherited-birth selected))) with
+   (UnwindLayer.run-selected isBearerClosed) (X.run (W.run (restore-group-action w))) (N.raw n) selected
+ ... | CancellationLayer.inherited-birth chosen = restore-group-impossible w
+   ((ExitLayer.run-selected isBearerClosed) (restore-group-action w) (R.base (N.raw n)) chosen)
+ restore-same : ∀ w n {t} → N.step (SA.runMachine (Machine.admissionStep w Admission.restoreBody)) n ≡ just t → (PublicationLayer.view isBearerClosed) t ≡ (PublicationLayer.view isBearerClosed) n
+ restore-same w n {t} actual = no-witness-same (restore-no-birth w n)
+   ((PublicationLayer.change isBearerClosed) (SA.runMachine (Machine.admissionStep w Admission.restoreBody)) n {t = t} actual)
+
  data Selected : SA.Action → SA.State → Set where
   inherited-birth : ∀ {a s} → (PublicationLayer.Selected isBearerClosed) a (SA.base s) → Selected (SA.run a) s
   scoped-birth : ∀ {a s p command} → SA.chooseScope a s ≡ just p → SA.physicalAction p ≡ just command →
@@ -2012,11 +2089,12 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just n = case just-injective eq of λ { refl → map-change inherited-birth ((PublicationLayer.change isBearerClosed) a (SA.base s) actual) }
  enact-scope-change : ∀ a p s {t} → SA.chooseScope a s ≡ just p → SA.enactScope p s ≡ just t → Change (Selected (SA.scope a) s) (view s) (view t)
- enact-scope-change a p s chosen eq with SA.physicalAction p in selected
+ enact-scope-change a (SA.scopePlan st keep ig action) s chosen eq with action in selected
  ... | nothing = case just-injective eq of λ { refl → stable refl }
  ... | just command with N.step command (SA.base s) in actual
  ...   | nothing = case eq of λ ()
- ...   | just n = case just-injective eq of λ { refl → map-change (scoped-birth chosen selected) ((PublicationLayer.change isBearerClosed) command (SA.base s) actual) }
+ ...   | just n = case just-injective eq of λ { refl → map-change (scoped-birth chosen refl) ((PublicationLayer.change isBearerClosed) command (SA.base s) actual) }
+ enact-scope-change a (SA.socketScopePlan st keep ig sock owner) s chosen eq = case just-injective eq of λ { refl → stable refl }
  scope-change : ∀ a s {t} → SA.scopeAdvance a s ≡ just t → Change (Selected (SA.scope a) s) (view s) (view t)
  scope-change a s eq with SA.chooseScope a s in chosen
  ... | nothing = case eq of λ ()
@@ -2089,6 +2167,7 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
   ...   | SA.calling | Shared.returnHandshake _ = case eq of λ ()
   ...   | SA.calling | Shared.completedHandshake _ = case eq of λ ()
   ...   | SA.calling | Shared.impossibleHandshake = case eq of λ ()
+  ...   | SA.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
   ...   | SA.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
   ...   | SA.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
   ...   | SA.closeDisconnected | _ = case eq of λ ()
@@ -2101,6 +2180,7 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
   prefix-exception-preserves : ∀ w err s {t} → SA.prefixException w err s ≡ just t → Valid s → Valid t
   prefix-exception-preserves w err s eq valid with lookup w (SA.workers s) | lookup w (Shared.admissions (SA.shared s))
   ... | just worker | just a with SA.pc worker | Shared.pc a
+  ...   | SA.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
   ...   | SA.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → valid }
   ...   | SA.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → valid }
   ...   | SA.calling | Shared.acquireMap = case eq of λ ()
@@ -2132,15 +2212,15 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
   ... | just worker | just a with SA.pc worker | Shared.pc a
   ...   | SA.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → valid }
   ...   | SA.calling | Shared.acquireMap = case eq of λ ()
-  ...   | SA.calling | Shared.count _ = case eq of λ ()
-  ...   | SA.calling | Shared.prepare _ = case eq of λ ()
-  ...   | SA.calling | Shared.selectEntry _ _ = case eq of λ ()
-  ...   | SA.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-  ...   | SA.calling | Shared.publish _ _ _ = case eq of λ ()
+  ...   | SA.calling | Shared.count _ = case just-injective eq of λ { refl → valid }
+  ...   | SA.calling | Shared.prepare _ = case just-injective eq of λ { refl → valid }
+  ...   | SA.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → valid }
+  ...   | SA.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → valid }
+  ...   | SA.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → valid }
   ...   | SA.calling | Shared.reject _ _ = case eq of λ ()
   ...   | SA.calling | Shared.closeSocket _ = case eq of λ ()
   ...   | SA.calling | Shared.finished _ = case eq of λ ()
-  ...   | SA.calling | Shared.countPublished _ _ = case eq of λ ()
+  ...   | SA.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → valid }
   ...   | SA.calling | Shared.commitHandshake _ _ = case eq of λ ()
   ...   | SA.calling | Shared.countHandshake _ = case eq of λ ()
   ...   | SA.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -2170,6 +2250,13 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
     Valid (SA.enactClose w worker outcome next s)
   enact-close-preserves w worker outcome next s valid =
     valid
+  -- The failed bare fork's close changes only the captured socket cell.
+  fork-close-preserves : ∀ outcome s {t} → SA.closeFailedFork outcome s ≡ just t → Valid s → Valid t
+  fork-close-preserves outcome s eq valid with SA.failedForkSocket s
+  ... | nothing = case eq of λ ()
+  ... | just sock with SA.isAcceptedSocket sock s
+  ...   | false = case eq of λ ()
+  ...   | true = case just-injective eq of λ { refl → valid }
   enact-prefix-preserves : ∀ w worker result outcome s {t} → SA.enactPrefixClose w worker result outcome s ≡ just t →
     Valid s → Valid t
   enact-prefix-preserves w worker result nothing s eq valid with N.step
@@ -2199,9 +2286,29 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
 
  unchanged : ∀ a s {t} → SA.step a s ≡ just t → (view t ≡ view s) → Change (Selected a s) (view s) (view t)
  unchanged a s actual same = stable same
+ -- The lower restore step preserves the exact physical capture map.
+ restore-view : ∀ w s {t} → SA.restoreWorker w s ≡ just t → view t ≡ view s
+ restore-view w s eq with lookup w (SA.workers s)
+ ... | nothing = case eq of λ ()
+ ... | just worker with SA.pc worker
+ ...   | SA.closePrefix Shared.bodyFailed (SA.raised fault) with N.step (SA.runMachine (Machine.admissionStep w Admission.restoreBody)) (SA.base s) in actual
+ ...     | nothing = case eq of λ ()
+ ...     | just n = case just-injective eq of λ { refl → restore-same w (SA.base s) actual }
+ restore-view w s eq | just worker | SA.calling = case eq of λ ()
+ restore-view w s eq | just worker | SA.closeDisconnected = case eq of λ ()
+ restore-view w s eq | just worker | SA.closeException fault = case eq of λ ()
+ restore-view w s eq | just worker | SA.closePrefix Shared.hardLimitReached result = case eq of λ ()
+ restore-view w s eq | just worker | SA.closePrefix Shared.forbidden result = case eq of λ ()
+ restore-view w s eq | just worker | SA.closePrefix Shared.forkFailed result = case eq of λ ()
+ restore-view w s eq | just worker | SA.closePrefix Shared.bodyFailed SA.returned = case eq of λ ()
+ restore-view w s eq | just worker | SA.bodyExited result = case eq of λ ()
+ restore-view w s eq | just worker | SA.resultAvailable result = case eq of λ ()
+
  change : ∀ a s {t} → SA.step a s ≡ just t → Change (Selected a s) (view s) (view t)
+ change (SA.closeForkFailure outcome) s eq = stable (From.fork-close-preserves (view s) outcome s eq refl)
  change (SA.acceptedFork w req) s eq = stable (From.fork-preserves (view s) w req s eq refl)
  change (SA.run a) s eq = inherit-change a s eq
+ change (SA.workerRestore w) s eq = stable (restore-view w s eq)
  change (SA.workerReturned w) s eq = stable (From.return-preserves (view s) w s eq refl)
  change (SA.workerPrefixReturned w) s eq = stable (From.prefix-return-preserves (view s) w s eq refl)
  change (SA.workerPrefixException w err) s eq = stable (From.prefix-exception-preserves (view s) w err s eq refl)
@@ -2213,7 +2320,7 @@ module ServerLayer (isBearerClosed : ErrorId → Bool) where
 import ConnectionManagement.ServerIGExit as IGExitModel
 module IGExitLayer (isBearerClosed : ErrorId → Bool) where
  private module E = IGExitModel isBearerClosed using (Action; Plan; State; abandon; ownFailure; base; choose; delegate; enact; finish; local; step)
- private module SA = AdmissionModel isBearerClosed using (step)
+ private module SA = AdmissionModel isBearerClosed using (restoreWorker; workerRestore; raised; returned; scopePlan; socketScopePlan; isAcceptedSocket; closeForkFailure; closeFailedFork; failedForkSocket; step)
  view : E.State → Registry
  view s = (ServerLayer.view isBearerClosed) (E.base s)
  data PlanSelected : E.Plan → E.State → Set where

@@ -67,12 +67,31 @@ module Lift
   ... | true with N.step a (S.base s) in advanced
   ...   | nothing = case eq of λ ()
   ...   | just n = case just-injective eq of λ { refl → lower-preserves a (S.base s) advanced valid }
+  body-restore-preserves : ∀ w s {t} → S.restoreWorker w s ≡ just t → Valid (S.source s) → Valid (S.source t)
+  body-restore-preserves w s eq valid with lookup w (S.workers s)
+  ... | nothing = case eq of λ ()
+  ... | just worker with S.pc worker
+  ...   | S.closePrefix Shared.bodyFailed (S.raised fault) with N.step (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) in actual
+  ...     | nothing = case eq of λ ()
+  ...     | just n = case just-injective eq of λ { refl → lower-preserves (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) actual valid }
+  body-restore-preserves w s eq valid | just worker | S.calling = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.closeDisconnected = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.closeException fault = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.hardLimitReached result = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.forbidden result = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.forkFailed result = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.bodyFailed S.returned = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.bodyExited result = case eq of λ ()
+  body-restore-preserves w s eq valid | just worker | S.resultAvailable result = case eq of λ ()
+
   enact-scope-preserves : ∀ p s {t} → S.enactScope p s ≡ just t → Valid (S.source s) → Valid (S.source t)
-  enact-scope-preserves p s eq valid with S.physicalAction p
+  enact-scope-preserves (S.scopePlan st keep ig action) s eq valid with action
   ... | nothing = case just-injective eq of λ { refl → valid }
   ... | just a with N.step a (S.base s) in advanced
   ...   | nothing = case eq of λ ()
   ...   | just n = case just-injective eq of λ { refl → lower-preserves a (S.base s) advanced valid }
+  enact-scope-preserves (S.socketScopePlan st keep ig sock owner) s eq valid =
+    case just-injective eq of λ { refl → socket-preserves sock owner (S.source s) valid }
   scope-preserves : ∀ a s {t} → S.scopeAdvance a s ≡ just t → Valid (S.source s) → Valid (S.source t)
   scope-preserves a s eq valid with S.chooseScope a s
   ... | nothing = case eq of λ ()
@@ -127,6 +146,7 @@ module Lift
   ...   | S.calling | Shared.returnHandshake _ = case eq of λ ()
   ...   | S.calling | Shared.completedHandshake _ = case eq of λ ()
   ...   | S.calling | Shared.impossibleHandshake = case eq of λ ()
+  ...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
   ...   | S.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
   ...   | S.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
   ...   | S.closeDisconnected | _ = case eq of λ ()
@@ -139,6 +159,7 @@ module Lift
   prefix-exception-preserves : ∀ w err s {t} → S.prefixException w err s ≡ just t → Valid (S.source s) → Valid (S.source t)
   prefix-exception-preserves w err s eq valid with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
   ... | just worker | just a with S.pc worker | Shared.pc a
+  ...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
   ...   | S.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → valid }
   ...   | S.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → valid }
   ...   | S.calling | Shared.acquireMap = case eq of λ ()
@@ -170,15 +191,15 @@ module Lift
   ... | just worker | just a with S.pc worker | Shared.pc a
   ...   | S.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → valid }
   ...   | S.calling | Shared.acquireMap = case eq of λ ()
-  ...   | S.calling | Shared.count _ = case eq of λ ()
-  ...   | S.calling | Shared.prepare _ = case eq of λ ()
-  ...   | S.calling | Shared.selectEntry _ _ = case eq of λ ()
-  ...   | S.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-  ...   | S.calling | Shared.publish _ _ _ = case eq of λ ()
+  ...   | S.calling | Shared.count _ = case just-injective eq of λ { refl → valid }
+  ...   | S.calling | Shared.prepare _ = case just-injective eq of λ { refl → valid }
+  ...   | S.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → valid }
+  ...   | S.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → valid }
+  ...   | S.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → valid }
   ...   | S.calling | Shared.reject _ _ = case eq of λ ()
   ...   | S.calling | Shared.closeSocket _ = case eq of λ ()
   ...   | S.calling | Shared.finished _ = case eq of λ ()
-  ...   | S.calling | Shared.countPublished _ _ = case eq of λ ()
+  ...   | S.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → valid }
   ...   | S.calling | Shared.commitHandshake _ _ = case eq of λ ()
   ...   | S.calling | Shared.countHandshake _ = case eq of λ ()
   ...   | S.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -208,6 +229,13 @@ module Lift
     Valid (S.source (S.enactClose w worker outcome next s))
   enact-close-preserves w worker outcome next s valid =
     socket-preserves (Shared.socketRef (S.request worker)) (S.socketOutcome outcome) (S.source s) valid
+  -- The failed bare fork's close changes only the captured socket cell.
+  fork-close-preserves : ∀ outcome s {t} → S.closeFailedFork outcome s ≡ just t → Valid (S.source s) → Valid (S.source t)
+  fork-close-preserves outcome s eq valid with S.failedForkSocket s
+  ... | nothing = case eq of λ ()
+  ... | just sock with S.isAcceptedSocket sock s
+  ...   | false = case eq of λ ()
+  ...   | true = case just-injective eq of λ { refl → socket-preserves sock (S.socketOutcome outcome) (S.source s) valid }
   enact-prefix-preserves : ∀ w worker result outcome s {t} → S.enactPrefixClose w worker result outcome s ≡ just t →
     Valid (S.source s) → Valid (S.source t)
   enact-prefix-preserves w worker result nothing s eq valid with N.step
@@ -237,7 +265,9 @@ module Lift
 
   -- Exhaustive action coverage retains the exact caller-supplied predicate.
   step-preserves : ∀ a s {t} → S.step a s ≡ just t → Valid (S.source s) → Valid (S.source t)
+  step-preserves (S.closeForkFailure outcome) = fork-close-preserves outcome
   step-preserves (S.acceptedFork w req) = fork-preserves w req
+  step-preserves (S.workerRestore w) = body-restore-preserves w
   step-preserves (S.run a) = inherit-preserves a
   step-preserves (S.workerReturned w) = return-preserves w
   step-preserves (S.workerPrefixReturned w) = prefix-return-preserves w
@@ -294,12 +324,31 @@ module CaptureIdentity where
     ... | true with N.step a (S.base s) in advanced
     ...   | nothing = case eq of λ ()
     ...   | just n = case just-injective eq of λ { refl → lower-preserves a (S.base s) advanced valid }
+    body-restore-preserves : ∀ w s {t} → S.restoreWorker w s ≡ just t → Valid s → Valid t
+    body-restore-preserves w s eq valid with lookup w (S.workers s)
+    ... | nothing = case eq of λ ()
+    ... | just worker with S.pc worker
+    ...   | S.closePrefix Shared.bodyFailed (S.raised fault) with N.step (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) in actual
+    ...     | nothing = case eq of λ ()
+    ...     | just n = case just-injective eq of λ { refl → lower-preserves (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) actual valid }
+    body-restore-preserves w s eq valid | just worker | S.calling = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closeDisconnected = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closeException fault = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.hardLimitReached result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.forbidden result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.forkFailed result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.bodyFailed S.returned = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.bodyExited result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.resultAvailable result = case eq of λ ()
+
     enact-scope-preserves : ∀ p s {t} → S.enactScope p s ≡ just t → Valid s → Valid t
-    enact-scope-preserves p s eq valid with S.physicalAction p
+    enact-scope-preserves (S.scopePlan st keep ig action) s eq valid with action
     ... | nothing = case just-injective eq of λ { refl → valid }
     ... | just a with N.step a (S.base s) in advanced
     ...   | nothing = case eq of λ ()
     ...   | just n = case just-injective eq of λ { refl → lower-preserves a (S.base s) advanced valid }
+    enact-scope-preserves (S.socketScopePlan st keep ig sock owner) s eq valid =
+      case just-injective eq of λ { refl → valid }
     scope-preserves : ∀ a s {t} → S.scopeAdvance a s ≡ just t → Valid s → Valid t
     scope-preserves a s eq valid with S.chooseScope a s
     ... | nothing = case eq of λ ()
@@ -354,6 +403,7 @@ module CaptureIdentity where
     ...   | S.calling | Shared.returnHandshake _ = case eq of λ ()
     ...   | S.calling | Shared.completedHandshake _ = case eq of λ ()
     ...   | S.calling | Shared.impossibleHandshake = case eq of λ ()
+    ...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
     ...   | S.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
     ...   | S.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
     ...   | S.closeDisconnected | _ = case eq of λ ()
@@ -366,6 +416,7 @@ module CaptureIdentity where
     prefix-exception-preserves : ∀ w err s {t} → S.prefixException w err s ≡ just t → Valid s → Valid t
     prefix-exception-preserves w err s eq valid with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
     ... | just worker | just a with S.pc worker | Shared.pc a
+    ...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
     ...   | S.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.acquireMap = case eq of λ ()
@@ -397,15 +448,15 @@ module CaptureIdentity where
     ... | just worker | just a with S.pc worker | Shared.pc a
     ...   | S.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.acquireMap = case eq of λ ()
-    ...   | S.calling | Shared.count _ = case eq of λ ()
-    ...   | S.calling | Shared.prepare _ = case eq of λ ()
-    ...   | S.calling | Shared.selectEntry _ _ = case eq of λ ()
-    ...   | S.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-    ...   | S.calling | Shared.publish _ _ _ = case eq of λ ()
+    ...   | S.calling | Shared.count _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.prepare _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.reject _ _ = case eq of λ ()
     ...   | S.calling | Shared.closeSocket _ = case eq of λ ()
     ...   | S.calling | Shared.finished _ = case eq of λ ()
-    ...   | S.calling | Shared.countPublished _ _ = case eq of λ ()
+    ...   | S.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.commitHandshake _ _ = case eq of λ ()
     ...   | S.calling | Shared.countHandshake _ = case eq of λ ()
     ...   | S.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -435,6 +486,13 @@ module CaptureIdentity where
       Valid (S.enactClose w worker outcome next s)
     enact-close-preserves w worker outcome next s valid =
       valid
+    -- The failed bare fork's close changes only the captured socket cell.
+    fork-close-preserves : ∀ outcome s {t} → S.closeFailedFork outcome s ≡ just t → Valid s → Valid t
+    fork-close-preserves outcome s eq valid with S.failedForkSocket s
+    ... | nothing = case eq of λ ()
+    ... | just sock with S.isAcceptedSocket sock s
+    ...   | false = case eq of λ ()
+    ...   | true = case just-injective eq of λ { refl → valid }
     enact-prefix-preserves : ∀ w worker result outcome s {t} → S.enactPrefixClose w worker result outcome s ≡ just t →
       Valid s → Valid t
     enact-prefix-preserves w worker result nothing s eq valid with N.step
@@ -464,7 +522,9 @@ module CaptureIdentity where
 
     -- Exhaustive action coverage retains the exact caller-supplied predicate.
     step-preserves : ∀ a s {t} → S.step a s ≡ just t → Valid s → Valid t
+    step-preserves (S.closeForkFailure outcome) = fork-close-preserves outcome
     step-preserves (S.acceptedFork w req) = fork-preserves w req
+    step-preserves (S.workerRestore w) = body-restore-preserves w
     step-preserves (S.run a) = inherit-preserves a
     step-preserves (S.workerReturned w) = return-preserves w
     step-preserves (S.workerPrefixReturned w) = prefix-return-preserves w
@@ -523,12 +583,31 @@ module CommittedRows where
     ... | true with N.step a (S.base s) in advanced
     ...   | nothing = case eq of λ ()
     ...   | just n = case just-injective eq of λ { refl → lower-preserves a (S.base s) advanced valid }
+    body-restore-preserves : ∀ w s {t} → S.restoreWorker w s ≡ just t → Valid s → Valid t
+    body-restore-preserves w s eq valid with lookup w (S.workers s)
+    ... | nothing = case eq of λ ()
+    ... | just worker with S.pc worker
+    ...   | S.closePrefix Shared.bodyFailed (S.raised fault) with N.step (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) in actual
+    ...     | nothing = case eq of λ ()
+    ...     | just n = case just-injective eq of λ { refl → lower-preserves (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) actual valid }
+    body-restore-preserves w s eq valid | just worker | S.calling = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closeDisconnected = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closeException fault = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.hardLimitReached result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.forbidden result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.forkFailed result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.closePrefix Shared.bodyFailed S.returned = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.bodyExited result = case eq of λ ()
+    body-restore-preserves w s eq valid | just worker | S.resultAvailable result = case eq of λ ()
+
     enact-scope-preserves : ∀ p s {t} → S.enactScope p s ≡ just t → Valid s → Valid t
-    enact-scope-preserves p s eq valid with S.physicalAction p
+    enact-scope-preserves (S.scopePlan st keep ig action) s eq valid with action
     ... | nothing = case just-injective eq of λ { refl → valid }
     ... | just a with N.step a (S.base s) in advanced
     ...   | nothing = case eq of λ ()
     ...   | just n = case just-injective eq of λ { refl → lower-preserves a (S.base s) advanced valid }
+    enact-scope-preserves (S.socketScopePlan st keep ig sock owner) s eq valid =
+      case just-injective eq of λ { refl → valid }
     scope-preserves : ∀ a s {t} → S.scopeAdvance a s ≡ just t → Valid s → Valid t
     scope-preserves a s eq valid with S.chooseScope a s
     ... | nothing = case eq of λ ()
@@ -583,6 +662,7 @@ module CommittedRows where
     ...   | S.calling | Shared.returnHandshake _ = case eq of λ ()
     ...   | S.calling | Shared.completedHandshake _ = case eq of λ ()
     ...   | S.calling | Shared.impossibleHandshake = case eq of λ ()
+    ...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
     ...   | S.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
     ...   | S.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
     ...   | S.closeDisconnected | _ = case eq of λ ()
@@ -595,6 +675,7 @@ module CommittedRows where
     prefix-exception-preserves : ∀ w err s {t} → S.prefixException w err s ≡ just t → Valid s → Valid t
     prefix-exception-preserves w err s eq valid with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
     ... | just worker | just a with S.pc worker | Shared.pc a
+    ...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
     ...   | S.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.acquireMap = case eq of λ ()
@@ -626,15 +707,15 @@ module CommittedRows where
     ... | just worker | just a with S.pc worker | Shared.pc a
     ...   | S.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.acquireMap = case eq of λ ()
-    ...   | S.calling | Shared.count _ = case eq of λ ()
-    ...   | S.calling | Shared.prepare _ = case eq of λ ()
-    ...   | S.calling | Shared.selectEntry _ _ = case eq of λ ()
-    ...   | S.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-    ...   | S.calling | Shared.publish _ _ _ = case eq of λ ()
+    ...   | S.calling | Shared.count _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.prepare _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → valid }
+    ...   | S.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.reject _ _ = case eq of λ ()
     ...   | S.calling | Shared.closeSocket _ = case eq of λ ()
     ...   | S.calling | Shared.finished _ = case eq of λ ()
-    ...   | S.calling | Shared.countPublished _ _ = case eq of λ ()
+    ...   | S.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → valid }
     ...   | S.calling | Shared.commitHandshake _ _ = case eq of λ ()
     ...   | S.calling | Shared.countHandshake _ = case eq of λ ()
     ...   | S.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -664,6 +745,13 @@ module CommittedRows where
       Valid (S.enactClose w worker outcome next s)
     enact-close-preserves w worker outcome next s valid =
       valid
+    -- The failed bare fork's close changes only the captured socket cell.
+    fork-close-preserves : ∀ outcome s {t} → S.closeFailedFork outcome s ≡ just t → Valid s → Valid t
+    fork-close-preserves outcome s eq valid with S.failedForkSocket s
+    ... | nothing = case eq of λ ()
+    ... | just sock with S.isAcceptedSocket sock s
+    ...   | false = case eq of λ ()
+    ...   | true = case just-injective eq of λ { refl → valid }
     enact-prefix-preserves : ∀ w worker result outcome s {t} → S.enactPrefixClose w worker result outcome s ≡ just t →
       Valid s → Valid t
     enact-prefix-preserves w worker result nothing s eq valid with N.step
@@ -693,7 +781,9 @@ module CommittedRows where
 
     -- Exhaustive action coverage retains the exact caller-supplied predicate.
     step-preserves : ∀ a s {t} → S.step a s ≡ just t → Valid s → Valid t
+    step-preserves (S.closeForkFailure outcome) = fork-close-preserves outcome
     step-preserves (S.acceptedFork w req) = fork-preserves w req
+    step-preserves (S.workerRestore w) = body-restore-preserves w
     step-preserves (S.run a) = inherit-preserves a
     step-preserves (S.workerReturned w) = return-preserves w
     step-preserves (S.workerPrefixReturned w) = prefix-return-preserves w

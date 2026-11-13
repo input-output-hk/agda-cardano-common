@@ -1,14 +1,17 @@
 # Primitive and dependency contract matrix (G1)
 
-12 November 2026. [GateAudit plan step 2](GateAudit.md#ordered-gap-closing-plan),
+13 November 2026 (G1 runtime follow-up). [GateAudit plan step 2](GateAudit.md#ordered-gap-closing-plan),
 under [DESIGN §§9–10](DESIGN.md#9-implementation-gates-and-validation).
 Network **`2f1c154f248659b89523d5679ca532f442e7ed2a`**, selected by consensus
 **`2e44d98a843168ba3b189e305820b79943ac7d1e`**. This audits the selected model
-profile in [BranchMatrix](BranchMatrix.md), rather than extending it.
+profile in [BranchMatrix](BranchMatrix.md).
 
-**G1 remains partly met.** The inventory and existing-rule fixture work for plan
-step 2 are done. Five source/model obligations remain missing; closing them needs
-runtime work outside this task. No existing Agda module was modified.
+**All 90 selected primitive rows now have implemented rules and paired controls.**
+The five findings below are fixed in the current worktree, following the user's
+12 November decision. G1 acceptance remains pending the capped downstream checks
+listed in [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure).
+This is model coverage under the supplied IO/timer/blocking contracts, not a
+Haskell refinement or a new implementation replay.
 
 ## Resolved dependency evidence
 
@@ -97,7 +100,7 @@ equivalence of runtimes.
 
 ## Matrix and counting convention
 
-**90 rows: before **40 met / 50 missing**; after **85 met / 5 missing**.** Rows have exactly **met** or **missing** status, with before
+**90 rows: original inventory 40 met / 50 missing; 12 November fixture audit 85 met / 5 missing; current runtime coverage 90 met / 0 missing.** Rows have exactly **met** or **missing** status, with before
 and after measured over this same inventory. “Before missing” includes an absent
 named enabled/refusal pairing, even if a related broader fixture already existed;
 it does not allege that a previously proved model theorem was false.
@@ -153,8 +156,8 @@ as fresh validation here. New fixture checks are listed below.
 | T06 — Cancellable grant timer/lock: [Bucket] `waitQueued`/`cancel`; [Mux] 454–458; D-TIMER | [MuxEgress](Rules/MuxEgress.agda) queue/arm/grant/disarm; shared IG bucket charge; cancellation removes request/timer without refund, failed write retains held batch. | [timer-armed](Negative/MuxEgressScheduling.agda) / `no-stale-request-or-timer` / `cancel-after-grant` | [no-double-grant](Negative/MuxEgressScheduling.agda) / `granted-after-cancel-refused`; [ranked-lock-before-grant-refused](Negative/MuxEgress.agda) | T/M | met → **met** |
 | T07 — TIME_WAIT `unmask (threadDelay ...)`: [Core] 666–669; D-TIMER + D-MASK | [Cleanup](Rules/Cleanup.agda) `timeWaitElapsed`/`interruptTimeWait`; receipt advances actual release sender while finally remains pending. | [receipt](Negative/ServerPeersReleaseTimeWait.agda) / `finally` | [maskedCleanupRefused](Negative/ServerPeersReleaseTimeWait.agda) / `receiptHasNoResult` | T/M | met → **met** |
 | T08 — Failure `threadDelay 1`: [Active] 469–476; D-TIMER | [PeerJobs](Rules/PeerJobs.agda) `failureDelayElapsed` is a distinct untimed environment observation; no earlier failure completion. | [delay-enabled](Negative/PrimitiveTimers.agda) | [delay-wrong-wait-refused](Negative/PrimitiveTimers.agda) | T | missing → **met** |
-| T09 — Handshake SDU/protocol timeout and inbound query sleep: [Handler] 392–400, 474–481, 516–518; D-TIMER | No distinct supervised helper/winner/query-delay continuation. Abstract handler error/query publication is not that implementation (F4). | Missing rule; [query-completes-disconnected](Scenarios/Handshake.agda) is only a consumer example. | Missing matching timeout/query-delay control. | T/H | missing → **missing** |
-| T10 — Grant refresh expiry/re-arm winner: [Bucket] `waitQueued`; D-TIMER | Only one arm/disarm/grant/cancel cycle; no spent-timer refresh transition (F3). | Missing refresh rule; T06 covers first arm only. | Missing refresh-vs-grant/cancel control. | T | missing → **missing** |
+| T09 — Handshake SDU/protocol timeout and inbound query sleep: [Handler] 392–402, 474–484, 516–518; [HandshakeHelper] 82–95; [DriverLimits] 139–140; D-TIMER | [HandshakeContinuation](Rules/HandshakeContinuation.agda), [MuxHandlerSupervision](MuxHandlerSupervision.agda), [MuxHandlerExit](MuxHandlerExit.agda): returned deadline/size limit publishes Left then returns normally; thrown bearer SDU error publishes then rethrows; inbound query publishes before masked-interruptible sleep. | [PrimitiveHandshakeContinuation](Negative/PrimitiveHandshakeContinuation.agda): actual publication, finalizer/result suffix and CM delay receipt. | Same fixture: premature/duplicate publication, wrong window, missing CM request, helper/success cross-use and premature result refusals. | T/H | missing → **met** |
+| T10 — Grant refresh expiry/re-arm winner: [Bucket] `waitQueued`; D-TIMER | [MuxEgress](Rules/MuxEgress.agda) `refreshExpired` / `rearmRefresh`, [IGRegistration](Rules/IGRegistration.agda) `grantEffect`: spent timer removed, queued request retained, fresh timer armed. Timer-winning awaitOr is an observed input; no clock/rank/fairness theorem. | [PrimitiveGrantRefresh](Negative/PrimitiveGrantRefresh.agda): repeated paired kernel/bucket cycles and grant/cancel competition. | Same fixture: wrong mode, missing request/timer, duplicate expiry/rearm, cancel-after-refresh and retained-charge controls. | T | missing → **met** |
 
 ### Acquisition and release caller delivery sites
 
@@ -194,7 +197,7 @@ as fresh validation here. New fixture checks are listed below.
 | S07 — [Handler] 439, 513; [Mux] 398–426; D-MASK | `asyncRoute unmaskedStartup` at `muxerRegistered j`; bufferOnly before pool, poolBody after pool entry. | [muxer](Negative/PrimitiveStartupSites.agda) (permission); [a-edge1](Negative/MuxStartupUnwindBranches.agda) (pool route step) | [masked-fork-refused](Negative/PrimitiveStartupSites.agda) | M | missing → **met** |
 | S08 — [Handler] 439, 513; [Mux] 398–426; D-MASK | `asyncRoute unmaskedStartup` at `demuxerRegistered j k`; bufferOnly before pool, poolBody after pool entry. | [demuxer](Negative/PrimitiveStartupSites.agda) (permission); [a-edge1](Negative/MuxStartupUnwindBranches.agda) (pool route step) | [masked-fork-refused](Negative/PrimitiveStartupSites.agda) | M | missing → **met** |
 | S09 — [Handler] 439, 513; [Mux] 398–426; D-MASK | `asyncRoute unmaskedStartup` at `matureTraced j k`; bufferOnly before pool, poolBody after pool entry. | [mature](Negative/PrimitiveStartupSites.agda) (permission); [a-edge1](Negative/MuxStartupUnwindBranches.agda) (pool route step) | [masked-fork-refused](Negative/PrimitiveStartupSites.agda) | M | missing → **met** |
-| S10 — Configured lane startup: [Mux] 411–419; D-MASK | `asyncRoute` has no configured case, even cfgReady/cfgMature outside insertion gaps (F2). | Missing enabled configured-startup delivery rule. | [configured-not-covered](Negative/PrimitiveStartupSites.agda) exposes refusal of *all* configured phases. | M | missing → **missing** |
+| S10 — Configured lane startup: [Mux] 411–419; D-MASK | [MuxStartupUnwind](MuxStartupUnwind.agda) `unmaskedConfiguredStartup` at cfgReady/cfgMature; distinct pre-cell observed site at cfgBeforePool. Existing real counter retirement precedes buffer handoff. | [PrimitiveConfiguredStartup](Negative/PrimitiveConfiguredStartup.agda), [PrimitiveConfiguredRetirement](Negative/PrimitiveConfiguredRetirement.agda): actual receipt and pool/retire/handoff suffix. | Same fixtures: masked insertion gaps, partial pool, wrong site, registration after fault and duplicate transfer refusals. Legacy [configured-not-covered](Negative/PrimitiveStartupSites.agda) still concerns only the old site. | M | missing → **met** |
 | S11 — [Mux] monitor callbacks; [IG] mux tracer; D-MASK | [MuxRuntime](Rules/MuxRuntime.agda) `interruptibleCallback (readActive …)` in restored unmasked body; committed callback prefix survives receipt. | [read-active](Negative/PrimitiveStartupSites.agda) (permission); [h-edge1](Negative/MuxCallbackCancellation.agda); [h-edge1](Negative/MuxCallbackCommitted.agda) | [returned-refused](Negative/PrimitiveStartupSites.agda); [no-abandoned-commit](Negative/MuxCallbackCancellation.agda) | M | missing → **met** |
 | S12 — [Mux] monitor callbacks; [IG] mux tracer; D-MASK | [MuxRuntime](Rules/MuxRuntime.agda) `interruptibleCallback (commitTrace …)` in restored unmasked body; committed callback prefix survives receipt. | [commit-trace](Negative/PrimitiveStartupSites.agda) (permission); [h-edge1](Negative/MuxCallbackCancellation.agda); [h-edge1](Negative/MuxCallbackCommitted.agda) | [returned-refused](Negative/PrimitiveStartupSites.agda); [no-abandoned-commit](Negative/MuxCallbackCancellation.agda) | M | missing → **met** |
 | S13 — [Mux] monitor callbacks; [IG] mux tracer; D-MASK | [MuxRuntime](Rules/MuxRuntime.agda) `interruptibleCallback (afterStart …)` in restored unmasked body; committed callback prefix survives receipt. | [after-start](Negative/PrimitiveStartupSites.agda) (permission); [h-edge1](Negative/MuxCallbackCancellation.agda); [h-edge1](Negative/MuxCallbackCommitted.agda) | [returned-refused](Negative/PrimitiveStartupSites.agda); [no-abandoned-commit](Negative/MuxCallbackCancellation.agda) | M | missing → **met** |
@@ -238,26 +241,30 @@ as fresh validation here. New fixture checks are listed below.
 | J04 — Outer churn/governor/root/ledger scope receipt: [Diffusion] 930–950; D-ASYNC + D-MASK | [AsyncScope](Rules/AsyncScope.agda) separate request/delivery/body/result/join, ordered owner traversal. Provider bodies are opaque restored-action observations, not an audit of DNS/ledger internals. | [outer-step3](Negative/PeerSupervisionScenarios.agda)–`outer-step26` | [governor-async-body-cannot-outrun-own-pool](Negative/PeerSupervisionScenarios.agda) / `local-root-join-precedes-ledger` | A/M | met → **met** |
 | J05 — Relays scope receipt: [Diffusion] withPoolRelays; D-ASYNC | [PoolRelays](Rules/PoolRelays.agda) request after callback return, delivery, result, join; already failed relays only waited for; no normal body return. | [c3](Negative/PoolRelays.agda) / `late-cancel-keeps-result` | [join-without-cancel-refused](Negative/PoolRelays.agda) / `nothing-to-deliver` | A/M | met → **met** |
 | J06 — Server owner cancellation/raw admission worker cancellation: [Server] 165–180, 239–254; D-ASYNC + D-MASK | [ServerAdmission](ServerAdmission.agda) owned action/IG/accept-loop unwind; raw admission worker separate cancel/close/result suffix. Source bare async does not give the Server ownership of that child. | [Interleaving.initialized-interrupt](Negative/ServerPeers.agda); [recovery1](Negative/ServerAdmission.agda) | [no-result-before-worker-close](Negative/ServerAdmission.agda) / `no-fake-worker-result` | A/M | met → **met** |
-| J07 — Raw admission async fork failure: [Server] 239–252; D-ASYNC | No pre-handoff fork exception/outer accepted-socket close rule (F5). | Missing rule; acceptedFork is success-only. | Missing matching failed-birth/close control. | A/M | missing → **missing** |
-| X01 — Unmasked include body exception while map taken, including after handler fork: [Core] 801–880, 2373–2379; D-MASK | General body-exception map restoration/worker unwind missing (F1); explicit forbidden/fork-failure branches are narrower. | Missing general delivery/rollback rule. | Existing ServerAdmissionPrefix forbidden/fork-failure controls do not establish it. | M | missing → **missing** |
+| J07 — Raw admission async fork failure: [Server] 239–252; D-ASYNC | [ServerAdmission](ServerAdmission.agda) `forkFailure`, `closeForkFailure`, `finishForkFailure`: synchronous pre-birth failure reserves acceptPending socket; separate close and propagation, retaining replacement close error. Parent remains masked; no ordinary async receipt at fork. | [PrimitiveAdmissionFork](Negative/PrimitiveAdmissionFork.agda): initialized pre-birth failure/close/propagation/listener path. | Same fixture: no fabricated worker/handler, no pending socket reuse, premature propagation, repeated close and wrong-stage refusals. | A/M | missing → **met** |
+| X01 — Unmasked include body exception while map taken, including after handler fork: [Core] 801–880, 2373–2379; D-MASK | [ServerAdmission](ServerAdmission.agda) `workerException` / `workerRestore`, [Server](Rules/Server.agda) `restoreBody`: capture original fault, separately restore saved map masked, then close/result. Heap, promise and physical child are retained. | [PrimitiveIncludeRestoration](Negative/PrimitiveIncludeRestoration.agda): all five body sites, before/after-fork restoration and separate close/result. | Same fixture: no heap/child rollback, wrong lease, premature close/result, normal publication after receipt, raw restore alias, second masked receipt and post-publication rollback refusals. | M | missing → **met** |
 
 ## Findings and remaining acceptance work
 
-These five rows remain **missing** after adding fixtures. No runtime correction
-is hidden in the fixture work. Existing theorems and their statements are unchanged.
+All five findings are implemented rather than excluded. The source pin and the
+90-row inventory stay fixed. Existing theorem statements are retained; proof
+consumers receive new cases and lemmas. The [impact plan and check record][Fix5]
+records batch boundaries, development diagnostics, commands, wall times, peak RSS
+and deferred regressions. [Increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure)
+summarizes the runtime changes and acceptance boundary.
 
-| Finding / row | Pinned-source reason and model evidence | Work required to close |
-| --- | --- | --- |
-| **F1 / X01 — general include-body exceptions** | [Core] 2374–2379 restores the saved map if the restored IO body throws, including after a successful child fork. [BranchMatrix](BranchMatrix.md) already distinguishes this from explicit hard-limit/forbidden/fork-failure exits. The current admission worker has no general exception/restore continuation through that body. `PrimitiveMap.restore-enabled` establishes only the primitive, not this missing caller path. | Add caller provenance, restoration and worker/child/resource outcomes for those sites; enabled and rollback controls must use the new rule. No whole-heap rollback. |
-| **F2 / S10 — configured startup receipts** | At the pin [Mux] 411–419 restores the pool body, which forks each lane, then demuxer, then invokes Mature/timeout setup. [MuxStartup](Rules/MuxStartup.agda) represents these using `configured` stages. [MuxStartupUnwind](MuxStartupUnwind.agda) `asyncRoute` handles only the legacy plain phases and falls through to `nothing` for every configured stage. `PrimitiveStartupSites.configured-not-covered` checks that refusal computationally. A settled `cfgReady`/`cfgMature` is different from a masked `cfgRegistering` gap. Callback delivery after monitoring is separately covered by S11–S14. | Extend/review the configured startup delivery routing and scope capture. Keep parent-insertion gaps protected and test both settled-phase receipt and gap refusal. This is a model coverage finding, not a new Haskell defect. |
-| **F3 / T10 — refresh winner** | [Bucket] `waitQueued` may observe a spent refresh timer and loop/re-arm; `cancel` must remove its queued request and cancel its timer with the grant charge retained if already committed. [SourceLedger M4a](SourceLedger.md#m4a-lane-waits-and-shared-buckets-network-2f1c154) explicitly says refresh replacement is not modeled. T06 establishes just the first cycle. | Represent refresh expiry/re-arm and grant/cancel competition, or review a sufficient abstraction that justifies omitting it for the selected observations. A first-arm check cannot close this row. |
-| **F4 / T09 — handshake timeout/query delay** | [Handler] 392–400 and 474–481 call the actual handshake helper in an unmasked catch; inbound query publishes its promise and invokes `threadDelay` at 516–518. Current supervised `negotiate` represents success return, and abstract `query`/`handlerError` publication consumer fixtures do not execute those helper-winner/delay continuations. | Supply a scoped helper/winner abstraction and the separate query-after-publication sleep/cancellation path, with positive and premature/refused controls. Do not interpret an empty promise read as a handshake timer win. |
-| **F5 / J07 — raw admission fork failure** | [Server] 239–252 brackets the accepted socket around the bare async handoff. The success `acceptedFork` step creates a worker; the source can also throw before birth and close via the outer handler. [BranchMatrix](BranchMatrix.md) already records that missing branch. | Add pre-birth failure/accepted-socket close with controls excluding a fabricated child or leaked ownership. Existing accept/local-address/tracer failure exits are not this async-fork edge. |
+| Finding / row | Implemented behavior and focused evidence |
+| --- | --- |
+| **F1 / X01** | Captured unmasked body fault → masked saved-map restoration → separate outer socket close/result. [PrimitiveIncludeRestoration](Negative/PrimitiveIncludeRestoration.agda) retains committed entry/promise writes and the actual child after fork. A symbolic pre-fork child reference is not a physical birth or an evaluation model of the source's lazy mfix value. |
+| **F2 / S10** | Configured restored-body sites preserve masked registration gaps and actual pool/counter ownership. [PrimitiveConfiguredStartup](Negative/PrimitiveConfiguredStartup.agda) and [PrimitiveConfiguredRetirement](Negative/PrimitiveConfiguredRetirement.agda) distinguish pre-cell, pool-body, retirement and buffer handoff. |
+| **F3 / T10** | Explicit spent-timer expiry and rearm retain the request, while grant/cancel retain the existing charge rules. [PrimitiveGrantRefresh](Negative/PrimitiveGrantRefresh.agda) exercises repeated cycles through the real IG dispatcher. Ready-versus-expired winner, ranks and token availability remain supplied observations. |
+| **F4 / T09** | The helper distinguishes protocol deadline/size failures returned as Left, thrown bearer SDU timeout, and inbound query publication/trace/delay. [PrimitiveHandshakeContinuation](Negative/PrimitiveHandshakeContinuation.agda) joins actual publication and outer finally/results, with a real CM cancellation request/receipt/acknowledgement path. These local paths do not supply G2's initialized negotiation-failure witness. |
+| **F5 / J07** | Pre-birth async-operation failure reserves the accepted socket without a raw worker; close and loop-failure propagation are separate. [PrimitiveAdmissionFork](Negative/PrimitiveAdmissionFork.agda) checks successful/throwing close, no fabricated birth and no socket-token reuse. The accept-loop result payload retains the existing abstraction. |
 
-A fixture cannot turn an absent rule into a met contract. The five rows explain
-why **G1 is not now met**, even though all 85 selected implemented-contract rows
-have an example/control pair. G0's concrete selection/seed and protocol-resource
-contracts, G2's combined lifecycle paths and G3–G5 remain independent obligations.
+Primitive coverage is **90 met / 0 missing**. **G1 is awaiting capped regression
+acceptance**, rather than a missing primitive rule. G0's executable selection/seed
+and protocol-resource contracts, G2's combined lifecycle paths and G3–G5 remain
+independent obligations. No new native build/replay is claimed.
 
 The scope also excludes unused `forcePromise`, OS/FFI and GHC GC machinery,
 listener rate-limit and ECONNABORTED delays, whole-node boot, Windows timeout
@@ -270,6 +277,11 @@ not a newly modeled SQLite/async primitive. Local source/model equations, source
 contract inspection and historical implementation replays remain separate.
 
 ## New fixture validation
+
+The following is the **12 November inventory-only checkpoint**. It is retained
+as historical evidence; the 13 November runtime edits and regression results are
+in [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure)
+and the [working check record][Fix5].
 
 The seven new modules contain only computational `refl` equations over existing
 rules/predicates. Their comments distinguish local permission checks, local
@@ -335,3 +347,8 @@ arbitrary providers, or eventual shutdown.
 [Active]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/ActivePeers.hs
 [Actions]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs
 [Bucket]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux/Egress/Bucket.hs
+
+[Fix5]: /tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/fix5/report.md
+
+[HandshakeHelper]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Protocol/Handshake.hs#L82-L95
+[DriverLimits]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Driver/Limits.hs#L139-L140

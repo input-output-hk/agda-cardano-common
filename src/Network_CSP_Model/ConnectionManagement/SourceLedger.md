@@ -59,7 +59,7 @@ Controls: `Negative/PoolRelays` checks the normal and early-failure relays close
 | `gate` (`awaitWritable`, SDU timeout) | Lane muxer | `advance openGate` (`ready`→`gated`); a timeout is `writeFailed` from `ready` | Implemented. The gate-timeout counter is not modelled. |
 | `awaitGrantWith` fast path (one STM: queue empty and tokens there) | Lane muxer, budget or slice bucket | `advance grantFast`; the bucket's queue must be empty; charged in the same step | Implemented. Token availability is an abstract choice. |
 | Masked enqueue (ticket, rank, floor entry) | Lane muxer | `advance queueRequest`; adds `waiting (mux, batch)` | Implemented. Rank, ticket order and floor are abstract. |
-| `waitQueued`: masked `registerDelayCancellable tierRefresh` | Lane muxer | `advance armTimer`; adds `armed (mux, batch)` | Implemented. A refresh replaces a spent timer and is not modelled. |
+| `waitQueued`: masked `registerDelayCancellable tierRefresh` | Lane muxer | `advance armTimer`; adds `armed (mux, batch)` | Implemented. `refreshExpired` removes the spent timer while retaining its queued request; `rearmRefresh` installs the next timer. [PrimitiveGrantRefresh](Negative/PrimitiveGrantRefresh.agda) covers repeated cycles and grant/cancel controls. Timer winner/rank/token observations remain abstract. |
 | Grant transaction (`takeOrBorrow`/floor; delete key; `queueChanged`; `wakeHead`; charge or ChargeSink) | Lane muxer at the head, or picked by the floor | `advance grantQueued`; removes the request and appends one charge (`rankedGrant` or `sliceGrant`) | Implemented. Which request is granted is abstract; there is no fairness or progress claim. |
 | `finally` cancels the refresh timer | Lane muxer | `advance disarmTimer` | Implemented. |
 | `cancel` (`onException`): leave the queue if still a member; `wakeHead`; `floorLeave` | Lane muxer | `writeFailed` removes the request and timer; a charge already made stays | Implemented. Waking other waiters is not modelled. |
@@ -446,8 +446,12 @@ promise allocation, child worker state, then map publication. These are several
 steps, not one combined write set committed atomically.
 
 **Exception restoration:** put back the saved map binding structure; retain
-earlier committed entry changes and IO effects. Model the source cleanup handlers
-for any created socket/child. Whole-state rollback is incorrect.
+earlier committed entry changes and IO effects. `ServerAdmission.workerException`
+captures the restored-body fault; `workerRestore` invokes the separate masked
+`Rules.Server.restoreBody` transaction. The outer raw-worker socket close/result
+then follows; an already forked child is retained, without a fabricated join.
+[PrimitiveIncludeRestoration](Negative/PrimitiveIncludeRestoration.agda) covers
+these steps and premature/foreign-lease controls. Whole-state rollback is incorrect.
 
 The comment above the overwrite code mentions replacement, but the executable
 reserved/unnegotiated branches write the existing TVar and return that same entry.

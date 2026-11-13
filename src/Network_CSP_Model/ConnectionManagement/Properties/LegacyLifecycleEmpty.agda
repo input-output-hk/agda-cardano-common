@@ -413,6 +413,7 @@ module Raw where
  step-preserves (H.run (M.admissionStep w Server.chooseEntry)) s eq e = dispatch-preserves (M.admissionStep w Server.chooseEntry) s eq tt e
  step-preserves (H.run (M.admissionStep w Server.putMapBack)) s eq e = dispatch-preserves (M.admissionStep w Server.putMapBack) s eq tt e
  step-preserves (H.run (M.admissionStep w Server.readCounters)) s eq e = dispatch-preserves (M.admissionStep w Server.readCounters) s eq tt e
+ step-preserves (H.run (M.admissionStep w Server.restoreBody)) s eq e = dispatch-preserves (M.admissionStep w Server.restoreBody) s eq tt e
  step-preserves (H.run (M.admissionStep w Server.restore)) s eq e = dispatch-preserves (M.admissionStep w Server.restore) s eq tt e
  step-preserves (H.run (M.admissionStep w Server.close)) s eq e = dispatch-preserves (M.admissionStep w Server.close) s eq tt e
  step-preserves (H.run (M.admissionStep w Server.failFork)) s eq e = dispatch-preserves (M.admissionStep w Server.failFork) s eq tt e

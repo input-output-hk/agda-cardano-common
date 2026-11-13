@@ -12,6 +12,8 @@ open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import ConnectionManagement.Domain using (WorkerId; DecEq-Id)
 open import ConnectionManagement.Store using (lookup)
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -29,7 +31,7 @@ open import ConnectionManagement.Properties.LiveTrackerFrameContent using
 import Data.Unit
 import Data.List.Relation.Unary.All
 module Mux where
- private module U = MuxModel Types.TypedResult using (Executes; done; next; captured; Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; Executes; done; next; captured; Action; Frame; module Startup; State; advanceStartup; allocate; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; allocationAction; base; baseAllowed; birth; birthFresh; flow; frames; handleAllocated; inherit; initial; negotiate; negotiateReturned; noteBirth; origins; progress; promisePublished; publish; publishSuccess; returnedSuccess; run; setupFor; scheduled; nextSetup; setup; egressSetup; whenSetupDone-just; setFrame; setSource; source; startup; startupAllowed; startupStep; step)
  private module Startup = U.Startup using (observePublication; step)
  Valid : U.State → Set
  Valid s = Covers (U.frames s) (U.source s)
@@ -62,6 +64,48 @@ module Mux where
  negotiated w ps flow s eq valid | nothing | origin | old = case eq of λ ()
  negotiated w ps flow s eq valid | just thread | nothing | old = case eq of λ ()
  negotiated w ps flow s eq valid | just thread | just origin | just old = case eq of λ ()
+ -- Helper frames preserve the same source/capture observation.
+ capture-handshake-preserves : ∀ w pc s {t} → U.captureHandshake w pc s ≡ just t → Valid s → Valid t
+ capture-handshake-preserves w pc s eq valid with lookup w (B.threads (U.base s)) in found |
+   lookup w (U.origins s) | lookup w (U.frames s)
+ ... | just thread | just origin | nothing with H.phase thread
+ ...   | H.handshaking = case just-injective eq of λ { refl → put-valid w _ s (content Data.Unit.tt Data.Unit.tt) valid }
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.maskedSetup = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.caughtCancellation err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.cancellationPublished err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.bodyExited err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.finalizing err = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.cleanupComplete err outcome = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | nothing | H.resultAvailable err outcome = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | nothing | origin | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | nothing | old = case eq of λ ()
+ capture-handshake-preserves w pc s eq valid | just thread | just origin | just old = case eq of λ ()
+
+ -- Metadata stutters; publication executes the actual promise writer.
+ advance-handshake-preserves : ∀ w action s {t} → U.advanceHandshake w action s ≡ just t → Valid s → Valid t
+ advance-handshake-preserves w action s eq valid with lookup w (U.frames s) in found
+ ... | nothing = case eq of λ ()
+ ... | just f with U.progress f in progress
+ ...   | U.handshakePending pc with HS.step action pc
+ ...     | just (next , nothing) = case just-injective eq of λ { refl → put-valid w _ s (content Data.Unit.tt Data.Unit.tt) valid }
+ ...     | just (next , just result) with O.advance (O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)) (U.source s) in advanced
+ ...       | nothing = case eq of λ ()
+ ...       | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (content Data.Unit.tt Data.Unit.tt) (source-valid c s (O.next {a = O.inbound (Machine.handlerPublication w (HS.asResult result) Machine.resultWritten)} advanced O.done) valid) }
+ advance-handshake-preserves w action s eq valid | just f | U.handshakePending pc | nothing = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.returnedSuccess = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.handleAllocated h mid = case eq of λ ()
+ advance-handshake-preserves w action s eq valid | just f | U.promisePublished h mid = case eq of λ ()
+
+ -- Only inbound origins can enter the query delay.
+ handshake-preserves : ∀ w event s {t} → U.handshakeFor w event s ≡ just t → Valid s → Valid t
+ handshake-preserves w (HS.limitReturned kind err) s eq valid = capture-handshake-preserves w (HS.returned (HS.protocolLimit kind err)) s eq valid
+ handshake-preserves w (HS.bearerTimedOut err) s eq valid = capture-handshake-preserves w (HS.returned (HS.bearerTimeout err)) s eq valid
+ handshake-preserves w HS.queryReturned s eq valid with lookup w (U.origins s)
+ ... | just HandshakeDomain.inbound = capture-handshake-preserves w (HS.returned HS.query) s eq valid
+ ... | just HandshakeDomain.outbound = case eq of λ ()
+ ... | nothing = case eq of λ ()
+ handshake-preserves w (HS.continue action) s eq valid = advance-handshake-preserves w action s eq valid
+
  allocated : ∀ w hid mid s {t} → U.allocate w hid mid s ≡ just t → Valid s → Valid t
  allocated w hid mid s eq valid with lookup w (U.frames s) in found
  ... | nothing = case eq of λ ()
@@ -69,6 +113,7 @@ module Mux where
  ...   | U.returnedSuccess with O.advance (O.inbound (Machine.igStep (U.allocationAction f hid mid))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → put-valid w _ (U.setSource c s) (content (Chain.outbound-allocation f hid mid (U.source s) advanced) Data.Unit.tt) (source-valid c s (O.next {a = O.inbound (Machine.igStep (U.allocationAction f hid mid))} advanced O.done) valid) }
+ allocated w hid mid s eq valid | just f | (U.handshakePending helperPC) = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.handleAllocated old mid′ = case eq of λ ()
  allocated w hid mid s eq valid | just f | U.promisePublished old mid′ = case eq of λ ()
  -- Configured egress installation writes only the actual allocated mux.
@@ -80,6 +125,7 @@ module Mux where
  ...   | U.handleAllocated hid mid with O.advance (O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))) (U.source s) in advanced
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → λ valid → source-valid c s (O.next {a = O.inbound (Machine.igStep (IG.configureEgress mid (EgressLayout.scheduledLayout slice) limit bound keys))} advanced O.done) valid }
+ configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.returnedSuccess = case eq of λ ()
  configured w (EgressLayout.scheduledLayout slice) limit bound keys s eq | just f | U.promisePublished h m = case eq of λ ()
 
@@ -92,6 +138,7 @@ module Mux where
  ...     | nothing = case eq of λ ()
  ...     | just c = case just-injective eq of λ { refl → λ valid → source-valid c s (O.next {a = O.inbound (Machine.igStep (IG.registerCells mid))} advanced O.done) valid }
  registered w s eq | just f | U.promisePublished hid mid | false = case eq of λ ()
+ registered w s eq | just f | (U.handshakePending helperPC) | _ = case eq of λ ()
  registered w s eq | just f | U.returnedSuccess | _ = case eq of λ ()
  registered w s eq | just f | U.handleAllocated h m | _ = case eq of λ ()
 
@@ -116,6 +163,7 @@ module Mux where
      (source-valid c s (O.next {a = O.inbound (Machine.handlerPublication w (S.negotiated hid (U.flow f)) Machine.resultWritten)} advanced O.done) valid) }
  ...     | nothing | _ = case eq of λ ()
  ...     | just c | nothing = case eq of λ ()
+ published w s eq valid | just f | (U.handshakePending helperPC) = case eq of λ ()
  published w s eq valid | just f | U.returnedSuccess = case eq of λ ()
  published w s eq valid | just f | U.promisePublished hid mid = case eq of λ ()
  startup : ∀ w a s {t} → U.advanceStartup w a s ≡ just t → Valid s → Valid t
@@ -125,11 +173,13 @@ module Mux where
  ...   | U.promisePublished hid mid | true with Startup.step a (U.startup f)
  ...     | nothing = case eq of λ ()
  ...     | just next = case just-injective eq of λ { refl → put-valid w _ s (startup-content w f _ (U.source s) (at (U.frames s) (U.source s) valid w f found)) valid }
+ startup w a s eq valid | just f | (U.handshakePending helperPC) | allowed = case eq of λ ()
  startup w a s eq valid | just f | U.returnedSuccess | allowed = case eq of λ ()
  startup w a s eq valid | just f | U.handleAllocated hid mid | allowed = case eq of λ ()
  startup w a s eq valid | just f | U.promisePublished hid mid | false = case eq of λ ()
  step-preserves : ∀ a s {t} → U.step a s ≡ just t → Valid s → Valid t
  step-preserves (U.run a) = inherited a
+ step-preserves (U.handshakeStep w event) = handshake-preserves w event
  step-preserves (U.negotiate w ps flow) = negotiated w ps flow
  step-preserves (U.allocateHandle w hid mid) = allocated w hid mid
  step-preserves (U.configureMux w plan limit bound keys) s eq = configured w plan limit bound keys s eq

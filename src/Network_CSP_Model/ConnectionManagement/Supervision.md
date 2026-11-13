@@ -8003,3 +8003,129 @@ The authoritative per-module commands, wall time, peak RSS, exit, source hashes
 and own-Checking evidence are in `round6-checks.json`; distinct complete logs
 are `round6-final-Properties-*.log` and `round6-final-Negative-*.log`.
 Development diagnostics and interrupted runs are separate from acceptance.
+
+## Eightieth increment: G1 primitive runtime closure
+
+13 November 2026. Implements the user's 12 November decision to fix all five
+findings in [PrimitiveMatrix](PrimitiveMatrix.md), starting from model commit
+`9d59f2b`. Source authority stays network `2f1c154f248659b89523d5679ca532f442e7ed2a`
+/ consensus `2e44d98a843168ba3b189e305820b79943ac7d1e`. These are model
+corrections, not new Haskell defects or a source-baseline promotion.
+
+Implemented in risk order F2, F3, F5, F4, F1:
+
+- **F2 configured startup:** distinct restored configured-body and pre-cell
+  observations preserve the masked parent-insertion gap. Actual byte-cell
+  retirement runs after the pool has unwound and before buffer handoff.
+  [Startup](Negative/PrimitiveConfiguredStartup.agda) and
+  [retirement](Negative/PrimitiveConfiguredRetirement.agda) fixtures cover
+  enabled routes, wrong sites, partial pools and sealed post-fault registration.
+- **F3 grant refresh:** `refreshExpired` removes a spent timer while retaining
+  the waiting request; `rearmRefresh` installs the next timer.
+  [PrimitiveGrantRefresh](Negative/PrimitiveGrantRefresh.agda) executes repeated
+  kernel/bucket cycles and grant/cancel/charge controls. Timer-winning awaitOr,
+  token availability and rank remain supplied observations; no elapsed-time or
+  fairness theorem is added.
+- **F5 admission async-operation fork failure:** `forkFailure` reserves the
+  accepted socket as `acceptPending`, with no worker or handler birth. Separate
+  `closeForkFailure` and `finishForkFailure` steps close/record uncertainty and
+  propagate the accept-loop failure.
+  [PrimitiveAdmissionFork](Negative/PrimitiveAdmissionFork.agda) checks initialized
+  failure, successful/throwing close, listener cleanup, no premature propagation
+  and no reuse of the pending socket. The source parent is masked; this does not
+  introduce ordinary asynchronous receipt at its fork gap.
+- **F4 handshake helper:** [HandshakeContinuation](Rules/HandshakeContinuation.agda)
+  distinguishes protocol deadline/size failures returned as Left, bearer SDU
+  `MuxError` caught/published/rethrown, and inbound query publication/tracer/delay.
+  [PrimitiveHandshakeContinuation](Negative/PrimitiveHandshakeContinuation.agda)
+  uses actual promise writes and outer cleanup/result continuations, plus actual
+  CM capture/read/send/blocked-delay receipt/acknowledgement. Premature results,
+  wrong windows and entry into negotiated allocation/startup are refused. Blocked
+  delay/tracer receipt is an explicit masked-interruptible observation. Local
+  helper paths do not discharge G2's initialized negotiation-failure witness.
+- **F1 include-body restoration:** `workerException` captures the original fault
+  at count/prepare/select/fork/publish; `workerRestore` performs the separate
+  masked saved-map write, then the worker can close its socket and publish its
+  result. [PrimitiveIncludeRestoration](Negative/PrimitiveIncludeRestoration.agda)
+  checks before/after-fork restoration, retained heap/promise/physical child,
+  sync/async faults, foreign lease and premature/duplicate-step refusals. No child
+  join or heap rollback is invented. The pre-fork symbolic reference remains the
+  existing abstraction of the lazy source value, not an evaluation theorem.
+
+Runtime edits are in `State`, `Rules/Server`, `Rules/MuxEgress`,
+`Rules/IGRegistration`, `Rules/HandshakeContinuation`, `MuxHandlerSupervision`,
+`MuxHandlerExit`, `MuxPublicationUnwind`, `MuxStartupUnwind` and `ServerAdmission`.
+The `ScopePlan` representation keeps its old constructor/projection types while
+adding an internal socket-only plan. Existing universal proofs receive new cases
+and real-step preservation lemmas; their statements and initialized premises
+are retained. SourceKeys/OwnedFrames/OwnedCallers and SI5 remain proof obligations
+for the enlarged action set, not exemptions from it.
+
+**Local validation:** the six new fixture endpoints passed fresh checks of
+their own sources, with dependency interfaces reused. Only their own `.agdai`
+files were invalidated for this final fixture pass. Safe existing admission,
+configured startup/counter/close, pre-handshake, scheduling and Server-owned
+variant regressions also passed. Commands ran serially with Agda 2.8.0:
+
+```sh
+agda ConnectionManagement/<module>.agda +RTS -M20G -A128m -RTS
+```
+
+`/usr/bin/time -v` measured each invocation; an RSS watchdog would stop
+usage above 12,000,000 KiB. It did not trigger on the final checks. The table
+reports measured peak RSS, rather than the 20 GiB heap ceiling.
+The following passing direct invocations include transitive import checks.
+
+| Module under `ConnectionManagement/` | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `Negative/PrimitiveConfiguredStartup` | 12.211 | 1.902 | pass, fresh |
+| `Negative/PrimitiveConfiguredRetirement` | 14.922 | 1.977 | pass, fresh |
+| `Negative/PrimitiveGrantRefresh` | 10.402 | 1.330 | pass, fresh |
+| `Negative/PrimitiveAdmissionFork` | 7.990 | 1.322 | pass, fresh |
+| `Negative/PrimitiveHandshakeContinuation` | 11.458 | 1.607 | pass, fresh |
+| `Negative/PrimitiveIncludeRestoration` | 19.601 | 2.380 | pass, fresh |
+| `Properties/ServerAdmissionInvariant` | 383.184 | 5.384 | pass, fresh |
+| `Properties/HandlerBirthEffects` | 165.903 | 5.591 | pass, fresh |
+| `Properties/LiveTrackerInitialized` | 1602.297 | 10.523 | pass, fresh |
+| `Properties/IGPendingQuiet` | 797.001 | 8.304 | pass, fresh |
+| `Properties/ServerShutdownCoordinator` | 476.244 | 5.245 | pass, fresh |
+| `Properties/ServerOwnedHandlers` | 130.468 | 4.717 | pass, fresh |
+| `Properties/ServerOwnedWorkers` | 24.580 | 3.671 | pass, fresh |
+
+These logs contain no warnings/errors and each checked source's before/after
+hashes match. The full command/time/RSS/result ledger, development failures and
+module list are in the [working report][Fix5Report]. An early detached checker
+survived a controller stop and overlapped later work; those diagnostic runs are
+excluded from serial acceptance. The runner was corrected before the final
+queues. The earlier 918.997-second SI5 manual stop was not a passing check or a
+measured memory excess; the final successful endpoint above supersedes it.
+
+The local heuristic audit reviewed 103 source files. Its 36 possible-hole flags
+were all comparison operators (`≤?`, `<?`, `Nat.<?`); no actual holes, new
+postulates or unsafe options were found. A text audit compared 4,752 original
+declarations: reviewed differences are equivalent contextual ScopePlan field
+projections and an additional identical local helper type in the new PC case.
+This is not a transitive term-level axiom audit. The six edited topic/index
+pages passed local-link checking; no diagram source changed.
+
+**Needs capped check (user-run):**
+
+- [Properties/SourceKeysServer](Properties/SourceKeysServer.agda).
+- [Properties/OwnedFramesExecution](Properties/OwnedFramesExecution.agda),
+  including SourceKeysShared and OwnedFramesUnwindSteps.
+- [Negative/OwnedCallersFixture](Negative/OwnedCallersFixture.agda), including
+  OwnedCallersExecution and its ownership closure.
+- [Negative/LiveTrackerInitialized](Negative/LiveTrackerInitialized.agda).
+- [Negative/ServerPeers](Negative/ServerPeers.agda).
+- [Negative/ServerPeersOrigins](Negative/ServerPeersOrigins.agda), also the
+  migration plan's fresh strict interaction acceptance (own Checking,
+  checked:true, DoneExiting, empty goals/warnings/errors, successful exit and
+  unchanged source hash), followed by the ordinary cached CLI.
+
+Use the same RTS flags and one Agda process at a time under an external cap.
+These known-heavy checks were not run here and remain required acceptance.
+**G1 has 90/90 primitive coverage and remains partly met pending those checks.**
+G0/G2–G5 are unchanged. No full-library sweep, Haskell build/replay or universal
+progress/source-refinement claim follows from this increment.
+
+[Fix5Report]: /tmp/claude-1000/-home-rye-YE-Workspace-Research-Workspace-IOG-git-repos-agda-cardano-common-src-Network-CSP-Model/9d7888e1-89b9-40c9-a9a0-bb280db1e03c/scratchpad/fix5/report.md

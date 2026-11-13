@@ -63,6 +63,13 @@ module Front (capability : HandleId → ℕ → Bool) where
   tail-found (f , found , published) with w ≟ q
   ... | yes refl = case trans (sym (apart-lookup q rows apart)) found of λ ()
   ... | no _ = f , found , published
+ ownerFor-found p ((q , first) ∷ rows) {w} (apart ∷ unique) eq | U.handshakePending helperPC = tail-found (ownerFor-found p rows unique eq)
+  where
+  tail-found : Σ U.Frame (λ f → lookup w rows ≡ just f × U.progress f ≡ U.promisePublished (Peer.handleRef p) (Peer.muxRef p)) →
+    Σ U.Frame (λ f → lookup w ((q , first) ∷ rows) ≡ just f × U.progress f ≡ U.promisePublished (Peer.handleRef p) (Peer.muxRef p))
+  tail-found (f , found , published) with w ≟ q
+  ... | yes refl = case trans (sym (apart-lookup q rows apart)) found of λ ()
+  ... | no _ = f , found , published
  ownerFor-found p ((q , first) ∷ rows) {w} (apart ∷ unique) eq | U.returnedSuccess = tail-found (ownerFor-found p rows unique eq)
   where
   tail-found : Σ U.Frame (λ f → lookup w rows ≡ just f × U.progress f ≡ U.promisePublished (Peer.handleRef p) (Peer.muxRef p)) →

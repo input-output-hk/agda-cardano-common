@@ -72,6 +72,7 @@ start-root w result route s eq with R.free w s | R.owner w s | lookup w (W.exits
 ...       | just r = case just-injective eq of λ { refl → refl }
 ...       | nothing = case eq of λ ()
 start-root w result route s eq | true | just f | nothing | true | U.promisePublished hid mid | nothing = case eq of λ ()
+start-root w result route s eq | true | just f | nothing | true | (U.handshakePending helperPC) = case eq of λ ()
 start-root w result route s eq | true | just f | nothing | true | U.returnedSuccess = case eq of λ ()
 start-root w result route s eq | true | just f | nothing | true | U.handleAllocated _ _ = case eq of λ ()
 start-root w result route s eq | true | nothing | _ | _ = case eq of λ ()
@@ -230,9 +231,11 @@ choose-root (R.observeDeadTraceException w err) s eq | just f | R.handedOff | _ 
 choose-root (R.observeDeadTraceException w err) s eq | nothing = case eq of λ ()
 choose-root (R.handoff w) s eq with lookup w (R.faults s) | lookup w (W.exits (R.base s))
 ... | just f | nothing with R.phase f | R.outcome f
-...   | R.readyBuffer | result = case just-injective eq of λ { refl → refl }
-...   | R.readyBody | R.sync err = case just-injective eq of λ { refl → refl }
-...   | R.readyBody | R.async err = case just-injective eq of λ { refl → refl }
+...   | R.readyBuffer | result with R.counterRow f s
+...     | just _ = case just-injective eq of λ { refl → refl }
+...     | nothing = case just-injective eq of λ { refl → refl }
+choose-root (R.handoff w) s eq | just f | nothing | R.readyBody | R.sync err = case just-injective eq of λ { refl → refl }
+choose-root (R.handoff w) s eq | just f | nothing | R.readyBody | R.async err = case just-injective eq of λ { refl → refl }
 choose-root (R.handoff w) s eq | just f | nothing | R.awaitingClose | _ = case eq of λ ()
 choose-root (R.handoff w) s eq | just f | nothing | R.closing | _ = case eq of λ ()
 choose-root (R.handoff w) s eq | just f | nothing | R.poolClosed | _ = case eq of λ ()

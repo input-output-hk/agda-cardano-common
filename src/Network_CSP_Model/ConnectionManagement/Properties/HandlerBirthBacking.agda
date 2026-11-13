@@ -75,7 +75,7 @@ module Frontend (isBearerClosed isIOManagerError : ErrorId → Bool) (canInitiat
  private module K = SharedModel isBearerClosed isIOManagerError using (State; context; coreAction; coreAllowed; coreStep; peers; server; serverAllowed; serverStep; step)
  private module T = SharedModel.Protocols isBearerClosed isIOManagerError canInitiate using (Event; Plan; Runs; Runtime; advance; base; birth; cacheResult; caller; calls; choose; complete; deliverTraceFault; descriptor; enact; front; handleRef; inherit; initialize; latest; local; more; mux; owner; peerRef; reading; stop; traceFault)
  private module E = IGExitModel isBearerClosed using (State; base; choose; delegate; enact; initial; step)
- private module SA = AdmissionModel isBearerClosed using (State; allowed; base; chooseScope; enactScope; initial; physicalAction; run; scope; scopeAdvance; step)
+ private module SA = AdmissionModel isBearerClosed using (scopePlan; socketScopePlan; State; allowed; base; chooseScope; enactScope; initial; physicalAction; run; scope; scopeAdvance; step)
  private module N = PublicationModel isBearerClosed using (State; allowed; base; initial; run; step)
  private module PS = PeerModel isIOManagerError using (step)
  private module C = PeerContext isIOManagerError using (SubContext; subsystem)
@@ -238,12 +238,13 @@ module Frontend (isBearerClosed isIOManagerError : ErrorId → Bool) (canInitiat
  ...   | just c = case just-injective actual of λ { refl → catch-fork a (N.base s) advanced selected }
  server-scope-fork : ∀ a p command s {t} → SA.chooseScope a s ≡ just p → SA.physicalAction p ≡ just command → SA.enactScope p s ≡ just t →
    PublicationProof.Selected command (SA.base s) → ForkStep (server-state s) ((ServerLayer.view isBearerClosed) t)
- server-scope-fork a p command s chosen selected actual witness with SA.physicalAction p
+ server-scope-fork a (SA.scopePlan st keep ig operation₀) command s chosen selected actual witness with operation₀
  ... | nothing = case selected of λ ()
  ... | just op with just-injective selected
  ...   | refl with N.step command (SA.base s) in advanced
  ...     | nothing = case actual of λ ()
  ...     | just n = case just-injective actual of λ { refl → publication-fork command (SA.base s) advanced witness }
+ server-scope-fork a (SA.socketScopePlan st keep ig sock owner) command s chosen selected actual witness = case selected of λ ()
  server-scope-enact : ∀ a p s {t} → SA.chooseScope a s ≡ just p → SA.scopeAdvance a s ≡ just t → SA.enactScope p s ≡ just t
  server-scope-enact a p s chosen actual with SA.chooseScope a s
  ... | nothing = case chosen of λ ()

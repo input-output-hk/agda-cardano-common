@@ -1,6 +1,6 @@
 # G0–G5 gate audit
 
-12 November 2026. Documentation audit of [DESIGN §§1, 9–11](DESIGN.md),
+13 November 2026 (G1 implementation follow-up). Documentation audit of [DESIGN §§1, 9–11](DESIGN.md),
 [project state](../PROJECT_STATE.md), the area indexes and evidence below.
 **All six gates are partly met; none is closed.** A gate requires every acceptance
 item, not merely a strong result in one component.
@@ -12,16 +12,17 @@ JobPool files. Earlier results retain their original `96ee6e0…` / `585a861…`
 pins. The [15 October progress review](../review/connection-management-progress-review.md)
 is historical: its missing OG, IG and supervision coverage has since advanced.
 Likewise, early “open” entries in [Supervision](Supervision.md) must be read with
-increments 68–79: SI5a/b are proved for the one-listener scope, and CM-I4c is
+increments 68–80: SI5a/b are proved for the one-listener scope, and CM-I4c is
 complete for the explicit `O.initial` profile. Neither closes these project gates.
 
 “Proved” below means a model theorem with its stated premises. A finite witness
 proves an enabled path exists; a mutated fixture tests a branch; a bounded search
 covers only its bounds; a source replay executes selected pinned implementation
 operations. These are separate evidence classes. The original gate snapshot ran no Agda checks,
-source replays or git commands. The G1 follow-up below adds seven fresh fixture
-checks and a resolved-dependency audit; all other check/replay results remain
-historical reports. Transient logs are identified in the linked records.
+source replays or git commands. The 12 November G1 inventory added seven fixture checks and a dependency audit;
+[13 November increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure)
+adds five primitive corrections and records fresh checks and capped regressions.
+Other check/replay results retain their historical scope. Transient logs are identified in the linked records.
 
 ## G0 — domain, scenario and source ledger: partly met
 
@@ -32,7 +33,7 @@ coverage reviewed.
 | --- | --- | --- |
 | Identity distinctions | **met** | [Domain](Domain.agda) indexes identities by kind and separates full connection keys, addresses/ports and local-key alternatives. [DESIGN §§2–3](DESIGN.md) and [README](README.md) distinguish entry, worker, socket, mux, promise, handle and protocol-run lifetimes. This is a model representation decision, not source conformance. |
 | Profile assumptions reviewed | **partly met** | [DESIGN §2](DESIGN.md), [MigrationProfile](MigrationProfile.md) and [Outbound profile differences](Outbound.md#profile-differences-from-pinned-production) state the one-listener, ordinary-peer, untimed and IO/policy contracts. Missing: one reconciled executable LocalLifecycle setup matching the two-peer targets and configured protocol bundles, a concrete source PRNG seed/selection contract, and completed per-protocol wait/control/registry/cleanup contracts. The one-peer reduced-bundle witnesses do not discharge these choices. |
-| First-path branch coverage reviewed | **partly met (matrix complete)** | [BranchMatrix](BranchMatrix.md) reconciles all 49 original ledger families and later branches in 99 rows: 64 implemented, 11 contracted, 14 excluded and 10 missing. It names actual initialized targets/bundles/selection inputs, corrects stale source ranges, separates implemented accept-loop exits from missing handoff/worker exception edges, and lists the incomplete protocol/registry/resource contracts. The review artifact closes plan step 1; the 10 missing rows and incomplete source contracts still need implementation, reviewed contracts or justified exclusions. The executable profile also remains unresolved, so G0/G2 stay partly met. Plan step 2 now supplies the [primitive matrix](PrimitiveMatrix.md); its five runtime/contract findings remain open. |
+| First-path branch coverage reviewed | **partly met (matrix complete)** | [BranchMatrix](BranchMatrix.md) reconciles all 49 original ledger families and later branches in 99 rows: 66 implemented, 11 contracted, 14 excluded and 8 missing. It names actual initialized targets/bundles/selection inputs, corrects stale source ranges, separates accept-loop exits from the newly implemented handoff/worker exception edges, and lists the incomplete protocol/registry/resource contracts. The review artifact closes plan step 1; the 8 missing rows and incomplete source contracts still need implementation, reviewed contracts or justified exclusions. The executable profile also remains unresolved, so G0/G2 stay partly met. Plan step 2 now supplies the [primitive matrix](PrimitiveMatrix.md); its five primitive runtime findings are implemented, with capped regression acceptance pending. |
 
 ## G1 — state and primitive semantics: partly met
 
@@ -41,23 +42,23 @@ cancellation examples.
 
 | Evidence item | Status | Evidence and exact gap |
 | --- | --- | --- |
-| Map take/restore | **met** | [PrimitiveMatrix P01–P02](PrimitiveMatrix.md#shared-storage-concurrency-and-synchronization): [PrimitiveMap](Negative/PrimitiveMap.agda) adds enabled take/put/restore and empty-cell, foreign-owner and full-cell refusals. [HeapRollback](Negative/HeapRollback.agda) distinguishes saved-map restoration from committed heap rollback. General caller-body exception restoration remains missing under X01. |
+| Map take/restore | **met** | [PrimitiveMatrix P01–P02](PrimitiveMatrix.md#shared-storage-concurrency-and-synchronization): [PrimitiveMap](Negative/PrimitiveMap.agda) adds enabled take/put/restore and empty-cell, foreign-owner and full-cell refusals. [HeapRollback](Negative/HeapRollback.agda) distinguishes saved-map restoration from committed heap rollback. [PrimitiveIncludeRestoration](Negative/PrimitiveIncludeRestoration.agda) now exercises X01: actual captured-body fault, saved-map-only restoration, retained heap/promise/child and separate close/result. |
 | STM retry/rollback | **met** | Matrix P03–P04; [Scenarios/IGBatch](Scenarios/IGBatch.agda) `burst-fits`, `burst-retries-as-a-whole`, `split-prefix-would-fit`, ordered alternative/timeout controls; [Negative/Outbound](Negative/Outbound.agda) `full-queue-refuses-entire-commit`. The dependency contracts now cite the resolved STM implementations, not only API expectations. |
-| Fork | **met for selected success/registration contract** | Matrix P05; [ConcurrentPool](Negative/ConcurrentPool.agda) `fast-second-child-returns`, `fast-child-dereg-retries`, and masked parent insertion controls. Failed raw admission handoff J07 is separately **missing**; a successful fork is not evidence about a pre-birth exception. |
+| Fork | **met for selected success/registration/failure contract** | Matrix P05; [ConcurrentPool](Negative/ConcurrentPool.agda) `fast-second-child-returns`, `fast-child-dereg-retries`, and masked parent insertion controls. J07 now has separate pre-birth failure, accepted-socket reservation, close and propagation controls in [PrimitiveAdmissionFork](Negative/PrimitiveAdmissionFork.agda). |
 | Promise | **met** | Matrix P06–P07: [CM Types at the pin](PrimitiveMatrix.md#resolved-dependency-evidence), ordinary first write/duplicate exception, retained blocking read; [Scenarios/Handshake](Scenarios/Handshake.agda) `early-publication-is-readable`, `promise-survives-read`, `empty-promise-waits`, `duplicate-publication-throws`. `forcePromise` is unused by the selected model/handlers. Historical forcing probes retain their IO/IOSim limitations. |
 | Queue and result synchronization | **met** | Matrix P08–P11: bounded IG bursts/flush versus source-unbounded completion/command queues; [PrimitiveResults](Negative/PrimitiveResults.agda) adds ordered first-result, empty/all-returned/error and pending-result controls. No queue/result observation implies physical termination. |
-| Cancellation, mask/delivery, cancel/wait/waitCatch | **partly met** | Matrix P12–P15, C01–C18, H01–H02, S01–S14, U01–U06, K01–K07, I01–I10 and J01–J07 enumerates selected sites with named enabled/refusal controls, explicitly labelling permission equations and supplied blocking observations. IO/IOSim catch/mask/throwTo and waitCatch differences are source-backed. Missing runtime edges: configured startup delivery **S10/F2**, general include-body exception restoration **X01/F1**, and raw admission fork failure **J07/F5**. |
-| Timeout winners and modeled delays | **partly met** | Matrix T01–T10 separates ordered idle/IG STM winners, exception-based PSA/Cold/drain timeouts, grant timer cancellation, TIME_WAIT and failure sleep. [PrimitiveTimers](Negative/PrimitiveTimers.agda) adds winner/readiness/duplicate-expiry and wrong-wait controls. Handshake timeout/query-delay **T09/F4** and grant refresh **T10/F3** remain **missing** rules/contracts. Untimed elapsed/expiry observations are not deadline guarantees. |
+| Cancellation, mask/delivery, cancel/wait/waitCatch | **met for selected contracts; regression acceptance pending** | Matrix P12–P15, C01–C18, H01–H02, S01–S14, U01–U06, K01–K07, I01–I10 and J01–J07 enumerates selected sites with named enabled/refusal controls, explicitly labelling permission equations and supplied blocking observations. IO/IOSim catch/mask/throwTo and waitCatch differences are source-backed. Configured startup delivery **S10/F2**, include-body restoration **X01/F1** and raw admission fork failure **J07/F5** are now implemented with paired controls; see [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure). |
+| Timeout winners and modeled delays | **met for supplied observations; regression acceptance pending** | Matrix T01–T10 separates ordered idle/IG STM winners, exception-based PSA/Cold/drain timeouts, grant timer cancellation, TIME_WAIT and failure sleep. [PrimitiveTimers](Negative/PrimitiveTimers.agda) adds winner/readiness/duplicate-expiry and wrong-wait controls. [PrimitiveHandshakeContinuation](Negative/PrimitiveHandshakeContinuation.agda) covers distinct protocol-limit/bearer-timeout/query-delay continuations **T09/F4**; [PrimitiveGrantRefresh](Negative/PrimitiveGrantRefresh.agda) covers expiry/rearm **T10/F3** and grant/cancel controls. Untimed elapsed/expiry observations are not deadline guarantees. |
 | Resolved dependency and runtime distinction audit | **met for the recorded Linux replay plan** | [PrimitiveMatrix dependency evidence](PrimitiveMatrix.md#resolved-dependency-evidence): GHC 9.6.7, base 4.18.3.0, stm 2.5.1.0, async 2.2.6, io-classes/io-sim 1.8.0.1, with plan SHA256, installed units, archive hashes and pinned helper sources. No new Haskell replay or universal IO/IOSim equivalence was established. |
 
-**Plan step 2 inventory/fixture work is done; G1 is still not met.** The same
-90-row inventory moves from **40 met / 50 missing** to **85 met / 5 missing**.
-Seven small new fixture modules passed fresh Agda 2.8.0 checks; exact commands,
-wall times, peak RSS, the repaired draft failure and validation limits are in
-[PrimitiveMatrix validation](PrimitiveMatrix.md#new-fixture-validation). Existing
-Agda modules were not changed. The five remaining findings require separately
-scoped model implementation or a reviewed sufficient abstraction; adding a
-fixture cannot supply an absent rule. This does not close G0/G2–G5.
+**Plan step 2 runtime coverage is now 90 met / 0 missing** (original inventory
+40/50; 12 November fixture checkpoint 85/5). All five findings are fixed rather
+than excluded, with source-backed masking and explicit timer/blocking inputs.
+**G1 remains partly met pending capped regression acceptance**: the affected
+SourceKeys/OwnedFrames/OwnedCallers and heavy initialized concrete endpoints must
+pass the [increment 80 check list](Supervision.md#eightieth-increment-g1-primitive-runtime-closure).
+Existing theorem statements are unchanged. Focused passing examples do not replace
+those checks, and this does not close G0/G2–G5 or assert Haskell refinement.
 
 ## G2 — first combined lifecycle: partly met
 
@@ -182,7 +183,7 @@ campaign is not a prerequisite for ordinary behavioral witnesses.
 | Order | Size | Deliverable and acceptance |
 | --- | --- | --- |
 | 1 | S | **Done — [BranchMatrix](BranchMatrix.md), 12 November 2026.** All original ledger families and later branches classified, with executable fixture targets/bundles/selection policy, source ranges and evidence. Protocol contracts and handoff/worker errors remain explicit gaps. This completes the G0/G2 checklist review without changing gate criteria or closing the gates. |
-| 2 | M | **Done — inventory and existing-rule fixtures, [PrimitiveMatrix](PrimitiveMatrix.md), 12 November 2026.** 90 rows, 40/50 met/missing before → 85/5 after; seven new small fixtures checked fresh. Resolved dependency versions and IO/IOSim distinctions recorded. **G1 remains partly met:** F1 general include-body exceptions, F2 configured startup receipt, F3 grant refresh, F4 handshake timeout/query delay, F5 raw admission fork failure require runtime work or reviewed contracts. Gate closure remains pending those findings. |
+| 2 | M | **Runtime work implemented; capped regression acceptance pending**, 13 November 2026. [PrimitiveMatrix](PrimitiveMatrix.md): 90 rows, original 40/50 → inventory checkpoint 85/5 → current 90/0 met/missing. F1–F5 now have source-backed rules and paired fixtures. [Increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure) records the checks and remaining capped endpoints. **G1 remains partly met until those checks pass.** |
 | 3 | M | Add an initialized supervised inbound clean lifecycle: admission, IG registration, actual protocol/mux normal exit, role release, socket cleanup and physical result. State contracts and check exact endpoints without injected midpoint states. |
 | 4 | M | Add the configured outbound clean lifecycle and supervised negotiation-failure/cleanup witness. Reuse the proved duplex prefix; distinguish outbound role release from retained inbound bearer ownership. Deliver two named initialized paths and premature-result controls. |
 | 5 | M | Add one initialized operation-timeout/Cooling/delayed-cleanup/Cold history with actual job and monitor steps. Check that Cold and job return cannot precede their required observations; keep demotion timeout and TIME_WAIT separate. Reassess all six G2 witnesses. |

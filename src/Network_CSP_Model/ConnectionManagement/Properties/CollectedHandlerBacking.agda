@@ -17,6 +17,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; tran
 open import Function using (case_of_)
 open import ConnectionManagement.Domain using (WorkerId; ErrorId)
 open import ConnectionManagement.Store using (lookup)
+import ConnectionManagement.Rules.HandshakeContinuation as HS
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -205,6 +206,7 @@ module Raw where
  step-preserves (H.run (Machine.admissionStep w Server.chooseEntry)) s eq valid = dispatch-valid (Machine.admissionStep w Server.chooseEntry) s eq valid
  step-preserves (H.run (Machine.admissionStep w Server.putMapBack)) s eq valid = dispatch-valid (Machine.admissionStep w Server.putMapBack) s eq valid
  step-preserves (H.run (Machine.admissionStep w Server.readCounters)) s eq valid = dispatch-valid (Machine.admissionStep w Server.readCounters) s eq valid
+ step-preserves (H.run (Machine.admissionStep w Server.restoreBody)) s eq valid = dispatch-valid (Machine.admissionStep w Server.restoreBody) s eq valid
  step-preserves (H.run (Machine.admissionStep w Server.restore)) s eq valid = dispatch-valid (Machine.admissionStep w Server.restore) s eq valid
  step-preserves (H.run (Machine.admissionStep w Server.close)) s eq valid = dispatch-valid (Machine.admissionStep w Server.close) s eq valid
  step-preserves (H.run (Machine.admissionStep w Server.failFork)) s eq valid = dispatch-valid (Machine.admissionStep w Server.failFork) s eq valid
@@ -474,7 +476,7 @@ open import Data.Bool using (_∧_)
 
 -- Startup, protocol and monitor metadata do not add CM collection entries.
 module Mux where
- private module U = MuxModel Types.TypedResult using (State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; egressSetup; run; startupStep; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; State; allocateHandle; configure; configureMux; registerFor; registerCounters; beforePool; base; baseAllowed; birth; birthFresh; initial; negotiate; noteBirth; origins; publishSuccess; egressSetup; run; startupStep; step)
  view : U.State → Effects.Registry
  view = Effects.MuxLayer.view
  shutdown : U.State → Close.State
@@ -490,6 +492,7 @@ module Mux where
  ... | true with B.step a (U.base s) in actual
  ...   | nothing = case eq of λ ()
  ...   | just b = case just-injective eq of λ { refl → note-valid (U.birth a (U.base s)) (record s { base = b }) (Physical.step-preserves a (U.base s) actual valid) }
+ step-preserves (U.handshakeStep w event) s eq valid = transport (Effects.MuxLayer.change (U.handshakeStep w event) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.handshakeStep w event) s eq tt)) valid)
  step-preserves (U.negotiate w ps flow) s eq valid = transport (Effects.MuxLayer.change (U.negotiate w ps flow) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.negotiate w ps flow) s eq tt)) valid)
  step-preserves (U.allocateHandle w hid mid) s eq valid = transport (Effects.MuxLayer.change (U.allocateHandle w hid mid) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.allocateHandle w hid mid) s eq tt)) valid)
  step-preserves (U.registerCounters w) s eq valid = transport (Effects.MuxLayer.change (U.registerCounters w) s eq) (same-collected {registry = view s} (cong Close.collected (Aux.Mux.direct-shutdown-same (U.registerCounters w) s eq tt)) valid)
@@ -507,7 +510,7 @@ module Mux where
 
 module Protocol where
  private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; State; asyncInfraResult; asyncProtocolResult; base; commitClean; control; deregisterInfra; deregisterProtocol; forkInitiator; forkResponder; infrastructureReturn; inheritedAllowed; initial; protocolException; protocolReturned; publishInfra; publishProtocol; registerProtocol; returnProtocol; run; step; submitDbWrite; awaitDbWrite; dbWriteFailed; writerComplete; writerSeal)
- private module U = MuxModel Types.TypedResult using (base; initial; step)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; base; initial; step)
  view : P.State → Effects.Registry
  view = Effects.ProtocolLayer.view
  shutdown : P.State → Close.State
@@ -632,11 +635,11 @@ module Group (isBearerClosed : ErrorId → Bool) where
 -- Post-mux coordinator acknowledgment is available only through its guarded
 -- physical delivery routes, or the exact physical-result observation.
 module Exit (isBearerClosed : ErrorId → Bool) where
- private module W = ExitModel isBearerClosed using (State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; base; beginExit; bodyExited; bufferScope; choosePolicy; classifying; cleanup; cleanupComplete; control; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; initial; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; publishAsyncResult; resultAvailable; resultReady; rethrow; run; setSource; shared; shutdown; shutdownStep; source; step)
- private module G = GroupModel isBearerClosed using (abortOwner; abortStage; base; initial; ownerContext; poolAt; step)
- private module MonitorModelAt = MonitorModel isBearerClosed using (base)
- private module U = MuxModel Types.TypedResult using (frames)
- private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; base; noParent)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; base; beginExit; bodyExited; bufferScope; choosePolicy; classifying; cleanup; cleanupComplete; control; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; initial; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; publishAsyncResult; resultAvailable; resultReady; rethrow; run; setSource; shared; shutdown; shutdownStep; source; step)
+ private module G = GroupModel isBearerClosed using (delegateAllowed; run; abortOwner; abortStage; base; initial; ownerContext; poolAt; step)
+ private module MonitorModelAt = MonitorModel isBearerClosed using (delegateAllowed; run; step; base)
+ private module U = MuxModel Types.TypedResult using (base; step; handshakeStep; handshakePending; frames)
+ private module P = ProtocolModel using (run; enterProtocolBody; appendProtocolPayload; egressMuxer; base; noParent)
  private module A = Aux.Exit isBearerClosed using (Valid; exits-present; lower-valid; plain-shutdown-same; resultReady-present)
  view : W.State → Effects.Registry
  view = Effects.ExitLayer.view isBearerClosed
@@ -659,6 +662,23 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  ... | false | _ | _ = case actual of λ ()
  ... | true | nothing | _ = case actual of λ ()
  ... | true | just pair | false = case actual of λ ()
+ -- A blocked helper receipt has an actual pre-existing handler frame.
+ -- Peel only the inherited wrappers; keep the source operation abstract.
+ handshake-backing : ∀ w window err s {t} →
+   G.step (W.handshakeAction w window err) s ≡ just t → Aux.Group.Valid isBearerClosed s →
+   Aux.Present w (Effects.GroupLayer.view isBearerClosed s) ×
+   B.shutdown (U.base (P.base (MonitorModelAt.base (G.base t)))) ≡
+   B.shutdown (U.base (P.base (MonitorModelAt.base (G.base s))))
+ handshake-backing w window err s eq valid with
+   U.step (U.handshakeStep w (HS.continue (HS.cancellation window err)))
+     (P.base (MonitorModelAt.base (G.base s))) in advanced
+ ... | nothing = case eq of λ ()
+ ... | just u with Aux.Mux.direct-shutdown-same
+   (U.handshakeStep w (HS.continue (HS.cancellation window err)))
+   (P.base (MonitorModelAt.base (G.base s))) advanced tt
+ ...   | coordinator-kept with lookup w (U.frames (P.base (MonitorModelAt.base (G.base s)))) in found
+ ...     | nothing = case advanced of λ ()
+ ...     | just f = case just-injective eq of λ { refl → valid w f found , coordinator-kept }
  step-preserves : ∀ a s {t} → W.step a s ≡ just t → A.Valid s → Valid s → Valid t
  step-preserves (W.run a) s eq aux valid with W.delegateAllowed a
  ... | false = case eq of λ ()
@@ -671,6 +691,20 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  step-preserves (W.shutdownStep Close.finishTraversal) s eq aux valid = control-preserves Close.finishTraversal s eq valid (λ ())
  step-preserves (W.shutdownStep Close.finishClose) s eq aux valid = control-preserves Close.finishClose s eq valid (λ ())
  step-preserves (W.shutdownStep Close.acknowledgeDelivery) s () aux valid
+ step-preserves (W.deliverShutdownHandshake window err) s eq aux valid with Close.phase (W.shutdown s) in awaited
+ ... | Close.awaitDelivery e w with G.step (W.handshakeAction w window err) (W.base s) in delivered
+ ...   | nothing = case eq of λ ()
+ ...   | just g = control-preserves Close.acknowledgeDelivery (record s { base = g }) eq
+   (Group.step-preserves isBearerClosed (W.handshakeAction w window err) (W.base s) delivered valid)
+   (λ _ → await-backed {registry = Effects.GroupLayer.view isBearerClosed g}
+     (trans (cong Close.phase (proj₂ (handshake-backing w window err (W.base s) delivered (A.lower-valid {s = s} aux)))) awaited)
+     (present-transport (Effects.GroupLayer.change isBearerClosed (W.handshakeAction w window err) (W.base s) delivered)
+       (proj₁ (handshake-backing w window err (W.base s) delivered (A.lower-valid {s = s} aux)))))
+ step-preserves (W.deliverShutdownHandshake window err) s eq aux valid | Close.initial = case eq of λ ()
+ step-preserves (W.deliverShutdownHandshake window err) s eq aux valid | Close.reading = case eq of λ ()
+ step-preserves (W.deliverShutdownHandshake window err) s eq aux valid | Close.sendReady e w = case eq of λ ()
+ step-preserves (W.deliverShutdownHandshake window err) s eq aux valid | Close.awaitResults = case eq of λ ()
+ step-preserves (W.deliverShutdownHandshake window err) s eq aux valid | Close.closed = case eq of λ ()
  step-preserves (W.deliverShutdownMux err) s eq aux valid with Close.phase (W.shutdown s) in awaited
  ... | Close.awaitDelivery e w with G.step (G.abortOwner w err) (W.base s) in delivered
  ...   | nothing = case eq of λ ()
@@ -697,6 +731,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  step-preserves (W.deliverReleaseMux caller err) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.deliverReleaseMux caller err) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.deliverReleaseMux caller err) s eq tt)) valid)
  step-preserves (W.deliverReleaseTimeWait caller err) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.deliverReleaseTimeWait caller err) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.deliverReleaseTimeWait caller err) s eq tt)) valid)
  step-preserves (W.acknowledgeReleaseFinished caller) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.acknowledgeReleaseFinished caller) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.acknowledgeReleaseFinished caller) s eq tt)) valid)
+ step-preserves (W.finishHandshake w) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.finishHandshake w) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.finishHandshake w) s eq tt)) valid)
  step-preserves (W.beginExit w) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.beginExit w) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.beginExit w) s eq tt)) valid)
  step-preserves (W.observeBufferReturn w) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.observeBufferReturn w) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.observeBufferReturn w) s eq tt)) valid)
  step-preserves (W.observeBufferException w result) s eq aux valid = transport (Effects.ExitLayer.change isBearerClosed (W.observeBufferException w result) s eq) (same-collected {registry = view s} (cong Close.collected (A.plain-shutdown-same (W.observeBufferException w result) s eq tt)) valid)
@@ -749,7 +784,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
 
 module Cancellation (isBearerClosed : ErrorId → Bool) where
  private module X = CancellationModel isBearerClosed using (State; deliver; deliverShutdown; initial; observeCancellation; observeErrorTraceException; run; step; target; traceThrew)
- private module W = ExitModel isBearerClosed using (bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; initial; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown)
+ private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; initial; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown)
  private module A = Aux.Exit isBearerClosed using (Valid; exits-present)
  view : X.State → Effects.Registry
  view = Effects.CancellationLayer.view isBearerClosed
@@ -802,8 +837,8 @@ module Cancellation (isBearerClosed : ErrorId → Bool) where
 module Unwind (isBearerClosed : ErrorId → Bool) where
  private module R = UnwindModel isBearerClosed using (Plan; State; acknowledge; allowed; async; base; beginClose; beginDead; cancellationPlan; choose; commitDead; continueSync; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; finishClose; finishDead; free; handoff; inherited; initial; join; local; machine; observeCancellation; observeDeadTraceException; observeFailure; owner; pool; poolAt; protocols; requestCancel; run; sampleDead; setSource; source; start; step; transfer; writeAsyncFailure)
  private module X = CancellationModel isBearerClosed using (initial; step)
- private module W = ExitModel isBearerClosed using (control; exits; shutdown)
- private module U = MuxModel Types.TypedResult using (handleAllocated; progress; promisePublished; returnedSuccess)
+ private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; control; exits; shutdown)
+ private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handleAllocated; progress; promisePublished; returnedSuccess)
  private module P = ProtocolModel using (enterProtocolBody; appendProtocolPayload; egressMuxer; muxAt; noParent)
  private module A = Aux.Unwind isBearerClosed using (Valid; chosen-nonack; frames-present; lower-valid)
  private module Pool = ProtocolModel.Pool using (step)
@@ -868,6 +903,7 @@ module Unwind (isBearerClosed : ErrorId → Bool) where
  ...       | just path = case just-injective eq of λ { refl → plain-local _ }
  ...       | nothing = case eq of λ ()
  start-plain w result route s eq | true | just f | nothing | true | U.promisePublished hid mid | nothing = case eq of λ ()
+ start-plain w result route s eq | true | just f | nothing | true | (U.handshakePending helperPC) = case eq of λ ()
  start-plain w result route s eq | true | just f | nothing | true | U.returnedSuccess = case eq of λ ()
  start-plain w result route s eq | true | just f | nothing | true | U.handleAllocated hid mid = case eq of λ ()
  start-plain w result route s eq | false | _ | _ | _ = case eq of λ ()

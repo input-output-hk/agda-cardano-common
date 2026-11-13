@@ -39,6 +39,7 @@ import ConnectionManagement.Properties.OutboundHandlerSupervision as Base
 -- negotiated result written for that registration, with its own handle and flow.
 Published : WorkerId → U.Frame → S.State → Set
 Published w f s with U.progress f
+... | (U.handshakePending helperPC0) = ⊤
 ... | U.returnedSuccess = ⊤
 ... | U.handleAllocated hid mid = ⊤
 ... | U.promisePublished hid mid = Σ S.HandlerStart (λ h →
@@ -46,6 +47,7 @@ Published w f s with U.progress f
   lookup (S.handlerPromise h) (S.handshakeResults s) ≡ just (S.negotiated hid (U.flow f)))
 Allocated : U.Frame → IG.Runtime → Set
 Allocated f ig with U.progress f
+... | (U.handshakePending helperPC0) = ⊤
 ... | U.returnedSuccess = ⊤
 ... | U.handleAllocated hid mid = Chain.Anchor (U.captured f) (U.bundle f) (U.flow f) hid mid ig
 ... | U.promisePublished hid mid = Chain.Anchor (U.captured f) (U.bundle f) (U.flow f) hid mid ig
@@ -75,6 +77,7 @@ module Fixed (w : WorkerId) (f : U.Frame) where
  Predicate s ig = Allocated f ig × Published w f s
  stable : ∀ {s s′ ig ig′} → State.Retains s s′ → Tables.Retains ig ig′ → Predicate s ig → Predicate s′ ig′
  stable state tables (a , p) with U.progress f
+ ... | (U.handshakePending helperPC0) = tt , tt
  ... | U.returnedSuccess = tt , tt
  ... | U.handleAllocated hid mid = Chain.anchor-retained tables a , tt
  ... | U.promisePublished hid mid = Chain.anchor-retained tables a ,
@@ -96,11 +99,13 @@ transport ((w , f) ∷ rows) path (good ∷ rest) = execute path w f good ∷ tr
 -- Mutable startup/pool and setup replacement preserve all negotiated content.
 startup-content : ∀ w f startup c → Content w f c → Content w (record f { startup = startup }) c
 startup-content w (U.frame h origin ps flow progress old setup) startup c (content a p) with progress
+... | (U.handshakePending helperPC0) = content tt tt
 ... | U.returnedSuccess = content tt tt
 ... | U.handleAllocated hid mid = content a tt
 ... | U.promisePublished hid mid = content a p
 setup-content : ∀ w f setup c → Content w f c → Content w (record f { setup = setup }) c
 setup-content w (U.frame h origin ps flow progress startup old) setup c (content a p) with progress
+... | (U.handshakePending helperPC0) = content tt tt
 ... | U.returnedSuccess = content tt tt
 ... | U.handleAllocated hid mid = content a tt
 ... | U.promisePublished hid mid = content a p
@@ -134,6 +139,7 @@ publication-writer w result c eq with publication-handler w result c eq
 
 -- Convert the content record back to the unchanged round-three target.
 as-chain : ∀ w f c → Content w f c → Chain.AllocationAt f c
+as-chain w (U.frame h origin ps flow (U.handshakePending helperPC0) startup setup) c good = tt
 as-chain w (U.frame h origin ps flow U.returnedSuccess startup setup) c good = tt
 as-chain w (U.frame h origin ps flow (U.handleAllocated hid mid) startup setup) c good = allocation good
 as-chain w (U.frame h origin ps flow (U.promisePublished hid mid) startup setup) c good = allocation good
@@ -155,6 +161,7 @@ same-stores : ∀ w f c d →
  Content w f c → Content w f d
 same-stores w (U.frame h origin ps flow progress startup setup) c d tables handlers results (content a p)
  with progress
+... | (U.handshakePending helperPC0) = content tt tt
 ... | U.returnedSuccess = content tt tt
 ... | U.handleAllocated hid mid = content (subst (Chain.Anchor h ps flow hid mid) (sym tables) a) tt
 ... | U.promisePublished hid mid = content (subst (Chain.Anchor h ps flow hid mid) (sym tables) a)

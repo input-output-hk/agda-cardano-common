@@ -16,6 +16,7 @@ open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; subst)
 open import ConnectionManagement.Domain
 open import ConnectionManagement.Store using (lookup)
+import ConnectionManagement.Rules.HandshakeContinuation as HS
 import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -57,6 +58,10 @@ enact-keys (W.inherited a) s eq with G.step a (W.base s) in stepped
 ... | nothing = case eq of λ ()
 ... | just g = case just-injective eq of λ { refl → Lower.step-keysG a (W.base s) stepped }
 enact-keys (W.coordinator a) s eq = control-keys a s eq
+enact-keys (W.handshakeDelivery w window err) s eq with G.step (W.handshakeAction w window err) (W.base s) in stepped
+... | nothing = case eq of λ ()
+... | just g = same-trans (Lower.step-keysG (W.handshakeAction w window err) (W.base s) stepped)
+  (control-keys Close.acknowledgeDelivery (record s { base = g }) eq)
 enact-keys (W.muxDelivery w err) s eq with G.step (G.abortOwner w err) (W.base s) in stepped
 ... | nothing = case eq of λ ()
 ... | just g = same-trans (Lower.step-keysG (G.abortOwner w err) (W.base s) stepped)
@@ -84,6 +89,19 @@ choose-root : ∀ a s {plan} → W.choose a s ≡ just plan → planRoot plan �
 choose-root (W.run a) s eq with W.delegateAllowed a
 ... | true = case just-injective eq of λ { refl → refl }
 ... | false = case eq of λ ()
+choose-root (W.finishHandshake w) s eq with lookup w (W.exits s) in absent | lookup w (U.frames (P.base (G.protocolState (W.base s)))) in found
+... | nothing | just f with U.progress f
+...   | U.handshakePending (HS.exited result HS.normal) = case just-injective eq of λ { refl → refl }
+...   | U.handshakePending (HS.exited result (HS.sync err)) = case just-injective eq of λ { refl → refl }
+...   | U.handshakePending (HS.exited result (HS.async err)) = case just-injective eq of λ { refl → refl }
+choose-root (W.finishHandshake w) s eq | nothing | just f | U.handshakePending (HS.returned result) = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | nothing | just f | U.handshakePending (HS.published result) = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | nothing | just f | U.handshakePending HS.sleeping = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | nothing | just f | U.returnedSuccess = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | nothing | just f | U.handleAllocated hid mid = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | nothing | just f | U.promisePublished hid mid = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | nothing | nothing = case eq of λ ()
+choose-root (W.finishHandshake w) s eq | just old | _ = case eq of λ ()
 choose-root (W.beginExit w) s eq with lookup w (W.exits s) | lookup w (U.frames (P.base (G.protocolState (W.base s)))) |
   G.phase (G.frameAt w (W.base s)) | Pool.phase (W.poolAt w s)
 ... | nothing | just f | G.scopeDone outcome | Pool.closedPool with lookup w (Shared.handlers (W.shared s))
@@ -287,6 +305,13 @@ choose-root (W.shutdownStep Close.readEntry) s eq = case just-injective eq of λ
 choose-root (W.shutdownStep Close.requestCancellation) s eq = case just-injective eq of λ { refl → refl }
 choose-root (W.shutdownStep Close.finishTraversal) s eq = case just-injective eq of λ { refl → refl }
 choose-root (W.shutdownStep Close.finishClose) s eq = case just-injective eq of λ { refl → refl }
+choose-root (W.deliverShutdownHandshake window err) s eq with Close.phase (W.shutdown s)
+... | Close.awaitDelivery e w = case just-injective eq of λ { refl → refl }
+choose-root (W.deliverShutdownHandshake window err) s eq | Close.initial = case eq of λ ()
+choose-root (W.deliverShutdownHandshake window err) s eq | Close.reading = case eq of λ ()
+choose-root (W.deliverShutdownHandshake window err) s eq | Close.awaitResults = case eq of λ ()
+choose-root (W.deliverShutdownHandshake window err) s eq | Close.closed = case eq of λ ()
+choose-root (W.deliverShutdownHandshake window err) s eq | Close.sendReady _ _ = case eq of λ ()
 choose-root (W.deliverShutdownMux err) s eq with Close.phase (W.shutdown s)
 ... | Close.awaitDelivery e w = case just-injective eq of λ { refl → refl }
 choose-root (W.deliverShutdownMux err) s eq | Close.initial = case eq of λ ()

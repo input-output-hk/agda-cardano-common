@@ -9,7 +9,7 @@ module ConnectionManagement.Properties.LivePromiseCore (observedPromise : Promis
 
 open import ConnectionManagement.State using
   (State; promises; admissionWorker; acquireMap; count; prepare; selectEntry; forkHandler; publish;
-   reject; hardLimitReached; forbidden; forkFailed; closeSocket; finished; countPublished;
+   reject; hardLimitReached; forbidden; bodyFailed; forkFailed; closeSocket; finished; countPublished;
    awaitHandshake; commitHandshake; countHandshake; notifyInbound; returnHandshake;
    completedHandshake; impossibleHandshake; cm; savedMap; countIncoming; entries; hardLimit;
    nextPromise; handlers; admissions; key; child; mapCell; full; taken; insertConnection; owner;
@@ -50,6 +50,7 @@ module AdmissionPart where
  admission-preserves Server.take w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.take w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.take w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.take w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.take w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.take w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.take w (admissionWorker r (finished reason)) s () allocated
@@ -71,6 +72,7 @@ module AdmissionPart where
  admission-preserves Server.countLimit w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.countLimit w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.countLimit w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.countLimit w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.countLimit w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.countLimit w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.countLimit w (admissionWorker r (finished reason)) s () allocated
@@ -94,6 +96,7 @@ module AdmissionPart where
  admission-preserves Server.allocatePromise w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.allocatePromise w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.allocatePromise w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.allocatePromise w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.allocatePromise w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.allocatePromise w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.allocatePromise w (admissionWorker r (finished reason)) s () allocated
@@ -114,6 +117,7 @@ module AdmissionPart where
  admission-preserves Server.chooseEntry w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.chooseEntry w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.chooseEntry w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.chooseEntry w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.chooseEntry w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.chooseEntry w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.chooseEntry w (admissionWorker r (finished reason)) s () allocated
@@ -136,6 +140,7 @@ module AdmissionPart where
  admission-preserves Server.fork w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.fork w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.fork w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.fork w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.fork w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.fork w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.fork w (admissionWorker r (finished reason)) s () allocated
@@ -158,6 +163,7 @@ module AdmissionPart where
  admission-preserves Server.failFork w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.failFork w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.failFork w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.failFork w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.failFork w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.failFork w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.failFork w (admissionWorker r (finished reason)) s () allocated
@@ -178,6 +184,7 @@ module AdmissionPart where
  admission-preserves Server.readCounters w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.readCounters w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.readCounters w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.readCounters w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.readCounters w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.readCounters w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.readCounters w (admissionWorker r (finished reason)) s () allocated
@@ -201,6 +208,7 @@ module AdmissionPart where
  admission-preserves Server.close w (admissionWorker r (publish l p e)) s () allocated
  admission-preserves Server.close w (admissionWorker r (reject l hardLimitReached)) s () allocated
  admission-preserves Server.close w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.close w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.close w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.close w (admissionWorker r (finished reason)) s () allocated
  admission-preserves Server.close w (admissionWorker r (countPublished p e)) s () allocated
@@ -218,6 +226,7 @@ module AdmissionPart where
  admission-preserves Server.putMapBack w (admissionWorker r (selectEntry l p)) s () allocated
  admission-preserves Server.putMapBack w (admissionWorker r (forkHandler l p e)) s () allocated
  admission-preserves Server.putMapBack w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.putMapBack w (admissionWorker r (reject l bodyFailed)) s () allocated
  admission-preserves Server.putMapBack w (admissionWorker r (reject l forkFailed)) s () allocated
  admission-preserves Server.putMapBack w (admissionWorker r (closeSocket reason)) s () allocated
  admission-preserves Server.putMapBack w (admissionWorker r (finished reason)) s () allocated
@@ -255,10 +264,43 @@ module AdmissionPart where
  admission-preserves Server.restore w (admissionWorker r (reject l forbidden)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
  ... | nothing = case eq of λ ()
  ... | just c′ = subst Allocated (just-injective eq) allocated
+ admission-preserves Server.restore w (admissionWorker r (reject l bodyFailed)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = subst Allocated (just-injective eq) allocated
  admission-preserves Server.restore w (admissionWorker r (reject l forkFailed)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
  ... | nothing = case eq of λ ()
  ... | just c′ = subst Allocated (just-injective eq) allocated
 
+ admission-preserves Server.restoreBody w (admissionWorker r (count l)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = subst Allocated (just-injective eq) allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (prepare l)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = subst Allocated (just-injective eq) allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (selectEntry l p)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = subst Allocated (just-injective eq) allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (forkHandler l p e)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = subst Allocated (just-injective eq) allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (publish l p e)) s eq allocated with CM.putMap l (savedMap l) (cm s) in putEq
+ ... | nothing = case eq of λ ()
+ ... | just c′ = subst Allocated (just-injective eq) allocated
+ admission-preserves Server.restoreBody w (admissionWorker r acquireMap) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (reject l hardLimitReached)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (closeSocket reason)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (finished reason)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (countPublished p e)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (awaitHandshake p e)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (commitHandshake e result)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (countHandshake result)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (notifyInbound info)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (returnHandshake result)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (completedHandshake result)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r impossibleHandshake) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (reject l forbidden)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (reject l bodyFailed)) s () allocated
+ admission-preserves Server.restoreBody w (admissionWorker r (reject l forkFailed)) s () allocated
 -- Cleanup can replace entries and close sockets, but keeps allocated cells.
 module CleanupPart where
  open import Data.Maybe using (just; nothing)

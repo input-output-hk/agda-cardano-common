@@ -423,6 +423,14 @@ grantEffect mid b EgressKernel.grantFast k bytes bs with queueFree k (waiting bs
 ... | true = just (charge (grantKind k) mid b bytes bs)
 ... | false = nothing
 grantEffect mid b EgressKernel.armTimer k bytes bs = just (record bs { armed = put (mid , b) true (armed bs) })
+-- Expiry consumes the active refresh timer, retaining the queued request.
+-- The kernel continuation prevents a duplicate expiry or a grant before rearm.
+grantEffect mid b EgressKernel.refreshExpired k bytes bs with lookup (mid , b) (armed bs) | lookup (mid , b) (waiting bs)
+... | just _ | just _ = just (record bs { armed = delete (mid , b) (armed bs) })
+... | _ | _ = nothing
+grantEffect mid b EgressKernel.rearmRefresh k bytes bs with lookup (mid , b) (waiting bs) | lookup (mid , b) (armed bs)
+... | just _ | nothing = just (record bs { armed = put (mid , b) true (armed bs) })
+... | _ | _ = nothing
 grantEffect mid b EgressKernel.grantQueued k bytes bs with lookup (mid , b) (waiting bs)
 ... | just _ = just (charge (grantKind k) mid b bytes (record bs { waiting = delete (mid , b) (waiting bs) }))
 ... | nothing = nothing

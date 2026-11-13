@@ -114,6 +114,7 @@ owner-context w s eq with lookup w (U.frames (P.base (M.base s))) in found
 ... | just f with U.progress f in progress | P.monitoring f
 ...   | U.promisePublished hid mid | Data.Bool.true = case just-injective eq of λ { refl → owner f hid mid found progress }
 ...   | U.promisePublished hid mid | Data.Bool.false = case eq of λ ()
+...   | (U.handshakePending helperPC) | _ = case eq of λ ()
 ...   | U.returnedSuccess | _ = case eq of λ ()
 ...   | U.handleAllocated hid mid | _ = case eq of λ ()
 

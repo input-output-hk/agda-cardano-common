@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- Successful-handshake startup prefix over actual physical handler births.
+-- Physical handshake outcomes and mux startup over actual handler births.
 -- Existing pre-handshake phases remain untouched; a captured success frame
 -- protects that handler until a future protocol/unwind adapter extends it.
 module ConnectionManagement.MuxHandlerSupervision (Result : Set) where
@@ -29,12 +29,14 @@ import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.MuxStartup as StartupRules
 import ConnectionManagement.Rules.MuxRuntime as MuxRuntime
 import ConnectionManagement.Rules.MuxEgress as E
+import ConnectionManagement.Rules.HandshakeContinuation as HS
 module Startup = StartupRules Result
 
 -- The immutable birth origin chooses inbound vs mode/flow-sensitive outbound
 -- tracer attachment. A current CM entry can legitimately belong to a successor.
 data Progress : Set where
   returnedSuccess : Progress
+  handshakePending : HS.PC → Progress
   handleAllocated promisePublished : HandleId → MuxId → Progress
 -- Scheduled-egress setup inside newMux, after newWithEgress and before the
 -- promise write (ConnectionHandler.hs:306-339 at network 2f1c154):
@@ -111,6 +113,7 @@ shutdownTargetAllowed s with Close.phase (B.shutdown (base s))
 frameMux : Frame → Maybe MuxId
 frameMux f with progress f
 ... | returnedSuccess = nothing
+... | handshakePending _ = nothing
 ... | handleAllocated hid mid = just mid
 ... | promisePublished hid mid = just mid
 hasMux : MuxId → Store WorkerId Frame → Bool
@@ -173,6 +176,40 @@ negotiateReturned w ps negotiatedFlow s with lookup w (B.threads (base s)) |
   (frame (H.captured t) origin ps negotiatedFlow returnedSuccess Startup.initial setupPending) s)
 ...   | _ = nothing
 negotiateReturned w ps negotiatedFlow s | _ | _ | _ = nothing
+-- Helper outcomes claim the original physical thread without allocating a
+-- negotiated handle/mux. The existing unframed guard seals the raw fallback.
+-- The empty bundle/flow fields are inert: negotiated operations require one
+-- of their original Progress constructors and refuse handshakePending.
+captureHandshake : WorkerId → HS.PC → State → Maybe State
+captureHandshake w pc s with lookup w (B.threads (base s)) | lookup w (origins s) | lookup w (frames s)
+... | just t | just origin | nothing with H.phase t
+...   | H.handshaking = just (setFrame w
+  (frame (H.captured t) origin [] unidirectional (handshakePending pc) Startup.initial setupPending) s)
+...   | _ = nothing
+captureHandshake w pc s | _ | _ | _ = nothing
+
+-- Publication is the actual Machine writer and can refuse. Other helper
+-- continuations change only the claimed frame and keep its startup pool empty.
+advanceHandshake : WorkerId → HS.Action → State → Maybe State
+advanceHandshake w action s with lookup w (frames s)
+... | just f with progress f
+...   | handshakePending pc with HS.step action pc
+...     | just (next , nothing) = just (setFrame w (record f { progress = handshakePending next }) s)
+...     | just (next , just result) with O.advance
+  (O.inbound (M.handlerPublication w (HS.asResult result) M.resultWritten)) (source s)
+...       | just c = just (setFrame w (record f { progress = handshakePending next }) (setSource c s))
+...       | nothing = nothing
+advanceHandshake w action s | just f | handshakePending pc | nothing = nothing
+advanceHandshake w action s | just f | _ = nothing
+advanceHandshake w action s | nothing = nothing
+handshakeFor : WorkerId → HS.Event → State → Maybe State
+handshakeFor w (HS.limitReturned kind err) s = captureHandshake w (HS.returned (HS.protocolLimit kind err)) s
+handshakeFor w (HS.bearerTimedOut err) s = captureHandshake w (HS.returned (HS.bearerTimeout err)) s
+handshakeFor w HS.queryReturned s with lookup w (origins s)
+... | just inbound = captureHandshake w (HS.returned HS.query) s
+... | _ = nothing
+handshakeFor w (HS.continue action) s = advanceHandshake w action s
+
 allocationAction : Frame → HandleId → MuxId → IG.IGAction
 allocationAction f hid mid with birthProvenance f
 ... | inbound = IG.installHandle hid mid (Shared.handlerKey (captured f)) (bundle f) (flow f)
@@ -318,6 +355,7 @@ advanceStartup w action s with lookup w (frames s)
 advanceStartup w action s | just f | _ | _ = nothing
 
 data Action : Set where
+  handshakeStep : WorkerId → HS.Event → Action
   run : B.Action → Action
   negotiate : WorkerId → List Protocol → DataFlow → Action
   allocateHandle : WorkerId → HandleId → MuxId → Action
@@ -327,6 +365,7 @@ data Action : Set where
   publishSuccess : WorkerId → Action
   startupStep : WorkerId → Startup.Action → Action
 step : Action → State → Maybe State
+step (handshakeStep w event) s = handshakeFor w event s
 step (run action) s = inherit action s
 step (negotiate w ps negotiatedFlow) s = negotiateReturned w ps negotiatedFlow s
 step (allocateHandle w hid mid) s = allocate w hid mid s

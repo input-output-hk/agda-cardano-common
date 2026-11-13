@@ -25,6 +25,7 @@ import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.HandlerSupervision as H
 import ConnectionManagement.OutboundHandlerSupervision as B
 import ConnectionManagement.Rules.Cleanup as Cleanup
+import ConnectionManagement.Rules.HandshakeContinuation as HS
 import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.HandlerLifecycle as Life
@@ -128,12 +129,17 @@ phaseAfterBuffer (G.asyncExit err) = bodyExited (asyncException err)
 
 -- Plans keep actual source effects separate from local bookkeeping. The only
 -- interpreter below executes the real operation; a failed operation stays failed.
+-- Exact group label used for a blocked handshake-helper receipt.
+handshakeAction : WorkerId → HS.Window → ErrorId → G.Action
+handshakeAction w window err = G.run (M.run (P.run (U.handshakeStep w (HS.continue (HS.cancellation window err)))))
+
 data Plan : Set where
   local : Store WorkerId Frame → Plan
   machine : O.Action → Store WorkerId Frame → Plan
   inherited : G.Action → Plan
   coordinator : Close.Action → Plan
   muxDelivery : WorkerId → ErrorId → Plan
+  handshakeDelivery : WorkerId → HS.Window → ErrorId → Plan
   timeWaitDelivery : WorkerId → ErrorId → Plan
   releaseDelivery : WorkerId → WorkerId → ErrorId → Plan
   releaseTimeWaitDelivery : WorkerId → WorkerId → ErrorId → Plan
@@ -168,7 +174,8 @@ delegateAllowed _ = true
 
 data Action : Set where
   run : G.Action → Action
-  beginExit observeBufferReturn : WorkerId → Action
+  beginExit observeBufferReturn finishHandshake : WorkerId → Action
+  deliverShutdownHandshake : HS.Window → ErrorId → Action
   observeBufferException : WorkerId → G.Outcome → Action
   choosePolicy : WorkerId → Life.Policy → Action
   observeErrorTrace observeNodeDelivery rethrow enterFinalizer finishCleanup publishAsyncResult : WorkerId → Action
@@ -203,6 +210,22 @@ choose : Action → State → Maybe Plan
 choose (run action) s with delegateAllowed action
 ... | true = just (inherited action)
 ... | false = nothing
+-- CM throwTo receipt remains separate from body/finalizer/result completion.
+choose (deliverShutdownHandshake window err) s with Close.phase (shutdown s)
+... | Close.awaitDelivery e w = just (handshakeDelivery w window err)
+... | _ = nothing
+-- A helper timeout/query never entered newMux or the buffer/pool brackets.
+-- Transfer its completed body to the existing actual outer finally/result path.
+choose (finishHandshake w) s with lookup w (exits s) | lookup w (U.frames (P.base (G.protocolState (base s))))
+... | nothing | just f with U.progress f
+...   | U.handshakePending (HS.exited result HS.normal) = just (local (put w
+  (exitFrame (U.captured f) (bodyExited returned) nothing) (exits s)))
+...   | U.handshakePending (HS.exited result (HS.sync err)) = just (local (put w
+  (exitFrame (U.captured f) (classifying err) nothing) (exits s)))
+...   | U.handshakePending (HS.exited result (HS.async err)) = just (local (put w
+  (exitFrame (U.captured f) (bodyExited (asyncException err)) nothing) (exits s)))
+...   | _ = nothing
+choose (finishHandshake w) s | _ | _ = nothing
 choose (beginExit w) s with lookup w (exits s) | lookup w (U.frames (P.base (G.protocolState (base s)))) |
   G.phase (G.frameAt w (base s)) | Pool.phase (poolAt w s)
 ... | nothing | just f | G.scopeDone outcome | Pool.closedPool with lookup w (Shared.handlers (shared s))
@@ -317,6 +340,10 @@ enact (inherited action) s with G.step action (base s)
 ... | nothing = nothing
 ... | just g = just (record s { base = g })
 enact (coordinator action) s = control action s
+enact (handshakeDelivery w window err) s with G.step
+  (handshakeAction w window err) (base s)
+... | nothing = nothing
+... | just g = control Close.acknowledgeDelivery (record s { base = g })
 enact (muxDelivery w err) s with G.step (G.abortOwner w err) (base s)
 ... | nothing = nothing
 ... | just g = control Close.acknowledgeDelivery (record s { base = g })

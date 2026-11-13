@@ -84,6 +84,23 @@ inherit-quiet a s eq with S.allowed a s
 ...   | just n = case just-injective eq of λ { refl → publication-quiet a (S.base s) advanced }
 
 -- Return, exception and result observations change only raw-worker metadata.
+body-restore-quiet : ∀ w s {t} → S.restoreWorker w s ≡ just t → QS s → QS t
+body-restore-quiet w s eq with lookup w (S.workers s)
+... | nothing = case eq of λ ()
+... | just worker with S.pc worker
+...   | S.closePrefix Shared.bodyFailed (S.raised fault) with N.step (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) in actual
+...     | nothing = case eq of λ ()
+...     | just n = case just-injective eq of λ { refl → publication-quiet (S.runMachine (Machine.admissionStep w Admission.restoreBody)) (S.base s) actual }
+body-restore-quiet w s eq | just worker | S.calling = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.closeDisconnected = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.closeException fault = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.closePrefix Shared.hardLimitReached result = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.closePrefix Shared.forbidden result = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.closePrefix Shared.forkFailed result = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.closePrefix Shared.bodyFailed S.returned = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.bodyExited result = case eq of λ ()
+body-restore-quiet w s eq | just worker | S.resultAvailable result = case eq of λ ()
+
 return-quiet : ∀ w s {t} → S.observeReturn w s ≡ just t → QS s → QS t
 return-quiet w s eq with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
 ... | just worker | just a with S.pc worker | Shared.pc a
@@ -132,6 +149,7 @@ prefix-return-quiet w s eq with lookup w (S.workers s) | lookup w (Shared.admiss
 ...   | S.calling | Shared.returnHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.completedHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.impossibleHandshake = case eq of λ ()
+...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forbidden = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forkFailed = case eq of λ ()
 ...   | S.closeDisconnected | _ = case eq of λ ()
@@ -144,6 +162,7 @@ prefix-return-quiet w s eq | just _ | nothing = case eq of λ ()
 prefix-exception-quiet : ∀ w err s {t} → S.prefixException w err s ≡ just t → QS s → QS t
 prefix-exception-quiet w err s eq with lookup w (S.workers s) | lookup w (Shared.admissions (S.shared s))
 ... | just worker | just a with S.pc worker | Shared.pc a
+...   | S.calling | Shared.closeSocket Shared.bodyFailed = case eq of λ ()
 ...   | S.calling | Shared.closeSocket Shared.forbidden = case just-injective eq of λ { refl → λ q → q }
 ...   | S.calling | Shared.closeSocket Shared.forkFailed = case just-injective eq of λ { refl → λ q → q }
 ...   | S.calling | Shared.acquireMap = case eq of λ ()
@@ -175,15 +194,15 @@ exception-quiet w err s eq with lookup w (S.workers s) | lookup w (Shared.admiss
 ... | just worker | just a with S.pc worker | Shared.pc a
 ...   | S.calling | Shared.awaitHandshake _ _ = case just-injective eq of λ { refl → λ q → q }
 ...   | S.calling | Shared.acquireMap = case eq of λ ()
-...   | S.calling | Shared.count _ = case eq of λ ()
-...   | S.calling | Shared.prepare _ = case eq of λ ()
-...   | S.calling | Shared.selectEntry _ _ = case eq of λ ()
-...   | S.calling | Shared.forkHandler _ _ _ = case eq of λ ()
-...   | S.calling | Shared.publish _ _ _ = case eq of λ ()
+...   | S.calling | Shared.count _ = case just-injective eq of λ { refl → λ q → q }
+...   | S.calling | Shared.prepare _ = case just-injective eq of λ { refl → λ q → q }
+...   | S.calling | Shared.selectEntry _ _ = case just-injective eq of λ { refl → λ q → q }
+...   | S.calling | Shared.forkHandler _ _ _ = case just-injective eq of λ { refl → λ q → q }
+...   | S.calling | Shared.publish _ _ _ = case just-injective eq of λ { refl → λ q → q }
 ...   | S.calling | Shared.reject _ _ = case eq of λ ()
 ...   | S.calling | Shared.closeSocket _ = case eq of λ ()
 ...   | S.calling | Shared.finished _ = case eq of λ ()
-...   | S.calling | Shared.countPublished _ _ = case eq of λ ()
+...   | S.calling | Shared.countPublished _ _ = case just-injective eq of λ { refl → λ q → q }
 ...   | S.calling | Shared.commitHandshake _ _ = case eq of λ ()
 ...   | S.calling | Shared.countHandshake _ = case eq of λ ()
 ...   | S.calling | Shared.notifyInbound _ = case eq of λ ()
@@ -240,16 +259,29 @@ scope-parts : ∀ x s {t} → S.scopeAdvance x s ≡ just t →
 scope-parts x s eq with S.chooseScope x s
 ... | nothing = case eq of λ ()
 ... | just p = p , refl , eq
+-- Socket-only scopes retain this observer; physical scopes use the old lift.
+enact-scope-quiet : ∀ p s {t} → S.enactScope p s ≡ just t → QS s → QS t
+enact-scope-quiet (S.scopePlan st keep ig nothing) s eq = case just-injective eq of λ { refl → λ q → q }
+enact-scope-quiet (S.scopePlan st keep ig (just a)) s eq with N.step a (S.base s) in advanced
+... | nothing = case eq of λ ()
+... | just n = case just-injective eq of λ { refl → publication-quiet a (S.base s) advanced }
+enact-scope-quiet (S.socketScopePlan st keep ig sock owner) s eq = case just-injective eq of λ { refl → λ q → q }
 scope-quiet : ∀ x s {t} → S.scopeAdvance x s ≡ just t → QS s → QS t
 scope-quiet x s eq with S.chooseScope x s
 ... | nothing = case eq of λ ()
-... | just p with S.physicalAction p
-...   | nothing = case just-injective eq of λ { refl → λ q → q }
-...   | just a with N.step a (S.base s) in advanced
-...     | nothing = case eq of λ ()
-...     | just n = case just-injective eq of λ { refl → publication-quiet a (S.base s) advanced }
+... | just p = enact-scope-quiet p s eq
+-- Pre-birth close preserves this observation.
+fork-close-quiet : ∀ outcome s {t} → S.closeFailedFork outcome s ≡ just t → QS s → QS t
+fork-close-quiet outcome s eq with S.failedForkSocket s
+... | nothing = case eq of λ ()
+... | just sock with S.isAcceptedSocket sock s
+...   | false = case eq of λ ()
+...   | true = case just-injective eq of λ { refl → λ q → q }
+
 server-quiet : ∀ a s {t} → S.step a s ≡ just t → QS s → QS t
+server-quiet (S.closeForkFailure outcome) s eq = fork-close-quiet outcome s eq
 server-quiet (S.acceptedFork w req) s eq = fork-quiet w req s eq
+server-quiet (S.workerRestore w) s eq = body-restore-quiet w s eq
 server-quiet (S.run a) s eq = inherit-quiet a s eq
 server-quiet (S.workerReturned w) s eq = return-quiet w s eq
 server-quiet (S.workerPrefixReturned w) s eq = prefix-return-quiet w s eq

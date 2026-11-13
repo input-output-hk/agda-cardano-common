@@ -232,6 +232,7 @@ worker-retains S.putMapBack w (admissionWorker r (returnHandshake result)) s ()
 worker-retains S.putMapBack w (admissionWorker r (completedHandshake result)) s ()
 worker-retains S.putMapBack w (admissionWorker r impossibleHandshake) s ()
 worker-retains S.putMapBack w (admissionWorker r (reject l forbidden)) s ()
+worker-retains S.putMapBack w (admissionWorker r (reject l bodyFailed)) s ()
 worker-retains S.putMapBack w (admissionWorker r (reject l forkFailed)) s ()
 worker-retains S.putMapBack w a@(admissionWorker r (publish l p e)) s eq with CM.putMap l (insertConnection (key r) e (savedMap l)) (cm s) in putEq
 ... | nothing = case eq of λ ()
@@ -259,10 +260,43 @@ worker-retains S.restore w (admissionWorker r (reject l hardLimitReached)) s ()
 worker-retains S.restore w a@(admissionWorker r (reject l forbidden)) s eq with CM.restoreMap l (cm s) in putEq
 ... | nothing = case eq of λ ()
 ... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
+worker-retains S.restore w a@(admissionWorker r (reject l bodyFailed)) s eq with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
 worker-retains S.restore w a@(admissionWorker r (reject l forkFailed)) s eq with CM.restoreMap l (cm s) in putEq
 ... | nothing = case eq of λ ()
 ... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
 
+worker-retains S.restoreBody w a@(admissionWorker r (count l)) s eq with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
+worker-retains S.restoreBody w a@(admissionWorker r (prepare l)) s eq with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
+worker-retains S.restoreBody w a@(admissionWorker r (selectEntry l p)) s eq with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
+worker-retains S.restoreBody w a@(admissionWorker r (forkHandler l p e)) s eq with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
+worker-retains S.restoreBody w a@(admissionWorker r (publish l p e)) s eq with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst (Retains s) (just-injective eq) (reframe _ refl refl (λ ref present → subst (Present ref) (sym (put-entries l (savedMap l) (cm s) putEq)) present) (λ _ p → p))
+worker-retains S.restoreBody w (admissionWorker r acquireMap) s ()
+worker-retains S.restoreBody w (admissionWorker r (closeSocket reason)) s ()
+worker-retains S.restoreBody w (admissionWorker r (finished reason)) s ()
+worker-retains S.restoreBody w (admissionWorker r (countPublished p e)) s ()
+worker-retains S.restoreBody w (admissionWorker r (awaitHandshake p e)) s ()
+worker-retains S.restoreBody w (admissionWorker r (commitHandshake e result)) s ()
+worker-retains S.restoreBody w (admissionWorker r (countHandshake result)) s ()
+worker-retains S.restoreBody w (admissionWorker r (notifyInbound info)) s ()
+worker-retains S.restoreBody w (admissionWorker r (returnHandshake result)) s ()
+worker-retains S.restoreBody w (admissionWorker r (completedHandshake result)) s ()
+worker-retains S.restoreBody w (admissionWorker r impossibleHandshake) s ()
+worker-retains S.restoreBody w (admissionWorker r (reject l hardLimitReached)) s ()
+worker-retains S.restoreBody w a@(admissionWorker r (reject l forbidden)) s ()
+worker-retains S.restoreBody w a@(admissionWorker r (reject l bodyFailed)) s ()
+worker-retains S.restoreBody w a@(admissionWorker r (reject l forkFailed)) s ()
 -- Successful admission steps only replace the world; the IG is unchanged.
 step-effects : ∀ w a c {c′} → advance (admissionStep w a) c ≡ just c′ →
   Retains (world c) (world c′) × inboundGovernor c′ ≡ inboundGovernor c

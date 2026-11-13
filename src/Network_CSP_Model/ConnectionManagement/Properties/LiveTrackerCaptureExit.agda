@@ -20,6 +20,7 @@ open import ConnectionManagement.Store using (Store; lookup; put)
 open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other; lookup-head)
 import ConnectionManagement.Rules.MuxEgress as EgressLayout
+import ConnectionManagement.Rules.HandshakeContinuation as HS
 import ConnectionManagement.State as S
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
@@ -44,10 +45,10 @@ import ConnectionManagement.Properties.HandlerAuxBacking as Presence
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 module Exit (isBearerClosed : ErrorId → Bool) where
- private module W = ExitModel isBearerClosed using (Action; Frame; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; releaseTarget; timeWaitTarget; releaseDelivery; releaseTimeWaitDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; countersClear; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; Action; Frame; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; releaseTarget; timeWaitTarget; releaseDelivery; releaseTimeWaitDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; countersClear; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery)
  private module G = GroupModel isBearerClosed using (abortOwner; asyncDeadTracing; asyncExit; asyncFailureWritten; drainReady; draining; failedExit; frameAt; groupClosing; idle; initial; monitorReturnedNormal; normalExit; ownerAborting; phase; protocolState; scopeDone; setPool; shutdownSelected; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; wholeClosed; wholeClosing)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base)
- private module U = P.U using (captured; frames)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; captured; frames)
  private module Pool = P.Pool using (cancelPending; closedPool; closing; joinPending; openPool; phase)
  private module Lower = Group isBearerClosed using (Valid; initialized-valid; step-preserves; direct-shutdown-same)
  view : W.State → Birth.Registry
@@ -84,6 +85,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
   safe-machine : ∀ {a fs s} → Covers fs (view s) → PlanSafe (W.machine a fs) s
   safe-inherited : ∀ {a s} → PlanSafe (W.inherited a) s
   safe-coordinator : ∀ {a s} → PlanSafe (W.coordinator a) s
+  safe-handshakeDelivery : ∀ {w window err s} → PlanSafe (W.handshakeDelivery w window err) s
   safe-muxDelivery : ∀ {w err s} → PlanSafe (W.muxDelivery w err) s
   safe-timeWaitDelivery : ∀ {w err s} → PlanSafe (W.timeWaitDelivery w err) s
   safe-releaseDelivery : ∀ {caller worker err s} → PlanSafe (W.releaseDelivery caller worker err) s
@@ -99,6 +101,12 @@ module Exit (isBearerClosed : ErrorId → Bool) where
    covers-retained {rows = W.exits s} {before = view s} {after = Birth.GroupLayer.view isBearerClosed g}
      (change-retains (Birth.GroupLayer.change isBearerClosed a (W.base s) actual)) (proj₂ valid) }
  enact-preserves (W.coordinator a) s eq valid safe-coordinator = control-preserves a s eq valid
+ enact-preserves (W.handshakeDelivery w window err) s eq valid safe-handshakeDelivery with G.step (W.handshakeAction w window err) (W.base s) in actual
+ ... | nothing = case eq of λ ()
+ ... | just g = control-preserves Close.acknowledgeDelivery (record s { base = g }) eq
+   (Lower.step-preserves (W.handshakeAction w window err) (W.base s) actual (proj₁ valid) ,
+    covers-retained {rows = W.exits s} {before = view s} {after = Birth.GroupLayer.view isBearerClosed g}
+     (change-retains (Birth.GroupLayer.change isBearerClosed (W.handshakeAction w window err) (W.base s) actual)) (proj₂ valid))
  enact-preserves (W.muxDelivery w err) s eq valid safe-muxDelivery with G.step (G.abortOwner w err) (W.base s) in actual
  ... | nothing = case eq of λ ()
  ... | just g = control-preserves Close.acknowledgeDelivery (record s { base = g }) eq
@@ -131,6 +139,19 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  choose-safe (W.run a) s eq valid with W.delegateAllowed a
  ... | true = case just-injective eq of λ { refl → safe-inherited }
  ... | false = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid with lookup w (W.exits s) in absent | lookup w (U.frames (P.base (G.protocolState (W.base s)))) in found
+ ... | nothing | just f with U.progress f
+ ...   | U.handshakePending (HS.exited result HS.normal) = case just-injective eq of λ { refl → safe-local (covers-put w _ (W.exits s) (view s) (covers-at (frames-present {s = s} valid) w f found) (proj₂ valid)) }
+ ...   | U.handshakePending (HS.exited result (HS.sync err)) = case just-injective eq of λ { refl → safe-local (covers-put w _ (W.exits s) (view s) (covers-at (frames-present {s = s} valid) w f found) (proj₂ valid)) }
+ ...   | U.handshakePending (HS.exited result (HS.async err)) = case just-injective eq of λ { refl → safe-local (covers-put w _ (W.exits s) (view s) (covers-at (frames-present {s = s} valid) w f found) (proj₂ valid)) }
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handshakePending (HS.returned result) = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handshakePending (HS.published result) = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handshakePending HS.sleeping = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.returnedSuccess = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.handleAllocated hid mid = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | just f | U.promisePublished hid mid = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | nothing | nothing = case eq of λ ()
+ choose-safe (W.finishHandshake w) s eq valid | just old | _ = case eq of λ ()
  choose-safe (W.beginExit w) s eq valid with lookup w (W.exits s) | lookup w (U.frames (P.base (G.protocolState (W.base s)))) in found |
    G.phase (G.frameAt w (W.base s)) | Pool.phase (W.poolAt w s)
  ... | nothing | just f | G.scopeDone outcome | Pool.closedPool with lookup w (S.handlers (W.shared s))
@@ -334,6 +355,13 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  choose-safe (W.shutdownStep Close.requestCancellation) s eq valid = case just-injective eq of λ { refl → safe-coordinator }
  choose-safe (W.shutdownStep Close.finishTraversal) s eq valid = case just-injective eq of λ { refl → safe-coordinator }
  choose-safe (W.shutdownStep Close.finishClose) s eq valid = case just-injective eq of λ { refl → safe-coordinator }
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid with Close.phase (W.shutdown s)
+ ... | Close.awaitDelivery e w = case just-injective eq of λ { refl → safe-handshakeDelivery }
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.initial = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.reading = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.sendReady e w = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.awaitResults = case eq of λ ()
+ choose-safe (W.deliverShutdownHandshake window err) s eq valid | Close.closed = case eq of λ ()
  choose-safe (W.deliverShutdownMux err) s eq valid with Close.phase (W.shutdown s)
  ... | Close.awaitDelivery e w = case just-injective eq of λ { refl → safe-muxDelivery }
  choose-safe (W.deliverShutdownMux err) s eq valid | Close.initial = case eq of λ ()
@@ -413,7 +441,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
 import ConnectionManagement.MuxExitCancellation as CancellationModel
 module Cancellation (isBearerClosed : ErrorId → Bool) where
  private module X = CancellationModel isBearerClosed using (State; deliver; deliverShutdown; observeCancellation; observeErrorTraceException; run; shutdownDelivery; step; target; traceThrew)
- private module W = ExitModel isBearerClosed using (bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown; syncException)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown; syncException)
  private module Lower = Exit isBearerClosed using (Valid; control-preserves; edit-covers; local-valid; step-preserves)
  Valid : X.State → Set
  Valid = Lower.Valid
@@ -455,12 +483,12 @@ module Cancellation (isBearerClosed : ErrorId → Bool) where
 
 import ConnectionManagement.Properties.MuxStartupUnwind as UnwindProperties
 module Unwind (isBearerClosed : ErrorId → Bool) where
- private module R = UnwindModel isBearerClosed using (Action; Fault; Plan; State; acknowledge; allowed; async; asyncDead; asyncStatus; awaitingClose; base; beginClose; beginDead; cancellationPlan; choose; closing; commitDead; continueSync; deadThrowPoint; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; faults; finishClose; finishDead; handedOff; handoff; inherited; initial; join; local; machine; mux; observeCancellation; observeDeadTraceException; observeFailure; outcome; owner; phase; pool; poolAt; poolClosed; protocols; readyBody; readyBuffer; requestCancel; run; sameClose; sampleDead; setPhase; setPool; setSource; siteControl; siteRoute; source; start; step; sync; transfer; withPool; writeAsyncFailure)
- private module W = ExitModel isBearerClosed using (base; control; exits; setShutdown; shutdown)
+ private module R = UnwindModel isBearerClosed using (counterRow; Action; Fault; Plan; State; acknowledge; allowed; async; asyncDead; asyncStatus; awaitingClose; base; beginClose; beginDead; cancellationPlan; choose; closing; commitDead; continueSync; deadThrowPoint; deliverCancel; deliverShutdown; deliveryControl; deliveryRoute; enact; faults; finishClose; finishDead; handedOff; handoff; inherited; initial; join; local; machine; mux; observeCancellation; observeDeadTraceException; observeFailure; outcome; owner; phase; pool; poolAt; poolClosed; protocols; readyBody; readyBuffer; requestCancel; run; sameClose; sampleDead; setPhase; setPool; setSource; siteControl; siteRoute; source; start; step; sync; transfer; withPool; writeAsyncFailure)
+ private module W = ExitModel isBearerClosed using (finishHandshake; handshakeDelivery; handshakeAction; deliverShutdownHandshake; base; control; exits; setShutdown; shutdown)
  private module X = CancellationModel isBearerClosed using (initial; step)
  private module G = GroupModel isBearerClosed using (module M; protocolState; wholeDeliverable)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base; muxAt)
- private module U = P.U using (captured; frames)
+ private module U = P.U using (returnedSuccess; handleAllocated; promisePublished; progress; handshakePending; captured; frames)
  private module Pool = P.Pool using (beginClose; cancelPending; closedPool; closing; finishClose; join; joinPending; openPool; phase; requestCancel; step)
  private module M = G.M using (failed; finishMatches)
  private module F = UnwindProperties isBearerClosed using (Selection; selection-observation)
@@ -703,9 +731,11 @@ module Unwind (isBearerClosed : ErrorId → Bool) where
 
  chosen-safe (R.handoff w) s eq valid with lookup w (R.faults s) in found | lookup w (W.exits (R.base s))
  ... | just f | nothing with R.phase f | R.outcome f
- ...   | R.readyBuffer | result = case just-injective eq of λ { refl → safe-transfer (covers-at (proj₂ valid) w f found) (phase-covers w f R.handedOff s found valid) , λ _ → tt }
- ...   | R.readyBody | R.sync err = case just-injective eq of λ { refl → safe-transfer (covers-at (proj₂ valid) w f found) (phase-covers w f R.handedOff s found valid) , λ _ → tt }
- ...   | R.readyBody | R.async err = case just-injective eq of λ { refl → safe-transfer (covers-at (proj₂ valid) w f found) (phase-covers w f R.handedOff s found valid) , λ _ → tt }
+ ...   | R.readyBuffer | result with R.counterRow f s
+ ...     | just _ = case just-injective eq of λ { refl → safe-machine (proj₂ valid) , λ _ → tt }
+ ...     | nothing = case just-injective eq of λ { refl → safe-transfer (covers-at (proj₂ valid) w f found) (phase-covers w f R.handedOff s found valid) , λ _ → tt }
+ chosen-safe (R.handoff w) s eq valid | just f | nothing | R.readyBody | R.sync err = case just-injective eq of λ { refl → safe-transfer (covers-at (proj₂ valid) w f found) (phase-covers w f R.handedOff s found valid) , λ _ → tt }
+ chosen-safe (R.handoff w) s eq valid | just f | nothing | R.readyBody | R.async err = case just-injective eq of λ { refl → safe-transfer (covers-at (proj₂ valid) w f found) (phase-covers w f R.handedOff s found valid) , λ _ → tt }
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.awaitingClose | _ = case eq of λ ()
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.closing | _ = case eq of λ ()
  chosen-safe (R.handoff w) s eq valid | just f | nothing | R.poolClosed | _ = case eq of λ ()

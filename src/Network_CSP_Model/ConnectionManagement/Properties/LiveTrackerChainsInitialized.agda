@@ -31,6 +31,7 @@ module Frontend (b io : ErrorId → Bool) (capability : HandleId → ℕ → Boo
  result-for-capture : ∀ w f c →
    lookup w (S.handlers (M.world (O.core c))) ≡ just (P.U.captured f) →
    Content.Content w f c → Chain.PublicationAt f c
+ result-for-capture w (P.U.frame h origin ps flow (P.U.handshakePending helperPC) startup setup) c registered good = tt
  result-for-capture w (P.U.frame h origin ps flow P.U.returnedSuccess startup setup) c registered good = tt
  result-for-capture w (P.U.frame h origin ps flow (P.U.handleAllocated hid mid) startup setup) c registered good = tt
  result-for-capture w (P.U.frame h origin ps flow (P.U.promisePublished hid mid) startup setup) c registered good

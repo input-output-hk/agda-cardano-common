@@ -21,6 +21,8 @@ open import ConnectionManagement.Properties.Entries using (lookup-put)
 open import ConnectionManagement.Properties.Stores using (lookup-put-other)
 open import ConnectionManagement.Properties.SupplyBounds using (SupplyBounds)
 import ConnectionManagement.Rules.MuxEgress as E
+import ConnectionManagement.Rules.HandshakeContinuation as HS
+import ConnectionManagement.Domain as HandshakeDomain
 import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as M
 import ConnectionManagement.OutboundMachine as O
@@ -137,6 +139,50 @@ negotiate-projects w ps flow s eq | nothing | origin | previous = case eq of λ 
 negotiate-projects w ps flow s eq | just t | nothing | previous = case eq of λ ()
 negotiate-projects w ps flow s eq | just t | just origin | just previous = case eq of λ ()
 
+-- Helper frames preserve the same source/capture observation.
+capture-handshake-projects : ∀ w pc s {s′} → W.captureHandshake w pc s ≡ just s′ → Paths s s′
+capture-handshake-projects w pc s eq with lookup w (B.threads (W.base s)) |
+  lookup w (W.origins s) | lookup w (W.frames s) in absent
+... | just t | just origin | nothing with H.phase t
+...   | H.handshaking = case just-injective eq of λ { refl →
+  put-paths w (W.frame (H.captured t) origin [] HandshakeDomain.unidirectional (W.handshakePending pc) Startup.initial W.setupPending) s
+    (trace-left (startup-missing w s absent) ([] , Startup.done)) }
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.maskedSetup = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.caughtCancellation err = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.cancellationPublished err = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.bodyExited err = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.finalizing err = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.cleanupComplete err outcome = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | nothing | H.resultAvailable err outcome = case eq of λ ()
+capture-handshake-projects w pc s eq | nothing | origin | previous = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | nothing | previous = case eq of λ ()
+capture-handshake-projects w pc s eq | just t | just origin | just previous = case eq of λ ()
+
+-- Metadata stutters; publication executes the actual promise writer.
+advance-handshake-projects : ∀ w action s {s′} → W.advanceHandshake w action s ≡ just s′ → Paths s s′
+advance-handshake-projects w action s eq with lookup w (W.frames s) in found
+... | nothing = case eq of λ ()
+... | just f with W.progress f in progress
+...   | W.handshakePending pc with HS.step action pc
+...     | just (next , nothing) = case just-injective eq of λ { refl → put-paths w (record f { progress = W.handshakePending next }) s (trace-left (startup-found w s f found) ([] , Startup.done)) }
+...     | just (next , just result) with O.advance (O.inbound (M.handlerPublication w (HS.asResult result) M.resultWritten)) (W.source s) in advanced
+...       | nothing = case eq of λ ()
+...       | just c = case just-injective eq of λ { refl → compose (source-paths (O.inbound (M.handlerPublication w (HS.asResult result) M.resultWritten)) s advanced) (put-paths w (record f { progress = W.handshakePending next }) (W.setSource c s) (trace-left (startup-found w (W.setSource c s) f found) ([] , Startup.done))) }
+advance-handshake-projects w action s eq | just f | W.handshakePending pc | nothing = case eq of λ ()
+advance-handshake-projects w action s eq | just f | W.returnedSuccess = case eq of λ ()
+advance-handshake-projects w action s eq | just f | W.handleAllocated h mid = case eq of λ ()
+advance-handshake-projects w action s eq | just f | W.promisePublished h mid = case eq of λ ()
+
+-- Only inbound origins can enter the query delay.
+handshake-projects : ∀ w event s {s′} → W.handshakeFor w event s ≡ just s′ → Paths s s′
+handshake-projects w (HS.limitReturned kind err) s eq = capture-handshake-projects w (HS.returned (HS.protocolLimit kind err)) s eq
+handshake-projects w (HS.bearerTimedOut err) s eq = capture-handshake-projects w (HS.returned (HS.bearerTimeout err)) s eq
+handshake-projects w HS.queryReturned s eq with lookup w (W.origins s)
+... | just HandshakeDomain.inbound = capture-handshake-projects w (HS.returned HS.query) s eq
+... | just HandshakeDomain.outbound = case eq of λ ()
+... | nothing = case eq of λ ()
+handshake-projects w (HS.continue action) s eq = advance-handshake-projects w action s eq
+
 allocate-projects : ∀ w hid mid s {s′} → W.allocate w hid mid s ≡ just s′ → Paths s s′
 allocate-projects w hid mid s eq with lookup w (W.frames s) in found
 ... | nothing = case eq of λ ()
@@ -147,6 +193,7 @@ allocate-projects w hid mid s eq with lookup w (W.frames s) in found
   compose (source-paths (O.inbound (M.igStep (W.allocationAction f hid mid))) s advanced)
     (put-paths w (record f { progress = W.handleAllocated hid mid }) (W.setSource c s)
       (trace-left (startup-found w (W.setSource c s) f found) ([] , Startup.done))) }
+allocate-projects w hid mid s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
 allocate-projects w hid mid s eq | just f | W.handleAllocated oldHandle oldMux = case eq of λ ()
 allocate-projects w hid mid s eq | just f | W.promisePublished oldHandle oldMux = case eq of λ ()
 
@@ -159,6 +206,7 @@ configure-projects w (E.scheduledLayout slice) limit bound keys s eq with lookup
 ...   | W.handleAllocated hid mid with O.advance (O.inbound (M.igStep (IG.configureEgress mid (E.scheduledLayout slice) limit bound keys))) (W.source s) in advanced
 ...     | nothing = case eq of λ ()
 ...     | just c = case just-injective eq of λ { refl → source-paths (O.inbound (M.igStep (IG.configureEgress mid (E.scheduledLayout slice) limit bound keys))) s advanced }
+configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
 configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | W.returnedSuccess = case eq of λ ()
 configure-projects w (E.scheduledLayout slice) limit bound keys s eq | just f | W.promisePublished h m = case eq of λ ()
 
@@ -171,6 +219,7 @@ register-projects w s eq with lookup w (W.frames s)
 ...     | nothing = case eq of λ ()
 ...     | just c = case just-injective eq of λ { refl → source-paths (O.inbound (M.igStep (IG.registerCells mid))) s advanced }
 register-projects w s eq | just f | W.promisePublished hid mid | false = case eq of λ ()
+register-projects w s eq | just f | (W.handshakePending helperPC) | _ = case eq of λ ()
 register-projects w s eq | just f | W.returnedSuccess | _ = case eq of λ ()
 register-projects w s eq | just f | W.handleAllocated h m | _ = case eq of λ ()
 
@@ -198,6 +247,7 @@ publish-projects w s eq with lookup w (W.frames s) in found
         (Startup.observePublication ∷ [] , Startup.next progressed Startup.done))) }
 publish-projects w s eq | just f | W.handleAllocated hid mid | nothing | startupResult = case eq of λ ()
 publish-projects w s eq | just f | W.handleAllocated hid mid | just c | nothing = case eq of λ ()
+publish-projects w s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
 publish-projects w s eq | just f | W.returnedSuccess = case eq of λ ()
 publish-projects w s eq | just f | W.promisePublished hid mid = case eq of λ ()
 
@@ -210,12 +260,14 @@ startup-projects w action s eq with lookup w (W.frames s) in found
 ...     | just next = case just-injective eq of λ { refl →
   put-paths w (record f { startup = next }) s
     (trace-left (startup-found w s f found) (action ∷ [] , Startup.next advanced Startup.done)) }
+startup-projects w action s eq | just f | (W.handshakePending helperPC) | allowed = case eq of λ ()
 startup-projects w action s eq | just f | W.returnedSuccess | allowed = case eq of λ ()
 startup-projects w action s eq | just f | W.handleAllocated hid mid | allowed = case eq of λ ()
 startup-projects w action s eq | just f | W.promisePublished hid mid | false = case eq of λ ()
 
 step-projects : ∀ a s {s′} → W.step a s ≡ just s′ → Paths s s′
 step-projects (W.run action) s eq = inherit-projects action s eq
+step-projects (W.handshakeStep w event) s eq = handshake-projects w event s eq
 step-projects (W.negotiate w ps flow) s eq = negotiate-projects w ps flow s eq
 step-projects (W.allocateHandle w hid mid) s eq = allocate-projects w hid mid s eq
 step-projects (W.configureMux w plan limit bound keys) s eq = configure-projects w plan limit bound keys s eq
@@ -321,6 +373,7 @@ publish-observation w s eq with lookup w (W.frames s) in found
   publication f hid mid c next found progress advanced progressed refl }
 publish-observation w s eq | just f | W.handleAllocated hid mid | nothing | startupResult = case eq of λ ()
 publish-observation w s eq | just f | W.handleAllocated hid mid | just c | nothing = case eq of λ ()
+publish-observation w s eq | just f | (W.handshakePending helperPC) = case eq of λ ()
 publish-observation w s eq | just f | W.returnedSuccess = case eq of λ ()
 publish-observation w s eq | just f | W.promisePublished hid mid = case eq of λ ()
 
@@ -334,6 +387,7 @@ startup-parent-registry w action s eq with lookup w (W.frames s)
 ...   | W.promisePublished hid mid | true with Startup.step action (W.startup f)
 ...     | nothing = case eq of λ ()
 ...     | just next = case just-injective eq of λ { refl → refl }
+startup-parent-registry w action s eq | just f | (W.handshakePending helperPC) | allowed = case eq of λ ()
 startup-parent-registry w action s eq | just f | W.returnedSuccess | allowed = case eq of λ ()
 startup-parent-registry w action s eq | just f | W.handleAllocated hid mid | allowed = case eq of λ ()
 startup-parent-registry w action s eq | just f | W.promisePublished hid mid | false = case eq of λ ()

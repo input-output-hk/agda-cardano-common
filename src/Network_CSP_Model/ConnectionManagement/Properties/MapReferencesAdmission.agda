@@ -37,6 +37,7 @@ admission-preserves Server.take w (admissionWorker r (forkHandler l p e)) s () a
 admission-preserves Server.take w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.take w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.take w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.take w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.take w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.take w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.take w (admissionWorker r (finished reason)) s () av v
@@ -60,6 +61,7 @@ admission-preserves Server.countLimit w (admissionWorker r (forkHandler l p e)) 
 admission-preserves Server.countLimit w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.countLimit w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.countLimit w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.countLimit w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.countLimit w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.countLimit w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.countLimit w (admissionWorker r (finished reason)) s () av v
@@ -80,6 +82,7 @@ admission-preserves Server.allocatePromise w (admissionWorker r (forkHandler l p
 admission-preserves Server.allocatePromise w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.allocatePromise w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.allocatePromise w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.allocatePromise w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.allocatePromise w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.allocatePromise w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.allocatePromise w (admissionWorker r (finished reason)) s () av v
@@ -106,6 +109,7 @@ admission-preserves Server.chooseEntry w (admissionWorker r (forkHandler l p e))
 admission-preserves Server.chooseEntry w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.chooseEntry w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.chooseEntry w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.chooseEntry w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.chooseEntry w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.chooseEntry w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.chooseEntry w (admissionWorker r (finished reason)) s () av v
@@ -130,6 +134,7 @@ admission-preserves Server.fork w (admissionWorker r (selectEntry l p)) s () av 
 admission-preserves Server.fork w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.fork w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.fork w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.fork w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.fork w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.fork w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.fork w (admissionWorker r (finished reason)) s () av v
@@ -149,6 +154,7 @@ admission-preserves Server.failFork w (admissionWorker r (selectEntry l p)) s ()
 admission-preserves Server.failFork w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.failFork w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.failFork w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.failFork w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.failFork w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.failFork w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.failFork w (admissionWorker r (finished reason)) s () av v
@@ -173,6 +179,7 @@ admission-preserves Server.readCounters w (admissionWorker r (forkHandler l p e)
 admission-preserves Server.readCounters w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.readCounters w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.readCounters w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.readCounters w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.readCounters w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.readCounters w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.readCounters w (admissionWorker r (finished reason)) s () av v
@@ -193,6 +200,7 @@ admission-preserves Server.close w (admissionWorker r (forkHandler l p e)) s () 
 admission-preserves Server.close w (admissionWorker r (publish l p e)) s () av v
 admission-preserves Server.close w (admissionWorker r (reject l hardLimitReached)) s () av v
 admission-preserves Server.close w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.close w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.close w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.close w (admissionWorker r (finished reason)) s () av v
 admission-preserves Server.close w (admissionWorker r (countPublished p e)) s () av v
@@ -218,6 +226,7 @@ admission-preserves Server.putMapBack w (admissionWorker r (prepare l)) s () av 
 admission-preserves Server.putMapBack w (admissionWorker r (selectEntry l p)) s () av v
 admission-preserves Server.putMapBack w (admissionWorker r (forkHandler l p e)) s () av v
 admission-preserves Server.putMapBack w (admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.putMapBack w (admissionWorker r (reject l bodyFailed)) s () av v
 admission-preserves Server.putMapBack w (admissionWorker r (reject l forkFailed)) s () av v
 admission-preserves Server.putMapBack w (admissionWorker r (closeSocket reason)) s () av v
 admission-preserves Server.putMapBack w (admissionWorker r (finished reason)) s () av v
@@ -232,6 +241,10 @@ admission-preserves Server.putMapBack w (admissionWorker r impossibleHandshake) 
 admission-preserves Server.restore w a@(admissionWorker r (reject l forbidden)) s eq av v with CM.restoreMap l (cm s) in putEq
 ... | nothing = case eq of λ ()
 ... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket forbidden) (record s { cm = c′ }) tt
+  (put-maps l (savedMap l) s putEq av v))
+admission-preserves Server.restore w a@(admissionWorker r (reject l bodyFailed)) s eq av v with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket bodyFailed) (record s { cm = c′ }) tt
   (put-maps l (savedMap l) s putEq av v))
 admission-preserves Server.restore w a@(admissionWorker r (reject l forkFailed)) s eq av v with CM.restoreMap l (cm s) in putEq
 ... | nothing = case eq of λ ()
@@ -254,3 +267,38 @@ admission-preserves Server.restore w (admissionWorker r (notifyInbound info)) s 
 admission-preserves Server.restore w (admissionWorker r (returnHandshake result)) s () av v
 admission-preserves Server.restore w (admissionWorker r (completedHandshake result)) s () av v
 admission-preserves Server.restore w (admissionWorker r impossibleHandshake) s () av v
+admission-preserves Server.restoreBody w a@(admissionWorker r (count l)) s eq av v with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket bodyFailed) (record s { cm = c′ }) tt
+  (put-maps l (savedMap l) s putEq av v))
+admission-preserves Server.restoreBody w a@(admissionWorker r (prepare l)) s eq av v with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket bodyFailed) (record s { cm = c′ }) tt
+  (put-maps l (savedMap l) s putEq av v))
+admission-preserves Server.restoreBody w a@(admissionWorker r (selectEntry l p)) s eq av v with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket bodyFailed) (record s { cm = c′ }) tt
+  (put-maps l (savedMap l) s putEq av v))
+admission-preserves Server.restoreBody w a@(admissionWorker r (forkHandler l p e)) s eq av v with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket bodyFailed) (record s { cm = c′ }) tt
+  (put-maps l (savedMap l) s putEq (proj₁ av) v))
+admission-preserves Server.restoreBody w a@(admissionWorker r (publish l p e)) s eq av v with CM.restoreMap l (cm s) in putEq
+... | nothing = case eq of λ ()
+... | just c′ = subst Valid (just-injective eq) (admission-update w a (closeSocket bodyFailed) (record s { cm = c′ }) tt
+  (put-maps l (savedMap l) s putEq (proj₁ av) v))
+admission-preserves Server.restoreBody w a@(admissionWorker r (reject l forbidden)) s () av v
+admission-preserves Server.restoreBody w a@(admissionWorker r (reject l bodyFailed)) s () av v
+admission-preserves Server.restoreBody w a@(admissionWorker r (reject l forkFailed)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r acquireMap) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (reject l hardLimitReached)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (closeSocket reason)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (finished reason)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (countPublished p e)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (awaitHandshake p e)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (commitHandshake e result)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (countHandshake result)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (notifyInbound info)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (returnHandshake result)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r (completedHandshake result)) s () av v
+admission-preserves Server.restoreBody w (admissionWorker r impossibleHandshake) s () av v

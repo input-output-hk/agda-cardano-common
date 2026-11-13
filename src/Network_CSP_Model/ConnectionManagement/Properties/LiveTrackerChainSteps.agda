@@ -144,6 +144,7 @@ allocated w hid mid s eq with lookup w (U.frames s)
 ...   | U.returnedSuccess with O.advance (O.inbound (M.igStep (U.allocationAction f hid mid))) (U.source s) in actual
 ...     | nothing = case eq of λ ()
 ...     | just c = case just-injective eq of λ { refl → _ , lookup-put w _ (U.frames s) , refl , outbound-allocation f hid mid (U.source s) actual }
+allocated w hid mid s eq | just f | (U.handshakePending helperPC) = case eq of λ ()
 allocated w hid mid s eq | just f | U.handleAllocated h m = case eq of λ ()
 allocated w hid mid s eq | just f | U.promisePublished h m = case eq of λ ()
 
@@ -151,11 +152,13 @@ allocated w hid mid s eq | just f | U.promisePublished h m = case eq of λ ()
 -- Defining them does not assert that a source trace alone establishes them.
 AllocationAt : U.Frame → O.Configuration → Set
 AllocationAt f c with U.progress f
+... | (U.handshakePending helperPC0) = Data.Unit.⊤
 ... | U.returnedSuccess = Data.Unit.⊤
 ... | U.handleAllocated hid mid = Anchor (U.captured f) (U.bundle f) (U.flow f) hid mid (M.inboundGovernor (O.core c))
 ... | U.promisePublished hid mid = Anchor (U.captured f) (U.bundle f) (U.flow f) hid mid (M.inboundGovernor (O.core c))
 PublicationAt : U.Frame → O.Configuration → Set
 PublicationAt f c with U.progress f
+... | (U.handshakePending helperPC0) = Data.Unit.⊤
 ... | U.returnedSuccess = Data.Unit.⊤
 ... | U.handleAllocated hid mid = Data.Unit.⊤
 ... | U.promisePublished hid mid = lookup (S.handlerPromise (U.captured f)) (S.handshakeResults (M.world (O.core c))) ≡ just (S.negotiated hid (U.flow f))

@@ -23,6 +23,7 @@ admission-worker : ∀ action w a s {s′} → lookup w (admissions s) ≡ just 
   Server.stepWorker w a action s ≡ just s′ → Ownership s → Ownership s′
 admission-worker Server.take = take-admission-worker
 admission-worker Server.putMapBack = publish-admission-worker
+admission-worker Server.restoreBody = restore-body-admission-worker
 admission-worker Server.restore = restore-admission-worker
 admission-worker Server.countLimit w (admissionWorker r acquireMap) s found () own
 admission-worker Server.countLimit w (admissionWorker r (prepare l)) s found () own

@@ -199,6 +199,7 @@ parent-worker S.putMapBack publish w (admissionWorker r (returnHandshake result)
 parent-worker S.putMapBack publish w (admissionWorker r (completedHandshake result)) s ()
 parent-worker S.putMapBack publish w (admissionWorker r impossibleHandshake) s ()
 parent-worker S.putMapBack publish w (admissionWorker r (reject l forbidden)) s ()
+parent-worker S.putMapBack publish w (admissionWorker r (reject l bodyFailed)) s ()
 parent-worker S.putMapBack publish w (admissionWorker r (reject l forkFailed)) s ()
 parent-worker S.putMapBack publish w a@(admissionWorker r (publish l p e)) s eq with CM.putMap l (insertConnection (key r) e (savedMap l)) (cm s) in putEq
 ... | nothing = case eq of λ ()
