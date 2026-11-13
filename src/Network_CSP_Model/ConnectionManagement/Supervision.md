@@ -8568,11 +8568,14 @@ The new small segments are:
 
 **Why an independent CM caller:** the PSA operation-timeout rule stops the mux
 and waits for outbound demotion; it does not request CM release. This fixture
-checks that absence for job caller 16. Caller 18 supplies the real separate CM
-release route, matching the earlier `CloseOriginChecks.initialized-timeout`
-scope. The history includes its begin/transaction/timer/request/receipt/return
-steps; no release frame or Terminating entry is injected. This is an explicit
-interleaving assumption, not a claim that the timed-out job owns that release.
+checks that absence for job caller 16. Caller 18 supplies a separate raw CM
+release, matching the earlier `CloseOriginChecks.initialized-timeout` scope.
+It is a **foreign-caller over-approximation** (increments 75–77), not a production
+PSA caller; the owned-callers design refuses that raw begin. The history includes
+its begin/transaction/timer/request/receipt/return steps; no release frame or
+Terminating entry is injected. The source audit below confirms that an explicit
+release is unnecessary after this timeout: handler cleanup owns disposal.
+Caller 18 instead forces the particular Terminating/TIME_WAIT interleaving.
 
 **Endpoint and controls.** The socket is closed, captured entry Terminated,
 live map empty, cleanup `cleanupDone cleanupNormal` and handler physical result
@@ -8607,9 +8610,11 @@ stated scopes: inbound clean (109 events), outbound clean (156), initialized
 duplex reuse, supervised outbound handshake failure/cleanup (40), successful hot
 demotion and this timeout/Cooling/delayed-cleanup/Cold run (158). Existing duplex
 reuse and hot-demotion evidence was reviewed without rebuilding its heavy
-fixture. The timeout row and plan step 5 are met for this reduced configured
-profile. **G2 overall remains partly met**: full selected application protocol
-contracts/bundles and their clean coverage remain open. No later gate is started.
+fixture. **The timeout row and plan step 5 remain partly met:** this run uses a
+foreign caller to force TIME_WAIT; it is not the production-only timeout cleanup
+witness. The source audit below resolves release ownership without upgrading that
+coverage. **G2 overall remains partly met**: full selected application protocol
+contracts/bundles and their clean coverage also remain open. No later gate is started.
 
 ### Validation of increment 84
 
@@ -8645,3 +8650,78 @@ no existing model or theorem changed. Final checking additionally monitored RSS
 with a stop threshold below 10 GB; no final check reached it. No broad regression,
 existing heavy fixture rebuild or Haskell replay was run. No Git state-changing
 command was used.
+
+
+### Pinned source audit: who cleans up after the PSA timeout?
+
+13 November 2026, follow-up at model HEAD `dbcce4c`. Source authority is the
+same network `2f1c154f248659b89523d5679ca532f442e7ed2a`. All six inspected
+files were compared byte-for-byte with their pinned Git blobs: PSA,
+Governor/EstablishedPeers, CM Core, ConnectionHandler, Mux and JobPool.
+
+**Neither the timed-out job nor its monitor calls `releaseOutboundConnection`.**
+[PSA:1048–1105][timeout84-psa] sets Cooling and terminates protocol controls,
+then times out the all-results wait. `Nothing` (1080–1086) calls `Mux.stop` and
+traces the timeout; only `Just AllSucceeded` (1097–1105) calls release.
+Deactivation timeout similarly stops the mux and throws, without a release
+(1001–1034). The [governor job:969–981][timeout84-job] then separately waits
+for monitored Cold with its own demotion deadline. The
+[monitor:666–713][timeout84-monitor] waits for CM outbound demotion and writes
+Cold; its comment explicitly assigns CM state cleanup to the connection-handler
+finally. Its synchronous-error handler also only waits, writes Cold and rethrows
+([836–851][timeout84-monitor-error]). A monitor calling close after a successful
+warm/established result encounters the same close function; Cooling/Cold entry
+returns without the clean-release branch.
+
+`Mux.stop` is an atomic shutdown-command enqueue, not a join. The
+[mux shutdown branch:763–777][timeout84-mux] cancels protocol jobs, bounds the
+egress drain, sets Stopped and exits through infrastructure pool shutdown.
+The [outbound handler:428–439][timeout84-handler] runs the mux under `unmask`.
+CM [Core:580–713][timeout84-cleanup] installs its finally around that handler:
+cleanup closes the socket and, for OutboundUni/Dup/Idle, writes Terminated and
+identity-guardedly purges the entry directly (619–659). **No explicit CM release
+is needed and no unreleased connection follows merely from its absence.**
+This is a control-flow observation conditional on shutdown/cleanup executing;
+it does not prove progress under arbitrary tracer, socket-close or cancellation
+failures. [Core:438–457][timeout84-demotion] accepts an absent/Terminated entry,
+which enables the monitor's Cold write and then the governor's Cold wait.
+
+Masking is explicit: [JobPool:122–164][timeout84-pool] masks fork/registration
+but executes child actions via `restore` from `asyncWithUnmask`; normal job and
+monitor bodies are unmasked. Neither PSA close nor its monitor adds an enclosing
+mask. CM's handler is forked under `mask_`; mux execution is explicitly unmasked.
+Cleanup uses `uninterruptibleMask_` (Core:604). Only an already Terminating entry
+(637–638) takes TIME_WAIT, closing the socket before an explicitly unmasked delay
+(660–669); its finally (675–713) still writes Terminated and identity-guardedly
+purges the entry. The ordinary timeout on this unidirectional profile therefore
+does **not** require TIME_WAIT; caller 18 introduces that state in the fixture.
+
+The model already follows these distinctions: `Rules/PeerActions.timeoutClose`
+queues shutdown; `Rules/PeerJobs.operationTimeout` enters `awaitCold succeeded`;
+`monitorCooling` requires CM demotion. Only clean `observeAll` selects
+`requestRelease`. `Rules/Cleanup.decideCleanup` immediately terminates/purges
+outbound states and defers only Terminating. No model wiring, theorem statement
+or Agda source changed. The full 158-event run is retained as foreign-caller
+interleaving evidence. A production-only initialized timeout → handler cleanup
+→ Cold witness remains step 5's acceptance gap; source ownership is now resolved.
+
+Validation of this follow-up: six exact pinned-source comparisons passed;
+112 local link destinations, nine pinned source-link ranges and whitespace
+checks passed (0.07 s, peak RSS 19,568 KiB, exit 0). No Agda or Haskell
+rebuild/replay was run for these documentation-only changes. The preceding
+248.02 s / 8.303 GiB fresh checks remain historical increment-84 evidence.
+No heavy regression is required by this follow-up. The usual user-reserved
+modules remain unrun: `Properties/SourceKeysServer`,
+`Properties/OwnedFramesExecution`, `Negative/OwnedCallersFixture`,
+`Negative/LiveTrackerInitialized`, `Negative/ServerPeers` and
+`Negative/ServerPeersOrigins`; there is no new affected proof closure.
+
+[timeout84-psa]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L1001-L1105
+[timeout84-job]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/EstablishedPeers.hs#L969-L981
+[timeout84-monitor]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L666-L713
+[timeout84-monitor-error]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L836-L851
+[timeout84-mux]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux.hs#L763-L777
+[timeout84-handler]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L428-L439
+[timeout84-cleanup]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L580-L713
+[timeout84-demotion]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L438-L457
+[timeout84-pool]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Control/Concurrent/JobPool.hs#L122-L177
