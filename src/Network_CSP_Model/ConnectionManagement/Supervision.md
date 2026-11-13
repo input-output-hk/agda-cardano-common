@@ -8795,3 +8795,162 @@ The new-module proof audit reports zero findings; local documentation links and
 `git diff --check` pass. Existing heavy fixtures and broader regression were not
 rebuilt: all existing source/dependency statements are unchanged. Historical
 increment-84 and source-audit measurements above remain historical.
+
+
+## Eighty-fifth increment: G3 initialized concurrency histories
+
+13 November 2026. Gate plan step 7 adds two finite initialized histories on the
+real `ServerPeers.Protocols` supervised runtime. All existing Agda modules,
+theorem statements, guards and initializers are unchanged. The source baseline
+remains network `2f1c154f248659b89523d5679ca532f442e7ed2a` / consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`; these additions are uncommitted
+over model HEAD `3292fc4`. No source pin or Git metadata was changed; no Git state-changing command was used.
+
+**Two ordinary peers.** [ConcurrentLifecycles](Negative/ConcurrentLifecycles.agda),
+`initialized-to-completion`, proves **294 actual frontend events** from
+[the checked initializer](Negative/ConcurrentLifecycleSupport.agda): empty
+responder world, two known ordinary keys and targets 2/2/0. Each peer negotiates
+its own unidirectional bearer and one warm/on-demand initiator (protocol 1);
+hot/established bundles are empty. Both establishment children enter before their
+own registration. Both execute acquisition, connect/local-address update, actual
+handler fork, negotiation/publication, startup and establishment. The first
+peer's physical protocol result is deferred while the second executes; protocol
+results, monitor/tracer/DeltaQ work and mux infrastructure shutdown then alternate
+across peers. Both governor establishment completions are consumed before targets
+are lowered and two real close jobs are launched.
+
+Both close jobs observe all protocol results, request their own CM release,
+expire their own idle-release timers and request cancellation. Normal mux/body
+exit closes each socket and reaches TIME_WAIT; each captured caller receives its
+own physical receipt, returns and retires its release frame. The two captured
+finalizers, handler results, Cold observations, successful close-job results and
+normal physical monitor results all execute. The normal protocol/mux paths are
+followed by asynchronous handler result 42 from interruption of TIME_WAIT, as
+in the G2 clean witnesses. This run has no retained inbound bearer role.
+
+[ConcurrentLifecycleFacts](Negative/ConcurrentLifecycleFacts.agda) checks both
+captures, Terminated entries, closed sockets, empty live map, clean protocol
+results, normal closed mux pools, successful release returns, completed cleanup,
+Cold peers and physical handler/job/monitor results. It also checks that the
+second entry remains Terminating with no physical result after the first
+finalizer, refuses early first/second results, early second Cold, early close-job
+Cold observation, raw cancellation acknowledgement and duplicate receipt.
+
+**Three same-key incarnations and another key.**
+[OverlapInitialized](Negative/OverlapInitialized.agda), `initialized-to-overlap`,
+proves **303 actual frontend events**. It reuses the genuine 105-event inbound
+prefix through IG release commit, with its captured TIME_WAIT finally still
+pending. Nine actual Server/admission/handler steps allocate and fork the other
+key; its handler remains at handshake. The queued notifications are consumed by
+19 real IG/remote-state steps, including the unsupported promotion and terminated
+demotion outcomes after release. No IG continuation or map is reset.
+
+The middle same-key incarnation then executes its own 105-event clean
+admission/responder/mux/release history. CM selects a fresh entry because the
+older entry is Terminating. Its real TIME_WAIT receipt and IG release return
+precede replacement; its captured finally is also deferred. Another 19 actual
+notification steps precede the third incarnation's 38-event admission,
+negotiation/publication, caller physical result, IG registration and mux startup.
+Only then do eight actual finalizer/counter/cleanup/result steps finish the
+oldest and middle handlers. Thus three genuine physical handler lifetimes
+overlap with a genuinely allocated other-key handler. The delayed work is
+precisely `cleanupFinalize` after release interruption, not an unreceived
+cancellation or an injected TIME_WAIT state.
+
+[OverlapInitializedFacts](Negative/OverlapInitializedFacts.agda) checks the
+captured entry/promise identities **0 → 2 → 3** for the same key and **1** for
+the other key, with distinct handler/socket identities. Before the final suffix,
+both old physical results are unavailable and both captured TIME_WAIT finalizers
+are pending. After both finalizers really execute, entries 0 and 2 are
+Terminated with their asynchronous results available; the live map is unchanged,
+entry 3 is still InboundIdle with its own live socket/mux and the other entry 1
+is still the original unnegotiated inbound handler. Specialized identity-guard
+controls prove that neither old captured entry can purge entry 3. Premature old
+results, duplicate finally steps and normal exit of the still-running third mux
+are refused. The new and unrelated handlers remain live intentionally: this is
+overlap evidence, not completion of every connection or a GovernorWedge replay.
+
+**Allocation bounds.** Exact retained-store counts and supplies are proved in
+those facts modules. There is no identity recycling or explorer cutoff:
+
+| Dynamic resource | Two-peer run | Overlap run |
+| --- | ---: | ---: |
+| Entries / promises / actual sockets / handlers | 2 each | 4 each |
+| Handles / muxes | 2 each | 3 each |
+| Peer connection records | 2 | 0 |
+| Governor jobs / physical PSA monitors | 4 / 2 | 0 / 0 |
+| Mux infrastructure jobs / protocol jobs | 4 / 2 | 6 / 2 |
+| Physical mux-pool allocations | 3 + 3 | 3 + 3 + 2 |
+| Protocol RunIds | 2 | 2 |
+| IG TimerIds | 0 | 8 |
+
+The two-peer worker labels are 10,11,16,17,20,21,26,27,50,51. Its socket labels
+are 10,16,20,26 (only 10 and 20 are actually opened; close-job socket fields do
+not allocate). Its JobId labels are 0,1,2,3,10,20,50,51 in the actual separate
+registries, with RunIds 10,20. The overlap worker labels are 0,2,30,31,40,41,60,61;
+sockets are 0,30,40,60; JobId labels are 0–5,10,20; RunIds are 10,20 and TimerIds
+0–7. Supplies `nextEntry`/`nextPromise` end at 2/2 and 4/4, respectively. This
+accounts for dynamic peer resources above the fixed post-setup initializer;
+it does not implement a bounded explorer or infer global identity uniqueness
+across independent pool registries.
+
+**Owned callers and scope.**
+[ConcurrentLifecycleOwnedCallers](Negative/ConcurrentLifecycleOwnedCallers.agda)
+and [OverlapInitializedOwnedCallers](Negative/OverlapInitializedOwnedCallers.agda)
+each prove `every-owned`, `production-policy : Owned.Allowed initialized-outer`
+and executable `production-run : Owned.OuterRuns′ …` for the full initialized
+schedule, including acquisition/admission prefixes. Neither history uses a raw
+core begin. The outer relays scope remains inside; neither endpoint claims
+whole-system shutdown or quiescence.
+
+All 597 scheduled events have independent real `V.advance … ≡ just …` evidence
+by `refl`, with the unchanged G2 prefix reused in the overlap run. Reflection
+normalizes one real successor at a time; its refused fallback cannot validate an
+edge. Ordinary `Runs` constructors compose checked segments; no midpoint is
+injected and no runtime wiring is missing or guard weakened. Connect/negotiation,
+tracer/DeltaQ/provider returns, empty drain, infrastructure unwind and untimed
+timer readiness remain explicit observations. These finite reduced profiles do
+not establish full application protocol coverage, universal liveness, deadlines,
+source refinement or native replay.
+
+**G3 and plan step 7 are met for these initialized finite profiles.** The
+existing initialized duplex-reuse witness remains separate. G0/G2/G4/G5 and
+plan step 6's design-variant progress contract remain open at their recorded
+scopes; no subsequent task was started.
+
+### Validation of increment 85
+
+Agda 2.8.0, one process at a time, using exactly
+`agda ConnectionManagement/Negative/<module>.agda +RTS -M20G -A128m -RTS`.
+The 43 new non-support modules have fresh own-module `Checking` lines, exit 0
+and no warnings. Support compiled as a dependency during development and its
+final standalone check reused that interface. Existing dependency interfaces
+were reused; no cache was purged. New edge segments contain 12 or 16 real edges (the last
+segments are shorter) to keep each check below the requested memory budget.
+
+| Module group | Wall seconds | Maximum observed RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `ConcurrentLifecycleSupport` | 13.82 | 2.155 | pass, interface reused; initially compiled as dependency |
+| `ConcurrentLifecycle01`–`19` | 737.65 | 5.795 | pass, fresh |
+| `ConcurrentLifecycles` | 20.43 | 2.738 | pass, fresh |
+| `ConcurrentLifecycleFacts` | 19.43 | 2.758 | pass, fresh |
+| `ConcurrentLifecycleOwnedCallers` | 41.25 | 4.766 | pass, fresh |
+| `OverlapInitializedPrefix` | 18.23 | 2.373 | pass, fresh |
+| `OverlapInitialized01`–`17` | 414.68 | 3.677 | pass, fresh |
+| `OverlapInitialized` | 22.84 | 3.177 | pass, fresh |
+| `OverlapInitializedFacts` | 23.24 | 3.045 | pass, fresh |
+| `OverlapInitializedOwnedCallers` | 41.87 | 5.586 | pass, fresh |
+
+The final 44-module acceptance invocations total **1353.44 s**, with maximum
+observed RSS **5.795 GiB**. RSS was sampled every 0.2 s for earlier checks;
+later records also use the kernel child high-water mark. A 9,500,000 KiB sampled
+RSS stop threshold was in force throughout and never fired. Two development
+diagnostics (missing action qualification and dependent-pair inference) were
+repaired before acceptance; no scheduled transition was refused. The final facts
+check includes the added physical-pool allocation and release-return facts.
+
+The 44-file local heuristic proof audit has zero findings; this is not a
+transitive term-level axiom audit. All 648 local documentation targets across
+the four updated pages pass; `git diff --check` and whitespace/newline checks
+on all new Agda files pass. Existing Agda modules are unchanged, so no broader/heavy
+regression, whole-library build, GovernorWedge rebuild or Haskell replay was run.
