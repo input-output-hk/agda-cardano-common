@@ -9423,3 +9423,153 @@ Paths are relative to `ConnectionManagement/`. No new/checked module exceeded
 module was discovered or attempted. These deferred checks are not represented
 as fresh successes. No broad rebuild, full-profile native replay, exhaustive
 exploration, universal progress or additional gate closure is claimed.
+
+## Eighty-ninth increment: G0 TxSubmission2 and KeepAlive contracts
+
+13 November 2026, protocol-contract batch 2 over inspected model HEAD `96b3bd4`.
+The objective remains the combined CM/IG/OG/Server source-problem model and
+correct design under unchanged G0–G5 completion criteria. The two selected
+[BranchMatrix](BranchMatrix.md) rows move **missing → contracted**, with their
+CM-visible control/result/cleanup ordering implemented in new modules.
+[ProtocolContracts](ProtocolContracts.md#batch-2-authority-and-executable-boundary)
+contains per-direction reviewed contracts, per-item implement/contract/exclude
+decisions, immutable source links, line ranges and blob identities. **G0/G2
+remain partly met**, with 66 implemented / 16 contracted / 14 excluded / 3 missing
+rows. LeiosNotify, LeiosFetch and shared Leios resources remain missing.
+Configuration/selection/seed reconciliation and full configured initialized
+application coverage remain open; no later batch has started.
+
+### Source findings and dispositions
+
+Read-only `git show` used network `2f1c154f248659b89523d5679ca532f442e7ed2a`
+from the retained replay78 checkout and consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e` from its local object repository.
+The source table in the contract records exact blobs: bundle, Tx outbound,
+V1/V2 inbound and V2 registry, protocol peers, KeepAlive and its registry,
+NodeKernel and concrete mempool API/Init/Update. The existing pins are unchanged.
+No native replay or network/source modification was performed.
+
+- **TxSubmission2 — contracted, guards implemented.** The initiator is the
+  outbound transaction supplier. Only its blocking tx-id request races
+  Terminate against nonempty snapshot work, with Terminate-first STM priority;
+  ordinary receives, nonblocking snapshot and body lookups do not check control.
+  Done send gates its normal result. Responder V1 and V2 both use wire protocol
+  4; application logic selection is an explicit configuration premise. Done is
+  possible only in the zero-depth blocking request, never with outstanding
+  pipeline requests. V2 has shared/claimable-generation waits and withPeer:
+  scrub/retire cells first, leave tier in a second transaction. V1 lacks that
+  registry. Remote mempool FIFO/SVar/capacity/ledger-table waits, validation and
+  timeout, scheduler/window legality, exact registry keys and driver readiness
+  remain contracts; transaction/fairness correctness is excluded. Partial
+  mempool additions are not rolled back by a later batch exception.
+- **KeepAlive — contracted, guards implemented.** Established-group protocol 8
+  registers dq and sends its first ping before checking control. Response/cookie/
+  sample/trace/delay setup must return before decisionSTM; Continue and Quiesce
+  wait for delay, Terminate wins even before expiry. The whole finalizer is
+  uninterruptible: no fetch means atomic dq removal; a captured fetch means
+  mark dying → actual cancellation receipt → captured ksVar done → dq/dying
+  removal. Receipt is not done, and ksVar is not the physical Async result.
+  BF registration/done semantics are source-backed cross-adapter contracts,
+  not an implemented concurrent shared registry. There is no finalizer timeout
+  or bounded-shutdown claim. The responder only echoes cookies/accepts Done;
+  no local control, timer or dq/fetch bracket is invented for it.
+
+Both directions retain unit/NoInitiatorResult and driver trailing-byte contracts.
+The V2 bracket body restores its prior mask; ordinary masked release can receive
+async at a blocking interruptible release operation; its observed release cancellation
+can escape before full cleanup. KeepAlive's entire release refuses that receipt.
+An escaping synchronous finalizer fault replaces the outcome without certifying
+successful resource removal; the KeepAlive residue control retains dq/dying.
+Only finished normal/synchronous outcomes map to generic body return/exception;
+cancellation remains the separate physical pool/handler unwind. Mux stop,
+handler exit, CM release, demotion, socket cleanup and Async publication retain
+their existing separate transitions. No existing theorem is weakened.
+
+### New modules and evidence
+
+All existing Agda modules/statements remain unchanged:
+
+- [ProtocolContracts2](ProtocolContracts2.agda): captured invocation kernel for
+  Tx initiator, selected V1/V2 responder and KeepAlive initiator/responder;
+  source-specific wait/control/Done/pipeline and finalizer order, failure and
+  cancellation guards. This is an abstract lifecycle kernel, not a wire FSM.
+- [ProtocolContractJobs2](ProtocolContractJobs2.agda): fixed physical JobId
+  bindings, executing-child number/direction guards for 4/8, source-certified
+  events and conditional actual `MuxProtocolJobs.step` completion.
+  `complete-via` retains the real generic edge; `complete-enabled` constructs
+  the adapter edge from real matching/egress premises. It does not reinterpret
+  synthetic protocol 1 or replace the full frontend.
+- [Negative/ProtocolContracts2](Negative/ProtocolContracts2.agda): enabled clean
+  paths for every direction/logic variant, work/park/submission/interval cycles,
+  KA alone and with captured fetch, sync/cancel/acquisition/replacement cases;
+  refusals for unrelated control reads, outstanding pipeline Done, missing V2
+  retirement, skipped KA cleanup, done-before-receipt, finalizer interruption,
+  restart/duplicate completion. V2 release interruption is separately enabled.
+- [Negative/ProtocolContractJobs2](Negative/ProtocolContractJobs2.agda): result
+  selection and unfinished/blocked/join/cancel refusals; positive Tx and KA
+  completion examples explicitly conditional on a real matching child and real
+  generic edge. These are not initialized full-application witnesses.
+
+The shared registry projection must supply the exact captured fetch thread and
+ksVar from the same incarnation, propagate KA readiness/dying to batch 1, and
+observe actual BF cleanup before supplying done. Batch 1's monotone captured
+flags must not be reused for a new bracket. These conditions and complete
+source-operation return observations are stated assumptions, not new proofs
+about all existing frontends. Generic egress/pool/status/handler machinery is
+reused without changes; no direct protocol event releases CM or supplies Cold.
+
+### Validation of increment 89
+
+Agda **2.8.0**, one process at a time, every invocation from the library root:
+`agda ConnectionManagement/<module>.agda +RTS -M20G -A128m -RTS`.
+Resource/process availability was inspected first. A 0.1-second RSS/high-water
+monitor terminates at **9,500,000 KiB** (about 9.06 GiB); no stop fired. The
+20 GB RTS ceiling was never approached. No `-c`, broad cache purge or state-
+changing Git command was used. Final accepted checks:
+
+| Module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `ProtocolContracts2` | 5.318 | 0.801 | fresh own-module pass |
+| `ProtocolContractJobs2` | 5.820 | 0.821 | fresh own-module pass |
+| `Negative/ProtocolContracts2` | 5.218 | 0.815 | fresh own-module pass |
+| `Negative/ProtocolContractJobs2` | 5.821 | 0.846 | fresh own-module pass |
+| `Properties/MuxProtocolJobs` | 7.727 | 1.028 | interface-reusing pass |
+| `Negative/MuxProtocolJobs` | 7.627 | 1.034 | interface-reusing pass |
+| `Negative/MuxHandlerSupervision` | 8.127 | 1.072 | interface-reusing pass |
+
+All final invocations exit **0**, no warnings. Four new modules have their own
+`Checking` lines (dependency interfaces reused): **22.177 s**, peak **0.846 GiB**.
+Three unchanged mux/supervision regressions: **23.481 s**, peak **1.072 GiB**.
+Combined **45.658 s**. Regressions preceded the final new-module-only V2 release
+receipt addition; they do not import the new modules and were not needlessly
+repeated. Earlier successful development checks are excluded from these totals.
+One draft job-control check failed on a missing parenthesis around `keepJoin
+normal`; fixed without a type/statement change. An early resource-runner polling
+race raised a Python TypeError after a child ended; the child was confirmed
+terminal and every affected endpoint was rerun with the repaired monitor.
+No Agda memory failure occurred.
+
+Four-file local heuristic proof audit: **zero findings** (not a transitive
+term-level axiom audit). Selected documentation local-target/anchor and final
+whitespace checks pass. Initial link checking found the not-yet-written increment
+89 anchor; the final heading supplies it. Small progress, pinned source extracts,
+checker logs and measured results remain in the requested RAM-backed scratch
+area; no transient log links are added to these documents. No new postulates,
+holes, unsafe pragmas or existing theorem-statement changes.
+
+### Deferred heavy endpoints for separate acceptance
+
+None imports these new modules, and no existing Agda module changed. The
+requested broad endpoints were **not run**:
+
+- `ConnectionManagement/Properties/SourceKeysServer.agda`
+- `ConnectionManagement/Properties/OwnedFramesExecution.agda`
+- `ConnectionManagement/Negative/OwnedCallersFixture.agda`
+- `ConnectionManagement/Negative/LiveTrackerInitialized.agda`
+- `ConnectionManagement/Negative/ServerPeers.agda`
+- `ConnectionManagement/Negative/ServerPeersOrigins.agda`
+
+No new/checked module exceeded 12 GB or the approximately 10 GB budget. No
+additional >12 GB module was discovered or attempted. This batch claims no
+heavy acceptance, full configured bundle execution, universal progress,
+implementation refinement, native replay or additional gate closure.

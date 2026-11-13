@@ -1,7 +1,7 @@
-# ChainSync and BlockFetch lifecycle contracts
+# Mini-protocol lifecycle contracts
 
 Reviewed 13 November 2026, batch 1 / [Supervision increment 88](Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts).
-The three [branch rows](BranchMatrix.md) are **contracted**, with executable
+Batch 1's three [branch rows](BranchMatrix.md) are **contracted**, with executable
 ordering guards. They no longer lack a reviewed lifecycle contract. This is a
 source review and finite model evidence, not Haskell refinement or full G2
 configured-bundle acceptance.
@@ -163,9 +163,10 @@ The enabled startup/clean/error/server paths and refusal controls are in
 [controls](Negative/ProtocolContractJobs.agda) cover value selection, cancellation,
 blocked/unfinished cleanup refusals, and a positive **conditional** clean-client
 example retaining a real underlying job edge. They prove no eventual progress.
-Validation and unperformed heavy checks are recorded in increment 88. G0 and G2
-full-profile status remain partly met; TxSubmission2, KeepAlive, LeiosNotify,
-LeiosFetch and shared Leios-resource contracts are still missing.
+Validation and unperformed heavy checks for batch 1 are recorded in increment 88.
+Batch 2 below contracts TxSubmission2 and KeepAlive. G0 and G2 full-profile
+status remain partly met; LeiosNotify, LeiosFetch and shared Leios-resource
+contracts remain missing.
 
 [Bundle]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/Network/NodeToNode.hs
 [CSClient]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/MiniProtocol/ChainSync/Client.hs
@@ -179,3 +180,158 @@ LeiosFetch and shared Leios-resource contracts are still missing.
 [Mux]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux.hs
 
 [wire assignments]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/cardano-diffusion/lib/Cardano/Network/NodeToNode.hs
+
+
+## Batch 2 authority and executable boundary
+
+Reviewed 13 November 2026 at model HEAD `96b3bd4`; see
+[increment 89](Supervision.md#eighty-ninth-increment-g0-txsubmission2-and-keepalive-contracts).
+Both rows are **contracted**, with the CM-visible guards **implemented** in
+[ProtocolContracts2](ProtocolContracts2.agda) and the conditional typed mux-body
+adapter [ProtocolContractJobs2](ProtocolContractJobs2.agda). Existing Agda modules
+and statements are unchanged. The boundary and primitive contracts above apply.
+The pinned blobs below were read with read-only `git show`, including consensus
+NodeKernel/mempool operations, both inbound Tx logic variants and the shared
+KeepAlive/BlockFetch registries. No unpinned checkout content is evidence here.
+
+| Alias | Blob at the existing ledger pin |
+| --- | --- |
+| [TxOut] | `f52d7ceef4b04bec9c006ab0b1c37425cec55ed6` |
+| [TxIn1] | `f5d16b2456807e216d7b917516c1cf39688da598` |
+| [TxIn2] | `baaf2c3492088bf414011e6b57a94596829ff160` |
+| [TxRegistry] | `948092f8e0c6dbaadd061bafbd467d3005273cf4` |
+| [TxClientPeer] | `4dfbe820abe6b022e232454771d5295f3343c33e` |
+| [TxServerPeer] | `9c7bd48becc7893d6e7f322113c88e40cd544bd6` |
+| [KA] | `f33ce105fdd9d9eebf6f5a36d1065e14cded9670` |
+| [KARegistry] | `d4b3ccf9dd4b8dd3eac7ed556590b05e110ee443` |
+| [KAClientPeer] | `10691762b9a1e449d29695127717a3bf73880a10` |
+| [KAServerPeer] | `e47d34e45e0aae5d2dc062584144898815a410ea` |
+| [KernelTx] | `3ee89fddf8ce329eb193bbe6300e67976ab04e9f` |
+| [MempoolInit] | `468361ac9900983cd241035963c9bf622905f66d` |
+| [MempoolAPI] | `a75d2d7047c225771635489ad12541438120bca9` |
+| [MempoolUpdate] | `8d9c9a3b4b542db867e70d373ebc4f33d0bdf96e` |
+
+Each state denotes one captured connection incarnation and one invocation per
+selected endpoint. Select **one** of `txServerV1`/`txServerV2` for the actual
+application's `txSubmissionLogicVersion` ([Bundle] 539–578, 1616–1635); TxSubmission2
+is the wire protocol for both. The adapter checks physical executing children,
+number **4** / **8**, and direction ([wire assignments] 481–485). Bindings must be
+fixed, distinct and owned by the same captured connection/mux; choosing V1/V2 is
+an instantiation premise, not an invented wire-version negotiation.
+
+`idle` is an abstract operation boundary, not a complete protocol state. Request
+validation, exact legal request sites, unacknowledged transaction windows,
+startup Init/initial delay/joinTiers order, successful driver sends/receives and
+resource allocation remain **contract** inputs. `issue`/`collect` certify actual
+pipelined request/collection operations, not arbitrary changes to a counter.
+`blockingIds` additionally certifies the real unacknowledged-window condition;
+its zero-depth guard alone does not establish that condition. `ready` certifies
+the entire selected operation returned; it does not promise it will return.
+`start keepClient` certifies successful dq registration and initial ping send;
+it deliberately ends at the response wait, before any local control decision.
+An acquisition failure certifies no acquired bracket resource; failure after
+acquisition/initial send instead uses `fail`/`receiveCancel` and cleanup.
+
+## TxSubmission2
+
+### Initiator
+
+| Lifecycle item and pinned source lines | Disposition and exact contract |
+| --- | --- |
+| Start/receive: [Bundle] 1576–1597; [TxClientPeer] 85–109 | **Implement** one-shot start, channel/snapshot wait observations and no clean return at an idle receive. **Contract** MsgInit send, runPeerWithLimits, codec/byte/time/egress/tracer operations and actual legal request reception. It is the tx **outbound supplier** despite being called Client. There is no fetch-work or ChainDB follower wait on this path. |
+| Blocking tx-id request: [TxOut] 106–161; [Control] 43–55 | **Implement** `blockingRequest` → `txBlocking`, work return or Terminate → `donePending` → observed Done send. **Contract** ack/request/window validation, nonempty mempool snapshot wait and the atomic left-biased `timeoutWithControlMessage`: Terminate wins if both alternatives can commit; Continue/Quiesce retry the control alternative and permit available work. `workAvailable` is valid only for an actual successful work alternative, never when Terminate would win. No wallclock timeout is installed by this helper. |
+| Nonblocking ids / requested bodies: [TxOut] 163–220; [KernelTx] 1098–1126; [MempoolInit] 128–130 | **Implement** distinct channel and snapshot waits which refuse Terminate. **Contract** snapshot return/lookup and missing-body filtering; a removed transaction can be omitted. A control change cannot interrupt these operations or an unrelated driver receive. RequestTxs contains no control read. **Exclude** transaction validity, full acknowledgement/window/payload correctness and mempool fairness proofs. |
+| Result / exceptions / brackets: [TxOut] 46–82, 106–116, 140–143, 163–167, 193–209; [Bundle] 1588–1597 | **Implement** Done-send-before-normal-completion, synchronous errors and actual cancellation as separate outcomes. **Contract** protocol validation exceptions, driver/trace/mempool exceptions and inherited body masking. This application has no local registry bracket; `cleanup txClient` observes completion of any enclosing driver unwind, not a fabricated registry deletion. Normal body result is unit, lifted to `(NoInitiatorResult, trailing)`. Terminate produces Done only in the blocking request state, not at every scheduler iteration. |
+
+### Responder
+
+| Lifecycle item and pinned source lines | Disposition and exact contract |
+| --- | --- |
+| Setup / variant selection: [Bundle] 551–578, 1599–1635; [TxServerPeer] 101–106; [TxIn1] 139–144; [TxIn2] 165–172 | **Implement** separate V1/V2 endpoints and initial-delay wait observations. **Contract** wire MsgInit receipt before server setup, configured delay and, for V2, joinTiers after that delay. V1 runs directly; V2 wraps the driver in withPeer, so registration precedes even MsgInit receive. No initiator control STM is passed to either responder. |
+| Pipeline and normal termination: [TxIn1] 159–220; [TxIn2] 299–380; [TxServerPeer] 59–91, 112–139 | **Implement** counted issue/collect, blocking request only at zero depth, peer Done only at that blocking request, then cleanup. **Contract** actual request choice/window condition, typed driver receives and opportunistic versus blocking collection. MsgDone is a response to a blocking tx-id request; normal responder result is unit (V1/V2 termination tracer must return). **Exclude** a local Terminate check or a generic Done reception while pipelined work remains. |
+| Mempool / work waits: [TxIn1] 239–250, 310–331; [TxIn2] 191–279; [TxRegistry] 746–785, 911–925; [KernelTx] 1128–1150 | **Implement** snapshot/submission waits for both variants and V2-only shared-generation/claimable-change waits. **Contract** scheduler/STM returns, actual counter change or optional registered-delay expiry (no unconditional timer), V1/V2 mempoolAddTxs return and V2 applySubmittedTxs. Spurious workless wakeups may park again. No fairness, eventual expiry, submission success or durable ChainDB insertion is assumed. |
+| Concrete submission blocking: [MempoolAPI] 363–375; [MempoolUpdate] 87–128, 203–218, 239–263 | **Contract** per-transaction remote/all FIFO MVar acquisition and release, SVar acquisition, size-change STM retry after capacity failure, ledger-table reads and configured validation timeout. Partial batch additions can remain after an exception because addTxs is mapM, not one atomic transaction. `submission` covers these nested waits/unwinds; changing CM control cannot unblock them. **Exclude** internal FIFO/SVar/ledger semantics and weighted fairness from this CM kernel. |
+| V2 registry cleanup / masking: [TxRegistry] 605–681 | **Implement** `retireTx` before `cleanup txServerV2`; normal completion cannot skip either. **Contract** bracket acquisition allocates per-peer in-flight/counters cells and atomic registration/tier entry under a captured `(peeraddr, registration)` key. Finalizer obtains time, atomically scrubs this peer's shared in-flight contributions and retires counters/removes cells, then leaves tier in a **separate** transaction. Acquisition/release are masked under ordinary bracket; body restores prior mask, not necessarily Unmasked. Release is not asserted uninterruptible; `releaseCancelled txServerV2` certifies actual async receipt at a blocking interruptible operation in the release mask and exits cancelled without certifying remaining cleanup. Exception replacement obeys PrimitiveMatrix. |
+| Errors / V1 cleanup: [TxIn1] 232–269; [TxIn2] 359–415; [Bundle] 1607–1635 | **Implement** synchronous/actual async body exit, observed cleanup, and escaping finalizer error replacing the outcome. **Contract** overlarge/unrequested replies, invalid bodies, mempool, policy, tracer and driver exceptions. V1 has no withPeer registry to remove. V2 cancellation does not imply successful scrub/tier removal; `cleanupError` may finish with a synchronous replacement error without those resource-success certificates. Final asynchronous unwind remains a cancellation outcome outside ordinary mux synchronous error selection. |
+
+Normal Tx return feeds the generic mux result; it does not itself stop mux,
+release CM, demote or exit the handler. Failure may trigger those existing
+supervision paths. A hot-protocol demotion can wait until a valid blocking
+request/control read; receive/submission/park delays do not become immediate
+completion when control changes.
+
+## KeepAlive
+
+### Initiator
+
+| Lifecycle item and pinned source lines | Disposition and exact contract |
+| --- | --- |
+| Established bundle / acquisition: [wire assignments] 303–313; [Bundle] 1727–1757; [KARegistry] 49–62 | **Implement** one-shot dq registration/ping start and retained dq presence. **Contract** successful atomic absence check against older same-peer dq entry and defaultGSV insertion. Retry has no partial insertion; acquisition interruption/failure before commit acquires nothing. Source established-group selection/start remains the existing frontend's obligation; this batch adds no initialized nonempty established bundle. |
+| First ping / response / sample: [KA] 55–59, 77–95; [KAClientPeer] 45–53 | **Implement** response wait before the first control site; `ready keepClient` certifies cookie check, sample update, tracer return and delay registration. **Contract** random cookie/time, dq membership assertion/update and actual reply; cookie mismatch throws KeepAliveCookieMissmatch. Terminate does not short-circuit the first ping or an outstanding response. **Exclude** RTT/DeltaQ accuracy, random distribution, numeric time and eventual reply guarantees. |
+| Control/delay: [KA] 63–75, 94–103; [Bundle] 1748–1753 | **Implement** `keepDecision`, Terminate → Done pending, interval return → next ping/response wait, Done-send-before-cleanup. **Contract** registered delay is 10 seconds in this bundle; decisionSTM reads control first: Terminate returns immediately even if delay not fired; Continue **and Quiesce** wait for delay, then yield Continue. `intervalElapsed` certifies this actual non-Terminate return and next send; it is invalid if Terminate would have won. This is an untimed observation, not a deadline or periodic-progress proof. |
+| Finalizer without fetch: [KARegistry] 64–84 | **Implement** `keepSnapshot false` removes dq and finishes only after body exit/Done. **Contract** actual atomic keepRegistry lookup is Nothing and dq deletion commits. No fetch job is fabricated or required when absent. Normal result is unit, lifted to `(NoInitiatorResult, trailing)` only after bracket returns. |
+| Finalizer with fetch: [KARegistry] 67–96; [Registry] 95–122, 198–207 | **Implement** snapshot marks dying, separate captured fetch cancellation receipt, then captured done signal before dq/dying removal. Cancellation receipt alone cannot finish KeepAlive. **Contract** exact keepRegistry `(ThreadId, ksVar)` captured by the finalizer, actual throwTo AsyncCancelled receipt, readTMVar ksVar and successful atomic dq/dying deletion. BF registration checks dq presence and absence from dying; BF cleanup signals ksVar and deletes keepRegistry. That signal is cleanup synchronization, not necessarily the physical BF Async result. |
+| Masking / errors: [KARegistry] 49–50, 66–96; [KAClientPeer] 49–53 | **Implement** body sync/cancel outcomes and refusal of further async receipt throughout KeepAlive cleanup (including throwTo/join); an observed escaping synchronous cleanup fault finishes with replacement error and retains dq/dying metadata rather than claiming removal. **Contract** ordinary bracket acquire/body masks and **uninterruptibleMask_ for the entire finalizer**, with no local timeout or restore window. Blocked throwTo/readTMVar can therefore prevent return indefinitely; source exceptions/assertions and driver/tracer failures may end the body. A finalizer fault may leave registry residue. **Exclude** bounded cancellation, guaranteed finalizer success, or a direct finalizer async-receipt branch. |
+
+The captured fetch snapshot/done inputs must be projected from the same peer,
+connection incarnation and actual registry bracket as batch 1's fetch cleanup.
+Batch 2 does not implement a concurrent shared registry or automatically feed
+its dq/dying fields into batch 1's state. A combined instantiation must couple
+successful KA start with batch 1 keepAliveReady, propagate the captured dying
+snapshot to keepAliveDying, and certify fetchDone from the matching ksVar after
+fetch removal; batch 1's monotone dying flag cannot be reused for a new bracket.
+This explicit cross-adapter contract prevents treating unrelated result/cancel
+observations as registry readiness. Multiple incarnations require fresh captured
+state; neither kernel proves registry identity/refinement for arbitrary clients.
+
+### Responder
+
+| Lifecycle item and pinned source lines | Disposition and exact contract |
+| --- | --- |
+| Receive/respond/Done: [Bundle] 1759–1773; [KA] 106–112; [KAServerPeer] 24–37 | **Implement** channel wait, observed peer Done → cleanup → finished normal, body error and cancellation paths. **Contract** echo the actual received cookie, driver send/receive/limits/tracing and unit result with trailing bytes. **Exclude** a local control or interval wait, dq/fetch registration and a KeepAlive client finalizer on this direction: none is present. `cleanup keepServer` is driver-unwind completion, not registry removal. |
+
+KeepAlive is established-group work, so ending the hot group alone is not a
+KeepAlive Terminate observation. Its own termination/result and group supervision
+remain distinct. Normal completion still waits on mux egress before status/
+physical result publication; synchronous errors use existing mux error reporting,
+asynchronous cancellation remains physical pool/handler unwind. KA/BF cleanup
+can delay established deactivation and handler shutdown, even after control/mux
+stop is requested. Release, mux shutdown enqueue, handler finally, socket close,
+logical demotion and physical Async result remain separate existing operations.
+
+## Batch 2 checked scope and remaining gates
+
+[Lifecycle controls](Negative/ProtocolContracts2.agda) check enabled Tx initiator,
+V1/V2 responder, KA alone/captured-fetch, KA responder, error/cancel/acquisition
+and cleanup replacement schedules, plus source-specific refusals.
+[Job controls](Negative/ProtocolContractJobs2.agda) check clean/error/cancel/
+unfinished result selection and positive Tx/KA completion conditional on a real
+matching physical child and real generic mux edge. `complete-via` retains that
+edge; `complete-enabled` introduces it under those premises. Existing mux egress,
+result queue, status commit, job deregistration and handler cleanup are reused.
+This is no new initialized application or full-bundle clean witness. The source
+operation projection, shared-resource coupling, control alternative priority and
+mask/readiness obligations above remain contracts; no native replay, Haskell
+refinement, universal progress or whole-node shutdown theorem follows.
+
+G0/G2 remain partly met: **66 implemented / 16 contracted / 14 excluded /
+3 missing** rows. Remaining protocol/resource reviews are LeiosNotify, LeiosFetch
+and shared Leios allocation/cleanup. Reconciled configuration/seed/selection,
+full configured initialized clean coverage and separately requested downstream
+acceptance remain open. Increment 89 records exact validation and deferred heavy
+modules.
+
+[TxOut]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/TxSubmission/Outbound.hs
+[TxIn1]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V1.hs
+[TxIn2]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2.hs
+[TxRegistry]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V2/Registry.hs
+[KA]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/KeepAlive.hs
+[KARegistry]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/KeepAlive/Registry.hs
+[TxClientPeer]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/protocols/lib/Ouroboros/Network/Protocol/TxSubmission2/Client.hs
+[TxServerPeer]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/protocols/lib/Ouroboros/Network/Protocol/TxSubmission2/Server.hs
+[KAClientPeer]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/protocols/lib/Ouroboros/Network/Protocol/KeepAlive/Client.hs
+[KAServerPeer]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/protocols/lib/Ouroboros/Network/Protocol/KeepAlive/Server.hs
+[KernelTx]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus-diffusion/src/ouroboros-consensus-diffusion/Ouroboros/Consensus/NodeKernel.hs
+[MempoolInit]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Mempool/Init.hs
+[MempoolAPI]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Mempool/API.hs
+[MempoolUpdate]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Mempool/Update.hs
