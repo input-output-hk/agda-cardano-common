@@ -9708,3 +9708,138 @@ acceptance, implementation refinement, exhaustive replay or additional gate
 closure is claimed. Next executable work is configuration/selection
 reconciliation followed by the full configured initialized witness; this batch
 does not start it.
+
+## Ninety-first increment: G0/G2 configuration reconciliation and start-mode obstruction
+
+13 November 2026. Inspected model HEAD `5a6f9ef633e909577be20842a236d076d4affcc9`;
+changes remain uncommitted. No existing Agda module or theorem statement is
+changed. The combined CM/IG/OG/Server objective and G0–G5 criteria are unchanged.
+
+**Result: phase 2 is blocked, and stops at the requested guard boundary.**
+The [pinned profile reconciliation](BranchMatrix.md#pinned-locallifecycle-profile--increment-91)
+is the maintained configuration record: two ordinary peers, sane **2/2/1**
+targets, hot **2/3/4/18/19**, **empty warm**, established KeepAlive **8**.
+The source descriptor for KeepAlive is **StartOnDemandAny**, not independent
+on-demand or eager. Initiators are actually started eagerly by PeerStateActions;
+responders retain the descriptor policy. The model refuses the descriptor at
+installation even before that directional distinction is used.
+
+Source review used pinned objects at network
+`2f1c154f248659b89523d5679ca532f442e7ed2a` and consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. The retained network checkout has
+that exact HEAD. Bundle selection is network `Cardano/Network/NodeToNode.hs`
+250–325, blob `ec3a1f45ba0116bc9fa0e90e45ab2acad1176014`, combined with
+consensus `Ouroboros/Consensus/Network/NodeToNode.hs` 1963–2100, blob
+`b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3`. Source RNG split/policy inspection
+also read network Diffusion blob `d23d213c1c96c6fa2e0f734d879440047e17fe94`
+and Policies blob `dd40700a89aa1300f5f86840c9dc29da1894bfea`. Immutable source
+links and exact boundaries are in the reconciliation; no transient log links
+are used here. An initial lookup in the ordinary network checkout lacked the
+promoted object; the retained pinned checkout supplied it. Two version-path
+lookups missed `api/lib`; the actual pinned `api/lib` file was then read. No
+failed lookup was treated as source evidence.
+
+### Checked configuration and initialized obstruction
+
+Four new small modules under `Negative/`:
+
+- [FullConfiguredProfile](Negative/FullConfiguredProfile.agda): exact six-number
+  descriptors and capability; usual initializer equality for empty CM and two
+  known peers; sane targets; globally ordered bundle; unsupported full bundle
+  and singleton KeepAlive; actual inbound/outbound/initiator-only installer
+  refusals with free handles/muxes. Mode/temperature/number are retained.
+- [FullConfiguredAcquire](Negative/FullConfiguredAcquire.agda): **23** real
+  frontend edges, each `refl`, from that initializer through selecting both
+  eligible peers, first establishment-job fork/register, owned acquisition,
+  socket connect, physical handler fork/handoff/commit and enter-handshake.
+  The second establishment launch remains pending; no second running peer is
+  inferred from two known addresses.
+- [FullConfiguredBlocked](Negative/FullConfiguredBlocked.agda),
+  `initialized-to-obstruction`: **24** initialized events, adding real full-
+  bundle negotiation return on a plain outbound unidirectional bearer. The next
+  `allocateHandle` returns Nothing because `IG.supported` rejects onDemandAny.
+  Endpoint facts retain two known peers and show no installed handles/muxes,
+  physical protocol jobs or handler result. Controls refuse premature promise
+  publication, body exit and handler Async result. No midpoint injection or
+  fallback value supplies an edge; every accepted edge independently has
+  `advance … ≡ just …` by `refl`.
+- [FullConfiguredBlockedCallers](Negative/FullConfiguredBlockedCallers.agda):
+  lifts exactly those events inside the real relays scope, proves `every-owned`,
+  `production-policy : Owned.Allowed initialized-outer`, and
+  `production-run : Owned.OuterRuns′ …`. This certifies the **blocked prefix**,
+  not a full clean lifecycle or eventual progress.
+
+`IGRegistration.supported` explicitly rejects `onDemandAny`; both installers
+check it. `MuxHandlerSupervision.allocate` reaches the actual installer through
+`O.advance`. Source mux grouped startup needs its own monitor behavior; merely
+having a `demandAny` constructor does not implement it. We do not relabel
+KeepAlive, remove it, inject a handle or bypass this guard. Protocol-contract
+adapters 88–90 remain conditional and unwired: wiring completion events cannot
+repair the earlier allocation refusal. There is no full-bundle hot promotion,
+contracted protocol lifecycle, clean Cold endpoint or final job/handler-result
+availability witness in this increment.
+
+The profile record also reconciles all reduced witnesses, effective direction
+policies, feature exclusions and numerical version abstraction. No numerical
+source version, Tx responder variant or `StdGen` seed is certified by these
+fixtures. Counters starting at 0 are draw markers. Reduced policy choices,
+absent acquisitions, score/jitter inputs and the 60-versus-120 clearing delay
+are explicit. A concrete source RNG split/selection/retry-rollback relation
+remains open; replay seeds do not instantiate this schedule.
+
+**G0 is still partly met:** the discrepancy review and checked target/profile
+representation are done; source-faithful grouped readiness and concrete
+seed/selection/version instantiation are not. Matrix counts remain **66
+implemented / 19 contracted / 14 excluded / 0 missing**; the existing excluded
+StartOnDemandAny row is explicitly identified as a full-profile blocker.
+**G2 is still partly met:** full configured initialized clean outbound and
+inbound contract/job/handler coverage remains absent. Reduced-profile acceptance
+is unchanged. G1/G3/G4 retain their accepted scopes; G5 is unchanged. The next
+executable work is implementing source-faithful grouped readiness and its
+separate readiness/cancellation/result controls, then connecting contract
+adapters on captured runtime state and constructing the full clean witness;
+this task stops before that semantic change, as requested.
+
+### Validation of increment 91
+
+Agda **2.8.0**, sequential from this library root. Each command was
+`agda ConnectionManagement/Negative/<module>.agda +RTS -M20G -A128m -RTS`.
+No `-c`; dependency interfaces reused; each new module emitted its own
+`Checking` line. Before checking, about 25 GiB was available and no Agda process
+was running. A 0.1-second RSS/high-water monitor stopped above 9,500,000 KiB;
+no stop fired. Scratch runner, logs, measurements and small `progress.md` are
+retained in the requested RAM-backed scratch directory.
+
+| New module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `FullConfiguredProfile` | 25.084 | 2.662 | fresh own-module pass |
+| `FullConfiguredAcquire` | 16.655 | 2.299 | fresh own-module pass |
+| `FullConfiguredBlocked` | 14.951 | 2.452 | fresh own-module pass |
+| `FullConfiguredBlockedCallers` | 32.610 | 3.824 | fresh own-module pass |
+
+Final checks: **89.300 seconds**, maximum **3.824 GiB**, all exit **0**, no
+warnings or Agda diagnostics. An earlier 16.557-second successful acquisition
+check used a one-peer pick; it was replaced by the full two-peer initial pick
+and freshly rechecked, and is excluded from the final total. No failing Agda
+attempt occurred. Four-file local heuristic proof audit: **zero findings**;
+this is not a transitive term-level axiom audit. Eight selected Markdown files have **1,213 local targets, zero errors and no
+unverified fragments/URIs** in the local link checker; external URLs were not
+fetched. `git diff --check` and a whitespace scan of all four untracked Agda
+additions pass. The seven retained network files used in the configuration
+review were also hash-matched to their pinned Git blobs. No existing proof statement, new trust,
+hole, unsafe pragma, runtime wiring, Haskell replay, source-pin change, broad
+rebuild or Git state-changing command is included.
+
+The six requested heavy endpoints were **not run**; no existing Agda dependency
+changed, so they are listed for the user rather than rebuilt:
+
+- `ConnectionManagement/Properties/SourceKeysServer.agda`
+- `ConnectionManagement/Properties/OwnedFramesExecution.agda`
+- `ConnectionManagement/Negative/OwnedCallersFixture.agda`
+- `ConnectionManagement/Negative/LiveTrackerInitialized.agda`
+- `ConnectionManagement/Negative/ServerPeers.agda`
+- `ConnectionManagement/Negative/ServerPeersOrigins.agda`
+
+No new/check module exceeded 12 GB or the approximately 10 GB budget; no
+additional >12 GB module was attempted or discovered. There is no downstream
+runtime-change regression claim because no existing runtime was changed.

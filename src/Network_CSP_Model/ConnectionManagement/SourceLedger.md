@@ -1,6 +1,10 @@
 # Initial source-to-transition ledger
 
 Current branch/profile classification: [BranchMatrix.md](BranchMatrix.md).
+Increment 91 [reconciles the full configuration](BranchMatrix.md#pinned-locallifecycle-profile--increment-91):
+KeepAlive StartOnDemandAny is a confirmed installation blocker, not supplied by
+the existing excluded grouped-readiness row or the conditional body adapters.
+G0/G2 remain partly met.
 
 **Initial ledger: 15 October 2026; coverage status reconciled 4 November 2026.**
 Companion to [DESIGN.md](DESIGN.md).

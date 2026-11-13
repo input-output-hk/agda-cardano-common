@@ -3,6 +3,10 @@
 For the current goal, milestone status, evidence, and next action, see
 [Project state](../PROJECT_STATE.md). The design and source ledger below remain
 the authority for scope and source mappings.
+[Increment 91 configuration reconciliation](BranchMatrix.md#pinned-locallifecycle-profile--increment-91)
+records the checked two-peer targets and exact bundle: source KeepAlive uses
+StartOnDemandAny, currently rejected at handle installation. The 24-event
+initialized OwnedCallers prefix diagnoses this blocker; G0/G2 remain partly met.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile

@@ -470,3 +470,16 @@ replay, universal progress, Haskell refinement or whole-node shutdown claim.
 [Logic]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/LeiosDemoLogic.hs
 [LeiosDbAPI]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/API.hs
 [LeiosDbSQLite]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite.hs
+
+
+## Increment 91 configuration boundary
+
+The [pinned configuration reconciliation](BranchMatrix.md#pinned-locallifecycle-profile--increment-91)
+identifies an earlier execution blocker: source established KeepAlive **8** is
+`StartOnDemandAny`, rejected by the real handle installer. The initialized
+[24-event diagnostic](Negative/FullConfiguredBlocked.agda) and its
+[OwnedCallers prefix certificate](Negative/FullConfiguredBlockedCallers.agda)
+do not instantiate these three adapters. They remain conditional; no protocol
+contract state is injected or declared completed to bypass allocation. Warm is
+empty in this selected source profile. G0/G2 remain partly met; increment 91
+records the exact remaining configuration/seed/selection and full-execution work.

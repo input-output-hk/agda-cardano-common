@@ -1,12 +1,12 @@
 # Pinned branch and fixture matrix
 
-13 November 2026 (protocol-contract batch 3). The 12 November audit completed [GateAudit plan step 1](GateAudit.md#ordered-gap-closing-plan): an inventory review, not implementation or gate closure. It reconciles [SourceLedger](SourceLedger.md), [DESIGN §§1–2, 9–11](DESIGN.md), [Supervision](Supervision.md) through increment 82, the [migration profile](MigrationProfile.md) and [migration acceptance](BASELINE_MIGRATION_PLAN.md). The original inventory used declarations and topic records. The G1 follow-up implements two previously missing branches below; [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure) records the accepted G1 checks. The inbound receipt follow-up in [increment 82](Supervision.md#eighty-second-increment-inbound-physical-release-receipt-and-clean-lifecycle) completes the reduced initialized inbound witness; its broad capped regression remains separate.
+13 November 2026 (increment 91 configuration reconciliation). The 12 November audit completed [GateAudit plan step 1](GateAudit.md#ordered-gap-closing-plan): an inventory review, not implementation or gate closure. It reconciles [SourceLedger](SourceLedger.md), [DESIGN §§1–2, 9–11](DESIGN.md), [Supervision](Supervision.md) through increment 82, the [migration profile](MigrationProfile.md) and [migration acceptance](BASELINE_MIGRATION_PLAN.md). The original inventory used declarations and topic records. The G1 follow-up implements two previously missing branches below; [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure) records the accepted G1 checks. The inbound receipt follow-up in [increment 82](Supervision.md#eighty-second-increment-inbound-physical-release-receipt-and-clean-lifecycle) completes the reduced initialized inbound witness; its broad capped regression remains separate.
 
 ## The profile actually exercised
 
-Authority is network **`2f1c154f248659b89523d5679ca532f442e7ed2a`**, pinned by consensus **`2e44d98a843168ba3b189e305820b79943ac7d1e`**. Earlier evidence keeps network `96ee6e0…` / consensus `585a861…`. The [baseline manifest](../review/source-baseline-2026-11-06.json) records unchanged CM/IG/Server/JobPool files and changed mux, handler and diffusion files. Retained network source copies were matched against its promoted blob inventory before locating the changed ranges below. Consensus bundle, fetch and logic copies match the manifest's applicable content hashes. This does not establish source refinement or identify the current model commit; no Git metadata was inspected.
+Authority is network **`2f1c154f248659b89523d5679ca532f442e7ed2a`**, pinned by consensus **`2e44d98a843168ba3b189e305820b79943ac7d1e`**. Earlier evidence keeps network `96ee6e0…` / consensus `585a861…`. The [baseline manifest](../review/source-baseline-2026-11-06.json) records unchanged CM/IG/Server/JobPool files and changed mux, handler and diffusion files. Retained network source copies were matched against its promoted blob inventory before locating the changed ranges below. Consensus bundle, fetch and logic copies match the manifest's applicable content hashes. This does not establish source refinement. The original inventory audit did not inspect model Git metadata; increment 91 separately inspected model HEAD `5a6f9ef633e909577be20842a236d076d4affcc9`.
 
-There is **no single executable fixture matching all of DESIGN's LocalLifecycle choices**. In particular, two accepted sockets do not mean two executing ordinary peers, and protocol number 1 below is a synthetic descriptor, not the configured six-protocol application.
+There is **no successful executable fixture matching all of DESIGN's LocalLifecycle choices**. Increment 91 adds the exact descriptor/target profile and an initialized allocation-refusal diagnostic below. In particular, two accepted sockets do not mean two executing ordinary peers, and protocol number 1 below is a synthetic descriptor, not the configured six-protocol application.
 
 | Fixture and initializer | Actual initial configuration and bundle |
 | --- | --- |
@@ -22,7 +22,142 @@ Common executable policy values are in [Subsystem.initial](Subsystem.agda): maxi
 
 The physical fixture's exception projections are explicit: `MuxPublicationInboundFixtures.bearerClosed` recognizes error 999; `Negative/GovernorPool.classify` recognizes error 7 as IO-manager error. `ServerPeers.Fixtures.classify` is instead constantly false for its local interleaving fixture. They must match represented source exceptions before making source claims. Negotiation supplies a fixed bundle and permitted flow; duplex capability permits reuse but does not require both roles to run.
 
-All fixtures start after listener/governor infrastructure setup. Assumptions are one listener, ordinary fixed-known peers, enabled assertions, untimed token expiry, nondecreasing sampled time, explicit transport/buffer/policy outcomes and successful observed diagnostic traces. The IG queue has capacity 100; source unbounded queues remain unbounded. Address order is abstract remote-before-local; signed counters and byte arithmetic require their stated non-overflow profiles. There is no fairness, eventual reply/write/cleanup or whole-node-boot premise. DESIGN's desired targets **2/2/1**, five named hot protocols plus established KeepAlive, full control/wait/registry contracts and a concrete seed-to-selection relation remain obligations. Peras, PeerSharing, local roots, big-ledger policy and discovery are excluded.
+All fixtures start after listener/governor infrastructure setup. Assumptions are one listener, ordinary fixed-known peers, enabled assertions, untimed token expiry, nondecreasing sampled time, explicit transport/buffer/policy outcomes and successful observed diagnostic traces. The IG queue has capacity 100; source unbounded queues remain unbounded. Address order is abstract remote-before-local; signed counters and byte arithmetic require their stated non-overflow profiles. There is no fairness, eventual reply/write/cleanup or whole-node-boot premise. Increment 91 below reconciles DESIGN's **2/2/1** targets and exact descriptors; execution is blocked by KeepAlive's start mode. The full contracts are reviewed, but their runtime coupling and a concrete seed-to-selection relation remain obligations. Peras, PeerSharing, local roots, big-ledger policy and discovery are excluded.
+
+## Pinned LocalLifecycle profile — increment 91
+
+**Reconciliation result: targets are expressible; the source bundle is
+representable as data but is rejected by executable installation.** Phase 2 is
+stopped at this guard. No start mode, existing statement or runtime rule is
+changed. [FullConfiguredProfile](Negative/FullConfiguredProfile.agda) gives the
+usual `V.initialize (O.initial c₀) settings` equality with empty CM/physical jobs,
+one post-setup listener and two known ordinary peers. Initial targets are
+known **2**, established **2**, active **1**. `key₀`/`key₁` use local IPv4 host 0,
+port 3001 and remote hosts 1/2, port 3001. Both known records have failures and
+connectAt 0, clearFailuresAt Nothing, tepid/successful false; all established,
+active, in-progress, cooling and tenure collections are empty. `targets-sane`
+checks the model projection. Embedding root and all big-ledger targets as 0
+satisfies [GTypes] 270–290 with empty root sets. These are selected scenario
+values, **not production default targets**. No target is lowered in this blocked
+prefix; a future demotion must use `setTargets`/the target monitor.
+
+### Bundle and directions
+
+Authority: [wire bundle][Wire] 250–325, 475–494 (blob
+`ec3a1f45ba0116bc9fa0e90e45ab2acad1176014`) and [Bundle] 1963–2100
+(blob `b2f3e96e8458592e2eee7dd4fd33174b4d6c63c3`). Both were read at the
+pins above. PerasUnsupported and PeerSharingDisabled select this layout:
+
+| Group | Protocols, in source group order | Descriptor start mode | Directions in initiator-and-responder application |
+| --- | --- | --- | --- |
+| Hot | ChainSync **2**, BlockFetch **3**, TxSubmission2 **4**, LeiosNotify **18**, LeiosFetch **19** | `StartOnDemand` for all five | Each has initiator and responder callbacks |
+| Warm | **empty** | None | Neither direction has a warm protocol |
+| Established | KeepAlive **8** | **`StartOnDemandAny`** | Initiator and responder callbacks |
+
+The initiator-only projection has the same descriptor groups/modes with only
+initiator callbacks. **Effective start policy differs by direction:** [Actions]
+1180–1198 starts initiators with `StartEagerly`, overriding descriptor start mode;
+[IG] 777–795 passes the descriptor mode to responder starts. Establishment starts
+warm then established initiators, activation starts hot initiators. IG installs
+all three responder groups for eligible inbound/duplex registrations. Thus
+KeepAlive's grouped-readiness behavior belongs to responder scheduling, while
+this model rejects its descriptor even for outbound unidirectional or
+initiator-only installation before that distinction can be used. Negotiated unidirectional flow does not start a local responder just
+because the node uses initiator-and-responder diffusion. Duplex permits reuse;
+it does not imply all callbacks run. The diagnostic selects outbound
+unidirectional flow, full six-number initiator capability on handle 0 and a plain
+mux. It reaches no started callbacks. Requiring a nonempty warm protocol would
+change this selected source configuration; the reduced warm protocol 1 cannot
+be added to fill that group.
+
+The Agda list is globally sorted `2,3,4,8,18,19` because `IG.ordered` requires
+strict number order; filtering by temperature retains the source group orders.
+`Protocol` records number, temperature and start mode; it carries no codec,
+network magic, numerical version or feature-flag value. Source layout selection
+ignores the version argument here. Supported [source versions][WireVersion] 14/15/16 with
+PerasUnsupported and PeerSharingDisabled share this descriptor layout; no
+specific numerical version is recoverable from a model handle. Fixing one for
+codec/source replay remains an instantiation obligation. Tx responder V1/V2 is
+selected separately by `txSubmissionLogicVersion` ([Bundle] 551–578), not a
+second protocol 4 or a wire-version inference. Neither responder variant is
+instantiated in this blocked outbound diagnostic. Payload/codec, peer trust,
+limits, private resources and remote operation outcomes retain the explicit
+[protocol contracts](ProtocolContracts.md); no unsupported numerical/version
+claim is inferred from descriptor equality.
+
+### Exact execution gap and initialized diagnosis
+
+[IGRegistration](Rules/IGRegistration.agda), `supported`, returns false as soon
+as it sees `onDemandAny`; both `installWith` and `installInitiatorWith` require
+true. `MuxHandlerSupervision.allocate` calls the corresponding real install
+operation through `O.advance`. Merely having `MuxRuntime.demandAny` as a status
+constructor supplies no grouped-readiness monitor. [Mux] 745–761, 797–802 waits
+for demand on any mini-protocol to start these responders. Replacing KeepAlive
+with independent on-demand or eager startup would change that semantics.
+This is an executable gap for **both** source directions and for initiator-only
+installation, not a missing descriptor constructor, ordering failure, occupied
+handle or protocol-contract completion refusal.
+
+`FullConfiguredProfile` checks the sane initializer, ordered six-number bundle,
+unsupported full bundle and singleton KeepAlive, and real inbound/outbound/
+initiator-only installation refusals. [FullConfiguredAcquire](Negative/FullConfiguredAcquire.agda)
+uses 23 real frontend edges: select both eligible peers at time 0, apply/trace,
+fork/register the first establishment job, owned acquire/reserve/socket connect,
+physical handler fork/handoff/commit and enter handshake. The second peer stays
+known with its establishment launch pending. [FullConfiguredBlocked](Negative/FullConfiguredBlocked.agda)
+adds the actual full-bundle negotiation-return edge: **24 initialized events**,
+every edge `refl`, no injected midpoint. `allocation-refused` is the next real
+frontend step. Controls refuse premature publication, body exit and handler
+result; endpoint facts show two known peers, no installed handles/muxes, no
+physical protocol jobs and no handler result. [FullConfiguredBlockedCallers](Negative/FullConfiguredBlockedCallers.agda)
+proves the **prefix's** `every-owned`, `Owned.Allowed` and executable
+`Owned.OuterRuns′` inside the relays scope. It proves no hot promotion, protocol
+lifecycle, Cold endpoint or available final job/handler result. The increments
+88–90 adapters stay conditional and unwired: wiring them alone cannot pass the
+installation guard. Per the task's stop condition, phase 2 is not attempted.
+
+### Policy seed and selected inputs
+
+There is **no executable Agda seed** and no source seed certified for these
+fixtures. Source [Diffusion] 301–308 splits externally supplied `diRng` into
+ledger, churn, fuzz, local CM, remote CM1/CM2, egress and peer-selection-actions
+generators; the IO entry uses `newStdGen` (1062). [Policies] 150–270 ranks peers
+using atomic `StdGen` splits and Word32 draws, with tepid/failure/metric weights;
+[Established] 521 uses `randomR (-2,2 :: Double)` for establishment fuzz.
+CM bucket choice/splitting is atomic with retry rollback ([Core] 1276–1279,
+1379–1388). Model generation counters start at **0**, not `mkStdGen 0`.
+`selectPolicy` supplies an eligible distinct list up to quota; `Acquire.select`
+supplies a bucket member or absent choice; pruning supplies generation-tagged
+scores; establishment jitter uses integral codes **0..4** for -2..2. These
+abstractions bound eligibility and permit finite scheduling studies without
+implementing PRNG/distribution/continuous time. They do **not** certify source
+ranking, full requested pick cardinality or deterministic retry selection.
+
+For the new diagnostic the initial source-style establishment pick cardinality
+is two: both eligible peers are explicitly selected; the first source-address-
+ordered job acquires an absent bucket (`Acquire.select nothing`). No pruning,
+fuzz or metric-based choice is reached. In `OutboundCleanLifecycle` and
+`TimeoutCoolingOwned`, the shared prefix selects only the sole eligible peer,
+absent acquisition, targets **1/1/0**, and one warm/on-demand initiator 1;
+there are no hot/established protocol bodies or KeepAlive registry work.
+`InboundCleanLifecycle` has targets **0/0/0**, no known peers or OG job and only
+one hot/on-demand responder 1. The 1/1/1 hot-protocol fixtures in the earlier
+table omit the other named hot protocols and all established work as well.
+All begin with draw counters 0; none runs a seeded source peer policy.
+Common retry maximum **5** matches source; clearing delay **60** versus source
+**120 seconds** is an existing discrete-time model/replay parameter, not a
+reconciled deployment default. All timers are untimed observations.
+
+The concrete seed/selection obligation is still open: fix the source `diRng`
+and split consumption, policy metrics and peer order, project actual selected
+sets/bucket choices/pruning scores/fuzz at each transaction, and preserve retry
+rollback. Existing replay seeds 0/1/42 do not instantiate this schedule.
+Accordingly **G0 remains partly met** despite completing this discrepancy
+reconciliation, and **G2 remains partly met**. Their remaining work includes
+source-faithful grouped readiness, seed/selection/version instantiation and full
+configured initialized contract/job/handler execution, including clean
+inbound/outbound coverage. No missing matrix row is concealed: the existing
+StartOnDemandAny **excluded** row is a blocker to the intended full profile.
 
 ## Reading the matrix
 
@@ -164,7 +299,7 @@ These expand `HANDLER.PUBLISH/RUN`, `MUX.STOP/STOPPED`, `JOB.*` and the ledger's
 | Egress interval/burst statistics, detector, rotation and gate-timeout counter | [Egress] 263–333; [Bucket] 190–239, 356–371, 535–563, 649–888 | Excluded policy observations in the M4a ledger; they do not supply progress or timeout guarantees. | **excluded** | G2 |
 | Active tenure insert/restrict/assert/publication | [Active] 594–595, 1041–1042, 1079–1080; [Monitor] 234–235; [Governor] 591; [GTypes] 883–890, 1399 | [R/OutboundGovernor](Rules/OutboundGovernor.agda), `complete`/`applyMonitor`; [Subsystem](Subsystem.agda), `publishPublicState`; [Properties/ActiveTenure](Properties/ActiveTenure.agda), `Tenure`, `Coordinator.tenure-runs`; [Negative/OutboundGovernor](Negative/OutboundGovernor.agda). | **implemented** | G2, G3 |
 | Local-root public addresses/provider restart and PeerShare failure backoff | [GTypes] 883–890; [LocalRoots] 62–260; [GKnown] 250–410 | No local roots or peer sharing; M4b ordinary-profile exclusion. Public whole-state copying over-approximates the three source public fields. | **excluded** | G2 |
-| StartOnDemandAny grouped readiness | [Mux] 745–761, 797–802 | [IGRegistration profile](IGRegistration.md#profile-and-remaining-abstractions) excludes this bundle; `installHandle` refuses it. Eager and independent on-demand remain supported. | **excluded** | G2 |
+| StartOnDemandAny grouped readiness | [Mux] 745–761, 797–802 | [IGRegistration profile](IGRegistration.md#profile-and-remaining-abstractions) excludes this bundle; `installHandle` refuses it. Eager and independent on-demand remain supported. Increment 91 confirms that this exclusion blocks the full source KeepAlive profile, including allocation before initiators can start eagerly. | **excluded** | G2 |
 
 ### Later design variants and proof-only additions
 
@@ -177,12 +312,12 @@ Increments 32–62 and 71–76/79 mainly add provenance, initializer restriction
 
 ## Discrepancies and gate consequences
 
-1. **Profile mismatch — blocks G0 and configured G2.** No reconciled two-ordinary-peer 2/2/1 initializer/full application bundle was found. The actual 1/1/1 fixtures and abstract generation/selection policy above must not be described as the full LocalLifecycle profile. A source seed/selection relation, the full target and fixed protocol feature/version configuration still need acceptance. Replay seeds do not fill this gap.
+1. **Profile mismatch — blocks G0 and configured G2.** Increment 91 supplies a checked two-ordinary-peer 2/2/1 initializer and exact descriptors, but the pinned KeepAlive `StartOnDemandAny` is rejected at installation, including after a 24-event initialized prefix. The seed-to-selection and numerical version instantiation remain absent. Reduced fixtures and replay seeds do not fill these gaps.
 2. **Protocol lifecycle reviews — complete as contracts.** Batch 1 contracts ChainSync, BlockFetch and their shared registry ([increment 88](Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts)); batch 2 contracts TxSubmission2 and KeepAlive ([increment 89](Supervision.md#eighty-ninth-increment-g0-txsubmission2-and-keepalive-contracts)); batch 3 contracts LeiosNotify, LeiosFetch and shared peer resources ([increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts)). No missing matrix rows remain; configuration/selection reconciliation and full configured initialized coverage remain open. `SERVER.RATE.READ/WAIT` have no model counterpart and are deliberately excluded here; admission `countLimit` cannot be cited as the rate read. Selected exception/promise/timer contracts remain abstract under the accepted G1 primitive matrix; contracted inputs still require source-backed instantiation for G2.
 3. **Newer model coverage absent from, or stale in, the initial family cells — reconciled here.** Physical initiator/result/restart and typed mux lifecycle, DB waits, release TIME_WAIT receipts, late admission, SI5 and initializer validity have later evidence. `CM.INCLUDE.RESULT`'s “handler execution pending,” `IG.EXIT`'s “rethrow pending” and blanket missing accept/supervision statements describe earlier checkpoints. The SI4 table's “raw admission worker errors before handoff” conflates loop `accept/getLocalAddr/trace` failures (now the implemented `acceptFails` outcome) with the async-fork/worker-unwind edges now implemented in increment 80. M3's pool-body exclusion says “together with its owner,” although the owner cancel/join is implemented. These indexing discrepancies no longer block inventory review; they do not upgrade G2 witnesses. Ownership variants have no production counterparts and stay separate.
 4. **Stale source anchors — corrected in this matrix.** Ledger `[mux-api]` 121–180 now misses `stopped` 214–221 and `stop` 326–328. `[handler]` 324–455 misses inbound publication 510 and the current catch/run boundaries; use 307–518, with publication 436/510. Old mux monitor/cleanup anchors 254–278, 424–618 and 554–570 must be replaced by pool/catch 411–434, monitor 605–833 and shutdown 763–778. Diffusion wiring 539–600 / 625–825 becomes 632–698 / 728–950; the peer policy is now 337–373. Demotion-job start is 963 rather than 961, ending at 1086. The consensus bundle reference had no range; current constructors are 1963–2100 and shared Leios bracket 1836–1864. Fetch's pipelined declaration begins at 587, not the old 591 anchor. These are source-location corrections, not new semantic claims. Unchanged Core/IG/Server/JobPool ranges retain the ledger's authority. No blocking unresolved anchor is being silently treated as implementation.
 
-**G0 remains partly met.** The branch inventory has now been reviewed, with zero missing rows and explicit contracted inputs. Closing G0 still requires the reconciled executable LocalLifecycle configuration and source seed/selection policy, plus full configured-bundle initialized execution demonstrating that profile (including the established/KeepAlive group). All per-protocol/resource lifecycle reviews are now contracted by batches 1–3. Increment 80 records accepted primitive/worker regression; no new existing Agda dependency is changed by batch 3. Lazy-reference forcing is a separate evaluation abstraction. G2 still needs full configured-bundle initialized clean inbound/outbound coverage; the reduced clean, supervised negotiation-failure/cleanup and production-caller timeout witnesses have the accepted scopes specified in [GateAudit](GateAudit.md#g2--first-combined-lifecycle-partly-met). Existing reduced-profile hot demotion and initialized duplex reuse remain evidence within their stated scope.
+**G0 remains partly met.** The branch inventory has now been reviewed, with zero missing rows and explicit contracted inputs. Closing G0 still requires execution support for the reconciled LocalLifecycle bundle (KeepAlive grouped readiness is currently rejected), source seed/selection/version instantiation, and full configured-bundle initialized execution demonstrating that profile. All per-protocol/resource lifecycle reviews are now contracted by batches 1–3. Increment 80 records accepted primitive/worker regression; no new existing Agda dependency is changed by batch 3. Lazy-reference forcing is a separate evaluation abstraction. G2 still needs full configured-bundle initialized clean inbound/outbound coverage; the reduced clean, supervised negotiation-failure/cleanup and production-caller timeout witnesses have the accepted scopes specified in [GateAudit](GateAudit.md#g2--first-combined-lifecycle-partly-met). Existing reduced-profile hot demotion and initialized duplex reuse remain evidence within their stated scope.
 
 [Core]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs
 [CMTypes]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Types.hs
@@ -214,3 +349,6 @@ Increments 32–62 and 71–76/79 mainly add provenance, initializer restriction
 [GTypes]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/Types.hs
 [LocalRoots]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/RootPeersDNS/LocalRootPeers.hs
 [GKnown]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/Governor/KnownPeers.hs
+
+[Wire]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/cardano-diffusion/lib/Cardano/Network/NodeToNode.hs
+[WireVersion]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/cardano-diffusion/api/lib/Cardano/Network/NodeToNode/Version.hs
