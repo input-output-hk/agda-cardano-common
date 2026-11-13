@@ -8518,3 +8518,130 @@ read aliases. No source guards were weakened or model wiring added. These
 unsuccessful attempts are not included among final passes. No existing heavy
 fixture rebuild, broad regression sweep or Haskell replay was needed or run for
 these new-fixture-only additions. No Git state-changing command was used.
+
+## Eighty-fourth increment: G2 initialized operation timeout and delayed cleanup
+
+13 November 2026. Gate plan step 5 adds one finite initialized supervised
+`ServerPeers.Protocols` run, with the outer Server/IG/CM and PSA/governor layers
+present. Existing model modules, guards, initializer and theorem statements are
+unchanged. Source authority remains network
+`2f1c154f248659b89523d5679ca532f442e7ed2a` / consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`.
+
+[TimeoutCooling](Negative/TimeoutCooling.agda), `initialized-to-completion`,
+checks **158 actual frontend events** from the usual
+`V.initialize (O.initial c₀) settings`. It reuses increment 83's actual
+23-event acquisition and 20-event startup prefixes and their initializer proof.
+The profile is unchanged: empty responder world, one known ordinary outbound
+peer, targets 1/1/0, unidirectional bearer, one warm/on-demand initiator number 1,
+empty hot/established bundles. No midpoint is supplied to initialization.
+
+The new small segments are:
+
+- [Established](Negative/TimeoutCoolingEstablished.agda), 19 events: actual
+  initiator start/tracer/fork/registration/body, warm/established publication,
+  Warm status, physical PSA monitor registration and establishment job result.
+  Unlike the clean fixture, the initiator is still running at this endpoint.
+- [Operation](Negative/TimeoutCoolingOperation.agda), 29 events: consume the
+  establishment completion, update targets, select/fork/register/enter the real
+  governor close job, then observe `J.operationTimeout` at `awaitAll`. The
+  physical all-results wait is demonstrably unavailable. `Peer.timeoutClose`
+  queues the captured mux's shutdown and the job enters `awaitCold succeeded`.
+  The close action itself already sets Cooling before the wait; timeout retains
+  Cooling while stopping the mux. This is the source close-operation timeout
+  route, with a genuinely pending configured result.
+- [Results](Negative/TimeoutCoolingResults.agda), 12 events: the running
+  initiator subsequently returns cleanly, commits and publishes its physical
+  result, deregisters, and completes the actual mux consumer/tracer/DeltaQ calls.
+- [Mux](Negative/TimeoutCoolingMux.agda), 24 events: select the shutdown command
+  queued by the PSA timeout, Stopping/Stopped and empty drain, real infrastructure
+  cancellation/unwind/deregistration/result/join and normal whole-pool scope exit.
+  There is no second synthetic shutdown request.
+- The endpoint adds 31 events: independent caller 18 begins a real outbound CM
+  release, observes idle-release timer expiry, commits Terminating and requests
+  cancellation; normal handler/body exit reaches finally/socket close and
+  TIME_WAIT. Explicit `Cleanup.timeWaitElapsed`, separate finally/counters and
+  cleanup completion precede the normal handler Async result. Only then does
+  the finished-target adapter acknowledge that release, followed by separate
+  caller return, physical PSA poll/Cold observation, close-job successful
+  completion/publication/deregistration/result and monitor normal body/result.
+
+**Why an independent CM caller:** the PSA operation-timeout rule stops the mux
+and waits for outbound demotion; it does not request CM release. This fixture
+checks that absence for job caller 16. Caller 18 supplies the real separate CM
+release route, matching the earlier `CloseOriginChecks.initialized-timeout`
+scope. The history includes its begin/transaction/timer/request/receipt/return
+steps; no release frame or Terminating entry is injected. This is an explicit
+interleaving assumption, not a claim that the timed-out job owns that release.
+
+**Endpoint and controls.** The socket is closed, captured entry Terminated,
+live map empty, cleanup `cleanupDone cleanupNormal` and handler physical result
+`returned`. The peer is Cold, close job `complete succeeded` with normal physical
+result, and the physical monitor also has a normal result. During TIME_WAIT the
+socket is already closed but the entry remains Terminating, peer Cooling and
+job waiting for Cold. Controls refuse physical Cold polling before outbound
+demotion (including after elapsed but before TIME_WAIT finally), successful job
+completion before the monitor observation, result publication before the
+corresponding body/cleanup and TIME_WAIT finalization before elapsed observation.
+Elapsed/finally alone neither publishes Cold nor returns the job.
+
+Operation timeout, governor demotion timeout, CM idle-release timeout and handler
+TIME_WAIT remain distinct boundaries. A separate actual `J.demotionTimeout`
+edge from the reached delayed state produces `complete demotionTimedOut` while
+leaving the peer Cooling and physical TIME_WAIT unchanged. It is not spliced
+into the successful run and does not substitute for cleanup. Demotion timeout is
+refused at the earlier `awaitAll` operation wait. The normal path uses elapsed
+TIME_WAIT, not cancellation interruption of that delay.
+
+Every edge is independently `V.advance … ≡ just …` by `refl`. Reflection freezes
+one actual successor; its refused fallback cannot establish an edge. Ordinary
+`V.Runs` constructors join the segments. No new postulate, hole, unsafe option,
+weakened statement or model wiring is needed. Connect/negotiation, tracer/DeltaQ
+returns, operation timeout, timer expiry, TIME_WAIT readiness, empty drain and
+infrastructure unwind are explicit external observations, not measured deadlines.
+This is a finite model witness, not native replay, full-node boot, universal
+liveness, deadline guarantee or implementation refinement.
+
+**Gate reassessment:** all six G2 first witnesses now have finite evidence at
+stated scopes: inbound clean (109 events), outbound clean (156), initialized
+duplex reuse, supervised outbound handshake failure/cleanup (40), successful hot
+demotion and this timeout/Cooling/delayed-cleanup/Cold run (158). Existing duplex
+reuse and hot-demotion evidence was reviewed without rebuilding its heavy
+fixture. The timeout row and plan step 5 are met for this reduced configured
+profile. **G2 overall remains partly met**: full selected application protocol
+contracts/bundles and their clean coverage remain open. No later gate is started.
+
+### Validation of increment 84
+
+All five new modules passed fresh serial Agda 2.8.0 checks, each with its own
+`Checking` line, unchanged source hash, exit 0 and no warnings. Only each
+selected module's own interface was invalidated; dependency interfaces were
+reused. Each command used `/usr/bin/time -v` and exactly:
+
+```sh
+agda ConnectionManagement/Negative/<module>.agda +RTS -M20G -A128m -RTS
+```
+
+| Module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `TimeoutCoolingEstablished` | 20.95 | 2.656 | pass, fresh |
+| `TimeoutCoolingOperation` | 38.08 | 3.189 | pass, fresh |
+| `TimeoutCoolingResults` | 44.80 | 4.745 | pass, fresh |
+| `TimeoutCoolingMux` | 78.29 | 8.303 | pass, fresh |
+| `TimeoutCooling` | 65.90 | 8.180 | pass, fresh |
+
+Final commands total **248.02 seconds**, maximum **8.303 GiB RSS**;
+each final check is below 10 GB. The five-file local heuristic proof audit
+reports zero holes, postulates or unsafe options; it is not a transitive
+term-level axiom audit. Documentation targets, new increment anchor and
+whitespace checks pass.
+
+An initial combined 36-event mux segment passed but peaked at **12.103 GiB**
+(102.72 seconds), exceeding the requested resource budget. It was split into
+12-event Results and 24-event Mux modules; the final checks above replace that
+resource acceptance. Earlier establishment/operation and endpoint development
+checks also passed. No guard refusal, type error or missing wiring was hidden;
+no existing model or theorem changed. Final checking additionally monitored RSS
+with a stop threshold below 10 GB; no final check reached it. No broad regression,
+existing heavy fixture rebuild or Haskell replay was run. No Git state-changing
+command was used.
