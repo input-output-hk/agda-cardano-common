@@ -1084,3 +1084,8 @@ entry, and physical handler-result waits through the selected race suffixes.
 See that topic's [open questions](Supervision.md#open-questions-and-reconciled-status)
 for the limits on handler provenance, admission quiescence and whole-system
 shutdown; its dated increment sections retain the detailed acceptance evidence.
+
+ChainSync/BlockFetch application lifecycle and shared registration boundaries are
+reviewed in [ProtocolContracts](ProtocolContracts.md), with a captured-peer kernel
+and conditional physical mux-job adapter. This does not supply the full configured
+application lifecycle witness; see the [gate audit](GateAudit.md).

@@ -9297,3 +9297,129 @@ not a transitive term-level axiom audit. No new postulates, holes, unsafe option
 termination pragmas or execution rules were added. No broad/heavy rebuild,
 variant rebuild, external parser/native replay, hidden-process check or G5
 exploration/export was run. Changes remain uncommitted over `2dc015a`.
+
+## Eighty-eighth increment G0 ChainSync BlockFetch and registry contracts
+
+13 November 2026. Batch 1 closes the **missing-contract** status of three rows,
+with [ProtocolContracts.md](ProtocolContracts.md) as the maintained source review:
+ChainSync control/ChainDB/brackets, BlockFetch work/control/client cleanup, and
+their shared registration synchronization. Each is **contracted**, with explicit
+implemented ordering guards and exclusions. The matrix now has **66 implemented,
+14 contracted, 14 excluded, 5 missing** rows (99 total). **G0 and G2 full-profile
+remain partly met.** The unchanged overall objective is the combined
+CM/IG/OG/Server source-problem model and correct design under G0–G5; this is not
+an initialized configured-bundle witness or a source-refinement theorem.
+
+### Pinned review and implementation
+
+Source was extracted read-only with `git show` at network
+`2f1c154f248659b89523d5679ca532f442e7ed2a` (retained replay78 checkout) and
+consensus `2e44d98a843168ba3b189e305820b79943ac7d1e` (local object). The new
+contract records immutable source links, line ranges and key Git blob hashes.
+[PrimitiveMatrix](PrimitiveMatrix.md) remains the authority for dependency
+mask/STM/exception behavior; no native replay was performed.
+
+The source ordering is significant: sync-map registration waits for fetch;
+fetch registration waits for context, a non-dying registered KeepAlive and older
+fetch cleanup, then starts CS before the candidate handle is published. CS inner
+unwind precedes its captured done signal; BF cleanup retains its fetch entry
+until that done signal, including after timeout/dieFast cancellation. Registry
+cleanup uses uninterruptible masking with a timeout/done wait restored through
+the local `unmask` (restoring the prior release mask, not necessarily Unmasked);
+actual delivery at an interruptible wait in that window is different from a direct masked body receipt.
+Responders use separate follower/iterator resource registries and have no local
+initiator control-message or shared fetch/sync registration.
+
+Four new modules, with all existing Agda modules and theorem statements unchanged:
+
+- [ProtocolContracts](ProtocolContracts.agda): one captured peer/incarnation,
+  four endpoint phases, explicit wait/control/drain/cleanup transitions,
+  context/KeepAlive prerequisites, acquisition interruption, candidate/start/done
+  ordering, cleanup replacement error and BF cleanup interruption. Readiness,
+  outstanding counts, inner unwinds, throwTo receipts and timeout outcomes are
+  source-certified observations; the kernel does not supply fairness or timers.
+- [ProtocolContractJobs](ProtocolContractJobs.agda): conditional body adapter to
+  real typed mux jobs, checking numbers 2/3 and direction against an executing
+  physical child. `complete-via` exposes the actual generic step;
+  `complete-enabled` introduces the adapter edge with its real generic edge and
+  matching premises. Finished normal maps to `protocolReturned`, synchronous
+  failure to `protocolException`, and cancellation has no completion action.
+  Existing egress/pool/status/handler rules remain authoritative. This adapter
+  does not replace the full frontend; its caller must preserve fixed distinct
+  same-connection bindings and route these bodies through it.
+- [Negative/ProtocolContracts](Negative/ProtocolContracts.agda): enabled startup,
+  full local clean path, fetch-error/CS-cancel cleanup, both server lifecycles,
+  acquisition-interruption and cleanup-interruption/error cases. Refusals cover
+  missing context/KeepAlive, dying/duplicate registration, premature rendezvous,
+  missing drain, control at unrelated waits/on responders, candidate-before-done,
+  done-before-fetch-removal and duplicate completion.
+- [Negative/ProtocolContractJobs](Negative/ProtocolContractJobs.agda): result
+  selection and blocked/unfinished/cancelled refusals; positive clean-client
+  adapter example explicitly conditional on real matching child/egress evidence.
+  It does not relabel protocol 1 or inject an initialized configured run.
+
+The source contract distinguishes all four ChainSync client result constructors,
+unit/NoInitiatorResult for BF, unit responder results, driver trailing bytes,
+synchronous failures and asynchronous unwind. Result payloads are erased at this
+CM body boundary; trailing bytes remain the generic mux's responsibility.
+Leios shared resources/callback correctness, full KeepAlive lifecycle, actual
+pipeline accounting and multiple registry incarnations remain explicit
+contracts/exclusions rather than new claims. Remaining missing rows are
+TxSubmission2, KeepAlive, LeiosNotify, LeiosFetch and shared Leios resources.
+No event directly closes a socket, releases CM, demotes a peer or publishes a
+physical handler result. Full-profile clean coverage and source seed/selection
+acceptance remain open.
+
+### Validation of increment 88
+
+Agda 2.8.0; serial command for every invocation:
+`agda ConnectionManagement/<module>.agda +RTS -M20G -A128m -RTS`.
+Host memory and absence of other Agda processes were inspected before checks.
+An RSS monitor sampled VmRSS/VmHWM every 0.1 seconds and would terminate at
+9,500,000 KiB (about 9.06 GiB); no stop fired. Reported peaks are sampled
+high-water values. No cache purge or `-c` was used.
+
+| Module | Wall seconds | Peak RSS GiB | Final result |
+| --- | ---: | ---: | --- |
+| `ProtocolContracts` | 5.218 | 0.773 | fresh pass |
+| `ProtocolContractJobs` | 5.821 | 0.822 | fresh pass |
+| `Negative/ProtocolContracts` | 5.419 | 0.817 | fresh pass |
+| `Negative/ProtocolContractJobs` | 5.721 | 0.784 | fresh pass |
+| `Properties/MuxProtocolJobs` | 7.727 | 1.024 | interface-reusing pass |
+| `Negative/MuxProtocolJobs` | 7.728 | 1.025 | interface-reusing pass |
+| `Negative/MuxHandlerSupervision` | 8.229 | 1.073 | interface-reusing pass |
+
+All seven final invocations exit 0 without warnings. Four new-module checks have
+their own `Checking` line and reuse dependency interfaces: **22.179 s**, maximum
+**0.822 GiB**. Three existing endpoint checks reuse interfaces: **23.684 s**,
+maximum **1.073 GiB**. Total **45.863 s**. Earlier successful development checks
+are excluded from these totals. One draft `complete-via` check failed because a
+with-abstraction had already reduced the selector equality; using `refl` for that
+reduced equality fixed the proof without altering its type. No memory failure.
+
+The four-file local heuristic proof audit has zero findings. Selected local
+Markdown target/anchor and whitespace checks pass after adding this increment;
+draft link checks found the not-yet-written increment links and its punctuation-dependent anchor; the final heading matches the links.
+This is not a term-level transitive axiom audit. Logs, the RSS-check runner,
+source extracts and a small progress record stay in the requested g0a scratch
+area; no transient log links are embedded here. No state-changing Git command,
+source-pin change or unrelated file modification was performed.
+
+### Deferred heavy endpoints
+
+None of these existing endpoints imports the new modules and no existing Agda
+module changed. They were **not run** in this batch; the requested list for
+separate broader acceptance is:
+
+- `Properties/SourceKeysServer.agda`
+- `Properties/OwnedFramesExecution.agda`
+- `Negative/OwnedCallersFixture.agda`
+- `Negative/LiveTrackerInitialized.agda`
+- `Negative/ServerPeers.agda`
+- `Negative/ServerPeersOrigins.agda`
+
+Paths are relative to `ConnectionManagement/`. No new/checked module exceeded
+12 GB (or the requested approximately 10 GB check budget). No other >12 GB
+module was discovered or attempted. These deferred checks are not represented
+as fresh successes. No broad rebuild, full-profile native replay, exhaustive
+exploration, universal progress or additional gate closure is claimed.
