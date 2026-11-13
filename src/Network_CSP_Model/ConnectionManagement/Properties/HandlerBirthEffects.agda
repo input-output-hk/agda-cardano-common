@@ -32,6 +32,7 @@ import ConnectionManagement.Rules.OutboundAcquire as A
 import ConnectionManagement.Rules.OutboundRelease as OutboundRelease
 import ConnectionManagement.Rules.InboundRelease as Release
 import ConnectionManagement.Rules.RemoteState as Remote
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.CMShutdown as Close
 
@@ -1593,9 +1594,20 @@ module ExitLayer (isBearerClosed : ErrorId → Bool) where
  ...   | nothing = case eq of λ ()
  ...   | just c = case just-injective eq of λ { refl → stable
    (Lower.CIPaths.retention (Lower.no-growth (G.abortOwner worker err) (W.base s) aborted (λ ()))) }
+ enact-change (W.inboundReleaseDelivery worker err) s eq with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.inbound (M.releaseStep (InboundRelease.cancellationDelivered worker))) (G.source g) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just c = case just-injective eq of λ { refl → stable
+   (Lower.CIPaths.retention (Lower.no-growth (G.abortOwner worker err) (W.base s) aborted (λ ()))) }
  enact-change (W.releaseTimeWaitDelivery caller worker err) s eq with O.advance (O.inbound (M.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s)
  ... | nothing = case eq of λ ()
  ... | just c with O.advance (O.release caller (OutboundRelease.cancellationDelivered worker)) c
+ ...   | nothing = case eq of λ ()
+ ...   | just c′ = case just-injective eq of λ { refl → stable refl }
+ enact-change (W.inboundReleaseTimeWaitDelivery worker err) s eq with O.advance (O.inbound (M.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s)
+ ... | nothing = case eq of λ ()
+ ... | just c with O.advance (O.inbound (M.releaseStep (InboundRelease.cancellationDelivered worker))) c
  ...   | nothing = case eq of λ ()
  ...   | just c′ = case just-injective eq of λ { refl → stable refl }
  change : ∀ a s {t} → W.step a s ≡ just t → Change (Selected a s) (view s) (view t)
@@ -1751,7 +1763,7 @@ import ConnectionManagement.Properties.MuxDeltaQ as DeltaQProperties
 module DeltaQLayer (isBearerClosed : ErrorId → Bool) where
  private module D = DeltaQModel isBearerClosed using (Action; State; allowed; applyFault; base; begin; beginDeltaQ; beginInitiator; beginInitiatorTrace; captured; complete; deliverInitiatorShutdown; deliverShutdown; delivery; entryPhase; faultPlan; finishAction; inherit; initiatorFaultPlan; initiatorReady; invoked; muxInvoked; muxReturned; observeException; observeInitiatorException; observeInitiatorReturn; observeReturn; payload; phase; ready; returnInitiator; returned; run; step; throw; throwInitiator; throwing; tickets; wrapMonitor)
  private module R = UnwindModel isBearerClosed using (async; base; enact; poolBody; step)
- private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; shutdown)
+ private module W = ExitModel isBearerClosed using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; shutdown)
  private module Monitor = MonitorModel isBearerClosed using (finishDead; finishProtocolTrace)
  private module Lower = UnwindLayer isBearerClosed using (CIPaths; PlanSelected; Selected; acknowledged-plan; change; ci-enact-no-growth; monitor-source-same; view)
  private module Old = DeltaQProperties isBearerClosed using (fault-selection)
@@ -1886,7 +1898,7 @@ module CatchLayer (isBearerClosed : ErrorId → Bool) where
  private module C = CatchModel isBearerClosed using (Action; State; action; allowed; apply; base; cancellation; deliverShutdown; observe; observeCancellation; observeException; run; select; step; synchronous)
  private module D = DeltaQModel isBearerClosed using (base; delivery; step)
  private module R = UnwindModel isBearerClosed using (State; base; enact)
- private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; shutdown)
+ private module W = ExitModel isBearerClosed using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; shutdown)
 
 
  private module Lower = DeltaQLayer isBearerClosed using (Selected; change; delivery-no-birth; view)
@@ -1934,7 +1946,7 @@ module PublicationLayer (isBearerClosed : ErrorId → Bool) where
  private module C = CatchModel isBearerClosed using (step)
  private module D = DeltaQModel isBearerClosed using (delivery)
  private module R = UnwindModel isBearerClosed using (async; base; enact; faults; owner)
- private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; exits; sameStart; shutdown)
+ private module W = ExitModel isBearerClosed using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; exits; sameStart; shutdown)
  private module U = MuxModel Types.TypedResult using (handshakeStep; handshakePending; handshakeFor; captureHandshake; advanceHandshake; captured; progress; startup)
  private module Startup = ProtocolModel.Startup using (awaitPublication; bearerReady; bufferReady; demuxerForked; demuxerRegistered; egressReady; matureTraced; monitoring; muxerForked; muxerRegistered; phase; poolReady; published; runEntered; startingTraced)
  private module Pool = ProtocolModel.Pool using (handles)
@@ -2038,7 +2050,7 @@ module InheritedRoutes (isBearerClosed : ErrorId → Bool) where
 module ServerLayer (isBearerClosed : ErrorId → Bool) where
  private module SA = AdmissionModel isBearerClosed using (restoreWorker; workerRestore; raised; returned; scopePlan; socketScopePlan; isAcceptedSocket; closeForkFailure; closeFailedFork; failedForkSocket; Action; State; acceptedFork; accepting; allowed; base; bodyExited; calling; chooseScope; closeDisconnected; closeException; closePrefix; closePrefixWorker; closeWorker; enactClose; enactPrefixClose; enactScope; forkAccepted; fresh; inherit; listenerOpen; nextException; nextNormal; observeException; observeReturn; pc; physicalAction; prefixCloseFailed; prefixException; prefixMatches; prefixReturned; publishWorkerResult; resultAvailable; run; runMachine; sameLimit; scope; scopeAdvance; shared; stage; step; workerClose; workerException; workerPrefixException; workerPrefixReturned; workerResult; workerReturned; workers)
  private module N = PublicationModel isBearerClosed using (raw; step)
- private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; run)
+ private module W = ExitModel isBearerClosed using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; run)
  private module G = GroupModel isBearerClosed using (Action; run)
  private module Monitor = MonitorModel isBearerClosed using (run)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; run)

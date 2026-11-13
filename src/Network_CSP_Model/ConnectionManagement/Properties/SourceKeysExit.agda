@@ -20,6 +20,7 @@ import ConnectionManagement.Rules.HandshakeContinuation as HS
 import ConnectionManagement.State as Shared
 import ConnectionManagement.Machine as Machine
 import ConnectionManagement.OutboundMachine as O
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.CMShutdown as Close
 import ConnectionManagement.Rules.OutboundRelease as Release
@@ -76,6 +77,12 @@ enact-keys (W.releaseDelivery caller target err) s eq with G.step (G.abortOwner 
 ...   | nothing = case eq of λ ()
 ...   | just c = case just-injective eq of λ { refl → same-trans (Lower.step-keysG (G.abortOwner target err) (W.base s) stepped)
   (nonkey (O.release caller (Release.cancellationDelivered target)) (G.source g) refl advanced) }
+enact-keys (W.inboundReleaseDelivery target err) s eq with G.step (G.abortOwner target err) (W.base s) in stepped
+... | nothing = case eq of λ ()
+... | just g with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) (G.source g) in advanced
+...   | nothing = case eq of λ ()
+...   | just c = case just-injective eq of λ { refl → same-trans (Lower.step-keysG (G.abortOwner target err) (W.base s) stepped)
+  (nonkey (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) (G.source g) refl advanced) }
 enact-keys (W.releaseTimeWaitDelivery caller target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) in first
 ... | nothing = case eq of λ ()
 ... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c in second
@@ -83,6 +90,14 @@ enact-keys (W.releaseTimeWaitDelivery caller target err) s eq with O.advance (O.
 ...   | just c′ = case just-injective eq of λ { refl → same-trans
   (nonkey (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) refl first)
   (nonkey (O.release caller (Release.cancellationDelivered target)) c refl second) }
+
+enact-keys (W.inboundReleaseTimeWaitDelivery target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) in first
+... | nothing = case eq of λ ()
+... | just c with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) c in second
+...   | nothing = case eq of λ ()
+...   | just c′ = case just-injective eq of λ { refl → same-trans
+  (nonkey (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s) refl first)
+  (nonkey (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) c refl second) }
 
 -- Only an inherited group action is chosen with a root.
 choose-root : ∀ a s {plan} → W.choose a s ≡ just plan → planRoot plan ≡ rootW a
@@ -360,10 +375,22 @@ choose-root W.acknowledgeFinished s eq | Close.sendReady _ _ = case eq of λ ()
 choose-root (W.deliverReleaseMux caller err) s eq with W.releaseTarget caller s
 ... | nothing = case eq of λ ()
 ... | just target = case just-injective eq of λ { refl → refl }
+choose-root (W.deliverInboundReleaseMux err) s eq with W.inboundReleaseTarget s
+... | nothing = case eq of λ ()
+... | just target = case just-injective eq of λ { refl → refl }
 choose-root (W.deliverReleaseTimeWait caller err) s eq with W.timeWaitTarget caller s
 ... | nothing = case eq of λ ()
 ... | just target = case just-injective eq of λ { refl → refl }
+choose-root (W.deliverInboundReleaseTimeWait err) s eq with W.inboundTimeWaitTarget s
+... | nothing = case eq of λ ()
+... | just target = case just-injective eq of λ { refl → refl }
 choose-root (W.acknowledgeReleaseFinished caller) s eq with W.releaseTarget caller s
+... | nothing = case eq of λ ()
+... | just target with W.resultReady target s
+...   | false = case eq of λ ()
+...   | true = case just-injective eq of λ { refl → refl }
+
+choose-root W.acknowledgeInboundReleaseFinished s eq with W.inboundReleaseTarget s
 ... | nothing = case eq of λ ()
 ... | just target with W.resultReady target s
 ...   | false = case eq of λ ()

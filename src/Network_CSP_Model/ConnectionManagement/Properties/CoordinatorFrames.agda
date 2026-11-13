@@ -25,6 +25,7 @@ open import ConnectionManagement.IGTypes using (clean; errored)
 import ConnectionManagement.State as Shared
 import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.Machine as Machine
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.OutboundHandlerSupervision as B
@@ -265,9 +266,19 @@ exit-enact-frame (W.releaseDelivery caller target err) s eq with G.step (G.abort
 ... | just g with O.advance (O.release caller (Release.cancellationDelivered target)) (G.source g)
 ...   | nothing = case eq of λ ()
 ...   | just c = case just-injective eq of λ { refl → group-frame (G.abortOwner target err) (W.base s) aborted }
+exit-enact-frame (W.inboundReleaseDelivery target err) s eq with G.step (G.abortOwner target err) (W.base s) in aborted
+... | nothing = case eq of λ ()
+... | just g with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) (G.source g)
+...   | nothing = case eq of λ ()
+...   | just c = case just-injective eq of λ { refl → group-frame (G.abortOwner target err) (W.base s) aborted }
 exit-enact-frame (W.releaseTimeWaitDelivery caller target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s)
 ... | nothing = case eq of λ ()
 ... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c
+...   | nothing = case eq of λ ()
+...   | just c′ = case just-injective eq of λ { refl → stay _ }
+exit-enact-frame (W.inboundReleaseTimeWaitDelivery target err) s eq with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (W.source s)
+... | nothing = case eq of λ ()
+... | just c with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) c
 ...   | nothing = case eq of λ ()
 ...   | just c′ = case just-injective eq of λ { refl → stay _ }
 exit-frame : ∀ a s {t} → W.step a s ≡ just t → Frame (W.shutdown s) (W.shutdown t)

@@ -19,6 +19,7 @@ import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.OutboundHandlerSupervision as B
 import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.CMShutdown as Close
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.MuxJobTypes as Types
 import ConnectionManagement.MuxHandlerSupervision as MuxModel
@@ -172,7 +173,7 @@ module Group (b : ErrorId → Bool) where
 
 
 module Exit (b : ErrorId → Bool) where
- private module W = ExitModel b using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; releaseTimeWaitDelivery; noteCleanup; step; choose)
+ private module W = ExitModel b using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; State; Plan; source; base; setSource; control; shared; resultReady; shutdown; setShutdown; enact; local; machine; inherited; coordinator; muxDelivery; timeWaitDelivery; releaseDelivery; releaseTimeWaitDelivery; noteCleanup; step; choose)
  private module G = GroupModel b using (step; abortOwner; source)
  control-source : ∀ action s {t} → W.control action s ≡ just t → W.source t ≡ W.source s
  control-source action s eq with Close.step (Shared.cm (W.shared s)) (λ w → W.resultReady w s) action (W.shutdown s)
@@ -225,12 +226,26 @@ module Exit (b : ErrorId → Bool) where
  ...   | just next = case just-injective eq of λ { refl → same (trans
    (ack-acquiring caller worker (G.source g) acknowledged)
    (Quiet.Group.direct-same b (G.abortOwner worker err) (W.base s) aborted tt)) }
+ enact-effect (W.inboundReleaseDelivery worker err) s eq with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered worker))) (G.source g) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → same (trans
+   (inbound-acquiring (Machine.releaseStep (InboundRelease.cancellationDelivered worker)) (G.source g) acknowledged)
+   (Quiet.Group.direct-same b (G.abortOwner worker err) (W.base s) aborted tt)) }
  enact-effect (W.releaseTimeWaitDelivery caller worker err) s eq with O.advance (O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s) in interrupted
  ... | nothing = case eq of λ ()
  ... | just c with O.advance (O.release caller (Release.cancellationDelivered worker)) c in acknowledged
  ...   | nothing = case eq of λ ()
  ...   | just next = case just-injective eq of λ { refl → same (trans
    (ack-acquiring caller worker c acknowledged)
+   (inbound-acquiring (Machine.cleanupStep worker (Cleanup.interruptTimeWait err)) (W.source s) interrupted)) }
+ enact-effect (W.inboundReleaseTimeWaitDelivery worker err) s eq with O.advance (O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s) in interrupted
+ ... | nothing = case eq of λ ()
+ ... | just c with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered worker))) c in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just next = case just-injective eq of λ { refl → same (trans
+   (inbound-acquiring (Machine.releaseStep (InboundRelease.cancellationDelivered worker)) c acknowledged)
    (inbound-acquiring (Machine.cleanupStep worker (Cleanup.interruptTimeWait err)) (W.source s) interrupted)) }
  effect : ∀ action s {t} → W.step action s ≡ just t → Effect (W.source s) (W.source t)
  effect action s eq with W.choose action s
@@ -239,7 +254,7 @@ module Exit (b : ErrorId → Bool) where
 
 module Cancellation (b : ErrorId → Bool) where
  private module X = CancellationModel b using (State; source; target; deliver; traceThrew; shutdownDelivery; step; run; observeCancellation; deliverShutdown; observeErrorTraceException)
- private module W = ExitModel b using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; source; exits; phase; edit; bodyExited; syncException; bufferScope; classifying; errorTracing; peerRethrow; nodeDelivery; nodeRethrow; finalizing; cleanupComplete; resultAvailable; shutdown; control)
+ private module W = ExitModel b using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; source; exits; phase; edit; bodyExited; syncException; bufferScope; classifying; errorTracing; peerRethrow; nodeDelivery; nodeRethrow; finalizing; cleanupComplete; resultAvailable; shutdown; control)
  deliver-source : ∀ window w err s {t} → X.deliver window w err s ≡ just t → X.source t ≡ X.source s
  deliver-source window w err s eq with lookup w (W.exits s)
  ... | nothing = case eq of λ ()
@@ -279,7 +294,7 @@ module Cancellation (b : ErrorId → Bool) where
 module Unwind (b : ErrorId → Bool) where
  private module R = UnwindModel b using (source; base; faults; poolAt; setSource; setPool; enact; local; machine; pool; inherited; transfer; acknowledge; step; choose)
  private module X = CancellationModel b using (step)
- private module W = ExitModel b using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; exits; control)
+ private module W = ExitModel b using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; exits; control)
  private module G = GroupModel b using (module Pool)
  private module Pool = G.Pool using (step)
  enact-effect : ∀ plan s {t} → R.enact plan s ≡ just t → Effect (R.source s) (R.source t)

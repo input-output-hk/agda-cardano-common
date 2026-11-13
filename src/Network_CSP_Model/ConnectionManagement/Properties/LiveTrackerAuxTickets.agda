@@ -12,6 +12,7 @@ open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 open import ConnectionManagement.Store using (Store; lookup)
 open import ConnectionManagement.Domain using (WorkerId; DecEq-Id)
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.MuxDeltaQ as Delta
 import ConnectionManagement.Properties.LiveTrackerAuxContent as Content
 import ConnectionManagement.Properties.LiveTrackerAuxTransport as Transport
@@ -90,8 +91,11 @@ note-preserves (R.run (X.run (W.deliverShutdownMux _))) r rows pcs good = good
 note-preserves (R.run (X.run (W.deliverShutdownTimeWait _))) r rows pcs good = good
 note-preserves (R.run (X.run W.acknowledgeFinished)) r rows pcs good = good
 note-preserves (R.run (X.run (W.deliverReleaseMux _ _))) r rows pcs good = good
+note-preserves (R.run (X.run (W.deliverInboundReleaseMux _))) r rows pcs good = good
 note-preserves (R.run (X.run (W.deliverReleaseTimeWait _ _))) r rows pcs good = good
+note-preserves (R.run (X.run (W.deliverInboundReleaseTimeWait _))) r rows pcs good = good
 note-preserves (R.run (X.run (W.acknowledgeReleaseFinished _))) r rows pcs good = good
+note-preserves (R.run (X.run W.acknowledgeInboundReleaseFinished)) r rows pcs good = good
 note-preserves (R.run (X.run (W.run (G.requestShutdown _)))) r rows pcs good = good
 note-preserves (R.run (X.run (W.run (G.selectShutdown _)))) r rows pcs good = good
 note-preserves (R.run (X.run (W.run (G.observeStoppingTrace _)))) r rows pcs good = good

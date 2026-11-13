@@ -14,6 +14,7 @@ open import Data.Maybe.Properties using (just-injective)
 open import Data.Product using (_×_; _,_)
 open import Function using (case_of_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; subst)
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.OutboundMachine as O
 import ConnectionManagement.Rules.OutboundAcquire as A
 import ConnectionManagement.Rules.OutboundRelease as R
@@ -125,8 +126,11 @@ outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.deliverShut
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.deliverShutdownTimeWait _)))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.acknowledgeFinished)))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.deliverReleaseMux _ _)))))))) ()
+outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.deliverInboundReleaseMux _)))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.deliverReleaseTimeWait _ _)))))))) ()
+outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.deliverInboundReleaseTimeWait _)))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.acknowledgeReleaseFinished _)))))))) ()
+outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run W.acknowledgeInboundReleaseFinished))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.run (G.requestShutdown _))))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.run (G.selectShutdown _))))))))) ()
 outbound-root (E.run (S.run (N.run (C.run (D.run (R′.run (X.run (W.run (G.observeStoppingTrace _))))))))) ()

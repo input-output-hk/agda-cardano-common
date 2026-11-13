@@ -41,10 +41,11 @@ open import ConnectionManagement.Properties.LiveTrackerFrameContent public using
 open import ConnectionManagement.Properties.LiveTrackerContentLayers public
 import ConnectionManagement.Properties.HandlerAuxBacking as Presence
 
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 module Exit (isBearerClosed : ErrorId → Bool) where
- private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; Action; Frame; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; releaseTarget; timeWaitTarget; releaseDelivery; releaseTimeWaitDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; countersClear; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery)
+ private module W = ExitModel isBearerClosed using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; Action; Frame; Plan; State; acknowledgeFinished; acknowledgeReleaseFinished; deliverReleaseMux; deliverReleaseTimeWait; releaseTarget; timeWaitTarget; releaseDelivery; releaseTimeWaitDelivery; base; beginExit; bodyExited; bufferScope; choose; choosePolicy; classifying; cleanup; cleanupComplete; cleanupException; cleanupFault; control; coordinator; currentCapture; delegateAllowed; deliverShutdownMux; deliverShutdownTimeWait; edit; effectiveResult; enact; enterFinalizer; errorTracing; exits; finalizing; finishCleanup; inherited; initial; local; machine; muxDelivery; nodeDelivery; nodeRethrow; noteCleanup; observeBufferException; observeBufferReturn; observeErrorTrace; observeNodeDelivery; peerRethrow; phase; physical; poolAt; publishAsyncResult; resultAvailable; resultReady; rethrow; run; sameCleanup; sameStart; countersClear; setShutdown; setSource; shared; shutdown; shutdownStep; source; step; timeWaitDelivery)
  private module G = GroupModel isBearerClosed using (abortOwner; asyncDeadTracing; asyncExit; asyncFailureWritten; drainReady; draining; failedExit; frameAt; groupClosing; idle; initial; monitorReturnedNormal; normalExit; ownerAborting; phase; protocolState; scopeDone; setPool; shutdownSelected; step; stoppedTrace; stoppedTracing; stoppingTraced; stoppingWritten; wholeClosed; wholeClosing)
  private module P = ProtocolModel using (hasWanton; enterProtocolBody; appendProtocolPayload; egressMuxer; module Pool; module U; base)
  private module U = P.U using (captured; frames)
@@ -94,6 +95,13 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  ...   | just c = case just-injective eq of λ { refl → source-valid c (record s { base = g })
    (O.next {a = O.release caller (OutboundRelease.cancellationDelivered worker)} acknowledged O.done)
    (Lower.step-preserves (G.abortOwner worker err) (W.base s) aborted valid) }
+ enact-preserves (W.inboundReleaseDelivery worker err) s eq valid with G.step (G.abortOwner worker err) (W.base s) in aborted
+ ... | nothing = case eq of λ ()
+ ... | just g with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered worker))) (W.source (record s { base = g })) in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just c = case just-injective eq of λ { refl → source-valid c (record s { base = g })
+   (O.next {a = O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered worker))} acknowledged O.done)
+   (Lower.step-preserves (G.abortOwner worker err) (W.base s) aborted valid) }
  enact-preserves (W.releaseTimeWaitDelivery caller worker err) s eq valid with O.advance
    (O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s) in interrupted
  ... | nothing = case eq of λ ()
@@ -102,6 +110,14 @@ module Exit (isBearerClosed : ErrorId → Bool) where
  ...   | just c′ = case just-injective eq of λ { refl → source-valid c′ s
    (O.next {a = O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))} interrupted
      (O.next {a = O.release caller (OutboundRelease.cancellationDelivered worker)} acknowledged O.done)) valid }
+ enact-preserves (W.inboundReleaseTimeWaitDelivery worker err) s eq valid with O.advance
+   (O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))) (W.source s) in interrupted
+ ... | nothing = case eq of λ ()
+ ... | just c with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered worker))) c in acknowledged
+ ...   | nothing = case eq of λ ()
+ ...   | just c′ = case just-injective eq of λ { refl → source-valid c′ s
+   (O.next {a = O.inbound (Machine.cleanupStep worker (Cleanup.interruptTimeWait err))} interrupted
+     (O.next {a = O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered worker))} acknowledged O.done)) valid }
  step-preserves : ∀ a s {t} → W.step a s ≡ just t → Valid s → Valid t
  step-preserves a s eq valid with W.choose a s
  ... | nothing = case eq of λ ()
@@ -116,7 +132,7 @@ module Exit (isBearerClosed : ErrorId → Bool) where
 import ConnectionManagement.MuxExitCancellation as CancellationModel
 module Cancellation (isBearerClosed : ErrorId → Bool) where
  private module X = CancellationModel isBearerClosed using (State; deliver; deliverShutdown; observeCancellation; observeErrorTraceException; run; shutdownDelivery; step; target; traceThrew)
- private module W = ExitModel isBearerClosed using (handshakeDelivery; handshakeAction; deliverShutdownHandshake; bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown; syncException)
+ private module W = ExitModel isBearerClosed using (inboundReleaseDelivery; inboundReleaseTimeWaitDelivery; deliverInboundReleaseMux; deliverInboundReleaseTimeWait; acknowledgeInboundReleaseFinished; inboundReleaseTarget; inboundTimeWaitTarget; handshakeDelivery; handshakeAction; deliverShutdownHandshake; bodyExited; bufferScope; classifying; cleanupComplete; edit; errorTracing; exits; finalizing; nodeDelivery; nodeRethrow; peerRethrow; phase; resultAvailable; shutdown; syncException)
  private module Lower = Exit isBearerClosed using (Valid; control-preserves; local-valid; step-preserves)
  Valid : X.State → Set
  Valid = Lower.Valid

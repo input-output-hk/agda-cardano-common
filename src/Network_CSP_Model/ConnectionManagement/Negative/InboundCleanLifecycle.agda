@@ -1,11 +1,13 @@
 {-# OPTIONS --guardedness #-}
 
--- G2 / DESIGN §9 diagnostic, not a completed clean lifecycle.
+-- G2 initialized inbound clean lifecycle; the original 94-event diagnostic
+-- prefix and its theorem statements are retained below. Physical receipt now
+-- continues through TIME_WAIT cleanup, IG commit and handler Async result.
 -- Admission, IG registration, a real responder clean result and graceful mux
--- normal exit are reached from the supervised initializer. The subsequent IG
--- inbound release stalls at its physical cancellation acknowledgement: the raw
--- route is sealed, while the physical adapters inspect OUTBOUND release frames.
--- Stop here without weakening guards or inventing cleanup/result success.
+-- normal exit are reached from the supervised initializer. The original
+-- diagnostic prefix ends at pending release: the raw route remains sealed and
+-- outbound adapters still require OUTBOUND release frames.
+-- The old raw/outbound routes remain refused; the new inbound suffix follows.
 -- Negotiation, one traffic demand, tracer/DeltaQ returns, empty egress drain,
 -- infrastructure unwind and idle expiry are supplied boundary observations.
 module ConnectionManagement.Negative.InboundCleanLifecycle where
@@ -154,8 +156,8 @@ handler-result-unavailable = refl
 ig-still-tracking : IG.publishedState (governor s9) ≡ IG.publishedState (governor AdmissionPrefix.s38)
 ig-still-tracking = refl
 
--- The source release transaction itself really runs; the physical receipt does
--- not. This is the named adapter obstruction, not a source-code defect claim.
+-- Historical obstruction controls: the source transaction runs, while the raw
+-- and outbound routes still refuse. The new inbound receipt is tested below.
 raw-inbound-receipt-sealed : ∀ w → Physical.rawAllowed (Machine.releaseStep (Release.cancellationDelivered w)) ≡ false
 raw-inbound-receipt-sealed w = refl
 actual-inbound-receipt-refused : V.advance (release (Release.cancellationDelivered A.child₀)) s9 ≡ nothing
@@ -180,3 +182,160 @@ no-release-before-commit-selection : V.advance (release Release.enter) Admission
 no-release-before-commit-selection = refl
 no-handler-exit-before-mux-scope : V.advance (exit (W.beginExit A.child₀)) Protocol.s20 ≡ nothing
 no-handler-exit-before-mux-scope = refl
+
+-- Normal mux/body return reaches the unmasked TIME_WAIT in CM finally.
+
+a10 : V.Event
+a10 = exit (W.beginExit A.child₀)
+s10 : V.Runtime
+s10 = snapshot (after a10 s9)
+e10 : V.advance a10 s9 ≡ just s10
+e10 = refl
+
+a11 : V.Event
+a11 = exit (W.observeBufferReturn A.child₀)
+s11 : V.Runtime
+s11 = snapshot (after a11 s10)
+e11 : V.advance a11 s10 ≡ just s11
+e11 = refl
+
+a12 : V.Event
+a12 = exit (W.enterFinalizer A.child₀)
+s12 : V.Runtime
+s12 = snapshot (after a12 s11)
+e12 : V.advance a12 s11 ≡ just s12
+e12 = refl
+
+a13 : V.Event
+a13 = exit (W.cleanup A.child₀ Cleanup.takeCleanupMap)
+s13 : V.Runtime
+s13 = snapshot (after a13 s12)
+e13 : V.advance a13 s12 ≡ just s13
+e13 = refl
+
+a14 : V.Event
+a14 = exit (W.cleanup A.child₀ Cleanup.selectCleanupEntry)
+s14 : V.Runtime
+s14 = snapshot (after a14 s13)
+e14 : V.advance a14 s13 ≡ just s14
+e14 = refl
+
+a15 : V.Event
+a15 = exit (W.cleanup A.child₀ Cleanup.closeHandlerSocket)
+s15 : V.Runtime
+s15 = snapshot (after a15 s14)
+e15 : V.advance a15 s14 ≡ just s15
+e15 = refl
+
+a16 : V.Event
+a16 = exit (W.cleanup A.child₀ Cleanup.publishCleanupMap)
+s16 : V.Runtime
+s16 = snapshot (after a16 s15)
+e16 : V.advance a16 s15 ≡ just s16
+e16 = refl
+
+a17 : V.Event
+a17 = exit (W.deliverInboundReleaseTimeWait (errorId 42))
+s17 : V.Runtime
+s17 = snapshot (after a17 s16)
+e17 : V.advance a17 s16 ≡ just s17
+e17 = refl
+
+a18 : V.Event
+a18 = release Release.checkAssertion
+s18 : V.Runtime
+s18 = snapshot (after a18 s17)
+e18 : V.advance a18 s17 ≡ just s18
+e18 = refl
+
+a19 : V.Event
+a19 = release Release.returnToIG
+s19 : V.Runtime
+s19 = snapshot (after a19 s18)
+e19 : V.advance a19 s18 ≡ just s19
+e19 = refl
+
+a20 : V.Event
+a20 = ig IG.commitDecision
+s20 : V.Runtime
+s20 = snapshot (after a20 s19)
+e20 : V.advance a20 s19 ≡ just s20
+e20 = refl
+
+a21 : V.Event
+a21 = exit (W.cleanup A.child₀ Cleanup.finishTimeWait)
+s21 : V.Runtime
+s21 = snapshot (after a21 s20)
+e21 : V.advance a21 s20 ≡ just s21
+e21 = refl
+
+a22 : V.Event
+a22 = exit (W.cleanup A.child₀ Cleanup.readCleanupCounters)
+s22 : V.Runtime
+s22 = snapshot (after a22 s21)
+e22 : V.advance a22 s21 ≡ just s22
+e22 = refl
+
+a23 : V.Event
+a23 = exit (W.finishCleanup A.child₀)
+s23 : V.Runtime
+s23 = snapshot (after a23 s22)
+e23 : V.advance a23 s22 ≡ just s23
+e23 = refl
+
+a24 : V.Event
+a24 = exit (W.publishAsyncResult A.child₀)
+s24 : V.Runtime
+s24 = snapshot (after a24 s23)
+e24 : V.advance a24 s23 ≡ just s24
+e24 = refl
+
+completionActions : List V.Event
+completionActions = a10 ∷ a11 ∷ a12 ∷ a13 ∷ a14 ∷ a15 ∷ a16 ∷ a17 ∷ a18 ∷ a19 ∷ a20 ∷ a21 ∷ a22 ∷ a23 ∷ a24 ∷ []
+
+abstract
+  completion : V.Runs s9 completionActions s24
+  completion = V.more e10 (V.more e11 (V.more e12 (V.more e13 (V.more e14 (V.more e15 (V.more e16 (V.more e17 (V.more e18 (V.more e19 (V.more e20 (V.more e21 (V.more e22 (V.more e23 (V.more e24 (V.stop)))))))))))))))
+
+  initialized-to-completion : V.Runs initial (schedule ++ completionActions) s24
+  initialized-to-completion = append initialized-to-obstruction completion
+
+complete-step-count : length (schedule ++ completionActions) ≡ 109
+complete-step-count = refl
+socket-closed : lookup (ident 0) (Shared.sockets (shared s24)) ≡ just Shared.closed
+socket-closed = refl
+entry-terminated : lookup (ident 0) (Shared.entries (Shared.cm (shared s24))) ≡ just (Shared.terminated nothing)
+entry-terminated = refl
+connection-removed : Shared.mapCell (Shared.cm (shared s24)) ≡ Shared.full []
+connection-removed = refl
+ig-unregistered : IG.connections (IG.publishedState (governor s24)) ≡ []
+ig-unregistered = refl
+inbound-call-returned : Machine.inboundRelease (O.core (source s24)) ≡ nothing
+inbound-call-returned = refl
+cleanup-finished : lookup A.child₀ (Shared.cleanups (shared s24)) ≡ just (Shared.cleanupDone (Shared.cleanupError (errorId 42)))
+cleanup-finished = refl
+physical-result : W.resultOf A.child₀ (handlerState s24) ≡ just (W.asyncException (errorId 42))
+physical-result = refl
+physical-result-ready : W.resultReady A.child₀ (handlerState s24) ≡ true
+physical-result-ready = refl
+receipt-without-pending-call : V.advance (exit (W.deliverInboundReleaseTimeWait (errorId 42))) s0 ≡ nothing
+receipt-without-pending-call = refl
+mux-receipt-without-pending-call : V.advance (exit (W.deliverInboundReleaseMux (errorId 42))) s0 ≡ nothing
+mux-receipt-without-pending-call = refl
+finished-receipt-without-pending-call : V.advance (exit W.acknowledgeInboundReleaseFinished) s0 ≡ nothing
+finished-receipt-without-pending-call = refl
+receipt-before-unmasked-delay : V.advance (exit (W.deliverInboundReleaseTimeWait (errorId 42))) s9 ≡ nothing
+receipt-before-unmasked-delay = refl
+duplicate-inbound-receipt : V.advance (exit (W.deliverInboundReleaseTimeWait (errorId 42))) s17 ≡ nothing
+duplicate-inbound-receipt = refl
+finished-receipt-needs-physical-result : V.advance (exit W.acknowledgeInboundReleaseFinished) s16 ≡ nothing
+finished-receipt-needs-physical-result = refl
+receipt-does-not-publish-result : W.resultOf A.child₀ (handlerState s17) ≡ nothing
+receipt-does-not-publish-result = refl
+no-result-before-timewait-finally : V.advance (exit (W.publishAsyncResult A.child₀)) s17 ≡ nothing
+no-result-before-timewait-finally = refl
+normal-mux-at-completion : G.phase (G.frameAt A.child₀ (V.group (V.base s24))) ≡ G.scopeDone G.normalExit
+normal-mux-at-completion = refl
+clean-responder-at-completion : Data.Maybe.map Types.phase
+  (lookup (ident 10) (P.jobs (V.physical (V.base s24)))) ≡ just (Types.resultCaptured IG.clean)
+clean-responder-at-completion = refl

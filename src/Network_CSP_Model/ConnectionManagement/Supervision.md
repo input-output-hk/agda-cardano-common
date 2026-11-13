@@ -8231,3 +8231,139 @@ missing qualification) were repaired in new files. The rejected direct
 return before final acceptance. No existing Agda module, runtime guard,
 initializer, source pin or Git state was changed. No heavy existing fixture,
 full-library sweep or Haskell replay was run for this diagnostic-only addition.
+
+
+## Eighty-second increment: inbound physical release receipt and clean lifecycle
+
+**13 November 2026; focused and independent regression acceptance passed.** This supersedes increment
+81's adapter obstruction while retaining its 94-event prefix and every existing
+control/theorem statement. Overall G2 remains partly met: the full configured
+application profile, configured outbound clean execution, negotiation failure
+and operation-timeout/Cooling histories remain separate.
+
+**Source contract.** At the current pinned Core source, inbound release is
+`mask_` at 1111. The InboundIdle branch at 1194–1202 captures the original
+handler Async and writes Terminating. After transition tracing/counters,
+1253–1255 sends `AsyncCancelled` with `throwTo`; assertion and return follow.
+The sender's mask does not mask the target. The handler is spawned with
+`asyncWithUnmask` (585–593); its finally is uninterruptibly masked (604), but
+explicitly unmasks the TIME_WAIT delay (667–668). The inner finally (669–713)
+terminates/purges even when that delay is interrupted. Thus normal mux/body
+return followed by an asynchronous physical result is the expected path here.
+This audit adds no new source pin or native replay claim.
+
+[MuxHandlerExit](MuxHandlerExit.agda) now selects the target from the actual
+`Machine.inboundRelease` at `delivering`. `deliverInboundReleaseMux` couples the
+real mux-owner abort and real inbound cancellation acknowledgement;
+`deliverInboundReleaseTimeWait` couples the actual cleanup interruption and that
+acknowledgement. The latter requires finalizing, current captured identity and
+an actual cleanupWaiting. `acknowledgeInboundReleaseFinished` requires physical
+result availability. All execute `O.advance`, retaining lifecycle delivery
+permission/bookkeeping. Raw `cancellationDelivered` remains sealed by
+HandlerSupervision. No receipt acknowledges CM shutdown, returns the inbound
+call, or publishes a handler result. Existing outbound actions are unchanged.
+
+[InboundCleanLifecycle](Negative/InboundCleanLifecycle.agda),
+`initialized-to-completion`, extends the genuine initialized prefix by 15 actual
+frontend events, each checked with `refl`, for **109 events**. It enters the
+normal buffer/body exit and finalizer, closes the socket and publishes the map,
+receives inbound release at the unmasked TIME_WAIT, separately checks/returns
+the release and commits IG unregistration, then performs TIME_WAIT's finally,
+counter read and physical result publication. Endpoint facts: closed socket,
+Terminated captured entry, empty live map, no IG connection, no pending inbound
+release, cleanupDone(cleanupError 42), and available asyncException 42. The
+responder result and mux outcome remain clean/normal. Boundary observations
+from increment 81 remain explicit; this is a finite model witness, not universal
+liveness or implementation refinement.
+
+Old premature controls remain. New controls refuse all three adapters without
+a pending inbound call, TIME_WAIT receipt before the unmasked delay, duplicate
+receipt, finished-target receipt before physical result, and result publication
+before finally. Receipt itself leaves the physical result unavailable.
+
+Exhaustive exit-layer proofs are extended for the two new plans and three new
+actions: source/pool projection, handler birth/retention, inbound/outbound
+origins, coordinator preservation, source keys, physical backing/capture,
+phase/cleanup correspondence and tracker content/coverage/tickets. Existing
+theorem statements and raw guards are preserved; no new trust is introduced.
+Validation and the separate capped regression queue are recorded below.
+
+
+### Validation of increment 82
+
+Serial Agda 2.8.0 commands use `agda <file> +RTS -M20G -A128m -RTS`.
+All **16 independently checkable modified modules pass**, exit 0, without
+warnings. The remaining modified module, `SourceKeysShared`, is deferred behind
+its reserved heavy import as detailed below. “Fresh” means the module's exact
+own `Checking …` line was present; valid imported interfaces were reused. An
+interface-reusing check is not described as a fresh rebuild.
+
+| Modified module | Wall seconds | Peak RSS (GiB) | Result |
+| --- | ---: | ---: | --- |
+| [MuxHandlerExit.agda](MuxHandlerExit.agda) | 6.00 | 0.84 | Pass; interface reused |
+| [Negative/InboundCleanLifecycle.agda](Negative/InboundCleanLifecycle.agda) | 30.25 | 2.09 | Pass; fresh |
+| [Properties/CollectedHandlerBacking.agda](Properties/CollectedHandlerBacking.agda) | 21.48 | 2.56 | Pass; fresh |
+| [Properties/CoordinatorFrames.agda](Properties/CoordinatorFrames.agda) | 30.33 | 2.72 | Pass; interface reused |
+| [Properties/HandlerAuxBacking.agda](Properties/HandlerAuxBacking.agda) | 17.85 | 2.79 | Pass; interface reused |
+| [Properties/HandlerBirthEffects.agda](Properties/HandlerBirthEffects.agda) | 16.90 | 2.25 | Pass; interface reused |
+| [Properties/InboundOriginLower.agda](Properties/InboundOriginLower.agda) | 15.50 | 1.14 | Pass; interface reused |
+| [Properties/LiveTrackerAuxCoverageExit.agda](Properties/LiveTrackerAuxCoverageExit.agda) | 57.95 | 3.87 | Pass; fresh |
+| [Properties/LiveTrackerAuxExit.agda](Properties/LiveTrackerAuxExit.agda) | 70.21 | 3.79 | Pass; fresh |
+| [Properties/LiveTrackerAuxTickets.agda](Properties/LiveTrackerAuxTickets.agda) | 93.00 | 4.01 | Pass; fresh |
+| [Properties/LiveTrackerCaptureExit.agda](Properties/LiveTrackerCaptureExit.agda) | 34.98 | 2.67 | Pass; fresh |
+| [Properties/LiveTrackerContentExit.agda](Properties/LiveTrackerContentExit.agda) | 29.91 | 2.46 | Pass; fresh |
+| [Properties/MuxHandlerExit.agda](Properties/MuxHandlerExit.agda) | 8.44 | 1.10 | Pass; interface reused |
+| [Properties/MuxPhaseCleanup.agda](Properties/MuxPhaseCleanup.agda) | 34.85 | 2.81 | Pass; fresh |
+| [Properties/OutboundOriginLower.agda](Properties/OutboundOriginLower.agda) | 8.85 | 1.20 | Pass; interface reused |
+| [Properties/SourceKeysExit.agda](Properties/SourceKeysExit.agda) | 17.04 | 1.19 | Pass; fresh |
+| [Properties/SourceKeysShared.agda](Properties/SourceKeysShared.agda) | — | — | Deferred: reserved import |
+
+The initial `MuxPhaseCleanup` attempt failed with parse error/exit 42: the new
+`safe-inboundReleaseTimeWaitDelivery` constructor was missing its declaration
+head. Restoring that head, parallel to the existing outbound constructor, gives
+the fresh passing result above. No existing theorem statement changed. The
+post-repair 17-file local proof audit has zero findings; this is a local audit,
+not a term-level audit of all dependency assumptions. No native replay or
+whole-library build was performed.
+
+The completed reverse-import audit covers **283 affected modules**: **208 pass**
+(**180 fresh / 28 interface-reusing commands**), and **75 are deferred** behind
+the six reserved heavy imports below. Final successful command wall times sum to
+**11340.94 seconds (189.02 minutes)**; peak RSS is **8.31 GiB**, at
+`Negative/MuxPublicationUnwind` (977.69 seconds). No additional module crossed the
+memory stop threshold. All 208 final checks exit 0 without warnings, and their
+source hashes match the current files. The earlier parse failure is retained as
+a separate unsuccessful attempt rather than included among these 208 passes.
+
+The 109-event endpoint itself passed fresh in **30.25 seconds / 2.09 GiB**.
+The generic `Properties/LiveTrackerInitialized` also passed fresh, **58.54 seconds
+/ 7.09 GiB**; its user-reserved concrete `Negative` fixture was not checked.
+This is focused model acceptance with valid dependency interfaces reused, not a
+cold full-library build. Capped acceptance remains separate.
+
+### Capped regression queue for increment 82
+
+The user reserved these six modules; this continuation does not check them:
+
+- `Properties/SourceKeysServer.agda`
+- `Properties/OwnedFramesExecution.agda`
+- `Negative/OwnedCallersFixture.agda`
+- `Negative/LiveTrackerInitialized.agda`
+- `Negative/ServerPeers.agda`
+- `Negative/ServerPeersOrigins.agda`
+
+Their reverse-import closure (**75 affected modules including the six above**)
+is deferred as well, to avoid rebuilding a reserved proof indirectly. In particular, the modified `Properties/SourceKeysShared.agda`
+imports `SourceKeysIGExit`, which imports `SourceKeysServer`; it has no independent
+passing check in this continuation. This is a dependency deferral, not a claim
+that every dependent module is itself heavy.
+
+After those prerequisites, these downstream endpoints cover the deferred
+reverse-import closure (the two repeated reserved fixtures are intentional):
+`Negative/{ForeignFramesFixture,IGPendingQuiet,LiveTrackerAuxFrontend,
+LiveTrackerChainsInitialized,LiveTrackerFailuresInitialized,LiveTrackerInitialized,
+LiveTrackerReferencesInitialized,OwnedCallersFixture,ServerPeersReleaseTimeWait,
+ServerShutdownComplete,ServerShutdownCoordinator}.agda`.
+They retain their original statements; broad regression acceptance remains open
+until their checks pass. The initialized inbound witness and the overall G2 gate
+have the distinct statuses stated above.

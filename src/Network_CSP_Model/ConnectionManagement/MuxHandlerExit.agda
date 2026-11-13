@@ -27,6 +27,7 @@ import ConnectionManagement.OutboundHandlerSupervision as B
 import ConnectionManagement.Rules.Cleanup as Cleanup
 import ConnectionManagement.Rules.HandshakeContinuation as HS
 import ConnectionManagement.Rules.CMShutdown as Close
+import ConnectionManagement.Rules.InboundRelease as InboundRelease
 import ConnectionManagement.Rules.OutboundRelease as Release
 import ConnectionManagement.Rules.HandlerLifecycle as Life
 import ConnectionManagement.MuxGroupShutdown as Group
@@ -141,6 +142,8 @@ data Plan : Set where
   muxDelivery : WorkerId → ErrorId → Plan
   handshakeDelivery : WorkerId → HS.Window → ErrorId → Plan
   timeWaitDelivery : WorkerId → ErrorId → Plan
+  inboundReleaseDelivery : WorkerId → ErrorId → Plan
+  inboundReleaseTimeWaitDelivery : WorkerId → ErrorId → Plan
   releaseDelivery : WorkerId → WorkerId → ErrorId → Plan
   releaseTimeWaitDelivery : WorkerId → WorkerId → ErrorId → Plan
 
@@ -152,6 +155,14 @@ releaseTarget caller s with lookup caller (O.releasing (source s))
 ... | just savedFrame with Release.pc savedFrame
 ...   | Release.delivering target next = just target
 ...   | _ = nothing
+-- Inbound release is a single IG-owned call with its own captured target.
+inboundReleaseTarget : State → Maybe WorkerId
+inboundReleaseTarget s with Machine.inboundRelease (O.core (source s))
+... | nothing = nothing
+... | just f with InboundRelease.pc f
+...   | InboundRelease.delivering w = just w
+...   | _ = nothing
+
 edit : WorkerId → Frame → Phase → State → Store WorkerId Frame
 edit w f pc s = put w (record f { phase = pc }) (exits s)
 -- Preserve the class of the ACTUAL cleanup fault: finally is outside the
@@ -183,6 +194,8 @@ data Action : Set where
   shutdownStep : Close.Action → Action
   deliverShutdownMux deliverShutdownTimeWait : ErrorId → Action
   acknowledgeFinished : Action
+  deliverInboundReleaseMux deliverInboundReleaseTimeWait : ErrorId → Action
+  acknowledgeInboundReleaseFinished : Action
   deliverReleaseMux : WorkerId → ErrorId → Action
   deliverReleaseTimeWait : WorkerId → ErrorId → Action
   acknowledgeReleaseFinished : WorkerId → Action
@@ -198,6 +211,16 @@ timeWaitTarget caller s with releaseTarget caller s
 ...     | finalizing _ | true = just target
 ...     | _ | _ = nothing
 timeWaitTarget caller s | just target | _ | _ = nothing
+
+-- Only the target's unmasked TIME_WAIT is an interruptible cleanup window.
+inboundTimeWaitTarget : State → Maybe WorkerId
+inboundTimeWaitTarget s with inboundReleaseTarget s
+... | nothing = nothing
+... | just target with lookup target (exits s) | lookup target (Shared.cleanups (shared s))
+...   | just f | just (Shared.cleanupWaiting _) with phase f | currentCapture target f s
+...     | finalizing _ | true = just target
+...     | _ | _ = nothing
+inboundTimeWaitTarget s | just target | _ | _ = nothing
 
 -- The mux run returns only after withByteCells retired any registered row.
 countersClear : U.Frame → State → Bool
@@ -327,6 +350,18 @@ choose (acknowledgeReleaseFinished caller) s with releaseTarget caller s
 ...   | false = nothing
 ...   | true = just (machine (O.release caller (Release.cancellationDelivered target)) (exits s))
 
+choose (deliverInboundReleaseMux err) s with inboundReleaseTarget s
+... | nothing = nothing
+... | just target = just (inboundReleaseDelivery target err)
+choose (deliverInboundReleaseTimeWait err) s with inboundTimeWaitTarget s
+... | nothing = nothing
+... | just target = just (inboundReleaseTimeWaitDelivery target err)
+choose acknowledgeInboundReleaseFinished s with inboundReleaseTarget s
+... | nothing = nothing
+... | just target with resultReady target s
+...   | false = nothing
+...   | true = just (machine (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) (exits s))
+
 control : Close.Action → State → Maybe State
 control action s with Close.step (Shared.cm (shared s)) (λ w → resultReady w s) action (shutdown s)
 ... | nothing = nothing
@@ -363,6 +398,17 @@ enact (releaseDelivery caller target err) s with G.step (G.abortOwner target err
 enact (releaseTimeWaitDelivery caller target err) s with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (source s)
 ... | nothing = nothing
 ... | just c with O.advance (O.release caller (Release.cancellationDelivered target)) c
+...   | nothing = nothing
+...   | just c′ = just (record (setSource c′ s) { exits = noteCleanup target (Cleanup.interruptTimeWait err) s })
+-- Receipt uses the actual inbound source acknowledgement after delivery.
+enact (inboundReleaseDelivery target err) s with G.step (G.abortOwner target err) (base s)
+... | nothing = nothing
+... | just g with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) (G.source g)
+...   | nothing = nothing
+...   | just c = just (setSource c (record s { base = g }))
+enact (inboundReleaseTimeWaitDelivery target err) s with O.advance (O.inbound (Machine.cleanupStep target (Cleanup.interruptTimeWait err))) (source s)
+... | nothing = nothing
+... | just c with O.advance (O.inbound (Machine.releaseStep (InboundRelease.cancellationDelivered target))) c
 ...   | nothing = nothing
 ...   | just c′ = just (record (setSource c′ s) { exits = noteCleanup target (Cleanup.interruptTimeWait err) s })
 step : Action → State → Maybe State
