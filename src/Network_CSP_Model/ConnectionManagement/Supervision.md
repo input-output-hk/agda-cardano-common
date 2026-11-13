@@ -8379,3 +8379,142 @@ and was rerun). Downstream endpoints: `ForeignFramesFixture`,
 `ServerShutdownCoordinator`, 44-56 s each, at most 7.5 GiB. Broad regression
 acceptance for increment 82 is complete. The initialized inbound witness and the overall G2 gate
 have the distinct statuses stated above.
+
+## Eighty-third increment: G2 outbound clean lifecycle and supervised handshake failure
+
+13 November 2026. Gate plan step 4 adds two named initialized finite runs on
+one real `ServerPeers.Protocols` runtime, with the outer Server/IG/CM and peer
+supervision layers present. Existing model modules, guards, initializer and
+existing theorem statements are unchanged. Source authority remains network
+`2f1c154f248659b89523d5679ca532f442e7ed2a` / consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`.
+
+**Explicit profile.** [Support](Negative/OutboundCleanLifecycleSupport.agda)
+checks `V.initialize (O.initial c₀) settings ≡ just initial`: empty responder
+world, one known ordinary peer and governor targets 1/1/0. Success negotiates a
+plain unidirectional outbound bearer, one explicitly configured warm/on-demand
+protocol (number 1), and initiator capability only for handle zero/protocol one.
+Hot and established bundles are empty. This is a reduced configured model
+profile, not the six-protocol LocalLifecycle application. Connect/local-address,
+negotiation, tracer/DeltaQ/provider returns, empty egress drain, infrastructure
+unwind and untimed timer readiness are supplied boundary observations. No
+byte-cell/scheduled-egress profile, native replay, full-node boot, universal
+liveness or implementation refinement is claimed.
+
+**Outbound clean run.**
+[OutboundCleanLifecycle](Negative/OutboundCleanLifecycle.agda),
+`initialized-to-completion`, checks **156 actual events**, composed from:
+
+- [Acquire](Negative/OutboundCleanLifecycleAcquire.agda), 23 events: real OG
+  establishment job fork/registration, peer-job acquisition, reservation/promise,
+  socket open/configure/connect/local-address update, physical outbound handler
+  fork, caller handoff/connected commit/counters and handler handshake entry.
+- [Startup](Negative/OutboundCleanLifecycleStartup.agda), 20 events: handshake
+  success, actual handle/mux allocation and promise publication, acquisition
+  consumer return, physical muxer/demuxer startup and peer-job collection.
+- [Protocol](Negative/OutboundCleanLifecycleProtocol.agda), 31 events: actual
+  initiator call/start tracer/fork/registration/body/clean result; warm bundle
+  publication, empty established bundle, physical PSA monitor registration and
+  establishment job return/publication/deregistration/Async result; protocol
+  physical result and typed monitor/initiator tracer/DeltaQ completion.
+- [Mux](Negative/OutboundCleanLifecycleMux.agda), 25 events: graceful shutdown,
+  Stopping/Stopped, empty mini-protocol group/drain, whole-pool infrastructure
+  cancellation/unwind/deregistration/physical result/join and normal scope exit.
+  This unidirectional mux's inactive IG tracer returns without IG sampling.
+- [Release](Negative/OutboundCleanLifecycleRelease.agda), 38 events: governor
+  completion/target update/close selection, real close job, physical
+  `waitJobResults`, release request and OutboundUni → OutboundIdle → timeout →
+  Terminating, counters and actual cancellation request.
+- The endpoint adds 19 events: normal buffer/body exit, finally/map/socket close,
+  increment-66-family `deliverReleaseTimeWait` physical receipt, separate release
+  return/job collection, TIME_WAIT finally/counters, handler Async result,
+  physical `pollResults` demotion observation and close-job return/Async result.
+
+Endpoint facts check the clean protocol, normal mux scope/closed pool, closed
+socket, Terminated entry, empty live map, captured release success and retired
+release frame, completed cleanup, `asyncException 42`, PeerCold and successful
+close-job physical result. As with increment 82, the normal body/mux path is
+followed by cancellation of the unmasked TIME_WAIT; the handler's physical
+result is therefore asynchronous. Release return does not itself publish it.
+
+This run has **no inbound bearer owner**. The separately checked
+`duplex-role-release-retains-inbound` equation preserves the source distinction:
+release of OutboundDup Ticking writes InboundIdle with a successful count/return
+continuation, without a cancellation receipt. The existing initialized duplex
+reuse evidence remains separate; the new unidirectional run is not a claim that
+every outbound role release closes a shared bearer.
+
+Controls refuse raw receipt, return before receipt, TIME_WAIT receipt before the
+unmasked delay, finished-target acknowledgement without physical result,
+duplicate receipt, result before TIME_WAIT finally, cleanup before body exit,
+exit before normal mux/pool closure, job collection before release return and
+job Cold completion before monitor observation. Receipt leaves the handler
+result unavailable.
+
+**Supervised failure run.**
+[SupervisedHandshakeFailure](Negative/SupervisedHandshakeFailure.agda),
+`initialized-to-cleanup`, checks **40 actual events**, sharing only the genuine
+23-event acquisition prefix. It observes `HS.limitReturned deadline 7`, executes
+the real promise writer, then the caller's read/commit/counters/return and the
+peer job's failed acquisition collection. It separately observes the helper's
+tracer return, transfers the completed handshake body through `finishHandshake`,
+and executes the actual finalizer/map selection/socket close/map publication/
+counters/cleanup/result boundaries. The deadline failure is classified as
+`handlerError protocolViolation 7`, matching `HandshakeContinuation.asResult`;
+it is not pre-handshake asynchronous cancellation. The helper handles the
+failure and returns normally, so the handler physical result is `returned`.
+
+Endpoint facts check disconnected caller result, failed peer job, closed socket,
+Terminated captured entry retaining error 7, empty live map, cleanupNormal and
+available handler physical result; no negotiated handle was allocated. Controls
+refuse consumer read before publication, job collection before caller return,
+exit before helper return, finalizer before body exit, premature physical result,
+duplicate publication and allocation of success after failure. This is an
+outbound consumer/peer-worker witness, not an inbound admission-worker history.
+
+Every edge in both histories has an independent `V.advance … ≡ just …` proof by
+`refl`. Reflection normalizes one actual successor at a time; a refused default
+cannot prove an edge. Ordinary `V.Runs` constructors compose the opaque segment
+proofs. No injected midpoint, new postulate, hole or unsafe pragma is used.
+There is no blocking source guard or missing model wiring in these profiles.
+
+**Gate status:** both targeted G2 rows and plan step 4 are met **for these
+explicit reduced profiles**. Overall G2 remains partly met: the full application
+protocol contracts/bundles and the operation-timeout → Cooling → delayed cleanup
+→ Cold history in step 5 remain open. No subsequent gate is started here.
+
+### Validation of increment 83
+
+Serial Agda 2.8.0 acceptance passed for all eight new modules, with each
+module's own `Checking` line, unchanged source hash, exit 0 and no warnings.
+Only the selected module's own interface was invalidated; imported interfaces
+were reused. Each invocation used `/usr/bin/time -v` and:
+
+```sh
+agda ConnectionManagement/Negative/<module>.agda +RTS -M20G -A128m -RTS
+```
+
+| Module | Wall seconds | Peak RSS GiB | Result |
+| --- | ---: | ---: | --- |
+| `OutboundCleanLifecycleSupport` | 25.205 | 3.118 | pass, fresh |
+| `OutboundCleanLifecycleAcquire` | 16.773 | 2.591 | pass, fresh |
+| `OutboundCleanLifecycleStartup` | 20.864 | 2.646 | pass, fresh |
+| `OutboundCleanLifecycleProtocol` | 27.205 | 2.696 | pass, fresh |
+| `OutboundCleanLifecycleMux` | 34.063 | 3.329 | pass, fresh |
+| `OutboundCleanLifecycleRelease` | 62.846 | 4.300 | pass, fresh |
+| `SupervisedHandshakeFailure` | 19.617 | 2.644 | pass, fresh |
+| `OutboundCleanLifecycle` | 25.822 | 2.767 | pass, fresh |
+
+Successful final commands total **232.395 seconds**, peak **4.300 GiB**
+RSS, below 10 GB for every check. The eight-file local heuristic proof audit
+found zero holes, postulates or unsafe options; it is not a transitive term-level
+axiom audit. Local documentation targets and whitespace checks passed.
+
+Development attempts repaired a qualified-field scope error and an extra closing
+parenthesis in the new endpoint. Two refused development events were replaced
+by the existing supported path: inactive unidirectional tracing skips IG
+sample/commit, and physical `waitJobResults`/`pollResults` replace sealed logical
+read aliases. No source guards were weakened or model wiring added. These
+unsuccessful attempts are not included among final passes. No existing heavy
+fixture rebuild, broad regression sweep or Haskell replay was needed or run for
+these new-fixture-only additions. No Git state-changing command was used.
