@@ -10114,3 +10114,139 @@ source observations; this is no source-refinement, universal progress, delivery,
 whole-node shutdown or deadline theorem. PrimitiveMatrix is unchanged: the
 existing per-fork mask/registration and operation-readiness contracts still apply.
 G1/G3/G4 accepted scopes and G5 obligations are unchanged.
+
+
+## Ninety-third increment: seed/selection/version reconciliation and inbound wrapper obstruction
+
+14 November 2026; inspected model HEAD `9053cd8a74487d273575226a4c6e91afcaab4580`.
+Changes are uncommitted. Overall objective remains the combined CM/IG/OG/Server
+source-problem model and correct design under unchanged G0–G5. Existing model
+modules and theorem statements are unchanged; no Git state-changing command,
+external dependency edit, source-pin change or source replay was performed.
+
+### Source reconciliation before checking
+
+[BranchMatrix increment 93](BranchMatrix.md#seed-selection-and-version-reconciliation--increment-93)
+is the maintained reconciliation, with source paths and line ranges at network
+`2f1c154f248659b89523d5679ca532f442e7ed2a` and consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. Source evidence came from the
+retained exact-HEAD network checkout and pinned consensus Git objects; the
+ordinary consensus checkout has a different HEAD and was not used as authority.
+The reconciliation was written before the first Agda invocation.
+
+- **Reconciled projection:** two known ordinary peers, 2/2/1 targets, initial
+  all-of-two selection and absent-bucket acquisition, conditional on the same
+  source topology/state. Later activation/deactivation/close select the sole
+  established/active peer; the other establishment job remains unentered.
+- **Explicit abstractions:** ranking cannot change an all-or-singleton selected
+  set under the same eligible sets/quotas and schedule. Unread RNG state cannot
+  affect the reduced inbound prefix with no OG/CM random/pruning steps.
+  A numerical wire tag can be erased only after fixing successful handshake,
+  layout/flow/callbacks, limits and all supplied contract outcomes.
+- **Gaps:** there is no certified concrete `diRng`/split history, independent
+  policy TVar seed, committed/retried selection history, offered-version map or
+  agreed version/data. The pin receives `daPeerSelectionPolicy` separately;
+  residual peer-selection-actions RNG is not its policy seed. Magic/query,
+  diffusion flow and feature negotiation can change CM-visible behavior. An
+  inbound TxSubmission V1/V2 instance must also be selected independently of
+  wire version. Replay seeds 0/1/42 and zero model draw markers close none of
+  these source-instantiation gaps.
+
+### Checked reuse obstruction; configured inbound part stopped
+
+[InboundConfiguredBlocked](Negative/InboundConfiguredBlocked.agda) adds a
+**46-event reduced initialized prefix**: the existing 38-event admission path
+and its first eight responder steps. `initialized-to-body` starts at the usual
+initializer's `initial`; `prefix-length` fixes the count. Every constituent
+frontend edge was established by `refl`; composition reuses those checked edges.
+No physical midpoint is injected.
+
+At that boundary, `captured-owner`, `captured-mux`, `captured-number` and
+`captured-direction` check the real collector has the correct worker/mux/number
+and responder direction. The existing outbound `ConfiguredProtocols.attach`
+refuses this capture. Its `normalDone` selects only client endpoints, and
+`terminating` requires an outbound PSA peer/control; existing server adapters
+alone do not supply coupled inbound contracts. The diagnostic also separates
+an enabled raw return from refused contract-coupled return and premature clean
+publication, all concrete equations by `refl`.
+
+This is **not** a configured six-responder witness: no new configured handler
+result/cleanup/IG-unregistered endpoint or OwnedCallers certificate is claimed.
+The original 109-event reduced clean lifecycle and increment 92's 381/322-event
+outbound witness retain their scopes. StartOnDemandAny raw runtime support is
+already present; this obstruction is at the normal-contract coupling layer.
+
+Following the user's explicit stop-and-ask condition, the inbound part stops
+before model edits. Approval requested for an additive inbound wrapper, preserving
+existing modules/statements: immutable responder captures, server-specific normal
+result/termination/resource guards, exactly one Tx responder variant, physical
+pool/typed exit guards and exact frontend projection. After approval, reuse the
+inbound admission/cleanup and grouped-start machinery and split the configured
+run into small checked phases; increment 92 needed 157 phase modules, so do not
+normalize the entire connection history in one module. Merely dropping the
+initiator check or reusing client/PSA termination would not satisfy the task.
+
+### Deferred heavy acceptance for the user
+
+No existing Agda module changed, so this new diagnostic has no affected reverse
+importers. The **existing** increment 92 deferred queue remains unperformed:
+
+- `Properties/SourceKeysServer.agda`, `Properties/OwnedFramesExecution.agda`.
+- `Negative/OwnedCallersFixture.agda`, `Negative/LiveTrackerInitialized.agda`,
+  `Negative/ServerPeers.agda`, `Negative/ServerPeersOrigins.agda`.
+- `Negative/ForeignFramesFixture.agda`, `Negative/IGPendingQuiet.agda`,
+  `Negative/LiveTrackerAuxFrontend.agda`,
+  `Negative/LiveTrackerChainsInitialized.agda`,
+  `Negative/LiveTrackerFailuresInitialized.agda`,
+  `Negative/LiveTrackerReferencesInitialized.agda`,
+  `Negative/ServerPeersReleaseTimeWait.agda`,
+  `Negative/ServerShutdownComplete.agda`,
+  `Negative/ServerShutdownCoordinator.agda`.
+
+Paths above are relative to `ConnectionManagement/`. Increment 92 records the
+79-module reserved reverse closure and four additional deferred caller leaves:
+`ConcurrentLifecycleOwnedCallers`, `FullConfiguredBlockedCallers`,
+`OverlapInitializedOwnedCallers`, `TimeoutCoolingOwnedCallers`, under `Negative/`.
+These are carried forward, not newly measured as heavy in this increment. The
+user should retain the resource policy and split any check approaching 10 GB.
+
+**G0 and G2 are not met (partly met).** Remaining: source-backed concrete input
+instantiation as enumerated above and approved inbound contract coupling followed
+by the full configured initialized clean responder bundle, OwnedCallers, endpoint
+facts and premature controls. G1/G3/G4 accepted scopes and G5 are unchanged.
+Matrix counts remain 67 implemented / 19 contracted / 13 excluded / 0 missing;
+a diagnosed reuse obstruction is not a source coverage row or gate closure.
+
+### Validation
+
+Agda 2.8.0, serial exact `agda <file> +RTS -M20G -A128m -RTS`,
+with a process-group RSS stop at 9,400,000,000 bytes (none fired).
+No cache purge or explicit `-c`. Times below are measured wrapper wall times;
+RSS is `/usr/bin/time -v` maximum resident set size, converted to GiB.
+
+| Module (relative to `ConnectionManagement/`) | Own check | Seconds | Peak RSS GiB | Result |
+| --- | --- | ---: | ---: | --- |
+| `Negative/InboundConfiguredBlocked.agda` | Fresh `Checking` | 14.541 | 2.142 | exit 0, no warnings |
+| `ConfiguredProtocols.agda` | Interface reuse | 8.524 | 1.515 | exit 0, no warnings |
+| `ProtocolContractJobs.agda` | Interface reuse | 5.767 | 0.861 | exit 0, no warnings |
+| `ProtocolContractJobs2.agda` | Interface reuse | 5.768 | 0.885 | exit 0, no warnings |
+| `ProtocolContractJobs3.agda` | Interface reuse | 5.767 | 0.886 | exit 0, no warnings |
+| `Negative/StartOnDemandAny.agda` | Interface reuse | 5.516 | 0.774 | exit 0, no warnings |
+| `Negative/InboundCleanLifecycle.agda` | Interface reuse | 14.292 | 2.255 | exit 0, no warnings |
+
+The final seven commands total **60.175 s**, peak **2.255 GiB**.
+The new diagnostic was checked fresh after adding its return/publication controls;
+all six existing-module invocations reused current own interfaces. Imports were
+checked transitively, not rebuilt wholesale. Development: first diagnostic check
+failed at 14.794 s because `responderJob` was qualified by the monitor alias;
+an explicit `MuxRuntime` import fixed it. An intermediate diagnostic then passed
+fresh at 14.290 s before the final controls were added. Neither is counted among
+the seven final invocations. No memory stop or final warning occurred.
+
+One-file local proof audit: zero findings; `git diff --check` passes. All new
+local Markdown filesystem targets resolve. The wider changed-document link scan
+finds two pre-existing links to missing `plan2.md` (in PROJECT_STATE and GateAudit);
+no plan file was invented or historical link silently rewritten. No existing Agda source changed, no theorem statement
+was weakened, and no postulate, hole or unsafe pragma was added. The audit is
+a local static scan, not a transitive term-level axiom audit. The heavy queue
+above and the requested configured inbound certificate remain unperformed.

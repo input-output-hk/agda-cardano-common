@@ -22,14 +22,14 @@ Common executable policy values are in [Subsystem.initial](Subsystem.agda): maxi
 
 The physical fixture's exception projections are explicit: `MuxPublicationInboundFixtures.bearerClosed` recognizes error 999; `Negative/GovernorPool.classify` recognizes error 7 as IO-manager error. `ServerPeers.Fixtures.classify` is instead constantly false for its local interleaving fixture. They must match represented source exceptions before making source claims. Negotiation supplies a fixed bundle and permitted flow; duplex capability permits reuse but does not require both roles to run.
 
-All fixtures start after listener/governor infrastructure setup. Assumptions are one listener, ordinary fixed-known peers, enabled assertions, untimed token expiry, nondecreasing sampled time, explicit transport/buffer/policy outcomes and successful observed diagnostic traces. The IG queue has capacity 100; source unbounded queues remain unbounded. Address order is abstract remote-before-local; signed counters and byte arithmetic require their stated non-overflow profiles. There is no fairness, eventual reply/write/cleanup or whole-node-boot premise. Increment 91 below reconciles DESIGN's **2/2/1** targets and exact descriptors; execution is blocked by KeepAlive's start mode. The full contracts are reviewed, but their runtime coupling and a concrete seed-to-selection relation remain obligations. Peras, PeerSharing, local roots, big-ledger policy and discovery are excluded.
+All fixtures start after listener/governor infrastructure setup. Assumptions are one listener, ordinary fixed-known peers, enabled assertions, untimed token expiry, nondecreasing sampled time, explicit transport/buffer/policy outcomes and successful observed diagnostic traces. The IG queue has capacity 100; source unbounded queues remain unbounded. Address order is abstract remote-before-local; signed counters and byte arithmetic require their stated non-overflow profiles. There is no fairness, eventual reply/write/cleanup or whole-node-boot premise. Increments 91–92 below reconcile DESIGN's **2/2/1** targets and exact descriptors and supply configured outbound execution. Increment 93 records the remaining source-input and inbound contract-coupling gaps. Peras, PeerSharing, local roots, big-ledger policy and discovery are excluded.
 
 ## Pinned LocalLifecycle profile — increment 91
 
-**Reconciliation result: targets are expressible; the source bundle is
-representable as data but is rejected by executable installation.** Phase 2 is
-stopped at this guard. No start mode, existing statement or runtime rule is
-changed. [FullConfiguredProfile](Negative/FullConfiguredProfile.agda) gives the
+**Historical increment 91 result:** targets were expressible but executable
+installation rejected the bundle. Increment 92 resolves that installer guard and
+supplies configured outbound execution. Increment 93 below records the current
+source-input reconciliation and inbound contract-wrapper obstruction. [FullConfiguredProfile](Negative/FullConfiguredProfile.agda) gives the
 usual `V.initialize (O.initial c₀) settings` equality with empty CM/physical jobs,
 one post-setup listener and two known ordinary peers. Initial targets are
 known **2**, established **2**, active **1**. `key₀`/`key₁` use local IPv4 host 0,
@@ -161,6 +161,71 @@ reconciliation, and **G2 remains partly met**. Their remaining work includes
 seed/selection/version instantiation and configured initialized clean inbound
 coverage. The grouped-readiness implementation and outbound witness do not
 establish universal progress or source refinement.
+
+## Seed, selection and version reconciliation — increment 93
+
+14 November 2026. Direct inspection of the unchanged network pin
+`2f1c154f248659b89523d5679ca532f442e7ed2a`, including its retained exact-HEAD
+checkout, and consensus pinned objects at
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. Source line numbers below refer to
+those objects. This record precedes the increment's Agda checks. **Reconciled**
+means matched inputs; **abstracted** means the stated conditional projection
+cannot distinguish CM-visible transitions; **gap** means that condition has not
+been established for the concrete source execution. No source replay was run.
+
+| Input | Pinned source versus initializer/fixtures | Classification and obligation |
+| --- | --- | --- |
+| Diffusion RNG split | [Diffusion] 301–308 splits `diRng` successively into ledger, churn, fuzz, local CM, remote CM1/CM2, egress, then residual peer-selection-actions RNG; IO obtains `diRng` using `newStdGen` at 1062. `O.initial.randomGeneration` and `Machine.initial.pruningGeneration` are 0 draw markers, with no `StdGen`. | **Gap for a concrete seeded schedule.** Record external generator state, random package/version and split consumption, transaction retries and selected observations. Zero markers and source replay seeds 0/1/42 do not provide it. |
+| Policy seed | [Diffusion] 258 and 803–813 receives `daPeerSelectionPolicy` separately; `fuzzRng` goes to the governor, not to this policy's RNG TVar. [Policies] 146–161 takes a caller-supplied `StrictTVar StdGen` and metrics; 260–267 splits and writes its RNG inside STM. | **Gap.** The library pin does not prescribe a single numerical policy seed. Identify the calling instance and its policy RNG initialization independently of `diRng`; preserve STM rollback. Equating it with residual `peerSelectionActionsRng` is unjustified. |
+| Initial peers, targets and first cold selection | [GTypes] 270–290 permits ordinary targets 2/2/1 with zero root/big-ledger targets. [Policies] 213–221 ranks the available set then takes the requested cardinality. `FullConfiguredProfile` starts with exactly two eligible ordinary peers, failure counts 0, tepid false; `FullConfiguredAcquire.a4` selects both, and `.a11` acquires an absent bucket. | **Reconciled at the projected first choice**, assuming precisely that source topology, no concurrent discovery/state change and empty CM bucket. Taking both of two is independent of the policy ranks; absent-bucket acquisition makes no random member choice. This does not reconcile later choices or certify a seed. |
+| Remaining selection inputs | [Policies] 100–143 and 175–249 use metric scores, tepid flags, failure counts, address order and random tie breaks. [Established] 521 draws continuous `Double` fuzz; [Core] 1276–1279, 1379–1388 splits CM randomness transactionally. Model `selectPolicy` allows an eligible distinct list up to quota, acquisition supplies a member/absence, pruning supplies scores, jitter uses codes 0..4. The full outbound run activates the sole established peer; the other establishment worker remains unentered. Later deactivation and close also select that singleton (the imported `GovernorLifecycle.a55/a89/a121` inputs). | **Abstracted for these all-or-singleton selections**, assuming the same eligible sets/quotas and schedule: ranking cannot change their selected sets, even when draws are consumed. **Gap for concrete source instantiation:** confirm those source sets/quotas, ordering and transaction history; record the independent RNG states and any later consumers. General model eligibility alone does not certify source cardinality. Discrete jitter is not a distribution or exact time equivalence. No failure/fuzz or pruning branch is exercised here. |
+| RNG/metrics outside a selected inbound prefix | `InboundCleanLifecycleSupport.settings` has targets 0/0/0 and no known peers; its admission/responder prefix performs no OG selection or CM random bucket/pruning draw. | **Abstracted for that prefix only**, assuming no concurrent OG/CM/pruning input or timing race changes its observations. Unread random state cannot affect these transitions. It does not justify a combined configured 2/2/1 run. |
+| Numerical wire version and descriptor layout | [WireVersion] 85–106 supports 14/15/16; [Wire] 250–325 ignores `_version` for this layout. With PeerSharingDisabled and PerasUnsupported the groups are hot 2/3/4/18/19, warm empty, established 8/Any (Leios callbacks supplied by [Bundle] 1963–2100). Model `Protocol` stores only number/temperature/start. | **Abstracted after successful negotiation**, assuming identical selected layout, flow, callback variant, limits and supplied operation/results. The numeric tag then has no model reader; codec/payload outcomes remain contracts. **Concrete version instantiation remains a gap:** no offered-version map, agreed tag or codec execution is certified by either fixture. |
+| Version data and handshake branch | [WireVersion] 117–148 records network magic, diffusion mode, peer sharing, query and Peras; acceptance checks equal magic, combines diffusion/Peras with `min`, sharing with `<>`, query with `||`; 153–157 restricts Peras before V16. `FullConfiguredBlocked.negotiate` supplies `fullBundle` and unidirectional flow; inbound fixtures supply synthetic protocol 1 and duplex flow, without version data. | **Gap for concrete source instantiation.** Record both offers, common supported tag, equal magic, query false on both, sharing disabled and Peras unsupported, and show the accepted diffusion-mode projection yields each fixture's flow. Magic mismatch/query/flow/features can change CM-visible branches, so erasing these before fixing the outcome is not harmless. Reduced protocol 1 is deliberately synthetic. |
+| TxSubmission responder version | [Bundle] 551–578 chooses V1/V2 using `txSubmissionLogicVersion`, separately from wire version. `ProtocolContracts2` has distinct `txServerV1`/`txServerV2`; outbound `ConfiguredProtocols.normalDone` uses only `txClient`. | **Gap for inbound instantiation.** Choose exactly one source responder variant and its registry/resource contract. Inferring it from negotiated wire version or executing both would be unjustified. |
+
+A possible version-data assignment is a specification for future replay, not
+measured evidence: use common V15, equal explicit network magic, query false,
+PeerSharingDisabled and PerasUnsupported; choose local/remote diffusion modes
+so their accepted projection gives the desired flow. No value is retroactively
+attributed to a model handle. Keeping the successful handshake, layout and all
+contract observations fixed explains the conditional abstraction above; changing
+those premises can change CM-visible behavior.
+
+### Configured inbound obstruction and requested change
+
+The existing [ConfiguredProtocols](ConfiguredProtocols.agda) is explicitly a
+normal **outbound** wrapper. `attach` checks `initiatorJob`, `normalDone` selects
+client endpoints for every number, `terminating` reads a captured outbound PSA
+peer, and `couple1/2/3` contains client-specific resource ordering. Existing
+`ProtocolContractJobs{,2,3}` already recognizes server directions, but that does
+not make the wrapper direction-neutral. Raw grouped startup is implemented;
+this is a different boundary.
+
+[InboundConfiguredBlocked](Negative/InboundConfiguredBlocked.agda) checks the
+capture refusal against the actual reduced initialized responder at its entered
+body boundary (38 admission + 8 protocol events), rather than inventing a
+midpoint physical job. Its raw return is enabled; contract-coupled return and
+premature clean publication are refused at that same boundary. This diagnoses reuse only: it is **not** a configured
+inbound execution, full-bundle endpoint certificate or OwnedCallers proof.
+
+Required model work, subject to user approval: an additive inbound contract
+wrapper (or an explicitly approved extension of `ConfiguredProtocols`) with
+immutable responder captures, server normal-result gates, selected Tx server
+variant, and server-specific termination/resource coupling without requiring an
+outbound PSA peer. Preserve projection to the actual frontend and both typed
+and physical pool-exit guards. Reuse the existing responder adapters and grouped
+startup; do not merely relax `attach`, substitute clients for servers or gate
+server exits on outbound controls. Then construct split phase modules for six
+responders, demand/Any startup, handler result, cleanup, IG unregistration,
+OwnedCallers and premature controls, checking each phase below 10 GB. No such
+model change is made in increment 93, under the task's stop-and-ask rule.
+
+**G0 and G2 are not met (partly met).** Source split/policy seed and full reached
+selection inputs, concrete negotiated version/data and Tx responder variant
+still need source-backed instantiation. Configured inbound contract execution
+is blocked as above. Increment 92's outbound witness and deferred heavy
+acceptance remain unchanged; no new finite trace establishes universal progress.
 
 ## Reading the matrix
 
@@ -320,7 +385,12 @@ Increments 32–62 and 71–76/79 mainly add provenance, initializer restriction
 3. **Newer model coverage absent from, or stale in, the initial family cells — reconciled here.** Physical initiator/result/restart and typed mux lifecycle, DB waits, release TIME_WAIT receipts, late admission, SI5 and initializer validity have later evidence. `CM.INCLUDE.RESULT`'s “handler execution pending,” `IG.EXIT`'s “rethrow pending” and blanket missing accept/supervision statements describe earlier checkpoints. The SI4 table's “raw admission worker errors before handoff” conflates loop `accept/getLocalAddr/trace` failures (now the implemented `acceptFails` outcome) with the async-fork/worker-unwind edges now implemented in increment 80. M3's pool-body exclusion says “together with its owner,” although the owner cancel/join is implemented. These indexing discrepancies no longer block inventory review; they do not upgrade G2 witnesses. Ownership variants have no production counterparts and stay separate.
 4. **Stale source anchors — corrected in this matrix.** Ledger `[mux-api]` 121–180 now misses `stopped` 214–221 and `stop` 326–328. `[handler]` 324–455 misses inbound publication 510 and the current catch/run boundaries; use 307–518, with publication 436/510. Old mux monitor/cleanup anchors 254–278, 424–618 and 554–570 must be replaced by pool/catch 411–434, monitor 605–833 and shutdown 763–778. Diffusion wiring 539–600 / 625–825 becomes 632–698 / 728–950; the peer policy is now 337–373. Demotion-job start is 963 rather than 961, ending at 1086. The consensus bundle reference had no range; current constructors are 1963–2100 and shared Leios bracket 1836–1864. Fetch's pipelined declaration begins at 587, not the old 591 anchor. These are source-location corrections, not new semantic claims. Unchanged Core/IG/Server/JobPool ranges retain the ledger's authority. No blocking unresolved anchor is being silently treated as implementation.
 
-**G0 remains partly met.** The branch inventory has now been reviewed, with zero missing rows and explicit contracted inputs. Closing G0 still requires execution support for the reconciled LocalLifecycle bundle (KeepAlive grouped readiness is currently rejected), source seed/selection/version instantiation, and full configured-bundle initialized execution demonstrating that profile. All per-protocol/resource lifecycle reviews are now contracted by batches 1–3. Increment 80 records accepted primitive/worker regression; no new existing Agda dependency is changed by batch 3. Lazy-reference forcing is a separate evaluation abstraction. G2 still needs full configured-bundle initialized clean inbound/outbound coverage; the reduced clean, supervised negotiation-failure/cleanup and production-caller timeout witnesses have the accepted scopes specified in [GateAudit](GateAudit.md#g2--first-combined-lifecycle-partly-met). Existing reduced-profile hot demotion and initialized duplex reuse remain evidence within their stated scope.
+**G0 remains partly met.** The branch inventory is reviewed with zero missing
+rows. Increment 92 implements grouped readiness and the configured outbound
+witness; increment 93 above records concrete seed/selection/version and inbound
+contract-coupling gaps. G2 still needs configured initialized inbound completion
+and source-input instantiation. Accepted reduced witnesses and outbound
+certificates retain the scopes in [GateAudit](GateAudit.md#g2--first-combined-lifecycle-partly-met).
 
 [Core]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs
 [CMTypes]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Types.hs
