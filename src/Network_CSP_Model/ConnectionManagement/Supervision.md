@@ -10250,3 +10250,175 @@ no plan file was invented or historical link silently rewritten. No existing Agd
 was weakened, and no postulate, hole or unsafe pragma was added. The audit is
 a local static scan, not a transitive term-level axiom audit. The heavy queue
 above and the requested configured inbound certificate remain unperformed.
+
+
+## Ninety-fourth increment: responder contracts and full configured inbound lifecycle
+
+14 November 2026, additive work at model HEAD `3046803`. The user approved a
+separate responder wrapper. Existing Agda modules and theorem statements are
+unchanged; the outbound certificate and reduced diagnostic remain intact.
+No Git state-changing command, dependency/source-pin edit or native replay.
+
+### Responder wrapper and configured run
+
+[ConfiguredResponders](ConfiguredResponders.agda) binds immutable physical
+responder owner/mux/protocol/generation identities. It selects ChainSync and
+BlockFetch servers, TxSubmission V2, KeepAlive server, LeiosNotify and LeiosFetch
+servers. Client actions and Tx V1 are refused. Peer Done/Quit, pipeline draining,
+private follower/iterator cleanup, V2 retire/scrub then tier leave, linked pump
+flush/join and writer/reader release use the existing reviewed kernels/adapters.
+No outbound PSA peer or termination control is invented. The typed return and
+physical pool checks mirror `ConfiguredProtocols`: missing, unwinding and
+cancelled handles cannot become normal returns, even when the typed job still
+says executing. `project` erases only captures/contract observations.
+[Wrapper examples](Negative/ConfiguredResponders.agda) and the
+[raw-enabled cancellation control](Negative/InboundConfiguredCancellation.agda)
+separate enabled frontend behavior from normal-wrapper refusal.
+
+[InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda) composes
+85 assembled phases with 45 single-edge proof helpers into `initialized-contracts` and `initialized-frontend`:
+**246 wrapper inputs / 208 real frontend events**, every edge `refl`.
+It uses the existing full-profile 2/2/1 initializer (two known ordinary peers),
+fullBundle 2/3/4/8/18/19, empty warm and supplied duplex negotiation. No OG job
+runs in this selected inbound schedule; the outbound witness covers those jobs.
+The old 46-event prefix uses synthetic protocol 1 and cannot literally be a
+prefix of this full-bundle run. Its structure is generalized: full negotiation
+and six waiter-registration commands replace the synthetic descriptor and its
+single command. The corresponding first entered responder is reached after
+51 frontend events. No existing 46-event theorem is altered.
+
+| Phase | Wrapper inputs | Frontend events |
+| --- | ---: | ---: |
+| Admission/publication/IG registration/startup | 38 | 38 |
+| Six waiters, demand starts, capture six responders | 53 | 47 |
+| Six server contracts, including waits/collections/private release | 32 | 0 |
+| Six typed results, publication/deregistration/Async and DeltaQ return | 72 | 72 |
+| Graceful mux shutdown, infrastructure cancellation/join and pool exit | 27 | 27 |
+| Idle expiry, inbound release, handler finally/TIME_WAIT and IG commit | 24 | 24 |
+
+[Starts](Negative/InboundConfiguredStarts.agda) checks six parked waiters,
+no eager responder, ordinary protocol-2 ingress triggering Any KeepAlive-8
+through its separate status/fork steps, and six live bound responders.
+[Facts](Negative/InboundConfiguredFacts.agda) distinguishes six normal contracts,
+six clean typed results and six available protocol Async results, retained
+captures, normal mux exit, closed pool/socket, Terminated captured entry, empty
+live map, completed cleanup, no pending inbound call and IG unregistered.
+All six protocol bodies are normal; the physical handler result is
+`asyncException 42`, from cancellation at unmasked TIME_WAIT after normal body/
+mux return. Thus “clean lifecycle” does not mean a normal handler Async result.
+[OwnedCallers](Negative/InboundConfiguredCallers.agda) certifies the entire
+208-event schedule via `every-owned`, `production-policy` and `production-run`,
+reusing the cheap executable policy/relay lift without the global heavy proof.
+[Premature controls](Negative/InboundConfiguredControls.agda) cover missing
+waiters/demand, grouped-start interleaving, duplicate Any demand, body result,
+pending Notify send, V2 cleanup before retire, inbound receipt/return/result
+ordering and duplicate receipt.
+
+### Validation and scope
+
+All 140 new Agda sources are covered by the successfully checked wrapper,
+witness, startup/facts/control/cancellation and caller roots. Phase successors
+are computed in 85 assemblies, 45 one-edge helpers and one snapshot-only helper;
+that helper's separate just/refl edge is also checked. No snapshot alone is
+counted as an accepted transition.
+
+The following final new endpoints passed serially on Agda 2.8.0 with exact
+`agda <file> +RTS -M20G -A128m -RTS` from the library root, exit 0/no warnings.
+The seven endpoint commands below have their own fresh `Checking` lines; previously
+checked current phase interfaces are reused. Times are wall seconds; peaks are
+`/usr/bin/time` RSS in GiB. Paths are under `ConnectionManagement/Negative/`.
+
+| Endpoint | Seconds | Peak GiB | Result |
+| --- | ---: | ---: | --- |
+| `InboundConfiguredWitness.agda` | 71.805 | 5.376 | fresh pass |
+| `ConfiguredResponders.agda` (examples/refusals) | 38.923 | 2.939 | fresh pass |
+| `InboundConfiguredStarts.agda` | 35.499 | 2.896 | fresh pass |
+| `InboundConfiguredFacts.agda` | 71.790 | 5.493 | fresh pass |
+| `InboundConfiguredControls.agda` | 65.744 | 5.303 | fresh pass |
+| `InboundConfiguredCancellation.agda` | 72.163 | 4.601 | fresh pass |
+| `InboundConfiguredCallers.agda` | 69.870 | 5.776 | fresh pass |
+
+Eleven unchanged regression roots passed with cached own interfaces, all exit 0/
+no warnings: `ConfiguredProtocols`, `ProtocolContractJobs{,2,3}`,
+`Negative/StartOnDemandAny`, `Negative/InboundCleanLifecycle`,
+`Negative/InboundConfiguredBlocked`, and
+`Negative/FullConfigured{Witness,Facts,Callers,Cancellation}`.
+Their commands total **372.420 s / 6.797 GiB peak**. The new wrapper's separate
+cached check also passes; a repeated cached wrapper invocation preserves a
+unique core log after the core/example files' shared basename initially reused
+one sequential log filename.
+
+The final accepted serial suite contains **38 invocations: 25 fresh own checks /
+13 cached own checks**, **2215.854 s / 8.269 GiB peak**, all exit 0/no warnings.
+It includes eight isolated suffix roots, ten phase assemblies and twenty
+endpoint/regression commands (including the repeated cached core check).
+All 140 new source hashes match the final manifest; the eight selected new roots
+cover all 140 via imports. Successful completed interfaces from earlier capped
+builds are reused and validated transitively; no stopped aggregate is counted
+as a passing invocation.
+
+The local proof scan covers 140 new files plus the retained diagnostic: zero
+findings. Existing Agda source diff is empty; whitespace checks pass. Local links
+on six changed pages/index check **1,106 targets**, with no new errors: the one
+pre-existing `GateAudit.md` link to missing root `plan2.md` remains. No planning
+file is created in the repository root.
+
+
+Development resource stops and a preliminary checker-driver restart are excluded
+from those passes. The early driver interruption briefly left its child alive,
+causing an overlap and an old-loaded-wrapper/edited-initializer mismatch; that
+run is not acceptance evidence. Safe scheduler stops now happen before launching
+another process; final checks are serial. Import cleanup/forwarding experiments
+also produced repaired scope errors and a useless-private warning. Snapshot/edge
+splitting and reduced unused import scopes preserve the actual operations and
+just/refl obligations; unsuccessful resource-limited aggregates are not reported
+as completed checks. No check used `-c`; the RSS monitor stopped attempts approaching the requested
+approximate 10-GB budget. Stopped-run sampled peaks and final accepted RSS peaks
+are recorded separately. The historical reserved heavy closure was not rebuilt.
+
+
+No new holes, postulates, trust primitives or unsafe checking options. Local
+source audit only; no transitive term-level axiom-freedom claim. Existing theorem
+signatures are untouched. No new source execution/refinement, universal progress,
+whole-node completion, delivery or deadline guarantee is claimed.
+
+### Gate reassessment and heavy checks
+
+The configured initialized inbound contract/run/OwnedCallers obligation is now
+**met**, alongside the configured outbound obligation. **G0 and G2 overall
+remain partly met**, retaining the existing source-instantiation boundary:
+concrete diffusion split/random package/state and independent policy RNG seed;
+actual selected sets/quotas, ordering and STM retry/draw history; negotiated wire
+tag, both version-data offers and accepted flow/features/limits; and confirmation
+of the chosen Tx V2 source logic variant. Selecting the V2 model contract is not
+that source confirmation. Increment 93's RNG and negotiation gaps are unchanged.
+Operation readiness, codecs/driver/database returns and private-resource effects
+remain the explicitly reviewed contracts rather than implementation refinements.
+G1/G3/G4 scopes and G5 obligations are unchanged.
+
+No existing Agda source imports the new wrapper or witnesses, so there is no
+newly invalidated heavy reverse closure. The prior reserved roots and caller
+leaves listed under [increment 92](#deferred-heavy-checks) remain outside this
+turn's checks; its 14 November reviewer acceptance is historical, not rerun here.
+If independently rebuilding them, use the existing capped policy, particularly
+`Negative/ServerPeers.agda`, `Negative/ServerPeersOrigins.agda`,
+`Properties/SourceKeysServer.agda`, `Properties/OwnedFramesExecution.agda`, the
+LiveTracker/OwnedCallers fixtures and the shutdown/receipt endpoints listed there.
+
+For a separate fresh heavy acceptance run, the carried-forward paths (all relative
+to `ConnectionManagement/`) are:
+
+- `Properties/SourceKeysServer.agda`, `Properties/OwnedFramesExecution.agda`.
+- `Negative/OwnedCallersFixture.agda`, `Negative/LiveTrackerInitialized.agda`,
+  `Negative/ServerPeers.agda`, `Negative/ServerPeersOrigins.agda`.
+- `Negative/ForeignFramesFixture.agda`, `Negative/IGPendingQuiet.agda`,
+  `Negative/LiveTrackerAuxFrontend.agda`, `Negative/LiveTrackerChainsInitialized.agda`,
+  `Negative/LiveTrackerFailuresInitialized.agda`, `Negative/LiveTrackerReferencesInitialized.agda`.
+- `Negative/ServerPeersReleaseTimeWait.agda`, `Negative/ServerShutdownComplete.agda`,
+  `Negative/ServerShutdownCoordinator.agda`.
+- Additional caller leaves: `Negative/ConcurrentLifecycleOwnedCallers.agda`,
+  `Negative/FullConfiguredBlockedCallers.agda`, `Negative/OverlapInitializedOwnedCallers.agda`,
+  `Negative/TimeoutCoolingOwnedCallers.agda`.
+
+These are prior reserved checks, not new failing or stale dependencies caused
+by this additive wrapper. No existing Agda source changed in increment 94.

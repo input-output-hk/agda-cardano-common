@@ -7,8 +7,9 @@ the authority for scope and source mappings.
 records the checked two-peer targets and exact bundle: source KeepAlive uses
 StartOnDemandAny, now supported by increment 92. The full configured
 [initialized outbound witness](Negative/FullConfiguredWitness.agda) extends the
-24-event diagnostic prefix; concrete policy/version instantiation and configured
-inbound coverage still leave G0/G2 partly met.
+24-event diagnostic prefix. [Increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle)
+adds the configured initialized inbound responder run and OwnedCallers.
+Concrete source RNG/selection/version instantiation still leaves G0/G2 partly met.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
@@ -1096,4 +1097,7 @@ registry/peer-resource lifecycle boundaries are reviewed in
 [ProtocolContracts](ProtocolContracts.md), with three captured-invocation kernels
 and conditional physical mux-job adapters. [ConfiguredProtocols](ConfiguredProtocols.agda)
 couples these batches to the [full initialized outbound witness](Negative/FullConfiguredWitness.agda);
-configured inbound coverage remains open in the [gate audit](GateAudit.md).
+[ConfiguredResponders](ConfiguredResponders.agda) couples server contracts to the
+[full initialized inbound witness](Negative/InboundConfiguredWitness.agda) and
+[OwnedCallers certificate](Negative/InboundConfiguredCallers.agda). G0/G2 retain
+the source RNG/selection/version instantiation gaps in the [gate audit](GateAudit.md).

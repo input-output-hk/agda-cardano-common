@@ -181,8 +181,8 @@ been established for the concrete source execution. No source replay was run.
 | Remaining selection inputs | [Policies] 100–143 and 175–249 use metric scores, tepid flags, failure counts, address order and random tie breaks. [Established] 521 draws continuous `Double` fuzz; [Core] 1276–1279, 1379–1388 splits CM randomness transactionally. Model `selectPolicy` allows an eligible distinct list up to quota, acquisition supplies a member/absence, pruning supplies scores, jitter uses codes 0..4. The full outbound run activates the sole established peer; the other establishment worker remains unentered. Later deactivation and close also select that singleton (the imported `GovernorLifecycle.a55/a89/a121` inputs). | **Abstracted for these all-or-singleton selections**, assuming the same eligible sets/quotas and schedule: ranking cannot change their selected sets, even when draws are consumed. **Gap for concrete source instantiation:** confirm those source sets/quotas, ordering and transaction history; record the independent RNG states and any later consumers. General model eligibility alone does not certify source cardinality. Discrete jitter is not a distribution or exact time equivalence. No failure/fuzz or pruning branch is exercised here. |
 | RNG/metrics outside a selected inbound prefix | `InboundCleanLifecycleSupport.settings` has targets 0/0/0 and no known peers; its admission/responder prefix performs no OG selection or CM random bucket/pruning draw. | **Abstracted for that prefix only**, assuming no concurrent OG/CM/pruning input or timing race changes its observations. Unread random state cannot affect these transitions. It does not justify a combined configured 2/2/1 run. |
 | Numerical wire version and descriptor layout | [WireVersion] 85–106 supports 14/15/16; [Wire] 250–325 ignores `_version` for this layout. With PeerSharingDisabled and PerasUnsupported the groups are hot 2/3/4/18/19, warm empty, established 8/Any (Leios callbacks supplied by [Bundle] 1963–2100). Model `Protocol` stores only number/temperature/start. | **Abstracted after successful negotiation**, assuming identical selected layout, flow, callback variant, limits and supplied operation/results. The numeric tag then has no model reader; codec/payload outcomes remain contracts. **Concrete version instantiation remains a gap:** no offered-version map, agreed tag or codec execution is certified by either fixture. |
-| Version data and handshake branch | [WireVersion] 117–148 records network magic, diffusion mode, peer sharing, query and Peras; acceptance checks equal magic, combines diffusion/Peras with `min`, sharing with `<>`, query with `||`; 153–157 restricts Peras before V16. `FullConfiguredBlocked.negotiate` supplies `fullBundle` and unidirectional flow; inbound fixtures supply synthetic protocol 1 and duplex flow, without version data. | **Gap for concrete source instantiation.** Record both offers, common supported tag, equal magic, query false on both, sharing disabled and Peras unsupported, and show the accepted diffusion-mode projection yields each fixture's flow. Magic mismatch/query/flow/features can change CM-visible branches, so erasing these before fixing the outcome is not harmless. Reduced protocol 1 is deliberately synthetic. |
-| TxSubmission responder version | [Bundle] 551–578 chooses V1/V2 using `txSubmissionLogicVersion`, separately from wire version. `ProtocolContracts2` has distinct `txServerV1`/`txServerV2`; outbound `ConfiguredProtocols.normalDone` uses only `txClient`. | **Gap for inbound instantiation.** Choose exactly one source responder variant and its registry/resource contract. Inferring it from negotiated wire version or executing both would be unjustified. |
+| Version data and handshake branch | [WireVersion] 117–148 records network magic, diffusion mode, peer sharing, query and Peras; acceptance checks equal magic, combines diffusion/Peras with `min`, sharing with `<>`, query with `||`; 153–157 restricts Peras before V16. `FullConfiguredBlocked.negotiate` supplies `fullBundle` and unidirectional flow; the reduced inbound fixture supplies synthetic protocol 1 and duplex flow, and increment 94 supplies the full bundle/duplex outcome; neither has version data. | **Gap for concrete source instantiation.** Record both offers, common supported tag, equal magic, query false on both, sharing disabled and Peras unsupported, and show the accepted diffusion-mode projection yields each fixture's flow. Magic mismatch/query/flow/features can change CM-visible branches, so erasing these before fixing the outcome is not harmless. Reduced protocol 1 is deliberately synthetic. |
+| TxSubmission responder version | [Bundle] 551–578 chooses V1/V2 using `txSubmissionLogicVersion`, separately from wire version. `ProtocolContracts2` has distinct `txServerV1`/`txServerV2`; outbound `ConfiguredProtocols.normalDone` uses only `txClient`. | **Model choice explicit in increment 94:** `ConfiguredResponders` selects only V2 and rejects V1/client actions; its initialized run checks V2 retire/scrub then tier leave. **Source instantiation remains a gap:** confirm the calling source configuration selects V2. Neither the wire tag nor the existence of the V2 model path establishes that fact. |
 
 A possible version-data assignment is a specification for future replay, not
 measured evidence: use common V15, equal explicit network magic, query false,
@@ -221,10 +221,25 @@ responders, demand/Any startup, handler result, cleanup, IG unregistration,
 OwnedCallers and premature controls, checking each phase below 10 GB. No such
 model change is made in increment 93, under the task's stop-and-ask rule.
 
-**G0 and G2 are not met (partly met).** Source split/policy seed and full reached
+**Increment 94 supersedes the execution obstruction above.** The approved additive
+[ConfiguredResponders](ConfiguredResponders.agda) selects server endpoints and
+Tx V2, retains physical pool-exit checks and projects exact frontend events.
+[InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda) supplies the
+full initialized 246-input / 208-event inbound lifecycle, six normal server
+contracts and physical results, handler cleanup and IG unregistration, with
+[OwnedCallers](Negative/InboundConfiguredCallers.agda),
+[endpoint facts](Negative/InboundConfiguredFacts.agda) and refusal controls.
+The reduced protocol-1 46-event diagnostic is unchanged. Its first-body structure
+becomes 51 real events with full negotiation and six waiter commands; it is not
+a literal prefix reuse. The full-profile initializer has targets 2/2/1 and two
+known peers, but this inbound schedule runs no OG selection/random draw. This
+selected schedule observation does not instantiate source RNG state, source
+concurrency or the negotiated version/data/Tx-logic choice. The source-input
+classifications above retain their conditional scopes and remaining gaps.
+
+**G0 and G2 are not met (partly met).** The configured inbound model-run obligation is met; concrete source split/policy seed and full reached
 selection inputs, concrete negotiated version/data and Tx responder variant
-still need source-backed instantiation. Configured inbound contract execution
-is blocked as above. Increment 92's outbound witness and deferred heavy
+still need source-backed instantiation. Configured inbound model contract execution is now checked; its operation boundaries remain reviewed contracts. Increment 92's outbound witness and deferred heavy
 acceptance remain unchanged; no new finite trace establishes universal progress.
 
 ## Reading the matrix

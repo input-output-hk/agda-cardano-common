@@ -37,9 +37,38 @@ finalizer branch; the coupled present-fetch branch remains a guarded contract.
 These are source-operation observation contracts. They do not implement payload,
 codec, STM registry identity, DB readiness, source policy RNG or universal
 progress. The second selected establishment job remains registered at `J.begin`.
-Configured inbound acceptance is still open. Endpoint and premature-step facts
+Configured inbound model-run acceptance is supplied below; concrete source instantiation remains open. Endpoint and premature-step facts
 are in [FullConfiguredFacts](Negative/FullConfiguredFacts.agda); the entire
 projected history executes in [OwnedCallers](Negative/FullConfiguredCallers.agda).
+
+## Configured inbound coupling (increment 94)
+
+[ConfiguredResponders](ConfiguredResponders.agda) is separate from the outbound
+wrapper. It binds actual responder identities, accepts only server contract
+actions, and selects TxSubmission V2 explicitly. It reads no outbound PSA peer
+or control: remote Done/Quit, pipeline draining and private bracket cleanup
+precede normal body return. Missing/unwinding/cancelled physical pool handles
+cannot bypass that gate; [enabled/refusal examples](Negative/ConfiguredResponders.agda)
+and [raw cancellation](Negative/InboundConfiguredCancellation.agda) check it.
+
+[InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda) supplies
+246 wrapper inputs / 208 frontend events from the existing full 2/2/1 initializer,
+including demand-triggered Any KeepAlive and all six clean responder contracts,
+publication/Async availability, graceful mux/pool exit, handler cleanup and IG
+unregistration. The handler receives cancellation at unmasked TIME_WAIT after
+normal mux/body return; its result is `asyncException 42`, not a normal Async
+return. [Endpoint facts](Negative/InboundConfiguredFacts.agda),
+[startup facts](Negative/InboundConfiguredStarts.agda),
+[premature controls](Negative/InboundConfiguredControls.agda) and
+[OwnedCallers](Negative/InboundConfiguredCallers.agda) retain these distinctions.
+Source RNG/selection, offered/agreed version/data and actual V2 logic selection
+remain explicit instantiation gaps; readiness/driver/DB/private-resource events
+remain reviewed contracts. See [increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle)
+and [GateAudit](GateAudit.md): G0/G2 remain partly met at that boundary.
+
+The earlier batch acceptance paragraphs below retain their dated review scope.
+Increments 92/94 supersede their missing-configured-execution statements;
+concrete source-input instantiation remains open as described above.
 
 ## Authority, observations and implementation boundary
 
