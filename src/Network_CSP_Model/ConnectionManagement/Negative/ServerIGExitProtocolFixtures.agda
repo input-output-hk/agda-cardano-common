@@ -113,11 +113,11 @@ withWanton j dir m = record m { egress = record (Mux.egress m)
   { wantons = put (serial j) (Mux.Egress.wanton (1 , dir) 0) (Mux.Egress.wantons (Mux.egress m)) } }
 m1 m2 m3 m4 m5 m6 enteredMux : Mux.Mux
 m1 = record X.armedMux { commands = []; waiting = (1 , IG.onDemand) ∷ [] }
-m2 = record X.armedMux { commands = []; callback = Mux.readActive (Mux.started 1) }
+m2 = record X.armedMux { commands = []; waiting = (1 , IG.onDemand) ∷ []; demandGroup = just (just 1); callback = Mux.readActive (Mux.started 1) }
 m3 = record m2 { callback = Mux.commitTrace true (Mux.started 1) }
-m4 = record X.armedMux { commands = []; traceCounters = just (Mux.counters (+ 1) (+ 0)); callback = Mux.afterStart 1 }
+m4 = record X.armedMux { commands = []; waiting = (1 , IG.onDemand) ∷ []; demandGroup = just (just 1); traceCounters = just (Mux.counters (+ 1) (+ 0)); callback = Mux.afterStart 1 }
 m5 = record m4 { protocols = (1 , Mux.running) ∷ []; callback = Mux.forkPending 1 }
-m6 = record m5 { runningJobs = 1 ∷ []; callback = Mux.returned }
+m6 = record m5 { waiting = []; demandGroup = nothing; runningJobs = 1 ∷ []; callback = Mux.returned }
 enteredMux = withWanton (ident 10) Mux.responderJob m6
 a1 a2 a3 a4 : Model
 a1 = sourceMux m1 [] s12

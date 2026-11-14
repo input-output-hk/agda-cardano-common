@@ -38,8 +38,9 @@ connectAt 0, clearFailuresAt Nothing, tepid/successful false; all established,
 active, in-progress, cooling and tenure collections are empty. `targets-sane`
 checks the model projection. Embedding root and all big-ledger targets as 0
 satisfies [GTypes] 270–290 with empty root sets. These are selected scenario
-values, **not production default targets**. No target is lowered in this blocked
-prefix; a future demotion must use `setTargets`/the target monitor.
+values, **not production default targets**. The 24-event
+prefix leaves these targets unchanged; increment 92 drives demotion using actual
+`setTargets` and target-monitor steps.
 
 ### Bundle and directions
 
@@ -60,13 +61,13 @@ initiator callbacks. **Effective start policy differs by direction:** [Actions]
 [IG] 777–795 passes the descriptor mode to responder starts. Establishment starts
 warm then established initiators, activation starts hot initiators. IG installs
 all three responder groups for eligible inbound/duplex registrations. Thus
-KeepAlive's grouped-readiness behavior belongs to responder scheduling, while
-this model rejects its descriptor even for outbound unidirectional or
-initiator-only installation before that distinction can be used. Negotiated unidirectional flow does not start a local responder just
+KeepAlive's grouped-readiness behavior belongs to responder scheduling, and
+this model now accepts its descriptor for outbound unidirectional and
+initiator-only installation as well. Negotiated unidirectional flow does not start a local responder just
 because the node uses initiator-and-responder diffusion. Duplex permits reuse;
 it does not imply all callbacks run. The diagnostic selects outbound
 unidirectional flow, full six-number initiator capability on handle 0 and a plain
-mux. It reaches no started callbacks. Requiring a nonempty warm protocol would
+mux. Increment 92 extends the diagnostic to actual callbacks. Requiring a nonempty warm protocol would
 change this selected source configuration; the reduced warm protocol 1 cannot
 be added to fill that group.
 
@@ -80,41 +81,44 @@ specific numerical version is recoverable from a model handle. Fixing one for
 codec/source replay remains an instantiation obligation. Tx responder V1/V2 is
 selected separately by `txSubmissionLogicVersion` ([Bundle] 551–578), not a
 second protocol 4 or a wire-version inference. Neither responder variant is
-instantiated in this blocked outbound diagnostic. Payload/codec, peer trust,
+instantiated in the outbound witness. Payload/codec, peer trust,
 limits, private resources and remote operation outcomes retain the explicit
 [protocol contracts](ProtocolContracts.md); no unsupported numerical/version
 claim is inferred from descriptor equality.
 
-### Exact execution gap and initialized diagnosis
+### Grouped startup and initialized execution (increment 92)
 
-[IGRegistration](Rules/IGRegistration.agda), `supported`, returns false as soon
-as it sees `onDemandAny`; both `installWith` and `installInitiatorWith` require
-true. `MuxHandlerSupervision.allocate` calls the corresponding real install
-operation through `O.advance`. Merely having `MuxRuntime.demandAny` as a status
-constructor supplies no grouped-readiness monitor. [Mux] 745–761, 797–802 waits
-for demand on any mini-protocol to start these responders. Replacing KeepAlive
-with independent on-demand or eager startup would change that semantics.
-This is an executable gap for **both** source directions and for initiator-only
-installation, not a missing descriptor constructor, ordering failure, occupied
-handle or protocol-contract completion refusal.
+Increment 91's installer-refusal diagnosis is historical; the user approved
+replacing precisely those obsolete diagnostic statements on 13 November 2026.
+`IG.supported` now accepts every source mode. Registration still requires
+ordered distinct numbers and fresh handle/mux slots. Initiators remain eager.
+[StartOnDemandAny](Negative/StartOnDemandAny.agda) exercises ordinary-first/Any-
+group selection, Any self-trigger, ascending Map order, separate status/fork
+boundaries and refusal controls. The selected traffic-ready waiter remains a
+source observation; arbitrary mux traffic cannot trigger the group. The chosen
+monitor branch retains its maps until the final fork; queued shutdown/results
+cannot interleave a new selection inside it. No group-wide mask is introduced.
 
-`FullConfiguredProfile` checks the sane initializer, ordered six-number bundle,
-unsupported full bundle and singleton KeepAlive, and real inbound/outbound/
-initiator-only installation refusals. [FullConfiguredAcquire](Negative/FullConfiguredAcquire.agda)
-uses 23 real frontend edges: select both eligible peers at time 0, apply/trace,
-fork/register the first establishment job, owned acquire/reserve/socket connect,
-physical handler fork/handoff/commit and enter handshake. The second peer stays
-known with its establishment launch pending. [FullConfiguredBlocked](Negative/FullConfiguredBlocked.agda)
-adds the actual full-bundle negotiation-return edge: **24 initialized events**,
-every edge `refl`, no injected midpoint. `allocation-refused` is the next real
-frontend step. Controls refuse premature publication, body exit and handler
-result; endpoint facts show two known peers, no installed handles/muxes, no
-physical protocol jobs and no handler result. [FullConfiguredBlockedCallers](Negative/FullConfiguredBlockedCallers.agda)
-proves the **prefix's** `every-owned`, `Owned.Allowed` and executable
-`Owned.OuterRuns′` inside the relays scope. It proves no hot promotion, protocol
-lifecycle, Cold endpoint or available final job/handler result. The increments
-88–90 adapters stay conditional and unwired: wiring them alone cannot pass the
-installation guard. Per the task's stop condition, phase 2 is not attempted.
+[ConfiguredProtocols](ConfiguredProtocols.agda) adds a normal outbound contract
+wrapper around the unchanged supervised frontend. Immutable bindings retain
+worker, mux, direction, protocol number, generation and physical job. Actual PSA
+control reads guard termination. KeepAlive readiness/removal and BlockFetch/CS
+registries are coupled; ChainSync shared cleanup precedes candidate/sync release.
+Every body return is checked against its finished contracts, including inherited
+aliases. The wrapper projects successful runs to exact real frontend edges.
+
+The original 23-edge acquisition and 24th negotiation edge remain.
+`FullConfiguredBlocked.allocation-enabled` now certifies edge 25, replacing the
+old refusal. [FullConfiguredWitness](Negative/FullConfiguredWitness.agda) extends
+this initializer through establishment/KeepAlive, five hot initiators, target-
+driven deactivation and close, protocol results, mux/handler cleanup and Cold.
+[FullConfiguredFacts](Negative/FullConfiguredFacts.agda) and
+[FullConfiguredCallers](Negative/FullConfiguredCallers.agda) are the acceptance
+endpoints. The second selected establishment job is explicitly registered at
+its unentered `J.begin` boundary; this finite selected-peer run does not finish
+all node workers. Source operation readiness and payload/driver/DB outcomes
+remain contracts. Configured inbound coverage and concrete policy/version
+instantiation remain separate obligations.
 
 ### Policy seed and selected inputs
 
@@ -154,14 +158,13 @@ sets/bucket choices/pruning scores/fuzz at each transaction, and preserve retry
 rollback. Existing replay seeds 0/1/42 do not instantiate this schedule.
 Accordingly **G0 remains partly met** despite completing this discrepancy
 reconciliation, and **G2 remains partly met**. Their remaining work includes
-source-faithful grouped readiness, seed/selection/version instantiation and full
-configured initialized contract/job/handler execution, including clean
-inbound/outbound coverage. No missing matrix row is concealed: the existing
-StartOnDemandAny **excluded** row is a blocker to the intended full profile.
+seed/selection/version instantiation and configured initialized clean inbound
+coverage. The grouped-readiness implementation and outbound witness do not
+establish universal progress or source refinement.
 
 ## Reading the matrix
 
-**Counts: 66 implemented, 19 contracted, 14 excluded, 0 missing (99 rows).** All 49 original ledger family IDs occur below; split and additional rows expose different statuses.
+**Counts: 67 implemented, 19 contracted, 13 excluded, 0 missing (99 rows).** All 49 original ledger family IDs occur below; split and additional rows expose different statuses.
 
 Each row has one status: **implemented** means the named selected rule has a fixture or theorem; **contracted** means the cited abstract operation/input stands in for source execution; **excluded** names an intentional scope omission; **missing** has neither adequate implementation nor a completed contract. Implemented does not mean every branch has an initialized whole-system witness. Local controls, initialized finite paths and invariants retain their different strengths. G0 applies to every row; the gate column lists the other gates served.
 
@@ -299,7 +302,7 @@ These expand `HANDLER.PUBLISH/RUN`, `MUX.STOP/STOPPED`, `JOB.*` and the ledger's
 | Egress interval/burst statistics, detector, rotation and gate-timeout counter | [Egress] 263–333; [Bucket] 190–239, 356–371, 535–563, 649–888 | Excluded policy observations in the M4a ledger; they do not supply progress or timeout guarantees. | **excluded** | G2 |
 | Active tenure insert/restrict/assert/publication | [Active] 594–595, 1041–1042, 1079–1080; [Monitor] 234–235; [Governor] 591; [GTypes] 883–890, 1399 | [R/OutboundGovernor](Rules/OutboundGovernor.agda), `complete`/`applyMonitor`; [Subsystem](Subsystem.agda), `publishPublicState`; [Properties/ActiveTenure](Properties/ActiveTenure.agda), `Tenure`, `Coordinator.tenure-runs`; [Negative/OutboundGovernor](Negative/OutboundGovernor.agda). | **implemented** | G2, G3 |
 | Local-root public addresses/provider restart and PeerShare failure backoff | [GTypes] 883–890; [LocalRoots] 62–260; [GKnown] 250–410 | No local roots or peer sharing; M4b ordinary-profile exclusion. Public whole-state copying over-approximates the three source public fields. | **excluded** | G2 |
-| StartOnDemandAny grouped readiness | [Mux] 745–761, 797–802 | [IGRegistration profile](IGRegistration.md#profile-and-remaining-abstractions) excludes this bundle; `installHandle` refuses it. Eager and independent on-demand remain supported. Increment 91 confirms that this exclusion blocks the full source KeepAlive profile, including allocation before initiators can start eagerly. | **excluded** | G2 |
+| StartOnDemandAny grouped readiness | [Mux] 620–658, 781–840, 970–1035 | [R/IGRegistration](Rules/IGRegistration.agda), ordered selected continuation with separate tracer/status/fork/registration; [StartOnDemandAny](Negative/StartOnDemandAny.agda) enabled/refusal controls. Initiators remain eager, responder ingress readiness is observed on a registered waiter. | **implemented** | G2 |
 
 ### Later design variants and proof-only additions
 
@@ -312,7 +315,7 @@ Increments 32–62 and 71–76/79 mainly add provenance, initializer restriction
 
 ## Discrepancies and gate consequences
 
-1. **Profile mismatch — blocks G0 and configured G2.** Increment 91 supplies a checked two-ordinary-peer 2/2/1 initializer and exact descriptors, but the pinned KeepAlive `StartOnDemandAny` is rejected at installation, including after a 24-event initialized prefix. The seed-to-selection and numerical version instantiation remain absent. Reduced fixtures and replay seeds do not fill these gaps.
+1. **Profile instantiation — G0/G2 remain partly met.** Increment 92 implements grouped readiness and the full configured outbound lifecycle from the two-ordinary-peer 2/2/1 initializer. Concrete source seed/selection/numerical version and configured initialized inbound coverage remain; no universal progress or refinement follows.
 2. **Protocol lifecycle reviews — complete as contracts.** Batch 1 contracts ChainSync, BlockFetch and their shared registry ([increment 88](Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts)); batch 2 contracts TxSubmission2 and KeepAlive ([increment 89](Supervision.md#eighty-ninth-increment-g0-txsubmission2-and-keepalive-contracts)); batch 3 contracts LeiosNotify, LeiosFetch and shared peer resources ([increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts)). No missing matrix rows remain; configuration/selection reconciliation and full configured initialized coverage remain open. `SERVER.RATE.READ/WAIT` have no model counterpart and are deliberately excluded here; admission `countLimit` cannot be cited as the rate read. Selected exception/promise/timer contracts remain abstract under the accepted G1 primitive matrix; contracted inputs still require source-backed instantiation for G2.
 3. **Newer model coverage absent from, or stale in, the initial family cells — reconciled here.** Physical initiator/result/restart and typed mux lifecycle, DB waits, release TIME_WAIT receipts, late admission, SI5 and initializer validity have later evidence. `CM.INCLUDE.RESULT`'s “handler execution pending,” `IG.EXIT`'s “rethrow pending” and blanket missing accept/supervision statements describe earlier checkpoints. The SI4 table's “raw admission worker errors before handoff” conflates loop `accept/getLocalAddr/trace` failures (now the implemented `acceptFails` outcome) with the async-fork/worker-unwind edges now implemented in increment 80. M3's pool-body exclusion says “together with its owner,” although the owner cancel/join is implemented. These indexing discrepancies no longer block inventory review; they do not upgrade G2 witnesses. Ownership variants have no production counterparts and stay separate.
 4. **Stale source anchors — corrected in this matrix.** Ledger `[mux-api]` 121–180 now misses `stopped` 214–221 and `stop` 326–328. `[handler]` 324–455 misses inbound publication 510 and the current catch/run boundaries; use 307–518, with publication 436/510. Old mux monitor/cleanup anchors 254–278, 424–618 and 554–570 must be replaced by pool/catch 411–434, monitor 605–833 and shutdown 763–778. Diffusion wiring 539–600 / 625–825 becomes 632–698 / 728–950; the peer policy is now 337–373. Demotion-job start is 963 rather than 961, ending at 1086. The consensus bundle reference had no range; current constructors are 1963–2100 and shared Leios bracket 1836–1864. Fetch's pipelined declaration begins at 587, not the old 591 anchor. These are source-location corrections, not new semantic claims. Unchanged Core/IG/Server/JobPool ranges retain the ledger's authority. No blocking unresolved anchor is being silently treated as implementation.

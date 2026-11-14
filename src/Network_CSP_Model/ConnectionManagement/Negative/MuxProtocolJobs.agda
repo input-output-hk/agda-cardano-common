@@ -289,11 +289,11 @@ withWanton j dir m = record m { egress = record (Mux.egress m)
       (Mux.Egress.wantons (Mux.egress m)) } }
 m1 m2 m3 m4 m5 m6 enteredMux cleanMux publishedMux : Mux.Mux
 m1 = record G.armedMux { commands = []; waiting = (1 , onDemand) ∷ [] }
-m2 = record G.armedMux { commands = []; callback = Mux.readActive (Mux.started 1) }
+m2 = record G.armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); callback = Mux.readActive (Mux.started 1) }
 m3 = record m2 { callback = Mux.commitTrace true (Mux.started 1) }
-m4 = record G.armedMux { commands = []; traceCounters = just (Mux.counters (+ 1) (+ 0)); callback = Mux.afterStart 1 }
+m4 = record G.armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); traceCounters = just (Mux.counters (+ 1) (+ 0)); callback = Mux.afterStart 1 }
 m5 = record m4 { protocols = (1 , Mux.running) ∷ []; callback = Mux.forkPending 1 }
-m6 = record m5 { runningJobs = 1 ∷ []; callback = Mux.returned }
+m6 = record m5 { runningJobs = 1 ∷ []; callback = Mux.returned; waiting = []; demandGroup = nothing }
 enteredMux = withWanton j₁₀ Mux.responderJob m6
 cleanMux = record enteredMux { protocols = (1 , Mux.idle) ∷ []; runningJobs = []; finishedJobs = (1 , clean) ∷ [] }
 publishedMux = record cleanMux { finishedJobs = []; completions = Mux.jobResult Mux.responderJob 1 clean ∷ [] }
@@ -621,11 +621,11 @@ older-registers-after-commit = refl
 again aMux1 aMux2 aMux3 aMux4 aMux5 aMux6 aEnteredMux errorMux newPublishedMux allPublishedMux : Mux.Mux
 again = record cleanMux { protocols = (1 , Mux.demand) ∷ []; commands = Mux.startCommand G.proto ∷ [] }
 aMux1 = record again { commands = []; waiting = (1 , onDemand) ∷ [] }
-aMux2 = record again { commands = []; callback = Mux.readActive (Mux.started 1) }
+aMux2 = record again { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); callback = Mux.readActive (Mux.started 1) }
 aMux3 = record aMux2 { callback = Mux.commitTrace true (Mux.started 1) }
-aMux4 = record again { commands = []; traceCounters = just (Mux.counters (+ 2) (+ 0)); callback = Mux.afterStart 1 }
+aMux4 = record again { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); traceCounters = just (Mux.counters (+ 2) (+ 0)); callback = Mux.afterStart 1 }
 aMux5 = record aMux4 { protocols = (1 , Mux.running) ∷ []; callback = Mux.forkPending 1 }
-aMux6 = record aMux5 { runningJobs = 1 ∷ []; callback = Mux.returned }
+aMux6 = record aMux5 { runningJobs = 1 ∷ []; callback = Mux.returned; waiting = []; demandGroup = nothing }
 aEnteredMux = withWanton j₂₀ Mux.responderJob aMux6
 errorMux = record aEnteredMux { runningJobs = []; finishedJobs = (1 , clean) ∷ (1 , errored err) ∷ [] }
 newPublishedMux = record errorMux { finishedJobs = (1 , clean) ∷ []; completions = Mux.jobResult Mux.responderJob 1 (errored err) ∷ [] }

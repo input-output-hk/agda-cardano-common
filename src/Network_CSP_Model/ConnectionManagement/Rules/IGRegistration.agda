@@ -237,13 +237,10 @@ ordered : List Protocol → Bool
 ordered [] = true
 ordered (p ∷ ps) = orderedAfter (number p) ps
 
--- Selected execution profile supports independent on-demand and eager starts.
--- Grouped StartOnDemandAny scheduling requires a separate monitor continuation.
+-- All source start modes can be registered; demand is selected separately.
 supported : List Protocol → Bool
 supported [] = true
-supported (p ∷ ps) with startMode p
-... | onDemandAny = false
-... | _ = supported ps
+supported (p ∷ ps) = supported ps
 
 allocateTimer : PC → Runtime → Runtime
 allocateTimer pc r = record r { nextTimer = suc (nextTimer r); continuation = pc
@@ -478,6 +475,44 @@ stepDb (abandonWait j) e with lookup j (dbWaits e)
 ...   | just (_ , false) | just _ = just (record e { dbWaits = delete j (dbWaits e) })
 ...   | _ | _ = nothing
 
+-- Waiting maps are stored in insertion order, unlike the source Map. Sort
+-- Any keys explicitly; ordinary demand selects its own key before this list.
+insertNumber : ℕ → List ℕ → List ℕ
+insertNumber n [] = n ∷ []
+insertNumber n (k ∷ ks) with n <? k
+... | yes _ = n ∷ k ∷ ks
+... | no _ = k ∷ insertNumber n ks
+anyWaiters : Store ℕ StartMode → List ℕ
+anyWaiters [] = []
+anyWaiters ((n , onDemandAny) ∷ rest) = insertNumber n (anyWaiters rest)
+anyWaiters (_ ∷ rest) = anyWaiters rest
+ordinaryWaiters : Store ℕ StartMode → Store ℕ StartMode
+ordinaryWaiters [] = []
+ordinaryWaiters ((_ , onDemandAny) ∷ rest) = ordinaryWaiters rest
+ordinaryWaiters (p ∷ rest) = p ∷ ordinaryWaiters rest
+firstStart : ℕ → List ℕ → ℕ
+firstStart n [] = n
+firstStart n (k ∷ _) = k
+remainingStarts : List ℕ → List ℕ
+remainingStarts [] = []
+remainingStarts (_ ∷ ns) = ns
+-- No new monitor selection occurs between starts, even if shutdown/results
+-- arrive. Tracer failure/async interruption can still prevent later starts.
+nextStart : M.Mux → M.Callback
+nextStart m with M.pendingStarts m
+... | [] = M.returned
+... | n ∷ _ = traceCallback m (M.started n)
+-- Source monitor maps are committed only after the whole chosen sequence.
+finishWaiting : M.Mux → Store ℕ StartMode
+finishWaiting m with M.pendingStarts m | M.demandGroup m
+... | [] | just nothing = ordinaryWaiters (M.waiting m)
+... | [] | just (just n) = delete n (ordinaryWaiters (M.waiting m))
+... | _ | _ = M.waiting m
+finishDemand : M.Mux → Maybe (Maybe ℕ)
+finishDemand m with M.pendingStarts m
+... | [] = nothing
+... | _ ∷ _ = M.demandGroup m
+
 stepWorker : IGAction → Runtime → List IGEvent → Maybe Result
 -- IG exit is an environment exception/scope-exit boundary, not a free normal
 -- loop decision. Source catch handler deactivates and then flushes in separate STMs.
@@ -613,7 +648,7 @@ stepWorker (finishStart mid) r queue with lookup mid (muxes (execution r))
 stepWorker (forkResponder mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m
-...   | M.forkPending n = just (setMux mid (record m { runningJobs = n ∷ M.runningJobs m; callback = M.returned }) r , queue)
+...   | M.forkPending n = just (setMux mid (record m { runningJobs = n ∷ M.runningJobs m; callback = nextStart m; pendingStarts = remainingStarts (M.pendingStarts m); waiting = finishWaiting m; demandGroup = finishDemand m }) r , queue)
 ...   | _ = nothing
 stepWorker (monitorCommand mid) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
@@ -644,7 +679,11 @@ stepWorker (startOnDemand mid n) r queue with lookup mid (muxes (execution r))
 ... | nothing = nothing
 ... | just m with M.callback m | M.status m | M.commands m | M.completions m | lookup n (M.waiting m)
 ...   | M.returned | M.ready | [] | [] | just onDemand = just (setMux mid
-      (record m { waiting = delete n (M.waiting m); callback = traceCallback m (M.started n) }) r , queue)
+      (record m { demandGroup = just (just n); pendingStarts = anyWaiters (M.waiting m); callback = traceCallback m (M.started n) }) r , queue)
+...   | M.returned | M.ready | [] | [] | just onDemandAny = just (setMux mid
+      (record m { demandGroup = just nothing
+                ; pendingStarts = remainingStarts (anyWaiters (M.waiting m))
+                ; callback = traceCallback m (M.started (firstStart n (anyWaiters (M.waiting m)))) }) r , queue)
 ...   | _ | _ | _ | _ | _ = nothing
 -- A job can finish while a different callback blocks the monitor. Clean exit
 -- includes the source egress-drained boundary; exceptional exit does not reset

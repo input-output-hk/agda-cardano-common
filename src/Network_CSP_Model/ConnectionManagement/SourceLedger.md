@@ -2,9 +2,9 @@
 
 Current branch/profile classification: [BranchMatrix.md](BranchMatrix.md).
 Increment 91 [reconciles the full configuration](BranchMatrix.md#pinned-locallifecycle-profile--increment-91):
-KeepAlive StartOnDemandAny is a confirmed installation blocker, not supplied by
-the existing excluded grouped-readiness row or the conditional body adapters.
-G0/G2 remain partly met.
+Increment 92 supports KeepAlive StartOnDemandAny with ordered grouped responder
+startup and a contract-coupled initialized outbound witness. G0/G2 remain partly
+met for concrete source policy/version instantiation and configured inbound coverage.
 
 **Initial ledger: 15 October 2026; coverage status reconciled 4 November 2026.**
 Companion to [DESIGN.md](DESIGN.md).
@@ -404,7 +404,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `ACTION.CLOSE` | [Deactivation and close][actions-close] | All-temperature termination, result wait and CM release/error/timeout paths | Implemented: controls, all-results, real CM release and timeout/error continuations |
 | `PEER.MONITOR` | [Peer monitoring][actions-monitor] | First-result alternatives, concurrent demotion/close, source Cold condition | Implemented: ordered first-result reads, background close/demotion and CM Cold condition |
 | `OG.DEMOTE.ERROR` | [Demotion job][demote-job] | Separate timed wait for Cold; timeout-dependent completion membership changes | Implemented: separate Cold wait and timeout-dependent completion |
-| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Family; reviewed lifecycle contracts in [ProtocolContracts](ProtocolContracts.md), batches 1–3 (increments 88–90). Actual operation observations remain contracted; full configured initialized witness remains open. |
+| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Family; reviewed lifecycle contracts in [ProtocolContracts](ProtocolContracts.md), batches 1–3 (increments 88–90). Actual operation observations remain contracted; increment 92 supplies the contract-coupled initialized outbound witness. Configured initialized inbound coverage remains open. |
 
 ## 4. Expanded admission and map-lock boundaries
 

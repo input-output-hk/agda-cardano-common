@@ -242,7 +242,7 @@ worker-anchors .(IG.startOnDemand mid n) (demand {mid} {n}) ig queue eq with loo
 ...   | M.returned | M.ready | [] | _ ∷ _ | _ = case eq of λ ()
 ...   | M.returned | M.ready | [] | [] | nothing = case eq of λ ()
 ...   | M.returned | M.ready | [] | [] | just eagerly = case eq of λ ()
-...   | M.returned | M.ready | [] | [] | just onDemandAny = case eq of λ ()
+...   | M.returned | M.ready | [] | [] | just onDemandAny = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 ...   | M.returned | M.ready | [] | [] | just onDemand = finish ig mid m _ found refl (cong proj₁ (just-injective eq))
 worker-anchors .(IG.finishProtocol mid n outcome) (jobFinished {mid} {n} {outcome}) ig queue eq with lookup mid (IG.muxes (IG.execution ig)) in found
 ... | nothing = case eq of λ ()

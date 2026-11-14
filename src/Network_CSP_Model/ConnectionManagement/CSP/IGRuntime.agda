@@ -32,15 +32,15 @@ commandRead callbackEntered activeSampled traceCommitted statusRunning jobRunnin
 commandRead = withIG registered
   (IG.setMux mid (record armedMux { commands = []; waiting = (1 , onDemand) ∷ [] }) (inboundGovernor registered)) []
 callbackEntered = withIG registered
-  (IG.setMux mid (record armedMux { commands = []; callback = M.readActive (M.started 1) }) (inboundGovernor registered)) []
+  (IG.setMux mid (record armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); callback = M.readActive (M.started 1) }) (inboundGovernor registered)) []
 activeSampled = withIG registered
-  (IG.setMux mid (record armedMux { commands = []; callback = M.commitTrace true (M.started 1) }) (inboundGovernor registered)) []
+  (IG.setMux mid (record armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); callback = M.commitTrace true (M.started 1) }) (inboundGovernor registered)) []
 startMessages : List IGEvent
 startMessages = awakeRemote key₀ ∷ remotePromotedToHot key₀ ∷ []
 traceCommitted = withIG registered
-  (IG.setMux mid (record armedMux { commands = []; traceCounters = just (M.counters (+ 1) (+ 0)); callback = M.afterStart 1 }) (inboundGovernor registered)) startMessages
+  (IG.setMux mid (record armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); traceCounters = just (M.counters (+ 1) (+ 0)); callback = M.afterStart 1 }) (inboundGovernor registered)) startMessages
 statusRunning = withIG registered
-  (IG.setMux mid (record armedMux { commands = []; protocols = (1 , M.running) ∷ []; traceCounters = just (M.counters (+ 1) (+ 0)); callback = M.forkPending 1 }) (inboundGovernor registered)) startMessages
+  (IG.setMux mid (record armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); protocols = (1 , M.running) ∷ []; traceCounters = just (M.counters (+ 1) (+ 0)); callback = M.forkPending 1 }) (inboundGovernor registered)) startMessages
 runningMux : M.Mux
 runningMux = record armedMux { commands = []; protocols = (1 , M.running) ∷ []
   ; traceCounters = just (M.counters (+ 1) (+ 0)); runningJobs = 1 ∷ []; callback = M.returned }
@@ -172,7 +172,7 @@ exiting = withIG activeSampled (record (IG.setPC IG.exitFlush (inboundGovernor a
   { execution = record (IG.execution (inboundGovernor activeSampled)) { active = false } }) []
 flushed = withIG exiting (IG.setPC IG.exited (inboundGovernor exiting)) []
 afterExitWrite = withIG flushed (IG.setMux mid
-  (record armedMux { commands = []; traceCounters = just (M.counters (+ 1) (+ 0)); callback = M.afterStart 1 })
+  (record armedMux { commands = []; waiting = (1 , onDemand) ∷ []; demandGroup = just (just 1); traceCounters = just (M.counters (+ 1) (+ 0)); callback = M.afterStart 1 })
   (inboundGovernor flushed)) startMessages
 sample-survives-exit : Executes activeSampled
   (igStep IG.deactivateIG ∷ igStep IG.flushOnExit ∷ igStep (IG.commitTracer mid) ∷ []) afterExitWrite

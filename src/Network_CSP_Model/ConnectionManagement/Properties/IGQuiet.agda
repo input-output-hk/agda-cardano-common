@@ -229,7 +229,7 @@ quiet-worker (startOnDemand mid n) r queue cont act eq with lookup mid (muxes (e
 ...   | M.afterFailure | _ | _ | _ | _ = case eq of λ ()
 ...   | M.tracerFailed _ | _ | _ | _ | _ = case eq of λ ()
 ...   | M.returned | M.ready | [] | [] | nothing = case eq of λ ()
-...   | M.returned | M.ready | [] | [] | just onDemandAny = case eq of λ ()
+...   | M.returned | M.ready | [] | [] | just onDemandAny = case just-injective eq of λ { refl → cont , act }
 ...   | M.returned | M.ready | [] | [] | just eagerly = case eq of λ ()
 ...   | M.returned | M.ready | [] | _ ∷ _ | _ = case eq of λ ()
 ...   | M.returned | M.ready | _ ∷ _ | _ | _ = case eq of λ ()

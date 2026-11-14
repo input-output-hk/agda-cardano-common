@@ -5,8 +5,10 @@ For the current goal, milestone status, evidence, and next action, see
 the authority for scope and source mappings.
 [Increment 91 configuration reconciliation](BranchMatrix.md#pinned-locallifecycle-profile--increment-91)
 records the checked two-peer targets and exact bundle: source KeepAlive uses
-StartOnDemandAny, currently rejected at handle installation. The 24-event
-initialized OwnedCallers prefix diagnoses this blocker; G0/G2 remain partly met.
+StartOnDemandAny, now supported by increment 92. The full configured
+[initialized outbound witness](Negative/FullConfiguredWitness.agda) extends the
+24-event diagnostic prefix; concrete policy/version instantiation and configured
+inbound coverage still leave G0/G2 partly met.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
@@ -1092,5 +1094,6 @@ shutdown; its dated increment sections retain the detailed acceptance evidence.
 ChainSync/BlockFetch, TxSubmission2/KeepAlive, LeiosNotify/LeiosFetch and shared
 registry/peer-resource lifecycle boundaries are reviewed in
 [ProtocolContracts](ProtocolContracts.md), with three captured-invocation kernels
-and conditional physical mux-job adapters. This does not supply the full configured
-application lifecycle witness; see the [gate audit](GateAudit.md).
+and conditional physical mux-job adapters. [ConfiguredProtocols](ConfiguredProtocols.agda)
+couples these batches to the [full initialized outbound witness](Negative/FullConfiguredWitness.agda);
+configured inbound coverage remains open in the [gate audit](GateAudit.md).

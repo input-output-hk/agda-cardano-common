@@ -96,7 +96,7 @@ data TracerAttachment : Set where
   noIGTracer igTracer : TracerAttachment
 
 record Mux : Set where
-  constructor muxStateWithEgress
+  constructor muxStateWithStarts
   field
     key : ConnectionKey
     status : Status
@@ -110,7 +110,18 @@ record Mux : Set where
     callback : Callback
     tracerAttachment : TracerAttachment
     egress : Egress.State
+    -- Selected demand branch, in ascending source Map order.
+    pendingStarts : List ℕ
+    -- nothing: outside demand; just nothing: Any; just (just n): ordinary.
+    demandGroup : Maybe (Maybe ℕ)
 open Mux public
+
+-- Preserve the configured constructor's existing empty-continuation profile.
+muxStateWithEgress : ConnectionKey → Status → Store ℕ ProtocolStatus → List Command →
+  Store ℕ StartMode → List ℕ → List (ℕ × RunResult) → List JobResult →
+  Maybe Counters → Callback → TracerAttachment → Egress.State → Mux
+muxStateWithEgress k st ps cmds wait jobs finished outcomes rc cb attachment e =
+  muxStateWithStarts k st ps cmds wait jobs finished outcomes rc cb attachment e [] nothing
 
 -- Compatibility profile: the listed protocol numbers are explicitly configured
 -- in both directions, with one plain lane and a Word16-sized fragment limit.

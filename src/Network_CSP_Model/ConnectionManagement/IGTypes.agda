@@ -20,6 +20,7 @@ open NewConnectionInfo public
 data Temperature : Set where
   hot warm established : Temperature
 
+-- Responders retain this policy; PSA starts initiators eagerly.
 data StartMode : Set where
   onDemand onDemandAny eagerly : StartMode
 

@@ -154,9 +154,18 @@ initialized acceptance preserves that queue through exit. See
 [Supervision increment 21](Supervision.md#twenty-first-increment-pending-ig-calls-and-nonempty-exit)
 for masking premises, initialized histories and remaining scope limits.
 
-- The runtime profile supports eager and independent on-demand responders.
-  `installHandle` explicitly rejects StartOnDemandAny bundles until grouped
-  scheduling is modeled. The startup kernel still represents that status.
+- The runtime supports all three source modes. Initiators use eager startup
+  independently of the descriptor. `startOnDemand mid n` observes nonempty
+  ingress on a registered responder waiter. An ordinary waiter starts first,
+  followed by all Any waiters in ascending number order; an Any trigger starts
+  the Any group alone. Other ordinary waiters remain parked.
+- `pendingStarts` and `demandGroup` retain the selected branch across separate
+  tracer, status-write, physical-fork and parent-registration boundaries. The
+  waiter maps clear only at its final fork. Results/commands win before demand
+  selection; arrivals during a selected group wait for that branch. No new
+  stop-status check interrupts its sequence. Tracer failure or actual async
+  delivery can prevent later forks; group startup is not one masked operation.
+  [StartOnDemandAny controls](Negative/StartOnDemandAny.agda) exercise this boundary.
 - On-demand traffic readiness is a boundary input naming one ready channel;
   the model does not implement ingress bytes or simultaneous-ready channel order.
 - Job completion represents the clean egress-drained boundary or a supplied

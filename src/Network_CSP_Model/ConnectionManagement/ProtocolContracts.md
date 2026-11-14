@@ -6,6 +6,41 @@ ordering guards. They no longer lack a reviewed lifecycle contract. This is a
 source review and finite model evidence, not Haskell refinement or full G2
 configured-bundle acceptance.
 
+## Configured outbound coupling (increment 92)
+
+[ConfiguredProtocols](ConfiguredProtocols.agda) composes the three kernels with
+one actual supervised runtime. It binds immutable worker/mux/direction/number/
+generation/job captures and exposes actual frontend edges plus contract
+observations. Missing or foreign captures cannot alias a physical job by number.
+The normal outbound wrapper checks all physical executing-to-return transitions,
+including inherited aliases; synchronous failure and cancellation cannot bypass
+its normal-return gate. The raw runtime and all earlier theorem statements remain
+unchanged apart from the explicitly approved obsolete installer diagnostics.
+
+Termination observes the captured peer's actual PSA control. Batch-1 fetch
+registration uses batch-2 dq/dying state; KeepAlive's finalizer snapshot observes
+the actual captured fetch registration. Its fetch-done observation requires that
+fetch cleanup and CS done actually occurred. Batch-3 ChainSync starts after its
+batch-1 candidate acquisition, releases shared state before candidate/sync
+cleanup, and closes its outer bracket only after sync done. Notify/Fetch/CS
+share the single batch-3 presence/accounting state, without a refcount.
+
+[FullConfiguredWitness](Negative/FullConfiguredWitness.agda) runs 381 wrapper
+inputs (322 actual frontend events) from the usual initializer, with hot
+2/3/4/18/19, empty warm and established 8. All six physical initiators return
+through their finished normal contracts, then publish/deregister/expose Async
+results. KeepAlive sends/observes its first response before control; CS/BF each
+drain an outstanding reply; Notify drains after Quit and Fetch collects before
+its next control read. The clean finite schedule uses the absent-fetch KA
+finalizer branch; the coupled present-fetch branch remains a guarded contract.
+
+These are source-operation observation contracts. They do not implement payload,
+codec, STM registry identity, DB readiness, source policy RNG or universal
+progress. The second selected establishment job remains registered at `J.begin`.
+Configured inbound acceptance is still open. Endpoint and premature-step facts
+are in [FullConfiguredFacts](Negative/FullConfiguredFacts.agda); the entire
+projected history executes in [OwnedCallers](Negative/FullConfiguredCallers.agda).
+
 ## Authority, observations and implementation boundary
 
 Sources were read using read-only `git show` at the ledger pins: network
@@ -455,7 +490,8 @@ cancellation, blocked work, unfinished drain, inner close and refund cannot
 become clean/synchronous body results. Pump failure is an observed body failure;
 this kernel does not claim a new physical nested-pool invariant.
 
-Current matrix: **66 implemented / 19 contracted / 14 excluded / 0 missing**.
+Historical batch-3 acceptance boundary, superseded by increment 92 above:
+**66 implemented / 19 contracted / 14 excluded / 0 missing** at that checkpoint.
 G0 **cannot yet be called met**: executable LocalLifecycle configuration must
 still reconcile two-peer targets, bundle/group selection and concrete source
 PRNG seed/selection assumptions. A full configured-bundle initialized clean
@@ -472,11 +508,14 @@ replay, universal progress, Haskell refinement or whole-node shutdown claim.
 [LeiosDbSQLite]: https://github.com/IntersectMBO/ouroboros-consensus/blob/2e44d98a843168ba3b189e305820b79943ac7d1e/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/LeiosDB/Impl/SQLite.hs
 
 
-## Increment 91 configuration boundary
+## Historical increment 91 configuration boundary
+
+The installer refusal below was superseded by increment 92 above; the retained
+prefix and conditional-adapter results keep their original scopes.
 
 The [pinned configuration reconciliation](BranchMatrix.md#pinned-locallifecycle-profile--increment-91)
 identifies an earlier execution blocker: source established KeepAlive **8** is
-`StartOnDemandAny`, rejected by the real handle installer. The initialized
+`StartOnDemandAny`, rejected by the then-current model's handle installer. The initialized
 [24-event diagnostic](Negative/FullConfiguredBlocked.agda) and its
 [OwnedCallers prefix certificate](Negative/FullConfiguredBlockedCallers.agda)
 do not instantiate these three adapters. They remain conditional; no protocol

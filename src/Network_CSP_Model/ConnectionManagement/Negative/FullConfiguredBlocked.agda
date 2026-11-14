@@ -1,7 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- Initialized diagnostic, not a completed configured-bundle lifecycle.
--- Keep the source KeepAlive start mode and expose the real allocation refusal.
+-- Historical 24-event diagnostic prefix, now extendible past allocation.
 module ConnectionManagement.Negative.FullConfiguredBlocked where
 
 open import ConnectionManagement.Negative.FullConfiguredProfile
@@ -29,9 +28,11 @@ abstract
 
 event-count : length schedule ≡ 24
 event-count = refl
-allocation-refused : V.advance
-  (server (E.run (mux (U.allocateHandle L.child (ident 0) (ident 0))))) endpoint ≡ nothing
-allocation-refused = refl
+allocated : V.Runtime
+allocated = snapshot (after (server (E.run (mux (U.allocateHandle L.child (ident 0) (ident 0))))) endpoint)
+allocation-enabled : V.advance
+  (server (E.run (mux (U.allocateHandle L.child (ident 0) (ident 0))))) endpoint ≡ just allocated
+allocation-enabled = refl
 no-premature-publication : V.advance
   (server (E.run (mux (U.publishSuccess L.child)))) endpoint ≡ nothing
 no-premature-publication = refl

@@ -9711,6 +9711,13 @@ does not start it.
 
 ## Ninety-first increment: G0/G2 configuration reconciliation and start-mode obstruction
 
+**Historical diagnosis:** increment 92 supersedes the installation obstruction
+below. On 13 November the user approved replacing exactly `bundle-not-supported`,
+`keepalive-alone-not-supported`, `no-outbound-install`, `no-inbound-install`,
+`no-initiator-only-install` and `allocation-refused`. All other existing theorem
+statements are retained. The 24-event initialized prefix and its original facts
+and OwnedCallers certificate remain; allocation is now enabled.
+
 13 November 2026. Inspected model HEAD `5a6f9ef633e909577be20842a236d076d4affcc9`;
 changes remain uncommitted. No existing Agda module or theorem statement is
 changed. The combined CM/IG/OG/Server objective and G0–G5 criteria are unchanged.
@@ -9843,3 +9850,267 @@ changed, so they are listed for the user rather than rebuilt:
 No new/check module exceeded 12 GB or the approximately 10 GB budget; no
 additional >12 GB module was attempted or discovered. There is no downstream
 runtime-change regression claim because no existing runtime was changed.
+
+
+## Ninety-second increment: StartOnDemandAny and the full configured outbound witness
+
+13–14 November 2026; inspected HEAD `cbc0b06`, changes uncommitted. The overall
+CM/IG/OG/Server objective and G0–G5 criteria are unchanged. The user authorized
+the six obsolete diagnostic replacements below; every other existing theorem
+statement is unchanged. No Git state-changing command or source-pin change.
+
+### Source semantics and implementation
+
+Authority remains network `2f1c154f248659b89523d5679ca532f442e7ed2a` / consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. Direct pinned source inspection:
+[Mux monitor/selection](https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux.hs#L620-L658),
+[demand branch](https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux.hs#L781-L840),
+[installer](https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Network/Mux.hs#L970-L1035),
+[JobPool fork](https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/network-mux/src/Control/Concurrent/JobPool.hs#L114-L177)
+and [PSA eager initiators](https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/PeerSelection/PeerStateActions.hs#L1150-L1198).
+
+`IG.supported` accepts all three modes without relaxing ordering, uniqueness,
+fresh slots, registered keys or flow guards. Initiators already use eager
+startup independently of descriptor policy; responders retain descriptor mode.
+`startOnDemand mid n` observes nonempty ingress on a registered waiter. Ordinary
+demand starts that waiter first then all Any waiters; Any demand starts the Any
+group alone. Any keys are explicitly sorted to match source Map order; unrelated
+ordinary waiters remain parked. This does not model ingress payload queues.
+
+`Mux.pendingStarts` / `demandGroup` retain the selected branch through each
+trace, status transaction, physical fork and masked parent registration. Waiter
+maps are updated at the last fork. Commands/results have priority before demand;
+new arrivals during a selected branch wait for it to return. No stop-status test
+is inserted between group members, and no whole-group mask/join is inferred.
+Blocked/failing tracing and actual async cancellation can prevent later forks.
+Old mux constructor arities remain empty-continuation wrappers.
+
+`Properties/IGQuiet` and `Properties/MuxRetention` now prove successful Any
+cases. `CSP/IGRuntime`, `Negative/MuxProtocolJobs` and
+`Negative/ServerIGExitProtocolFixtures` retain selected waiter metadata in their
+intermediate fixtures; all their theorem types and final
+endpoints remain. [StartOnDemandAny](Negative/StartOnDemandAny.agda) supplies
+registration/parking, ordinary-triggered complete group, Any self-trigger,
+ascending order, separate status/fork, final map clearing, queued-stop behavior,
+duplicate-Any installer refusal and absent/wrong-mux/result/command/stopped/
+double-start/premature/tracer controls.
+
+### Captured contract coupling and initialized witness
+
+[ConfiguredProtocols](ConfiguredProtocols.agda) is an additive normal outbound
+wrapper over the actual supervised frontend. Immutable bindings capture the
+physical owner, mux, direction, number, generation and job ID; adapter lookups
+are restricted to those bindings. Actual PSA controls gate termination. One
+shared state couples all three reviewed batches: KeepAlive dq/dying with fetch
+registration and finalizer snapshots, CS done with fetch cleanup, and shared
+Leios cleanup before candidate/sync release. Physical executing-to-return
+transitions, including inherited aliases, require finished normal contracts;
+exceptions/cancellation cannot bypass that gate, including physical pool unwind
+that leaves the typed phase unchanged. Successful wrapper execution
+projects to the exact frontend history. Raw runtime theorem types are unchanged.
+
+[FullConfiguredContractAcquire](Negative/FullConfiguredContractAcquire.agda)
+lifts the original acquisition snapshots into the wrapper from the **same usual
+initializer**, checking every real edge by `refl`, including negotiation and now
+successful allocation. No midpoint state is injected. The original 24-event
+prefix, facts and caller certificate are retained.
+
+[FullConfiguredWitness](Negative/FullConfiguredWitness.agda) composes **381
+wrapper inputs / 322 actual frontend events**. Initial targets are **2/2/1**,
+two ordinary known peers; descriptors are hot **2/3/4/18/19**, warm **empty**,
+established **8 / StartOnDemandAny**. Actual target/control steps drive
+activation, deactivation and close. KeepAlive starts eagerly, receives its first
+response before control, and completes only at close; CS/BF drain one reply each,
+CS releases shared resources before candidate/sync, Notify drains after Quit,
+and Fetch collects before checking control again. The finite clean path uses
+the absent-fetch KeepAlive finalizer snapshot, after actual BF registry cleanup.
+The present-fetch join remains coupled and guarded, not exercised by this path.
+
+[FullConfiguredFacts](Negative/FullConfiguredFacts.agda) checks all six captured
+normal results **and separate Async availability**, selected governor-job and
+monitor results, normal mux scope/closed pool, closed socket, terminated entry,
+removed map binding, retired release frame, released shared/dq resources and
+Cold. Release TIME_WAIT receives the actual owned caller cancellation; handler
+result is `asyncException (errorId 42)`, not a fabricated normal result.
+[FullConfiguredCancellation](Negative/FullConfiguredCancellation.agda) supplies a
+raw-enabled cancellation control, distinguishing physical pool unwind from the
+unchanged typed job phase; the normal wrapper rejects that bypass.
+Premature body return/raw error bypass, cleanup, KeepAlive control, clean commit,
+handler result, release return and rebinding are refused.
+
+The second selected establishment is explicitly forked/registered at `J.begin`,
+with its physical job still running and no second acquisition/handler created.
+This finite selected-peer lifecycle does **not** complete all node workers.
+[FullConfiguredCallers](Negative/FullConfiguredCallers.agda) proves
+`every-owned`, `production-policy : Owned.Allowed initialized-outer` and
+`production-run : Owned.OuterRuns′ …` for the entire projected schedule inside
+the actual outer relays scope; there is no raw core begin.
+[FullConfiguredCallerPolicy](Negative/FullConfiguredCallerPolicy.agda) isolates
+the selector-policy conclusion from the heavy reachability proofs and lifts the
+already checked frontend run generically; the caller schedule is unchanged.
+
+The split `Negative/FullConfigured*` modules cover acquisition, startup,
+establishment, promotion and five hot starts, target demotion, each contract
+cleanup, five hot result/monitor paths, Warm/close/KeepAlive, mux, release,
+Cold, final monitor/governor completion, facts and caller policy.
+
+### Authorized diagnostic replacements
+
+| Historical statement (increment 91) | Current statement |
+| --- | --- |
+| `FullConfiguredProfile.bundle-not-supported` | `bundle-supported` |
+| `FullConfiguredProfile.keepalive-alone-not-supported` | `keepalive-alone-supported` |
+| `FullConfiguredProfile.no-outbound-install` | `outbound-install-enabled` |
+| `FullConfiguredProfile.no-inbound-install` | `inbound-install-enabled` |
+| `FullConfiguredProfile.no-initiator-only-install` | `initiator-only-install-enabled` |
+| `FullConfiguredBlocked.allocation-refused` | `allocation-enabled` |
+
+### Validation and remaining gates
+
+Agda **2.8.0**, registered standard library **2.3**, classes and `csp-ptree`
+(HEAD `bca6fd5`). Commands ran from this standalone library root, sequentially:
+`agda ConnectionManagement/<module>.agda +RTS -M20G -A128m -RTS`.
+No explicit `-c`, whole-cache purge, external library edit or source replay.
+A 0.1-second RSS monitor stopped attempts above 9,500,000 KiB; the largest
+sampled development peak was 9,635,772 KiB (9.873 GB decimal).
+
+The final wrapper checks both typed job results and actual physical-pool exits.
+The raw-enabled cancellation control proves why the latter is necessary: pool
+unwind can leave the typed phase `executing`. The normal wrapper rejects that
+edge, while its complete clean witness passes unchanged at 381/322 events.
+
+Successful measured invocations below each have an own `Checking …` line.
+Cached dependencies and imports checked in the same invocation are included;
+these timings are **not cold-build totals**.
+
+| Module | Seconds | Peak RSS (GiB) | Result |
+| --- | ---: | ---: | --- |
+| `Rules/IGRegistration` | 6.823 | 0.842 | fresh own check; exit 0 |
+| `Properties/IGQuiet` | 7.124 | 0.898 | fresh own check; exit 0 |
+| `Properties/MuxRetention` | 8.128 | 0.992 | fresh own check; exit 0 |
+| `ConfiguredProtocols` | 9.929 | 1.335 | fresh own check; exit 0 |
+| `Negative/StartOnDemandAny` | 6.021 | 0.796 | fresh own check; exit 0 |
+| `Negative/ServerIGExitProtocolFixtures` | 25.173 | 2.780 | fresh own check; exit 0 |
+| `Negative/ServerIGExitProtocolPrefix` | 39.231 | 3.760 | fresh own check; exit 0 |
+| `Negative/FullConfiguredCallerPolicy` | 17.952 | 2.548 | fresh own check; exit 0 |
+| `Negative/FullConfiguredCancellation` | 77.264 | 3.545 | fresh own check; exit 0 |
+| `Negative/FullConfiguredWitness` | 598.629 | 8.870 | fresh own check; exit 0 |
+| `Negative/FullConfiguredFacts` | 50.773 | 6.974 | fresh own check; exit 0 |
+| `Negative/FullConfiguredCallers` | 49.970 | 6.278 | fresh own check; exit 0 |
+
+For the final explicitly fresh witness check, only its own
+`_build/2.8.0/agda/ConnectionManagement/Negative/FullConfiguredWitness.agdai`
+was invalidated. The log confirms its `Checking …` line and exit 0. Completed
+dependency checks were retained; no whole-cache purge was performed. Earlier
+aggregate imports reached the RSS stop and were resumed or isolated; they are
+not counted as successful checks. One aggregate restart was interrupted to
+perform that explicit fresh endpoint check. Reflection sharing experiments and
+all temporary caller-slice/test-driver sources were removed from the maintained
+closure. The final caller certificate uses a cheap selector-policy component
+and generic lift of the checked frontend proof.
+
+Development parser/elaboration/fixture errors were repaired, including a
+module-namespace import warning in the policy helper and the IG exit fixture's
+selected-waiter metadata. The final endpoint logs above have no warnings.
+
+The final original reverse-import regression has **123 distinct leaf endpoints**:
+**123 final passes / 0 failures / 0 warnings**, comprising **85 fresh own-module
+checks and 38 cached own-module checks**. Their successful final invocations sum
+to **7,345.229 seconds (122.42 minutes)**, with **9.009 GiB** peak RSS at
+`Properties/LiveTrackerInitialized` (602.535 seconds). Every recorded source
+SHA-256 matches the current file. Earlier dependency compilation in capped
+aggregate attempts is not included in that sum, so it is not a cold-build total.
+
+Three initial leaf attempts were unsuccessful: `Negative/ServerIGExit` and
+`Negative/ServerIGFirst` found old waiter snapshots in
+`ServerIGExitProtocolFixtures`; retaining metadata through tracing/status and
+clearing it at fork repaired the unchanged theorem types. Fresh final checks
+pass at **37.122 s / 4.392 GiB** and **30.705 s / 3.821 GiB**. `Negative/TimeoutCooling`
+hit the RSS stop while importing fresh slices; its subsequent final check passes
+at **61.908 s / 5.804 GiB**. Other long successful checks include
+`Properties/MuxPublicationUnwind` **331.599 s / 5.491 GiB**,
+`Negative/MuxPublicationUnwind` **1,130.225 s / 8.298 GiB**,
+`Negative/MuxPublicationUnwindCM` **793.117 s / 7.225 GiB**, and
+`Negative/ServerOwnedHandlersFixture` **1,790.313 s / 7.010 GiB**.
+
+The temporary aggregate regression drivers reached the RSS stop and were
+removed; all final leaf commands run separately. One aggregate retry was
+intentionally interrupted to isolate the publication fixture. A Python RSS
+sampler startup error was repaired before the individual regression run; it
+was not an Agda type error or a successful check. No aggregate interruption or
+resource stop is counted among the final passes.
+
+The source reverse-import audit covers **864 affected modules**: **785 non-heavy
+modules accepted transitively**, with all 785 interfaces current against their
+transitive source timestamps, and **79 deferred** behind the reserved heavy
+roots below. The 123 original regression leaves plus the new cancellation,
+facts and caller endpoints cover the non-heavy closure. This is not a blind
+whole-library sweep or a claim that every module had a separate fresh command.
+
+The final local proof scan covers **176 changed/new Agda files**. Its four
+question-mark findings are inspected `<?`/`≤?` operators, not holes; no new
+postulate, unsolved goal, trust primitive or unsafe checking option was added.
+This is a local source audit, not a term-level axiom audit of all dependencies.
+Comparison with HEAD confirms exactly the six authorized removed diagnostics
+and no other pre-task top-level signature changes, including multi-name type
+declarations. Local documentation links pass: **10 pages / 1,264 local targets / 0 errors**.
+Whitespace checks pass.
+
+
+#### Deferred heavy checks
+
+**Reviewer capped acceptance (14 November 2026).** All 19 entries below pass
+under a 25 GB cgroup cap with the same RTS flags, one Agda process at a time,
+exit 0 and no warnings: `SourceKeysServer` 1504 s / 5.8 GiB,
+`OwnedFramesExecution` 96 s / 4.6 GiB, `ServerPeers` 4232 s / 12.9 GiB,
+`ServerPeersOrigins` 171 s / 11.3 GiB, `OwnedCallersFixture` 174 s / 8.2 GiB,
+the five LiveTracker fixtures, `ForeignFramesFixture`, `IGPendingQuiet`,
+`ServerPeersReleaseTimeWait`, `ServerShutdownComplete`,
+`ServerShutdownCoordinator` (43-67 s each, at most 9.1 GiB), and the four
+owned-caller certificates `ConcurrentLifecycleOwnedCallers`,
+`OverlapInitializedOwnedCallers`, `TimeoutCoolingOwnedCallers` and
+`FullConfiguredBlockedCallers` (33-42 s, at most 5.5 GiB).
+
+Not rebuilt, directly or through reverse imports, under the requested exclusion:
+
+- [Properties/SourceKeysServer](Properties/SourceKeysServer.agda),
+  [Properties/OwnedFramesExecution](Properties/OwnedFramesExecution.agda).
+- [Negative/OwnedCallersFixture](Negative/OwnedCallersFixture.agda),
+  [Negative/LiveTrackerInitialized](Negative/LiveTrackerInitialized.agda),
+  [Negative/ServerPeers](Negative/ServerPeers.agda),
+  [Negative/ServerPeersOrigins](Negative/ServerPeersOrigins.agda).
+- Increment 82 queue:
+  [ForeignFramesFixture](Negative/ForeignFramesFixture.agda),
+  [IGPendingQuiet](Negative/IGPendingQuiet.agda),
+  [LiveTrackerAuxFrontend](Negative/LiveTrackerAuxFrontend.agda),
+  [LiveTrackerChainsInitialized](Negative/LiveTrackerChainsInitialized.agda),
+  [LiveTrackerFailuresInitialized](Negative/LiveTrackerFailuresInitialized.agda),
+  [LiveTrackerReferencesInitialized](Negative/LiveTrackerReferencesInitialized.agda),
+  [ServerPeersReleaseTimeWait](Negative/ServerPeersReleaseTimeWait.agda),
+  [ServerShutdownComplete](Negative/ServerShutdownComplete.agda),
+  [ServerShutdownCoordinator](Negative/ServerShutdownCoordinator.agda).
+
+The 15 reserved roots have a 79-module affected reverse-import closure, including
+the retained old `FullConfiguredBlockedCallers` certificate. The new caller
+certificate uses the executable variant and cheap relay lift, not the reserved
+global `Properties/OwnedCallers` proof. No >12-GB check was attempted.
+The additional deferred acceptance leaves are
+[ConcurrentLifecycleOwnedCallers](Negative/ConcurrentLifecycleOwnedCallers.agda),
+[FullConfiguredBlockedCallers](Negative/FullConfiguredBlockedCallers.agda),
+[OverlapInitializedOwnedCallers](Negative/OverlapInitializedOwnedCallers.agda) and
+[TimeoutCoolingOwnedCallers](Negative/TimeoutCoolingOwnedCallers.agda).
+Together with the reserved roots above, these cover the affected deferred closure;
+they were not rebuilt by the non-heavy acceptance run.
+
+
+
+**G0/G2 remain partly met.** Grouped readiness and the configured initialized
+outbound contract/job/handler witness are supplied. Concrete source RNG seed,
+split consumption, policy selection/bucket/pruning/fuzz observations and
+numerical-version instantiation remain open, as does configured initialized
+clean **inbound** coverage. The matrix is **67 implemented / 19 contracted /
+13 excluded / 0 missing**. All eight protocol/resource rows remain contracted
+source observations; this is no source-refinement, universal progress, delivery,
+whole-node shutdown or deadline theorem. PrimitiveMatrix is unchanged: the
+existing per-fork mask/registration and operation-readiness contracts still apply.
+G1/G3/G4 accepted scopes and G5 obligations are unchanged.

@@ -1,7 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
--- Pinned LocalLifecycle configuration. This is a refusal diagnostic profile:
--- KeepAlive retains source StartOnDemandAny, which installation rejects.
+-- Pinned LocalLifecycle configuration with source StartOnDemandAny supported.
 -- The source PRNG/selection relation is deliberately not claimed here.
 module ConnectionManagement.Negative.FullConfiguredProfile where
 
@@ -11,7 +10,7 @@ open import Data.Bool using (Bool; true; false) public
 open import Data.Nat using (ℕ) public
 open import Data.List using (List; []; _∷_; _++_; length) public
 open import Data.Product using (_,_ )
-open import Data.Maybe using (just; nothing) public
+open import Data.Maybe using (Maybe; just; nothing) public
 open import Relation.Binary.PropositionalEquality using (_≡_; refl) public
 open import ConnectionManagement.Domain hiding (worker; local; mux; job) public
 open import ConnectionManagement.Store using (lookup) public
@@ -147,18 +146,21 @@ targets-sane : Governor.sane (Governor.target settings) ≡ true
 targets-sane = refl
 bundle-ordered : IG.ordered fullBundle ≡ true
 bundle-ordered = refl
-bundle-not-supported : IG.supported fullBundle ≡ false
-bundle-not-supported = refl
-keepalive-alone-not-supported : IG.supported (Types.protocol 8 established onDemandAny ∷ []) ≡ false
-keepalive-alone-not-supported = refl
+bundle-supported : IG.supported fullBundle ≡ true
+bundle-supported = refl
+keepalive-alone-supported : IG.supported (Types.protocol 8 established onDemandAny ∷ []) ≡ true
+keepalive-alone-supported = refl
 
--- The blocker is the start mode, not ordering, duplicate IDs or occupied slots.
-no-outbound-install : IG.stepWorker (IG.installOutboundHandle (ident 0) (ident 0)
-  A.key₀ fullBundle unidirectional) IG.initial [] ≡ nothing
-no-outbound-install = refl
-no-inbound-install : IG.stepWorker (IG.installHandle (ident 0) (ident 0)
-  A.key₀ fullBundle duplex) IG.initial [] ≡ nothing
-no-inbound-install = refl
-no-initiator-only-install : IG.installInitiatorWith (ident 0) (ident 0)
-  A.key₀ fullBundle unidirectional IG.initial [] ≡ nothing
-no-initiator-only-install = refl
+-- These replace increment 91's obsolete installation-refusal diagnostics.
+installed : Maybe IG.Result → Bool
+installed nothing = false
+installed (just _) = true
+outbound-install-enabled : installed (IG.stepWorker (IG.installOutboundHandle (ident 0) (ident 0)
+  A.key₀ fullBundle unidirectional) IG.initial []) ≡ true
+outbound-install-enabled = refl
+inbound-install-enabled : installed (IG.stepWorker (IG.installHandle (ident 0) (ident 0)
+  A.key₀ fullBundle duplex) IG.initial []) ≡ true
+inbound-install-enabled = refl
+initiator-only-install-enabled : installed (IG.installInitiatorWith (ident 0) (ident 0)
+  A.key₀ fullBundle unidirectional IG.initial []) ≡ true
+initiator-only-install-enabled = refl
