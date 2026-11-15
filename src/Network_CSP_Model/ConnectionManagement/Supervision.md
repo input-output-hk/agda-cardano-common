@@ -11212,3 +11212,169 @@ ConnectionManagement/Exploration/README.md
 ConnectionManagement/GateAudit.md
 ConnectionManagement/Supervision.md
 ```
+
+## Ninety-ninth increment: G5 trace shrinking and conformance tests
+
+15 November 2026, base model HEAD `f51acfd`; additive Agda modules and the
+listed documentation/artifacts are uncommitted. The overall objective remains
+the combined CM/IG/OG/Server source-problem model and correct design under the
+existing G0–G5 criteria. No existing runtime rule, initializer, theorem type,
+source pin or external dependency was changed. G0–G4 scopes and the separate
+universal refinement/progress obligations are unchanged.
+
+### Preservation and concrete reductions
+
+[Minimise](Exploration/Minimise.agda) supplies `valid-sound`,
+`pick-preserves`, `preserves`, `reduction-sound`, `coarse-preserves` and
+`coarse-sound`. Acceptance includes successful stage-2 `Text.check`, its exact
+initialized `Raw.Executes` and the same endpoint violation predicate. Event
+removal cannot substitute an endpoint or forge an actor state. The generic
+reducers are fuel-bounded executable definitions; their preservation theorems
+are independent of the three examples. The small computed
+[controls](Exploration/MinimiseControls.agda) exercise irrelevant-event removal,
+coarse/single preservation and refusal of missing violation, disabled suffix and
+out-of-dictionary offset.
+
+[MinimiseCandidates](Exploration/MinimiseCandidates.agda) instantiates the actual
+Server / owned-worker / relays dispatchers and the three committed initialized
+counterexample schedules underlying increment 98. The full originals are
+exported here; the 10/8 and 16/8 reached windows are not substituted for their
+initializers. Foreign search depth 1000 was a bound, not its witness length.
+Each dictionary is exactly its case's full `actions` list; repeated entries are
+aliases, and IDs/payloads are retained verbatim.
+
+| Certificate | Events | Bytes | Same violation before and after |
+| --- | ---: | ---: | --- |
+| [ShrunkLate](Exploration/ShrunkLate.agda) | **50 → 46** | 425 → 400 | returned Server, closed CM, empty snapshot/collected lists and physical child₁ present |
+| [ShrunkPurge](Exploration/ShrunkPurge.agda) | **85 → 82** | 860 → 828 | closed CM, finished relays and physical child₀ with unavailable result |
+| [ShrunkForeign](Exploration/ShrunkForeign.agda) | **192 → 183** | 2988 → 2876 | finished relays with worker 900's acquisition continuation retained |
+
+The external Python shrinker resides in the task scratch area. It proposes
+contiguous chunk deletions, halves the width through one, and repeats single
+scans until a full scan accepts none. Every proposal is tested with Agda's
+`Case.M.valid`, using only evaluation/typechecking. The second pass continues
+the first pass's retained offset lists, which are also exported. Accepted
+deletions retain a subsequence of the original offsets. No global-shortest theorem is asserted; final
+single-deletion exhaustion is observed by the script, not proved in Agda.
+
+The trust boundary is the separate literal certificates: `original-valid` and
+`shrunk-valid` execute the parser, dispatcher and violation test by `refl`;
+`original-accepted` / `shrunk-accepted` apply `valid-sound`. Each
+`original-export` / `shrunk-export` ties the offsets to canonical bytes and
+`strictly-shorter` checks the actual decrease. The retained files and byte
+verification script are listed below. No backend extraction is needed.
+
+### Pinned implementation observations
+
+[ShrunkCleanupReplay.patch](SourceReplay/ShrunkCleanupReplay.patch) adds one
+IOSim property for each reduced candidate's selected CM operations, plus two
+controls, at network `2f1c154f248659b89523d5679ca532f442e7ed2a`.
+[SourceReplay](SourceReplay/README.md#reduced-cleanup-candidates-increment-99)
+records reproduction, inputs, ownership and mapping limits.
+
+- **Late admission: unconfirmed combined candidate.** The direct post-finally
+  include allocates a pending handler, but the caller is the harness. No new
+  source trace combines the Server's unjoined admission worker, Server return
+  and its subsequent include. The historical 628-schedule POR result is not
+  unreachability and is not strengthened by this direct API test.
+- **Self-purge: confirmed library behavior at the selected CM/tracer scope.**
+  Actual CM allocation/cleanup/finally, a synthetic handshake/socket and injected
+  buffer failure reach an empty map and one closed socket while the handler's
+  result remains pending across CM return. Releasing the masked cleanup-counter
+  tracer yields `BufferFailure`; the immediate-tracer control already has it at
+  return. This is not full `Server.with` or a universal production-tracer result.
+- **Foreign frame: model artefact / ownership over-approximation.** The source
+  test deliberately forks the caller outside CM ownership, before any map
+  insertion. It survives CM return; joining it first removes the residue in the
+  control. This is not an ouroboros-owned-worker defect or an implementation
+  representation theorem for the model's saved frame.
+
+All five tests use ten-unit watchdogs and complete their harness joins. No
+randomized or exhaustive schedule search is claimed. Model acceptance and these
+source-operation observations remain different evidence; no full Haskell trace
+refinement or universal shutdown/liveness theorem follows.
+
+### Validation and review files
+
+Seven final serial Agda 2.8.0 commands passed with exact arguments
+`agda ConnectionManagement/Exploration/<Name>.agda +RTS -M20G -A128m -RTS`:
+six fresh own interfaces (invalidating only each target's own interface), one
+cached own check, no final warnings, **256.98 s total** and
+**7.849 GiB peak RSS**. Checked dependencies were retained.
+
+| Module | Own interface | Wall seconds | Peak RSS GiB | Exit |
+| --- | --- | ---: | ---: | ---: |
+| `Minimise` | fresh own | 5.48 | 0.828 | 0 |
+| `MinimiseControls` | fresh own | 5.31 | 0.760 | 0 |
+| `MinimiseCandidates` | fresh own | 60.87 | 7.604 | 0 |
+| `ShrunkLate` | fresh own | 59.42 | 7.626 | 0 |
+| `ShrunkPurge` | fresh own | 60.09 | 7.849 | 0 |
+| `ShrunkForeign` | fresh own | 60.54 | 7.615 | 0 |
+| `TextControls` | cached own | 5.27 | 0.783 | 0 |
+
+`pgrep -x agda` was empty and `free -g` available memory at least 14 before
+every Agda/Cabal launch; the driver waited when it was lower. There was one
+heavy process at a time. `MinimiseControls` and all concrete certificates have
+fresh own `Checking` lines. No existing maintained endpoint imports these new
+modules, so unrelated heavy model endpoints were not rebuilt.
+
+The Python oracle's two completed evaluator runs peaked at 7.895 and 7.896 GiB
+RSS. Before them, two development interaction attempts failed on protocol
+encoding/qualified Boolean output; neither is acceptance evidence. No backend
+was invoked in this continuation. Earlier backend OOMs in the prior runs remain
+failures, not successful checks. Their logs were moved into the task scratch
+area; the unused generated backend tree was removed. Build trees and new logs
+stay in that scratch area.
+
+The final offline `cabal build --offline -j1` passed, with its explicit builddir
+in the task scratch area, **53.70 s / 0.689 GiB peak RSS**, without warnings.
+All five newly built IOSim properties passed with verbose results; an earlier
+execution of the existing binary also passed. The patch applies independently
+to pristine pin files, and all three patched files match the tested checkout
+byte for byte. No production source file was patched.
+
+All twelve trace files passed byte verification against their Agda literals.
+The six-file local proof scan found no holes/trust additions: its three `?`
+findings are the ordinary `≤?` length decisions. This is a local static audit,
+not a term-level audit of external dependencies. Whitespace checks pass for
+all 19 review files. The five-page local-link check covers 762 targets: its only
+failure is the pre-existing `GateAudit.md:27` link to missing `../plan2.md`;
+there are no new broken targets. No external URL check was requested.
+
+**G5 is met for the declared finite exploration, checked shrinking and classified
+source-operation replay scopes.** Plan step 10 is complete: reproducible
+reductions preserve initialized execution and the same violation, original/shrunk
+artifacts are retained, and all three cases have tests and explicit
+classifications with controls. The combined late Server-worker race remains
+unconfirmed; closing G5's exploration/classification workflow does not promote
+that candidate or prove full source refinement. G0–G4 acceptance scopes and the
+remaining design/progress obligations are unchanged.
+
+Exact files to commit (paths relative to this library root):
+
+```text
+ConnectionManagement/Exploration/Minimise.agda
+ConnectionManagement/Exploration/MinimiseCandidates.agda
+ConnectionManagement/Exploration/MinimiseControls.agda
+ConnectionManagement/Exploration/ShrunkLate.agda
+ConnectionManagement/Exploration/ShrunkPurge.agda
+ConnectionManagement/Exploration/ShrunkForeign.agda
+ConnectionManagement/Exploration/trace_files.py
+ConnectionManagement/Exploration/traces/Late.original.trace
+ConnectionManagement/Exploration/traces/Late.shrunk.trace
+ConnectionManagement/Exploration/traces/Purge.original.trace
+ConnectionManagement/Exploration/traces/Purge.shrunk.trace
+ConnectionManagement/Exploration/traces/Foreign.original.trace
+ConnectionManagement/Exploration/traces/Foreign.shrunk.trace
+ConnectionManagement/Exploration/README.md
+ConnectionManagement/SourceReplay/ShrunkCleanupReplay.patch
+ConnectionManagement/SourceReplay/README.md
+ConnectionManagement/Supervision.md
+ConnectionManagement/GateAudit.md
+docs/index.md
+```
+
+Planning scripts, logs, backend remnants and continuity state are not commit
+artifacts. No Git state-changing command, presentation edit or configuration
+symlink modification was performed. Preserve the unrelated `.claude`,
+`ConnectionManagement/Presentations/`, `output/` and review summary files.

@@ -737,3 +737,56 @@ mux or protocol workers run. The control establishes completion on its one
 unpaused IOSim schedule. The result supports the model's historical-handler
 registry motivation, without validating the proposed registry implementation or
 proving whole-system shutdown.
+
+## Reduced cleanup candidates (increment 99)
+
+[ShrunkCleanupReplay.patch](ShrunkCleanupReplay.patch) adds five deterministic
+IOSim properties at network `2f1c154f248659b89523d5679ca532f442e7ed2a`
+(GHC 9.6.7, Cabal 3.12.1.0, io-sim/io-classes 1.8.0.1). It applies independently
+to pristine source, adding only a test module, its Cabal registration and the
+Tasty entry point. Do not stack it with the older replay patches. No production
+operation is replaced. The transport and handshake are synthetic; these tests
+exercise selected CM operations corresponding to the model candidates, rather
+than importing Agda event files into Haskell or proving trace refinement.
+
+| Candidate / property | Observation and control | Classification |
+| --- | --- | --- |
+| Late admission | A handle returned by `CM.with` still accepts `includeInboundConnection`; the shutdown tracer has fired and the newly allocated handler is pending. The harness then cancels/joins it. | **Unconfirmed combined Server race.** The direct API behavior is confirmed, but this call comes from the harness after CM return. It does not show the Server's previously forked admission worker executing that include after Server return. The earlier 628-schedule POR result remains bounded evidence only. |
+| Self-purge | The actual CM handler is captured by its transition tracer. A synchronous buffer-acquisition failure closes the socket and purges the map. Its cleanup-counter tracer pauses under `MaskedUninterruptible`; the map is empty and its Async result remains pending before and after CM return. Releasing the tracer produces `BufferFailure`, then the harness joins. The unpaused control has that result before CM return. | **Confirmed library behavior at this CM/tracer scope.** This does not execute the full Server or establish behavior with every deployment tracer. |
+| Foreign frame | An externally forked outbound caller pauses at `TrIncludeConnection Outbound`, before touching the connection map. CM returns with an empty map and that caller still pending. The control cancels/joins the caller before CM scope exit; it has a result afterwards. Both cases finish harness cleanup. | **Model artefact / ownership over-approximation.** The extra caller is explicitly outside ouroboros ownership. This is no library-owned-worker cleanup defect, and does not reproduce an internal saved-frame representation. |
+
+The self-purge test has exactly one socket close, admission already joined before
+the failure, and the final ordered event list
+`AdmittedAndJoined, BufferFailed, Cleanup, SocketClosed, CleanupCounters,
+Shutdown, CMReturned, HandlerJoined`. The control uses the same one-unit
+observation delay without forcing completion by joining. Every experiment has a
+ten-unit timeout. Each property runs once; this is neither randomized scheduler
+coverage nor an exhaustive IOSimPOR run.
+
+To reproduce with cached offline dependencies, use a scratch checkout of the pin
+and keep the build tree, Cabal config, summaries and logs in the task scratch
+area. Before **each** Agda or Cabal process, require empty `pgrep -x agda` output
+and `free -g` available memory at least 14. Run one heavy process at a time:
+
+```sh
+git apply --check /absolute/path/to/ShrunkCleanupReplay.patch
+git apply /absolute/path/to/ShrunkCleanupReplay.patch
+cabal --config-file="$task_scratch/cabal.config" build --offline -j1 \
+  --builddir="$task_scratch/cabal-build" \
+  ouroboros-network:test:framework-sim-tests
+cabal --config-file="$task_scratch/cabal.config" list-bin --offline \
+  --builddir="$task_scratch/cabal-build" \
+  ouroboros-network:test:framework-sim-tests
+/path/printed/by/list-bin -p '/ShrunkCleanupReplay/' \
+  --quickcheck-tests 1 --quickcheck-verbose
+```
+
+The new patch passed an independent `git apply --check` against pristine files
+from the pinned Git object; applying it produced files byte-identical to the
+test checkout. The existing replay binary was rerun in this continuation:
+**all five properties passed**, exit 0, reported 0.03 s. That is a new execution
+of the earlier build, not a fresh rebuild. The earlier offline `-j1` build
+passed in 14.25 s / 393,304 KiB peak RSS. The final continuation also rebuilt
+offline with `-j1` and an explicit task-scratch builddir: **53.70 s / 0.689 GiB
+peak RSS**, without warnings. All five newly built tests passed (reported 0.02 s).
+Final model checks and G5 status are recorded in [increment 99](../Supervision.md#ninety-ninth-increment-g5-trace-shrinking-and-conformance-tests).

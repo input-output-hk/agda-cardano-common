@@ -91,7 +91,7 @@ agda ConnectionManagement/Exploration/Overlap.agda +RTS -M20G -A128m -RTS
 [Supervision increment 97](../Supervision.md#ninety-seventh-increment-g5-bounded-enumeration-and-witness-membership)
 records actual checks and the commit list. [GateAudit](../GateAudit.md#ordered-gap-closing-plan)
 records completed step 9 at the declared scopes; minimization and reduced-candidate
-source replay remain step 10 obligations. No FDR run, minimizer or new source replay is supplied here.
+source replay remain step 10 obligations. That stage supplied no FDR run, minimizer or new source replay; stage 3 below adds checked shrinking and selected source-operation tests.
 Stage-2 acceptance evidence is recorded below.
 
 
@@ -198,4 +198,64 @@ with synthetic inputs and a gated cleanup tracer. No native replay is rerun.
 Validation status and exact commands are recorded in
 [Supervision increment 98](../Supervision.md#ninety-eighth-increment-g5-checked-text-and-targeted-race-searches).
 G5 remains partly met; minimization and reduced-candidate source replay are
-separate plan-step-10 obligations.
+separate plan-step-10 obligations at that checkpoint; stage 3 below records their completion.
+
+## Trace shrinking (stage 3)
+
+[Minimise](Minimise.agda) deletes dictionary offsets without changing identities
+or supplying endpoint states. `valid` runs the existing stage-2 `Text.check`
+from the fixed initializer and then tests the fixed endpoint violation.
+`valid-sound` produces `Accepted`: successful checker equality, a real
+`Raw.Executes` and that same violation. `pick-preserves`, `preserves` and
+`reduction-sound` prove the single-event reducer retains acceptance;
+`coarse-preserves` and `coarse-sound` do the same for bounded chunk deletion.
+These statements quantify over the dispatcher, dictionary, initializer and
+predicate. They introduce no local axiom or extra semantic assumption.
+
+[MinimiseControls](MinimiseControls.agda) computes a three-to-one deletion on a
+small dispatcher, checks both preservation lemmas and rejects a missing
+violation, a disabled repeated action and an out-of-dictionary offset.
+[MinimiseCandidates](MinimiseCandidates.agda) fixes the three actual dispatchers,
+full initialized schedules and endpoint predicates. The candidates use the
+committed initialized traces underlying increment 98, rather than treating its
+reached local windows as initial states. Their dictionaries are exactly each
+case's `actions`, including repeated actions as separate offset aliases.
+
+Concrete reduction is driven by an external Python script in the task scratch
+area. Starting from offsets `0 .. length(actions)-1`, it tries contiguous chunks
+of width `floor(length/2)`, in order. An accepted deletion is retained and the
+same position is tried again; rejected proposals advance by that width. Width
+is halved through one, followed by repeated single-event scans until one full
+scan accepts no deletion. Every oracle answer evaluates `Case.M.valid` in Agda,
+including the original and final trace. The script never generates Agda backend
+code. The completed Python search found no accepted single deletion in its final
+scan; this is an observed search result, not an Agda minimality theorem. No
+global minimum is claimed.
+
+The concrete `Shrunk*` certificates independently typecheck the literal original
+and retained offset lists: `original-valid` / `shrunk-valid` are `refl`, and
+`original-accepted` / `shrunk-accepted` apply `valid-sound`. Thus the Python search
+is outside the trusted proof boundary. Export equalities tie each literal to the
+canonical stage-2 bytes. Dictionary offsets and payloads are retained verbatim;
+the initial state is identical in each pair. `strictly-shorter` checks an actual
+length decrease. A finite accepted violating trace establishes no universal
+liveness or failure of every possible cleanup schedule.
+
+[Increment 99](../Supervision.md#ninety-ninth-increment-g5-trace-shrinking-and-conformance-tests)
+records the concrete lengths, byte checks, typechecking and source classifications.
+The [source tests](../SourceReplay/README.md#reduced-cleanup-candidates-increment-99)
+replay selected operations with controls. The foreign actor is deliberately
+outside library ownership, and the combined late Server race remains unconfirmed.
+
+| Dictionary / certificate | Original → shrunk events | Original → shrunk bytes | Fixed endpoint predicate |
+| --- | ---: | ---: | --- |
+| `LateCase` / [ShrunkLate](ShrunkLate.agda) | 50 → 46 | 425 → 400 | Server returned, CM closed with empty snapshot/collected lists, physical `child₁` present |
+| `PurgeCase` / [ShrunkPurge](ShrunkPurge.agda) | 85 → 82 | 860 → 828 | CM closed, relays finished, physical `child₀` present with unavailable result |
+| `ForeignCase` / [ShrunkForeign](ShrunkForeign.agda) | 192 → 183 | 2988 → 2876 | Relays finished with worker 900's acquisition frame retained |
+
+Retained pairs are `traces/{Late,Purge,Foreign}.{original,shrunk}.trace`.
+Run `python3 ConnectionManagement/Exploration/trace_files.py` to verify all twelve
+artifacts against their Agda literals. Then check `MinimiseControls.agda` and
+`Shrunk{Late,Purge,Foreign}.agda` serially with
+`+RTS -M20G -A128m -RTS`, under the resource guard above. The concrete certificates
+include both original and shrunk initialized acceptance and strict length decrease.
