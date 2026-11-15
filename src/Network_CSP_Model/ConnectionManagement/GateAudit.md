@@ -1,8 +1,8 @@
 # G0–G5 gate audit
 
-15 November 2026 (increment 95 selected source inputs and policy boundary). Documentation audit of [DESIGN §§1, 9–11](DESIGN.md),
+15 November 2026 (increment 96 source profile and seed/history abstraction). Documentation audit of [DESIGN §§1, 9–11](DESIGN.md),
 [project state](../PROJECT_STATE.md), the area indexes and evidence below.
-**G1 is met for the selected contracts, G3 for the initialized finite profiles, and G4 for the full raw supervised rendering; G0/G2/G5 remain partly met.** A gate
+**G1 is met for the selected contracts, G3 for the initialized finite profiles, and G4 for the full raw supervised rendering; G0/G2 are met for the reviewed finite LocalLifecycle profile; G5 remains partly met.** A gate
 requires every acceptance item, not merely a strong result in one component.
 
 The source baseline is network `2f1c154f248659b89523d5679ca532f442e7ed2a`,
@@ -39,7 +39,9 @@ abstractions are explicit; concrete source instantiation remains open. The
 [initialized responder diagnostic](Negative/InboundConfiguredBlocked.agda)
 proves a 46-event reduced prefix and outbound-wrapper capture refusal. That increment stopped before model work. The user subsequently approved a separate wrapper; increment 94 below supersedes this execution blocker. **G0 and G2 remain partly met at the source-instantiation boundary.**
 
-## G0 — domain, scenario and source ledger: partly met
+<a id="g0--domain-scenario-and-source-ledger-partly-met"></a>
+
+## G0 — domain, scenario and source ledger: met for the reviewed profile
 
 Acceptance: identity distinctions, profile assumptions and first-path branch
 coverage reviewed.
@@ -47,8 +49,8 @@ coverage reviewed.
 | Evidence item | Status | Evidence and exact gap |
 | --- | --- | --- |
 | Identity distinctions | **met** | [Domain](Domain.agda) indexes identities by kind and separates full connection keys, addresses/ports and local-key alternatives. [DESIGN §§2–3](DESIGN.md) and [README](README.md) distinguish entry, worker, socket, mux, promise, handle and protocol-run lifetimes. This is a model representation decision, not source conformance. |
-| Profile assumptions reviewed | **partly met; discrepancy reconciled** | [Pinned profile](BranchMatrix.md#pinned-locallifecycle-profile--increment-91) and [FullConfiguredProfile](Negative/FullConfiguredProfile.agda) now specify/check two ordinary peers, sane targets **2/2/1**, five hot protocols, **empty warm**, and established KeepAlive **8 / StartOnDemandAny**. Source directions, reduced 0/0/0 and 1/1/0 fixtures, 60 versus 120 clearing delay, feature/version abstraction and unseeded policy inputs are explicit. Increment 92 implements grouped responder startup and couples all three contract batches in the full configured outbound initialized witness. Increment 94 selects V2 explicitly and completes configured initialized inbound contract coverage. Increment 95 instantiates explicit source-valid V15 offers/data and the V2 caller argument in both full runs, and proves ranking independence at all four reached selections. Missing: source RNG split and independent policy state/selection transaction correspondence, and a source-120 initializer/run or proved abstraction for the reached 60/120 policy-delay difference. See the [current reconciliation](BranchMatrix.md#seed-selection-and-version-reconciliation--increment-93). All eight protocol/resource rows remain contracted observations, not source refinements. |
-| First-path branch coverage reviewed | **partly met (matrix complete)** | [BranchMatrix](BranchMatrix.md) reconciles all 49 original ledger families and later branches in 99 rows: 67 implemented, 19 contracted, 13 excluded and 0 missing. It names actual initialized targets/bundles/selection inputs, corrects stale source ranges, separates accept-loop exits from the newly implemented handoff/worker exception edges, and records the reviewed protocol/registry/resource contracts. The review artifact closes plan step 1; no missing rows remain after [increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts). Source execution of contracted inputs remains an instantiation obligation. Increment 92 resolves increment 91’s installer refusal: StartOnDemandAny is implemented with paired scheduler controls. G0/G2 stay partly met at the concrete source-input boundary; zero missing rows does not establish source conformance or complete gate acceptance. Plan step 2 now supplies the [primitive matrix](PrimitiveMatrix.md); its five primitive runtime findings are implemented and accepted by capped regression. |
+| Profile assumptions reviewed | **met for the selected LocalLifecycle profile** | Increment 95 checks V15/data/layout/flows and the explicit Tx V2 caller argument. Increment 96 adds [Policy.source-initializer](SourceInputs/Policy.agda) (5/120), [complete source-profile runs](SourceInputs/SourcePolicyOutbound.agda) / [inbound](SourceInputs/SourcePolicyInbound.agda), and [seeded full execution](SourceInputs/SeededConfigured.agda). [PolicyHistory](SourceInputs/PolicyHistory.agda) proves seed/split/comparator independence for all finite commit/rollback/restart histories at the four checked reached decision sets; [DiffusionSeeds](SourceInputs/DiffusionSeeds.agda) retains the source split topology and committed CM child, proving the actual empty-bucket acquisition independent of it. The independent policy seed is never identified with a diffusion child. Existing 60-delay fixtures are the separately named `Policy.reduced60` profile. Protocol/resource contracts retain their declared source boundaries. |
+| First-path branch coverage reviewed | **met for reviewed profile/contract boundaries** | [BranchMatrix](BranchMatrix.md) reconciles all 49 original ledger families and later branches in 99 rows: 67 implemented, 19 contracted, 13 excluded and 0 missing. It names actual initialized targets/bundles/selection inputs, corrects stale source ranges, separates accept-loop exits from the newly implemented handoff/worker exception edges, and records the reviewed protocol/registry/resource contracts. The review artifact closes plan step 1; no missing rows remain after [increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts). Native execution of contracted operations remains separate from the checked profile witnesses. Increment 92 resolves increment 91’s installer refusal: StartOnDemandAny is implemented with paired scheduler controls. Increment 96 closes the remaining selected-profile source-input boundary by instantiation/proved abstraction; zero missing rows alone is not the acceptance evidence. Source conformance is not asserted. Plan step 2 now supplies the [primitive matrix](PrimitiveMatrix.md); its five primitive runtime findings are implemented and accepted by capped regression. |
 
 **Historical increment 91 outcome:** G0 was **not met**. Configuration discrepancies are
 now concrete, with checked target initialization and exact source start modes;
@@ -70,6 +72,23 @@ independent-policy STM correspondence, source-120 initialized full run or
 policy-delay observational abstraction is proved. The checked under-selection
 control rules out unrestricted two-way policy erasure. This is a precise
 remaining proof boundary, not gate acceptance by documentation.
+
+**Increment 96 supersedes the historical open instantiation status above:**
+**G0/G2 are met for the reviewed finite LocalLifecycle profile.**
+[Source-policy outbound](SourceInputs/SourcePolicyOutbound.agda) and
+[inbound](SourceInputs/SourcePolicyInbound.agda), `initialized-contracts` and
+`initialized-frontend`, check all 381/322 and 246/208 inputs/events with the
+source 5/120 policy initializer. [SeededConfigured](SourceInputs/SeededConfigured.agda)
+checks the whole outbound run for every independent policy seed and every finite
+history of the four reached decisions, including retries/rollback/restarts;
+`PolicyHistory.Transactions.canonical` supplies converse existence for every seed.
+`DiffusionSeeds` covers every diffusion seed/split at the actual empty CM bucket
+and retains the committed generator child. [Boundaries](SourceInputs/SourcePolicyBoundaries.agda)
+rechecks eligible sets/quotas and the stored source deadline **123** at time 3.
+This scope fixes topology, ready alternatives, clocks/order and operation/contract
+outcomes. It does not cover arbitrary `G.choose` selections, other random readers,
+infinite retries, universal progress, distributions or Haskell refinement.
+[Increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction) gives checks, limitations and files.
 
 ## G1 — state and primitive semantics: met
 
@@ -95,7 +114,9 @@ and heavy initialized concrete endpoints passed the capped regression of the [in
 Existing theorem statements are unchanged. Focused passing examples do not replace
 those checks, and this does not close G0/G2–G5 or assert Haskell refinement.
 
-## G2 — first combined lifecycle: partly met
+<a id="g2--first-combined-lifecycle-partly-met"></a>
+
+## G2 — first combined lifecycle: met for the reviewed finite profiles
 
 Acceptance: Server admission, OG jobs, IG handling, handler/protocol lifecycle
 and clean release all run from initial state. The six first witnesses are
@@ -106,12 +127,12 @@ additional explicit obligations, assessed separately below.
 | Server admission from initialization | **met** | [ServerAdmissionPrefix](Negative/ServerAdmissionPrefix.agda) and [ServerPeers](Negative/ServerPeers.agda) provide initialized handoffs, admission and selected failure exits. This starts at declared post-setup infrastructure, not a proof of whole-node boot. |
 | OG jobs from initialization | **met** | [GovernorLifecycle](CSP/GovernorLifecycle.agda), `path`, executes establish/activate/deactivate/close. [ServerPeers.Protocols](Negative/ServerPeers.agda) connects jobs and physical initiators on shared state. The ordinary-peer restrictions remain explicit. |
 | IG handling from initialization | **met** | [RegistryProducer](CSP/RegistryProducer.agda) composes admission, startup, CM promotion and failure-event consumption/removal. [ServerPeers](Negative/ServerPeers.agda) adds initialized registration and nonempty exit. These are finite witnesses, not delivery guarantees. |
-| Handler/protocol lifecycle | **met for both configured finite model profiles; source instantiation open** | [FullConfiguredWitness](Negative/FullConfiguredWitness.agda) retains the 322-event outbound run. [InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda) adds 246 wrapper inputs / 208 frontend events through all six responder contracts, including demand-triggered Any KeepAlive and selected Tx V2. [ConfiguredResponders](ConfiguredResponders.agda) uses immutable responder captures, server cleanup and the same typed/physical pool gates, without outbound PSA premises. [Facts](Negative/InboundConfiguredFacts.agda), [starts](Negative/InboundConfiguredStarts.agda), [controls](Negative/InboundConfiguredControls.agda) and [OwnedCallers](Negative/InboundConfiguredCallers.agda) certify the initialized history. Increment 95 checks explicit V15/data/V2 inputs through these full runs. RNG/split/policy transaction correspondence and the 60/120 delay difference remain open; no eventual-completion theorem follows. |
-| Clean release in the combined initialized profile | **met for both configured finite model profiles; source instantiation open** | [Outbound](Negative/FullConfiguredWitness.agda) retains clean deactivation/close, mux/pool exit, release, handler result and Cold. [Inbound](Negative/InboundConfiguredWitness.agda) now reaches six clean protocol results/Async availability, normal mux exit, pool/socket close, Terminated entry, empty map, completed cleanup, handler Async result, no pending inbound release and IG unregistered. The handler result is `asyncException 42`: cancellation interrupts unmasked TIME_WAIT after normal mux/body return, as in the retained reduced 109-event witness. This is a finite supplied-input lifecycle, not universal completion or all-worker shutdown. |
+| Handler/protocol lifecycle | **met for both finite source-configured profiles** | [FullConfiguredWitness](Negative/FullConfiguredWitness.agda) retains the 322-event outbound run. [InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda) adds 246 wrapper inputs / 208 frontend events through all six responder contracts, including demand-triggered Any KeepAlive and selected Tx V2. [ConfiguredResponders](ConfiguredResponders.agda) uses immutable responder captures, server cleanup and the same typed/physical pool gates, without outbound PSA premises. [Facts](Negative/InboundConfiguredFacts.agda), [starts](Negative/InboundConfiguredStarts.agda), [controls](Negative/InboundConfiguredControls.agda) and [OwnedCallers](Negative/InboundConfiguredCallers.agda) certify the initialized history. Increment 95 checks explicit V15/data/V2 inputs through these full runs. Increment 96 supplies complete source-120 runs and the seed/split/finite-history abstraction at the reached decisions; no eventual-completion theorem follows. |
+| Clean release in the combined initialized profile | **met for both finite source-configured profiles** | [Outbound](Negative/FullConfiguredWitness.agda) retains clean deactivation/close, mux/pool exit, release, handler result and Cold. [Inbound](Negative/InboundConfiguredWitness.agda) now reaches six clean protocol results/Async availability, normal mux exit, pool/socket close, Terminated entry, empty map, completed cleanup, handler Async result, no pending inbound release and IG unregistered. The handler result is `asyncException 42`: cancellation interrupts unmasked TIME_WAIT after normal mux/body return, as in the retained reduced 109-event witness. This is a finite supplied-input lifecycle, not universal completion or all-worker shutdown. |
 
 | First witness required by DESIGN §9 | Status | Concrete evidence and exact gap |
 | --- | --- | --- |
-| Inbound clean lifecycle | **met for the full configured responder model profile** | [InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda), `initialized-contracts` / `initialized-frontend`, supplies 246 wrapper / 208 actual frontend events from the full 2/2/1 initializer, with every edge `refl`, six demand-started responders (including Any KeepAlive), reviewed server contracts, result/publication/Async boundaries, graceful mux/pool exit and inbound release/cleanup/IG-unregistered endpoint. [Facts](Negative/InboundConfiguredFacts.agda), [controls](Negative/InboundConfiguredControls.agda) and [OwnedCallers](Negative/InboundConfiguredCallers.agda) retain physical completion and caller ownership distinctions. Increment 95 checks source-valid singleton V15 offers yielding duplex and an explicit V2 caller input; RNG/policy instantiation stays open. The reduced [109-event lifecycle](Negative/InboundCleanLifecycle.agda) and [46-event diagnostic](Negative/InboundConfiguredBlocked.agda) remain unchanged. |
+| Inbound clean lifecycle | **met for the full configured responder model profile** | [InboundConfiguredWitness](Negative/InboundConfiguredWitness.agda), `initialized-contracts` / `initialized-frontend`, supplies 246 wrapper / 208 actual frontend events from the full 2/2/1 initializer, with every edge `refl`, six demand-started responders (including Any KeepAlive), reviewed server contracts, result/publication/Async boundaries, graceful mux/pool exit and inbound release/cleanup/IG-unregistered endpoint. [Facts](Negative/InboundConfiguredFacts.agda), [controls](Negative/InboundConfiguredControls.agda) and [OwnedCallers](Negative/InboundConfiguredCallers.agda) retain physical completion and caller ownership distinctions. Increment 95 checks source-valid singleton V15 offers yielding duplex and an explicit V2 caller input; increment 96 adds the full source-120 execution and seed/history abstraction. The reduced [109-event lifecycle](Negative/InboundCleanLifecycle.agda) and [46-event diagnostic](Negative/InboundConfiguredBlocked.agda) remain unchanged. |
 | Outbound clean lifecycle | **met for the full configured normal outbound profile** | [FullConfiguredWitness](Negative/FullConfiguredWitness.agda) has 381 contract-wrapper inputs and 322 real frontend events from the usual initializer. All six initiators complete their normal contracts; full hot promotion, target-driven clean demotion/close, physical results, release, handler cleanup, Cold and OwnedCallers are certified. The reduced 156-event witness remains unchanged. Source readiness and operation results are explicit contracts, and the second selected establishment job stays at its registered unentered boundary. |
 | Duplex reuse | **met** | [ServerPeers.Protocols](Negative/ServerPeers.agda), `initialized-to-start`, includes actual inbound admission/publication/registration and startup, then outbound `Acquire.select (just (ident 0))` and return on the existing bearer. The header comments specify that only CM-free metadata is reused. This is an initialized finite model witness under `canInitiate`, not exhaustive reuse-branch or source replay coverage. |
 | Handshake failure and socket cleanup | **met for the supervised initialized outbound failure profile** | [SupervisedHandshakeFailure](Negative/SupervisedHandshakeFailure.agda), `initialized-to-cleanup`: **40 real frontend events**, sharing the actual peer-job acquire/connect/fork prefix, then observed handshake deadline failure, real promise publication, caller disconnected return and peer-job failure observation, helper/body exit, physical socket/map cleanup and available handler result. Endpoint: closed socket, Terminated entry retaining error 7, empty live map, cleanupNormal, no allocated handle and physical `returned` (the helper handles the limit failure). Premature consumer/job/exit/finalizer/result, duplicate publication and success-after-failure controls pass. This covers the outbound caller/worker, not an inbound admission-worker failure history. [Increment 83](Supervision.md#eighty-third-increment-g2-outbound-clean-lifecycle-and-supervised-handshake-failure) distinguishes this from asynchronous cancellation and the older abstract scenario boundaries. |
@@ -159,6 +180,23 @@ and `SourceSelectionInitial.source-proper-subset-impossible` separates source
 policy cardinality from an enabled unrestricted model choice. Neither result
 alone asserts a timing-independent CM counterexample. The exact scope and
 unperformed checks are in [increment 95](Supervision.md#ninety-fifth-increment-selected-source-inputs-and-policy-erasure-obstruction).
+
+**Increment 96 supersedes the historical open instantiation status above:**
+**G0/G2 are met for the reviewed finite LocalLifecycle profile.**
+[Source-policy outbound](SourceInputs/SourcePolicyOutbound.agda) and
+[inbound](SourceInputs/SourcePolicyInbound.agda), `initialized-contracts` and
+`initialized-frontend`, check all 381/322 and 246/208 inputs/events with the
+source 5/120 policy initializer. [SeededConfigured](SourceInputs/SeededConfigured.agda)
+checks the whole outbound run for every independent policy seed and every finite
+history of the four reached decisions, including retries/rollback/restarts;
+`PolicyHistory.Transactions.canonical` supplies converse existence for every seed.
+`DiffusionSeeds` covers every diffusion seed/split at the actual empty CM bucket
+and retains the committed generator child. [Boundaries](SourceInputs/SourcePolicyBoundaries.agda)
+rechecks eligible sets/quotas and the stored source deadline **123** at time 3.
+This scope fixes topology, ready alternatives, clocks/order and operation/contract
+outcomes. It does not cover arbitrary `G.choose` selections, other random readers,
+infinite retries, universal progress, distributions or Haskell refinement.
+[Increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction) gives checks, limitations and files.
 
 ## G3 — concurrency: met
 

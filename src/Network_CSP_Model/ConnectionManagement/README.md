@@ -11,8 +11,12 @@ StartOnDemandAny, now supported by increment 92. The full configured
 adds the configured initialized inbound responder run and OwnedCallers.
 [Increment 95](Supervision.md#ninety-fifth-increment-selected-source-inputs-and-policy-erasure-obstruction)
 checks selected V15/data/V2 inputs in both full runs and the four reached ranking
-decisions. RNG/split/policy transaction correspondence and the 60/120 clearing-delay
-difference still leave G0/G2 partly met.
+decisions. [Increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction)
+adds the source 5/120 initializer, both full configured runs, and proved seed/split/
+finite-STM-history abstraction at all four reached selections. **G0/G2 are met for
+the reviewed finite profile**; the existing fixtures remain the reduced-60 profile.
+Other random readers, infinite retries, universal progress and native refinement
+are outside that result.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
@@ -725,7 +729,8 @@ of rendered processes.
   `PTree` rendering. This is not source correspondence or equivalence with a
   separate parallel architecture. This layer supplies no exporter, FDR search or
   hidden-process divergence proof. Finite [Haskell replays](SourceReplay/README.md)
-  are recorded separately and do not establish source correspondence. G2 is not complete.
+  are recorded separately and do not establish source correspondence. G2 acceptance
+  for the selected finite source-configured profile is recorded in increment 96.
 - `CSP.Scope` reports selected incomplete continuations without adding tick or
   self-loop events. An empty offer set in this partial process is not evidence of
   a source deadlock. Absence of a scope diagnostic does not establish completeness.
@@ -1102,5 +1107,6 @@ and conditional physical mux-job adapters. [ConfiguredProtocols](ConfiguredProto
 couples these batches to the [full initialized outbound witness](Negative/FullConfiguredWitness.agda);
 [ConfiguredResponders](ConfiguredResponders.agda) couples server contracts to the
 [full initialized inbound witness](Negative/InboundConfiguredWitness.agda) and
-[OwnedCallers certificate](Negative/InboundConfiguredCallers.agda). G0/G2 retain
-the source RNG/selection/version instantiation gaps in the [gate audit](GateAudit.md).
+[OwnedCallers certificate](Negative/InboundConfiguredCallers.agda). Increment 96 closes
+the selected-profile instantiation items in the [gate audit](GateAudit.md), using
+source-120 runs and a checked abstraction for all finite reached seed histories.

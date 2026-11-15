@@ -443,7 +443,11 @@ lifecycle witnesses. Extend runtime validity to these writes and perform source
 fault-injection replay; do not transfer the earlier invariants automatically. Selected normal/synchronous handler exits
 are now covered; concrete policy evaluation and general exception coverage remain open.
 Retain the existing invariants as regression checks while extending behavior.
-Neither G1 nor the first combined lifecycle gate G2 is complete. The
+This is the historical implementation-priority snapshot. The current
+[gate audit](GateAudit.md) records G1 acceptance and increment 96’s G0/G2
+acceptance for the reviewed finite source-configured profile, using a checked
+seed/history abstraction; broader source refinement and universal progress remain
+separate obligations. The
 [progress review](../review/connection-management-progress-review.md) records
 coverage, remaining abstractions and the revised implementation priorities.
 

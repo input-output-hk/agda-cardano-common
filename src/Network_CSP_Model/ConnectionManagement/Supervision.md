@@ -10426,6 +10426,8 @@ by this additive wrapper. No existing Agda source changed in increment 94.
 
 ## Ninety-fifth increment: selected source inputs and policy erasure obstruction
 
+Historical outcome, superseded for the selected profile by [increment 96](#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction).
+
 15 November 2026. The objective remains the combined CM/IG/OG/Server source-problem
 model and correct design, with unchanged G0–G5 criteria. This increment **does
 not close G0/G2**. It adds nine Agda modules; no existing Agda module, initializer
@@ -10615,3 +10617,289 @@ None of these received a fresh own rebuild in increment 95. Increment 92's
 reviewer measurement of `Negative/ServerPeers.agda` at **12.9 GiB** is historical;
 no >12-GB check was attempted or discovered here. The present approximate-10-GB
 budget still applies: split heavy checks instead of launching them unbounded.
+
+## Ninety-sixth increment: source-policy profile and seed-history abstraction
+
+15 November 2026; base model HEAD `6519a7c` (increment 95). Overall objective
+remains the combined CM/IG/OG/Server source-problem model and correct design under
+unchanged G0–G5 criteria. This increment adds 37 Agda modules; **no pre-existing
+Agda source, theorem statement, initializer or dependency is changed**. Existing
+unrelated worktree files are preserved. No Git state-changing command or native
+source replay was performed.
+
+### Source constants and complete configured runs
+
+[Policy](SourceInputs/Policy.agda), `source-initializer`, configures the usual
+empty post-setup initialized infrastructure with source **5** maximum retries and
+**120** seconds failure-clear delay (Policies.hs:170–171). `source-delay` and
+`source-retries` check those fields through the actual assembled subsystem.
+`reduced60` separately names the unchanged old `FullConfigured*` profile; its
+existing statements, including `SourceSelectionActivate.deadlines-differ`, remain
+valid. The wrapper inputs still use the selected V15/data/layout/flows and
+independent Tx V2 caller argument established in increment 95.
+
+[SourcePolicyOutbound](SourceInputs/SourcePolicyOutbound.agda) and
+[SourcePolicyInbound](SourceInputs/SourcePolicyInbound.agda),
+`initialized-contracts` / `initialized-frontend`, check complete **381/322** and
+**246/208** wrapper/frontend histories from `Policy.source120`. Their schedules
+are the original schedules. Both source negotiation assignments are tied to them
+by `negotiated-schedule` (outbound in `SeededConfigured`, inbound in its root).
+No midpoint is substituted for initialization.
+
+The 29 `SourcePolicyOutbound0`–`17` / `SourcePolicyInbound0`–`10` slices check
+**all 627 wrapper edges**, each by `refl` against an explicit transformed original
+successor, then compose the checked paths. The translation changes only the two
+policy constants, scheduled clearing deadlines (`n ↦ n + 60`), and saved governor
+snapshots inside pending policy decisions. It is **not** a general state/clock
+simulation: every relied-on edge is checked independently. Other clocks and
+interleavings are not inferred from these finite paths.
+
+[SourcePolicyBoundaries](SourceInputs/SourcePolicyBoundaries.agda) rechecks all
+four eligible-set/quota pairs under source 120, the actual empty acquisition map,
+and `source-stored-deadline`: successful activation completes at time **3**, so
+the stored deadline is **123** (the old run stores 63). Increment 95’s diagnostic
+`deadline` separately applies a completion at time **0**, explaining its checked
+60/120 values. No diagnostic theorem has been rewritten.
+
+### Seed, split and STM abstraction: exact class
+
+The source authority remains network `2f1c154f248659b89523d5679ca532f442e7ed2a`,
+pinned by consensus `2e44d98a843168ba3b189e305820b79943ac7d1e`. The retained
+Diffusion, Policies, CM Core, ConnMap and Governor ActivePeers/EstablishedPeers/
+Monitor files were compared byte-for-byte with the corresponding pinned Git
+objects: all seven match. Relevant source branches:
+Diffusion.hs:301–308,632–648 (split topology and remote CM selection),
+Policies.hs:126–142,170–221,260–267 (rank/take/set, constants, read/split/write
+inside STM), Core.hs:1278–1279 and ConnMap.hs:198–210 (split before lookup).
+
+[PolicyHistory](SourceInputs/PolicyHistory.agda) explicitly evaluates `picked`
+from the **left** split child and commits the **right** child for later readers.
+`Transactions.history-independent` proves that every complete finite history of
+the four reached policy decisions has exactly the same committed selected lists.
+Histories admit any finite number of discarded/rolled-back attempts and restarts
+with arbitrary replacement seeds; discarded transactions publish no pick and do
+not commit their right child. `canonical` proves converse existence for **every**
+initial policy seed, with `finalSeed` retaining all four committed updates.
+Later activation, demotion and close readers are included in the induction;
+they are not asserted to be unread.
+
+The theorem quantifies over **every `Seed : Set`, every total split function,
+every initial seed, and every stage/seed-dependent comparator**, including all
+source random/metric/tepid/failure tie-break rankings on the reached unique
+all-of-two and singleton sets. It therefore covers any concrete `StdGen`/split
+implementation in that class, without assuming a chosen seed or distribution.
+Metric changes can be represented in the carrier/restart inputs; the selected
+sets do not depend on their values. This is an abstraction of CM-visible choices,
+not a bit-level PRNG implementation or a probability theorem.
+
+[SeededSchedule](SourceInputs/SeededSchedule.agda) checks actual wrapper positions
+**3, 78, 152, 293**, replaces them by the committed reader outputs, and proves
+`Seeded.history-schedule`: the **entire 381-input schedule** equals the checked
+source-profile schedule for every such history. It does not permit a supplied
+proper-subset choice to bypass the policy reader. [SeededConfigured](SourceInputs/SeededConfigured.agda),
+`AllSeeds.initialized-contracts`, `initialized-frontend` and `every-policy-seed`,
+then lift those observations to the whole source-120 configured run and endpoint.
+The independent policy TVar is a separate quantified input; it is never equated
+with the residual diffusion `actions` child.
+
+[DiffusionSeeds](SourceInputs/DiffusionSeeds.agda), `Seeds.diffusion`, transcribes
+the exact seven-split topology into eight named children. `Lookup.acquire` also
+retains the CM split update even when lookup returns nothing. `empty-result`,
+`retained-child`, `all-diffusion-seeds`, together with
+`SourcePolicyBoundaries.acquire-empty` and `SeededConfigured.diffusion-acquire`,
+prove the actually reached absent-bucket result independent of **every** diffusion
+seed/split and arbitrary random-member selector. The stronger
+`SeededConfigured.acquire-position` checks wrapper position **10** and
+`source-schedule-exact` replaces that real input by the diffusion-derived lookup,
+as well as all four policy inputs. `initialized-source-contracts`,
+`initialized-source-frontend` and `every-source-seed` prove the complete run for
+every independent pair of diffusion/policy seeds. The nonempty branch is retained
+as an arbitrary function and is not claimed independent. The other selected
+establishment job remains unentered; no subsequent CM random/pruning/failure/fuzz
+reader occurs in this successful schedule. The inbound schedule performs no OG
+selection or random CM lookup, and all its source-120 edges are checked.
+
+The observation class fixes the reached topology, eligible sets/quotas, ready
+alternatives, clocks, worker ordering and supplied operation/contract outcomes.
+It projects CM decisions and configured frontend lifecycle events, not generator
+contents, discarded attempts or metric-only tracer payloads. Infinite retries,
+readiness-changing concurrent writers, other selection sets, failure/fuzz/pruning
+branches, rotation-dependent wire scheduling, PRNG distributions and native
+Haskell execution/refinement are not proved. These are the existing selected
+profile/contract boundaries, not new universal-progress assumptions. The old
+under-selection control still refutes unrestricted two-way `G.choose` erasure;
+this increment instead supplies a source-constrained policy schedule.
+
+### Validation (increment 96)
+
+Agda **2.8.0**, one process at a time from the standalone library root:
+`agda ConnectionManagement/<file>.agda +RTS -M20G -A128m -RTS`.
+Before every invocation, `pgrep -x agda` returned 1 and `free -g` reported at
+least **14 GB available**. The final accepted records retain those preflights.
+Wall time is measured by the driver and peak RSS by `/usr/bin/time -v`.
+For each of the 23 requested heavy roots, only its own `.agdai` was invalidated;
+its exact `Checking` line and successful exit were confirmed. Dependencies were
+retained: these are fresh own endpoint checks, not cold-library measurements.
+No explicit `-c`, global interface purge or simultaneous Agda run was used.
+
+**Primary new-source acceptance:** 36 commands, 1076.307 s total, 9.215 GiB peak RSS. All 36 roots have fresh own `Checking` lines; Policy is freshly checked transitively, covering all 37 new modules.
+
+| Root (relative to `ConnectionManagement/`) | Seconds | Peak RSS GiB | Own check | Result |
+| --- | ---: | ---: | --- | --- |
+| `SourceInputs/DiffusionSeeds.agda` | 5.220 | 0.781 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/PolicyHistory.agda` | 5.397 | 0.775 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SeededConfigured.agda` | 53.914 | 6.725 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SeededSchedule.agda` | 114.496 | 9.215 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyBoundaries.agda` | 30.535 | 4.126 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound.agda` | 44.404 | 5.533 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound0.agda` | 16.798 | 2.699 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound1.agda` | 18.774 | 2.875 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound10.agda` | 41.728 | 5.278 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound2.agda` | 20.274 | 2.889 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound3.agda` | 22.007 | 2.931 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound4.agda` | 24.693 | 3.242 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound5.agda` | 26.086 | 3.395 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound6.agda` | 29.149 | 4.055 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound7.agda` | 31.181 | 4.306 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound8.agda` | 39.039 | 5.380 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyInbound9.agda` | 43.880 | 6.214 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound.agda` | 55.523 | 6.867 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound0.agda` | 17.301 | 2.445 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound1.agda` | 16.115 | 2.638 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound10.agda` | 19.691 | 2.915 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound11.agda` | 21.731 | 2.894 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound12.agda` | 27.027 | 3.403 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound13.agda` | 31.546 | 4.213 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound14.agda` | 37.648 | 4.877 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound15.agda` | 42.517 | 5.380 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound16.agda` | 46.853 | 6.246 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound17.agda` | 49.161 | 6.406 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound2.agda` | 16.251 | 2.637 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound3.agda` | 17.140 | 2.649 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound4.agda` | 17.976 | 2.393 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound5.agda` | 18.261 | 2.669 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound6.agda` | 18.482 | 2.644 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound7.agda` | 18.384 | 2.544 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound8.agda` | 18.305 | 2.852 | fresh Checking | exit 0, no warnings |
+| `SourceInputs/SourcePolicyOutbound9.agda` | 18.820 | 2.867 | fresh Checking | exit 0, no warnings |
+
+**Requested heavy acceptance:** 23 commands, 2396.829 s total, 11.823 GiB peak RSS. All 23 roots were freshly checked by this increment; no increment-95 heavy queue item is deferred.
+
+| Root (relative to `ConnectionManagement/`) | Seconds | Peak RSS GiB | Own check | Result |
+| --- | ---: | ---: | --- | --- |
+| `Properties/SourceKeysServer.agda` | 982.753 | 6.486 | fresh Checking | exit 0, no warnings |
+| `Properties/OwnedFramesExecution.agda` | 24.369 | 3.279 | fresh Checking | exit 0, no warnings |
+| `Negative/ServerPeers.agda` | 323.361 | 11.630 | fresh Checking | exit 0, no warnings |
+| `Negative/ServerPeersOrigins.agda` | 165.258 | 11.823 | fresh Checking | exit 0, no warnings |
+| `Negative/OwnedCallersFixture.agda` | 57.831 | 8.033 | fresh Checking | exit 0, no warnings |
+| `Negative/LiveTrackerInitialized.agda` | 68.384 | 8.671 | fresh Checking | exit 0, no warnings |
+| `Negative/LiveTrackerAuxFrontend.agda` | 54.453 | 7.022 | fresh Checking | exit 0, no warnings |
+| `Negative/LiveTrackerChainsInitialized.agda` | 49.308 | 6.046 | fresh Checking | exit 0, no warnings |
+| `Negative/LiveTrackerFailuresInitialized.agda` | 51.215 | 6.099 | fresh Checking | exit 0, no warnings |
+| `Negative/LiveTrackerReferencesInitialized.agda` | 47.603 | 6.070 | fresh Checking | exit 0, no warnings |
+| `Negative/ForeignFramesFixture.agda` | 56.809 | 7.459 | fresh Checking | exit 0, no warnings |
+| `Negative/IGPendingQuiet.agda` | 47.564 | 6.409 | fresh Checking | exit 0, no warnings |
+| `Negative/ServerPeersReleaseTimeWait.agda` | 48.815 | 6.179 | fresh Checking | exit 0, no warnings |
+| `Negative/ServerShutdownComplete.agda` | 42.942 | 5.335 | fresh Checking | exit 0, no warnings |
+| `Negative/ServerShutdownCoordinator.agda` | 46.554 | 6.227 | fresh Checking | exit 0, no warnings |
+| `Negative/ConcurrentLifecycleOwnedCallers.agda` | 37.274 | 5.439 | fresh Checking | exit 0, no warnings |
+| `Negative/FullConfiguredBlockedCallers.agda` | 32.869 | 4.427 | fresh Checking | exit 0, no warnings |
+| `Negative/OverlapInitializedOwnedCallers.agda` | 41.365 | 5.586 | fresh Checking | exit 0, no warnings |
+| `Negative/TimeoutCoolingOwnedCallers.agda` | 34.297 | 4.233 | fresh Checking | exit 0, no warnings |
+| `Negative/FullConfiguredCallers.agda` | 49.647 | 6.204 | fresh Checking | exit 0, no warnings |
+| `Negative/InboundConfiguredCallers.agda` | 42.966 | 5.776 | fresh Checking | exit 0, no warnings |
+| `Negative/FullConfiguredWitness.agda` | 49.483 | 6.793 | fresh Checking | exit 0, no warnings |
+| `Negative/InboundConfiguredWitness.agda` | 41.709 | 5.377 | fresh Checking | exit 0, no warnings |
+
+**Retained controls:** 8 commands, 210.213 s total, 6.798 GiB peak RSS.
+
+| Root (relative to `ConnectionManagement/`) | Seconds | Peak RSS GiB | Own check | Result |
+| --- | ---: | ---: | --- | --- |
+| `Negative/SourceSelectionInitial.agda` | 14.309 | 2.371 | interface reuse | exit 0, no warnings |
+| `Negative/SourceSelectionActivate.agda` | 15.375 | 2.209 | interface reuse | exit 0, no warnings |
+| `Negative/SourceSelectionDeactivate.agda` | 16.710 | 2.536 | interface reuse | exit 0, no warnings |
+| `Negative/SourceSelectionClose.agda` | 29.331 | 3.800 | interface reuse | exit 0, no warnings |
+| `Negative/ProtocolContracts2.agda` | 5.270 | 0.848 | interface reuse | exit 0, no warnings |
+| `Negative/FullConfiguredFacts.agda` | 49.432 | 6.798 | interface reuse | exit 0, no warnings |
+| `Negative/InboundConfiguredFacts.agda` | 41.059 | 5.449 | interface reuse | exit 0, no warnings |
+| `Negative/InboundConfiguredControls.agda` | 38.727 | 5.374 | interface reuse | exit 0, no warnings |
+
+**Final accepted suite:** 67 commands, 3683.349 s total, 11.823 GiB peak RSS; 59 fresh own checks / 8 interface-reusing checks, all exit 0 and no final warnings.
+
+Development-only attempts are excluded from those totals: **7** failed
+elaboration/type checks were repaired (name/import/literal-pattern scope,
+structural recursion/canonical-history transport, completion-time deadline and
+saved pending-decision snapshot). Successful superseded development checks are
+also excluded. These do not replace the final accepted commands above.
+No host-memory kill or RTS heap termination occurred.
+
+Local proof audit: **37 new Agda files, zero findings**; no new postulates,
+holes, trust primitives or unsafe options. This is a local heuristic scan, not a
+term-level audit of external assumptions. All nine increment-95 source hashes
+remain unchanged; current new-source hashes match the accepted final checks.
+`git diff --check` and the new-source whitespace scan pass. Seven-page local
+link checking finds no new broken targets; the two historical missing `plan2.md`
+references remain. No generated interface, log or planning file is included in
+the commit list. The ignored local continuity state was updated separately.
+
+### Gate outcome (increment 96)
+
+**G0/G2 are met for the reviewed finite LocalLifecycle profile.** Source constants,
+V15/data/flow/layout and Tx V2 caller inputs are instantiated; every reached
+policy/CM seed-dependent choice has a checked abstraction, including committed
+split updates and finite STM retry/rollback histories. No remaining item from
+increment 95’s selected-profile instantiation queue is open. G1/G3/G4 accepted
+scopes and G5 obligations are unchanged. General source refinement, other random
+readers/interleavings, native replay, distributions, infinite retries, universal
+progress and complete node shutdown are not asserted.
+
+### Files to commit (increment 96)
+
+Exactly **43 paths**, relative to `Network_CSP_Model`: 37 new Agda modules and
+six tracked documentation files. `PROJECT_STATE.md` remains locally ignored.
+
+```text
+ConnectionManagement/BranchMatrix.md
+ConnectionManagement/DESIGN.md
+ConnectionManagement/GateAudit.md
+ConnectionManagement/README.md
+ConnectionManagement/SourceInputs/DiffusionSeeds.agda
+ConnectionManagement/SourceInputs/Policy.agda
+ConnectionManagement/SourceInputs/PolicyHistory.agda
+ConnectionManagement/SourceInputs/SeededConfigured.agda
+ConnectionManagement/SourceInputs/SeededSchedule.agda
+ConnectionManagement/SourceInputs/SourcePolicyBoundaries.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound0.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound1.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound10.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound2.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound3.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound4.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound5.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound6.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound7.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound8.agda
+ConnectionManagement/SourceInputs/SourcePolicyInbound9.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound0.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound1.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound10.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound11.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound12.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound13.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound14.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound15.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound16.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound17.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound2.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound3.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound4.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound5.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound6.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound7.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound8.agda
+ConnectionManagement/SourceInputs/SourcePolicyOutbound9.agda
+ConnectionManagement/Supervision.md
+docs/index.md
+```

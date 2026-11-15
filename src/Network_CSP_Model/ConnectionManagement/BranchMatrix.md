@@ -6,7 +6,7 @@
 
 Authority is network **`2f1c154f248659b89523d5679ca532f442e7ed2a`**, pinned by consensus **`2e44d98a843168ba3b189e305820b79943ac7d1e`**. Earlier evidence keeps network `96ee6e0…` / consensus `585a861…`. The [baseline manifest](../review/source-baseline-2026-11-06.json) records unchanged CM/IG/Server/JobPool files and changed mux, handler and diffusion files. Retained network source copies were matched against its promoted blob inventory before locating the changed ranges below. Consensus bundle, fetch and logic copies match the manifest's applicable content hashes. This does not establish source refinement. The original inventory audit did not inspect model Git metadata; increment 91 separately inspected model HEAD `5a6f9ef633e909577be20842a236d076d4affcc9`.
 
-There is **no successful executable fixture matching all of DESIGN's LocalLifecycle choices**. Increment 91 adds the exact descriptor/target profile and an initialized allocation-refusal diagnostic below. In particular, two accepted sockets do not mean two executing ordinary peers, and protocol number 1 below is a synthetic descriptor, not the configured six-protocol application.
+**Historical inventory through increment 91:** there was no successful executable fixture matching all of DESIGN's LocalLifecycle choices. Increment 91 adds the exact descriptor/target profile and an initialized allocation-refusal diagnostic below. In particular, two accepted sockets do not mean two executing ordinary peers, and protocol number 1 below is a synthetic descriptor, not the configured six-protocol application.
 
 | Fixture and initializer | Actual initial configuration and bundle |
 | --- | --- |
@@ -152,7 +152,7 @@ Common retry maximum **5** matches source; clearing delay **60** versus source
 **120 seconds** is an existing discrete-time model/replay parameter, not a
 reconciled deployment default. All timers are untimed observations.
 
-The concrete seed/selection obligation is still open: fix the source `diRng`
+**Historical boundary through increment 95 (closed for the selected profile by increment 96 below):** the concrete seed/selection obligation was still open: fix the source `diRng`
 and split consumption, policy metrics and peer order, project actual selected
 sets/bucket choices/pruning scores/fuzz at each transaction, and preserve retry
 rollback. Existing replay seeds 0/1/42 do not instantiate this schedule.
@@ -164,7 +164,7 @@ delay difference remain open. None establishes universal progress or source refi
 
 ## Seed, selection and version reconciliation — increment 93
 
-14 November 2026 reconciliation, updated 15 November by increment 95. Direct
+14 November 2026 reconciliation, updated 15 November by increment 96. Direct
 inspection of the unchanged network pin
 `2f1c154f248659b89523d5679ca532f442e7ed2a`, including its retained exact-HEAD
 checkout, and consensus pinned objects at
@@ -176,16 +176,16 @@ been established for the concrete source execution. No source replay was run.
 
 | Input | Pinned source versus initializer/fixtures | Classification and obligation |
 | --- | --- | --- |
-| Diffusion RNG split | [Diffusion] 301–308 splits `diRng` into ledger, churn, fuzz, local CM, remote CM1/CM2, egress and residual peer-selection-actions RNG; IO obtains `diRng` using `newStdGen` at 1062. Model generation fields are draw markers. | **Open after increment 95.** No generator/split/state/commit-retry correspondence is proved. Ranking independence below does not establish it. A ghost seed attached to an already supplied input would leave the source-policy reader unproved. |
-| Policy seed | [Diffusion] 258,803–813 receives `daPeerSelectionPolicy` separately; [Policies] 146–171,260–267 takes an independent RNG TVar, splits/writes it in STM and supplies clearing delay **120**. `Subsystem.initial` supplies **60**. | **Open.** The pin prescribes no unique policy seed; neither a seeded instance nor a source-policy/run abstraction has been checked. [SourceSelectionActivate](Negative/SourceSelectionActivate.agda), `model-delay`, `model-deadline`, `source-deadline`, `deadlines-differ`, proves the reached policy-field discrepancy. This field is read by successful activation; it cannot be certified as unread. |
+| Diffusion RNG split | [Diffusion] 301–308 splits `diRng` into ledger, churn, fuzz, local CM, remote CM1/CM2, egress and residual peer-selection-actions RNG; IO obtains `diRng` using `newStdGen` at 1062. Model generation fields are draw markers. | **Proved abstraction for the selected successful schedules (increment 96).** [DiffusionSeeds](SourceInputs/DiffusionSeeds.agda), `diffusion`, preserves the exact seven-split topology; `Lookup.empty-result`, `retained-child`, `all-diffusion-seeds` cover every seed/split and every random-member function on the reached empty bucket. [Boundaries](SourceInputs/SourcePolicyBoundaries.agda), `acquire-empty`, checks that actual reached map. No further CM random/pruning/failure/fuzz reader occurs in this schedule. This is not a distribution or native-PRNG replay theorem. |
+| Policy seed | [Diffusion] 258,803–813 receives `daPeerSelectionPolicy` separately; [Policies] 146–171,260–267 takes an independent RNG TVar, splits/writes it in STM and supplies clearing delay **120**. `Subsystem.initial` supplies **60**. | **Instantiated constants and proved seed/history abstraction (increment 96).** [Policy](SourceInputs/Policy.agda), `source-initializer`, supplies 5 retries and delay 120; `reduced60` names the unchanged old fixtures. [PolicyHistory](SourceInputs/PolicyHistory.agda), `Transactions.history-independent` and `canonical`, cover every seed carrier, split, seed/metric-dependent comparator and finite retry/rollback/restart history on the four reached sets. [SeededSchedule](SourceInputs/SeededSchedule.agda), `history-schedule`, substitutes every committed pick into its actual schedule position; [SeededConfigured](SourceInputs/SeededConfigured.agda), `initialized-contracts`, `initialized-frontend`, `every-policy-seed`, prove the complete source-120 outbound run. Source-policy under-selection is excluded from this constrained schedule, without claiming equivalence to unrestricted model inputs. |
 | Initial peers, targets and first cold selection | [GTypes] 270–290 permits ordinary 2/2/1 targets with zero root/big-ledger targets. [Policies] 213–221 ranks then takes the requested count and forms a set. | **Proved-abstraction for this reached decision.** [SourceSelectionInitial](Negative/SourceSelectionInitial.agda), `source-inputs`, checks both eligible peers and quota 2 at the real initialized boundary; `ranking-independent` / `decision-independent` covers every comparator on those peers. `Ranking.all-two` includes either ordering and ties. It does not certify a source seed/transaction history. `abstract-proper-subset-enabled` and `source-proper-subset-impossible` refute extending this result to every unrestricted model selection. |
-| Remaining selection inputs | [Policies] 100–143,175–249 reads scores, tepid/failure values and random tie breaks. The configured outbound schedule later activates, deactivates and closes the sole eligible peer. | **Proved-abstraction for the three reached ranking decisions.** [Activate](Negative/SourceSelectionActivate.agda), [Deactivate](Negative/SourceSelectionDeactivate.agda), [Close](Negative/SourceSelectionClose.agda) each proves `source-inputs` (actual eligible singleton/quota 1), `ranking-independent` and `decision-independent` for every comparator, including metric/random ties. Draw consumption, independent RNG state, STM rollback and later consumers remain **open**. No failure/fuzz/pruning branch is certified by these theorems. |
+| Remaining selection inputs | [Policies] 100–143,175–249 reads scores, tepid/failure values and random tie breaks. The configured outbound schedule later activates, deactivates and closes the sole eligible peer. | **Proved-abstraction for the three reached ranking decisions.** [Activate](Negative/SourceSelectionActivate.agda), [Deactivate](Negative/SourceSelectionDeactivate.agda), [Close](Negative/SourceSelectionClose.agda) each proves `source-inputs` (actual eligible singleton/quota 1), `ranking-independent` and `decision-independent` for every comparator, including metric/random ties. Increment 96’s `PolicyHistory.Transactions.history-independent` covers committed right-child updates and all later policy readers in this four-decision history, with arbitrary finite retries/rollbacks/restarts. [SourcePolicyBoundaries](SourceInputs/SourcePolicyBoundaries.agda) rechecks all sets/quotas under source 120. No failure/fuzz/pruning branch is certified by these theorems. |
 | RNG/metrics outside a selected inbound prefix | `InboundCleanLifecycleSupport.settings` has targets 0/0/0 and no known peers; its admission/responder prefix performs no OG selection or CM random bucket/pruning draw. | **Abstracted for that prefix only**, assuming no concurrent OG/CM/pruning input or timing race changes its observations. Unread random state cannot affect these transitions. It does not justify a combined configured 2/2/1 run. |
 | Numerical wire version and descriptor layout | [WireVersion] 85–106 supports 14/15/16; [Wire] 250–325 ignores the numeric version for this layout; [Bundle] 2079–2100 appends Leios 18/19. | **Instantiated for the selected V15 offers.** [Negotiation](SourceInputs/Negotiation.agda) uses a singleton V15 map on each side with disabled sharing/Peras and checks the descriptor projection. [Outbound](Negative/SourceNegotiationOutbound.agda) / [Inbound](Negative/SourceNegotiationInbound.agda), `input-position`, `schedule-exact`, `initialized-contracts` and `initialized-frontend`, insert the derived input into the full configured schedules and prove both runs. No CBOR/native handshake or other version-map claim. |
 | Version data and handshake branch | [WireVersion] 117–157 checks equal magic, meets mode/Peras, combines sharing/query and disallows Peras before V16; [Wire] 536–540 projects mode to flow. | **Instantiated for explicit source-valid offers.** [Negotiation](SourceInputs/Negotiation.agda), `outbound-accepted`, `inbound-accepted` and both `*-projection` equations use magic **42**, query false, sharing disabled, Peras unsupported; local initiator-and-responder plus remote initiator-only yields outbound uni, two initiator-and-responder offers yield inbound duplex. The two full-run fixtures preserve endpoints. Mismatched magic, query, absent common version and invalid V15 Peras controls are checked. Magic 42 is a selected scenario input, not an attributed production setting. |
 | TxSubmission responder version | [Bundle] 551–578 selects V1/V2 from the explicit `mkHandlers` argument independently of wire version. | **Instantiated for an explicit V2 caller profile.** [Negotiation](SourceInputs/Negotiation.agda), `configuredLogic` / `selected-v2`, supplies `logicV2`; [SourceNegotiationInbound](Negative/SourceNegotiationInbound.agda), `tx-position`, replaces the actual contract-start input at position 141 by that selection and proves the entire configured run. V2 retire/scrub/tier ordering retains increment 94's reviewed contract scope. No claim about an unspecified deployed caller's flag or native V2 operation execution. |
 
-**Increment 95 (15 November):** the concrete offer assignment is now checked
+**Historical increment 95 (15 November; superseded by increment 96 below):** the concrete offer assignment is now checked
 through both full configured model runs, rather than left as future replay input.
 The four ranking-decision abstractions are checked at their real reached states.
 **G0/G2 remain partly met:** RNG/split/independent-policy transaction histories
@@ -241,7 +241,7 @@ selected schedule observation does not instantiate source RNG state, source
 concurrency or the negotiated version/data/Tx-logic choice. The source-input
 classifications above retain their conditional scopes and remaining gaps.
 
-**G0 and G2 are not met (partly met).** Configured model runs, the selected
+**Historical increment 95 outcome (superseded by increment 96): G0/G2 partly met.** Configured model runs, the selected
 V15/data/V2 inputs and the four reached ranking decisions now have checked
 evidence. Remaining: source RNG split and independent policy state/transaction
 correspondence, including rollback/consumption and any later readers, plus a
@@ -249,6 +249,19 @@ source-120 initializer/run or a proved observational abstraction for the reached
 60/120 policy difference. Unrestricted source/model policy equivalence is
 refuted by the checked under-selection control. Source operation boundaries
 remain reviewed contracts; no finite trace establishes universal progress.
+
+**Increment 96:** [source-profile initializer](SourceInputs/Policy.agda), full
+[outbound](SourceInputs/SourcePolicyOutbound.agda) and [inbound](SourceInputs/SourcePolicyInbound.agda)
+executions, and the seed/history theorems above close the remaining selected-profile
+instantiation items. **G0/G2 are met at that reviewed finite LocalLifecycle scope.**
+The source run stores deadline **123** after completion at time 3; increment 95’s
+separate time-0 diagnostic remains 60 versus 120. All finite seed histories here
+preserve the reached eligible sets, alternative readiness, supplied operation
+outcomes and event ordering. Infinite retries, other decision sets, failure/fuzz/
+pruning branches, changed clocks/interleavings, PRNG distributions and native
+Haskell refinement are outside these theorems. Unrestricted `G.choose` still
+admits proper subsets; its existing counterexample is preserved.
+[Increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction) records validation and the exact commit list.
 
 ## Reading the matrix
 
@@ -403,17 +416,16 @@ Increments 32–62 and 71–76/79 mainly add provenance, initializer restriction
 
 ## Discrepancies and gate consequences
 
-1. **Profile instantiation — G0/G2 remain partly met.** Increment 92 implements grouped readiness and the full configured outbound lifecycle from the two-ordinary-peer 2/2/1 initializer. Concrete source seed/selection/numerical version and configured initialized inbound coverage remain; no universal progress or refinement follows.
-2. **Protocol lifecycle reviews — complete as contracts.** Batch 1 contracts ChainSync, BlockFetch and their shared registry ([increment 88](Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts)); batch 2 contracts TxSubmission2 and KeepAlive ([increment 89](Supervision.md#eighty-ninth-increment-g0-txsubmission2-and-keepalive-contracts)); batch 3 contracts LeiosNotify, LeiosFetch and shared peer resources ([increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts)). No missing matrix rows remain; configuration/selection reconciliation and full configured initialized coverage remain open. `SERVER.RATE.READ/WAIT` have no model counterpart and are deliberately excluded here; admission `countLimit` cannot be cited as the rate read. Selected exception/promise/timer contracts remain abstract under the accepted G1 primitive matrix; contracted inputs still require source-backed instantiation for G2.
+1. **Profile instantiation — G0/G2 met for the reviewed finite profile.** Increments 92/94 supply the full configured outbound/inbound runs; increment 95 instantiates V15/data/flows and Tx V2. Increment 96 checks source 5/120 initialization through both full runs and proves seed/split/finite-history independence at the reached selection/empty-acquisition boundaries. No universal progress or refinement follows.
+2. **Protocol lifecycle reviews — complete as contracts.** Batch 1 contracts ChainSync, BlockFetch and their shared registry ([increment 88](Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts)); batch 2 contracts TxSubmission2 and KeepAlive ([increment 89](Supervision.md#eighty-ninth-increment-g0-txsubmission2-and-keepalive-contracts)); batch 3 contracts LeiosNotify, LeiosFetch and shared peer resources ([increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts)). No missing matrix rows remain; increments 94–96 complete configured initialized coverage and selected source-input reconciliation. `SERVER.RATE.READ/WAIT` have no model counterpart and are deliberately excluded here; admission `countLimit` cannot be cited as the rate read. Selected exception/promise/timer contracts remain abstract under the accepted G1 primitive matrix; the selected source inputs are instantiated or proved abstract in increments 95–96, while native execution of contracted operations remains a separate boundary.
 3. **Newer model coverage absent from, or stale in, the initial family cells — reconciled here.** Physical initiator/result/restart and typed mux lifecycle, DB waits, release TIME_WAIT receipts, late admission, SI5 and initializer validity have later evidence. `CM.INCLUDE.RESULT`'s “handler execution pending,” `IG.EXIT`'s “rethrow pending” and blanket missing accept/supervision statements describe earlier checkpoints. The SI4 table's “raw admission worker errors before handoff” conflates loop `accept/getLocalAddr/trace` failures (now the implemented `acceptFails` outcome) with the async-fork/worker-unwind edges now implemented in increment 80. M3's pool-body exclusion says “together with its owner,” although the owner cancel/join is implemented. These indexing discrepancies no longer block inventory review; they do not upgrade G2 witnesses. Ownership variants have no production counterparts and stay separate.
 4. **Stale source anchors — corrected in this matrix.** Ledger `[mux-api]` 121–180 now misses `stopped` 214–221 and `stop` 326–328. `[handler]` 324–455 misses inbound publication 510 and the current catch/run boundaries; use 307–518, with publication 436/510. Old mux monitor/cleanup anchors 254–278, 424–618 and 554–570 must be replaced by pool/catch 411–434, monitor 605–833 and shutdown 763–778. Diffusion wiring 539–600 / 625–825 becomes 632–698 / 728–950; the peer policy is now 337–373. Demotion-job start is 963 rather than 961, ending at 1086. The consensus bundle reference had no range; current constructors are 1963–2100 and shared Leios bracket 1836–1864. Fetch's pipelined declaration begins at 587, not the old 591 anchor. These are source-location corrections, not new semantic claims. Unchanged Core/IG/Server/JobPool ranges retain the ledger's authority. No blocking unresolved anchor is being silently treated as implementation.
 
-**G0 remains partly met.** The branch inventory is reviewed with zero missing
-rows. Increment 92 implements grouped readiness and the configured outbound
-witness; increment 93 above records concrete seed/selection/version and inbound
-contract-coupling gaps. G2 still needs configured initialized inbound completion
-and source-input instantiation. Accepted reduced witnesses and outbound
-certificates retain the scopes in [GateAudit](GateAudit.md#g2--first-combined-lifecycle-partly-met).
+**G0/G2 are met for the reviewed finite source-configured profile.** The
+branch inventory is reviewed with zero missing rows, and all remaining selected
+inputs now have instantiation or proved-abstraction evidence. The [gate audit](GateAudit.md)
+and [increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction)
+state the exact finite-history scope and remaining G5/general-refinement obligations.
 
 [Core]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs
 [CMTypes]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Types.hs
