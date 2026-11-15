@@ -11058,3 +11058,157 @@ ConnectionManagement/Exploration/TwoPeer.agda
 ConnectionManagement/GateAudit.md
 ConnectionManagement/Supervision.md
 ```
+
+## Ninety-eighth increment: G5 checked text and targeted race searches
+
+15 November 2026; base HEAD `5a5dee4`. **G5 plan step 9 is complete for the
+explicit finite dictionaries and race-search scopes below. G5 remains partly
+met:** step 10 minimization and reduced-candidate source replay remain open.
+No existing theorem statement, dispatcher, source pin or gate criterion changed.
+
+[Text](Exploration/Text.agda) adds a finite-dictionary representation of full
+G4 bridge labels: `+` skips one dictionary entry, `:` skips ten, `.` followed by
+LF ends one event. A dictionary entry is the actual typed action with its entire
+nested payload. The six exported files use the respective stage-1 witness's
+`W.candidates` (propositionally the decoded bridge carrier by
+`encoded-alphabet`). They are revision/dictionary-relative, not standalone
+Haskell logs, a new API projection or a general action-constructor serializer.
+`printLabel`/`print` take dictionary coverage; duplicate entries are label aliases.
+`parse-print-label`, `bridge-label-round-trip` and `round-trip` state lossless
+scalar/full-list recovery. `check` parses and executes every action from the
+supplied initializer; `check-sound` states that accepted actions and endpoint
+form a real dispatcher run. `check-complete` states acceptance of a printed
+covered run. The unchanged raw trace-introduction theorem then supplies its CSP
+trace. `Imported` retains exact parser recovery and the real native execution;
+`certified-acceptance` proves that each such certificate suffices for acceptance
+by the executable checker, without normalizing a large concrete replay. This is
+model-run checking, not source-log refinement.
+
+The six `Export<Name>` certificates contain the exact retained file literal,
+prove `file-is-print`, and state `imported-labels` and `imported-run` at the
+original initialized endpoint. The independent read-only
+[trace_files.py](Exploration/trace_files.py) verifies artifact bytes against those
+literals; it passed for all six files: **40/109/145/156/294/303 events** and
+**320/1244/1910/2142/6075/6399 bytes**, **18,090 bytes total**.
+The script is transport evidence, not an Agda parser or proof checker.
+[TextControls](Exploration/TextControls.agda) includes malformed, truncated,
+out-of-dictionary, empty-line, no-fuel, duplicate-alias, accepted-run,
+disabled-label and disabled-suffix controls.
+
+### Targeted race certificates and exact scopes
+
+All three use the unchanged stage-1 `Bounded` engine. Their source-positive
+statements are membership certificates, not materialized exhaustive search runs.
+Invariant-based design negatives quantify over every listed endpoint rather
+than rejecting one schedule; the combined late-registry negative additionally
+computes the complete filtered search result.
+**All three source candidates are found by proved membership; the corresponding design searches have bounded negatives.**
+
+| Module | Positive scope and bound | Design negative scope |
+| --- | --- | --- |
+| [RaceLate](Exploration/RaceLate.agda) | Increment-73 reached Server pre-CM state through shutdown/return and five late admission steps; exact ten-action alphabet, depth **10**, capacity **8** (maximum retained workers/sockets/handlers and entry/promise supplies). | Same labels embedded in existing shared `ServerOwnedWorkers.step′`, both unjoined handles retained, same numeric bounds. No join event is in this window; the shared invariant excludes any returned Server endpoint. The combined handler-registry/OwnedCallers `RegistryFind` also computes `filter returnedRegistry (reach 10 8 registryStart) ≡ []`. This is a local boundary comparison, not a new composed late-admission run. |
+| [RaceSelfPurge](Exploration/RaceSelfPurge.agda) | Increment-78 reached phase-B `s77` to `s85`, eight native events; depth **16**, physical-handler capacity **8**. Earlier initialized edges are in the existing counterexample. | Corresponding reached registry `SelfPurge.v77`; original window labels plus the existing repaired progress alphabet, same bounds. Gate/physical-coverage invariants exclude a closed CM with any physical handler lacking its result. Depth 16 also accommodates the repair's fifteen-event continuation. Existing initialized registry progress and result/refusal controls remain checked dependencies. |
+| [RaceForeign](Exploration/RaceForeign.agda) | Full initialized increment-75 run, exact native inner schedule plus six relays-close labels, depth **1000**. Allocation pruning is disabled explicitly (zero metric/budget); finite depth and the exact finite alphabet bound this search. | Same initializer, alphabet and bound under `OwnedCallers.outerStep′`. Existing universal `no-frames` excludes every acquisition/release residue at every enumerated finished-relays endpoint. Concrete worker 900 and request IDs are retained in the finite alphabet. |
+
+No negative is an unbounded source unreachability or shutdown-progress claim.
+The alphabet declarations do not mean every constructor/payload combination over
+small IDs. Source replay classifications are unchanged: increment 73's combined
+late-fork claim remains a candidate; increment 78's direct-CM self-purge replay
+uses synthetic inputs and a blocking cleanup tracer. No source replay was rerun,
+no candidate minimization or new FDR run was performed.
+
+### Validation actually performed
+
+Agda **2.8.0**, library root, one process at a time. Every table row expands
+exactly to `agda ConnectionManagement/<path> +RTS -M20G -A128m -RTS`, never `-c`.
+Before each invocation `pgrep -x agda` was empty in its tool namespace and
+`free -g` showed at least 14 GB available (20–21 GB in the final runs).
+An in-session RSS monitor stopped excessive development elaboration at about
+12 GiB; sampling permits some overhead. All final commands exited 0 without
+warnings or resource stops. No cache was purged. Fresh means that endpoint's own
+`Checking` line was observed; cached means its unchanged own interface was reused.
+
+| Command path | Own check | Wall seconds | Peak RSS KiB | Result |
+| --- | --- | ---: | ---: | --- |
+| [Exploration/Text.agda](Exploration/Text.agda) | fresh | 5.88 | 868,576 | pass |
+| [Exploration/TextControls.agda](Exploration/TextControls.agda) | fresh | 5.43 | 816,524 | pass |
+| [Exploration/ExportHandshakeFailure.agda](Exploration/ExportHandshakeFailure.agda) | fresh | 15.94 | 2,488,200 | pass |
+| [Exploration/ExportInbound.agda](Exploration/ExportInbound.agda) | fresh | 16.75 | 2,423,524 | pass |
+| [Exploration/ExportTimeoutCooling.agda](Exploration/ExportTimeoutCooling.agda) | fresh | 18.27 | 2,539,004 | pass |
+| [Exploration/ExportOutbound.agda](Exploration/ExportOutbound.agda) | fresh | 18.47 | 2,531,468 | pass |
+| [Exploration/ExportTwoPeer.agda](Exploration/ExportTwoPeer.agda) | fresh | 31.75 | 2,760,072 | pass |
+| [Exploration/ExportOverlap.agda](Exploration/ExportOverlap.agda) | fresh | 37.23 | 3,296,860 | pass |
+| [Exploration/RaceLate.agda](Exploration/RaceLate.agda) | fresh | 61.01 | 7,690,568 | pass |
+| [Exploration/RaceSelfPurge.agda](Exploration/RaceSelfPurge.agda) | fresh | 47.11 | 5,504,436 | pass |
+| [Exploration/RaceForeign.agda](Exploration/RaceForeign.agda) | fresh | 59.64 | 8,066,500 | pass |
+| [Exploration/Controls.agda](Exploration/Controls.agda) | cached | 14.34 | 2,511,072 | pass |
+| [CSP/SupervisedWitness.agda](CSP/SupervisedWitness.agda) | cached | 15.12 | 2,543,564 | pass |
+| [CSP/SupervisedControls.agda](CSP/SupervisedControls.agda) | cached | 16.58 | 2,370,460 | pass |
+
+**14 final passing commands; 11 fresh own / 3 cached own;
+363.52 seconds total; 8,066,500 KiB (7.693 GiB) final peak RSS.**
+All eleven new Agda modules, their native witnesses and relevant design
+invariants are covered. The retained-file byte check passes. No unrelated
+heavy network closure or native replay was required or run.
+
+Development diagnostics/stops are separate from final acceptance. Two text
+elaboration diagnostics, a missing explicit ownership-pair type and a missing
+local equality-instance import were corrected. Two constructor-shadowing
+warnings were removed by renaming local binders; no statement changed. A scratch
+probe initially hit a module-path diagnostic, then passed four isolation checks.
+The initial combined late-window normalization was interrupted: the parent tool
+exited 130, but its child continued in an inaccessible process namespace. No
+further Agda check started while memory was below 14 GB; memory subsequently
+returned and all later checks used in-session monitoring and terminal handles.
+That initial child's complete time/peak was not recovered. A refused preflight
+started no Agda process.
+
+Seven concrete checker-equality experiments, one self-purge invariant expansion
+and one foreign-invariant expansion were stopped (exit 143), some manually and
+others by the RSS monitor. The largest measured development invocation was
+**13,181,144 KiB (12.571 GiB)**; this does not bound the unmeasured initial orphan.
+The final re-import certificates retain both exact parser equality and execution;
+the proved generic `certified-acceptance` supplies the same executable acceptance
+conclusion. Abstract invariant helpers and explicit initializer/proof arguments
+avoid concrete runtime normalization in the final race proofs. No existing
+statement, runtime rule or assumption was weakened.
+
+The local source audit scanned all eleven new Agda modules: **22 possible-hole
+hits are all ordinary `≤?` decision operators**. Inspection found no holes,
+postulates, new trust primitives or unsafe pragmas. This is a local source audit,
+not a term-level audit of external dependencies. Whitespace, retained bytes and
+new documentation link targets were checked. Historical missing `plan2.md`
+targets were not introduced here. Unrelated user files and configuration
+symlinks are preserved. No Git state-changing command was run.
+
+**G5 remains partly met. Step 9 stages 1 and 2 are complete at the declared
+scopes.** Step 10 minimization with initialization/violation/replay preservation
+and selected reduced-candidate source-operation replay remains open. G0–G4
+accepted scopes are unchanged.
+
+Exact files to commit (21; exclude generated
+interfaces, scratch/logs and unrelated user files):
+
+```text
+ConnectionManagement/Exploration/Text.agda
+ConnectionManagement/Exploration/TextControls.agda
+ConnectionManagement/Exploration/ExportHandshakeFailure.agda
+ConnectionManagement/Exploration/ExportInbound.agda
+ConnectionManagement/Exploration/ExportTimeoutCooling.agda
+ConnectionManagement/Exploration/ExportOutbound.agda
+ConnectionManagement/Exploration/ExportTwoPeer.agda
+ConnectionManagement/Exploration/ExportOverlap.agda
+ConnectionManagement/Exploration/RaceLate.agda
+ConnectionManagement/Exploration/RaceSelfPurge.agda
+ConnectionManagement/Exploration/RaceForeign.agda
+ConnectionManagement/Exploration/trace_files.py
+ConnectionManagement/Exploration/traces/HandshakeFailure.trace
+ConnectionManagement/Exploration/traces/Inbound.trace
+ConnectionManagement/Exploration/traces/TimeoutCooling.trace
+ConnectionManagement/Exploration/traces/Outbound.trace
+ConnectionManagement/Exploration/traces/TwoPeer.trace
+ConnectionManagement/Exploration/traces/Overlap.trace
+ConnectionManagement/Exploration/README.md
+ConnectionManagement/GateAudit.md
+ConnectionManagement/Supervision.md
+```
