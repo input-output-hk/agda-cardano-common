@@ -10422,3 +10422,196 @@ to `ConnectionManagement/`) are:
 
 These are prior reserved checks, not new failing or stale dependencies caused
 by this additive wrapper. No existing Agda source changed in increment 94.
+
+
+## Ninety-fifth increment: selected source inputs and policy erasure obstruction
+
+15 November 2026. The objective remains the combined CM/IG/OG/Server source-problem
+model and correct design, with unchanged G0–G5 criteria. This increment **does
+not close G0/G2**. It adds nine Agda modules; no existing Agda module, initializer
+or theorem statement changes. Unrelated user files are preserved. No Git mutation,
+source-pin change, external-library/configuration edit or native replay.
+
+### Source authority and selected instantiations
+
+Authority remains network `2f1c154f248659b89523d5679ca532f442e7ed2a` and consensus
+`2e44d98a843168ba3b189e305820b79943ac7d1e`. The retained network checkout has
+exactly that HEAD. Seven inspected retained files match their pinned Git objects
+byte-for-byte: Diffusion, Policies, wire Version, wire NodeToNode, EstablishedPeers,
+PeerSharing and DiffusionMode. Consensus mkHandlers and Leios bundle code was read
+from its pinned Git object, independently of the ordinary checkout's HEAD.
+[BranchMatrix](BranchMatrix.md#seed-selection-and-version-reconciliation--increment-93)
+retains immutable source links and exact ranges.
+
+[SourceInputs/Negotiation](SourceInputs/Negotiation.agda) transcribes the selected
+version-data acceptance/projection: equal magic, minimum diffusion mode/Peras,
+PeerSharing conjunction and query disjunction, V15 Peras validity, then projection
+of a non-query disabled-feature success to the full descriptor list and data flow.
+Both offer maps contain only supported **V15**; **magic 42**, query false,
+PeerSharingDisabled and PerasUnsupported are explicit scenario choices, not
+attributed production values. Local initiator-and-responder with remote
+initiator-only yields outbound unidirectional; two initiator-and-responder offers
+yield inbound duplex. `outbound-accepted`, `inbound-accepted`, both `*-projection`
+equations and mismatch/query/no-common-version/invalid-Peras controls are checked.
+This is a selected source-input projection, not a general handshake/CBOR model.
+
+[SourceNegotiationOutbound](Negative/SourceNegotiationOutbound.agda) and
+[SourceNegotiationInbound](Negative/SourceNegotiationInbound.agda) replace the
+actual negotiation input at wrapper positions **23** and **9** with that concrete
+layout/accepted-flow input. Each proves `input-position`, `schedule-exact`,
+`initialized-contracts` and `initialized-frontend` for the **complete existing
+381/322 outbound and 246/208 inbound runs**, with their original initializer and
+endpoints. [SourceInputs/Schedule](SourceInputs/Schedule.agda), `replace-same`,
+transports the checked runs without re-normalizing all physical machine edges.
+No midpoint is injected and no existing run statement is altered.
+
+`Negotiation.configuredLogic = logicV2` is an explicit caller argument for the
+pinned consensus `mkHandlers` case, independent of V15. `selected-v2` identifies
+its server endpoint, and inbound `tx-position` inserts that source selection at
+actual wrapper position **141**, the V2 contract start. The full run still checks
+V2 retire/scrub before tier release under increment 94's reviewed contract.
+This instantiates a V2 caller profile; it does not recover a flag from an
+unspecified deployed caller or execute native registry/database operations.
+
+### Proved ranking scopes and the stopping boundary
+
+[SourceInputs/Ranking](SourceInputs/Ranking.agda) represents Policies' rank/take/
+set operation as rank/take/address sort for the reached **unique** available sets.
+`all-two` covers every comparator on the two fixed peers (both possible orders,
+including metric/random ties); `singleton` covers every comparator on a singleton.
+The comparator class includes every source score, tepid/failure weighting and
+random tie-break ranking for these sets. No distribution or RNG state update is
+asserted. Canonical address sorting represents `Set.toList . Set.fromList` only
+at these unique two/singleton inputs.
+
+[SourceSelectionInitial](Negative/SourceSelectionInitial.agda),
+[SourceSelectionActivate](Negative/SourceSelectionActivate.agda),
+[SourceSelectionDeactivate](Negative/SourceSelectionDeactivate.agda) and
+[SourceSelectionClose](Negative/SourceSelectionClose.agda) each proves:
+
+- `source-inputs`: the actual eligible set and quota at the reached configured
+  boundary (first both peers/quota 2, then the eligible singleton/quota 1).
+- `ranking-independent`: the selected canonical list equals the fixture choice
+  for every comparator in that class.
+- `decision-independent`: the entire real `OutboundGovernor.choose` decision is
+  unchanged by those rankings.
+
+These are checked local decision abstractions under the selected topology and
+schedule, not a theorem relating the Haskell governor state/clock to every model
+state or a source STM execution history.
+
+**The remaining RNG/policy gap is open.** No theorem relates the source generator,
+split/draw consumption, independent policy TVar, retries/rollback or later seed
+consumers to the model generation markers and supplied inputs. Source `addRand`
+reads its RNG inside STM; an unused product-state seed would not establish that
+reader's source correspondence. The library does not prescribe one policy seed.
+A selected seeded policy instance or a source-constrained policy/transaction
+layer with a proved observational correspondence is still required.
+
+Two checked diagnostics delimit what may be claimed:
+
+- `SourceSelectionInitial.abstract-proper-subset-enabled` shows the unrestricted
+  model can choose one peer with two available and quota 2;
+  `source-proper-subset-impossible` proves the source rank/take/set projection
+  always selects both, for every ranking. Thus unrestricted two-way policy
+  erasure cannot hold at this boundary. This does not refute the selected full
+  witness, whose initial choice is both peers.
+- `SourceSelectionActivate.model-delay`, `model-deadline`, `source-deadline` and
+  `deadlines-differ` prove the reached successful activation uses the initializer's
+  **60** clearing delay and stores deadline 60, while Policies.hs:171 supplies
+  **120**, yielding deadline 120 at the same time. The field is read; it is not
+  merely threaded unused state. This is a state/deadline difference, not by itself
+  a CM-visible timing counterexample. There is no checked source-120 initialized
+  full run or CM-observational abstraction for it in this increment.
+
+Work stops at this unproved source-policy boundary. Existing statements and the
+usual initializer remain intact. Continuing requires a new source-configured
+initializer/policy layer plus full-run/correspondence evidence; the local ranking
+lemmas alone cannot justify calling the RNG/policy item met.
+
+### Validation
+
+Agda **2.8.0**, from the standalone library root, one process at a time:
+`agda ConnectionManagement/<file>.agda +RTS -M20G -A128m -RTS`.
+No explicit `-c`, no interface invalidation or cache purge. A 0.1-second process-
+group RSS monitor stopped above 9,400,000,000 bytes; no stop fired. Wall time is
+measured by the wrapper, RSS by `/usr/bin/time -v`; these are warm-dependency
+checks, not cold-build measurements.
+
+| Root (relative to `ConnectionManagement/`) | Seconds | Peak RSS GiB | Own check | Result |
+| --- | ---: | ---: | --- | --- |
+| `SourceInputs/Negotiation.agda` | 5.538 | 0.819 | fresh Checking | exit 0, no warnings |
+| `Negative/SourceNegotiationOutbound.agda` | 49.188 | 6.336 | fresh Checking | exit 0, no warnings |
+| `Negative/SourceNegotiationInbound.agda` | 41.646 | 5.267 | fresh Checking | exit 0, no warnings |
+| `Negative/SourceSelectionInitial.agda` | 15.086 | 2.700 | fresh Checking | exit 0, no warnings |
+| `Negative/SourceSelectionActivate.agda` | 16.295 | 2.700 | fresh Checking | exit 0, no warnings |
+| `Negative/SourceSelectionDeactivate.agda` | 17.203 | 2.607 | fresh Checking | exit 0, no warnings |
+| `Negative/SourceSelectionClose.agda` | 30.086 | 3.919 | fresh Checking | exit 0, no warnings |
+| `Negative/ProtocolContracts2.agda` | 5.232 | 0.848 | interface reuse | exit 0, no warnings |
+| `Negative/InboundConfiguredControls.agda` | 38.840 | 5.374 | interface reuse | exit 0, no warnings |
+| `Negative/FullConfiguredFacts.agda` | 48.599 | 6.798 | interface reuse | exit 0, no warnings |
+
+Final accepted suite: **10 invocations, 7 fresh own checks / 3 cached,
+267.713 s total, 6.798 GiB peak**, all exit 0/no warnings. The seven new roots
+cover all nine new modules transitively. Schedule was freshly checked while
+checking SourceNegotiationOutbound; Ranking was checked while first developing
+SourceSelectionInitial and its current interface was validated by the final roots.
+The two original full configured witness interfaces are reused by the new
+full-run certificates; no fresh old-witness claim.
+
+Two development failures were repaired: dependent-pair inference left metas in
+the first eligible-set equation (fixed with an explicit `List PeerAddr × ℕ`
+intermediate); a missing parenthesis passed `B.runtime` itself to `V.base`
+(fixed in the three singleton modules). Those exit-42 attempts, at 15.189 s /
+2.700 GiB and 15.894 s / 2.700 GiB, are excluded from the accepted suite.
+No resource stop or final warning occurred.
+
+Local proof audit: **nine files / zero findings** (no new holes/postulates/trust
+primitives/unsafe pragmas); this is not a transitive term-level axiom audit.
+Existing Agda source diff is empty. `git diff --check` and all nine new-source
+whitespace scans pass. Five-page local path checking covers **1,204 targets**
+and finds only the two historical missing `plan2.md` references (PROJECT_STATE
+and GateAudit); no new missing local target. The new increment-95 fragment links
+resolve; external URLs were not fetched. No pre-existing source imports the
+new fixtures, so existing heavy reverse closures are not invalidated.
+
+### Gate status and deferred checks
+
+**G0/G2 remain partly met.** Instantiated for the selected caller profiles:
+V15 singleton offers, both data offers, accepted flow/features/layout and explicit
+V2 logic input, each tied to a full configured run. Proved abstractions: the four
+reached ranking decisions for all comparators on the checked available sets.
+Open: diffusion RNG split, independent policy seed/state and transactional draw/
+rollback/later-reader correspondence; source-policy under-selection restriction;
+and source-120 initializer/run or a proved abstraction for the reached delay
+field. Contracted operation/codec/private-resource boundaries retain their
+previous scope. G1/G3/G4 and G5 obligations are unchanged. No source refinement,
+universal progress, complete node shutdown or timing equivalence is asserted.
+
+No existing Agda source changes, so no heavy reverse-import closure is newly
+invalidated. The full configured witnesses are imported through current checked
+interfaces by the new concrete-input fixtures; they were not freshly rebuilt.
+For separate reviewer acceptance, retain the requested queue (paths relative to
+`ConnectionManagement/`):
+
+- `Properties/SourceKeysServer.agda`, `Properties/OwnedFramesExecution.agda`.
+- `Negative/ServerPeers.agda`, `Negative/ServerPeersOrigins.agda`,
+  `Negative/OwnedCallersFixture.agda`.
+- LiveTracker: `Negative/LiveTrackerInitialized.agda`,
+  `Negative/LiveTrackerAuxFrontend.agda`, `Negative/LiveTrackerChainsInitialized.agda`,
+  `Negative/LiveTrackerFailuresInitialized.agda`,
+  `Negative/LiveTrackerReferencesInitialized.agda`.
+- Other increment-82 downstream fixtures: `Negative/ForeignFramesFixture.agda`,
+  `Negative/IGPendingQuiet.agda`, `Negative/ServerPeersReleaseTimeWait.agda`,
+  `Negative/ServerShutdownComplete.agda`, `Negative/ServerShutdownCoordinator.agda`.
+- Owned-caller certificates: `Negative/ConcurrentLifecycleOwnedCallers.agda`,
+  `Negative/FullConfiguredBlockedCallers.agda`, `Negative/OverlapInitializedOwnedCallers.agda`,
+  `Negative/TimeoutCoolingOwnedCallers.agda`, `Negative/FullConfiguredCallers.agda`,
+  `Negative/InboundConfiguredCallers.agda`.
+- Fresh aggregate acceptance: `Negative/FullConfiguredWitness.agda`,
+  `Negative/InboundConfiguredWitness.agda`.
+
+None of these received a fresh own rebuild in increment 95. Increment 92's
+reviewer measurement of `Negative/ServerPeers.agda` at **12.9 GiB** is historical;
+no >12-GB check was attempted or discovered here. The present approximate-10-GB
+budget still applies: split heavy checks instead of launching them unbounded.

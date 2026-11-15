@@ -77,8 +77,8 @@ strict number order; filtering by temperature retains the source group orders.
 network magic, numerical version or feature-flag value. Source layout selection
 ignores the version argument here. Supported [source versions][WireVersion] 14/15/16 with
 PerasUnsupported and PeerSharingDisabled share this descriptor layout; no
-specific numerical version is recoverable from a model handle. Fixing one for
-codec/source replay remains an instantiation obligation. Tx responder V1/V2 is
+specific numerical version is recoverable from a model handle. Increment 95 fixes V15 for the checked full-run source-input fixtures;
+native codec/source replay remains separate. Tx responder V1/V2 is
 selected separately by `txSubmissionLogicVersion` ([Bundle] 551–578), not a
 second protocol 4 or a wire-version inference. Neither responder variant is
 instantiated in the outbound witness. Payload/codec, peer trust,
@@ -157,14 +157,15 @@ and split consumption, policy metrics and peer order, project actual selected
 sets/bucket choices/pruning scores/fuzz at each transaction, and preserve retry
 rollback. Existing replay seeds 0/1/42 do not instantiate this schedule.
 Accordingly **G0 remains partly met** despite completing this discrepancy
-reconciliation, and **G2 remains partly met**. Their remaining work includes
-seed/selection/version instantiation and configured initialized clean inbound
-coverage. The grouped-readiness implementation and outbound witness do not
-establish universal progress or source refinement.
+reconciliation, and **G2 remains partly met**. Increment 94 completes configured initialized inbound coverage; increment 95
+checks selected V15/data/V2 inputs and all four reached ranking decisions.
+RNG/split/independent-policy transaction correspondence and the reached 60/120
+delay difference remain open. None establishes universal progress or source refinement.
 
 ## Seed, selection and version reconciliation — increment 93
 
-14 November 2026. Direct inspection of the unchanged network pin
+14 November 2026 reconciliation, updated 15 November by increment 95. Direct
+inspection of the unchanged network pin
 `2f1c154f248659b89523d5679ca532f442e7ed2a`, including its retained exact-HEAD
 checkout, and consensus pinned objects at
 `2e44d98a843168ba3b189e305820b79943ac7d1e`. Source line numbers below refer to
@@ -175,22 +176,25 @@ been established for the concrete source execution. No source replay was run.
 
 | Input | Pinned source versus initializer/fixtures | Classification and obligation |
 | --- | --- | --- |
-| Diffusion RNG split | [Diffusion] 301–308 splits `diRng` successively into ledger, churn, fuzz, local CM, remote CM1/CM2, egress, then residual peer-selection-actions RNG; IO obtains `diRng` using `newStdGen` at 1062. `O.initial.randomGeneration` and `Machine.initial.pruningGeneration` are 0 draw markers, with no `StdGen`. | **Gap for a concrete seeded schedule.** Record external generator state, random package/version and split consumption, transaction retries and selected observations. Zero markers and source replay seeds 0/1/42 do not provide it. |
-| Policy seed | [Diffusion] 258 and 803–813 receives `daPeerSelectionPolicy` separately; `fuzzRng` goes to the governor, not to this policy's RNG TVar. [Policies] 146–161 takes a caller-supplied `StrictTVar StdGen` and metrics; 260–267 splits and writes its RNG inside STM. | **Gap.** The library pin does not prescribe a single numerical policy seed. Identify the calling instance and its policy RNG initialization independently of `diRng`; preserve STM rollback. Equating it with residual `peerSelectionActionsRng` is unjustified. |
-| Initial peers, targets and first cold selection | [GTypes] 270–290 permits ordinary targets 2/2/1 with zero root/big-ledger targets. [Policies] 213–221 ranks the available set then takes the requested cardinality. `FullConfiguredProfile` starts with exactly two eligible ordinary peers, failure counts 0, tepid false; `FullConfiguredAcquire.a4` selects both, and `.a11` acquires an absent bucket. | **Reconciled at the projected first choice**, assuming precisely that source topology, no concurrent discovery/state change and empty CM bucket. Taking both of two is independent of the policy ranks; absent-bucket acquisition makes no random member choice. This does not reconcile later choices or certify a seed. |
-| Remaining selection inputs | [Policies] 100–143 and 175–249 use metric scores, tepid flags, failure counts, address order and random tie breaks. [Established] 521 draws continuous `Double` fuzz; [Core] 1276–1279, 1379–1388 splits CM randomness transactionally. Model `selectPolicy` allows an eligible distinct list up to quota, acquisition supplies a member/absence, pruning supplies scores, jitter uses codes 0..4. The full outbound run activates the sole established peer; the other establishment worker remains unentered. Later deactivation and close also select that singleton (the imported `GovernorLifecycle.a55/a89/a121` inputs). | **Abstracted for these all-or-singleton selections**, assuming the same eligible sets/quotas and schedule: ranking cannot change their selected sets, even when draws are consumed. **Gap for concrete source instantiation:** confirm those source sets/quotas, ordering and transaction history; record the independent RNG states and any later consumers. General model eligibility alone does not certify source cardinality. Discrete jitter is not a distribution or exact time equivalence. No failure/fuzz or pruning branch is exercised here. |
+| Diffusion RNG split | [Diffusion] 301–308 splits `diRng` into ledger, churn, fuzz, local CM, remote CM1/CM2, egress and residual peer-selection-actions RNG; IO obtains `diRng` using `newStdGen` at 1062. Model generation fields are draw markers. | **Open after increment 95.** No generator/split/state/commit-retry correspondence is proved. Ranking independence below does not establish it. A ghost seed attached to an already supplied input would leave the source-policy reader unproved. |
+| Policy seed | [Diffusion] 258,803–813 receives `daPeerSelectionPolicy` separately; [Policies] 146–171,260–267 takes an independent RNG TVar, splits/writes it in STM and supplies clearing delay **120**. `Subsystem.initial` supplies **60**. | **Open.** The pin prescribes no unique policy seed; neither a seeded instance nor a source-policy/run abstraction has been checked. [SourceSelectionActivate](Negative/SourceSelectionActivate.agda), `model-delay`, `model-deadline`, `source-deadline`, `deadlines-differ`, proves the reached policy-field discrepancy. This field is read by successful activation; it cannot be certified as unread. |
+| Initial peers, targets and first cold selection | [GTypes] 270–290 permits ordinary 2/2/1 targets with zero root/big-ledger targets. [Policies] 213–221 ranks then takes the requested count and forms a set. | **Proved-abstraction for this reached decision.** [SourceSelectionInitial](Negative/SourceSelectionInitial.agda), `source-inputs`, checks both eligible peers and quota 2 at the real initialized boundary; `ranking-independent` / `decision-independent` covers every comparator on those peers. `Ranking.all-two` includes either ordering and ties. It does not certify a source seed/transaction history. `abstract-proper-subset-enabled` and `source-proper-subset-impossible` refute extending this result to every unrestricted model selection. |
+| Remaining selection inputs | [Policies] 100–143,175–249 reads scores, tepid/failure values and random tie breaks. The configured outbound schedule later activates, deactivates and closes the sole eligible peer. | **Proved-abstraction for the three reached ranking decisions.** [Activate](Negative/SourceSelectionActivate.agda), [Deactivate](Negative/SourceSelectionDeactivate.agda), [Close](Negative/SourceSelectionClose.agda) each proves `source-inputs` (actual eligible singleton/quota 1), `ranking-independent` and `decision-independent` for every comparator, including metric/random ties. Draw consumption, independent RNG state, STM rollback and later consumers remain **open**. No failure/fuzz/pruning branch is certified by these theorems. |
 | RNG/metrics outside a selected inbound prefix | `InboundCleanLifecycleSupport.settings` has targets 0/0/0 and no known peers; its admission/responder prefix performs no OG selection or CM random bucket/pruning draw. | **Abstracted for that prefix only**, assuming no concurrent OG/CM/pruning input or timing race changes its observations. Unread random state cannot affect these transitions. It does not justify a combined configured 2/2/1 run. |
-| Numerical wire version and descriptor layout | [WireVersion] 85–106 supports 14/15/16; [Wire] 250–325 ignores `_version` for this layout. With PeerSharingDisabled and PerasUnsupported the groups are hot 2/3/4/18/19, warm empty, established 8/Any (Leios callbacks supplied by [Bundle] 1963–2100). Model `Protocol` stores only number/temperature/start. | **Abstracted after successful negotiation**, assuming identical selected layout, flow, callback variant, limits and supplied operation/results. The numeric tag then has no model reader; codec/payload outcomes remain contracts. **Concrete version instantiation remains a gap:** no offered-version map, agreed tag or codec execution is certified by either fixture. |
-| Version data and handshake branch | [WireVersion] 117–148 records network magic, diffusion mode, peer sharing, query and Peras; acceptance checks equal magic, combines diffusion/Peras with `min`, sharing with `<>`, query with `||`; 153–157 restricts Peras before V16. `FullConfiguredBlocked.negotiate` supplies `fullBundle` and unidirectional flow; the reduced inbound fixture supplies synthetic protocol 1 and duplex flow, and increment 94 supplies the full bundle/duplex outcome; neither has version data. | **Gap for concrete source instantiation.** Record both offers, common supported tag, equal magic, query false on both, sharing disabled and Peras unsupported, and show the accepted diffusion-mode projection yields each fixture's flow. Magic mismatch/query/flow/features can change CM-visible branches, so erasing these before fixing the outcome is not harmless. Reduced protocol 1 is deliberately synthetic. |
-| TxSubmission responder version | [Bundle] 551–578 chooses V1/V2 using `txSubmissionLogicVersion`, separately from wire version. `ProtocolContracts2` has distinct `txServerV1`/`txServerV2`; outbound `ConfiguredProtocols.normalDone` uses only `txClient`. | **Model choice explicit in increment 94:** `ConfiguredResponders` selects only V2 and rejects V1/client actions; its initialized run checks V2 retire/scrub then tier leave. **Source instantiation remains a gap:** confirm the calling source configuration selects V2. Neither the wire tag nor the existence of the V2 model path establishes that fact. |
+| Numerical wire version and descriptor layout | [WireVersion] 85–106 supports 14/15/16; [Wire] 250–325 ignores the numeric version for this layout; [Bundle] 2079–2100 appends Leios 18/19. | **Instantiated for the selected V15 offers.** [Negotiation](SourceInputs/Negotiation.agda) uses a singleton V15 map on each side with disabled sharing/Peras and checks the descriptor projection. [Outbound](Negative/SourceNegotiationOutbound.agda) / [Inbound](Negative/SourceNegotiationInbound.agda), `input-position`, `schedule-exact`, `initialized-contracts` and `initialized-frontend`, insert the derived input into the full configured schedules and prove both runs. No CBOR/native handshake or other version-map claim. |
+| Version data and handshake branch | [WireVersion] 117–157 checks equal magic, meets mode/Peras, combines sharing/query and disallows Peras before V16; [Wire] 536–540 projects mode to flow. | **Instantiated for explicit source-valid offers.** [Negotiation](SourceInputs/Negotiation.agda), `outbound-accepted`, `inbound-accepted` and both `*-projection` equations use magic **42**, query false, sharing disabled, Peras unsupported; local initiator-and-responder plus remote initiator-only yields outbound uni, two initiator-and-responder offers yield inbound duplex. The two full-run fixtures preserve endpoints. Mismatched magic, query, absent common version and invalid V15 Peras controls are checked. Magic 42 is a selected scenario input, not an attributed production setting. |
+| TxSubmission responder version | [Bundle] 551–578 selects V1/V2 from the explicit `mkHandlers` argument independently of wire version. | **Instantiated for an explicit V2 caller profile.** [Negotiation](SourceInputs/Negotiation.agda), `configuredLogic` / `selected-v2`, supplies `logicV2`; [SourceNegotiationInbound](Negative/SourceNegotiationInbound.agda), `tx-position`, replaces the actual contract-start input at position 141 by that selection and proves the entire configured run. V2 retire/scrub/tier ordering retains increment 94's reviewed contract scope. No claim about an unspecified deployed caller's flag or native V2 operation execution. |
 
-A possible version-data assignment is a specification for future replay, not
-measured evidence: use common V15, equal explicit network magic, query false,
-PeerSharingDisabled and PerasUnsupported; choose local/remote diffusion modes
-so their accepted projection gives the desired flow. No value is retroactively
-attributed to a model handle. Keeping the successful handshake, layout and all
-contract observations fixed explains the conditional abstraction above; changing
-those premises can change CM-visible behavior.
+**Increment 95 (15 November):** the concrete offer assignment is now checked
+through both full configured model runs, rather than left as future replay input.
+The four ranking-decision abstractions are checked at their real reached states.
+**G0/G2 remain partly met:** RNG/split/independent-policy transaction histories
+have no proved source correspondence, and the 60/120 policy-delay discrepancy
+has no source-configured whole-run fixture or observational abstraction. The
+unrestricted model additionally permits under-selection that the source policy
+cannot produce. [Increment 95](Supervision.md#ninety-fifth-increment-selected-source-inputs-and-policy-erasure-obstruction)
+records the stopping boundary and acceptance evidence. These local proofs do
+not justify dropping the remaining seed/policy obligations.
 
 ### Configured inbound obstruction and requested change
 
@@ -237,10 +241,14 @@ selected schedule observation does not instantiate source RNG state, source
 concurrency or the negotiated version/data/Tx-logic choice. The source-input
 classifications above retain their conditional scopes and remaining gaps.
 
-**G0 and G2 are not met (partly met).** The configured inbound model-run obligation is met; concrete source split/policy seed and full reached
-selection inputs, concrete negotiated version/data and Tx responder variant
-still need source-backed instantiation. Configured inbound model contract execution is now checked; its operation boundaries remain reviewed contracts. Increment 92's outbound witness and deferred heavy
-acceptance remain unchanged; no new finite trace establishes universal progress.
+**G0 and G2 are not met (partly met).** Configured model runs, the selected
+V15/data/V2 inputs and the four reached ranking decisions now have checked
+evidence. Remaining: source RNG split and independent policy state/transaction
+correspondence, including rollback/consumption and any later readers, plus a
+source-120 initializer/run or a proved observational abstraction for the reached
+60/120 policy difference. Unrestricted source/model policy equivalence is
+refuted by the checked under-selection control. Source operation boundaries
+remain reviewed contracts; no finite trace establishes universal progress.
 
 ## Reading the matrix
 

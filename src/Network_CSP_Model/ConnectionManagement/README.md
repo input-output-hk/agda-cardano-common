@@ -9,7 +9,10 @@ StartOnDemandAny, now supported by increment 92. The full configured
 [initialized outbound witness](Negative/FullConfiguredWitness.agda) extends the
 24-event diagnostic prefix. [Increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle)
 adds the configured initialized inbound responder run and OwnedCallers.
-Concrete source RNG/selection/version instantiation still leaves G0/G2 partly met.
+[Increment 95](Supervision.md#ninety-fifth-increment-selected-source-inputs-and-policy-erasure-obstruction)
+checks selected V15/data/V2 inputs in both full runs and the four reached ranking
+decisions. RNG/split/policy transaction correspondence and the 60/120 clearing-delay
+difference still leave G0/G2 partly met.
 
 The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
 and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
