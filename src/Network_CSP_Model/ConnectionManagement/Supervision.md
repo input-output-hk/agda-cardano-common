@@ -10903,3 +10903,158 @@ ConnectionManagement/SourceInputs/SourcePolicyOutbound9.agda
 ConnectionManagement/Supervision.md
 docs/index.md
 ```
+
+
+## Ninety-seventh increment: G5 bounded enumeration and witness membership
+
+15 November 2026, inspected HEAD `11994cf`. G5 gate-plan step 9, first part:
+12 additive Agda modules and their [exploration guide](Exploration/README.md).
+The combined CM/IG/OG/Server source-problem and correct-design objective, source
+pins and G0–G5 acceptance criteria are unchanged. No existing Agda source or
+theorem statement, runtime rule, dependency or configuration was changed. No
+Git state-changing command, exporter, FDR run, minimizer or source replay occurred.
+
+**Enumerator and exact scope.** [Bounded](Exploration/Bounded.agda) implements
+`enabled`/`enabledEvents` by evaluating the actual dispatcher on every element
+of a declared finite alphabet. `enabled-sound`/`enabled-complete` retain exact
+successors; `events-sound`/`events-complete` establish precisely the raw bridge's
+offers over its encoded finite alphabet. `absent-refusal` reuses G4's existing
+singleton-refusal theorem. These enabledness theorems hold at every state and
+are independent of allocation pruning. [Alphabet](Exploration/Alphabet.agda)
+uses the bridge's `decode`, rejecting tick, and proves encoded lists round-trip.
+No syntactic constructor family is silently classified as unsupported or refused.
+
+`reach n b s` enumerates every trace/endpoint pair of length at most `n` whose
+visited states satisfy `allocated ≤ b`. `reach-sound` gives that length bound
+and a `BoundedRun`; `real-run` erases its extra evidence to a real dispatcher run
+(and G4's `trace-intro` yields its CSP trace). `reach-complete` includes every
+such carrier run. Empty traces, initialization and endpoint allocation are
+checked. `frontiers` retains the prefix and state at separate allocation/depth
+cutoffs or alphabet exhaustion. An enabled edge entering an over-budget state
+remains an enabled edge; its allocation-frontier endpoint is excluded from
+`reach`. Alphabet exhaustion is not global deadlock or unreachability.
+
+[Supervised](Exploration/Supervised.agda) instantiates the actual outer
+`ServerPeersRelays.Protocols.outerStep`; classifier/capability functions remain
+parameters. For a declared allocation cutoff `b`, four separate typed finite
+carriers contain worker, peer-connection, socket and promise IDs with serials
+`[0,b)`. The four `*-bounded` lemmas cover their explicitly listed runtime
+key/capture projections. `footprint` also bounds entry/promise/peer/job supplies
+and selected retained store sizes, reserving one supervisor slot. This is the
+maximum of those capacity/identity measures, not total bytes, a full traversal
+of every nested metadata field, or total historical allocations. The event
+alphabet bounds other explicit identities/environment payloads. Completeness
+is relative to the declared decoded event list, **not every small-ID
+constructor/payload combination**; extending a numeric ID range does not extend
+that list automatically. There is no merging, partial-order pruning or fixed
+schedule order in the enumerator. Input duplicates produce duplicate branches.
+
+**First use, small ones first.** Each separately checked module proves
+`initialized-witness-found` for the exact committed initialized native endpoint:
+
+| Module | Witness | Depth bound | Alphabet list length |
+| --- | --- | ---: | ---: |
+| [HandshakeFailure](Exploration/HandshakeFailure.agda) | G2 handshake failure / physical cleanup | 40 | 47 |
+| [Inbound](Exploration/Inbound.agda) | G2 clean inbound | 109 | 116 |
+| [TimeoutCooling](Exploration/TimeoutCooling.agda) | G2 production-only timeout cooling | 145 | 152 |
+| [Outbound](Exploration/Outbound.agda) | G2 clean outbound | 156 | 163 |
+| [TwoPeer](Exploration/TwoPeer.agda) | G3 two executing ordinary peers | 294 | 301 |
+| [Overlap](Exploration/Overlap.agda) | G3 overlapping same-key incarnations | 303 | 310 |
+
+For each witness, the declared alphabet is `map innerAct schedule` plus all seven
+outer relays actions, encoded/decoded through G4. All enabled permutations and
+repetitions over it belong to the search scope, not only that schedule. The
+explicit per-witness allocation cutoff is the executable closed natural-valued
+term `allocation-bound = W.Find.budgetFor W.start W.actions`, the maximum actual
+footprint of the finite schedule, including both endpoints. `run-with-budget`
+proves that bound sufficient. The six cutoff terms are **not normalized to
+numeral constants**, and the six large search trees are **not materialized**:
+these are proved membership lemmas using enumeration completeness, as permitted
+by the task. The numerical depth bounds use the existing step-count theorems.
+These certificates cover the requested reduced ordinary G2/G3 witnesses; they
+do not additionally claim enumeration of the later full configured/source-policy
+profiles or all scheduler interleavings of every small-ID action.
+
+[Controls](Exploration/Controls.agda) does compute a search: at the real outbound
+initializer it checks the exact enabled list over all seven relays actions and
+the complete depth-one trace list with numeric depth/allocation bounds **1/1**.
+It computes a distinct allocation frontier at **1/0**, a depth frontier at **0/1**,
+the disabled finish edge, and tick rejection/typed-label decoding. The enabled
+failure edge therefore coexists with refused relays actions; refusal is not
+mistaken for alphabet exhaustion or an allocation cutoff.
+
+**Validation actually performed.** Agda 2.8.0, library root, one process at a time.
+Every invocation used exactly `agda <path> +RTS -M20G -A128m -RTS`, never `-c`.
+Before each invocation `pgrep -x agda` was empty and `free -g` showed at least
+14 GB available (20 GB in the final runs). A separate RSS monitor stopped checks
+at about 10 GB; no successful final check hit that stop. The table's paths expand
+to the exact commands by prefixing `ConnectionManagement/` and appending `.agda`
+and the flags above. No cache was purged. The four generic helper commands reuse
+interfaces already freshly elaborated while developing this increment; the two
+unchanged G4 roots are regression checks reusing existing interfaces.
+
+| Command path | Own check | Wall seconds | Peak RSS KiB | Result |
+| --- | --- | ---: | ---: | --- |
+| [Exploration/Supervised](Exploration/Supervised.agda) | fresh own Checking | 9.32 | 1,559,252 | pass |
+| [Exploration/Controls](Exploration/Controls.agda) | fresh own Checking | 16.03 | 2,314,348 | pass |
+| [Exploration/HandshakeFailure](Exploration/HandshakeFailure.agda) | fresh own Checking | 16.32 | 2,407,300 | pass |
+| [Exploration/Inbound](Exploration/Inbound.agda) | fresh own Checking | 16.95 | 2,338,956 | pass |
+| [Exploration/TimeoutCooling](Exploration/TimeoutCooling.agda) | fresh own Checking | 17.84 | 2,476,320 | pass |
+| [Exploration/Outbound](Exploration/Outbound.agda) | fresh own Checking | 17.79 | 2,480,808 | pass |
+| [Exploration/TwoPeer](Exploration/TwoPeer.agda) | fresh own Checking | 22.16 | 2,828,100 | pass |
+| [Exploration/Overlap](Exploration/Overlap.agda) | fresh own Checking | 25.77 | 3,325,692 | pass |
+| [Exploration/Finite](Exploration/Finite.agda) | cached own interface | 0.64 | 260,844 | pass |
+| [Exploration/Identities](Exploration/Identities.agda) | cached own interface | 5.43 | 850,872 | pass |
+| [Exploration/Alphabet](Exploration/Alphabet.agda) | cached own interface | 5.53 | 919,596 | pass |
+| [Exploration/Bounded](Exploration/Bounded.agda) | cached own interface | 5.50 | 869,396 | pass |
+| [CSP/SupervisedWitness](CSP/SupervisedWitness.agda) | cached own interface | 16.11 | 2,548,336 | pass |
+| [CSP/SupervisedControls](CSP/SupervisedControls.agda) | cached own interface | 15.45 | 2,376,528 | pass |
+
+**14 final passing commands: 190.84 seconds total, 3,325,692 KiB
+(3.172 GiB) maximum RSS; 8 fresh own checks / 6 cached own checks.**
+All twelve new modules have checked interfaces; the six old native witness
+endpoints are checked transitively by their new membership roots. No final
+warnings or failing checks. No unrelated heavy network build was required or run.
+
+Development failures are separate from that final acceptance: eight parser/type/
+universe/meta diagnostics were corrected, and one preliminary combined
+HandshakeFailure/Supervised load was terminated by the RSS monitor (exit 143,
+35.68 seconds, 9,738,004 KiB / 9.287 GiB peak). Explicit carrier/proof arguments
+removed that elaboration expansion; the final standalone Supervised check uses
+1,559,252 KiB and the final handshake certificate 2,407,300 KiB. Two earlier
+generic-only successes precede the final table and are not counted again.
+
+The local proof audit scanned all twelve new modules: its five `possible-hole`
+hits are the five ordinary uses of the imported natural-number decision operator
+`≤?`; inspection confirms no holes, postulates, new trust primitives or unsafe
+pragmas. This is a local source audit, not a term-level audit of transitive
+external assumptions. New local documentation targets and whitespace were
+checked; no new temporary-path link is introduced. Unrelated untracked user
+files are preserved. The ignored project-state checkpoint records this task
+but is not in the commit list.
+
+**G5 remains partly met.** Stage 1 of plan step 9 is complete at the finite event
+carrier scope above. Checked export/reimport and targeted bounded race searches
+with explicit numeric bounds/outcomes remain step 9 work; minimization with
+violation/replay preservation and selected reduced-candidate source-operation
+replay remain step 10. No G0–G4 criterion or accepted scope was changed.
+
+Exact files to commit (15; exclude build artifacts, scratch and unrelated files):
+
+```text
+ConnectionManagement/Exploration/Alphabet.agda
+ConnectionManagement/Exploration/Bounded.agda
+ConnectionManagement/Exploration/Controls.agda
+ConnectionManagement/Exploration/Finite.agda
+ConnectionManagement/Exploration/HandshakeFailure.agda
+ConnectionManagement/Exploration/Identities.agda
+ConnectionManagement/Exploration/Inbound.agda
+ConnectionManagement/Exploration/Outbound.agda
+ConnectionManagement/Exploration/Overlap.agda
+ConnectionManagement/Exploration/README.md
+ConnectionManagement/Exploration/Supervised.agda
+ConnectionManagement/Exploration/TimeoutCooling.agda
+ConnectionManagement/Exploration/TwoPeer.agda
+ConnectionManagement/GateAudit.md
+ConnectionManagement/Supervision.md
+```
