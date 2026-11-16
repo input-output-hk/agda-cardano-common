@@ -2,6 +2,15 @@
 
 **14 October 2026 — proposal for discussion, not an implemented or verified model**
 
+> **Historical record (status note added 16 November 2026).** This is the
+> October design-phase review at network `96ee6e0`; it has not been updated
+> since. The model was implemented, migrated to network `2f1c154` and
+> consensus `2e44d98`, and gates G0–G5 are met at stated scopes. For the
+> current state see [GateAudit](../ConnectionManagement/GateAudit.md),
+> [DesignContract](../ConnectionManagement/DesignContract.md), the
+> [verified properties summary](connection-management-verified-properties-summary.md)
+> and the [identified issues summary](connection-management-identified-issues-summary.md).
+
 Next: [implementation design](../ConnectionManagement/DESIGN.md) and
 [initial source ledger](../ConnectionManagement/SourceLedger.md) turn this review
 into types, worker frames, transition boundaries and implementation gates.
