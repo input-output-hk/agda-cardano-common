@@ -11378,3 +11378,110 @@ Planning scripts, logs, backend remnants and continuity state are not commit
 artifacts. No Git state-changing command, presentation edit or configuration
 symlink modification was performed. Preserve the unrelated `.claude`,
 `ConnectionManagement/Presentations/`, `output/` and review summary files.
+
+
+## One hundredth increment: quiescent shutdown Haskell prototype
+
+16 November 2026. Prototype against network
+`2f1c154f248659b89523d5679ca532f442e7ed2a`, in the durable
+`ouroboros-network-cm-pin` checkout. The objective remains the combined
+CM/IG/OG/Server source-problem model and correct design under unchanged G0–G5
+criteria. This increment adds implementation evidence for
+[DesignContract §1](DesignContract.md#1-source-design-and-prototype-boundary);
+it neither changes an Agda theorem nor discharges universal progress/refinement.
+
+[QuiescentShutdownPrototype.patch](SourceReplay/QuiescentShutdownPrototype.patch)
+changes six Haskell-tree files, **695 added / 28 removed lines**. Production
+changes are limited to `Server.hs` and CM `Core.hs`, **60 added / 27 removed**.
+Server brackets an admission-handle registry inside the IG callback, masks each
+fork/registration, and joins every worker without cancellation after the
+accept/action scopes unwind. CM registers both inbound/outbound handler forks
+under the existing mask, independently of mutable connection-map ownership.
+Its uninterruptible finalizer retains the old snapshot cleanup and always
+performs the historical pending-handler cancellation/result sweep. Handler
+unmasking, cleanup masking and TIME_WAIT are unchanged. History is retained
+until scope exit; early reclamation remains a separate engineering task.
+
+### Conformance and controls
+
+- Reapplied the three earlier test modules without production changes, combining
+  their conflicting registrations: **11/11 pass** by asserting their documented
+  baseline defects/controls. Original POR exhausts **628 schedules** at
+  20,000 schedule / 20 branching bounds.
+- Built the new tests against pristine production files: **4/4 positive
+  quiescence assertions fail**, exit 1. The final self-purge controls fail on
+  `shutdownWaited = False`, not a timeout or harness fault.
+- Prototype: **18/18 checks pass**. Normal return, action error, IG-first, accept
+  error and external cancellation all join delayed admissions before CM
+  shutdown. CM-only/full Server paused self-purge waits for the gate, then
+  returns with the captured Async result available. Pre-publication transition
+  failure restores an empty map but retains/cancels/joins the physical handler.
+  Strict IOSim shutdown checks successful runs; each POR property exhausts
+  **597 schedules** at unchanged 20,000/20 bounds.
+- Four passing negative properties establish **failed progress**: permanently
+  blocked cleanup at either boundary, synthetic pre-publication failure leaving
+  an empty promise, and **101 actual workers/handlers** publishing after IG
+  exit into its capacity-100 queue. These runs deliberately end in IOSim
+  deadlock, not Server/CM return. The escaped-API include remains permitted and
+  remains outside the owned-caller contract.
+
+The synthetic self-purge/rollback fixtures use the actual CM fork/map/finalizer
+and actual Server/IG/accept/admission route, with fixture transport, handshake,
+empty mux and buffer acquisition. The delayed-admission experiment uses the
+production handshake handler. Neither is a full application replay. The
+publication negative validates the missing-publication contract rather than the
+entire production CM-PUB1 tracer/classifier path. Normal admissions join while
+IG can still consume; this does not solve the IG-first/late-producer case or
+prove all model-order correspondences.
+
+### Validation, limits and handover
+
+GHC 9.6.7, Cabal 3.12.1.0, io-sim/io-classes 1.8.0.1. All builds offline `-j1`
+with the existing store, guarded by at least 10 GB available memory and no
+Agda/other heavy build. The original control build passed in 52.87 s, peak
+704,388 KiB RSS. Final builds pass without compiler warnings. Original controls,
+positive controls, final prototype and existing-suite results are separate logs
+in the supplied task scratch directory. Independent application to pristine pin
+files and byte comparison of all six patched files pass. The three edited
+documentation pages pass the local-link checker: **561 targets, zero errors**;
+new prose has no scratch links or trailing whitespace.
+
+Existing `framework-sim-tests`: **37/38 properties pass at 100 cases**, seed 100;
+IG-race reaches a 60-second limit on both baseline and prototype. Both pass it
+at 10 cases (12.37/13.23 s in the comparison run). The final restored source passes all 18 conformance checks in **1.97 s**,
+37 properties at 100 cases in **33.44 s**, and IG-race at 10 in **12.99 s**.
+Its final offline build passes in **13.89 s**, peak **699,040 KiB** RSS, with no
+compiler warnings. Low/zero-frequency
+coverage labels remain; these are finite regressions, not full branch coverage.
+Nightly-only exploration and other Cabal suites were not run. Development
+compiler failures, an initial 30-second progress-harness stop, and an extra
+consumed-gate read causing two watchdog failures are excluded; the gate read was
+repaired before the final positive controls and conformance run. No Agda ran.
+
+**Acceptance boundary:** §1's ownership patch is prototyped, and the selected
+late/self-purge/rollback schedules satisfy conditional quiescence. §3 progress
+and the full §5 detachment matrix are still open. Next work is an explicit
+terminal-promise recovery and IG queue policy, with model-order correspondence
+and their positive progress controls, followed by the remaining outbound,
+TIME_WAIT, pruning/replacement and deployment-callback schedules. Do not promote
+these finite tests into universal implementation correctness.
+
+The requested Haskell branch creation failed because `.git` is mounted
+read-only; HEAD remains detached at the pin. No local branch/commit or push was
+made. The edited source is durable and the standalone patch is saved. No git
+command ran in the Agda repository, and no configuration symlink was changed.
+The user's read-only scope for other Agda-repo files leaves `PROJECT_STATE.md`
+and the existing index unchanged; this increment is the continuation record.
+
+Exact Agda-repository files to commit:
+
+```text
+ConnectionManagement/SourceReplay/QuiescentShutdownPrototype.patch
+ConnectionManagement/SourceReplay/README.md
+ConnectionManagement/DesignContract.md
+ConnectionManagement/Supervision.md
+```
+
+See the [replay record](SourceReplay/README.md#quiescent-shutdown-prototype-increment-100)
+for commands, physical observations, fixture limits and reproduction, and
+[Prototype result](DesignContract.md#prototype-result) for the contract update.

@@ -3,7 +3,8 @@
 13 November 2026. Gate plan step 6: documentation acceptance for **owned
 callers + Server-owned admission workers joined without cancellation + a
 historical CM handler registry swept before coordinator closure**. This is the
-accepted model proposal, not an implemented Haskell fix or a progress theorem.
+accepted model proposal. At that date it was not an implemented Haskell fix;
+see the later [Prototype result](#prototype-result). No progress theorem is claimed.
 Authority: [DESIGN §1](DESIGN.md#1-objective-and-authority),
 [Supervision increments 73–78](Supervision.md#seventy-third-increment-late-admission-after-the-cm-shutdown)
 and [increment 78's phase C audit](Supervision.md#seventy-eighth-increment-admission-quiescence-step-2-design-exploration).
@@ -134,7 +135,7 @@ already discharged by the safety proofs:
 Implement the outline in §1 in an isolated prototype at the exact network pin;
 keep test instrumentation separate from production changes. Record source and
 dependency versions, patch, exact schedules/bounds, physical Async observations
-and cleanup order. No prototype or new replay is performed by this document.
+and cleanup order. This original plan predates the prototype result below.
 
 1. Adapt [ServerLateAdmissionReplay.patch](SourceReplay/ServerLateAdmissionReplay.patch)
    and its [increment 73 record](SourceReplay/README.md#late-admission-after-the-cm-shutdown-10-november-2026).
@@ -179,9 +180,37 @@ and cleanup order. No prototype or new replay is performed by this document.
    skips later joins. Include CM-PUB1 pre-publication faults and IG-queue pressure
    as progress tests. Broader listener/application claims require new coverage.
 
-Step 6 is complete as a documentation contract and replay plan. Implementation,
-source correspondence and progress acceptance remain open; G0–G5 criteria are
-unchanged.
+Step 6 is complete as a documentation contract and replay plan. The prototype
+below implements the ownership outline; full source correspondence and progress
+acceptance remain open. G0–G5 criteria are unchanged.
+
+## Prototype result
+
+16 November 2026. [QuiescentShutdownPrototype.patch](SourceReplay/QuiescentShutdownPrototype.patch)
+implements Server admission retention/no-cancel joins and the CM historical
+handler registry at the exact pin. Its six files add 695/remove 28 lines; only
+60 additions/27 deletions are production code. The old map-snapshot cleanup and
+handler masking/TIME_WAIT behavior are retained. Admissions join inside the IG
+callback, after action/accept scopes unwind and before CM shutdown.
+
+All eleven original defect/control properties reproduce on pristine production
+code; four corresponding positive quiescence assertions fail there. The
+prototype passes eighteen IOSim checks, including full Server self-purge,
+pre-publication rollback, five teardown routes, strict shutdown and POR at
+20,000/20 bounds (597 schedules per property). Four checks intentionally confirm
+failed progress: permanently blocked cleanup at CM/Server scope, an unpublished
+promise, and 101 producers after IG exit overflowing its capacity-100 queue.
+Thus §3's publication and notification progress obligations **remain unsatisfied**;
+this is conditional quiescence evidence, not a generally terminating fix.
+
+Existing framework IOSim coverage passes 37 properties at 100 cases plus IG-race
+at 10; IG-race at 100 hits the same 60-second limit on baseline and prototype.
+Broader phase-C/detachment and deployment-contract acceptance in §5 remains open.
+The [replay record](SourceReplay/README.md#quiescent-shutdown-prototype-increment-100)
+contains exact fixtures, masks, physical observations, commands and exclusions.
+No Agda was run or model theorem changed. Read-only Haskell Git metadata prevented
+the requested local branch/commit; the durable edited checkout and standalone
+patch are saved. Nothing was pushed.
 
 [server-workers]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L239-L254
 [server-scopes]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L147-L186

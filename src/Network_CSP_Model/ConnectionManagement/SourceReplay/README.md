@@ -790,3 +790,192 @@ passed in 14.25 s / 393,304 KiB peak RSS. The final continuation also rebuilt
 offline with `-j1` and an explicit task-scratch builddir: **53.70 s / 0.689 GiB
 peak RSS**, without warnings. All five newly built tests passed (reported 0.02 s).
 Final model checks and G5 status are recorded in [increment 99](../Supervision.md#ninety-ninth-increment-g5-trace-shrinking-and-conformance-tests).
+
+
+## Quiescent shutdown prototype (increment 100)
+
+16 November 2026. [QuiescentShutdownPrototype.patch](QuiescentShutdownPrototype.patch)
+is a standalone patch against network
+`2f1c154f248659b89523d5679ca532f442e7ed2a`. Apply it to pristine source, rather
+than stacking it with the earlier replay patches. The durable edited checkout is
+`/home/rye/YE_Workspace_Research/Workspace_IOG/git_repos/ouroboros-network-cm-pin`.
+GHC **9.6.7**, Cabal **3.12.1.0**, io-sim/io-classes **1.8.0.1**; offline builds
+use the existing Cabal store and `-j1`. No dependency pin changes or Agda runs.
+
+The patch changes six Haskell-tree files, **695 insertions / 28 deletions**:
+
+| File (under `ouroboros-network/`) | Added / removed | Purpose |
+| --- | ---: | --- |
+| `framework/lib/Ouroboros/Network/Server.hs` | 17 / 5 | Masked fork/registration of admission Asyncs; after the action/race/accept scopes unwind, join every result without cancellation, inside the IG callback and before CM shutdown. |
+| `framework/lib/Ouroboros/Network/ConnectionManager/Core.hs` | 43 / 22 | One historical registry shared by inbound/outbound forks; fork/register masked together. Preserve the old map-snapshot finalizer and run the historical cancellation/join sweep even if its tracing fails. |
+| `framework/sim-tests/Main.hs` | 5 / 1 | Register the two conformance modules. |
+| `framework/sim-tests/Test/Ouroboros/Network/QuiescentAdmission.hs` | 284 / 0 | Adapt the late replay and add controlled admission/teardown tests. |
+| `framework/sim-tests/Test/Ouroboros/Network/QuiescentShutdown.hs` | 343 / 0 | CM and full Server self-purge, rollback, and explicit failed-progress fixtures. |
+| `ouroboros-network.cabal` | 3 / 0 | Test module registration. |
+
+Only **60 insertions / 27 deletions** concern production source. The sweep polls
+completed handlers, cancels pending handlers concurrently and observes every
+`waitCatch` result. History survives map rollback, replacement and deletion;
+completed handles remain retained until CM scope exit. This prototype trades
+memory for a simple historical certificate; it has no early reclamation policy.
+Handler `asyncWithUnmask`, uninterruptible cleanup and explicitly unmasked
+TIME_WAIT remain unchanged. Admissions retain their original masking state.
+`waitCatch` observes worker failures so one failure cannot skip later joins;
+this does not introduce a new worker-error propagation policy.
+
+### Controls and physical observations
+
+All three earlier test modules were recovered byte for byte from their patches;
+their overlapping Main/Cabal registrations were combined manually. With both
+production files pristine, **all 11 original properties passed** by asserting
+their documented defects/controls (1.50 s). The original POR negative exhausted
+**628 schedules**, schedule bound **20,000**, branching **20**; its missing-release
+witness was reproduced. The saved original binary was retained for comparisons.
+Those three test modules are superseded in the final prototype by the two new
+modules; the original standalone patches above remain unchanged.
+
+The same four positive assertions were also built and run with pristine
+production files: **4/4 failed**, exit 1 (0.28 s). They require no unreleased
+accepted connection, admission join before CM shutdown, paused CM self-purge
+waiting, and paused full Server self-purge waiting. The latter two report
+`shutdownWaited = False` on the baseline; they fail on the missing wait, rather
+than a watchdog or a harness fault. Restoring the production patch makes them
+pass. An earlier development run had an extra read of an already consumed gate;
+its two watchdog failures are excluded from this acceptance result.
+
+Final prototype: **18/18 properties pass** (final run **1.97 s**), with seed **100** and one case per
+property. Four intentionally assert **failed progress**, described below; they
+are not successful shutdown executions. The two POR properties exhaust
+**597 schedules each** at the original 20,000/20 bounds. Added synchronization
+changes schedule identities/counts, so baseline schedule controls are not copied
+verbatim onto the modified thread tree. Exhaustion is within these POR bounds,
+not exhaustive Haskell concurrency coverage.
+
+The controlled admission test uses the real Server, IG, accept loop, admission
+and production handshake handler. It pauses the admission's first counter tracer
+after map publication, observes listener shutdown, and requires Server pending
+and no CM `TrShutdown` until the gate opens. It checks the admission is unmasked,
+a handler was born, and strict IOSim shutdown has no threads left. The same
+checks pass for normal return, action exception, IG-first, accept exception and
+external cancellation. The handshake receives no peer handshake and reaches its
+ordinary timeout; the worker is never cancelled. This is a new single-trace
+join-order test, complementary to POR's first-step delays, not a claim that the
+old combined late-include trace has now been reproduced on unpatched source.
+
+Self-purge runs both at direct-CM scope and through actual Server/IG/accept
+scopes. Transport, successful handshake publication, buffer failure and an empty
+mux are fixtures. Direct admission is explicitly joined; the Server route
+observes IG receiving the notification and lets admission finish. The actual
+CM-created handler Async is captured from the transition tracer. In the paused
+case the callback has `MaskedUninterruptible`, the map is empty, exactly one
+connection socket has closed and `pollSTM` is `Nothing`. A separate observer
+requires the CM/Server Async still pending after `TrShutdown`, then releases the
+gate. The handler has `BufferFailure` **when the scope returns**, before the
+harness's final join. No-pause controls already have the result. Strict IOSim
+shutdown checks the remaining owned threads. The pre-publication rollback case
+throws from the existing transition tracer after handler birth: `modifyTMVar`
+restores an empty map while that handler is pending; the registry sweep still
+cancels it, closes its socket and returns with `AsyncCancelled` available.
+
+The escaped-API control still accepts a direct include after Server return. It
+runs a new handler to handshake timeout; the prototype intentionally adds no
+closed-handle flag. Caller ownership is therefore still an API scope premise.
+
+### Progress findings and limits
+
+- Permanently closing the cleanup-tracer gate produces IOSim `FailureDeadlock`
+  for both CM and Server. Teardown does not bypass a pending physical result.
+- A synthetic handler that throws before publishing its handshake promise
+  finishes and purges its map entry, but Server's admission remains blocked.
+  After observing Server stop, the harness stops IG's periodic timer so IOSim
+  can report a finite deadlock. No CM shutdown event occurs. This exercises the
+  **CM-PUB1 publication contract**, not the production handler's entire injected
+  tracer/classifier route. The historical registry cannot recover a worker
+  before the Server join reaches CM shutdown. A terminal-publication/recovery
+  mechanism is still required for unconditional progress.
+- With **101 actual Server admission workers/CM handlers**, delay all handshake
+  publications until IG has stopped and joined. The real capacity-100 information
+  channel commits **100 notifications**; the remaining write blocks an admission
+  and hence Server's join. Wrapping `writeMessage` only counts committed writes;
+  it delegates every write to the real channel. IOSim reports deadlock before
+  CM shutdown. Thus IG-first/late-producer progress needs an explicit drain or
+  terminating notification policy; the existing single final drain is insufficient.
+
+Normal joins occur inside IG's callback, so IG can still consume notifications
+unless it has itself failed/exited. This placement improves the normal route
+but does not discharge the IG-first counterexample or establish correspondence
+with every model shutdown ordering. These are finite conformance experiments,
+not a universal safety/progress/refinement theorem. Dedicated physical-result
+schedules for all §5 phase-C detachments, outbound rollback/query/alias paths,
+pruning/replacement, TIME_WAIT tails, multiple listeners, fork-allocation failure
+and deployment callback contracts remain open. Existing tests exercise related
+operations but do not replace those missing conformance certificates.
+
+### Existing suites, build evidence and reproduction
+
+The existing `framework-sim-tests` properties ran serially with seed **100**:
+**37/38 pass at 100 cases**; `bidirectional Sim (IG race)` reaches the 60-second
+per-property limit. That property also times out at 100 cases on the saved
+unpatched binary. At **10 cases**, both pass (baseline 12.37 s, prototype 13.23 s
+in the comparison run). The final restored source is rerun separately: all 37
+other properties at 100 cases (**33.44 s**) and IG-race at 10 cases (**12.99 s**). Coverage output includes
+low/zero-frequency labels, including pruning; passing these runs is not a claim
+that every production branch was exercised. Nightly-only exploration and other
+Cabal suites were not run.
+
+The original offline control build passed in **52.87 s**, peak **704,388 KiB**
+RSS. The final restored build passed in **13.89 s**, peak **699,040 KiB** RSS,
+without compiler warnings; control rebuilds also pass. Every
+Cabal build was guarded by `free -g` available memory **at least 10 GB** and an
+empty Agda/GHC/Cabal process check; there was one Cabal build at a time. Logs,
+Cabal config/build tree, original/control binaries and verification files remain
+in the supplied task scratch directory. No scratch paths are required to apply
+the patch. Development compiler diagnostics, one 30-second harness watchdog
+stop, and the excluded consumed-gate run are not counted as successful checks.
+
+From the pinned Haskell checkout, after applying this patch:
+
+```sh
+# Set task_scratch to a writable log/build directory. Its cabal.config is a copy
+# of the user config with build-summary/logs-dir redirected there; retain store.
+free -g
+pgrep -x agda
+pgrep -x ghc
+pgrep -x cabal
+# Proceed only with >=10 GB available and no other heavy build.
+cabal --config-file="$task_scratch/cabal.config" build --offline -j1 \
+  --builddir="$task_scratch/cabal-build" ouroboros-network:test:framework-sim-tests
+cabal --config-file="$task_scratch/cabal.config" list-bin --offline \
+  --builddir="$task_scratch/cabal-build" ouroboros-network:test:framework-sim-tests
+# Set sim_tests to that printed binary path.
+"$sim_tests" -p '/Quiescent/' --num-threads 1 \
+  --quickcheck-tests 1 --quickcheck-replay 100 --quickcheck-verbose
+"$sim_tests" -p '! /Quiescent/ && ! /bidirectional Sim (IG race)/' \
+  --num-threads 1 --quickcheck-tests 100 --quickcheck-replay 100 --timeout 60s
+"$sim_tests" -p '/bidirectional Sim (IG race)/' --num-threads 1 \
+  --quickcheck-tests 10 --quickcheck-replay 100 --timeout 60s
+```
+
+For the four positive baseline controls, reverse only the patch hunks for
+`framework/lib/Ouroboros/Network/{Server.hs,ConnectionManager/Core.hs}` (paths
+prefixed by `ouroboros-network/`), leaving the conformance modules registered.
+Rebuild with the same guarded command and run:
+
+```sh
+"$sim_tests" --num-threads 1 --quickcheck-tests 1 --quickcheck-replay 100 \
+  --quickcheck-verbose \
+  -p '/no unreleased accepted/ || /delayed Server worker/ || /paused cleanup: CM/ || /Server self-purge: empty/'
+```
+
+Expected baseline exit is **1**, with four failures. Restore the production
+hunks and rebuild before running the full conformance group. The final saved
+patch passed independent `git apply --check` and application to pristine pin
+files; all six resulting files match the tested checkout byte for byte.
+
+**Local Git limitation.** The requested `cm-quiescent-prototype` branch creation
+failed because the checkout's `.git` is mounted read-only. No local Haskell
+commit/branch could be created; HEAD remains detached at the pin. The source
+patch is present in the durable checkout and in this artifact. Nothing was
+pushed. No git command was run in the Agda repository. See
+[Prototype result](../DesignContract.md#prototype-result) and
+[increment 100](../Supervision.md#one-hundredth-increment-quiescent-shutdown-haskell-prototype).

@@ -1,0 +1,922 @@
+diff --git a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs b/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs
+--- a/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs
++++ b/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs
+@@ -431,6 +431,9 @@
+           stdGenVar <- newTVar (stdGen args)
+           return (v, stdGenVar)
+ 
++    -- History is independent of map membership and survives map rollback.
++    handlers <- newTVarIO ([] :: [Async m ()])
++
+     let readState
+           :: STM m (State.ConnMap peerAddr AbstractState)
+         readState = readTMVar stateVar >>= State.readAbstractStateMap
+@@ -466,7 +469,7 @@
+                   WithInitiatorMode
+                     OutboundConnectionManager {
+                         ocmAcquireConnection =
+-                          acquireOutboundConnectionImpl stateVar stdGenVar outboundHandler,
++                          acquireOutboundConnectionImpl handlers stateVar stdGenVar outboundHandler,
+                         ocmReleaseConnection =
+                           releaseOutboundConnectionImpl stateVar stdGenVar
+                       },
+@@ -480,7 +483,7 @@
+                   WithResponderMode
+                     InboundConnectionManager {
+                         icmIncludeConnection =
+-                          includeInboundConnectionImpl stateVar inboundHandler,
++                          includeInboundConnectionImpl handlers stateVar inboundHandler,
+                         icmReleaseConnection =
+                           releaseInboundConnectionImpl stateVar,
+                         icmPromotedToWarmRemote =
+@@ -500,13 +503,13 @@
+                   WithInitiatorResponderMode
+                     OutboundConnectionManager {
+                         ocmAcquireConnection =
+-                          acquireOutboundConnectionImpl stateVar stdGenVar outboundHandler,
++                          acquireOutboundConnectionImpl handlers stateVar stdGenVar outboundHandler,
+                         ocmReleaseConnection =
+                           releaseOutboundConnectionImpl stateVar stdGenVar
+                       }
+                     InboundConnectionManager {
+                         icmIncludeConnection =
+-                          includeInboundConnectionImpl stateVar inboundHandler,
++                          includeInboundConnectionImpl handlers stateVar inboundHandler,
+                         icmReleaseConnection =
+                           releaseInboundConnectionImpl stateVar,
+                         icmPromotedToWarmRemote =
+@@ -520,11 +523,22 @@
+                 waitForOutboundDemotion
+               }
+ 
++    -- Callers must be quiescent before this final historical snapshot. Keep
++    -- completed handles until scope exit; map deletion/rollback is not a join.
++    let sweep = do
++          history <- readTVarIO handlers
++          forConcurrently_ history $ \thread -> do
++            result <- atomically $ pollSTM thread
++            case result of
++              Just _  -> pure ()
++              Nothing -> throwTo (asyncThreadId thread) AsyncCancelled
++            void $ waitCatch thread
++
+     k connectionManager
+       -- Since this exception handler is blocking it might receive exceptions
+       -- during its execution, which we want to avoid, so we wrap it around
+       -- uninterruptibleMask_.
+-      `finally` uninterruptibleMask_ (do
++      `finally` uninterruptibleMask_ ((do
+         traceWith tracer TrShutdown
+ 
+         state <- atomically $ readTMVar stateVar
+@@ -547,7 +561,7 @@
+ 
+         atomically $ runLastToFinishM
+                    $ foldMap (LastToFinishM . void <$> waitCatchSTM) asyncs
+-      )
++      ) `finally` sweep)
+   where
+     traceCounters :: StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m) -> m ()
+     traceCounters stateVar = do
+@@ -568,7 +582,8 @@
+     -- TODO: We could probably elegantly eliminate 'PromiseWriter', now that we use
+     -- MonadFix.
+     forkConnectionHandler
+-      :: (versionData -> versionData)
++      :: StrictTVar m [Async m ()]
++      -> (versionData -> versionData)
+       -> StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m)
+       -> MutableConnState peerAddr handle handleError version m
+       -> socket
+@@ -576,20 +591,24 @@
+       -> PromiseWriter m (Either handleError (HandshakeConnectionResult handle (version, versionData)))
+       -> ConnectionHandlerFn handlerTrace socket peerAddr handle handleError version versionData m
+       -> m (Async m ())
+-    forkConnectionHandler updateVersionDataFn stateVar
++    forkConnectionHandler handlers updateVersionDataFn stateVar
+                           mutableConnState@MutableConnState { connStateId, connVar }
+                           socket
+                           connId
+                           writer
+                           handler =
+-        mask_ $ asyncWithUnmask \unmask -> flip finally (cleanup unmask) do
+-          runWithUnmask
+-            (handler updateVersionDataFn socket writer
+-                     (TrConnectionHandler connId `contramap` tracer)
+-                     connId
+-                     (\bearerTimeout -> getBearer makeBearer bearerTimeout)
+-                     withBuffer)
+-            unmask
++        mask_ $ do
++          thread <- asyncWithUnmask \unmask -> flip finally (cleanup unmask) do
++            runWithUnmask
++              (handler updateVersionDataFn socket writer
++                       (TrConnectionHandler connId `contramap` tracer)
++                       connId
++                       (\bearerTimeout -> getBearer makeBearer bearerTimeout)
++                       withBuffer)
++              unmask
++          -- Fork and registration cannot be separated by parent cancellation.
++          atomically $ modifyTVar handlers (thread :)
++          pure thread
+       where
+         cleanup :: (forall c. m c -> m c) -> m ()
+         cleanup unmask =
+@@ -779,7 +798,8 @@
+ 
+     includeInboundConnectionImpl
+         :: HasCallStack
+-        => StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m)
++        => StrictTVar m [Async m ()]
++        -> StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m)
+         -> ConnectionHandlerFn handlerTrace socket peerAddr handle handleError version versionData m
+         -> Word32
+         -- ^ inbound connections hard limit
+@@ -793,7 +813,7 @@
+         -> ConnectionId peerAddr
+         -- ^ connection id used as an identifier of the resource
+         -> m (Connected peerAddr handle handleError)
+-    includeInboundConnectionImpl stateVar
++    includeInboundConnectionImpl handlers stateVar
+                                  handler
+                                  hardLimit
+                                  socket
+@@ -869,7 +889,7 @@
+ 
+                 connThread' <-
+                   forkConnectionHandler
+-                     id stateVar mutableConnVar' socket connId writer handler
++                     handlers id stateVar mutableConnVar' socket connId writer handler
+                 return (connThread', mutableConnVar', connState0', connState')
+ 
+             traceWith trTracer (TransitionTrace (connStateId connVar)
+@@ -1263,14 +1283,15 @@
+ 
+     acquireOutboundConnectionImpl
+         :: HasCallStack
+-        => StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m)
++        => StrictTVar m [Async m ()]
++        -> StrictTMVar m (ConnectionManagerState peerAddr handle handleError version m)
+         -> StrictTVar m StdGen
+         -> ConnectionHandlerFn handlerTrace socket peerAddr handle handleError version versionData m
+         -> DiffusionMode
+         -> peerAddr
+         -> Provenance
+         -> m (Connected peerAddr handle handleError)
+-    acquireOutboundConnectionImpl stateVar stdGenVar handler diffusionMode peerAddr connProv = do
++    acquireOutboundConnectionImpl handlers stateVar stdGenVar handler diffusionMode peerAddr connProv = do
+         let provenance = Outbound
+         traceWith tracer (TrIncludeConnection provenance peerAddr)
+         (trace, trTrace, eHandleWedge) <- atomically $ do
+@@ -1530,7 +1551,7 @@
+ 
+                   connThread <-
+                     forkConnectionHandler
+-                      (`updateVersionData` diffusionMode) stateVar mutableConnState socket connId writer handler
++                      handlers (`updateVersionData` diffusionMode) stateVar mutableConnState socket connId writer handler
+ 
+                   return (connId, connThread)
+ 
+diff --git a/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs b/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs
+--- a/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs
++++ b/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs
+@@ -34,7 +34,7 @@
+ import Control.Applicative (Alternative)
+ import Control.Concurrent.Class.MonadSTM.Strict
+ import Control.DeepSeq (NFData)
+-import Control.Monad (when)
++import Control.Monad (void, when)
+ import Control.Monad.Class.MonadAsync
+ import Control.Monad.Class.MonadFork
+ import Control.Monad.Class.MonadThrow hiding (handle)
+@@ -146,6 +146,15 @@
+       localAddresses <- traverse (getLocalAddr snocket) sockets
+       InboundGovernor.with inboundGovernorArgs
+         \inboundGovernorThread readPublicInboundState connectionManager ->
++          bracket
++            (newTVarIO ([] :: [Async m ()]))
++            (\admissions -> uninterruptibleMask_ do
++              -- The scoped race/action has stopped and joined all accept loops.
++              -- Never cancel admissions: an interrupted include can roll back
++              -- the map after forking its handler. Observe every worker result.
++              workers <- readTVarIO admissions
++              mapM_ (void . waitCatch) workers)
++            \admissions ->
+           withAsync do
+             labelThisThread "server"
+             k inboundGovernorThread readPublicInboundState connectionManager
+@@ -155,7 +164,7 @@
+                 acceptLoops =
+                             [ (do
+                                   labelThisThread ("accept " ++ show localAddress)
+-                                  accept snocket socket >>= acceptLoop localAddress connectionManager)
++                                  accept snocket socket >>= acceptLoop admissions localAddress connectionManager)
+                                 `finally` close snocket socket
+                             | (localAddress, socket) <- localAddresses `zip` sockets
+                             ]
+@@ -185,11 +194,12 @@
+         go as []     = action (reverse as)
+         go as (x:xs) = withAsync x (\a -> go (a:as) xs)
+ 
+-    acceptLoop :: peerAddr
++    acceptLoop :: StrictTVar m [Async m ()]
++               -> peerAddr
+                -> ConnectionManager muxMode socket peerAddr handle handleError m
+                -> Accept m socket peerAddr
+                -> m Void
+-    acceptLoop localAddress connectionManager acceptOne0 = mask $ \unmask -> do
++    acceptLoop admissions localAddress connectionManager acceptOne0 = mask $ \unmask -> do
+         labelThisThread ("accept-loop-" ++ prettyShow localAddress)
+         go unmask acceptOne0
+       where
+@@ -236,7 +246,7 @@
+                   let connId = ConnectionId { localAddress = localAddress',
+                                               remoteAddress }
+                   traceWith tracer (TrAcceptConnection connId)
+-                  async $
++                  worker <- async $
+                     do
+                        a <-
+                          unmask
+@@ -248,6 +258,8 @@
+                          Disconnected {} -> close snocket socket
+                     `onException`
+                       close snocket socket
++                  -- The accept loop is masked across fork and registration.
++                  atomically $ modifyTVar admissions (worker :)
+               `onException`
+                  close snocket socket
+               )
+diff --git a/ouroboros-network/framework/sim-tests/Main.hs b/ouroboros-network/framework/sim-tests/Main.hs
+--- a/ouroboros-network/framework/sim-tests/Main.hs
++++ b/ouroboros-network/framework/sim-tests/Main.hs
+@@ -1,6 +1,8 @@
+ module Main (main) where
+ 
+ import Main.Utf8 (withUtf8)
++import Test.Ouroboros.Network.QuiescentAdmission qualified as QuiescentAdmission
++import Test.Ouroboros.Network.QuiescentShutdown qualified as QuiescentShutdown
+ import Test.Tasty
+ 
+ import Test.Ouroboros.Network.ConnectionManager qualified as ConnectionManager
+@@ -14,7 +16,9 @@
+ tests :: TestTree
+ tests =
+   testGroup "ouroboros-network-framework:sim-tests"
+-  [ ConnectionManager.tests
++  [ QuiescentAdmission.tests
++  , QuiescentShutdown.tests
++  , ConnectionManager.tests
+   , Server.tests
+   , RateLimiting.tests
+   , Snocket.tests
+diff --git a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/QuiescentAdmission.hs b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/QuiescentAdmission.hs
+new file mode 100644
+--- /dev/null
++++ b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/QuiescentAdmission.hs
+@@ -0,0 +1,284 @@
++{-# LANGUAGE DataKinds           #-}
++{-# LANGUAGE NumericUnderscores  #-}
++{-# LANGUAGE ScopedTypeVariables #-}
++{-# LANGUAGE TypeApplications    #-}
++
++-- | Replay for the CM/Server model: can an admission worker forked by
++-- Server.with's own accept loop include its connection (and fork a handler)
++-- only after the connection manager's shutdown snapshot, so that the
++-- handler is never cancelled or waited for by the CM?
++--
++-- One listener, one client connect (no handshake is sent), and a Server
++-- callback that returns as soon as the connect completes. IOSimPOR explores
++-- schedules. A schedule is a witness when the CM traces 'TrIncludeConnection'
++-- after Server.with has returned: the include happens inside the worker's
++-- map lease, so its map take came after the shutdown snapshot read.
++module Test.Ouroboros.Network.QuiescentAdmission (tests) where
++
++import Control.Concurrent.Class.MonadSTM.Strict
++import Control.Monad.Class.MonadTimer.SI
++import Control.Monad.Class.MonadTime.SI
++import Control.Monad.Class.MonadThrow
++import Control.Monad.Class.MonadAsync
++import Control.Monad (when, void)
++import Control.Monad.Class.MonadFork (myThreadId)
++import Data.Maybe (isNothing)
++import Control.Monad.Class.MonadTest (exploreRaces)
++import Control.Monad.IOSim
++import Control.Tracer (mkTracer, nullTracer)
++import Data.List (isInfixOf)
++import Data.Map.Strict qualified as Map
++import Data.Proxy (Proxy (..))
++import System.Random (mkStdGen)
++
++import Test.QuickCheck
++import Test.Tasty (TestTree, testGroup)
++import Test.Tasty.QuickCheck (testProperty)
++
++import Network.Mux qualified as Mx
++
++import Ouroboros.Network.ConnectionManager.Core qualified as CM
++import Ouroboros.Network.ConnectionManager.State qualified as CS
++import Ouroboros.Network.Protocol.Handshake.Codec (timeLimitsHandshake)
++import Ouroboros.Network.Server.RateLimiting (AcceptedConnectionsLimit (..))
++import Ouroboros.Network.Snocket (Accept (..), Accepted (..), TestAddress (..))
++import Ouroboros.Network.ConnectionId (ConnectionId (..))
++import Ouroboros.Network.ConnectionManager.Types
++import Ouroboros.Network.Snocket qualified as Snocket
++
++import Simulation.Network.Snocket
++
++import Test.Ouroboros.Network.ConnectionManager.Experiments
++import Test.Ouroboros.Network.ConnectionManager.Timeouts
++import Test.Ouroboros.Network.Utils (WithName (..))
++
++tests :: TestTree
++tests =
++  testGroup "QuiescentAdmission"
++  [ testProperty "default schedule: include before shutdown" prop_default
++  , testProperty "IOSimPOR: no unreleased accepted connection" prop_pending
++  , testProperty "IOSimPOR: no explored trace shows the late include itself" prop_late
++  , testProperty "delayed Server worker: join precedes CM shutdown" (once (prop_worker Return))
++  , testProperty "action exception joins admission" (once (prop_worker ActionError))
++  , testProperty "IG-first joins admission" (once (prop_worker IGFirst))
++  , testProperty "accept exception joins admission" (once (prop_worker AcceptError))
++  , testProperty "external cancellation joins admission" (once (prop_worker ExternalCancellation))
++  , testProperty "direct API: include after Server.with returns forks an unjoined handler" prop_direct
++  ]
++
++data Ev = EvInclude | EvShutdown | EvReturned | EvTransition String | EvResult String
++  deriving (Eq, Show)
++
++lateInclude :: [(Time, Ev)] -> Bool
++lateInclude evs = EvInclude `elem` dropWhile (/= EvReturned) (map snd evs)
++
++lateAdmissionSim :: forall s. IOSim s [(Time, Ev)]
++lateAdmissionSim =
++  withSnocket nullTracer noAttenuation Map.empty $ \snock _ -> do
++    events <- newTVarIO []
++    let record e = getMonotonicTime >>= \t -> atomically (modifyTVar events ((t, e) :))
++        cmTracer = mkTracer $ \(WithName _ ev) -> case ev of
++          CM.TrShutdown             -> record EvShutdown
++          CM.TrIncludeConnection {} -> record EvInclude
++          _                         -> pure ()
++        addr0 = TestAddress (0 :: Int)
++        addr1 = TestAddress 1
++    bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \listening -> do
++      Snocket.bind snock listening addr0
++      Snocket.listen snock listening
++      connStateIdSupply <- atomically $ CS.newConnStateIdSupply (Proxy @(IOSim s))
++      bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \client -> do
++        Snocket.bind snock client addr1
++        withBidirectionalConnectionManager
++          "server" simTimeouts nullTracer nullTracer cmTracer nullTracer Mx.nullTracers nullTracer
++          (mkStdGen 0) snock makeFDBearer Nothing connStateIdSupply (\_ -> pure ())
++          listening Nothing ([] :: [Int]) (pure (\_ -> pure [])) timeLimitsHandshake
++          (AcceptedConnectionsLimit maxBound maxBound 0)
++          (\_ _ _ -> Snocket.connect snock client addr0)
++        record EvReturned
++    -- After the Server scope and the test's own sockets are closed, give a
++    -- still-pending admission worker a bounded chance to run its include.
++    _ <- timeout 20 $ atomically $
++      readTVar events >>= check . elem EvInclude . map snd
++    threadDelay 1
++    reverse <$> readTVarIO events
++
++explore :: ExplorationOptions -> ExplorationOptions
++explore o = o { explorationScheduleBound = 20000, explorationBranching = 20 }
++
++-- | Same POR bounds as the baseline, now requiring strict shutdown.
++prop_pending :: Property
++prop_pending =
++  exploreSimTrace explore (exploreRaces >> lateAdmissionSim) $ \_ tr ->
++    case traceResult True tr of
++      Left err  -> counterexample (show err) False
++      Right evs -> counterexample (show evs) (not (lateInclude evs))
++
++prop_default :: Property
++prop_default =
++  case traceResult True (runSimTrace lateAdmissionSim) of
++    Left err  -> counterexample (show err) False
++    Right evs -> counterexample (show evs) (EvInclude `elem` map snd evs .&&. not (lateInclude evs))
++
++-- | No include from a Server-owned worker after the Server boundary.
++prop_late :: Property
++prop_late =
++  exploreSimTrace explore (exploreRaces >> lateAdmissionSim) $ \_ tr ->
++    case traceResult True tr of
++      Left err  -> counterexample (show err) False
++      Right evs -> counterexample (show evs) (not (lateInclude evs))
++
++-- | Fallback replay: the CM handle given to the Server.with callback is used
++-- after Server.with has returned (as a delayed admission worker would). The
++-- include runs, a connection handler is forked, and that handler runs its
++-- handshake to its own timeout: nothing cancels or waits for it.
++directSim :: forall s. IOSim s [(Time, Ev)]
++directSim =
++  withSnocket nullTracer noAttenuation Map.empty $ \snock _ -> do
++    events <- newTVarIO []
++    let record e = getMonotonicTime >>= \t -> atomically (modifyTVar events ((t, e) :))
++        cmTracer = mkTracer $ \(WithName _ ev) -> case ev of
++          CM.TrShutdown             -> record EvShutdown
++          CM.TrIncludeConnection {} -> record EvInclude
++          _                         -> pure ()
++        trTracer = mkTracer $ \(WithName _ tr) -> record (EvTransition (show tr))
++        addr0 = TestAddress (0 :: Int)
++        addr2 = TestAddress 2
++        addr3 = TestAddress 3
++    bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \listening -> do
++      Snocket.bind snock listening addr0
++      Snocket.listen snock listening
++      connStateIdSupply <- atomically $ CS.newConnStateIdSupply (Proxy @(IOSim s))
++      cm <- withBidirectionalConnectionManager
++          "server" simTimeouts nullTracer trTracer cmTracer nullTracer Mx.nullTracers nullTracer
++          (mkStdGen 0) snock makeFDBearer Nothing connStateIdSupply (\_ -> pure ())
++          listening Nothing ([] :: [Int]) (pure (\_ -> pure [])) timeLimitsHandshake
++          (AcceptedConnectionsLimit maxBound maxBound 0)
++          (\connectionManager _ _ -> pure connectionManager)
++      record EvReturned
++      bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \lst2 -> do
++        Snocket.bind snock lst2 addr2
++        Snocket.listen snock lst2
++        bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \client -> do
++          Snocket.bind snock client addr3
++          withAsync (Snocket.connect snock client addr2) $ \_ -> do
++           (accepted, _) <- Snocket.accept snock lst2 >>= runAccept
++           case accepted of
++             AcceptFailure err -> record (EvResult ("accept failure: " ++ show err))
++             Accepted fd remote -> do
++               r <- try @_ @SomeException
++                      (includeInboundConnection cm maxBound fd
++                         (ConnectionId { localAddress = addr2, remoteAddress = remote }))
++               record (EvResult (either show resultName r))
++           threadDelay 1
++           reverse <$> readTVarIO events
++  where
++    resultName Connected {}    = "Connected"
++    resultName Disconnected {} = "Disconnected"
++
++-- | The CM finally has run and Server.with has returned; the include then
++-- forks a handler (a fresh Unnegotiated Inbound connection) that runs until
++-- its own handshake timeout and returns Disconnected.
++prop_direct :: Property
++prop_direct =
++  case traceResult False (runSimTrace directSim) of
++    Left err  -> counterexample (show err) False
++    Right evs -> counterexample (unlines (map show evs)) $
++      let after = dropWhile ((/= EvReturned) . snd) evs
++      in    EvShutdown `elem` map snd (takeWhile ((/= EvReturned) . snd) evs)
++       .&&. lateInclude evs
++       .&&. any (isForked . snd) after
++       .&&. any ((== EvResult "Disconnected") . snd) after
++  where
++    isForked (EvTransition t) = "UnknownConnectionSt -> UnnegotiatedSt Inbound" `isInfixOf` t
++    isForked _                = False
++
++
++-- | A single trace through the actual Server accept/admission and production
++-- handshake handler. Pause admission after map publication, then let teardown
++-- stop the listener. It must join admission without cancelling it; only then
++-- may CM shutdown run. This complements the first-step POR schedules above.
++data ExitMode = Return | ActionError | IGFirst | AcceptError | ExternalCancellation
++  deriving (Eq, Show)
++
++workerSim :: forall s. ExitMode -> IOSim s (Bool, Bool, Bool, Bool, Bool)
++workerSim exitMode = withSnocket nullTracer noAttenuation Map.empty $ \snock _ -> do
++  worker <- newEmptyTMVarIO
++  entered <- newEmptyTMVarIO
++  release <- newEmptyTMVarIO
++  listenerStopped <- newEmptyTMVarIO
++  shutdown <- newTVarIO False
++  paused <- newTVarIO False
++  births <- newTVarIO (0 :: Int)
++  let local = TestAddress (0 :: Int)
++      remote = TestAddress 1
++      cmTracer = mkTracer $ \(WithName _ ev) -> case ev of
++        CM.TrIncludeConnection {} -> myThreadId >>= atomically . putTMVar worker
++        CM.TrShutdown -> atomically $ writeTVar shutdown True
++        CM.TrConnectionManagerCounters {} -> do
++          tid <- myThreadId
++          mw <- atomically $ tryReadTMVar worker
++          first <- atomically $ do
++            seen <- readTVar paused
++            if mw == Just tid && not seen
++              then writeTVar paused True >> pure True
++              else pure False
++          when first $ do
++            masking <- getMaskingState
++            atomically $ putTMVar entered (masking == Unmasked)
++            atomically $ takeTMVar release
++        _ -> pure ()
++      transitions = mkTracer $ \(WithName _ (TransitionTrace _ tr)) -> case toState tr of
++        UnnegotiatedSt Inbound -> atomically $ modifyTVar births (+1)
++        _ -> pure ()
++      transport = snock { Snocket.close = \fd -> do
++        void $ atomically $ tryPutTMVar listenerStopped ()
++        Snocket.close snock fd,
++        Snocket.accept = \fd -> do
++          first <- Snocket.accept snock fd
++          pure $ Accept $ do
++            (accepted, next) <- runAccept first
++            let failed = Accept $ do
++                  _ <- atomically $ readTMVar entered
++                  pure (AcceptFailure (toException (userError "accept failure")), next)
++            pure (accepted, if exitMode == AcceptError then failed else next)
++        }
++  bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \listening -> do
++    Snocket.bind snock listening local
++    Snocket.listen snock listening
++    supply <- atomically $ CS.newConnStateIdSupply (Proxy @(IOSim s))
++    bracket (Snocket.open snock Snocket.TestFamily) (Snocket.close snock) $ \client -> do
++      Snocket.bind snock client remote
++      let server = withBidirectionalConnectionManager
++            "server" simTimeouts nullTracer transitions cmTracer nullTracer Mx.nullTracers nullTracer
++            (mkStdGen 0) transport makeFDBearer Nothing supply (\_ -> pure ())
++            listening Nothing ([] :: [Int]) (pure (\_ -> pure [])) timeLimitsHandshake
++            (AcceptedConnectionsLimit maxBound maxBound 0)
++            (\_ _ ig -> do
++              Snocket.connect snock client local
++              original <- atomically $ readTMVar entered
++              case exitMode of
++                Return -> pure original
++                ActionError -> throwIO (userError "action failure")
++                IGFirst -> cancel ig >> atomically retry
++                _ -> atomically retry)
++      withAsync server $ \scope ->
++       withAsync (when (exitMode == ExternalCancellation) $
++         atomically (readTMVar entered) >> cancel scope) $ \canceller -> do
++        originalMask <- atomically $ readTMVar entered
++        atomically $ takeTMVar listenerStopped
++        threadDelay 1
++        waiting <- isNothing <$> atomically (pollSTM scope)
++        beforeCM <- not <$> readTVarIO shutdown
++        atomically $ putTMVar release ()
++        result <- waitCatch scope
++        wait canceller
++        let expectedExit = either (const (exitMode /= Return)) (const (exitMode == Return)) result
++        n <- readTVarIO births
++        stopped <- readTVarIO shutdown
++        pure (waiting, beforeCM, originalMask, n == 1 && stopped, expectedExit)
++
++prop_worker :: ExitMode -> Property
++prop_worker mode = case traceResult True (runSimTrace (timeout 60 (workerSim mode))) of
++  Left err -> counterexample (show err) False
++  Right r  -> r === Just (True, True, True, True, True)
+diff --git a/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/QuiescentShutdown.hs b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/QuiescentShutdown.hs
+new file mode 100644
+--- /dev/null
++++ b/ouroboros-network/framework/sim-tests/Test/Ouroboros/Network/QuiescentShutdown.hs
+@@ -0,0 +1,343 @@
++{-# LANGUAGE DataKinds           #-}
++{-# LANGUAGE ScopedTypeVariables #-}
++
++-- | Physical-result conformance at the CM and full Server boundaries.
++-- Synthetic transport, handshake, buffer failure and empty mux fixture; the
++-- accept loop, admission, IG, CM fork and cleanup are library implementations.
++module Test.Ouroboros.Network.QuiescentShutdown (tests) where
++
++import Control.Concurrent.Class.MonadSTM.Strict
++import Control.Monad (when, void)
++import Control.Monad.Class.MonadAsync
++import Control.Monad.Class.MonadFork (myThreadId)
++import Control.Monad.Class.MonadThrow
++import Control.Monad.Class.MonadTimer.SI (threadDelay, timeout)
++import Control.Monad.IOSim
++import Control.Tracer (mkTracer, nullTracer)
++import Data.ByteString.Lazy (ByteString)
++import Data.List (isInfixOf)
++import Control.Monad.Class.MonadSay (say)
++import Data.List.NonEmpty (NonEmpty (..))
++import Network.Mux qualified as Mux
++import Ouroboros.Network.ConnectionHandler (Handle (..))
++import Ouroboros.Network.ControlMessage (ControlMessage (..))
++import Ouroboros.Network.InboundGovernor qualified as IG
++import Ouroboros.Network.Server qualified as Server
++import Ouroboros.Network.Context (ResponderContext)
++import Data.Map.Strict qualified as Map
++import Data.Maybe (isNothing)
++import Data.Proxy (Proxy (..))
++import Data.Set qualified as Set
++import Data.Void (Void)
++import Network.Mux.Types qualified as Mx
++import System.Random (mkStdGen)
++import Test.QuickCheck
++import Test.Tasty (TestTree, testGroup)
++import Test.Tasty.QuickCheck (testProperty)
++
++import Ouroboros.Network.ConnectionId (ConnectionId (..))
++import Ouroboros.Network.ConnectionManager.Core qualified as CM
++import Ouroboros.Network.ConnectionManager.State qualified as CS
++import Ouroboros.Network.ConnectionManager.Types
++import Ouroboros.Network.InboundGovernor.InformationChannel (InformationChannel (..), newInformationChannel)
++import Ouroboros.Network.MuxMode
++import Ouroboros.Network.Server.RateLimiting (AcceptedConnectionsLimit (..))
++import Ouroboros.Network.Snocket
++
++-- A synchronous failure in the supplied withBuffer acquisition, after Connected.
++data BufferFailure = BufferFailure deriving (Eq, Show)
++instance Exception BufferFailure
++
++data Ev = AdmissionObserved | BufferFailed | Cleanup | SocketClosed
++        | CleanupCounters | Shutdown | CMReturned | HandlerJoined | PublicationRolledBack
++  deriving (Eq, Show)
++
++data Report = Report {
++    shutdownWaited :: Bool,
++    admitted :: Bool,
++    cleanupMasked :: Bool,
++    emptyBeforeReturn :: Bool,
++    closeCount :: Int,
++    resultBeforeReturn :: String,
++    resultAfterReturn :: String,
++    resultAfterRelease :: String,
++    events :: [Ev]
++  } deriving (Eq, Show)
++
++type Addr = TestAddress Int
++
++resultName :: Maybe (Either SomeException ()) -> String
++resultName Nothing = "pending"
++resultName (Just (Right ())) = "normal"
++resultName (Just (Left err))
++  | Just BufferFailure <- fromException err = "BufferFailure"
++  | otherwise = show err
++
++-- | Direct-CM admission is explicitly joined. The full Server case uses its
++-- own accept/admission worker and observes IG receiving the connection. Only
++-- CM allocates handlers, mutates the map, cleans up and shuts down.
++data Progress = Recover | BlockCleanup | Unpublished | FullQueue | Rollback deriving Eq
++
++experiment :: forall s. Bool -> Bool -> Progress -> IOSim s Report
++experiment useServer pauseCleanup progress = do
++  let releaseCleanup = progress /= BlockCleanup
++      failBeforePublication = progress == Unpublished
++      queuePressure = progress == FullQueue
++  publishGate <- newEmptyTMVarIO
++  allHandlers <- newTVarIO ([] :: [Async (IOSim s) ()])
++  acceptedCount <- newTVarIO (0 :: Int)
++  notifiedCount <- newTVarIO (0 :: Int)
++  logVar <- newTVarIO []
++  closes <- newTVarIO (0 :: Int)
++  handlerVar <- newEmptyTMVarIO
++  failGate <- newEmptyTMVarIO
++  tailEntered <- newEmptyTMVarIO
++  tailRelease <- newEmptyTMVarIO
++  shutdownEntered <- newEmptyTMVarIO
++  stoppedGate <- newEmptyTMVarIO
++  governor <- newEmptyTMVarIO
++  announced <- newEmptyTMVarIO
++  mux <- Mux.new Mux.nullTracers []
++  controls <- traverse newTVarIO (pure Continue)
++  let fixture = Handle mux (pure []) controls Duplex
++      record e = atomically $ modifyTVar logVar (++ [e])
++      local = TestAddress 0
++      remote = TestAddress 1
++      key = ConnectionId local remote
++      acceptOne = Accept $ do
++        n <- atomically $ do
++          n <- readTVar acceptedCount
++          check (n < if queuePressure then 101 else 1)
++          writeTVar acceptedCount (n+1)
++          pure (n+1)
++        let peer = TestAddress n
++        pure (Accepted peer peer, acceptOne)
++      transport :: Snocket (IOSim s) Addr Addr
++      transport = Snocket {
++        getLocalAddr = const (pure local), getRemoteAddr = pure,
++        addrFamily = const TestFamily,
++        open = const (fail "unexpected open"),
++        openToConnect = const (fail "unexpected outbound open"),
++        connect = \_ _ -> fail "unexpected connect",
++        bind = \_ _ -> fail "unexpected bind",
++        listen = const (fail "unexpected listen"),
++        accept = const (pure acceptOne),
++        close = \socket -> do
++          when (socket == remote) $ do
++            atomically $ modifyTVar closes (+1)
++            record SocketClosed
++      }
++      -- Match the source's successful promise -> withBuffer ordering. The
++      -- handshake and handle are fixtures; no real mux or buffer is allocated.
++      handler :: ConnectionHandler Mx.InitiatorResponderMode () Addr Addr (Handle Mx.InitiatorResponderMode () (ResponderContext Addr) DataFlow ByteString (IOSim s) () ()) Void () DataFlow (IOSim s)
++      handler = ConnectionHandler (WithInitiatorResponderMode body body)
++        where
++          body _ _ writer _ _ _ withBuffer = MaskedAction $ \unmask -> do
++            when queuePressure $ atomically $ readTMVar publishGate
++            when failBeforePublication $ throwIO BufferFailure
++            atomically $ writePromise writer (Right (HandshakeConnectionResult fixture ((), Duplex)))
++            unmask $ atomically $ takeTMVar failGate
++            withBuffer $ \_ -> fail "buffer callback must not run"
++      cmTracer = mkTracer $ \event -> case event of
++        CM.TrShutdown -> say "CM shutdown" >> record Shutdown >> atomically (putTMVar shutdownEntered ())
++        CM.TrConnectionCleanup _ -> record Cleanup
++        CM.TrConnectionManagerCounters _ -> do
++          -- Admission also traces counters: pause only the physical handler.
++          tid <- myThreadId
++          mh <- atomically $ tryReadTMVar handlerVar
++          case mh of
++            Just h | asyncThreadId h == tid -> do
++              masking <- getMaskingState
++              record CleanupCounters
++              atomically $ putTMVar tailEntered (masking == MaskedUninterruptible)
++              when pauseCleanup $ atomically $ takeTMVar tailRelease
++            _ -> pure ()
++        _ -> pure ()
++      transitions = mkTracer $ \(TransitionTrace _ tr) -> case toState tr of
++        Known (CS.UnnegotiatedState Inbound _ h) -> do
++          atomically $ do
++            modifyTVar allHandlers (h :)
++            void $ tryPutTMVar handlerVar h
++          -- This source callback is after fork/registration and before map
++          -- publication. Its exception makes modifyTMVar restore the old map.
++          when (progress == Rollback) $ throwIO BufferFailure
++        _ -> pure ()
++  supply <- atomically $ CS.newConnStateIdSupply Proxy
++  rawInfo <- newInformationChannel
++  let info = rawInfo { writeMessage = \message -> do
++        writeMessage rawInfo message
++        modifyTVar notifiedCount (+1) }
++  let withCM selectedHandler = CM.with CM.Arguments {
++        CM.tracer = cmTracer, CM.trTracer = transitions,
++        CM.ipv4Address = Nothing, CM.ipv6Address = Nothing,
++        CM.addressType = const (Just IPv4Address), CM.snocket = transport,
++        CM.makeBearer = MakeBearer $ \_ _ _ -> fail "unexpected bearer",
++        CM.withBuffer = \_ -> record BufferFailed >> throwIO BufferFailure,
++        CM.configureSocket = \_ _ -> fail "unexpected configuration",
++        CM.connectionDataFlow = id, CM.prunePolicy = \_ _ _ -> Set.empty,
++        CM.stdGen = mkStdGen 0,
++        CM.connectionsLimits = AcceptedConnectionsLimit 200 200 0,
++        CM.timeWaitTimeout = 1, CM.outboundIdleTimeout = 1,
++        CM.updateVersionData = \a _ -> a, CM.connStateIdSupply = supply,
++        CM.classifyHandlerError = const HandshakeFailure
++      } (InResponderMode info) selectedHandler
++      withOwner callback
++        | useServer = Server.with Server.Arguments {
++            Server.sockets = local :| [], Server.snocket = transport,
++            Server.tracer = mkTracer $ \e -> case e of
++              Server.TrServerStopped -> say "Server stopped" >> atomically (putTMVar stoppedGate ())
++              _ -> pure (),
++            Server.connectionLimits = AcceptedConnectionsLimit 200 200 0,
++            Server.inboundGovernorArgs = IG.Arguments {
++              IG.transitionTracer = nullTracer, IG.tracer = mkTracer $ \e -> case e of
++                IG.TrNewConnection {} -> atomically $ putTMVar announced ()
++                _ -> pure (),
++              IG.debugTracer = nullTracer, IG.connectionDataFlow = id,
++              IG.infoChannel = info, IG.idleTimeout = Nothing,
++              IG.withConnectionManager = withCM,
++              IG.mkConnectionHandler = const handler
++            }
++          } (\ig _ cm -> atomically (putTMVar governor ig) >> callback cm)
++        | otherwise = withCM handler callback
++      owner = withOwner $ \cm -> if progress == Rollback then do
++        r <- withAsync (includeInboundConnection cm 10 remote key) waitCatch
++        h <- atomically $ readTMVar handlerVar
++        empty <- atomically $ Map.null . CS.getConnMap <$> readState cm
++        pending <- isNothing <$> atomically (pollSTM h)
++        let failed = case r of
++              Left err -> fromException err == Just BufferFailure
++              Right _ -> False
++        record PublicationRolledBack
++        pure (failed && empty && pending, False, empty, 0, "pending")
++       else if queuePressure then atomically retry
++       else if failBeforePublication then do
++        h <- atomically $ readTMVar handlerVar
++        _ <- waitCatch h
++        empty <- atomically $ Map.null . CS.getConnMap <$> readState cm
++        when empty $ say "CM-PUB1: handler finished, map empty, promise unpublished"
++        pure (False, False, empty, 1, "pending")
++       else do
++        connected <- if useServer
++          then atomically (takeTMVar announced) >> threadDelay 1 >> pure True
++          else do
++            r <- withAsync (includeInboundConnection cm 10 remote key) wait
++            pure $ case r of
++              Connected actual _ _ -> actual == key
++              _ -> False
++        record AdmissionObserved
++        state <- atomically $ CS.getConnMap <$> readState cm
++        let expected = Map.singleton remote (Map.singleton (CS.LocalAddr local) (InboundIdleSt Duplex))
++        h <- atomically $ readTMVar handlerVar
++        pending <- isNothing <$> atomically (pollSTM h)
++        atomically $ putTMVar failGate ()
++        masked <- atomically $ takeTMVar tailEntered
++        -- Same observation delay in both cases. No join/cancel forces the control
++        -- to finish: its tracer returns immediately, so its Async can complete.
++        threadDelay 1
++        empty <- atomically $ Map.null . CS.getConnMap <$> readState cm
++        nclose <- readTVarIO closes
++        before <- resultName <$> atomically (pollSTM h)
++        pure (connected && state == expected && pending, masked, empty, nclose, before)
++  (waited, (ok, masked, empty, nclose, before)) <- withAsync owner $ \scope -> do
++    -- Stop the otherwise periodically waking IG so this deliberate missing-
++    -- publication run has a finite IOSim deadlock observation.
++    when queuePressure $ do
++      atomically $ readTVar allHandlers >>= check . (== 101) . length
++      atomically (readTMVar governor) >>= cancel
++      atomically $ takeTMVar stoppedGate
++      say "queue pressure: IG joined before publication"
++      atomically $ putTMVar publishGate ()
++      atomically $ readTVar notifiedCount >>= check . (== 100)
++      say "queue pressure: 101 handlers born, 100 notifications committed"
++      atomically retry
++    when failBeforePublication $ do
++      atomically $ takeTMVar stoppedGate
++      atomically (readTMVar governor) >>= cancel
++    atomically $ takeTMVar shutdownEntered
++    -- A separate observer releases the callback only after checking that CM
++    -- cannot return while the map is empty and its historical result is absent.
++    threadDelay 1
++    pendingScope <- isNothing <$> atomically (pollSTM scope)
++    when (pauseCleanup && releaseCleanup) $ atomically $ putTMVar tailRelease ()
++    report <- wait scope
++    pure (pendingScope == pauseCleanup, report)
++  record CMReturned
++  h <- atomically $ readTMVar handlerVar
++  after <- resultName <$> atomically (pollSTM h)
++  final <- resultName . Just <$> waitCatch h
++  record HandlerJoined
++  evs <- readTVarIO logVar
++  actualMask <- if progress == Rollback then atomically (readTMVar tailEntered) else pure masked
++  actualCloses <- readTVarIO closes
++  pure (Report (waited && actualCloses == 1) ok
++        (if progress == Rollback then actualMask else masked) empty nclose before after final evs)
++
++-- Strict IOSim shutdown rejects any remaining physical thread.
++prop_replay :: Bool -> Bool -> Property
++prop_replay server paused =
++  let observed = traceResult True (runSimTrace (timeout 10 (experiment server paused Recover)))
++      readiness = if paused then "pending" else "BufferFailure"
++      expected = Report True True True True 1 readiness "BufferFailure" "BufferFailure"
++        [AdmissionObserved, BufferFailed, Cleanup, SocketClosed,
++         CleanupCounters, Shutdown, CMReturned, HandlerJoined]
++  in counterexample (show observed) $ case observed of
++       Right r -> r === Just expected
++       Left _  -> property False
++
++tests :: TestTree
++tests = testGroup "QuiescentShutdown"
++  [ testProperty "paused cleanup: CM waits for historical result" (once (prop_replay False True))
++  , testProperty "no-pause control: completed result" (once (prop_replay False False))
++  , testProperty "Server self-purge: empty map still waits" (once (prop_replay True True))
++  , testProperty "Server self-purge control: completed result" (once (prop_replay True False))
++  , testProperty "permanently blocked cleanup prevents CM return" (once (prop_blocked False))
++  , testProperty "permanently blocked cleanup prevents Server return" (once (prop_blocked True))
++  , testProperty "CM-PUB1 prevents no-cancel admission join" (once prop_unpublished)
++  , testProperty "IG queue pressure prevents no-cancel admission join" (once prop_queue)
++  , testProperty "pre-publication rollback retains physical handler" (once prop_rollback)
++  ]
++
++-- These are failed progress scenarios, not quiescent shutdown results. IOSim
++-- detects the permanently closed gates; a wall-clock watchdog is not recovery.
++prop_blocked :: Bool -> Property
++prop_blocked server =
++  let tr = runSimTrace (experiment server True BlockCleanup)
++  in case traceResult False tr of
++       Left err -> counterexample (show err) $
++         "Deadlock" `isInfixOf` show err .&&.
++         ("CM shutdown" `elem` selectTraceEventsSay' tr)
++       Right r -> counterexample (show r) False
++
++prop_unpublished :: Property
++prop_unpublished =
++  let tr = runSimTrace (experiment True False Unpublished)
++      messages = selectTraceEventsSay' tr
++  in case traceResult False tr of
++       Left err -> counterexample (show err ++ show messages) $
++         "Deadlock" `isInfixOf` show err .&&.
++         ("CM-PUB1: handler finished, map empty, promise unpublished" `elem` messages) .&&.
++         ("Server stopped" `elem` messages) .&&.
++         ("CM shutdown" `notElem` messages)
++       Right r -> counterexample (show r) False
++
++prop_queue :: Property
++prop_queue =
++  let tr = runSimTrace (experiment True False FullQueue)
++      messages = selectTraceEventsSay' tr
++  in case traceResult False tr of
++       Left err -> counterexample (show err ++ show messages) $
++         "Deadlock" `isInfixOf` show err .&&.
++         ("queue pressure: IG joined before publication" `elem` messages) .&&.
++         ("queue pressure: 101 handlers born, 100 notifications committed" `elem` messages) .&&.
++         ("CM shutdown" `notElem` messages)
++       Right r -> counterexample (show r) False
++
++prop_rollback :: Property
++prop_rollback =
++  let tr = runSimTrace (experiment False False Rollback)
++      expected = Report True True True True 0 "pending" "AsyncCancelled" "AsyncCancelled"
++        [PublicationRolledBack, Shutdown, Cleanup, SocketClosed,
++         CleanupCounters, CMReturned, HandlerJoined]
++  in case traceResult True tr of
++       Left err -> counterexample (show err) False
++       Right r -> r === expected
+diff --git a/ouroboros-network/ouroboros-network.cabal b/ouroboros-network/ouroboros-network.cabal
+--- a/ouroboros-network/ouroboros-network.cabal
++++ b/ouroboros-network/ouroboros-network.cabal
+@@ -543,6 +543,9 @@
+   main-is: Main.hs
+   hs-source-dirs: framework/sim-tests
+   other-modules:
++    Test.Ouroboros.Network.QuiescentAdmission
++    Test.Ouroboros.Network.QuiescentShutdown
++
+     Test.Ouroboros.Network.ConnectionManager
+     Test.Ouroboros.Network.RateLimiting
+     Test.Ouroboros.Network.RawBearer
