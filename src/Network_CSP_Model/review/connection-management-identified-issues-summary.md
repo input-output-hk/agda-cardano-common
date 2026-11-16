@@ -1,3 +1,5 @@
+Companion: [Verified properties summary](connection-management-verified-properties-summary.md).
+
 # Identified Haskell and connection-management issues
 
 Summary updated 16 November 2026 from recorded source audits, proofs and replay
