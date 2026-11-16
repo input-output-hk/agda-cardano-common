@@ -10,6 +10,7 @@
 > [DesignContract](../ConnectionManagement/DesignContract.md), the
 > [verified properties summary](connection-management-verified-properties-summary.md)
 > and the [identified issues summary](connection-management-identified-issues-summary.md).
+Updated version: [November 2026 review](connection-management-architecture-review-2026-11.md).
 
 Next: [implementation design](../ConnectionManagement/DESIGN.md) and
 [initial source ledger](../ConnectionManagement/SourceLedger.md) turn this review

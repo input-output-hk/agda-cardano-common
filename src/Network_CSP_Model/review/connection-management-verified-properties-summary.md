@@ -18,7 +18,7 @@ replays connect the model to Haskell; there is no full Haskell refinement theore
 ```mermaid
 flowchart TD
     Outer[Outer shutdown scopes and pool relays] --> Server[Server action scope]
-    Outer --> OG[OG jobs and peer monitors]
+    Outer --> OG[Outbound governor: jobs and peer monitors]
     Server --> Accept[Accept loop]
     Accept --> Workers[Admission workers]
     Server --> IG[Inbound governor]
