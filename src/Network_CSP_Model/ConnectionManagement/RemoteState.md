@@ -1,8 +1,11 @@
 # IG remote promotion and demotion
 
 `Rules/RemoteState.agda` implements `AwakeRemote` and `WaitIdleRemote` CM calls,
-including over-limit promotion with [policy-driven pruning](Pruning.md). The authority is
-network revision `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
+including over-limit promotion with [policy-driven pruning](Pruning.md). The
+original audit uses network revision `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+CM Core and IG are byte-identical at the promoted pin. [Source authority](SourceLedger.md).
+
+Pinned audit locations:
 [promotion](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L2061-L2252),
 [demotion](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L2253-L2355),
 and [IG callers](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/InboundGovernor.hs#L463-L513).

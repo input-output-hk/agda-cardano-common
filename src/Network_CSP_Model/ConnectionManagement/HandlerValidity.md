@@ -325,5 +325,7 @@ There is no additional invariant, owner, supply-bound or history premise.
 The [full fixture](Negative/LiveTrackerInitialized.agda) applies it to the real
 initialized scheduled-close history through Server return. The unrestricted
 initializer resource claim remains false, as witnessed above. This result is a
-model invariant over finite reachable states; it does not assert source
-refinement, progress, delivery or completion of the overall G0–G5 project gates.
+model invariant over finite reachable states. SI5 shutdown coverage and
+the design-variant quiescence results have their own endpoint premises.
+[Verified property scopes](../review/connection-management-verified-properties-summary.md#guarantees-of-the-source-derived-model),
+[design-variant theorems](DesignContract.md#2-proved-acceptance-and-limits).

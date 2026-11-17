@@ -6,7 +6,7 @@
 - Source mapping, model proofs, initialized examples, bounded exploration and Haskell replays provide complementary evidence. G0–G5 are met at their declared scopes; there is no full model-to-Haskell refinement theorem or universal progress result.
 - Positive results cover primitive contracts, configured inbound/outbound lifecycles, concurrent incarnations, map ownership/uniqueness, handler-reference validity, and conditional shutdown certificates for collected handlers and owned callers.
 - Three older CM findings—retained reservations, incomplete over-limit release, and unpublished handshake results—were re-tested at [IntersectMBO/ouroboros-network](https://github.com/IntersectMBO/ouroboros-network) [`2f1c154f248659b89523d5679ca532f442e7ed2a`](https://github.com/IntersectMBO/ouroboros-network/tree/2f1c154f248659b89523d5679ca532f442e7ed2a). The older IG overlap wedge remains evidence at [`4b3ab7664f609a1aee0f0c24dcfcfd0ab899fc42`](https://github.com/IntersectMBO/ouroboros-network/tree/4b3ab7664f609a1aee0f0c24dcfcfd0ab899fc42), without re-testing at the current pin.
-- A self-purged handler can outlive CM shutdown: replay confirms this at the CM/tracer boundary. Late admission has separately replayed halves, but the combined Server race remains unconfirmed. Foreign callers exposed a model ownership artefact.
+- A self-purged handler can outlive CM shutdown. A direct-CM replay observes the pending result after return, and a pristine full-Server control observes that shutdown did not wait. The combined late Server-worker/include race remains unconfirmed. The foreign-caller trace exposed a model ownership artefact.
 - Recommend Server-owned admission workers joined without cancellation, plus a historical CM handler registry swept at shutdown, with CM callers confined to their owning scopes.
 - A small production prototype supports conditional quiescence. Publication failure, blocked cleanup and notification backpressure still prevent progress in explicit tests; resolve these before treating it as a generally terminating fix.
 
@@ -54,7 +54,7 @@ The [verified-properties summary](../review/connection-management-verified-prope
 | Result | Evidence kind and premises |
 | --- | --- |
 | Primitive and branch coverage | Executable rules plus paired enabled/refusal controls cover 90/90 selected primitive contracts. The branch inventory has 99 rows: 67 implemented, 19 contracted, 13 excluded, zero missing. This accounts for reviewed boundaries; it is not universal branch execution or IO/IOSim equivalence. |
-| Six lifecycle obligations | Initialized finite witnesses cover clean inbound, clean outbound, duplex reuse, handshake failure/cleanup, successful hot demotion and timeout/Cooling/Cold. They require their supplied transport/protocol outcomes; the configured extensions cover all six protocol numbers. The production timeout path uses mux shutdown and direct handler cleanup, without an invented foreign release. |
+| Six lifecycle obligations | Finite witnesses cover clean inbound, clean outbound, duplex reuse, handshake failure/cleanup, successful hot demotion and timeout/Cooling/Cold. The reduced hot-demotion witness starts from a subsystem initializer with pre-accepted callers; the other supervised paths have their own initialization certificates. The configured extensions cover all six protocol numbers. The production timeout path uses mux shutdown and direct handler cleanup. |
 | Concurrent connections | Initialized OwnedCallers histories cover two executing peers (294 events) and three same-key incarnations with another key present (303). Old TIME_WAIT finalizers preserve newer bindings. The overlap endpoint intentionally retains live handlers; it is not a shutdown result. |
 | Source policy inputs | Configured inbound/outbound runs use retry/clearing values 5/120, selected V15 data and explicit Tx V2. Proofs establish seed/split/comparator independence only for reached finite decisions, fixing eligible sets, clocks/order and outcomes; they establish no probability distribution. |
 | Successful source controls | Actual-CM IOSim replays confirm cleanup after post-open configuration failure, transition to inbound-idle with spare capacity, and self-pruning of only the selected connection. M6 revalidates these at the current pin using synthetic transport/handshake inputs. |
@@ -95,7 +95,12 @@ The [current CM finalizer][shutdown] reads the connection map once, then cancels
 
 In the direct-CM replay, admission succeeds and its worker is joined. A supplied buffer-acquisition failure starts actual handler cleanup. The socket closes exactly once, the binding disappears, and the cleanup counter tracer pauses. The actual CM-created handler still has no Async result before and after CM returns. Opening the gate lets it finish; the unpaused control has its result before return.
 
-This confirms behavior at the tested CM/tracer boundary, with controlled inputs, not deployment frequency or every tracer. [Replay records](SourceReplay/README.md#handler-self-purge-before-the-cm-returns-12-november-2026) and increment 99 retain that classification. The prototype separately extends testing to the full Server/IG/accept route.
+The later pristine full-Server control reports `shutdownWaited = False` while
+the tracer gate is closed. Its observer then opens the gate before waiting for
+the scope and sampling the handler result. The direct-CM replay supplies the
+separate pending-after-return observation. Both use synthetic handler/transport
+inputs and a controlled tracer. [Direct-CM record](SourceReplay/README.md#handler-self-purge-before-the-cm-returns-12-november-2026),
+[full-Server control](SourceReplay/README.md#controls-and-physical-observations).
 
 ### Late admission — separate halves confirmed, combined race unconfirmed
 
@@ -133,6 +138,12 @@ The combined model proves endpoint quiescence: at completed teardown, admission 
 
 The 16 November [production prototype patch](SourceReplay/QuiescentShutdownPrototype.patch) changes six files: 695 additions/28 deletions, including only 60 additions/27 deletions in production code. It retains the old snapshot finalizer and handler masking/TIME_WAIT behavior; admission joins run inside the IG callback. History is retained until CM exit, without an early reclamation policy.
 
+The Agda variant gates CM entry on completed admission joins and inherited IG
+join, then allows the historical sweep during CM shutdown. The prototype joins
+admissions inside the IG callback and runs the sweep after the existing CM
+finalizer exits. An escaped CM handle can still start a late include in the
+prototype. [Model and prototype ordering](DesignContract.md#model-and-prototype-ordering).
+
 All eleven original defect/control properties reproduce on pristine production code; four positive quiescence assertions fail there. The prototype passes eighteen IOSim checks, including full Server self-purge, rollback, five teardown routes, and POR at 20,000/20 bounds with 597 schedules per property. Four checks deliberately confirm failed progress. Existing coverage passes 37 properties at 100 cases and IG-race at 10; IG-race at 100 hits the same 60-second limit on baseline and prototype. These are recorded results, not checks rerun for this documentation update. [DesignContract](DesignContract.md#prototype-result) and the [prototype replay record](SourceReplay/README.md#quiescent-shutdown-prototype-increment-100) give the exact scope.
 
 Progress still requires terminal handshake publication or recovery, terminating notification after IG exit, scheduled workers, released map leases, and terminating callbacks/handler cleanup. The prototype deadlocks with permanently blocked cleanup, an unpublished promise, or 101 late producers filling IG's [capacity-100 queue][queue] after its exit. Normal placement lets IG consume during joins; it does not solve IG-first teardown. A watchdog must report failure, not bypass waits and declare quiescence. Publication and notification progress obligations therefore remain unsatisfied.
@@ -148,6 +159,7 @@ Complete dedicated physical-result tests for remaining detachments: outbound fai
 - [Verified properties summary](../review/connection-management-verified-properties-summary.md): positive results, exact evidence kinds and premises.
 - [Identified issues summary](../review/connection-management-identified-issues-summary.md): every finding, revision and classification.
 - [November architecture review](../review/connection-management-architecture-review-2026-11.md): source mapping, runtime assembly and semantic/exploration boundaries.
+- [Branch disparity review](../review/connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities): current differences between model, proof scope, pinned Haskell and the prototype.
 - [DesignContract](DesignContract.md): recommendation, rejected alternatives, proof scope, progress obligations and prototype.
 - [GateAudit](GateAudit.md): G0–G5 acceptance scopes and remaining obligations.
 - [SourceReplay README](SourceReplay/README.md): patches, source controls, reproduction instructions, schedules and exclusions.

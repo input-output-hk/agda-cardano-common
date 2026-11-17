@@ -6,6 +6,13 @@ ordering guards. They no longer lack a reviewed lifecycle contract. This is a
 source review and finite model evidence, not Haskell refinement or full G2
 configured-bundle acceptance.
 
+Current acceptance includes both configured directions and the source-selected
+inputs. [Increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction)
+checks both initialized runs using 5/120, the selected V15 data/flow and Tx V2.
+Its policy result covers the four reached finite selection histories.
+Driver, payload, DB and application observations still use the contracts below.
+[Branch matrix](BranchMatrix.md), [gate audit](GateAudit.md).
+
 ## Configured outbound coupling (increment 92)
 
 [ConfiguredProtocols](ConfiguredProtocols.agda) composes the three kernels with
@@ -37,7 +44,8 @@ finalizer branch; the coupled present-fetch branch remains a guarded contract.
 These are source-operation observation contracts. They do not implement payload,
 codec, STM registry identity, DB readiness, source policy RNG or universal
 progress. The second selected establishment job remains registered at `J.begin`.
-Configured inbound model-run acceptance is supplied below; concrete source instantiation remains open. Endpoint and premature-step facts
+This increment uses the reduced policy fixture. Increment 96 checks the
+source-configured outbound run. Endpoint and premature-step facts
 are in [FullConfiguredFacts](Negative/FullConfiguredFacts.agda); the entire
 projected history executes in [OwnedCallers](Negative/FullConfiguredCallers.agda).
 
@@ -61,14 +69,15 @@ return. [Endpoint facts](Negative/InboundConfiguredFacts.agda),
 [startup facts](Negative/InboundConfiguredStarts.agda),
 [premature controls](Negative/InboundConfiguredControls.agda) and
 [OwnedCallers](Negative/InboundConfiguredCallers.agda) retain these distinctions.
-Source RNG/selection, offered/agreed version/data and actual V2 logic selection
-remain explicit instantiation gaps; readiness/driver/DB/private-resource events
-remain reviewed contracts. See [increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle)
-and [GateAudit](GateAudit.md): G0/G2 remain partly met at that boundary.
+At increment 94, concrete source RNG/selection, version/data and V2 logic
+instantiation were open. Increment 96 closes these for the selected finite
+profile. Readiness, driver, DB and private-resource events remain reviewed
+contracts. [Increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle),
+[gate audit](GateAudit.md).
 
-The earlier batch acceptance paragraphs below retain their dated review scope.
-Increments 92/94 supersede their missing-configured-execution statements;
-concrete source-input instantiation remains open as described above.
+The batch acceptance paragraphs below retain their original review scopes.
+Increments 92, 94 and 96 record their configured-execution and source-input
+follow-ups.
 
 ## Authority, observations and implementation boundary
 
@@ -378,12 +387,11 @@ operation projection, shared-resource coupling, control alternative priority and
 mask/readiness obligations above remain contracts; no native replay, Haskell
 refinement, universal progress or whole-node shutdown theorem follows.
 
-G0/G2 remain partly met: **66 implemented / 16 contracted / 14 excluded /
-3 missing** rows. Remaining protocol/resource reviews are LeiosNotify, LeiosFetch
-and shared Leios allocation/cleanup. Reconciled configuration/seed/selection,
-full configured initialized clean coverage and separately requested downstream
-acceptance remain open. Increment 89 records exact validation and deferred heavy
-modules.
+At batch 2, G0/G2 were partly met with **66 implemented / 16 contracted /
+14 excluded / 3 missing** rows. The three missing contracts were LeiosNotify,
+LeiosFetch and shared Leios allocation/cleanup. The later batches and configured
+runs are documented on this page. Increment 89 records the original validation
+and deferred heavy modules.
 
 [TxOut]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/TxSubmission/Outbound.hs
 [TxIn1]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/lib/Ouroboros/Network/TxSubmission/Inbound/V1.hs
@@ -549,5 +557,5 @@ identifies an earlier execution blocker: source established KeepAlive **8** is
 [OwnedCallers prefix certificate](Negative/FullConfiguredBlockedCallers.agda)
 do not instantiate these three adapters. They remain conditional; no protocol
 contract state is injected or declared completed to bypass allocation. Warm is
-empty in this selected source profile. G0/G2 remain partly met; increment 91
-records the exact remaining configuration/seed/selection and full-execution work.
+empty in this selected source profile. Increment 91 records the configuration
+and full-execution work that remained at that checkpoint.

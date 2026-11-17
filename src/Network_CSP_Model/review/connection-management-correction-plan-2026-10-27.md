@@ -9,9 +9,11 @@ The [review](connection-management-source-spec-review-2026-10-27.md) and
 [assessment](connection-management-source-spec-review-summary-2026-10-27.md)
 provide the findings and their qualifications.
 
-Source authority remains network pin
-`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. Part B concerns upstream specification
-errata. Part C concerns a later snapshot and does not authorize moving the pin.
+This historical plan uses network pin `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+Part B concerns specification errata. Part C concerns the source snapshot then
+under consideration. The [separate migration](../ConnectionManagement/BASELINE_MIGRATION_PLAN.md)
+promoted the model to `2f1c154` on 9 November.
+[Current review](connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities).
 
 ## Workstreams and dependencies
 

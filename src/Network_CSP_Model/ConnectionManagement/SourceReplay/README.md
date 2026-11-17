@@ -1,5 +1,11 @@
 # Source replays
 
+The replays below use named pinned Haskell revisions and explicit fixtures.
+Increments 73, 78 and 99 compare the source-derived model's candidates with
+pristine CM or Server operations. Increment 100 reports both pristine controls
+and a separately patched prototype. [Issues and classifications](../../review/connection-management-identified-issues-summary.md),
+[model and prototype ordering](../DesignContract.md#model-and-prototype-ordering).
+
 ## M6 revalidation at network `2f1c154` (9 November 2026)
 
 Every replay and probe below was rerun against network
@@ -843,6 +849,13 @@ than a watchdog or a harness fault. Restoring the production patch makes them
 pass. An earlier development run had an extra read of an already consumed gate;
 its two watchdog failures are excluded from this acceptance result.
 
+The pristine full-Server control polls the scope while the cleanup tracer gate
+is closed. It then opens the gate before reading the final handler result. Its
+observation is that Server did not wait for the closed gate. The direct-CM
+replay above separately observes the handler result still pending after CM
+return. [Direct-CM observation](#handler-self-purge-before-the-cm-returns-12-november-2026),
+[full-Server test body](QuiescentShutdownPrototype.patch).
+
 Final prototype: **18/18 properties pass** (final run **1.97 s**), with seed **100** and one case per
 property. Four intentionally assert **failed progress**, described below; they
 are not successful shutdown executions. The two POR properties exhaust
@@ -904,7 +917,10 @@ closed-handle flag. Caller ownership is therefore still an API scope premise.
 Normal joins occur inside IG's callback, so IG can still consume notifications
 unless it has itself failed/exited. This placement improves the normal route
 but does not discharge the IG-first counterexample or establish correspondence
-with every model shutdown ordering. These are finite conformance experiments,
+with every model shutdown ordering. The Haskell history sweep also runs after
+the map-based finalizer exits, while the Agda variant allows it to run during
+`closingCM`. [Model and prototype ordering](../DesignContract.md#model-and-prototype-ordering).
+These are finite conformance experiments,
 not a universal safety/progress/refinement theorem. Dedicated physical-result
 schedules for all §5 phase-C detachments, outbound rollback/query/alias paths,
 pruning/replacement, TIME_WAIT tails, multiple listeners, fork-allocation failure

@@ -6,7 +6,11 @@ pure selection/write kernel; `Rules/RemoteState.agda` retains the caller continu
 `Machine.agda` commits the entire proposal in one event. Neither an intermediate
 victim write nor a pending promotion write is observable as a separate step.
 
-The source pin remains `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`:
+The original pruning source audit uses `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+CM Core and IG are byte-identical at the promoted pin; the source ledger records
+the migration. [Current source authority](SourceLedger.md).
+
+Pinned audit locations:
 
 - [Core.hs:720–777](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionManager/Core.hs#L720-L777): candidate construction, victim writes and cancellation action.
 - [Diffusion/Policies.hs:284–306](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/lib/Ouroboros/Network/Diffusion/Policies.hs#L284-L306): the diffusion pruning policy used here.

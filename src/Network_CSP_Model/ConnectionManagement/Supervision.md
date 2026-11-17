@@ -5,14 +5,42 @@ the remaining diffusion scopes, then derive completed shutdown from the required
 certificates. A completed governor job-pool close alone does not establish full
 shutdown.
 
-Source authority remains network pin
-`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. This work does not change that pin,
-resolve a new dependency version, or promote conditional snapshots into source
-reachability witnesses. The detailed source evidence is in
+Current source authority is network `2f1c154f248659b89523d5679ca532f442e7ed2a`
+and consensus `2e44d98a843168ba3b189e305820b79943ac7d1e`, promoted on 9 November
+during the [baseline migration](BASELINE_MIGRATION_PLAN.md). Earlier increments
+retain network `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d` and their original
+evidence. The early mappings are in
 [the pool audit](../review/connection-management-pool-supervision-source-audit-2026-10-27.md)
 and [the peer-policy audit](../review/connection-management-a6-source-audit-2026-10-27.md).
 
+## Current status at increment 100
+
+- SI4 covers selected one-listener source exit routes through increments 68–70.
+  SI5 derives scope closure, relays join and CM's collected-handler physical wait
+  for initialized outer runs that reach finished relays. The original coordinator
+  snapshot can miss raw admissions and detached handlers. [Verified properties](../review/connection-management-verified-properties-summary.md#guarantees-of-the-source-derived-model).
+- CM-I4c is complete for `initialize (O.initial c₀) g`. The c1 IG result, restated c2
+  foreign-frame classification and OwnedCallers no-frame theorem each retain
+  their own premises. [Handler validity](HandlerValidity.md),
+  [shutdown design acceptance](DesignContract.md#2-proved-acceptance-and-limits).
+- G0–G5 are met within the current profile, primitive, raw-semantics and finite
+  exploration/replay scopes. [Gate audit](GateAudit.md).
+- The combined Agda design proves historical-handler and worker quiescence
+  at reached endpoints. Increment 100 supplies a Haskell prototype with
+  finite IOSim evidence. Publication and notification failures before CM entry,
+  blocked cleanup, exceptional ordering and broader detachment cases still
+  matter for correctness. [Model and prototype ordering](DesignContract.md#model-and-prototype-ordering),
+  [replay and progress failures](SourceReplay/README.md#progress-findings-and-limits).
+
+The dated sections below preserve the evidence and open questions at their
+respective checkpoints. Use this section and the [disparity review](../review/connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities)
+for current scope and obligations.
+
 ## Current composed lifecycle certificates
+
+This subsection tracks the earlier composed certificates through their
+increment-67 checkpoint. Later shutdown and validity results are linked
+[above](#current-status-at-increment-100).
 
 **Confirmed finding — model scope, 4 November 2026.** Model commit `6878713`
 contains increments 45–52, extending the initialized Server/peer frontend to
@@ -95,6 +123,9 @@ identity `/tmp/cm-race-certificates-20261104/`. Documentation maintenance did
 not rerun Agda, native replays or a term-level imported-assumption audit.
 
 ## Open questions and reconciled status
+
+This subsection preserves the questions and follow-ups through the SI5b
+checkpoint. [Current status and open obligations](#current-status-at-increment-100).
 
 - **Confirmed finding:** the early ledger's statement that accepted-child and
   supervision behavior were unimplemented describes the initial admission
@@ -201,7 +232,7 @@ are reconciled through model commit `eef9971` (accepted increment 64), with
 accepted, uncommitted increment 65 TIME_WAIT integration on 6 November. Later work must
 recheck the actual theorem types and worktree.
 
-| ID | Scope and required result | Current workstream position |
+| ID | Scope and required result | Recorded workstream checkpoint |
 | --- | --- | --- |
 | SI1 | Standalone one-owner governor-pool lifecycle: immutable registry snapshot, sequential cancel/wait, queue preservation, and certificates for snapshot Async results. | Committed in `8c79b9a`; checked within the snapshot contract. This is not full shutdown. |
 | SI2 | CM caller cancellation and governor adapter: executable source-compatible cancellation effects, explicit bracket/handoff context, asynchronous-exception propagation, and job termination only after the modeled local unwind. | Committed in `8c79b9a`; real cleanup, capture/supply induction, initialized runs and pool-close certificate checked within the stated profile. |
@@ -209,11 +240,15 @@ recheck the actual theorem types and worktree.
 | SI4 | CM handler/mux lifetime and cleanup, connection-manager scope, and responder Server scopes, including remaining handler sends and joins. | Active. SI4-F1 (graceful TraceStopped/IG callback) is corrected in `920c16f`. Selected initialized callback/CM/Server paths, physical birth backing and handshake shutdown certificates are committed through `1e332cd`; collected-worker physical/birth backing is committed in `3822a47`; witnessed gap-aware histories and automatic inbound origins are committed in `db743c2`; collected inbound resource origins are committed in `898a02d`. Increment 62 is committed in `8636e88`, with outbound resource proofs under `O.initial core` and fresh full acceptance. Increment 63 finished-target integration is committed in `8dd2452`, with fresh full acceptance recorded below. Increment 64 outbound mux integration is committed in `eef9971`, with fresh full acceptance recorded below. Increment 65 TIME_WAIT integration is accepted and uncommitted, with fresh full acceptance recorded below. Remaining shutdown routes and full scope/quiescence obligations remain open. |
 | SI5 | Derive `completeShutdown` only from all required scope certificates; remove dependence on an externally asserted whole-supervision completion boundary. | SI5a (increment 71): Server return, peer closure and component certificates, and relays join, derived for every initialized outer run reaching the finished relays state. SI5b (increment 72): at that state the CM coordinator is closed, has no unread snapshot entry, and was closed by an actual physical result wait. Raw admission workers stay outside (admission quiescence). |
 
-The current production-policy wrapper's explicit completed-supervision boundary
-remains a scoped assumption until SI5. No theorem about a smaller component may
-be substituted for those remaining obligations.
+The standalone production-policy wrapper retains its explicit completion
+boundary. SI5 derives the separate composed runtime certificate under its own
+premises. [Current status](#current-status-at-increment-100).
 
 ## Remaining work and parallel execution
+
+This is the historical execution plan beginning at increment 59. For the
+remaining design work, use the [gate audit](GateAudit.md#second-objective--a-correct-design)
+and the [prototype progress obligations](DesignContract.md#3-explicit-implementation-progress-assumptions).
 
 **Implementation checkpoint — 6 November 2026, HEAD `eef9971`.** Increments 59–60
 are committed in `db743c2`, 61 in `898a02d`, 62 in `8636e88`, 63 in `8dd2452`

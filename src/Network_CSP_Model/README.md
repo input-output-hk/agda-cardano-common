@@ -22,7 +22,7 @@ resume and checkpoint that work across sessions.
 
 | Folder | What it is |
 |---|---|
-| [`ConnectionManagement/`](ConnectionManagement/README.md) | Standalone CM/IG/OG/Server design and source ledger, with admission, handshake-consumer and cleanup slices, CSP rendering/trace correspondence, and local map/reference proofs. |
+| [`ConnectionManagement/`](ConnectionManagement/README.md) | Standalone CM/IG/OG/Server model with configured lifecycle witnesses, raw CSP correspondence, initialized validity and shutdown proofs, checked exploration, source replays and a shutdown prototype. [Summary](ConnectionManagement/CM_Summary.md). |
 | [`Cardano_network/`](Cardano_network/README.md) | The Ouroboros N2N mini-protocols (KeepAlive, ChainSync, BlockFetch, TxSubmission2, LeiosNotify, LeiosFetch) as client/server peer processes, the network multiplexer and its copy-buffer specification, whole-network systems built from them, and the proofs about them. |
 | [`GovernorWedge/`](GovernorWedge/README.md) | A small standalone model of the `ouroboros-network` inbound governor's connection-management path, checking which interleavings wedge the governor and what each proposed fix does. |
 

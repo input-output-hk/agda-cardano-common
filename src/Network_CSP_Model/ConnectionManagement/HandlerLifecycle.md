@@ -7,7 +7,11 @@ registered handler with its published handle's mux. The original `handlerExit`
 boundary remains available for untracked handlers; no claim is made that all
 machine cleanup traces are now source-derived.
 
-Source pin: `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+Source pin for this early rule-family audit:
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. The promoted model uses
+`2f1c154`; the dedicated physical-handler and mux layers have their own
+proofs and observation boundaries. [Source authority](SourceLedger.md),
+[current supervision](Supervision.md#current-status-at-increment-100).
 
 - [ConnectionHandler.hs:434–452](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/ouroboros-network/framework/lib/Ouroboros/Network/ConnectionHandler.hs#L434-L452): publish the negotiated handle and enter unmasked mux execution.
 - [Mux.hs:254–278](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs#L254-L278): close the job-pool bracket before the async catch writes Failed, traces Dead and rethrows.

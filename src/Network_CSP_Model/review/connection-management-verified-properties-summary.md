@@ -1,10 +1,9 @@
 # What the connection-management model establishes
 
-Summary updated 16 November 2026 from recorded source audits, proofs, initialized
-witnesses and replays through Supervision increment 100. This is the positive-results
-companion to the [issues summary](connection-management-identified-issues-summary.md).
-Evidence was read for this update; no Agda checks, native replays, builds or git
-commands were run.
+Summary reconciled 17 November 2026 against model commit `687463c`, the pinned
+source and recorded replays through increment 100. See the
+[issues summary](connection-management-identified-issues-summary.md) and
+[branch disparity review and validation](connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities).
 
 ## Model and source boundary
 
@@ -52,8 +51,8 @@ values are retained. This is a subsystem profile, not a whole-node boot model.
 | Configured bundles | Hot ChainSync/BlockFetch/TxSubmission2/LeiosNotify/LeiosFetch, empty warm, established KeepAlive; eager initiators and demand/grouped-Any responders. Coupled contracts preserve captured jobs, control reads, pipeline draining and shared-resource cleanup. [Protocol contracts](../ConnectionManagement/ProtocolContracts.md); [increments 88–94](../ConnectionManagement/Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts). |
 | Source-policy instantiation | Full outbound **381 contract inputs/322 frontend events** and inbound **246/208** runs use source retry/clearing values **5/120**, selected V15/version data and explicit Tx V2. [SourcePolicyOutbound](../ConnectionManagement/SourceInputs/SourcePolicyOutbound.agda), [SourcePolicyInbound](../ConnectionManagement/SourceInputs/SourcePolicyInbound.agda), `initialized-contracts`/`initialized-frontend`. [Increment 96](../ConnectionManagement/Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction) proves seed/split/comparator independence for the reached finite decision histories, including rollback/restarts. It fixes eligible sets, clocks/order and outcomes; it does not cover arbitrary selections or random distributions. |
 
-The six G2 obligations are **finite initialized witnesses**, each proving that
-an enabled lifecycle exists under its supplied observations:
+The six G2 obligations have finite model witnesses. Each starts at the
+initializer or fixture state of its named layer and uses supplied observations:
 
 | Lifecycle | Witness and endpoint |
 | --- | --- |
@@ -61,7 +60,7 @@ an enabled lifecycle exists under its supplied observations:
 | Clean outbound | [OutboundCleanLifecycle](../ConnectionManagement/Negative/OutboundCleanLifecycle.agda), 156 events; [FullConfiguredWitness](../ConnectionManagement/Negative/FullConfiguredWitness.agda) extends through all six initiators, release, cleanup and Cold. The second selected establishment job remains registered but unentered. |
 | Duplex reuse | [ServerPeers.Protocols](../ConnectionManagement/Negative/ServerPeers.agda), `initialized-to-start`: actual admission, publication and IG registration precede outbound acquisition of the existing bearer, under `canInitiate`. |
 | Handshake failure | [SupervisedHandshakeFailure](../ConnectionManagement/Negative/SupervisedHandshakeFailure.agda), `initialized-to-cleanup`: 40 events through observed deadline failure, promise publication, disconnected caller return, socket/map cleanup and handler result. |
-| Successful hot demotion | [GovernorLifecycle](../ConnectionManagement/CSP/GovernorLifecycle.agda), `path`; [ServerPeersDeactivation](../ConnectionManagement/Properties/ServerPeersDeactivation.agda), `origin-success`, separates actual clean hot-result waiting from entry already Warm. |
+| Successful hot demotion | [GovernorLifecycle](../ConnectionManagement/CSP/GovernorLifecycle.agda), `path`, uses a reduced subsystem initializer with two pre-accepted admission callers. The separate [ServerPeersDeactivation](../ConnectionManagement/Properties/ServerPeersDeactivation.agda) theorem `origin-success` takes successful deactivation provenance in an initialized supervised history and distinguishes actual clean hot-result waiting from entry already Warm. |
 | Timeout/Cooling | [TimeoutCoolingOwned](../ConnectionManagement/Negative/TimeoutCoolingOwned.agda), `initialized-to-completion`: 145 events through PSA timeout, mux/pool shutdown, direct handler cleanup and monitor Cold. The production-caller path requires neither foreign CM release nor TIME_WAIT. |
 
 For G3, [ConcurrentLifecycles](../ConnectionManagement/Negative/ConcurrentLifecycles.agda)
@@ -152,6 +151,12 @@ handler registry independent of the live map.
 | Owned-callers proof | [OwnedCallers](../ConnectionManagement/Properties/OwnedCallers.agda), `Protocols.no-frames`: explicit `O.initial` initialization and guarded variant execution to finished relays imply **no acquire/release frames**, the original c2. |
 | Combined registry proof | [ServerOwnedHandlers](../ConnectionManagement/Properties/ServerOwnedHandlers.agda): `no-late-admission`/`no-late-fork` give joined admission results and refuse admission take/fork at closingCM/returned boundaries. Under initialized variant execution to finished relays, `quiescence`/`historical-quiescence` give results for every physical handler, including earlier registry members; `si5` retains the original certificate. These are endpoint safety guarantees. |
 | Haskell prototype | [Increment 100 replay](../ConnectionManagement/SourceReplay/README.md#quiescent-shutdown-prototype-increment-100): the pinned prototype passes 18 IOSim checks, including five teardown routes, Server self-purge, rollback and POR (597 schedules/property within 20,000/20 bounds). Four positive quiescence assertions fail on pristine source. Four passing negative tests expose failed progress from blocked cleanup, unpublished promises and post-IG queue saturation. |
+
+The Haskell worker joins occur inside the IG callback, and its historical
+sweep follows exit from the map-based finalizer. The Agda variant gates CM
+entry on worker joins and allows the sweep during CM shutdown. The patch relies
+on caller scope, and a retained handle still accepts a post-return include.
+[Model and prototype ordering](../ConnectionManagement/DesignContract.md#model-and-prototype-ordering).
 
 No result proves eventual shutdown, deadlines, fairness or universal delivery.
 Multiple listeners, arbitrary application bundles, deployment callback contracts,

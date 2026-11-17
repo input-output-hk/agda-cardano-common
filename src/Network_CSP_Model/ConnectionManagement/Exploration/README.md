@@ -1,7 +1,12 @@
 # Bounded supervised exploration
 
-Stage 1 supplies the enumerator below. Stage 2 adds the dictionary-relative
-text importer/exporter and targeted race certificates described at the end. `Bounded` enumerates all successful dispatcher edges over an
+Stage 1 supplies the enumerator below. Stage 2 adds dictionary-relative text
+transport and targeted race certificates. Stage 3 adds checked shrinking and
+classified source-operation tests. Model search, trace checking and Haskell
+operation replay each have their own coverage. [G5 evidence](../GateAudit.md#g5--exploration-and-replay-met-at-declared-finite-scopes),
+[source classifications](../../review/connection-management-identified-issues-summary.md#findings-and-evidence).
+
+`Bounded` enumerates all successful dispatcher edges over an
 explicit finite event alphabet, then all trace/endpoint pairs through depth `n`
 whose visited states satisfy allocation cutoff `b`. No scheduler, dependency
 reduction, equality-based merging, or ordering restriction prunes the search.

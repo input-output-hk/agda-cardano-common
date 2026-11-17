@@ -1,6 +1,15 @@
 # Implementation design: CM, IG, OG and Server
 
 **Design baseline: 14 October 2026; implementation update: 16 October 2026.**
+
+The sections below preserve the original design and early implementation
+snapshot. The combined runtime, proof coverage, checked exploration and
+selected source replays have since advanced. The reviewed G0–G5 scopes are met.
+The correct-design objective has an Agda endpoint proof and a Haskell prototype,
+with progress and correspondence obligations still open. [Gate audit](GateAudit.md),
+[branch disparity review](../review/connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities),
+[design-variant contract](DesignContract.md).
+
 The admission prefix, inbound handshake-result consumer, handler cleanup and local map/reference
 preservation lemmas are available; see [README.md](README.md) for exact coverage.
 A dispatcher for those slices, a productive CSP renderer, hiding and machine/trace
@@ -20,8 +29,8 @@ node-delivery ordering. [Outbound CM and ordinary-peer OG](Outbound.md) now add
 acquisition/release, peer jobs, completions and monitoring on the shared state.
 The checked 146-action lifecycle includes real CM calls and IG registration; the
 57-action producer trace closes the admission-derived registered-finish gap.
-Concrete PRNG replay, full handler coverage, wider OG policies and source
-correspondence remain outstanding. Schematic declarations below describe the target design.
+At that checkpoint, concrete policy inputs, broader handler coverage and source
+correspondence were open. The schematic declarations below describe the design.
 
 ## 1. Objective and authority
 
@@ -42,7 +51,9 @@ locating defects in the pinned source, it should:
   variant of the same rule families, checked against the same statements and
   compared with the source model by explicit witnesses and theorems.
 
-The [design-variant acceptance contract](DesignContract.md) records the proposed ownership/registry design, safety guarantees, open progress assumptions and pinned replay plan.
+The [design-variant acceptance contract](DesignContract.md) records the
+ownership/registry design, endpoint safety proofs, prototype and its
+join/sweep differences, and open progress assumptions.
 
 The G0–G5 gates in section 9 are unchanged by this objective.
 
@@ -99,17 +110,24 @@ source-valid setup prefix or explicit reachability premise before reporting a
 whole-node counterexample. Initial ordinary-peer targets are known = 2,
 established = 2, active = 1; demotion scenarios lower active to 0 through the
 target-update interface. Local-root and big-ledger special cases are disabled.
-Complete the other target fields and seed consistently with the pinned sanity
-predicate during G0; these values do not bypass eligibility/backoff guards.
+The checked source profile instantiates the other target fields and accounts
+for the selected finite policy histories. The values preserve the
+eligibility/backoff guards. [Pinned profile](BranchMatrix.md#pinned-locallifecycle-profile--increment-91),
+[source inputs](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction).
 
 `LocalLifecycle` is a selected subsystem abstraction, not the full Leios node.
 Every protocol contract must list admitted waits, control checks, outcomes and
 cleanup dependencies. In particular, BlockFetch/ChainSync registry dependencies
-and shared Leios peer-resource lifetime cannot be replaced by independent
-instantaneous returns in a scenario that investigates those effects. Until these
-contracts are reviewed, use them only for model sanity tests, not source claims.
+and shared Leios peer-resource lifetime need their actual interaction boundaries.
+The current contracts check the CM-visible order and rely on the named source
+observations for actual application behavior. [Protocol contracts](ProtocolContracts.md).
 
 ### Exploration profile
+
+The trial limits below are historical design inputs. The executable explorer
+uses an explicit alphabet and per-visited-state allocation cutoff. The
+published searches and membership certificates record their individual bounds.
+[Current exploration scopes](Exploration/README.md).
 
 The semantic machine uses fresh natural-number-backed identities. A finite
 explorer applies a separate bound manifest. Initial trial limits are six total
@@ -422,7 +440,7 @@ because the abstract model admits it.
 
 ## 10. Remaining implementation decisions
 
-These are concrete work items, not permission gates:
+The original implementation priorities were:
 
 - Expand every selected source branch listed as a family in the ledger before
   implementing it; record exact reads/writes and masked/interruptible points.

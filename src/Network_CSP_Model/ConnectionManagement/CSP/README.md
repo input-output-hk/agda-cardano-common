@@ -2,10 +2,16 @@
 
 The CSP layer now interprets the source-derived transition rules as a productive
 `PTree`, using `csp-ptree-agda`'s LTS, traces, stable failures and hiding semantics.
-The implemented subsystem remains partial. IG batches and selected mux/tracer
-behavior execute in the machine. [Outbound CM and ordinary-peer OG](../Outbound.md)
-now extend it through `OutboundMachine` and `Subsystem`; concrete PRNG replay, full
-handler execution and the wider discovery/root/ledger/churn profile remain open. This is not a complete source model.
+The full raw supervised interpretation covers the inner dispatcher and outer
+relays layer. Its exact transition, trace, failure and refusal correspondence
+relates two representations of the Agda model. Diagnostic actions and results
+still need an API observation/hiding contract before any transfer of raw
+refusals to source blocking or hidden divergence claims.
+[Supervised bridge](#supervised-runtime-bridge-increment-86),
+[gate audit](../GateAudit.md#g4--semantic-bridge-met-for-the-full-raw-supervised-rendering).
+
+The diagram and first sections below explain the original inbound renderer.
+The later bridge sections give the current supervised semantics.
 
 ## Architecture
 

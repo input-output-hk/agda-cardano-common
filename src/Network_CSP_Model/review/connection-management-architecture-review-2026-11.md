@@ -17,6 +17,10 @@ independent of `Cardano_network`, `GovernorWedge` and `HotDemotion`. This review
 reads current module headers, dispatcher interfaces and evidence records. It
 performs no Agda checks, native replay, builds or git commands.
 
+The [17 November disparity review](#11-model-source-and-proof-disparities) checks
+this account against the committed definitions, theorem statements, pinned
+source and prototype. Its validation is recorded separately.
+
 ## 1. Review result and corrections
 
 October's proposed small-step architecture is implemented. Modular rules now
@@ -346,8 +350,9 @@ historical handler.
 
 Two issues sit precisely outside map-snapshot coverage: an unjoined admission
 worker can run after teardown, and a handler can remove its map binding before
-its physical result exists. The latter is replay-confirmed at CM/tracer scope;
-the combined late Server-worker/include race remains unconfirmed on pristine
+its physical result exists. Self-purge is replay-confirmed at direct CM/tracer scope, and a pristine
+full-Server control also observes the missing wait. The combined late
+Server-worker/include race remains unconfirmed on pristine
 source, with its halves replayed separately. Foreign residual CM frames are an
 environment over-approximation. Current source and prototype classifications
 are maintained in the [issues summary](connection-management-identified-issues-summary.md).
@@ -452,3 +457,51 @@ Relative links were checked, and the seven Mermaid blocks were manually checked
 for syntax and agreement with the prose; diagram rendering was not performed.
 Historical proof/replay results are reported from their records; none was rerun
 for this update.
+
+## 11. Model, source and proof disparities
+
+17 November 2026, branch `kangfeng/connection_manager`, reviewed model commit
+`687463c`. The source comparison uses pristine network `2f1c154` and consensus
+`2e44d98`. The increment 100 patch is a separate implementation experiment.
+[Source authority and operation mapping](../ConnectionManagement/SourceLedger.md).
+
+| Boundary | Evidence and consequence |
+| --- | --- |
+| Startup and workload | `LocalLifecycle` begins after setup with an empty CM, one listener, two ordinary known peers and 2/2/1 targets. The full configured runs execute all six protocol numbers in each selected direction. The outbound run leaves the second establishment job registered at `begin`. Use the separate initialized G3 histories for two executing peers and same-key overlap. Peer sharing, topology discovery, root/big-ledger policy, churn decisions and broader application configurations remain outside the exercised profile. [Branch matrix](../ConnectionManagement/BranchMatrix.md), [gate audit](../ConnectionManagement/GateAudit.md). |
+| Source inputs and time | The source-configured witnesses use V15, explicit Tx V2 and retry/clearing inputs 5/120. Older 5/60 fixtures keep their own endpoints. The selection proof fixes the actual eligible sets, quotas, order, clock samples and outcomes at four reached decisions, then makes their results independent of seed/split/comparator and finite STM history under those conditions. Arbitrary selections, probability distributions, physical time and deadline claims require separate evidence. [Source-policy modules](../ConnectionManagement/SourceInputs), [increment 96](../ConnectionManagement/Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction). |
+| Primitive and application contracts | The 90 primitive rows account for selected executable dependency contracts. The 99 branch rows account for 67 implemented, 19 contracted and 13 excluded source boundaries. Readiness and success observations require the corresponding source operation to return or commit. Driver, payload, DB, tracer and transport observations leave genuine blocking and fault possibilities. The one-listener Server covers selected exit routes with abstracted trace/exception observations. `serverReturned` can represent the end of source unwind before the exception propagates. The omitted accept rate-limit hard-wait guard also permits earlier handoffs in the model. [Primitive matrix](../ConnectionManagement/PrimitiveMatrix.md), [protocol contracts](../ConnectionManagement/ProtocolContracts.md), [branch matrix](../ConnectionManagement/BranchMatrix.md), [SI4 source audit](../ConnectionManagement/SourceLedger.md#si4-source-coverage-audit-10-november-2026). |
+| Resource and caller invariants | Exclusive map ownership and uniqueness have their own initial predicates and execution lifts. CM-I4c's `Frontend.from-initial` applies to finite `Runs` from successful `T.initialize (O.initial c₀) g`. The unrestricted initializer can preload a continuation that forks with an absent entry and an unallocated promise. A valid historical handler reference can outlive the live map, an open socket or IG registration. [Handler validity](../ConnectionManagement/HandlerValidity.md), [counterexample](../ConnectionManagement/Properties/LiveTrackerReferencesCounterexample.agda). |
+| Pinned shutdown and SI5 | The baseline reads a map snapshot and later reads its captured entries to collect handlers. SI5 proves closure and a physical wait for the **collected** set at finished relays. IG c1 covers pending IG calls. The restated c2 additionally assumes `O.initial` and classifies surviving acquire/release frames as foreign and resultless. The separate OwnedCallers theorem rules out those frames in its guarded runtime. Raw admissions and historical detached handlers can escape baseline shutdown. [Verified theorem scopes](connection-management-verified-properties-summary.md#guarantees-of-the-source-derived-model). |
+| Agda design and Haskell prototype | The Agda variant requires both joined admissions and inherited IG join at `closingCM`, and permits a historical sweep during `closingCM` before coordinator closure. The Haskell bracket normally joins admissions inside the IG callback before that scope unwinds, and runs a concurrent historical sweep after the existing CM finalizer exits. The patch relies on caller scope and still admits a deliberately escaped API call. The variant's endpoint theorems and the prototype's selected IOSim results therefore have different premises and ordering. [Exact comparison](../ConnectionManagement/DesignContract.md#model-and-prototype-ordering). |
+| CSP observation and exploration | G4 is a two-way correspondence between the dispatcher and its raw CSP rendering, including disabled-action refusal, stable failures and lossless state snapshots. The action alphabet exposes scheduler/diagnostic choices. The legacy projection erases result values. G5 text offsets need a named dictionary, and enumeration coverage is relative to each alphabet and bound. A refused action or exhausted search frontier gives no source deadlock conclusion. [CSP interpretation](../ConnectionManagement/CSP/README.md), [exploration](../ConnectionManagement/Exploration/README.md). |
+| Source-problem classification | M6 retested the reservation, over-limit release and publication findings at the promoted pin. Direct-CM replay observes a pending self-purged handler after return, and a pristine full-Server control observes the missing wait. The pristine late-admission evidence still separates a delayed Server worker from direct post-shutdown include. The foreign-frame trace tests a permissive environment, and the older IG wedge retains its own source pin and observation scope. [Issues summary](connection-management-identified-issues-summary.md). |
+
+The correct-design objective still needs a terminal-publication or recovery
+contract and a terminating notification policy after IG exits. The prototype
+exposes both failures before CM shutdown, and blocked cleanup prevents the
+physical result wait from returning. A correspondence argument must account for
+the different join/sweep order, exceptional finalization, caller scope and the
+remaining detachment cases. [Design acceptance](../ConnectionManagement/DesignContract.md),
+[prototype progress experiments](../ConnectionManagement/SourceReplay/README.md#progress-findings-and-limits).
+
+### Review validation
+
+- Verified the network pin in the consensus `cabal.project`, compared CM Core,
+  IG, Server and JobPool blobs at both CM pins, and ran `git apply --check`
+  for the prototype on files extracted from the pristine promoted pin.
+  Native builds and IOSim replays retain their recorded validation dates.
+- Agda 2.8.0 passed 13 serial checks with `+RTS -M12G -A128m -RTS`.
+  `CSP/Dispatcher`, `Exploration/Bounded` and `Exploration/Minimise` were
+  freshly checked at the endpoint with dependency interfaces reused.
+  The other ten checks used cached endpoint interfaces:
+  `LiveTrackerInitialized`, `ServerShutdownCoordinator`, `OwnedCallers`,
+  `ServerOwnedHandlers` (properties), `CSP/Supervised`, `ShrunkLate`,
+  `ShrunkPurge`, `ShrunkForeign`, `SourcePolicyOutbound` and
+  `SourcePolicyInbound`. All returned exit 0 without warnings.
+- A syntactic scan of the 1,164 tracked CM Agda modules found no explicit holes,
+  postulate declarations or scanned trust/unsafe-check patterns. Imported
+  dependencies were outside that scan. The byte checker matched all twelve
+  retained trace artifacts to their certificate literals.
+- The CM documentation link check covered 48 pages and 2,252 local targets
+  with no errors. The separate GovernorWedge
+  README retains nine known missing historical inputs. [Artifact provenance](../GovernorWedge/README.md#design-artifact-provenance).

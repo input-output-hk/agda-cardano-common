@@ -1,10 +1,13 @@
-# Initial source-to-transition ledger
+# Source-to-transition ledger
 
-Current branch/profile classification: [BranchMatrix.md](BranchMatrix.md).
-Increment 91 [reconciles the full configuration](BranchMatrix.md#pinned-locallifecycle-profile--increment-91):
-Increment 92 supports KeepAlive StartOnDemandAny with ordered grouped responder
-startup and a contract-coupled initialized outbound witness. G0/G2 remain partly
-met for concrete source policy/version instantiation and configured inbound coverage.
+The [branch matrix](BranchMatrix.md) records current branch classification.
+Both configured directions now have initialized runs. Increment 96 supplies
+the selected V15/Tx V2 and 5/120 inputs, with a finite policy-history abstraction.
+G0/G2 are met for that reviewed profile. The pinned source still discards
+Server admission handles and uses map-snapshot CM cleanup. The historical
+registry and no-cancel admission joins are design variants and a separate
+prototype. [Gate audit](GateAudit.md),
+[model and prototype ordering](DesignContract.md#model-and-prototype-ordering).
 
 **Initial ledger: 15 October 2026; coverage status reconciled 4 November 2026.**
 Companion to [DESIGN.md](DESIGN.md).
@@ -20,13 +23,17 @@ governor, consensus DB) are cited at the new pin in the M3/M4 tables and the
 `96ee6e…` / consensus `585a861…` keep that pin.
 These are fixed baselines, not a claim about the latest branch heads.
 
-This is an initial implementation ledger. **Expanded** entries define selected
+The original ledger uses **Expanded** for entries that define selected
 operation boundaries checked against the source. **Family** entries locate the
 required behavior but still need per-branch transcription before coding. These design statuses alone do not mean implemented, tested, or proved.
 The implementation coverage below records successive slices. An unexpanded branch is not implicitly
 unreachable and must never silently become `nothing` in `advance`.
 
 ## Latest prototype audit (6 November 2026)
+
+This heading refers to the source-baseline audit of the Leios prototype.
+Increment 100's quiescent-shutdown prototype is recorded separately in the
+[replay record](SourceReplay/README.md#quiescent-shutdown-prototype-increment-100).
 
 The [current-source audit](../review/connection-management-source-baseline-audit-2026-11-06.md)
 verified the observed consensus/network pair `2e44d98…` / `2f1c154…` from live
@@ -99,7 +106,18 @@ baseline audit (`Server.hs`, `InboundGovernor.hs`, `ConnectionManager/Core.hs`,
 the classification of the increment records in [Supervision](Supervision.md).
 This is a documentation audit; no model, proof or replay changed.
 
+The table below records the audit's original coverage. Increments 68–70 model
+external interruption, IG-first and accept-first exit for one listener. The
+production action-exception path uses the earlier action-exit chain under the
+trace/exception abstraction explained below. Increments 71–72 derive the
+finished-relays certificate and CM snapshot wait. Raw worker ownership and
+historical handler coverage remain separate. [Current shutdown status](Supervision.md#current-status-at-increment-100).
+
 ### Audit finding: the modelled Server exit has no production instance
+
+This heading records the initial reading of `returnAction`. The resolution
+below maps it to body exit and the end of the unwind on the production
+action-exception route.
 
 Both production callers pass `Server.with` a callback that cannot return
 normally. The node-to-node callback ends in `Async.waitAny` over `m Void`
@@ -164,8 +182,8 @@ is still running when the Server unwinds, which the chain cannot express.
 | `AcceptFailure` with `ECONNABORTED`: delay and retry | Excluded (no state change) | Not modelled; a delay with no allocation |
 | `runConnectionRateLimits` delays | Excluded | Recorded as absent in the README; timing only |
 | `getLocalAddr`/trace failure after `accept` | Implemented (increment 70) | The same `acceptFails` step: the accepted socket is closed before any handoff and never enters the model's socket table |
-| Raw admission worker (bare `async`) | Implemented for selected phases | `ServerAdmission` workers. They outlive the scope, as the [Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) shows. A worker can still include and fork a handler after the CM shutdown ([late-admission replay](SourceReplay/README.md#late-admission-after-the-cm-shutdown-10-november-2026), [model witness](Negative/ServerLateAdmission.agda), increment 73) |
-| Raw admission worker errors before handoff | Missing (already recorded as open) | Accept/getLocalAddr/tracer/fork errors before handoff |
+| Raw admission worker (bare `async`) | Implemented for selected phases | `ServerAdmission` leaves workers outside scope joins. The [Server replay](SourceReplay/README.md#actual-server-admission-worker-lifetime-replay) observes escape. The [initialized model witness](Negative/ServerLateAdmission.agda) includes a fork after CM shutdown. The [pristine source replays](SourceReplay/README.md#late-admission-after-the-cm-shutdown-10-november-2026) observe the delayed worker and late API include separately. |
+| Raw admission worker errors before handoff | Covered for selected one-listener branches | `acceptFails` covers fatal accept and observed getLocalAddr/tracer failure. Increment 80 adds failed `async` allocation, close/rethrow and no fabricated child. [Branch matrix](BranchMatrix.md), [fork-failure control](Negative/PrimitiveAdmissionFork.agda). |
 | Several listeners | Excluded (one listener) | The `withAsyncAll` cancellation order of several loops is not modelled |
 | `TrServerStopped` / `TrServerError` tracer failure | Contract | Traces are observed successful operations |
 
@@ -218,6 +236,11 @@ is still running when the Server unwinds, which the chain cannot express.
 
 
 ## Current implementation coverage
+
+The entries here describe the original slice progression. Use the
+[gate audit](GateAudit.md) for the accepted branch-wide coverage and the
+[disparity review](../review/connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities)
+for limits on transferring those results to the pinned implementation.
 
 **Reading this section:** the paragraphs and rule-family status cells accumulate
 historical implementation checkpoints; they are not a unified inventory at
@@ -404,7 +427,7 @@ it must not add a bounded queue to a source-unbounded channel.
 | `ACTION.CLOSE` | [Deactivation and close][actions-close] | All-temperature termination, result wait and CM release/error/timeout paths | Implemented: controls, all-results, real CM release and timeout/error continuations |
 | `PEER.MONITOR` | [Peer monitoring][actions-monitor] | First-result alternatives, concurrent demotion/close, source Cold condition | Implemented: ordered first-result reads, background close/demotion and CM Cold condition |
 | `OG.DEMOTE.ERROR` | [Demotion job][demote-job] | Separate timed wait for Cold; timeout-dependent completion membership changes | Implemented: separate Cold wait and timeout-dependent completion |
-| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Family; reviewed lifecycle contracts in [ProtocolContracts](ProtocolContracts.md), batches 1–3 (increments 88–90). Actual operation observations remain contracted; increment 92 supplies the contract-coupled initialized outbound witness. Configured initialized inbound coverage remains open. |
+| `PROTOCOL.CONTRACT` | [Consensus bundle][bundle], [Notify][notify], [Fetch][fetch], [BlockFetch registry][registry], [cleanup][registry-cleanup], [sync bracket][registry-sync] | Control reads, pending work, blocking, run results and bracket cleanup | Reviewed lifecycle contracts in [ProtocolContracts](ProtocolContracts.md). Increments 92 and 94 supply initialized contract-coupled outbound and inbound witnesses. Increment 96 supplies source-configured examples. Actual driver, payload, DB and application observations remain contracted. |
 
 ## 4. Expanded admission and map-lock boundaries
 
@@ -688,7 +711,10 @@ unforgetable-peer exception. `Governor/EstablishedPeers.hs` (lines 522–540) us
 `pred failCount` when calculating exponential backoff from the incremented count.
 `CSP/GovernorFailureLimit` checks six attempts with configured limit five, ending
 in OG forgetting while CM retains the reservation. The 211-action trace and its
-negative endpoint are model proofs; the Haskell replay still covers CM only.
+negative endpoint are model proofs. The Haskell follow-up replays actual OG,
+PSA and CM through forgetting at seeds 0, 1 and 42 with injected socket-open
+failure. [Integrated replay](SourceReplay/README.md#verified-og--peer-state-actions--cm-replay),
+[M6 revalidation](SourceReplay/README.md#m6-revalidation-at-network-2f1c154-9-november-2026).
 
 ## Pinned references
 

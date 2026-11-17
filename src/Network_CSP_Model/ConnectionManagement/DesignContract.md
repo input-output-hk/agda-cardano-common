@@ -3,8 +3,9 @@
 13 November 2026. Gate plan step 6: documentation acceptance for **owned
 callers + Server-owned admission workers joined without cancellation + a
 historical CM handler registry swept before coordinator closure**. This is the
-accepted model proposal. At that date it was not an implemented Haskell fix;
-see the later [Prototype result](#prototype-result). No progress theorem is claimed.
+accepted model proposal. Increment 100 implements a pinned Haskell prototype
+with [specific ordering differences](#model-and-prototype-ordering) and
+[finite IOSim evidence](#prototype-result). Eventual shutdown remains open.
 Authority: [DESIGN §1](DESIGN.md#1-objective-and-authority),
 [Supervision increments 73–78](Supervision.md#seventy-third-increment-late-admission-after-the-cm-shutdown)
 and [increment 78's phase C audit](Supervision.md#seventy-eighth-increment-admission-quiescence-step-2-design-exploration).
@@ -211,6 +212,25 @@ contains exact fixtures, masks, physical observations, commands and exclusions.
 No Agda was run or model theorem changed. Read-only Haskell Git metadata prevented
 the requested local branch/commit; the durable edited checkout and standalone
 patch are saved. Nothing was pushed.
+
+## Model and prototype ordering
+
+The model and prototype both require admission results before CM's snapshot
+and historical handler results before completed shutdown. Their intermediate
+steps and caller assumptions differ.
+
+| Boundary | Agda design variant | Increment 100 Haskell prototype |
+| --- | --- | --- |
+| Admission joins and IG | `joinWorker` observes an available worker result. The variant requires all joins at entry to `closingCM`; the inherited `beginCM` transition additionally requires `igJoined`. This gate allows joins before or after IG exit, subject to those boundaries. | The admission bracket finalizer runs after action/accept scopes unwind, inside the IG callback. On the ordinary route IG can still consume notifications during the joins. If IG wins the race by failing first, later notifications can instead block an admission and prevent CM entry. |
+| Historical sweep | `readRegistry` is enabled during `closingCM`. The cursor scans the snapshot, observing each target's available result or its cancellation receipt, then checks all results. `cmGate` requires a completed sweep and available registered results before the coordinator reaches `closed`. The rules permit the sweep to interleave with the inherited map-based shutdown. | The existing map-based finalizer runs first, and the sweep is its `finally` action. It takes a historical snapshot, polls results, sends cancellation to pending handlers and observes `waitCatch` in concurrent branches. The sweep can also run when that first finalizer exits by exception. If the first finalizer blocks, the sweep cannot begin. |
+| Caller scope | `OwnedCallers` guards foreign outbound begins and the combined variant checks admission results and refuses late source map take/fork at the stated stages. | No closed-handle flag guards the API. The escaped-handle control still accepts a new include after Server return. Freezing the registry safely assumes callers remain within their owning scopes. |
+| Establishing a guarantee | `registry-si5` and `quiescence` concern initialized finite runs that reach finished relays. `no-late-admission` and `no-late-fork` concern initialized runs reaching `closingCM` or `serverReturned`. | The tests observe selected physical results and join order, including self-purge and pre-publication map rollback. A correspondence proof would have to relate the additional sweep threads, trace/exception outcomes, and join/sweep order, with the same caller-scope premises. |
+
+The model code and patch locate the ordering above. Keep these distinctions
+when interpreting the IOSim progress failures and the model's endpoint proofs.
+[ServerAdmission](ServerAdmission.agda), [ServerOwnedHandlers variant](Variants/ServerOwnedHandlers.agda),
+[theorems](Properties/ServerOwnedHandlers.agda), [prototype patch](SourceReplay/QuiescentShutdownPrototype.patch),
+[progress tests](SourceReplay/README.md#progress-findings-and-limits).
 
 [server-workers]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L239-L254
 [server-scopes]: https://github.com/IntersectMBO/ouroboros-network/blob/2f1c154f248659b89523d5679ca532f442e7ed2a/ouroboros-network/framework/lib/Ouroboros/Network/Server.hs#L147-L186

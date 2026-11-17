@@ -3,6 +3,8 @@
 Review date: 15 October 2026. Scope: the current `ConnectionManagement` tree,
 including the uncommitted supply-bound work. This review assesses direction and
 claim boundaries; it is not an independent proof of Haskell/model correspondence.
+For branch-wide status and later source findings, see the
+[November review](connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities).
 
 ## Assessment
 

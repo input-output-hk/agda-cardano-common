@@ -6,10 +6,14 @@ completion races and background monitoring. It keeps the design's fixed initial
 known-peer configuration. Discovery, local-root groups, big-ledger peers and churn
 are outside this profile; known peers can be forgotten or removed after failures.
 
-The authority is network commit
+This implementation review originally used network commit
 `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`, pinned by consensus commit
-`585a86117618ff86d7d5b541f9d23b03356d4c3a`. This is not a claim about the latest
-branch. See [SourceLedger.md](SourceLedger.md) for source links.
+`585a86117618ff86d7d5b541f9d23b03356d4c3a`. Source authority was promoted to
+network `2f1c154` and consensus `2e44d98` on 9 November. Earlier mappings and
+validation retain their original scope. The current branch adds configured
+outbound execution, selected 5/120 source inputs, and a scoped seed/history
+abstraction. [Source ledger](SourceLedger.md), [gate audit](GateAudit.md),
+[current supervision](Supervision.md#current-status-at-increment-100).
 
 ## Architecture and state ownership
 
@@ -1114,8 +1118,11 @@ The two refused extensions are proved against the full reachable raw CSP prefix.
 This is not a global deadlock or permanent-outage theorem: the process remains
 open to environment/inbound actions, and the fixed-known-peer profile excludes
 rediscovery. Root/extra peers can be protected against forgetting by the source's
-`unforgetable` predicate and are outside this witness. Full Haskell OG/supervision
-replay is still outstanding; the source replay remains CM-level only.
+`unforgetable` predicate and are outside this witness. The integrated Haskell
+replay exercises actual OG, PSA and CM through repeated failure and forgetting
+under fixed seeds and synthetic socket-open failure. Full governor/supervision
+coverage remains open. [Integrated replay](SourceReplay/README.md#verified-og--peer-state-actions--cm-replay),
+[M6 revalidation](SourceReplay/README.md#m6-revalidation-at-network-2f1c154-9-november-2026).
 
 ## Validation and remaining obligations
 

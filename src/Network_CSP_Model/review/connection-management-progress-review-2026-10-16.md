@@ -4,6 +4,8 @@ Reviewed after commits `99e6b41`, `540496b`, and `2ae7cb6`. This is a review
 of current model definitions, theorem statements, source ledger and recent
 witnesses. It is not a fresh audit of every proof or a source-refinement proof.
 The earlier progress review remains a historical snapshot.
+For the current branch, see the
+[November review](connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities).
 
 ## Assessment
 

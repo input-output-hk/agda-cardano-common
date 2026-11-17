@@ -2,9 +2,11 @@
 
 The model now carries the full source IG event union and executes repeated batch
 selection, registration, responder startup outcomes and synchronous mux tracer
-transactions. This replaces the earlier success-only, first-batch prefix.
-Full handler unwinding and OG are still incomplete; this is not a full subsystem
-model or a source-conformance proof.
+transactions. This page documents the IG kernel and its local contracts.
+The supervised frontend adds physical handler unwind, governed peer actions,
+configured responder lifecycles and an IG-exit certificate conditional on
+finished relays. [Current supervision](Supervision.md#current-status-at-increment-100),
+[protocol contracts](ProtocolContracts.md#configured-inbound-coupling-increment-94).
 
 ## Modules and source mapping
 

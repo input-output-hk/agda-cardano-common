@@ -2,6 +2,13 @@
 
 13 November 2026 (increment 91 configuration reconciliation). The 12 November audit completed [GateAudit plan step 1](GateAudit.md#ordered-gap-closing-plan): an inventory review, not implementation or gate closure. It reconciles [SourceLedger](SourceLedger.md), [DESIGN §§1–2, 9–11](DESIGN.md), [Supervision](Supervision.md) through increment 82, the [migration profile](MigrationProfile.md) and [migration acceptance](BASELINE_MIGRATION_PLAN.md). The original inventory used declarations and topic records. The G1 follow-up implements two previously missing branches below; [increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure) records the accepted G1 checks. The inbound receipt follow-up in [increment 82](Supervision.md#eighty-second-increment-inbound-physical-release-receipt-and-clean-lifecycle) completes the reduced initialized inbound witness; its broad capped regression remains separate.
 
+Current inventory status is 67 implemented, 19 contracted and 13 excluded.
+The configured inbound/outbound runs and selected source-input reconciliation
+through increment 96 establish G0/G2 for the reviewed finite profile.
+The matrix describes the pristine source-derived model. The separate prototype
+adds different lifecycle boundaries for admission joins and the handler sweep.
+[Gate audit](GateAudit.md), [model and prototype ordering](DesignContract.md#model-and-prototype-ordering).
+
 ## The profile actually exercised
 
 Authority is network **`2f1c154f248659b89523d5679ca532f442e7ed2a`**, pinned by consensus **`2e44d98a843168ba3b189e305820b79943ac7d1e`**. Earlier evidence keeps network `96ee6e0…` / consensus `585a861…`. The [baseline manifest](../review/source-baseline-2026-11-06.json) records unchanged CM/IG/Server/JobPool files and changed mux, handler and diffusion files. Retained network source copies were matched against its promoted blob inventory before locating the changed ranges below. Consensus bundle, fetch and logic copies match the manifest's applicable content hashes. This does not establish source refinement. The original inventory audit did not inspect model Git metadata; increment 91 separately inspected model HEAD `5a6f9ef633e909577be20842a236d076d4affcc9`.
@@ -16,9 +23,25 @@ Authority is network **`2f1c154f248659b89523d5679ca532f442e7ed2a`**, pinned by c
 | [Negative/ServerAdmissionPrefixFixtures](Negative/ServerAdmissionPrefixFixtures.agda), `start`, instantiated by [ServerIGExitFixtures](Negative/ServerIGExitFixtures.agda) as `F = Prefix 10 key₁` | One live listener and IG, no connections/workers initially. Admission hard limit **10**, matching `Machine.initial`'s promotion hard limit. `ServerAdmission.acceptedFork` supplies each accepted socket and its worker. [Negative/ServerAdmission](Negative/ServerAdmission.agda), `start`, uses the same empty post-setup shape without an OG. |
 | [Negative/MuxConfiguredTraffic](Negative/MuxConfiguredTraffic.agda), `plan`, `keys`, `initialized-configured-traffic` | A separate initialized physical-birth/mux fixture, not a two-peer LocalLifecycle run. `scheduledLayout false`: Direct and Scheduled muxers plus demuxer, no Slice worker; protocol 1 initiator routes to Scheduled, responder to Direct. `configureMux owner plan 16 1000 keys` fixes its limits. Handler setup precedes publication; a real Direct write precedes clean completion. Plain compatibility fixtures use one Unscheduled muxer plus demuxer. |
 
-Common executable policy values are in [Subsystem.initial](Subsystem.agda): maximum retries **5**, failure clearing **60** time units, time and allocation counters initially zero. The source production clearing default is **120 seconds** ([Outbound policy comparison](Outbound.md#retry-policy-values)); the model/replay choice is deliberate. Ordinary target sanity is `active ≤ established ≤ known`, with ceilings 100/1000/10000; omitted root and big-ledger targets embed as zero, root sets empty. Sane target changes pass through `setTargets` and governor selection, not direct state edits.
+The reduced fixtures use [Subsystem.initial](Subsystem.agda) with maximum
+retries **5** and failure clearing **60**. The source-configured runs use **5/120**
+via [SourceInputs.Policy](SourceInputs/Policy.agda), matching the selected
+production policy values. These are untimed model inputs. Ordinary target
+sanity is `active ≤ established ≤ known`, with ceilings 100/1000/10000.
+Omitted root and big-ledger targets embed as zero with empty root sets.
+Sane target changes pass through `setTargets` and governor selection.
 
-**There is no model PRNG seed.** `OutboundMachine.initial.randomGeneration` and `Machine.initial.pruningGeneration` start at 0; these are draw markers. Acquisition accepts an eligible bucket member; pruning accepts generation-tagged integer scores; governor selection accepts eligible peers and establishment jitter 0–4. These are the [Outbound selection](Outbound.md#acquisition) and [Pruning score](Pruning.md#randomness-delivery-and-ordering-assumptions) contracts, not `StdGen` state. In particular, retry may choose a different member without a changed input map, whereas the source STM split rolls back. Replay seeds **0, 1, 42** in [SourceReplay](SourceReplay/README.md) are separate source experiments, not seeds of these Agda fixtures.
+In the base dispatcher, `OutboundMachine.initial.randomGeneration` and
+`Machine.initial.pruningGeneration` start at 0 and serve as draw markers.
+Acquisition accepts an eligible bucket member, pruning accepts generation-tagged
+scores, and governor selection accepts eligible peers and jitter 0–4. In
+particular, raw retry may choose a different bucket member on an unchanged map,
+whereas the source STM split rolls back. The later policy proof reasons about
+source seeds and finite histories at the four reached selections.
+Native replay seeds **0, 1, 42** belong to separate Haskell experiments.
+[Outbound selection](Outbound.md#acquisition), [pruning scores](Pruning.md#randomness-delivery-and-ordering-assumptions),
+[increment 96](Supervision.md#ninety-sixth-increment-source-policy-profile-and-seed-history-abstraction),
+[native replays](SourceReplay/README.md).
 
 The physical fixture's exception projections are explicit: `MuxPublicationInboundFixtures.bearerClosed` recognizes error 999; `Negative/GovernorPool.classify` recognizes error 7 as IO-manager error. `ServerPeers.Fixtures.classify` is instead constantly false for its local interleaving fixture. They must match represented source exceptions before making source claims. Negotiation supplies a fixed bundle and permitted flow; duplex capability permits reuse but does not require both roles to run.
 
@@ -188,9 +211,8 @@ been established for the concrete source execution. No source replay was run.
 **Historical increment 95 (15 November; superseded by increment 96 below):** the concrete offer assignment is now checked
 through both full configured model runs, rather than left as future replay input.
 The four ranking-decision abstractions are checked at their real reached states.
-**G0/G2 remain partly met:** RNG/split/independent-policy transaction histories
-have no proved source correspondence, and the 60/120 policy-delay discrepancy
-has no source-configured whole-run fixture or observational abstraction. The
+At that checkpoint, G0/G2 were partly met. The source RNG/split/independent-policy
+histories and complete source-120 runs still needed evidence. The
 unrestricted model additionally permits under-selection that the source policy
 cannot produce. [Increment 95](Supervision.md#ninety-fifth-increment-selected-source-inputs-and-policy-erasure-obstruction)
 records the stopping boundary and acceptance evidence. These local proofs do
@@ -418,7 +440,7 @@ Increments 32–62 and 71–76/79 mainly add provenance, initializer restriction
 
 1. **Profile instantiation — G0/G2 met for the reviewed finite profile.** Increments 92/94 supply the full configured outbound/inbound runs; increment 95 instantiates V15/data/flows and Tx V2. Increment 96 checks source 5/120 initialization through both full runs and proves seed/split/finite-history independence at the reached selection/empty-acquisition boundaries. No universal progress or refinement follows.
 2. **Protocol lifecycle reviews — complete as contracts.** Batch 1 contracts ChainSync, BlockFetch and their shared registry ([increment 88](Supervision.md#eighty-eighth-increment-g0-chainsync-blockfetch-and-registry-contracts)); batch 2 contracts TxSubmission2 and KeepAlive ([increment 89](Supervision.md#eighty-ninth-increment-g0-txsubmission2-and-keepalive-contracts)); batch 3 contracts LeiosNotify, LeiosFetch and shared peer resources ([increment 90](Supervision.md#ninetieth-increment-g0-leios-protocol-and-shared-resource-contracts)). No missing matrix rows remain; increments 94–96 complete configured initialized coverage and selected source-input reconciliation. `SERVER.RATE.READ/WAIT` have no model counterpart and are deliberately excluded here; admission `countLimit` cannot be cited as the rate read. Selected exception/promise/timer contracts remain abstract under the accepted G1 primitive matrix; the selected source inputs are instantiated or proved abstract in increments 95–96, while native execution of contracted operations remains a separate boundary.
-3. **Newer model coverage absent from, or stale in, the initial family cells — reconciled here.** Physical initiator/result/restart and typed mux lifecycle, DB waits, release TIME_WAIT receipts, late admission, SI5 and initializer validity have later evidence. `CM.INCLUDE.RESULT`'s “handler execution pending,” `IG.EXIT`'s “rethrow pending” and blanket missing accept/supervision statements describe earlier checkpoints. The SI4 table's “raw admission worker errors before handoff” conflates loop `accept/getLocalAddr/trace` failures (now the implemented `acceptFails` outcome) with the async-fork/worker-unwind edges now implemented in increment 80. M3's pool-body exclusion says “together with its owner,” although the owner cancel/join is implemented. These indexing discrepancies no longer block inventory review; they do not upgrade G2 witnesses. Ownership variants have no production counterparts and stay separate.
+3. **Newer model coverage absent from, or stale in, the initial family cells — reconciled here.** Physical initiator/result/restart and typed mux lifecycle, DB waits, release TIME_WAIT receipts, late admission, SI5 and initializer validity have later evidence. `CM.INCLUDE.RESULT`'s “handler execution pending,” `IG.EXIT`'s “rethrow pending” and blanket missing accept/supervision statements describe earlier checkpoints. The SI4 table's “raw admission worker errors before handoff” conflates loop `accept/getLocalAddr/trace` failures (now the implemented `acceptFails` outcome) with the async-fork/worker-unwind edges now implemented in increment 80. M3's pool-body exclusion says “together with its owner,” although the owner cancel/join is implemented. These indexing discrepancies no longer block inventory review; they do not upgrade G2 witnesses. Ownership variants extend the baseline model. Increment 100 supplies a separate prototype with [different join and sweep ordering](DesignContract.md#model-and-prototype-ordering).
 4. **Stale source anchors — corrected in this matrix.** Ledger `[mux-api]` 121–180 now misses `stopped` 214–221 and `stop` 326–328. `[handler]` 324–455 misses inbound publication 510 and the current catch/run boundaries; use 307–518, with publication 436/510. Old mux monitor/cleanup anchors 254–278, 424–618 and 554–570 must be replaced by pool/catch 411–434, monitor 605–833 and shutdown 763–778. Diffusion wiring 539–600 / 625–825 becomes 632–698 / 728–950; the peer policy is now 337–373. Demotion-job start is 963 rather than 961, ending at 1086. The consensus bundle reference had no range; current constructors are 1963–2100 and shared Leios bracket 1836–1864. Fetch's pipelined declaration begins at 587, not the old 591 anchor. These are source-location corrections, not new semantic claims. Unchanged Core/IG/Server/JobPool ranges retain the ledger's authority. No blocking unresolved anchor is being silently treated as implementation.
 
 **G0/G2 are met for the reviewed finite source-configured profile.** The

@@ -1,6 +1,8 @@
 # G0–G5 gate audit
 
-15 November 2026 (increment 99 checked shrinking and classified source replay). Documentation audit of [DESIGN §§1, 9–11](DESIGN.md),
+17 November 2026. Gate status through increment 99, with the increment 100
+design prototype and [branch disparity review](../review/connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities).
+Documentation audit of [DESIGN §§1, 9–11](DESIGN.md),
 [project state](../PROJECT_STATE.md), the area indexes and evidence below.
 **G1 is met for the selected contracts, G3 for the initialized finite profiles, and G4 for the full raw supervised rendering; G0/G2 are met for the reviewed finite LocalLifecycle profile; G5 is met for the declared finite exploration/replay scopes.** A gate
 requires every acceptance item, not merely a strong result in one component.
@@ -13,7 +15,8 @@ pins. The [15 October progress review](../review/connection-management-progress-
 is historical: its missing OG, IG and supervision coverage has since advanced.
 Likewise, early “open” entries in [Supervision](Supervision.md) must be read with
 increments 68–80: SI5a/b are proved for the one-listener scope, and CM-I4c is
-complete for the explicit `O.initial` profile. Neither closes these project gates.
+complete for the explicit `O.initial` profile. Those proofs have separate
+acceptance conditions from the G0–G5 gates below.
 
 “Proved” below means a model theorem with its stated premises. A finite witness
 proves an enabled path exists; a mutated fixture tests a branch; a bounded search
@@ -24,7 +27,7 @@ source replays or git commands. The 12 November G1 inventory added seven fixture
 adds five primitive corrections and records fresh checks and capped regressions.
 Other check/replay results retain their historical scope. Transient logs are identified in the linked records.
 
-**Increment 92 acceptance:** the user approved replacing exactly six obsolete
+**Historical increment 92 acceptance:** the user approved replacing exactly six obsolete
 installation-refusal diagnostics. The plan 2 design (session-local, not retained) is implemented: eager
 initiators, grouped Any responder starts, captured contract coupling, physical
 pool-exit guards, and the 381/322-event configured outbound witness with endpoint
@@ -32,12 +35,13 @@ controls and executable OwnedCallers proof. [The increment record](Supervision.m
 records 785 accepted non-heavy affected modules and the 79-module deferred heavy
 closure. Concrete seed/selection/numerical-version instantiation remains open; configured initialized inbound model coverage is supplied by increment 94 below.
 
-**Increment 93:** [source-input reconciliation](BranchMatrix.md#seed-selection-and-version-reconciliation--increment-93)
+**Historical increment 93:** [source-input reconciliation](BranchMatrix.md#seed-selection-and-version-reconciliation--increment-93)
 classifies the diffusion split, independent policy seed, actual all-or-singleton
 selection inputs, numerical wire version and version data. Conditional projection
 abstractions are explicit; concrete source instantiation remains open. The
 [initialized responder diagnostic](Negative/InboundConfiguredBlocked.agda)
-proves a 46-event reduced prefix and outbound-wrapper capture refusal. That increment stopped before model work. The user subsequently approved a separate wrapper; increment 94 below supersedes this execution blocker. **G0 and G2 remain partly met at the source-instantiation boundary.**
+proves a 46-event reduced prefix and outbound-wrapper capture refusal. The
+inbound wrapper and source inputs are covered by increments 94 and 96 below.
 
 <a id="g0--domain-scenario-and-source-ledger-partly-met"></a>
 
@@ -59,7 +63,7 @@ PRNG/selection/version instantiation. The [reconciliation](BranchMatrix.md#pinne
 records omissions and deliberate abstractions. No remaining obligation is
 removed by relabeling a row.
 
-**Increment 95:** [negotiation inputs](SourceInputs/Negotiation.agda),
+**Historical increment 95:** [negotiation inputs](SourceInputs/Negotiation.agda),
 [outbound full run](Negative/SourceNegotiationOutbound.agda) and
 [inbound full run](Negative/SourceNegotiationInbound.agda) check selected V15,
 magic 42, disabled query/sharing/Peras, the derived flows and explicit V2 caller
@@ -67,9 +71,8 @@ argument. [Initial](Negative/SourceSelectionInitial.agda),
 [activation](Negative/SourceSelectionActivate.agda),
 [deactivation](Negative/SourceSelectionDeactivate.agda) and
 [close](Negative/SourceSelectionClose.agda) certify actual eligible sets/quotas
-and ranking-independent decisions. **G0 remains partly met:** no RNG/split/
-independent-policy STM correspondence, source-120 initialized full run or
-policy-delay observational abstraction is proved. The checked under-selection
+and ranking-independent decisions. At this checkpoint the RNG/split/independent-
+policy STM abstraction and source-120 initialized runs were still open. The checked under-selection
 control rules out unrestricted two-way policy erasure. This is a precise
 remaining proof boundary, not gate acceptance by documentation.
 
@@ -136,7 +139,7 @@ additional explicit obligations, assessed separately below.
 | Outbound clean lifecycle | **met for the full configured normal outbound profile** | [FullConfiguredWitness](Negative/FullConfiguredWitness.agda) has 381 contract-wrapper inputs and 322 real frontend events from the usual initializer. All six initiators complete their normal contracts; full hot promotion, target-driven clean demotion/close, physical results, release, handler cleanup, Cold and OwnedCallers are certified. The reduced 156-event witness remains unchanged. Source readiness and operation results are explicit contracts, and the second selected establishment job stays at its registered unentered boundary. |
 | Duplex reuse | **met** | [ServerPeers.Protocols](Negative/ServerPeers.agda), `initialized-to-start`, includes actual inbound admission/publication/registration and startup, then outbound `Acquire.select (just (ident 0))` and return on the existing bearer. The header comments specify that only CM-free metadata is reused. This is an initialized finite model witness under `canInitiate`, not exhaustive reuse-branch or source replay coverage. |
 | Handshake failure and socket cleanup | **met for the supervised initialized outbound failure profile** | [SupervisedHandshakeFailure](Negative/SupervisedHandshakeFailure.agda), `initialized-to-cleanup`: **40 real frontend events**, sharing the actual peer-job acquire/connect/fork prefix, then observed handshake deadline failure, real promise publication, caller disconnected return and peer-job failure observation, helper/body exit, physical socket/map cleanup and available handler result. Endpoint: closed socket, Terminated entry retaining error 7, empty live map, cleanupNormal, no allocated handle and physical `returned` (the helper handles the limit failure). Premature consumer/job/exit/finalizer/result, duplicate publication and success-after-failure controls pass. This covers the outbound caller/worker, not an inbound admission-worker failure history. [Increment 83](Supervision.md#eighty-third-increment-g2-outbound-clean-lifecycle-and-supervised-handshake-failure) distinguishes this from asynchronous cancellation and the older abstract scenario boundaries. |
-| Successful hot demotion | **met** | [GovernorLifecycle](CSP/GovernorLifecycle.agda), `path`, includes clean hot-result publication and successful deactivation. [ServerPeersDeactivation](Properties/ServerPeersDeactivation.agda), `origin-success`, distinguishes already-Warm entry from an actual clean hot wait. This meets finite-path evidence for the reduced profile; it proves no universal demotion progress. |
+| Successful hot demotion | **met** | [GovernorLifecycle](CSP/GovernorLifecycle.agda), `path`, starts at the reduced subsystem initializer and includes clean hot-result publication and successful deactivation. The separate [ServerPeersDeactivation](Properties/ServerPeersDeactivation.agda) theorem `origin-success` requires an initialized supervised history with successful deactivation provenance. Its history distinguishes already-Warm entry from an actual clean hot wait. |
 | Timeout-driven cooling with delayed cleanup | **met for the reduced production-caller profile** | [TimeoutCoolingOwned](Negative/TimeoutCoolingOwned.agda), `initialized-to-completion`, checks 145 initialized events: established outbound peer → PSA operation timeout/Cooling → queued mux shutdown and pool exit → handler CM finally closing the socket and directly terminating/purging the entry → monitor Cold and normal job/monitor results. Every real frontend edge is `refl`. [TimeoutCoolingOwnedCallers](Negative/TimeoutCoolingOwnedCallers.agda) proves `every-owned`, `production-policy : Owned.Allowed initialized-outer` and `production-run : Owned.OuterRuns′ …` for the full schedule. No raw core begin, CM release or TIME_WAIT occurs. Controls retain required observations and distinguish demotion timeout from cleanup. The [increment 84 source audit](Supervision.md#pinned-source-audit-who-cleans-up-after-the-psa-timeout) explains why this outbound source branch has direct cleanup rather than TIME_WAIT. The existing 158-event [TimeoutCooling](Negative/TimeoutCooling.agda) remains foreign-caller delayed-cleanup evidence. Full application coverage, universal progress and implementation refinement are not established. |
 
 **Reassessment of all six first witnesses (increment 84):** inbound clean is met
@@ -149,7 +152,9 @@ for the reduced production-caller profile (145 events), with an executable
 OwnedCallers certificate on the entire initialized history. The separate
 158-event foreign-caller history retains TIME_WAIT evidence; the ordinary source
 timeout branch uses direct handler cleanup. The older duplex/hot-demotion checks
-were reviewed, not rebuilt here. **Increment 94 closes configured initialized inbound model coverage. G2 overall remains partly met** at the retained concrete source policy/selection/version-instantiation boundary. Batch 1 completes the three reviewed ChainSync/BlockFetch/registry
+were reviewed at this checkpoint. Increment 94 closes configured initialized
+inbound model coverage, and increment 96 closes the selected input boundary.
+Batch 1 completes the three reviewed ChainSync/BlockFetch/registry
 contracts; batch 2 completes TxSubmission2 and KeepAlive, and batch 3 completes
 LeiosNotify, LeiosFetch and shared Leios resource contracts (zero missing rows). Increment 92 now couples these contracts to the full selected outbound bundle;
 the kernels and generic adapters retain their separate scopes. These histories do not establish universal lifecycle, shutdown,
@@ -165,16 +170,16 @@ Cold. The second selected establishment job remains registered and unentered;
 this does not certify all-worker/node shutdown. Increment 91’s refusal diagnostics
 are historical and replaced under the user’s narrow exception.
 
-**Increment 94:** [configured inbound execution](Negative/InboundConfiguredWitness.agda), [endpoint facts](Negative/InboundConfiguredFacts.agda) and [OwnedCallers](Negative/InboundConfiguredCallers.agda) now meet the missing initialized model-run item. **G2 overall remains partly met:** concrete source policy/selection/version instantiation remains the recorded G0/G2 boundary, including actual RNG states/draw/retry histories, accepted version-data/flow/features and confirmation of the selected Tx V2 source variant. Source readiness, pipeline/driver/DB and private-registry effects remain contracted inputs. [Increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle) records acceptance and the precise remaining gaps. These finite configured runs do not establish universal
+**Increment 94:** [configured inbound execution](Negative/InboundConfiguredWitness.agda), [endpoint facts](Negative/InboundConfiguredFacts.agda) and [OwnedCallers](Negative/InboundConfiguredCallers.agda) meet the initialized model-run item. At this checkpoint concrete source policy/selection/version instantiation was still open. Source readiness, pipeline/driver/DB and private-registry effects remain contracted inputs. [Increment 94](Supervision.md#ninety-fourth-increment-responder-contracts-and-full-configured-inbound-lifecycle) records its acceptance and then-open gaps. These finite configured runs do not establish universal
 progress, deadlines, cancellation joins for all node workers or Haskell refinement.
 The other reduced-profile witnesses retain their accepted scopes.
 
 **Increment 95:** `SourceNegotiationOutbound.initialized-contracts` /
 `initialized-frontend` and their inbound counterparts preserve the complete
 configured runs with the selected source-valid offer and V2 inputs.
-**G2 remains partly met:** RNG split/independent policy state, draw/commit/retry
-history and the 60-versus-120 policy configuration still lack either a checked
-source-configured run or a proved CM-observational abstraction. In particular,
+At this checkpoint a checked source-configured run or CM-observational
+abstraction still had to account for RNG split/independent policy state,
+draw/commit/retry history and the 60-versus-120 policy configuration. In particular,
 `SourceSelectionActivate.deadlines-differ` shows a reached state-field difference,
 and `SourceSelectionInitial.source-proper-subset-impossible` separates source
 policy cardinality from an enabled unrestricted model choice. Neither result
@@ -239,7 +244,7 @@ source-operation replay.
 | Evidence item | Status | Evidence and exact gap |
 | --- | --- | --- |
 | Bounded enumeration and export checks | **met for the declared finite-carrier scopes** | [Exploration](Exploration/README.md) and [increment 97](Supervision.md#ninety-seventh-increment-g5-bounded-enumeration-and-witness-membership) supply executable enabled-event and depth-bounded trace enumeration with soundness/completeness for the explicitly decoded finite event alphabet, typed finite ID carriers, allocation/depth frontiers and six initialized witness membership certificates (depths 40/109/145/156/294/303). Allocation bounds are explicit executable `budgetFor` maxima, not normalized numerals. The stage-1 small relays controls compute a search; its six certificates use proved completeness. This is not enumeration of every small-ID constructor/payload combination. Stage 2 is now checked at the explicit scopes in the next row. No FDR run or broader alphabet enumeration is assumed. |
-| Stage-2 checked text and targeted race searches | **met for the declared dictionaries/windows** | [Increment 98](Supervision.md#ninety-eighth-increment-g5-checked-text-and-targeted-race-searches): label/parser round trips, executable checker soundness and six byte-verified initialized re-import certificates; late admission **10/8**, self-purge **16/8** depth/capacity bounds, and full initialized foreign-frame search through depth **1000** over its exact finite alphabet with allocation pruning disabled. All three known candidates have proved membership. Corresponding shared/registry and owned-callers variants have bounded negatives; the combined late-registry filtered negative is computed. Fourteen final serial Agda checks pass. This does not supply minimization or reduced-candidate replay. |
+| Stage-2 checked text and targeted race searches | **met for the declared dictionaries/windows** | [Increment 98](Supervision.md#ninety-eighth-increment-g5-checked-text-and-targeted-race-searches): label/parser round trips, executable checker soundness and six byte-verified initialized re-import certificates; late admission **10/8**, self-purge **16/8** depth/capacity bounds, and full initialized foreign-frame search through depth **1000** over its exact finite alphabet with allocation pruning disabled. All three known candidates have proved membership. Corresponding shared/registry and owned-callers variants have bounded negatives; the combined late-registry filtered negative is computed. Fourteen final serial Agda checks pass. Stage 3 supplies minimization and reduced-candidate replay in the next rows. |
 | Minimized candidates | **met for the three initialized candidates** | [Increment 99](Supervision.md#ninety-ninth-increment-g5-trace-shrinking-and-conformance-tests): generic importer/violation-preservation lemmas, external chunk/single deletion checked by Agda without compilation backends, original/shrunk trace pairs **50→46**, **85→82**, **192→183**. Literal certificates freshly check both initialized executions, identical violation predicates and strict length decreases. All twelve exports are byte-verified. No global-minimum theorem is claimed. |
 | Source-operation replay | **met** | [Replay record](SourceReplay/README.md) and retained artifacts cover socket-open reservation, OG/PSA/CM failure/backoff (seeds 0, 1, 42), over-limit release, publication faults, Server worker lifetime, scheduled setup and DB waits. M6 records reruns at the promoted pins. Later [late-admission](SourceReplay/README.md#late-admission-after-the-cm-shutdown-10-november-2026) and [self-purge](SourceReplay/README.md#handler-self-purge-before-the-cm-returns-12-november-2026) records add scoped source observations. [Increment 99](SourceReplay/README.md#reduced-cleanup-candidates-increment-99) adds three selected reduced-operation tests plus two controls: all five pass after an offline serial build. Self-purge is confirmed at CM/tracer scope; the foreign caller is a model ownership over-approximation; the combined late Server race remains unconfirmed. This meets selected replay/classification evidence, not full source refinement or replay confirmation of every proposed race. |
 
@@ -249,8 +254,10 @@ worker after return, but no single trace with that worker's include after return
 The direct API replay separately executes a late include. Keep the combined
 late-fork claim a candidate; the bounded negative is not unreachability.
 The self-purge replay confirms a handler result unavailable after CM return,
-using synthetic transport/handler inputs and a gated cleanup tracer; it does not
-run full `Server.with`. The primitive cancel/join probe is not a CM replay.
+using synthetic transport/handler inputs and a gated cleanup tracer. The
+increment 100 pristine full-Server control separately observes a missing wait
+while that gate is closed. The primitive cancel/join probe tests the standalone
+restoration contract. [Full-Server control](SourceReplay/README.md#controls-and-physical-observations).
 
 Historical validation also differs by artifact. [Supervision increment 52](Supervision.md#fifty-second-increment-cache-aware-race-lifecycle-certificates)
 records fresh interaction loads followed by a cached final CLI success.
@@ -283,25 +290,30 @@ source-problem finding. There is already substantive proved design exploration:
   physical-birth registry and result sweep to worker ownership and owned
   callers. [Properties/ServerOwnedHandlers](Properties/ServerOwnedHandlers.agda)
   proves `registry-si5`, `no-late-admission`, `quiescence` and
-  `quiescent-covered`: at finished relays, workers are joined and registered/
-  physical handlers have results. This is an accepted model design proposal,
-  not a change implemented in the pinned Haskell.
+  `quiescent-covered`: finished relays certify joined workers and available
+  registered/physical handler results. The late-admission theorems apply
+  earlier, at `closingCM` or `serverReturned`.
 
 [DesignContract](DesignContract.md) completes plan step 6: source patch outline,
 proved safety scope, explicit progress assumptions, rejected variants and pinned
-replay acceptance for late admission, self-purge and all phase C detachments.
-Implementation and progress validation remain open.
+replay criteria for late admission, self-purge and phase-C detachments.
+Increment 100 supplies a [separate Haskell prototype and selected IOSim results](SourceReplay/README.md#quiescent-shutdown-prototype-increment-100).
+Join/sweep ordering and caller scope differ from the model.
+The publication, notification and cleanup progress failures, remaining phase-C
+cases and implementation correspondence stay open.
+[Exact comparison](DesignContract.md#model-and-prototype-ordering).
 
 Remaining design questions: can the no-cancel worker joins and registry sweep
 always finish, and under which scheduler, transport, protocol and tracer progress
 assumptions? How should a real implementation register births, retain detached
 handlers and prevent late callers across rollback/overwrite/pruning windows?
-What is the required policy for foreign callers and preloaded continuations?
+How will implementation callers satisfy the ownership premise, including
+escaped handles? What guarantees can be justified for preloaded continuations?
 How far should guarantees extend beyond one listener and the selected outer
 scopes? The current `FullValidity` theorem covers `initialize (O.initial c₀) g`;
 the unrestricted initializer is refuted. Quiescence is safety at a reached
 endpoint; finite progress examples do not prove eventual shutdown. A source fix
-needs its own implementation/replay and correspondence evidence.
+needs correspondence and broader acceptance evidence beyond the prototype tests.
 
 ## Ordered gap-closing plan
 
@@ -314,9 +326,9 @@ campaign is not a prerequisite for ordinary behavioral witnesses.
 | 1 | S | **Done — [BranchMatrix](BranchMatrix.md), 12 November 2026.** All original ledger families and later branches classified, with executable fixture targets/bundles/selection policy, source ranges and evidence. Protocol contracts and handoff/worker errors remain explicit gaps. This completes the G0/G2 checklist review without changing gate criteria or closing the gates. |
 | 2 | M | **Done**, 13 November 2026. [PrimitiveMatrix](PrimitiveMatrix.md): 90 rows, original 40/50 → inventory checkpoint 85/5 → current 90/0 met/missing. F1–F5 now have source-backed rules and paired fixtures. [Increment 80](Supervision.md#eightieth-increment-g1-primitive-runtime-closure) records the checks and remaining capped endpoints. **G1 is met.** |
 | 3 | M | **Done for the reduced initialized inbound profile, 13 November 2026.** [InboundCleanLifecycle](Negative/InboundCleanLifecycle.agda), `initialized-to-completion`: 109 actual frontend events through normal responder/mux exit, inbound physical release receipt, socket/entry cleanup, IG unregistration and handler result. The separately authorized source review confirmed masked inbound `throwTo` and the handler’s unmasked TIME_WAIT; [increment 82](Supervision.md#eighty-second-increment-inbound-physical-release-receipt-and-clean-lifecycle) records the new adapter, controls and validation. Existing statements/raw guards are unchanged. Capped broad regression endpoints remain user-run acceptance. |
-| 4 | M | **Done for the explicit reduced configured profiles, 13 November 2026.** [OutboundCleanLifecycle](Negative/OutboundCleanLifecycle.agda), `initialized-to-completion` (156 events), and [SupervisedHandshakeFailure](Negative/SupervisedHandshakeFailure.agda), `initialized-to-cleanup` (40 events), start at the supervised initializer, check every real step by `refl`, and join caller/job observations to socket/entry cleanup and handler physical results. The outbound path uses increment-66-family physical release receipt and separately preserves the duplex retained-inbound distinction. Endpoint facts/premature controls and eight fresh checks pass; [increment 83](Supervision.md#eighty-third-increment-g2-outbound-clean-lifecycle-and-supervised-handshake-failure) records the one-protocol scope. Full application coverage remains open; step 5 is assessed below and G2 overall stays partly met. |
-| 5 | M | **Done for the reduced production-caller profile, 13 November 2026.** [TimeoutCoolingOwned](Negative/TimeoutCoolingOwned.agda), `initialized-to-completion` (145 events), checks the source timeout → mux/handler exit → direct CM cleanup → monitor Cold and physical job/monitor results. [TimeoutCoolingOwnedCallers](Negative/TimeoutCoolingOwnedCallers.agda) proves the entire initialized schedule is allowed and executes in OwnedCallers: no raw begin, CM release or TIME_WAIT. The [increment 84 audit and production witness](Supervision.md#production-only-timeout-cooling-witness) distinguish this source path from the retained 158-event foreign-caller TIME_WAIT history. Endpoint facts, premature controls and both fresh checks pass. Full application contracts/bundles remain open; G2 stays partly met. |
-| 6 | M | **Done — [DesignContract](DesignContract.md), 13 November 2026.** Documents worker joins and the historical handler registry, exact model guarantees/premises, open progress assumptions, rejected variants/counterexamples and a pinned prototype/IOSim plan covering phase C detached handlers. Documentation acceptance only: implementation/replay and eventual-shutdown obligations remain open; quiescence is endpoint safety. |
+| 4 | M | **Done for the explicit reduced configured profiles, 13 November 2026.** [OutboundCleanLifecycle](Negative/OutboundCleanLifecycle.agda), `initialized-to-completion` (156 events), and [SupervisedHandshakeFailure](Negative/SupervisedHandshakeFailure.agda), `initialized-to-cleanup` (40 events), start at the supervised initializer, check every real step by `refl`, and join caller/job observations to socket/entry cleanup and handler physical results. The outbound path uses increment-66-family physical release receipt and separately preserves the duplex retained-inbound distinction. Endpoint facts/premature controls and eight fresh checks pass; [increment 83](Supervision.md#eighty-third-increment-g2-outbound-clean-lifecycle-and-supervised-handshake-failure) records the one-protocol scope. The later configured profile is tracked under G2 above. |
+| 5 | M | **Done for the reduced production-caller profile, 13 November 2026.** [TimeoutCoolingOwned](Negative/TimeoutCoolingOwned.agda), `initialized-to-completion` (145 events), checks the source timeout → mux/handler exit → direct CM cleanup → monitor Cold and physical job/monitor results. [TimeoutCoolingOwnedCallers](Negative/TimeoutCoolingOwnedCallers.agda) proves the entire initialized schedule is allowed and executes in OwnedCallers: no raw begin, CM release or TIME_WAIT. The [increment 84 audit and production witness](Supervision.md#production-only-timeout-cooling-witness) distinguish this source path from the retained 158-event foreign-caller TIME_WAIT history. Endpoint facts, premature controls and both fresh checks pass. The contracts for broader application configurations remain open. |
+| 6 | M | **Done — [DesignContract](DesignContract.md), 13 November 2026.** Documents worker joins and the historical handler registry, exact model guarantees/premises, open progress assumptions, rejected variants/counterexamples and a pinned prototype/IOSim plan covering phase C detached handlers. Increment 100 adds the pinned prototype and selected replays. Eventual shutdown, remaining detachment cases and model/prototype correspondence remain open. |
 | 7 | M | **Done for the initialized finite profiles, 13 November 2026.** [ConcurrentLifecycles](Negative/ConcurrentLifecycles.agda) (294 events) and [OverlapInitialized](Negative/OverlapInitialized.agda) (303) supply both executing ordinary peers and three overlapping same-key incarnations with another real key present. All real edges are checked by `refl`; endpoint/captured-identity facts, delayed-finalizer preservation, refusal controls, exact allocation budgets and full executable OwnedCallers certificates pass. [Increment 85](Supervision.md#eighty-fifth-increment-g3-initialized-concurrency-histories) records scope and serial checks. **G3 is met**; no universal progress, full application coverage or source refinement follows. |
 | 8 | M | **Done for the full raw supervised rendering, 13 November 2026.** [Increment 86](Supervision.md#eighty-sixth-increment-g4-supervised-runtime-semantic-bridge) supplies step/run/arbitrary-trace correspondence, lossless result traces and initialized controls. [Increment 87](Supervision.md#eighty-seventh-increment-g4-refusal-and-decoder-completeness) adds arbitrary-set refusal/stable-failure correspondence, complete unique typed decoding and action coverage, verified monitor input and committed-state refusal/non-deadlock controls. **G4 is met at this scope.** No existing theorem statement or machine rule changes; no source-parser, compact API/hiding, hidden-divergence or parallel-architecture claim. |
 | 9 | L | **Stage 1 done for the declared finite alphabets — [increment 97](Supervision.md#ninety-seventh-increment-g5-bounded-enumeration-and-witness-membership).** Enabledness/reachability soundness and completeness, typed finite worker/peer/socket/promise ID carriers, explicit allocation/depth cutoffs, computational controls and proved membership for the six ordinary initialized G2/G3 witnesses are checked. The allocation cutoffs are executable per-witness maximum-footprint terms; large search trees and those numeral values are not normalized. **Stage 2 done — [increment 98](Supervision.md#ninety-eighth-increment-g5-checked-text-and-targeted-race-searches):** checked text round trips/import soundness, six retained byte-verified initialized re-imports and three targeted source-membership/design-negative searches at explicit finite alphabets/bounds. Fourteen final stage-2 checks pass; step 10 is completed below by increment 99. Preserve the distinction between proved membership and an executed exhaustive search. |

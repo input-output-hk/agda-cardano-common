@@ -3,6 +3,16 @@
 For the current goal, milestone status, evidence, and next action, see
 [Project state](../PROJECT_STATE.md). The design and source ledger below remain
 the authority for scope and source mappings.
+
+Start with the [CM summary](CM_Summary.md), [gate audit](GateAudit.md) and
+[branch disparity review](../review/connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities).
+G0–G5 are met within their declared scopes. The pinned source-derived shutdown
+certificate covers collected handlers. The ownership/registry variant adds
+endpoint quiescence under explicit premises. The increment 100 Haskell prototype
+provides finite results with a different join/sweep order and explicit progress
+failures. [Current supervision status](Supervision.md#current-status-at-increment-100),
+[model and prototype ordering](DesignContract.md#model-and-prototype-ordering).
+
 [Increment 91 configuration reconciliation](BranchMatrix.md#pinned-locallifecycle-profile--increment-91)
 records the checked two-peer targets and exact bundle: source KeepAlive uses
 StartOnDemandAny, now supported by increment 92. The full configured
@@ -18,10 +28,9 @@ the reviewed finite profile**; the existing fixtures remain the reduced-60 profi
 Other random readers, infinite retries, universal progress and native refinement
 are outside that result.
 
-The [current supervision findings](Supervision.md#current-composed-lifecycle-certificates)
-and [open questions](Supervision.md#open-questions-and-reconciled-status) reconcile
-the lifecycle claims through accepted model commit `daf111d` (increment 66);
-the dated increment records retain detailed acceptance evidence.
+The earlier supervision findings and questions reconcile the lifecycle claims
+through their respective checkpoints. [Composed lifecycle certificates](Supervision.md#current-composed-lifecycle-certificates),
+[dated questions](Supervision.md#open-questions-and-reconciled-status).
 
 Accepted [increment 53](Supervision.md#fifty-third-increment-initialized-handler-resource-origins)
 adds initialized inbound resource histories at publication and CM's wait;
@@ -84,8 +93,8 @@ verified the observed `2e44d98…` / `2f1c154…` pair. The [migration](BASELINE
 then implemented its changed held-batch readiness, setup, scheduling,
 worker-lifetime and DB-wait contracts, and on 9 November 2026 promoted the
 model to that pair.
-The [remaining work and parallel execution plan](Supervision.md#remaining-work-and-parallel-execution)
-sets the next proof contract, independent workstreams and acceptance gates.
+The [historical execution plan](Supervision.md#remaining-work-and-parallel-execution)
+records how those proof workstreams were ordered.
 
 This directory develops a source-derived CSP model of CM, IG, OG and Server
 together. It is independent of `Cardano_network`, `GovernorWedge` and
@@ -327,11 +336,11 @@ pin. The confirmed release mismatch is corrected in the model.
 9. [Outbound CM and OG](Outbound.md), [combined subsystem](Subsystem.agda),
    and [integrated lifecycle](CSP/GovernorLifecycle.agda).
 
-The [architecture review](../review/connection-management-architecture-review.md)
-contains the seven source/runtime/semantic diagrams. The subsequent
-[progress review](../review/connection-management-progress-review.md) evaluates
-the implemented coverage and prioritizes integrated IG/OG behavior over further
-broad structural proofs.
+The [November architecture review](../review/connection-management-architecture-review-2026-11.md)
+contains the current source/runtime/semantic diagrams and disparities. The
+[October design review](../review/connection-management-architecture-review.md)
+and [progress review](../review/connection-management-progress-review.md) preserve
+the earlier architecture and implementation priorities.
 
 The [information-channel kernel](Rules/InformationChannel.agda) provides FIFO
 reads, whole-queue flush and capacity-100 writes, including atomic multi-message
@@ -354,7 +363,8 @@ executable through [Subsystem](Subsystem.agda).
 [Tracked-handler validity](HandlerValidity.md) now checks captured references,
 unique ownership and lifecycle/cleanup consistency at every state of selected
 executions. A startup-to-node-rethrow scenario attaches before monitor execution.
-These certificates do not yet establish a machine-wide runtime invariant.
+The separate supervised CM-I4c theorem proves `FullValidity` for runs from
+successful `initialize (O.initial c₀) g`. [Handler validity](HandlerValidity.md).
 A separate [capture-retention theorem](HandlerCapture.md) now covers every
 successful dispatcher step and arbitrary finite executions: stored mux captures
 cannot disappear or change. [Unique tracked ownership](HandlerUniqueOwnership.md)

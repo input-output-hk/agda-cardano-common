@@ -7,7 +7,10 @@ the earlier abstract exit boundary.
 
 ## Source ordering
 
-Source pin: `96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`.
+Source pin for this opt-in outcome adapter:
+`96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d`. The promoted model uses
+`2f1c154`, with additional physical handler and mux unwind layers.
+[Source authority](SourceLedger.md), [current supervision](Supervision.md#current-status-at-increment-100).
 
 - [Mux.hs](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs#L254-L278): the pool bracket surrounds the monitor; the outer catch handles only async exceptions.
 - [Monitor branches](https://github.com/IntersectMBO/ouroboros-network/blob/96ee6e0e689770b5a3d664c59f2d13b05c5d9c4d/network-mux/src/Network/Mux.hs#L460-L570): mini-protocol failure writes Failed, traces the exception and Dead, then throws; CmdShutdown writes Stopped and traces TraceStopped before returning.

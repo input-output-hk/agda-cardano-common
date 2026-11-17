@@ -2,7 +2,9 @@
 
 **Design study for review — updated 14 October 2026; source baseline checked 13 October 2026**
 
-**Architecture review:** [CM, IG, OG and Server: source mapping, execution architecture, and seven diagrams](connection-management-architecture-review.md). That review sharpens the execution and correspondence design below; the earlier slide deck predates these revisions.
+The [October architecture review](connection-management-architecture-review.md)
+sharpens this historical proposal. The [November review](connection-management-architecture-review-2026-11.md#11-model-source-and-proof-disparities)
+records the implemented model, proofs and their source boundaries.
 
 **Objective:** model the implementation closely enough to use CSP to discover problems in the source code. This document records the source study and a proposed design. The investigation targets below are hypotheses to test, not newly established defects.
 
