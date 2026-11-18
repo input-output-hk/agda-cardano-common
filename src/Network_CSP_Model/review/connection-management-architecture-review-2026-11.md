@@ -356,6 +356,8 @@ Server-worker/include race remains unconfirmed on pristine
 source, with its halves replayed separately. Foreign residual CM frames are an
 environment over-approximation. Current source and prototype classifications
 are maintained in the [issues summary](connection-management-identified-issues-summary.md).
+The [workflow diagrams](connection-management-findings-workflows.md#pinned-shutdown-and-missing-work)
+show the source branches, prototype changes and evidence at each wait.
 
 ## 7. Design variants on the same architecture
 

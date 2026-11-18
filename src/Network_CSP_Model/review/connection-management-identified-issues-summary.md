@@ -1,4 +1,5 @@
-Companion: [Verified properties summary](connection-management-verified-properties-summary.md).
+Companions: [Verified properties summary](connection-management-verified-properties-summary.md)
+and [workflow diagrams with source and evidence links](connection-management-findings-workflows.md).
 
 # Identified Haskell and connection-management issues
 
